@@ -1,0 +1,1 @@
+req->getnameinfo_cb(req, req->retcode, host, service)

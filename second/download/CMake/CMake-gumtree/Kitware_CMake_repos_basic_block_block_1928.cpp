@@ -1,0 +1,1 @@
+topology = new cpu_topology_node_info[topologyNodeCount]

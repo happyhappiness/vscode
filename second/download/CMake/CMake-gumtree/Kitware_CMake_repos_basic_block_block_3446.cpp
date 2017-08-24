@@ -1,0 +1,1 @@
+VPrintf1( "    final combined CRC = 0x%08x\n   ", s->combinedCRC )

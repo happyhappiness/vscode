@@ -1,0 +1,1 @@
+archive_entry_unset_size(entry)

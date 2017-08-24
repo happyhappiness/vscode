@@ -1,0 +1,1 @@
+return (firstline+30);

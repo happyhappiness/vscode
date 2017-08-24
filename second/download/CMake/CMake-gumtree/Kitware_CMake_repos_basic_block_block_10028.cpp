@@ -1,0 +1,1 @@
+desiredAccess = GENERIC_READ

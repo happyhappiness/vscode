@@ -1,0 +1,1 @@
+BI = &(bindings[c-MIN_FORM_COMMAND])

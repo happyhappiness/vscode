@@ -1,0 +1,66 @@
+--- /dev/null
++++ /dev/null
+@@ -420,43 +360,34 @@
+   this->FinalGraph.resize(0);
+   this->FinalGraph.resize(this->InitialGraph.size());
+ 
+-  // Choose intra-component edges to linearize dependencies.
+-  std::vector<int> const& cmap = ccg.GetComponentMap();
+-  this->ComponentHead.resize(components.size());
+-  this->ComponentTail.resize(components.size());
+-  int nc = static_cast<int>(components.size());
+-  for(int c=0; c < nc; ++c)
+-    {
+-    int head = -1;
+-    std::set<int> emitted;
+-    NodeList const& nl = components[c];
+-    for(NodeList::const_reverse_iterator ni = nl.rbegin();
+-        ni != nl.rend(); ++ni)
+-      {
+-      std::set<int> visited;
+-      if(!this->IntraComponent(cmap, c, *ni, &head, emitted, visited))
+-        {
+-        // Cycle in add_dependencies within component!
+-        this->ComplainAboutBadComponent(ccg, c, true);
+-        return false;
+-        }
+-      }
+-    this->ComponentHead[c] = head;
+-    }
+-
+   // Convert inter-component edges to connect component tails to heads.
+   int n = static_cast<int>(cgraph.size());
+   for(int depender_component=0; depender_component < n; ++depender_component)
+     {
+-    int depender_component_tail = this->ComponentTail[depender_component];
+-    EdgeList const& nl = cgraph[depender_component];
+-    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
++    int depender_component_tail = components[depender_component].back();
++    NodeList const& nl = cgraph[depender_component];
++    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+       {
+       int dependee_component = *ni;
+-      int dependee_component_head = this->ComponentHead[dependee_component];
++      int dependee_component_head = components[dependee_component].front();
+       this->FinalGraph[depender_component_tail]
+         .push_back(dependee_component_head);
+       }
+     }
+-  return true;
++
++  // Compute intra-component edges.
++  int nc = static_cast<int>(components.size());
++  for(int c=0; c < nc; ++c)
++    {
++    // Within the component each target depends on that following it.
++    NodeList const& nl = components[c];
++    NodeList::const_iterator ni = nl.begin();
++    int last_i = *ni;
++    for(++ni; ni != nl.end(); ++ni)
++      {
++      int i = *ni;
++      this->FinalGraph[last_i].push_back(i);
++      last_i = i;
++      }
++    }
+ 

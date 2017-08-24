@@ -1,0 +1,1 @@
+uc = archive_be16dec(utf16)

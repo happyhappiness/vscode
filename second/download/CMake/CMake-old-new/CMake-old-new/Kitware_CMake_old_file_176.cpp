@@ -1,412 +1,586 @@
-/*-
- * Copyright (c) 2007 Joerg Sonnenberger
- * Copyright (c) 2012 Michihiro NAKAJIMA
- * All rights reserved.
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at http://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ ***************************************************************************/
 
-#include "archive_platform.h"
-__FBSDID("$FreeBSD: head/lib/libarchive/archive_write_set_compression_program.c 201104 2009-12-28 03:14:30Z kientzle $");
+#include "curl_setup.h"
 
-#ifdef HAVE_SYS_WAIT_H
-#  include <sys/wait.h>
+#ifndef CURL_DISABLE_FILE
+
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
 #endif
-#ifdef HAVE_ERRNO_H
-#  include <errno.h>
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
 #endif
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
+#ifdef HAVE_NET_IF_H
+#include <net/if.h>
+#endif
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
+
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h>
+#endif
+
 #ifdef HAVE_FCNTL_H
-#  include <fcntl.h>
-#endif
-#ifdef HAVE_STDLIB_H
-#  include <stdlib.h>
-#endif
-#ifdef HAVE_STRING_H
-#  include <string.h>
+#include <fcntl.h>
 #endif
 
-#include "archive.h"
-#include "archive_private.h"
-#include "archive_string.h"
-#include "archive_write_private.h"
-#include "filter_fork.h"
+#include "strtoofft.h"
+#include "urldata.h"
+#include <curl/curl.h>
+#include "progress.h"
+#include "sendf.h"
+#include "escape.h"
+#include "file.h"
+#include "speedcheck.h"
+#include "getinfo.h"
+#include "transfer.h"
+#include "url.h"
+#include "parsedate.h" /* for the week day and month names */
+#include "warnless.h"
+#include "curl_printf.h"
 
-#if ARCHIVE_VERSION_NUMBER < 4000000
-int
-archive_write_set_compression_program(struct archive *a, const char *cmd)
-{
-	__archive_write_filters_free(a);
-	return (archive_write_add_filter_program(a, cmd));
-}
+/* The last #include files should be: */
+#include "curl_memory.h"
+#include "memdebug.h"
+
+#if defined(WIN32) || defined(MSDOS) || defined(__EMX__) || \
+  defined(__SYMBIAN32__)
+#define DOS_FILESYSTEM 1
 #endif
 
-struct archive_write_program_data {
-#if defined(_WIN32) && !defined(__CYGWIN__)
-	HANDLE		 child;
+#ifdef OPEN_NEEDS_ARG3
+#  define open_readonly(p,f) open((p),(f),(0))
 #else
-	pid_t		 child;
+#  define open_readonly(p,f) open((p),(f))
 #endif
-	int		 child_stdin, child_stdout;
 
-	char		*child_buf;
-	size_t		 child_buf_len, child_buf_avail;
+/*
+ * Forward declarations.
+ */
+
+static CURLcode file_do(struct connectdata *, bool *done);
+static CURLcode file_done(struct connectdata *conn,
+                          CURLcode status, bool premature);
+static CURLcode file_connect(struct connectdata *conn, bool *done);
+static CURLcode file_disconnect(struct connectdata *conn,
+                                bool dead_connection);
+static CURLcode file_setup_connection(struct connectdata *conn);
+
+/*
+ * FILE scheme handler.
+ */
+
+const struct Curl_handler Curl_handler_file = {
+  "FILE",                               /* scheme */
+  file_setup_connection,                /* setup_connection */
+  file_do,                              /* do_it */
+  file_done,                            /* done */
+  ZERO_NULL,                            /* do_more */
+  file_connect,                         /* connect_it */
+  ZERO_NULL,                            /* connecting */
+  ZERO_NULL,                            /* doing */
+  ZERO_NULL,                            /* proto_getsock */
+  ZERO_NULL,                            /* doing_getsock */
+  ZERO_NULL,                            /* domore_getsock */
+  ZERO_NULL,                            /* perform_getsock */
+  file_disconnect,                      /* disconnect */
+  ZERO_NULL,                            /* readwrite */
+  0,                                    /* defport */
+  CURLPROTO_FILE,                       /* protocol */
+  PROTOPT_NONETWORK | PROTOPT_NOURLQUERY /* flags */
 };
 
-struct private_data {
-	struct archive_write_program_data *pdata;
-	struct archive_string description;
-	char		*cmd;
-};
 
-static int archive_compressor_program_open(struct archive_write_filter *);
-static int archive_compressor_program_write(struct archive_write_filter *,
-		    const void *, size_t);
-static int archive_compressor_program_close(struct archive_write_filter *);
-static int archive_compressor_program_free(struct archive_write_filter *);
+static CURLcode file_setup_connection(struct connectdata *conn)
+{
+  /* allocate the FILE specific struct */
+  conn->data->req.protop = calloc(1, sizeof(struct FILEPROTO));
+  if(!conn->data->req.protop)
+    return CURLE_OUT_OF_MEMORY;
 
-/*
- * Add a filter to this write handle that passes all data through an
- * external program.
+  return CURLE_OK;
+}
+
+ /*
+  Check if this is a range download, and if so, set the internal variables
+  properly. This code is copied from the FTP implementation and might as
+  well be factored out.
  */
-int
-archive_write_add_filter_program(struct archive *_a, const char *cmd)
+static CURLcode file_range(struct connectdata *conn)
 {
-	struct archive_write_filter *f = __archive_write_allocate_filter(_a);
-	struct private_data *data;
-	static const char *prefix = "Program: ";
+  curl_off_t from, to;
+  curl_off_t totalsize=-1;
+  char *ptr;
+  char *ptr2;
+  struct SessionHandle *data = conn->data;
 
-	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_write_add_filter_program");
-
-	f->data = calloc(1, sizeof(*data));
-	if (f->data == NULL)
-		goto memerr;
-	data = (struct private_data *)f->data;
-
-	data->cmd = strdup(cmd);
-	if (data->cmd == NULL)
-		goto memerr;
-
-	data->pdata = __archive_write_program_allocate();
-	if (data->pdata == NULL)
-		goto memerr;
-
-	/* Make up a description string. */
-	if (archive_string_ensure(&data->description,
-	    strlen(prefix) + strlen(cmd) + 1) == NULL)
-		goto memerr;
-	archive_strcpy(&data->description, prefix);
-	archive_strcat(&data->description, cmd);
-
-	f->name = data->description.s;
-	f->code = ARCHIVE_FILTER_PROGRAM;
-	f->open = archive_compressor_program_open;
-	f->write = archive_compressor_program_write;
-	f->close = archive_compressor_program_close;
-	f->free = archive_compressor_program_free;
-	return (ARCHIVE_OK);
-memerr:
-	archive_compressor_program_free(f);
-	archive_set_error(_a, ENOMEM,
-	    "Can't allocate memory for filter program");
-	return (ARCHIVE_FATAL);
-}
-
-static int
-archive_compressor_program_open(struct archive_write_filter *f)
-{
-	struct private_data *data = (struct private_data *)f->data;
-
-	return __archive_write_program_open(f, data->pdata, data->cmd);
-}
-
-static int
-archive_compressor_program_write(struct archive_write_filter *f,
-    const void *buff, size_t length)
-{
-	struct private_data *data = (struct private_data *)f->data;
-
-	return __archive_write_program_write(f, data->pdata, buff, length);
-}
-
-static int
-archive_compressor_program_close(struct archive_write_filter *f)
-{
-	struct private_data *data = (struct private_data *)f->data;
-
-	return __archive_write_program_close(f, data->pdata);
-}
-
-static int
-archive_compressor_program_free(struct archive_write_filter *f)
-{
-	struct private_data *data = (struct private_data *)f->data;
-
-	if (data) {
-		free(data->cmd);
-		archive_string_free(&data->description);
-		__archive_write_program_free(data->pdata);
-		free(data);
-		f->data = NULL;
-	}
-	return (ARCHIVE_OK);
+  if(data->state.use_range && data->state.range) {
+    from=curlx_strtoofft(data->state.range, &ptr, 0);
+    while(*ptr && (ISSPACE(*ptr) || (*ptr=='-')))
+      ptr++;
+    to=curlx_strtoofft(ptr, &ptr2, 0);
+    if(ptr == ptr2) {
+      /* we didn't get any digit */
+      to=-1;
+    }
+    if((-1 == to) && (from>=0)) {
+      /* X - */
+      data->state.resume_from = from;
+      DEBUGF(infof(data, "RANGE %" CURL_FORMAT_CURL_OFF_T " to end of file\n",
+                   from));
+    }
+    else if(from < 0) {
+      /* -Y */
+      data->req.maxdownload = -from;
+      data->state.resume_from = from;
+      DEBUGF(infof(data, "RANGE the last %" CURL_FORMAT_CURL_OFF_T " bytes\n",
+                   -from));
+    }
+    else {
+      /* X-Y */
+      totalsize = to-from;
+      data->req.maxdownload = totalsize+1; /* include last byte */
+      data->state.resume_from = from;
+      DEBUGF(infof(data, "RANGE from %" CURL_FORMAT_CURL_OFF_T
+                   " getting %" CURL_FORMAT_CURL_OFF_T " bytes\n",
+                   from, data->req.maxdownload));
+    }
+    DEBUGF(infof(data, "range-download from %" CURL_FORMAT_CURL_OFF_T
+                 " to %" CURL_FORMAT_CURL_OFF_T ", totally %"
+                 CURL_FORMAT_CURL_OFF_T " bytes\n",
+                 from, to, data->req.maxdownload));
+  }
+  else
+    data->req.maxdownload = -1;
+  return CURLE_OK;
 }
 
 /*
- * Allocate resources for executing an external program.
+ * file_connect() gets called from Curl_protocol_connect() to allow us to
+ * do protocol-specific actions at connect-time.  We emulate a
+ * connect-then-transfer protocol and "connect" to the file here
  */
-struct archive_write_program_data *
-__archive_write_program_allocate(void)
+static CURLcode file_connect(struct connectdata *conn, bool *done)
 {
-	struct archive_write_program_data *data;
-
-	data = calloc(1, sizeof(struct archive_write_program_data));
-	if (data == NULL)
-		return (data);
-	data->child_stdin = -1;
-	data->child_stdout = -1;
-	return (data);
-}
-
-/*
- * Release the resources.
- */
-int
-__archive_write_program_free(struct archive_write_program_data *data)
-{
-
-	if (data) {
-#if defined(_WIN32) && !defined(__CYGWIN__)
-		if (data->child)
-			CloseHandle(data->child);
+  struct SessionHandle *data = conn->data;
+  char *real_path;
+  struct FILEPROTO *file = data->req.protop;
+  int fd;
+#ifdef DOS_FILESYSTEM
+  int i;
+  char *actual_path;
 #endif
-		free(data->child_buf);
-		free(data);
-	}
-	return (ARCHIVE_OK);
-}
+  int real_path_len;
 
-int
-__archive_write_program_open(struct archive_write_filter *f,
-    struct archive_write_program_data *data, const char *cmd)
-{
-	pid_t child;
-	int ret;
+  real_path = curl_easy_unescape(data, data->state.path, 0, &real_path_len);
+  if(!real_path)
+    return CURLE_OUT_OF_MEMORY;
 
-	ret = __archive_write_open_filter(f->next_filter);
-	if (ret != ARCHIVE_OK)
-		return (ret);
+#ifdef DOS_FILESYSTEM
+  /* If the first character is a slash, and there's
+     something that looks like a drive at the beginning of
+     the path, skip the slash.  If we remove the initial
+     slash in all cases, paths without drive letters end up
+     relative to the current directory which isn't how
+     browsers work.
 
-	if (data->child_buf == NULL) {
-		data->child_buf_len = 65536;
-		data->child_buf_avail = 0;
-		data->child_buf = malloc(data->child_buf_len);
+     Some browsers accept | instead of : as the drive letter
+     separator, so we do too.
 
-		if (data->child_buf == NULL) {
-			archive_set_error(f->archive, ENOMEM,
-			    "Can't allocate compression buffer");
-			return (ARCHIVE_FATAL);
-		}
-	}
+     On other platforms, we need the slash to indicate an
+     absolute pathname.  On Windows, absolute paths start
+     with a drive letter.
+  */
+  actual_path = real_path;
+  if((actual_path[0] == '/') &&
+      actual_path[1] &&
+     (actual_path[2] == ':' || actual_path[2] == '|')) {
+    actual_path[2] = ':';
+    actual_path++;
+    real_path_len--;
+  }
 
-	child = __archive_create_child(cmd, &data->child_stdin,
-		    &data->child_stdout);
-	if (child == -1) {
-		archive_set_error(f->archive, EINVAL,
-		    "Can't initialise filter");
-		return (ARCHIVE_FATAL);
-	}
-#if defined(_WIN32) && !defined(__CYGWIN__)
-	data->child = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, child);
-	if (data->child == NULL) {
-		close(data->child_stdin);
-		data->child_stdin = -1;
-		close(data->child_stdout);
-		data->child_stdout = -1;
-		archive_set_error(f->archive, EINVAL,
-		    "Can't initialise filter");
-		return (ARCHIVE_FATAL);
-	}
+  /* change path separators from '/' to '\\' for DOS, Windows and OS/2 */
+  for(i=0; i < real_path_len; ++i)
+    if(actual_path[i] == '/')
+      actual_path[i] = '\\';
+    else if(!actual_path[i]) /* binary zero */
+      return CURLE_URL_MALFORMAT;
+
+  fd = open_readonly(actual_path, O_RDONLY|O_BINARY);
+  file->path = actual_path;
 #else
-	data->child = child;
+  if(memchr(real_path, 0, real_path_len))
+    /* binary zeroes indicate foul play */
+    return CURLE_URL_MALFORMAT;
+
+  fd = open_readonly(real_path, O_RDONLY);
+  file->path = real_path;
 #endif
-	return (ARCHIVE_OK);
+  file->freepath = real_path; /* free this when done */
+
+  file->fd = fd;
+  if(!data->set.upload && (fd == -1)) {
+    failf(data, "Couldn't open file %s", data->state.path);
+    file_done(conn, CURLE_FILE_COULDNT_READ_FILE, FALSE);
+    return CURLE_FILE_COULDNT_READ_FILE;
+  }
+  *done = TRUE;
+
+  return CURLE_OK;
 }
 
-static ssize_t
-child_write(struct archive_write_filter *f,
-    struct archive_write_program_data *data, const char *buf, size_t buf_len)
+static CURLcode file_done(struct connectdata *conn,
+                               CURLcode status, bool premature)
 {
-	ssize_t ret;
+  struct FILEPROTO *file = conn->data->req.protop;
+  (void)status; /* not used */
+  (void)premature; /* not used */
 
-	if (data->child_stdin == -1)
-		return (-1);
+  if(file) {
+    Curl_safefree(file->freepath);
+    file->path = NULL;
+    if(file->fd != -1)
+      close(file->fd);
+    file->fd = -1;
+  }
 
-	if (buf_len == 0)
-		return (-1);
+  return CURLE_OK;
+}
 
-	for (;;) {
-		do {
-			ret = write(data->child_stdin, buf, buf_len);
-		} while (ret == -1 && errno == EINTR);
+static CURLcode file_disconnect(struct connectdata *conn,
+                                bool dead_connection)
+{
+  struct FILEPROTO *file = conn->data->req.protop;
+  (void)dead_connection; /* not used */
 
-		if (ret > 0)
-			return (ret);
-		if (ret == 0) {
-			close(data->child_stdin);
-			data->child_stdin = -1;
-			fcntl(data->child_stdout, F_SETFL, 0);
-			return (0);
-		}
-		if (ret == -1 && errno != EAGAIN)
-			return (-1);
+  if(file) {
+    Curl_safefree(file->freepath);
+    file->path = NULL;
+    if(file->fd != -1)
+      close(file->fd);
+    file->fd = -1;
+  }
 
-		if (data->child_stdout == -1) {
-			fcntl(data->child_stdin, F_SETFL, 0);
-			__archive_check_child(data->child_stdin,
-				data->child_stdout);
-			continue;
-		}
+  return CURLE_OK;
+}
 
-		do {
-			ret = read(data->child_stdout,
-			    data->child_buf + data->child_buf_avail,
-			    data->child_buf_len - data->child_buf_avail);
-		} while (ret == -1 && errno == EINTR);
+#ifdef DOS_FILESYSTEM
+#define DIRSEP '\\'
+#else
+#define DIRSEP '/'
+#endif
 
-		if (ret == 0 || (ret == -1 && errno == EPIPE)) {
-			close(data->child_stdout);
-			data->child_stdout = -1;
-			fcntl(data->child_stdin, F_SETFL, 0);
-			continue;
-		}
-		if (ret == -1 && errno == EAGAIN) {
-			__archive_check_child(data->child_stdin,
-				data->child_stdout);
-			continue;
-		}
-		if (ret == -1)
-			return (-1);
+static CURLcode file_upload(struct connectdata *conn)
+{
+  struct FILEPROTO *file = conn->data->req.protop;
+  const char *dir = strchr(file->path, DIRSEP);
+  int fd;
+  int mode;
+  CURLcode result = CURLE_OK;
+  struct SessionHandle *data = conn->data;
+  char *buf = data->state.buffer;
+  size_t nread;
+  size_t nwrite;
+  curl_off_t bytecount = 0;
+  struct timeval now = Curl_tvnow();
+  struct_stat file_stat;
+  const char* buf2;
 
-		data->child_buf_avail += ret;
+  /*
+   * Since FILE: doesn't do the full init, we need to provide some extra
+   * assignments here.
+   */
+  conn->data->req.upload_fromhere = buf;
 
-		ret = __archive_write_filter(f->next_filter,
-		    data->child_buf, data->child_buf_avail);
-		if (ret != ARCHIVE_OK)
-			return (-1);
-		data->child_buf_avail = 0;
-	}
+  if(!dir)
+    return CURLE_FILE_COULDNT_READ_FILE; /* fix: better error code */
+
+  if(!dir[1])
+    return CURLE_FILE_COULDNT_READ_FILE; /* fix: better error code */
+
+#ifdef O_BINARY
+#define MODE_DEFAULT O_WRONLY|O_CREAT|O_BINARY
+#else
+#define MODE_DEFAULT O_WRONLY|O_CREAT
+#endif
+
+  if(data->state.resume_from)
+    mode = MODE_DEFAULT|O_APPEND;
+  else
+    mode = MODE_DEFAULT|O_TRUNC;
+
+  fd = open(file->path, mode, conn->data->set.new_file_perms);
+  if(fd < 0) {
+    failf(data, "Can't open %s for writing", file->path);
+    return CURLE_WRITE_ERROR;
+  }
+
+  if(-1 != data->state.infilesize)
+    /* known size of data to "upload" */
+    Curl_pgrsSetUploadSize(data, data->state.infilesize);
+
+  /* treat the negative resume offset value as the case of "-" */
+  if(data->state.resume_from < 0) {
+    if(fstat(fd, &file_stat)) {
+      close(fd);
+      failf(data, "Can't get the size of %s", file->path);
+      return CURLE_WRITE_ERROR;
+    }
+    else
+      data->state.resume_from = (curl_off_t)file_stat.st_size;
+  }
+
+  while(!result) {
+    int readcount;
+    result = Curl_fillreadbuffer(conn, BUFSIZE, &readcount);
+    if(result)
+      break;
+
+    if(readcount <= 0)  /* fix questionable compare error. curlvms */
+      break;
+
+    nread = (size_t)readcount;
+
+    /*skip bytes before resume point*/
+    if(data->state.resume_from) {
+      if((curl_off_t)nread <= data->state.resume_from ) {
+        data->state.resume_from -= nread;
+        nread = 0;
+        buf2 = buf;
+      }
+      else {
+        buf2 = buf + data->state.resume_from;
+        nread -= (size_t)data->state.resume_from;
+        data->state.resume_from = 0;
+      }
+    }
+    else
+      buf2 = buf;
+
+    /* write the data to the target */
+    nwrite = write(fd, buf2, nread);
+    if(nwrite != nread) {
+      result = CURLE_SEND_ERROR;
+      break;
+    }
+
+    bytecount += nread;
+
+    Curl_pgrsSetUploadCounter(data, bytecount);
+
+    if(Curl_pgrsUpdate(conn))
+      result = CURLE_ABORTED_BY_CALLBACK;
+    else
+      result = Curl_speedcheck(data, now);
+  }
+  if(!result && Curl_pgrsUpdate(conn))
+    result = CURLE_ABORTED_BY_CALLBACK;
+
+  close(fd);
+
+  return result;
 }
 
 /*
- * Write data to the filter stream.
+ * file_do() is the protocol-specific function for the do-phase, separated
+ * from the connect-phase above. Other protocols merely setup the transfer in
+ * the do-phase, to have it done in the main transfer loop but since some
+ * platforms we support don't allow select()ing etc on file handles (as
+ * opposed to sockets) we instead perform the whole do-operation in this
+ * function.
  */
-int
-__archive_write_program_write(struct archive_write_filter *f,
-    struct archive_write_program_data *data, const void *buff, size_t length)
+static CURLcode file_do(struct connectdata *conn, bool *done)
 {
-	ssize_t ret;
-	const char *buf;
+  /* This implementation ignores the host name in conformance with
+     RFC 1738. Only local files (reachable via the standard file system)
+     are supported. This means that files on remotely mounted directories
+     (via NFS, Samba, NT sharing) can be accessed through a file:// URL
+  */
+  CURLcode result = CURLE_OK;
+  struct_stat statbuf; /* struct_stat instead of struct stat just to allow the
+                          Windows version to have a different struct without
+                          having to redefine the simple word 'stat' */
+  curl_off_t expected_size=0;
+  bool fstated=FALSE;
+  ssize_t nread;
+  struct SessionHandle *data = conn->data;
+  char *buf = data->state.buffer;
+  curl_off_t bytecount = 0;
+  int fd;
+  struct timeval now = Curl_tvnow();
+  struct FILEPROTO *file;
 
-	if (data->child == 0)
-		return (ARCHIVE_OK);
+  *done = TRUE; /* unconditionally */
 
-	buf = buff;
-	while (length > 0) {
-		ret = child_write(f, data, buf, length);
-		if (ret == -1 || ret == 0) {
-			archive_set_error(f->archive, EIO,
-			    "Can't write to filter");
-			return (ARCHIVE_FATAL);
-		}
-		length -= ret;
-		buf += ret;
-	}
-	return (ARCHIVE_OK);
+  Curl_initinfo(data);
+  Curl_pgrsStartNow(data);
+
+  if(data->set.upload)
+    return file_upload(conn);
+
+  file = conn->data->req.protop;
+
+  /* get the fd from the connection phase */
+  fd = file->fd;
+
+  /* VMS: This only works reliable for STREAMLF files */
+  if(-1 != fstat(fd, &statbuf)) {
+    /* we could stat it, then read out the size */
+    expected_size = statbuf.st_size;
+    /* and store the modification time */
+    data->info.filetime = (long)statbuf.st_mtime;
+    fstated = TRUE;
+  }
+
+  if(fstated && !data->state.range && data->set.timecondition) {
+    if(!Curl_meets_timecondition(data, (time_t)data->info.filetime)) {
+      *done = TRUE;
+      return CURLE_OK;
+    }
+  }
+
+  /* If we have selected NOBODY and HEADER, it means that we only want file
+     information. Which for FILE can't be much more than the file size and
+     date. */
+  if(data->set.opt_no_body && data->set.include_header && fstated) {
+    snprintf(buf, sizeof(data->state.buffer),
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+    if(result)
+      return result;
+
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH,
+                               (char *)"Accept-ranges: bytes\r\n", 0);
+    if(result)
+      return result;
+
+    if(fstated) {
+      time_t filetime = (time_t)statbuf.st_mtime;
+      struct tm buffer;
+      const struct tm *tm = &buffer;
+      result = Curl_gmtime(filetime, &buffer);
+      if(result)
+        return result;
+
+      /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+      snprintf(buf, BUFSIZE-1,
+               "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+               Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+               tm->tm_mday,
+               Curl_month[tm->tm_mon],
+               tm->tm_year + 1900,
+               tm->tm_hour,
+               tm->tm_min,
+               tm->tm_sec);
+      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+    }
+    /* if we fstat()ed the file, set the file size to make it available post-
+       transfer */
+    if(fstated)
+      Curl_pgrsSetDownloadSize(data, expected_size);
+    return result;
+  }
+
+  /* Check whether file range has been specified */
+  file_range(conn);
+
+  /* Adjust the start offset in case we want to get the N last bytes
+   * of the stream iff the filesize could be determined */
+  if(data->state.resume_from < 0) {
+    if(!fstated) {
+      failf(data, "Can't get the size of file.");
+      return CURLE_READ_ERROR;
+    }
+    else
+      data->state.resume_from += (curl_off_t)statbuf.st_size;
+  }
+
+  if(data->state.resume_from <= expected_size)
+    expected_size -= data->state.resume_from;
+  else {
+    failf(data, "failed to resume file:// transfer");
+    return CURLE_BAD_DOWNLOAD_RESUME;
+  }
+
+  /* A high water mark has been specified so we obey... */
+  if(data->req.maxdownload > 0)
+    expected_size = data->req.maxdownload;
+
+  if(fstated && (expected_size == 0))
+    return CURLE_OK;
+
+  /* The following is a shortcut implementation of file reading
+     this is both more efficient than the former call to download() and
+     it avoids problems with select() and recv() on file descriptors
+     in Winsock */
+  if(fstated)
+    Curl_pgrsSetDownloadSize(data, expected_size);
+
+  if(data->state.resume_from) {
+    if(data->state.resume_from !=
+       lseek(fd, data->state.resume_from, SEEK_SET))
+      return CURLE_BAD_DOWNLOAD_RESUME;
+  }
+
+  Curl_pgrsTime(data, TIMER_STARTTRANSFER);
+
+  while(!result) {
+    /* Don't fill a whole buffer if we want less than all data */
+    size_t bytestoread =
+      (expected_size < CURL_OFF_T_C(BUFSIZE) - CURL_OFF_T_C(1)) ?
+      curlx_sotouz(expected_size) : BUFSIZE - 1;
+
+    nread = read(fd, buf, bytestoread);
+
+    if(nread > 0)
+      buf[nread] = 0;
+
+    if(nread <= 0 || expected_size == 0)
+      break;
+
+    bytecount += nread;
+    expected_size -= nread;
+
+    result = Curl_client_write(conn, CLIENTWRITE_BODY, buf, nread);
+    if(result)
+      return result;
+
+    Curl_pgrsSetDownloadCounter(data, bytecount);
+
+    if(Curl_pgrsUpdate(conn))
+      result = CURLE_ABORTED_BY_CALLBACK;
+    else
+      result = Curl_speedcheck(data, now);
+  }
+  if(Curl_pgrsUpdate(conn))
+    result = CURLE_ABORTED_BY_CALLBACK;
+
+  return result;
 }
 
-/*
- * Finish the filtering...
- */
-int
-__archive_write_program_close(struct archive_write_filter *f,
-    struct archive_write_program_data *data)
-{
-	int ret, r1, status;
-	ssize_t bytes_read;
-
-	if (data->child == 0)
-		return __archive_write_close_filter(f->next_filter);
-
-	ret = 0;
-	close(data->child_stdin);
-	data->child_stdin = -1;
-	fcntl(data->child_stdout, F_SETFL, 0);
-
-	for (;;) {
-		do {
-			bytes_read = read(data->child_stdout,
-			    data->child_buf + data->child_buf_avail,
-			    data->child_buf_len - data->child_buf_avail);
-		} while (bytes_read == -1 && errno == EINTR);
-
-		if (bytes_read == 0 || (bytes_read == -1 && errno == EPIPE))
-			break;
-
-		if (bytes_read == -1) {
-			archive_set_error(f->archive, errno,
-			    "Read from filter failed unexpectedly.");
-			ret = ARCHIVE_FATAL;
-			goto cleanup;
-		}
-		data->child_buf_avail += bytes_read;
-
-		ret = __archive_write_filter(f->next_filter,
-		    data->child_buf, data->child_buf_avail);
-		if (ret != ARCHIVE_OK) {
-			ret = ARCHIVE_FATAL;
-			goto cleanup;
-		}
-		data->child_buf_avail = 0;
-	}
-
-cleanup:
-	/* Shut down the child. */
-	if (data->child_stdin != -1)
-		close(data->child_stdin);
-	if (data->child_stdout != -1)
-		close(data->child_stdout);
-	while (waitpid(data->child, &status, 0) == -1 && errno == EINTR)
-		continue;
-#if defined(_WIN32) && !defined(__CYGWIN__)
-	CloseHandle(data->child);
 #endif
-	data->child = 0;
-
-	if (status != 0) {
-		archive_set_error(f->archive, EIO,
-		    "Filter exited with failure.");
-		ret = ARCHIVE_FATAL;
-	}
-	r1 = __archive_write_close_filter(f->next_filter);
-	return (r1 < ret ? r1 : ret);
-}
-

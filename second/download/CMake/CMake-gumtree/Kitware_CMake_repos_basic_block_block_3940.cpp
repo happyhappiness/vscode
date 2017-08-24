@@ -1,0 +1,1 @@
+omask |= CURL_CSELECT_OUT

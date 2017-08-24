@@ -1,0 +1,1 @@
+XmlGetAttributes(enc, attStr, n, atts)

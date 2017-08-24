@@ -1,0 +1,1 @@
+s = (size_t)cpio->entry_bytes_remaining

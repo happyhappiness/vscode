@@ -1,0 +1,1 @@
+proxyinfo->passwd = strdup("")

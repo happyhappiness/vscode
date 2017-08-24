@@ -1,0 +1,1 @@
+t->current_sparse++

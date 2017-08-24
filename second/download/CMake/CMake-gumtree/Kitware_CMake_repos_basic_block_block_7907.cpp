@@ -1,0 +1,4 @@
+{
+          processor = ignoreSectionProcessor;
+          return result;
+        }

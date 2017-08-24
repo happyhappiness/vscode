@@ -1,0 +1,1 @@
+gid = result->gr_gid

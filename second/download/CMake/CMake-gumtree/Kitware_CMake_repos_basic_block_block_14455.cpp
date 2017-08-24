@@ -1,0 +1,1 @@
+state->bit_offset = 0

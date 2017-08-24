@@ -1,0 +1,1 @@
+return smtp_perform_upgrade_tls(conn);

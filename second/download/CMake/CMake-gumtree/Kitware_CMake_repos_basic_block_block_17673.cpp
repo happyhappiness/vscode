@@ -1,0 +1,1 @@
+archive_entry_set_symlink(zip->entry, p)

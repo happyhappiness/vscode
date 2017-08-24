@@ -1,0 +1,1 @@
+size = (size_t)archive_entry_size(isoent->file->entry)

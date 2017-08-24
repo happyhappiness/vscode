@@ -1,0 +1,1 @@
+inflateEnd(&cab->stream)

@@ -1,0 +1,1 @@
+(ftabCopy[j] == 0) j++

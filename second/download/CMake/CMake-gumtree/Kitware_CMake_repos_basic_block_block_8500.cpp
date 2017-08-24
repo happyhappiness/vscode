@@ -1,0 +1,1 @@
+archive_mstring_copy(&ap2->name, &ap->name)

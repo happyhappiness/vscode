@@ -1,0 +1,1 @@
+*document_ << " " + normalizeEOL(root.getComment(commentAfterOnSameLine))

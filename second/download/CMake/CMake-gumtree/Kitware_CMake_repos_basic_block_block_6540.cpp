@@ -1,0 +1,1 @@
+show_verbose_server_cert(conn, sockindex)

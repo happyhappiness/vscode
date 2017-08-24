@@ -1,23 +1,8 @@
-		 * impact.
-		 */
-		if (lchmod(a->name, mode) != 0) {
-			switch (errno) {
-			case ENOTSUP:
-			case ENOSYS:
-#if ENOTSUP != EOPNOTSUPP
-			case EOPNOTSUPP:
-#endif
-				/*
-				 * if lchmod is defined but the platform
-				 * doesn't support it, silently ignore
-				 * error
-				 */
-				break;
-			default:
-				archive_set_error(&a->archive, errno,
-				    "Can't set permissions to 0%o", (int)mode);
-				r = ARCHIVE_WARN;
-			}
-		}
-#endif
-	} else if (!S_ISDIR(a->mode)) {
+	struct mtree_entry *entry;
+	struct mtree_option *iter;
+	const char *next, *eq, *name, *end;
+	size_t name_len, len;
+	int r, i;
+
+	if ((entry = malloc(sizeof(*entry))) == NULL) {
+		archive_set_error(&a->archive, errno, "Can't allocate memory");

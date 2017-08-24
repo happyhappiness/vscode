@@ -1,164 +1,258 @@
-@@ -39,7 +39,8 @@ __FBSDID("$FreeBSD: head/lib/libarchive/archive_read_support_format_zip.c 201102
+@@ -5,11 +5,11 @@
+  *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
   *
-  * History of this code: The streaming Zip reader was first added to
-  * libarchive in January 2005.  Support for seekable input sources was
-- * added in Nov 2011.
-+ * added in Nov 2011.  Zip64 support (including a significant code
-+ * refactoring) was added in 2014.
-  */
+- * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
++ * Copyright (C) 1998 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+- * are also available at http://curl.haxx.se/docs/copyright.html.
++ * are also available at https://curl.haxx.se/docs/copyright.html.
+  *
+  * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+  * copies of the Software, and permit persons to whom the Software is
+@@ -22,156 +22,94 @@
  
- #ifdef HAVE_ERRNO_H
-@@ -419,8 +420,9 @@ process_extra(const char *p, size_t extra_length, struct zip_entry* zip_entry)
- 		unsigned short datasize = archive_le16dec(p + offset + 2);
+ #include "curl_setup.h"
  
- 		offset += 4;
--		if (offset + datasize > extra_length)
-+		if (offset + datasize > extra_length) {
- 			break;
-+		}
- #ifdef DEBUG
- 		fprintf(stderr, "Header id 0x%04x, length %d\n",
- 		    headerid, datasize);
-@@ -555,7 +557,7 @@ process_extra(const char *p, size_t extra_length, struct zip_entry* zip_entry)
- 			 *  if bitmap & 1, 2 byte "version made by"
- 			 *  if bitmap & 2, 2 byte "internal file attributes"
- 			 *  if bitmap & 4, 4 byte "external file attributes"
--			 *  if bitmap * 7, 2 byte comment length + n byte comment
-+			 *  if bitmap & 8, 2 byte comment length + n byte comment
- 			 */
- 			int bitmap, bitmap_last;
+-#if defined(HAVE_GSSAPI) && !defined(CURL_DISABLE_HTTP) && defined(USE_SPNEGO)
++#if !defined(CURL_DISABLE_HTTP) && defined(USE_SPNEGO)
  
-@@ -604,6 +606,19 @@ process_extra(const char *p, size_t extra_length, struct zip_entry* zip_entry)
- 				if (zip_entry->system == 3) {
- 					zip_entry->mode
- 					    = external_attributes >> 16;
-+				} else if (zip_entry->system == 0) {
-+					// Interpret MSDOS directory bit
-+					if (0x10 == (external_attributes & 0x10)) {
-+						zip_entry->mode = AE_IFDIR | 0775;
-+					} else {
-+						zip_entry->mode = AE_IFREG | 0664;
-+					}
-+					if (0x01 == (external_attributes & 0x01)) {
-+						// Read-only bit; strip write permissions
-+						zip_entry->mode &= 0555;
-+					}
-+				} else {
-+					zip_entry->mode = 0;
- 				}
- 				offset += 4;
- 				datasize -= 4;
-@@ -810,6 +825,16 @@ zip_read_local_file_header(struct archive_read *a, struct archive_entry *entry,
- 	}
- 	__archive_read_consume(a, filename_length);
+ #include "urldata.h"
+ #include "sendf.h"
+-#include "curl_gssapi.h"
+ #include "rawstr.h"
+-#include "curl_base64.h"
+ #include "http_negotiate.h"
+-#include "curl_sasl.h"
+-#include "url.h"
+-#include "curl_printf.h"
++#include "vauth/vauth.h"
  
-+	/* Read the extra data. */
-+	if ((h = __archive_read_ahead(a, extra_length, NULL)) == NULL) {
-+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-+		    "Truncated ZIP file header");
-+		return (ARCHIVE_FATAL);
-+	}
-+
-+	process_extra(h, extra_length, zip_entry);
-+	__archive_read_consume(a, extra_length);
-+
- 	/* Work around a bug in Info-Zip: When reading from a pipe, it
- 	 * stats the pipe instead of synthesizing a file entry. */
- 	if ((zip_entry->mode & AE_IFMT) == AE_IFIFO) {
-@@ -843,16 +868,31 @@ zip_read_local_file_header(struct archive_read *a, struct archive_entry *entry,
- 		}
- 	}
+-/* The last #include files should be: */
++/* The last 3 #include files should be in this order */
++#include "curl_printf.h"
+ #include "curl_memory.h"
+ #include "memdebug.h"
  
--	/* Read the extra data. */
--	if ((h = __archive_read_ahead(a, extra_length, NULL)) == NULL) {
--		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
--		    "Truncated ZIP file header");
--		return (ARCHIVE_FATAL);
-+	/* Make sure directories end in '/' */
-+	if ((zip_entry->mode & AE_IFMT) == AE_IFDIR) {
-+		wp = archive_entry_pathname_w(entry);
-+		if (wp != NULL) {
-+			len = wcslen(wp);
-+			if (len > 0 && wp[len - 1] != L'/') {
-+				struct archive_wstring s;
-+				archive_string_init(&s);
-+				archive_wstrcat(&s, wp);
-+				archive_wstrappend_wchar(&s, L'/');
-+				archive_entry_copy_pathname_w(entry, s.s);
-+			}
-+		} else {
-+			cp = archive_entry_pathname(entry);
-+			len = (cp != NULL)?strlen(cp):0;
-+			if (len > 0 && cp[len - 1] != '/') {
-+				struct archive_string s;
-+				archive_string_init(&s);
-+				archive_strcat(&s, cp);
-+				archive_strappend_char(&s, '/');
-+				archive_entry_set_pathname(entry, s.s);
-+			}
-+		}
- 	}
+ CURLcode Curl_input_negotiate(struct connectdata *conn, bool proxy,
+                               const char *header)
+ {
+-  struct SessionHandle *data = conn->data;
+-  struct negotiatedata *neg_ctx = proxy?&data->state.proxyneg:
+-    &data->state.negotiate;
+-  OM_uint32 major_status, minor_status, discard_st;
+-  gss_buffer_desc spn_token = GSS_C_EMPTY_BUFFER;
+-  gss_buffer_desc input_token = GSS_C_EMPTY_BUFFER;
+-  gss_buffer_desc output_token = GSS_C_EMPTY_BUFFER;
++  struct Curl_easy *data = conn->data;
+   size_t len;
+-  size_t rawlen = 0;
+-  CURLcode result;
  
--	process_extra(h, extra_length, zip_entry);
--	__archive_read_consume(a, extra_length);
+-  if(neg_ctx->context && neg_ctx->status == GSS_S_COMPLETE) {
+-    /* We finished successfully our part of authentication, but server
+-     * rejected it (since we're again here). Exit with an error since we
+-     * can't invent anything better */
+-    Curl_cleanup_negotiate(data);
+-    return CURLE_LOGIN_DENIED;
+-  }
++  /* Point to the username, password, service and host */
++  const char *userp;
++  const char *passwdp;
++  const char *service;
++  const char *host;
+ 
+-  if(!neg_ctx->server_name) {
+-    /* Generate our SPN */
+-    char *spn = Curl_sasl_build_gssapi_spn(
+-      proxy ? data->set.str[STRING_PROXY_SERVICE_NAME] :
+-      data->set.str[STRING_SERVICE_NAME],
+-      proxy ? conn->proxy.name : conn->host.name);
+-    if(!spn)
+-      return CURLE_OUT_OF_MEMORY;
 -
- 	if (zip_entry->flags & LA_FROM_CENTRAL_DIRECTORY) {
- 		/* If this came from the central dir, it's size info
- 		 * is definitive, so ignore the length-at-end flag. */
-@@ -2614,9 +2654,21 @@ slurp_central_directory(struct archive_read *a, struct zip *zip)
- 		/* If we can't guess the mode, leave it zero here;
- 		   when we read the local file header we might get
- 		   more information. */
--		zip_entry->mode = 0;
- 		if (zip_entry->system == 3) {
- 			zip_entry->mode = external_attributes >> 16;
-+		} else if (zip_entry->system == 0) {
-+			// Interpret MSDOS directory bit
-+			if (0x10 == (external_attributes & 0x10)) {
-+				zip_entry->mode = AE_IFDIR | 0775;
-+			} else {
-+				zip_entry->mode = AE_IFREG | 0664;
-+			}
-+			if (0x01 == (external_attributes & 0x01)) {
-+				// Read-only bit; strip write permissions
-+				zip_entry->mode &= 0555;
-+			}
-+		} else {
-+			zip_entry->mode = 0;
- 		}
+-    /* Populate the SPN structure */
+-    spn_token.value = spn;
+-    spn_token.length = strlen(spn);
+-
+-    /* Import the SPN */
+-    major_status = gss_import_name(&minor_status, &spn_token,
+-                                   GSS_C_NT_HOSTBASED_SERVICE,
+-                                   &neg_ctx->server_name);
+-    if(GSS_ERROR(major_status)) {
+-      Curl_gss_log_error(data, minor_status, "gss_import_name() failed: ");
+-
+-      free(spn);
+-
+-      return CURLE_OUT_OF_MEMORY;
+-    }
++  /* Point to the correct struct with this */
++  struct negotiatedata *neg_ctx;
  
- 		/* We're done with the regular data; get the filename and
-@@ -2726,6 +2778,11 @@ zip_read_mac_metadata(struct archive_read *a, struct archive_entry *entry,
+-    free(spn);
++  if(proxy) {
++    userp = conn->proxyuser;
++    passwdp = conn->proxypasswd;
++    service = data->set.str[STRING_PROXY_SERVICE_NAME] ?
++              data->set.str[STRING_PROXY_SERVICE_NAME] : "HTTP";
++    host = conn->proxy.name;
++    neg_ctx = &data->state.proxyneg;
++  }
++  else {
++    userp = conn->user;
++    passwdp = conn->passwd;
++    service = data->set.str[STRING_SERVICE_NAME] ?
++              data->set.str[STRING_SERVICE_NAME] : "HTTP";
++    host = conn->host.name;
++    neg_ctx = &data->state.negotiate;
+   }
  
- 	switch(rsrc->compression) {
- 	case 0:  /* No compression. */
-+		if (rsrc->uncompressed_size != rsrc->compressed_size) {
-+			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-+			    "Malformed OS X metadata entry: inconsistent size");
-+			return (ARCHIVE_FATAL);
-+		}
- #ifdef HAVE_ZLIB_H
- 	case 8: /* Deflate compression. */
- #endif
-@@ -2746,6 +2803,12 @@ zip_read_mac_metadata(struct archive_read *a, struct archive_entry *entry,
- 		    (intmax_t)rsrc->uncompressed_size);
- 		return (ARCHIVE_WARN);
- 	}
-+	if (rsrc->compressed_size > (4 * 1024 * 1024)) {
-+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-+		    "Mac metadata is too large: %jd > 4M bytes",
-+		    (intmax_t)rsrc->compressed_size);
-+		return (ARCHIVE_WARN);
-+	}
++  /* Not set means empty */
++  if(!userp)
++    userp = "";
++
++  if(!passwdp)
++    passwdp = "";
++
++  /* Obtain the input token, if any */
+   header += strlen("Negotiate");
+   while(*header && ISSPACE(*header))
+     header++;
  
- 	metadata = malloc((size_t)rsrc->uncompressed_size);
- 	if (metadata == NULL) {
-@@ -2784,6 +2847,8 @@ zip_read_mac_metadata(struct archive_read *a, struct archive_entry *entry,
- 			bytes_avail = remaining_bytes;
- 		switch(rsrc->compression) {
- 		case 0:  /* No compression. */
-+			if ((size_t)bytes_avail > metadata_bytes)
-+				bytes_avail = metadata_bytes;
- 			memcpy(mp, p, bytes_avail);
- 			bytes_used = (size_t)bytes_avail;
- 			metadata_bytes -= bytes_used;
+   len = strlen(header);
+-  if(len > 0) {
+-    result = Curl_base64_decode(header, (unsigned char **)&input_token.value,
+-                                &rawlen);
+-    if(result)
+-      return result;
+-
+-    if(!rawlen) {
+-      infof(data, "Negotiate handshake failure (empty challenge message)\n");
+-
+-      return CURLE_BAD_CONTENT_ENCODING;
++  if(!len) {
++    /* Is this the first call in a new negotiation? */
++    if(neg_ctx->context) {
++      /* The server rejected our authentication and hasn't suppled any more
++      negotiation mechanisms */
++      return CURLE_LOGIN_DENIED;
+     }
+-
+-    input_token.length = rawlen;
+-
+-    DEBUGASSERT(input_token.value != NULL);
+-  }
+-
+-  major_status = Curl_gss_init_sec_context(data,
+-                                           &minor_status,
+-                                           &neg_ctx->context,
+-                                           neg_ctx->server_name,
+-                                           &Curl_spnego_mech_oid,
+-                                           GSS_C_NO_CHANNEL_BINDINGS,
+-                                           &input_token,
+-                                           &output_token,
+-                                           TRUE,
+-                                           NULL);
+-  Curl_safefree(input_token.value);
+-
+-  neg_ctx->status = major_status;
+-  if(GSS_ERROR(major_status)) {
+-    if(output_token.value)
+-      gss_release_buffer(&discard_st, &output_token);
+-    Curl_gss_log_error(conn->data, minor_status,
+-                       "gss_init_sec_context() failed: ");
+-    return CURLE_OUT_OF_MEMORY;
+-  }
+-
+-  if(!output_token.value || !output_token.length) {
+-    if(output_token.value)
+-      gss_release_buffer(&discard_st, &output_token);
+-    return CURLE_OUT_OF_MEMORY;
+   }
+ 
+-  neg_ctx->output_token = output_token;
+-
+-  return CURLE_OK;
++  /* Initilise the security context and decode our challenge */
++  return Curl_auth_decode_spnego_message(data, userp, passwdp, service, host,
++                                         header, neg_ctx);
+ }
+ 
+ CURLcode Curl_output_negotiate(struct connectdata *conn, bool proxy)
+ {
+-  struct negotiatedata *neg_ctx = proxy?&conn->data->state.proxyneg:
++  struct negotiatedata *neg_ctx = proxy ? &conn->data->state.proxyneg :
+     &conn->data->state.negotiate;
+-  char *encoded = NULL;
++  char *base64 = NULL;
+   size_t len = 0;
+   char *userp;
+   CURLcode result;
+-  OM_uint32 discard_st;
+-
+-  result = Curl_base64_encode(conn->data,
+-                              neg_ctx->output_token.value,
+-                              neg_ctx->output_token.length,
+-                              &encoded, &len);
+-  if(result) {
+-    gss_release_buffer(&discard_st, &neg_ctx->output_token);
+-    neg_ctx->output_token.value = NULL;
+-    neg_ctx->output_token.length = 0;
+-    return result;
+-  }
+ 
+-  if(!encoded || !len) {
+-    gss_release_buffer(&discard_st, &neg_ctx->output_token);
+-    neg_ctx->output_token.value = NULL;
+-    neg_ctx->output_token.length = 0;
+-    return CURLE_REMOTE_ACCESS_DENIED;
+-  }
++  result = Curl_auth_create_spnego_message(conn->data, neg_ctx, &base64, &len);
++  if(result)
++    return result;
+ 
+   userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
+-                  encoded);
++                  base64);
++
+   if(proxy) {
+     Curl_safefree(conn->allocptr.proxyuserpwd);
+     conn->allocptr.proxyuserpwd = userp;
+@@ -181,30 +119,15 @@ CURLcode Curl_output_negotiate(struct connectdata *conn, bool proxy)
+     conn->allocptr.userpwd = userp;
+   }
+ 
+-  free(encoded);
++  free(base64);
+ 
+   return (userp == NULL) ? CURLE_OUT_OF_MEMORY : CURLE_OK;
+ }
+ 
+-static void cleanup(struct negotiatedata *neg_ctx)
+-{
+-  OM_uint32 minor_status;
+-  if(neg_ctx->context != GSS_C_NO_CONTEXT)
+-    gss_delete_sec_context(&minor_status, &neg_ctx->context, GSS_C_NO_BUFFER);
+-
+-  if(neg_ctx->output_token.value)
+-    gss_release_buffer(&minor_status, &neg_ctx->output_token);
+-
+-  if(neg_ctx->server_name != GSS_C_NO_NAME)
+-    gss_release_name(&minor_status, &neg_ctx->server_name);
+-
+-  memset(neg_ctx, 0, sizeof(*neg_ctx));
+-}
+-
+-void Curl_cleanup_negotiate(struct SessionHandle *data)
++void Curl_cleanup_negotiate(struct Curl_easy *data)
+ {
+-  cleanup(&data->state.negotiate);
+-  cleanup(&data->state.proxyneg);
++  Curl_auth_spnego_cleanup(&data->state.negotiate);
++  Curl_auth_spnego_cleanup(&data->state.proxyneg);
+ }
+ 
+-#endif /* HAVE_GSSAPI && !CURL_DISABLE_HTTP && USE_SPNEGO */
++#endif /* !CURL_DISABLE_HTTP && USE_SPNEGO */

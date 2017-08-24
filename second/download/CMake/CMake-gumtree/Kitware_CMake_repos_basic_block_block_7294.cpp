@@ -1,0 +1,1 @@
+val = (val << 8) | *(const unsigned char *) beg++

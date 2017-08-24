@@ -1,0 +1,1 @@
+*yymsg_alloc = YYSTACK_ALLOC_MAXIMUM

@@ -1,0 +1,1 @@
+return(E_BAD_ARGUMENT);

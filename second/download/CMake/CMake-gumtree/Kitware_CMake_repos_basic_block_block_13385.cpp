@@ -1,0 +1,1 @@
+len = (int)(sizeof(buff)-1)

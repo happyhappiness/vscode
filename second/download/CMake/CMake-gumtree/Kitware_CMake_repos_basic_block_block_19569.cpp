@@ -1,0 +1,1 @@
+loop->emfile_fd = emfile_fd

@@ -1,0 +1,3 @@
+{
+    logarg = "--log-file=";
+  }

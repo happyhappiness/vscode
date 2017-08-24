@@ -1,0 +1,3 @@
+{
+    return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
+  }

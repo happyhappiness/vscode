@@ -1,0 +1,1 @@
+VirtualFree(t->ol[i].buff, 0, MEM_RELEASE)

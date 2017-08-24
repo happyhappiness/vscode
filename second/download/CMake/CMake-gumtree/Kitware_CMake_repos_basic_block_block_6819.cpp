@@ -1,0 +1,1 @@
+failf(data, "NSS: client certificate not found: %s", nickname)

@@ -1,0 +1,3 @@
+{
+    this->NumberOfPhysicalCPU = 1;
+  }

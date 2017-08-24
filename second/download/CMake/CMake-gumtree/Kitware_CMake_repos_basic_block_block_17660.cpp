@@ -1,0 +1,1 @@
+zip->entry_compressed_size += additional_size

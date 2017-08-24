@@ -1,0 +1,1 @@
+rc = sscanf(data->change.url, "%[^\n]", path)

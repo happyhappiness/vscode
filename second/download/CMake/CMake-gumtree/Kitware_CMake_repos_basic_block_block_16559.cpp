@@ -1,0 +1,2 @@
+(avail < xsize)
+			xsize = avail

@@ -1,0 +1,1 @@
+bytes_read = (ssize_t)ar->entry_bytes_remaining

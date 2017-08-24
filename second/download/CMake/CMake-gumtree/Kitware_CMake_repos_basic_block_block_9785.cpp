@@ -1,0 +1,1 @@
+te->depth = te->parent->depth + 1

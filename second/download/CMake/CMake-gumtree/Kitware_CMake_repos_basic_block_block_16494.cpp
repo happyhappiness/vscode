@@ -1,0 +1,1 @@
+isoent_collect_dirs(&(iso9660->joliet), NULL, 0)

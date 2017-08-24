@@ -1,0 +1,1 @@
+*avail = ARCHIVE_FATAL

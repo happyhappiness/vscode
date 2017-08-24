@@ -1,0 +1,1 @@
+add_trivial_nfs4_acl(entry)

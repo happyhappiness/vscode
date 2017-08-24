@@ -1,0 +1,1 @@
+result = readv(req->file, (struct iovec*) req->bufs, req->nbufs)

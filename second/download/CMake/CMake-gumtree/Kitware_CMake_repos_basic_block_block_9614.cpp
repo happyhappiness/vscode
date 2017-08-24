@@ -1,0 +1,1 @@
+list_size = extattr_list_link(path, namespace, list, list_size)

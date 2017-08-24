@@ -1,0 +1,1 @@
+magic_max = (int)entry_size

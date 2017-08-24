@@ -1,9 +1,13 @@
-                        const cmCustomCommand& origCommand)
-{
-  // Create a fake output that forces the rule to run.
-  char* output = new char[(strlen(this->GetCurrentBinaryDirectory())
-                           + target.GetName().size() + 30)];
-  sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
-          target.GetName().c_str(), count);
-  const char* comment = origCommand.GetComment();
-  if(!comment && origCommand.GetOutputs().empty())
+
+        /* lineno is only valid if an input buffer exists. */
+        if (! YY_CURRENT_BUFFER )
+           YY_FATAL_ERROR( "cmFortran_yyset_lineno called with no buffer" );
+
+    yylineno = line_number;
+}
+
+/** Set the current column.
+ * @param line_number
+ * @param yyscanner The scanner object.
+ */
+void cmFortran_yyset_column (int  column_no , yyscan_t yyscanner)

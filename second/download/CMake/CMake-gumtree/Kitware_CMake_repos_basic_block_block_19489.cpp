@@ -1,0 +1,1 @@
+handle->caught_signals++

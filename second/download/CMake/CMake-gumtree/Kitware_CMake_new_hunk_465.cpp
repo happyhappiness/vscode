@@ -1,7 +1,11 @@
-		zip->stream.opaque = Z_NULL;
-		zip->stream.next_out = zip->buf;
-		zip->stream.avail_out = (uInt)zip->len_buf;
-		if (deflateInit2(&zip->stream, zip->deflate_compression_level,
-		    Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't init deflate compressor");
+                 SectionHeaders[pSymbolTable->SectionNumber-1].Characteristics;
+               if (!pSymbolTable->Type  && (SectChar & IMAGE_SCN_MEM_WRITE)) {
+                  // Read only (i.e. constants) must be excluded
+                  this->DataSymbols.insert(symbol);
+               } else {
+                  if ( pSymbolTable->Type  ||
+                       !(SectChar & IMAGE_SCN_MEM_READ)) {
+                     this->Symbols.insert(symbol);
+                  } else {
+                     // printf(" strange symbol: %s \n",symbol.c_str());
+                  }

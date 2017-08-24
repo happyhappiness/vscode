@@ -1,0 +1,1 @@
+l = lzss_size(&rar->lzss) - dstoffs

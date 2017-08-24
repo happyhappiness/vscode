@@ -1,0 +1,1 @@
+xar->opt_toc_sumalg = CKSUM_NONE

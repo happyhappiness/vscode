@@ -1,12 +1,7 @@
-    fprintf(stderr, "\n****\n");
-    fprintf(stderr, "**** Header %s\n ", header);
-  });
-
-  free(type2);
-
-  return result;
-}
-
-/* copy the source to the destination and fill in zeroes in every
-   other destination byte! */
-static void unicodecpy(unsigned char *dest, const char *src, size_t length)
+				    "Missing number");
+				return ARCHIVE_WARN;
+			}
+			numbers[argc++] = (unsigned long)mtree_atol(&p);
+			if (argc > MAX_PACK_ARGS) {
+				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Too many arguments");

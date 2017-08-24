@@ -1,0 +1,1 @@
+Curl_safefree(conn->connect_buffer)

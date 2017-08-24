@@ -1,0 +1,1 @@
+r->Link.protocol |= RTMP_FEATURE_WRITE

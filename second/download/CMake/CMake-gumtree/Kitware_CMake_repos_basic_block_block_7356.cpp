@@ -1,0 +1,1 @@
+beg = Curl_getASN1Element(&elem, beg, end)

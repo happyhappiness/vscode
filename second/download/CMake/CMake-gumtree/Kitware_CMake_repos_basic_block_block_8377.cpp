@@ -1,0 +1,1 @@
+return typeDelta < 0 ? true : false;

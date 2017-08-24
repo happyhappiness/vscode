@@ -1,0 +1,3 @@
+{
+      linuxMajor = majorChar - '0';
+    }

@@ -1,13 +1,9 @@
-      {
-      char indexString[32];
-      sprintf(indexString, "%d", index);
-      this->Makefile->AddDefinition(variableName, indexString);
-      return true;
-      }
-    index++;
-    }
+{
+	struct archive_write *a = (struct archive_write *)_a;
+	int ret = ARCHIVE_FAILED;
 
-  this->Makefile->AddDefinition(variableName, "-1");
-  return true;
-}
-
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+		ARCHIVE_STATE_NEW | ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
+		"archive_write_zip_set_compression_deflate");
+	if (a->archive.archive_format != ARCHIVE_FORMAT_ZIP) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,

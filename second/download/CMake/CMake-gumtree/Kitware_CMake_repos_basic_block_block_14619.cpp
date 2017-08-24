@@ -1,0 +1,1 @@
+close(data->child_stdout)

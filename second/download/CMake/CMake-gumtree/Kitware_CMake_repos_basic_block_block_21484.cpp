@@ -1,0 +1,1 @@
+(buf == NULL || next_ptr >= MAX_PTR) return NULL;

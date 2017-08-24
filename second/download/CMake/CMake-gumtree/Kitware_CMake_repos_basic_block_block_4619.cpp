@@ -1,0 +1,1 @@
+prec = (long)vto[p->precision].data.num.as_signed

@@ -1,0 +1,1 @@
+r = fcntl(fd, F_SETFL, flags)

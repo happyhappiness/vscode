@@ -1,0 +1,1 @@
+le->previous->next = le->next

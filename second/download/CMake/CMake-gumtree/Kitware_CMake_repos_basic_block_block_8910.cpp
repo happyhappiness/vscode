@@ -1,0 +1,1 @@
+return (archive_pathmatch(p, (const char *)pn, flag));

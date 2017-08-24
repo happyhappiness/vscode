@@ -1,0 +1,1 @@
+n = readlink("/proc/self/exe", buffer, n)

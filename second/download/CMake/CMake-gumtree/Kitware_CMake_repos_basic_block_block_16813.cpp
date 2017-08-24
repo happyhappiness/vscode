@@ -1,0 +1,1 @@
+archive_sha1_update(&mtree->sha1ctx, buff, n)

@@ -1,0 +1,1 @@
+ae_perm |= ARCHIVE_ENTRY_ACL_READ

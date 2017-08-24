@@ -1,0 +1,1 @@
+memmove(p, filter->next, filter->avail)

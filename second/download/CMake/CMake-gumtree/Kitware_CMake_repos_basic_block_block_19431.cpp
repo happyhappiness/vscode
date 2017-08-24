@@ -1,0 +1,1 @@
+(!(container->flags & UV_CREATE_PIPE)) return;

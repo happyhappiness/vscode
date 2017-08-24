@@ -1,0 +1,1 @@
+bsPutBit ( bs, (((UInt32) c) >> i) & 0x1 )

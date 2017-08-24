@@ -1,0 +1,2 @@
+(errno != ENOSYS)
+    return -errno;

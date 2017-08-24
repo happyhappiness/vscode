@@ -1,0 +1,1 @@
+free(zisofs->block_pointers)

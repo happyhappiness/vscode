@@ -1,2347 +1,3018 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
+/*-
+ * Copyright (c) 2010-2012 Michihiro NAKAJIMA
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
+#include "archive_platform.h"
+__FBSDID("$FreeBSD$");
 
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-
-#include "cmCTestTestHandler.h"
-#include "cmCTestMultiProcessHandler.h"
-#include "cmCTestBatchTestHandler.h"
-#include "cmCTest.h"
-#include "cmCTestRunTest.h"
-#include "cmake.h"
-#include "cmGeneratedFileStream.h"
-#include <cmsys/Process.h>
-#include <cmsys/RegularExpression.hxx>
-#include <cmsys/Base64.h>
-#include <cmsys/Directory.hxx>
-#include <cmsys/FStream.hxx>
-#include "cmMakefile.h"
-#include "cmGlobalGenerator.h"
-#include "cmLocalGenerator.h"
-#include "cmCommand.h"
-#include "cmSystemTools.h"
-#include "cmXMLSafe.h"
-#include "cm_utf8.h"
-
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
+#endif
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif
 #include <stdlib.h>
-#include <math.h>
-#include <float.h>
+#if HAVE_LIBXML_XMLWRITER_H
+#include <libxml/xmlwriter.h>
+#endif
+#ifdef HAVE_BZLIB_H
+#include <bzlib.h>
+#endif
+#if HAVE_LZMA_H
+#include <lzma.h>
+#endif
+#ifdef HAVE_ZLIB_H
+#include <zlib.h>
+#endif
 
-#include <set>
+#include "archive.h"
+#include "archive_crypto_private.h"
+#include "archive_endian.h"
+#include "archive_entry.h"
+#include "archive_entry_locale.h"
+#include "archive_private.h"
+#include "archive_rb.h"
+#include "archive_string.h"
+#include "archive_write_private.h"
 
-//----------------------------------------------------------------------
-class cmCTestSubdirCommand : public cmCommand
+/*
+ * Differences to xar utility.
+ * - Subdocument is not supported yet.
+ * - ACL is not supported yet.
+ * - When writing an XML element <link type="<file-type>">, <file-type>
+ *   which is a file type a symbolic link is referencing is always marked
+ *   as "broken". Xar utility uses stat(2) to get the file type, but, in
+ *   libarcive format writer, we should not use it; if it is needed, we
+ *   should get about it at archive_read_disk.c.
+ * - It is possible to appear both <flags> and <ext2> elements.
+ *   Xar utility generates <flags> on BSD platform and <ext2> on Linux
+ *   platform.
+ *
+ */
+
+#if !(defined(HAVE_LIBXML_XMLWRITER_H) && defined(LIBXML_VERSION) &&\
+	LIBXML_VERSION >= 20703) ||\
+	!defined(HAVE_ZLIB_H) || \
+	!defined(ARCHIVE_HAS_MD5) || !defined(ARCHIVE_HAS_SHA1)
+/*
+ * xar needs several external libraries.
+ *   o libxml2
+ *   o openssl or MD5/SHA1 hash function
+ *   o zlib
+ *   o bzlib2 (option)
+ *   o liblzma (option)
+ */
+int
+archive_write_set_format_xar(struct archive *_a)
 {
-public:
-  /**
-   * This is a virtual constructor for the command.
-   */
-  virtual cmCommand* Clone()
-    {
-    cmCTestSubdirCommand* c = new cmCTestSubdirCommand;
-    c->TestHandler = this->TestHandler;
-    return c;
-    }
+	struct archive_write *a = (struct archive_write *)_a;
 
-  /**
-   * This is called when the command is first encountered in
-   * the CMakeLists.txt file.
-   */
-  virtual bool InitialPass(std::vector<std::string> const& args,
-                           cmExecutionStatus &);
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    "Xar not supported on this platform");
+	return (ARCHIVE_WARN);
+}
 
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  virtual std::string GetName() const { return "subdirs";}
+#else	/* Support xar format */
 
-  cmTypeMacro(cmCTestSubdirCommand, cmCommand);
+/*#define DEBUG_PRINT_TOC		1 */
 
-  cmCTestTestHandler* TestHandler;
+#define BAD_CAST_CONST (const xmlChar *)
+
+#define HEADER_MAGIC	0x78617221
+#define HEADER_SIZE	28
+#define HEADER_VERSION	1
+
+enum sumalg {
+	CKSUM_NONE = 0,
+	CKSUM_SHA1 = 1,
+	CKSUM_MD5 = 2
 };
 
-//----------------------------------------------------------------------
-bool cmCTestSubdirCommand
-::InitialPass(std::vector<std::string> const& args, cmExecutionStatus &)
-{
-  if(args.size() < 1 )
-    {
-    this->SetError("called with incorrect number of arguments");
-    return false;
-    }
-  std::vector<std::string>::const_iterator it;
-  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-  for ( it = args.begin(); it != args.end(); ++ it )
-    {
-    std::string fname;
-
-    if(cmSystemTools::FileIsFullPath(it->c_str()))
-      {
-      fname = *it;
-      }
-    else
-      {
-      fname = cwd;
-      fname += "/";
-      fname += *it;
-      }
-
-    if ( !cmSystemTools::FileIsDirectory(fname) )
-      {
-      // No subdirectory? So what...
-      continue;
-      }
-    cmSystemTools::ChangeDirectory(fname);
-    const char* testFilename;
-    if( cmSystemTools::FileExists("CTestTestfile.cmake") )
-      {
-      // does the CTestTestfile.cmake exist ?
-      testFilename = "CTestTestfile.cmake";
-      }
-    else if( cmSystemTools::FileExists("DartTestfile.txt") )
-      {
-      // does the DartTestfile.txt exist ?
-      testFilename = "DartTestfile.txt";
-      }
-    else
-      {
-      // No CTestTestfile? Who cares...
-      continue;
-      }
-    fname += "/";
-    fname += testFilename;
-    bool readit =
-      this->Makefile->ReadListFile(this->Makefile->GetCurrentListFile(),
-                                   fname.c_str());
-    cmSystemTools::ChangeDirectory(cwd);
-    if(!readit)
-      {
-      std::string m = "Could not find include file: ";
-      m += fname;
-      this->SetError(m);
-      return false;
-      }
-    }
-  cmSystemTools::ChangeDirectory(cwd);
-  return true;
-}
-
-//----------------------------------------------------------------------
-class cmCTestAddSubdirectoryCommand : public cmCommand
-{
-public:
-  /**
-   * This is a virtual constructor for the command.
-   */
-  virtual cmCommand* Clone()
-    {
-    cmCTestAddSubdirectoryCommand* c = new cmCTestAddSubdirectoryCommand;
-    c->TestHandler = this->TestHandler;
-    return c;
-    }
-
-  /**
-   * This is called when the command is first encountered in
-   * the CMakeLists.txt file.
-   */
-  virtual bool InitialPass(std::vector<std::string> const& args,
-                           cmExecutionStatus &);
-
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  virtual std::string GetName() const { return "add_subdirectory";}
-
-  cmTypeMacro(cmCTestAddSubdirectoryCommand, cmCommand);
-
-  cmCTestTestHandler* TestHandler;
+#define MD5_SIZE	16
+#define SHA1_SIZE	20
+#define MAX_SUM_SIZE	20
+#define MD5_NAME	"md5"
+#define SHA1_NAME	"sha1"
+ 
+enum enctype {
+	NONE,
+	GZIP,
+	BZIP2,
+	LZMA,
+	XZ,
 };
 
-//----------------------------------------------------------------------
-bool cmCTestAddSubdirectoryCommand
-::InitialPass(std::vector<std::string> const& args, cmExecutionStatus &)
-{
-  if(args.size() < 1 )
-    {
-    this->SetError("called with incorrect number of arguments");
-    return false;
-    }
-
-  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-  cmSystemTools::ChangeDirectory(cwd);
-  std::string fname = cwd;
-  fname += "/";
-  fname += args[1];
-
-  if ( !cmSystemTools::FileExists(fname.c_str()) )
-    {
-    // No subdirectory? So what...
-    return true;
-    }
-  cmSystemTools::ChangeDirectory(fname);
-  const char* testFilename;
-  if( cmSystemTools::FileExists("CTestTestfile.cmake") )
-    {
-    // does the CTestTestfile.cmake exist ?
-    testFilename = "CTestTestfile.cmake";
-    }
-  else if( cmSystemTools::FileExists("DartTestfile.txt") )
-    {
-    // does the DartTestfile.txt exist ?
-    testFilename = "DartTestfile.txt";
-    }
-  else
-    {
-    // No CTestTestfile? Who cares...
-    cmSystemTools::ChangeDirectory(cwd);
-    return true;
-    }
-  fname += "/";
-  fname += testFilename;
-  bool readit =
-    this->Makefile->ReadListFile(this->Makefile->GetCurrentListFile(),
-                                 fname.c_str());
-  cmSystemTools::ChangeDirectory(cwd);
-  if(!readit)
-    {
-    std::string m = "Could not find include file: ";
-    m += fname;
-    this->SetError(m);
-    return false;
-    }
-  return true;
-}
-
-//----------------------------------------------------------------------
-class cmCTestAddTestCommand : public cmCommand
-{
-public:
-  /**
-   * This is a virtual constructor for the command.
-   */
-  virtual cmCommand* Clone()
-    {
-    cmCTestAddTestCommand* c = new cmCTestAddTestCommand;
-    c->TestHandler = this->TestHandler;
-    return c;
-    }
-
-  /**
-   * This is called when the command is first encountered in
-   * the CMakeLists.txt file.
-   */
-  virtual bool InitialPass(std::vector<std::string> const&,
-                           cmExecutionStatus &);
-
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  virtual std::string GetName() const { return "add_test";}
-
-  cmTypeMacro(cmCTestAddTestCommand, cmCommand);
-
-  cmCTestTestHandler* TestHandler;
+struct chksumwork {
+	enum sumalg		 alg;
+#ifdef ARCHIVE_HAS_MD5
+	archive_md5_ctx		 md5ctx;
+#endif
+#ifdef ARCHIVE_HAS_SHA1
+	archive_sha1_ctx	 sha1ctx;
+#endif
 };
 
-//----------------------------------------------------------------------
-bool cmCTestAddTestCommand
-::InitialPass(std::vector<std::string> const& args, cmExecutionStatus &)
-{
-  if ( args.size() < 2 )
-    {
-    this->SetError("called with incorrect number of arguments");
-    return false;
-    }
-  return this->TestHandler->AddTest(args);
-}
-
-//----------------------------------------------------------------------
-class cmCTestSetTestsPropertiesCommand : public cmCommand
-{
-public:
-  /**
-   * This is a virtual constructor for the command.
-   */
-  virtual cmCommand* Clone()
-    {
-    cmCTestSetTestsPropertiesCommand* c
-      = new cmCTestSetTestsPropertiesCommand;
-    c->TestHandler = this->TestHandler;
-    return c;
-    }
-
-  /**
-   * This is called when the command is first encountered in
-   * the CMakeLists.txt file.
-  */
-  virtual bool InitialPass(std::vector<std::string> const&,
-                           cmExecutionStatus &);
-
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  virtual std::string GetName() const { return "set_tests_properties";}
-
-  cmTypeMacro(cmCTestSetTestsPropertiesCommand, cmCommand);
-
-  cmCTestTestHandler* TestHandler;
+enum la_zaction {
+	ARCHIVE_Z_FINISH,
+	ARCHIVE_Z_RUN
 };
 
-//----------------------------------------------------------------------
-bool cmCTestSetTestsPropertiesCommand
-::InitialPass(std::vector<std::string> const& args, cmExecutionStatus &)
+/*
+ * Universal zstream.
+ */
+struct la_zstream {
+	const unsigned char	*next_in;
+	size_t			 avail_in;
+	uint64_t		 total_in;
+
+	unsigned char		*next_out;
+	size_t			 avail_out;
+	uint64_t		 total_out;
+
+	int			 valid;
+	void			*real_stream;
+	int			 (*code) (struct archive *a,
+				    struct la_zstream *lastrm,
+				    enum la_zaction action);
+	int			 (*end)(struct archive *a,
+				    struct la_zstream *lastrm);
+};
+
+struct chksumval {
+	enum sumalg		 alg;
+	size_t			 len;
+	unsigned char		 val[MAX_SUM_SIZE];
+};
+
+struct heap_data {
+	int			 id;
+	struct heap_data	*next;
+	uint64_t		 temp_offset;
+	uint64_t		 length;	/* archived size.	*/
+	uint64_t		 size;		/* extracted size.	*/
+	enum enctype		 compression;
+	struct chksumval	 a_sum;		/* archived checksum.	*/
+	struct chksumval	 e_sum;		/* extracted checksum.	*/
+};
+
+struct file {
+	struct archive_rb_node	 rbnode;
+
+	int			 id;
+	struct archive_entry	*entry;
+
+	struct archive_rb_tree	 rbtree;
+	struct file		*next;
+	struct file		*chnext;
+	struct file		*hlnext;
+	/* For hardlinked files.
+	 * Use only when archive_entry_nlink() > 1 */
+	struct file		*hardlink_target;
+	struct file		*parent;	/* parent directory entry */
+	/*
+	 * To manage sub directory files.
+	 * We use 'chnext' a menber of struct file to chain.
+	 */
+	struct {
+		struct file	*first;
+		struct file	**last;
+	}			 children;
+
+	/* For making a directory tree. */
+        struct archive_string    parentdir;
+        struct archive_string    basename;
+        struct archive_string    symlink;
+
+	int			 ea_idx;
+	struct {
+		struct heap_data *first;
+		struct heap_data **last;
+	}			 xattr;
+	struct heap_data	 data;
+        struct archive_string    script;
+
+	int			 virtual:1;
+	int			 dir:1;
+};
+
+struct hardlink {
+	struct archive_rb_node	 rbnode;
+	int			 nlink;
+	struct {
+		struct file	*first;
+		struct file	**last;
+	}			 file_list;
+};
+
+struct xar {
+	int			 temp_fd;
+	uint64_t		 temp_offset;
+
+	int			 file_idx;
+	struct file		*root;
+	struct file		*cur_dirent;
+	struct archive_string	 cur_dirstr;
+	struct file		*cur_file;
+	uint64_t		 bytes_remaining;
+	struct archive_string	 tstr;
+	struct archive_string	 vstr;
+
+	enum sumalg		 opt_toc_sumalg;
+	enum sumalg		 opt_sumalg;
+	enum enctype		 opt_compression;
+	int			 opt_compression_level;
+
+	struct chksumwork	 a_sumwrk;	/* archived checksum.	*/
+	struct chksumwork	 e_sumwrk;	/* extracted checksum.	*/
+	struct la_zstream	 stream;
+	struct archive_string_conv *sconv;
+	/*
+	 * Compressed data buffer.
+	 */
+	unsigned char		 wbuff[1024 * 64];
+	size_t			 wbuff_remaining;
+
+	struct heap_data	 toc;
+	/*
+	 * The list of all file entries is used to manage struct file
+	 * objects.
+	 * We use 'next' a menber of struct file to chain.
+	 */
+	struct {
+		struct file	*first;
+		struct file	**last;
+	}			 file_list;
+	/*
+	 * The list of hard-linked file entries.
+	 * We use 'hlnext' a menber of struct file to chain.
+	 */
+	struct archive_rb_tree	 hardlink_rbtree;
+};
+
+static int	xar_options(struct archive_write *,
+		    const char *, const char *);
+static int	xar_write_header(struct archive_write *,
+		    struct archive_entry *);
+static ssize_t	xar_write_data(struct archive_write *,
+		    const void *, size_t);
+static int	xar_finish_entry(struct archive_write *);
+static int	xar_close(struct archive_write *);
+static int	xar_free(struct archive_write *);
+
+static struct file *file_new(struct archive_write *a, struct archive_entry *);
+static void	file_free(struct file *);
+static struct file *file_create_virtual_dir(struct archive_write *a, struct xar *,
+		    const char *);
+static int	file_add_child_tail(struct file *, struct file *);
+static struct file *file_find_child(struct file *, const char *);
+static int	file_gen_utility_names(struct archive_write *,
+		    struct file *);
+static int	get_path_component(char *, int, const char *);
+static int	file_tree(struct archive_write *, struct file **);
+static void	file_register(struct xar *, struct file *);
+static void	file_init_register(struct xar *);
+static void	file_free_register(struct xar *);
+static int	file_register_hardlink(struct archive_write *,
+		    struct file *);
+static void	file_connect_hardlink_files(struct xar *);
+static void	file_init_hardlinks(struct xar *);
+static void	file_free_hardlinks(struct xar *);
+
+static void	checksum_init(struct chksumwork *, enum sumalg);
+static void	checksum_update(struct chksumwork *, const void *, size_t);
+static void	checksum_final(struct chksumwork *, struct chksumval *);
+static int	compression_init_encoder_gzip(struct archive *,
+		    struct la_zstream *, int, int);
+static int	compression_code_gzip(struct archive *,
+		    struct la_zstream *, enum la_zaction);
+static int	compression_end_gzip(struct archive *, struct la_zstream *);
+static int	compression_init_encoder_bzip2(struct archive *,
+		    struct la_zstream *, int);
+#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
+static int	compression_code_bzip2(struct archive *,
+		    struct la_zstream *, enum la_zaction);
+static int	compression_end_bzip2(struct archive *, struct la_zstream *);
+#endif
+static int	compression_init_encoder_lzma(struct archive *,
+		    struct la_zstream *, int);
+static int	compression_init_encoder_xz(struct archive *,
+		    struct la_zstream *, int);
+#if defined(HAVE_LZMA_H)
+static int	compression_code_lzma(struct archive *,
+		    struct la_zstream *, enum la_zaction);
+static int	compression_end_lzma(struct archive *, struct la_zstream *);
+#endif
+static int	xar_compression_init_encoder(struct archive_write *);
+static int	compression_code(struct archive *,
+		    struct la_zstream *, enum la_zaction);
+static int	compression_end(struct archive *,
+		    struct la_zstream *);
+static int	save_xattrs(struct archive_write *, struct file *);
+static int	getalgsize(enum sumalg);
+static const char *getalgname(enum sumalg);
+
+int
+archive_write_set_format_xar(struct archive *_a)
 {
-  return this->TestHandler->SetTestsProperties(args);
+	struct archive_write *a = (struct archive_write *)_a;
+	struct xar *xar;
+
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_write_set_format_xar");
+
+	/* If another format was already registered, unregister it. */
+	if (a->format_free != NULL)
+		(a->format_free)(a);
+
+	xar = calloc(1, sizeof(*xar));
+	if (xar == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate xar data");
+		return (ARCHIVE_FATAL);
+	}
+	xar->temp_fd = -1;
+	file_init_register(xar);
+	file_init_hardlinks(xar);
+	archive_string_init(&(xar->tstr));
+	archive_string_init(&(xar->vstr));
+
+	/*
+	 * Create the root directory.
+	 */
+	xar->root = file_create_virtual_dir(a, xar, "");
+	if (xar->root == NULL) {
+		free(xar);
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate xar data");
+		return (ARCHIVE_FATAL);
+	}
+	xar->root->parent = xar->root;
+	file_register(xar, xar->root);
+	xar->cur_dirent = xar->root;
+	archive_string_init(&(xar->cur_dirstr));
+	archive_string_ensure(&(xar->cur_dirstr), 1);
+	xar->cur_dirstr.s[0] = 0;
+
+	/*
+	 * Initialize option.
+	 */
+	/* Set default checksum type. */
+	xar->opt_toc_sumalg = CKSUM_SHA1;
+	xar->opt_sumalg = CKSUM_SHA1;
+	/* Set default compression type and level. */
+	xar->opt_compression = GZIP;
+	xar->opt_compression_level = 6;
+
+	a->format_data = xar;
+
+	a->format_name = "xar";
+	a->format_options = xar_options;
+	a->format_write_header = xar_write_header;
+	a->format_write_data = xar_write_data;
+	a->format_finish_entry = xar_finish_entry;
+	a->format_close = xar_close;
+	a->format_free = xar_free;
+	a->archive.archive_format = ARCHIVE_FORMAT_XAR;
+	a->archive.archive_format_name = "xar";
+
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------
-// get the next number in a string with numbers separated by ,
-// pos is the start of the search and pos2 is the end of the search
-// pos becomes pos2 after a call to GetNextNumber.
-// -1 is returned at the end of the list.
-inline int GetNextNumber(std::string const& in,
-                         int& val,
-                         std::string::size_type& pos,
-                         std::string::size_type& pos2)
+static int
+xar_options(struct archive_write *a, const char *key, const char *value)
 {
-  pos2 = in.find(',', pos);
-  if(pos2 != in.npos)
-    {
-    if(pos2-pos == 0)
-      {
-      val = -1;
-      }
-    else
-      {
-      val = atoi(in.substr(pos, pos2-pos).c_str());
-      }
-    pos = pos2+1;
-    return 1;
-    }
-  else
-    {
-    if(in.size()-pos == 0)
-      {
-       val = -1;
-      }
-    else
-      {
-      val = atoi(in.substr(pos, in.size()-pos).c_str());
-      }
-    return 0;
-    }
-}
+	struct xar *xar;
 
-//----------------------------------------------------------------------
-// get the next number in a string with numbers separated by ,
-// pos is the start of the search and pos2 is the end of the search
-// pos becomes pos2 after a call to GetNextNumber.
-// -1 is returned at the end of the list.
-inline int GetNextRealNumber(std::string const& in,
-                             double& val,
-                             std::string::size_type& pos,
-                             std::string::size_type& pos2)
-{
-  pos2 = in.find(',', pos);
-  if(pos2 != in.npos)
-    {
-    if(pos2-pos == 0)
-      {
-      val = -1;
-      }
-    else
-      {
-      val = atof(in.substr(pos, pos2-pos).c_str());
-      }
-    pos = pos2+1;
-    return 1;
-    }
-  else
-    {
-    if(in.size()-pos == 0)
-      {
-       val = -1;
-      }
-    else
-      {
-      val = atof(in.substr(pos, in.size()-pos).c_str());
-      }
-    return 0;
-    }
-}
+	xar = (struct xar *)a->format_data;
 
+	if (strcmp(key, "checksum") == 0) {
+		if (value == NULL)
+			xar->opt_sumalg = CKSUM_NONE;
+		else if (strcmp(value, "sha1") == 0)
+			xar->opt_sumalg = CKSUM_SHA1;
+		else if (strcmp(value, "md5") == 0)
+			xar->opt_sumalg = CKSUM_MD5;
+		else {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unknown checksum name: `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
+		}
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "compression") == 0) {
+		const char *name = NULL;
 
-//----------------------------------------------------------------------
-cmCTestTestHandler::cmCTestTestHandler()
-{
-  this->UseUnion = false;
-
-  this->UseIncludeLabelRegExpFlag   = false;
-  this->UseExcludeLabelRegExpFlag   = false;
-  this->UseIncludeRegExpFlag   = false;
-  this->UseExcludeRegExpFlag   = false;
-  this->UseExcludeRegExpFirst  = false;
-
-  this->CustomMaximumPassedTestOutputSize = 1 * 1024;
-  this->CustomMaximumFailedTestOutputSize = 300 * 1024;
-
-  this->MemCheck = false;
-
-  this->LogFile = 0;
-
-  // regex to detect <DartMeasurement>...</DartMeasurement>
-  this->DartStuff.compile(
-    "(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
-  // regex to detect each individual <DartMeasurement>...</DartMeasurement>
-  this->DartStuff1.compile(
-    "(<DartMeasurement[^<]*</DartMeasurement[a-zA-Z]*>)");
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::Initialize()
-{
-  this->Superclass::Initialize();
-
-  this->ElapsedTestingTime = -1;
-
-  this->TestResults.clear();
-
-  this->CustomTestsIgnore.clear();
-  this->StartTest = "";
-  this->EndTest = "";
-
-  this->CustomPreTest.clear();
-  this->CustomPostTest.clear();
-  this->CustomMaximumPassedTestOutputSize = 1 * 1024;
-  this->CustomMaximumFailedTestOutputSize = 300 * 1024;
-
-  this->TestsToRun.clear();
-
-  this->UseIncludeLabelRegExpFlag = false;
-  this->UseExcludeLabelRegExpFlag = false;
-  this->UseIncludeRegExpFlag = false;
-  this->UseExcludeRegExpFlag = false;
-  this->UseExcludeRegExpFirst = false;
-  this->IncludeLabelRegularExpression = "";
-  this->ExcludeLabelRegularExpression = "";
-  this->IncludeRegExp = "";
-  this->ExcludeRegExp = "";
-
-  TestsToRunString = "";
-  this->UseUnion = false;
-  this->TestList.clear();
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::PopulateCustomVectors(cmMakefile *mf)
-{
-  this->CTest->PopulateCustomVector(mf, "CTEST_CUSTOM_PRE_TEST",
-                                this->CustomPreTest);
-  this->CTest->PopulateCustomVector(mf, "CTEST_CUSTOM_POST_TEST",
-                                this->CustomPostTest);
-  this->CTest->PopulateCustomVector(mf,
-                             "CTEST_CUSTOM_TESTS_IGNORE",
-                             this->CustomTestsIgnore);
-  this->CTest->PopulateCustomInteger(mf,
-                             "CTEST_CUSTOM_MAXIMUM_PASSED_TEST_OUTPUT_SIZE",
-                             this->CustomMaximumPassedTestOutputSize);
-  this->CTest->PopulateCustomInteger(mf,
-                             "CTEST_CUSTOM_MAXIMUM_FAILED_TEST_OUTPUT_SIZE",
-                             this->CustomMaximumFailedTestOutputSize);
-}
-
-//----------------------------------------------------------------------
-int cmCTestTestHandler::PreProcessHandler()
-{
-  if ( !this->ExecuteCommands(this->CustomPreTest) )
-    {
-    cmCTestLog(this->CTest, ERROR_MESSAGE,
-      "Problem executing pre-test command(s)." << std::endl);
-    return 0;
-    }
-  return 1;
-}
-
-//----------------------------------------------------------------------
-int cmCTestTestHandler::PostProcessHandler()
-{
-  if ( !this->ExecuteCommands(this->CustomPostTest) )
-    {
-    cmCTestLog(this->CTest, ERROR_MESSAGE,
-      "Problem executing post-test command(s)." << std::endl);
-    return 0;
-    }
-  return 1;
-}
-
-//----------------------------------------------------------------------
-//clearly it would be nice if this were broken up into a few smaller
-//functions and commented...
-int cmCTestTestHandler::ProcessHandler()
-{
-  // Update internal data structure from generic one
-  this->SetTestsToRunInformation(this->GetOption("TestsToRunInformation"));
-  this->SetUseUnion(cmSystemTools::IsOn(this->GetOption("UseUnion")));
-  if(cmSystemTools::IsOn(this->GetOption("ScheduleRandom")))
-    {
-    this->CTest->SetScheduleType("Random");
-    }
-  if(this->GetOption("ParallelLevel"))
-    {
-    this->CTest->SetParallelLevel(atoi(this->GetOption("ParallelLevel")));
-    }
-
-  const char* val;
-  val = this->GetOption("LabelRegularExpression");
-  if ( val )
-    {
-    this->UseIncludeLabelRegExpFlag = true;
-    this->IncludeLabelRegExp = val;
-    }
-  val = this->GetOption("ExcludeLabelRegularExpression");
-  if ( val )
-    {
-    this->UseExcludeLabelRegExpFlag = true;
-    this->ExcludeLabelRegExp = val;
-    }
-  val = this->GetOption("IncludeRegularExpression");
-  if ( val )
-    {
-    this->UseIncludeRegExp();
-    this->SetIncludeRegExp(val);
-    }
-  val = this->GetOption("ExcludeRegularExpression");
-  if ( val )
-    {
-    this->UseExcludeRegExp();
-    this->SetExcludeRegExp(val);
-    }
-  this->SetRerunFailed(cmSystemTools::IsOn(this->GetOption("RerunFailed")));
-
-  this->TestResults.clear();
-
-  cmCTestLog(this->CTest, HANDLER_OUTPUT,
-             (this->MemCheck ? "Memory check" : "Test")
-             << " project " << cmSystemTools::GetCurrentWorkingDirectory()
-             << std::endl);
-  if ( ! this->PreProcessHandler() )
-    {
-    return -1;
-    }
-
-  cmGeneratedFileStream mLogFile;
-  this->StartLogFile((this->MemCheck ? "DynamicAnalysis" : "Test"), mLogFile);
-  this->LogFile = &mLogFile;
-
-  std::vector<std::string> passed;
-  std::vector<std::string> failed;
-  int total;
-
-  //start the real time clock
-  double clock_start, clock_finish;
-  clock_start = cmSystemTools::GetTime();
-
-  this->ProcessDirectory(passed, failed);
-
-  clock_finish = cmSystemTools::GetTime();
-
-  total = int(passed.size()) + int(failed.size());
-
-  if (total == 0)
-    {
-    if ( !this->CTest->GetShowOnly() && !this->CTest->ShouldPrintLabels() )
-      {
-      cmCTestLog(this->CTest, ERROR_MESSAGE, "No tests were found!!!"
-        << std::endl);
-      }
-    }
-  else
-    {
-    if (this->HandlerVerbose && !passed.empty() &&
-      (this->UseIncludeRegExpFlag || this->UseExcludeRegExpFlag))
-      {
-      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
-        << "The following tests passed:" << std::endl);
-      for(std::vector<std::string>::iterator j = passed.begin();
-          j != passed.end(); ++j)
-        {
-        cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "\t" << *j
-          << std::endl);
-        }
-      }
-
-    float percent = float(passed.size()) * 100.0f / float(total);
-    if (!failed.empty() && percent > 99)
-      {
-      percent = 99;
-      }
-
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl
-               << static_cast<int>(percent + .5) << "% tests passed, "
-               << failed.size() << " tests failed out of "
-               << total << std::endl);
-    if(this->CTest->GetLabelSummary())
-      {
-      this->PrintLabelSummary();
-      }
-    char realBuf[1024];
-    sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (real) = "
-               << realBuf << "\n" );
-
-    if (!failed.empty())
-      {
-      cmGeneratedFileStream ofs;
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl
-                 << "The following tests FAILED:" << std::endl);
-      this->StartLogFile("TestsFailed", ofs);
-
-      typedef std::set<cmCTestTestHandler::cmCTestTestResult,
-                       cmCTestTestResultLess> SetOfTests;
-      SetOfTests resultsSet(this->TestResults.begin(),
-                            this->TestResults.end());
-
-      for(SetOfTests::iterator ftit = resultsSet.begin();
-          ftit != resultsSet.end(); ++ftit)
-        {
-        if ( ftit->Status != cmCTestTestHandler::COMPLETED )
-          {
-          ofs << ftit->TestCount << ":" << ftit->Name << std::endl;
-          cmCTestLog(this->CTest, HANDLER_OUTPUT, "\t" << std::setw(3)
-                     << ftit->TestCount << " - "
-                     << ftit->Name << " ("
-                     << this->GetTestStatus(ftit->Status) << ")"
-                     << std::endl);
-          }
-        }
-      }
-    }
-
-  if ( this->CTest->GetProduceXML() )
-    {
-    cmGeneratedFileStream xmlfile;
-    if( !this->StartResultingXML(
-          (this->MemCheck ? cmCTest::PartMemCheck : cmCTest::PartTest),
-        (this->MemCheck ? "DynamicAnalysis" : "Test"), xmlfile) )
-      {
-      cmCTestLog(this->CTest, ERROR_MESSAGE, "Cannot create "
-        << (this->MemCheck ? "memory check" : "testing")
-        << " XML file" << std::endl);
-      this->LogFile = 0;
-      return 1;
-      }
-    this->GenerateDartOutput(xmlfile);
-    }
-
-  if ( ! this->PostProcessHandler() )
-    {
-    this->LogFile = 0;
-    return -1;
-    }
-
-  if ( !failed.empty() )
-    {
-    this->LogFile = 0;
-    return -1;
-    }
-  this->LogFile = 0;
-  return 0;
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::PrintLabelSummary()
-{
-  cmCTestTestHandler::ListOfTests::iterator it = this->TestList.begin();
-  cmCTestTestHandler::TestResultsVector::iterator ri =
-    this->TestResults.begin();
-  std::map<std::string, double> labelTimes;
-  std::set<std::string> labels;
-  // initialize maps
-  std::string::size_type maxlen = 0;
-  for(; it != this->TestList.end(); ++it)
-    {
-    cmCTestTestProperties& p = *it;
-    if(!p.Labels.empty())
-      {
-      for(std::vector<std::string>::iterator l = p.Labels.begin();
-          l !=  p.Labels.end(); ++l)
-        {
-        if((*l).size() > maxlen)
-          {
-          maxlen = (*l).size();
-          }
-        labels.insert(*l);
-        labelTimes[*l] = 0;
-        }
-      }
-    }
-  ri = this->TestResults.begin();
-  // fill maps
-  for(; ri != this->TestResults.end(); ++ri)
-    {
-    cmCTestTestResult &result = *ri;
-    cmCTestTestProperties& p = *result.Properties;
-    if(!p.Labels.empty())
-      {
-      for(std::vector<std::string>::iterator l = p.Labels.begin();
-          l !=  p.Labels.end(); ++l)
-        {
-        labelTimes[*l] += result.ExecutionTime;
-        }
-      }
-    }
-  // now print times
-  if(!labels.empty())
-    {
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nLabel Time Summary:");
-    }
-  for(std::set<std::string>::const_iterator i = labels.begin();
-      i != labels.end(); ++i)
-    {
-    std::string label = *i;
-    label.resize(maxlen +3, ' ');
-    char buf[1024];
-    sprintf(buf, "%6.2f sec", labelTimes[*i]);
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\n"
-               << label << " = " << buf );
-    if ( this->LogFile )
-      {
-      *this->LogFile << "\n" << *i << " = "
-                     << buf << "\n";
-      }
-    }
-  if(!labels.empty())
-    {
-    if(this->LogFile)
-      {
-      *this->LogFile << "\n";
-      }
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\n");
-    }
-
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::CheckLabelFilterInclude(cmCTestTestProperties& it)
-{
-  // if not using Labels to filter then return
-  if (!this->UseIncludeLabelRegExpFlag )
-    {
-    return;
-    }
-  // if there are no labels and we are filtering by labels
-  // then exclude the test as it does not have the label
-  if(it.Labels.empty())
-    {
-    it.IsInBasedOnREOptions = false;
-    return;
-    }
-  // check to see if the label regular expression matches
-  bool found = false;  // assume it does not match
-  // loop over all labels and look for match
-  for(std::vector<std::string>::iterator l = it.Labels.begin();
-      l !=  it.Labels.end(); ++l)
-    {
-    if(this->IncludeLabelRegularExpression.find(*l))
-      {
-      found = true;
-      }
-    }
-  // if no match was found, exclude the test
-  if(!found)
-    {
-    it.IsInBasedOnREOptions = false;
-    }
-}
-
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::CheckLabelFilterExclude(cmCTestTestProperties& it)
-{
-  // if not using Labels to filter then return
-  if (!this->UseExcludeLabelRegExpFlag )
-    {
-    return;
-    }
-  // if there are no labels and we are excluding by labels
-  // then do nothing as a no label can not be a match
-  if(it.Labels.empty())
-    {
-    return;
-    }
-  // check to see if the label regular expression matches
-  bool found = false;  // assume it does not match
-  // loop over all labels and look for match
-  for(std::vector<std::string>::iterator l = it.Labels.begin();
-      l !=  it.Labels.end(); ++l)
-    {
-    if(this->ExcludeLabelRegularExpression.find(*l))
-      {
-      found = true;
-      }
-    }
-  // if match was found, exclude the test
-  if(found)
-    {
-    it.IsInBasedOnREOptions = false;
-    }
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::CheckLabelFilter(cmCTestTestProperties& it)
-{
-  this->CheckLabelFilterInclude(it);
-  this->CheckLabelFilterExclude(it);
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::ComputeTestList()
-{
-  this->TestList.clear(); // clear list of test
-  this->GetListOfTests();
-
-  if (this->RerunFailed)
-    {
-    this->ComputeTestListForRerunFailed();
-    return;
-    }
-
-  cmCTestTestHandler::ListOfTests::size_type tmsize = this->TestList.size();
-  // how many tests are in based on RegExp?
-  int inREcnt = 0;
-  cmCTestTestHandler::ListOfTests::iterator it;
-  for ( it = this->TestList.begin(); it != this->TestList.end(); it ++ )
-    {
-    this->CheckLabelFilter(*it);
-    if (it->IsInBasedOnREOptions)
-      {
-      inREcnt ++;
-      }
-    }
-  // expand the test list based on the union flag
-  if (this->UseUnion)
-    {
-    this->ExpandTestsToRunInformation((int)tmsize);
-    }
-  else
-    {
-    this->ExpandTestsToRunInformation(inREcnt);
-    }
-  // Now create a final list of tests to run
-  int cnt = 0;
-  inREcnt = 0;
-  std::string last_directory = "";
-  ListOfTests finalList;
-  for ( it = this->TestList.begin(); it != this->TestList.end(); it ++ )
-    {
-    cnt ++;
-    if (it->IsInBasedOnREOptions)
-      {
-      inREcnt++;
-      }
-
-    if (this->UseUnion)
-      {
-      // if it is not in the list and not in the regexp then skip
-      if ((!this->TestsToRun.empty() &&
-           std::find(this->TestsToRun.begin(), this->TestsToRun.end(), cnt)
-           == this->TestsToRun.end()) && !it->IsInBasedOnREOptions)
-        {
-        continue;
-        }
-      }
-    else
-      {
-      // is this test in the list of tests to run? If not then skip it
-      if ((!this->TestsToRun.empty() &&
-           std::find(this->TestsToRun.begin(),
-                     this->TestsToRun.end(), inREcnt)
-           == this->TestsToRun.end()) || !it->IsInBasedOnREOptions)
-        {
-        continue;
-        }
-      }
-    it->Index = cnt;  // save the index into the test list for this test
-    finalList.push_back(*it);
-    }
-  // Save the total number of tests before exclusions
-  this->TotalNumberOfTests = this->TestList.size();
-  // Set the TestList to the final list of all test
-  this->TestList = finalList;
-
-  this->UpdateMaxTestNameWidth();
-}
-
-void cmCTestTestHandler::ComputeTestListForRerunFailed()
-{
-  this->ExpandTestsToRunInformationForRerunFailed();
-
-  cmCTestTestHandler::ListOfTests::iterator it;
-  ListOfTests finalList;
-  int cnt = 0;
-  for ( it = this->TestList.begin(); it != this->TestList.end(); it ++ )
-    {
-    cnt ++;
-
-    // if this test is not in our list of tests to run, then skip it.
-    if ((!this->TestsToRun.empty() &&
-         std::find(this->TestsToRun.begin(), this->TestsToRun.end(), cnt)
-         == this->TestsToRun.end()))
-      {
-      continue;
-      }
-
-    it->Index = cnt;
-    finalList.push_back(*it);
-    }
-
-  // Save the total number of tests before exclusions
-  this->TotalNumberOfTests = this->TestList.size();
-
-  // Set the TestList to the list of failed tests to rerun
-  this->TestList = finalList;
-
-  this->UpdateMaxTestNameWidth();
-}
-
-void cmCTestTestHandler::UpdateMaxTestNameWidth()
-{
-  std::string::size_type max = this->CTest->GetMaxTestNameWidth();
-  for ( cmCTestTestHandler::ListOfTests::iterator it = this->TestList.begin();
-        it != this->TestList.end(); it ++ )
-    {
-    cmCTestTestProperties& p = *it;
-    if(max < p.Name.size())
-      {
-      max = p.Name.size();
-      }
-    }
-  if(static_cast<std::string::size_type>(this->CTest->GetMaxTestNameWidth())
-     != max)
-    {
-    this->CTest->SetMaxTestNameWidth(static_cast<int>(max));
-    }
-}
-
-bool cmCTestTestHandler::GetValue(const char* tag,
-                                  int& value,
-                                  std::istream& fin)
-{
-  std::string line;
-  bool ret = true;
-  cmSystemTools::GetLineFromStream(fin, line);
-  if(line == tag)
-    {
-    fin >> value;
-    ret = cmSystemTools::GetLineFromStream(fin, line); // read blank line
-    }
-  else
-    {
-    cmCTestLog(this->CTest, ERROR_MESSAGE,
-               "parse error: missing tag: "
-               << tag << " found [" << line << "]" << std::endl);
-    ret = false;
-    }
-  return ret;
-}
-
-bool cmCTestTestHandler::GetValue(const char* tag,
-                                  double& value,
-                                  std::istream& fin)
-{
-  std::string line;
-  cmSystemTools::GetLineFromStream(fin, line);
-  bool ret = true;
-  if(line == tag)
-    {
-    fin >> value;
-    ret = cmSystemTools::GetLineFromStream(fin, line); // read blank line
-    }
-  else
-    {
-    cmCTestLog(this->CTest, ERROR_MESSAGE,
-               "parse error: missing tag: "
-               << tag << " found [" << line << "]" << std::endl);
-    ret = false;
-    }
-  return ret;
-}
-
-bool cmCTestTestHandler::GetValue(const char* tag,
-                                  bool& value,
-                                  std::istream& fin)
-{
-  std::string line;
-  cmSystemTools::GetLineFromStream(fin, line);
-  bool ret = true;
-  if(line == tag)
-    {
-#ifdef __HAIKU__
-    int tmp = 0;
-    fin >> tmp;
-    value = false;
-    if(tmp)
-      {
-      value = true;
-      }
+		if (value == NULL)
+			xar->opt_compression = NONE;
+		else if (strcmp(value, "gzip") == 0)
+			xar->opt_compression = GZIP;
+		else if (strcmp(value, "bzip2") == 0)
+#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
+			xar->opt_compression = BZIP2;
 #else
-    fin >> value;
+			name = "bzip2";
 #endif
-    ret = cmSystemTools::GetLineFromStream(fin, line); // read blank line
-    }
-  else
-    {
-    cmCTestLog(this->CTest, ERROR_MESSAGE,
-               "parse error: missing tag: "
-               << tag << " found [" << line << "]" << std::endl);
-    ret = false;
-    }
-  return ret;
-}
-
-bool cmCTestTestHandler::GetValue(const char* tag,
-                                  size_t& value,
-                                  std::istream& fin)
-{
-  std::string line;
-  cmSystemTools::GetLineFromStream(fin, line);
-  bool ret = true;
-  if(line == tag)
-    {
-    fin >> value;
-    ret = cmSystemTools::GetLineFromStream(fin, line); // read blank line
-    }
-  else
-    {
-    cmCTestLog(this->CTest, ERROR_MESSAGE,
-               "parse error: missing tag: "
-               << tag << " found [" << line << "]" << std::endl);
-    ret = false;
-    }
-  return ret;
-}
-
-bool cmCTestTestHandler::GetValue(const char* tag,
-                                  std::string& value,
-                                  std::istream& fin)
-{
-  std::string line;
-  cmSystemTools::GetLineFromStream(fin, line);
-  bool ret = true;
-  if(line == tag)
-    {
-    ret =  cmSystemTools::GetLineFromStream(fin, value);
-    }
-  else
-    {
-    cmCTestLog(this->CTest, ERROR_MESSAGE,
-               "parse error: missing tag: "
-               << tag << " found [" << line << "]" << std::endl);
-    ret = false;
-    }
-  return ret;
-}
-
-//---------------------------------------------------------------------
-void cmCTestTestHandler::ProcessDirectory(std::vector<std::string> &passed,
-                                         std::vector<std::string> &failed)
-{
-  this->ComputeTestList();
-  this->StartTest = this->CTest->CurrentTime();
-  this->StartTestTime = static_cast<unsigned int>(cmSystemTools::GetTime());
-  double elapsed_time_start = cmSystemTools::GetTime();
-
-  cmCTestMultiProcessHandler* parallel = this->CTest->GetBatchJobs() ?
-    new cmCTestBatchTestHandler : new cmCTestMultiProcessHandler;
-  parallel->SetCTest(this->CTest);
-  parallel->SetParallelLevel(this->CTest->GetParallelLevel());
-  parallel->SetTestHandler(this);
-
-  *this->LogFile << "Start testing: "
-    << this->CTest->CurrentTime() << std::endl
-    << "----------------------------------------------------------"
-    << std::endl;
-
-  cmCTestMultiProcessHandler::TestMap tests;
-  cmCTestMultiProcessHandler::PropertiesMap properties;
-
-  bool randomSchedule = this->CTest->GetScheduleType() == "Random";
-  if(randomSchedule)
-    {
-    srand((unsigned)time(0));
-    }
-
-  for (ListOfTests::iterator it = this->TestList.begin();
-       it != this->TestList.end(); ++it)
-    {
-    cmCTestTestProperties& p = *it;
-    cmCTestMultiProcessHandler::TestSet depends;
-
-    if(randomSchedule)
-      {
-      p.Cost = static_cast<float>(rand());
-      }
-
-    if(p.Timeout == 0 && this->CTest->GetGlobalTimeout() != 0)
-      {
-      p.Timeout = this->CTest->GetGlobalTimeout();
-      }
-
-    if(!p.Depends.empty())
-      {
-      for(std::vector<std::string>::iterator i = p.Depends.begin();
-          i != p.Depends.end(); ++i)
-        {
-        for(ListOfTests::iterator it2 = this->TestList.begin();
-            it2 != this->TestList.end(); ++it2)
-          {
-          if(it2->Name == *i)
-            {
-            depends.insert(it2->Index);
-            break; // break out of test loop as name can only match 1
-            }
-          }
-        }
-      }
-    tests[it->Index] = depends;
-    properties[it->Index] = &*it;
-    }
-  parallel->SetTests(tests, properties);
-  parallel->SetPassFailVectors(&passed, &failed);
-  this->TestResults.clear();
-  parallel->SetTestResults(&this->TestResults);
-
-  if(this->CTest->ShouldPrintLabels())
-    {
-    parallel->PrintLabels();
-    }
-  else if(this->CTest->GetShowOnly())
-    {
-    parallel->PrintTestList();
-    }
-  else
-    {
-    parallel->RunTests();
-    }
-  delete parallel;
-  this->EndTest = this->CTest->CurrentTime();
-  this->EndTestTime = static_cast<unsigned int>(cmSystemTools::GetTime());
-  this->ElapsedTestingTime = cmSystemTools::GetTime() - elapsed_time_start;
-  *this->LogFile << "End testing: "
-     << this->CTest->CurrentTime() << std::endl;
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::GenerateTestCommand(std::vector<std::string>&, int)
-{
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::GenerateDartOutput(std::ostream& os)
-{
-  if ( !this->CTest->GetProduceXML() )
-    {
-    return;
-    }
-
-  this->CTest->StartXML(os, this->AppendXML);
-  os << "<Testing>\n"
-    << "\t<StartDateTime>" << this->StartTest << "</StartDateTime>\n"
-    << "\t<StartTestTime>" << this->StartTestTime << "</StartTestTime>\n"
-    << "\t<TestList>\n";
-  cmCTestTestHandler::TestResultsVector::size_type cc;
-  for ( cc = 0; cc < this->TestResults.size(); cc ++ )
-    {
-    cmCTestTestResult *result = &this->TestResults[cc];
-    std::string testPath = result->Path + "/" + result->Name;
-    os << "\t\t<Test>" << cmXMLSafe(
-      this->CTest->GetShortPathToFile(testPath.c_str()))
-      << "</Test>" << std::endl;
-    }
-  os << "\t</TestList>\n";
-  for ( cc = 0; cc < this->TestResults.size(); cc ++ )
-    {
-    cmCTestTestResult *result = &this->TestResults[cc];
-    this->WriteTestResultHeader(os, result);
-    os << "\t\t<Results>" << std::endl;
-    if ( result->Status != cmCTestTestHandler::NOT_RUN )
-      {
-      if ( result->Status != cmCTestTestHandler::COMPLETED ||
-        result->ReturnValue )
-        {
-        os << "\t\t\t<NamedMeasurement type=\"text/string\" "
-          "name=\"Exit Code\"><Value>"
-          << cmXMLSafe(this->GetTestStatus(result->Status))
-          << "</Value>"
-          "</NamedMeasurement>\n"
-          << "\t\t\t<NamedMeasurement type=\"text/string\" "
-          "name=\"Exit Value\"><Value>"
-          << result->ReturnValue
-          << "</Value></NamedMeasurement>"
-          << std::endl;
-        }
-      os << result->RegressionImages;
-      os << "\t\t\t<NamedMeasurement type=\"numeric/double\" "
-        << "name=\"Execution Time\"><Value>"
-        << result->ExecutionTime
-        << "</Value></NamedMeasurement>\n";
-      if(!result->Reason.empty())
-        {
-        const char* reasonType = "Pass Reason";
-        if(result->Status != cmCTestTestHandler::COMPLETED &&
-           result->Status != cmCTestTestHandler::NOT_RUN)
-          {
-          reasonType = "Fail Reason";
-          }
-        os << "\t\t\t<NamedMeasurement type=\"text/string\" "
-           << "name=\"" << reasonType << "\"><Value>"
-           << cmXMLSafe(result->Reason)
-           << "</Value></NamedMeasurement>\n";
-        }
-      os
-        << "\t\t\t<NamedMeasurement type=\"text/string\" "
-        << "name=\"Completion Status\"><Value>"
-        << cmXMLSafe(result->CompletionStatus)
-        << "</Value></NamedMeasurement>\n";
-      }
-    os
-      << "\t\t\t<NamedMeasurement type=\"text/string\" "
-      << "name=\"Command Line\"><Value>"
-      << cmXMLSafe(result->FullCommandLine)
-      << "</Value></NamedMeasurement>\n";
-    std::map<std::string,std::string>::iterator measureIt;
-    for ( measureIt = result->Properties->Measurements.begin();
-      measureIt != result->Properties->Measurements.end();
-      ++ measureIt )
-      {
-      os
-        << "\t\t\t<NamedMeasurement type=\"text/string\" "
-        << "name=\"" << measureIt->first << "\"><Value>"
-        << cmXMLSafe(measureIt->second)
-        << "</Value></NamedMeasurement>\n";
-      }
-    os
-      << "\t\t\t<Measurement>\n"
-      << "\t\t\t\t<Value"
-      << (result->CompressOutput ?
-      " encoding=\"base64\" compression=\"gzip\">"
-      : ">");
-    os << cmXMLSafe(result->Output);
-    os
-      << "</Value>\n"
-      << "\t\t\t</Measurement>\n"
-      << "\t\t</Results>\n";
-
-    this->AttachFiles(os, result);
-    this->WriteTestResultFooter(os, result);
-    }
-
-  os << "\t<EndDateTime>" << this->EndTest << "</EndDateTime>\n"
-     << "\t<EndTestTime>" << this->EndTestTime << "</EndTestTime>\n"
-     << "<ElapsedMinutes>"
-     << static_cast<int>(this->ElapsedTestingTime/6)/10.0
-     << "</ElapsedMinutes>"
-    << "</Testing>" << std::endl;
-  this->CTest->EndXML(os);
-}
-
-//----------------------------------------------------------------------------
-void cmCTestTestHandler::WriteTestResultHeader(std::ostream& os,
-                                               cmCTestTestResult* result)
-{
-  os << "\t<Test Status=\"";
-  if ( result->Status == cmCTestTestHandler::COMPLETED )
-    {
-    os << "passed";
-    }
-  else if ( result->Status == cmCTestTestHandler::NOT_RUN )
-    {
-    os << "notrun";
-    }
-  else
-    {
-    os << "failed";
-    }
-  std::string testPath = result->Path + "/" + result->Name;
-  os << "\">\n"
-     << "\t\t<Name>" << cmXMLSafe(result->Name) << "</Name>\n"
-     << "\t\t<Path>" << cmXMLSafe(
-       this->CTest->GetShortPathToFile(result->Path.c_str())) << "</Path>\n"
-     << "\t\t<FullName>" << cmXMLSafe(
-       this->CTest->GetShortPathToFile(testPath.c_str())) << "</FullName>\n"
-     << "\t\t<FullCommandLine>"
-     << cmXMLSafe(result->FullCommandLine)
-     << "</FullCommandLine>\n";
-}
-
-//----------------------------------------------------------------------------
-void cmCTestTestHandler::WriteTestResultFooter(std::ostream& os,
-                                               cmCTestTestResult* result)
-{
-  if(!result->Properties->Labels.empty())
-    {
-    os << "\t\t<Labels>\n";
-    std::vector<std::string> const& labels = result->Properties->Labels;
-    for(std::vector<std::string>::const_iterator li = labels.begin();
-        li != labels.end(); ++li)
-      {
-      os << "\t\t\t<Label>" << cmXMLSafe(*li) << "</Label>\n";
-      }
-    os << "\t\t</Labels>\n";
-    }
-
-  os
-    << "\t</Test>" << std::endl;
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::AttachFiles(std::ostream& os,
-                                     cmCTestTestResult* result)
-{
-  if(result->Status != cmCTestTestHandler::COMPLETED
-     && result->Properties->AttachOnFail.size())
-    {
-    result->Properties->AttachedFiles.insert(
-      result->Properties->AttachedFiles.end(),
-      result->Properties->AttachOnFail.begin(),
-      result->Properties->AttachOnFail.end());
-    }
-  for(std::vector<std::string>::const_iterator file =
-      result->Properties->AttachedFiles.begin();
-      file != result->Properties->AttachedFiles.end(); ++file)
-    {
-    const std::string &base64 = this->CTest->Base64GzipEncodeFile(*file);
-    std::string fname = cmSystemTools::GetFilenameName(*file);
-    os << "\t\t<NamedMeasurement name=\"Attached File\" encoding=\"base64\" "
-      "compression=\"tar/gzip\" filename=\"" << fname << "\" type=\"file\">"
-      "\n\t\t\t<Value>\n\t\t\t"
-      << base64
-      << "\n\t\t\t</Value>\n\t\t</NamedMeasurement>\n";
-    }
-}
-
-//----------------------------------------------------------------------
-int cmCTestTestHandler::ExecuteCommands(std::vector<std::string>& vec)
-{
-  std::vector<std::string>::iterator it;
-  for ( it = vec.begin(); it != vec.end(); ++it )
-    {
-    int retVal = 0;
-    cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Run command: " << *it
-      << std::endl);
-    if ( !cmSystemTools::RunSingleCommand(it->c_str(), 0, &retVal, 0,
-                                          cmSystemTools::OUTPUT_MERGE
-        /*this->Verbose*/) || retVal != 0 )
-      {
-      cmCTestLog(this->CTest, ERROR_MESSAGE, "Problem running command: "
-        << *it << std::endl);
-      return 0;
-      }
-    }
-  return 1;
-}
-
-
-//----------------------------------------------------------------------
-// Find the appropriate executable to run for a test
-std::string cmCTestTestHandler::FindTheExecutable(const char *exe)
-{
-  std::string resConfig;
-  std::vector<std::string> extraPaths;
-  std::vector<std::string> failedPaths;
-  if(strcmp(exe, "NOT_AVAILABLE") == 0)
-    {
-    return exe;
-    }
-  return cmCTestTestHandler::FindExecutable(this->CTest,
-                                            exe, resConfig,
-                                            extraPaths,
-                                            failedPaths);
-}
-
-// add additional configurations to the search path
-void cmCTestTestHandler
-::AddConfigurations(cmCTest *ctest,
-                    std::vector<std::string> &attempted,
-                    std::vector<std::string> &attemptedConfigs,
-                    std::string filepath,
-                    std::string &filename)
-{
-  std::string tempPath;
-
-  if (!filepath.empty() &&
-      filepath[filepath.size()-1] != '/')
-    {
-    filepath += "/";
-    }
-  tempPath = filepath + filename;
-  attempted.push_back(tempPath);
-  attemptedConfigs.push_back("");
-
-  if(!ctest->GetConfigType().empty())
-    {
-    tempPath = filepath;
-    tempPath += ctest->GetConfigType();
-    tempPath += "/";
-    tempPath += filename;
-    attempted.push_back(tempPath);
-    attemptedConfigs.push_back(ctest->GetConfigType());
-    // If the file is an OSX bundle then the configtype
-    // will be at the start of the path
-    tempPath = ctest->GetConfigType();
-    tempPath += "/";
-    tempPath += filepath;
-    tempPath += filename;
-    attempted.push_back(tempPath);
-    attemptedConfigs.push_back(ctest->GetConfigType());
-    }
-  else
-    {
-    // no config specified - try some options...
-    tempPath = filepath;
-    tempPath += "Release/";
-    tempPath += filename;
-    attempted.push_back(tempPath);
-    attemptedConfigs.push_back("Release");
-    tempPath = filepath;
-    tempPath += "Debug/";
-    tempPath += filename;
-    attempted.push_back(tempPath);
-    attemptedConfigs.push_back("Debug");
-    tempPath = filepath;
-    tempPath += "MinSizeRel/";
-    tempPath += filename;
-    attempted.push_back(tempPath);
-    attemptedConfigs.push_back("MinSizeRel");
-    tempPath = filepath;
-    tempPath += "RelWithDebInfo/";
-    tempPath += filename;
-    attempted.push_back(tempPath);
-    attemptedConfigs.push_back("RelWithDebInfo");
-    tempPath = filepath;
-    tempPath += "Deployment/";
-    tempPath += filename;
-    attempted.push_back(tempPath);
-    attemptedConfigs.push_back("Deployment");
-    tempPath = filepath;
-    tempPath += "Development/";
-    tempPath += filename;
-    attempted.push_back(tempPath);
-    attemptedConfigs.push_back("Deployment");
-    }
-}
-
-
-//----------------------------------------------------------------------
-// Find the appropriate executable to run for a test
-std::string cmCTestTestHandler
-::FindExecutable(cmCTest *ctest,
-                 const char *testCommand,
-                 std::string &resultingConfig,
-                 std::vector<std::string> &extraPaths,
-                 std::vector<std::string> &failed)
-{
-  // now run the compiled test if we can find it
-  std::vector<std::string> attempted;
-  std::vector<std::string> attemptedConfigs;
-  std::string tempPath;
-  std::string filepath =
-    cmSystemTools::GetFilenamePath(testCommand);
-  std::string filename =
-    cmSystemTools::GetFilenameName(testCommand);
-
-  cmCTestTestHandler::AddConfigurations(ctest, attempted,
-                                        attemptedConfigs,
-                                        filepath,filename);
-
-  // even if a fullpath was specified also try it relative to the current
-  // directory
-  if (!filepath.empty() && filepath[0] == '/')
-    {
-    std::string localfilepath = filepath.substr(1,filepath.size()-1);
-    cmCTestTestHandler::AddConfigurations(ctest, attempted,
-                                          attemptedConfigs,
-                                          localfilepath,filename);
-    }
-
-
-  // if extraPaths are provided and we were not passed a full path, try them,
-  // try any extra paths
-  if (filepath.empty())
-    {
-    for (unsigned int i = 0; i < extraPaths.size(); ++i)
-      {
-      std::string filepathExtra =
-        cmSystemTools::GetFilenamePath(extraPaths[i]);
-      std::string filenameExtra =
-        cmSystemTools::GetFilenameName(extraPaths[i]);
-      cmCTestTestHandler::AddConfigurations(ctest,attempted,
-                                            attemptedConfigs,
-                                            filepathExtra,
-                                            filenameExtra);
-      }
-    }
-
-  // store the final location in fullPath
-  std::string fullPath;
-
-  // now look in the paths we specified above
-  for(unsigned int ai=0;
-      ai < attempted.size() && fullPath.empty(); ++ai)
-    {
-    // first check without exe extension
-    if(cmSystemTools::FileExists(attempted[ai].c_str())
-       && !cmSystemTools::FileIsDirectory(attempted[ai]))
-      {
-      fullPath = cmSystemTools::CollapseFullPath(attempted[ai]);
-      resultingConfig = attemptedConfigs[ai];
-      }
-    // then try with the exe extension
-    else
-      {
-      failed.push_back(attempted[ai]);
-      tempPath = attempted[ai];
-      tempPath += cmSystemTools::GetExecutableExtension();
-      if(cmSystemTools::FileExists(tempPath.c_str())
-         && !cmSystemTools::FileIsDirectory(tempPath))
-        {
-        fullPath = cmSystemTools::CollapseFullPath(tempPath);
-        resultingConfig = attemptedConfigs[ai];
-        }
-      else
-        {
-        failed.push_back(tempPath);
-        }
-      }
-    }
-
-  // if everything else failed, check the users path, but only if a full path
-  // wasn't specified
-  if (fullPath.empty() && filepath.empty())
-    {
-    std::string path = cmSystemTools::FindProgram(filename.c_str());
-    if (path != "")
-      {
-      resultingConfig = "";
-      return path;
-      }
-    }
-  if(fullPath.empty())
-    {
-    cmCTestLog(ctest, HANDLER_OUTPUT,
-               "Could not find executable " << testCommand << "\n"
-               << "Looked in the following places:\n");
-    for(std::vector<std::string>::iterator i = failed.begin();
-        i != failed.end(); ++i)
-      {
-      cmCTestLog(ctest, HANDLER_OUTPUT,
-                 i->c_str() << "\n");
-      }
-    }
-
-  return fullPath;
-}
-
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::GetListOfTests()
-{
-  if ( !this->IncludeLabelRegExp.empty() )
-    {
-    this->IncludeLabelRegularExpression.
-      compile(this->IncludeLabelRegExp.c_str());
-    }
-  if ( !this->ExcludeLabelRegExp.empty() )
-    {
-    this->ExcludeLabelRegularExpression.
-      compile(this->ExcludeLabelRegExp.c_str());
-    }
-  if ( !this->IncludeRegExp.empty() )
-    {
-    this->IncludeTestsRegularExpression.compile(this->IncludeRegExp.c_str());
-    }
-  if ( !this->ExcludeRegExp.empty() )
-    {
-    this->ExcludeTestsRegularExpression.compile(this->ExcludeRegExp.c_str());
-    }
-  cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-    "Constructing a list of tests" << std::endl);
-  cmake cm;
-  cmGlobalGenerator gg;
-  gg.SetCMakeInstance(&cm);
-  cmsys::auto_ptr<cmLocalGenerator> lg(gg.CreateLocalGenerator());
-  cmMakefile *mf = lg->GetMakefile();
-  mf->AddDefinition("CTEST_CONFIGURATION_TYPE",
-    this->CTest->GetConfigType().c_str());
-
-  // Add handler for ADD_TEST
-  cmCTestAddTestCommand* newCom1 = new cmCTestAddTestCommand;
-  newCom1->TestHandler = this;
-  cm.AddCommand(newCom1);
-
-  // Add handler for SUBDIRS
-  cmCTestSubdirCommand* newCom2 =
-    new cmCTestSubdirCommand;
-  newCom2->TestHandler = this;
-  cm.AddCommand(newCom2);
-
-  // Add handler for ADD_SUBDIRECTORY
-  cmCTestAddSubdirectoryCommand* newCom3 =
-    new cmCTestAddSubdirectoryCommand;
-  newCom3->TestHandler = this;
-  cm.AddCommand(newCom3);
-
-  // Add handler for SET_SOURCE_FILES_PROPERTIES
-  cmCTestSetTestsPropertiesCommand* newCom4
-    = new cmCTestSetTestsPropertiesCommand;
-  newCom4->TestHandler = this;
-  cm.AddCommand(newCom4);
-
-  const char* testFilename;
-  if( cmSystemTools::FileExists("CTestTestfile.cmake") )
-    {
-    // does the CTestTestfile.cmake exist ?
-    testFilename = "CTestTestfile.cmake";
-    }
-  else if( cmSystemTools::FileExists("DartTestfile.txt") )
-    {
-    // does the DartTestfile.txt exist ?
-    testFilename = "DartTestfile.txt";
-    }
-  else
-    {
-    return;
-    }
-
-  if ( !mf->ReadListFile(0, testFilename) )
-    {
-    return;
-    }
-  if ( cmSystemTools::GetErrorOccuredFlag() )
-    {
-    return;
-    }
-  cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-    "Done constructing a list of tests" << std::endl);
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::UseIncludeRegExp()
-{
-  this->UseIncludeRegExpFlag = true;
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::UseExcludeRegExp()
-{
-  this->UseExcludeRegExpFlag = true;
-  this->UseExcludeRegExpFirst = this->UseIncludeRegExpFlag ? false : true;
-}
-
-//----------------------------------------------------------------------
-const char* cmCTestTestHandler::GetTestStatus(int status)
-{
-  static const char statuses[][100] = {
-    "Not Run",
-    "Timeout",
-    "SEGFAULT",
-    "ILLEGAL",
-    "INTERRUPT",
-    "NUMERICAL",
-    "OTHER_FAULT",
-    "Failed",
-    "BAD_COMMAND",
-    "Completed"
-  };
-
-  if ( status < cmCTestTestHandler::NOT_RUN ||
-       status > cmCTestTestHandler::COMPLETED )
-    {
-    return "No Status";
-    }
-  return statuses[status];
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::ExpandTestsToRunInformation(size_t numTests)
-{
-  if (this->TestsToRunString.empty())
-    {
-    return;
-    }
-
-  int start;
-  int end = -1;
-  double stride = -1;
-  std::string::size_type pos = 0;
-  std::string::size_type pos2;
-  // read start
-  if(GetNextNumber(this->TestsToRunString, start, pos, pos2))
-    {
-    // read end
-    if(GetNextNumber(this->TestsToRunString, end, pos, pos2))
-      {
-      // read stride
-      if(GetNextRealNumber(this->TestsToRunString, stride, pos, pos2))
-        {
-        int val =0;
-        // now read specific numbers
-        while(GetNextNumber(this->TestsToRunString, val, pos, pos2))
-          {
-          this->TestsToRun.push_back(val);
-          }
-        this->TestsToRun.push_back(val);
-        }
-      }
-    }
-
-  // if start is not specified then we assume we start at 1
-  if(start == -1)
-    {
-    start = 1;
-    }
-
-  // if end isnot specified then we assume we end with the last test
-  if(end == -1)
-    {
-    end = static_cast<int>(numTests);
-    }
-
-  // if the stride wasn't specified then it defaults to 1
-  if(stride == -1)
-    {
-    stride = 1;
-    }
-
-  // if we have a range then add it
-  if(end != -1 && start != -1 && stride > 0)
-    {
-    int i = 0;
-    while (i*stride + start <= end)
-      {
-      this->TestsToRun.push_back(static_cast<int>(i*stride+start));
-      ++i;
-      }
-    }
-
-  // sort the array
-  std::sort(this->TestsToRun.begin(), this->TestsToRun.end(),
-    std::less<int>());
-  // remove duplicates
-  std::vector<int>::iterator new_end =
-    std::unique(this->TestsToRun.begin(), this->TestsToRun.end());
-  this->TestsToRun.erase(new_end, this->TestsToRun.end());
-}
-
-void cmCTestTestHandler::ExpandTestsToRunInformationForRerunFailed()
-{
-
-  std::string dirName = this->CTest->GetBinaryDir() + "/Testing/Temporary";
-
-  cmsys::Directory directory;
-  if (directory.Load(dirName) == 0)
-    {
-    cmCTestLog(this->CTest, ERROR_MESSAGE, "Unable to read the contents of "
-      << dirName << std::endl);
-    return;
-    }
-
-  int numFiles = static_cast<int>
-    (cmsys::Directory::GetNumberOfFilesInDirectory(dirName));
-  std::string pattern = "LastTestsFailed";
-  std::string logName = "";
-
-  for (int i = 0; i < numFiles; ++i)
-    {
-    std::string fileName = directory.GetFile(i);
-    // bcc crashes if we attempt a normal substring comparison,
-    // hence the following workaround
-    std::string fileNameSubstring = fileName.substr(0, pattern.length());
-    if (fileNameSubstring.compare(pattern) != 0)
-      {
-      continue;
-      }
-    if (logName == "")
-      {
-      logName = fileName;
-      }
-    else
-      {
-      // if multiple matching logs were found we use the most recently
-      // modified one.
-      int res;
-      cmSystemTools::FileTimeCompare(logName, fileName, &res);
-      if (res == -1)
-        {
-        logName = fileName;
-        }
-      }
-    }
-
-  std::string lastTestsFailedLog = this->CTest->GetBinaryDir()
-    + "/Testing/Temporary/" + logName;
-
-  if ( !cmSystemTools::FileExists(lastTestsFailedLog.c_str()) )
-    {
-    if ( !this->CTest->GetShowOnly() && !this->CTest->ShouldPrintLabels() )
-      {
-      cmCTestLog(this->CTest, ERROR_MESSAGE, lastTestsFailedLog
-        << " does not exist!" << std::endl);
-      }
-    return;
-    }
-
-  // parse the list of tests to rerun from LastTestsFailed.log
-  cmsys::ifstream ifs(lastTestsFailedLog.c_str());
-  if ( ifs )
-    {
-    std::string line;
-    std::string::size_type pos;
-    while ( cmSystemTools::GetLineFromStream(ifs, line) )
-      {
-      pos = line.find(':', 0);
-      if (pos == line.npos)
-        {
-        continue;
-        }
-
-      int val = atoi(line.substr(0, pos).c_str());
-      this->TestsToRun.push_back(val);
-      }
-    ifs.close();
-    }
-  else if ( !this->CTest->GetShowOnly() && !this->CTest->ShouldPrintLabels() )
-    {
-    cmCTestLog(this->CTest, ERROR_MESSAGE, "Problem reading file: "
-      << lastTestsFailedLog <<
-      " while generating list of previously failed tests." << std::endl);
-    }
-}
-
-//----------------------------------------------------------------------
-// Just for convenience
-#define SPACE_REGEX "[ \t\r\n]"
-//----------------------------------------------------------------------
-std::string cmCTestTestHandler::GenerateRegressionImages(
-  const std::string& xml)
-{
-  cmsys::RegularExpression twoattributes(
-    "<DartMeasurement"
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*>([^<]*)</DartMeasurement>");
-  cmsys::RegularExpression threeattributes(
-    "<DartMeasurement"
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*>([^<]*)</DartMeasurement>");
-  cmsys::RegularExpression fourattributes(
-    "<DartMeasurement"
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*>([^<]*)</DartMeasurement>");
-  cmsys::RegularExpression cdatastart(
-    "<DartMeasurement"
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*>"
-    SPACE_REGEX "*<!\\[CDATA\\[");
-  cmsys::RegularExpression cdataend(
-    "]]>"
-    SPACE_REGEX "*</DartMeasurement>");
-  cmsys::RegularExpression measurementfile(
-    "<DartMeasurementFile"
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*>([^<]*)</DartMeasurementFile>");
-
-  std::ostringstream ostr;
-  bool done = false;
-  std::string cxml = xml;
-  while ( ! done )
-    {
-    if ( twoattributes.find(cxml) )
-      {
-      ostr
-        << "\t\t\t<NamedMeasurement"
-        << " " << twoattributes.match(1) << "=\""
-        << twoattributes.match(2) << "\""
-        << " " << twoattributes.match(3) << "=\""
-        << twoattributes.match(4) << "\""
-        << "><Value>" << twoattributes.match(5)
-        << "</Value></NamedMeasurement>"
-        << std::endl;
-      cxml.erase(twoattributes.start(),
-        twoattributes.end() - twoattributes.start());
-      }
-    else if ( threeattributes.find(cxml) )
-      {
-      ostr
-        << "\t\t\t<NamedMeasurement"
-        << " " << threeattributes.match(1) << "=\""
-        << threeattributes.match(2) << "\""
-        << " " << threeattributes.match(3) << "=\""
-        << threeattributes.match(4) << "\""
-        << " " << threeattributes.match(5) << "=\""
-        << threeattributes.match(6) << "\""
-        << "><Value>" << threeattributes.match(7)
-        << "</Value></NamedMeasurement>"
-        << std::endl;
-      cxml.erase(threeattributes.start(),
-        threeattributes.end() - threeattributes.start());
-      }
-    else if ( fourattributes.find(cxml) )
-      {
-      ostr
-        << "\t\t\t<NamedMeasurement"
-        << " " << fourattributes.match(1) << "=\""
-        << fourattributes.match(2) << "\""
-        << " " << fourattributes.match(3) << "=\""
-        << fourattributes.match(4) << "\""
-        << " " << fourattributes.match(5) << "=\""
-        << fourattributes.match(6) << "\""
-        << " " << fourattributes.match(7) << "=\""
-        << fourattributes.match(8) << "\""
-        << "><Value>" << fourattributes.match(9)
-        << "</Value></NamedMeasurement>"
-        << std::endl;
-      cxml.erase(fourattributes.start(),
-        fourattributes.end() - fourattributes.start());
-      }
-    else if ( cdatastart.find(cxml) && cdataend.find(cxml) )
-      {
-      ostr
-        << "\t\t\t<NamedMeasurement"
-        << " " << cdatastart.match(1) << "=\""
-        << cdatastart.match(2) << "\""
-        << " " << cdatastart.match(3) << "=\""
-        << cdatastart.match(4) << "\""
-        << "><Value><![CDATA["
-        << cxml.substr(cdatastart.end(), cdataend.start() - cdatastart.end())
-        << "]]></Value></NamedMeasurement>"
-        << std::endl;
-      cxml.erase(cdatastart.start(),
-        cdataend.end() - cdatastart.start());
-      }
-    else if ( measurementfile.find(cxml) )
-      {
-      const std::string& filename =
-        cmCTest::CleanString(measurementfile.match(5));
-      if ( cmSystemTools::FileExists(filename.c_str()) )
-        {
-        long len = cmSystemTools::FileLength(filename);
-        if ( len == 0 )
-          {
-          std::string k1 = measurementfile.match(1);
-          std::string v1 = measurementfile.match(2);
-          std::string k2 = measurementfile.match(3);
-          std::string v2 = measurementfile.match(4);
-          if ( cmSystemTools::LowerCase(k1) == "type" )
-            {
-            v1 = "text/string";
-            }
-          if ( cmSystemTools::LowerCase(k2) == "type" )
-            {
-            v2 = "text/string";
-            }
-
-          ostr
-            << "\t\t\t<NamedMeasurement"
-            << " " << k1 << "=\"" << v1 << "\""
-            << " " << k2 << "=\"" << v2 << "\""
-            << " encoding=\"none\""
-            << "><Value>Image " << filename
-            << " is empty</Value></NamedMeasurement>";
-          }
-        else
-          {
-          cmsys::ifstream ifs(filename.c_str(), std::ios::in
-#ifdef _WIN32
-                            | std::ios::binary
+		else if (strcmp(value, "lzma") == 0)
+#if HAVE_LZMA_H
+			xar->opt_compression = LZMA;
+#else
+			name = "lzma";
 #endif
-            );
-          unsigned char *file_buffer = new unsigned char [ len + 1 ];
-          ifs.read(reinterpret_cast<char*>(file_buffer), len);
-          unsigned char *encoded_buffer
-            = new unsigned char [ static_cast<int>(
-                static_cast<double>(len) * 1.5 + 5.0) ];
+		else if (strcmp(value, "xz") == 0)
+#if HAVE_LZMA_H
+			xar->opt_compression = XZ;
+#else
+			name = "xz";
+#endif
+		else {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unknown compression name: `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
+		}
+		if (name != NULL) {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "`%s' compression not supported "
+			    "on this platform",
+			    name);
+			return (ARCHIVE_FAILED);
+		}
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "compression-level") == 0) {
+		if (value == NULL ||
+		    !(value[0] >= '0' && value[0] <= '9') ||
+		    value[1] != '\0') {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Illegal value `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
+		}
+		xar->opt_compression_level = value[0] - '0';
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "toc-checksum") == 0) {
+		if (value == NULL)
+			xar->opt_toc_sumalg = CKSUM_NONE;
+		else if (strcmp(value, "sha1") == 0)
+			xar->opt_toc_sumalg = CKSUM_SHA1;
+		else if (strcmp(value, "md5") == 0)
+			xar->opt_toc_sumalg = CKSUM_MD5;
+		else {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unknown checksum name: `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
+		}
+		return (ARCHIVE_OK);
+	}
 
-          size_t rlen
-            = cmsysBase64_Encode(file_buffer, len, encoded_buffer, 1);
-
-          ostr
-            << "\t\t\t<NamedMeasurement"
-            << " " << measurementfile.match(1) << "=\""
-            << measurementfile.match(2) << "\""
-            << " " << measurementfile.match(3) << "=\""
-            << measurementfile.match(4) << "\""
-            << " encoding=\"base64\""
-            << ">" << std::endl << "\t\t\t\t<Value>";
-          for (size_t cc = 0; cc < rlen; cc ++ )
-            {
-            ostr << encoded_buffer[cc];
-            if ( cc % 60 == 0 && cc )
-              {
-              ostr << std::endl;
-              }
-            }
-          ostr
-            << "</Value>" << std::endl << "\t\t\t</NamedMeasurement>"
-            << std::endl;
-          delete [] file_buffer;
-          delete [] encoded_buffer;
-          }
-        }
-      else
-        {
-        int idx = 4;
-        if ( measurementfile.match(1) == "name" )
-          {
-          idx = 2;
-          }
-        ostr
-          << "\t\t\t<NamedMeasurement"
-          << " name=\"" << measurementfile.match(idx) << "\""
-          << " text=\"text/string\""
-          << "><Value>File " << filename
-          << " not found</Value></NamedMeasurement>"
-          << std::endl;
-        cmCTestLog(this->CTest, HANDLER_OUTPUT, "File \"" << filename
-          << "\" not found." << std::endl);
-        }
-      cxml.erase(measurementfile.start(),
-        measurementfile.end() - measurementfile.start());
-      }
-    else
-      {
-      done = true;
-      }
-    }
-  return ostr.str();
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
 }
 
-//----------------------------------------------------------------------
-void cmCTestTestHandler::SetIncludeRegExp(const char *arg)
+static int
+xar_write_header(struct archive_write *a, struct archive_entry *entry)
 {
-  this->IncludeRegExp = arg;
+	struct xar *xar;
+	struct file *file;
+	struct archive_entry *file_entry;
+	int r, r2;
+
+	xar = (struct xar *)a->format_data;
+	xar->cur_file = NULL;
+	xar->bytes_remaining = 0;
+
+	if (xar->sconv == NULL) {
+		xar->sconv = archive_string_conversion_to_charset(
+		    &a->archive, "UTF-8", 1);
+		if (xar->sconv == NULL)
+			return (ARCHIVE_FATAL);
+	}
+
+	file = file_new(a, entry);
+	if (file == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate data");
+		return (ARCHIVE_FATAL);
+	}
+	r2 = file_gen_utility_names(a, file);
+	if (r2 < ARCHIVE_WARN)
+		return (r2);
+
+	/*
+	 * Ignore a path which looks like the top of directory name
+	 * since we have already made the root directory of an Xar archive.
+	 */
+	if (archive_strlen(&(file->parentdir)) == 0 &&
+	    archive_strlen(&(file->basename)) == 0) {
+		file_free(file);
+		return (r2);
+	}
+
+	/* Add entry into tree */
+	file_entry = file->entry;
+	r = file_tree(a, &file);
+	if (r != ARCHIVE_OK)
+		return (r);
+	/* There is the same file in tree and
+	 * the current file is older than the file in tree.
+	 * So we don't need the current file data anymore. */
+	if (file->entry != file_entry)
+		return (r2);
+	if (file->id == 0)
+		file_register(xar, file);
+
+	/* A virtual file, which is a directory, does not have
+	 * any contents and we won't store it into a archive
+	 * file other than its name. */
+	if (file->virtual)
+		return (r2);
+
+	/*
+	 * Prepare to save the contents of the file.
+	 */
+	if (xar->temp_fd == -1) {
+		int algsize;
+		xar->temp_offset = 0;
+		xar->temp_fd = __archive_mktemp(NULL);
+		if (xar->temp_fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Couldn't create temporary file");
+			return (ARCHIVE_FATAL);
+		}
+		algsize = getalgsize(xar->opt_toc_sumalg);
+		if (algsize > 0) {
+			if (lseek(xar->temp_fd, algsize, SEEK_SET) < 0) {
+				archive_set_error(&(a->archive), errno,
+				    "lseek failed");
+				return (ARCHIVE_FATAL);
+			}
+			xar->temp_offset = algsize;
+		}
+	}
+
+	if (archive_entry_hardlink(file->entry) == NULL) {
+		r = save_xattrs(a, file);
+		if (r != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	/* Non regular files contents are unneeded to be saved to
+	 * a temporary file. */
+	if (archive_entry_filetype(file->entry) != AE_IFREG)
+		return (r2);
+
+	/*
+	 * Set the current file to cur_file to read its contents.
+	 */
+	xar->cur_file = file;
+
+	if (archive_entry_nlink(file->entry) > 1) {
+		r = file_register_hardlink(a, file);
+		if (r != ARCHIVE_OK)
+			return (r);
+		if (archive_entry_hardlink(file->entry) != NULL) {
+			archive_entry_unset_size(file->entry);
+			return (r2);
+		}
+	}
+
+	/* Save a offset of current file in temporary file. */
+	file->data.temp_offset = xar->temp_offset;
+	file->data.size = archive_entry_size(file->entry);
+	file->data.compression = xar->opt_compression;
+	xar->bytes_remaining = archive_entry_size(file->entry);
+	checksum_init(&(xar->a_sumwrk), xar->opt_sumalg);
+	checksum_init(&(xar->e_sumwrk), xar->opt_sumalg);
+	r = xar_compression_init_encoder(a);
+
+	if (r != ARCHIVE_OK)
+		return (r);
+	else
+		return (r2);
 }
 
-//----------------------------------------------------------------------
-void cmCTestTestHandler::SetExcludeRegExp(const char *arg)
+static int
+write_to_temp(struct archive_write *a, const void *buff, size_t s)
 {
-  this->ExcludeRegExp = arg;
+	struct xar *xar;
+	const unsigned char *p;
+	ssize_t ws;
+
+	xar = (struct xar *)a->format_data;
+	p = (const unsigned char *)buff;
+	while (s) {
+		ws = write(xar->temp_fd, p, s);
+		if (ws < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "fwrite function failed");
+			return (ARCHIVE_FATAL);
+		}
+		s -= ws;
+		p += ws;
+		xar->temp_offset += ws;
+	}
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------
-void cmCTestTestHandler::SetTestsToRunInformation(const char* in)
+static ssize_t
+xar_write_data(struct archive_write *a, const void *buff, size_t s)
 {
-  if ( !in )
-    {
-    return;
-    }
-  this->TestsToRunString = in;
-  // if the argument is a file, then read it and use the contents as the
-  // string
-  if(cmSystemTools::FileExists(in))
-    {
-    cmsys::ifstream fin(in);
-    unsigned long filelen = cmSystemTools::FileLength(in);
-    char* buff = new char[filelen+1];
-    fin.getline(buff, filelen);
-    buff[fin.gcount()] = 0;
-    this->TestsToRunString = buff;
-    delete [] buff;
-    }
+	struct xar *xar;
+	enum la_zaction run;
+	size_t size, rsize;
+	int r;
+
+	xar = (struct xar *)a->format_data;
+
+	if (s > xar->bytes_remaining)
+		s = (size_t)xar->bytes_remaining;
+	if (s == 0 || xar->cur_file == NULL)
+		return (0);
+	if (xar->cur_file->data.compression == NONE) {
+		checksum_update(&(xar->e_sumwrk), buff, s);
+		checksum_update(&(xar->a_sumwrk), buff, s);
+		size = rsize = s;
+	} else {
+		xar->stream.next_in = (const unsigned char *)buff;
+		xar->stream.avail_in = s;
+		if (xar->bytes_remaining > s)
+			run = ARCHIVE_Z_RUN;
+		else
+			run = ARCHIVE_Z_FINISH;
+		/* Compress file data. */
+		r = compression_code(&(a->archive), &(xar->stream), run);
+		if (r != ARCHIVE_OK && r != ARCHIVE_EOF)
+			return (ARCHIVE_FATAL);
+		rsize = s - xar->stream.avail_in;
+		checksum_update(&(xar->e_sumwrk), buff, rsize);
+		size = sizeof(xar->wbuff) - xar->stream.avail_out;
+		checksum_update(&(xar->a_sumwrk), xar->wbuff, size);
+	}
+#if !defined(_WIN32) || defined(__CYGWIN__)
+	if (xar->bytes_remaining ==
+	    (uint64_t)archive_entry_size(xar->cur_file->entry)) {
+		/*
+		 * Get the path of a shell script if so.
+		 */
+		const unsigned char *b = (const unsigned char *)buff;
+
+		archive_string_empty(&(xar->cur_file->script));
+		if (rsize > 2 && b[0] == '#' && b[1] == '!') {
+			size_t i, end, off;
+
+			off = 2;
+			if (b[off] == ' ')
+				off++;
+#ifdef PATH_MAX
+			if ((rsize - off) > PATH_MAX)
+				end = off + PATH_MAX;
+			else
+#endif
+				end = rsize;
+			/* Find the end of a script path. */
+			for (i = off; i < end && b[i] != '\0' &&
+			    b[i] != '\n' && b[i] != '\r' &&
+			    b[i] != ' ' && b[i] != '\t'; i++)
+				;
+			archive_strncpy(&(xar->cur_file->script), b + off,
+			    i - off);
+		}
+	}
+#endif
+
+	if (xar->cur_file->data.compression == NONE) {
+		if (write_to_temp(a, buff, size) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	} else {
+		if (write_to_temp(a, xar->wbuff, size) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+	xar->bytes_remaining -= rsize;
+	xar->cur_file->data.length += size;
+
+	return (rsize);
 }
 
-//----------------------------------------------------------------------------
-bool cmCTestTestHandler::CleanTestOutput(std::string& output, size_t length)
+static int
+xar_finish_entry(struct archive_write *a)
 {
-  if(!length || length >= output.size() ||
-     output.find("CTEST_FULL_OUTPUT") != output.npos)
-    {
-    return true;
-    }
+	struct xar *xar;
+	struct file *file;
+	size_t s;
+	ssize_t w;
 
-  // Truncate at given length but do not break in the middle of a multi-byte
-  // UTF-8 encoding.
-  char const* const begin = output.c_str();
-  char const* const end = begin + output.size();
-  char const* const truncate = begin + length;
-  char const* current = begin;
-  while(current < truncate)
-    {
-    unsigned int ch;
-    if(const char* next = cm_utf8_decode_character(current, end, &ch))
-      {
-      if(next > truncate)
-        {
-        break;
-        }
-      current = next;
-      }
-    else // Bad byte will be handled by cmXMLSafe.
-      {
-      ++current;
-      }
-    }
-  output = output.substr(0, current - begin);
+	xar = (struct xar *)a->format_data;
+	if (xar->cur_file == NULL)
+		return (ARCHIVE_OK);
 
-  // Append truncation message.
-  std::ostringstream msg;
-  msg << "...\n"
-    "The rest of the test output was removed since it exceeds the threshold "
-    "of " << length << " bytes.\n";
-  output += msg.str();
-  return true;
+	while (xar->bytes_remaining > 0) {
+		s = (size_t)xar->bytes_remaining;
+		if (s > a->null_length)
+			s = a->null_length;
+		w = xar_write_data(a, a->nulls, s);
+		if (w > 0)
+			xar->bytes_remaining -= w;
+		else
+			return (w);
+	}
+	file = xar->cur_file;
+	checksum_final(&(xar->e_sumwrk), &(file->data.e_sum));
+	checksum_final(&(xar->a_sumwrk), &(file->data.a_sum));
+	xar->cur_file = NULL;
+
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------
-bool cmCTestTestHandler::SetTestsProperties(
-  const std::vector<std::string>& args)
+static int
+xmlwrite_string_attr(struct archive_write *a, xmlTextWriterPtr writer,
+	const char *key, const char *value,
+	const char *attrkey, const char *attrvalue)
 {
-  std::vector<std::string>::const_iterator it;
-  std::vector<std::string> tests;
-  bool found = false;
-  for ( it = args.begin(); it != args.end(); ++ it )
-    {
-    if ( *it == "PROPERTIES" )
-      {
-      found = true;
-      break;
-      }
-    tests.push_back(*it);
-    }
-  if ( !found )
-    {
-    return false;
-    }
-  ++ it; // skip PROPERTIES
-  for ( ; it != args.end(); ++ it )
-    {
-    std::string key = *it;
-    ++ it;
-    if ( it == args.end() )
-      {
-      break;
-      }
-    std::string val = *it;
-    std::vector<std::string>::const_iterator tit;
-    for ( tit = tests.begin(); tit != tests.end(); ++ tit )
-      {
-      cmCTestTestHandler::ListOfTests::iterator rtit;
-      for ( rtit = this->TestList.begin();
-        rtit != this->TestList.end();
-        ++ rtit )
-        {
-        if ( *tit == rtit->Name )
-          {
-          if ( key == "WILL_FAIL" )
-            {
-            rtit->WillFail = cmSystemTools::IsOn(val.c_str());
-            }
-          if ( key == "ATTACHED_FILES" )
-            {
-            cmSystemTools::ExpandListArgument(val, rtit->AttachedFiles);
-            }
-          if ( key == "ATTACHED_FILES_ON_FAIL" )
-            {
-            cmSystemTools::ExpandListArgument(val, rtit->AttachOnFail);
-            }
-          if ( key == "RESOURCE_LOCK" )
-            {
-            std::vector<std::string> lval;
-            cmSystemTools::ExpandListArgument(val, lval);
+	int r;
 
-            rtit->LockedResources.insert(lval.begin(), lval.end());
-            }
-          if ( key == "TIMEOUT" )
-            {
-            rtit->Timeout = atof(val.c_str());
-            rtit->ExplicitTimeout = true;
-            }
-          if ( key == "COST" )
-            {
-            rtit->Cost = static_cast<float>(atof(val.c_str()));
-            }
-          if ( key == "REQUIRED_FILES" )
-            {
-            cmSystemTools::ExpandListArgument(val, rtit->RequiredFiles);
-            }
-          if ( key == "RUN_SERIAL" )
-            {
-            rtit->RunSerial = cmSystemTools::IsOn(val.c_str());
-            }
-          if ( key == "FAIL_REGULAR_EXPRESSION" )
-            {
-            std::vector<std::string> lval;
-            cmSystemTools::ExpandListArgument(val, lval);
-            std::vector<std::string>::iterator crit;
-            for ( crit = lval.begin(); crit != lval.end(); ++ crit )
-              {
-              rtit->ErrorRegularExpressions.push_back(
-                std::pair<cmsys::RegularExpression, std::string>(
-                  cmsys::RegularExpression(crit->c_str()),
-                  std::string(*crit)));
-              }
-            }
-          if ( key == "PROCESSORS" )
-            {
-            rtit->Processors = atoi(val.c_str());
-            if(rtit->Processors < 1)
-              {
-              rtit->Processors = 1;
-              }
-            }
-          if ( key == "SKIP_RETURN_CODE" )
-            {
-            rtit->SkipReturnCode = atoi(val.c_str());
-            if(rtit->SkipReturnCode < 0 || rtit->SkipReturnCode > 255)
-              {
-              rtit->SkipReturnCode = -1;
-              }
-            }
-          if ( key == "DEPENDS" )
-            {
-            cmSystemTools::ExpandListArgument(val, rtit->Depends);
-            }
-          if ( key == "ENVIRONMENT" )
-            {
-            cmSystemTools::ExpandListArgument(val, rtit->Environment);
-            }
-          if ( key == "LABELS" )
-            {
-            cmSystemTools::ExpandListArgument(val, rtit->Labels);
-            }
-          if ( key == "MEASUREMENT" )
-            {
-            size_t pos = val.find_first_of("=");
-            if ( pos != val.npos )
-              {
-              std::string mKey = val.substr(0, pos);
-              const char* mVal = val.c_str() + pos + 1;
-              rtit->Measurements[mKey] = mVal;
-              }
-            else
-              {
-              rtit->Measurements[val] = "1";
-              }
-            }
-          if ( key == "PASS_REGULAR_EXPRESSION" )
-            {
-            std::vector<std::string> lval;
-            cmSystemTools::ExpandListArgument(val, lval);
-            std::vector<std::string>::iterator crit;
-            for ( crit = lval.begin(); crit != lval.end(); ++ crit )
-              {
-              rtit->RequiredRegularExpressions.push_back(
-                std::pair<cmsys::RegularExpression, std::string>(
-                  cmsys::RegularExpression(crit->c_str()),
-                  std::string(*crit)));
-              }
-            }
-          if ( key == "WORKING_DIRECTORY" )
-            {
-            rtit->Directory = val;
-            }
-          }
-        }
-      }
-    }
-  return true;
+	r = xmlTextWriterStartElement(writer, BAD_CAST_CONST(key));
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterStartElement() failed: %d", r);
+		return (ARCHIVE_FATAL);
+	}
+	if (attrkey != NULL && attrvalue != NULL) {
+		r = xmlTextWriterWriteAttribute(writer,
+		    BAD_CAST_CONST(attrkey), BAD_CAST_CONST(attrvalue));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterWriteAttribute() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+	}
+	if (value != NULL) {
+		r = xmlTextWriterWriteString(writer, BAD_CAST_CONST(value));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterWriteString() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+	}
+	r = xmlTextWriterEndElement(writer);
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterEndElement() failed: %d", r);
+		return (ARCHIVE_FATAL);
+	}
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------
-bool cmCTestTestHandler::AddTest(const std::vector<std::string>& args)
+static int
+xmlwrite_string(struct archive_write *a, xmlTextWriterPtr writer,
+	const char *key, const char *value)
 {
-  const std::string& testname = args[0];
-  cmCTestLog(this->CTest, DEBUG, "Add test: " << args[0] << std::endl);
+	int r;
 
-  if (this->UseExcludeRegExpFlag &&
-    this->UseExcludeRegExpFirst &&
-    this->ExcludeTestsRegularExpression.find(testname.c_str()))
-    {
-    return true;
-    }
-  if ( this->MemCheck )
-    {
-    std::vector<std::string>::iterator it;
-    bool found = false;
-    for ( it = this->CustomTestsIgnore.begin();
-      it != this->CustomTestsIgnore.end(); ++ it )
-      {
-      if ( *it == testname )
-        {
-        found = true;
-        break;
-        }
-      }
-    if ( found )
-      {
-      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Ignore memcheck: "
-        << *it << std::endl);
-      return true;
-      }
-    }
-  else
-    {
-    std::vector<std::string>::iterator it;
-    bool found = false;
-    for ( it = this->CustomTestsIgnore.begin();
-      it != this->CustomTestsIgnore.end(); ++ it )
-      {
-      if ( *it == testname )
-        {
-        found = true;
-        break;
-        }
-      }
-    if ( found )
-      {
-      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Ignore test: "
-        << *it << std::endl);
-      return true;
-      }
-    }
-
-  cmCTestTestProperties test;
-  test.Name = testname;
-  test.Args = args;
-  test.Directory = cmSystemTools::GetCurrentWorkingDirectory();
-  cmCTestLog(this->CTest, DEBUG, "Set test directory: "
-    << test.Directory << std::endl);
-
-  test.IsInBasedOnREOptions = true;
-  test.WillFail = false;
-  test.RunSerial = false;
-  test.Timeout = 0;
-  test.ExplicitTimeout = false;
-  test.Cost = 0;
-  test.Processors = 1;
-  test.SkipReturnCode = -1;
-  test.PreviousRuns = 0;
-  if (this->UseIncludeRegExpFlag &&
-    !this->IncludeTestsRegularExpression.find(testname.c_str()))
-    {
-    test.IsInBasedOnREOptions = false;
-    }
-  else if (this->UseExcludeRegExpFlag &&
-    !this->UseExcludeRegExpFirst &&
-    this->ExcludeTestsRegularExpression.find(testname.c_str()))
-    {
-    test.IsInBasedOnREOptions = false;
-    }
-  this->TestList.push_back(test);
-  return true;
+	if (value == NULL)
+		return (ARCHIVE_OK);
+	
+	r = xmlTextWriterStartElement(writer, BAD_CAST_CONST(key));
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterStartElement() failed: %d", r);
+		return (ARCHIVE_FATAL);
+	}
+	if (value != NULL) {
+		r = xmlTextWriterWriteString(writer, BAD_CAST_CONST(value));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterWriteString() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+	}
+	r = xmlTextWriterEndElement(writer);
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterEndElement() failed: %d", r);
+		return (ARCHIVE_FATAL);
+	}
+	return (ARCHIVE_OK);
 }
 
+static int
+xmlwrite_fstring(struct archive_write *a, xmlTextWriterPtr writer,
+	const char *key, const char *fmt, ...)
+{
+	struct xar *xar;
+	va_list ap;
+
+	xar = (struct xar *)a->format_data;
+	va_start(ap, fmt);
+	archive_string_empty(&xar->vstr);
+	archive_string_vsprintf(&xar->vstr, fmt, ap);
+	va_end(ap);
+	return (xmlwrite_string(a, writer, key, xar->vstr.s));
+}
+
+static int
+xmlwrite_time(struct archive_write *a, xmlTextWriterPtr writer,
+	const char *key, time_t t, int z)
+{
+	char timestr[100];
+	struct tm tm;
+
+#if defined(HAVE_GMTIME_R)
+	gmtime_r(&t, &tm);
+#elif defined(HAVE__GMTIME64_S)
+	_gmtime64_s(&tm, &t);
+#else
+	memcpy(&tm, gmtime(&t), sizeof(tm));
+#endif
+	memset(&timestr, 0, sizeof(timestr));
+	/* Do not use %F and %T for portability. */
+	strftime(timestr, sizeof(timestr), "%Y-%m-%dT%H:%M:%S", &tm);
+	if (z)
+		strcat(timestr, "Z");
+	return (xmlwrite_string(a, writer, key, timestr));
+}
+
+static int
+xmlwrite_mode(struct archive_write *a, xmlTextWriterPtr writer,
+	const char *key, mode_t mode)
+{
+	char ms[5];
+
+	ms[0] = '0';
+	ms[1] = '0' + ((mode >> 6) & 07);
+	ms[2] = '0' + ((mode >> 3) & 07);
+	ms[3] = '0' + (mode & 07);
+	ms[4] = '\0';
+
+	return (xmlwrite_string(a, writer, key, ms));
+}
+
+static int
+xmlwrite_sum(struct archive_write *a, xmlTextWriterPtr writer,
+	const char *key, struct chksumval *sum)
+{
+	const char *algname;
+	int algsize;
+	char buff[MAX_SUM_SIZE*2 + 1];
+	char *p;
+	unsigned char *s;
+	int i, r;
+
+	if (sum->len > 0) {
+		algname = getalgname(sum->alg);
+		algsize = getalgsize(sum->alg);
+		if (algname != NULL) {
+			const char *hex = "0123456789abcdef";
+			p = buff;
+			s = sum->val;
+			for (i = 0; i < algsize; i++) {
+				*p++ = hex[(*s >> 4)];
+				*p++ = hex[(*s & 0x0f)];
+				s++;
+			}
+			*p = '\0';
+			r = xmlwrite_string_attr(a, writer,
+			    key, buff,
+			    "style", algname);
+			if (r < 0)
+				return (ARCHIVE_FATAL);
+		}
+	}
+	return (ARCHIVE_OK);
+}
+
+static int
+xmlwrite_heap(struct archive_write *a, xmlTextWriterPtr writer,
+	struct heap_data *heap)
+{
+	const char *encname;
+	int r;
+
+	r = xmlwrite_fstring(a, writer, "length", "%ju", heap->length);
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	r = xmlwrite_fstring(a, writer, "offset", "%ju", heap->temp_offset);
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	r = xmlwrite_fstring(a, writer, "size", "%ju", heap->size);
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	switch (heap->compression) {
+	case GZIP:
+		encname = "application/x-gzip"; break;
+	case BZIP2:
+		encname = "application/x-bzip2"; break;
+	case LZMA:
+		encname = "application/x-lzma"; break;
+	case XZ:
+		encname = "application/x-xz"; break;
+	default:
+		encname = "application/octet-stream"; break;
+	}
+	r = xmlwrite_string_attr(a, writer, "encoding", NULL,
+	    "style", encname);
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	r = xmlwrite_sum(a, writer, "archived-checksum", &(heap->a_sum));
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	r = xmlwrite_sum(a, writer, "extracted-checksum", &(heap->e_sum));
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	return (ARCHIVE_OK);
+}
+
+/*
+ * xar utility records fflags as following xml elements:
+ *   <flags>
+ *     <UserNoDump/>
+ *     .....
+ *   </flags>
+ * or
+ *   <ext2>
+ *     <NoDump/>
+ *     .....
+ *   </ext2>
+ * If xar is running on BSD platform, records <flags>..</flags>;
+ * if xar is running on linux platform, records <ext2>..</ext2>;
+ * otherwise does not record.
+ *
+ * Our implements records both <flags> and <ext2> if it's necessary.
+ */
+static int
+make_fflags_entry(struct archive_write *a, xmlTextWriterPtr writer,
+    const char *element, const char *fflags_text)
+{
+	static const struct flagentry {
+		const char	*name;
+		const char	*xarname;
+	}
+	flagbsd[] = {
+		{ "sappnd",	"SystemAppend"},
+		{ "sappend",	"SystemAppend"},
+		{ "arch",	"SystemArchived"},
+		{ "archived",	"SystemArchived"},
+		{ "schg",	"SystemImmutable"},
+		{ "schange",	"SystemImmutable"},
+		{ "simmutable",	"SystemImmutable"},
+		{ "nosunlnk",	"SystemNoUnlink"},
+		{ "nosunlink",	"SystemNoUnlink"},
+		{ "snapshot",	"SystemSnapshot"},
+		{ "uappnd",	"UserAppend"},
+		{ "uappend",	"UserAppend"},
+		{ "uchg",	"UserImmutable"},
+		{ "uchange",	"UserImmutable"},
+		{ "uimmutable",	"UserImmutable"},
+		{ "nodump",	"UserNoDump"},
+		{ "noopaque",	"UserOpaque"},
+		{ "nouunlnk",	"UserNoUnlink"},
+		{ "nouunlink",	"UserNoUnlink"},
+		{ NULL, NULL}
+	},
+	flagext2[] = {
+		{ "sappnd",	"AppendOnly"},
+		{ "sappend",	"AppendOnly"},
+		{ "schg",	"Immutable"},
+		{ "schange",	"Immutable"},
+		{ "simmutable",	"Immutable"},
+		{ "nodump",	"NoDump"},
+		{ "nouunlnk",	"Undelete"},
+		{ "nouunlink",	"Undelete"},
+		{ "btree",	"BTree"},
+		{ "comperr",	"CompError"},
+		{ "compress",	"Compress"},
+		{ "noatime",	"NoAtime"},
+		{ "compdirty",	"CompDirty"},
+		{ "comprblk",	"CompBlock"},
+		{ "dirsync",	"DirSync"},
+		{ "hashidx",	"HashIndexed"},
+		{ "imagic",	"iMagic"},
+		{ "journal",	"Journaled"},
+		{ "securedeletion",	"SecureDeletion"},
+		{ "sync",	"Synchronous"},
+		{ "notail",	"NoTail"},
+		{ "topdir",	"TopDir"},
+		{ "reserved",	"Reserved"},
+		{ NULL, NULL}
+	};
+	const struct flagentry *fe, *flagentry;
+#define FLAGENTRY_MAXSIZE ((sizeof(flagbsd)+sizeof(flagext2))/sizeof(flagbsd))
+	const struct flagentry *avail[FLAGENTRY_MAXSIZE];
+	const char *p;
+	int i, n, r;
+
+	if (strcmp(element, "ext2") == 0)
+		flagentry = flagext2;
+	else
+		flagentry = flagbsd;
+	n = 0;
+	p = fflags_text;
+	do {
+		const char *cp;
+
+		cp = strchr(p, ',');
+		if (cp == NULL)
+			cp = p + strlen(p);
+
+		for (fe = flagentry; fe->name != NULL; fe++) {
+			if (fe->name[cp - p] != '\0'
+			    || p[0] != fe->name[0])
+				continue;
+			if (strncmp(p, fe->name, cp - p) == 0) {
+				avail[n++] = fe;
+				break;
+			}
+		}
+		if (*cp == ',')
+			p = cp + 1;
+		else
+			p = NULL;
+	} while (p != NULL);
+
+	if (n > 0) {
+		r = xmlTextWriterStartElement(writer, BAD_CAST_CONST(element));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterStartElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+		for (i = 0; i < n; i++) {
+			r = xmlwrite_string(a, writer,
+			    avail[i]->xarname, NULL);
+			if (r != ARCHIVE_OK)
+				return (r);
+		}
+
+		r = xmlTextWriterEndElement(writer);
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+	}
+	return (ARCHIVE_OK);
+}
+
+static int
+make_file_entry(struct archive_write *a, xmlTextWriterPtr writer,
+    struct file *file)
+{
+	struct xar *xar;
+	const char *filetype, *filelink, *fflags;
+	struct archive_string linkto;
+	struct heap_data *heap;
+	unsigned char *tmp;
+	const char *p;
+	size_t len;
+	int r, r2, l, ll;
+
+	xar = (struct xar *)a->format_data;
+	r2 = ARCHIVE_OK;
+
+	/*
+	 * Make a file name entry, "<name>".
+	 */
+	l = ll = archive_strlen(&(file->basename));
+	tmp = malloc(l);
+	if (tmp == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory");
+		return (ARCHIVE_FATAL);
+	}
+	r = UTF8Toisolat1(tmp, &l, BAD_CAST(file->basename.s), &ll);
+	free(tmp);
+	if (r < 0) {
+		r = xmlTextWriterStartElement(writer, BAD_CAST("name"));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterStartElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+		r = xmlTextWriterWriteAttribute(writer,
+		    BAD_CAST("enctype"), BAD_CAST("base64"));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterWriteAttribute() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+		r = xmlTextWriterWriteBase64(writer, file->basename.s,
+		    0, archive_strlen(&(file->basename)));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterWriteBase64() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+		r = xmlTextWriterEndElement(writer);
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+	} else {
+		r = xmlwrite_string(a, writer, "name", file->basename.s);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Make a file type entry, "<type>".
+	 */
+	filelink = NULL;
+	archive_string_init(&linkto);
+	switch (archive_entry_filetype(file->entry)) {
+	case AE_IFDIR:
+		filetype = "directory"; break;
+	case AE_IFLNK:
+		filetype = "symlink"; break;
+	case AE_IFCHR:
+		filetype = "character special"; break;
+	case AE_IFBLK:
+		filetype = "block special"; break;
+	case AE_IFSOCK:
+		filetype = "socket"; break;
+	case AE_IFIFO:
+		filetype = "fifo"; break;
+	case AE_IFREG:
+	default:
+		if (file->hardlink_target != NULL) {
+			filetype = "hardlink";
+			filelink = "link";
+			if (file->hardlink_target == file)
+				archive_strcpy(&linkto, "original");
+			else
+				archive_string_sprintf(&linkto, "%d",
+				    file->hardlink_target->id);
+		} else
+			filetype = "file";
+		break;
+	}
+	r = xmlwrite_string_attr(a, writer, "type", filetype,
+	    filelink, linkto.s);
+	archive_string_free(&linkto);
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+
+	/*
+	 * On a virtual directory, we record "name" and "type" only.
+	 */
+	if (file->virtual)
+		return (ARCHIVE_OK);
+
+	switch (archive_entry_filetype(file->entry)) {
+	case AE_IFLNK:
+		/*
+		 * xar utility has checked a file type, which
+		 * a symblic-link file has referenced.
+		 * For example:
+		 *   <link type="directory">../ref/</link>
+		 *   The symlink target file is "../ref/" and its
+		 *   file type is a directory.
+		 *
+		 *   <link type="file">../f</link>
+		 *   The symlink target file is "../f" and its
+		 *   file type is a regular file.
+		 *
+		 * But our implemention cannot do it, and then we
+		 * always record that a attribute "type" is "borken",
+		 * for example:
+		 *   <link type="broken">foo/bar</link>
+		 *   It means "foo/bar" is not reachable.
+		 */
+		r = xmlwrite_string_attr(a, writer, "link",
+		    file->symlink.s,
+		    "type", "broken");
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+		break;
+	case AE_IFCHR:
+	case AE_IFBLK:
+		r = xmlTextWriterStartElement(writer, BAD_CAST("device"));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterStartElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+		r = xmlwrite_fstring(a, writer, "major",
+		    "%d", archive_entry_rdevmajor(file->entry));
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+		r = xmlwrite_fstring(a, writer, "minor",
+		    "%d", archive_entry_rdevminor(file->entry));
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+		r = xmlTextWriterEndElement(writer);
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+		break;
+	default:
+		break;
+	}
+
+	/*
+	 * Make a inode entry, "<inode>".
+	 */
+	r = xmlwrite_fstring(a, writer, "inode",
+	    "%jd", archive_entry_ino64(file->entry));
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	if (archive_entry_dev(file->entry) != 0) {
+		r = xmlwrite_fstring(a, writer, "deviceno",
+		    "%d", archive_entry_dev(file->entry));
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Make a file mode entry, "<mode>".
+	 */
+	r = xmlwrite_mode(a, writer, "mode",
+	    archive_entry_mode(file->entry));
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+
+	/*
+	 * Make a user entry, "<uid>" and "<user>.
+	 */
+	r = xmlwrite_fstring(a, writer, "uid",
+	    "%d", archive_entry_uid(file->entry));
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	r = archive_entry_uname_l(file->entry, &p, &len, xar->sconv);
+	if (r != 0) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Uname");
+			return (ARCHIVE_FATAL);
+		}
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Can't translate uname '%s' to UTF-8",
+		    archive_entry_uname(file->entry));
+		r2 = ARCHIVE_WARN;
+	}
+	if (len > 0) {
+		r = xmlwrite_string(a, writer, "user", p);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Make a group entry, "<gid>" and "<group>.
+	 */
+	r = xmlwrite_fstring(a, writer, "gid",
+	    "%d", archive_entry_gid(file->entry));
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	r = archive_entry_gname_l(file->entry, &p, &len, xar->sconv);
+	if (r != 0) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Gname");
+			return (ARCHIVE_FATAL);
+		}
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Can't translate gname '%s' to UTF-8",
+		    archive_entry_gname(file->entry));
+		r2 = ARCHIVE_WARN;
+	}
+	if (len > 0) {
+		r = xmlwrite_string(a, writer, "group", p);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Make a ctime entry, "<ctime>".
+	 */
+	if (archive_entry_ctime_is_set(file->entry)) {
+		r = xmlwrite_time(a, writer, "ctime",
+		    archive_entry_ctime(file->entry), 1);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Make a mtime entry, "<mtime>".
+	 */
+	if (archive_entry_mtime_is_set(file->entry)) {
+		r = xmlwrite_time(a, writer, "mtime",
+		    archive_entry_mtime(file->entry), 1);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Make a atime entry, "<atime>".
+	 */
+	if (archive_entry_atime_is_set(file->entry)) {
+		r = xmlwrite_time(a, writer, "atime",
+		    archive_entry_atime(file->entry), 1);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Make fflags entries, "<flags>" and "<ext2>".
+	 */
+	fflags = archive_entry_fflags_text(file->entry);
+	if (fflags != NULL) {
+		r = make_fflags_entry(a, writer, "flags", fflags);
+		if (r < 0)
+			return (r);
+		r = make_fflags_entry(a, writer, "ext2", fflags);
+		if (r < 0)
+			return (r);
+	}
+
+	/*
+	 * Make extended attribute entries, "<ea>".
+	 */
+	archive_entry_xattr_reset(file->entry);
+	for (heap = file->xattr.first; heap != NULL; heap = heap->next) {
+		const char *name;
+		const void *value;
+		size_t size;
+
+		archive_entry_xattr_next(file->entry,
+		    &name, &value, &size);
+		r = xmlTextWriterStartElement(writer, BAD_CAST("ea"));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterStartElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+		r = xmlTextWriterWriteFormatAttribute(writer,
+		    BAD_CAST("id"), "%d", heap->id);
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterWriteAttribute() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+		r = xmlwrite_heap(a, writer, heap);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+		r = xmlwrite_string(a, writer, "name", name);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+
+		r = xmlTextWriterEndElement(writer);
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	/*
+	 * Make a file data entry, "<data>".
+	 */
+	if (file->data.length > 0) {
+		r = xmlTextWriterStartElement(writer, BAD_CAST("data"));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterStartElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+
+		r = xmlwrite_heap(a, writer, &(file->data));
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+
+		r = xmlTextWriterEndElement(writer);
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	if (archive_strlen(&file->script) > 0) {
+		r = xmlTextWriterStartElement(writer, BAD_CAST("content"));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterStartElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+
+		r = xmlwrite_string(a, writer,
+		    "interpreter", file->script.s);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+
+		r = xmlwrite_string(a, writer, "type", "script");
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+
+		r = xmlTextWriterEndElement(writer);
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	return (r2);
+}
+
+/*
+ * Make the TOC
+ */
+static int
+make_toc(struct archive_write *a)
+{
+	struct xar *xar;
+	struct file *np;
+	xmlBufferPtr bp;
+	xmlTextWriterPtr writer;
+	int algsize;
+	int r, ret;
+
+	xar = (struct xar *)a->format_data;
+
+	ret = ARCHIVE_FATAL;
+
+	/*
+	 * Initialize xml writer.
+	 */
+	writer = NULL;
+	bp = xmlBufferCreate();
+	if (bp == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "xmlBufferCreate() "
+		    "couldn't create xml buffer");
+		goto exit_toc;
+	}
+	writer = xmlNewTextWriterMemory(bp, 0);
+	if (writer == NULL) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlNewTextWriterMemory() "
+		    "couldn't create xml writer");
+		goto exit_toc;
+	}
+	r = xmlTextWriterStartDocument(writer, "1.0", "UTF-8", NULL);
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterStartDocument() failed: %d", r);
+		goto exit_toc;
+	}
+	r = xmlTextWriterSetIndent(writer, 4);
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterSetIndent() failed: %d", r);
+		goto exit_toc;
+	}
+
+	/*
+	 * Start recoding TOC
+	 */
+	r = xmlTextWriterStartElement(writer, BAD_CAST("xar"));
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterStartElement() failed: %d", r);
+		goto exit_toc;
+	}
+	r = xmlTextWriterStartElement(writer, BAD_CAST("toc"));
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterStartDocument() failed: %d", r);
+		goto exit_toc;
+	}
+
+	/*
+	 * Record the creation time of the archive file.
+	 */
+	r = xmlwrite_time(a, writer, "creation-time", time(NULL), 0);
+	if (r < 0)
+		goto exit_toc;
+
+	/*
+	 * Record the checksum value of TOC
+	 */
+	algsize = getalgsize(xar->opt_toc_sumalg);
+	if (algsize) {
+		/*
+		 * Record TOC checksum
+		 */
+		r = xmlTextWriterStartElement(writer, BAD_CAST("checksum"));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterStartElement() failed: %d", r);
+			goto exit_toc;
+		}
+		r = xmlTextWriterWriteAttribute(writer, BAD_CAST("style"),
+		    BAD_CAST_CONST(getalgname(xar->opt_toc_sumalg)));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterWriteAttribute() failed: %d", r);
+			goto exit_toc;
+		}
+
+		/*
+		 * Record the offset of the value of checksum of TOC
+		 */
+		r = xmlwrite_string(a, writer, "offset", "0");
+		if (r < 0)
+			goto exit_toc;
+
+		/*
+		 * Record the size of the value of checksum of TOC
+		 */
+		r = xmlwrite_fstring(a, writer, "size", "%d", algsize);
+		if (r < 0)
+			goto exit_toc;
+
+		r = xmlTextWriterEndElement(writer);
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r);
+			goto exit_toc;
+		}
+	}
+
+	np = xar->root;
+	do {
+		if (np != np->parent) {
+			r = make_file_entry(a, writer, np);
+			if (r != ARCHIVE_OK)
+				goto exit_toc;
+		}
+
+		if (np->dir && np->children.first != NULL) {
+			/* Enter to sub directories. */
+			np = np->children.first;
+			r = xmlTextWriterStartElement(writer,
+			    BAD_CAST("file"));
+			if (r < 0) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "xmlTextWriterStartElement() "
+				    "failed: %d", r);
+				goto exit_toc;
+			}
+			r = xmlTextWriterWriteFormatAttribute(
+			    writer, BAD_CAST("id"), "%d", np->id);
+			if (r < 0) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "xmlTextWriterWriteAttribute() "
+				    "failed: %d", r);
+				goto exit_toc;
+			}
+			continue;
+		}
+		while (np != np->parent) {
+			r = xmlTextWriterEndElement(writer);
+			if (r < 0) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "xmlTextWriterEndElement() "
+				    "failed: %d", r);
+				goto exit_toc;
+			}
+			if (np->chnext == NULL) {
+				/* Return to the parent directory. */
+				np = np->parent;
+			} else {
+				np = np->chnext;
+				r = xmlTextWriterStartElement(writer,
+				    BAD_CAST("file"));
+				if (r < 0) {
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    "xmlTextWriterStartElement() "
+					    "failed: %d", r);
+					goto exit_toc;
+				}
+				r = xmlTextWriterWriteFormatAttribute(
+				    writer, BAD_CAST("id"), "%d", np->id);
+				if (r < 0) {
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    "xmlTextWriterWriteAttribute() "
+					    "failed: %d", r);
+					goto exit_toc;
+				}
+				break;
+			}
+		}
+	} while (np != np->parent);
+
+	r = xmlTextWriterEndDocument(writer);
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterEndDocument() failed: %d", r);
+		goto exit_toc;
+	}
+#if DEBUG_PRINT_TOC
+	fprintf(stderr, "\n---TOC-- %d bytes --\n%s\n",
+	    strlen((const char *)bp->content), bp->content);
+#endif
+
+	/*
+	 * Compress the TOC and calculate the sum of the TOC.
+	 */
+	xar->toc.temp_offset = xar->temp_offset;
+	xar->toc.size = bp->use;
+	checksum_init(&(xar->a_sumwrk), xar->opt_toc_sumalg);
+
+	r = compression_init_encoder_gzip(&(a->archive),
+	    &(xar->stream), 6, 1);
+	if (r != ARCHIVE_OK)
+		goto exit_toc;
+	xar->stream.next_in = bp->content;
+	xar->stream.avail_in = bp->use;
+	xar->stream.total_in = 0;
+	xar->stream.next_out = xar->wbuff;
+	xar->stream.avail_out = sizeof(xar->wbuff);
+	xar->stream.total_out = 0;
+	for (;;) {
+		size_t size;
+
+		r = compression_code(&(a->archive),
+		    &(xar->stream), ARCHIVE_Z_FINISH);
+		if (r != ARCHIVE_OK && r != ARCHIVE_EOF)
+			goto exit_toc;
+		size = sizeof(xar->wbuff) - xar->stream.avail_out;
+		checksum_update(&(xar->a_sumwrk), xar->wbuff, size);
+		if (write_to_temp(a, xar->wbuff, size) != ARCHIVE_OK)
+			goto exit_toc;
+		if (r == ARCHIVE_EOF)
+			break;
+		xar->stream.next_out = xar->wbuff;
+		xar->stream.avail_out = sizeof(xar->wbuff);
+	}
+	r = compression_end(&(a->archive), &(xar->stream));
+	if (r != ARCHIVE_OK)
+		goto exit_toc;
+	xar->toc.length = xar->stream.total_out;
+	xar->toc.compression = GZIP;
+	checksum_final(&(xar->a_sumwrk), &(xar->toc.a_sum));
+
+	ret = ARCHIVE_OK;
+exit_toc:
+	if (writer)
+		xmlFreeTextWriter(writer);
+	if (bp)
+		xmlBufferFree(bp);
+
+	return (ret);
+}
+
+static int
+flush_wbuff(struct archive_write *a)
+{
+	struct xar *xar;
+	int r;
+	size_t s;
+
+	xar = (struct xar *)a->format_data;
+	s = sizeof(xar->wbuff) - xar->wbuff_remaining;
+	r = __archive_write_output(a, xar->wbuff, s);
+	if (r != ARCHIVE_OK)
+		return (r);
+	xar->wbuff_remaining = sizeof(xar->wbuff);
+	return (r);
+}
+
+static int
+copy_out(struct archive_write *a, uint64_t offset, uint64_t length)
+{
+	struct xar *xar;
+	int r;
+
+	xar = (struct xar *)a->format_data;
+	if (lseek(xar->temp_fd, offset, SEEK_SET) < 0) {
+		archive_set_error(&(a->archive), errno, "lseek failed");
+		return (ARCHIVE_FATAL);
+	}
+	while (length) {
+		size_t rsize;
+		ssize_t rs;
+		unsigned char *wb;
+
+		if (length > xar->wbuff_remaining)
+			rsize = xar->wbuff_remaining;
+		else
+			rsize = (size_t)length;
+		wb = xar->wbuff + (sizeof(xar->wbuff) - xar->wbuff_remaining);
+		rs = read(xar->temp_fd, wb, rsize);
+		if (rs < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Can't read temporary file(%jd)",
+			    (intmax_t)rs);
+			return (ARCHIVE_FATAL);
+		}
+		if (rs == 0) {
+			archive_set_error(&(a->archive), 0,
+			    "Truncated xar archive");
+			return (ARCHIVE_FATAL);
+		}
+		xar->wbuff_remaining -= rs;
+		length -= rs;
+		if (xar->wbuff_remaining == 0) {
+			r = flush_wbuff(a);
+			if (r != ARCHIVE_OK)
+				return (r);
+		}
+	}
+	return (ARCHIVE_OK);
+}
+
+static int
+xar_close(struct archive_write *a)
+{
+	struct xar *xar;
+	unsigned char *wb;
+	uint64_t length;
+	int r;
+
+	xar = (struct xar *)a->format_data;
+
+	/* Empty! */
+	if (xar->root->children.first == NULL)
+		return (ARCHIVE_OK);
+
+	/* Save the length of all file extended attributes and contents. */
+	length = xar->temp_offset;
+
+	/* Connect hardlinked files */
+	file_connect_hardlink_files(xar);
+
+	/* Make the TOC */
+	r = make_toc(a);
+	if (r != ARCHIVE_OK)
+		return (r);
+	/*
+	 * Make the xar header on wbuff(write buffer).
+	 */
+	wb = xar->wbuff;
+	xar->wbuff_remaining = sizeof(xar->wbuff);
+	archive_be32enc(&wb[0], HEADER_MAGIC);
+	archive_be16enc(&wb[4], HEADER_SIZE);
+	archive_be16enc(&wb[6], HEADER_VERSION);
+	archive_be64enc(&wb[8], xar->toc.length);
+	archive_be64enc(&wb[16], xar->toc.size);
+	archive_be32enc(&wb[24], xar->toc.a_sum.alg);
+	xar->wbuff_remaining -= HEADER_SIZE;
+
+	/*
+	 * Write the TOC
+	 */
+	r = copy_out(a, xar->toc.temp_offset, xar->toc.length);
+	if (r != ARCHIVE_OK)
+		return (r);
+
+	/* Write the checksum value of the TOC. */
+	if (xar->toc.a_sum.len) {
+		if (xar->wbuff_remaining < xar->toc.a_sum.len) {
+			r = flush_wbuff(a);
+			if (r != ARCHIVE_OK)
+				return (r);
+		}
+		wb = xar->wbuff + (sizeof(xar->wbuff) - xar->wbuff_remaining);
+		memcpy(wb, xar->toc.a_sum.val, xar->toc.a_sum.len);
+		xar->wbuff_remaining -= xar->toc.a_sum.len;
+	}
+
+	/*
+	 * Write all file extended attributes and contents.
+	 */
+	r = copy_out(a, xar->toc.a_sum.len, length);
+	if (r != ARCHIVE_OK)
+		return (r);
+	r = flush_wbuff(a);
+	return (r);
+}
+
+static int
+xar_free(struct archive_write *a)
+{
+	struct xar *xar;
+
+	xar = (struct xar *)a->format_data;
+	archive_string_free(&(xar->cur_dirstr));
+	archive_string_free(&(xar->tstr));
+	archive_string_free(&(xar->vstr));
+	file_free_hardlinks(xar);
+	file_free_register(xar);
+	compression_end(&(a->archive), &(xar->stream));
+	free(xar);
+
+	return (ARCHIVE_OK);
+}
+
+static int
+file_cmp_node(const struct archive_rb_node *n1,
+    const struct archive_rb_node *n2)
+{
+	const struct file *f1 = (const struct file *)n1;
+	const struct file *f2 = (const struct file *)n2;
+
+	return (strcmp(f1->basename.s, f2->basename.s));
+}
+        
+static int
+file_cmp_key(const struct archive_rb_node *n, const void *key)
+{
+	const struct file *f = (const struct file *)n;
+
+	return (strcmp(f->basename.s, (const char *)key));
+}
+
+static struct file *
+file_new(struct archive_write *a, struct archive_entry *entry)
+{
+	struct file *file;
+	static const struct archive_rb_tree_ops rb_ops = {
+		file_cmp_node, file_cmp_key
+	};
+
+	file = calloc(1, sizeof(*file));
+	if (file == NULL)
+		return (NULL);
+
+	if (entry != NULL)
+		file->entry = archive_entry_clone(entry);
+	else
+		file->entry = archive_entry_new2(&a->archive);
+	if (file->entry == NULL) {
+		free(file);
+		return (NULL);
+	}
+	__archive_rb_tree_init(&(file->rbtree), &rb_ops);
+	file->children.first = NULL;
+	file->children.last = &(file->children.first);
+	file->xattr.first = NULL;
+	file->xattr.last = &(file->xattr.first);
+	archive_string_init(&(file->parentdir));
+	archive_string_init(&(file->basename));
+	archive_string_init(&(file->symlink));
+	archive_string_init(&(file->script));
+	if (entry != NULL && archive_entry_filetype(entry) == AE_IFDIR)
+		file->dir = 1;
+
+	return (file);
+}
+
+static void
+file_free(struct file *file)
+{
+	struct heap_data *heap, *next_heap;
+
+	heap = file->xattr.first;
+	while (heap != NULL) {
+		next_heap = heap->next;
+		free(heap);
+		heap = next_heap;
+	}
+	archive_string_free(&(file->parentdir));
+	archive_string_free(&(file->basename));
+	archive_string_free(&(file->symlink));
+	archive_string_free(&(file->script));
+	free(file);
+}
+
+static struct file *
+file_create_virtual_dir(struct archive_write *a, struct xar *xar,
+    const char *pathname)
+{
+	struct file *file;
+
+	(void)xar; /* UNUSED */
+
+	file = file_new(a, NULL);
+	if (file == NULL)
+		return (NULL);
+	archive_entry_set_pathname(file->entry, pathname);
+	archive_entry_set_mode(file->entry, 0555 | AE_IFDIR);
+
+	file->dir = 1;
+	file->virtual = 1;
+
+	return (file);
+}
+
+static int
+file_add_child_tail(struct file *parent, struct file *child)
+{
+	if (!__archive_rb_tree_insert_node(
+	    &(parent->rbtree), (struct archive_rb_node *)child))
+		return (0);
+	child->chnext = NULL;
+	*parent->children.last = child;
+	parent->children.last = &(child->chnext);
+	child->parent = parent;
+	return (1);
+}
+
+/*
+ * Find a entry from `parent'
+ */
+static struct file *
+file_find_child(struct file *parent, const char *child_name)
+{
+	struct file *np;
+
+	np = (struct file *)__archive_rb_tree_find_node(
+	    &(parent->rbtree), child_name);
+	return (np);
+}
+
+#if defined(_WIN32) || defined(__CYGWIN__)
+static void
+cleanup_backslash(char *utf8, size_t len)
+{
+
+	/* Convert a path-separator from '\' to  '/' */
+	while (*utf8 != '\0' && len) {
+		if (*utf8 == '\\')
+			*utf8 = '/';
+		++utf8;
+		--len;
+	}
+}
+#else
+#define cleanup_backslash(p, len)	/* nop */
+#endif
+
+/*
+ * Generate a parent directory name and a base name from a pathname.
+ */
+static int
+file_gen_utility_names(struct archive_write *a, struct file *file)
+{
+	struct xar *xar;
+	const char *pp;
+	char *p, *dirname, *slash;
+	size_t len;
+	int r = ARCHIVE_OK;
+
+	xar = (struct xar *)a->format_data;
+	archive_string_empty(&(file->parentdir));
+	archive_string_empty(&(file->basename));
+	archive_string_empty(&(file->symlink));
+
+	if (file->parent == file)/* virtual root */
+		return (ARCHIVE_OK);
+
+	if (archive_entry_pathname_l(file->entry, &pp, &len, xar->sconv)
+	    != 0) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Pathname");
+			return (ARCHIVE_FATAL);
+		}
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Can't translate pathname '%s' to UTF-8",
+		    archive_entry_pathname(file->entry));
+		r = ARCHIVE_WARN;
+	}
+	archive_strncpy(&(file->parentdir), pp, len);
+	len = file->parentdir.length;
+	p = dirname = file->parentdir.s;
+	/*
+	 * Convert a path-separator from '\' to  '/'
+	 */
+	cleanup_backslash(p, len);
+
+	/*
+	 * Remove leading '/', '../' and './' elements
+	 */
+	while (*p) {
+		if (p[0] == '/') {
+			p++;
+			len--;
+		} else if (p[0] != '.')
+			break;
+		else if (p[1] == '.' && p[2] == '/') {
+			p += 3;
+			len -= 3;
+		} else if (p[1] == '/' || (p[1] == '.' && p[2] == '\0')) {
+			p += 2;
+			len -= 2;
+		} else if (p[1] == '\0') {
+			p++;
+			len--;
+		} else
+			break;
+	}
+	if (p != dirname) {
+		memmove(dirname, p, len+1);
+		p = dirname;
+	}
+	/*
+	 * Remove "/","/." and "/.." elements from tail.
+	 */
+	while (len > 0) {
+		size_t ll = len;
+
+		if (len > 0 && p[len-1] == '/') {
+			p[len-1] = '\0';
+			len--;
+		}
+		if (len > 1 && p[len-2] == '/' && p[len-1] == '.') {
+			p[len-2] = '\0';
+			len -= 2;
+		}
+		if (len > 2 && p[len-3] == '/' && p[len-2] == '.' &&
+		    p[len-1] == '.') {
+			p[len-3] = '\0';
+			len -= 3;
+		}
+		if (ll == len)
+			break;
+	}
+	while (*p) {
+		if (p[0] == '/') {
+			if (p[1] == '/')
+				/* Convert '//' --> '/' */
+				strcpy(p, p+1);
+			else if (p[1] == '.' && p[2] == '/')
+				/* Convert '/./' --> '/' */
+				strcpy(p, p+2);
+			else if (p[1] == '.' && p[2] == '.' && p[3] == '/') {
+				/* Convert 'dir/dir1/../dir2/'
+				 *     --> 'dir/dir2/'
+				 */
+				char *rp = p -1;
+				while (rp >= dirname) {
+					if (*rp == '/')
+						break;
+					--rp;
+				}
+				if (rp > dirname) {
+					strcpy(rp, p+3);
+					p = rp;
+				} else {
+					strcpy(dirname, p+4);
+					p = dirname;
+				}
+			} else
+				p++;
+		} else
+			p++;
+	}
+	p = dirname;
+	len = strlen(p);
+
+	if (archive_entry_filetype(file->entry) == AE_IFLNK) {
+		size_t len2;
+		/* Convert symlink name too. */
+		if (archive_entry_symlink_l(file->entry, &pp, &len2,
+		    xar->sconv) != 0) {
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Linkname");
+				return (ARCHIVE_FATAL);
+			}
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Can't translate symlink '%s' to UTF-8",
+			    archive_entry_symlink(file->entry));
+			r = ARCHIVE_WARN;
+		}
+		archive_strncpy(&(file->symlink), pp, len2);
+		cleanup_backslash(file->symlink.s, file->symlink.length);
+	}
+	/*
+	 * - Count up directory elements.
+	 * - Find out the position which points the last position of
+	 *   path separator('/').
+	 */
+	slash = NULL;
+	for (; *p != '\0'; p++)
+		if (*p == '/')
+			slash = p;
+	if (slash == NULL) {
+		/* The pathname doesn't have a parent directory. */
+		file->parentdir.length = len;
+		archive_string_copy(&(file->basename), &(file->parentdir));
+		archive_string_empty(&(file->parentdir));
+		file->parentdir.s = '\0';
+		return (r);
+	}
+
+	/* Make a basename from dirname and slash */
+	*slash  = '\0';
+	file->parentdir.length = slash - dirname;
+	archive_strcpy(&(file->basename),  slash + 1);
+	return (r);
+}
+
+static int
+get_path_component(char *name, int n, const char *fn)
+{
+	char *p;
+	int l;
+
+	p = strchr(fn, '/');
+	if (p == NULL) {
+		if ((l = strlen(fn)) == 0)
+			return (0);
+	} else
+		l = p - fn;
+	if (l > n -1)
+		return (-1);
+	memcpy(name, fn, l);
+	name[l] = '\0';
+
+	return (l);
+}
+
+/*
+ * Add a new entry into the tree.
+ */
+static int
+file_tree(struct archive_write *a, struct file **filepp)
+{
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	char name[_MAX_FNAME];/* Included null terminator size. */
+#elif defined(NAME_MAX) && NAME_MAX >= 255
+	char name[NAME_MAX+1];
+#else
+	char name[256];
+#endif
+	struct xar *xar = (struct xar *)a->format_data;
+	struct file *dent, *file, *np;
+	struct archive_entry *ent;
+	const char *fn, *p;
+	int l;
+
+	file = *filepp;
+	dent = xar->root;
+	if (file->parentdir.length > 0)
+		fn = p = file->parentdir.s;
+	else
+		fn = p = "";
+
+	/*
+	 * If the path of the parent directory of `file' entry is
+	 * the same as the path of `cur_dirent', add isoent to
+	 * `cur_dirent'.
+	 */
+	if (archive_strlen(&(xar->cur_dirstr))
+	      == archive_strlen(&(file->parentdir)) &&
+	    strcmp(xar->cur_dirstr.s, fn) == 0) {
+		if (!file_add_child_tail(xar->cur_dirent, file)) {
+			np = (struct file *)__archive_rb_tree_find_node(
+			    &(xar->cur_dirent->rbtree),
+			    file->basename.s);
+			goto same_entry;
+		}
+		return (ARCHIVE_OK);
+	}
+
+	for (;;) {
+		l = get_path_component(name, sizeof(name), fn);
+		if (l == 0) {
+			np = NULL;
+			break;
+		}
+		if (l < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "A name buffer is too small");
+			file_free(file);
+			*filepp = NULL;
+			return (ARCHIVE_FATAL);
+		}
+
+		np = file_find_child(dent, name);
+		if (np == NULL || fn[0] == '\0')
+			break;
+
+		/* Find next subdirectory. */
+		if (!np->dir) {
+			/* NOT Directory! */
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "`%s' is not directory, we cannot insert `%s' ",
+			    archive_entry_pathname(np->entry),
+			    archive_entry_pathname(file->entry));
+			file_free(file);
+			*filepp = NULL;
+			return (ARCHIVE_FAILED);
+		}
+		fn += l;
+		if (fn[0] == '/')
+			fn++;
+		dent = np;
+	}
+	if (np == NULL) {
+		/*
+		 * Create virtual parent directories.
+		 */
+		while (fn[0] != '\0') {
+			struct file *vp;
+			struct archive_string as;
+
+			archive_string_init(&as);
+			archive_strncat(&as, p, fn - p + l);
+			if (as.s[as.length-1] == '/') {
+				as.s[as.length-1] = '\0';
+				as.length--;
+			}
+			vp = file_create_virtual_dir(a, xar, as.s);
+			if (vp == NULL) {
+				archive_string_free(&as);
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory");
+				file_free(file);
+				*filepp = NULL;
+				return (ARCHIVE_FATAL);
+			}
+			archive_string_free(&as);
+			if (file_gen_utility_names(a, vp) <= ARCHIVE_FAILED)
+				return (ARCHIVE_FATAL);
+			file_add_child_tail(dent, vp);
+			file_register(xar, vp);
+			np = vp;
+
+			fn += l;
+			if (fn[0] == '/')
+				fn++;
+			l = get_path_component(name, sizeof(name), fn);
+			if (l < 0) {
+				archive_string_free(&as);
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "A name buffer is too small");
+				file_free(file);
+				*filepp = NULL;
+				return (ARCHIVE_FATAL);
+			}
+			dent = np;
+		}
+
+		/* Found out the parent directory where isoent can be
+		 * inserted. */
+		xar->cur_dirent = dent;
+		archive_string_empty(&(xar->cur_dirstr));
+		archive_string_ensure(&(xar->cur_dirstr),
+		    archive_strlen(&(dent->parentdir)) +
+		    archive_strlen(&(dent->basename)) + 2);
+		if (archive_strlen(&(dent->parentdir)) +
+		    archive_strlen(&(dent->basename)) == 0)
+			xar->cur_dirstr.s[0] = 0;
+		else {
+			if (archive_strlen(&(dent->parentdir)) > 0) {
+				archive_string_copy(&(xar->cur_dirstr),
+				    &(dent->parentdir));
+				archive_strappend_char(&(xar->cur_dirstr), '/');
+			}
+			archive_string_concat(&(xar->cur_dirstr),
+			    &(dent->basename));
+		}
+
+		if (!file_add_child_tail(dent, file)) {
+			np = (struct file *)__archive_rb_tree_find_node(
+			    &(dent->rbtree), file->basename.s);
+			goto same_entry;
+		}
+		return (ARCHIVE_OK);
+	}
+
+same_entry:
+	/*
+	 * We have already has the entry the filename of which is
+	 * the same.
+	 */
+	if (archive_entry_filetype(np->entry) !=
+	    archive_entry_filetype(file->entry)) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Found duplicate entries `%s' and its file type is "
+		    "different",
+		    archive_entry_pathname(np->entry));
+		file_free(file);
+		*filepp = NULL;
+		return (ARCHIVE_FAILED);
+	}
+
+	/* Swap files. */
+	ent = np->entry;
+	np->entry = file->entry;
+	file->entry = ent;
+	np->virtual = 0;
+
+	file_free(file);
+	*filepp = np;
+	return (ARCHIVE_OK);
+}
+
+static void
+file_register(struct xar *xar, struct file *file)
+{
+	file->id = xar->file_idx++;
+        file->next = NULL;
+        *xar->file_list.last = file;
+        xar->file_list.last = &(file->next);
+}
+
+static void
+file_init_register(struct xar *xar)
+{
+	xar->file_list.first = NULL;
+	xar->file_list.last = &(xar->file_list.first);
+}
+
+static void
+file_free_register(struct xar *xar)
+{
+	struct file *file, *file_next;
+
+	file = xar->file_list.first;
+	while (file != NULL) {
+		file_next = file->next;
+		file_free(file);
+		file = file_next;
+	}
+}
+
+/*
+ * Register entry to get a hardlink target.
+ */
+static int
+file_register_hardlink(struct archive_write *a, struct file *file)
+{
+	struct xar *xar = (struct xar *)a->format_data;
+	struct hardlink *hl;
+	const char *pathname;
+
+	archive_entry_set_nlink(file->entry, 1);
+	pathname = archive_entry_hardlink(file->entry);
+	if (pathname == NULL) {
+		/* This `file` is a hardlink target. */
+		hl = malloc(sizeof(*hl));
+		if (hl == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory");
+			return (ARCHIVE_FATAL);
+		}
+		hl->nlink = 1;
+		/* A hardlink target must be the first position. */
+		file->hlnext = NULL;
+		hl->file_list.first = file;
+		hl->file_list.last = &(file->hlnext);
+		__archive_rb_tree_insert_node(&(xar->hardlink_rbtree),
+		    (struct archive_rb_node *)hl);
+	} else {
+		hl = (struct hardlink *)__archive_rb_tree_find_node(
+		    &(xar->hardlink_rbtree), pathname);
+		if (hl != NULL) {
+			/* Insert `file` entry into the tail. */
+			file->hlnext = NULL;
+			*hl->file_list.last = file;
+			hl->file_list.last = &(file->hlnext);
+			hl->nlink++;
+		}
+		archive_entry_unset_size(file->entry);
+	}
+
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Hardlinked files have to have the same location of extent.
+ * We have to find out hardlink target entries for entries which
+ * have a hardlink target name.
+ */
+static void
+file_connect_hardlink_files(struct xar *xar)
+{
+	struct archive_rb_node *n;
+	struct hardlink *hl;
+	struct file *target, *nf;
+
+	ARCHIVE_RB_TREE_FOREACH(n, &(xar->hardlink_rbtree)) {
+		hl = (struct hardlink *)n;
+
+		/* The first entry must be a hardlink target. */
+		target = hl->file_list.first;
+		archive_entry_set_nlink(target->entry, hl->nlink);
+		if (hl->nlink > 1)
+			/* It means this file is a hardlink
+			 * targe itself. */
+			target->hardlink_target = target;
+		for (nf = target->hlnext;
+		    nf != NULL; nf = nf->hlnext) {
+			nf->hardlink_target = target;
+			archive_entry_set_nlink(nf->entry, hl->nlink);
+		}
+	}
+}
+
+static int
+file_hd_cmp_node(const struct archive_rb_node *n1,
+    const struct archive_rb_node *n2)
+{
+	const struct hardlink *h1 = (const struct hardlink *)n1;
+	const struct hardlink *h2 = (const struct hardlink *)n2;
+
+	return (strcmp(archive_entry_pathname(h1->file_list.first->entry),
+		       archive_entry_pathname(h2->file_list.first->entry)));
+}
+
+static int
+file_hd_cmp_key(const struct archive_rb_node *n, const void *key)
+{
+	const struct hardlink *h = (const struct hardlink *)n;
+
+	return (strcmp(archive_entry_pathname(h->file_list.first->entry),
+		       (const char *)key));
+}
+
+
+static void
+file_init_hardlinks(struct xar *xar)
+{
+	static const struct archive_rb_tree_ops rb_ops = {
+		file_hd_cmp_node, file_hd_cmp_key,
+	};
+ 
+	__archive_rb_tree_init(&(xar->hardlink_rbtree), &rb_ops);
+}
+
+static void
+file_free_hardlinks(struct xar *xar)
+{
+	struct archive_rb_node *n, *next;
+
+	for (n = ARCHIVE_RB_TREE_MIN(&(xar->hardlink_rbtree)); n;) {
+		next = __archive_rb_tree_iterate(&(xar->hardlink_rbtree),
+		    n, ARCHIVE_RB_DIR_RIGHT);
+		free(n);
+		n = next;
+	}
+}
+
+static void
+checksum_init(struct chksumwork *sumwrk, enum sumalg sum_alg)
+{
+	sumwrk->alg = sum_alg;
+	switch (sum_alg) {
+	case CKSUM_NONE:
+		break;
+	case CKSUM_SHA1:
+		archive_sha1_init(&(sumwrk->sha1ctx));
+		break;
+	case CKSUM_MD5:
+		archive_md5_init(&(sumwrk->md5ctx));
+		break;
+	}
+}
+
+static void
+checksum_update(struct chksumwork *sumwrk, const void *buff, size_t size)
+{
+
+	switch (sumwrk->alg) {
+	case CKSUM_NONE:
+		break;
+	case CKSUM_SHA1:
+		archive_sha1_update(&(sumwrk->sha1ctx), buff, size);
+		break;
+	case CKSUM_MD5:
+		archive_md5_update(&(sumwrk->md5ctx), buff, size);
+		break;
+	}
+}
+
+static void
+checksum_final(struct chksumwork *sumwrk, struct chksumval *sumval)
+{
+
+	switch (sumwrk->alg) {
+	case CKSUM_NONE:
+		sumval->len = 0;
+		break;
+	case CKSUM_SHA1:
+		archive_sha1_final(&(sumwrk->sha1ctx), sumval->val);
+		sumval->len = SHA1_SIZE;
+		break;
+	case CKSUM_MD5:
+		archive_md5_final(&(sumwrk->md5ctx), sumval->val);
+		sumval->len = MD5_SIZE;
+		break;
+	}
+	sumval->alg = sumwrk->alg;
+}
+
+#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR) || !defined(HAVE_LZMA_H)
+static int
+compression_unsupported_encoder(struct archive *a,
+    struct la_zstream *lastrm, const char *name)
+{
+
+	archive_set_error(a, ARCHIVE_ERRNO_MISC,
+	    "%s compression not supported on this platform", name);
+	lastrm->valid = 0;
+	lastrm->real_stream = NULL;
+	return (ARCHIVE_FAILED);
+}
+#endif
+
+static int
+compression_init_encoder_gzip(struct archive *a,
+    struct la_zstream *lastrm, int level, int withheader)
+{
+	z_stream *strm;
+
+	if (lastrm->valid)
+		compression_end(a, lastrm);
+	strm = calloc(1, sizeof(*strm));
+	if (strm == NULL) {
+		archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for gzip stream");
+		return (ARCHIVE_FATAL);
+	}
+	/* zlib.h is not const-correct, so we need this one bit
+	 * of ugly hackery to convert a const * pointer to
+	 * a non-const pointer. */
+	strm->next_in = (Bytef *)(uintptr_t)(const void *)lastrm->next_in;
+	strm->avail_in = lastrm->avail_in;
+	strm->total_in = (uLong)lastrm->total_in;
+	strm->next_out = lastrm->next_out;
+	strm->avail_out = lastrm->avail_out;
+	strm->total_out = (uLong)lastrm->total_out;
+	if (deflateInit2(strm, level, Z_DEFLATED,
+	    (withheader)?15:-15,
+	    8, Z_DEFAULT_STRATEGY) != Z_OK) {
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library");
+		return (ARCHIVE_FATAL);
+	}
+	lastrm->real_stream = strm;
+	lastrm->valid = 1;
+	lastrm->code = compression_code_gzip;
+	lastrm->end = compression_end_gzip;
+	return (ARCHIVE_OK);
+}
+
+static int
+compression_code_gzip(struct archive *a,
+    struct la_zstream *lastrm, enum la_zaction action)
+{
+	z_stream *strm;
+	int r;
+
+	strm = (z_stream *)lastrm->real_stream;
+	/* zlib.h is not const-correct, so we need this one bit
+	 * of ugly hackery to convert a const * pointer to
+	 * a non-const pointer. */
+	strm->next_in = (Bytef *)(uintptr_t)(const void *)lastrm->next_in;
+	strm->avail_in = lastrm->avail_in;
+	strm->total_in = (uLong)lastrm->total_in;
+	strm->next_out = lastrm->next_out;
+	strm->avail_out = lastrm->avail_out;
+	strm->total_out = (uLong)lastrm->total_out;
+	r = deflate(strm,
+	    (action == ARCHIVE_Z_FINISH)? Z_FINISH: Z_NO_FLUSH);
+	lastrm->next_in = strm->next_in;
+	lastrm->avail_in = strm->avail_in;
+	lastrm->total_in = strm->total_in;
+	lastrm->next_out = strm->next_out;
+	lastrm->avail_out = strm->avail_out;
+	lastrm->total_out = strm->total_out;
+	switch (r) {
+	case Z_OK:
+		return (ARCHIVE_OK);
+	case Z_STREAM_END:
+		return (ARCHIVE_EOF);
+	default:
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "GZip compression failed:"
+		    " deflate() call returned status %d", r);
+		return (ARCHIVE_FATAL);
+	}
+}
+
+static int
+compression_end_gzip(struct archive *a, struct la_zstream *lastrm)
+{
+	z_stream *strm;
+	int r;
+
+	strm = (z_stream *)lastrm->real_stream;
+	r = deflateEnd(strm);
+	free(strm);
+	lastrm->real_stream = NULL;
+	lastrm->valid = 0;
+	if (r != Z_OK) {
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Failed to clean up compressor");
+		return (ARCHIVE_FATAL);
+	}
+	return (ARCHIVE_OK);
+}
+
+#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
+static int
+compression_init_encoder_bzip2(struct archive *a,
+    struct la_zstream *lastrm, int level)
+{
+	bz_stream *strm;
+
+	if (lastrm->valid)
+		compression_end(a, lastrm);
+	strm = calloc(1, sizeof(*strm));
+	if (strm == NULL) {
+		archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for bzip2 stream");
+		return (ARCHIVE_FATAL);
+	}
+	/* bzlib.h is not const-correct, so we need this one bit
+	 * of ugly hackery to convert a const * pointer to
+	 * a non-const pointer. */
+	strm->next_in = (char *)(uintptr_t)(const void *)lastrm->next_in;
+	strm->avail_in = lastrm->avail_in;
+	strm->total_in_lo32 = (uint32_t)(lastrm->total_in & 0xffffffff);
+	strm->total_in_hi32 = (uint32_t)(lastrm->total_in >> 32);
+	strm->next_out = (char *)lastrm->next_out;
+	strm->avail_out = lastrm->avail_out;
+	strm->total_out_lo32 = (uint32_t)(lastrm->total_out & 0xffffffff);
+	strm->total_out_hi32 = (uint32_t)(lastrm->total_out >> 32);
+	if (BZ2_bzCompressInit(strm, level, 0, 30) != BZ_OK) {
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library");
+		return (ARCHIVE_FATAL);
+	}
+	lastrm->real_stream = strm;
+	lastrm->valid = 1;
+	lastrm->code = compression_code_bzip2;
+	lastrm->end = compression_end_bzip2;
+	return (ARCHIVE_OK);
+}
+
+static int
+compression_code_bzip2(struct archive *a,
+    struct la_zstream *lastrm, enum la_zaction action)
+{
+	bz_stream *strm;
+	int r;
+
+	strm = (bz_stream *)lastrm->real_stream;
+	/* bzlib.h is not const-correct, so we need this one bit
+	 * of ugly hackery to convert a const * pointer to
+	 * a non-const pointer. */
+	strm->next_in = (char *)(uintptr_t)(const void *)lastrm->next_in;
+	strm->avail_in = lastrm->avail_in;
+	strm->total_in_lo32 = (uint32_t)(lastrm->total_in & 0xffffffff);
+	strm->total_in_hi32 = (uint32_t)(lastrm->total_in >> 32);
+	strm->next_out = (char *)lastrm->next_out;
+	strm->avail_out = lastrm->avail_out;
+	strm->total_out_lo32 = (uint32_t)(lastrm->total_out & 0xffffffff);
+	strm->total_out_hi32 = (uint32_t)(lastrm->total_out >> 32);
+	r = BZ2_bzCompress(strm,
+	    (action == ARCHIVE_Z_FINISH)? BZ_FINISH: BZ_RUN);
+	lastrm->next_in = (const unsigned char *)strm->next_in;
+	lastrm->avail_in = strm->avail_in;
+	lastrm->total_in =
+	    (((uint64_t)(uint32_t)strm->total_in_hi32) << 32)
+	    + (uint64_t)(uint32_t)strm->total_in_lo32;
+	lastrm->next_out = (unsigned char *)strm->next_out;
+	lastrm->avail_out = strm->avail_out;
+	lastrm->total_out =
+	    (((uint64_t)(uint32_t)strm->total_out_hi32) << 32)
+	    + (uint64_t)(uint32_t)strm->total_out_lo32;
+	switch (r) {
+	case BZ_RUN_OK:     /* Non-finishing */
+	case BZ_FINISH_OK:  /* Finishing: There's more work to do */
+		return (ARCHIVE_OK);
+	case BZ_STREAM_END: /* Finishing: all done */
+		/* Only occurs in finishing case */
+		return (ARCHIVE_EOF);
+	default:
+		/* Any other return value indicates an error */
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Bzip2 compression failed:"
+		    " BZ2_bzCompress() call returned status %d", r);
+		return (ARCHIVE_FATAL);
+	}
+}
+
+static int
+compression_end_bzip2(struct archive *a, struct la_zstream *lastrm)
+{
+	bz_stream *strm;
+	int r;
+
+	strm = (bz_stream *)lastrm->real_stream;
+	r = BZ2_bzCompressEnd(strm);
+	free(strm);
+	lastrm->real_stream = NULL;
+	lastrm->valid = 0;
+	if (r != BZ_OK) {
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Failed to clean up compressor");
+		return (ARCHIVE_FATAL);
+	}
+	return (ARCHIVE_OK);
+}
+
+#else
+static int
+compression_init_encoder_bzip2(struct archive *a,
+    struct la_zstream *lastrm, int level)
+{
+
+	(void) level; /* UNUSED */
+	if (lastrm->valid)
+		compression_end(a, lastrm);
+	return (compression_unsupported_encoder(a, lastrm, "bzip2"));
+}
+#endif
+
+#if defined(HAVE_LZMA_H)
+static int
+compression_init_encoder_lzma(struct archive *a,
+    struct la_zstream *lastrm, int level)
+{
+	static const lzma_stream lzma_init_data = LZMA_STREAM_INIT;
+	lzma_stream *strm;
+	lzma_options_lzma lzma_opt;
+	int r;
+
+	if (lastrm->valid)
+		compression_end(a, lastrm);
+	if (lzma_lzma_preset(&lzma_opt, level)) {
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ENOMEM,
+		    "Internal error initializing compression library");
+		return (ARCHIVE_FATAL);
+	}
+	strm = calloc(1, sizeof(*strm));
+	if (strm == NULL) {
+		archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for lzma stream");
+		return (ARCHIVE_FATAL);
+	}
+	*strm = lzma_init_data;
+	r = lzma_alone_encoder(strm, &lzma_opt);
+	switch (r) {
+	case LZMA_OK:
+		lastrm->real_stream = strm;
+		lastrm->valid = 1;
+		lastrm->code = compression_code_lzma;
+		lastrm->end = compression_end_lzma;
+		r = ARCHIVE_OK;
+		break;
+	case LZMA_MEM_ERROR:
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "Cannot allocate memory");
+		r =  ARCHIVE_FATAL;
+		break;
+        default:
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library: "
+		    "It's a bug in liblzma");
+		r =  ARCHIVE_FATAL;
+		break;
+	}
+	return (r);
+}
+
+static int
+compression_init_encoder_xz(struct archive *a,
+    struct la_zstream *lastrm, int level)
+{
+	static const lzma_stream lzma_init_data = LZMA_STREAM_INIT;
+	lzma_stream *strm;
+	lzma_filter *lzmafilters;
+	lzma_options_lzma lzma_opt;
+	int r;
+
+	if (lastrm->valid)
+		compression_end(a, lastrm);
+	strm = calloc(1, sizeof(*strm) + sizeof(*lzmafilters) * 2);
+	if (strm == NULL) {
+		archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for xz stream");
+		return (ARCHIVE_FATAL);
+	}
+	lzmafilters = (lzma_filter *)(strm+1);
+	if (level > 6)
+		level = 6;
+	if (lzma_lzma_preset(&lzma_opt, level)) {
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ENOMEM,
+		    "Internal error initializing compression library");
+		return (ARCHIVE_FATAL);
+	}
+	lzmafilters[0].id = LZMA_FILTER_LZMA2;
+	lzmafilters[0].options = &lzma_opt;
+	lzmafilters[1].id = LZMA_VLI_UNKNOWN;/* Terminate */
+
+	*strm = lzma_init_data;
+	r = lzma_stream_encoder(strm, lzmafilters, LZMA_CHECK_CRC64);
+	switch (r) {
+	case LZMA_OK:
+		lastrm->real_stream = strm;
+		lastrm->valid = 1;
+		lastrm->code = compression_code_lzma;
+		lastrm->end = compression_end_lzma;
+		r = ARCHIVE_OK;
+		break;
+	case LZMA_MEM_ERROR:
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "Cannot allocate memory");
+		r =  ARCHIVE_FATAL;
+		break;
+        default:
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library: "
+		    "It's a bug in liblzma");
+		r =  ARCHIVE_FATAL;
+		break;
+	}
+	return (r);
+}
+
+static int
+compression_code_lzma(struct archive *a,
+    struct la_zstream *lastrm, enum la_zaction action)
+{
+	lzma_stream *strm;
+	int r;
+
+	strm = (lzma_stream *)lastrm->real_stream;
+	strm->next_in = lastrm->next_in;
+	strm->avail_in = lastrm->avail_in;
+	strm->total_in = lastrm->total_in;
+	strm->next_out = lastrm->next_out;
+	strm->avail_out = lastrm->avail_out;
+	strm->total_out = lastrm->total_out;
+	r = lzma_code(strm,
+	    (action == ARCHIVE_Z_FINISH)? LZMA_FINISH: LZMA_RUN);
+	lastrm->next_in = strm->next_in;
+	lastrm->avail_in = strm->avail_in;
+	lastrm->total_in = strm->total_in;
+	lastrm->next_out = strm->next_out;
+	lastrm->avail_out = strm->avail_out;
+	lastrm->total_out = strm->total_out;
+	switch (r) {
+	case LZMA_OK:
+		/* Non-finishing case */
+		return (ARCHIVE_OK);
+	case LZMA_STREAM_END:
+		/* This return can only occur in finishing case. */
+		return (ARCHIVE_EOF);
+	case LZMA_MEMLIMIT_ERROR:
+		archive_set_error(a, ENOMEM,
+		    "lzma compression error:"
+		    " %ju MiB would have been needed",
+		    (uintmax_t)((lzma_memusage(strm) + 1024 * 1024 -1)
+			/ (1024 * 1024)));
+		return (ARCHIVE_FATAL);
+	default:
+		/* Any other return value indicates an error */
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "lzma compression failed:"
+		    " lzma_code() call returned status %d", r);
+		return (ARCHIVE_FATAL);
+	}
+}
+
+static int
+compression_end_lzma(struct archive *a, struct la_zstream *lastrm)
+{
+	lzma_stream *strm;
+
+	(void)a; /* UNUSED */
+	strm = (lzma_stream *)lastrm->real_stream;
+	lzma_end(strm);
+	free(strm);
+	lastrm->valid = 0;
+	lastrm->real_stream = NULL;
+	return (ARCHIVE_OK);
+}
+#else
+static int
+compression_init_encoder_lzma(struct archive *a,
+    struct la_zstream *lastrm, int level)
+{
+
+	(void) level; /* UNUSED */
+	if (lastrm->valid)
+		compression_end(a, lastrm);
+	return (compression_unsupported_encoder(a, lastrm, "lzma"));
+}
+static int
+compression_init_encoder_xz(struct archive *a,
+    struct la_zstream *lastrm, int level)
+{
+
+	(void) level; /* UNUSED */
+	if (lastrm->valid)
+		compression_end(a, lastrm);
+	return (compression_unsupported_encoder(a, lastrm, "xz"));
+}
+#endif
+
+static int
+xar_compression_init_encoder(struct archive_write *a)
+{
+	struct xar *xar;
+	int r;
+
+	xar = (struct xar *)a->format_data;
+	switch (xar->opt_compression) {
+	case GZIP:
+		r = compression_init_encoder_gzip(
+		    &(a->archive), &(xar->stream),
+		    xar->opt_compression_level, 1);
+		break;
+	case BZIP2:
+		r = compression_init_encoder_bzip2(
+		    &(a->archive), &(xar->stream),
+		    xar->opt_compression_level);
+		break;
+	case LZMA:
+		r = compression_init_encoder_lzma(
+		    &(a->archive), &(xar->stream),
+		    xar->opt_compression_level);
+		break;
+	case XZ:
+		r = compression_init_encoder_xz(
+		    &(a->archive), &(xar->stream),
+		    xar->opt_compression_level);

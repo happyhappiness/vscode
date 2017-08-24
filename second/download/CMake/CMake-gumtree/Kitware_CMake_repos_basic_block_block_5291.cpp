@@ -1,0 +1,1 @@
+res = CURLSHE_NOMEM

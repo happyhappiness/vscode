@@ -1,0 +1,1 @@
+secnum = minnum = hournum = 0

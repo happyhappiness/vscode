@@ -1,0 +1,2 @@
+(; binding->prefix->name[prefixLen++];)
+      ;

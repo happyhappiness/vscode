@@ -1,0 +1,4 @@
+{
+    nextarg = true;
+    logarg = "/X";
+  }

@@ -1,0 +1,1 @@
+(uc == 0) curr++; else curr--

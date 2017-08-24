@@ -1,0 +1,3 @@
+(!newstr) {
+    return 0;
+  }

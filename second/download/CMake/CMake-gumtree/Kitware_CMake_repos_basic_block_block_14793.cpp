@@ -1,0 +1,1 @@
+a->compressed_rsrc_position += bytes_compressed

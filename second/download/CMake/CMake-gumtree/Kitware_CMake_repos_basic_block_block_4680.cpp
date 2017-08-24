@@ -1,0 +1,1 @@
+newptr = realloc(infop->buffer, newsize)

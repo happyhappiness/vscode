@@ -1,0 +1,1 @@
+cksum = crc32(crc32(0, NULL, 0), b, state->compressed_size)

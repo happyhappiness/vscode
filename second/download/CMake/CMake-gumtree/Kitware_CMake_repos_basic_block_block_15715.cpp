@@ -1,0 +1,1 @@
+names_index = get_array_index(def_ext)

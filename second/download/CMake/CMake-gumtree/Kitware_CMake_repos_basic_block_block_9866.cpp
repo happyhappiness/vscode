@@ -1,0 +1,1 @@
+(a->cleanup_gname)(a->lookup_gname_data)

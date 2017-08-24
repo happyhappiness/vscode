@@ -1,0 +1,1 @@
+SECITEM_FreeItem(param, PR_TRUE)

@@ -1,5 +1,5 @@
 /*============================================================================
-  CMake - Cross Platform Makefile Generator
+  KWSys - Kitware System Library
   Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
 
   Distributed under the OSI-approved BSD License (the "License");
@@ -9,1955 +9,2711 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#include "cmGlobalGenerator.h"
-#include "cmLocalVisualStudio6Generator.h"
-#include "cmMakefile.h"
-#include "cmSystemTools.h"
-#include "cmSourceFile.h"
-#include "cmCacheManager.h"
-#include "cmGeneratorTarget.h"
-#include "cmake.h"
+#include "kwsysPrivate.h"
+#include KWSYS_HEADER(Process.h)
+#include KWSYS_HEADER(System.h)
+#include KWSYS_HEADER(Encoding.h)
 
-#include "cmComputeLinkInformation.h"
+/* Work-around CMake dependency scanning limitation.  This must
+   duplicate the above list of headers.  */
+#if 0
+# include "Process.h.in"
+# include "System.h.in"
+# include "Encoding_c.h.in"
+#endif
 
-#include <cmsys/RegularExpression.hxx>
-#include <cmsys/FStream.hxx>
+/*
 
-cmLocalVisualStudio6Generator::cmLocalVisualStudio6Generator():
-  cmLocalVisualStudioGenerator(VS6)
+Implementation for Windows
+
+On windows, a thread is created to wait for data on each pipe.  The
+threads are synchronized with the main thread to simulate the use of
+a UNIX-style select system call.
+
+*/
+
+#ifdef _MSC_VER
+#pragma warning (push, 1)
+#endif
+#include <windows.h> /* Windows API */
+#include <string.h>  /* strlen, strdup */
+#include <stdio.h>   /* sprintf */
+#include <io.h>      /* _unlink */
+#ifdef __WATCOMC__
+#define _unlink unlink
+#endif
+
+#ifndef _MAX_FNAME
+#define _MAX_FNAME 4096
+#endif
+#ifndef _MAX_PATH
+#define _MAX_PATH 4096
+#endif
+
+#ifdef _MSC_VER
+#pragma warning (pop)
+#pragma warning (disable: 4514)
+#pragma warning (disable: 4706)
+#endif
+
+#if defined(__BORLANDC__)
+# pragma warn -8004 /* assigned a value that is never used  */
+# pragma warn -8060 /* Assignment inside if() condition.  */
+#endif
+
+/* There are pipes for the process pipeline's stdout and stderr.  */
+#define KWSYSPE_PIPE_COUNT 2
+#define KWSYSPE_PIPE_STDOUT 0
+#define KWSYSPE_PIPE_STDERR 1
+
+/* The maximum amount to read from a pipe at a time.  */
+#define KWSYSPE_PIPE_BUFFER_SIZE 1024
+
+/* Debug output macro.  */
+#if 0
+# define KWSYSPE_DEBUG(x) \
+( \
+  (void*)cp == (void*)0x00226DE0? \
+  ( \
+    fprintf(stderr, "%d/%p/%d ", (int)GetCurrentProcessId(), cp, __LINE__), \
+    fprintf x, \
+    fflush(stderr), \
+    1 \
+  ) : (1) \
+)
+#else
+# define KWSYSPE_DEBUG(x) (void)1
+#endif
+
+typedef LARGE_INTEGER kwsysProcessTime;
+
+typedef struct kwsysProcessCreateInformation_s
 {
-}
+  /* Windows child startup control data.  */
+  STARTUPINFOW StartupInfo;
+} kwsysProcessCreateInformation;
 
-cmLocalVisualStudio6Generator::~cmLocalVisualStudio6Generator()
-{
-}
 
-//----------------------------------------------------------------------------
-// Helper class to write build events.
-class cmLocalVisualStudio6Generator::EventWriter
+/*--------------------------------------------------------------------------*/
+typedef struct kwsysProcessPipeData_s kwsysProcessPipeData;
+static DWORD WINAPI kwsysProcessPipeThreadRead(LPVOID ptd);
+static void kwsysProcessPipeThreadReadPipe(kwsysProcess* cp,
+                                           kwsysProcessPipeData* td);
+static DWORD WINAPI kwsysProcessPipeThreadWake(LPVOID ptd);
+static void kwsysProcessPipeThreadWakePipe(kwsysProcess* cp,
+                                           kwsysProcessPipeData* td);
+static int kwsysProcessInitialize(kwsysProcess* cp);
+static int kwsysProcessCreate(kwsysProcess* cp, int index,
+                              kwsysProcessCreateInformation* si,
+                              PHANDLE readEnd);
+static void kwsysProcessDestroy(kwsysProcess* cp, int event);
+static int kwsysProcessSetupOutputPipeFile(PHANDLE handle, const char* name);
+static int kwsysProcessSetupSharedPipe(DWORD nStdHandle, PHANDLE handle);
+static int kwsysProcessSetupPipeNative(PHANDLE handle, HANDLE p[2],
+                                       int isWrite);
+static void kwsysProcessCleanupHandle(PHANDLE h);
+static void kwsysProcessCleanupHandleSafe(PHANDLE h, DWORD nStdHandle);
+static void kwsysProcessCleanup(kwsysProcess* cp, int error);
+static void kwsysProcessCleanErrorMessage(kwsysProcess* cp);
+static int kwsysProcessComputeCommandLength(kwsysProcess* cp,
+                                            char const* const* command);
+static void kwsysProcessComputeCommandLine(kwsysProcess* cp,
+                                           char const* const* command,
+                                           char* cmd);
+static int kwsysProcessGetTimeoutTime(kwsysProcess* cp, double* userTimeout,
+                                      kwsysProcessTime* timeoutTime);
+static int kwsysProcessGetTimeoutLeft(kwsysProcessTime* timeoutTime,
+                                      double* userTimeout,
+                                      kwsysProcessTime* timeoutLength);
+static kwsysProcessTime kwsysProcessTimeGetCurrent(void);
+static DWORD kwsysProcessTimeToDWORD(kwsysProcessTime t);
+static double kwsysProcessTimeToDouble(kwsysProcessTime t);
+static kwsysProcessTime kwsysProcessTimeFromDouble(double d);
+static int kwsysProcessTimeLess(kwsysProcessTime in1, kwsysProcessTime in2);
+static kwsysProcessTime kwsysProcessTimeAdd(kwsysProcessTime in1, kwsysProcessTime in2);
+static kwsysProcessTime kwsysProcessTimeSubtract(kwsysProcessTime in1, kwsysProcessTime in2);
+static void kwsysProcessSetExitException(kwsysProcess* cp, int code);
+static void kwsysProcessKillTree(int pid);
+static void kwsysProcessDisablePipeThreads(kwsysProcess* cp);
+
+/*--------------------------------------------------------------------------*/
+/* A structure containing synchronization data for each thread.  */
+typedef struct kwsysProcessPipeSync_s kwsysProcessPipeSync;
+struct kwsysProcessPipeSync_s
 {
-public:
-  EventWriter(cmLocalVisualStudio6Generator* lg,
-              const char* config, std::string& code):
-    LG(lg), Config(config), Code(code), First(true) {}
-  void Start(const char* event)
-    {
-    this->First = true;
-    this->Event = event;
-    }
-  void Finish()
-    {
-    this->Code += (this->First? "" : "\n");
-    }
-  void Write(std::vector<cmCustomCommand> const& ccs)
-    {
-    for(std::vector<cmCustomCommand>::const_iterator ci = ccs.begin();
-        ci != ccs.end(); ++ci)
-      {
-      this->Write(*ci);
-      }
-    }
-  void Write(cmCustomCommand const& cc)
-    {
-    if(this->First)
-      {
-      this->Code += this->Event + "_Cmds=";
-      this->First = false;
-      }
-    else
-      {
-      this->Code += "\\\n\t";
-      }
-    this->Code += this->LG->ConstructScript(cc, this->Config, "\\\n\t");
-    }
-private:
-  cmLocalVisualStudio6Generator* LG;
-  const char* Config;
-  std::string& Code;
-  bool First;
-  std::string Event;
+  /* Handle to the thread.  */
+  HANDLE Thread;
+
+  /* Semaphore indicating to the thread that a process has started.  */
+  HANDLE Ready;
+
+  /* Semaphore indicating to the thread that it should begin work.  */
+  HANDLE Go;
+
+  /* Semaphore indicating thread has reset for another process.  */
+  HANDLE Reset;
 };
 
-void cmLocalVisualStudio6Generator::AddHelperCommands()
+/*--------------------------------------------------------------------------*/
+/* A structure containing data for each pipe's threads.  */
+struct kwsysProcessPipeData_s
 {
-  std::set<cmStdString> lang;
-  lang.insert("C");
-  lang.insert("CXX");
-  this->CreateCustomTargetsAndCommands(lang);
+  /* ------------- Data managed per instance of kwsysProcess ------------- */
+
+  /* Synchronization data for reading thread.  */
+  kwsysProcessPipeSync Reader;
+
+  /* Synchronization data for waking thread.  */
+  kwsysProcessPipeSync Waker;
+
+  /* Index of this pipe.  */
+  int Index;
+
+  /* The kwsysProcess instance owning this pipe.  */
+  kwsysProcess* Process;
+
+  /* ------------- Data managed per call to Execute ------------- */
+
+  /* Buffer for data read in this pipe's thread.  */
+  char DataBuffer[KWSYSPE_PIPE_BUFFER_SIZE];
+
+  /* The length of the data stored in the buffer.  */
+  DWORD DataLength;
+
+  /* Whether the pipe has been closed.  */
+  int Closed;
+
+  /* Handle for the read end of this pipe. */
+  HANDLE Read;
+
+  /* Handle for the write end of this pipe. */
+  HANDLE Write;
+};
+
+/*--------------------------------------------------------------------------*/
+/* Structure containing data used to implement the child's execution.  */
+struct kwsysProcess_s
+{
+  /* ------------- Data managed per instance of kwsysProcess ------------- */
+
+  /* The status of the process structure.  */
+  int State;
+
+  /* The command lines to execute.  */
+  wchar_t** Commands;
+  int NumberOfCommands;
+
+  /* The exit code of each command.  */
+  DWORD* CommandExitCodes;
+
+  /* The working directory for the child process.  */
+  wchar_t* WorkingDirectory;
+
+  /* Whether to create the child as a detached process.  */
+  int OptionDetach;
+
+  /* Whether the child was created as a detached process.  */
+  int Detached;
+
+  /* Whether to hide the child process's window.  */
+  int HideWindow;
+
+  /* Whether to treat command lines as verbatim.  */
+  int Verbatim;
+
+  /* Mutex to protect the shared index used by threads to report data.  */
+  HANDLE SharedIndexMutex;
+
+  /* Semaphore used by threads to signal data ready.  */
+  HANDLE Full;
+
+  /* Whether we are currently deleting this kwsysProcess instance.  */
+  int Deleting;
+
+  /* Data specific to each pipe and its thread.  */
+  kwsysProcessPipeData Pipe[KWSYSPE_PIPE_COUNT];
+
+  /* Name of files to which stdin and stdout pipes are attached.  */
+  char* PipeFileSTDIN;
+  char* PipeFileSTDOUT;
+  char* PipeFileSTDERR;
+
+  /* Whether each pipe is shared with the parent process.  */
+  int PipeSharedSTDIN;
+  int PipeSharedSTDOUT;
+  int PipeSharedSTDERR;
+
+  /* Native pipes provided by the user.  */
+  HANDLE PipeNativeSTDIN[2];
+  HANDLE PipeNativeSTDOUT[2];
+  HANDLE PipeNativeSTDERR[2];
+
+  /* ------------- Data managed per call to Execute ------------- */
+
+  /* The exceptional behavior that terminated the process, if any.  */
+  int ExitException;
+
+  /* The process exit code.  */
+  DWORD ExitCode;
+
+  /* The process return code, if any.  */
+  int ExitValue;
+
+  /* Index of last pipe to report data, if any.  */
+  int CurrentIndex;
+
+  /* Index shared by threads to report data.  */
+  int SharedIndex;
+
+  /* The timeout length.  */
+  double Timeout;
+
+  /* Time at which the child started.  */
+  kwsysProcessTime StartTime;
+
+  /* Time at which the child will timeout.  Negative for no timeout.  */
+  kwsysProcessTime TimeoutTime;
+
+  /* Flag for whether the process was killed.  */
+  int Killed;
+
+  /* Flag for whether the timeout expired.  */
+  int TimeoutExpired;
+
+  /* Flag for whether the process has terminated.  */
+  int Terminated;
+
+  /* The number of pipes still open during execution and while waiting
+     for pipes to close after process termination.  */
+  int PipesLeft;
+
+  /* Buffer for error messages.  */
+  char ErrorMessage[KWSYSPE_PIPE_BUFFER_SIZE+1];
+
+  /* Description for the ExitException.  */
+  char ExitExceptionString[KWSYSPE_PIPE_BUFFER_SIZE+1];
+
+  /* Windows process information data.  */
+  PROCESS_INFORMATION* ProcessInformation;
+
+  /* Data and process termination events for which to wait.  */
+  PHANDLE ProcessEvents;
+  int ProcessEventsLength;
+
+  /* Real working directory of our own process.  */
+  DWORD RealWorkingDirectoryLength;
+  wchar_t* RealWorkingDirectory;
+};
+
+/*--------------------------------------------------------------------------*/
+kwsysProcess* kwsysProcess_New(void)
+{
+  int i;
+
+  /* Process control structure.  */
+  kwsysProcess* cp;
+
+  /* Windows version number data.  */
+  OSVERSIONINFO osv;
+
+  /* Allocate a process control structure.  */
+  cp = (kwsysProcess*)malloc(sizeof(kwsysProcess));
+  if(!cp)
+    {
+    /* Could not allocate memory for the control structure.  */
+    return 0;
+    }
+  ZeroMemory(cp, sizeof(*cp));
+
+  /* Share stdin with the parent process by default.  */
+  cp->PipeSharedSTDIN = 1;
+
+  /* Set initial status.  */
+  cp->State = kwsysProcess_State_Starting;
+
+  /* Choose a method of running the child based on version of
+     windows.  */
+  ZeroMemory(&osv, sizeof(osv));
+  osv.dwOSVersionInfoSize = sizeof(osv);
+  GetVersionEx(&osv);
+  if(osv.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS)
+    {
+    /* Win9x no longer supported.  */
+    kwsysProcess_Delete(cp);
+    return 0;
+    }
+
+  /* Initially no thread owns the mutex.  Initialize semaphore to 1.  */
+  if(!(cp->SharedIndexMutex = CreateSemaphore(0, 1, 1, 0)))
+    {
+    kwsysProcess_Delete(cp);
+    return 0;
+    }
+
+  /* Initially no data are available.  Initialize semaphore to 0.  */
+  if(!(cp->Full = CreateSemaphore(0, 0, 1, 0)))
+    {
+    kwsysProcess_Delete(cp);
+    return 0;
+    }
+
+  /* Create the thread to read each pipe.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
+    {
+    DWORD dummy=0;
+
+    /* Assign the thread its index.  */
+    cp->Pipe[i].Index = i;
+
+    /* Give the thread a pointer back to the kwsysProcess instance.  */
+    cp->Pipe[i].Process = cp;
+
+    /* No process is yet running.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Reader.Ready = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* The pipe is not yet reset.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Reader.Reset = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* The thread's buffer is initially empty.  Initialize semaphore to 1.  */
+    if(!(cp->Pipe[i].Reader.Go = CreateSemaphore(0, 1, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* Create the reading thread.  It will block immediately.  The
+       thread will not make deeply nested calls, so we need only a
+       small stack.  */
+    if(!(cp->Pipe[i].Reader.Thread = CreateThread(0, 1024,
+                                                  kwsysProcessPipeThreadRead,
+                                                  &cp->Pipe[i], 0, &dummy)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* No process is yet running.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Waker.Ready = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* The pipe is not yet reset.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Waker.Reset = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* The waker should not wake immediately.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Waker.Go = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* Create the waking thread.  It will block immediately.  The
+       thread will not make deeply nested calls, so we need only a
+       small stack.  */
+    if(!(cp->Pipe[i].Waker.Thread = CreateThread(0, 1024,
+                                                 kwsysProcessPipeThreadWake,
+                                                 &cp->Pipe[i], 0, &dummy)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+    }
+
+  return cp;
 }
 
-void cmLocalVisualStudio6Generator::AddCMakeListsRules()
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_Delete(kwsysProcess* cp)
 {
-  cmTargets &tgts = this->Makefile->GetTargets();
-  for(cmTargets::iterator l = tgts.begin();
-      l != tgts.end(); l++)
-    {
-    if (l->second.GetType() == cmTarget::INTERFACE_LIBRARY)
-      {
-      continue;
-      }
+  int i;
 
-    // Add a rule to regenerate the build system when the target
-    // specification source changes.
-    const char* suppRegenRule =
-      this->Makefile->GetDefinition("CMAKE_SUPPRESS_REGENERATION");
-    if (!cmSystemTools::IsOn(suppRegenRule))
-      {
-      this->AddDSPBuildRule(l->second);
-      }
-    }
-}
-
-void cmLocalVisualStudio6Generator::Generate()
-{
-  this->OutputDSPFile();
-}
-
-void cmLocalVisualStudio6Generator::OutputDSPFile()
-{
-  // If not an in source build, then create the output directory
-  if(strcmp(this->Makefile->GetStartOutputDirectory(),
-            this->Makefile->GetHomeDirectory()) != 0)
-    {
-    if(!cmSystemTools::MakeDirectory
-       (this->Makefile->GetStartOutputDirectory()))
-      {
-      cmSystemTools::Error("Error creating directory ",
-                           this->Makefile->GetStartOutputDirectory());
-      }
-    }
-
-  // Create the DSP or set of DSP's for libraries and executables
-
-  cmTargets &tgts = this->Makefile->GetTargets();
-
-  // build any targets
-  for(cmTargets::iterator l = tgts.begin();
-      l != tgts.end(); l++)
-    {
-    switch(l->second.GetType())
-      {
-      case cmTarget::STATIC_LIBRARY:
-      case cmTarget::OBJECT_LIBRARY:
-        this->SetBuildType(STATIC_LIBRARY, l->first.c_str(), l->second);
-        break;
-      case cmTarget::SHARED_LIBRARY:
-      case cmTarget::MODULE_LIBRARY:
-        this->SetBuildType(DLL, l->first.c_str(), l->second);
-        break;
-      case cmTarget::EXECUTABLE:
-        this->SetBuildType(EXECUTABLE,l->first.c_str(), l->second);
-        break;
-      case cmTarget::UTILITY:
-      case cmTarget::GLOBAL_TARGET:
-        this->SetBuildType(UTILITY, l->first.c_str(), l->second);
-        break;
-      case cmTarget::INTERFACE_LIBRARY:
-        continue;
-      default:
-        cmSystemTools::Error("Bad target type: ", l->first.c_str());
-        break;
-      }
-    // INCLUDE_EXTERNAL_MSPROJECT command only affects the workspace
-    // so don't build a projectfile for it
-    const char* path =
-      l->second.GetProperty("EXTERNAL_MSPROJECT");
-    if(!path)
-      {
-      // check to see if the dsp is going into a sub-directory
-      std::string::size_type pos = l->first.rfind('/');
-      if(pos != std::string::npos)
-        {
-        std::string dir = this->Makefile->GetStartOutputDirectory();
-        dir += "/";
-        dir += l->first.substr(0, pos);
-        if(!cmSystemTools::MakeDirectory(dir.c_str()))
-          {
-          cmSystemTools::Error("Error creating directory: ", dir.c_str());
-          }
-        }
-      this->CreateSingleDSP(l->first.c_str(),l->second);
-      }
-    }
-}
-
-// Utility function to make a valid VS6 *.dsp filename out
-// of a CMake target name:
-//
-extern std::string GetVS6TargetName(const std::string& targetName);
-
-void cmLocalVisualStudio6Generator::CreateSingleDSP(const std::string& lname,
-                                                    cmTarget &target)
-{
-  // add to the list of projects
-  std::string pname = GetVS6TargetName(lname);
-
-  // create the dsp.cmake file
-  std::string fname;
-  fname = this->Makefile->GetStartOutputDirectory();
-  fname += "/";
-  fname += pname;
-  fname += ".dsp";
-  // save the name of the real dsp file
-  std::string realDSP = fname;
-  fname += ".cmake";
-  cmsys::ofstream fout(fname.c_str());
-  if(!fout)
-    {
-    cmSystemTools::Error("Error Writing ", fname.c_str());
-    cmSystemTools::ReportLastSystemError("");
-    }
-  this->WriteDSPFile(fout,pname.c_str(),target);
-  fout.close();
-  // if the dsp file has changed, then write it.
-  cmSystemTools::CopyFileIfDifferent(fname.c_str(), realDSP.c_str());
-}
-
-
-void cmLocalVisualStudio6Generator::AddDSPBuildRule(cmTarget& tgt)
-{
-  std::string dspname = GetVS6TargetName(tgt.GetName());
-  dspname += ".dsp.cmake";
-  const char* dsprule =
-    this->Makefile->GetRequiredDefinition("CMAKE_COMMAND");
-  cmCustomCommandLine commandLine;
-  commandLine.push_back(dsprule);
-  std::string makefileIn = this->Makefile->GetStartDirectory();
-  makefileIn += "/";
-  makefileIn += "CMakeLists.txt";
-  if(!cmSystemTools::FileExists(makefileIn.c_str()))
-    {
-    return;
-    }
-  std::string comment = "Building Custom Rule ";
-  comment += makefileIn;
-  std::string args;
-  args = "-H";
-  args += this->Convert(this->Makefile->GetHomeDirectory(),
-                        START_OUTPUT, UNCHANGED, true);
-  commandLine.push_back(args);
-  args = "-B";
-  args +=
-    this->Convert(this->Makefile->GetHomeOutputDirectory(),
-                  START_OUTPUT, UNCHANGED, true);
-  commandLine.push_back(args);
-
-  std::vector<std::string> const& listFiles = this->Makefile->GetListFiles();
-
-  cmCustomCommandLines commandLines;
-  commandLines.push_back(commandLine);
-  const char* no_working_directory = 0;
-  this->Makefile->AddCustomCommandToOutput(dspname.c_str(), listFiles,
-                                           makefileIn.c_str(), commandLines,
-                                           comment.c_str(),
-                                           no_working_directory, true);
-  if(cmSourceFile* file = this->Makefile->GetSource(makefileIn.c_str()))
-    {
-    tgt.AddSourceFile(file);
-    }
-  else
-    {
-    cmSystemTools::Error("Error adding rule for ", makefileIn.c_str());
-    }
-}
-
-
-void cmLocalVisualStudio6Generator::WriteDSPFile(std::ostream& fout,
-                                                 const std::string& libName,
-                                                 cmTarget &target)
-{
-  // For utility targets need custom command since pre- and post-
-  // build does not do anything in Visual Studio 6.  In order for the
-  // rules to run in the correct order as custom commands, we need
-  // special care for dependencies.  The first rule must depend on all
-  // the dependencies of all the rules.  The later rules must each
-  // depend only on the previous rule.
-  if ((target.GetType() == cmTarget::UTILITY ||
-      target.GetType() == cmTarget::GLOBAL_TARGET) &&
-      (!target.GetPreBuildCommands().empty() ||
-       !target.GetPostBuildCommands().empty()))
-    {
-    // Accumulate the dependencies of all the commands.
-    std::vector<std::string> depends;
-    for (std::vector<cmCustomCommand>::const_iterator cr =
-           target.GetPreBuildCommands().begin();
-         cr != target.GetPreBuildCommands().end(); ++cr)
-      {
-      depends.insert(depends.end(),
-                     cr->GetDepends().begin(), cr->GetDepends().end());
-      }
-    for (std::vector<cmCustomCommand>::const_iterator cr =
-           target.GetPostBuildCommands().begin();
-         cr != target.GetPostBuildCommands().end(); ++cr)
-      {
-      depends.insert(depends.end(),
-                     cr->GetDepends().begin(), cr->GetDepends().end());
-      }
-
-    // Add the pre- and post-build commands in order.
-    int count = 1;
-    for (std::vector<cmCustomCommand>::const_iterator cr =
-           target.GetPreBuildCommands().begin();
-         cr != target.GetPreBuildCommands().end(); ++cr)
-      {
-      this->AddUtilityCommandHack(target, count++, depends, *cr);
-      }
-    for (std::vector<cmCustomCommand>::const_iterator cr =
-           target.GetPostBuildCommands().begin();
-         cr != target.GetPostBuildCommands().end(); ++cr)
-      {
-      this->AddUtilityCommandHack(target, count++, depends, *cr);
-      }
-    }
-
-  // We may be modifying the source groups temporarily, so make a copy.
-  std::vector<cmSourceGroup> sourceGroups = this->Makefile->GetSourceGroups();
-
-  // get the classes from the source lists then add them to the groups
-  std::vector<cmSourceFile*> classes;
-  target.GetSourceFiles(classes);
-
-  // now all of the source files have been properly assigned to the target
-  // now stick them into source groups using the reg expressions
-  for(std::vector<cmSourceFile*>::const_iterator i = classes.begin();
-      i != classes.end(); i++)
-    {
-    // Add the file to the list of sources.
-    std::string source = (*i)->GetFullPath();
-    cmSourceGroup* sourceGroup =
-      this->Makefile->FindSourceGroup(source.c_str(), sourceGroups);
-    sourceGroup->AssignSource(*i);
-    // while we are at it, if it is a .rule file then for visual studio 6 we
-    // must generate it
-    if ((*i)->GetPropertyAsBool("__CMAKE_RULE"))
-      {
-      if(!cmSystemTools::FileExists(source.c_str()))
-        {
-        cmSystemTools::ReplaceString(source, "$(IntDir)/", "");
-        // Make sure the path exists for the file
-        std::string path = cmSystemTools::GetFilenamePath(source);
-        cmSystemTools::MakeDirectory(path.c_str());
-#if defined(_WIN32) || defined(__CYGWIN__)
-        cmsys::ofstream sourceFout(source.c_str(),
-                           std::ios::binary | std::ios::out
-                           | std::ios::trunc);
-#else
-        cmsys::ofstream sourceFout(source.c_str(),
-                           std::ios::out | std::ios::trunc);
-#endif
-        if(sourceFout)
-          {
-          sourceFout.write("# generated from CMake",22);
-          sourceFout.flush();
-          sourceFout.close();
-          }
-        }
-      }
-    }
-
-  // Write the DSP file's header.
-  this->WriteDSPHeader(fout, libName, target, sourceGroups);
-
-
-  // Loop through every source group.
-  for(std::vector<cmSourceGroup>::const_iterator sg = sourceGroups.begin();
-      sg != sourceGroups.end(); ++sg)
-    {
-    this->WriteGroup(&(*sg), target, fout, libName);
-    }
-
-  // Write the DSP file's footer.
-  this->WriteDSPFooter(fout);
-}
-
-void cmLocalVisualStudio6Generator
-::WriteGroup(const cmSourceGroup *sg, cmTarget& target,
-             std::ostream &fout, const std::string& libName)
-{
-  cmGeneratorTarget* gt =
-    this->GlobalGenerator->GetGeneratorTarget(&target);
-  const std::vector<const cmSourceFile *> &sourceFiles =
-    sg->GetSourceFiles();
-  // If the group is empty, don't write it at all.
-
-  if(sourceFiles.empty() && sg->GetGroupChildren().empty())
+  /* Make sure we have an instance.  */
+  if(!cp)
     {
     return;
     }
 
-  // If the group has a name, write the header.
-  std::string name = sg->GetName();
-  if(name != "")
+  /* If the process is executing, wait for it to finish.  */
+  if(cp->State == kwsysProcess_State_Executing)
     {
-    this->WriteDSPBeginGroup(fout, name.c_str(), "");
-    }
-
-  // Loop through each source in the source group.
-  for(std::vector<const cmSourceFile *>::const_iterator sf =
-        sourceFiles.begin(); sf != sourceFiles.end(); ++sf)
-    {
-    std::string source = (*sf)->GetFullPath();
-    const cmCustomCommand *command =
-      (*sf)->GetCustomCommand();
-    std::string compileFlags;
-    std::vector<std::string> depends;
-    std::string objectNameDir;
-    if(gt->HasExplicitObjectName(*sf))
+    if(cp->Detached)
       {
-      objectNameDir = cmSystemTools::GetFilenamePath(gt->GetObjectName(*sf));
-      }
-
-    // Add per-source file flags.
-    if(const char* cflags = (*sf)->GetProperty("COMPILE_FLAGS"))
-      {
-      compileFlags += cflags;
-      }
-
-    const std::string& lang = this->GetSourceFileLanguage(*(*sf));
-    if(lang == "CXX")
-      {
-      // force a C++ file type
-      compileFlags += " /TP ";
-      }
-    else if(lang == "C")
-      {
-      // force to c file type
-      compileFlags += " /TC ";
-      }
-
-    // Add per-source and per-configuration preprocessor definitions.
-    std::map<cmStdString, cmStdString> cdmap;
-
-      {
-      std::set<std::string> targetCompileDefinitions;
-
-      this->AppendDefines(targetCompileDefinitions,
-                        (*sf)->GetProperty("COMPILE_DEFINITIONS"));
-      this->JoinDefines(targetCompileDefinitions, compileFlags, lang);
-      }
-
-    if(const char* cdefs = (*sf)->GetProperty("COMPILE_DEFINITIONS_DEBUG"))
-      {
-      std::set<std::string> debugCompileDefinitions;
-      this->AppendDefines(debugCompileDefinitions, cdefs);
-      this->JoinDefines(debugCompileDefinitions, cdmap["DEBUG"], lang);
-      }
-    if(const char* cdefs = (*sf)->GetProperty("COMPILE_DEFINITIONS_RELEASE"))
-      {
-      std::set<std::string> releaseCompileDefinitions;
-      this->AppendDefines(releaseCompileDefinitions, cdefs);
-      this->JoinDefines(releaseCompileDefinitions, cdmap["RELEASE"], lang);
-      }
-    if(const char* cdefs =
-       (*sf)->GetProperty("COMPILE_DEFINITIONS_MINSIZEREL"))
-      {
-      std::set<std::string> minsizerelCompileDefinitions;
-      this->AppendDefines(minsizerelCompileDefinitions, cdefs);
-      this->JoinDefines(minsizerelCompileDefinitions, cdmap["MINSIZEREL"],
-                        lang);
-      }
-    if(const char* cdefs =
-       (*sf)->GetProperty("COMPILE_DEFINITIONS_RELWITHDEBINFO"))
-      {
-      std::set<std::string> relwithdebinfoCompileDefinitions;
-      this->AppendDefines(relwithdebinfoCompileDefinitions, cdefs);
-      this->JoinDefines(relwithdebinfoCompileDefinitions,
-                        cdmap["RELWITHDEBINFO"], lang);
-      }
-
-    bool excludedFromBuild =
-      (!lang.empty() && (*sf)->GetPropertyAsBool("HEADER_FILE_ONLY"));
-
-    // Check for extra object-file dependencies.
-    const char* dependsValue = (*sf)->GetProperty("OBJECT_DEPENDS");
-    if(dependsValue)
-      {
-      cmSystemTools::ExpandListArgument(dependsValue, depends);
-      }
-    if (GetVS6TargetName(source) != libName ||
-      target.GetType() == cmTarget::UTILITY ||
-      target.GetType() == cmTarget::GLOBAL_TARGET)
-      {
-      fout << "# Begin Source File\n\n";
-
-      // Tell MS-Dev what the source is.  If the compiler knows how to
-      // build it, then it will.
-      fout << "SOURCE=" <<
-        this->ConvertToOptionallyRelativeOutputPath(source.c_str()) << "\n\n";
-      if(!depends.empty())
-        {
-        // Write out the dependencies for the rule.
-        fout << "USERDEP__HACK=";
-        for(std::vector<std::string>::const_iterator d = depends.begin();
-            d != depends.end(); ++d)
-          {
-          fout << "\\\n\t" <<
-            this->ConvertToOptionallyRelativeOutputPath(d->c_str());
-          }
-        fout << "\n";
-        }
-      if (command)
-        {
-        const char* flags = compileFlags.size() ? compileFlags.c_str(): 0;
-        this->WriteCustomRule(fout, source.c_str(), *command, flags);
-        }
-      else if(!compileFlags.empty() || !objectNameDir.empty() ||
-              excludedFromBuild || !cdmap.empty())
-        {
-        for(std::vector<std::string>::iterator i
-              = this->Configurations.begin();
-            i != this->Configurations.end(); ++i)
-          {
-          // Strip the subdirectory name out of the configuration name.
-          std::string config = this->GetConfigName(*i);
-          if (i == this->Configurations.begin())
-            {
-            fout << "!IF  \"$(CFG)\" == " << i->c_str() << std::endl;
-            }
-          else
-            {
-            fout << "!ELSEIF  \"$(CFG)\" == " << i->c_str() << std::endl;
-            }
-          if(excludedFromBuild)
-            {
-            fout << "# PROP Exclude_From_Build 1\n";
-            }
-          if(!compileFlags.empty())
-            {
-            fout << "\n# ADD CPP " << compileFlags << "\n\n";
-            }
-          std::map<cmStdString, cmStdString>::iterator cdi =
-            cdmap.find(cmSystemTools::UpperCase(config));
-          if(cdi != cdmap.end() && !cdi->second.empty())
-            {
-            fout << "\n# ADD CPP " << cdi->second << "\n\n";
-            }
-          if(!objectNameDir.empty())
-            {
-            // Setup an alternate object file directory.
-            fout << "\n# PROP Intermediate_Dir \""
-                 << config << "/" << objectNameDir << "\"\n\n";
-            }
-          }
-        fout << "!ENDIF\n\n";
-        }
-      fout << "# End Source File\n";
-      }
-    }
-
-  std::vector<cmSourceGroup> const& children  = sg->GetGroupChildren();
-
-  for(unsigned int i=0;i<children.size();++i)
-    {
-    this->WriteGroup(&children[i], target, fout, libName);
-    }
-
-
-
-
-  // If the group has a name, write the footer.
-  if(name != "")
-    {
-    this->WriteDSPEndGroup(fout);
-    }
-
-}
-
-
-void
-cmLocalVisualStudio6Generator
-::AddUtilityCommandHack(cmTarget& target, int count,
-                        std::vector<std::string>& depends,
-                        const cmCustomCommand& origCommand)
-{
-  // Create a fake output that forces the rule to run.
-  char* output = new char[(strlen(this->Makefile->GetStartOutputDirectory()) +
-                           target.GetName().size() + 30)];
-  sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
-          target.GetName().c_str(), count);
-  std::string comment = this->ConstructComment(origCommand, "<hack>");
-
-  // Add the rule with the given dependencies and commands.
-  const char* no_main_dependency = 0;
-  if(cmSourceFile* outsf =
-     this->Makefile->AddCustomCommandToOutput(
-       output, depends, no_main_dependency,
-       origCommand.GetCommandLines(), comment.c_str(),
-       origCommand.GetWorkingDirectory()))
-    {
-    target.AddSourceFile(outsf);
-    }
-
-  // Replace the dependencies with the output of this rule so that the
-  // next rule added will run after this one.
-  depends.clear();
-  depends.push_back(output);
-
-  // Free the fake output name.
-  delete [] output;
-}
-
-void
-cmLocalVisualStudio6Generator
-::WriteCustomRule(std::ostream& fout,
-                  const char* source,
-                  const cmCustomCommand& command,
-                  const char* flags)
-{
-  std::string comment =
-    this->ConstructComment(command, "Building Custom Rule $(InputPath)");
-  if(comment == "<hack>")
-    {
-    comment = "";
-    }
-
-  // Write the rule for each configuration.
-  std::vector<std::string>::iterator i;
-  for(i = this->Configurations.begin(); i != this->Configurations.end(); ++i)
-    {
-    std::string config = this->GetConfigName(*i);
-    std::string script =
-      this->ConstructScript(command, config.c_str(), "\\\n\t");
-
-    if (i == this->Configurations.begin())
-      {
-      fout << "!IF  \"$(CFG)\" == " << i->c_str() << std::endl;
+      kwsysProcess_Disown(cp);
       }
     else
       {
-      fout << "!ELSEIF  \"$(CFG)\" == " << i->c_str() << std::endl;
+      kwsysProcess_WaitForExit(cp, 0);
       }
-    if(flags)
-      {
-      fout << "\n# ADD CPP " << flags << "\n\n";
-      }
-    // Write out the dependencies for the rule.
-    fout << "USERDEP__HACK=";
-    for(std::vector<std::string>::const_iterator d =
-          command.GetDepends().begin();
-        d != command.GetDepends().end();
-        ++d)
-      {
-      // Lookup the real name of the dependency in case it is a CMake target.
-      std::string dep;
-      if(this->GetRealDependency(d->c_str(), config.c_str(), dep))
-        {
-        fout << "\\\n\t" <<
-          this->ConvertToOptionallyRelativeOutputPath(dep.c_str());
-        }
-      }
-    fout << "\n";
-
-    fout << "# PROP Ignore_Default_Tool 1\n";
-    fout << "# Begin Custom Build -";
-    if(!comment.empty())
-      {
-      fout << " " << comment.c_str();
-      }
-    fout << "\n\n";
-    if(command.GetOutputs().empty())
-      {
-      fout << source
-           << "_force :  \"$(SOURCE)\" \"$(INTDIR)\" \"$(OUTDIR)\"\n\t";
-      fout << script.c_str() << "\n\n";
-      }
-    else
-      {
-      for(std::vector<std::string>::const_iterator o =
-          command.GetOutputs().begin();
-          o != command.GetOutputs().end();
-          ++o)
-        {
-        // Write a rule for every output generated by this command.
-        fout << this->ConvertToOptionallyRelativeOutputPath(o->c_str())
-             << " :  \"$(SOURCE)\" \"$(INTDIR)\" \"$(OUTDIR)\"\n\t";
-        fout << script.c_str() << "\n\n";
-        }
-      }
-    fout << "# End Custom Build\n\n";
     }
 
-  fout << "!ENDIF\n\n";
-}
+  /* We are deleting the kwsysProcess instance.  */
+  cp->Deleting = 1;
 
-
-void cmLocalVisualStudio6Generator::WriteDSPBeginGroup(std::ostream& fout,
-                                                       const char* group,
-                                                       const char* filter)
-{
-  fout << "# Begin Group \"" << group << "\"\n"
-    "# PROP Default_Filter \"" << filter << "\"\n";
-}
-
-
-void cmLocalVisualStudio6Generator::WriteDSPEndGroup(std::ostream& fout)
-{
-  fout << "# End Group\n";
-}
-
-
-
-
-void cmLocalVisualStudio6Generator::SetBuildType(BuildType b,
-                                                 const std::string& libName,
-                                                 cmTarget& target)
-{
-  std::string root= this->Makefile->GetRequiredDefinition("CMAKE_ROOT");
-  const char *def=
-    this->Makefile->GetDefinition( "MSPROJECT_TEMPLATE_DIRECTORY");
-
-  if( def)
+  /* Terminate each of the threads.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
     {
-    root = def;
+    /* Terminate this reading thread.  */
+    if(cp->Pipe[i].Reader.Thread)
+      {
+      /* Signal the thread we are ready for it.  It will terminate
+         immediately since Deleting is set.  */
+      ReleaseSemaphore(cp->Pipe[i].Reader.Ready, 1, 0);
+
+      /* Wait for the thread to exit.  */
+      WaitForSingleObject(cp->Pipe[i].Reader.Thread, INFINITE);
+
+      /* Close the handle to the thread. */
+      kwsysProcessCleanupHandle(&cp->Pipe[i].Reader.Thread);
+      }
+
+    /* Terminate this waking thread.  */
+    if(cp->Pipe[i].Waker.Thread)
+      {
+      /* Signal the thread we are ready for it.  It will terminate
+         immediately since Deleting is set.  */
+      ReleaseSemaphore(cp->Pipe[i].Waker.Ready, 1, 0);
+
+      /* Wait for the thread to exit.  */
+      WaitForSingleObject(cp->Pipe[i].Waker.Thread, INFINITE);
+
+      /* Close the handle to the thread. */
+      kwsysProcessCleanupHandle(&cp->Pipe[i].Waker.Thread);
+      }
+
+    /* Cleanup the pipe's semaphores.  */
+    kwsysProcessCleanupHandle(&cp->Pipe[i].Reader.Ready);
+    kwsysProcessCleanupHandle(&cp->Pipe[i].Reader.Go);
+    kwsysProcessCleanupHandle(&cp->Pipe[i].Reader.Reset);
+    kwsysProcessCleanupHandle(&cp->Pipe[i].Waker.Ready);
+    kwsysProcessCleanupHandle(&cp->Pipe[i].Waker.Go);
+    kwsysProcessCleanupHandle(&cp->Pipe[i].Waker.Reset);
+    }
+
+  /* Close the shared semaphores.  */
+  kwsysProcessCleanupHandle(&cp->SharedIndexMutex);
+  kwsysProcessCleanupHandle(&cp->Full);
+
+  /* Free memory.  */
+  kwsysProcess_SetCommand(cp, 0);
+  kwsysProcess_SetWorkingDirectory(cp, 0);
+  kwsysProcess_SetPipeFile(cp, kwsysProcess_Pipe_STDIN, 0);
+  kwsysProcess_SetPipeFile(cp, kwsysProcess_Pipe_STDOUT, 0);
+  kwsysProcess_SetPipeFile(cp, kwsysProcess_Pipe_STDERR, 0);
+  if(cp->CommandExitCodes)
+    {
+    free(cp->CommandExitCodes);
+    }
+  free(cp);
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_SetCommand(kwsysProcess* cp, char const* const* command)
+{
+  int i;
+  if(!cp)
+    {
+    return 0;
+    }
+  for(i=0; i < cp->NumberOfCommands; ++i)
+    {
+    free(cp->Commands[i]);
+    }
+  cp->NumberOfCommands = 0;
+  if(cp->Commands)
+    {
+    free(cp->Commands);
+    cp->Commands = 0;
+    }
+  if(command)
+    {
+    return kwsysProcess_AddCommand(cp, command);
+    }
+  return 1;
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_AddCommand(kwsysProcess* cp, char const* const* command)
+{
+  int newNumberOfCommands;
+  wchar_t** newCommands;
+
+  /* Make sure we have a command to add.  */
+  if(!cp || !command || !*command)
+    {
+    return 0;
+    }
+
+
+  /* Allocate a new array for command pointers.  */
+  newNumberOfCommands = cp->NumberOfCommands + 1;
+  if(!(newCommands = (wchar_t**)malloc(sizeof(wchar_t*) * newNumberOfCommands)))
+    {
+    /* Out of memory.  */
+    return 0;
+    }
+
+  /* Copy any existing commands into the new array.  */
+  {
+  int i;
+  for(i=0; i < cp->NumberOfCommands; ++i)
+    {
+    newCommands[i] = cp->Commands[i];
+    }
+  }
+
+  /* We need to construct a single string representing the command
+     and its arguments.  We will surround each argument containing
+     spaces with double-quotes.  Inside a double-quoted argument, we
+     need to escape double-quotes and all backslashes before them.
+     We also need to escape backslashes at the end of an argument
+     because they come before the closing double-quote for the
+     argument.  */
+  {
+  /* First determine the length of the final string.  */
+  int length = kwsysProcessComputeCommandLength(cp, command);
+
+  /* Allocate enough space for the command.  We do not need an extra
+     byte for the terminating null because we allocated a space for
+     the first argument that we will not use.  */
+  char* new_cmd = malloc(length);
+  if(!new_cmd)
+    {
+    /* Out of memory.  */
+    free(newCommands);
+    return 0;
+    }
+
+  /* Construct the command line in the allocated buffer.  */
+  kwsysProcessComputeCommandLine(cp, command,
+                                 new_cmd);
+
+  newCommands[cp->NumberOfCommands] = kwsysEncoding_DupToWide(new_cmd);
+  free(new_cmd);
+  }
+
+
+  /* Save the new array of commands.  */
+  free(cp->Commands);
+  cp->Commands = newCommands;
+  cp->NumberOfCommands = newNumberOfCommands;
+  return 1;
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_SetTimeout(kwsysProcess* cp, double timeout)
+{
+  if(!cp)
+    {
+    return;
+    }
+  cp->Timeout = timeout;
+  if(cp->Timeout < 0)
+    {
+    cp->Timeout = 0;
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_SetWorkingDirectory(kwsysProcess* cp, const char* dir)
+{
+  if(!cp)
+    {
+    return 0;
+    }
+  if(cp->WorkingDirectory)
+    {
+    free(cp->WorkingDirectory);
+    cp->WorkingDirectory = 0;
+    }
+  if(dir && dir[0])
+    {
+    wchar_t* wdir = kwsysEncoding_DupToWide(dir);
+    /* We must convert the working directory to a full path.  */
+    DWORD length = GetFullPathNameW(wdir, 0, 0, 0);
+    if(length > 0)
+      {
+      wchar_t* work_dir = malloc(length*sizeof(wchar_t));
+      if(!work_dir)
+        {
+        free(wdir);
+        return 0;
+        }
+      if(!GetFullPathNameW(wdir, length, work_dir, 0))
+        {
+        free(work_dir);
+        free(wdir);
+        return 0;
+        }
+      cp->WorkingDirectory = work_dir;
+      }
+    free(wdir);
+    }
+  return 1;
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_SetPipeFile(kwsysProcess* cp, int pipe, const char* file)
+{
+  char** pfile;
+  if(!cp)
+    {
+    return 0;
+    }
+  switch(pipe)
+    {
+    case kwsysProcess_Pipe_STDIN: pfile = &cp->PipeFileSTDIN; break;
+    case kwsysProcess_Pipe_STDOUT: pfile = &cp->PipeFileSTDOUT; break;
+    case kwsysProcess_Pipe_STDERR: pfile = &cp->PipeFileSTDERR; break;
+    default: return 0;
+    }
+  if(*pfile)
+    {
+    free(*pfile);
+    *pfile = 0;
+    }
+  if(file)
+    {
+    *pfile = (char*)malloc(strlen(file)+1);
+    if(!*pfile)
+      {
+      return 0;
+      }
+    strcpy(*pfile, file);
+    }
+
+  /* If we are redirecting the pipe, do not share it or use a native
+     pipe.  */
+  if(*pfile)
+    {
+    kwsysProcess_SetPipeNative(cp, pipe, 0);
+    kwsysProcess_SetPipeShared(cp, pipe, 0);
+    }
+
+  return 1;
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_SetPipeShared(kwsysProcess* cp, int pipe, int shared)
+{
+  if(!cp)
+    {
+    return;
+    }
+
+  switch(pipe)
+    {
+    case kwsysProcess_Pipe_STDIN: cp->PipeSharedSTDIN = shared?1:0; break;
+    case kwsysProcess_Pipe_STDOUT: cp->PipeSharedSTDOUT = shared?1:0; break;
+    case kwsysProcess_Pipe_STDERR: cp->PipeSharedSTDERR = shared?1:0; break;
+    default: return;
+    }
+
+  /* If we are sharing the pipe, do not redirect it to a file or use a
+     native pipe.  */
+  if(shared)
+    {
+    kwsysProcess_SetPipeFile(cp, pipe, 0);
+    kwsysProcess_SetPipeNative(cp, pipe, 0);
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_SetPipeNative(kwsysProcess* cp, int pipe, HANDLE p[2])
+{
+  HANDLE* pPipeNative = 0;
+
+  if(!cp)
+    {
+    return;
+    }
+
+  switch(pipe)
+    {
+    case kwsysProcess_Pipe_STDIN: pPipeNative = cp->PipeNativeSTDIN; break;
+    case kwsysProcess_Pipe_STDOUT: pPipeNative = cp->PipeNativeSTDOUT; break;
+    case kwsysProcess_Pipe_STDERR: pPipeNative = cp->PipeNativeSTDERR; break;
+    default: return;
+    }
+
+  /* Copy the native pipe handles provided.  */
+  if(p)
+    {
+    pPipeNative[0] = p[0];
+    pPipeNative[1] = p[1];
     }
   else
     {
-    root += "/Templates";
+    pPipeNative[0] = 0;
+    pPipeNative[1] = 0;
     }
 
-  switch(b)
+  /* If we are using a native pipe, do not share it or redirect it to
+     a file.  */
+  if(p)
     {
-    case WIN32_EXECUTABLE:
-      break;
-    case STATIC_LIBRARY:
-      this->DSPHeaderTemplate = root;
-      this->DSPHeaderTemplate += "/staticLibHeader.dsptemplate";
-      this->DSPFooterTemplate = root;
-      this->DSPFooterTemplate += "/staticLibFooter.dsptemplate";
-      break;
-    case DLL:
-      this->DSPHeaderTemplate =  root;
-      this->DSPHeaderTemplate += "/DLLHeader.dsptemplate";
-      this->DSPFooterTemplate =  root;
-      this->DSPFooterTemplate += "/DLLFooter.dsptemplate";
-      break;
-    case EXECUTABLE:
-      if ( target.GetPropertyAsBool("WIN32_EXECUTABLE") )
-        {
-        this->DSPHeaderTemplate = root;
-        this->DSPHeaderTemplate += "/EXEWinHeader.dsptemplate";
-        this->DSPFooterTemplate = root;
-        this->DSPFooterTemplate += "/EXEFooter.dsptemplate";
-        }
-      else
-        {
-        this->DSPHeaderTemplate = root;
-        this->DSPHeaderTemplate += "/EXEHeader.dsptemplate";
-        this->DSPFooterTemplate = root;
-        this->DSPFooterTemplate += "/EXEFooter.dsptemplate";
-        }
-      break;
-    case UTILITY:
-      this->DSPHeaderTemplate = root;
-      this->DSPHeaderTemplate += "/UtilityHeader.dsptemplate";
-      this->DSPFooterTemplate = root;
-      this->DSPFooterTemplate += "/UtilityFooter.dsptemplate";
-      break;
-    }
-
-  // once the build type is set, determine what configurations are
-  // possible
-  cmsys::ifstream fin(this->DSPHeaderTemplate.c_str());
-
-  cmsys::RegularExpression reg("# Name ");
-  if(!fin)
-    {
-    cmSystemTools::Error("Error Reading ", this->DSPHeaderTemplate.c_str());
-    }
-
-  // reset this->Configurations
-  this->Configurations.erase(this->Configurations.begin(),
-                             this->Configurations.end());
-
-  // now add all the configurations possible
-  std::string vs6name = GetVS6TargetName(libName);
-  std::string line;
-  while(cmSystemTools::GetLineFromStream(fin, line))
-    {
-    cmSystemTools::ReplaceString(line, "OUTPUT_LIBNAME", vs6name.c_str());
-    if (reg.find(line))
-      {
-      this->Configurations.push_back(line.substr(reg.end()));
-      }
+    kwsysProcess_SetPipeFile(cp, pipe, 0);
+    kwsysProcess_SetPipeShared(cp, pipe, 0);
     }
 }
 
-//----------------------------------------------------------------------------
-cmsys::auto_ptr<cmCustomCommand>
-cmLocalVisualStudio6Generator::MaybeCreateOutputDir(cmTarget& target,
-                                                    const char* config)
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_GetOption(kwsysProcess* cp, int optionId)
 {
-  cmsys::auto_ptr<cmCustomCommand> pcc;
+  if(!cp)
+    {
+    return 0;
+    }
 
-  // VS6 forgets to create the output directory for archives if it
-  // differs from the intermediate directory.
-  if(target.GetType() != cmTarget::STATIC_LIBRARY) { return pcc; }
-  std::string outDir = target.GetDirectory(config, false);
-
-  // Add a pre-link event to create the directory.
-  cmCustomCommandLine command;
-  command.push_back(this->Makefile->GetRequiredDefinition("CMAKE_COMMAND"));
-  command.push_back("-E");
-  command.push_back("make_directory");
-  command.push_back(outDir);
-  std::vector<std::string> no_output;
-  std::vector<std::string> no_depends;
-  cmCustomCommandLines commands;
-  commands.push_back(command);
-  pcc.reset(new cmCustomCommand(0, no_output, no_depends, commands, 0, 0));
-  pcc->SetEscapeOldStyle(false);
-  pcc->SetEscapeAllowMakeVars(true);
-  return pcc;
+  switch(optionId)
+    {
+    case kwsysProcess_Option_Detach: return cp->OptionDetach;
+    case kwsysProcess_Option_HideWindow: return cp->HideWindow;
+    case kwsysProcess_Option_Verbatim: return cp->Verbatim;
+    default: return 0;
+    }
 }
 
-// look for custom rules on a target and collect them together
-std::string
-cmLocalVisualStudio6Generator::CreateTargetRules(cmTarget &target,
-                                              const char* configName,
-                                              const std::string& /* libName */)
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_SetOption(kwsysProcess* cp, int optionId, int value)
 {
-  if (target.GetType() >= cmTarget::UTILITY )
+  if(!cp)
     {
-    return "";
+    return;
     }
 
-  std::string customRuleCode = "# Begin Special Build Tool\n";
-  EventWriter event(this, configName, customRuleCode);
-
-  // Write the pre-build and pre-link together (VS6 does not support both).
-  event.Start("PreLink");
-  event.Write(target.GetPreBuildCommands());
-  event.Write(target.GetPreLinkCommands());
-  cmsys::auto_ptr<cmCustomCommand> pcc(
-    this->MaybeCreateImplibDir(target, configName, false));
-  if(pcc.get())
+  switch(optionId)
     {
-    event.Write(*pcc);
+    case kwsysProcess_Option_Detach: cp->OptionDetach = value; break;
+    case kwsysProcess_Option_HideWindow: cp->HideWindow = value; break;
+    case kwsysProcess_Option_Verbatim: cp->Verbatim = value; break;
+    default: break;
     }
-  pcc = this->MaybeCreateOutputDir(target, configName);
-  if(pcc.get())
-    {
-    event.Write(*pcc);
-    }
-  event.Finish();
-
-  // Write the post-build rules.
-  event.Start("PostBuild");
-  event.Write(target.GetPostBuildCommands());
-  event.Finish();
-
-  customRuleCode += "# End Special Build Tool\n";
-  return customRuleCode;
 }
 
-
-inline std::string removeQuotes(const std::string& s)
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_GetState(kwsysProcess* cp)
 {
-  if(s[0] == '\"' && s[s.size()-1] == '\"')
-    {
-    return s.substr(1, s.size()-2);
-    }
-  return s;
+  return cp? cp->State : kwsysProcess_State_Error;
 }
 
-
-std::string
-cmLocalVisualStudio6Generator::GetTargetIncludeOptions(cmTarget &target,
-                                                       const char *config)
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_GetExitException(kwsysProcess* cp)
 {
-  std::string includeOptions;
-
-  // Setup /I and /LIBPATH options for the resulting DSP file.  VS 6
-  // truncates long include paths so make it as short as possible if
-  // the length threatens this problem.
-  unsigned int maxIncludeLength = 3000;
-  bool useShortPath = false;
-
-  cmGeneratorTarget* gt =
-    this->GlobalGenerator->GetGeneratorTarget(&target);
-  for(int j=0; j < 2; ++j)
-    {
-    std::vector<std::string> includes;
-    this->GetIncludeDirectories(includes, gt, "C", config);
-
-    std::vector<std::string>::iterator i;
-    for(i = includes.begin(); i != includes.end(); ++i)
-      {
-      std::string tmp =
-        this->ConvertToOptionallyRelativeOutputPath(i->c_str());
-      if(useShortPath)
-        {
-        cmSystemTools::GetShortPath(tmp.c_str(), tmp);
-        }
-      includeOptions +=  " /I ";
-
-      // quote if not already quoted
-      if (tmp[0] != '"')
-        {
-        includeOptions += "\"";
-        includeOptions += tmp;
-        includeOptions += "\"";
-        }
-      else
-        {
-        includeOptions += tmp;
-        }
-      }
-
-    if(j == 0 && includeOptions.size() > maxIncludeLength)
-      {
-      includeOptions = "";
-      useShortPath = true;
-      }
-    else
-      {
-      break;
-      }
-    }
-
-  return includeOptions;
+  return cp? cp->ExitException : kwsysProcess_Exception_Other;
 }
 
-
-// Code in blocks surrounded by a test for this definition is needed
-// only for compatibility with user project's replacement DSP
-// templates.  The CMake templates no longer use them.
-#define CM_USE_OLD_VS6
-
-void cmLocalVisualStudio6Generator
-::WriteDSPHeader(std::ostream& fout,
-                 const std::string& libName, cmTarget &target,
-                 std::vector<cmSourceGroup> &)
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_GetExitValue(kwsysProcess* cp)
 {
-  bool targetBuilds = (target.GetType() >= cmTarget::EXECUTABLE &&
-                       target.GetType() <= cmTarget::MODULE_LIBRARY);
-#ifdef CM_USE_OLD_VS6
-  // Lookup the library and executable output directories.
-  std::string libPath;
-  if(this->Makefile->GetDefinition("LIBRARY_OUTPUT_PATH"))
+  return cp? cp->ExitValue : -1;
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_GetExitCode(kwsysProcess* cp)
+{
+  return cp? cp->ExitCode : 0;
+}
+
+/*--------------------------------------------------------------------------*/
+const char* kwsysProcess_GetErrorString(kwsysProcess* cp)
+{
+  if(!cp)
     {
-    libPath = this->Makefile->GetDefinition("LIBRARY_OUTPUT_PATH");
+    return "Process management structure could not be allocated";
     }
-  std::string exePath;
-  if(this->Makefile->GetDefinition("EXECUTABLE_OUTPUT_PATH"))
+  else if(cp->State == kwsysProcess_State_Error)
     {
-    exePath = this->Makefile->GetDefinition("EXECUTABLE_OUTPUT_PATH");
+    return cp->ErrorMessage;
+    }
+  return "Success";
+}
+
+/*--------------------------------------------------------------------------*/
+const char* kwsysProcess_GetExceptionString(kwsysProcess* cp)
+{
+  if(!cp)
+    {
+    return "GetExceptionString called with NULL process management structure";
+    }
+  else if(cp->State == kwsysProcess_State_Exception)
+    {
+    return cp->ExitExceptionString;
+    }
+  return "No exception";
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_Execute(kwsysProcess* cp)
+{
+  int i;
+
+  /* Child startup control data.  */
+  kwsysProcessCreateInformation si;
+
+  /* Do not execute a second time.  */
+  if(!cp || cp->State == kwsysProcess_State_Executing)
+    {
+    return;
     }
 
-  // Make sure there are trailing slashes.
-  if(!libPath.empty())
+  /* Make sure we have something to run.  */
+  if(cp->NumberOfCommands < 1)
     {
-    if(libPath[libPath.size()-1] != '/')
+    strcpy(cp->ErrorMessage, "No command");
+    cp->State = kwsysProcess_State_Error;
+    return;
+    }
+
+  /* Initialize the control structure for a new process.  */
+  if(!kwsysProcessInitialize(cp))
+    {
+    strcpy(cp->ErrorMessage, "Out of memory");
+    cp->State = kwsysProcess_State_Error;
+    return;
+    }
+
+  /* Save the real working directory of this process and change to
+     the working directory for the child processes.  This is needed
+     to make pipe file paths evaluate correctly.  */
+  if(cp->WorkingDirectory)
+    {
+    if(!GetCurrentDirectoryW(cp->RealWorkingDirectoryLength,
+                            cp->RealWorkingDirectory))
       {
-      libPath += "/";
-      }
-    }
-  if(!exePath.empty())
-    {
-    if(exePath[exePath.size()-1] != '/')
-      {
-      exePath += "/";
-      }
-    }
-
-  std::set<std::string> pathEmitted;
-
-  // determine the link directories
-  std::string libOptions;
-  std::string libDebugOptions;
-  std::string libOptimizedOptions;
-
-  std::string libMultiLineOptions;
-  std::string libMultiLineOptionsForDebug;
-  std::string libMultiLineDebugOptions;
-  std::string libMultiLineOptimizedOptions;
-
-  if(libPath.size())
-    {
-    std::string lpath =
-      this->ConvertToOptionallyRelativeOutputPath(libPath.c_str());
-    if(lpath.size() == 0)
-      {
-      lpath = ".";
-      }
-    std::string lpathIntDir = libPath + "$(INTDIR)";
-    lpathIntDir =
-      this->ConvertToOptionallyRelativeOutputPath(lpathIntDir.c_str());
-    if(pathEmitted.insert(lpath).second)
-      {
-      libOptions += " /LIBPATH:";
-      libOptions += lpathIntDir;
-      libOptions += " ";
-      libOptions += " /LIBPATH:";
-      libOptions += lpath;
-      libOptions += " ";
-      libMultiLineOptions += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptions += lpathIntDir;
-      libMultiLineOptions += " ";
-      libMultiLineOptions += " /LIBPATH:";
-      libMultiLineOptions += lpath;
-      libMultiLineOptions += " \n";
-      libMultiLineOptionsForDebug += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptionsForDebug += lpathIntDir;
-      libMultiLineOptionsForDebug += " ";
-      libMultiLineOptionsForDebug += " /LIBPATH:";
-      libMultiLineOptionsForDebug += lpath;
-      libMultiLineOptionsForDebug += " \n";
-      }
-    }
-  if(exePath.size())
-    {
-    std::string lpath =
-      this->ConvertToOptionallyRelativeOutputPath(exePath.c_str());
-    if(lpath.size() == 0)
-      {
-      lpath = ".";
-      }
-    std::string lpathIntDir = exePath + "$(INTDIR)";
-    lpathIntDir =
-      this->ConvertToOptionallyRelativeOutputPath(lpathIntDir.c_str());
-
-    if(pathEmitted.insert(lpath).second)
-      {
-      libOptions += " /LIBPATH:";
-      libOptions += lpathIntDir;
-      libOptions += " ";
-      libOptions += " /LIBPATH:";
-      libOptions += lpath;
-      libOptions += " ";
-      libMultiLineOptions += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptions += lpathIntDir;
-      libMultiLineOptions += " ";
-      libMultiLineOptions += " /LIBPATH:";
-      libMultiLineOptions += lpath;
-      libMultiLineOptions += " \n";
-      libMultiLineOptionsForDebug += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptionsForDebug += lpathIntDir;
-      libMultiLineOptionsForDebug += " ";
-      libMultiLineOptionsForDebug += " /LIBPATH:";
-      libMultiLineOptionsForDebug += lpath;
-      libMultiLineOptionsForDebug += " \n";
-      }
-    }
-  std::vector<std::string>::const_iterator i;
-  const std::vector<std::string>& libdirs = target.GetLinkDirectories();
-  for(i = libdirs.begin(); i != libdirs.end(); ++i)
-    {
-    std::string path = *i;
-    if(path[path.size()-1] != '/')
-      {
-      path += "/";
-      }
-    std::string lpath =
-      this->ConvertToOptionallyRelativeOutputPath(path.c_str());
-    if(lpath.size() == 0)
-      {
-      lpath = ".";
-      }
-    std::string lpathIntDir = path + "$(INTDIR)";
-    lpathIntDir =
-      this->ConvertToOptionallyRelativeOutputPath(lpathIntDir.c_str());
-    if(pathEmitted.insert(lpath).second)
-      {
-      libOptions += " /LIBPATH:";
-      libOptions += lpathIntDir;
-      libOptions += " ";
-      libOptions += " /LIBPATH:";
-      libOptions += lpath;
-      libOptions += " ";
-
-      libMultiLineOptions += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptions += lpathIntDir;
-      libMultiLineOptions += " ";
-      libMultiLineOptions += " /LIBPATH:";
-      libMultiLineOptions += lpath;
-      libMultiLineOptions += " \n";
-      libMultiLineOptionsForDebug += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptionsForDebug += lpathIntDir;
-      libMultiLineOptionsForDebug += " ";
-      libMultiLineOptionsForDebug += " /LIBPATH:";
-      libMultiLineOptionsForDebug += lpath;
-      libMultiLineOptionsForDebug += " \n";
-      }
-    }
-  // find link libraries
-  const cmTarget::LinkLibraryVectorType& libs = target.GetLinkLibraries();
-  cmTarget::LinkLibraryVectorType::const_iterator j;
-  for(j = libs.begin(); j != libs.end(); ++j)
-    {
-    // add libraries to executables and dlls (but never include
-    // a library in a library, bad recursion)
-    // NEVER LINK STATIC LIBRARIES TO OTHER STATIC LIBRARIES
-    if ((target.GetType() != cmTarget::SHARED_LIBRARY
-         && target.GetType() != cmTarget::STATIC_LIBRARY
-         && target.GetType() != cmTarget::MODULE_LIBRARY) ||
-        (target.GetType()==cmTarget::SHARED_LIBRARY
-         && libName != GetVS6TargetName(j->first)) ||
-        (target.GetType()==cmTarget::MODULE_LIBRARY
-         && libName != GetVS6TargetName(j->first)))
-      {
-      // Compute the proper name to use to link this library.
-      std::string lib;
-      std::string libDebug;
-      cmTarget* tgt = this->GlobalGenerator->FindTarget(0, j->first.c_str());
-      if(tgt)
-        {
-        lib = cmSystemTools::GetFilenameWithoutExtension
-          (tgt->GetFullName().c_str());
-        libDebug = cmSystemTools::GetFilenameWithoutExtension
-          (tgt->GetFullName("Debug").c_str());
-        lib += ".lib";
-        libDebug += ".lib";
-        }
-      else
-        {
-        lib = j->first.c_str();
-        libDebug = j->first.c_str();
-        if(j->first.find(".lib") == std::string::npos)
-          {
-          lib += ".lib";
-          libDebug += ".lib";
-          }
-        }
-      lib = this->ConvertToOptionallyRelativeOutputPath(lib.c_str());
-      libDebug =
-        this->ConvertToOptionallyRelativeOutputPath(libDebug.c_str());
-
-      if (j->second == cmTarget::GENERAL)
-        {
-        libOptions += " ";
-        libOptions += lib;
-        libMultiLineOptions += "# ADD LINK32 ";
-        libMultiLineOptions +=  lib;
-        libMultiLineOptions += "\n";
-        libMultiLineOptionsForDebug += "# ADD LINK32 ";
-        libMultiLineOptionsForDebug +=  libDebug;
-        libMultiLineOptionsForDebug += "\n";
-        }
-      if (j->second == cmTarget::DEBUG)
-        {
-        libDebugOptions += " ";
-        libDebugOptions += lib;
-
-        libMultiLineDebugOptions += "# ADD LINK32 ";
-        libMultiLineDebugOptions += libDebug;
-        libMultiLineDebugOptions += "\n";
-        }
-      if (j->second == cmTarget::OPTIMIZED)
-        {
-        libOptimizedOptions += " ";
-        libOptimizedOptions += lib;
-
-        libMultiLineOptimizedOptions += "# ADD LINK32 ";
-        libMultiLineOptimizedOptions += lib;
-        libMultiLineOptimizedOptions += "\n";
-        }
-      }
-    }
-#endif
-
-  // Get include options for this target.
-  std::string includeOptionsDebug = this->GetTargetIncludeOptions(target,
-                                                                  "DEBUG");
-  std::string includeOptionsRelease = this->GetTargetIncludeOptions(target,
-                                                                  "RELEASE");
-  std::string includeOptionsRelWithDebInfo = this->GetTargetIncludeOptions(
-                                                            target,
-                                                            "RELWITHDEBINFO");
-  std::string includeOptionsMinSizeRel = this->GetTargetIncludeOptions(target,
-                                                                "MINSIZEREL");
-
-  // Get extra linker options for this target type.
-  std::string extraLinkOptions;
-  std::string extraLinkOptionsDebug;
-  std::string extraLinkOptionsRelease;
-  std::string extraLinkOptionsMinSizeRel;
-  std::string extraLinkOptionsRelWithDebInfo;
-  if(target.GetType() == cmTarget::EXECUTABLE)
-    {
-    extraLinkOptions = this->Makefile->
-      GetRequiredDefinition("CMAKE_EXE_LINKER_FLAGS");
-    extraLinkOptionsDebug = this->Makefile->
-      GetRequiredDefinition("CMAKE_EXE_LINKER_FLAGS_DEBUG");
-    extraLinkOptionsRelease = this->Makefile->
-      GetRequiredDefinition("CMAKE_EXE_LINKER_FLAGS_RELEASE");
-    extraLinkOptionsMinSizeRel = this->Makefile->
-      GetRequiredDefinition("CMAKE_EXE_LINKER_FLAGS_MINSIZEREL");
-    extraLinkOptionsRelWithDebInfo = this->Makefile->
-      GetRequiredDefinition("CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO");
-    }
-  if(target.GetType() == cmTarget::SHARED_LIBRARY)
-    {
-    extraLinkOptions = this->Makefile->
-      GetRequiredDefinition("CMAKE_SHARED_LINKER_FLAGS");
-    extraLinkOptionsDebug = this->Makefile->
-      GetRequiredDefinition("CMAKE_SHARED_LINKER_FLAGS_DEBUG");
-    extraLinkOptionsRelease = this->Makefile->
-      GetRequiredDefinition("CMAKE_SHARED_LINKER_FLAGS_RELEASE");
-    extraLinkOptionsMinSizeRel = this->Makefile->
-      GetRequiredDefinition("CMAKE_SHARED_LINKER_FLAGS_MINSIZEREL");
-    extraLinkOptionsRelWithDebInfo = this->Makefile->
-      GetRequiredDefinition("CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO");
-    }
-  if(target.GetType() == cmTarget::MODULE_LIBRARY)
-    {
-    extraLinkOptions = this->Makefile->
-      GetRequiredDefinition("CMAKE_MODULE_LINKER_FLAGS");
-    extraLinkOptionsDebug = this->Makefile->
-      GetRequiredDefinition("CMAKE_MODULE_LINKER_FLAGS_DEBUG");
-    extraLinkOptionsRelease = this->Makefile->
-      GetRequiredDefinition("CMAKE_MODULE_LINKER_FLAGS_RELEASE");
-    extraLinkOptionsMinSizeRel = this->Makefile->
-      GetRequiredDefinition("CMAKE_MODULE_LINKER_FLAGS_MINSIZEREL");
-    extraLinkOptionsRelWithDebInfo = this->Makefile->
-      GetRequiredDefinition("CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO");
-    }
-
-  // Get extra linker options for this target.
-  if(const char* targetLinkFlags = target.GetProperty("LINK_FLAGS"))
-    {
-    extraLinkOptions += " ";
-    extraLinkOptions += targetLinkFlags;
-    }
-
-  if(const char* targetLinkFlags = target.GetProperty("LINK_FLAGS_DEBUG"))
-    {
-    extraLinkOptionsDebug += " ";
-    extraLinkOptionsDebug += targetLinkFlags;
-    }
-
-  if(const char* targetLinkFlags = target.GetProperty("LINK_FLAGS_RELEASE"))
-    {
-    extraLinkOptionsRelease += " ";
-    extraLinkOptionsRelease += targetLinkFlags;
-    }
-
-  if(const char* targetLinkFlags = target.GetProperty("LINK_FLAGS_MINSIZEREL"))
-    {
-    extraLinkOptionsMinSizeRel += " ";
-    extraLinkOptionsMinSizeRel += targetLinkFlags;
-    }
-
-  if(const char* targetLinkFlags =
-     target.GetProperty("LINK_FLAGS_RELWITHDEBINFO"))
-    {
-    extraLinkOptionsRelWithDebInfo += " ";
-    extraLinkOptionsRelWithDebInfo += targetLinkFlags;
-    }
-
-
-
-
-  // Get standard libraries for this language.
-  if(targetBuilds)
-    {
-    // Get the language to use for linking.
-    const std::string& linkLanguage = target.GetLinkerLanguage();
-    if(linkLanguage.empty())
-      {
-      cmSystemTools::Error
-        ("CMake can not determine linker language for target: ",
-         target.GetName().c_str());
+      kwsysProcessCleanup(cp, 1);
       return;
       }
+    SetCurrentDirectoryW(cp->WorkingDirectory);
+    }
 
-    // Compute the variable name to lookup standard libraries for this
-    // language.
-    std::string standardLibsVar = "CMAKE_";
-    standardLibsVar += linkLanguage;
-    standardLibsVar += "_STANDARD_LIBRARIES";
+  /* Initialize startup info data.  */
+  ZeroMemory(&si, sizeof(si));
+  si.StartupInfo.cb = sizeof(si.StartupInfo);
 
-    // Add standard libraries.
-    if(const char* stdLibs =
-       this->Makefile->GetDefinition(standardLibsVar.c_str()))
+  /* Decide whether a child window should be shown.  */
+  si.StartupInfo.dwFlags |= STARTF_USESHOWWINDOW;
+  si.StartupInfo.wShowWindow =
+    (unsigned short)(cp->HideWindow?SW_HIDE:SW_SHOWDEFAULT);
+
+  /* Connect the child's output pipes to the threads.  */
+  si.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
+
+  /* Create stderr pipe to be shared by all processes in the pipeline.
+     Neither end is directly inherited.  */
+  if(!CreatePipe(&cp->Pipe[KWSYSPE_PIPE_STDERR].Read,
+                 &cp->Pipe[KWSYSPE_PIPE_STDERR].Write, 0, 0))
+    {
+    kwsysProcessCleanup(cp, 1);
+    return;
+    }
+
+  /* Create an inherited duplicate of the write end, but do not
+     close the non-inherited version.  We need to keep it open
+     to use in waking up the pipe threads.  */
+  if(!DuplicateHandle(GetCurrentProcess(), cp->Pipe[KWSYSPE_PIPE_STDERR].Write,
+                      GetCurrentProcess(), &si.StartupInfo.hStdError,
+                      0, TRUE, DUPLICATE_SAME_ACCESS))
+    {
+    kwsysProcessCleanup(cp, 1);
+    kwsysProcessCleanupHandle(&si.StartupInfo.hStdError);
+    return;
+    }
+
+  /* Replace the stderr pipe with a file if requested.  In this case
+     the pipe thread will still run but never report data.  */
+  if(cp->PipeFileSTDERR)
+    {
+    if(!kwsysProcessSetupOutputPipeFile(&si.StartupInfo.hStdError,
+                                        cp->PipeFileSTDERR))
       {
-      extraLinkOptions += " ";
-      extraLinkOptions += stdLibs;
+      kwsysProcessCleanup(cp, 1);
+      kwsysProcessCleanupHandle(&si.StartupInfo.hStdError);
+      return;
       }
     }
 
-  // Compute version number information.
-  std::string targetVersionFlag;
-  if(target.GetType() == cmTarget::EXECUTABLE ||
-     target.GetType() == cmTarget::SHARED_LIBRARY ||
-     target.GetType() == cmTarget::MODULE_LIBRARY)
+  /* Replace the stderr pipe with the parent process's if requested.
+     In this case the pipe thread will still run but never report
+     data.  */
+  if(cp->PipeSharedSTDERR)
     {
-    int major;
-    int minor;
-    target.GetTargetVersion(major, minor);
-    cmOStringStream targetVersionStream;
-    targetVersionStream << "/version:" << major << "." << minor;
-    targetVersionFlag = targetVersionStream.str();
-    }
-
-  // Compute the real name of the target.
-  std::string outputName =
-    "(OUTPUT_NAME is for libraries and executables only)";
-  std::string outputNameDebug = outputName;
-  std::string outputNameRelease = outputName;
-  std::string outputNameMinSizeRel = outputName;
-  std::string outputNameRelWithDebInfo = outputName;
-  if(target.GetType() == cmTarget::EXECUTABLE ||
-     target.GetType() == cmTarget::STATIC_LIBRARY ||
-     target.GetType() == cmTarget::SHARED_LIBRARY ||
-     target.GetType() == cmTarget::MODULE_LIBRARY)
-    {
-    outputName = target.GetFullName();
-    outputNameDebug = target.GetFullName("Debug");
-    outputNameRelease = target.GetFullName("Release");
-    outputNameMinSizeRel = target.GetFullName("MinSizeRel");
-    outputNameRelWithDebInfo = target.GetFullName("RelWithDebInfo");
-    }
-  else if(target.GetType() == cmTarget::OBJECT_LIBRARY)
-    {
-    outputName = target.GetName();
-    outputName += ".lib";
-    outputNameDebug = outputName;
-    outputNameRelease = outputName;
-    outputNameMinSizeRel = outputName;
-    outputNameRelWithDebInfo = outputName;
-    }
-
-  // Compute the output directory for the target.
-  std::string outputDirOld;
-  std::string outputDirDebug;
-  std::string outputDirRelease;
-  std::string outputDirMinSizeRel;
-  std::string outputDirRelWithDebInfo;
-  if(target.GetType() == cmTarget::EXECUTABLE ||
-     target.GetType() == cmTarget::STATIC_LIBRARY ||
-     target.GetType() == cmTarget::SHARED_LIBRARY ||
-     target.GetType() == cmTarget::MODULE_LIBRARY)
-    {
-#ifdef CM_USE_OLD_VS6
-    outputDirOld =
-      removeQuotes(this->ConvertToOptionallyRelativeOutputPath
-                   (target.GetDirectory().c_str()));
-#endif
-    outputDirDebug =
-        removeQuotes(this->ConvertToOptionallyRelativeOutputPath(
-                       target.GetDirectory("Debug").c_str()));
-    outputDirRelease =
-        removeQuotes(this->ConvertToOptionallyRelativeOutputPath(
-                 target.GetDirectory("Release").c_str()));
-    outputDirMinSizeRel =
-        removeQuotes(this->ConvertToOptionallyRelativeOutputPath(
-                 target.GetDirectory("MinSizeRel").c_str()));
-    outputDirRelWithDebInfo =
-        removeQuotes(this->ConvertToOptionallyRelativeOutputPath(
-                 target.GetDirectory("RelWithDebInfo").c_str()));
-    }
-  else if(target.GetType() == cmTarget::OBJECT_LIBRARY)
-    {
-    std::string outputDir = cmake::GetCMakeFilesDirectoryPostSlash();
-    outputDirDebug = outputDir + "Debug";
-    outputDirRelease = outputDir + "Release";
-    outputDirMinSizeRel = outputDir + "MinSizeRel";
-    outputDirRelWithDebInfo = outputDir + "RelWithDebInfo";
-    }
-
-  // Compute the proper link information for the target.
-  std::string optionsDebug;
-  std::string optionsRelease;
-  std::string optionsMinSizeRel;
-  std::string optionsRelWithDebInfo;
-  if(target.GetType() == cmTarget::EXECUTABLE ||
-     target.GetType() == cmTarget::SHARED_LIBRARY ||
-     target.GetType() == cmTarget::MODULE_LIBRARY)
-    {
-    extraLinkOptionsDebug =
-      extraLinkOptions + " " + extraLinkOptionsDebug;
-    extraLinkOptionsRelease =
-      extraLinkOptions + " " + extraLinkOptionsRelease;
-    extraLinkOptionsMinSizeRel =
-      extraLinkOptions + " " + extraLinkOptionsMinSizeRel;
-    extraLinkOptionsRelWithDebInfo =
-      extraLinkOptions + " " + extraLinkOptionsRelWithDebInfo;
-    this->ComputeLinkOptions(target, "Debug", extraLinkOptionsDebug,
-                             optionsDebug);
-    this->ComputeLinkOptions(target, "Release", extraLinkOptionsRelease,
-                             optionsRelease);
-    this->ComputeLinkOptions(target, "MinSizeRel", extraLinkOptionsMinSizeRel,
-                             optionsMinSizeRel);
-    this->ComputeLinkOptions(target, "RelWithDebInfo",
-                             extraLinkOptionsRelWithDebInfo,
-                             optionsRelWithDebInfo);
-    }
-
-  // Compute the path of the import library.
-  std::string targetImplibFlagDebug;
-  std::string targetImplibFlagRelease;
-  std::string targetImplibFlagMinSizeRel;
-  std::string targetImplibFlagRelWithDebInfo;
-  if(target.GetType() == cmTarget::SHARED_LIBRARY ||
-     target.GetType() == cmTarget::MODULE_LIBRARY ||
-     target.GetType() == cmTarget::EXECUTABLE)
-    {
-    std::string fullPathImpDebug = target.GetDirectory("Debug", true);
-    std::string fullPathImpRelease = target.GetDirectory("Release", true);
-    std::string fullPathImpMinSizeRel =
-      target.GetDirectory("MinSizeRel", true);
-    std::string fullPathImpRelWithDebInfo =
-      target.GetDirectory("RelWithDebInfo", true);
-    fullPathImpDebug += "/";
-    fullPathImpRelease += "/";
-    fullPathImpMinSizeRel += "/";
-    fullPathImpRelWithDebInfo += "/";
-    fullPathImpDebug += target.GetFullName("Debug", true);
-    fullPathImpRelease += target.GetFullName("Release", true);
-    fullPathImpMinSizeRel += target.GetFullName("MinSizeRel", true);
-    fullPathImpRelWithDebInfo += target.GetFullName("RelWithDebInfo", true);
-
-    targetImplibFlagDebug = "/implib:";
-    targetImplibFlagRelease = "/implib:";
-    targetImplibFlagMinSizeRel = "/implib:";
-    targetImplibFlagRelWithDebInfo = "/implib:";
-    targetImplibFlagDebug +=
-      this->ConvertToOptionallyRelativeOutputPath(fullPathImpDebug.c_str());
-    targetImplibFlagRelease +=
-      this->ConvertToOptionallyRelativeOutputPath(fullPathImpRelease.c_str());
-    targetImplibFlagMinSizeRel +=
-      this->ConvertToOptionallyRelativeOutputPath(
-        fullPathImpMinSizeRel.c_str());
-    targetImplibFlagRelWithDebInfo +=
-      this->ConvertToOptionallyRelativeOutputPath(
-        fullPathImpRelWithDebInfo.c_str());
-    }
-
-#ifdef CM_USE_OLD_VS6
-  // Compute link information for the target.
-  if(extraLinkOptions.size())
-    {
-    libOptions += " ";
-    libOptions += extraLinkOptions;
-    libOptions += " ";
-    libMultiLineOptions += "# ADD LINK32 ";
-    libMultiLineOptions +=  extraLinkOptions;
-    libMultiLineOptions += " \n";
-    libMultiLineOptionsForDebug += "# ADD LINK32 ";
-    libMultiLineOptionsForDebug +=  extraLinkOptions;
-    libMultiLineOptionsForDebug += " \n";
-    }
-#endif
-
-  // are there any custom rules on the target itself
-  // only if the target is a lib or exe
-  std::string customRuleCodeRelease
-      = this->CreateTargetRules(target, "RELEASE",        libName);
-  std::string customRuleCodeDebug
-      = this->CreateTargetRules(target, "DEBUG",          libName);
-  std::string customRuleCodeMinSizeRel
-      = this->CreateTargetRules(target, "MINSIZEREL",     libName);
-  std::string customRuleCodeRelWithDebInfo
-      = this->CreateTargetRules(target, "RELWITHDEBINFO", libName);
-
-  cmsys::ifstream fin(this->DSPHeaderTemplate.c_str());
-  if(!fin)
-    {
-    cmSystemTools::Error("Error Reading ", this->DSPHeaderTemplate.c_str());
-    }
-  std::string staticLibOptions;
-  std::string staticLibOptionsDebug;
-  std::string staticLibOptionsRelease;
-  std::string staticLibOptionsMinSizeRel;
-  std::string staticLibOptionsRelWithDebInfo;
-  if(target.GetType() == cmTarget::STATIC_LIBRARY )
-    {
-    const char *libflagsGlobal =
-      this->Makefile->GetSafeDefinition("CMAKE_STATIC_LINKER_FLAGS");
-    this->AppendFlags(staticLibOptions, libflagsGlobal);
-    this->AppendFlags(staticLibOptionsDebug, libflagsGlobal);
-    this->AppendFlags(staticLibOptionsRelease, libflagsGlobal);
-    this->AppendFlags(staticLibOptionsMinSizeRel, libflagsGlobal);
-    this->AppendFlags(staticLibOptionsRelWithDebInfo, libflagsGlobal);
-
-    this->AppendFlags(staticLibOptionsDebug, this->Makefile->
-      GetSafeDefinition("CMAKE_STATIC_LINKER_FLAGS_DEBUG"));
-    this->AppendFlags(staticLibOptionsRelease, this->Makefile->
-      GetSafeDefinition("CMAKE_STATIC_LINKER_FLAGS_RELEASE"));
-    this->AppendFlags(staticLibOptionsMinSizeRel, this->Makefile->
-      GetSafeDefinition("CMAKE_STATIC_LINKER_FLAGS_MINSIZEREL"));
-    this->AppendFlags(staticLibOptionsRelWithDebInfo, this->Makefile->
-      GetSafeDefinition("CMAKE_STATIC_LINKER_FLAGS_RELWITHDEBINFO"));
-
-    const char *libflags = target.GetProperty("STATIC_LIBRARY_FLAGS");
-    this->AppendFlags(staticLibOptions, libflags);
-    this->AppendFlags(staticLibOptionsDebug, libflags);
-    this->AppendFlags(staticLibOptionsRelease, libflags);
-    this->AppendFlags(staticLibOptionsMinSizeRel, libflags);
-    this->AppendFlags(staticLibOptionsRelWithDebInfo, libflags);
-
-    this->AppendFlags(staticLibOptionsDebug,
-      target.GetProperty("STATIC_LIBRARY_FLAGS_DEBUG"));
-    this->AppendFlags(staticLibOptionsRelease,
-      target.GetProperty("STATIC_LIBRARY_FLAGS_RELEASE"));
-    this->AppendFlags(staticLibOptionsMinSizeRel,
-      target.GetProperty("STATIC_LIBRARY_FLAGS_MINSIZEREL"));
-    this->AppendFlags(staticLibOptionsRelWithDebInfo,
-      target.GetProperty("STATIC_LIBRARY_FLAGS_RELWITHDEBINFO"));
-
-    std::string objects;
-    this->OutputObjects(target, "LIB", objects);
-    if(!objects.empty())
+    if(!kwsysProcessSetupSharedPipe(STD_ERROR_HANDLE,
+                                    &si.StartupInfo.hStdError))
       {
-      objects = "\n" + objects;
-      staticLibOptionsDebug += objects;
-      staticLibOptionsRelease += objects;
-      staticLibOptionsMinSizeRel += objects;
-      staticLibOptionsRelWithDebInfo += objects;
+      kwsysProcessCleanup(cp, 1);
+      kwsysProcessCleanupHandleSafe(&si.StartupInfo.hStdError,
+                                    STD_ERROR_HANDLE);
+      return;
       }
     }
 
-  // Add the export symbol definition for shared library objects.
-  std::string exportSymbol;
-  if(const char* exportMacro = target.GetExportMacro())
+  /* Replace the stderr pipe with the native pipe provided if any.  In
+     this case the pipe thread will still run but never report
+     data.  */
+  if(cp->PipeNativeSTDERR[1])
     {
-    exportSymbol = exportMacro;
+    if(!kwsysProcessSetupPipeNative(&si.StartupInfo.hStdError,
+                                    cp->PipeNativeSTDERR, 1))
+      {
+      kwsysProcessCleanup(cp, 1);
+      kwsysProcessCleanupHandleSafe(&si.StartupInfo.hStdError,
+                                    STD_ERROR_HANDLE);
+      return;
+      }
     }
 
-  std::string line;
-  std::string libnameExports;
-  if(exportSymbol.size())
+  /* Create the pipeline of processes.  */
+  {
+  HANDLE readEnd = 0;
+  for(i=0; i < cp->NumberOfCommands; ++i)
     {
-    libnameExports = "/D \"";
-    libnameExports += exportSymbol;
-    libnameExports += "\"";
+    if(kwsysProcessCreate(cp, i, &si, &readEnd))
+      {
+      cp->ProcessEvents[i+1] = cp->ProcessInformation[i].hProcess;
+      }
+    else
+      {
+      kwsysProcessCleanup(cp, 1);
+
+      /* Release resources that may have been allocated for this
+         process before an error occurred.  */
+      kwsysProcessCleanupHandle(&readEnd);
+      kwsysProcessCleanupHandleSafe(&si.StartupInfo.hStdInput,
+                                    STD_INPUT_HANDLE);
+      kwsysProcessCleanupHandleSafe(&si.StartupInfo.hStdOutput,
+                                    STD_OUTPUT_HANDLE);
+      kwsysProcessCleanupHandleSafe(&si.StartupInfo.hStdError,
+                                    STD_ERROR_HANDLE);
+      return;
+      }
     }
-  while(cmSystemTools::GetLineFromStream(fin, line))
+
+  /* Save a handle to the output pipe for the last process.  */
+  cp->Pipe[KWSYSPE_PIPE_STDOUT].Read = readEnd;
+  }
+
+  /* Close the inherited handles to the stderr pipe shared by all
+     processes in the pipeline.  The stdout and stdin pipes are not
+     shared among all children and are therefore closed by
+     kwsysProcessCreate after each child is created.  */
+  kwsysProcessCleanupHandleSafe(&si.StartupInfo.hStdError, STD_ERROR_HANDLE);
+
+  /* Restore the working directory.  */
+  if(cp->RealWorkingDirectory)
     {
-    const char* mfcFlag = this->Makefile->GetDefinition("CMAKE_MFC_FLAG");
-    if(!mfcFlag)
-      {
-      mfcFlag = "0";
-      }
-    cmSystemTools::ReplaceString(line, "OUTPUT_LIBNAME_EXPORTS",
-                                 libnameExports.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_MFC_FLAG",
-                                 mfcFlag);
-    if(target.GetType() == cmTarget::STATIC_LIBRARY ||
-       target.GetType() == cmTarget::OBJECT_LIBRARY)
-      {
-      cmSystemTools::ReplaceString(line, "CM_STATIC_LIB_ARGS_DEBUG",
-                                   staticLibOptionsDebug.c_str());
-      cmSystemTools::ReplaceString(line, "CM_STATIC_LIB_ARGS_RELEASE",
-                                   staticLibOptionsRelease.c_str());
-      cmSystemTools::ReplaceString(line, "CM_STATIC_LIB_ARGS_MINSIZEREL",
-                                   staticLibOptionsMinSizeRel.c_str());
-      cmSystemTools::ReplaceString(line, "CM_STATIC_LIB_ARGS_RELWITHDEBINFO",
-                                   staticLibOptionsRelWithDebInfo.c_str());
-      cmSystemTools::ReplaceString(line, "CM_STATIC_LIB_ARGS",
-                                   staticLibOptions.c_str());
-      }
-    if(this->Makefile->IsOn("CMAKE_VERBOSE_MAKEFILE"))
-      {
-      cmSystemTools::ReplaceString(line, "/nologo", "");
-      }
-
-#ifdef CM_USE_OLD_VS6
-    cmSystemTools::ReplaceString(line, "CM_LIBRARIES",
-                                 libOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_DEBUG_LIBRARIES",
-                                 libDebugOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_OPTIMIZED_LIBRARIES",
-                                 libOptimizedOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_LIBRARIES_FOR_DEBUG",
-                                 libMultiLineOptionsForDebug.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_LIBRARIES",
-                                 libMultiLineOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_DEBUG_LIBRARIES",
-                                 libMultiLineDebugOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_OPTIMIZED_LIBRARIES",
-                                 libMultiLineOptimizedOptions.c_str());
-#endif
-
-    // Substitute the rules for custom command. When specifying just the
-    // target name for the command the command can be different for
-    // different configs
-    cmSystemTools::ReplaceString(line, "CMAKE_CUSTOM_RULE_CODE_RELEASE",
-                                 customRuleCodeRelease.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CUSTOM_RULE_CODE_DEBUG",
-                                 customRuleCodeDebug.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CUSTOM_RULE_CODE_MINSIZEREL",
-                                 customRuleCodeMinSizeRel.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CUSTOM_RULE_CODE_RELWITHDEBINFO",
-                                 customRuleCodeRelWithDebInfo.c_str());
-
-    // Substitute the real output name into the template.
-    cmSystemTools::ReplaceString(line, "OUTPUT_NAME_DEBUG",
-                                 outputNameDebug.c_str());
-    cmSystemTools::ReplaceString(line, "OUTPUT_NAME_RELEASE",
-                                 outputNameRelease.c_str());
-    cmSystemTools::ReplaceString(line, "OUTPUT_NAME_MINSIZEREL",
-                                 outputNameMinSizeRel.c_str());
-    cmSystemTools::ReplaceString(line, "OUTPUT_NAME_RELWITHDEBINFO",
-                                 outputNameRelWithDebInfo.c_str());
-    cmSystemTools::ReplaceString(line, "OUTPUT_NAME", outputName.c_str());
-
-    // Substitute the proper link information into the template.
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_OPTIONS_DEBUG",
-                                 optionsDebug.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_OPTIONS_RELEASE",
-                                 optionsRelease.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_OPTIONS_MINSIZEREL",
-                                 optionsMinSizeRel.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_OPTIONS_RELWITHDEBINFO",
-                                 optionsRelWithDebInfo.c_str());
-
-    cmSystemTools::ReplaceString(line, "BUILD_INCLUDES_DEBUG",
-                                 includeOptionsDebug.c_str());
-    cmSystemTools::ReplaceString(line, "BUILD_INCLUDES_RELEASE",
-                                 includeOptionsRelease.c_str());
-    cmSystemTools::ReplaceString(line, "BUILD_INCLUDES_MINSIZEREL",
-                                 includeOptionsMinSizeRel.c_str());
-    cmSystemTools::ReplaceString(line, "BUILD_INCLUDES_RELWITHDEBINFO",
-                                 includeOptionsRelWithDebInfo.c_str());
-
-    cmSystemTools::ReplaceString(line, "TARGET_VERSION_FLAG",
-                                 targetVersionFlag.c_str());
-    cmSystemTools::ReplaceString(line, "TARGET_IMPLIB_FLAG_DEBUG",
-                                 targetImplibFlagDebug.c_str());
-    cmSystemTools::ReplaceString(line, "TARGET_IMPLIB_FLAG_RELEASE",
-                                 targetImplibFlagRelease.c_str());
-    cmSystemTools::ReplaceString(line, "TARGET_IMPLIB_FLAG_MINSIZEREL",
-                                 targetImplibFlagMinSizeRel.c_str());
-    cmSystemTools::ReplaceString(line, "TARGET_IMPLIB_FLAG_RELWITHDEBINFO",
-                                 targetImplibFlagRelWithDebInfo.c_str());
-
-    std::string vs6name = GetVS6TargetName(libName);
-    cmSystemTools::ReplaceString(line, "OUTPUT_LIBNAME", vs6name.c_str());
-
-#ifdef CM_USE_OLD_VS6
-    // because LIBRARY_OUTPUT_PATH and EXECUTABLE_OUTPUT_PATH
-    // are already quoted in the template file,
-    // we need to remove the quotes here, we still need
-    // to convert to output path for unix to win32 conversion
-    cmSystemTools::ReplaceString
-      (line, "LIBRARY_OUTPUT_PATH",
-       removeQuotes(this->ConvertToOptionallyRelativeOutputPath
-                    (libPath.c_str())).c_str());
-    cmSystemTools::ReplaceString
-      (line, "EXECUTABLE_OUTPUT_PATH",
-       removeQuotes(this->ConvertToOptionallyRelativeOutputPath
-                    (exePath.c_str())).c_str());
-#endif
-
-    if(targetBuilds || target.GetType() == cmTarget::OBJECT_LIBRARY)
-      {
-      cmSystemTools::ReplaceString(line, "OUTPUT_DIRECTORY_DEBUG",
-                                   outputDirDebug.c_str());
-      cmSystemTools::ReplaceString(line, "OUTPUT_DIRECTORY_RELEASE",
-                                   outputDirRelease.c_str());
-      cmSystemTools::ReplaceString(line, "OUTPUT_DIRECTORY_MINSIZEREL",
-                                   outputDirMinSizeRel.c_str());
-      cmSystemTools::ReplaceString(line, "OUTPUT_DIRECTORY_RELWITHDEBINFO",
-                                   outputDirRelWithDebInfo.c_str());
-      if(!outputDirOld.empty())
-        {
-        cmSystemTools::ReplaceString(line, "OUTPUT_DIRECTORY",
-                                     outputDirOld.c_str());
-        }
-      }
-
-    cmSystemTools::ReplaceString(line,
-                                 "EXTRA_DEFINES",
-                                 this->Makefile->GetDefineFlags());
-    const char* debugPostfix
-      = this->Makefile->GetDefinition("CMAKE_DEBUG_POSTFIX");
-    cmSystemTools::ReplaceString(line, "DEBUG_POSTFIX",
-                                 debugPostfix?debugPostfix:"");
-    // store flags for each configuration
-    std::string flags = " ";
-    std::string flagsRelease = " ";
-    std::string flagsMinSizeRel = " ";
-    std::string flagsDebug = " ";
-    std::string flagsRelWithDebInfo = " ";
-    if(target.GetType() >= cmTarget::EXECUTABLE &&
-       target.GetType() <= cmTarget::OBJECT_LIBRARY)
-      {
-      const std::string& linkLanguage = target.GetLinkerLanguage();
-      if(linkLanguage.empty())
-        {
-        cmSystemTools::Error
-          ("CMake can not determine linker language for target: ",
-           target.GetName().c_str());
-        return;
-        }
-      // if CXX is on and the target contains cxx code then add the cxx flags
-      std::string baseFlagVar = "CMAKE_";
-      baseFlagVar += linkLanguage;
-      baseFlagVar += "_FLAGS";
-      flags = this->Makefile->GetSafeDefinition(baseFlagVar.c_str());
-
-      std::string flagVar = baseFlagVar + "_RELEASE";
-      flagsRelease = this->Makefile->GetSafeDefinition(flagVar.c_str());
-      flagsRelease += " -DCMAKE_INTDIR=\\\"Release\\\" ";
-
-      flagVar = baseFlagVar + "_MINSIZEREL";
-      flagsMinSizeRel = this->Makefile->GetSafeDefinition(flagVar.c_str());
-      flagsMinSizeRel += " -DCMAKE_INTDIR=\\\"MinSizeRel\\\" ";
-
-      flagVar = baseFlagVar + "_DEBUG";
-      flagsDebug = this->Makefile->GetSafeDefinition(flagVar.c_str());
-      flagsDebug += " -DCMAKE_INTDIR=\\\"Debug\\\" ";
-
-      flagVar = baseFlagVar + "_RELWITHDEBINFO";
-      flagsRelWithDebInfo = this->Makefile->GetSafeDefinition(flagVar.c_str());
-      flagsRelWithDebInfo += " -DCMAKE_INTDIR=\\\"RelWithDebInfo\\\" ";
-
-      this->AddCompileOptions(flags, &target, linkLanguage, 0);
-      this->AddCompileOptions(flagsDebug, &target, linkLanguage, "Debug");
-      this->AddCompileOptions(flagsRelease, &target, linkLanguage, "Release");
-      this->AddCompileOptions(flagsMinSizeRel, &target, linkLanguage,
-                              "MinSizeRel");
-      this->AddCompileOptions(flagsRelWithDebInfo, &target, linkLanguage,
-                              "RelWithDebInfo");
-      }
-
-    // if _UNICODE and _SBCS are not found, then add -D_MBCS
-    std::string defs = this->Makefile->GetDefineFlags();
-    if(flags.find("D_UNICODE") == flags.npos &&
-       defs.find("D_UNICODE") == flags.npos &&
-       flags.find("D_SBCS") == flags.npos &&
-       defs.find("D_SBCS") == flags.npos)
-      {
-      flags += " /D \"_MBCS\"";
-      }
-
-    // Add per-target and per-configuration preprocessor definitions.
-    std::set<std::string> definesSet;
-    std::set<std::string> debugDefinesSet;
-    std::set<std::string> releaseDefinesSet;
-    std::set<std::string> minsizeDefinesSet;
-    std::set<std::string> debugrelDefinesSet;
-
-    this->AddCompileDefinitions(definesSet, &target, 0);
-    this->AddCompileDefinitions(debugDefinesSet, &target, "DEBUG");
-    this->AddCompileDefinitions(releaseDefinesSet, &target, "RELEASE");
-    this->AddCompileDefinitions(minsizeDefinesSet, &target, "MINSIZEREL");
-    this->AddCompileDefinitions(debugrelDefinesSet, &target, "RELWITHDEBINFO");
-
-    std::string defines = " ";
-    std::string debugDefines = " ";
-    std::string releaseDefines = " ";
-    std::string minsizeDefines = " ";
-    std::string debugrelDefines = " ";
-
-    this->JoinDefines(definesSet, defines, "");
-    this->JoinDefines(debugDefinesSet, debugDefines, "");
-    this->JoinDefines(releaseDefinesSet, releaseDefines, "");
-    this->JoinDefines(minsizeDefinesSet, minsizeDefines, "");
-    this->JoinDefines(debugrelDefinesSet, debugrelDefines, "");
-
-    flags += defines;
-    flagsDebug += debugDefines;
-    flagsRelease += releaseDefines;
-    flagsMinSizeRel += minsizeDefines;
-    flagsRelWithDebInfo += debugrelDefines;
-
-    // The template files have CXX FLAGS in them, that need to be replaced.
-    // There are not separate CXX and C template files, so we use the same
-    // variable names.   The previous code sets up flags* variables to contain
-    // the correct C or CXX flags
-    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_MINSIZEREL",
-                                 flagsMinSizeRel.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_DEBUG",
-                                 flagsDebug.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_RELWITHDEBINFO",
-                                 flagsRelWithDebInfo.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_RELEASE",
-                                 flagsRelease.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS", flags.c_str());
-
-    cmSystemTools::ReplaceString(line, "COMPILE_DEFINITIONS_MINSIZEREL",
-                                 minsizeDefines.c_str());
-    cmSystemTools::ReplaceString(line, "COMPILE_DEFINITIONS_DEBUG",
-                                 debugDefines.c_str());
-    cmSystemTools::ReplaceString(line, "COMPILE_DEFINITIONS_RELWITHDEBINFO",
-                                 debugrelDefines.c_str());
-    cmSystemTools::ReplaceString(line, "COMPILE_DEFINITIONS_RELEASE",
-                                 releaseDefines.c_str());
-    cmSystemTools::ReplaceString(line, "COMPILE_DEFINITIONS", defines.c_str());
-
-    fout << line.c_str() << std::endl;
+    SetCurrentDirectoryW(cp->RealWorkingDirectory);
+    free(cp->RealWorkingDirectory);
+    cp->RealWorkingDirectory = 0;
     }
+
+  /* The timeout period starts now.  */
+  cp->StartTime = kwsysProcessTimeGetCurrent();
+  cp->TimeoutTime = kwsysProcessTimeFromDouble(-1);
+
+  /* All processes in the pipeline have been started in suspended
+     mode.  Resume them all now.  */
+  for(i=0; i < cp->NumberOfCommands; ++i)
+    {
+    ResumeThread(cp->ProcessInformation[i].hThread);
+    }
+
+  /* ---- It is no longer safe to call kwsysProcessCleanup. ----- */
+  /* Tell the pipe threads that a process has started.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
+    {
+    ReleaseSemaphore(cp->Pipe[i].Reader.Ready, 1, 0);
+    ReleaseSemaphore(cp->Pipe[i].Waker.Ready, 1, 0);
+    }
+
+  /* We don't care about the children's main threads.  */
+  for(i=0; i < cp->NumberOfCommands; ++i)
+    {
+    kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hThread);
+    }
+
+  /* No pipe has reported data.  */
+  cp->CurrentIndex = KWSYSPE_PIPE_COUNT;
+  cp->PipesLeft = KWSYSPE_PIPE_COUNT;
+
+  /* The process has now started.  */
+  cp->State = kwsysProcess_State_Executing;
+  cp->Detached = cp->OptionDetach;
 }
 
-void cmLocalVisualStudio6Generator::WriteDSPFooter(std::ostream& fout)
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_Disown(kwsysProcess* cp)
 {
-  cmsys::ifstream fin(this->DSPFooterTemplate.c_str());
-  if(!fin)
-    {
-    cmSystemTools::Error("Error Reading ",
-                         this->DSPFooterTemplate.c_str());
-    }
-  std::string line;
-  while(cmSystemTools::GetLineFromStream(fin, line))
-    {
-    fout << line << std::endl;
-    }
-}
+  int i;
 
-//----------------------------------------------------------------------------
-void cmLocalVisualStudio6Generator
-::ComputeLinkOptions(cmTarget& target,
-                     const char* configName,
-                     const std::string extraOptions,
-                     std::string& options)
-{
-  // Compute the link information for this configuration.
-  cmComputeLinkInformation* pcli = target.GetLinkInformation(configName);
-  if(!pcli)
+  /* Make sure we are executing a detached process.  */
+  if(!cp || !cp->Detached || cp->State != kwsysProcess_State_Executing ||
+     cp->TimeoutExpired || cp->Killed || cp->Terminated)
     {
     return;
     }
-  cmComputeLinkInformation& cli = *pcli;
-  typedef cmComputeLinkInformation::ItemVector ItemVector;
-  ItemVector const& linkLibs = cli.GetItems();
-  std::vector<std::string> const& linkDirs = cli.GetDirectories();
 
-  this->OutputObjects(target, "LINK", options);
+  /* Disable the reading threads.  */
+  kwsysProcessDisablePipeThreads(cp);
 
-  // Build the link options code.
-  for(std::vector<std::string>::const_iterator d = linkDirs.begin();
-      d != linkDirs.end(); ++d)
+  /* Wait for all pipe threads to reset.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
     {
-    std::string dir = *d;
-    if(!dir.empty())
+    WaitForSingleObject(cp->Pipe[i].Reader.Reset, INFINITE);
+    WaitForSingleObject(cp->Pipe[i].Waker.Reset, INFINITE);
+    }
+
+  /* We will not wait for exit, so cleanup now.  */
+  kwsysProcessCleanup(cp, 0);
+
+  /* The process has been disowned.  */
+  cp->State = kwsysProcess_State_Disowned;
+}
+
+/*--------------------------------------------------------------------------*/
+
+int kwsysProcess_WaitForData(kwsysProcess* cp, char** data, int* length,
+                             double* userTimeout)
+{
+  kwsysProcessTime userStartTime;
+  kwsysProcessTime timeoutLength;
+  kwsysProcessTime timeoutTime;
+  DWORD timeout;
+  int user;
+  int done = 0;
+  int expired = 0;
+  int pipeId = kwsysProcess_Pipe_None;
+  DWORD w;
+
+  /* Make sure we are executing a process.  */
+  if(!cp || cp->State != kwsysProcess_State_Executing || cp->Killed ||
+     cp->TimeoutExpired)
+    {
+    return kwsysProcess_Pipe_None;
+    }
+
+  /* Record the time at which user timeout period starts.  */
+  userStartTime = kwsysProcessTimeGetCurrent();
+
+  /* Calculate the time at which a timeout will expire, and whether it
+     is the user or process timeout.  */
+  user = kwsysProcessGetTimeoutTime(cp, userTimeout, &timeoutTime);
+
+  /* Loop until we have a reason to return.  */
+  while(!done && cp->PipesLeft > 0)
+    {
+    /* If we previously got data from a thread, let it know we are
+       done with the data.  */
+    if(cp->CurrentIndex < KWSYSPE_PIPE_COUNT)
       {
-      if(dir[dir.size()-1] != '/')
+      KWSYSPE_DEBUG((stderr, "releasing reader %d\n", cp->CurrentIndex));
+      ReleaseSemaphore(cp->Pipe[cp->CurrentIndex].Reader.Go, 1, 0);
+      cp->CurrentIndex = KWSYSPE_PIPE_COUNT;
+      }
+
+    /* Setup a timeout if required.  */
+    if(kwsysProcessGetTimeoutLeft(&timeoutTime, user?userTimeout:0,
+                                  &timeoutLength))
+      {
+      /* Timeout has already expired.  */
+      expired = 1;
+      break;
+      }
+    if(timeoutTime.QuadPart < 0)
+      {
+      timeout = INFINITE;
+      }
+    else
+      {
+      timeout = kwsysProcessTimeToDWORD(timeoutLength);
+      }
+
+    /* Wait for a pipe's thread to signal or a process to terminate.  */
+    w = WaitForMultipleObjects(cp->ProcessEventsLength, cp->ProcessEvents,
+                               0, timeout);
+    if(w == WAIT_TIMEOUT)
+      {
+      /* Timeout has expired.  */
+      expired = 1;
+      done = 1;
+      }
+    else if(w == WAIT_OBJECT_0)
+      {
+      /* Save the index of the reporting thread and release the mutex.
+         The thread will block until we signal its Empty mutex.  */
+      cp->CurrentIndex = cp->SharedIndex;
+      ReleaseSemaphore(cp->SharedIndexMutex, 1, 0);
+
+      /* Data are available or a pipe closed.  */
+      if(cp->Pipe[cp->CurrentIndex].Closed)
         {
-        dir += "/";
+        /* The pipe closed at the write end.  Close the read end and
+           inform the wakeup thread it is done with this process.  */
+        kwsysProcessCleanupHandle(&cp->Pipe[cp->CurrentIndex].Read);
+        ReleaseSemaphore(cp->Pipe[cp->CurrentIndex].Waker.Go, 1, 0);
+        KWSYSPE_DEBUG((stderr, "wakeup %d\n", cp->CurrentIndex));
+        --cp->PipesLeft;
         }
-      dir += "$(IntDir)";
-      options += "# ADD LINK32 /LIBPATH:";
-      options += this->ConvertToOptionallyRelativeOutputPath(dir.c_str());
-      options += " /LIBPATH:";
-      options += this->ConvertToOptionallyRelativeOutputPath(d->c_str());
-      options += "\n";
+      else if(data && length)
+        {
+        /* Report this data.  */
+        *data = cp->Pipe[cp->CurrentIndex].DataBuffer;
+        *length = cp->Pipe[cp->CurrentIndex].DataLength;
+        switch(cp->CurrentIndex)
+          {
+          case KWSYSPE_PIPE_STDOUT:
+            pipeId = kwsysProcess_Pipe_STDOUT; break;
+          case KWSYSPE_PIPE_STDERR:
+            pipeId = kwsysProcess_Pipe_STDERR; break;
+          }
+        done = 1;
+        }
       }
-    }
-  for(ItemVector::const_iterator l = linkLibs.begin();
-      l != linkLibs.end(); ++l)
-    {
-    options += "# ADD LINK32 ";
-    if(l->IsPath)
+    else
       {
-      options +=
-        this->ConvertToOptionallyRelativeOutputPath(l->Value.c_str());
+      /* A process has terminated.  */
+      kwsysProcessDestroy(cp, w-WAIT_OBJECT_0);
       }
-    else if (!l->Target
-        || l->Target->GetType() != cmTarget::INTERFACE_LIBRARY)
+    }
+
+  /* Update the user timeout.  */
+  if(userTimeout)
+    {
+    kwsysProcessTime userEndTime = kwsysProcessTimeGetCurrent();
+    kwsysProcessTime difference = kwsysProcessTimeSubtract(userEndTime,
+                                                           userStartTime);
+    double d = kwsysProcessTimeToDouble(difference);
+    *userTimeout -= d;
+    if(*userTimeout < 0)
       {
-      options += l->Value;
+      *userTimeout = 0;
       }
-    options += "\n";
     }
 
-  // Add extra options if any.
-  if(!extraOptions.empty())
+  /* Check what happened.  */
+  if(pipeId)
     {
-    options += "# ADD LINK32 ";
-    options += extraOptions;
-    options += "\n";
+    /* Data are ready on a pipe.  */
+    return pipeId;
     }
-}
-
-//----------------------------------------------------------------------------
-void cmLocalVisualStudio6Generator
-::OutputObjects(cmTarget& target, const char* tool,
-                std::string& options)
-{
-  // VS 6 does not support per-config source locations so we
-  // list object library content on the link line instead.
-  cmGeneratorTarget* gt =
-    this->GlobalGenerator->GetGeneratorTarget(&target);
-  std::vector<std::string> objs;
-  gt->UseObjectLibraries(objs);
-  for(std::vector<std::string>::const_iterator
-        oi = objs.begin(); oi != objs.end(); ++oi)
+  else if(expired)
     {
-    options += "# ADD ";
-    options += tool;
-    options += "32 ";
-    options += this->ConvertToOptionallyRelativeOutputPath(oi->c_str());
-    options += "\n";
-    }
-}
-
-std::string
-cmLocalVisualStudio6Generator
-::GetTargetDirectory(cmTarget const&) const
-{
-  // No per-target directory for this generator (yet).
-  return "";
-}
-
-//----------------------------------------------------------------------------
-std::string
-cmLocalVisualStudio6Generator
-::ComputeLongestObjectDirectory(cmTarget&) const
-{
-  // Compute the maximum length configuration name.
-  std::string config_max;
-  for(std::vector<std::string>::const_iterator
-        i = this->Configurations.begin();
-      i != this->Configurations.end(); ++i)
-    {
-    // Strip the subdirectory name out of the configuration name.
-    std::string config = this->GetConfigName(*i);
-    if(config.size() > config_max.size())
+    /* A timeout has expired.  */
+    if(user)
       {
-      config_max = config;
+      /* The user timeout has expired.  It has no time left.  */
+      return kwsysProcess_Pipe_Timeout;
+      }
+    else
+      {
+      /* The process timeout has expired.  Kill the child now.  */
+      KWSYSPE_DEBUG((stderr, "killing child because timeout expired\n"));
+      kwsysProcess_Kill(cp);
+      cp->TimeoutExpired = 1;
+      cp->Killed = 0;
+      return kwsysProcess_Pipe_None;
+      }
+    }
+  else
+    {
+    /* The children have terminated and no more data are available.  */
+    return kwsysProcess_Pipe_None;
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_WaitForExit(kwsysProcess* cp, double* userTimeout)
+{
+  int i;
+  int pipe;
+
+  /* Make sure we are executing a process.  */
+  if(!cp || cp->State != kwsysProcess_State_Executing)
+    {
+    return 1;
+    }
+
+  /* Wait for the process to terminate.  Ignore all data.  */
+  while((pipe = kwsysProcess_WaitForData(cp, 0, 0, userTimeout)) > 0)
+    {
+    if(pipe == kwsysProcess_Pipe_Timeout)
+      {
+      /* The user timeout has expired.  */
+      return 0;
       }
     }
 
-  // Compute the maximum length full path to the intermediate
-  // files directory for any configuration.  This is used to construct
-  // object file names that do not produce paths that are too long.
-  std::string dir_max;
-  dir_max += this->Makefile->GetCurrentOutputDirectory();
-  dir_max += "/";
-  dir_max += config_max;
-  dir_max += "/";
-  return dir_max;
-}
+  KWSYSPE_DEBUG((stderr, "no more data\n"));
 
-std::string
-cmLocalVisualStudio6Generator
-::GetConfigName(std::string const& configuration) const
-{
-  // Strip the subdirectory name out of the configuration name.
-  std::string config = configuration;
-  std::string::size_type pos = config.find_last_of(" ");
-  config = config.substr(pos+1, std::string::npos);
-  config = config.substr(0, config.size()-1);
-  return config;
-}
-
-//----------------------------------------------------------------------------
-bool
-cmLocalVisualStudio6Generator
-::CheckDefinition(std::string const& define) const
-{
-  // Perform the standard check first.
-  if(!this->cmLocalGenerator::CheckDefinition(define))
+  /* When the last pipe closes in WaitForData, the loop terminates
+     without releasing the pipe's thread.  Release it now.  */
+  if(cp->CurrentIndex < KWSYSPE_PIPE_COUNT)
     {
-    return false;
+    KWSYSPE_DEBUG((stderr, "releasing reader %d\n", cp->CurrentIndex));
+    ReleaseSemaphore(cp->Pipe[cp->CurrentIndex].Reader.Go, 1, 0);
+    cp->CurrentIndex = KWSYSPE_PIPE_COUNT;
     }
 
-  // Now do the VS6-specific check.
-  if(define.find_first_of(" ") != define.npos &&
-     define.find_first_of("\"$;") != define.npos)
+  /* Wait for all pipe threads to reset.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
     {
-    cmOStringStream e;
-    e << "WARNING: The VS6 IDE does not support preprocessor definition "
-      << "values with spaces and '\"', '$', or ';'.\n"
-      << "CMake is dropping a preprocessor definition: " << define << "\n"
-      << "Consider defining the macro in a (configured) header file.\n";
-    cmSystemTools::Message(e.str().c_str());
-    return false;
+    KWSYSPE_DEBUG((stderr, "waiting reader reset %d\n", i));
+    WaitForSingleObject(cp->Pipe[i].Reader.Reset, INFINITE);
+    KWSYSPE_DEBUG((stderr, "waiting waker reset %d\n", i));
+    WaitForSingleObject(cp->Pipe[i].Waker.Reset, INFINITE);
     }
 
-  // Assume it is supported.
-  return true;
+  /* ---- It is now safe again to call kwsysProcessCleanup. ----- */
+  /* Close all the pipes.  */
+  kwsysProcessCleanup(cp, 0);
+
+  /* Determine the outcome.  */
+  if(cp->Killed)
+    {
+    /* We killed the child.  */
+    cp->State = kwsysProcess_State_Killed;
+    }
+  else if(cp->TimeoutExpired)
+    {
+    /* The timeout expired.  */
+    cp->State = kwsysProcess_State_Expired;
+    }
+  else
+    {
+    /* The children exited.  Report the outcome of the last process.  */
+    cp->ExitCode = cp->CommandExitCodes[cp->NumberOfCommands-1];
+    if((cp->ExitCode & 0xF0000000) == 0xC0000000)
+      {
+      /* Child terminated due to exceptional behavior.  */
+      cp->State = kwsysProcess_State_Exception;
+      cp->ExitValue = 1;
+      kwsysProcessSetExitException(cp, cp->ExitCode);
+      }
+    else
+      {
+      /* Child exited without exception.  */
+      cp->State = kwsysProcess_State_Exited;
+      cp->ExitException = kwsysProcess_Exception_None;
+      cp->ExitValue = cp->ExitCode;
+      }
+    }
+
+  return 1;
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_Kill(kwsysProcess* cp)
+{
+  int i;
+  /* Make sure we are executing a process.  */
+  if(!cp || cp->State != kwsysProcess_State_Executing || cp->TimeoutExpired ||
+     cp->Killed)
+    {
+    KWSYSPE_DEBUG((stderr, "kill: child not executing\n"));
+    return;
+    }
+
+  /* Disable the reading threads.  */
+  KWSYSPE_DEBUG((stderr, "kill: disabling pipe threads\n"));
+  kwsysProcessDisablePipeThreads(cp);
+
+  /* Skip actually killing the child if it has already terminated.  */
+  if(cp->Terminated)
+    {
+    KWSYSPE_DEBUG((stderr, "kill: child already terminated\n"));
+    return;
+    }
+
+  /* Kill the children.  */
+  cp->Killed = 1;
+  for(i=0; i < cp->NumberOfCommands; ++i)
+    {
+    kwsysProcessKillTree(cp->ProcessInformation[i].dwProcessId);
+    // close the handle if we kill it
+    kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hThread);
+    kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hProcess);
+    }
+
+  /* We are killing the children and ignoring all data.  Do not wait
+     for them to exit.  */
+}
+
+/*--------------------------------------------------------------------------*/
+
+/*
+  Function executed for each pipe's thread.  Argument is a pointer to
+  the kwsysProcessPipeData instance for this thread.
+*/
+DWORD WINAPI kwsysProcessPipeThreadRead(LPVOID ptd)
+{
+  kwsysProcessPipeData* td = (kwsysProcessPipeData*)ptd;
+  kwsysProcess* cp = td->Process;
+
+  /* Wait for a process to be ready.  */
+  while((WaitForSingleObject(td->Reader.Ready, INFINITE), !cp->Deleting))
+    {
+    /* Read output from the process for this thread's pipe.  */
+    kwsysProcessPipeThreadReadPipe(cp, td);
+
+    /* Signal the main thread we have reset for a new process.  */
+    ReleaseSemaphore(td->Reader.Reset, 1, 0);
+    }
+  return 0;
+}
+
+/*--------------------------------------------------------------------------*/
+
+/*
+  Function called in each pipe's thread to handle data for one
+  execution of a subprocess.
+*/
+void kwsysProcessPipeThreadReadPipe(kwsysProcess* cp, kwsysProcessPipeData* td)
+{
+  /* Wait for space in the thread's buffer. */
+  while((KWSYSPE_DEBUG((stderr, "wait for read %d\n", td->Index)),
+         WaitForSingleObject(td->Reader.Go, INFINITE), !td->Closed))
+    {
+    KWSYSPE_DEBUG((stderr, "reading %d\n", td->Index));
+
+    /* Read data from the pipe.  This may block until data are available.  */
+    if(!ReadFile(td->Read, td->DataBuffer, KWSYSPE_PIPE_BUFFER_SIZE,
+                 &td->DataLength, 0))
+      {
+      if(GetLastError() != ERROR_BROKEN_PIPE)
+        {
+        /* UNEXPECTED failure to read the pipe.  */
+        }
+
+      /* The pipe closed.  There are no more data to read.  */
+      td->Closed = 1;
+      KWSYSPE_DEBUG((stderr, "read closed %d\n", td->Index));
+      }
+
+    KWSYSPE_DEBUG((stderr, "read %d\n", td->Index));
+
+    /* Wait for our turn to be handled by the main thread.  */
+    WaitForSingleObject(cp->SharedIndexMutex, INFINITE);
+
+    KWSYSPE_DEBUG((stderr, "reporting read %d\n", td->Index));
+
+    /* Tell the main thread we have something to report.  */
+    cp->SharedIndex = td->Index;
+    ReleaseSemaphore(cp->Full, 1, 0);
+    }
+
+  /* We were signalled to exit with our buffer empty.  Reset the
+     mutex for a new process.  */
+  KWSYSPE_DEBUG((stderr, "self releasing reader %d\n", td->Index));
+  ReleaseSemaphore(td->Reader.Go, 1, 0);
+}
+
+/*--------------------------------------------------------------------------*/
+
+/*
+  Function executed for each pipe's thread.  Argument is a pointer to
+  the kwsysProcessPipeData instance for this thread.
+*/
+DWORD WINAPI kwsysProcessPipeThreadWake(LPVOID ptd)
+{
+  kwsysProcessPipeData* td = (kwsysProcessPipeData*)ptd;
+  kwsysProcess* cp = td->Process;
+
+  /* Wait for a process to be ready.  */
+  while((WaitForSingleObject(td->Waker.Ready, INFINITE), !cp->Deleting))
+    {
+    /* Wait for a possible wakeup.  */
+    kwsysProcessPipeThreadWakePipe(cp, td);
+
+    /* Signal the main thread we have reset for a new process.  */
+    ReleaseSemaphore(td->Waker.Reset, 1, 0);
+    }
+  return 0;
+}
+
+/*--------------------------------------------------------------------------*/
+
+/*
+  Function called in each pipe's thread to handle reading thread
+  wakeup for one execution of a subprocess.
+*/
+void kwsysProcessPipeThreadWakePipe(kwsysProcess* cp, kwsysProcessPipeData* td)
+{
+  (void)cp;
+
+  /* Wait for a possible wake command. */
+  KWSYSPE_DEBUG((stderr, "wait for wake %d\n", td->Index));
+  WaitForSingleObject(td->Waker.Go, INFINITE);
+  KWSYSPE_DEBUG((stderr, "waking %d\n", td->Index));
+
+  /* If the pipe is not closed, we need to wake up the reading thread.  */
+  if(!td->Closed)
+    {
+    DWORD dummy;
+    KWSYSPE_DEBUG((stderr, "waker %d writing byte\n", td->Index));
+    WriteFile(td->Write, "", 1, &dummy, 0);
+    KWSYSPE_DEBUG((stderr, "waker %d wrote byte\n", td->Index));
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+/* Initialize a process control structure for kwsysProcess_Execute.  */
+int kwsysProcessInitialize(kwsysProcess* cp)
+{
+  /* Reset internal status flags.  */
+  cp->TimeoutExpired = 0;
+  cp->Terminated = 0;
+  cp->Killed = 0;
+  cp->ExitException = kwsysProcess_Exception_None;
+  cp->ExitCode = 1;
+  cp->ExitValue = 1;
+
+  /* Reset error data.  */
+  cp->ErrorMessage[0] = 0;
+  strcpy(cp->ExitExceptionString, "No exception");
+
+  /* Allocate process information for each process.  */
+  cp->ProcessInformation =
+    (PROCESS_INFORMATION*)malloc(sizeof(PROCESS_INFORMATION) *
+                                 cp->NumberOfCommands);
+  if(!cp->ProcessInformation)
+    {
+    return 0;
+    }
+  ZeroMemory(cp->ProcessInformation,
+             sizeof(PROCESS_INFORMATION) * cp->NumberOfCommands);
+  if(cp->CommandExitCodes)
+    {
+    free(cp->CommandExitCodes);
+    }
+  cp->CommandExitCodes = (DWORD*)malloc(sizeof(DWORD)*cp->NumberOfCommands);
+  if(!cp->CommandExitCodes)
+    {
+    return 0;
+    }
+  ZeroMemory(cp->CommandExitCodes, sizeof(DWORD)*cp->NumberOfCommands);
+
+  /* Allocate event wait array.  The first event is cp->Full, the rest
+     are the process termination events.  */
+  cp->ProcessEvents = (PHANDLE)malloc(sizeof(HANDLE)*(cp->NumberOfCommands+1));
+  if(!cp->ProcessEvents)
+    {
+    return 0;
+    }
+  ZeroMemory(cp->ProcessEvents, sizeof(HANDLE) * (cp->NumberOfCommands+1));
+  cp->ProcessEvents[0] = cp->Full;
+  cp->ProcessEventsLength = cp->NumberOfCommands+1;
+
+  /* Allocate space to save the real working directory of this process.  */
+  if(cp->WorkingDirectory)
+    {
+    cp->RealWorkingDirectoryLength = GetCurrentDirectoryW(0, 0);
+    if(cp->RealWorkingDirectoryLength > 0)
+      {
+      cp->RealWorkingDirectory = malloc(cp->RealWorkingDirectoryLength * sizeof(wchar_t));
+      if(!cp->RealWorkingDirectory)
+        {
+        return 0;
+        }
+      }
+    }
+
+  return 1;
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcessCreate(kwsysProcess* cp, int index,
+                       kwsysProcessCreateInformation* si,
+                       PHANDLE readEnd)
+{
+  /* Setup the process's stdin.  */
+  if(*readEnd)
+    {
+    /* Create an inherited duplicate of the read end from the output
+       pipe of the previous process.  This also closes the
+       non-inherited version. */
+    if(!DuplicateHandle(GetCurrentProcess(), *readEnd,
+                        GetCurrentProcess(), readEnd,
+                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
+                                  DUPLICATE_SAME_ACCESS)))
+      {
+      return 0;
+      }
+    si->StartupInfo.hStdInput = *readEnd;
+
+    /* This function is done with this handle.  */
+    *readEnd = 0;
+    }
+  else if(cp->PipeFileSTDIN)
+    {
+    /* Create a handle to read a file for stdin.  */
+    wchar_t* wstdin = kwsysEncoding_DupToWide(cp->PipeFileSTDIN);
+    HANDLE fin = CreateFileW(wstdin, GENERIC_READ|GENERIC_WRITE,
+                            FILE_SHARE_READ|FILE_SHARE_WRITE,
+                            0, OPEN_EXISTING, 0, 0);
+    free(wstdin);
+    if(fin == INVALID_HANDLE_VALUE)
+      {
+      return 0;
+      }
+    /* Create an inherited duplicate of the handle.  This also closes
+       the non-inherited version.  */
+    if(!DuplicateHandle(GetCurrentProcess(), fin,
+                        GetCurrentProcess(), &fin,
+                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
+                                  DUPLICATE_SAME_ACCESS)))
+      {
+      return 0;
+      }
+    si->StartupInfo.hStdInput = fin;
+    }
+  else if(cp->PipeSharedSTDIN)
+    {
+    /* Share this process's stdin with the child.  */
+    if(!kwsysProcessSetupSharedPipe(STD_INPUT_HANDLE,
+                                    &si->StartupInfo.hStdInput))
+      {
+      return 0;
+      }
+    }
+  else if(cp->PipeNativeSTDIN[0])
+    {
+    /* Use the provided native pipe.  */
+    if(!kwsysProcessSetupPipeNative(&si->StartupInfo.hStdInput,
+                                    cp->PipeNativeSTDIN, 0))
+      {
+      return 0;
+      }
+    }
+  else
+    {
+    /* Explicitly give the child no stdin.  */
+    si->StartupInfo.hStdInput = INVALID_HANDLE_VALUE;
+    }
+
+  /* Setup the process's stdout.  */
+  {
+  DWORD maybeClose = DUPLICATE_CLOSE_SOURCE;
+  HANDLE writeEnd;
+
+  /* Create the output pipe for this process.  Neither end is directly
+     inherited.  */
+  if(!CreatePipe(readEnd, &writeEnd, 0, 0))
+    {
+    return 0;
+    }
+
+  /* Create an inherited duplicate of the write end.  Close the
+     non-inherited version unless this is the last process.  Save the
+     non-inherited write end of the last process.  */
+  if(index == cp->NumberOfCommands-1)
+    {
+    cp->Pipe[KWSYSPE_PIPE_STDOUT].Write = writeEnd;
+    maybeClose = 0;
+    }
+  if(!DuplicateHandle(GetCurrentProcess(), writeEnd,
+                      GetCurrentProcess(), &writeEnd,
+                      0, TRUE, (maybeClose | DUPLICATE_SAME_ACCESS)))
+    {
+    return 0;
+    }
+  si->StartupInfo.hStdOutput = writeEnd;
+  }
+
+  /* Replace the stdout pipe with a file if requested.  In this case
+     the pipe thread will still run but never report data.  */
+  if(index == cp->NumberOfCommands-1 && cp->PipeFileSTDOUT)
+    {
+    if(!kwsysProcessSetupOutputPipeFile(&si->StartupInfo.hStdOutput,
+                                        cp->PipeFileSTDOUT))
+      {
+      return 0;
+      }
+    }
+
+  /* Replace the stdout pipe of the last child with the parent
+     process's if requested.  In this case the pipe thread will still
+     run but never report data.  */
+  if(index == cp->NumberOfCommands-1 && cp->PipeSharedSTDOUT)
+    {
+    if(!kwsysProcessSetupSharedPipe(STD_OUTPUT_HANDLE,
+                                    &si->StartupInfo.hStdOutput))
+      {
+      return 0;
+      }
+    }
+
+  /* Replace the stdout pipe with the native pipe provided if any.  In
+     this case the pipe thread will still run but never report
+     data.  */
+  if(index == cp->NumberOfCommands-1 && cp->PipeNativeSTDOUT[1])
+    {
+    if(!kwsysProcessSetupPipeNative(&si->StartupInfo.hStdOutput,
+                                    cp->PipeNativeSTDOUT, 1))
+      {
+      return 0;
+      }
+    }
+
+  /* Create the child in a suspended state so we can wait until all
+     children have been created before running any one.  */
+  if(!CreateProcessW(0, cp->Commands[index], 0, 0, TRUE, CREATE_SUSPENDED, 0,
+                    0, &si->StartupInfo, &cp->ProcessInformation[index]))
+    {
+    return 0;
+    }
+
+  /* Successfully created this child process.  Close the current
+     process's copies of the inherited stdout and stdin handles.  The
+     stderr handle is shared among all children and is closed by
+     kwsysProcess_Execute after all children have been created.  */
+  kwsysProcessCleanupHandleSafe(&si->StartupInfo.hStdInput,
+                                STD_INPUT_HANDLE);
+  kwsysProcessCleanupHandleSafe(&si->StartupInfo.hStdOutput,
+                                STD_OUTPUT_HANDLE);
+
+  return 1;
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcessDestroy(kwsysProcess* cp, int event)
+{
+  int i;
+  int index;
+
+  /* Find the process index for the termination event.  */
+  for(index=0; index < cp->NumberOfCommands; ++index)
+    {
+    if(cp->ProcessInformation[index].hProcess == cp->ProcessEvents[event])
+      {
+      break;
+      }
+    }
+
+  /* Check the exit code of the process.  */
+  GetExitCodeProcess(cp->ProcessInformation[index].hProcess,
+                     &cp->CommandExitCodes[index]);
+
+  /* Close the process handle for the terminated process.  */
+  kwsysProcessCleanupHandle(&cp->ProcessInformation[index].hProcess);
+
+  /* Remove the process from the available events.  */
+  cp->ProcessEventsLength -= 1;
+  for(i=event; i < cp->ProcessEventsLength; ++i)
+    {
+    cp->ProcessEvents[i] = cp->ProcessEvents[i+1];
+    }
+
+  /* Check if all processes have terminated.  */
+  if(cp->ProcessEventsLength == 1)
+    {
+    cp->Terminated = 1;
+
+    /* Close our copies of the pipe write handles so the pipe threads
+       can detect end-of-data.  */
+    for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
+      {
+      /* TODO: If the child created its own child (our grandchild)
+         which inherited a copy of the pipe write-end then the pipe
+         may not close and we will still need the waker write pipe.
+         However we still want to be able to detect end-of-data in the
+         normal case.  The reader thread will have to switch to using
+         PeekNamedPipe to read the last bit of data from the pipe
+         without blocking.  This is equivalent to using a non-blocking
+         read on posix.  */
+      KWSYSPE_DEBUG((stderr, "closing wakeup write %d\n", i));
+      kwsysProcessCleanupHandle(&cp->Pipe[i].Write);
+      }
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcessSetupOutputPipeFile(PHANDLE phandle, const char* name)
+{
+  HANDLE fout;
+  wchar_t* wname;
+  if(!name)
+    {
+    return 1;
+    }
+
+  /* Close the existing inherited handle.  */
+  kwsysProcessCleanupHandle(phandle);
+
+  /* Create a handle to write a file for the pipe.  */
+  wname = kwsysEncoding_DupToWide(name);
+  fout = CreateFileW(wname, GENERIC_WRITE, FILE_SHARE_READ, 0,
+                    CREATE_ALWAYS, 0, 0);
+  free(wname);
+  if(fout == INVALID_HANDLE_VALUE)
+    {
+    return 0;
+    }
+
+  /* Create an inherited duplicate of the handle.  This also closes
+     the non-inherited version.  */
+  if(!DuplicateHandle(GetCurrentProcess(), fout,
+                      GetCurrentProcess(), &fout,
+                      0, TRUE, (DUPLICATE_CLOSE_SOURCE |
+                                DUPLICATE_SAME_ACCESS)))
+    {
+    return 0;
+    }
+
+  /* Assign the replacement handle.  */
+  *phandle = fout;
+  return 1;
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcessSetupSharedPipe(DWORD nStdHandle, PHANDLE handle)
+{
+  /* Check whether the handle to be shared is already inherited.  */
+  DWORD flags;
+  int inherited = 0;
+  if(GetHandleInformation(GetStdHandle(nStdHandle), &flags) &&
+     (flags & HANDLE_FLAG_INHERIT))
+    {
+    inherited = 1;
+    }
+
+  /* Cleanup the previous handle.  */
+  kwsysProcessCleanupHandle(handle);
+
+  /* If the standard handle is not inherited then duplicate it to
+     create an inherited copy.  Do not close the original handle when
+     duplicating!  */
+  if(inherited)
+    {
+    *handle = GetStdHandle(nStdHandle);
+    return 1;
+    }
+  else if(DuplicateHandle(GetCurrentProcess(), GetStdHandle(nStdHandle),
+                          GetCurrentProcess(), handle,
+                          0, TRUE, DUPLICATE_SAME_ACCESS))
+    {
+    return 1;
+    }
+  else
+    {
+    /* The given standard handle is not valid for this process.  Some
+       child processes may break if they do not have a valid standard
+       pipe, so give the child an empty pipe.  For the stdin pipe we
+       want to close the write end and give the read end to the child.
+       For stdout and stderr we want to close the read end and give
+       the write end to the child.  */
+    int child_end = (nStdHandle == STD_INPUT_HANDLE)? 0:1;
+    int parent_end = (nStdHandle == STD_INPUT_HANDLE)? 1:0;
+    HANDLE emptyPipe[2];
+    if(!CreatePipe(&emptyPipe[0], &emptyPipe[1], 0, 0))
+      {
+      return 0;
+      }
+
+    /* Close the non-inherited end so the pipe will be broken
+       immediately.  */
+    CloseHandle(emptyPipe[parent_end]);
+
+    /* Create an inherited duplicate of the handle.  This also
+       closes the non-inherited version.  */
+    if(!DuplicateHandle(GetCurrentProcess(), emptyPipe[child_end],
+                        GetCurrentProcess(), &emptyPipe[child_end],
+                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
+                                  DUPLICATE_SAME_ACCESS)))
+      {
+      return 0;
+      }
+
+    /* Give the inherited handle to the child.  */
+    *handle = emptyPipe[child_end];
+    return 1;
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcessSetupPipeNative(PHANDLE handle, HANDLE p[2], int isWrite)
+{
+  /* Close the existing inherited handle.  */
+  kwsysProcessCleanupHandle(handle);
+
+  /* Create an inherited duplicate of the handle.  This also closes
+     the non-inherited version.  */
+  if(!DuplicateHandle(GetCurrentProcess(), p[isWrite? 1:0],
+                      GetCurrentProcess(), handle,
+                      0, TRUE, (DUPLICATE_CLOSE_SOURCE |
+                                DUPLICATE_SAME_ACCESS)))
+    {
+    return 0;
+    }
+
+  return 1;
+}
+
+/*--------------------------------------------------------------------------*/
+
+/* Close the given handle if it is open.  Reset its value to 0.  */
+void kwsysProcessCleanupHandle(PHANDLE h)
+{
+  if(h && *h)
+    {
+    CloseHandle(*h);
+    *h = 0;
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+
+/* Close the given handle if it is open and not a standard handle.
+   Reset its value to 0.  */
+void kwsysProcessCleanupHandleSafe(PHANDLE h, DWORD nStdHandle)
+{
+  if(h && *h && (*h != GetStdHandle(nStdHandle)))
+    {
+    CloseHandle(*h);
+    *h = 0;
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+
+/* Close all handles created by kwsysProcess_Execute.  */
+void kwsysProcessCleanup(kwsysProcess* cp, int error)
+{
+  int i;
+  /* If this is an error case, report the error.  */
+  if(error)
+    {
+    /* Construct an error message if one has not been provided already.  */
+    if(cp->ErrorMessage[0] == 0)
+      {
+      /* Format the error message.  */
+      DWORD original = GetLastError();
+      wchar_t err_msg[KWSYSPE_PIPE_BUFFER_SIZE];
+      DWORD length = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
+                                   FORMAT_MESSAGE_IGNORE_INSERTS, 0, original,
+                                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                                   err_msg, KWSYSPE_PIPE_BUFFER_SIZE, 0);
+      WideCharToMultiByte(CP_UTF8, 0, err_msg, -1, cp->ErrorMessage,
+                          KWSYSPE_PIPE_BUFFER_SIZE, NULL, NULL);
+      if(length < 1)
+        {
+        /* FormatMessage failed.  Use a default message.  */
+        _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  "Process execution failed with error 0x%X.  "
+                  "FormatMessage failed with error 0x%X",
+                  original, GetLastError());
+        }
+      }
+
+    /* Remove trailing period and newline, if any.  */
+    kwsysProcessCleanErrorMessage(cp);
+
+    /* Set the error state.  */
+    cp->State = kwsysProcess_State_Error;
+
+    /* Cleanup any processes already started in a suspended state.  */
+    if(cp->ProcessInformation)
+      {
+      for(i=0; i < cp->NumberOfCommands; ++i)
+        {
+        if(cp->ProcessInformation[i].hProcess)
+          {
+          TerminateProcess(cp->ProcessInformation[i].hProcess, 255);
+          WaitForSingleObject(cp->ProcessInformation[i].hProcess, INFINITE);
+          }
+        }
+      for(i=0; i < cp->NumberOfCommands; ++i)
+        {
+        kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hThread);
+        kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hProcess);
+        }
+      }
+
+    /* Restore the working directory.  */
+    if(cp->RealWorkingDirectory)
+      {
+      SetCurrentDirectoryW(cp->RealWorkingDirectory);
+      }
+    }
+
+  /* Free memory.  */
+  if(cp->ProcessInformation)
+    {
+    free(cp->ProcessInformation);
+    cp->ProcessInformation = 0;
+    }
+  if(cp->ProcessEvents)
+    {
+    free(cp->ProcessEvents);
+    cp->ProcessEvents = 0;
+    }
+  if(cp->RealWorkingDirectory)
+    {
+    free(cp->RealWorkingDirectory);
+    cp->RealWorkingDirectory = 0;
+    }
+
+  /* Close each pipe.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
+    {
+    kwsysProcessCleanupHandle(&cp->Pipe[i].Write);
+    kwsysProcessCleanupHandle(&cp->Pipe[i].Read);
+    cp->Pipe[i].Closed = 0;
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcessCleanErrorMessage(kwsysProcess* cp)
+{
+  /* Remove trailing period and newline, if any.  */
+  size_t length = strlen(cp->ErrorMessage);
+  if(cp->ErrorMessage[length-1] == '\n')
+    {
+    cp->ErrorMessage[length-1] = 0;
+    --length;
+    if(length > 0 && cp->ErrorMessage[length-1] == '\r')
+      {
+      cp->ErrorMessage[length-1] = 0;
+      --length;
+      }
+    }
+  if(length > 0 && cp->ErrorMessage[length-1] == '.')
+    {
+    cp->ErrorMessage[length-1] = 0;
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcessComputeCommandLength(kwsysProcess* cp,
+                                     char const* const* command)
+{
+  int length = 0;
+  if(cp->Verbatim)
+    {
+    /* Treat the first argument as a verbatim command line.  Use its
+       length directly and add space for the null-terminator.  */
+    length = (int)strlen(*command)+1;
+    }
+  else
+    {
+    /* Compute the length of the command line when it is converted to
+       a single string.  Space for the null-terminator is allocated by
+       the whitespace character allocated for the first argument that
+       will not be used.  */
+    char const* const* arg;
+    for(arg = command; *arg; ++arg)
+      {
+      /* Add the length of this argument.  It already includes room
+         for a separating space or terminating null.  */
+      length += kwsysSystem_Shell_GetArgumentSizeForWindows(*arg, 0);
+      }
+    }
+
+  return length;
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcessComputeCommandLine(kwsysProcess* cp,
+                                    char const* const* command,
+                                    char* cmd)
+{
+  if(cp->Verbatim)
+    {
+    /* Copy the verbatim command line into the buffer.  */
+    strcpy(cmd, *command);
+    }
+  else
+    {
+    /* Construct the command line in the allocated buffer.  */
+    char const* const* arg;
+    for(arg = command; *arg; ++arg)
+      {
+      /* Add the separating space if this is not the first argument.  */
+      if(arg != command)
+        {
+        *cmd++ = ' ';
+        }
+
+      /* Add the current argument.  */
+      cmd = kwsysSystem_Shell_GetArgumentForWindows(*arg, cmd, 0);
+      }
+
+    /* Add the terminating null character to the command line.  */
+    *cmd = 0;
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+/* Get the time at which either the process or user timeout will
+   expire.  Returns 1 if the user timeout is first, and 0 otherwise.  */
+int kwsysProcessGetTimeoutTime(kwsysProcess* cp, double* userTimeout,
+                               kwsysProcessTime* timeoutTime)
+{
+  /* The first time this is called, we need to calculate the time at
+     which the child will timeout.  */
+  if(cp->Timeout && cp->TimeoutTime.QuadPart < 0)
+    {
+    kwsysProcessTime length = kwsysProcessTimeFromDouble(cp->Timeout);
+    cp->TimeoutTime = kwsysProcessTimeAdd(cp->StartTime, length);
+    }
+
+  /* Start with process timeout.  */
+  *timeoutTime = cp->TimeoutTime;
+
+  /* Check if the user timeout is earlier.  */
+  if(userTimeout)
+    {
+    kwsysProcessTime currentTime = kwsysProcessTimeGetCurrent();
+    kwsysProcessTime userTimeoutLength = kwsysProcessTimeFromDouble(*userTimeout);
+    kwsysProcessTime userTimeoutTime = kwsysProcessTimeAdd(currentTime,
+                                                           userTimeoutLength);
+    if(timeoutTime->QuadPart < 0 ||
+       kwsysProcessTimeLess(userTimeoutTime, *timeoutTime))
+      {
+      *timeoutTime = userTimeoutTime;
+      return 1;
+      }
+    }
+  return 0;
+}
+
+/*--------------------------------------------------------------------------*/
+/* Get the length of time before the given timeout time arrives.
+   Returns 1 if the time has already arrived, and 0 otherwise.  */
+int kwsysProcessGetTimeoutLeft(kwsysProcessTime* timeoutTime,
+                               double* userTimeout,
+                               kwsysProcessTime* timeoutLength)
+{
+  if(timeoutTime->QuadPart < 0)
+    {
+    /* No timeout time has been requested.  */
+    return 0;
+    }
+  else
+    {
+    /* Calculate the remaining time.  */
+    kwsysProcessTime currentTime = kwsysProcessTimeGetCurrent();
+    *timeoutLength = kwsysProcessTimeSubtract(*timeoutTime, currentTime);
+
+    if(timeoutLength->QuadPart < 0 && userTimeout && *userTimeout <= 0)
+      {
+      /* Caller has explicitly requested a zero timeout.  */
+      timeoutLength->QuadPart = 0;
+      }
+
+    if(timeoutLength->QuadPart < 0)
+      {
+      /* Timeout has already expired.  */
+      return 1;
+      }
+    else
+      {
+      /* There is some time left.  */
+      return 0;
+      }
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+kwsysProcessTime kwsysProcessTimeGetCurrent()
+{
+  kwsysProcessTime current;
+  FILETIME ft;
+  GetSystemTimeAsFileTime(&ft);
+  current.LowPart = ft.dwLowDateTime;
+  current.HighPart = ft.dwHighDateTime;
+  return current;
+}
+
+/*--------------------------------------------------------------------------*/
+DWORD kwsysProcessTimeToDWORD(kwsysProcessTime t)
+{
+  return (DWORD)(t.QuadPart * 0.0001);
+}
+
+/*--------------------------------------------------------------------------*/
+double kwsysProcessTimeToDouble(kwsysProcessTime t)
+{
+  return t.QuadPart * 0.0000001;
+}
+
+/*--------------------------------------------------------------------------*/
+kwsysProcessTime kwsysProcessTimeFromDouble(double d)
+{
+  kwsysProcessTime t;
+  t.QuadPart = (LONGLONG)(d*10000000);
+  return t;
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcessTimeLess(kwsysProcessTime in1, kwsysProcessTime in2)
+{
+  return in1.QuadPart < in2.QuadPart;
+}
+
+/*--------------------------------------------------------------------------*/
+kwsysProcessTime kwsysProcessTimeAdd(kwsysProcessTime in1, kwsysProcessTime in2)
+{
+  kwsysProcessTime out;
+  out.QuadPart = in1.QuadPart + in2.QuadPart;
+  return out;
+}
+
+/*--------------------------------------------------------------------------*/
+kwsysProcessTime kwsysProcessTimeSubtract(kwsysProcessTime in1, kwsysProcessTime in2)
+{
+  kwsysProcessTime out;
+  out.QuadPart = in1.QuadPart - in2.QuadPart;
+  return out;
+}
+
+/*--------------------------------------------------------------------------*/
+#define KWSYSPE_CASE(type, str) \
+  cp->ExitException = kwsysProcess_Exception_##type; \
+  strcpy(cp->ExitExceptionString, str)
+static void kwsysProcessSetExitException(kwsysProcess* cp, int code)
+{
+  switch (code)
+    {
+    case STATUS_CONTROL_C_EXIT:
+      KWSYSPE_CASE(Interrupt, "User interrupt"); break;
+
+    case STATUS_FLOAT_DENORMAL_OPERAND:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (denormal operand)"); break;
+    case STATUS_FLOAT_DIVIDE_BY_ZERO:
+      KWSYSPE_CASE(Numerical, "Divide-by-zero"); break;
+    case STATUS_FLOAT_INEXACT_RESULT:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (inexact result)"); break;
+    case STATUS_FLOAT_INVALID_OPERATION:
+      KWSYSPE_CASE(Numerical, "Invalid floating-point operation"); break;
+    case STATUS_FLOAT_OVERFLOW:
+      KWSYSPE_CASE(Numerical, "Floating-point overflow"); break;
+    case STATUS_FLOAT_STACK_CHECK:
+      KWSYSPE_CASE(Numerical, "Floating-point stack check failed"); break;
+    case STATUS_FLOAT_UNDERFLOW:
+      KWSYSPE_CASE(Numerical, "Floating-point underflow"); break;
+#ifdef STATUS_FLOAT_MULTIPLE_FAULTS
+    case STATUS_FLOAT_MULTIPLE_FAULTS:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (multiple faults)"); break;
+#endif
+#ifdef STATUS_FLOAT_MULTIPLE_TRAPS
+    case STATUS_FLOAT_MULTIPLE_TRAPS:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (multiple traps)"); break;
+#endif
+    case STATUS_INTEGER_DIVIDE_BY_ZERO:
+      KWSYSPE_CASE(Numerical, "Integer divide-by-zero"); break;
+    case STATUS_INTEGER_OVERFLOW:
+      KWSYSPE_CASE(Numerical, "Integer overflow"); break;
+
+    case STATUS_DATATYPE_MISALIGNMENT:
+      KWSYSPE_CASE(Fault, "Datatype misalignment"); break;
+    case STATUS_ACCESS_VIOLATION:
+      KWSYSPE_CASE(Fault, "Access violation"); break;
+    case STATUS_IN_PAGE_ERROR:
+      KWSYSPE_CASE(Fault, "In-page error"); break;
+    case STATUS_INVALID_HANDLE:
+      KWSYSPE_CASE(Fault, "Invalid hanlde"); break;
+    case STATUS_NONCONTINUABLE_EXCEPTION:
+      KWSYSPE_CASE(Fault, "Noncontinuable exception"); break;
+    case STATUS_INVALID_DISPOSITION:
+      KWSYSPE_CASE(Fault, "Invalid disposition"); break;
+    case STATUS_ARRAY_BOUNDS_EXCEEDED:
+      KWSYSPE_CASE(Fault, "Array bounds exceeded"); break;
+    case STATUS_STACK_OVERFLOW:
+      KWSYSPE_CASE(Fault, "Stack overflow"); break;
+
+    case STATUS_ILLEGAL_INSTRUCTION:
+      KWSYSPE_CASE(Illegal, "Illegal instruction"); break;
+    case STATUS_PRIVILEGED_INSTRUCTION:
+      KWSYSPE_CASE(Illegal, "Privileged instruction"); break;
+
+    case STATUS_NO_MEMORY:
+    default:
+      cp->ExitException = kwsysProcess_Exception_Other;
+      _snprintf(cp->ExitExceptionString, KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);
+      break;
+    }
+}
+#undef KWSYSPE_CASE
+
+typedef struct kwsysProcess_List_s kwsysProcess_List;
+static kwsysProcess_List* kwsysProcess_List_New(void);
+static void kwsysProcess_List_Delete(kwsysProcess_List* self);
+static int kwsysProcess_List_Update(kwsysProcess_List* self);
+static int kwsysProcess_List_NextProcess(kwsysProcess_List* self);
+static int kwsysProcess_List_GetCurrentProcessId(kwsysProcess_List* self);
+static int kwsysProcess_List_GetCurrentParentId(kwsysProcess_List* self);
+
+/*--------------------------------------------------------------------------*/
+/* Windows NT 4 API definitions.  */
+#define STATUS_INFO_LENGTH_MISMATCH ((NTSTATUS)0xC0000004L)
+typedef LONG NTSTATUS;
+typedef LONG KPRIORITY;
+typedef struct _UNICODE_STRING UNICODE_STRING;
+struct _UNICODE_STRING
+{
+  USHORT Length;
+  USHORT MaximumLength;
+  PWSTR Buffer;
+};
+
+/* The process information structure.  Declare only enough to get
+   process identifiers.  The rest may be ignored because we use the
+   NextEntryDelta to move through an array of instances.  */
+typedef struct _SYSTEM_PROCESS_INFORMATION SYSTEM_PROCESS_INFORMATION;
+typedef SYSTEM_PROCESS_INFORMATION* PSYSTEM_PROCESS_INFORMATION;
+struct _SYSTEM_PROCESS_INFORMATION
+{
+  ULONG          NextEntryDelta;
+  ULONG          ThreadCount;
+  ULONG          Reserved1[6];
+  LARGE_INTEGER  CreateTime;
+  LARGE_INTEGER  UserTime;
+  LARGE_INTEGER  KernelTime;
+  UNICODE_STRING ProcessName;
+  KPRIORITY      BasePriority;
+  ULONG          ProcessId;
+  ULONG          InheritedFromProcessId;
+};
+
+/*--------------------------------------------------------------------------*/
+/* Toolhelp32 API definitions.  */
+#define TH32CS_SNAPPROCESS  0x00000002
+#if defined(_WIN64)
+typedef unsigned __int64 ProcessULONG_PTR;
+#else
+typedef unsigned long ProcessULONG_PTR;
+#endif
+typedef struct tagPROCESSENTRY32 PROCESSENTRY32;
+typedef PROCESSENTRY32* LPPROCESSENTRY32;
+struct tagPROCESSENTRY32
+{
+  DWORD dwSize;
+  DWORD cntUsage;
+  DWORD th32ProcessID;
+  ProcessULONG_PTR th32DefaultHeapID;
+  DWORD th32ModuleID;
+  DWORD cntThreads;
+  DWORD th32ParentProcessID;
+  LONG  pcPriClassBase;
+  DWORD dwFlags;
+  char szExeFile[MAX_PATH];
+};
+
+/*--------------------------------------------------------------------------*/
+/* Windows API function types.  */
+typedef HANDLE (WINAPI* CreateToolhelp32SnapshotType)(DWORD, DWORD);
+typedef BOOL (WINAPI* Process32FirstType)(HANDLE, LPPROCESSENTRY32);
+typedef BOOL (WINAPI* Process32NextType)(HANDLE, LPPROCESSENTRY32);
+typedef NTSTATUS (WINAPI* ZwQuerySystemInformationType)(ULONG, PVOID,
+                                                        ULONG, PULONG);
+
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__New_NT4(kwsysProcess_List* self);
+static int kwsysProcess_List__New_Snapshot(kwsysProcess_List* self);
+static void kwsysProcess_List__Delete_NT4(kwsysProcess_List* self);
+static void kwsysProcess_List__Delete_Snapshot(kwsysProcess_List* self);
+static int kwsysProcess_List__Update_NT4(kwsysProcess_List* self);
+static int kwsysProcess_List__Update_Snapshot(kwsysProcess_List* self);
+static int kwsysProcess_List__Next_NT4(kwsysProcess_List* self);
+static int kwsysProcess_List__Next_Snapshot(kwsysProcess_List* self);
+static int kwsysProcess_List__GetProcessId_NT4(kwsysProcess_List* self);
+static int kwsysProcess_List__GetProcessId_Snapshot(kwsysProcess_List* self);
+static int kwsysProcess_List__GetParentId_NT4(kwsysProcess_List* self);
+static int kwsysProcess_List__GetParentId_Snapshot(kwsysProcess_List* self);
+
+struct kwsysProcess_List_s
+{
+  /* Implementation switches at runtime based on version of Windows.  */
+  int NT4;
+
+  /* Implementation functions and data for NT 4.  */
+  ZwQuerySystemInformationType P_ZwQuerySystemInformation;
+  char* Buffer;
+  int BufferSize;
+  PSYSTEM_PROCESS_INFORMATION CurrentInfo;
+
+  /* Implementation functions and data for other Windows versions.  */
+  CreateToolhelp32SnapshotType P_CreateToolhelp32Snapshot;
+  Process32FirstType P_Process32First;
+  Process32NextType P_Process32Next;
+  HANDLE Snapshot;
+  PROCESSENTRY32 CurrentEntry;
+};
+
+/*--------------------------------------------------------------------------*/
+static kwsysProcess_List* kwsysProcess_List_New(void)
+{
+  OSVERSIONINFO osv;
+  kwsysProcess_List* self;
+
+  /* Allocate and initialize the list object.  */
+  if(!(self = (kwsysProcess_List*)malloc(sizeof(kwsysProcess_List))))
+    {
+    return 0;
+    }
+  memset(self, 0, sizeof(*self));
+
+  /* Select an implementation.  */
+  ZeroMemory(&osv, sizeof(osv));
+  osv.dwOSVersionInfoSize = sizeof(osv);
+  GetVersionEx(&osv);
+  self->NT4 = (osv.dwPlatformId == VER_PLATFORM_WIN32_NT &&
+               osv.dwMajorVersion < 5)? 1:0;
+
+  /* Initialize the selected implementation.  */
+  if(!(self->NT4?
+       kwsysProcess_List__New_NT4(self) :
+       kwsysProcess_List__New_Snapshot(self)))
+    {
+    kwsysProcess_List_Delete(self);
+    return 0;
+    }
+
+  /* Update to the current set of processes.  */
+  if(!kwsysProcess_List_Update(self))
+    {
+    kwsysProcess_List_Delete(self);
+    return 0;
+    }
+  return self;
+}
+
+/*--------------------------------------------------------------------------*/
+static void kwsysProcess_List_Delete(kwsysProcess_List* self)
+{
+  if(self)
+    {
+    if(self->NT4)
+      {
+      kwsysProcess_List__Delete_NT4(self);
+      }
+    else
+      {
+      kwsysProcess_List__Delete_Snapshot(self);
+      }
+    free(self);
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List_Update(kwsysProcess_List* self)
+{
+  return self? (self->NT4?
+                kwsysProcess_List__Update_NT4(self) :
+                kwsysProcess_List__Update_Snapshot(self)) : 0;
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List_GetCurrentProcessId(kwsysProcess_List* self)
+{
+  return self? (self->NT4?
+                kwsysProcess_List__GetProcessId_NT4(self) :
+                kwsysProcess_List__GetProcessId_Snapshot(self)) : -1;
+
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List_GetCurrentParentId(kwsysProcess_List* self)
+{
+  return self? (self->NT4?
+                kwsysProcess_List__GetParentId_NT4(self) :
+                kwsysProcess_List__GetParentId_Snapshot(self)) : -1;
+
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List_NextProcess(kwsysProcess_List* self)
+{
+  return (self? (self->NT4?
+                 kwsysProcess_List__Next_NT4(self) :
+                 kwsysProcess_List__Next_Snapshot(self)) : 0);
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__New_NT4(kwsysProcess_List* self)
+{
+  /* Get a handle to the NT runtime module that should already be
+     loaded in this program.  This does not actually increment the
+     reference count to the module so we do not need to close the
+     handle.  */
+  HMODULE hNT = GetModuleHandleW(L"ntdll.dll");
+  if(hNT)
+    {
+    /* Get pointers to the needed API functions.  */
+    self->P_ZwQuerySystemInformation =
+      ((ZwQuerySystemInformationType)
+       GetProcAddress(hNT, "ZwQuerySystemInformation"));
+    }
+  if(!self->P_ZwQuerySystemInformation)
+    {
+    return 0;
+    }
+
+  /* Allocate an initial process information buffer.  */
+  self->BufferSize = 32768;
+  self->Buffer = (char*)malloc(self->BufferSize);
+  return self->Buffer? 1:0;
+}
+
+/*--------------------------------------------------------------------------*/
+static void kwsysProcess_List__Delete_NT4(kwsysProcess_List* self)
+{
+  /* Free the process information buffer.  */
+  if(self->Buffer)
+    {
+    free(self->Buffer);
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__Update_NT4(kwsysProcess_List* self)
+{
+  self->CurrentInfo = 0;
+  for(;;)
+    {
+    /* Query number 5 is for system process list.  */
+    NTSTATUS status =
+      self->P_ZwQuerySystemInformation(5, self->Buffer, self->BufferSize, 0);
+    if(status == STATUS_INFO_LENGTH_MISMATCH)
+      {
+      /* The query requires a bigger buffer.  */
+      int newBufferSize = self->BufferSize * 2;
+      char* newBuffer = (char*)malloc(newBufferSize);
+      if(newBuffer)
+        {
+        free(self->Buffer);
+        self->Buffer = newBuffer;
+        self->BufferSize = newBufferSize;
+        }
+      else
+        {
+        return 0;
+        }
+      }
+    else if(status >= 0)
+      {
+      /* The query succeeded.  Initialize traversal of the process list.  */
+      self->CurrentInfo = (PSYSTEM_PROCESS_INFORMATION)self->Buffer;
+      return 1;
+      }
+    else
+      {
+      /* The query failed.  */
+      return 0;
+      }
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__Next_NT4(kwsysProcess_List* self)
+{
+  if(self->CurrentInfo)
+    {
+    if(self->CurrentInfo->NextEntryDelta > 0)
+      {
+      self->CurrentInfo = ((PSYSTEM_PROCESS_INFORMATION)
+                              ((char*)self->CurrentInfo +
+                               self->CurrentInfo->NextEntryDelta));
+      return 1;
+      }
+    self->CurrentInfo = 0;
+    }
+  return 0;
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__GetProcessId_NT4(kwsysProcess_List* self)
+{
+  return self->CurrentInfo? self->CurrentInfo->ProcessId : -1;
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__GetParentId_NT4(kwsysProcess_List* self)
+{
+  return self->CurrentInfo? self->CurrentInfo->InheritedFromProcessId : -1;
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__New_Snapshot(kwsysProcess_List* self)
+{
+  /* Get a handle to the Windows runtime module that should already be
+     loaded in this program.  This does not actually increment the
+     reference count to the module so we do not need to close the
+     handle.  */
+  HMODULE hKernel = GetModuleHandleW(L"kernel32.dll");
+  if(hKernel)
+    {
+    self->P_CreateToolhelp32Snapshot =
+      ((CreateToolhelp32SnapshotType)
+       GetProcAddress(hKernel, "CreateToolhelp32Snapshot"));
+    self->P_Process32First =
+      ((Process32FirstType)
+       GetProcAddress(hKernel, "Process32First"));
+    self->P_Process32Next =
+      ((Process32NextType)
+       GetProcAddress(hKernel, "Process32Next"));
+    }
+  return (self->P_CreateToolhelp32Snapshot &&
+          self->P_Process32First &&
+          self->P_Process32Next)? 1:0;
+}
+
+/*--------------------------------------------------------------------------*/
+static void kwsysProcess_List__Delete_Snapshot(kwsysProcess_List* self)
+{
+  if(self->Snapshot)
+    {
+    CloseHandle(self->Snapshot);
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__Update_Snapshot(kwsysProcess_List* self)
+{
+  if(self->Snapshot)
+    {
+    CloseHandle(self->Snapshot);
+    }
+  if(!(self->Snapshot =
+       self->P_CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)))
+    {
+    return 0;
+    }
+  ZeroMemory(&self->CurrentEntry, sizeof(self->CurrentEntry));
+  self->CurrentEntry.dwSize = sizeof(self->CurrentEntry);
+  if(!self->P_Process32First(self->Snapshot, &self->CurrentEntry))
+    {
+    CloseHandle(self->Snapshot);
+    self->Snapshot = 0;
+    return 0;
+    }
+  return 1;
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__Next_Snapshot(kwsysProcess_List* self)
+{
+  if(self->Snapshot)
+    {
+    if(self->P_Process32Next(self->Snapshot, &self->CurrentEntry))
+      {
+      return 1;
+      }
+    CloseHandle(self->Snapshot);
+    self->Snapshot = 0;
+    }
+  return 0;
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__GetProcessId_Snapshot(kwsysProcess_List* self)
+{
+  return self->Snapshot? self->CurrentEntry.th32ProcessID : -1;
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__GetParentId_Snapshot(kwsysProcess_List* self)
+{
+  return self->Snapshot? self->CurrentEntry.th32ParentProcessID : -1;
+}
+
+/*--------------------------------------------------------------------------*/
+static void kwsysProcessKill(DWORD pid)
+{
+  HANDLE h = OpenProcess(PROCESS_TERMINATE, 0, pid);
+  if(h)
+    {
+    TerminateProcess(h, 255);
+    WaitForSingleObject(h, INFINITE);
+    CloseHandle(h);
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+static void kwsysProcessKillTree(int pid)
+{
+  kwsysProcess_List* plist = kwsysProcess_List_New();
+  kwsysProcessKill(pid);
+  if(plist)
+    {
+    do
+      {
+      if(kwsysProcess_List_GetCurrentParentId(plist) == pid)
+        {
+        int ppid = kwsysProcess_List_GetCurrentProcessId(plist);
+        kwsysProcessKillTree(ppid);
+        }
+      } while(kwsysProcess_List_NextProcess(plist));
+    kwsysProcess_List_Delete(plist);
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+static void kwsysProcessDisablePipeThreads(kwsysProcess* cp)
+{
+  int i;
+
+  /* If data were just reported data, release the pipe's thread.  */
+  if(cp->CurrentIndex < KWSYSPE_PIPE_COUNT)
+    {
+    KWSYSPE_DEBUG((stderr, "releasing reader %d\n", cp->CurrentIndex));
+    ReleaseSemaphore(cp->Pipe[cp->CurrentIndex].Reader.Go, 1, 0);
+    cp->CurrentIndex = KWSYSPE_PIPE_COUNT;
+    }
+
+  /* Wakeup all reading threads that are not on closed pipes.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
+    {
+    /* The wakeup threads will write one byte to the pipe write ends.
+       If there are no data in the pipe then this is enough to wakeup
+       the reading threads.  If there are already data in the pipe
+       this may block.  We cannot use PeekNamedPipe to check whether
+       there are data because an outside process might still be
+       writing data if we are disowning it.  Also, PeekNamedPipe will
+       block if checking a pipe on which the reading thread is
+       currently calling ReadPipe.  Therefore we need a separate
+       thread to call WriteFile.  If it blocks, that is okay because
+       it will unblock when we close the read end and break the pipe
+       below.  */
+    if(cp->Pipe[i].Read)
+      {
+      KWSYSPE_DEBUG((stderr, "releasing waker %d\n", i));
+      ReleaseSemaphore(cp->Pipe[i].Waker.Go, 1, 0);
+      }
+    }
+
+  /* Tell pipe threads to reset until we run another process.  */
+  while(cp->PipesLeft > 0)
+    {
+    /* The waking threads will cause all reading threads to report.
+       Wait for the next one and save its index.  */
+    KWSYSPE_DEBUG((stderr, "waiting for reader\n"));
+    WaitForSingleObject(cp->Full, INFINITE);
+    cp->CurrentIndex = cp->SharedIndex;
+    ReleaseSemaphore(cp->SharedIndexMutex, 1, 0);
+    KWSYSPE_DEBUG((stderr, "got reader %d\n", cp->CurrentIndex));
+
+    /* We are done reading this pipe.  Close its read handle.  */
+    cp->Pipe[cp->CurrentIndex].Closed = 1;
+    kwsysProcessCleanupHandle(&cp->Pipe[cp->CurrentIndex].Read);
+    --cp->PipesLeft;
+
+    /* Tell the reading thread we are done with the data.  It will
+       reset immediately because the pipe is closed.  */
+    ReleaseSemaphore(cp->Pipe[cp->CurrentIndex].Reader.Go, 1, 0);
+    }
 }

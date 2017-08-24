@@ -1,0 +1,1 @@
+memcpy(httpc->inbuf, mem, nread)

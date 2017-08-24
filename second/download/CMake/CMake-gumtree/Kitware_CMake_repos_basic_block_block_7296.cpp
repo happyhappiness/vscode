@@ -1,0 +1,1 @@
+return octet2str(beg, end);

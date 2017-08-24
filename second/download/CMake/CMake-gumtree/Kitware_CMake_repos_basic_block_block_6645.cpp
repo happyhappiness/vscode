@@ -1,0 +1,1 @@
+gnutls_pubkey_deinit(key)

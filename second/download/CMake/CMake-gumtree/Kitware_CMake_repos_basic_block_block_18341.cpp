@@ -1,0 +1,1 @@
+*(dst++) = ((char*)from)[index ^ 7]

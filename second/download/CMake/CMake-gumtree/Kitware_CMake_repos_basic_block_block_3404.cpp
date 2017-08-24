@@ -1,0 +1,1 @@
+(s->inUse[i * 16 + j]) inUse16[i] = True

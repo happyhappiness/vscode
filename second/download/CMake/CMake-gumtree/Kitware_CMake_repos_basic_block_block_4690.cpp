@@ -1,0 +1,1 @@
+return Curl_hash_pick(sh, (char *)&s, sizeof(curl_socket_t));

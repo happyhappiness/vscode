@@ -1,0 +1,1 @@
+invalidPath(path, int(current - path.c_str()))

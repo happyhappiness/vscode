@@ -1,6 +1,7 @@
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Unexpected codec ID: %lX", zip->codec);
-		return (ARCHIVE_FAILED);
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Unknown codec ID: %lX", zip->codec);
+#endif
+  (void)argc; (void)argv;
+  fprintf(stdout, "Output before crash on stdout from crash test.\n");
+  fprintf(stderr, "Output before crash on stderr from crash test.\n");  
+  fflush(stdout);
+  fflush(stderr);
+  assert(invalidAddress); /* Quiet Clang scan-build. */

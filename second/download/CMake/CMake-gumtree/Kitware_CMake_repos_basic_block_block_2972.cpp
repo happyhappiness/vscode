@@ -1,0 +1,1 @@
+SET_BH(ftab[i])

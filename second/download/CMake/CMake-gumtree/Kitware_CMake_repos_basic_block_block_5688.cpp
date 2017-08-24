@@ -1,0 +1,1 @@
+send_negotiation(conn, CURL_WONT, option)

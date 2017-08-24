@@ -1,0 +1,1 @@
+a->todo |= TODO_SGID | TODO_SGID_CHECK

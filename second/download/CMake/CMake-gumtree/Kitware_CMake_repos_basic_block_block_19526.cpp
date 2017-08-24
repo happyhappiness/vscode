@@ -1,0 +1,1 @@
+(w1->signum < w2->signum) return -1;

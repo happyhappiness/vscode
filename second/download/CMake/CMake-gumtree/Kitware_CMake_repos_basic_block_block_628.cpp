@@ -1,0 +1,1 @@
+buf[i] = yybytes[i]

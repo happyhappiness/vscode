@@ -1,0 +1,1 @@
+size = archive_entry_size(np->file->entry)

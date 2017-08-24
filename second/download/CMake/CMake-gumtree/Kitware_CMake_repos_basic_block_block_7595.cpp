@@ -1,0 +1,1 @@
+tag->name.str = (XML_Char *)temp

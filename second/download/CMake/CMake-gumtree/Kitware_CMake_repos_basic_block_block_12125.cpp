@@ -1,0 +1,3 @@
+{
+			mtree->checkfs = 1;
+		}

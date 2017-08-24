@@ -1,7 +1,18 @@
-		zip->stream.opaque = Z_NULL;
-		zip->stream.next_out = zip->buf;
-		zip->stream.avail_out = (uInt)zip->len_buf;
-		if (deflateInit2(&zip->stream, Z_DEFAULT_COMPRESSION,
-		    Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't init deflate compressor");
+{
+	struct unknown_tag *tag;
+
+#if DEBUG
+	fprintf(stderr, "unknowntag_end:%s\n", name);
+#endif
+	tag = xar->unknowntags;
+	if (tag == NULL || name == NULL)
+		return;
+	if (strcmp(tag->name.s, name) == 0) {
+		xar->unknowntags = tag->next;
+		archive_string_free(&(tag->name));
+		free(tag);
+		if (xar->unknowntags == NULL)
+			xar->xmlsts = xar->xmlsts_unknown;
+	}
+}
+

@@ -1,0 +1,1 @@
+bytes_read = (ssize_t)tar->sparse_list->remaining

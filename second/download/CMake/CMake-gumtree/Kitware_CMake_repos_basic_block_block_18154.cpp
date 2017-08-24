@@ -1,0 +1,1 @@
+hash[i] -= subvalue

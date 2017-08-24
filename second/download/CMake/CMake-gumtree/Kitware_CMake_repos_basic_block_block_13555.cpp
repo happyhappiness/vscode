@@ -1,0 +1,1 @@
+p += AUTH_CODE_SIZE

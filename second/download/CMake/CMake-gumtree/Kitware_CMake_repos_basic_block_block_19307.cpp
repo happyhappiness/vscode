@@ -1,0 +1,1 @@
+epoll_ctl(loop->ep, UV__EPOLL_CTL_DEL, fd, &dummy)

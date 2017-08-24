@@ -1,0 +1,1 @@
+return (archive_write_open_fd(a, 1));

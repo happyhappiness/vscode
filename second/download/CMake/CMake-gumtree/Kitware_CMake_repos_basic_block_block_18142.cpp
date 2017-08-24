@@ -1,0 +1,1 @@
+return LZMA_MEM_ERROR;

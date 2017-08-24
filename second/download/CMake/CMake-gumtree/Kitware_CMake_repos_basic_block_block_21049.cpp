@@ -1,0 +1,1 @@
+uv_tty_default_inverse = 1

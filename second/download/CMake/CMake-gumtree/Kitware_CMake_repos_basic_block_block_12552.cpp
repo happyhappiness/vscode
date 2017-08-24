@@ -1,0 +1,1 @@
+new_size = rar_fls((unsigned int)rar->unp_size) << 1

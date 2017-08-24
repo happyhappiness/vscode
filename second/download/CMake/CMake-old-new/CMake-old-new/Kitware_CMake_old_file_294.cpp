@@ -1,663 +1,292 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2011 Kitware, Inc., Insight Software Consortium
+/* GSSAPI/krb5 support for FTP - loosely based on old krb4.c
+ *
+ * Copyright (c) 1995, 1996, 1997, 1998, 1999 Kungliga Tekniska Högskolan
+ * (Royal Institute of Technology, Stockholm, Sweden).
+ * Copyright (c) 2004 - 2015 Daniel Stenberg
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the Institute nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE INSTITUTE AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE INSTITUTE OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.  */
 
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
+#include "curl_setup.h"
 
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-#include "cmCoreTryCompile.h"
-#include "cmake.h"
-#include "cmCacheManager.h"
-#include "cmLocalGenerator.h"
-#include "cmGlobalGenerator.h"
-#include "cmExportTryCompileFileGenerator.h"
-#include <cmsys/Directory.hxx>
+#ifndef CURL_DISABLE_FTP
+#ifdef HAVE_GSSAPI
 
-#include <assert.h>
-
-int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
-{
-  this->BinaryDirectory = argv[1].c_str();
-  this->OutputFile = "";
-  // which signature were we called with ?
-  this->SrcFileSignature = true;
-
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  std::string targetName;
-  std::vector<std::string> cmakeFlags;
-  std::vector<std::string> compileDefs;
-  std::string outputVariable;
-  std::string copyFile;
-  std::string copyFileError;
-  std::vector<cmTarget const*> targets;
-  std::string libsToLink = " ";
-  bool useOldLinkLibs = true;
-  char targetNameBuf[64];
-  bool didOutputVariable = false;
-  bool didCopyFile = false;
-  bool didCopyFileError = false;
-  bool useSources = argv[2] == "SOURCES";
-  std::vector<std::string> sources;
-
-  enum Doing { DoingNone, DoingCMakeFlags, DoingCompileDefinitions,
-               DoingLinkLibraries, DoingOutputVariable, DoingCopyFile,
-               DoingCopyFileError, DoingSources };
-  Doing doing = useSources? DoingSources : DoingNone;
-  for(size_t i=3; i < argv.size(); ++i)
-    {
-    if(argv[i] == "CMAKE_FLAGS")
-      {
-      doing = DoingCMakeFlags;
-      // CMAKE_FLAGS is the first argument because we need an argv[0] that
-      // is not used, so it matches regular command line parsing which has
-      // the program name as arg 0
-      cmakeFlags.push_back(argv[i]);
-      }
-    else if(argv[i] == "COMPILE_DEFINITIONS")
-      {
-      doing = DoingCompileDefinitions;
-      }
-    else if(argv[i] == "LINK_LIBRARIES")
-      {
-      doing = DoingLinkLibraries;
-      useOldLinkLibs = false;
-      }
-    else if(argv[i] == "OUTPUT_VARIABLE")
-      {
-      doing = DoingOutputVariable;
-      didOutputVariable = true;
-      }
-    else if(argv[i] == "COPY_FILE")
-      {
-      doing = DoingCopyFile;
-      didCopyFile = true;
-      }
-    else if(argv[i] == "COPY_FILE_ERROR")
-      {
-      doing = DoingCopyFileError;
-      didCopyFileError = true;
-      }
-    else if(doing == DoingCMakeFlags)
-      {
-      cmakeFlags.push_back(argv[i]);
-      }
-    else if(doing == DoingCompileDefinitions)
-      {
-      compileDefs.push_back(argv[i]);
-      }
-    else if(doing == DoingLinkLibraries)
-      {
-      libsToLink += "\"" + cmSystemTools::TrimWhitespace(argv[i]) + "\" ";
-      if(cmTarget *tgt = this->Makefile->FindTargetToUse(argv[i]))
-        {
-        switch(tgt->GetType())
-          {
-          case cmTarget::SHARED_LIBRARY:
-          case cmTarget::STATIC_LIBRARY:
-          case cmTarget::INTERFACE_LIBRARY:
-          case cmTarget::UNKNOWN_LIBRARY:
-            break;
-          case cmTarget::EXECUTABLE:
-            if (tgt->IsExecutableWithExports())
-              {
-              break;
-              }
-          default:
-            this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-              "Only libraries may be used as try_compile IMPORTED "
-              "LINK_LIBRARIES.  Got " + std::string(tgt->GetName()) + " of "
-              "type " + tgt->GetTargetTypeName(tgt->GetType()) + ".");
-            return -1;
-          }
-        if (tgt->IsImported())
-          {
-          targets.push_back(tgt);
-          }
-        }
-      }
-    else if(doing == DoingOutputVariable)
-      {
-      outputVariable = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingCopyFile)
-      {
-      copyFile = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingCopyFileError)
-      {
-      copyFileError = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingSources)
-      {
-      sources.push_back(argv[i]);
-      }
-    else if(i == 3)
-      {
-      this->SrcFileSignature = false;
-      projectName = argv[i].c_str();
-      }
-    else if(i == 4 && !this->SrcFileSignature)
-      {
-      targetName = argv[i].c_str();
-      }
-    else
-      {
-      cmOStringStream m;
-      m << "try_compile given unknown argument \"" << argv[i] << "\".";
-      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, m.str());
-      }
-    }
-
-  if(didCopyFile && copyFile.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE must be followed by a file path");
-    return -1;
-    }
-
-  if(didCopyFileError && copyFileError.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE_ERROR must be followed by a variable name");
-    return -1;
-    }
-
-  if(didCopyFileError && !didCopyFile)
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE_ERROR may be used only with COPY_FILE");
-    return -1;
-    }
-
-  if(didOutputVariable && outputVariable.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "OUTPUT_VARIABLE must be followed by a variable name");
-    return -1;
-    }
-
-  if(useSources && sources.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "SOURCES must be followed by at least one source file");
-    return -1;
-    }
-
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (this->SrcFileSignature)
-    {
-    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
-    this->BinaryDirectory += "/CMakeTmp";
-    }
-  else
-    {
-    // only valid for srcfile signatures
-    if (compileDefs.size())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    if (copyFile.size())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COPY_FILE specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
-
-  // do not allow recursive try Compiles
-  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory())
-    {
-    cmOStringStream e;
-    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
-      << "  " << this->BinaryDirectory << "\n";
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-    return -1;
-    }
-
-  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (this->SrcFileSignature)
-    {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile.c_str());
-
-    // Choose sources.
-    if(!useSources)
-      {
-      sources.push_back(argv[2]);
-      }
-
-    // Detect languages to enable.
-    cmLocalGenerator* lg = this->Makefile->GetLocalGenerator();
-    cmGlobalGenerator* gg = lg->GetGlobalGenerator();
-    std::set<std::string> testLangs;
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
-      std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
-      std::string lang = gg->GetLanguageFromExtension(ext.c_str());
-      if(!lang.empty())
-        {
-        testLangs.insert(lang);
-        }
-      else
-        {
-        cmOStringStream err;
-        err << "Unknown extension \"" << ext << "\" for file\n"
-            << "  " << *si << "\n"
-            << "try_compile() works only for enabled languages.  "
-            << "Currently these are:\n ";
-        std::vector<std::string> langs;
-        gg->GetEnabledLanguages(langs);
-        for(std::vector<std::string>::iterator l = langs.begin();
-            l != langs.end(); ++l)
-          {
-          err << " " << *l;
-          }
-        err << "\nSee project() command to enable other languages.";
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
-        return -1;
-        }
-      }
-
-    // we need to create a directory and CMakeLists file etc...
-    // first create the directories
-    sourceDirectory = this->BinaryDirectory.c_str();
-
-    // now create a CMakeLists.txt file in that directory
-    FILE *fout = cmsys::SystemTools::Fopen(outFileName.c_str(),"w");
-    if (!fout)
-      {
-      cmOStringStream e;
-      e << "Failed to open\n"
-        << "  " << outFileName.c_str() << "\n"
-        << cmSystemTools::GetLastSystemError();
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-      return -1;
-      }
-
-    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
-    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
-            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
-            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
-    if(def)
-      {
-      fprintf(fout, "set(CMAKE_MODULE_PATH %s)\n", def);
-      }
-
-    std::string projectLangs;
-    for(std::set<std::string>::iterator li = testLangs.begin();
-        li != testLangs.end(); ++li)
-      {
-      projectLangs += " " + *li;
-      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
-      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
-      if(const char* rulesOverridePath =
-         this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
-        {
-        fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideLang.c_str(), rulesOverridePath);
-        }
-      else if(const char* rulesOverridePath2 =
-              this->Makefile->GetDefinition(rulesOverrideBase.c_str()))
-        {
-        fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideBase.c_str(), rulesOverridePath2);
-        }
-      }
-    fprintf(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
-    fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");
-    for(std::set<std::string>::iterator li = testLangs.begin();
-        li != testLangs.end(); ++li)
-      {
-      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
-      const char* flags = this->Makefile->GetDefinition(langFlags.c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-              lg->EscapeForCMake(flags?flags:"").c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
-              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
-      }
-    fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");
-    fprintf(fout, "link_directories(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (compileDefs.size())
-      {
-      fprintf(fout, "add_definitions( ");
-      for (size_t i = 0; i < compileDefs.size(); ++i)
-        {
-        fprintf(fout,"%s ",compileDefs[i].c_str());
-        }
-      fprintf(fout, ")\n");
-      }
-
-    /* Use a random file name to avoid rapid creation and deletion
-       of the same executable name (some filesystems fail on that).  */
-    sprintf(targetNameBuf, "cmTryCompileExec%u",
-            cmSystemTools::RandomSeed());
-    targetName = targetNameBuf;
-
-    if (!targets.empty())
-      {
-      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
-      cmExportTryCompileFileGenerator tcfg;
-      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
-      tcfg.SetExports(targets);
-      tcfg.SetConfig(this->Makefile->GetSafeDefinition(
-                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
-
-      if(!tcfg.GenerateImportFile())
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-                                     "could not write export file.");
-        fclose(fout);
-        return -1;
-        }
-      fprintf(fout,
-              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
-              fname.c_str());
-      }
-
-    /* for the TRY_COMPILEs we want to be able to specify the architecture.
-      So the user can set CMAKE_OSX_ARCHITECTURES to i386;ppc and then set
-      CMAKE_TRY_COMPILE_OSX_ARCHITECTURES first to i386 and then to ppc to
-      have the tests run for each specific architecture. Since
-      cmLocalGenerator doesn't allow building for "the other"
-      architecture only via CMAKE_OSX_ARCHITECTURES.
-      */
-    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition(
-                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_SYSROOT=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *cxxDef
-              = this->Makefile->GetDefinition("CMAKE_CXX_COMPILER_TARGET"))
-      {
-      std::string flag="-DCMAKE_CXX_COMPILER_TARGET=";
-      flag += cxxDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *cDef
-                = this->Makefile->GetDefinition("CMAKE_C_COMPILER_TARGET"))
-      {
-      std::string flag="-DCMAKE_C_COMPILER_TARGET=";
-      flag += cDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *tcxxDef = this->Makefile->GetDefinition(
-                                  "CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN"))
-      {
-      std::string flag="-DCMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN=";
-      flag += tcxxDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *tcDef = this->Makefile->GetDefinition(
-                                    "CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN"))
-      {
-      std::string flag="-DCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN=";
-      flag += tcDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *rootDef
-              = this->Makefile->GetDefinition("CMAKE_SYSROOT"))
-      {
-      std::string flag="-DCMAKE_SYSROOT=";
-      flag += rootDef;
-      cmakeFlags.push_back(flag);
-      }
-    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
-      {
-      fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
-      }
-
-    /* Put the executable at a known location (for COPY_FILE).  */
-    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-            this->BinaryDirectory.c_str());
-    /* Create the actual executable.  */
-    fprintf(fout, "add_executable(%s", targetName.c_str());
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
-      fprintf(fout, " \"%s\"", si->c_str());
-
-      // Add dependencies on any non-temporary sources.
-      if(si->find("CMakeTmp") == si->npos)
-        {
-        this->Makefile->AddCMakeDependFile(*si);
-        }
-      }
-    fprintf(fout, ")\n");
-    if (useOldLinkLibs)
-      {
-      fprintf(fout,
-              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
-              targetName.c_str());
-      }
-    else
-      {
-      fprintf(fout, "target_link_libraries(%s %s)\n",
-              targetName.c_str(),
-              libsToLink.c_str());
-      }
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
-    }
-
-  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
-  cmSystemTools::ResetErrorOccuredFlag();
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = this->Makefile->TryCompile(sourceDirectory,
-                                       this->BinaryDirectory.c_str(),
-                                       projectName,
-                                       targetName,
-                                       this->SrcFileSignature,
-                                       &cmakeFlags,
-                                       &output);
-  if ( erroroc )
-    {
-    cmSystemTools::SetErrorOccured();
-    }
-
-  // set the result var to the return value to indicate success or failure
-  this->Makefile->AddCacheDefinition(argv[0].c_str(),
-                                     (res == 0 ? "TRUE" : "FALSE"),
-                                     "Result of TRY_COMPILE",
-                                     cmCacheManager::INTERNAL);
-
-  if ( outputVariable.size() > 0 )
-    {
-    this->Makefile->AddDefinition(outputVariable.c_str(), output.c_str());
-    }
-
-  if (this->SrcFileSignature)
-    {
-    std::string copyFileErrorMessage;
-    this->FindOutputFile(targetName);
-
-    if ((res==0) && (copyFile.size()))
-      {
-      if(this->OutputFile.empty() ||
-         !cmSystemTools::CopyFileAlways(this->OutputFile.c_str(),
-                                        copyFile.c_str()))
-        {
-        cmOStringStream emsg;
-        emsg << "Cannot copy output executable\n"
-             << "  '" << this->OutputFile.c_str() << "'\n"
-             << "to destination specified by COPY_FILE:\n"
-             << "  '" << copyFile.c_str() << "'\n";
-        if(!this->FindErrorMessage.empty())
-          {
-          emsg << this->FindErrorMessage.c_str();
-          }
-        if(copyFileError.empty())
-          {
-          this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
-          return -1;
-          }
-        else
-          {
-          copyFileErrorMessage = emsg.str();
-          }
-        }
-      }
-
-    if(!copyFileError.empty())
-      {
-      this->Makefile->AddDefinition(copyFileError.c_str(),
-                                    copyFileErrorMessage.c_str());
-      }
-    }
-  return res;
-}
-
-void cmCoreTryCompile::CleanupFiles(const char* binDir)
-{
-  if ( !binDir )
-    {
-    return;
-    }
-
-  std::string bdir = binDir;
-  if(bdir.find("CMakeTmp") == std::string::npos)
-    {
-    cmSystemTools::Error(
-      "TRY_COMPILE attempt to remove -rf directory that does not contain "
-      "CMakeTmp:", binDir);
-    return;
-    }
-
-  cmsys::Directory dir;
-  dir.Load(binDir);
-  size_t fileNum;
-  std::set<std::string> deletedFiles;
-  for (fileNum = 0; fileNum <  dir.GetNumberOfFiles(); ++fileNum)
-    {
-    if (strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".") &&
-        strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".."))
-      {
-
-      if(deletedFiles.find( dir.GetFile(static_cast<unsigned long>(fileNum)))
-         == deletedFiles.end())
-        {
-        deletedFiles.insert(dir.GetFile(static_cast<unsigned long>(fileNum)));
-        std::string fullPath = binDir;
-        fullPath += "/";
-        fullPath += dir.GetFile(static_cast<unsigned long>(fileNum));
-        if(cmSystemTools::FileIsDirectory(fullPath.c_str()))
-          {
-          this->CleanupFiles(fullPath.c_str());
-          cmSystemTools::RemoveADirectory(fullPath.c_str());
-          }
-        else
-          {
-#ifdef _WIN32
-          // Sometimes anti-virus software hangs on to new files so we
-          // cannot delete them immediately.  Try a few times.
-          cmSystemTools::WindowsFileRetry retry =
-            cmSystemTools::GetWindowsFileRetry();
-          while(!cmSystemTools::RemoveFile(fullPath.c_str()) &&
-                --retry.Count && cmSystemTools::FileExists(fullPath.c_str()))
-            {
-            cmSystemTools::Delay(retry.Delay);
-            }
-          if(retry.Count == 0)
-#else
-          if(!cmSystemTools::RemoveFile(fullPath.c_str()))
+#ifdef HAVE_OLD_GSSMIT
+#define GSS_C_NT_HOSTBASED_SERVICE gss_nt_service_name
+#define NCOMPAT 1
 #endif
-            {
-            std::string m = "Remove failed on file: " + fullPath;
-            cmSystemTools::ReportLastSystemError(m.c_str());
-            }
-          }
-        }
-      }
-    }
-}
 
-void cmCoreTryCompile::FindOutputFile(const std::string& targetName)
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
+#endif
+
+#include "urldata.h"
+#include "curl_base64.h"
+#include "ftp.h"
+#include "curl_gssapi.h"
+#include "sendf.h"
+#include "curl_sec.h"
+#include "curl_memory.h"
+#include "warnless.h"
+
+#define _MPRINTF_REPLACE /* use our functions only */
+#include <curl/mprintf.h>
+
+/* The last #include file should be: */
+#include "memdebug.h"
+
+#define LOCAL_ADDR (&conn->local_addr)
+#define REMOTE_ADDR conn->ip_addr->ai_addr
+
+static int
+krb5_init(void *app_data)
 {
-  this->FindErrorMessage = "";
-  this->OutputFile = "";
-  std::string tmpOutputFile = "/";
-  tmpOutputFile += targetName;
-  tmpOutputFile +=this->Makefile->GetSafeDefinition("CMAKE_EXECUTABLE_SUFFIX");
-
-  // a list of directories where to search for the compilation result
-  // at first directly in the binary dir
-  std::vector<std::string> searchDirs;
-  searchDirs.push_back("");
-
-  const char* config = this->Makefile->GetDefinition(
-                                            "CMAKE_TRY_COMPILE_CONFIGURATION");
-  // if a config was specified try that first
-  if (config && config[0])
-    {
-    std::string tmp = "/";
-    tmp += config;
-    searchDirs.push_back(tmp);
-    }
-  searchDirs.push_back("/Debug");
-  searchDirs.push_back("/Development");
-
-  for(std::vector<std::string>::const_iterator it = searchDirs.begin();
-      it != searchDirs.end();
-      ++it)
-    {
-    std::string command = this->BinaryDirectory;
-    command += *it;
-    command += tmpOutputFile;
-    if(cmSystemTools::FileExists(command.c_str()))
-      {
-      tmpOutputFile = cmSystemTools::CollapseFullPath(command.c_str());
-      this->OutputFile = tmpOutputFile;
-      return;
-      }
-    }
-
-  cmOStringStream emsg;
-  emsg << "Unable to find the executable at any of:\n";
-  for (unsigned int i = 0; i < searchDirs.size(); ++i)
-    {
-    emsg << "  " << this->BinaryDirectory << searchDirs[i]
-         << tmpOutputFile << "\n";
-    }
-  this->FindErrorMessage = emsg.str();
-  return;
+  gss_ctx_id_t *context = app_data;
+  /* Make sure our context is initialized for krb5_end. */
+  *context = GSS_C_NO_CONTEXT;
+  return 0;
 }
+
+static int
+krb5_check_prot(void *app_data, int level)
+{
+  (void)app_data; /* unused */
+  if(level == PROT_CONFIDENTIAL)
+    return -1;
+  return 0;
+}
+
+static int
+krb5_decode(void *app_data, void *buf, int len,
+            int level UNUSED_PARAM,
+            struct connectdata *conn UNUSED_PARAM)
+{
+  gss_ctx_id_t *context = app_data;
+  OM_uint32 maj, min;
+  gss_buffer_desc enc, dec;
+
+  (void)level;
+  (void)conn;
+
+  enc.value = buf;
+  enc.length = len;
+  maj = gss_unseal(&min, *context, &enc, &dec, NULL, NULL);
+  if(maj != GSS_S_COMPLETE) {
+    if(len >= 4)
+      strcpy(buf, "599 ");
+    return -1;
+  }
+
+  memcpy(buf, dec.value, dec.length);
+  len = curlx_uztosi(dec.length);
+  gss_release_buffer(&min, &dec);
+
+  return len;
+}
+
+static int
+krb5_overhead(void *app_data, int level, int len)
+{
+  /* no arguments are used */
+  (void)app_data;
+  (void)level;
+  (void)len;
+  return 0;
+}
+
+static int
+krb5_encode(void *app_data, const void *from, int length, int level, void **to,
+            struct connectdata *conn UNUSED_PARAM)
+{
+  gss_ctx_id_t *context = app_data;
+  gss_buffer_desc dec, enc;
+  OM_uint32 maj, min;
+  int state;
+  int len;
+
+  /* shut gcc up */
+  conn = NULL;
+
+  /* NOTE that the cast is safe, neither of the krb5, gnu gss and heimdal
+   * libraries modify the input buffer in gss_seal()
+   */
+  dec.value = (void*)from;
+  dec.length = length;
+  maj = gss_seal(&min, *context,
+                 level == PROT_PRIVATE,
+                 GSS_C_QOP_DEFAULT,
+                 &dec, &state, &enc);
+
+  if(maj != GSS_S_COMPLETE)
+    return -1;
+
+  /* malloc a new buffer, in case gss_release_buffer doesn't work as
+     expected */
+  *to = malloc(enc.length);
+  if(!*to)
+    return -1;
+  memcpy(*to, enc.value, enc.length);
+  len = curlx_uztosi(enc.length);
+  gss_release_buffer(&min, &enc);
+  return len;
+}
+
+static int
+krb5_auth(void *app_data, struct connectdata *conn)
+{
+  int ret = AUTH_OK;
+  char *p;
+  const char *host = conn->host.name;
+  ssize_t nread;
+  curl_socklen_t l = sizeof(conn->local_addr);
+  struct SessionHandle *data = conn->data;
+  CURLcode result;
+  const char *service = "ftp", *srv_host = "host";
+  gss_buffer_desc input_buffer, output_buffer, _gssresp, *gssresp;
+  OM_uint32 maj, min;
+  gss_name_t gssname;
+  gss_ctx_id_t *context = app_data;
+  struct gss_channel_bindings_struct chan;
+  size_t base64_sz = 0;
+
+  if(getsockname(conn->sock[FIRSTSOCKET],
+                 (struct sockaddr *)LOCAL_ADDR, &l) < 0)
+    perror("getsockname()");
+
+  chan.initiator_addrtype = GSS_C_AF_INET;
+  chan.initiator_address.length = l - 4;
+  chan.initiator_address.value =
+    &((struct sockaddr_in *)LOCAL_ADDR)->sin_addr.s_addr;
+  chan.acceptor_addrtype = GSS_C_AF_INET;
+  chan.acceptor_address.length = l - 4;
+  chan.acceptor_address.value =
+    &((struct sockaddr_in *)REMOTE_ADDR)->sin_addr.s_addr;
+  chan.application_data.length = 0;
+  chan.application_data.value = NULL;
+
+  /* this loop will execute twice (once for service, once for host) */
+  for(;;) {
+    /* this really shouldn't be repeated here, but can't help it */
+    if(service == srv_host) {
+      result = Curl_ftpsendf(conn, "AUTH GSSAPI");
+
+      if(result)
+        return -2;
+      if(Curl_GetFTPResponse(&nread, conn, NULL))
+        return -1;
+
+      if(data->state.buffer[0] != '3')
+        return -1;
+    }
+
+    input_buffer.value = data->state.buffer;
+    input_buffer.length = snprintf(input_buffer.value, BUFSIZE, "%s@%s",
+                                   service, host);
+    maj = gss_import_name(&min, &input_buffer, GSS_C_NT_HOSTBASED_SERVICE,
+                          &gssname);
+    if(maj != GSS_S_COMPLETE) {
+      gss_release_name(&min, &gssname);
+      if(service == srv_host) {
+        Curl_failf(data, "Error importing service name %s",
+                   input_buffer.value);
+        return AUTH_ERROR;
+      }
+      service = srv_host;
+      continue;
+    }
+    /* We pass NULL as |output_name_type| to avoid a leak. */
+    gss_display_name(&min, gssname, &output_buffer, NULL);
+    Curl_infof(data, "Trying against %s\n", output_buffer.value);
+    gssresp = GSS_C_NO_BUFFER;
+    *context = GSS_C_NO_CONTEXT;
+
+    do {
+      /* Release the buffer at each iteration to avoid leaking: the first time
+         we are releasing the memory from gss_display_name. The last item is
+         taken care by a final gss_release_buffer. */
+      gss_release_buffer(&min, &output_buffer);
+      ret = AUTH_OK;
+      maj = Curl_gss_init_sec_context(data,
+                                      &min,
+                                      context,
+                                      gssname,
+                                      &Curl_krb5_mech_oid,
+                                      &chan,
+                                      gssresp,
+                                      &output_buffer,
+                                      NULL);
+
+      if(gssresp) {
+        free(_gssresp.value);
+        gssresp = NULL;
+      }
+
+      if(GSS_ERROR(maj)) {
+        Curl_infof(data, "Error creating security context\n");
+        ret = AUTH_ERROR;
+        break;
+      }
+
+      if(output_buffer.length != 0) {
+        result = Curl_base64_encode(data, (char *)output_buffer.value,
+                                    output_buffer.length, &p, &base64_sz);
+        if(result) {
+          Curl_infof(data,"base64-encoding: %s\n", curl_easy_strerror(result));
+          ret = AUTH_CONTINUE;
+          break;
+        }
+
+        result = Curl_ftpsendf(conn, "ADAT %s", p);
+
+        free(p);
+
+        if(result) {
+          ret = -2;
+          break;
+        }
+
+        if(Curl_GetFTPResponse(&nread, conn, NULL)) {
+          ret = -1;
+          break;
+        }
+
+        if(data->state.buffer[0] != '2' && data->state.buffer[0] != '3') {
+          Curl_infof(data, "Server didn't accept auth data\n");
+          ret = AUTH_ERROR;
+          break;
+        }
+
+        p = data->state.buffer + 4;
+        p = strstr(p, "ADAT=");
+        if(p) {
+          result = Curl_base64_decode(p + 5,
+                                      (unsigned char **)&_gssresp.value,
+                                      &_gssresp.length);
+          if(result) {
+            Curl_failf(data,"base64-decoding: %s", curl_easy_strerror(result));

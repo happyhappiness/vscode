@@ -1,0 +1,1 @@
+gnutls_srp_free_client_credentials(conn->ssl[sockindex].srp_client_cred)

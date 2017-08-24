@@ -1,0 +1,1 @@
+data->crc32 = lzma_crc32(buff, length, data->crc32)

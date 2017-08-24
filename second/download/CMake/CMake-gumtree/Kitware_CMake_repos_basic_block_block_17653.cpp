@@ -1,0 +1,1 @@
+archive_le16enc(local_header + 8, zip->entry_compression)

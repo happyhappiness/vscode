@@ -1,0 +1,1 @@
+add_converter(sc, strncat_from_utf8_to_utf8)

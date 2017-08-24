@@ -1,0 +1,1 @@
+archive_sha384_final(&mtree->sha384ctx, reg->buf_sha384)

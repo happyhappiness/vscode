@@ -1,0 +1,1 @@
+zisofs->stream.avail_in = zisofs->block_avail

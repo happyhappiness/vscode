@@ -1,0 +1,1 @@
+(ISFLAG("--keep"))              keepInputFiles   = True

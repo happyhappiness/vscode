@@ -1,0 +1,1 @@
+rsize = zip->wbuff_remaining

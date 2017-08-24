@@ -1,0 +1,2 @@
+f(!GOOD_EASY_HANDLE(data))
+    return CURLM_BAD_EASY_HANDLE;

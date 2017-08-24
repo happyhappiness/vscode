@@ -1,0 +1,1 @@
+(src < end) *(dst++) = bswap_64( *(src++) )

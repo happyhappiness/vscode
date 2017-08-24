@@ -1,0 +1,1 @@
+addPathInArg(path, in, itInArg, PathArgument::kindIndex)

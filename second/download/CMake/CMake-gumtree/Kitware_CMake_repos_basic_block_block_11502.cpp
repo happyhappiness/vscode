@@ -1,0 +1,1 @@
+free(cpio->links_head->name)

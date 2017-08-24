@@ -1,0 +1,1 @@
+strcpy(buf+len, (char *) status_string.value)

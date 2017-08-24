@@ -1,0 +1,4 @@
+{
+        *outptr++ = *clone++;
+        clen--;
+      }

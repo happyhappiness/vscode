@@ -1,0 +1,1 @@
+zip->decrypted_ptr += bytes_avail

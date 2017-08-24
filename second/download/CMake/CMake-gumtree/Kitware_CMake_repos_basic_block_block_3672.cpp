@@ -1,0 +1,1 @@
+tsd->sock_error = RESOLVER_ENOMEM

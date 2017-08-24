@@ -1,0 +1,1 @@
+zip->trad_chkdat = local_header[11]

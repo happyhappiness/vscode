@@ -1,0 +1,1 @@
+memcpy(sa_un->sun_path + 1, path, path_len - 1)

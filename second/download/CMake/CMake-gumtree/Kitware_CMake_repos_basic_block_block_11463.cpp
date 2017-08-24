@@ -1,0 +1,1 @@
+bytes_read = (ssize_t)cpio->entry_bytes_remaining

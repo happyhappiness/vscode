@@ -1,0 +1,1 @@
+token.type_ = tokenError

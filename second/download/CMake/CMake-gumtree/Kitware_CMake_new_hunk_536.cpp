@@ -1,7 +1,7 @@
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 1 second.  */
-  testProcess_sleep(1);
-  fprintf(stdout, "Output on stdout after sleep.\n");
-  fprintf(stderr, "Output on stderr after sleep.\n");
-  fflush(stdout);
+    CommandLineArguments::Internal::SetOfStrings::iterator sit;
+    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
+      {
+      str << std::endl;
+      char argument[100];
+      sprintf(argument, "%s", sit->c_str());
+      switch ( this->Internals->Callbacks[*sit].ArgumentType )

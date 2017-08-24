@@ -1,0 +1,3 @@
+{
+					__archive_errx(1, "Out of memory");
+				}

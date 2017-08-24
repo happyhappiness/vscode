@@ -1,0 +1,1 @@
+r = sem_wait(sem)

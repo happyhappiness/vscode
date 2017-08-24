@@ -1,0 +1,2 @@
+(clonedpath == NULL)
+      return -ENOMEM;

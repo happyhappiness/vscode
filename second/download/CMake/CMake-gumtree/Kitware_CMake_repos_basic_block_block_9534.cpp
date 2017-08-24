@@ -1,0 +1,1 @@
+tace[0].a_access_mask |= wperm

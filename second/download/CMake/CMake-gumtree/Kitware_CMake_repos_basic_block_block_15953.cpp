@@ -1,0 +1,1 @@
+ctl->bp[ctl->cur_len] = 0

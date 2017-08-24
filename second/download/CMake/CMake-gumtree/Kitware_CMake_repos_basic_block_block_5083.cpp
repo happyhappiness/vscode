@@ -1,0 +1,1 @@
+what = &weekday[0]

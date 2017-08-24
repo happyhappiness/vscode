@@ -1,0 +1,1 @@
+free((void *)(uintptr_t)cache->cache[slot].name)

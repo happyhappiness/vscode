@@ -1,0 +1,1 @@
+(i2 >= nblock) i2 -= nblock

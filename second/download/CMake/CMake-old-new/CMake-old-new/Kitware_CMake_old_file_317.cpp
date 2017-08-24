@@ -1,1447 +1,783 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
+ *
+ * Copyright (C) 1998 - 2006, Daniel Stenberg, <daniel@haxx.se>, et al.
+ *
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at http://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ * $Id$
+ ***************************************************************************/
 
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
+#include "setup.h"
 
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-#include "cmcmd.h"
-#include "cmMakefile.h"
-#include "cmLocalGenerator.h"
-#include "cmGlobalGenerator.h"
-#include "cmQtAutoGenerators.h"
-#include "cmVersion.h"
-
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-# include "cmDependsFortran.h" // For -E cmake_copy_f90_mod callback.
-# include <cmsys/Terminal.h>
+#ifndef WIN32
+/* headers for non-win32 */
+#ifdef HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h> /* <netinet/tcp.h> may need it */
+#endif
+#ifdef HAVE_NETINET_TCP_H
+#include <netinet/tcp.h> /* for TCP_NODELAY */
+#endif
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
+#endif
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h> /* required for free() prototype, without it, this crashes
+                       on macos 68K */
+#endif
+#if (defined(HAVE_FIONBIO) && defined(__NOVELL_LIBC__))
+#include <sys/filio.h>
+#endif
+#if (defined(NETWARE) && defined(__NOVELL_LIBC__))
+#undef in_addr_t
+#define in_addr_t unsigned long
+#endif
+#ifdef VMS
+#include <in.h>
+#include <inet.h>
 #endif
 
-#include <cmsys/Directory.hxx>
-#include <cmsys/Process.h>
-#include <cmsys/FStream.hxx>
+#endif
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
 
-#if defined(CMAKE_HAVE_VS_GENERATORS)
-#include "cmCallVisualStudioMacro.h"
-#include "cmVisualStudioWCEPlatformParser.h"
+#ifndef TRUE
+#define TRUE 1
+#define FALSE 0
 #endif
 
-#include <time.h>
+#ifdef USE_WINSOCK
+#define EINPROGRESS WSAEINPROGRESS
+#define EWOULDBLOCK WSAEWOULDBLOCK
+#define EISCONN     WSAEISCONN
+#define ENOTSOCK    WSAENOTSOCK
+#define ECONNREFUSED WSAECONNREFUSED
+#endif
 
-#include <stdlib.h> // required for atoi
+#include "urldata.h"
+#include "sendf.h"
+#include "if2ip.h"
+#include "strerror.h"
+#include "connect.h"
+#include "memory.h"
+#include "select.h"
+#include "url.h" /* for Curl_safefree() */
+#include "multiif.h"
+#include "sockaddr.h" /* required for Curl_sockaddr_storage */
+#include "inet_ntop.h"
 
-void CMakeCommandUsage(const char* program)
+/* The last #include file should be: */
+#include "memdebug.h"
+
+static bool verifyconnect(curl_socket_t sockfd, int *error);
+
+static curl_socket_t
+singleipconnect(struct connectdata *conn,
+                const Curl_addrinfo *ai, /* start connecting to this */
+                long timeout_ms,
+                bool *connected);
+
+/*
+ * Curl_sockerrno() returns the *socket-related* errno (or equivalent) on this
+ * platform to hide platform specific for the function that calls this.
+ */
+int Curl_sockerrno(void)
 {
-  cmOStringStream errorStream;
-
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  errorStream
-    << "cmake version " << cmVersion::GetCMakeVersion() << "\n";
+#ifdef USE_WINSOCK
+  return (int)WSAGetLastError();
 #else
-  errorStream
-    << "cmake bootstrap\n";
+  return errno;
 #endif
-  // If you add new commands, change here,
-  // and in cmakemain.cxx in the options table
-  errorStream
-    << "Usage: " << program << " -E [command] [arguments ...]\n"
-    << "Available commands: \n"
-    << "  chdir dir cmd [args]...   - run command in a given directory\n"
-    << "  compare_files file1 file2 - check if file1 is same as file2\n"
-    << "  copy file destination     - copy file to destination (either file "
-       "or directory)\n"
-    << "  copy_directory source destination   - copy directory 'source' "
-       "content to directory 'destination'\n"
-    << "  copy_if_different in-file out-file  - copy file if input has "
-       "changed\n"
-    << "  echo [string]...          - displays arguments as text\n"
-    << "  echo_append [string]...   - displays arguments as text but no new "
-       "line\n"
-    << "  env [--unset=NAME]... [NAME=VALUE]... COMMAND [ARG]...\n"
-    << "                            - run command in a modified environment\n"
-    << "  environment               - display the current environment\n"
-    << "  make_directory dir        - create a directory\n"
-    << "  md5sum file1 [...]        - compute md5sum of files\n"
-    << "  remove [-f] file1 file2 ... - remove the file(s), use -f to force "
-       "it\n"
-    << "  remove_directory dir      - remove a directory and its contents\n"
-    << "  rename oldname newname    - rename a file or directory "
-       "(on one volume)\n"
-    << "  tar [cxt][vfz][cvfj] file.tar [file/dir1 file/dir2 ...]\n"
-    << "                            - create or extract a tar or zip archive\n"
-    << "  sleep <number>...         - sleep for given number of seconds\n"
-    << "  time command [args] ...   - run command and return elapsed time\n"
-    << "  touch file                - touch a file.\n"
-    << "  touch_nocreate file       - touch a file but do not create it.\n"
-#if defined(_WIN32) && !defined(__CYGWIN__)
-    << "Available on Windows only:\n"
-    << "  delete_regv key           - delete registry value\n"
-    << "  env_vs8_wince sdkname     - displays a batch file which sets the "
-       "environment for the provided Windows CE SDK installed in VS2005\n"
-    << "  env_vs9_wince sdkname     - displays a batch file which sets the "
-       "environment for the provided Windows CE SDK installed in VS2008\n"
-    << "  write_regv key value      - write registry value\n"
-#else
-    << "Available on UNIX only:\n"
-    << "  create_symlink old new    - create a symbolic link new -> old\n"
-#endif
-    ;
-
-  cmSystemTools::Error(errorStream.str().c_str());
 }
 
-int cmcmd::ExecuteCMakeCommand(std::vector<std::string>& args)
+/*
+ * Curl_nonblock() set the given socket to either blocking or non-blocking
+ * mode based on the 'nonblock' boolean argument. This function is highly
+ * portable.
+ */
+int Curl_nonblock(curl_socket_t sockfd,    /* operate on this */
+                  int nonblock   /* TRUE or FALSE */)
 {
-  // IF YOU ADD A NEW COMMAND, DOCUMENT IT ABOVE and in cmakemain.cxx
-  if (args.size() > 1)
-    {
-    // Copy file
-    if (args[1] == "copy" && args.size() == 4)
-      {
-      if(!cmSystemTools::cmCopyFile(args[2].c_str(), args[3].c_str()))
-        {
-        std::cerr << "Error copying file \"" << args[2]
-                  << "\" to \"" << args[3] << "\".\n";
-        return 1;
-        }
-      return 0;
-      }
+#undef SETBLOCK
+#define SETBLOCK 0
+#ifdef HAVE_O_NONBLOCK
+  /* most recent unix versions */
+  int flags;
 
-    // Copy file if different.
-    if (args[1] == "copy_if_different" && args.size() == 4)
-      {
-      if(!cmSystemTools::CopyFileIfDifferent(args[2].c_str(),
-          args[3].c_str()))
-        {
-        std::cerr << "Error copying file (if different) from \""
-                  << args[2] << "\" to \"" << args[3]
-                  << "\".\n";
-        return 1;
-        }
-      return 0;
-      }
-
-    // Copy directory content
-    if (args[1] == "copy_directory" && args.size() == 4)
-      {
-      if(!cmSystemTools::CopyADirectory(args[2].c_str(), args[3].c_str()))
-        {
-        std::cerr << "Error copying directory from \""
-                  << args[2] << "\" to \"" << args[3]
-                  << "\".\n";
-        return 1;
-        }
-      return 0;
-      }
-
-    // Rename a file or directory
-    if (args[1] == "rename" && args.size() == 4)
-      {
-      if(!cmSystemTools::RenameFile(args[2].c_str(), args[3].c_str()))
-        {
-        std::string e = cmSystemTools::GetLastSystemError();
-        std::cerr << "Error renaming from \""
-                  << args[2] << "\" to \"" << args[3]
-                  << "\": " << e << "\n";
-        return 1;
-        }
-      return 0;
-      }
-
-    // Compare files
-    if (args[1] == "compare_files" && args.size() == 4)
-      {
-      if(cmSystemTools::FilesDiffer(args[2].c_str(), args[3].c_str()))
-        {
-        std::cerr << "Files \""
-                  << args[2] << "\" to \"" << args[3]
-                  << "\" are different.\n";
-        return 1;
-        }
-      return 0;
-      }
-
-    // Echo string
-    else if (args[1] == "echo" )
-      {
-      unsigned int cc;
-      const char* space = "";
-      for ( cc = 2; cc < args.size(); cc ++ )
-        {
-        std::cout << space << args[cc];
-        space = " ";
-        }
-      std::cout << std::endl;
-      return 0;
-      }
-
-    // Echo string no new line
-    else if (args[1] == "echo_append" )
-      {
-      unsigned int cc;
-      const char* space = "";
-      for ( cc = 2; cc < args.size(); cc ++ )
-        {
-        std::cout << space << args[cc];
-        space = " ";
-        }
-      return 0;
-      }
-
-    else if (args[1] == "env" )
-      {
-      std::vector<std::string>::const_iterator ai = args.begin() + 2;
-      std::vector<std::string>::const_iterator ae = args.end();
-      for(; ai != ae; ++ai)
-        {
-        std::string const& a = *ai;
-        if(cmHasLiteralPrefix(a, "--unset="))
-          {
-          // Unset environment variable.
-          cmSystemTools::UnPutEnv(a.c_str() + 8);
-          }
-        else if(!a.empty() && a[0] == '-')
-          {
-          // Environment variable and command names cannot start in '-',
-          // so this must be an unknown option.
-          std::cerr << "cmake -E env: unknown option '" << a << "'"
-                    << std::endl;
-          return 1;
-          }
-        else if(a.find("=") != a.npos)
-          {
-          // Set environment variable.
-          cmSystemTools::PutEnv(a.c_str());
-          }
-        else
-          {
-          // This is the beginning of the command.
-          break;
-          }
-        }
-
-      if(ai == ae)
-        {
-        std::cerr << "cmake -E env: no command given" << std::endl;
-        return 1;
-        }
-
-      // Execute command from remaining arguments.
-      std::vector<std::string> cmd(ai, ae);
-      int retval;
-      if(cmSystemTools::RunSingleCommand(
-           cmd, 0, &retval, NULL, cmSystemTools::OUTPUT_PASSTHROUGH))
-        {
-        return retval;
-        }
-      return 1;
-      }
-
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-    // Command to create a symbolic link.  Fails on platforms not
-    // supporting them.
-    else if (args[1] == "environment" )
-      {
-      std::vector<std::string> env = cmSystemTools::GetEnvironmentVariables();
-      std::vector<std::string>::iterator it;
-      for ( it = env.begin(); it != env.end(); ++ it )
-        {
-        std::cout << *it << std::endl;
-        }
-      return 0;
-      }
+  flags = fcntl(sockfd, F_GETFL, 0);
+  if (TRUE == nonblock)
+    return fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
+  else
+    return fcntl(sockfd, F_SETFL, flags & (~O_NONBLOCK));
+#undef SETBLOCK
+#define SETBLOCK 1
 #endif
 
-    else if (args[1] == "make_directory" && args.size() == 3)
-      {
-      if(!cmSystemTools::MakeDirectory(args[2].c_str()))
-        {
-        std::cerr << "Error making directory \"" << args[2]
-                  << "\".\n";
-        return 1;
-        }
-      return 0;
-      }
+#if defined(HAVE_FIONBIO) && (SETBLOCK == 0)
+  /* older unix versions */
+  int flags;
 
-    else if (args[1] == "remove_directory" && args.size() == 3)
-      {
-      if(cmSystemTools::FileIsDirectory(args[2].c_str()) &&
-         !cmSystemTools::RemoveADirectory(args[2].c_str()))
-        {
-        std::cerr << "Error removing directory \"" << args[2]
-                  << "\".\n";
-        return 1;
-        }
-      return 0;
-      }
-
-    // Remove file
-    else if (args[1] == "remove" && args.size() > 2)
-      {
-      bool force = false;
-      for (std::string::size_type cc = 2; cc < args.size(); cc ++)
-        {
-        if(args[cc] == "\\-f" || args[cc] == "-f")
-          {
-          force = true;
-          }
-        else
-          {
-          // Complain if the file could not be removed, still exists,
-          // and the -f option was not given.
-          if(!cmSystemTools::RemoveFile(args[cc].c_str()) && !force &&
-             cmSystemTools::FileExists(args[cc].c_str()))
-            {
-            return 1;
-            }
-          }
-        }
-      return 0;
-      }
-    // Touch file
-    else if (args[1] == "touch" && args.size() > 2)
-      {
-      for (std::string::size_type cc = 2; cc < args.size(); cc ++)
-        {
-        // Complain if the file could not be removed, still exists,
-        // and the -f option was not given.
-        if(!cmSystemTools::Touch(args[cc].c_str(), true))
-          {
-          return 1;
-          }
-        }
-      return 0;
-      }
-    // Touch file
-    else if (args[1] == "touch_nocreate" && args.size() > 2)
-      {
-      for (std::string::size_type cc = 2; cc < args.size(); cc ++)
-        {
-        // Complain if the file could not be removed, still exists,
-        // and the -f option was not given.
-        if(!cmSystemTools::Touch(args[cc].c_str(), false))
-          {
-          return 1;
-          }
-        }
-      return 0;
-      }
-
-    // Sleep command
-    else if (args[1] == "sleep" && args.size() > 2)
-      {
-      double total = 0;
-      for(size_t i = 2; i < args.size(); ++i)
-        {
-        double num = 0.0;
-        char unit;
-        char extra;
-        int n = sscanf(args[i].c_str(), "%lg%c%c", &num, &unit, &extra);
-        if((n == 1 || (n == 2 && unit == 's')) && num >= 0)
-          {
-          total += num;
-          }
-        else
-          {
-          std::cerr << "Unknown sleep time format \"" << args[i] << "\".\n";
-          return 1;
-          }
-        }
-      if(total > 0)
-        {
-        cmSystemTools::Delay(static_cast<unsigned int>(total*1000));
-        }
-      return 0;
-      }
-
-    // Clock command
-    else if (args[1] == "time" && args.size() > 2)
-      {
-      std::string command = args[2];
-      for (std::string::size_type cc = 3; cc < args.size(); cc ++)
-        {
-        command += " ";
-        command += args[cc];
-        }
-
-      clock_t clock_start, clock_finish;
-      time_t time_start, time_finish;
-
-      time(&time_start);
-      clock_start = clock();
-      int ret =0;
-      cmSystemTools::RunSingleCommand(command.c_str(), 0, &ret);
-
-      clock_finish = clock();
-      time(&time_finish);
-
-      double clocks_per_sec = static_cast<double>(CLOCKS_PER_SEC);
-      std::cout << "Elapsed time: "
-        << static_cast<long>(time_finish - time_start) << " s. (time)"
-        << ", "
-        << static_cast<double>(clock_finish - clock_start) / clocks_per_sec
-        << " s. (clock)"
-        << "\n";
-      return ret;
-      }
-    // Command to calculate the md5sum of a file
-    else if (args[1] == "md5sum" && args.size() >= 3)
-      {
-      char md5out[32];
-      int retval = 0;
-      for (std::string::size_type cc = 2; cc < args.size(); cc ++)
-        {
-        const char *filename = args[cc].c_str();
-        // Cannot compute md5sum of a directory
-        if(cmSystemTools::FileIsDirectory(filename))
-          {
-          std::cerr << "Error: " << filename << " is a directory" << std::endl;
-          retval++;
-          }
-        else if(!cmSystemTools::ComputeFileMD5(filename, md5out))
-          {
-          // To mimic md5sum behavior in a shell:
-          std::cerr << filename << ": No such file or directory" << std::endl;
-          retval++;
-          }
-        else
-          {
-          std::cout << std::string(md5out,32) << "  " << filename << std::endl;
-          }
-        }
-      return retval;
-      }
-
-    // Command to change directory and run a program.
-    else if (args[1] == "chdir" && args.size() >= 4)
-      {
-      std::string directory = args[2];
-      if(!cmSystemTools::FileExists(directory.c_str()))
-        {
-        cmSystemTools::Error("Directory does not exist for chdir command: ",
-                             args[2].c_str());
-        return 1;
-        }
-
-      std::string command = "\"";
-      command += args[3];
-      command += "\"";
-      for (std::string::size_type cc = 4; cc < args.size(); cc ++)
-        {
-        command += " \"";
-        command += args[cc];
-        command += "\"";
-        }
-      int retval = 0;
-      int timeout = 0;
-      if ( cmSystemTools::RunSingleCommand(command.c_str(), 0, &retval,
-             directory.c_str(), cmSystemTools::OUTPUT_NORMAL, timeout) )
-        {
-        return retval;
-        }
-
-      return 1;
-      }
-
-    // Command to start progress for a build
-    else if (args[1] == "cmake_progress_start" && args.size() == 4)
-      {
-      // basically remove the directory
-      std::string dirName = args[2];
-      dirName += "/Progress";
-      cmSystemTools::RemoveADirectory(dirName.c_str());
-
-      // is the last argument a filename that exists?
-      FILE *countFile = cmsys::SystemTools::Fopen(args[3].c_str(),"r");
-      int count;
-      if (countFile)
-        {
-        if (1!=fscanf(countFile,"%i",&count))
-          {
-          cmSystemTools::Message("Could not read from count file.");
-          }
-        fclose(countFile);
-        }
-      else
-        {
-        count = atoi(args[3].c_str());
-        }
-      if (count)
-        {
-        cmSystemTools::MakeDirectory(dirName.c_str());
-        // write the count into the directory
-        std::string fName = dirName;
-        fName += "/count.txt";
-        FILE *progFile = cmsys::SystemTools::Fopen(fName.c_str(),"w");
-        if (progFile)
-          {
-          fprintf(progFile,"%i\n",count);
-          fclose(progFile);
-          }
-        }
-      return 0;
-      }
-
-    // Command to report progress for a build
-    else if (args[1] == "cmake_progress_report" && args.size() >= 3)
-      {
-      std::string dirName = args[2];
-      dirName += "/Progress";
-      std::string fName;
-      FILE *progFile;
-
-      // read the count
-      fName = dirName;
-      fName += "/count.txt";
-      progFile = cmsys::SystemTools::Fopen(fName.c_str(),"r");
-      int count = 0;
-      if (!progFile)
-        {
-        return 0;
-        }
-      else
-        {
-        if (1!=fscanf(progFile,"%i",&count))
-          {
-          cmSystemTools::Message("Could not read from progress file.");
-          }
-        fclose(progFile);
-        }
-      unsigned int i;
-      for (i = 3; i < args.size(); ++i)
-        {
-        fName = dirName;
-        fName += "/";
-        fName += args[i];
-        progFile = cmsys::SystemTools::Fopen(fName.c_str(),"w");
-        if (progFile)
-          {
-          fprintf(progFile,"empty");
-          fclose(progFile);
-          }
-        }
-      int fileNum = static_cast<int>
-        (cmsys::Directory::GetNumberOfFilesInDirectory(dirName.c_str()));
-      if (count > 0)
-        {
-        // print the progress
-        fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
-        }
-      return 0;
-      }
-
-    // Command to create a symbolic link.  Fails on platforms not
-    // supporting them.
-    else if (args[1] == "create_symlink" && args.size() == 4)
-      {
-      const char* destinationFileName = args[3].c_str();
-      if((cmSystemTools::FileExists(destinationFileName) ||
-          cmSystemTools::FileIsSymlink(destinationFileName)) &&
-         !cmSystemTools::RemoveFile(destinationFileName))
-        {
-        std::string emsg = cmSystemTools::GetLastSystemError();
-        std::cerr <<
-          "failed to create symbolic link '" << destinationFileName <<
-          "' because existing path cannot be removed: " << emsg << "\n";
-        return 1;
-        }
-      if(!cmSystemTools::CreateSymlink(args[2].c_str(), args[3].c_str()))
-        {
-        std::string emsg = cmSystemTools::GetLastSystemError();
-        std::cerr <<
-          "failed to create symbolic link '" << destinationFileName <<
-          "': " << emsg << "\n";
-        return 1;
-        }
-      return 0;
-      }
-
-    // Internal CMake shared library support.
-    else if (args[1] == "cmake_symlink_library" && args.size() == 5)
-      {
-      return cmcmd::SymlinkLibrary(args);
-      }
-    // Internal CMake versioned executable support.
-    else if (args[1] == "cmake_symlink_executable" && args.size() == 4)
-      {
-      return cmcmd::SymlinkExecutable(args);
-      }
-
-#if defined(CMAKE_HAVE_VS_GENERATORS)
-    // Internal CMake support for calling Visual Studio macros.
-    else if (args[1] == "cmake_call_visual_studio_macro" && args.size() >= 4)
-      {
-      // args[2] = full path to .sln file or "ALL"
-      // args[3] = name of Visual Studio macro to call
-      // args[4..args.size()-1] = [optional] args for Visual Studio macro
-
-      std::string macroArgs;
-
-      if (args.size() > 4)
-        {
-        macroArgs = args[4];
-
-        for (size_t i = 5; i < args.size(); ++i)
-          {
-          macroArgs += " ";
-          macroArgs += args[i];
-          }
-        }
-
-      return cmCallVisualStudioMacro::CallMacro(args[2], args[3],
-        macroArgs, true);
-      }
+  flags = nonblock;
+  return ioctl(sockfd, FIONBIO, &flags);
+#undef SETBLOCK
+#define SETBLOCK 2
 #endif
 
-    // Internal CMake dependency scanning support.
-    else if (args[1] == "cmake_depends" && args.size() >= 6)
-      {
-      // Use the make system's VERBOSE environment variable to enable
-      // verbose output. This can be skipped by also setting CMAKE_NO_VERBOSE
-      // (which is set by the Eclipse and KDevelop generators).
-      bool verbose = ((cmSystemTools::GetEnv("VERBOSE") != 0)
-                       && (cmSystemTools::GetEnv("CMAKE_NO_VERBOSE") == 0));
+#if defined(HAVE_IOCTLSOCKET) && (SETBLOCK == 0)
+  /* Windows? */
+  unsigned long flags;
+  flags = nonblock;
 
-      // Create a cmake object instance to process dependencies.
-      cmake cm;
-      std::string gen;
-      std::string homeDir;
-      std::string startDir;
-      std::string homeOutDir;
-      std::string startOutDir;
-      std::string depInfo;
-      bool color = false;
-      if(args.size() >= 8)
-        {
-        // Full signature:
-        //
-        //   -E cmake_depends <generator>
-        //                    <home-src-dir> <start-src-dir>
-        //                    <home-out-dir> <start-out-dir>
-        //                    <dep-info> [--color=$(COLOR)]
-        //
-        // All paths are provided.
-        gen = args[2];
-        homeDir = args[3];
-        startDir = args[4];
-        homeOutDir = args[5];
-        startOutDir = args[6];
-        depInfo = args[7];
-        if(args.size() >= 9 &&
-           args[8].length() >= 8 &&
-           args[8].substr(0, 8) == "--color=")
-          {
-          // Enable or disable color based on the switch value.
-          color = (args[8].size() == 8 ||
-                   cmSystemTools::IsOn(args[8].substr(8).c_str()));
-          }
-        }
-      else
-        {
-        // Support older signature for existing makefiles:
-        //
-        //   -E cmake_depends <generator>
-        //                    <home-out-dir> <start-out-dir>
-        //                    <dep-info>
-        //
-        // Just pretend the source directories are the same as the
-        // binary directories so at least scanning will work.
-        gen = args[2];
-        homeDir = args[3];
-        startDir = args[4];
-        homeOutDir = args[3];
-        startOutDir = args[3];
-        depInfo = args[5];
-        }
-
-      // Create a local generator configured for the directory in
-      // which dependencies will be scanned.
-      homeDir = cmSystemTools::CollapseFullPath(homeDir.c_str());
-      startDir = cmSystemTools::CollapseFullPath(startDir.c_str());
-      homeOutDir = cmSystemTools::CollapseFullPath(homeOutDir.c_str());
-      startOutDir = cmSystemTools::CollapseFullPath(startOutDir.c_str());
-      cm.SetHomeDirectory(homeDir);
-      cm.SetStartDirectory(startDir);
-      cm.SetHomeOutputDirectory(homeOutDir);
-      cm.SetStartOutputDirectory(startOutDir);
-      if(cmGlobalGenerator* ggd = cm.CreateGlobalGenerator(gen))
-        {
-        cm.SetGlobalGenerator(ggd);
-        cmsys::auto_ptr<cmLocalGenerator> lgd(ggd->CreateLocalGenerator());
-        lgd->GetMakefile()->SetStartDirectory(startDir);
-        lgd->GetMakefile()->SetStartOutputDirectory(startOutDir);
-        lgd->GetMakefile()->MakeStartDirectoriesCurrent();
-
-        // Actually scan dependencies.
-        return lgd->UpdateDependencies(depInfo.c_str(),
-                                       verbose, color)? 0 : 2;
-        }
-      return 1;
-      }
-
-    // Internal CMake link script support.
-    else if (args[1] == "cmake_link_script" && args.size() >= 3)
-      {
-      return cmcmd::ExecuteLinkScript(args);
-      }
-
-    // Internal CMake unimplemented feature notification.
-    else if (args[1] == "cmake_unimplemented_variable")
-      {
-      std::cerr << "Feature not implemented for this platform.";
-      if(args.size() == 3)
-        {
-        std::cerr << "  Variable " << args[2] << " is not set.";
-        }
-      std::cerr << std::endl;
-      return 1;
-      }
-    else if (args[1] == "vs_link_exe")
-      {
-      return cmcmd::VisualStudioLink(args, 1);
-      }
-    else if (args[1] == "vs_link_dll")
-      {
-      return cmcmd::VisualStudioLink(args, 2);
-      }
-#ifdef CMAKE_BUILD_WITH_CMAKE
-    // Internal CMake color makefile support.
-    else if (args[1] == "cmake_echo_color")
-      {
-      return cmcmd::ExecuteEchoColor(args);
-      }
-    else if (args[1] == "cmake_autogen" && args.size() >= 4)
-      {
-        cmQtAutoGenerators autogen;
-        std::string const& config = args[3];
-        bool autogenSuccess = autogen.Run(args[2], config);
-        return autogenSuccess ? 0 : 1;
-      }
+  return ioctlsocket(sockfd, FIONBIO, &flags);
+#undef SETBLOCK
+#define SETBLOCK 3
 #endif
 
-    // Tar files
-    else if (args[1] == "tar" && args.size() > 3)
-      {
-      std::string flags = args[2];
-      std::string outFile = args[3];
-      std::vector<std::string> files;
-      for (std::string::size_type cc = 4; cc < args.size(); cc ++)
-        {
-        files.push_back(args[cc]);
-        }
-      bool gzip = false;
-      bool bzip2 = false;
-      bool verbose = false;
-      if ( flags.find_first_of('j') != flags.npos )
-        {
-        bzip2 = true;
-        }
-      if ( flags.find_first_of('z') != flags.npos )
-        {
-        gzip = true;
-        }
-      if ( flags.find_first_of('v') != flags.npos )
-        {
-        verbose = true;
-        }
+#if defined(HAVE_IOCTLSOCKET_CASE) && (SETBLOCK == 0)
+  /* presumably for Amiga */
+  return IoctlSocket(sockfd, FIONBIO, (long)nonblock);
+#undef SETBLOCK
+#define SETBLOCK 4
+#endif
 
-      if ( flags.find_first_of('t') != flags.npos )
-        {
-        if ( !cmSystemTools::ListTar(outFile.c_str(), gzip, verbose) )
-          {
-          cmSystemTools::Error("Problem creating tar: ", outFile.c_str());
-          return 1;
-          }
-        }
-      else if ( flags.find_first_of('c') != flags.npos )
-        {
-        if ( !cmSystemTools::CreateTar(
-               outFile.c_str(), files, gzip, bzip2, verbose) )
-          {
-          cmSystemTools::Error("Problem creating tar: ", outFile.c_str());
-          return 1;
-          }
-        }
-      else if ( flags.find_first_of('x') != flags.npos )
-        {
-        if ( !cmSystemTools::ExtractTar(
-            outFile.c_str(), gzip, verbose) )
-          {
-          cmSystemTools::Error("Problem extracting tar: ", outFile.c_str());
-          return 1;
-          }
+#if defined(HAVE_SO_NONBLOCK) && (SETBLOCK == 0)
+  /* BeOS */
+  long b = nonblock ? 1 : 0;
+  return setsockopt(sockfd, SOL_SOCKET, SO_NONBLOCK, &b, sizeof(b));
+#undef SETBLOCK
+#define SETBLOCK 5
+#endif
+
+#ifdef HAVE_DISABLED_NONBLOCKING
+  return 0; /* returns success */
+#undef SETBLOCK
+#define SETBLOCK 6
+#endif
+
+#if (SETBLOCK == 0)
+#error "no non-blocking method was found/used/set"
+#endif
+}
+
+/*
+ * waitconnect() waits for a TCP connect on the given socket for the specified
+ * number if milliseconds. It returns:
+ * 0    fine connect
+ * -1   select() error
+ * 1    select() timeout
+ * 2    select() returned with an error condition fd_set
+ */
+
+#define WAITCONN_CONNECTED     0
+#define WAITCONN_SELECT_ERROR -1
+#define WAITCONN_TIMEOUT       1
+#define WAITCONN_FDSET_ERROR   2
+
+static
+int waitconnect(curl_socket_t sockfd, /* socket */
+                long timeout_msec)
+{
+  int rc;
+#ifdef mpeix
+  /* Call this function once now, and ignore the results. We do this to
+     "clear" the error state on the socket so that we can later read it
+     reliably. This is reported necessary on the MPE/iX operating system. */
+  (void)verifyconnect(sockfd, NULL);
+#endif
+
+  /* now select() until we get connect or timeout */
+  rc = Curl_select(CURL_SOCKET_BAD, sockfd, (int)timeout_msec);
+  if(-1 == rc)
+    /* error, no connect here, try next */
+    return WAITCONN_SELECT_ERROR;
+
+  else if(0 == rc)
+    /* timeout, no connect today */
+    return WAITCONN_TIMEOUT;
+
+  if(rc & CSELECT_ERR)
+    /* error condition caught */
+    return WAITCONN_FDSET_ERROR;
+
+  /* we have a connect! */
+  return WAITCONN_CONNECTED;
+}
+
+static CURLcode bindlocal(struct connectdata *conn,
+                          curl_socket_t sockfd)
+{
+  struct SessionHandle *data = conn->data;
+  struct sockaddr_in me;
+  struct sockaddr *sock = NULL;  /* bind to this address */
+  socklen_t socksize; /* size of the data sock points to */
+  unsigned short port = data->set.localport; /* use this port number, 0 for
+                                                "random" */
+  /* how many port numbers to try to bind to, increasing one at a time */
+  int portnum = data->set.localportrange;
+
+  /*************************************************************
+   * Select device to bind socket to
+   *************************************************************/
+  if (data->set.device && (strlen(data->set.device)<255) ) {
+    struct Curl_dns_entry *h=NULL;
+    char myhost[256] = "";
+    in_addr_t in;
+    int rc;
+    bool was_iface = FALSE;
+
+    /* First check if the given name is an IP address */
+    in=inet_addr(data->set.device);
+
+    if((in == CURL_INADDR_NONE) &&
+       Curl_if2ip(data->set.device, myhost, sizeof(myhost))) {
+      /*
+       * We now have the numerical IPv4-style x.y.z.w in the 'myhost' buffer
+       */
+      rc = Curl_resolv(conn, myhost, 0, &h);
+      if(rc == CURLRESOLV_PENDING)
+        (void)Curl_wait_for_resolv(conn, &h);
+
+      if(h) {
+        was_iface = TRUE;
+        Curl_resolv_unlock(data, h);
+      }
+    }
+
+    if(!was_iface) {
+      /*
+       * This was not an interface, resolve the name as a host name
+       * or IP number
+       */
+      rc = Curl_resolv(conn, data->set.device, 0, &h);
+      if(rc == CURLRESOLV_PENDING)
+        (void)Curl_wait_for_resolv(conn, &h);
+
+      if(h) {
+        if(in == CURL_INADDR_NONE)
+          /* convert the resolved address, sizeof myhost >= INET_ADDRSTRLEN */
+          Curl_inet_ntop(h->addr->ai_addr->sa_family,
+                         &((struct sockaddr_in*)h->addr->ai_addr)->sin_addr,
+                         myhost, sizeof myhost);
+        else
+          /* we know data->set.device is shorter than the myhost array */
+          strcpy(myhost, data->set.device);
+        Curl_resolv_unlock(data, h);
+      }
+    }
+
+    if(! *myhost) {
+      /* need to fix this
+         h=Curl_gethost(data,
+         getmyhost(*myhost,sizeof(myhost)),
+         hostent_buf,
+         sizeof(hostent_buf));
+      */
+      failf(data, "Couldn't bind to '%s'", data->set.device);
+      return CURLE_HTTP_PORT_FAILED;
+    }
+
+    infof(data, "Bind local address to %s\n", myhost);
+
+#ifdef SO_BINDTODEVICE
+    /* I am not sure any other OSs than Linux that provide this feature, and
+     * at the least I cannot test. --Ben
+     *
+     * This feature allows one to tightly bind the local socket to a
+     * particular interface.  This will force even requests to other local
+     * interfaces to go out the external interface.
+     *
+     */
+    if (was_iface) {
+      /* Only bind to the interface when specified as interface, not just as a
+       * hostname or ip address.
+       */
+      if (setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE,
+                     data->set.device, strlen(data->set.device)+1) != 0) {
+        /* printf("Failed to BINDTODEVICE, socket: %d  device: %s error: %s\n",
+           sockfd, data->set.device, Curl_strerror(Curl_sockerrno())); */
+        infof(data, "SO_BINDTODEVICE %s failed\n",
+              data->set.device);
+        /* This is typically "errno 1, error: Operation not permitted" if
+           you're not running as root or another suitable privileged user */
+      }
+    }
+#endif
+
+    in=inet_addr(myhost);
+    if (CURL_INADDR_NONE == in) {
+      failf(data,"couldn't find my own IP address (%s)", myhost);
+      return CURLE_HTTP_PORT_FAILED;
+    } /* end of inet_addr */
+
+    if ( h ) {
+      Curl_addrinfo *addr = h->addr;
+      sock = addr->ai_addr;
+      socksize = addr->ai_addrlen;
+    }
+    else
+      return CURLE_HTTP_PORT_FAILED;
+
+  }
+  else if(port) {
+    /* if a local port number is requested but no local IP, extract the
+       address from the socket */
+    memset(&me, 0, sizeof(struct sockaddr));
+    me.sin_family = AF_INET;
+    me.sin_addr.s_addr = INADDR_ANY;
+
+    sock = (struct sockaddr *)&me;
+    socksize = sizeof(struct sockaddr);
+
+  }
+  else
+    /* no local kind of binding was requested */
+    return CURLE_OK;
+
+  do {
+
+    /* Set port number to bind to, 0 makes the system pick one */
+    if(sock->sa_family == AF_INET)
+      ((struct sockaddr_in *)sock)->sin_port = htons(port);
+#ifdef ENABLE_IPV6
+    else
+      ((struct sockaddr_in6 *)sock)->sin6_port = htons(port);
+#endif
+
+    if( bind(sockfd, sock, socksize) >= 0) {
+      /* we succeeded to bind */
+      struct Curl_sockaddr_storage add;
+      socklen_t size;
+
+      size = sizeof(add);
+      if(getsockname(sockfd, (struct sockaddr *) &add, &size) < 0) {
+        failf(data, "getsockname() failed");
+        return CURLE_HTTP_PORT_FAILED;
+      }
+      /* We re-use/clobber the port variable here below */
+      if(((struct sockaddr *)&add)->sa_family == AF_INET)
+        port = ntohs(((struct sockaddr_in *)&add)->sin_port);
+#ifdef ENABLE_IPV6
+      else
+        port = ntohs(((struct sockaddr_in6 *)&add)->sin6_port);
+#endif
+      infof(data, "Local port: %d\n", port);
+      return CURLE_OK;
+    }
+    if(--portnum > 0) {
+      infof(data, "Bind to local port %d failed, trying next\n", port);
+      port++; /* try next port */
+    }
+    else
+      break;
+  } while(1);
+
+  data->state.os_errno = Curl_sockerrno();
+  failf(data, "bind failure: %s",
+        Curl_strerror(conn, data->state.os_errno));
+  return CURLE_HTTP_PORT_FAILED;
+
+}
+
+/*
+ * verifyconnect() returns TRUE if the connect really has happened.
+ */
+static bool verifyconnect(curl_socket_t sockfd, int *error)
+{
+  bool rc = TRUE;
+#ifdef SO_ERROR
+  int err = 0;
+  socklen_t errSize = sizeof(err);
+
 #ifdef WIN32
-        // OK, on windows 7 after we untar some files,
-        // sometimes we can not rename the directory after
-        // the untar is done. This breaks the external project
-        // untar and rename code.  So, by default we will wait
-        // 1/10th of a second after the untar.  If CMAKE_UNTAR_DELAY
-        // is set in the env, its value will be used instead of 100.
-        int delay = 100;
-        const char* delayVar = cmSystemTools::GetEnv("CMAKE_UNTAR_DELAY");
-        if(delayVar)
-          {
-          delay = atoi(delayVar);
-          }
-        if(delay)
-          {
-          cmSystemTools::Delay(delay);
-          }
-#endif
-        }
-      return 0;
-      }
+  /*
+   * In October 2003 we effectively nullified this function on Windows due to
+   * problems with it using all CPU in multi-threaded cases.
+   *
+   * In May 2004, we bring it back to offer more info back on connect failures.
+   * Gisle Vanem could reproduce the former problems with this function, but
+   * could avoid them by adding this SleepEx() call below:
+   *
+   *    "I don't have Rational Quantify, but the hint from his post was
+   *    ntdll::NtRemoveIoCompletion(). So I'd assume the SleepEx (or maybe
+   *    just Sleep(0) would be enough?) would release whatever
+   *    mutex/critical-section the ntdll call is waiting on.
+   *
+   *    Someone got to verify this on Win-NT 4.0, 2000."
+   */
 
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-    // Internal CMake Fortran module support.
-    else if (args[1] == "cmake_copy_f90_mod" && args.size() >= 4)
-      {
-      return cmDependsFortran::CopyModule(args)? 0 : 1;
-      }
-#endif
-
-#if defined(_WIN32) && !defined(__CYGWIN__)
-    // Write registry value
-    else if (args[1] == "write_regv" && args.size() > 3)
-      {
-      return cmSystemTools::WriteRegistryValue(args[2].c_str(),
-                                               args[3].c_str()) ? 0 : 1;
-      }
-
-    // Delete registry value
-    else if (args[1] == "delete_regv" && args.size() > 2)
-      {
-      return cmSystemTools::DeleteRegistryValue(args[2].c_str()) ? 0 : 1;
-      }
-    // Remove file
-    else if (args[1] == "comspec" && args.size() > 2)
-      {
-      std::cerr << "Win9x helper \"cmake -E comspec\" no longer supported\n";
-      return 1;
-      }
-    else if (args[1] == "env_vs8_wince" && args.size() == 3)
-      {
-      return cmcmd::WindowsCEEnvironment("8.0", args[2]);
-      }
-    else if (args[1] == "env_vs9_wince" && args.size() == 3)
-      {
-      return cmcmd::WindowsCEEnvironment("9.0", args[2]);
-      }
-#endif
-    }
-
-  ::CMakeCommandUsage(args[0].c_str());
-  return 1;
-}
-
-//----------------------------------------------------------------------------
-int cmcmd::SymlinkLibrary(std::vector<std::string>& args)
-{
-  int result = 0;
-  std::string realName = args[2];
-  std::string soName = args[3];
-  std::string name = args[4];
-  if(soName != realName)
-    {
-    if(!cmcmd::SymlinkInternal(realName, soName))
-      {
-      cmSystemTools::ReportLastSystemError("cmake_symlink_library");
-      result = 1;
-      }
-    }
-  if(name != soName)
-    {
-    if(!cmcmd::SymlinkInternal(soName, name))
-      {
-      cmSystemTools::ReportLastSystemError("cmake_symlink_library");
-      result = 1;
-      }
-    }
-  return result;
-}
-
-//----------------------------------------------------------------------------
-int cmcmd::SymlinkExecutable(std::vector<std::string>& args)
-{
-  int result = 0;
-  std::string realName = args[2];
-  std::string name = args[3];
-  if(name != realName)
-    {
-    if(!cmcmd::SymlinkInternal(realName, name))
-      {
-      cmSystemTools::ReportLastSystemError("cmake_symlink_executable");
-      result = 1;
-      }
-    }
-  return result;
-}
-
-//----------------------------------------------------------------------------
-bool cmcmd::SymlinkInternal(std::string const& file, std::string const& link)
-{
-  if(cmSystemTools::FileExists(link.c_str()) ||
-     cmSystemTools::FileIsSymlink(link.c_str()))
-    {
-    cmSystemTools::RemoveFile(link.c_str());
-    }
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  return cmSystemTools::CopyFileAlways(file.c_str(), link.c_str());
+#ifdef _WIN32_WCE
+  Sleep(0);
 #else
-  std::string linktext = cmSystemTools::GetFilenameName(file);
-  return cmSystemTools::CreateSymlink(linktext.c_str(), link.c_str());
+  SleepEx(0, FALSE);
+#endif
+
+#endif
+
+  if( -1 == getsockopt(sockfd, SOL_SOCKET, SO_ERROR,
+                       (void *)&err, &errSize))
+    err = Curl_sockerrno();
+
+#ifdef _WIN32_WCE
+  /* Always returns this error, bug in CE? */
+  if(WSAENOPROTOOPT==err)
+    err=0;
+#endif
+
+  if ((0 == err) || (EISCONN == err))
+    /* we are connected, awesome! */
+    rc = TRUE;
+  else
+    /* This wasn't a successful connect */
+    rc = FALSE;
+  if (error)
+    *error = err;
+#else
+  (void)sockfd;
+  if (error)
+    *error = Curl_sockerrno();
+#endif
+  return rc;
+}
+
+CURLcode Curl_store_ip_addr(struct connectdata *conn)
+{
+  char addrbuf[256];
+  Curl_printable_address(conn->ip_addr, addrbuf, sizeof(addrbuf));
+
+  /* save the string */
+  Curl_safefree(conn->ip_addr_str);
+  conn->ip_addr_str = strdup(addrbuf);
+  if(!conn->ip_addr_str)
+    return CURLE_OUT_OF_MEMORY; /* FAIL */
+
+#ifdef PF_INET6
+  if(conn->ip_addr->ai_family == PF_INET6)
+    conn->bits.ipv6 = TRUE;
+#endif
+
+  return CURLE_OK;
+}
+
+/* Used within the multi interface. Try next IP address, return TRUE if no
+   more address exists */
+static bool trynextip(struct connectdata *conn,
+                      int sockindex,
+                      bool *connected)
+{
+  curl_socket_t sockfd;
+  Curl_addrinfo *ai;
+
+  /* first close the failed socket */
+  sclose(conn->sock[sockindex]);
+  conn->sock[sockindex] = CURL_SOCKET_BAD;
+  *connected = FALSE;
+
+  if(sockindex != FIRSTSOCKET)
+    return TRUE; /* no next */
+
+  /* try the next address */
+  ai = conn->ip_addr->ai_next;
+
+  while (ai) {
+    sockfd = singleipconnect(conn, ai, 0L, connected);
+    if(sockfd != CURL_SOCKET_BAD) {
+      /* store the new socket descriptor */
+      conn->sock[sockindex] = sockfd;
+      conn->ip_addr = ai;
+
+      Curl_store_ip_addr(conn);
+      return FALSE;
+    }
+    ai = ai->ai_next;
+  }
+  return TRUE;
+}
+
+/*
+ * Curl_is_connected() is used from the multi interface to check if the
+ * firstsocket has connected.
+ */
+
+CURLcode Curl_is_connected(struct connectdata *conn,
+                           int sockindex,
+                           bool *connected)
+{
+  int rc;
+  struct SessionHandle *data = conn->data;
+  CURLcode code = CURLE_OK;
+  curl_socket_t sockfd = conn->sock[sockindex];
+  long allow = DEFAULT_CONNECT_TIMEOUT;
+  long allow_total = 0;
+  long has_passed;
+
+  curlassert(sockindex >= FIRSTSOCKET && sockindex <= SECONDARYSOCKET);
+
+  *connected = FALSE; /* a very negative world view is best */
+
+  /* Evaluate in milliseconds how much time that has passed */
+  has_passed = Curl_tvdiff(Curl_tvnow(), data->progress.t_startsingle);
+
+  /* subtract the most strict timeout of the ones */
+  if(data->set.timeout && data->set.connecttimeout) {
+    if (data->set.timeout < data->set.connecttimeout)
+      allow_total = allow = data->set.timeout*1000;
+    else
+      allow = data->set.connecttimeout*1000;
+  }
+  else if(data->set.timeout) {
+    allow_total = allow = data->set.timeout*1000;
+  }
+  else if(data->set.connecttimeout) {
+    allow = data->set.connecttimeout*1000;
+  }
+
+  if(has_passed > allow ) {
+    /* time-out, bail out, go home */
+    failf(data, "Connection time-out after %ld ms", has_passed);
+    return CURLE_OPERATION_TIMEOUTED;
+  }
+  if(conn->bits.tcpconnect) {
+    /* we are connected already! */
+    Curl_expire(data, allow_total);
+    *connected = TRUE;
+    return CURLE_OK;
+  }
+
+  Curl_expire(data, allow);
+
+  /* check for connect without timeout as we want to return immediately */
+  rc = waitconnect(sockfd, 0);
+
+  if(WAITCONN_CONNECTED == rc) {
+    int error;
+    if (verifyconnect(sockfd, &error)) {
+      /* we are connected, awesome! */
+      *connected = TRUE;
+      return CURLE_OK;
+    }
+    /* nope, not connected for real */
+    data->state.os_errno = error;
+    infof(data, "Connection failed\n");
+    if(trynextip(conn, sockindex, connected)) {
+      code = CURLE_COULDNT_CONNECT;
+    }
+  }
+  else if(WAITCONN_TIMEOUT != rc) {
+    int error = 0;
+
+    /* nope, not connected  */
+    if (WAITCONN_FDSET_ERROR == rc) {
+      (void)verifyconnect(sockfd, &error);
+      data->state.os_errno = error;
+      infof(data, "%s\n",Curl_strerror(conn,error));
+    }
+    else
+      infof(data, "Connection failed\n");
+
+    if(trynextip(conn, sockindex, connected)) {
+      error = Curl_sockerrno();
+      data->state.os_errno = error;
+      failf(data, "Failed connect to %s:%d; %s",
+            conn->host.name, conn->port, Curl_strerror(conn,error));
+      code = CURLE_COULDNT_CONNECT;
+    }
+  }
+  /*
+   * If the connection failed here, we should attempt to connect to the "next
+   * address" for the given host.
+   */
+
+  return code;
+}
+
+static void tcpnodelay(struct connectdata *conn,
+                       curl_socket_t sockfd)
+{
+#ifdef TCP_NODELAY
+  struct SessionHandle *data= conn->data;
+  socklen_t onoff = (socklen_t) data->set.tcp_nodelay;
+  int proto = IPPROTO_TCP;
+
+#ifdef HAVE_GETPROTOBYNAME
+  struct protoent *pe = getprotobyname("tcp");
+  if (pe)
+    proto = pe->p_proto;
+#endif
+
+  if(setsockopt(sockfd, proto, TCP_NODELAY, (void *)&onoff,
+                sizeof(onoff)) < 0)
+    infof(data, "Could not set TCP_NODELAY: %s\n",
+          Curl_strerror(conn, Curl_sockerrno()));
+  else
+    infof(data,"TCP_NODELAY set\n");
+#else
+  (void)conn;
+  (void)sockfd;
 #endif
 }
 
-//----------------------------------------------------------------------------
-#ifdef CMAKE_BUILD_WITH_CMAKE
-int cmcmd::ExecuteEchoColor(std::vector<std::string>& args)
+#ifdef SO_NOSIGPIPE
+/* The preferred method on Mac OS X (10.2 and later) to prevent SIGPIPEs when
+   sending data to a dead peer (instead of relying on the 4th argument to send
+   being MSG_NOSIGNAL). Possibly also existing and in use on other BSD
+   systems? */
+static void nosigpipe(struct connectdata *conn,
+                      curl_socket_t sockfd)
 {
-  // The arguments are
-  //   argv[0] == <cmake-executable>
-  //   argv[1] == cmake_echo_color
-
-  bool enabled = true;
-  int color = cmsysTerminal_Color_Normal;
-  bool newline = true;
-  for(unsigned int i=2; i < args.size(); ++i)
-    {
-    if(args[i].find("--switch=") == 0)
-      {
-      // Enable or disable color based on the switch value.
-      std::string value = args[i].substr(9);
-      if(!value.empty())
-        {
-        if(cmSystemTools::IsOn(value.c_str()))
-          {
-          enabled = true;
-          }
-        else
-          {
-          enabled = false;
-          }
-        }
-      }
-    else if(args[i] == "--normal")
-      {
-      color = cmsysTerminal_Color_Normal;
-      }
-    else if(args[i] == "--black")
-      {
-      color = cmsysTerminal_Color_ForegroundBlack;
-      }
-    else if(args[i] == "--red")
-      {
-      color = cmsysTerminal_Color_ForegroundRed;
-      }
-    else if(args[i] == "--green")
-      {
-      color = cmsysTerminal_Color_ForegroundGreen;
-      }
-    else if(args[i] == "--yellow")
-      {
-      color = cmsysTerminal_Color_ForegroundYellow;
-      }
-    else if(args[i] == "--blue")
-      {
-      color = cmsysTerminal_Color_ForegroundBlue;
-      }
-    else if(args[i] == "--magenta")
-      {
-      color = cmsysTerminal_Color_ForegroundMagenta;
-      }
-    else if(args[i] == "--cyan")
-      {
-      color = cmsysTerminal_Color_ForegroundCyan;
-      }
-    else if(args[i] == "--white")
-      {
-      color = cmsysTerminal_Color_ForegroundWhite;
-      }
-    else if(args[i] == "--bold")
-      {
-      color |= cmsysTerminal_Color_ForegroundBold;
-      }
-    else if(args[i] == "--no-newline")
-      {
-      newline = false;
-      }
-    else if(args[i] == "--newline")
-      {
-      newline = true;
-      }
-    else
-      {
-      // Color is enabled.  Print with the current color.
-      cmSystemTools::MakefileColorEcho(color, args[i].c_str(),
-                                       newline, enabled);
-      }
-    }
-
-  return 0;
+  struct SessionHandle *data= conn->data;
+  int onoff = 1;
+  if(setsockopt(sockfd, SOL_SOCKET, SO_NOSIGPIPE, (void *)&onoff,
+                sizeof(onoff)) < 0)
+    infof(data, "Could not set SO_NOSIGPIPE: %s\n",
+          Curl_strerror(conn, Curl_sockerrno()));
 }
 #else
-int cmcmd::ExecuteEchoColor(std::vector<std::string>&)
-{
-  return 1;
-}
+#define nosigpipe(x,y)
 #endif
 
-//----------------------------------------------------------------------------
-int cmcmd::ExecuteLinkScript(std::vector<std::string>& args)
+/* singleipconnect() connects to the given IP only, and it may return without
+   having connected if used from the multi interface. */
+static curl_socket_t
+singleipconnect(struct connectdata *conn,
+                const Curl_addrinfo *ai,
+                long timeout_ms,
+                bool *connected)
 {
-  // The arguments are
-  //   argv[0] == <cmake-executable>
-  //   argv[1] == cmake_link_script
-  //   argv[2] == <link-script-name>
-  //   argv[3] == --verbose=?
-  bool verbose = false;
-  if(args.size() >= 4)
-    {
-    if(args[3].find("--verbose=") == 0)
-      {
-      if(!cmSystemTools::IsOff(args[3].substr(10).c_str()))
-        {
-        verbose = true;
-        }
-      }
+  char addr_buf[128];
+  int rc;
+  int error;
+  bool isconnected;
+  struct SessionHandle *data = conn->data;
+  curl_socket_t sockfd;
+  CURLcode res;
+
+  sockfd = socket(ai->ai_family, conn->socktype, ai->ai_protocol);
+  if (sockfd == CURL_SOCKET_BAD)
+    return CURL_SOCKET_BAD;
+
+  *connected = FALSE; /* default is not connected */
+
+  Curl_printable_address(ai, addr_buf, sizeof(addr_buf));
+  infof(data, "  Trying %s... ", addr_buf);
+
+  if(data->set.tcp_nodelay)
+    tcpnodelay(conn, sockfd);
+
+  nosigpipe(conn, sockfd);
+
+  if(data->set.fsockopt) {
+    /* activate callback for setting socket options */
+    error = data->set.fsockopt(data->set.sockopt_client,
+                               sockfd,
+                               CURLSOCKTYPE_IPCXN);
+    if (error) {
+      sclose(sockfd); /* close the socket and bail out */
+      return CURL_SOCKET_BAD;
     }
+  }
 
-  // Allocate a process instance.
-  cmsysProcess* cp = cmsysProcess_New();
-  if(!cp)
-    {
-    std::cerr << "Error allocating process instance in link script."
-              << std::endl;
-    return 1;
-    }
+  /* possibly bind the local end to an IP, interface or port */
+  res = bindlocal(conn, sockfd);
+  if(res) {
+    sclose(sockfd); /* close socket and bail out */
+    return CURL_SOCKET_BAD;
+  }
 
-  // Children should share stdout and stderr with this process.
-  cmsysProcess_SetPipeShared(cp, cmsysProcess_Pipe_STDOUT, 1);
-  cmsysProcess_SetPipeShared(cp, cmsysProcess_Pipe_STDERR, 1);
+  /* set socket non-blocking */
+  Curl_nonblock(sockfd, TRUE);
 
-  // Run the command lines verbatim.
-  cmsysProcess_SetOption(cp, cmsysProcess_Option_Verbatim, 1);
+  /* Connect TCP sockets, bind UDP */
+  if(conn->socktype == SOCK_STREAM)
+    rc = connect(sockfd, ai->ai_addr, ai->ai_addrlen);
+  else
+    rc = 0;
 
-  // Read command lines from the script.
-  cmsys::ifstream fin(args[2].c_str());
-  if(!fin)
-    {
-    std::cerr << "Error opening link script \""
-              << args[2] << "\"" << std::endl;
-    return 1;
-    }
+  if(-1 == rc) {
+    error = Curl_sockerrno();
 
-  // Run one command at a time.
-  std::string command;
-  int result = 0;
-  while(result == 0 && cmSystemTools::GetLineFromStream(fin, command))
-    {
-    // Skip empty command lines.
-    if(command.find_first_not_of(" \t") == command.npos)
-      {
-      continue;
-      }
-
-    // Setup this command line.
-    const char* cmd[2] = {command.c_str(), 0};
-    cmsysProcess_SetCommand(cp, cmd);
-
-    // Report the command if verbose output is enabled.
-    if(verbose)
-      {
-      std::cout << command << std::endl;
-      }
-
-    // Run the command and wait for it to exit.
-    cmsysProcess_Execute(cp);
-    cmsysProcess_WaitForExit(cp, 0);
-
-    // Report failure if any.
-    switch(cmsysProcess_GetState(cp))
-      {
-      case cmsysProcess_State_Exited:
-        {
-        int value = cmsysProcess_GetExitValue(cp);
-        if(value != 0)
-          {
-          result = value;
-          }
-        }
-        break;
-      case cmsysProcess_State_Exception:
-        std::cerr << "Error running link command: "
-                  << cmsysProcess_GetExceptionString(cp) << std::endl;
-        result = 1;
-        break;
-      case cmsysProcess_State_Error:
-        std::cerr << "Error running link command: "
-                  << cmsysProcess_GetErrorString(cp) << std::endl;
-        result = 2;
-        break;
-      default:
-        break;
-      };
-    }
-
-  // Free the process instance.
-  cmsysProcess_Delete(cp);
-
-  // Return the final resulting return value.
-  return result;
-}
-
-//----------------------------------------------------------------------------
-int cmcmd::WindowsCEEnvironment(const char* version, const std::string& name)
-{
-#if defined(CMAKE_HAVE_VS_GENERATORS)
-  cmVisualStudioWCEPlatformParser parser(name.c_str());
-  parser.ParseVersion(version);
-  if (parser.Found())
-    {
-    std::cout << "@echo off" << std::endl;
-    std::cout << "echo Environment Selection: " << name << std::endl;
-    std::cout << "set PATH=" << parser.GetPathDirectories() << std::endl;
-    std::cout << "set INCLUDE=" << parser.GetIncludeDirectories() <<std::endl;
-    std::cout << "set LIB=" << parser.GetLibraryDirectories() <<std::endl;
-    return 0;
-    }
-#else
-  (void)version;
+    switch (error) {
+    case EINPROGRESS:
+    case EWOULDBLOCK:
+#if defined(EAGAIN) && EAGAIN != EWOULDBLOCK
+      /* On some platforms EAGAIN and EWOULDBLOCK are the
+       * same value, and on others they are different, hence
+       * the odd #if
+       */
+    case EAGAIN:
 #endif
+      rc = waitconnect(sockfd, timeout_ms);
+      break;
+    default:
+      /* unknown error, fallthrough and try another address! */
+      failf(data, "Failed to connect to %s: %s",
+            addr_buf, Curl_strerror(conn,error));
+      data->state.os_errno = error;
+      break;
+    }
+  }
 
-  std::cerr << "Could not find " << name;
-  return -1;
-}
+  /* The 'WAITCONN_TIMEOUT == rc' comes from the waitconnect(), and not from
+     connect(). We can be sure of this since connect() cannot return 1. */
+  if((WAITCONN_TIMEOUT == rc) &&
+     (data->state.used_interface == Curl_if_multi)) {
+    /* Timeout when running the multi interface */
+    return sockfd;
+  }
 
-// For visual studio 2005 and newer manifest files need to be embedded into
-// exe and dll's.  This code does that in such a way that incremental linking
-// still works.
-int cmcmd::VisualStudioLink(std::vector<std::string>& args, int type)
-{
-  if(args.size() < 2)
-    {
-    return -1;
-    }
-  bool verbose = false;
-  if(cmSystemTools::GetEnv("VERBOSE"))
-    {
-    verbose = true;
-    }
-  std::vector<std::string> expandedArgs;
-  for(std::vector<std::string>::iterator i = args.begin();
-      i != args.end(); ++i)
-    {
-    // check for nmake temporary files
-    if((*i)[0] == '@' && i->find("@CMakeFiles") != 0 )
-      {
-      cmsys::ifstream fin(i->substr(1).c_str());
-      std::string line;
-      while(cmSystemTools::GetLineFromStream(fin,
-                                             line))
-        {
-        cmSystemTools::ParseWindowsCommandLine(line.c_str(), expandedArgs);
-        }
-      }
-    else
-      {
-      expandedArgs.push_back(*i);
-      }
-    }
-  bool hasIncremental = false;
-  bool hasManifest = true;
-  for(std::vector<std::string>::iterator i = expandedArgs.begin();
-      i != expandedArgs.end(); ++i)
-    {
-    if(cmSystemTools::Strucmp(i->c_str(), "/INCREMENTAL:YES") == 0)
-      {
-      hasIncremental = true;
-      }
-    if(cmSystemTools::Strucmp(i->c_str(), "/INCREMENTAL") == 0)
-      {
-      hasIncremental = true;
-      }
-    if(cmSystemTools::Strucmp(i->c_str(), "/MANIFEST:NO") == 0)
-      {
-      hasManifest = false;
-      }
-    }
-  if(hasIncremental && hasManifest)
-    {
-    if(verbose)
-      {
-      std::cout << "Visual Studio Incremental Link with embedded manifests\n";
-      }
-    return cmcmd::VisualStudioLinkIncremental(expandedArgs, type, verbose);
-    }
-  if(verbose)
-    {
-    if(!hasIncremental)
-      {
-      std::cout << "Visual Studio Non-Incremental Link\n";
-      }
-    else
-      {
-      std::cout << "Visual Studio Incremental Link without manifests\n";
-      }
-    }
-  return cmcmd::VisualStudioLinkNonIncremental(expandedArgs,
-                                               type, hasManifest, verbose);
-}
+  isconnected = verifyconnect(sockfd, &error);
 
-int cmcmd::ParseVisualStudioLinkCommand(std::vector<std::string>& args,
-                                        std::vector<std::string>& command,
-                                        std::string& targetName)
-{
-  std::vector<std::string>::iterator i = args.begin();
-  i++; // skip -E
-  i++; // skip vs_link_dll or vs_link_exe
-  command.push_back(*i);
-  i++; // move past link command
-  for(; i != args.end(); ++i)
-    {
-    command.push_back(*i);
-    if(i->find("/Fe") == 0)
-      {
-      targetName = i->substr(3);
-      }
-    if(i->find("/out:") == 0)
-      {
-      targetName = i->substr(5);
-      }
-    }
-  if(targetName.size() == 0 || command.size() == 0)
-    {
-    return -1;
-    }
-  return 0;
-}
+  if(!rc && isconnected) {
+    /* we are connected, awesome! */
+    *connected = TRUE; /* this is a true connect */
+    infof(data, "connected\n");
+    return sockfd;
+  }
+  else if(WAITCONN_TIMEOUT == rc)
+    infof(data, "Timeout\n");
+  else {
+    data->state.os_errno = error;
+    infof(data, "%s\n", Curl_strerror(conn, error));
+  }
 
-bool cmcmd::RunCommand(const char* comment,
-                       std::vector<std::string>& command,
-                       bool verbose,
-                       int* retCodeOut)
-{
-  if(verbose)
-    {
-    std::cout << comment << ":\n";
-    for(std::vector<std::string>::iterator i = command.begin();
-        i != command.end(); ++i)
-      {
-      std::cout << *i << " ";
-      }
-    std::cout << "\n";
-    }
-  std::string output;
-  int retCode =0;
-  // use rc command to create .res file
-  cmSystemTools::RunSingleCommand(command,
-                                  &output,
-                                  &retCode, 0, cmSystemTools::OUTPUT_NONE);
-  // always print the output of the command, unless
-  // it is the dumb rc command banner, but if the command
-  // returned an error code then print the output anyway as
-  // the banner may be mixed with some other important information.
-  if(output.find("Resource Compiler Version") == output.npos
-     || retCode !=0)
-    {
-    std::cout << output;
-    }
-  // if retCodeOut is requested then always return true
-  // and set the retCodeOut to retCode
-  if(retCodeOut)
-    {
-    *retCodeOut = retCode;
-    return true;
-    }
-  if(retCode != 0)
-    {
-    std::cout << comment << " failed. with " << retCode << "\n";
-    }
-  return retCode == 0;
-}
+  /* connect failed or timed out */
+  sclose(sockfd);
 
-int cmcmd::VisualStudioLinkIncremental(std::vector<std::string>& args,
-                                       int type, bool verbose)
-{
-  // This follows the steps listed here:
-  // http://blogs.msdn.com/zakramer/archive/2006/05/22/603558.aspx
-
-  //    1.  Compiler compiles the application and generates the *.obj files.
-  //    2.  An empty manifest file is generated if this is a clean build and if
-  //    not the previous one is reused.
-  //    3.  The resource compiler (rc.exe) compiles the *.manifest file to a
-  //    *.res file.
-  //    4.  Linker generates the binary (EXE or DLL) with the /incremental
-  //    switch and embeds the dummy manifest file. The linker also generates
-  //    the real manifest file based on the binaries that your binary depends
-  //    on.
-  //    5.  The manifest tool (mt.exe) is then used to generate the final
-  //    manifest.
-
-  // If the final manifest is changed, then 6 and 7 are run, if not
-  // they are skipped, and it is done.
-
-  //    6.  The resource compiler is invoked one more time.
-  //    7.  Finally, the Linker does another incremental link, but since the
-  //    only thing that has changed is the *.res file that contains the
-  //    manifest it is a short link.
-  std::vector<std::string> linkCommand;
-  std::string targetName;
-  if(cmcmd::ParseVisualStudioLinkCommand(args, linkCommand, targetName) == -1)
-    {
-    return -1;
-    }
-  std::string manifestArg = "/MANIFESTFILE:";
-  std::vector<std::string> rcCommand;
-  rcCommand.push_back(cmSystemTools::FindProgram("rc.exe"));
-  std::vector<std::string> mtCommand;
-  mtCommand.push_back(cmSystemTools::FindProgram("mt.exe"));
-  std::string tempManifest;
-  tempManifest = targetName;
-  tempManifest += ".intermediate.manifest";
-  std::string resourceInputFile = targetName;
-  resourceInputFile += ".resource.txt";
-  if(verbose)
-    {
-    std::cout << "Create " << resourceInputFile << "\n";
-    }
-  // Create input file for rc command
-  cmsys::ofstream fout(resourceInputFile.c_str());
-  if(!fout)
-    {
-    return -1;
-    }
-  std::string manifestFile = targetName;
-  manifestFile += ".embed.manifest";
-  std::string fullPath= cmSystemTools::CollapseFullPath(manifestFile.c_str());
-  fout << type << " /* CREATEPROCESS_MANIFEST_RESOURCE_ID "
-    "*/ 24 /* RT_MANIFEST */ " << "\"" << fullPath << "\"";
-  fout.close();
-  manifestArg += tempManifest;
-  // add the manifest arg to the linkCommand
-  linkCommand.push_back("/MANIFEST");
-  linkCommand.push_back(manifestArg);
-  // if manifestFile is not yet created, create an
-  // empty one
-  if(!cmSystemTools::FileExists(manifestFile.c_str()))
-    {
-    if(verbose)
-      {
-      std::cout << "Create empty: " << manifestFile << "\n";
-      }
-    cmsys::ofstream foutTmp(manifestFile.c_str());
-    }
-  std::string resourceFile = manifestFile;
-  resourceFile += ".res";
-  // add the resource file to the end of the link command
-  linkCommand.push_back(resourceFile);
-  std::string outputOpt = "/fo";
-  outputOpt += resourceFile;
-  rcCommand.push_back(outputOpt);
-  rcCommand.push_back(resourceInputFile);
-  // Run rc command to create resource
-  if(!cmcmd::RunCommand("RC Pass 1", rcCommand, verbose))
-    {
-    return -1;
-    }
-  // Now run the link command to link and create manifest
-  if(!cmcmd::RunCommand("LINK Pass 1", linkCommand, verbose))
-    {
-    return -1;
-    }
-  // create mt command
-  std::string outArg("/out:");
-  outArg+= manifestFile;
-  mtCommand.push_back("/nologo");
-  mtCommand.push_back(outArg);
-  mtCommand.push_back("/notify_update");
-  mtCommand.push_back("/manifest");
-  mtCommand.push_back(tempManifest);
-  //  now run mt.exe to create the final manifest file
-  int mtRet =0;
-  cmcmd::RunCommand("MT", mtCommand, verbose, &mtRet);
-  // if mt returns 0, then the manifest was not changed and
-  // we do not need to do another link step
-  if(mtRet == 0)
-    {
-    return 0;
-    }
-  // check for magic mt return value if mt returns the magic number
-  // 1090650113 then it means that it updated the manifest file and we need
-  // to do the final link.  If mt has any value other than 0 or 1090650113
-  // then there was some problem with the command itself and there was an
-  // error so return the error code back out of cmake so make can report it.
-  // (when hosted on a posix system the value is 187)
-  if(mtRet != 1090650113 && mtRet != 187)
-    {
-    return mtRet;
-    }
-  // update the resource file with the new manifest from the mt command.
-  if(!cmcmd::RunCommand("RC Pass 2", rcCommand, verbose))
-    {
-    return -1;
-    }
-  // Run the final incremental link that will put the new manifest resource
-  // into the file incrementally.
-  if(!cmcmd::RunCommand("FINAL LINK", linkCommand, verbose))
-    {
-    return -1;
-    }
-  return 0;
-}
-
-int cmcmd::VisualStudioLinkNonIncremental(std::vector<std::string>& args,
-                                          int type,
-                                          bool hasManifest,
-                                          bool verbose)
-{
-  std::vector<std::string> linkCommand;
-  std::string targetName;
-  if(cmcmd::ParseVisualStudioLinkCommand(args, linkCommand, targetName) == -1)
-    {
-    return -1;
-    }
-  // Run the link command as given
-  if (hasManifest)
-    {
-    linkCommand.push_back("/MANIFEST");
-    }
-  if(!cmcmd::RunCommand("LINK", linkCommand, verbose))
-    {
-    return -1;
-    }
-  if(!hasManifest)
-    {
-    return 0;
-    }
-  std::vector<std::string> mtCommand;
-  mtCommand.push_back(cmSystemTools::FindProgram("mt.exe"));
-  mtCommand.push_back("/nologo");
-  mtCommand.push_back("/manifest");
-  std::string manifestFile = targetName;
-  manifestFile += ".manifest";
-  mtCommand.push_back(manifestFile);
-  std::string outresource = "/outputresource:";
-  outresource += targetName;
-  outresource += ";#";
-  if(type == 1)
-    {
-    outresource += "1";
-    }
-  else if(type == 2)
-    {
-    outresource += "2";
-    }
-  mtCommand.push_back(outresource);
-  // Now use the mt tool to embed the manifest into the exe or dll
-  if(!cmcmd::RunCommand("MT", mtCommand, verbose))
-    {
-    return -1;
-    }
-  return 0;
-}
+  return CURL_SOCKET_BAD;

@@ -1,0 +1,1 @@
+finalizeTokenOk = readToken(comma)

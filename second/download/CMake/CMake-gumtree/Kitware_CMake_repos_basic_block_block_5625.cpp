@@ -1,0 +1,1 @@
+return (char)('A' + in - 'a');

@@ -1,0 +1,1 @@
+conn->in_buffer.eof_flag = 1

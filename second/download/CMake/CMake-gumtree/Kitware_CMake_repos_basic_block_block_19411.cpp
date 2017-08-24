@@ -1,0 +1,1 @@
+pid = waitpid(process->pid, &status, WNOHANG)

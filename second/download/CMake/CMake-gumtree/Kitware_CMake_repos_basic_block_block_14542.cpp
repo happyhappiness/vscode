@@ -1,0 +1,1 @@
+data->xxh32_state = NULL

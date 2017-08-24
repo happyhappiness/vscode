@@ -1,0 +1,1 @@
+(s->tt == NULL) RETURN(BZ_MEM_ERROR)

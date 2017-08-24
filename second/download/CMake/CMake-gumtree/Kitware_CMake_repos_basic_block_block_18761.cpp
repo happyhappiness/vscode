@@ -1,0 +1,1 @@
+r = ioctl(fd, set ? FIOCLEX : FIONCLEX)

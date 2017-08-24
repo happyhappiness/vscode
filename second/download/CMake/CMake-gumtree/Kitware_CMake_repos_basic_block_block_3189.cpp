@@ -1,0 +1,1 @@
+( outStr != NULL ) fclose ( outStr )

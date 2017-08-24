@@ -1,0 +1,1 @@
+s = (size_t)xar->bytes_remaining

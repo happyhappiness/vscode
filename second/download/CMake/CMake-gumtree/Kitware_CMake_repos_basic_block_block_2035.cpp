@@ -1,0 +1,4 @@
+{
+      RegCloseKey(hKey);
+      return true;
+    }

@@ -1,0 +1,1 @@
+r = hfs_write_data_block(a, buff, size)

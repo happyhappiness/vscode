@@ -1,0 +1,1 @@
+archive_write_set_bytes_in_last_block(a, 1)

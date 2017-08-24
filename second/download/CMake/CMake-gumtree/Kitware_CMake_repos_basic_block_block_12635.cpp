@@ -1,0 +1,1 @@
+rar->oldoffset[i] = rar->oldoffset[i-1]

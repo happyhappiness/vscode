@@ -1,0 +1,1 @@
+ret = archive_read_format_rar_read_header(a, a->entry)

@@ -1,0 +1,4 @@
+{
+		*avail = err;
+		return (NULL);
+	}

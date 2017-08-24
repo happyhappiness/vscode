@@ -1,0 +1,3 @@
+{
+      this->Features.HasAPIC = true;
+    }

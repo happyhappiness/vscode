@@ -1,7 +1,6 @@
-		ret = child_write(f, data, buf, length);
-		if (ret == -1 || ret == 0) {
-			archive_set_error(f->archive, EIO,
-			    "Can't write to filter");
-			return (ARCHIVE_FATAL);
-		}
-		length -= ret;
+  return snprintf(p, len, " nghttp2/%s", h2->version_str);
+}
+
+/*
+ * The implementation of nghttp2_send_callback type. Here we write |data| with
+ * size |length| to the network and return the number of bytes actually

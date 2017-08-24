@@ -1,14 +1,8 @@
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::DisplayFinalEntries()
-{
-  fprintf(stderr, "target [%s] links to:\n", this->Target->GetName().c_str());
-  for(std::vector<LinkEntry>::const_iterator lei =
-        this->FinalLinkEntries.begin();
-      lei != this->FinalLinkEntries.end(); ++lei)
-    {
-    if(lei->Target)
-      {
-      fprintf(stderr, "  target [%s]\n", lei->Target->GetName().c_str());
-      }
-    else
-      {
+  this->CTest->EndXML(ostr);
+  char covLogFilename[1024];
+  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
+  cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Close file: "
+    << covLogFilename << std::endl, this->Quiet);
+  ostr.Close();
+}
+

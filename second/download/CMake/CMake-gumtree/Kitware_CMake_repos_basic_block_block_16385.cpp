@@ -1,0 +1,1 @@
+parent_len += np->mb_len + 1

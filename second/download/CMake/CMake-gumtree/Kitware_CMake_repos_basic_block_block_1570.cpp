@@ -1,0 +1,1 @@
+*flagp |= SIMPLE

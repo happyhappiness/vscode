@@ -1,0 +1,1 @@
+archive_entry_set_uname(entry, lha->uname.s)

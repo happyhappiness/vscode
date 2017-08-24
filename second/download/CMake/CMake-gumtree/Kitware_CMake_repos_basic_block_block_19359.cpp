@@ -1,0 +1,1 @@
+return uv__handle_type(handle->accepted_fd);

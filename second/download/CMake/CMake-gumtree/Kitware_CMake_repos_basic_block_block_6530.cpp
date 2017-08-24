@@ -1,0 +1,2 @@
+f(!ctx)
+    return result;

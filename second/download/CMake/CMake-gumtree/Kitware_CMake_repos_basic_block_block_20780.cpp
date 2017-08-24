@@ -1,0 +1,1 @@
+handle->signal_cb(handle, dispatched_signum)

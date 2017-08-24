@@ -1,0 +1,1 @@
+match = (regexec(ap->pRegExp,field_buffer(field,0),0,NULL,0) ? FALSE:TRUE)

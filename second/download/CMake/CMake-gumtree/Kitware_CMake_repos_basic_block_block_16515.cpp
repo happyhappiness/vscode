@@ -1,0 +1,1 @@
+sum += archive_le16dec(wp++)

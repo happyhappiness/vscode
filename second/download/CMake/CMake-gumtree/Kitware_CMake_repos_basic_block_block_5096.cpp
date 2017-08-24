@@ -1,0 +1,1 @@
+return PARSEDATE_FAIL;

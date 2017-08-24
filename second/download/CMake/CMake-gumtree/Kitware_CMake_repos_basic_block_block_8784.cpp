@@ -1,0 +1,1 @@
+archive_entry_free(le->entry)

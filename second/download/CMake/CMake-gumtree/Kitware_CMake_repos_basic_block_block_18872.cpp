@@ -1,0 +1,1 @@
+(kd) kvm_close(kd)

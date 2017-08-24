@@ -1,0 +1,2 @@
+(!createSize)
+      return NULL;

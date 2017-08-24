@@ -1,0 +1,1 @@
+(nSelectors < 1) RETURN(BZ_DATA_ERROR)

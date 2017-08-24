@@ -1,0 +1,4 @@
+(separator)
+			*dest++ = '/';
+		else
+			*dest++ = '.'

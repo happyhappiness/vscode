@@ -1,0 +1,1 @@
+archive_entry_set_nlink(entry, file->subdirs + 2)

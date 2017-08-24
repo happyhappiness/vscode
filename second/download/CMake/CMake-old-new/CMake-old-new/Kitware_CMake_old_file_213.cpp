@@ -1,5 +1,5 @@
 /*============================================================================
-  KWSys - Kitware System Library
+  CMake - Cross Platform Makefile Generator
   Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
 
   Distributed under the OSI-approved BSD License (the "License");
@@ -9,721 +9,1028 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#include "kwsysPrivate.h"
-#include KWSYS_HEADER(Process.h)
-#include KWSYS_HEADER(Encoding.h)
 
-/* Work-around CMake dependency scanning limitation.  This must
-   duplicate the above list of headers.  */
-#if 0
-# include "Process.h.in"
-# include "Encoding.h.in"
-#endif
+#include "cmCPackDebGenerator.h"
 
-#include <assert.h>
+#include "cmArchiveWrite.h"
+#include "cmCPackLog.h"
+#include "cmGeneratedFileStream.h"
+#include "cmMakefile.h"
+#include "cmSystemTools.h"
+
+#include <cmsys/Glob.hxx>
+#include <cmsys/SystemTools.hxx>
+
+#include <limits.h> // USHRT_MAX
+#include <sys/stat.h>
+
+// NOTE:
+// A debian package .deb is simply an 'ar' archive. The only subtle difference
+// is that debian uses the BSD ar style archive whereas most Linux distro have
+// a GNU ar.
+// See http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=161593 for more info
+// Therefore we provide our own implementation of a BSD-ar:
+static int ar_append(const char*archive,const std::vector<std::string>& files);
+
+cmCPackDebGenerator::cmCPackDebGenerator()
+{
+}
+
+cmCPackDebGenerator::~cmCPackDebGenerator()
+{
+}
+
+int cmCPackDebGenerator::InitializeInternal()
+{
+  this->SetOptionIfNotSet("CPACK_PACKAGING_INSTALL_PREFIX", "/usr");
+  if (cmSystemTools::IsOff(this->GetOption("CPACK_SET_DESTDIR")))
+    {
+    this->SetOption("CPACK_SET_DESTDIR", "I_ON");
+    }
+  return this->Superclass::InitializeInternal();
+}
+
+int cmCPackDebGenerator::PackageOnePack(std::string initialTopLevel,
+                                        std::string packageName)
+  {
+  int retval = 1;
+  // Begin the archive for this pack
+  std::string localToplevel(initialTopLevel);
+  std::string packageFileName(
+      cmSystemTools::GetParentDirectory(toplevel)
+  );
+  std::string outputFileName(
+          cmsys::SystemTools::LowerCase(
+              std::string(this->GetOption("CPACK_PACKAGE_FILE_NAME")))
+          +"-"+packageName + this->GetOutputExtension()
+      );
+
+  localToplevel += "/"+ packageName;
+  /* replace the TEMP DIRECTORY with the component one */
+  this->SetOption("CPACK_TEMPORARY_DIRECTORY",localToplevel.c_str());
+  packageFileName += "/"+ outputFileName;
+  /* replace proposed CPACK_OUTPUT_FILE_NAME */
+  this->SetOption("CPACK_OUTPUT_FILE_NAME",outputFileName.c_str());
+  /* replace the TEMPORARY package file name */
+  this->SetOption("CPACK_TEMPORARY_PACKAGE_FILE_NAME",
+      packageFileName.c_str());
+  // Tell CPackDeb.cmake the name of the component GROUP.
+  this->SetOption("CPACK_DEB_PACKAGE_COMPONENT",packageName.c_str());
+  // Tell CPackDeb.cmake the path where the component is.
+  std::string component_path = "/";
+  component_path += packageName;
+  this->SetOption("CPACK_DEB_PACKAGE_COMPONENT_PART_PATH",
+                  component_path.c_str());
+  if (!this->ReadListFile("CPackDeb.cmake"))
+    {
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+        "Error while execution CPackDeb.cmake" << std::endl);
+    retval = 0;
+    return retval;
+    }
+
+  cmsys::Glob gl;
+  std::string findExpr(this->GetOption("GEN_WDIR"));
+  findExpr += "/*";
+  gl.RecurseOn();
+  gl.SetRecurseListDirs(true);
+  if ( !gl.FindFiles(findExpr) )
+    {
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+        "Cannot find any files in the installed directory" << std::endl);
+    return 0;
+    }
+  packageFiles = gl.GetFiles();
+
+  int res = createDeb();
+  if (res != 1)
+    {
+    retval = 0;
+    }
+  // add the generated package to package file names list
+  packageFileName = this->GetOption("CPACK_TOPLEVEL_DIRECTORY");
+  packageFileName += "/";
+  packageFileName += this->GetOption("GEN_CPACK_OUTPUT_FILE_NAME");
+  packageFileNames.push_back(packageFileName);
+  return retval;
+}
+
+int cmCPackDebGenerator::PackageComponents(bool ignoreGroup)
+{
+  int retval = 1;
+  /* Reset package file name list it will be populated during the
+   * component packaging run*/
+  packageFileNames.clear();
+  std::string initialTopLevel(this->GetOption("CPACK_TEMPORARY_DIRECTORY"));
+
+  // The default behavior is to have one package by component group
+  // unless CPACK_COMPONENTS_IGNORE_GROUP is specified.
+  if (!ignoreGroup)
+    {
+    std::map<std::string, cmCPackComponentGroup>::iterator compGIt;
+    for (compGIt=this->ComponentGroups.begin();
+        compGIt!=this->ComponentGroups.end(); ++compGIt)
+      {
+      cmCPackLogger(cmCPackLog::LOG_VERBOSE, "Packaging component group: "
+          << compGIt->first
+          << std::endl);
+      // Begin the archive for this group
+      retval &= PackageOnePack(initialTopLevel,compGIt->first);
+      }
+    // Handle Orphan components (components not belonging to any groups)
+    std::map<std::string, cmCPackComponent>::iterator compIt;
+    for (compIt=this->Components.begin();
+        compIt!=this->Components.end(); ++compIt )
+      {
+      // Does the component belong to a group?
+      if (compIt->second.Group==NULL)
+        {
+        cmCPackLogger(cmCPackLog::LOG_VERBOSE,
+            "Component <"
+            << compIt->second.Name
+            << "> does not belong to any group, package it separately."
+            << std::endl);
+        // Begin the archive for this orphan component
+        retval &= PackageOnePack(initialTopLevel,compIt->first);
+        }
+      }
+    }
+  // CPACK_COMPONENTS_IGNORE_GROUPS is set
+  // We build 1 package per component
+  else
+    {
+    std::map<std::string, cmCPackComponent>::iterator compIt;
+    for (compIt=this->Components.begin();
+         compIt!=this->Components.end(); ++compIt )
+      {
+      retval &= PackageOnePack(initialTopLevel,compIt->first);
+      }
+    }
+  return retval;
+}
+
+//----------------------------------------------------------------------
+int cmCPackDebGenerator::PackageComponentsAllInOne(
+    const std::string& compInstDirName)
+{
+  int retval = 1;
+  /* Reset package file name list it will be populated during the
+   * component packaging run*/
+  packageFileNames.clear();
+  std::string initialTopLevel(this->GetOption("CPACK_TEMPORARY_DIRECTORY"));
+
+  cmCPackLogger(cmCPackLog::LOG_VERBOSE,
+                "Packaging all groups in one package..."
+                "(CPACK_COMPONENTS_ALL_[GROUPS_]IN_ONE_PACKAGE is set)"
+      << std::endl);
+
+  // The ALL GROUPS in ONE package case
+  std::string localToplevel(initialTopLevel);
+  std::string packageFileName(
+      cmSystemTools::GetParentDirectory(toplevel)
+                             );
+  std::string outputFileName(
+            cmsys::SystemTools::LowerCase(
+                std::string(this->GetOption("CPACK_PACKAGE_FILE_NAME")))
+            + this->GetOutputExtension()
+                            );
+  // all GROUP in one vs all COMPONENT in one
+  localToplevel += "/"+compInstDirName;
+
+  /* replace the TEMP DIRECTORY with the component one */
+  this->SetOption("CPACK_TEMPORARY_DIRECTORY",localToplevel.c_str());
+  packageFileName += "/"+ outputFileName;
+  /* replace proposed CPACK_OUTPUT_FILE_NAME */
+  this->SetOption("CPACK_OUTPUT_FILE_NAME",outputFileName.c_str());
+  /* replace the TEMPORARY package file name */
+  this->SetOption("CPACK_TEMPORARY_PACKAGE_FILE_NAME",
+      packageFileName.c_str());
+
+  if(!compInstDirName.empty())
+    {
+    // Tell CPackDeb.cmake the path where the component is.
+    std::string component_path = "/";
+    component_path += compInstDirName;
+    this->SetOption("CPACK_DEB_PACKAGE_COMPONENT_PART_PATH",
+                    component_path.c_str());
+    }
+  if (!this->ReadListFile("CPackDeb.cmake"))
+    {
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+        "Error while execution CPackDeb.cmake" << std::endl);
+    retval = 0;
+    return retval;
+    }
+
+  cmsys::Glob gl;
+  std::string findExpr(this->GetOption("GEN_WDIR"));
+  findExpr += "/*";
+  gl.RecurseOn();
+  gl.SetRecurseListDirs(true);
+  if ( !gl.FindFiles(findExpr) )
+    {
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+    "Cannot find any files in the installed directory" << std::endl);
+    return 0;
+    }
+  packageFiles = gl.GetFiles();
+
+
+  int res = createDeb();
+  if (res != 1)
+    {
+    retval = 0;
+    }
+  // add the generated package to package file names list
+  packageFileName = this->GetOption("CPACK_TOPLEVEL_DIRECTORY");
+  packageFileName += "/";
+  packageFileName += this->GetOption("GEN_CPACK_OUTPUT_FILE_NAME");
+  packageFileNames.push_back(packageFileName);
+  return retval;
+}
+
+int cmCPackDebGenerator::PackageFiles()
+{
+  /* Are we in the component packaging case */
+  if (WantsComponentInstallation()) {
+    // CASE 1 : COMPONENT ALL-IN-ONE package
+    // If ALL GROUPS or ALL COMPONENTS in ONE package has been requested
+    // then the package file is unique and should be open here.
+    if (componentPackageMethod == ONE_PACKAGE)
+      {
+      return PackageComponentsAllInOne("ALL_COMPONENTS_IN_ONE");
+      }
+    // CASE 2 : COMPONENT CLASSICAL package(s) (i.e. not all-in-one)
+    // There will be 1 package for each component group
+    // however one may require to ignore component group and
+    // in this case you'll get 1 package for each component.
+    else
+      {
+      return PackageComponents(componentPackageMethod ==
+                               ONE_PACKAGE_PER_COMPONENT);
+      }
+  }
+  // CASE 3 : NON COMPONENT package.
+  else
+    {
+    return PackageComponentsAllInOne("");
+    }
+}
+
+int cmCPackDebGenerator::createDeb()
+{
+  // debian-binary file
+  const std::string strGenWDIR(this->GetOption("GEN_WDIR"));
+  const std::string dbfilename = strGenWDIR + "/debian-binary";
+    { // the scope is needed for cmGeneratedFileStream
+    cmGeneratedFileStream out(dbfilename.c_str());
+    out << "2.0";
+    out << std::endl; // required for valid debian package
+    }
+
+  // control file
+  std::string ctlfilename = strGenWDIR + "/control";
+
+  // debian policy enforce lower case for package name
+  // mandatory entries:
+  std::string debian_pkg_name = cmsys::SystemTools::LowerCase(
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_NAME") );
+  const char* debian_pkg_version =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_VERSION");
+  const char* debian_pkg_section =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_SECTION");
+  const char* debian_pkg_priority =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_PRIORITY");
+  const char* debian_pkg_arch =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_ARCHITECTURE");
+  const char* maintainer =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_MAINTAINER");
+  const char* desc =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_DESCRIPTION");
+
+  // optional entries
+  const char* debian_pkg_dep =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_DEPENDS");
+  const char* debian_pkg_rec =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_RECOMMENDS");
+  const char* debian_pkg_sug =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_SUGGESTS");
+  const char* debian_pkg_url =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_HOMEPAGE");
+  const char* debian_pkg_predep =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_PREDEPENDS");
+  const char* debian_pkg_enhances =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_ENHANCES");
+  const char* debian_pkg_breaks =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_BREAKS");
+  const char* debian_pkg_conflicts =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_CONFLICTS");
+  const char* debian_pkg_provides =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_PROVIDES");
+  const char* debian_pkg_replaces =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_REPLACES");
+  const char* debian_pkg_source =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_SOURCE");
+
+
+    { // the scope is needed for cmGeneratedFileStream
+    cmGeneratedFileStream out(ctlfilename.c_str());
+    out << "Package: " << debian_pkg_name << "\n";
+    out << "Version: " << debian_pkg_version << "\n";
+    out << "Section: " << debian_pkg_section << "\n";
+    out << "Priority: " << debian_pkg_priority << "\n";
+    out << "Architecture: " << debian_pkg_arch << "\n";
+    if(debian_pkg_source && *debian_pkg_source)
+      {
+      out << "Source: " << debian_pkg_source << "\n";
+      }
+    if(debian_pkg_dep && *debian_pkg_dep)
+      {
+      out << "Depends: " << debian_pkg_dep << "\n";
+      }
+    if(debian_pkg_rec && *debian_pkg_rec)
+      {
+      out << "Recommends: " << debian_pkg_rec << "\n";
+      }
+    if(debian_pkg_sug && *debian_pkg_sug)
+      {
+      out << "Suggests: " << debian_pkg_sug << "\n";
+      }
+    if(debian_pkg_url && *debian_pkg_url)
+      {
+      out << "Homepage: " << debian_pkg_url << "\n";
+      }
+    if (debian_pkg_predep && *debian_pkg_predep)
+      {
+      out << "Pre-Depends: " << debian_pkg_predep << "\n";
+      }
+    if (debian_pkg_enhances && *debian_pkg_enhances)
+      {
+      out << "Enhances: " << debian_pkg_enhances << "\n";
+      }
+    if (debian_pkg_breaks && *debian_pkg_breaks)
+      {
+      out << "Breaks: " << debian_pkg_breaks << "\n";
+      }
+    if (debian_pkg_conflicts && *debian_pkg_conflicts)
+      {
+      out << "Conflicts: " << debian_pkg_conflicts << "\n";
+      }
+    if (debian_pkg_provides && *debian_pkg_provides)
+      {
+      out << "Provides: " << debian_pkg_provides << "\n";
+      }
+    if (debian_pkg_replaces && *debian_pkg_replaces)
+      {
+      out << "Replaces: " << debian_pkg_replaces << "\n";
+      }
+    unsigned long totalSize = 0;
+    {
+      std::string dirName = this->GetOption("CPACK_TEMPORARY_DIRECTORY");
+      dirName += '/';
+      for (std::vector<std::string>::const_iterator fileIt =
+           packageFiles.begin();
+           fileIt != packageFiles.end(); ++ fileIt )
+        {
+        totalSize += cmSystemTools::FileLength(*fileIt);
+        }
+    }
+    out << "Installed-Size: " << (totalSize + 1023) / 1024 << "\n";
+    out << "Maintainer: " << maintainer << "\n";
+    out << "Description: " << desc << "\n";
+    out << std::endl;
+    }
+
+  const std::string shlibsfilename = strGenWDIR + "/shlibs";
+
+  const char* debian_pkg_shlibs = this->GetOption(
+      "GEN_CPACK_DEBIAN_PACKAGE_SHLIBS");
+  const bool gen_shibs = this->IsOn("CPACK_DEBIAN_PACKAGE_GENERATE_SHLIBS")
+      && debian_pkg_shlibs && *debian_pkg_shlibs;
+  if( gen_shibs )
+    {
+    cmGeneratedFileStream out(shlibsfilename.c_str());
+    out << debian_pkg_shlibs;
+    out << std::endl;
+    }
+
+  const std::string postinst = strGenWDIR + "/postinst";
+  const std::string postrm = strGenWDIR + "/postrm";
+  if(this->IsOn("GEN_CPACK_DEBIAN_GENERATE_POSTINST"))
+    {
+    cmGeneratedFileStream out(postinst.c_str());
+     out <<
+       "#!/bin/sh\n\n"
+       "set -e\n\n"
+       "if [ \"$1\" = \"configure\" ]; then\n"
+       "\tldconfig\n"
+       "fi\n";
+    }
+  if(this->IsOn("GEN_CPACK_DEBIAN_GENERATE_POSTRM"))
+    {
+    cmGeneratedFileStream out(postrm.c_str());
+    out <<
+      "#!/bin/sh\n\n"
+      "set -e\n\n"
+      "if [ \"$1\" = \"remove\" ]; then\n"
+      "\tldconfig\n"
+      "fi\n";
+    }
+
+  cmArchiveWrite::Compress tar_compression_type = cmArchiveWrite::CompressGZip;
+  const char* debian_compression_type =
+      this->GetOption("GEN_CPACK_DEBIAN_COMPRESSION_TYPE");
+  if(!debian_compression_type)
+    {
+    debian_compression_type = "gzip";
+    }
+
+  std::string compression_suffix;
+  if(!strcmp(debian_compression_type, "lzma")) {
+      compression_suffix = ".lzma";
+      tar_compression_type = cmArchiveWrite::CompressLZMA;
+  } else if(!strcmp(debian_compression_type, "xz")) {
+      compression_suffix = ".xz";
+      tar_compression_type = cmArchiveWrite::CompressXZ;
+  } else if(!strcmp(debian_compression_type, "bzip2")) {
+      compression_suffix = ".bz2";
+      tar_compression_type = cmArchiveWrite::CompressBZip2;
+  } else if(!strcmp(debian_compression_type, "gzip")) {
+      compression_suffix = ".gz";
+      tar_compression_type = cmArchiveWrite::CompressGZip;
+  } else if(!strcmp(debian_compression_type, "none")) {
+      compression_suffix = "";
+      tar_compression_type = cmArchiveWrite::CompressNone;
+  } else {
+      cmCPackLogger(cmCPackLog::LOG_ERROR,
+                    "Error unrecognized compression type: "
+                    << debian_compression_type << std::endl);
+  }
+
+
+  std::string filename_data_tar = strGenWDIR
+      + "/data.tar" + compression_suffix;
+
+  // atomic file generation for data.tar
+  {
+    cmGeneratedFileStream fileStream_data_tar;
+    fileStream_data_tar.Open(filename_data_tar.c_str(), false, true);
+    if(!fileStream_data_tar)
+      {
+      cmCPackLogger(cmCPackLog::LOG_ERROR,
+          "Error opening the file \"" << filename_data_tar << "\" for writing"
+          << std::endl);
+      return 0;
+      }
+    cmArchiveWrite data_tar(fileStream_data_tar, tar_compression_type, "paxr");
+
+    // uid/gid should be the one of the root user, and this root user has
+    // always uid/gid equal to 0.
+    data_tar.SetUIDAndGID(0u, 0u);
+    data_tar.SetUNAMEAndGNAME("root", "root");
+
+    // now add all directories which have to be compressed
+    // collect all top level install dirs for that
+    // e.g. /opt/bin/foo, /usr/bin/bar and /usr/bin/baz would
+    // give /usr and /opt
+    size_t topLevelLength = strGenWDIR.length();
+    cmCPackLogger(cmCPackLog::LOG_DEBUG, "WDIR: \""
+            << strGenWDIR
+            << "\", length = " << topLevelLength
+            << std::endl);
+    std::set<std::string> orderedFiles;
+
+    // we have to reconstruct the parent folders as well
+
+    for (std::vector<std::string>::const_iterator fileIt =
+         packageFiles.begin();
+         fileIt != packageFiles.end(); ++ fileIt )
+      {
+      std::string currentPath = *fileIt;
+      while(currentPath != strGenWDIR)
+        {
+        // the last one IS strGenWDIR, but we do not want this one:
+        // XXX/application/usr/bin/myprogram with GEN_WDIR=XXX/application
+        // should not add XXX/application
+        orderedFiles.insert(currentPath);
+        currentPath = cmSystemTools::CollapseCombinedPath(currentPath, "..");
+        }
+      }
+
+
+    for (std::set<std::string>::const_iterator fileIt =
+         orderedFiles.begin();
+         fileIt != orderedFiles.end(); ++ fileIt )
+      {
+      cmCPackLogger(cmCPackLog::LOG_DEBUG, "FILEIT: \"" << *fileIt << "\""
+                    << std::endl);
+      std::string::size_type slashPos = fileIt->find('/', topLevelLength+1);
+      std::string relativeDir = fileIt->substr(topLevelLength,
+                                               slashPos - topLevelLength);
+      cmCPackLogger(cmCPackLog::LOG_DEBUG, "RELATIVEDIR: \"" << relativeDir
+                    << "\"" << std::endl);
+
+      // do not recurse because the loop will do it
+      if(!data_tar.Add(*fileIt, topLevelLength, ".", false))
+        {
+        cmCPackLogger(cmCPackLog::LOG_ERROR,
+                      "Problem adding file to tar:" << std::endl
+                      << "#top level directory: "
+                      << strGenWDIR << std::endl
+                      << "#file: " << *fileIt << std::endl
+                      << "#error:" << data_tar.GetError() << std::endl);
+        return 0;
+        }
+      }
+  } // scope for file generation
+
+
+  std::string md5filename = strGenWDIR + "/md5sums";
+  {
+    // the scope is needed for cmGeneratedFileStream
+    cmGeneratedFileStream out(md5filename.c_str());
+
+    std::string topLevelWithTrailingSlash =
+        this->GetOption("CPACK_TEMPORARY_DIRECTORY");
+    topLevelWithTrailingSlash += '/';
+    for (std::vector<std::string>::const_iterator fileIt =
+           packageFiles.begin();
+         fileIt != packageFiles.end(); ++ fileIt )
+      {
+      // hash only regular files
+      if(   cmSystemTools::FileIsDirectory(*fileIt)
+         || cmSystemTools::FileIsSymlink(*fileIt))
+        {
+        continue;
+        }
+
+      char md5sum[33];
+      if(!cmSystemTools::ComputeFileMD5(*fileIt, md5sum))
+        {
+        cmCPackLogger(cmCPackLog::LOG_ERROR, "Problem computing the md5 of "
+                      << *fileIt << std::endl);
+        }
+
+      md5sum[32] = 0;
+
+      std::string output(md5sum);
+      output += "  " + *fileIt + "\n";
+      // debian md5sums entries are like this:
+      // 014f3604694729f3bf19263bac599765  usr/bin/ccmake
+      // thus strip the full path (with the trailing slash)
+      cmSystemTools::ReplaceString(output,
+                                   topLevelWithTrailingSlash.c_str(), "");
+      out << output;
+      }
+    // each line contains a eol.
+    // Do not end the md5sum file with yet another (invalid)
+  }
+
+
+
+  std::string filename_control_tar = strGenWDIR + "/control.tar.gz";
+  // atomic file generation for control.tar
+  {
+    cmGeneratedFileStream fileStream_control_tar;
+    fileStream_control_tar.Open(filename_control_tar.c_str(), false, true);
+    if(!fileStream_control_tar)
+      {
+      cmCPackLogger(cmCPackLog::LOG_ERROR,
+          "Error opening the file \"" << filename_control_tar
+          << "\" for writing" << std::endl);
+      return 0;
+      }
+    cmArchiveWrite control_tar(fileStream_control_tar,
+                               cmArchiveWrite::CompressGZip,
+                               "paxr");
+
+    // sets permissions and uid/gid for the files
+    control_tar.SetUIDAndGID(0u, 0u);
+    control_tar.SetUNAMEAndGNAME("root", "root");
+
+    /* permissions are set according to
+    https://www.debian.org/doc/debian-policy/ch-files.html#s-permissions-owners
+    and
+    https://lintian.debian.org/tags/control-file-has-bad-permissions.html
+    */
+    const mode_t permission644 = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    const mode_t permissionExecute = S_IXUSR | S_IXGRP | S_IXOTH;
+    const mode_t permission755 = permission644 | permissionExecute;
+
+    // for md5sum and control (that we have generated here), we use 644
+    // (RW-R--R--)
+    // so that deb lintian doesn't warn about it
+    control_tar.SetPermissions(permission644);
+
+    // adds control and md5sums
+    if(   !control_tar.Add(md5filename, strGenWDIR.length(), ".")
+       || !control_tar.Add(strGenWDIR + "/control", strGenWDIR.length(), "."))
+      {
+        cmCPackLogger(cmCPackLog::LOG_ERROR,
+            "Error adding file to tar:" << std::endl
+            << "#top level directory: "
+               << strGenWDIR << std::endl
+            << "#file: \"control\" or \"md5sums\"" << std::endl
+            << "#error:" << control_tar.GetError() << std::endl);
+        return 0;
+      }
+
+    // adds generated shlibs file
+    if( gen_shibs )
+      {
+      if( !control_tar.Add(shlibsfilename, strGenWDIR.length(), ".") )
+        {
+          cmCPackLogger(cmCPackLog::LOG_ERROR,
+              "Error adding file to tar:" << std::endl
+              << "#top level directory: "
+                 << strGenWDIR << std::endl
+              << "#file: \"shlibs\"" << std::endl
+              << "#error:" << control_tar.GetError() << std::endl);
+          return 0;
+        }
+      }
+
+    // adds LDCONFIG related files
+    if(this->IsOn("GEN_CPACK_DEBIAN_GENERATE_POSTINST"))
+      {
+      control_tar.SetPermissions(permission755);
+      if(!control_tar.Add(postinst, strGenWDIR.length(), "."))
+        {
+          cmCPackLogger(cmCPackLog::LOG_ERROR,
+              "Error adding file to tar:" << std::endl
+              << "#top level directory: "
+                 << strGenWDIR << std::endl
+              << "#file: \"postinst\"" << std::endl
+              << "#error:" << control_tar.GetError() << std::endl);
+          return 0;
+        }
+      control_tar.SetPermissions(permission644);
+      }
+
+    if(this->IsOn("GEN_CPACK_DEBIAN_GENERATE_POSTRM"))
+      {
+      control_tar.SetPermissions(permission755);
+      if(!control_tar.Add(postrm, strGenWDIR.length(), "."))
+        {
+          cmCPackLogger(cmCPackLog::LOG_ERROR,
+              "Error adding file to tar:" << std::endl
+              << "#top level directory: "
+                 << strGenWDIR << std::endl
+              << "#file: \"postinst\"" << std::endl
+              << "#error:" << control_tar.GetError() << std::endl);
+          return 0;
+        }
+      control_tar.SetPermissions(permission644);
+      }
+
+    // for the other files, we use
+    // -either the original permission on the files
+    // -either a permission strictly defined by the Debian policies
+    const char* controlExtra =
+      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA");
+    if( controlExtra )
+      {
+      // permissions are now controlled by the original file permissions
+
+      const bool permissionStrictPolicy =
+        this->IsSet("GEN_CPACK_DEBIAN_PACKAGE_CONTROL_STRICT_PERMISSION");
+
+      static const char* strictFiles[] = {
+        "config", "postinst", "postrm", "preinst", "prerm"
+        };
+      std::set<std::string> setStrictFiles(
+        strictFiles,
+        strictFiles + sizeof(strictFiles)/sizeof(strictFiles[0]));
+
+      // default
+      control_tar.ClearPermissions();
+
+      std::vector<std::string> controlExtraList;
+      cmSystemTools::ExpandListArgument(controlExtra, controlExtraList);
+      for(std::vector<std::string>::iterator i = controlExtraList.begin();
+          i != controlExtraList.end(); ++i)
+        {
+        std::string filenamename =
+          cmsys::SystemTools::GetFilenameName(*i);
+        std::string localcopy = strGenWDIR + "/" + filenamename;
+
+        if(permissionStrictPolicy)
+          {
+          control_tar.SetPermissions(setStrictFiles.count(filenamename) ?
+            permission755 : permission644);
+          }
+
+        // if we can copy the file, it means it does exist, let's add it:
+        if( cmsys::SystemTools::CopyFileIfDifferent(*i, localcopy) )
+          {
+          control_tar.Add(localcopy, strGenWDIR.length(), ".");
+          }
+        }
+      }
+  }
+
+
+  // ar -r your-package-name.deb debian-binary control.tar.* data.tar.*
+  // since debian packages require BSD ar (most Linux distros and even
+  // FreeBSD and NetBSD ship GNU ar) we use a copy of OpenBSD ar here.
+  std::vector<std::string> arFiles;
+  std::string topLevelString = strGenWDIR + "/";
+  arFiles.push_back(topLevelString + "debian-binary");
+  arFiles.push_back(topLevelString + "control.tar.gz");
+  arFiles.push_back(topLevelString + "data.tar" + compression_suffix);
+  std::string outputFileName = this->GetOption("CPACK_TOPLEVEL_DIRECTORY");
+  outputFileName += "/";
+  outputFileName += this->GetOption("GEN_CPACK_OUTPUT_FILE_NAME");
+  int res = ar_append(outputFileName.c_str(), arFiles);
+  if ( res!=0 )
+    {
+    std::string tmpFile = this->GetOption(
+        "GEN_CPACK_TEMPORARY_PACKAGE_FILE_NAME");
+    tmpFile += "/Deb.log";
+    cmGeneratedFileStream ofs(tmpFile.c_str());
+    ofs << "# Problem creating archive using: " << res << std::endl;
+    return 0;
+    }
+  return 1;
+}
+
+bool cmCPackDebGenerator::SupportsComponentInstallation() const
+  {
+  if (IsOn("CPACK_DEB_COMPONENT_INSTALL"))
+    {
+      return true;
+    }
+  else
+    {
+      return false;
+    }
+  }
+
+std::string cmCPackDebGenerator::GetComponentInstallDirNameSuffix(
+    const std::string& componentName)
+  {
+  if (componentPackageMethod == ONE_PACKAGE_PER_COMPONENT) {
+    return componentName;
+  }
+
+  if (componentPackageMethod == ONE_PACKAGE) {
+    return std::string("ALL_COMPONENTS_IN_ONE");
+  }
+  // We have to find the name of the COMPONENT GROUP
+  // the current COMPONENT belongs to.
+  std::string groupVar = "CPACK_COMPONENT_" +
+        cmSystemTools::UpperCase(componentName) + "_GROUP";
+    if (NULL != GetOption(groupVar))
+      {
+      return std::string(GetOption(groupVar));
+      }
+    else
+      {
+      return componentName;
+      }
+  }
+
+
+// The following code is taken from OpenBSD ar:
+// http://www.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ar/
+// It has been slightly modified:
+// -return error codes instead exit() in functions
+// -use the stdio file I/O functions instead the file descriptor based ones
+// -merged into one cxx file
+// -no additional options supported
+// The coding style hasn't been modified.
+
+/*-
+ * Copyright (c) 1990, 1993, 1994
+ *      The Regents of the University of California.  All rights reserved.
+ *
+ * This code is derived from software contributed to Berkeley by
+ * Hugh Smith at The University of Guelph.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+
+#include <sys/types.h>
+// include sys/stat.h after sys/types.h
+#include <sys/stat.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(_WIN32)
-# include <windows.h>
-#else
-# include <unistd.h>
-# include <signal.h>
-#endif
+#define ARMAG           "!<arch>\n"        /* ar "magic number" */
+#define SARMAG          8                  /* strlen(ARMAG); */
 
-#if defined(__BORLANDC__)
-# pragma warn -8060 /* possibly incorrect assignment */
-#endif
+#define AR_EFMT1        "#1/"              /* extended format #1 */
+#define ARFMAG          "`\n"
 
-/* Platform-specific sleep functions. */
+/* Header format strings. */
+#define HDR1            "%s%-13d%-12ld%-6u%-6u%-8o%-10lld%2s"
+#define HDR2             "%-16.16s%-12ld%-6u%-6u%-8o%-10lld%2s"
 
-#if defined(__BEOS__) && !defined(__ZETA__)
-/* BeOS 5 doesn't have usleep(), but it has snooze(), which is identical. */
-# include <be/kernel/OS.h>
-static inline void testProcess_usleep(unsigned int usec)
-{
-  snooze(usec);
-}
-#elif defined(_WIN32)
-/* Windows can only sleep in millisecond intervals. */
-static void testProcess_usleep(unsigned int usec)
-{
-  Sleep(usec / 1000);
-}
-#else
-# define testProcess_usleep usleep
-#endif
+struct ar_hdr {
+  char ar_name[16];                        /* name */
+  char ar_date[12];                        /* modification time */
+  char ar_uid[6];                          /* user id */
+  char ar_gid[6];                          /* group id */
+  char ar_mode[8];                         /* octal file permissions */
+  char ar_size[10];                        /* size in bytes */
+  char ar_fmag[2];                         /* consistency check */
+};
 
-#if defined(_WIN32)
-static void testProcess_sleep(unsigned int sec)
-{
-  Sleep(sec*1000);
-}
-#else
-static void testProcess_sleep(unsigned int sec)
-{
-  sleep(sec);
-}
-#endif
-
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int output, int delay, double timeout, int poll,
-             int repeat, int disown, int createNewGroup,
-             unsigned int interruptDelay);
-
-static int test1(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 0.\n");
-  fprintf(stderr, "Output on stderr from test returning 0.\n");
-  return 0;
+/* Set up file copy. */
+#define SETCF(from, fromname, to, toname, pad) { \
+        cf.rFile = from; \
+        cf.rname = fromname; \
+        cf.wFile = to; \
+        cf.wname = toname; \
+        cf.flags = pad; \
 }
 
-static int test2(int argc, const char* argv[])
+/* File copy structure. */
+typedef struct {
+        FILE* rFile;                       /* read file descriptor */
+        const char *rname;                 /* read name */
+        FILE* wFile;                       /* write file descriptor */
+        const char *wname;                 /* write name */
+#define NOPAD        0x00                  /* don't pad */
+#define WPAD        0x02                   /* pad on writes */
+        unsigned int flags;                       /* pad flags */
+} CF;
+
+/* misc.c */
+
+static const char * ar_rname(const char *path)
 {
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 123.\n");
-  fprintf(stderr, "Output on stderr from test returning 123.\n");
-  return 123;
+  const char *ind = strrchr(path, '/');
+  return (ind ) ? ind + 1 : path;
 }
 
-static int test3(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output before sleep on stderr from timeout test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  testProcess_sleep(15);
-  fprintf(stdout, "Output after sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output after sleep on stderr from timeout test.\n");
-  return 0;
-}
+/* archive.c */
 
-static int test4(int argc, const char* argv[])
-{
-  /* Prepare a pointer to an invalid address.  Don't use null, because
-  dereferencing null is undefined behaviour and compilers are free to
-  do whatever they want. ex: Clang will warn at compile time, or even
-  optimize away the write. We hope to 'outsmart' them by using
-  'volatile' and a slightly larger address, based on a runtime value. */
-  volatile int* invalidAddress = 0;
-  invalidAddress += argc?1:2;
+typedef struct ar_hdr HDR;
+static char ar_hb[sizeof(HDR) + 1];        /* real header */
 
-#if defined(_WIN32)
-  /* Avoid error diagnostic popups since we are crashing on purpose.  */
-  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
-#elif defined(__BEOS__) || defined(__HAIKU__)
-  /* Avoid error diagnostic popups since we are crashing on purpose.  */
-  disable_debugger(1);
-#endif
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before crash on stdout from crash test.\n");
-  fprintf(stderr, "Output before crash on stderr from crash test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  assert(invalidAddress); /* Quiet Clang scan-build. */
-  /* Provoke deliberate crash by writing to the invalid address. */
-  *invalidAddress = 0;
-  fprintf(stdout, "Output after crash on stdout from crash test.\n");
-  fprintf(stderr, "Output after crash on stderr from crash test.\n");
-  return 0;
-}
+static size_t ar_already_written;
 
-static int test5(int argc, const char* argv[])
+/* copy_ar --
+ *      Copy size bytes from one file to another - taking care to handle the
+ *      extra byte (for odd size files) when reading archives and writing an
+ *      extra byte if necessary when adding files to archive.  The length of
+ *      the object is the long name plus the object itself; the variable
+ *      already_written gets set if a long name was written.
+ *
+ *      The padding is really unnecessary, and is almost certainly a remnant
+ *      of early archive formats where the header included binary data which
+ *      a PDP-11 required to start on an even byte boundary.  (Or, perhaps,
+ *      because 16-bit word addressed copies were faster?)  Anyhow, it should
+ *      have been ripped out long ago.
+ */
+static int copy_ar(CF *cfp, off_t size)
 {
-  int r;
-  const char* cmd[4];
-  (void)argc;
-  cmd[0] = argv[0];
-  cmd[1] = "run";
-  cmd[2] = "4";
-  cmd[3] = 0;
-  fprintf(stdout, "Output on stdout before recursive test.\n");
-  fprintf(stderr, "Output on stderr before recursive test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Exception,
-               kwsysProcess_Exception_Fault, 1, 1, 1, 0, 15, 0, 1, 0, 0, 0);
-  fprintf(stdout, "Output on stdout after recursive test.\n");
-  fprintf(stderr, "Output on stderr after recursive test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
-}
+  static char pad = '\n';
+  off_t sz = size;
+  size_t nr, nw;
+  char buf[8*1024];
 
-#define TEST6_SIZE (4096*2)
-static void test6(int argc, const char* argv[])
-{
-  int i;
-  char runaway[TEST6_SIZE+1];
-  (void)argc; (void)argv;
-  for(i=0;i < TEST6_SIZE;++i)
-    {
-    runaway[i] = '.';
+  if (sz == 0)
+    return 0;
+
+  FILE* from = cfp->rFile;
+  FILE* to = cfp->wFile;
+  while (sz &&
+        (nr = fread(buf, 1, sz < static_cast<off_t>(sizeof(buf))
+                    ? static_cast<size_t>(sz) : sizeof(buf), from ))
+               > 0) {
+    sz -= nr;
+    for (size_t off = 0; off < nr; nr -= off, off += nw)
+      if ((nw = fwrite(buf + off, 1, nr, to)) < nr)
+        return -1;
     }
-  runaway[TEST6_SIZE] = '\n';
+  if (sz)
+    return -2;
 
-  /* Generate huge amounts of output to test killing.  */
-  for(;;)
-    {
-    fwrite(runaway, 1, TEST6_SIZE+1, stdout);
-    fflush(stdout);
-    }
-}
+  if (cfp->flags & WPAD && (size + ar_already_written) & 1
+      && fwrite(&pad, 1, 1, to) != 1)
+    return -4;
 
-/* Define MINPOLL to be one more than the number of times output is
-   written.  Define MAXPOLL to be the largest number of times a loop
-   delaying 1/10th of a second should ever have to poll.  */
-#define MINPOLL 5
-#define MAXPOLL 20
-static int test7(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout before sleep.\n");
-  fprintf(stderr, "Output on stderr before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 1 second.  */
-  testProcess_sleep(1);
-  fprintf(stdout, "Output on stdout after sleep.\n");
-  fprintf(stderr, "Output on stderr after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
   return 0;
 }
 
-static int test8(int argc, const char* argv[])
-{
-  /* Create a disowned grandchild to test handling of processes
-     that exit before their children.  */
-  int r;
-  const char* cmd[4];
-  (void)argc;
-  cmd[0] = argv[0];
-  cmd[1] = "run";
-  cmd[2] = "108";
-  cmd[3] = 0;
-  fprintf(stdout, "Output on stdout before grandchild test.\n");
-  fprintf(stderr, "Output on stderr before grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Disowned, kwsysProcess_Exception_None,
-               1, 1, 1, 0, 10, 0, 1, 1, 0, 0);
-  fprintf(stdout, "Output on stdout after grandchild test.\n");
-  fprintf(stderr, "Output on stderr after grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
-}
-
-static int test8_grandchild(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* TODO: Instead of closing pipes here leave them open to make sure
-     the grandparent can stop listening when the parent exits.  This
-     part of the test cannot be enabled until the feature is
-     implemented.  */
-  fclose(stdout);
-  fclose(stderr);
-  testProcess_sleep(15);
-  return 0;
-}
-
-static int test9(int argc, const char* argv[])
-{
-  /* Test Ctrl+C behavior: the root test program will send a Ctrl+C to this
-     process.  Here, we start a child process that sleeps for a long time
-     while ignoring signals.  The test is successful if this process waits
-     for the child to return before exiting from the Ctrl+C handler.
-
-     WARNING:  This test will falsely pass if the share parameter of runChild
-     was set to 0 when invoking the test9 process.  */
-  int r;
-  const char* cmd[4];
-  (void)argc;
-  cmd[0] = argv[0];
-  cmd[1] = "run";
-  cmd[2] = "109";
-  cmd[3] = 0;
-  fprintf(stdout, "Output on stdout before grandchild test.\n");
-  fprintf(stderr, "Output on stderr before grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Exited,
-               kwsysProcess_Exception_None,
-               0, 1, 1, 0, 30, 0, 1, 0, 0, 0);
-  /* This sleep will avoid a race condition between this function exiting
-     normally and our Ctrl+C handler exiting abnormally after the process
-     exits.  */
-  testProcess_sleep(1);
-  fprintf(stdout, "Output on stdout after grandchild test.\n");
-  fprintf(stderr, "Output on stderr after grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
-}
-
-#if defined(_WIN32)
-static BOOL WINAPI test9_grandchild_handler(DWORD dwCtrlType)
-{
-  /* Ignore all Ctrl+C/Break signals.  We must use an actual handler function
-     instead of using SetConsoleCtrlHandler(NULL, TRUE) so that we can also
-     ignore Ctrl+Break in addition to Ctrl+C.  */
-  (void)dwCtrlType;
-  return TRUE;
-}
-#endif
-
-static int test9_grandchild(int argc, const char* argv[])
-{
-  /* The grandchild just sleeps for a few seconds while ignoring signals.  */
-  (void)argc; (void)argv;
-#if defined(_WIN32)
-  if(!SetConsoleCtrlHandler(test9_grandchild_handler, TRUE))
-    {
-    return 1;
-    }
-#else
-  struct sigaction sa;
-  memset(&sa, 0, sizeof(sa));
-  sa.sa_handler = SIG_IGN;
-  sigemptyset(&sa.sa_mask);
-  if(sigaction(SIGINT, &sa, 0) < 0)
-    {
-    return 1;
-    }
-#endif
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 9 seconds.  */
-  testProcess_sleep(9);
-  fprintf(stdout, "Output on stdout from grandchild after sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return 0;
-}
-
-static int test10(int argc, const char* argv[])
-{
-  /* Test Ctrl+C behavior: the root test program will send a Ctrl+C to this
-     process.  Here, we start a child process that sleeps for a long time and
-     processes signals normally.  However, this grandchild is created in a new
-     process group - ensuring that Ctrl+C we receive is sent to our process
-     groups.  We make sure it exits anyway.  */
-  int r;
-  const char* cmd[4];
-  (void)argc;
-  cmd[0] = argv[0];
-  cmd[1] = "run";
-  cmd[2] = "110";
-  cmd[3] = 0;
-  fprintf(stdout, "Output on stdout before grandchild test.\n");
-  fprintf(stderr, "Output on stderr before grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Exception,
-               kwsysProcess_Exception_Interrupt,
-               0, 1, 1, 0, 30, 0, 1, 0, 1, 0);
-  fprintf(stdout, "Output on stdout after grandchild test.\n");
-  fprintf(stderr, "Output on stderr after grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
-}
-
-static int test10_grandchild(int argc, const char* argv[])
-{
-  /* The grandchild just sleeps for a few seconds and handles signals.  */
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 6 seconds.  */
-  testProcess_sleep(6);
-  fprintf(stdout, "Output on stdout from grandchild after sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return 0;
-}
-
-static int runChild2(kwsysProcess* kp,
-              const char* cmd[], int state, int exception, int value,
-              int share, int output, int delay, double timeout,
-              int poll, int disown, int createNewGroup,
-              unsigned int interruptDelay)
+/* put_arobj --  Write an archive member to a file. */
+static int put_arobj(CF *cfp, struct stat *sb)
 {
   int result = 0;
-  char* data = 0;
-  int length = 0;
-  double userTimeout = 0;
-  double* pUserTimeout = 0;
-  kwsysProcess_SetCommand(kp, cmd);
-  if(timeout >= 0)
-    {
-    kwsysProcess_SetTimeout(kp, timeout);
-    }
-  if(share)
-    {
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
-    }
-  if(disown)
-    {
-    kwsysProcess_SetOption(kp, kwsysProcess_Option_Detach, 1);
-    }
-  if(createNewGroup)
-    {
-    kwsysProcess_SetOption(kp, kwsysProcess_Option_CreateProcessGroup, 1);
-    }
-  kwsysProcess_Execute(kp);
+  struct ar_hdr *hdr;
 
-  if(poll)
-    {
-    pUserTimeout = &userTimeout;
+ /* If passed an sb structure, reading a file from disk.  Get stat(2)
+  * information, build a name and construct a header.  (Files are named
+  * by their last component in the archive.) */
+  const char* name = ar_rname(cfp->rname);
+  (void)stat(cfp->rname, sb);
+
+ /* If not truncating names and the name is too long or contains
+  * a space, use extended format 1.   */
+  size_t lname = strlen(name);
+  uid_t uid = sb->st_uid;
+  gid_t gid = sb->st_gid;
+  if (uid > USHRT_MAX) {
+    uid = USHRT_MAX;
     }
-
-  if(interruptDelay)
-    {
-    testProcess_sleep(interruptDelay);
-    kwsysProcess_Interrupt(kp);
+  if (gid > USHRT_MAX) {
+    gid = USHRT_MAX;
     }
-
-  if(!share && !disown)
-    {
-    int p;
-    while((p = kwsysProcess_WaitForData(kp, &data, &length, pUserTimeout)))
-      {
-      if(output)
-        {
-        if(poll && p == kwsysProcess_Pipe_Timeout)
-          {
-          fprintf(stdout, "WaitForData timeout reached.\n");
-          fflush(stdout);
-
-          /* Count the number of times we polled without getting data.
-             If it is excessive then kill the child and fail.  */
-          if(++poll >= MAXPOLL)
-            {
-            fprintf(stdout, "Poll count reached limit %d.\n",
-                    MAXPOLL);
-            kwsysProcess_Kill(kp);
-            }
-          }
-        else
-          {
-          fwrite(data, 1, (size_t) length, stdout);
-          fflush(stdout);
-          }
-        }
-      if(poll)
-        {
-        /* Delay to avoid busy loop during polling.  */
-        testProcess_usleep(100000);
-        }
-      if(delay)
-        {
-        /* Purposely sleeping only on Win32 to let pipe fill up.  */
-#if defined(_WIN32)
-        testProcess_usleep(100000);
-#endif
-        }
+  if (lname > sizeof(hdr->ar_name) || strchr(name, ' '))
+    (void)sprintf(ar_hb, HDR1, AR_EFMT1, (int)lname,
+                  (long int)sb->st_mtime, (unsigned)uid, (unsigned)gid,
+                  (unsigned)sb->st_mode, (long long)sb->st_size + lname,
+                  ARFMAG);
+    else {
+      lname = 0;
+      (void)sprintf(ar_hb, HDR2, name,
+                    (long int)sb->st_mtime, (unsigned)uid, (unsigned)gid,
+                    (unsigned)sb->st_mode, (long long)sb->st_size,
+                    ARFMAG);
       }
-    }
+    off_t size = sb->st_size;
 
-  if(disown)
-    {
-    kwsysProcess_Disown(kp);
-    }
-  else
-    {
-    kwsysProcess_WaitForExit(kp, 0);
-    }
+  if (fwrite(ar_hb, 1, sizeof(HDR), cfp->wFile) != sizeof(HDR))
+    return -1;
 
-  switch (kwsysProcess_GetState(kp))
-    {
-    case kwsysProcess_State_Starting:
-      printf("No process has been executed.\n"); break;
-    case kwsysProcess_State_Executing:
-      printf("The process is still executing.\n"); break;
-    case kwsysProcess_State_Expired:
-      printf("Child was killed when timeout expired.\n"); break;
-    case kwsysProcess_State_Exited:
-      printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Killed:
-      printf("Child was killed by parent.\n"); break;
-    case kwsysProcess_State_Exception:
-      printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Disowned:
-      printf("Child was disowned.\n"); break;
-    case kwsysProcess_State_Error:
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
-
-  if(result)
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
-      {
-      fprintf(stderr, "Mismatch in exit exception.  "
-              "Should have been %d, was %d.\n",
-              exception, kwsysProcess_GetExitException(kp));
-      }
-    if(value != kwsysProcess_GetExitValue(kp))
-      {
-      fprintf(stderr, "Mismatch in exit value.  "
-              "Should have been %d, was %d.\n",
-              value, kwsysProcess_GetExitValue(kp));
-      }
+  if (lname) {
+    if (fwrite(name, 1, lname, cfp->wFile) != lname)
+      return -2;
+    ar_already_written = lname;
     }
-
-  if(kwsysProcess_GetState(kp) != state)
-    {
-    fprintf(stderr, "Mismatch in state.  "
-            "Should have been %d, was %d.\n",
-            state, kwsysProcess_GetState(kp));
-    result = 1;
-    }
-
-  /* We should have polled more times than there were data if polling
-     was enabled.  */
-  if(poll && poll < MINPOLL)
-    {
-    fprintf(stderr, "Poll count is %d, which is less than %d.\n",
-            poll, MINPOLL);
-    result = 1;
-    }
-
+  result = copy_ar(cfp, size);
+  ar_already_written = 0;
   return result;
 }
 
-/**
- * Runs a child process and blocks until it returns.  Arguments as follows:
- *
- * cmd            = Command line to run.
- * state          = Expected return value of kwsysProcess_GetState after exit.
- * exception      = Expected return value of kwsysProcess_GetExitException.
- * value          = Expected return value of kwsysProcess_GetExitValue.
- * share          = Whether to share stdout/stderr child pipes with our pipes
- *                  by way of kwsysProcess_SetPipeShared.  If false, new pipes
- *                  are created.
- * output         = If !share && !disown, whether to write the child's stdout
- *                  and stderr output to our stdout.
- * delay          = If !share && !disown, adds an additional short delay to
- *                  the pipe loop to allow the pipes to fill up; Windows only.
- * timeout        = Non-zero to sets a timeout in seconds via
- *                  kwsysProcess_SetTimeout.
- * poll           = If !share && !disown, we count the number of 0.1 second
- *                  intervals where the child pipes had no new data.  We fail
- *                  if not in the bounds of MINPOLL/MAXPOLL.
- * repeat         = Number of times to run the process.
- * disown         = If set, the process is disowned.
- * createNewGroup = If set, the process is created in a new process group.
- * interruptDelay = If non-zero, number of seconds to delay before
- *                  interrupting the process.  Note that this delay will occur
- *                  BEFORE any reading/polling of pipes occurs and before any
- *                  detachment occurs.
+/* append.c */
+
+/* append --
+ *      Append files to the archive - modifies original archive or creates
+ *      a new archive if named archive does not exist.
  */
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int output, int delay, double timeout,
-             int poll, int repeat, int disown, int createNewGroup,
-             unsigned int interruptDelay)
+static int ar_append(const char* archive,const std::vector<std::string>& files)
 {
-  int result = 1;
-  kwsysProcess* kp = kwsysProcess_New();
-  if(!kp)
-    {
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
-    }
-  while(repeat-- > 0)
-    {
-    result = runChild2(kp, cmd, state, exception, value, share,
-                       output, delay, timeout, poll, disown, createNewGroup,
-                       interruptDelay);
-    }
-  kwsysProcess_Delete(kp);
-  return result;
-}
-
-int main(int argc, const char* argv[])
-{
-  int n = 0;
-
-#ifdef _WIN32
-  int i;
-  char new_args[10][_MAX_PATH];
-  LPWSTR* w_av = CommandLineToArgvW(GetCommandLineW(), &argc);
-  for(i=0; i<argc; i++)
-  {
-    kwsysEncoding_wcstombs(new_args[i], w_av[i], _MAX_PATH);
-    argv[i] = new_args[i];
-  }
-  LocalFree(w_av);
-#endif
-
-#if 0
-    {
-    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-    DuplicateHandle(GetCurrentProcess(), out,
-                    GetCurrentProcess(), &out, 0, FALSE,
-                    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
-    SetStdHandle(STD_OUTPUT_HANDLE, out);
-    }
-    {
-    HANDLE out = GetStdHandle(STD_ERROR_HANDLE);
-    DuplicateHandle(GetCurrentProcess(), out,
-                    GetCurrentProcess(), &out, 0, FALSE,
-                    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
-    SetStdHandle(STD_ERROR_HANDLE, out);
-    }
-#endif
-  if(argc == 2)
-    {
-    n = atoi(argv[1]);
-    }
-  else if(argc == 3 && strcmp(argv[1], "run") == 0)
-    {
-    n = atoi(argv[2]);
-    }
-  /* Check arguments.  */
-  if(((n >= 1 && n <= 10) || n == 108 || n == 109 || n == 110) && argc == 3)
-    {
-    /* This is the child process for a requested test number.  */
-    switch (n)
-      {
-      case 1: return test1(argc, argv);
-      case 2: return test2(argc, argv);
-      case 3: return test3(argc, argv);
-      case 4: return test4(argc, argv);
-      case 5: return test5(argc, argv);
-      case 6: test6(argc, argv); return 0;
-      case 7: return test7(argc, argv);
-      case 8: return test8(argc, argv);
-      case 9: return test9(argc, argv);
-      case 10: return test10(argc, argv);
-      case 108: return test8_grandchild(argc, argv);
-      case 109: return test9_grandchild(argc, argv);
-      case 110: return test10_grandchild(argc, argv);
-      }
-    fprintf(stderr, "Invalid test number %d.\n", n);
-    return 1;
-    }
-  else if(n >= 1 && n <= 10)
-    {
-    /* This is the parent process for a requested test number.  */
-    int states[10] =
-    {
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Expired,
-      kwsysProcess_State_Exception,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Expired,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Expired, /* Ctrl+C handler test */
-      kwsysProcess_State_Exception /* Process group test */
-    };
-    int exceptions[10] =
-    {
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_Fault,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_Interrupt
-    };
-    int values[10] = {0, 123, 1, 1, 0, 0, 0, 0, 1, 1};
-    int shares[10] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1};
-    int outputs[10] = {1, 1, 1, 1, 1, 0, 1, 1, 1, 1};
-    int delays[10] = {0, 0, 0, 0, 0, 1, 0, 0, 0, 0};
-    double timeouts[10] = {10, 10, 10, 30, 30, 10, -1, 10, 6, 4};
-    int polls[10] = {0, 0, 0, 0, 0, 0, 1, 0, 0, 0};
-    int repeat[10] = {2, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-    int createNewGroups[10] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1};
-    unsigned int interruptDelays[10] = {0, 0, 0, 0, 0, 0, 0, 0, 3, 2};
-    int r;
-    const char* cmd[4];
-#ifdef _WIN32
-    char* argv0 = 0;
-    if(n == 0 && (argv0 = strdup(argv[0])))
-      {
-      /* Try converting to forward slashes to see if it works.  */
-      char* c;
-      for(c=argv0; *c; ++c)
-        {
-        if(*c == '\\')
-          {
-          *c = '/';
+  int eval = 0;
+  FILE* aFile = cmSystemTools::Fopen(archive, "wb+");
+  if (aFile!=NULL) {
+    fwrite(ARMAG, SARMAG, 1, aFile);
+    if (fseek(aFile, 0, SEEK_END) != -1) {
+      CF cf;
+      struct stat sb;
+      /* Read from disk, write to an archive; pad on write. */
+      SETCF(NULL, 0, aFile, archive, WPAD);
+      for(std::vector<std::string>::const_iterator fileIt = files.begin();
+          fileIt!=files.end(); ++fileIt) {
+        const char* filename = fileIt->c_str();
+        FILE* file = cmSystemTools::Fopen(filename, "rb");
+        if (file == NULL) {
+          eval = -1;
+          continue;
+          }
+        cf.rFile = file;
+        cf.rname = filename;
+        int result = put_arobj(&cf, &sb);
+        (void)fclose(file);
+        if (result!=0) {
+          eval = -2;
+          break;
           }
         }
-      cmd[0] = argv0;
       }
-    else
-      {
-      cmd[0] = argv[0];
+      else {
+        eval = -3;
       }
-#else
-    cmd[0] = argv[0];
-#endif
-    cmd[1] = "run";
-    cmd[2] = argv[1];
-    cmd[3] = 0;
-    fprintf(stdout, "Output on stdout before test %d.\n", n);
-    fprintf(stderr, "Output on stderr before test %d.\n", n);
-    fflush(stdout);
-    fflush(stderr);
-    r = runChild(cmd, states[n-1], exceptions[n-1], values[n-1], shares[n-1],
-                 outputs[n-1], delays[n-1], timeouts[n-1],
-                 polls[n-1], repeat[n-1], 0, createNewGroups[n-1],
-                 interruptDelays[n-1]);
-    fprintf(stdout, "Output on stdout after test %d.\n", n);
-    fprintf(stderr, "Output on stderr after test %d.\n", n);
-    fflush(stdout);
-    fflush(stderr);
-#if defined(_WIN32)
-    if(argv0) { free(argv0); }
-#endif
-    return r;
+    fclose(aFile);
     }
-  else if(argc > 2 && strcmp(argv[1], "0") == 0)
-    {
-    /* This is the special debugging test to run a given command
-       line.  */
-    const char** cmd = argv+2;
-    int state = kwsysProcess_State_Exited;
-    int exception = kwsysProcess_Exception_None;
-    int value = 0;
-    double timeout = 0;
-    int r = runChild(cmd, state, exception, value, 0, 1, 0, timeout,
-      0, 1, 0, 0, 0);
-    return r;
+  else {
+    eval = -4;
     }
-  else
-    {
-    /* Improper usage.  */
-    fprintf(stdout, "Usage: %s <test number>\n", argv[0]);
-    return 1;
-    }
+  return eval;
 }

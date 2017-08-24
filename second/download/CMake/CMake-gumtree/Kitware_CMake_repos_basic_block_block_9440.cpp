@@ -1,0 +1,1 @@
+nulls = calloc(1, nulls_size)

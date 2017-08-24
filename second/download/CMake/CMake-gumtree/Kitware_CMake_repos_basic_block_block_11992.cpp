@@ -1,0 +1,1 @@
+bytes_avail = (ssize_t)lha->entry_bytes_remaining

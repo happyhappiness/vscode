@@ -1,0 +1,1 @@
+keys &= ~(F_GNAME | F_GID)

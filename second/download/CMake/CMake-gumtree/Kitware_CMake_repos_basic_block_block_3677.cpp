@@ -1,0 +1,1 @@
+Curl_thread_join(&td->thread_hnd)

@@ -1,0 +1,1 @@
+result = nss_create_object(ssl, CKO_CERTIFICATE, filename, cacert)

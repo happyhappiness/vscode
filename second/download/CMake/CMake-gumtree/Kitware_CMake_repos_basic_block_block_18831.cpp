@@ -1,0 +1,2 @@
+(var == NULL)
+    return -ENOENT;

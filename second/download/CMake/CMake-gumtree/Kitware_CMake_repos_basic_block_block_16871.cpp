@@ -1,0 +1,1 @@
+np->dir_info->virtual = 0

@@ -1,0 +1,1 @@
+mf->depth = 4 + mf->nice_len / 4

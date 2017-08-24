@@ -1,0 +1,29 @@
+--- /dev/null
++++ /dev/null
+@@ -1395,21 +1395,22 @@
+         "tar_append_tree(\"%s\", \"%s\"): %s\n", buf,
+         pathname, strerror(errno));
+       tar_close(t);
+-      return false;
++      return -1;
+       }
+     }
+ 
+   if (tar_append_eof(t) != 0)
+     {
+     fprintf(stderr, "tar_append_eof(): %s\n", strerror(errno));
+     tar_close(t);
+-    return false;
++    return -1;
+     }
+ 
+   if (tar_close(t) != 0)
+     {
+     fprintf(stderr, "tar_close(): %s\n", strerror(errno));
+-    return false;
++    return -1;
+     }
+-  return true;
++  std::cout << "CreateTar: " << outFileName << std::endl;
++  return false;
+ 

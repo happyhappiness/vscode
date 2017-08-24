@@ -1,0 +1,1 @@
+return LDAP_SCOPE_ONELEVEL;

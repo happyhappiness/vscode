@@ -1,8 +1,7 @@
-	while (off_s < size) {
-		off_s = lseek(*fd, off_s, SEEK_DATA);
-		if (off_s == (off_t)-1) {
-			if (errno == ENXIO)
-				break;/* no more hole */
-			archive_set_error(&a->archive, errno,
-			    "lseek(SEEK_HOLE) failed");
-			exit_sts = ARCHIVE_FAILED;
+ * The message SHALL NOT include any LF or CR.
+ */
+
+void Curl_failf(struct SessionHandle *data, const char *fmt, ...)
+{
+  va_list ap;
+  size_t len;

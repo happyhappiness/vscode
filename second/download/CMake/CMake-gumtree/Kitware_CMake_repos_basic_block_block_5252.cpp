@@ -1,0 +1,1 @@
+ret |= CURL_CSELECT_IN

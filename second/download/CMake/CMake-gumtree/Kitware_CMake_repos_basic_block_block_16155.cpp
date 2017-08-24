@@ -1,0 +1,1 @@
+r = write_null(a, PATH_TABLE_BLOCK_SIZE - path_table_size)

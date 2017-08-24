@@ -1,0 +1,1 @@
+CertFreeCertificateChain(pChainContext)

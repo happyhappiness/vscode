@@ -1,0 +1,1 @@
+archive_entry_copy_fflags_text(entry, file->fflags_text.s)

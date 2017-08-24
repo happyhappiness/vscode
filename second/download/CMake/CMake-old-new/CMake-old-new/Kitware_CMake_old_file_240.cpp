@@ -1,3136 +1,2750 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
+/*-
+ * Copyright (c) 2008-2012 Michihiro NAKAJIMA
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
+#include "archive_platform.h"
 
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-#if defined(_WIN32) && !defined(__CYGWIN__)
-#include "windows.h" // this must be first to define GetCurrentDirectory
-#if defined(_MSC_VER) && _MSC_VER >= 1800
-# define KWSYS_WINDOWS_DEPRECATED_GetVersionEx
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
 #endif
-typedef struct {
-  ULONG  dwOSVersionInfoSize;
-  ULONG  dwMajorVersion;
-  ULONG  dwMinorVersion;
-  ULONG  dwBuildNumber;
-  ULONG  dwPlatformId;
-  WCHAR  szCSDVersion[128];
-  USHORT wServicePackMajor;
-  USHORT wServicePackMinor;
-  USHORT wSuiteMask;
-  UCHAR  wProductType;
-  UCHAR  wReserved;
-} CMRTL_OSVERSIONINFOEXW;
-
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
 #endif
-
-#include "cmGlobalGenerator.h"
-#include "cmLocalGenerator.h"
-#include "cmExternalMakefileProjectGenerator.h"
-#include "cmake.h"
-#include "cmState.h"
-#include "cmMakefile.h"
-#include "cmQtAutoGenerators.h"
-#include "cmSourceFile.h"
-#include "cmVersion.h"
-#include "cmTargetExport.h"
-#include "cmComputeTargetDepends.h"
-#include "cmGeneratedFileStream.h"
-#include "cmGeneratorTarget.h"
-#include "cmGeneratorExpression.h"
-#include "cmExportBuildFileGenerator.h"
-#include "cmCPackPropertiesGenerator.h"
-#include "cmAlgorithms.h"
-#include "cmInstallGenerator.h"
-
-#include <cmsys/Directory.hxx>
-#include <cmsys/FStream.hxx>
-
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-# include <cmsys/MD5.h>
-# include "cm_jsoncpp_value.h"
-# include "cm_jsoncpp_writer.h"
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#ifdef HAVE_STRING_H
+#include <string.h>
 #endif
 
-#include <stdlib.h> // required for atof
-
-#include <assert.h>
-
-cmGlobalGenerator::cmGlobalGenerator(cmake* cm)
-  : CMakeInstance(cm)
-{
-  // By default the .SYMBOLIC dependency is not needed on symbolic rules.
-  this->NeedSymbolicMark = false;
-
-  // by default use the native paths
-  this->ForceUnixPaths = false;
-
-  // By default do not try to support color.
-  this->ToolSupportsColor = false;
-
-  // By default do not use link scripts.
-  this->UseLinkScript = false;
-
-  // Whether an install target is needed.
-  this->InstallTargetEnabled = false;
-
-  // how long to let try compiles run
-  this->TryCompileTimeout = 0;
-
-  this->ExtraGenerator = 0;
-  this->CurrentMakefile = 0;
-  this->TryCompileOuterMakefile = 0;
-}
-
-cmGlobalGenerator::~cmGlobalGenerator()
-{
-  this->ClearGeneratorMembers();
-  delete this->ExtraGenerator;
-}
-
-bool cmGlobalGenerator::SetGeneratorPlatform(std::string const& p,
-                                             cmMakefile* mf)
-{
-  if(p.empty())
-    {
-    return true;
-    }
-
-  std::ostringstream e;
-  e <<
-    "Generator\n"
-    "  " << this->GetName() << "\n"
-    "does not support platform specification, but platform\n"
-    "  " << p << "\n"
-    "was specified.";
-  mf->IssueMessage(cmake::FATAL_ERROR, e.str());
-  return false;
-}
-
-bool cmGlobalGenerator::SetGeneratorToolset(std::string const& ts,
-                                            cmMakefile* mf)
-{
-  if(ts.empty())
-    {
-    return true;
-    }
-  std::ostringstream e;
-  e <<
-    "Generator\n"
-    "  " << this->GetName() << "\n"
-    "does not support toolset specification, but toolset\n"
-    "  " << ts << "\n"
-    "was specified.";
-  mf->IssueMessage(cmake::FATAL_ERROR, e.str());
-  return false;
-}
-
-std::string cmGlobalGenerator::SelectMakeProgram(
-                                          const std::string& inMakeProgram,
-                                          const std::string& makeDefault) const
-{
-  std::string makeProgram = inMakeProgram;
-  if(cmSystemTools::IsOff(makeProgram.c_str()))
-    {
-    const char* makeProgramCSTR =
-      this->CMakeInstance->GetCacheDefinition("CMAKE_MAKE_PROGRAM");
-    if(cmSystemTools::IsOff(makeProgramCSTR))
-      {
-      makeProgram = makeDefault;
-      }
-    else
-      {
-      makeProgram = makeProgramCSTR;
-      }
-    if(cmSystemTools::IsOff(makeProgram.c_str()) &&
-       !makeProgram.empty())
-      {
-      makeProgram = "CMAKE_MAKE_PROGRAM-NOTFOUND";
-      }
-    }
-  return makeProgram;
-}
-
-void cmGlobalGenerator::ResolveLanguageCompiler(const std::string &lang,
-                                                cmMakefile *mf,
-                                                bool optional) const
-{
-  std::string langComp = "CMAKE_";
-  langComp += lang;
-  langComp += "_COMPILER";
-
-  if(!mf->GetDefinition(langComp))
-    {
-    if(!optional)
-      {
-      cmSystemTools::Error(langComp.c_str(),
-                           " not set, after EnableLanguage");
-      }
-    return;
-    }
-  const char* name = mf->GetRequiredDefinition(langComp);
-  std::string path;
-  if(!cmSystemTools::FileIsFullPath(name))
-    {
-    path = cmSystemTools::FindProgram(name);
-    }
-  else
-    {
-    path = name;
-    }
-  if((path.empty() || !cmSystemTools::FileExists(path.c_str()))
-      && (optional==false))
-    {
-    return;
-    }
-  const char* cname = this->GetCMakeInstance()->
-    GetState()->GetInitializedCacheValue(langComp);
-  std::string changeVars;
-  if(cname && !optional)
-    {
-    std::string cnameString;
-    if(!cmSystemTools::FileIsFullPath(cname))
-      {
-      cnameString = cmSystemTools::FindProgram(cname);
-      }
-    else
-      {
-      cnameString = cname;
-      }
-    std::string pathString = path;
-    // get rid of potentially multiple slashes:
-    cmSystemTools::ConvertToUnixSlashes(cnameString);
-    cmSystemTools::ConvertToUnixSlashes(pathString);
-    if (cnameString != pathString)
-      {
-      const char* cvars =
-        this->GetCMakeInstance()->GetState()->GetGlobalProperty(
-          "__CMAKE_DELETE_CACHE_CHANGE_VARS_");
-      if(cvars)
-        {
-        changeVars += cvars;
-        changeVars += ";";
-        }
-      changeVars += langComp;
-      changeVars += ";";
-      changeVars += cname;
-      this->GetCMakeInstance()->GetState()->SetGlobalProperty(
-        "__CMAKE_DELETE_CACHE_CHANGE_VARS_",
-        changeVars.c_str());
-      }
-    }
-}
-
-void cmGlobalGenerator::AddBuildExportSet(cmExportBuildFileGenerator* gen)
-{
-  this->BuildExportSets[gen->GetMainExportFileName()] = gen;
-}
-
-void
-cmGlobalGenerator::AddBuildExportExportSet(cmExportBuildFileGenerator* gen)
-{
-  this->BuildExportSets[gen->GetMainExportFileName()] = gen;
-  this->BuildExportExportSets[gen->GetMainExportFileName()] = gen;
-}
-
-bool cmGlobalGenerator::GenerateImportFile(const std::string &file)
-{
-  std::map<std::string, cmExportBuildFileGenerator*>::iterator it
-                                          = this->BuildExportSets.find(file);
-  if (it != this->BuildExportSets.end())
-    {
-    bool result = it->second->GenerateImportFile();
-    delete it->second;
-    it->second = 0;
-    this->BuildExportSets.erase(it);
-    return result;
-    }
-  return false;
-}
-
-void cmGlobalGenerator::ForceLinkerLanguages()
-{
-
-}
-
-bool
-cmGlobalGenerator::IsExportedTargetsFile(const std::string &filename) const
-{
-  const std::map<std::string, cmExportBuildFileGenerator*>::const_iterator it
-                                      = this->BuildExportSets.find(filename);
-  if (it == this->BuildExportSets.end())
-    {
-    return false;
-    }
-  return this->BuildExportExportSets.find(filename)
-                                        == this->BuildExportExportSets.end();
-}
-
-// Find the make program for the generator, required for try compiles
-void cmGlobalGenerator::FindMakeProgram(cmMakefile* mf)
-{
-  if(this->FindMakeProgramFile.empty())
-    {
-    cmSystemTools::Error(
-      "Generator implementation error, "
-      "all generators must specify this->FindMakeProgramFile");
-    }
-  if(!mf->GetDefinition("CMAKE_MAKE_PROGRAM")
-     || cmSystemTools::IsOff(mf->GetDefinition("CMAKE_MAKE_PROGRAM")))
-    {
-    std::string setMakeProgram =
-      mf->GetModulesFile(this->FindMakeProgramFile.c_str());
-    if(!setMakeProgram.empty())
-      {
-      mf->ReadListFile(setMakeProgram.c_str());
-      }
-    }
-  if(!mf->GetDefinition("CMAKE_MAKE_PROGRAM")
-     || cmSystemTools::IsOff(mf->GetDefinition("CMAKE_MAKE_PROGRAM")))
-    {
-    std::ostringstream err;
-    err << "CMake was unable to find a build program corresponding to \""
-        << this->GetName() << "\".  CMAKE_MAKE_PROGRAM is not set.  You "
-        << "probably need to select a different build tool.";
-    cmSystemTools::Error(err.str().c_str());
-    cmSystemTools::SetFatalErrorOccured();
-    return;
-    }
-  std::string makeProgram = mf->GetRequiredDefinition("CMAKE_MAKE_PROGRAM");
-  // if there are spaces in the make program use short path
-  // but do not short path the actual program name, as
-  // this can cause trouble with VSExpress
-  if(makeProgram.find(' ') != makeProgram.npos)
-    {
-    std::string dir;
-    std::string file;
-    cmSystemTools::SplitProgramPath(makeProgram,
-                                    dir, file);
-    std::string saveFile = file;
-    cmSystemTools::GetShortPath(makeProgram, makeProgram);
-    cmSystemTools::SplitProgramPath(makeProgram,
-                                    dir, file);
-    makeProgram = dir;
-    makeProgram += "/";
-    makeProgram += saveFile;
-    mf->AddCacheDefinition("CMAKE_MAKE_PROGRAM", makeProgram.c_str(),
-                           "make program",
-                           cmState::FILEPATH);
-    }
-}
-
-// enable the given language
-//
-// The following files are loaded in this order:
-//
-// First figure out what OS we are running on:
-//
-// CMakeSystem.cmake - configured file created by CMakeDetermineSystem.cmake
-//   CMakeDetermineSystem.cmake - figure out os info and create
-//                                CMakeSystem.cmake IF CMAKE_SYSTEM
-//                                not set
-//   CMakeSystem.cmake - configured file created by
-//                       CMakeDetermineSystem.cmake IF CMAKE_SYSTEM_LOADED
-
-// CMakeSystemSpecificInitialize.cmake
-//   - includes Platform/${CMAKE_SYSTEM_NAME}-Initialize.cmake
-
-// Next try and enable all languages found in the languages vector
-//
-// FOREACH LANG in languages
-//   CMake(LANG)Compiler.cmake - configured file create by
-//                               CMakeDetermine(LANG)Compiler.cmake
-//     CMakeDetermine(LANG)Compiler.cmake - Finds compiler for LANG and
-//                                          creates CMake(LANG)Compiler.cmake
-//     CMake(LANG)Compiler.cmake - configured file created by
-//                                 CMakeDetermine(LANG)Compiler.cmake
-//
-// CMakeSystemSpecificInformation.cmake
-//   - includes Platform/${CMAKE_SYSTEM_NAME}.cmake
-//     may use compiler stuff
-
-// FOREACH LANG in languages
-//   CMake(LANG)Information.cmake
-//     - loads Platform/${CMAKE_SYSTEM_NAME}-${COMPILER}.cmake
-//   CMakeTest(LANG)Compiler.cmake
-//     - Make sure the compiler works with a try compile if
-//       CMakeDetermine(LANG) was loaded
-//
-// Now load a few files that can override values set in any of the above
-// (PROJECTNAME)Compatibility.cmake
-//   - load any backwards compatibility stuff for current project
-// ${CMAKE_USER_MAKE_RULES_OVERRIDE}
-//   - allow users a chance to override system variables
-//
-//
-
-void
-cmGlobalGenerator::EnableLanguage(std::vector<std::string>const& languages,
-                                  cmMakefile *mf, bool optional)
-{
-  if(languages.empty())
-    {
-    cmSystemTools::Error("EnableLanguage must have a lang specified!");
-    cmSystemTools::SetFatalErrorOccured();
-    return;
-    }
-
-  if(this->TryCompileOuterMakefile)
-    {
-    // In a try-compile we can only enable languages provided by caller.
-    for(std::vector<std::string>::const_iterator li = languages.begin();
-        li != languages.end(); ++li)
-      {
-      if(*li == "NONE")
-        {
-        this->SetLanguageEnabled("NONE", mf);
-        }
-      else
-        {
-        const char* lang = li->c_str();
-        if(this->LanguagesReady.find(lang) == this->LanguagesReady.end())
-          {
-          std::ostringstream e;
-          e << "The test project needs language "
-            << lang << " which is not enabled.";
-          this->TryCompileOuterMakefile
-            ->IssueMessage(cmake::FATAL_ERROR, e.str());
-          cmSystemTools::SetFatalErrorOccured();
-          return;
-          }
-        }
-      }
-    }
-
-  bool fatalError = false;
-
-  mf->AddDefinition("RUN_CONFIGURE", true);
-  std::string rootBin = mf->GetHomeOutputDirectory();
-  rootBin += cmake::GetCMakeFilesDirectory();
-
-  // If the configuration files path has been set,
-  // then we are in a try compile and need to copy the enable language
-  // files from the parent cmake bin dir, into the try compile bin dir
-  if(!this->ConfiguredFilesPath.empty())
-    {
-    rootBin = this->ConfiguredFilesPath;
-    }
-  rootBin += "/";
-  rootBin += cmVersion::GetCMakeVersion();
-
-  // set the dir for parent files so they can be used by modules
-  mf->AddDefinition("CMAKE_PLATFORM_INFO_DIR",rootBin.c_str());
-
-  // find and make sure CMAKE_MAKE_PROGRAM is defined
-  this->FindMakeProgram(mf);
-
-  // try and load the CMakeSystem.cmake if it is there
-  std::string fpath = rootBin;
-  bool const readCMakeSystem = !mf->GetDefinition("CMAKE_SYSTEM_LOADED");
-  if(readCMakeSystem)
-    {
-    fpath += "/CMakeSystem.cmake";
-    if(cmSystemTools::FileExists(fpath.c_str()))
-      {
-      mf->ReadListFile(fpath.c_str());
-      }
-    }
-  //  Load the CMakeDetermineSystem.cmake file and find out
-  // what platform we are running on
-  if (!mf->GetDefinition("CMAKE_SYSTEM"))
-    {
-#if defined(_WIN32) && !defined(__CYGWIN__)
-    CMRTL_OSVERSIONINFOEXW osviex;
-    ZeroMemory(&osviex, sizeof(osviex));
-    osviex.dwOSVersionInfoSize = sizeof(osviex);
-
-    typedef LONG (FAR WINAPI *cmRtlGetVersion)(CMRTL_OSVERSIONINFOEXW*);
-    cmRtlGetVersion rtlGetVersion = reinterpret_cast<cmRtlGetVersion>(
-      GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlGetVersion"));
-    if (rtlGetVersion && rtlGetVersion(&osviex) == 0)
-      {
-      std::ostringstream windowsVersionString;
-      windowsVersionString << osviex.dwMajorVersion << "."
-                           << osviex.dwMinorVersion << "."
-                           << osviex.dwBuildNumber;
-      windowsVersionString.str();
-      mf->AddDefinition("CMAKE_HOST_SYSTEM_VERSION",
-                        windowsVersionString.str().c_str());
-      }
-    else
-      {
-      // RtlGetVersion failed, so use the deprecated GetVersionEx function.
-      /* Windows version number data.  */
-      OSVERSIONINFO osvi;
-      ZeroMemory(&osvi, sizeof(osvi));
-      osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-#ifdef KWSYS_WINDOWS_DEPRECATED_GetVersionEx
-# pragma warning (push)
-# pragma warning (disable:4996)
-#endif
-      GetVersionEx (&osvi);
-#ifdef KWSYS_WINDOWS_DEPRECATED_GetVersionEx
-# pragma warning (pop)
-#endif
-      std::ostringstream windowsVersionString;
-      windowsVersionString << osvi.dwMajorVersion << "."
-                           << osvi.dwMinorVersion;
-      windowsVersionString.str();
-      mf->AddDefinition("CMAKE_HOST_SYSTEM_VERSION",
-                        windowsVersionString.str().c_str());
-      }
-#endif
-    // Read the DetermineSystem file
-    std::string systemFile = mf->GetModulesFile("CMakeDetermineSystem.cmake");
-    mf->ReadListFile(systemFile.c_str());
-    // load the CMakeSystem.cmake from the binary directory
-    // this file is configured by the CMakeDetermineSystem.cmake file
-    fpath = rootBin;
-    fpath += "/CMakeSystem.cmake";
-    mf->ReadListFile(fpath.c_str());
-    }
-
-  if(readCMakeSystem)
-    {
-    // Tell the generator about the target system.
-    std::string system = mf->GetSafeDefinition("CMAKE_SYSTEM_NAME");
-    if(!this->SetSystemName(system, mf))
-      {
-      cmSystemTools::SetFatalErrorOccured();
-      return;
-      }
-
-    // Tell the generator about the platform, if any.
-    std::string platform = mf->GetSafeDefinition("CMAKE_GENERATOR_PLATFORM");
-    if(!this->SetGeneratorPlatform(platform, mf))
-      {
-      cmSystemTools::SetFatalErrorOccured();
-      return;
-      }
-
-    // Tell the generator about the toolset, if any.
-    std::string toolset = mf->GetSafeDefinition("CMAKE_GENERATOR_TOOLSET");
-    if(!this->SetGeneratorToolset(toolset, mf))
-      {
-      cmSystemTools::SetFatalErrorOccured();
-      return;
-      }
-    }
-
-  // **** Load the system specific initialization if not yet loaded
-  if (!mf->GetDefinition("CMAKE_SYSTEM_SPECIFIC_INITIALIZE_LOADED"))
-    {
-    fpath = mf->GetModulesFile("CMakeSystemSpecificInitialize.cmake");
-    if(!mf->ReadListFile(fpath.c_str()))
-      {
-      cmSystemTools::Error("Could not find cmake module file: "
-                           "CMakeSystemSpecificInitialize.cmake");
-      }
-    }
-
-  std::map<std::string, bool> needTestLanguage;
-  std::map<std::string, bool> needSetLanguageEnabledMaps;
-  // foreach language
-  // load the CMakeDetermine(LANG)Compiler.cmake file to find
-  // the compiler
-
-  for(std::vector<std::string>::const_iterator l = languages.begin();
-      l != languages.end(); ++l)
-    {
-    const char* lang = l->c_str();
-    needSetLanguageEnabledMaps[lang] = false;
-    if(*l == "NONE")
-      {
-      this->SetLanguageEnabled("NONE", mf);
-      continue;
-      }
-    std::string loadedLang = "CMAKE_";
-    loadedLang +=  lang;
-    loadedLang += "_COMPILER_LOADED";
-    if(!mf->GetDefinition(loadedLang))
-      {
-      fpath = rootBin;
-      fpath += "/CMake";
-      fpath += lang;
-      fpath += "Compiler.cmake";
-
-      // If the existing build tree was already configured with this
-      // version of CMake then try to load the configured file first
-      // to avoid duplicate compiler tests.
-      if(cmSystemTools::FileExists(fpath.c_str()))
-        {
-        if(!mf->ReadListFile(fpath.c_str()))
-          {
-          cmSystemTools::Error("Could not find cmake module file: ",
-                               fpath.c_str());
-          }
-        // if this file was found then the language was already determined
-        // to be working
-        needTestLanguage[lang] = false;
-        this->SetLanguageEnabledFlag(lang, mf);
-        needSetLanguageEnabledMaps[lang] = true;
-        // this can only be called after loading CMake(LANG)Compiler.cmake
-        }
-      }
-
-    if(!this->GetLanguageEnabled(lang) )
-      {
-      if (this->CMakeInstance->GetIsInTryCompile())
-        {
-        cmSystemTools::Error("This should not have happened. "
-                             "If you see this message, you are probably "
-                             "using a broken CMakeLists.txt file or a "
-                             "problematic release of CMake");
-        }
-      // if the CMake(LANG)Compiler.cmake file was not found then
-      // load CMakeDetermine(LANG)Compiler.cmake
-      std::string determineCompiler = "CMakeDetermine";
-      determineCompiler += lang;
-      determineCompiler += "Compiler.cmake";
-      std::string determineFile =
-        mf->GetModulesFile(determineCompiler.c_str());
-      if(!mf->ReadListFile(determineFile.c_str()))
-        {
-        cmSystemTools::Error("Could not find cmake module file: ",
-                             determineCompiler.c_str());
-        }
-      if (cmSystemTools::GetFatalErrorOccured())
-        {
-        return;
-        }
-      needTestLanguage[lang] = true;
-      // Some generators like visual studio should not use the env variables
-      // So the global generator can specify that in this variable
-      if(!mf->GetDefinition("CMAKE_GENERATOR_NO_COMPILER_ENV"))
-        {
-        // put ${CMake_(LANG)_COMPILER_ENV_VAR}=${CMAKE_(LANG)_COMPILER
-        // into the environment, in case user scripts want to run
-        // configure, or sub cmakes
-        std::string compilerName = "CMAKE_";
-        compilerName += lang;
-        compilerName += "_COMPILER";
-        std::string compilerEnv = "CMAKE_";
-        compilerEnv += lang;
-        compilerEnv += "_COMPILER_ENV_VAR";
-        std::string envVar = mf->GetRequiredDefinition(compilerEnv);
-        std::string envVarValue =
-          mf->GetRequiredDefinition(compilerName);
-        std::string env = envVar;
-        env += "=";
-        env += envVarValue;
-        cmSystemTools::PutEnv(env);
-        }
-
-      // if determineLanguage was called then load the file it
-      // configures CMake(LANG)Compiler.cmake
-      fpath = rootBin;
-      fpath += "/CMake";
-      fpath += lang;
-      fpath += "Compiler.cmake";
-      if(!mf->ReadListFile(fpath.c_str()))
-        {
-        cmSystemTools::Error("Could not find cmake module file: ",
-                             fpath.c_str());
-        }
-      this->SetLanguageEnabledFlag(lang, mf);
-      needSetLanguageEnabledMaps[lang] = true;
-      // this can only be called after loading CMake(LANG)Compiler.cmake
-      // the language must be enabled for try compile to work, but we do
-      // not know if it is a working compiler yet so set the test language
-      // flag
-      needTestLanguage[lang] = true;
-      } // end if(!this->GetLanguageEnabled(lang) )
-    }  // end loop over languages
-
-  // **** Load the system specific information if not yet loaded
-  if (!mf->GetDefinition("CMAKE_SYSTEM_SPECIFIC_INFORMATION_LOADED"))
-    {
-    fpath = mf->GetModulesFile("CMakeSystemSpecificInformation.cmake");
-    if(!mf->ReadListFile(fpath.c_str()))
-      {
-      cmSystemTools::Error("Could not find cmake module file: "
-                           "CMakeSystemSpecificInformation.cmake");
-      }
-    }
-  // loop over languages again loading CMake(LANG)Information.cmake
-  //
-  for(std::vector<std::string>::const_iterator l = languages.begin();
-      l != languages.end(); ++l)
-    {
-    const char* lang = l->c_str();
-    if(*l == "NONE")
-      {
-      this->SetLanguageEnabled("NONE", mf);
-      continue;
-      }
-
-    // Check that the compiler was found.
-    std::string compilerName = "CMAKE_";
-    compilerName += lang;
-    compilerName += "_COMPILER";
-    std::string compilerEnv = "CMAKE_";
-    compilerEnv += lang;
-    compilerEnv += "_COMPILER_ENV_VAR";
-    std::ostringstream noCompiler;
-    const char* compilerFile = mf->GetDefinition(compilerName);
-    if(!compilerFile || !*compilerFile ||
-       cmSystemTools::IsNOTFOUND(compilerFile))
-      {
-      noCompiler <<
-        "No " << compilerName << " could be found.\n"
-        ;
-      }
-    else if(strcmp(lang, "RC") != 0 &&
-            strcmp(lang, "ASM_MASM") != 0)
-      {
-      if(!cmSystemTools::FileIsFullPath(compilerFile))
-        {
-        noCompiler <<
-          "The " << compilerName << ":\n"
-          "  " << compilerFile << "\n"
-          "is not a full path and was not found in the PATH.\n"
-          ;
-        }
-      else if(!cmSystemTools::FileExists(compilerFile))
-        {
-        noCompiler <<
-          "The " << compilerName << ":\n"
-          "  " << compilerFile << "\n"
-          "is not a full path to an existing compiler tool.\n"
-          ;
-        }
-      }
-    if(!noCompiler.str().empty())
-      {
-      // Skip testing this language since the compiler is not found.
-      needTestLanguage[lang] = false;
-      if(!optional)
-        {
-        // The compiler was not found and it is not optional.  Remove
-        // CMake(LANG)Compiler.cmake so we try again next time CMake runs.
-        std::string compilerLangFile = rootBin;
-        compilerLangFile += "/CMake";
-        compilerLangFile += lang;
-        compilerLangFile += "Compiler.cmake";
-        cmSystemTools::RemoveFile(compilerLangFile);
-        if(!this->CMakeInstance->GetIsInTryCompile())
-          {
-          this->PrintCompilerAdvice(noCompiler, lang,
-                                    mf->GetDefinition(compilerEnv));
-          mf->IssueMessage(cmake::FATAL_ERROR, noCompiler.str());
-          fatalError = true;
-          }
-        }
-      }
-
-    std::string langLoadedVar = "CMAKE_";
-    langLoadedVar += lang;
-    langLoadedVar += "_INFORMATION_LOADED";
-    if (!mf->GetDefinition(langLoadedVar))
-      {
-      fpath = "CMake";
-      fpath +=  lang;
-      fpath += "Information.cmake";
-      std::string informationFile = mf->GetModulesFile(fpath.c_str());
-      if (informationFile.empty())
-        {
-        cmSystemTools::Error("Could not find cmake module file: ",
-                             fpath.c_str());
-        }
-      else if(!mf->ReadListFile(informationFile.c_str()))
-        {
-        cmSystemTools::Error("Could not process cmake module file: ",
-                             informationFile.c_str());
-        }
-      }
-    if (needSetLanguageEnabledMaps[lang])
-      {
-      this->SetLanguageEnabledMaps(lang, mf);
-      }
-    this->LanguagesReady.insert(lang);
-
-    // Test the compiler for the language just setup
-    // (but only if a compiler has been actually found)
-    // At this point we should have enough info for a try compile
-    // which is used in the backward stuff
-    // If the language is untested then test it now with a try compile.
-    if(needTestLanguage[lang])
-      {
-      if (!this->CMakeInstance->GetIsInTryCompile())
-        {
-        std::string testLang = "CMakeTest";
-        testLang += lang;
-        testLang += "Compiler.cmake";
-        std::string ifpath = mf->GetModulesFile(testLang.c_str());
-        if(!mf->ReadListFile(ifpath.c_str()))
-          {
-          cmSystemTools::Error("Could not find cmake module file: ",
-                               testLang.c_str());
-          }
-        std::string compilerWorks = "CMAKE_";
-        compilerWorks += lang;
-        compilerWorks += "_COMPILER_WORKS";
-        // if the compiler did not work, then remove the
-        // CMake(LANG)Compiler.cmake file so that it will get tested the
-        // next time cmake is run
-        if(!mf->IsOn(compilerWorks))
-          {
-          std::string compilerLangFile = rootBin;
-          compilerLangFile += "/CMake";
-          compilerLangFile += lang;
-          compilerLangFile += "Compiler.cmake";
-          cmSystemTools::RemoveFile(compilerLangFile);
-          }
-        } // end if in try compile
-      } // end need test language
-    // Store the shared library flags so that we can satisfy CMP0018
-    std::string sharedLibFlagsVar = "CMAKE_SHARED_LIBRARY_";
-    sharedLibFlagsVar += lang;
-    sharedLibFlagsVar += "_FLAGS";
-    const char* sharedLibFlags =
-      mf->GetSafeDefinition(sharedLibFlagsVar);
-    if (sharedLibFlags)
-      {
-      this->LanguageToOriginalSharedLibFlags[lang] = sharedLibFlags;
-      }
-
-    // Translate compiler ids for compatibility.
-    this->CheckCompilerIdCompatibility(mf, lang);
-    } // end for each language
-
-  // Now load files that can override any settings on the platform or for
-  // the project First load the project compatibility file if it is in
-  // cmake
-  std::string projectCompatibility = mf->GetDefinition("CMAKE_ROOT");
-  projectCompatibility += "/Modules/";
-  projectCompatibility += mf->GetSafeDefinition("PROJECT_NAME");
-  projectCompatibility += "Compatibility.cmake";
-  if(cmSystemTools::FileExists(projectCompatibility.c_str()))
-    {
-    mf->ReadListFile(projectCompatibility.c_str());
-    }
-  // Inform any extra generator of the new language.
-  if (this->ExtraGenerator)
-    {
-    this->ExtraGenerator->EnableLanguage(languages, mf, false);
-    }
-
-  if(fatalError)
-    {
-    cmSystemTools::SetFatalErrorOccured();
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::PrintCompilerAdvice(std::ostream& os,
-                                            std::string const& lang,
-                                            const char* envVar) const
-{
-  // Subclasses override this method if they do not support this advice.
-  os <<
-    "Tell CMake where to find the compiler by setting "
-    ;
-  if(envVar)
-    {
-    os <<
-      "either the environment variable \"" << envVar << "\" or "
-      ;
-    }
-  os <<
-    "the CMake cache entry CMAKE_" << lang << "_COMPILER "
-    "to the full path to the compiler, or to the compiler name "
-    "if it is in the PATH."
-    ;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::CheckCompilerIdCompatibility(cmMakefile* mf,
-                                                std::string const& lang) const
-{
-  std::string compilerIdVar = "CMAKE_" + lang + "_COMPILER_ID";
-  const char* compilerId = mf->GetDefinition(compilerIdVar);
-  if(!compilerId)
-    {
-    return;
-    }
-
-  if(strcmp(compilerId, "AppleClang") == 0)
-    {
-    switch(mf->GetPolicyStatus(cmPolicies::CMP0025))
-      {
-      case cmPolicies::WARN:
-        if(!this->CMakeInstance->GetIsInTryCompile() &&
-           mf->PolicyOptionalWarningEnabled("CMAKE_POLICY_WARNING_CMP0025"))
-          {
-          std::ostringstream w;
-          w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0025) << "\n"
-            "Converting " << lang <<
-            " compiler id \"AppleClang\" to \"Clang\" for compatibility."
-            ;
-          mf->IssueMessage(cmake::AUTHOR_WARNING, w.str());
-          }
-      case cmPolicies::OLD:
-        // OLD behavior is to convert AppleClang to Clang.
-        mf->AddDefinition(compilerIdVar, "Clang");
-        break;
-      case cmPolicies::REQUIRED_IF_USED:
-      case cmPolicies::REQUIRED_ALWAYS:
-        mf->IssueMessage(
-          cmake::FATAL_ERROR,
-          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0025)
-          );
-      case cmPolicies::NEW:
-        // NEW behavior is to keep AppleClang.
-        break;
-      }
-    }
-
-  if(strcmp(compilerId, "QCC") == 0)
-    {
-    switch(mf->GetPolicyStatus(cmPolicies::CMP0047))
-      {
-      case cmPolicies::WARN:
-        if(!this->CMakeInstance->GetIsInTryCompile() &&
-           mf->PolicyOptionalWarningEnabled("CMAKE_POLICY_WARNING_CMP0047"))
-          {
-          std::ostringstream w;
-          w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0047) << "\n"
-            "Converting " << lang <<
-            " compiler id \"QCC\" to \"GNU\" for compatibility."
-            ;
-          mf->IssueMessage(cmake::AUTHOR_WARNING, w.str());
-          }
-      case cmPolicies::OLD:
-        // OLD behavior is to convert QCC to GNU.
-        mf->AddDefinition(compilerIdVar, "GNU");
-        if(lang == "C")
-          {
-          mf->AddDefinition("CMAKE_COMPILER_IS_GNUCC", "1");
-          }
-        else if(lang == "CXX")
-          {
-          mf->AddDefinition("CMAKE_COMPILER_IS_GNUCXX", "1");
-          }
-        break;
-      case cmPolicies::REQUIRED_IF_USED:
-      case cmPolicies::REQUIRED_ALWAYS:
-        mf->IssueMessage(
-          cmake::FATAL_ERROR,
-          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0047)
-          );
-      case cmPolicies::NEW:
-        // NEW behavior is to keep QCC.
-        break;
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-std::string
-cmGlobalGenerator::GetLanguageOutputExtension(cmSourceFile const& source) const
-{
-  const std::string& lang = source.GetLanguage();
-  if(!lang.empty())
-    {
-    std::map<std::string, std::string>::const_iterator it =
-                                  this->LanguageToOutputExtension.find(lang);
-
-    if(it != this->LanguageToOutputExtension.end())
-      {
-      return it->second;
-      }
-    }
-  else
-    {
-    // if no language is found then check to see if it is already an
-    // ouput extension for some language.  In that case it should be ignored
-    // and in this map, so it will not be compiled but will just be used.
-    std::string const& ext = source.GetExtension();
-    if(!ext.empty())
-      {
-      if(this->OutputExtensions.count(ext))
-        {
-        return ext;
-        }
-      }
-    }
-  return "";
-}
-
-
-std::string cmGlobalGenerator::GetLanguageFromExtension(const char* ext) const
-{
-  // if there is an extension and it starts with . then move past the
-  // . because the extensions are not stored with a .  in the map
-  if(ext && *ext == '.')
-    {
-    ++ext;
-    }
-  std::map<std::string, std::string>::const_iterator it
-                                        = this->ExtensionToLanguage.find(ext);
-  if(it != this->ExtensionToLanguage.end())
-    {
-    return it->second;
-    }
-  return "";
-}
-
-/* SetLanguageEnabled() is now split in two parts:
-at first the enabled-flag is set. This can then be used in EnabledLanguage()
-for checking whether the language is already enabled. After setting this
-flag still the values from the cmake variables have to be copied into the
-internal maps, this is done in SetLanguageEnabledMaps() which is called
-after the system- and compiler specific files have been loaded.
-
-This split was done originally so that compiler-specific configuration
-files could change the object file extension
-(CMAKE_<LANG>_OUTPUT_EXTENSION) before the CMake variables were copied
-to the C++ maps.
-*/
-void cmGlobalGenerator::SetLanguageEnabled(const std::string& l,
-                                           cmMakefile* mf)
-{
-  this->SetLanguageEnabledFlag(l, mf);
-  this->SetLanguageEnabledMaps(l, mf);
-}
-
-void cmGlobalGenerator::SetLanguageEnabledFlag(const std::string& l,
-                                               cmMakefile* mf)
-{
-  this->CMakeInstance->GetState()->SetLanguageEnabled(l);
-
-  // Fill the language-to-extension map with the current variable
-  // settings to make sure it is available for the try_compile()
-  // command source file signature.  In SetLanguageEnabledMaps this
-  // will be done again to account for any compiler- or
-  // platform-specific entries.
-  this->FillExtensionToLanguageMap(l, mf);
-}
-
-void cmGlobalGenerator::SetLanguageEnabledMaps(const std::string& l,
-                                               cmMakefile* mf)
-{
-  // use LanguageToLinkerPreference to detect whether this functions has
-  // run before
-  if (this->LanguageToLinkerPreference.find(l) !=
-                                        this->LanguageToLinkerPreference.end())
-    {
-    return;
-    }
-
-  std::string linkerPrefVar = std::string("CMAKE_") +
-    std::string(l) + std::string("_LINKER_PREFERENCE");
-  const char* linkerPref = mf->GetDefinition(linkerPrefVar);
-  int preference = 0;
-  if(linkerPref)
-    {
-    if (sscanf(linkerPref, "%d", &preference)!=1)
-      {
-      // backward compatibility: before 2.6 LINKER_PREFERENCE
-      // was either "None" or "Preferred", and only the first character was
-      // tested. So if there is a custom language out there and it is
-      // "Preferred", set its preference high
-      if (linkerPref[0]=='P')
-        {
-        preference = 100;
-        }
-      else
-        {
-        preference = 0;
-        }
-      }
-    }
-
-  if (preference < 0)
-    {
-    std::string msg = linkerPrefVar;
-    msg += " is negative, adjusting it to 0";
-    cmSystemTools::Message(msg.c_str(), "Warning");
-    preference = 0;
-    }
-
-  this->LanguageToLinkerPreference[l] = preference;
-
-  std::string outputExtensionVar = std::string("CMAKE_") +
-    std::string(l) + std::string("_OUTPUT_EXTENSION");
-  const char* outputExtension = mf->GetDefinition(outputExtensionVar);
-  if(outputExtension)
-    {
-    this->LanguageToOutputExtension[l] = outputExtension;
-    this->OutputExtensions[outputExtension] = outputExtension;
-    if(outputExtension[0] == '.')
-      {
-      this->OutputExtensions[outputExtension+1] = outputExtension+1;
-      }
-    }
-
-  // The map was originally filled by SetLanguageEnabledFlag, but
-  // since then the compiler- and platform-specific files have been
-  // loaded which might have added more entries.
-  this->FillExtensionToLanguageMap(l, mf);
-
-  std::string ignoreExtensionsVar = std::string("CMAKE_") +
-    std::string(l) + std::string("_IGNORE_EXTENSIONS");
-  std::string ignoreExts = mf->GetSafeDefinition(ignoreExtensionsVar);
-  std::vector<std::string> extensionList;
-  cmSystemTools::ExpandListArgument(ignoreExts, extensionList);
-  for(std::vector<std::string>::iterator i = extensionList.begin();
-      i != extensionList.end(); ++i)
-    {
-    this->IgnoreExtensions[*i] = true;
-    }
-
-}
-
-void cmGlobalGenerator::FillExtensionToLanguageMap(const std::string& l,
-                                                   cmMakefile* mf)
-{
-  std::string extensionsVar = std::string("CMAKE_") +
-    std::string(l) + std::string("_SOURCE_FILE_EXTENSIONS");
-  std::string exts = mf->GetSafeDefinition(extensionsVar);
-  std::vector<std::string> extensionList;
-  cmSystemTools::ExpandListArgument(exts, extensionList);
-  for(std::vector<std::string>::iterator i = extensionList.begin();
-      i != extensionList.end(); ++i)
-    {
-    this->ExtensionToLanguage[*i] = l;
-    }
-}
-
-bool cmGlobalGenerator::IgnoreFile(const char* ext) const
-{
-  if(!this->GetLanguageFromExtension(ext).empty())
-    {
-    return false;
-    }
-  return (this->IgnoreExtensions.count(ext) > 0);
-}
-
-bool cmGlobalGenerator::GetLanguageEnabled(const std::string& l) const
-{
-  return this->CMakeInstance->GetState()->GetLanguageEnabled(l);
-}
-
-void cmGlobalGenerator::ClearEnabledLanguages()
-{
-  return this->CMakeInstance->GetState()->ClearEnabledLanguages();
-}
-
-void cmGlobalGenerator::Configure()
-{
-  this->FirstTimeProgress = 0.0f;
-  this->ClearGeneratorMembers();
-
-  // start with this directory
-  cmLocalGenerator *lg = this->MakeLocalGenerator();
-  this->Makefiles.push_back(lg->GetMakefile());
-  this->LocalGenerators.push_back(lg);
-
-  // set the Start directories
-  lg->GetMakefile()->SetCurrentSourceDirectory
-    (this->CMakeInstance->GetHomeDirectory());
-  lg->GetMakefile()->SetCurrentBinaryDirectory
-    (this->CMakeInstance->GetHomeOutputDirectory());
-
-  this->BinaryDirectories.insert(
-      this->CMakeInstance->GetHomeOutputDirectory());
-
-  // now do it
-  lg->GetMakefile()->Configure();
-  lg->GetMakefile()->EnforceDirectoryLevelRules();
-
-  // update the cache entry for the number of local generators, this is used
-  // for progress
-  char num[100];
-  sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
-  this->GetCMakeInstance()->AddCacheEntry
-    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
-     "number of local generators", cmState::INTERNAL);
-
-  // check for link libraries and include directories containing "NOTFOUND"
-  // and for infinite loops
-  this->CheckLocalGenerators();
-
-  // at this point this->LocalGenerators has been filled,
-  // so create the map from project name to vector of local generators
-  this->FillProjectMap();
-
-  if ( this->CMakeInstance->GetWorkingMode() == cmake::NORMAL_MODE)
-    {
-    std::ostringstream msg;
-    if(cmSystemTools::GetErrorOccuredFlag())
-      {
-      msg << "Configuring incomplete, errors occurred!";
-      const char* logs[] = {"CMakeOutput.log", "CMakeError.log", 0};
-      for(const char** log = logs; *log; ++log)
-        {
-        std::string f = this->CMakeInstance->GetHomeOutputDirectory();
-        f += this->CMakeInstance->GetCMakeFilesDirectory();
-        f += "/";
-        f += *log;
-        if(cmSystemTools::FileExists(f.c_str()))
-          {
-          msg << "\nSee also \"" << f << "\".";
-          }
-        }
-      }
-    else
-      {
-      msg << "Configuring done";
-      }
-    this->CMakeInstance->UpdateProgress(msg.str().c_str(), -1);
-    }
-
-  unsigned int i;
-
-  // Put a copy of each global target in every directory.
-  cmTargets globalTargets;
-  this->CreateDefaultGlobalTargets(&globalTargets);
-
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    cmMakefile* mf = this->LocalGenerators[i]->GetMakefile();
-    cmTargets* targets = &(mf->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = globalTargets.begin(); tit != globalTargets.end(); ++ tit )
-      {
-      (*targets)[tit->first] = tit->second;
-      (*targets)[tit->first].SetMakefile(mf);
-      }
-    }
-
-}
-
-void cmGlobalGenerator::CreateGenerationObjects(TargetTypes targetTypes)
-{
-  cmDeleteAll(this->GeneratorTargets);
-  this->GeneratorTargets.clear();
-  this->CreateGeneratorTargets(targetTypes);
-}
-
-cmExportBuildFileGenerator*
-cmGlobalGenerator::GetExportedTargetsFile(const std::string &filename) const
-{
-  std::map<std::string, cmExportBuildFileGenerator*>::const_iterator it
-    = this->BuildExportSets.find(filename);
-  return it == this->BuildExportSets.end() ? 0 : it->second;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::AddCMP0042WarnTarget(const std::string& target)
-{
-  this->CMP0042WarnTargets.insert(target);
-}
-
-bool cmGlobalGenerator::CheckALLOW_DUPLICATE_CUSTOM_TARGETS() const
-{
-  // If the property is not enabled then okay.
-  if(!this->CMakeInstance->GetState()
-     ->GetGlobalPropertyAsBool("ALLOW_DUPLICATE_CUSTOM_TARGETS"))
-    {
-    return true;
-    }
-
-  // This generator does not support duplicate custom targets.
-  std::ostringstream e;
-  e << "This project has enabled the ALLOW_DUPLICATE_CUSTOM_TARGETS "
-    << "global property.  "
-    << "The \"" << this->GetName() << "\" generator does not support "
-    << "duplicate custom targets.  "
-    << "Consider using a Makefiles generator or fix the project to not "
-    << "use duplicate target names.";
-  cmSystemTools::Error(e.str().c_str());
-  return false;
-}
-
-bool cmGlobalGenerator::Compute()
-{
-  // Some generators track files replaced during the Generate.
-  // Start with an empty vector:
-  this->FilesReplacedDuringGenerate.clear();
-
-  // clear targets to issue warning CMP0042 for
-  this->CMP0042WarnTargets.clear();
-
-  // Check whether this generator is allowed to run.
-  if(!this->CheckALLOW_DUPLICATE_CUSTOM_TARGETS())
-    {
-    return false;
-    }
-  this->FinalizeTargetCompileInfo();
-
-  this->CreateGenerationObjects();
-
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  // Iterate through all targets and set up automoc for those which have
-  // the AUTOMOC, AUTOUIC or AUTORCC property set
-  AutogensType autogens;
-  this->CreateQtAutoGeneratorsTargets(autogens);
-#endif
-
-  unsigned int i;
-
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->LocalGenerators[i]->ComputeObjectMaxPath();
-    }
-
-  // Add generator specific helper commands
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->LocalGenerators[i]->AddHelperCommands();
-    }
-
-  this->InitGeneratorTargets();
-
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  for (AutogensType::iterator it = autogens.begin(); it != autogens.end();
-       ++it)
-    {
-    it->first.SetupAutoGenerateTarget(it->second);
-    }
-#endif
-
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    cmMakefile* mf = this->LocalGenerators[i]->GetMakefile();
-    std::vector<cmInstallGenerator*>& gens = mf->GetInstallGenerators();
-    for (std::vector<cmInstallGenerator*>::const_iterator git = gens.begin();
-         git != gens.end(); ++git)
-      {
-      (*git)->Compute(this->LocalGenerators[i]);
-      }
-    }
-
-  return true;
-}
-
-void cmGlobalGenerator::Generate()
-{
-  unsigned int i;
-
-  // Trace the dependencies, after that no custom commands should be added
-  // because their dependencies might not be handled correctly
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->LocalGenerators[i]->TraceDependencies();
-    }
-
-  this->ForceLinkerLanguages();
-
-  // Compute the manifest of main targets generated.
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->LocalGenerators[i]->GenerateTargetManifest();
-    }
-
-  this->ProcessEvaluationFiles();
-
-  // Compute the inter-target dependencies.
-  if(!this->ComputeTargetDepends())
-    {
-    return;
-    }
-
-  // Create a map from local generator to the complete set of targets
-  // it builds by default.
-  this->FillLocalGeneratorToTargetMap();
-
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->LocalGenerators[i]->ComputeHomeRelativeOutputPath();
-    }
-
-  // Generate project files
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->SetCurrentMakefile(this->LocalGenerators[i]->GetMakefile());
-    this->LocalGenerators[i]->Generate();
-    if(!this->LocalGenerators[i]->GetMakefile()->IsOn(
-      "CMAKE_SKIP_INSTALL_RULES"))
-      {
-      this->LocalGenerators[i]->GenerateInstallRules();
-      }
-    this->LocalGenerators[i]->GenerateTestFiles();
-    this->CMakeInstance->UpdateProgress("Generating",
-      (static_cast<float>(i)+1.0f)/
-       static_cast<float>(this->LocalGenerators.size()));
-    }
-  this->SetCurrentMakefile(0);
-
-  if(!this->GenerateCPackPropertiesFile())
-    {
-    this->GetCMakeInstance()->IssueMessage(
-      cmake::FATAL_ERROR, "Could not write CPack properties file.");
-    }
-
-  for (std::map<std::string, cmExportBuildFileGenerator*>::iterator
-      it = this->BuildExportSets.begin(); it != this->BuildExportSets.end();
-      ++it)
-    {
-    if (!it->second->GenerateImportFile()
-        && !cmSystemTools::GetErrorOccuredFlag())
-      {
-      this->GetCMakeInstance()
-          ->IssueMessage(cmake::FATAL_ERROR, "Could not write export file.");
-      return;
-      }
-    }
-  // Update rule hashes.
-  this->CheckRuleHashes();
-
-  this->WriteSummary();
-
-  if (this->ExtraGenerator != 0)
-    {
-    this->ExtraGenerator->Generate();
-    }
-
-  if(!this->CMP0042WarnTargets.empty())
-    {
-    std::ostringstream w;
-    w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0042) << "\n";
-    w << "MACOSX_RPATH is not specified for"
-         " the following targets:\n";
-    for(std::set<std::string>::iterator
-      iter = this->CMP0042WarnTargets.begin();
-      iter != this->CMP0042WarnTargets.end();
-      ++iter)
-      {
-      w << " " << *iter << "\n";
-      }
-    this->GetCMakeInstance()->IssueMessage(cmake::AUTHOR_WARNING, w.str());
-    }
-
-  this->CMakeInstance->UpdateProgress("Generating done", -1);
-}
-
-//----------------------------------------------------------------------------
-bool cmGlobalGenerator::ComputeTargetDepends()
-{
-  cmComputeTargetDepends ctd(this);
-  if(!ctd.Compute())
-    {
-    return false;
-    }
-  std::vector<cmGeneratorTarget const*> const& targets = ctd.GetTargets();
-  for(std::vector<cmGeneratorTarget const*>::const_iterator ti
-      = targets.begin(); ti != targets.end(); ++ti)
-    {
-    ctd.GetTargetDirectDepends(*ti, this->TargetDependencies[*ti]);
-    }
-  return true;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::CreateQtAutoGeneratorsTargets(AutogensType &autogens)
-{
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  for(unsigned int i=0; i < this->LocalGenerators.size(); ++i)
-    {
-    cmTargets& targets =
-      this->LocalGenerators[i]->GetMakefile()->GetTargets();
-    std::vector<std::string> targetNames;
-    targetNames.reserve(targets.size());
-    for(cmTargets::iterator ti = targets.begin();
-        ti != targets.end(); ++ti)
-      {
-      if (ti->second.GetType() == cmTarget::GLOBAL_TARGET)
-        {
-        continue;
-        }
-      targetNames.push_back(ti->second.GetName());
-      }
-    for(std::vector<std::string>::iterator ti = targetNames.begin();
-        ti != targetNames.end(); ++ti)
-      {
-      cmTarget& target = *this->LocalGenerators[i]
-                              ->GetMakefile()->FindTarget(*ti, true);
-      if(target.GetType() == cmTarget::EXECUTABLE ||
-         target.GetType() == cmTarget::STATIC_LIBRARY ||
-         target.GetType() == cmTarget::SHARED_LIBRARY ||
-         target.GetType() == cmTarget::MODULE_LIBRARY ||
-         target.GetType() == cmTarget::OBJECT_LIBRARY)
-        {
-        if((target.GetPropertyAsBool("AUTOMOC")
-              || target.GetPropertyAsBool("AUTOUIC")
-              || target.GetPropertyAsBool("AUTORCC"))
-            && !target.IsImported())
-          {
-          cmQtAutoGenerators autogen;
-          if(autogen.InitializeAutogenTarget(this->LocalGenerators[i],
-                                             &target))
-            {
-            autogens.push_back(std::make_pair(autogen, &target));
-            }
-          }
-        }
-      }
-    }
-#else
-  (void)autogens;
-#endif
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::FinalizeTargetCompileInfo()
-{
-  // Construct per-target generator information.
-  for(unsigned int i=0; i < this->LocalGenerators.size(); ++i)
-    {
-    cmMakefile *mf = this->LocalGenerators[i]->GetMakefile();
-
-    const cmStringRange noconfig_compile_definitions =
-                                mf->GetCompileDefinitionsEntries();
-    const cmBacktraceRange noconfig_compile_definitions_bts =
-                                mf->GetCompileDefinitionsBacktraces();
-
-    cmTargets& targets = mf->GetTargets();
-    for(cmTargets::iterator ti = targets.begin();
-        ti != targets.end(); ++ti)
-      {
-      cmTarget* t = &ti->second;
-      if (t->GetType() == cmTarget::GLOBAL_TARGET)
-        {
-        continue;
-        }
-
-      t->AppendBuildInterfaceIncludes();
-
-      if (t->GetType() == cmTarget::INTERFACE_LIBRARY)
-        {
-        continue;
-        }
-
-      cmBacktraceRange::const_iterator btIt
-          = noconfig_compile_definitions_bts.begin();
-      for (cmStringRange::const_iterator it
-                                      = noconfig_compile_definitions.begin();
-          it != noconfig_compile_definitions.end(); ++it, ++btIt)
-        {
-        t->InsertCompileDefinition(*it, *btIt);
-        }
-
-      cmPolicies::PolicyStatus polSt
-                                  = mf->GetPolicyStatus(cmPolicies::CMP0043);
-      if (polSt == cmPolicies::WARN || polSt == cmPolicies::OLD)
-        {
-        std::vector<std::string> configs;
-        mf->GetConfigurations(configs);
-
-        for(std::vector<std::string>::const_iterator ci = configs.begin();
-            ci != configs.end(); ++ci)
-          {
-          std::string defPropName = "COMPILE_DEFINITIONS_";
-          defPropName += cmSystemTools::UpperCase(*ci);
-          t->AppendProperty(defPropName,
-                            mf->GetProperty(defPropName));
-          }
-        }
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::CreateGeneratorTargets(TargetTypes targetTypes,
-                                               cmLocalGenerator *lg)
-{
-  cmGeneratorTargetsType generatorTargets;
-  cmMakefile* mf = lg->GetMakefile();
-  if (targetTypes == AllTargets)
-    {
-    cmTargets& targets = mf->GetTargets();
-    for(cmTargets::iterator ti = targets.begin();
-        ti != targets.end(); ++ti)
-      {
-      cmTarget* t = &ti->second;
-      cmGeneratorTarget* gt = new cmGeneratorTarget(t, lg);
-      this->GeneratorTargets[t] = gt;
-      generatorTargets[t] = gt;
-      }
-    }
-
-  for(std::vector<cmTarget*>::const_iterator
-        j = mf->GetOwnedImportedTargets().begin();
-      j != mf->GetOwnedImportedTargets().end(); ++j)
-    {
-    cmGeneratorTarget* gt = new cmGeneratorTarget(*j, lg);
-    this->GeneratorTargets[*j] = gt;
-    generatorTargets[*j] = gt;
-    }
-  mf->SetGeneratorTargets(generatorTargets);
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::InitGeneratorTargets()
-{
-  for(cmGeneratorTargetsType::iterator ti =
-      this->GeneratorTargets.begin(); ti != this->GeneratorTargets.end(); ++ti)
-    {
-    if (!ti->second->Target->IsImported())
-      {
-      this->ComputeTargetObjectDirectory(ti->second);
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::CreateGeneratorTargets(TargetTypes targetTypes)
-{
-  // Construct per-target generator information.
-  for(unsigned int i=0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->CreateGeneratorTargets(targetTypes, this->LocalGenerators[i]);
-    }
-}
-
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::ClearGeneratorMembers()
-{
-  cmDeleteAll(this->GeneratorTargets);
-  this->GeneratorTargets.clear();
-
-  cmDeleteAll(this->BuildExportSets);
-  this->BuildExportSets.clear();
-
-  this->Makefiles.clear();
-
-  cmDeleteAll(this->LocalGenerators);
-  this->LocalGenerators.clear();
-
-  this->ExportSets.clear();
-  this->TargetDependencies.clear();
-  this->TotalTargets.clear();
-  this->ImportedTargets.clear();
-  this->LocalGeneratorToTargetMap.clear();
-  this->ProjectMap.clear();
-  this->RuleHashes.clear();
-  this->DirectoryContentMap.clear();
-  this->BinaryDirectories.clear();
-}
-
-//----------------------------------------------------------------------------
-cmGeneratorTarget*
-cmGlobalGenerator::GetGeneratorTarget(cmTarget const* t) const
-{
-  cmGeneratorTargetsType::const_iterator ti = this->GeneratorTargets.find(t);
-  if(ti == this->GeneratorTargets.end())
-    {
-    this->CMakeInstance->IssueMessage(
-      cmake::INTERNAL_ERROR, "Missing cmGeneratorTarget instance!");
-    return 0;
-    }
-  return ti->second;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::ComputeTargetObjectDirectory(cmGeneratorTarget*) const
-{
-}
-
-void cmGlobalGenerator::CheckLocalGenerators()
-{
-  std::map<std::string, std::string> notFoundMap;
-//  std::set<std::string> notFoundMap;
-  // after it is all done do a ConfigureFinalPass
-  cmState* state = this->GetCMakeInstance()->GetState();
-  for (unsigned int i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->LocalGenerators[i]->GetMakefile()->ConfigureFinalPass();
-    cmTargets &targets =
-      this->LocalGenerators[i]->GetMakefile()->GetTargets();
-    for (cmTargets::iterator l = targets.begin();
-         l != targets.end(); l++)
-      {
-      if (l->second.GetType() == cmTarget::INTERFACE_LIBRARY)
-        {
-        continue;
-        }
-      const cmTarget::LinkLibraryVectorType& libs =
-        l->second.GetOriginalLinkLibraries();
-      for(cmTarget::LinkLibraryVectorType::const_iterator lib = libs.begin();
-          lib != libs.end(); ++lib)
-        {
-        if(lib->first.size() > 9 &&
-           cmSystemTools::IsNOTFOUND(lib->first.c_str()))
-          {
-          std::string varName = lib->first.substr(0, lib->first.size()-9);
-          if(state->GetCacheEntryPropertyAsBool(varName, "ADVANCED"))
-            {
-            varName += " (ADVANCED)";
-            }
-          std::string text = notFoundMap[varName];
-          text += "\n    linked by target \"";
-          text += l->second.GetName();
-          text += "\" in directory ";
-          text+=this->LocalGenerators[i]->GetMakefile()
-                    ->GetCurrentSourceDirectory();
-          notFoundMap[varName] = text;
-          }
-        }
-      std::vector<std::string> incs;
-      const char *incDirProp = l->second.GetProperty("INCLUDE_DIRECTORIES");
-      if (!incDirProp)
-        {
-        continue;
-        }
-
-      std::string incDirs = cmGeneratorExpression::Preprocess(incDirProp,
-                        cmGeneratorExpression::StripAllGeneratorExpressions);
-
-      cmSystemTools::ExpandListArgument(incDirs, incs);
-
-      for( std::vector<std::string>::const_iterator incDir = incs.begin();
-            incDir != incs.end(); ++incDir)
-        {
-        if(incDir->size() > 9 &&
-            cmSystemTools::IsNOTFOUND(incDir->c_str()))
-          {
-          std::string varName = incDir->substr(0, incDir->size()-9);
-          if(state->GetCacheEntryPropertyAsBool(varName, "ADVANCED"))
-            {
-            varName += " (ADVANCED)";
-            }
-          std::string text = notFoundMap[varName];
-          text += "\n   used as include directory in directory ";
-          text += this->LocalGenerators[i]
-                      ->GetMakefile()->GetCurrentSourceDirectory();
-          notFoundMap[varName] = text;
-          }
-        }
-      }
-    this->CMakeInstance->UpdateProgress
-      ("Configuring", 0.9f+0.1f*(static_cast<float>(i)+1.0f)/
-        static_cast<float>(this->LocalGenerators.size()));
-    }
-
-  if(!notFoundMap.empty())
-    {
-    std::string notFoundVars;
-    for(std::map<std::string, std::string>::const_iterator
-        ii = notFoundMap.begin();
-        ii != notFoundMap.end();
-        ++ii)
-      {
-      notFoundVars += ii->first;
-      notFoundVars += ii->second;
-      notFoundVars += "\n";
-      }
-    cmSystemTools::Error("The following variables are used in this project, "
-                         "but they are set to NOTFOUND.\n"
-                         "Please set them or make sure they are set and "
-                         "tested correctly in the CMake files:\n",
-                         notFoundVars.c_str());
-    }
-}
-
-int cmGlobalGenerator::TryCompile(const std::string& srcdir,
-                                  const std::string& bindir,
-                                  const std::string& projectName,
-                                  const std::string& target, bool fast,
-                                  std::string& output, cmMakefile *mf)
-{
-  // if this is not set, then this is a first time configure
-  // and there is a good chance that the try compile stuff will
-  // take the bulk of the time, so try and guess some progress
-  // by getting closer and closer to 100 without actually getting there.
-  if (!this->CMakeInstance->GetState()->GetInitializedCacheValue
-      ("CMAKE_NUMBER_OF_LOCAL_GENERATORS"))
-    {
-    // If CMAKE_NUMBER_OF_LOCAL_GENERATORS is not set
-    // we are in the first time progress and we have no
-    // idea how long it will be.  So, just move 1/10th of the way
-    // there each time, and don't go over 95%
-    this->FirstTimeProgress += ((1.0f - this->FirstTimeProgress) /30.0f);
-    if(this->FirstTimeProgress > 0.95f)
-      {
-      this->FirstTimeProgress = 0.95f;
-      }
-    this->CMakeInstance->UpdateProgress("Configuring",
-                                        this->FirstTimeProgress);
-    }
-
-  std::string newTarget;
-  if (!target.empty())
-    {
-    newTarget += target;
-#if 0
-#if defined(_WIN32) || defined(__CYGWIN__)
-    std::string tmp = target;
-    // if the target does not already end in . something
-    // then assume .exe
-    if(tmp.size() < 4 || tmp[tmp.size()-4] != '.')
-      {
-      newTarget += ".exe";
-      }
-#endif // WIN32
-#endif
-    }
-  std::string config =
-    mf->GetSafeDefinition("CMAKE_TRY_COMPILE_CONFIGURATION");
-  return this->Build(srcdir,bindir,projectName,
-                     newTarget,
-                     output,"",config,false,fast,false,
-                     this->TryCompileTimeout);
-}
-
-void cmGlobalGenerator::GenerateBuildCommand(
-  std::vector<std::string>& makeCommand, const std::string&,
-  const std::string&, const std::string&, const std::string&,
-  const std::string&, bool, bool,
-  std::vector<std::string> const&)
-{
-  makeCommand.push_back(
-    "cmGlobalGenerator::GenerateBuildCommand not implemented");
-}
-
-int cmGlobalGenerator::Build(
-  const std::string&, const std::string& bindir,
-  const std::string& projectName, const std::string& target,
-  std::string& output,
-  const std::string& makeCommandCSTR,
-  const std::string& config,
-  bool clean, bool fast, bool verbose,
-  double timeout,
-  cmSystemTools::OutputOption outputflag,
-  std::vector<std::string> const& nativeOptions)
-{
-  /**
-   * Run an executable command and put the stdout in output.
-   */
-  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-  cmSystemTools::ChangeDirectory(bindir);
-  output += "Change Dir: ";
-  output += bindir;
-  output += "\n";
-
-  int retVal;
-  bool hideconsole = cmSystemTools::GetRunCommandHideConsole();
-  cmSystemTools::SetRunCommandHideConsole(true);
-  std::string outputBuffer;
-  std::string* outputPtr = &outputBuffer;
-
-  std::vector<std::string> makeCommand;
-  this->GenerateBuildCommand(makeCommand, makeCommandCSTR, projectName,
-                             bindir, target, config, fast, verbose,
-                             nativeOptions);
-
-  // Workaround to convince VCExpress.exe to produce output.
-  if (outputflag == cmSystemTools::OUTPUT_PASSTHROUGH &&
-      !makeCommand.empty() && cmSystemTools::LowerCase(
-        cmSystemTools::GetFilenameName(makeCommand[0])) == "vcexpress.exe")
-    {
-    outputflag = cmSystemTools::OUTPUT_NORMAL;
-    }
-
-  // should we do a clean first?
-  if (clean)
-    {
-    std::vector<std::string> cleanCommand;
-    this->GenerateBuildCommand(cleanCommand, makeCommandCSTR, projectName,
-                               bindir, "clean", config, fast, verbose);
-    output += "\nRun Clean Command:";
-    output += cmSystemTools::PrintSingleCommand(cleanCommand);
-    output += "\n";
-
-    if (!cmSystemTools::RunSingleCommand(cleanCommand, outputPtr, outputPtr,
-                                         &retVal, 0, outputflag, timeout))
-      {
-      cmSystemTools::SetRunCommandHideConsole(hideconsole);
-      cmSystemTools::Error("Generator: execution of make clean failed.");
-      output += *outputPtr;
-      output += "\nGenerator: execution of make clean failed.\n";
-
-      // return to the original directory
-      cmSystemTools::ChangeDirectory(cwd);
-      return 1;
-      }
-    output += *outputPtr;
-    }
-
-  // now build
-  std::string makeCommandStr = cmSystemTools::PrintSingleCommand(makeCommand);
-  output += "\nRun Build Command:";
-  output += makeCommandStr;
-  output += "\n";
-
-  if (!cmSystemTools::RunSingleCommand(makeCommand, outputPtr, outputPtr,
-                                       &retVal, 0, outputflag, timeout))
-    {
-    cmSystemTools::SetRunCommandHideConsole(hideconsole);
-    cmSystemTools::Error
-      ("Generator: execution of make failed. Make command was: ",
-       makeCommandStr.c_str());
-    output += *outputPtr;
-    output += "\nGenerator: execution of make failed. Make command was: "
-        + makeCommandStr + "\n";
-
-    // return to the original directory
-    cmSystemTools::ChangeDirectory(cwd);
-    return 1;
-    }
-  output += *outputPtr;
-  cmSystemTools::SetRunCommandHideConsole(hideconsole);
-
-  // The SGI MipsPro 7.3 compiler does not return an error code when
-  // the source has a #error in it!  This is a work-around for such
-  // compilers.
-  if((retVal == 0) && (output.find("#error") != std::string::npos))
-    {
-    retVal = 1;
-    }
-
-  cmSystemTools::ChangeDirectory(cwd);
-  return retVal;
-}
-
-//----------------------------------------------------------------------------
-std::string cmGlobalGenerator::GenerateCMakeBuildCommand(
-  const std::string& target, const std::string& config,
-  const std::string& native,
-  bool ignoreErrors)
-{
-  std::string makeCommand = cmSystemTools::GetCMakeCommand();
-  makeCommand = cmSystemTools::ConvertToOutputPath(makeCommand.c_str());
-  makeCommand += " --build .";
-  if(!config.empty())
-    {
-    makeCommand += " --config \"";
-    makeCommand += config;
-    makeCommand += "\"";
-    }
-  if(!target.empty())
-    {
-    makeCommand += " --target \"";
-    makeCommand += target;
-    makeCommand += "\"";
-    }
-  const char* sep = " -- ";
-  if(ignoreErrors)
-    {
-    const char* iflag = this->GetBuildIgnoreErrorsFlag();
-    if(iflag && *iflag)
-      {
-      makeCommand += sep;
-      makeCommand += iflag;
-      sep = " ";
-      }
-    }
-  if(!native.empty())
-    {
-    makeCommand += sep;
-    makeCommand += native;
-    }
-  return makeCommand;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::AddMakefile(cmMakefile *mf)
-{
-  this->Makefiles.push_back(mf);
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::AddLocalGenerator(cmLocalGenerator *lg)
-{
-  this->LocalGenerators.push_back(lg);
-
-  // update progress
-  // estimate how many lg there will be
-  const char *numGenC =
-    this->CMakeInstance->GetState()->GetInitializedCacheValue
-    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS");
-
-  if (!numGenC)
-    {
-    // If CMAKE_NUMBER_OF_LOCAL_GENERATORS is not set
-    // we are in the first time progress and we have no
-    // idea how long it will be.  So, just move half way
-    // there each time, and don't go over 95%
-    this->FirstTimeProgress += ((1.0f - this->FirstTimeProgress) /30.0f);
-    if(this->FirstTimeProgress > 0.95f)
-      {
-      this->FirstTimeProgress = 0.95f;
-      }
-    this->CMakeInstance->UpdateProgress("Configuring",
-                                        this->FirstTimeProgress);
-    return;
-    }
-
-  int numGen = atoi(numGenC);
-  float prog = 0.9f*static_cast<float>(this->LocalGenerators.size())/
-    static_cast<float>(numGen);
-  if (prog > 0.9f)
-    {
-    prog = 0.9f;
-    }
-  this->CMakeInstance->UpdateProgress("Configuring", prog);
-}
-
-void cmGlobalGenerator::AddInstallComponent(const char* component)
-{
-  if(component && *component)
-    {
-    this->InstallComponents.insert(component);
-    }
+#include "archive.h"
+#include "archive_entry.h"
+#include "archive_entry_locale.h"
+#include "archive_private.h"
+#include "archive_read_private.h"
+#include "archive_endian.h"
+
+
+#define MAXMATCH		256	/* Maximum match length. */
+#define MINMATCH		3	/* Minimum match length. */
+/*
+ * Literal table format:
+ * +0              +256                      +510
+ * +---------------+-------------------------+
+ * | literal code  |       match length      |
+ * |   0 ... 255   |  MINMATCH ... MAXMATCH  |
+ * +---------------+-------------------------+
+ *  <---          LT_BITLEN_SIZE         --->
+ */
+/* Literal table size. */
+#define LT_BITLEN_SIZE		(UCHAR_MAX + 1 + MAXMATCH - MINMATCH + 1)
+/* Position table size.
+ * Note: this used for both position table and pre literal table.*/
+#define PT_BITLEN_SIZE		(3 + 16)
+
+struct lzh_dec {
+	/* Decoding status. */
+	int     		 state;
+
+	/*
+	 * Window to see last 8Ki(lh5),32Ki(lh6),64Ki(lh7) bytes of decoded
+	 * data.
+	 */
+	int			 w_size;
+	int			 w_mask;
+	/* Window buffer, which is a loop buffer. */
+	unsigned char		*w_buff;
+	/* The insert position to the window. */
+	int			 w_pos;
+	/* The position where we can copy decoded code from the window. */
+	int     		 copy_pos;
+	/* The length how many bytes we can copy decoded code from
+	 * the window. */
+	int     		 copy_len;
+	/* The remaining bytes that we have not copied decoded data from
+	 * the window to an output buffer. */
+	int			 w_remaining;
+
+	/*
+	 * Bit stream reader.
+	 */
+	struct lzh_br {
+#define CACHE_TYPE		uint64_t
+#define CACHE_BITS		(8 * sizeof(CACHE_TYPE))
+	 	/* Cache buffer. */
+		CACHE_TYPE	 cache_buffer;
+		/* Indicates how many bits avail in cache_buffer. */
+		int		 cache_avail;
+	} br;
+
+	/*
+	 * Huffman coding.
+	 */
+	struct huffman {
+		int		 len_size;
+		int		 len_avail;
+		int		 len_bits;
+		int		 freq[17];
+		unsigned char	*bitlen;
+
+		/*
+		 * Use a index table. It's faster than searching a huffman
+		 * coding tree, which is a binary tree. But a use of a large
+		 * index table causes L1 cache read miss many times.
+		 */
+#define HTBL_BITS	10
+		int		 max_bits;
+		int		 shift_bits;
+		int		 tbl_bits;
+		int		 tree_used;
+		int		 tree_avail;
+		/* Direct access table. */
+		uint16_t	*tbl;
+		/* Binary tree table for extra bits over the direct access. */
+		struct htree_t {
+			uint16_t left;
+			uint16_t right;
+		}		*tree;
+	}			 lt, pt;
+
+	int			 blocks_avail;
+	int			 pos_pt_len_size;
+	int			 pos_pt_len_bits;
+	int			 literal_pt_len_size;
+	int			 literal_pt_len_bits;
+	int			 reading_position;
+	int			 loop;
+	int			 error;
+};
+
+struct lzh_stream {
+	const unsigned char	*next_in;
+	int64_t			 avail_in;
+	int64_t			 total_in;
+	unsigned char		*next_out;
+	int64_t			 avail_out;
+	int64_t			 total_out;
+	struct lzh_dec		*ds;
+};
+
+struct lha {
+	/* entry_bytes_remaining is the number of bytes we expect.	    */
+	int64_t                  entry_offset;
+	int64_t                  entry_bytes_remaining;
+	int64_t			 entry_unconsumed;
+	uint16_t		 entry_crc_calculated;
+ 
+	size_t			 header_size;	/* header size		    */
+	unsigned char		 level;		/* header level		    */
+	char			 method[3];	/* compress type	    */
+	int64_t			 compsize;	/* compressed data size	    */
+	int64_t			 origsize;	/* original file size	    */
+	int			 setflag;
+#define BIRTHTIME_IS_SET	1
+#define ATIME_IS_SET		2
+#define UNIX_MODE_IS_SET	4
+#define CRC_IS_SET		8
+	time_t			 birthtime;
+	long			 birthtime_tv_nsec;
+	time_t			 mtime;
+	long			 mtime_tv_nsec;
+	time_t			 atime;
+	long			 atime_tv_nsec;
+	mode_t			 mode;
+	int64_t			 uid;
+	int64_t			 gid;
+	struct archive_string 	 uname;
+	struct archive_string 	 gname;
+	uint16_t		 header_crc;
+	uint16_t		 crc;
+	struct archive_string_conv *sconv;
+	struct archive_string_conv *opt_sconv;
+
+	struct archive_string 	 dirname;
+	struct archive_string 	 filename;
+	struct archive_wstring	 ws;
+
+	unsigned char		 dos_attr;
+
+	/* Flag to mark progress that an archive was read their first header.*/
+	char			 found_first_header;
+	/* Flag to mark that indicates an empty directory. */
+	char			 directory;
+
+	/* Flags to mark progress of decompression. */
+	char			 decompress_init;
+	char			 end_of_entry;
+	char			 end_of_entry_cleanup;
+	char			 entry_is_compressed;
+
+	unsigned char		*uncompressed_buffer;
+	size_t			 uncompressed_buffer_size;
+
+	char			 format_name[64];
+
+	struct lzh_stream	 strm;
+};
+
+/*
+ * LHA header common member offset.
+ */
+#define H_METHOD_OFFSET	2	/* Compress type. */
+#define H_ATTR_OFFSET	19	/* DOS attribute. */
+#define H_LEVEL_OFFSET	20	/* Header Level.  */
+#define H_SIZE		22	/* Minimum header size. */
+
+static const uint16_t crc16tbl[256] = {
+	0x0000,0xC0C1,0xC181,0x0140,0xC301,0x03C0,0x0280,0xC241,
+	0xC601,0x06C0,0x0780,0xC741,0x0500,0xC5C1,0xC481,0x0440,
+	0xCC01,0x0CC0,0x0D80,0xCD41,0x0F00,0xCFC1,0xCE81,0x0E40,
+	0x0A00,0xCAC1,0xCB81,0x0B40,0xC901,0x09C0,0x0880,0xC841,
+	0xD801,0x18C0,0x1980,0xD941,0x1B00,0xDBC1,0xDA81,0x1A40,
+	0x1E00,0xDEC1,0xDF81,0x1F40,0xDD01,0x1DC0,0x1C80,0xDC41,
+	0x1400,0xD4C1,0xD581,0x1540,0xD701,0x17C0,0x1680,0xD641,
+	0xD201,0x12C0,0x1380,0xD341,0x1100,0xD1C1,0xD081,0x1040,
+	0xF001,0x30C0,0x3180,0xF141,0x3300,0xF3C1,0xF281,0x3240,
+	0x3600,0xF6C1,0xF781,0x3740,0xF501,0x35C0,0x3480,0xF441,
+	0x3C00,0xFCC1,0xFD81,0x3D40,0xFF01,0x3FC0,0x3E80,0xFE41,
+	0xFA01,0x3AC0,0x3B80,0xFB41,0x3900,0xF9C1,0xF881,0x3840,
+	0x2800,0xE8C1,0xE981,0x2940,0xEB01,0x2BC0,0x2A80,0xEA41,
+	0xEE01,0x2EC0,0x2F80,0xEF41,0x2D00,0xEDC1,0xEC81,0x2C40,
+	0xE401,0x24C0,0x2580,0xE541,0x2700,0xE7C1,0xE681,0x2640,
+	0x2200,0xE2C1,0xE381,0x2340,0xE101,0x21C0,0x2080,0xE041,
+	0xA001,0x60C0,0x6180,0xA141,0x6300,0xA3C1,0xA281,0x6240,
+	0x6600,0xA6C1,0xA781,0x6740,0xA501,0x65C0,0x6480,0xA441,
+	0x6C00,0xACC1,0xAD81,0x6D40,0xAF01,0x6FC0,0x6E80,0xAE41,
+	0xAA01,0x6AC0,0x6B80,0xAB41,0x6900,0xA9C1,0xA881,0x6840,
+	0x7800,0xB8C1,0xB981,0x7940,0xBB01,0x7BC0,0x7A80,0xBA41,
+	0xBE01,0x7EC0,0x7F80,0xBF41,0x7D00,0xBDC1,0xBC81,0x7C40,
+	0xB401,0x74C0,0x7580,0xB541,0x7700,0xB7C1,0xB681,0x7640,
+	0x7200,0xB2C1,0xB381,0x7340,0xB101,0x71C0,0x7080,0xB041,
+	0x5000,0x90C1,0x9181,0x5140,0x9301,0x53C0,0x5280,0x9241,
+	0x9601,0x56C0,0x5780,0x9741,0x5500,0x95C1,0x9481,0x5440,
+	0x9C01,0x5CC0,0x5D80,0x9D41,0x5F00,0x9FC1,0x9E81,0x5E40,
+	0x5A00,0x9AC1,0x9B81,0x5B40,0x9901,0x59C0,0x5880,0x9841,
+	0x8801,0x48C0,0x4980,0x8941,0x4B00,0x8BC1,0x8A81,0x4A40,
+	0x4E00,0x8EC1,0x8F81,0x4F40,0x8D01,0x4DC0,0x4C80,0x8C41,
+	0x4400,0x84C1,0x8581,0x4540,0x8701,0x47C0,0x4680,0x8641,
+	0x8201,0x42C0,0x4380,0x8341,0x4100,0x81C1,0x8081,0x4040
+};
+
+static int      archive_read_format_lha_bid(struct archive_read *, int);
+static int      archive_read_format_lha_options(struct archive_read *,
+		    const char *, const char *);
+static int	archive_read_format_lha_read_header(struct archive_read *,
+		    struct archive_entry *);
+static int	archive_read_format_lha_read_data(struct archive_read *,
+		    const void **, size_t *, int64_t *);
+static int	archive_read_format_lha_read_data_skip(struct archive_read *);
+static int	archive_read_format_lha_cleanup(struct archive_read *);
+
+static void	lha_replace_path_separator(struct lha *,
+		    struct archive_entry *);
+static int	lha_read_file_header_0(struct archive_read *, struct lha *);
+static int	lha_read_file_header_1(struct archive_read *, struct lha *);
+static int	lha_read_file_header_2(struct archive_read *, struct lha *);
+static int	lha_read_file_header_3(struct archive_read *, struct lha *);
+static int	lha_read_file_extended_header(struct archive_read *,
+		    struct lha *, uint16_t *, int, size_t, size_t *);
+static size_t	lha_check_header_format(const void *);
+static int	lha_skip_sfx(struct archive_read *);
+static time_t	lha_dos_time(const unsigned char *);
+static time_t	lha_win_time(uint64_t, long *);
+static unsigned char	lha_calcsum(unsigned char, const void *,
+		    int, size_t);
+static int	lha_parse_linkname(struct archive_string *,
+		    struct archive_string *);
+static int	lha_read_data_none(struct archive_read *, const void **,
+		    size_t *, int64_t *);
+static int	lha_read_data_lzh(struct archive_read *, const void **,
+		    size_t *, int64_t *);
+static uint16_t lha_crc16(uint16_t, const void *, size_t);
+static int	lzh_decode_init(struct lzh_stream *, const char *);
+static void	lzh_decode_free(struct lzh_stream *);
+static int	lzh_decode(struct lzh_stream *, int);
+static int	lzh_br_fillup(struct lzh_stream *, struct lzh_br *);
+static int	lzh_huffman_init(struct huffman *, size_t, int);
+static void	lzh_huffman_free(struct huffman *);
+static int	lzh_read_pt_bitlen(struct lzh_stream *, int start, int end);
+static int	lzh_make_fake_table(struct huffman *, uint16_t);
+static int	lzh_make_huffman_table(struct huffman *);
+static inline int lzh_decode_huffman(struct huffman *, unsigned);
+static int	lzh_decode_huffman_tree(struct huffman *, unsigned, int);
+
+
+int
+archive_read_support_format_lha(struct archive *_a)
+{
+	struct archive_read *a = (struct archive_read *)_a;
+	struct lha *lha;
+	int r;
+
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_format_lha");
+
+	lha = (struct lha *)calloc(1, sizeof(*lha));
+	if (lha == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate lha data");
+		return (ARCHIVE_FATAL);
+	}
+	archive_string_init(&lha->ws);
+
+	r = __archive_read_register_format(a,
+	    lha,
+	    "lha",
+	    archive_read_format_lha_bid,
+	    archive_read_format_lha_options,
+	    archive_read_format_lha_read_header,
+	    archive_read_format_lha_read_data,
+	    archive_read_format_lha_read_data_skip,
+	    NULL,
+	    archive_read_format_lha_cleanup,
+	    NULL,
+	    NULL);
+
+	if (r != ARCHIVE_OK)
+		free(lha);
+	return (ARCHIVE_OK);
+}
+
+static size_t
+lha_check_header_format(const void *h)
+{
+	const unsigned char *p = h;
+	size_t next_skip_bytes;
+
+	switch (p[H_METHOD_OFFSET+3]) {
+	/*
+	 * "-lh0-" ... "-lh7-" "-lhd-"
+	 * "-lzs-" "-lz5-"
+	 */
+	case '0': case '1': case '2': case '3':
+	case '4': case '5': case '6': case '7':
+	case 'd':
+	case 's':
+		next_skip_bytes = 4;
+
+		/* b0 == 0 means the end of an LHa archive file.	*/
+		if (p[0] == 0)
+			break;
+		if (p[H_METHOD_OFFSET] != '-' || p[H_METHOD_OFFSET+1] != 'l'
+		    ||  p[H_METHOD_OFFSET+4] != '-')
+			break;
+
+		if (p[H_METHOD_OFFSET+2] == 'h') {
+			/* "-lh?-" */
+			if (p[H_METHOD_OFFSET+3] == 's')
+				break;
+			if (p[H_LEVEL_OFFSET] == 0)
+				return (0);
+			if (p[H_LEVEL_OFFSET] <= 3 && p[H_ATTR_OFFSET] == 0x20)
+				return (0);
+		}
+		if (p[H_METHOD_OFFSET+2] == 'z') {
+			/* LArc extensions: -lzs-,-lz4- and -lz5- */
+			if (p[H_LEVEL_OFFSET] != 0)
+				break;
+			if (p[H_METHOD_OFFSET+3] == 's'
+			    || p[H_METHOD_OFFSET+3] == '4'
+			    || p[H_METHOD_OFFSET+3] == '5')
+				return (0);
+		}
+		break;
+	case 'h': next_skip_bytes = 1; break;
+	case 'z': next_skip_bytes = 1; break;
+	case 'l': next_skip_bytes = 2; break;
+	case '-': next_skip_bytes = 3; break;
+	default : next_skip_bytes = 4; break;
+	}
+
+	return (next_skip_bytes);
+}
+
+static int
+archive_read_format_lha_bid(struct archive_read *a, int best_bid)
+{
+	const char *p;
+	const void *buff;
+	ssize_t bytes_avail, offset, window;
+	size_t next;
+
+	/* If there's already a better bid than we can ever
+	   make, don't bother testing. */
+	if (best_bid > 30)
+		return (-1);
+
+	if ((p = __archive_read_ahead(a, H_SIZE, NULL)) == NULL)
+		return (-1);
+
+	if (lha_check_header_format(p) == 0)
+		return (30);
+
+	if (p[0] == 'M' && p[1] == 'Z') {
+		/* PE file */
+		offset = 0;
+		window = 4096;
+		while (offset < (1024 * 20)) {
+			buff = __archive_read_ahead(a, offset + window,
+			    &bytes_avail);
+			if (buff == NULL) {
+				/* Remaining bytes are less than window. */
+				window >>= 1;
+				if (window < (H_SIZE + 3))
+					return (0);
+				continue;
+			}
+			p = (const char *)buff + offset;
+			while (p + H_SIZE < (const char *)buff + bytes_avail) {
+				if ((next = lha_check_header_format(p)) == 0)
+					return (30);
+				p += next;
+			}
+			offset = p - (const char *)buff;
+		}
+	}
+	return (0);
+}
+
+static int
+archive_read_format_lha_options(struct archive_read *a,
+    const char *key, const char *val)
+{
+	struct lha *lha;
+	int ret = ARCHIVE_FAILED;
+
+	lha = (struct lha *)(a->format->data);
+	if (strcmp(key, "hdrcharset")  == 0) {
+		if (val == NULL || val[0] == 0)
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "lha: hdrcharset option needs a character-set name");
+		else {
+			lha->opt_sconv =
+			    archive_string_conversion_from_charset(
+				&a->archive, val, 0);
+			if (lha->opt_sconv != NULL)
+				ret = ARCHIVE_OK;
+			else
+				ret = ARCHIVE_FATAL;
+		}
+		return (ret);
+	}
+
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
+}
+
+static int
+lha_skip_sfx(struct archive_read *a)
+{
+	const void *h;
+	const char *p, *q;
+	size_t next, skip;
+	ssize_t bytes, window;
+
+	window = 4096;
+	for (;;) {
+		h = __archive_read_ahead(a, window, &bytes);
+		if (h == NULL) {
+			/* Remaining bytes are less than window. */
+			window >>= 1;
+			if (window < (H_SIZE + 3))
+				goto fatal;
+			continue;
+		}
+		if (bytes < H_SIZE)
+			goto fatal;
+		p = h;
+		q = p + bytes;
+
+		/*
+		 * Scan ahead until we find something that looks
+		 * like the lha header.
+		 */
+		while (p + H_SIZE < q) {
+			if ((next = lha_check_header_format(p)) == 0) {
+				skip = p - (const char *)h;
+				__archive_read_consume(a, skip);
+				return (ARCHIVE_OK);
+			}
+			p += next;
+		}
+		skip = p - (const char *)h;
+		__archive_read_consume(a, skip);
+	}
+fatal:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Couldn't find out LHa header");
+	return (ARCHIVE_FATAL);
+}
+
+static int
+truncated_error(struct archive_read *a)
+{
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Truncated LHa header");
+	return (ARCHIVE_FATAL);
+}
+
+static int
+archive_read_format_lha_read_header(struct archive_read *a,
+    struct archive_entry *entry)
+{
+	struct archive_string linkname;
+	struct archive_string pathname;
+	struct lha *lha;
+	const unsigned char *p;
+	const char *signature;
+	int err;
+	
+	a->archive.archive_format = ARCHIVE_FORMAT_LHA;
+	if (a->archive.archive_format_name == NULL)
+		a->archive.archive_format_name = "lha";
+
+	lha = (struct lha *)(a->format->data);
+	lha->decompress_init = 0;
+	lha->end_of_entry = 0;
+	lha->end_of_entry_cleanup = 0;
+	lha->entry_unconsumed = 0;
+
+	if ((p = __archive_read_ahead(a, H_SIZE, NULL)) == NULL) {
+		/*
+		 * LHa archiver added 0 to the tail of its archive file as
+		 * the mark of the end of the archive.
+		 */
+		signature = __archive_read_ahead(a, sizeof(signature[0]), NULL);
+		if (signature == NULL || signature[0] == 0)
+			return (ARCHIVE_EOF);
+		return (truncated_error(a));
+	}
+
+	signature = (const char *)p;
+	if (lha->found_first_header == 0 &&
+	    signature[0] == 'M' && signature[1] == 'Z') {
+                /* This is an executable?  Must be self-extracting... 	*/
+		err = lha_skip_sfx(a);
+		if (err < ARCHIVE_WARN)
+			return (err);
+
+		if ((p = __archive_read_ahead(a, sizeof(*p), NULL)) == NULL)
+			return (truncated_error(a));
+		signature = (const char *)p;
+	}
+	/* signature[0] == 0 means the end of an LHa archive file. */
+	if (signature[0] == 0)
+		return (ARCHIVE_EOF);
+
+	/*
+	 * Check the header format and method type.
+	 */
+	if (lha_check_header_format(p) != 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Bad LHa file");
+		return (ARCHIVE_FATAL);
+	}
+
+	/* We've found the first header. */
+	lha->found_first_header = 1;
+	/* Set a default value and common data */
+	lha->header_size = 0;
+	lha->level = p[H_LEVEL_OFFSET];
+	lha->method[0] = p[H_METHOD_OFFSET+1];
+	lha->method[1] = p[H_METHOD_OFFSET+2];
+	lha->method[2] = p[H_METHOD_OFFSET+3];
+	if (memcmp(lha->method, "lhd", 3) == 0)
+		lha->directory = 1;
+	else
+		lha->directory = 0;
+	if (memcmp(lha->method, "lh0", 3) == 0 ||
+	    memcmp(lha->method, "lz4", 3) == 0)
+		lha->entry_is_compressed = 0;
+	else
+		lha->entry_is_compressed = 1;
+
+	lha->compsize = 0;
+	lha->origsize = 0;
+	lha->setflag = 0;
+	lha->birthtime = 0;
+	lha->birthtime_tv_nsec = 0;
+	lha->mtime = 0;
+	lha->mtime_tv_nsec = 0;
+	lha->atime = 0;
+	lha->atime_tv_nsec = 0;
+	lha->mode = (lha->directory)? 0777 : 0666;
+	lha->uid = 0;
+	lha->gid = 0;
+	archive_string_empty(&lha->dirname);
+	archive_string_empty(&lha->filename);
+	lha->dos_attr = 0;
+	if (lha->opt_sconv != NULL)
+		lha->sconv = lha->opt_sconv;
+	else
+		lha->sconv = NULL;
+
+	switch (p[H_LEVEL_OFFSET]) {
+	case 0:
+		err = lha_read_file_header_0(a, lha);
+		break;
+	case 1:
+		err = lha_read_file_header_1(a, lha);
+		break;
+	case 2:
+		err = lha_read_file_header_2(a, lha);
+		break;
+	case 3:
+		err = lha_read_file_header_3(a, lha);
+		break;
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unsupported LHa header level %d", p[H_LEVEL_OFFSET]);
+		err = ARCHIVE_FATAL;
+		break;
+	}
+	if (err < ARCHIVE_WARN)
+		return (err);
+
+
+	if (!lha->directory && archive_strlen(&lha->filename) == 0)
+		/* The filename has not been set */
+		return (truncated_error(a));
+
+	/*
+	 * Make a pathname from a dirname and a filename.
+	 */
+	archive_string_concat(&lha->dirname, &lha->filename);
+	archive_string_init(&pathname);
+	archive_string_init(&linkname);
+	archive_string_copy(&pathname, &lha->dirname);
+
+	if ((lha->mode & AE_IFMT) == AE_IFLNK) {
+		/*
+	 	 * Extract the symlink-name if it's included in the pathname.
+	 	 */
+		if (!lha_parse_linkname(&linkname, &pathname)) {
+			/* We couldn't get the symlink-name. */
+			archive_set_error(&a->archive,
+		    	    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Unknown symlink-name");
+			archive_string_free(&pathname);
+			archive_string_free(&linkname);
+			return (ARCHIVE_FAILED);
+		}
+	} else {
+		/*
+		 * Make sure a file-type is set.
+		 * The mode has been overridden if it is in the extended data.
+		 */
+		lha->mode = (lha->mode & ~AE_IFMT) |
+		    ((lha->directory)? AE_IFDIR: AE_IFREG);
+	}
+	if ((lha->setflag & UNIX_MODE_IS_SET) == 0 &&
+	    (lha->dos_attr & 1) != 0)
+		lha->mode &= ~(0222);/* read only. */
+
+	/*
+	 * Set basic file parameters.
+	 */
+	if (archive_entry_copy_pathname_l(entry, pathname.s,
+	    pathname.length, lha->sconv) != 0) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Pathname");
+			return (ARCHIVE_FATAL);
+		}
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Pathname cannot be converted "
+		    "from %s to current locale.",
+		    archive_string_conversion_charset_name(lha->sconv));
+		err = ARCHIVE_WARN;
+	}
+	archive_string_free(&pathname);
+	if (archive_strlen(&linkname) > 0) {
+		if (archive_entry_copy_symlink_l(entry, linkname.s,
+		    linkname.length, lha->sconv) != 0) {
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Linkname");
+				return (ARCHIVE_FATAL);
+			}
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Linkname cannot be converted "
+			    "from %s to current locale.",
+			    archive_string_conversion_charset_name(lha->sconv));
+			err = ARCHIVE_WARN;
+		}
+	} else
+		archive_entry_set_symlink(entry, NULL);
+	archive_string_free(&linkname);
+	/*
+	 * When a header level is 0, there is a possibility that
+	 * a pathname and a symlink has '\' character, a directory
+	 * separator in DOS/Windows. So we should convert it to '/'.
+	 */
+	if (p[H_LEVEL_OFFSET] == 0)
+		lha_replace_path_separator(lha, entry);
+
+	archive_entry_set_mode(entry, lha->mode);
+	archive_entry_set_uid(entry, lha->uid);
+	archive_entry_set_gid(entry, lha->gid);
+	if (archive_strlen(&lha->uname) > 0)
+		archive_entry_set_uname(entry, lha->uname.s);
+	if (archive_strlen(&lha->gname) > 0)
+		archive_entry_set_gname(entry, lha->gname.s);
+	if (lha->setflag & BIRTHTIME_IS_SET) {
+		archive_entry_set_birthtime(entry, lha->birthtime,
+		    lha->birthtime_tv_nsec);
+		archive_entry_set_ctime(entry, lha->birthtime,
+		    lha->birthtime_tv_nsec);
+	} else {
+		archive_entry_unset_birthtime(entry);
+		archive_entry_unset_ctime(entry);
+	}
+	archive_entry_set_mtime(entry, lha->mtime, lha->mtime_tv_nsec);
+	if (lha->setflag & ATIME_IS_SET)
+		archive_entry_set_atime(entry, lha->atime,
+		    lha->atime_tv_nsec);
+	else
+		archive_entry_unset_atime(entry);
+	if (lha->directory || archive_entry_symlink(entry) != NULL)
+		archive_entry_unset_size(entry);
+	else
+		archive_entry_set_size(entry, lha->origsize);
+
+	/*
+	 * Prepare variables used to read a file content.
+	 */
+	lha->entry_bytes_remaining = lha->compsize;
+	lha->entry_offset = 0;
+	lha->entry_crc_calculated = 0;
+
+	/*
+	 * This file does not have a content.
+	 */
+	if (lha->directory || lha->compsize == 0)
+		lha->end_of_entry = 1;
+
+	sprintf(lha->format_name, "lha -%c%c%c-",
+	    lha->method[0], lha->method[1], lha->method[2]);
+	a->archive.archive_format_name = lha->format_name;
+
+	return (err);
+}
+
+/*
+ * Replace a DOS path separator '\' by a character '/'.
+ * Some multi-byte character set have  a character '\' in its second byte.
+ */
+static void
+lha_replace_path_separator(struct lha *lha, struct archive_entry *entry)
+{
+	const wchar_t *wp;
+	size_t i;
+
+	if ((wp = archive_entry_pathname_w(entry)) != NULL) {
+		archive_wstrcpy(&(lha->ws), wp);
+		for (i = 0; i < archive_strlen(&(lha->ws)); i++) {
+			if (lha->ws.s[i] == L'\\')
+				lha->ws.s[i] = L'/';
+		}
+		archive_entry_copy_pathname_w(entry, lha->ws.s);
+	}
+
+	if ((wp = archive_entry_symlink_w(entry)) != NULL) {
+		archive_wstrcpy(&(lha->ws), wp);
+		for (i = 0; i < archive_strlen(&(lha->ws)); i++) {
+			if (lha->ws.s[i] == L'\\')
+				lha->ws.s[i] = L'/';
+		}
+		archive_entry_copy_symlink_w(entry, lha->ws.s);
+	}
+}
+
+/*
+ * Header 0 format
+ *
+ * +0              +1         +2               +7                  +11
+ * +---------------+----------+----------------+-------------------+
+ * |header size(*1)|header sum|compression type|compressed size(*2)|
+ * +---------------+----------+----------------+-------------------+
+ *                             <---------------------(*1)----------*
+ *
+ * +11               +15       +17       +19            +20              +21
+ * +-----------------+---------+---------+--------------+----------------+
+ * |uncompressed size|time(DOS)|date(DOS)|attribute(DOS)|header level(=0)|
+ * +-----------------+---------+---------+--------------+----------------+
+ * *--------------------------------(*1)---------------------------------*
+ *
+ * +21             +22       +22+(*3)   +22+(*3)+2       +22+(*3)+2+(*4)
+ * +---------------+---------+----------+----------------+------------------+
+ * |name length(*3)|file name|file CRC16|extra header(*4)|  compressed data |
+ * +---------------+---------+----------+----------------+------------------+
+ *                  <--(*3)->                             <------(*2)------>
+ * *----------------------(*1)-------------------------->
+ *
+ */
+#define H0_HEADER_SIZE_OFFSET	0
+#define H0_HEADER_SUM_OFFSET	1
+#define H0_COMP_SIZE_OFFSET	7
+#define H0_ORIG_SIZE_OFFSET	11
+#define H0_DOS_TIME_OFFSET	15
+#define H0_NAME_LEN_OFFSET	21
+#define H0_FILE_NAME_OFFSET	22
+#define H0_FIXED_SIZE		24
+static int
+lha_read_file_header_0(struct archive_read *a, struct lha *lha)
+{
+	const unsigned char *p;
+	int extdsize, namelen;
+	unsigned char headersum, sum_calculated;
+
+	if ((p = __archive_read_ahead(a, H0_FIXED_SIZE, NULL)) == NULL)
+		return (truncated_error(a));
+	lha->header_size = p[H0_HEADER_SIZE_OFFSET] + 2;
+	headersum = p[H0_HEADER_SUM_OFFSET];
+	lha->compsize = archive_le32dec(p + H0_COMP_SIZE_OFFSET);
+	lha->origsize = archive_le32dec(p + H0_ORIG_SIZE_OFFSET);
+	lha->mtime = lha_dos_time(p + H0_DOS_TIME_OFFSET);
+	namelen = p[H0_NAME_LEN_OFFSET];
+	extdsize = (int)lha->header_size - H0_FIXED_SIZE - namelen;
+	if ((namelen > 221 || extdsize < 0) && extdsize != -2) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Invalid LHa header");
+		return (ARCHIVE_FATAL);
+	}
+	if ((p = __archive_read_ahead(a, lha->header_size, NULL)) == NULL)
+		return (truncated_error(a));
+
+	archive_strncpy(&lha->filename, p + H0_FILE_NAME_OFFSET, namelen);
+	/* When extdsize == -2, A CRC16 value is not present in the header. */
+	if (extdsize >= 0) {
+		lha->crc = archive_le16dec(p + H0_FILE_NAME_OFFSET + namelen);
+		lha->setflag |= CRC_IS_SET;
+	}
+	sum_calculated = lha_calcsum(0, p, 2, lha->header_size - 2);
+
+	/* Read an extended header */
+	if (extdsize > 0) {
+		/* This extended data is set by 'LHa for UNIX' only.
+		 * Maybe fixed size.
+		 */
+		p += H0_FILE_NAME_OFFSET + namelen + 2;
+		if (p[0] == 'U' && extdsize == 12) {
+			/* p[1] is a minor version. */
+			lha->mtime = archive_le32dec(&p[2]);
+			lha->mode = archive_le16dec(&p[6]);
+			lha->uid = archive_le16dec(&p[8]);
+			lha->gid = archive_le16dec(&p[10]);
+			lha->setflag |= UNIX_MODE_IS_SET;
+		}
+	}
+	__archive_read_consume(a, lha->header_size);
+
+	if (sum_calculated != headersum) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "LHa header sum error");
+		return (ARCHIVE_FATAL);
+	}
+
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Header 1 format
+ *
+ * +0              +1         +2               +7            +11
+ * +---------------+----------+----------------+-------------+
+ * |header size(*1)|header sum|compression type|skip size(*2)|
+ * +---------------+----------+----------------+-------------+
+ *                             <---------------(*1)----------*
+ *
+ * +11               +15       +17       +19            +20              +21
+ * +-----------------+---------+---------+--------------+----------------+
+ * |uncompressed size|time(DOS)|date(DOS)|attribute(DOS)|header level(=1)|
+ * +-----------------+---------+---------+--------------+----------------+
+ * *-------------------------------(*1)----------------------------------*
+ *
+ * +21             +22       +22+(*3)   +22+(*3)+2  +22+(*3)+3  +22+(*3)+3+(*4)
+ * +---------------+---------+----------+-----------+-----------+
+ * |name length(*3)|file name|file CRC16|  creator  |padding(*4)|
+ * +---------------+---------+----------+-----------+-----------+
+ *                  <--(*3)->
+ * *----------------------------(*1)----------------------------*
+ *
+ * +22+(*3)+3+(*4)  +22+(*3)+3+(*4)+2     +22+(*3)+3+(*4)+2+(*5)
+ * +----------------+---------------------+------------------------+
+ * |next header size| extended header(*5) |     compressed data    |
+ * +----------------+---------------------+------------------------+
+ * *------(*1)-----> <--------------------(*2)-------------------->
+ */
+#define H1_HEADER_SIZE_OFFSET	0
+#define H1_HEADER_SUM_OFFSET	1
+#define H1_COMP_SIZE_OFFSET	7
+#define H1_ORIG_SIZE_OFFSET	11
+#define H1_DOS_TIME_OFFSET	15
+#define H1_NAME_LEN_OFFSET	21
+#define H1_FILE_NAME_OFFSET	22
+#define H1_FIXED_SIZE		27
+static int
+lha_read_file_header_1(struct archive_read *a, struct lha *lha)
+{
+	const unsigned char *p;
+	size_t extdsize;
+	int i, err, err2;
+	int namelen, padding;
+	unsigned char headersum, sum_calculated;
+
+	err = ARCHIVE_OK;
+
+	if ((p = __archive_read_ahead(a, H1_FIXED_SIZE, NULL)) == NULL)
+		return (truncated_error(a));
+
+	lha->header_size = p[H1_HEADER_SIZE_OFFSET] + 2;
+	headersum = p[H1_HEADER_SUM_OFFSET];
+	/* Note: An extended header size is included in a compsize. */
+	lha->compsize = archive_le32dec(p + H1_COMP_SIZE_OFFSET);
+	lha->origsize = archive_le32dec(p + H1_ORIG_SIZE_OFFSET);
+	lha->mtime = lha_dos_time(p + H1_DOS_TIME_OFFSET);
+	namelen = p[H1_NAME_LEN_OFFSET];
+	/* Calculate a padding size. The result will be normally 0 only(?) */
+	padding = ((int)lha->header_size) - H1_FIXED_SIZE - namelen;
+
+	if (namelen > 230 || padding < 0)
+		goto invalid;
+
+	if ((p = __archive_read_ahead(a, lha->header_size, NULL)) == NULL)
+		return (truncated_error(a));
+
+	for (i = 0; i < namelen; i++) {
+		if (p[i + H1_FILE_NAME_OFFSET] == 0xff)
+			goto invalid;/* Invalid filename. */
+	}
+	archive_strncpy(&lha->filename, p + H1_FILE_NAME_OFFSET, namelen);
+	lha->crc = archive_le16dec(p + H1_FILE_NAME_OFFSET + namelen);
+	lha->setflag |= CRC_IS_SET;
+
+	sum_calculated = lha_calcsum(0, p, 2, lha->header_size - 2);
+	/* Consume used bytes but not include `next header size' data
+	 * since it will be consumed in lha_read_file_extended_header(). */
+	__archive_read_consume(a, lha->header_size - 2);
+
+	/* Read extended headers */
+	err2 = lha_read_file_extended_header(a, lha, NULL, 2,
+	    (size_t)(lha->compsize + 2), &extdsize);
+	if (err2 < ARCHIVE_WARN)
+		return (err2);
+	if (err2 < err)
+		err = err2;
+	/* Get a real compressed file size. */
+	lha->compsize -= extdsize - 2;
+
+	if (sum_calculated != headersum) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "LHa header sum error");
+		return (ARCHIVE_FATAL);
+	}
+	return (err);
+invalid:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Invalid LHa header");
+	return (ARCHIVE_FATAL);
+}
+
+/*
+ * Header 2 format
+ *
+ * +0              +2               +7                  +11               +15
+ * +---------------+----------------+-------------------+-----------------+
+ * |header size(*1)|compression type|compressed size(*2)|uncompressed size|
+ * +---------------+----------------+-------------------+-----------------+
+ *  <--------------------------------(*1)---------------------------------*
+ *
+ * +15               +19          +20              +21        +23         +24
+ * +-----------------+------------+----------------+----------+-----------+
+ * |data/time(time_t)| 0x20 fixed |header level(=2)|file CRC16|  creator  |
+ * +-----------------+------------+----------------+----------+-----------+
+ * *---------------------------------(*1)---------------------------------*
+ *
+ * +24              +26                 +26+(*3)      +26+(*3)+(*4)
+ * +----------------+-------------------+-------------+-------------------+
+ * |next header size|extended header(*3)| padding(*4) |  compressed data  |
+ * +----------------+-------------------+-------------+-------------------+
+ * *--------------------------(*1)-------------------> <------(*2)------->
+ *
+ */
+#define H2_HEADER_SIZE_OFFSET	0
+#define H2_COMP_SIZE_OFFSET	7
+#define H2_ORIG_SIZE_OFFSET	11
+#define H2_TIME_OFFSET		15
+#define H2_CRC_OFFSET		21
+#define H2_FIXED_SIZE		24
+static int
+lha_read_file_header_2(struct archive_read *a, struct lha *lha)
+{
+	const unsigned char *p;
+	size_t extdsize;
+	int err, padding;
+	uint16_t header_crc;
+
+	if ((p = __archive_read_ahead(a, H2_FIXED_SIZE, NULL)) == NULL)
+		return (truncated_error(a));
+
+	lha->header_size =archive_le16dec(p + H2_HEADER_SIZE_OFFSET);
+	lha->compsize = archive_le32dec(p + H2_COMP_SIZE_OFFSET);
+	lha->origsize = archive_le32dec(p + H2_ORIG_SIZE_OFFSET);
+	lha->mtime = archive_le32dec(p + H2_TIME_OFFSET);
+	lha->crc = archive_le16dec(p + H2_CRC_OFFSET);
+	lha->setflag |= CRC_IS_SET;
+
+	if (lha->header_size < H2_FIXED_SIZE) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Invalid LHa header size");
+		return (ARCHIVE_FATAL);
+	}
+
+	header_crc = lha_crc16(0, p, H2_FIXED_SIZE);
+	__archive_read_consume(a, H2_FIXED_SIZE);
+
+	/* Read extended headers */
+	err = lha_read_file_extended_header(a, lha, &header_crc, 2,
+		  lha->header_size - H2_FIXED_SIZE, &extdsize);
+	if (err < ARCHIVE_WARN)
+		return (err);
+
+	/* Calculate a padding size. The result will be normally 0 or 1. */
+	padding = (int)lha->header_size - (int)(H2_FIXED_SIZE + extdsize);
+	if (padding > 0) {
+		if ((p = __archive_read_ahead(a, padding, NULL)) == NULL)
+			return (truncated_error(a));
+		header_crc = lha_crc16(header_crc, p, padding);
+		__archive_read_consume(a, padding);
+	}
+
+	if (header_crc != lha->header_crc) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "LHa header CRC error");
+		return (ARCHIVE_FATAL);
+	}
+	return (err);
+}
+
+/*
+ * Header 3 format
+ *
+ * +0           +2               +7                  +11               +15
+ * +------------+----------------+-------------------+-----------------+
+ * | 0x04 fixed |compression type|compressed size(*2)|uncompressed size|
+ * +------------+----------------+-------------------+-----------------+
+ *  <-------------------------------(*1)-------------------------------*
+ *
+ * +15               +19          +20              +21        +23         +24
+ * +-----------------+------------+----------------+----------+-----------+
+ * |date/time(time_t)| 0x20 fixed |header level(=3)|file CRC16|  creator  |
+ * +-----------------+------------+----------------+----------+-----------+
+ * *--------------------------------(*1)----------------------------------*
+ *
+ * +24             +28              +32                 +32+(*3)
+ * +---------------+----------------+-------------------+-----------------+
+ * |header size(*1)|next header size|extended header(*3)| compressed data |
+ * +---------------+----------------+-------------------+-----------------+
+ * *------------------------(*1)-----------------------> <------(*2)----->
+ *
+ */
+#define H3_FIELD_LEN_OFFSET	0
+#define H3_COMP_SIZE_OFFSET	7
+#define H3_ORIG_SIZE_OFFSET	11
+#define H3_TIME_OFFSET		15
+#define H3_CRC_OFFSET		21
+#define H3_HEADER_SIZE_OFFSET	24
+#define H3_FIXED_SIZE		28
+static int
+lha_read_file_header_3(struct archive_read *a, struct lha *lha)
+{
+	const unsigned char *p;
+	size_t extdsize;
+	int err;
+	uint16_t header_crc;
+
+	if ((p = __archive_read_ahead(a, H3_FIXED_SIZE, NULL)) == NULL)
+		return (truncated_error(a));
+
+	if (archive_le16dec(p + H3_FIELD_LEN_OFFSET) != 4)
+		goto invalid;
+	lha->header_size =archive_le32dec(p + H3_HEADER_SIZE_OFFSET);
+	lha->compsize = archive_le32dec(p + H3_COMP_SIZE_OFFSET);
+	lha->origsize = archive_le32dec(p + H3_ORIG_SIZE_OFFSET);
+	lha->mtime = archive_le32dec(p + H3_TIME_OFFSET);
+	lha->crc = archive_le16dec(p + H3_CRC_OFFSET);
+	lha->setflag |= CRC_IS_SET;
+
+	if (lha->header_size < H3_FIXED_SIZE + 4)
+		goto invalid;
+	header_crc = lha_crc16(0, p, H3_FIXED_SIZE);
+	__archive_read_consume(a, H3_FIXED_SIZE);
+
+	/* Read extended headers */
+	err = lha_read_file_extended_header(a, lha, &header_crc, 4,
+		  lha->header_size - H3_FIXED_SIZE, &extdsize);
+	if (err < ARCHIVE_WARN)
+		return (err);
+
+	if (header_crc != lha->header_crc) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "LHa header CRC error");
+		return (ARCHIVE_FATAL);
+	}
+	return (err);
+invalid:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Invalid LHa header");
+	return (ARCHIVE_FATAL);
+}
+
+/*
+ * Extended header format
+ *
+ * +0             +2        +3  -- used in header 1 and 2
+ * +0             +4        +5  -- used in header 3
+ * +--------------+---------+-------------------+--------------+--
+ * |ex-header size|header id|        data       |ex-header size| .......
+ * +--------------+---------+-------------------+--------------+--
+ *  <-------------( ex-header size)------------> <-- next extended header --*
+ *
+ * If the ex-header size is zero, it is the make of the end of extended
+ * headers.
+ *
+ */
+static int
+lha_read_file_extended_header(struct archive_read *a, struct lha *lha,
+    uint16_t *crc, int sizefield_length, size_t limitsize, size_t *total_size)
+{
+	const void *h;
+	const unsigned char *extdheader;
+	size_t	extdsize;
+	size_t	datasize;
+	unsigned int i;
+	unsigned char extdtype;
+
+#define EXT_HEADER_CRC		0x00		/* Header CRC and information*/
+#define EXT_FILENAME		0x01		/* Filename 		    */
+#define EXT_DIRECTORY		0x02		/* Directory name	    */
+#define EXT_DOS_ATTR		0x40		/* MS-DOS attribute	    */
+#define EXT_TIMESTAMP		0x41		/* Windows time stamp	    */
+#define EXT_FILESIZE		0x42		/* Large file size	    */
+#define EXT_TIMEZONE		0x43		/* Time zone		    */
+#define EXT_UTF16_FILENAME	0x44		/* UTF-16 filename 	    */
+#define EXT_UTF16_DIRECTORY	0x45		/* UTF-16 directory name    */
+#define EXT_CODEPAGE		0x46		/* Codepage		    */
+#define EXT_UNIX_MODE		0x50		/* File permission	    */
+#define EXT_UNIX_GID_UID	0x51		/* gid,uid		    */
+#define EXT_UNIX_GNAME		0x52		/* Group name		    */
+#define EXT_UNIX_UNAME		0x53		/* User name		    */
+#define EXT_UNIX_MTIME		0x54		/* Modified time	    */
+#define EXT_OS2_NEW_ATTR	0x7f		/* new attribute(OS/2 only) */
+#define EXT_NEW_ATTR		0xff		/* new attribute	    */
+
+	*total_size = sizefield_length;
+
+	for (;;) {
+		/* Read an extended header size. */
+		if ((h =
+		    __archive_read_ahead(a, sizefield_length, NULL)) == NULL)
+			return (truncated_error(a));
+		/* Check if the size is the zero indicates the end of the
+		 * extended header. */
+		if (sizefield_length == sizeof(uint16_t))
+			extdsize = archive_le16dec(h);
+		else
+			extdsize = archive_le32dec(h);
+		if (extdsize == 0) {
+			/* End of extended header */
+			if (crc != NULL)
+				*crc = lha_crc16(*crc, h, sizefield_length);
+			__archive_read_consume(a, sizefield_length);
+			return (ARCHIVE_OK);
+		}
+
+		/* Sanity check to the extended header size. */
+		if (((uint64_t)*total_size + extdsize) >
+				    (uint64_t)limitsize ||
+		    extdsize <= (size_t)sizefield_length)
+			goto invalid;
+
+		/* Read the extended header. */
+		if ((h = __archive_read_ahead(a, extdsize, NULL)) == NULL)
+			return (truncated_error(a));
+		*total_size += extdsize;
+
+		extdheader = (const unsigned char *)h;
+		/* Get the extended header type. */
+		extdtype = extdheader[sizefield_length];
+		/* Calculate an extended data size. */
+		datasize = extdsize - (1 + sizefield_length);
+		/* Skip an extended header size field and type field. */
+		extdheader += sizefield_length + 1;
+
+		if (crc != NULL && extdtype != EXT_HEADER_CRC)
+			*crc = lha_crc16(*crc, h, extdsize);
+		switch (extdtype) {
+		case EXT_HEADER_CRC:
+			/* We only use a header CRC. Following data will not
+			 * be used. */
+			if (datasize >= 2) {
+				lha->header_crc = archive_le16dec(extdheader);
+				if (crc != NULL) {
+					static const char zeros[2] = {0, 0};
+					*crc = lha_crc16(*crc, h,
+					    extdsize - datasize);
+					/* CRC value itself as zero */
+					*crc = lha_crc16(*crc, zeros, 2);
+					*crc = lha_crc16(*crc,
+					    extdheader+2, datasize - 2);
+				}
+			}
+			break;
+		case EXT_FILENAME:
+			if (datasize == 0) {
+				/* maybe directory header */
+				archive_string_empty(&lha->filename);
+				break;
+			}
+			archive_strncpy(&lha->filename,
+			    (const char *)extdheader, datasize);
+			break;
+		case EXT_DIRECTORY:
+			if (datasize == 0)
+				/* no directory name data. exit this case. */
+				break;
+
+			archive_strncpy(&lha->dirname,
+		  	    (const char *)extdheader, datasize);
+			/*
+			 * Convert directory delimiter from 0xFF
+			 * to '/' for local system.
+	 		 */
+			for (i = 0; i < lha->dirname.length; i++) {
+				if ((unsigned char)lha->dirname.s[i] == 0xFF)
+					lha->dirname.s[i] = '/';
+			}
+			/* Is last character directory separator? */
+			if (lha->dirname.s[lha->dirname.length-1] != '/')
+				/* invalid directory data */
+				goto invalid;
+			break;
+		case EXT_DOS_ATTR:
+			if (datasize == 2)
+				lha->dos_attr = (unsigned char)
+				    (archive_le16dec(extdheader) & 0xff);
+			break;
+		case EXT_TIMESTAMP:
+			if (datasize == (sizeof(uint64_t) * 3)) {
+				lha->birthtime = lha_win_time(
+				    archive_le64dec(extdheader),
+				    &lha->birthtime_tv_nsec);
+				extdheader += sizeof(uint64_t);
+				lha->mtime = lha_win_time(
+				    archive_le64dec(extdheader),
+				    &lha->mtime_tv_nsec);
+				extdheader += sizeof(uint64_t);
+				lha->atime = lha_win_time(
+				    archive_le64dec(extdheader),
+				    &lha->atime_tv_nsec);
+				lha->setflag |= BIRTHTIME_IS_SET |
+				    ATIME_IS_SET;
+			}
+			break;
+		case EXT_FILESIZE:
+			if (datasize == sizeof(uint64_t) * 2) {
+				lha->compsize = archive_le64dec(extdheader);
+				extdheader += sizeof(uint64_t);
+				lha->origsize = archive_le64dec(extdheader);
+			}
+			break;
+		case EXT_CODEPAGE:
+			/* Get an archived filename charset from codepage.
+			 * This overwrites the charset specified by
+			 * hdrcharset option. */
+			if (datasize == sizeof(uint32_t)) {
+				struct archive_string cp;
+				const char *charset;
+
+				archive_string_init(&cp);
+				switch (archive_le32dec(extdheader)) {
+				case 65001: /* UTF-8 */
+					charset = "UTF-8";
+					break;
+				default:
+					archive_string_sprintf(&cp, "CP%d",
+					    (int)archive_le32dec(extdheader));
+					charset = cp.s;
+					break;
+				}
+				lha->sconv =
+				    archive_string_conversion_from_charset(
+					&(a->archive), charset, 1);
+				archive_string_free(&cp);
+				if (lha->sconv == NULL)
+					return (ARCHIVE_FATAL);
+			}
+			break;
+		case EXT_UNIX_MODE:
+			if (datasize == sizeof(uint16_t)) {
+				lha->mode = archive_le16dec(extdheader);
+				lha->setflag |= UNIX_MODE_IS_SET;
+			}
+			break;
+		case EXT_UNIX_GID_UID:
+			if (datasize == (sizeof(uint16_t) * 2)) {
+				lha->gid = archive_le16dec(extdheader);
+				lha->uid = archive_le16dec(extdheader+2);
+			}
+			break;
+		case EXT_UNIX_GNAME:
+			if (datasize > 0)
+				archive_strncpy(&lha->gname,
+				    (const char *)extdheader, datasize);
+			break;
+		case EXT_UNIX_UNAME:
+			if (datasize > 0)
+				archive_strncpy(&lha->uname,
+				    (const char *)extdheader, datasize);
+			break;
+		case EXT_UNIX_MTIME:
+			if (datasize == sizeof(uint32_t))
+				lha->mtime = archive_le32dec(extdheader);
+			break;
+		case EXT_OS2_NEW_ATTR:
+			/* This extended header is OS/2 depend. */
+			if (datasize == 16) {
+				lha->dos_attr = (unsigned char)
+				    (archive_le16dec(extdheader) & 0xff);
+				lha->mode = archive_le16dec(extdheader+2);
+				lha->gid = archive_le16dec(extdheader+4);
+				lha->uid = archive_le16dec(extdheader+6);
+				lha->birthtime = archive_le32dec(extdheader+8);
+				lha->atime = archive_le32dec(extdheader+12);
+				lha->setflag |= UNIX_MODE_IS_SET
+				    | BIRTHTIME_IS_SET | ATIME_IS_SET;
+			}
+			break;
+		case EXT_NEW_ATTR:
+			if (datasize == 20) {
+				lha->mode = (mode_t)archive_le32dec(extdheader);
+				lha->gid = archive_le32dec(extdheader+4);
+				lha->uid = archive_le32dec(extdheader+8);
+				lha->birthtime = archive_le32dec(extdheader+12);
+				lha->atime = archive_le32dec(extdheader+16);
+				lha->setflag |= UNIX_MODE_IS_SET
+				    | BIRTHTIME_IS_SET | ATIME_IS_SET;
+			}
+			break;
+		case EXT_TIMEZONE:		/* Not supported */
+		case EXT_UTF16_FILENAME:	/* Not supported */
+		case EXT_UTF16_DIRECTORY:	/* Not supported */
+		default:
+			break;
+		}
+
+		__archive_read_consume(a, extdsize);
+	}
+invalid:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Invalid extended LHa header");
+	return (ARCHIVE_FATAL);
+}
+
+static int
+archive_read_format_lha_read_data(struct archive_read *a,
+    const void **buff, size_t *size, int64_t *offset)
+{
+	struct lha *lha = (struct lha *)(a->format->data);
+	int r;
+
+	if (lha->entry_unconsumed) {
+		/* Consume as much as the decompressor actually used. */
+		__archive_read_consume(a, lha->entry_unconsumed);
+		lha->entry_unconsumed = 0;
+	}
+	if (lha->end_of_entry) {
+		if (!lha->end_of_entry_cleanup) {
+			if ((lha->setflag & CRC_IS_SET) &&
+			    lha->crc != lha->entry_crc_calculated) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "LHa data CRC error");
+				return (ARCHIVE_WARN);
+			}
+
+			/* End-of-entry cleanup done. */
+			lha->end_of_entry_cleanup = 1;
+		}
+		*offset = lha->entry_offset;
+		*size = 0;
+		*buff = NULL;
+		return (ARCHIVE_EOF);
+	}
+
+	if (lha->entry_is_compressed)
+		r =  lha_read_data_lzh(a, buff, size, offset);
+	else
+		/* No compression. */
+		r =  lha_read_data_none(a, buff, size, offset);
+	return (r);
+}
+
+/*
+ * Read a file content in no compression.
+ *
+ * Returns ARCHIVE_OK if successful, ARCHIVE_FATAL otherwise, sets
+ * lha->end_of_entry if it consumes all of the data.
+ */
+static int
+lha_read_data_none(struct archive_read *a, const void **buff,
+    size_t *size, int64_t *offset)
+{
+	struct lha *lha = (struct lha *)(a->format->data);
+	ssize_t bytes_avail;
+
+	if (lha->entry_bytes_remaining == 0) {
+		*buff = NULL;
+		*size = 0;
+		*offset = lha->entry_offset;
+		lha->end_of_entry = 1;
+		return (ARCHIVE_OK);
+	}
+	/*
+	 * Note: '1' here is a performance optimization.
+	 * Recall that the decompression layer returns a count of
+	 * available bytes; asking for more than that forces the
+	 * decompressor to combine reads by copying data.
+	 */
+	*buff = __archive_read_ahead(a, 1, &bytes_avail);
+	if (bytes_avail <= 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated LHa file data");
+		return (ARCHIVE_FATAL);
+	}
+	if (bytes_avail > lha->entry_bytes_remaining)
+		bytes_avail = (ssize_t)lha->entry_bytes_remaining;
+	lha->entry_crc_calculated =
+	    lha_crc16(lha->entry_crc_calculated, *buff, bytes_avail);
+	*size = bytes_avail;
+	*offset = lha->entry_offset;
+	lha->entry_offset += bytes_avail;
+	lha->entry_bytes_remaining -= bytes_avail;
+	if (lha->entry_bytes_remaining == 0)
+		lha->end_of_entry = 1;
+	lha->entry_unconsumed = bytes_avail;
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Read a file content in LZHUFF encoding.
+ *
+ * Returns ARCHIVE_OK if successful, returns ARCHIVE_WARN if compression is
+ * unsupported, ARCHIVE_FATAL otherwise, sets lha->end_of_entry if it consumes
+ * all of the data.
+ */
+static int
+lha_read_data_lzh(struct archive_read *a, const void **buff,
+    size_t *size, int64_t *offset)
+{
+	struct lha *lha = (struct lha *)(a->format->data);
+	ssize_t bytes_avail;
+	int r;
+
+	/* If the buffer hasn't been allocated, allocate it now. */
+	if (lha->uncompressed_buffer == NULL) {
+		lha->uncompressed_buffer_size = 64 * 1024;
+		lha->uncompressed_buffer
+		    = (unsigned char *)malloc(lha->uncompressed_buffer_size);
+		if (lha->uncompressed_buffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for lzh decompression");
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	/* If we haven't yet read any data, initialize the decompressor. */
+	if (!lha->decompress_init) {
+		r = lzh_decode_init(&(lha->strm), lha->method);
+		switch (r) {
+		case ARCHIVE_OK:
+			break;
+		case ARCHIVE_FAILED:
+        		/* Unsupported compression. */
+			*buff = NULL;
+			*size = 0;
+			*offset = 0;
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Unsupported lzh compression method -%c%c%c-",
+			    lha->method[0], lha->method[1], lha->method[2]);
+			/* We know compressed size; just skip it. */
+			archive_read_format_lha_read_data_skip(a);
+			return (ARCHIVE_WARN);
+		default:
+			archive_set_error(&a->archive, ENOMEM,
+			    "Couldn't allocate memory "
+			    "for lzh decompression");
+			return (ARCHIVE_FATAL);
+		}
+		/* We've initialized decompression for this stream. */
+		lha->decompress_init = 1;
+		lha->strm.avail_out = 0;
+		lha->strm.total_out = 0;
+	}
+
+	/*
+	 * Note: '1' here is a performance optimization.
+	 * Recall that the decompression layer returns a count of
+	 * available bytes; asking for more than that forces the
+	 * decompressor to combine reads by copying data.
+	 */
+	lha->strm.next_in = __archive_read_ahead(a, 1, &bytes_avail);
+	if (bytes_avail <= 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated LHa file body");
+		return (ARCHIVE_FATAL);
+	}
+	if (bytes_avail > lha->entry_bytes_remaining)
+		bytes_avail = (ssize_t)lha->entry_bytes_remaining;
+
+	lha->strm.avail_in = bytes_avail;
+	lha->strm.total_in = 0;
+	if (lha->strm.avail_out == 0) {
+		lha->strm.next_out = lha->uncompressed_buffer;
+		lha->strm.avail_out = lha->uncompressed_buffer_size;
+	}
+
+	r = lzh_decode(&(lha->strm), bytes_avail == lha->entry_bytes_remaining);
+	switch (r) {
+	case ARCHIVE_OK:
+		break;
+	case ARCHIVE_EOF:
+		lha->end_of_entry = 1;
+		break;
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Bad lzh data");
+		return (ARCHIVE_FAILED);
+	}
+	lha->entry_unconsumed = lha->strm.total_in;
+	lha->entry_bytes_remaining -= lha->strm.total_in;
+
+	if (lha->strm.avail_out == 0 || lha->end_of_entry) {
+		*offset = lha->entry_offset;
+		*size = lha->strm.next_out - lha->uncompressed_buffer;
+		*buff = lha->uncompressed_buffer;
+		lha->entry_crc_calculated =
+		    lha_crc16(lha->entry_crc_calculated, *buff, *size);
+		lha->entry_offset += *size;
+	} else {
+		*offset = lha->entry_offset;
+		*size = 0;
+		*buff = NULL;
+	}
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Skip a file content.
+ */
+static int
+archive_read_format_lha_read_data_skip(struct archive_read *a)
+{
+	struct lha *lha;
+	int64_t bytes_skipped;
+
+	lha = (struct lha *)(a->format->data);
+
+	if (lha->entry_unconsumed) {
+		/* Consume as much as the decompressor actually used. */
+		__archive_read_consume(a, lha->entry_unconsumed);
+		lha->entry_unconsumed = 0;
+	}
+
+	/* if we've already read to end of data, we're done. */
+	if (lha->end_of_entry_cleanup)
+		return (ARCHIVE_OK);
+
+	/*
+	 * If the length is at the beginning, we can skip the
+	 * compressed data much more quickly.
+	 */
+	bytes_skipped = __archive_read_consume(a, lha->entry_bytes_remaining);
+	if (bytes_skipped < 0)
+		return (ARCHIVE_FATAL);
+
+	/* This entry is finished and done. */
+	lha->end_of_entry_cleanup = lha->end_of_entry = 1;
+	return (ARCHIVE_OK);
+}
+
+static int
+archive_read_format_lha_cleanup(struct archive_read *a)
+{
+	struct lha *lha = (struct lha *)(a->format->data);
+
+	lzh_decode_free(&(lha->strm));
+	free(lha->uncompressed_buffer);
+	archive_string_free(&(lha->dirname));
+	archive_string_free(&(lha->filename));
+	archive_string_free(&(lha->uname));
+	archive_string_free(&(lha->gname));
+	archive_wstring_free(&(lha->ws));
+	free(lha);
+	(a->format->data) = NULL;
+	return (ARCHIVE_OK);
+}
+
+/*
+ * 'LHa for UNIX' utility has archived a symbolic-link name after
+ * a pathname with '|' character.
+ * This function extracts the symbolic-link name from the pathname.
+ *
+ * example.
+ *   1. a symbolic-name is 'aaa/bb/cc'
+ *   2. a filename is 'xxx/bbb'
+ *  then a archived pathname is 'xxx/bbb|aaa/bb/cc'
+ */
+static int
+lha_parse_linkname(struct archive_string *linkname,
+    struct archive_string *pathname)
+{
+	char *	linkptr;
+	size_t 	symlen;
+
+	linkptr = strchr(pathname->s, '|');
+	if (linkptr != NULL) {
+		symlen = strlen(linkptr + 1);
+		archive_strncpy(linkname, linkptr+1, symlen);
+
+		*linkptr = 0;
+		pathname->length = strlen(pathname->s);
+
+		return (1);
+	}
+	return (0);
+}
+
+/* Convert an MSDOS-style date/time into Unix-style time. */
+static time_t
+lha_dos_time(const unsigned char *p)
+{
+	int msTime, msDate;
+	struct tm ts;
+
+	msTime = archive_le16dec(p);
+	msDate = archive_le16dec(p+2);
+
+	memset(&ts, 0, sizeof(ts));
+	ts.tm_year = ((msDate >> 9) & 0x7f) + 80;   /* Years since 1900. */
+	ts.tm_mon = ((msDate >> 5) & 0x0f) - 1;     /* Month number.     */
+	ts.tm_mday = msDate & 0x1f;		    /* Day of month.     */
+	ts.tm_hour = (msTime >> 11) & 0x1f;
+	ts.tm_min = (msTime >> 5) & 0x3f;
+	ts.tm_sec = (msTime << 1) & 0x3e;
+	ts.tm_isdst = -1;
+	return (mktime(&ts));
+}
+
+/* Convert an MS-Windows-style date/time into Unix-style time. */
+static time_t
+lha_win_time(uint64_t wintime, long *ns)
+{
+#define EPOC_TIME ARCHIVE_LITERAL_ULL(116444736000000000)
+
+	if (wintime >= EPOC_TIME) {
+		wintime -= EPOC_TIME;	/* 1970-01-01 00:00:00 (UTC) */
+		if (ns != NULL)
+			*ns = (long)(wintime % 10000000) * 100;
+		return (wintime / 10000000);
+	} else {
+		if (ns != NULL)
+			*ns = 0;
+		return (0);
+	}
+}
+
+static unsigned char
+lha_calcsum(unsigned char sum, const void *pp, int offset, size_t size)
+{
+	unsigned char const *p = (unsigned char const *)pp;
+
+	p += offset;
+	for (;size > 0; --size)
+		sum += *p++;
+	return (sum);
+}
+
+#define CRC16(crc, v)	do {	\
+	(crc) = crc16tbl[((crc) ^ v) & 0xFF] ^ ((crc) >> 8);	\
+} while (0)
+
+static uint16_t
+lha_crc16(uint16_t crc, const void *pp, size_t len)
+{
+	const unsigned char *buff = (const unsigned char *)pp;
+
+	while (len >= 8) {
+		CRC16(crc, *buff++); CRC16(crc, *buff++);
+		CRC16(crc, *buff++); CRC16(crc, *buff++);
+		CRC16(crc, *buff++); CRC16(crc, *buff++);
+		CRC16(crc, *buff++); CRC16(crc, *buff++);
+		len -= 8;
+	}
+	switch (len) {
+	case 7:
+		CRC16(crc, *buff++);
+		/* FALL THROUGH */
+	case 6:
+		CRC16(crc, *buff++);
+		/* FALL THROUGH */
+	case 5:
+		CRC16(crc, *buff++);
+		/* FALL THROUGH */
+	case 4:
+		CRC16(crc, *buff++);
+		/* FALL THROUGH */
+	case 3:
+		CRC16(crc, *buff++);
+		/* FALL THROUGH */
+	case 2:
+		CRC16(crc, *buff++);
+		/* FALL THROUGH */
+	case 1:
+		CRC16(crc, *buff);
+		/* FALL THROUGH */
+	case 0:
+		break;
+	}
+	return (crc);
+}
+
+
+/*
+ * Initialize LZHUF decoder.
+ *
+ * Returns ARCHIVE_OK if initialization was successful.
+ * Returns ARCHIVE_FAILED if method is unsupported.
+ * Returns ARCHIVE_FATAL if initialization failed; memory allocation
+ * error occurred.
+ */
+static int
+lzh_decode_init(struct lzh_stream *strm, const char *method)
+{
+	struct lzh_dec *ds;
+	int w_bits, w_size;
+
+	if (strm->ds == NULL) {
+		strm->ds = calloc(1, sizeof(*strm->ds));
+		if (strm->ds == NULL)
+			return (ARCHIVE_FATAL);
+	}
+	ds = strm->ds;
+	ds->error = ARCHIVE_FAILED;
+	if (method == NULL || method[0] != 'l' || method[1] != 'h')
+		return (ARCHIVE_FAILED);
+	switch (method[2]) {
+	case '5':
+		w_bits = 13;/* 8KiB for window */
+		break;
+	case '6':
+		w_bits = 15;/* 32KiB for window */
+		break;
+	case '7':
+		w_bits = 16;/* 64KiB for window */
+		break;
+	default:
+		return (ARCHIVE_FAILED);/* Not supported. */
+	}
+	ds->error = ARCHIVE_FATAL;
+	w_size = ds->w_size;
+	ds->w_size = 1U << w_bits;
+	ds->w_mask = ds->w_size -1;
+	if (ds->w_buff == NULL || w_size != ds->w_size) {
+		free(ds->w_buff);
+		ds->w_buff = malloc(ds->w_size);
+		if (ds->w_buff == NULL)
+			return (ARCHIVE_FATAL);
+	}
+	memset(ds->w_buff, 0x20, ds->w_size);
+	ds->w_pos = 0;
+	ds->w_remaining = 0;
+	ds->state = 0;
+	ds->pos_pt_len_size = w_bits + 1;
+	ds->pos_pt_len_bits = (w_bits == 15 || w_bits == 16)? 5: 4;
+	ds->literal_pt_len_size = PT_BITLEN_SIZE;
+	ds->literal_pt_len_bits = 5;
+	ds->br.cache_buffer = 0;
+	ds->br.cache_avail = 0;
+
+	if (lzh_huffman_init(&(ds->lt), LT_BITLEN_SIZE, 16)
+	    != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	ds->lt.len_bits = 9;
+	if (lzh_huffman_init(&(ds->pt), PT_BITLEN_SIZE, 16)
+	    != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	ds->error = 0;
+
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Release LZHUF decoder.
+ */
+static void
+lzh_decode_free(struct lzh_stream *strm)
+{
+
+	if (strm->ds == NULL)
+		return;
+	free(strm->ds->w_buff);
+	lzh_huffman_free(&(strm->ds->lt));
+	lzh_huffman_free(&(strm->ds->pt));
+	free(strm->ds);
+	strm->ds = NULL;
+}
+
+/*
+ * Bit stream reader.
+ */
+/* Check that the cache buffer has enough bits. */
+#define lzh_br_has(br, n)	((br)->cache_avail >= n)
+/* Get compressed data by bit. */
+#define lzh_br_bits(br, n)				\
+	(((uint16_t)((br)->cache_buffer >>		\
+		((br)->cache_avail - (n)))) & cache_masks[n])
+#define lzh_br_bits_forced(br, n)			\
+	(((uint16_t)((br)->cache_buffer <<		\
+		((n) - (br)->cache_avail))) & cache_masks[n])
+/* Read ahead to make sure the cache buffer has enough compressed data we
+ * will use.
+ *  True  : completed, there is enough data in the cache buffer.
+ *  False : we met that strm->next_in is empty, we have to get following
+ *          bytes. */
+#define lzh_br_read_ahead_0(strm, br, n)	\
+	(lzh_br_has(br, (n)) || lzh_br_fillup(strm, br))
+/*  True  : the cache buffer has some bits as much as we need.
+ *  False : there are no enough bits in the cache buffer to be used,
+ *          we have to get following bytes if we could. */
+#define lzh_br_read_ahead(strm, br, n)	\
+	(lzh_br_read_ahead_0((strm), (br), (n)) || lzh_br_has((br), (n)))
+
+/* Notify how many bits we consumed. */
+#define lzh_br_consume(br, n)	((br)->cache_avail -= (n))
+#define lzh_br_unconsume(br, n)	((br)->cache_avail += (n))
+
+static const uint16_t cache_masks[] = {
+	0x0000, 0x0001, 0x0003, 0x0007,
+	0x000F, 0x001F, 0x003F, 0x007F,
+	0x00FF, 0x01FF, 0x03FF, 0x07FF,
+	0x0FFF, 0x1FFF, 0x3FFF, 0x7FFF,
+	0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF
+};
+
+/*
+ * Shift away used bits in the cache data and fill it up with following bits.
+ * Call this when cache buffer does not have enough bits you need.
+ *
+ * Returns 1 if the cache buffer is full.
+ * Returns 0 if the cache buffer is not full; input buffer is empty.
+ */
+static int
+lzh_br_fillup(struct lzh_stream *strm, struct lzh_br *br)
+{
+	int n = CACHE_BITS - br->cache_avail;
+
+	for (;;) {
+		switch (n >> 3) {
+		case 8:
+			if (strm->avail_in >= 8) {
+				br->cache_buffer =
+				    ((uint64_t)strm->next_in[0]) << 56 |
+				    ((uint64_t)strm->next_in[1]) << 48 |
+				    ((uint64_t)strm->next_in[2]) << 40 |
+				    ((uint64_t)strm->next_in[3]) << 32 |
+				    ((uint32_t)strm->next_in[4]) << 24 |
+				    ((uint32_t)strm->next_in[5]) << 16 |
+				    ((uint32_t)strm->next_in[6]) << 8 |
+				     (uint32_t)strm->next_in[7];
+				strm->next_in += 8;
+				strm->avail_in -= 8;
+				br->cache_avail += 8 * 8;
+				return (1);
+			}
+			break;
+		case 7:
+			if (strm->avail_in >= 7) {
+				br->cache_buffer =
+		 		   (br->cache_buffer << 56) |
+				    ((uint64_t)strm->next_in[0]) << 48 |
+				    ((uint64_t)strm->next_in[1]) << 40 |
+				    ((uint64_t)strm->next_in[2]) << 32 |
+				    ((uint32_t)strm->next_in[3]) << 24 |
+				    ((uint32_t)strm->next_in[4]) << 16 |
+				    ((uint32_t)strm->next_in[5]) << 8 |
+				     (uint32_t)strm->next_in[6];
+				strm->next_in += 7;
+				strm->avail_in -= 7;
+				br->cache_avail += 7 * 8;
+				return (1);
+			}
+			break;
+		case 6:
+			if (strm->avail_in >= 6) {
+				br->cache_buffer =
+		 		   (br->cache_buffer << 48) |
+				    ((uint64_t)strm->next_in[0]) << 40 |
+				    ((uint64_t)strm->next_in[1]) << 32 |
+				    ((uint32_t)strm->next_in[2]) << 24 |
+				    ((uint32_t)strm->next_in[3]) << 16 |
+				    ((uint32_t)strm->next_in[4]) << 8 |
+				     (uint32_t)strm->next_in[5];
+				strm->next_in += 6;
+				strm->avail_in -= 6;
+				br->cache_avail += 6 * 8;
+				return (1);
+			}
+			break;
+		case 0:
+			/* We have enough compressed data in
+			 * the cache buffer.*/ 
+			return (1);
+		default:
+			break;
+		}
+		if (strm->avail_in == 0) {
+			/* There is not enough compressed data to fill up the
+			 * cache buffer. */
+			return (0);
+		}
+		br->cache_buffer =
+		   (br->cache_buffer << 8) | *strm->next_in++;
+		strm->avail_in--;
+		br->cache_avail += 8;
+		n -= 8;
+	}
+}
+
+/*
+ * Decode LZHUF.
+ *
+ * 1. Returns ARCHIVE_OK if output buffer or input buffer are empty.
+ *    Please set available buffer and call this function again.
+ * 2. Returns ARCHIVE_EOF if decompression has been completed.
+ * 3. Returns ARCHIVE_FAILED if an error occurred; compressed data
+ *    is broken or you do not set 'last' flag properly.
+ * 4. 'last' flag is very important, you must set 1 to the flag if there
+ *    is no input data. The lha compressed data format does not provide how
+ *    to know the compressed data is really finished.
+ *    Note: lha command utility check if the total size of output bytes is
+ *    reached the uncompressed size recorded in its header. it does not mind
+ *    that the decoding process is properly finished.
+ *    GNU ZIP can decompress another compressed file made by SCO LZH compress.
+ *    it handles EOF as null to fill read buffer with zero until the decoding
+ *    process meet 2 bytes of zeros at reading a size of a next chunk, so the
+ *    zeros are treated as the mark of the end of the data although the zeros
+ *    is dummy, not the file data.
+ */
+static int	lzh_read_blocks(struct lzh_stream *, int);
+static int	lzh_decode_blocks(struct lzh_stream *, int);
+#define ST_RD_BLOCK		0
+#define ST_RD_PT_1		1
+#define ST_RD_PT_2		2
+#define ST_RD_PT_3		3
+#define ST_RD_PT_4		4
+#define ST_RD_LITERAL_1		5
+#define ST_RD_LITERAL_2		6
+#define ST_RD_LITERAL_3		7
+#define ST_RD_POS_DATA_1	8
+#define ST_GET_LITERAL		9
+#define ST_GET_POS_1		10
+#define ST_GET_POS_2		11
+#define ST_COPY_DATA		12
+
+static int
+lzh_decode(struct lzh_stream *strm, int last)
+{
+	struct lzh_dec *ds = strm->ds;
+	int64_t avail_in;
+	int r;
+
+	if (ds->error)
+		return (ds->error);
+
+	avail_in = strm->avail_in;
+	do {
+		if (ds->state < ST_GET_LITERAL)
+			r = lzh_read_blocks(strm, last);
+		else
+			r = lzh_decode_blocks(strm, last);
+	} while (r == 100);
+	strm->total_in += avail_in - strm->avail_in;
+	return (r);
+}
+
+static int
+lzh_copy_from_window(struct lzh_stream *strm, struct lzh_dec *ds)
+{
+	size_t copy_bytes;
+
+	if (ds->w_remaining == 0 && ds->w_pos > 0) {
+		if (ds->w_pos - ds->copy_pos <= strm->avail_out)
+			copy_bytes = ds->w_pos - ds->copy_pos;
+		else
+			copy_bytes = (size_t)strm->avail_out;
+		memcpy(strm->next_out,
+		    ds->w_buff + ds->copy_pos, copy_bytes);
+		ds->copy_pos += (int)copy_bytes;
+	} else {
+		if (ds->w_remaining <= strm->avail_out)
+			copy_bytes = ds->w_remaining;
+		else
+			copy_bytes = (size_t)strm->avail_out;
+		memcpy(strm->next_out,
+		    ds->w_buff + ds->w_size - ds->w_remaining, copy_bytes);
+		ds->w_remaining -= (int)copy_bytes;
+	}
+	strm->next_out += copy_bytes;
+	strm->avail_out -= copy_bytes;
+	strm->total_out += copy_bytes;
+	if (strm->avail_out == 0)
+		return (0);
+	else
+		return (1);
+}
+
+static int
+lzh_read_blocks(struct lzh_stream *strm, int last)
+{
+	struct lzh_dec *ds = strm->ds;
+	struct lzh_br *br = &(ds->br);
+	int c = 0, i;
+	unsigned rbits;
+
+	for (;;) {
+		switch (ds->state) {
+		case ST_RD_BLOCK:
+			/*
+			 * Read a block number indicates how many blocks
+			 * we will handle. The block is composed of a
+			 * literal and a match, sometimes a literal only
+			 * in particular, there are no reference data at
+			 * the beginning of the decompression.
+			 */
+			if (!lzh_br_read_ahead_0(strm, br, 16)) {
+				if (!last)
+					/* We need following data. */
+					return (ARCHIVE_OK);
+				if (lzh_br_has(br, 8)) {
+					/*
+					 * It seems there are extra bits.
+					 *  1. Compressed data is broken.
+					 *  2. `last' flag does not properly
+					 *     set.
+					 */
+					goto failed;
+				}
+				if (ds->w_pos > 0) {
+					if (!lzh_copy_from_window(strm, ds))
+						return (ARCHIVE_OK);
+				}
+				/* End of compressed data; we have completely
+				 * handled all compressed data. */
+				return (ARCHIVE_EOF);
+			}
+			ds->blocks_avail = lzh_br_bits(br, 16);
+			if (ds->blocks_avail == 0)
+				goto failed;
+			lzh_br_consume(br, 16);
+			/*
+			 * Read a literal table compressed in huffman
+			 * coding.
+			 */
+			ds->pt.len_size = ds->literal_pt_len_size;
+			ds->pt.len_bits = ds->literal_pt_len_bits;
+			ds->reading_position = 0;
+			/* FALL THROUGH */
+		case ST_RD_PT_1:
+			/* Note: ST_RD_PT_1, ST_RD_PT_2 and ST_RD_PT_4 are
+			 * used in reading both a literal table and a
+			 * position table. */
+			if (!lzh_br_read_ahead(strm, br, ds->pt.len_bits)) {
+				if (last)
+					goto failed;/* Truncated data. */
+				ds->state = ST_RD_PT_1;
+				return (ARCHIVE_OK);
+			}
+			ds->pt.len_avail = lzh_br_bits(br, ds->pt.len_bits);
+			lzh_br_consume(br, ds->pt.len_bits);
+			/* FALL THROUGH */
+		case ST_RD_PT_2:
+			if (ds->pt.len_avail == 0) {
+				/* There is no bitlen. */
+				if (!lzh_br_read_ahead(strm, br,
+				    ds->pt.len_bits)) {
+					if (last)
+						goto failed;/* Truncated data.*/
+					ds->state = ST_RD_PT_2;
+					return (ARCHIVE_OK);
+				}
+				if (!lzh_make_fake_table(&(ds->pt),
+				    lzh_br_bits(br, ds->pt.len_bits)))
+					goto failed;/* Invalid data. */
+				lzh_br_consume(br, ds->pt.len_bits);
+				if (ds->reading_position)
+					ds->state = ST_GET_LITERAL;
+				else
+					ds->state = ST_RD_LITERAL_1;
+				break;
+			} else if (ds->pt.len_avail > ds->pt.len_size)
+				goto failed;/* Invalid data. */
+			ds->loop = 0;
+			memset(ds->pt.freq, 0, sizeof(ds->pt.freq));
+			if (ds->pt.len_avail < 3 ||
+			    ds->pt.len_size == ds->pos_pt_len_size) {
+				ds->state = ST_RD_PT_4;
+				break;
+			}
+			/* FALL THROUGH */
+		case ST_RD_PT_3:
+			ds->loop = lzh_read_pt_bitlen(strm, ds->loop, 3);
+			if (ds->loop < 3) {
+				if (ds->loop < 0 || last)
+					goto failed;/* Invalid data. */
+				/* Not completed, get following data. */
+				ds->state = ST_RD_PT_3;
+				return (ARCHIVE_OK);
+			}
+			/* There are some null in bitlen of the literal. */
+			if (!lzh_br_read_ahead(strm, br, 2)) {
+				if (last)
+					goto failed;/* Truncated data. */
+				ds->state = ST_RD_PT_3;
+				return (ARCHIVE_OK);
+			}
+			c = lzh_br_bits(br, 2);
+			lzh_br_consume(br, 2);
+			if (c > ds->pt.len_avail - 3)
+				goto failed;/* Invalid data. */
+			for (i = 3; c-- > 0 ;)
+				ds->pt.bitlen[i++] = 0;
+			ds->loop = i;
+			/* FALL THROUGH */
+		case ST_RD_PT_4:
+			ds->loop = lzh_read_pt_bitlen(strm, ds->loop,
+			    ds->pt.len_avail);
+			if (ds->loop < ds->pt.len_avail) {
+				if (ds->loop < 0 || last)
+					goto failed;/* Invalid data. */
+				/* Not completed, get following data. */
+				ds->state = ST_RD_PT_4;
+				return (ARCHIVE_OK);
+			}
+			if (!lzh_make_huffman_table(&(ds->pt)))
+				goto failed;/* Invalid data */
+			if (ds->reading_position) {
+				ds->state = ST_GET_LITERAL;
+				break;
+			}
+			/* FALL THROUGH */
+		case ST_RD_LITERAL_1:
+			if (!lzh_br_read_ahead(strm, br, ds->lt.len_bits)) {
+				if (last)
+					goto failed;/* Truncated data. */
+				ds->state = ST_RD_LITERAL_1;
+				return (ARCHIVE_OK);
+			}
+			ds->lt.len_avail = lzh_br_bits(br, ds->lt.len_bits);
+			lzh_br_consume(br, ds->lt.len_bits);
+			/* FALL THROUGH */
+		case ST_RD_LITERAL_2:
+			if (ds->lt.len_avail == 0) {
+				/* There is no bitlen. */
+				if (!lzh_br_read_ahead(strm, br,
+				    ds->lt.len_bits)) {
+					if (last)
+						goto failed;/* Truncated data.*/
+					ds->state = ST_RD_LITERAL_2;
+					return (ARCHIVE_OK);
+				}
+				if (!lzh_make_fake_table(&(ds->lt),
+				    lzh_br_bits(br, ds->lt.len_bits)))
+					goto failed;/* Invalid data */
+				lzh_br_consume(br, ds->lt.len_bits);
+				ds->state = ST_RD_POS_DATA_1;
+				break;
+			} else if (ds->lt.len_avail > ds->lt.len_size)
+				goto failed;/* Invalid data */
+			ds->loop = 0;
+			memset(ds->lt.freq, 0, sizeof(ds->lt.freq));
+			/* FALL THROUGH */
+		case ST_RD_LITERAL_3:
+			i = ds->loop;
+			while (i < ds->lt.len_avail) {
+				if (!lzh_br_read_ahead(strm, br,
+				    ds->pt.max_bits)) {
+					if (last)
+						goto failed;/* Truncated data.*/
+					ds->loop = i;
+					ds->state = ST_RD_LITERAL_3;
+					return (ARCHIVE_OK);
+				}
+				rbits = lzh_br_bits(br, ds->pt.max_bits);
+				c = lzh_decode_huffman(&(ds->pt), rbits);
+				if (c > 2) {
+					/* Note: 'c' will never be more than
+					 * eighteen since it's limited by
+					 * PT_BITLEN_SIZE, which is being set
+					 * to ds->pt.len_size through
+					 * ds->literal_pt_len_size. */
+					lzh_br_consume(br, ds->pt.bitlen[c]);
+					c -= 2;
+					ds->lt.freq[c]++;
+					ds->lt.bitlen[i++] = c;
+				} else if (c == 0) {
+					lzh_br_consume(br, ds->pt.bitlen[c]);
+					ds->lt.bitlen[i++] = 0;
+				} else {
+					/* c == 1 or c == 2 */
+					int n = (c == 1)?4:9;
+					if (!lzh_br_read_ahead(strm, br,
+					     ds->pt.bitlen[c] + n)) {
+						if (last) /* Truncated data. */
+							goto failed;
+						ds->loop = i;
+						ds->state = ST_RD_LITERAL_3;
+						return (ARCHIVE_OK);
+					}
+					lzh_br_consume(br, ds->pt.bitlen[c]);
+					c = lzh_br_bits(br, n);
+					lzh_br_consume(br, n);
+					c += (n == 4)?3:20;
+					if (i + c > ds->lt.len_avail)
+						goto failed;/* Invalid data */
+					memset(&(ds->lt.bitlen[i]), 0, c);
+					i += c;
+				}
+			}
+			if (i > ds->lt.len_avail ||
+			    !lzh_make_huffman_table(&(ds->lt)))
+				goto failed;/* Invalid data */
+			/* FALL THROUGH */
+		case ST_RD_POS_DATA_1:
+			/*
+			 * Read a position table compressed in huffman
+			 * coding.
+			 */
+			ds->pt.len_size = ds->pos_pt_len_size;
+			ds->pt.len_bits = ds->pos_pt_len_bits;
+			ds->reading_position = 1;
+			ds->state = ST_RD_PT_1;
+			break;
+		case ST_GET_LITERAL:
+			return (100);
+		}
+	}
+failed:
+	return (ds->error = ARCHIVE_FAILED);
+}
+
+static int
+lzh_decode_blocks(struct lzh_stream *strm, int last)
+{
+	struct lzh_dec *ds = strm->ds;
+	struct lzh_br bre = ds->br;
+	struct huffman *lt = &(ds->lt);
+	struct huffman *pt = &(ds->pt);
+	unsigned char *w_buff = ds->w_buff;
+	unsigned char *lt_bitlen = lt->bitlen;
+	unsigned char *pt_bitlen = pt->bitlen;
+	int blocks_avail = ds->blocks_avail, c = 0;
+	int copy_len = ds->copy_len, copy_pos = ds->copy_pos;
+	int w_pos = ds->w_pos, w_mask = ds->w_mask, w_size = ds->w_size;
+	int lt_max_bits = lt->max_bits, pt_max_bits = pt->max_bits;
+	int state = ds->state;
+
+	if (ds->w_remaining > 0) {
+		if (!lzh_copy_from_window(strm, ds))
+			goto next_data;
+	}
+	for (;;) {
+		switch (state) {
+		case ST_GET_LITERAL:
+			for (;;) {
+				if (blocks_avail == 0) {
+					/* We have decoded all blocks.
+					 * Let's handle next blocks. */
+					ds->state = ST_RD_BLOCK;
+					ds->br = bre;
+					ds->blocks_avail = 0;
+					ds->w_pos = w_pos;
+					ds->copy_pos = 0;
+					return (100);
+				}
+
+				/* lzh_br_read_ahead() always try to fill the
+				 * cache buffer up. In specific situation we
+				 * are close to the end of the data, the cache
+				 * buffer will not be full and thus we have to
+				 * determine if the cache buffer has some bits
+				 * as much as we need after lzh_br_read_ahead()
+				 * failed. */
+				if (!lzh_br_read_ahead(strm, &bre,
+				    lt_max_bits)) {
+					if (!last)
+						goto next_data;
+					/* Remaining bits are less than
+					 * maximum bits(lt.max_bits) but maybe
+					 * it still remains as much as we need,
+					 * so we should try to use it with
+					 * dummy bits. */
+					c = lzh_decode_huffman(lt,
+					      lzh_br_bits_forced(&bre,
+					        lt_max_bits));
+					lzh_br_consume(&bre, lt_bitlen[c]);
+					if (!lzh_br_has(&bre, 0))
+						goto failed;/* Over read. */
+				} else {
+					c = lzh_decode_huffman(lt,
+					      lzh_br_bits(&bre, lt_max_bits));
+					lzh_br_consume(&bre, lt_bitlen[c]);
+				}
+				blocks_avail--;
+				if (c > UCHAR_MAX)
+					/* Current block is a match data. */
+					break;
+				/*
+				 * 'c' is exactly a literal code.
+				 */
+				/* Save a decoded code to reference it
+				 * afterward. */
+				w_buff[w_pos] = c;
+				if (++w_pos >= w_size) {
+					w_pos = 0;
+					ds->w_remaining = w_size;
+					if (!lzh_copy_from_window(strm, ds))
+						goto next_data;
+				}
+			}
+			/* 'c' is the length of a match pattern we have
+			 * already extracted, which has be stored in
+			 * window(ds->w_buff). */
+			copy_len = c - (UCHAR_MAX + 1) + MINMATCH;
+			/* FALL THROUGH */
+		case ST_GET_POS_1:
+			/*
+			 * Get a reference position. 
+			 */
+			if (!lzh_br_read_ahead(strm, &bre, pt_max_bits)) {
+				if (!last) {
+					state = ST_GET_POS_1;
+					ds->copy_len = copy_len;
+					goto next_data;
+				}
+				copy_pos = lzh_decode_huffman(pt,
+				    lzh_br_bits_forced(&bre, pt_max_bits));
+				lzh_br_consume(&bre, pt_bitlen[copy_pos]);
+				if (!lzh_br_has(&bre, 0))
+					goto failed;/* Over read. */
+			} else {
+				copy_pos = lzh_decode_huffman(pt,
+				    lzh_br_bits(&bre, pt_max_bits));
+				lzh_br_consume(&bre, pt_bitlen[copy_pos]);
+			}
+			/* FALL THROUGH */
+		case ST_GET_POS_2:
+			if (copy_pos > 1) {
+				/* We need an additional adjustment number to
+				 * the position. */
+				int p = copy_pos - 1;
+				if (!lzh_br_read_ahead(strm, &bre, p)) {
+					if (last)
+						goto failed;/* Truncated data.*/
+					state = ST_GET_POS_2;
+					ds->copy_len = copy_len;
+					ds->copy_pos = copy_pos;
+					goto next_data;
+				}
+				copy_pos = (1 << p) + lzh_br_bits(&bre, p);
+				lzh_br_consume(&bre, p);
+			}
+			/* The position is actually a distance from the last
+			 * code we had extracted and thus we have to convert
+			 * it to a position of the window. */
+			copy_pos = (w_pos - copy_pos - 1) & w_mask;
+			/* FALL THROUGH */
+		case ST_COPY_DATA:
+			/*
+			 * Copy `copy_len' bytes as extracted data from
+			 * the window into the output buffer.
+			 */
+			for (;;) {
+				int l;
+
+				l = copy_len;
+				if (copy_pos > w_pos) {
+					if (l > w_size - copy_pos)
+						l = w_size - copy_pos;
+				} else {
+					if (l > w_size - w_pos)
+						l = w_size - w_pos;
+				}
+				if ((copy_pos + l < w_pos)
+				    || (w_pos + l < copy_pos)) {
+					/* No overlap. */
+					memcpy(w_buff + w_pos,
+					    w_buff + copy_pos, l);
+				} else {
+					const unsigned char *s;
+					unsigned char *d;
+					int li;
+
+					d = w_buff + w_pos;
+					s = w_buff + copy_pos;
+					for (li = 0; li < l; li++)
+						d[li] = s[li];
+				}
+				w_pos = (w_pos + l) & w_mask;
+				if (w_pos == 0) {
+					ds->w_remaining = w_size;
+					if (!lzh_copy_from_window(strm, ds)) {
+						if (copy_len <= l)
+							state = ST_GET_LITERAL;
+						else {
+							state = ST_COPY_DATA;
+							ds->copy_len =
+							    copy_len - l;
+							ds->copy_pos =
+							    (copy_pos + l)
+							    & w_mask;
+						}
+						goto next_data;
+					}
+				}
+				if (copy_len <= l)
+					/* A copy of current pattern ended. */
+					break;
+				copy_len -= l;
+				copy_pos = (copy_pos + l) & w_mask;
+			}
+			state = ST_GET_LITERAL;
+			break;
+		}
+	}
+failed:
+	return (ds->error = ARCHIVE_FAILED);
+next_data:
+	ds->br = bre;
+	ds->blocks_avail = blocks_avail;
+	ds->state = state;
+	ds->w_pos = w_pos;
+	return (ARCHIVE_OK);
+}
+
+static int
+lzh_huffman_init(struct huffman *hf, size_t len_size, int tbl_bits)
+{
+	int bits;
+
+	if (hf->bitlen == NULL) {
+		hf->bitlen = malloc(len_size * sizeof(hf->bitlen[0]));
+		if (hf->bitlen == NULL)
+			return (ARCHIVE_FATAL);
+	}
+	if (hf->tbl == NULL) {
+		if (tbl_bits < HTBL_BITS)
+			bits = tbl_bits;
+		else
+			bits = HTBL_BITS;
+		hf->tbl = malloc(((size_t)1 << bits) * sizeof(hf->tbl[0]));
+		if (hf->tbl == NULL)
+			return (ARCHIVE_FATAL);
+	}
+	if (hf->tree == NULL && tbl_bits > HTBL_BITS) {
+		hf->tree_avail = 1 << (tbl_bits - HTBL_BITS + 4);
+		hf->tree = malloc(hf->tree_avail * sizeof(hf->tree[0]));
+		if (hf->tree == NULL)
+			return (ARCHIVE_FATAL);
+	}
+	hf->len_size = (int)len_size;
+	hf->tbl_bits = tbl_bits;
+	return (ARCHIVE_OK);
+}
+
+static void
+lzh_huffman_free(struct huffman *hf)
+{
+	free(hf->bitlen);
+	free(hf->tbl);
+	free(hf->tree);
+}
+
+static int
+lzh_read_pt_bitlen(struct lzh_stream *strm, int start, int end)
+{
+	struct lzh_dec *ds = strm->ds;
+	struct lzh_br * br = &(ds->br);
+	int c, i;
+
+	for (i = start; i < end;) {
+		/*
+		 *  bit pattern     the number we need
+		 *     000           ->  0
+		 *     001           ->  1
+		 *     010           ->  2
+		 *     ...
+		 *     110           ->  6
+		 *     1110          ->  7
+		 *     11110         ->  8
+		 *     ...
+		 *     1111111111110 ->  16
+		 */
+		if (!lzh_br_read_ahead(strm, br, 3))
+			return (i);
+		if ((c = lzh_br_bits(br, 3)) == 7) {
+			int d;
+			if (!lzh_br_read_ahead(strm, br, 13))
+				return (i);
+			d = lzh_br_bits(br, 13);
+			while (d & 0x200) {
+				c++;
+				d <<= 1;
+			}
+			if (c > 16)
+				return (-1);/* Invalid data. */
+			lzh_br_consume(br, c - 3);
+		} else
+			lzh_br_consume(br, 3);
+		ds->pt.bitlen[i++] = c;
+		ds->pt.freq[c]++;
+	}
+	return (i);
+}
+
+static int
+lzh_make_fake_table(struct huffman *hf, uint16_t c)
+{
+	if (c >= hf->len_size)
+		return (0);
+	hf->tbl[0] = c;
+	hf->max_bits = 0;
+	hf->shift_bits = 0;
+	hf->bitlen[hf->tbl[0]] = 0;
+	return (1);
+}
+
+/*
+ * Make a huffman coding table.
+ */
+static int
+lzh_make_huffman_table(struct huffman *hf)
+{
+	uint16_t *tbl;
+	const unsigned char *bitlen;
+	int bitptn[17], weight[17];
+	int i, maxbits = 0, ptn, tbl_size, w;
+	int diffbits, len_avail;
+
+	/*
+	 * Initialize bit patterns.
+	 */
+	ptn = 0;
+	for (i = 1, w = 1 << 15; i <= 16; i++, w >>= 1) {
+		bitptn[i] = ptn;
+		weight[i] = w;
+		if (hf->freq[i]) {
+			ptn += hf->freq[i] * w;
+			maxbits = i;
+		}
+	}
+	if (ptn != 0x10000 || maxbits > hf->tbl_bits)
+		return (0);/* Invalid */
+
+	hf->max_bits = maxbits;
+
+	/*
+	 * Cut out extra bits which we won't house in the table.
+	 * This preparation reduces the same calculation in the for-loop
+	 * making the table.
+	 */
+	if (maxbits < 16) {
+		int ebits = 16 - maxbits;
+		for (i = 1; i <= maxbits; i++) {
+			bitptn[i] >>= ebits;
+			weight[i] >>= ebits;
+		}
+	}
+	if (maxbits > HTBL_BITS) {
+		int htbl_max;
+		uint16_t *p;
+
+		diffbits = maxbits - HTBL_BITS;
+		for (i = 1; i <= HTBL_BITS; i++) {
+			bitptn[i] >>= diffbits;
+			weight[i] >>= diffbits;
+		}
+		htbl_max = bitptn[HTBL_BITS] +
+		    weight[HTBL_BITS] * hf->freq[HTBL_BITS];
+		p = &(hf->tbl[htbl_max]);
+		while (p < &hf->tbl[1U<<HTBL_BITS])
+			*p++ = 0;
+	} else
+		diffbits = 0;
+	hf->shift_bits = diffbits;
+
+	/*
+	 * Make the table.
+	 */
+	tbl_size = 1 << HTBL_BITS;
+	tbl = hf->tbl;
+	bitlen = hf->bitlen;
+	len_avail = hf->len_avail;
+	hf->tree_used = 0;
+	for (i = 0; i < len_avail; i++) {
+		uint16_t *p;
+		int len, cnt;
+		uint16_t bit;
+		int extlen;
+		struct htree_t *ht;
+
+		if (bitlen[i] == 0)
+			continue;
+		/* Get a bit pattern */
+		len = bitlen[i];
+		ptn = bitptn[len];
+		cnt = weight[len];
+		if (len <= HTBL_BITS) {
+			/* Calculate next bit pattern */
+			if ((bitptn[len] = ptn + cnt) > tbl_size)
+				return (0);/* Invalid */
+			/* Update the table */
+			p = &(tbl[ptn]);
+			while (--cnt >= 0)
+				p[cnt] = (uint16_t)i;
+			continue;
+		}
+
+		/*
+		 * A bit length is too big to be housed to a direct table,
+		 * so we use a tree model for its extra bits.
+		 */
+		bitptn[len] = ptn + cnt;
+		bit = 1U << (diffbits -1);
+		extlen = len - HTBL_BITS;
+		
+		p = &(tbl[ptn >> diffbits]);
+		if (*p == 0) {
+			*p = len_avail + hf->tree_used;
+			ht = &(hf->tree[hf->tree_used++]);
+			if (hf->tree_used > hf->tree_avail)
+				return (0);/* Invalid */
+			ht->left = 0;
+			ht->right = 0;
+		} else {
+			if (*p < len_avail ||
+			    *p >= (len_avail + hf->tree_used))
+				return (0);/* Invalid */
+			ht = &(hf->tree[*p - len_avail]);
+		}
+		while (--extlen > 0) {
+			if (ptn & bit) {
+				if (ht->left < len_avail) {
+					ht->left = len_avail + hf->tree_used;
+					ht = &(hf->tree[hf->tree_used++]);
+					if (hf->tree_used > hf->tree_avail)
+						return (0);/* Invalid */
+					ht->left = 0;
+					ht->right = 0;
+				} else {
+					ht = &(hf->tree[ht->left - len_avail]);
+				}
+			} else {
+				if (ht->right < len_avail) {
+					ht->right = len_avail + hf->tree_used;
+					ht = &(hf->tree[hf->tree_used++]);
+					if (hf->tree_used > hf->tree_avail)
+						return (0);/* Invalid */
+					ht->left = 0;
+					ht->right = 0;
+				} else {
+					ht = &(hf->tree[ht->right - len_avail]);
+				}
+			}
+			bit >>= 1;
+		}
+		if (ptn & bit) {
+			if (ht->left != 0)
+				return (0);/* Invalid */
+			ht->left = (uint16_t)i;
+		} else {
+			if (ht->right != 0)
+				return (0);/* Invalid */
+			ht->right = (uint16_t)i;
+		}
+	}
+	return (1);
+}
+
+static int
+lzh_decode_huffman_tree(struct huffman *hf, unsigned rbits, int c)
+{
+	struct htree_t *ht;
+	int extlen;
+
+	ht = hf->tree;
+	extlen = hf->shift_bits;
+	while (c >= hf->len_avail) {
+		c -= hf->len_avail;
+		if (extlen-- <= 0 || c >= hf->tree_used)
+			return (0);
+		if (rbits & (1U << extlen))
+			c = ht[c].left;
+		else
+			c = ht[c].right;
+	}
+	return (c);
+}
+
+static inline int
+lzh_decode_huffman(struct huffman *hf, unsigned rbits)
+{
+	int c;
+	/*
+	 * At first search an index table for a bit pattern.
+	 * If it fails, search a huffman tree for.
+	 */
+	c = hf->tbl[rbits >> hf->shift_bits];
+	if (c < hf->len_avail)
+		return (c);
+	/* This bit pattern needs to be found out at a huffman tree. */
+	return (lzh_decode_huffman_tree(hf, rbits, c));
 }
 
-void cmGlobalGenerator::EnableInstallTarget()
-{
-  this->InstallTargetEnabled = true;
-}
-
-cmLocalGenerator *
-cmGlobalGenerator::MakeLocalGenerator(cmState::Snapshot snapshot,
-                                      cmLocalGenerator *parent)
-{
-  if (!snapshot.IsValid())
-    {
-    snapshot = this->CMakeInstance->GetCurrentSnapshot();
-    }
-
-  return this->CreateLocalGenerator(parent, snapshot);
-}
-
-cmLocalGenerator*
-cmGlobalGenerator::CreateLocalGenerator(cmLocalGenerator* parent,
-                                        cmState::Snapshot snapshot)
-{
-  return new cmLocalGenerator(this, parent, snapshot);
-}
-
-void cmGlobalGenerator::EnableLanguagesFromGenerator(cmGlobalGenerator *gen,
-                                                     cmMakefile* mf)
-{
-  this->SetConfiguredFilesPath(gen);
-  this->TryCompileOuterMakefile = mf;
-  const char* make =
-    gen->GetCMakeInstance()->GetCacheDefinition("CMAKE_MAKE_PROGRAM");
-  this->GetCMakeInstance()->AddCacheEntry("CMAKE_MAKE_PROGRAM", make,
-                                          "make program",
-                                          cmState::FILEPATH);
-  // copy the enabled languages
-  this->GetCMakeInstance()->GetState()->SetEnabledLanguages(
-    gen->GetCMakeInstance()->GetState()->GetEnabledLanguages()
-    );
-  this->LanguagesReady = gen->LanguagesReady;
-  this->ExtensionToLanguage = gen->ExtensionToLanguage;
-  this->IgnoreExtensions = gen->IgnoreExtensions;
-  this->LanguageToOutputExtension = gen->LanguageToOutputExtension;
-  this->LanguageToLinkerPreference = gen->LanguageToLinkerPreference;
-  this->OutputExtensions = gen->OutputExtensions;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::SetConfiguredFilesPath(cmGlobalGenerator* gen)
-{
-  if(!gen->ConfiguredFilesPath.empty())
-    {
-    this->ConfiguredFilesPath = gen->ConfiguredFilesPath;
-    }
-  else
-    {
-    this->ConfiguredFilesPath = gen->CMakeInstance->GetHomeOutputDirectory();
-    this->ConfiguredFilesPath += cmake::GetCMakeFilesDirectory();
-    }
-}
-
-bool cmGlobalGenerator::IsExcluded(cmLocalGenerator* root,
-                                   cmLocalGenerator* gen) const
-{
-  if(!gen || gen == root)
-    {
-    // No directory excludes itself.
-    return false;
-    }
-
-  if(gen->GetMakefile()->GetPropertyAsBool("EXCLUDE_FROM_ALL"))
-    {
-    // This directory is excluded from its parent.
-    return true;
-    }
-
-  // This directory is included in its parent.  Check whether the
-  // parent is excluded.
-  return this->IsExcluded(root, gen->GetParent());
-}
-
-bool cmGlobalGenerator::IsExcluded(cmLocalGenerator* root,
-                                   cmTarget const& target) const
-{
-  if(target.GetType() == cmTarget::INTERFACE_LIBRARY
-      || target.GetPropertyAsBool("EXCLUDE_FROM_ALL"))
-    {
-    // This target is excluded from its directory.
-    return true;
-    }
-  else
-    {
-    // This target is included in its directory.  Check whether the
-    // directory is excluded.
-    return this->IsExcluded(root, target.GetMakefile()->GetLocalGenerator());
-    }
-}
-
-void
-cmGlobalGenerator::GetEnabledLanguages(std::vector<std::string>& lang) const
-{
-  lang = this->CMakeInstance->GetState()->GetEnabledLanguages();
-}
-
-int cmGlobalGenerator::GetLinkerPreference(const std::string& lang) const
-{
-  std::map<std::string, int>::const_iterator it =
-                                   this->LanguageToLinkerPreference.find(lang);
-  if (it != this->LanguageToLinkerPreference.end())
-    {
-    return it->second;
-    }
-  return 0;
-}
-
-void cmGlobalGenerator::FillProjectMap()
-{
-  this->ProjectMap.clear(); // make sure we start with a clean map
-  unsigned int i;
-  for(i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    // for each local generator add all projects
-    cmLocalGenerator *lg = this->LocalGenerators[i];
-    std::string name;
-    do
-      {
-      if (name != lg->GetMakefile()->GetProjectName())
-        {
-        name = lg->GetMakefile()->GetProjectName();
-        this->ProjectMap[name].push_back(this->LocalGenerators[i]);
-        }
-      lg = lg->GetParent();
-      }
-    while (lg);
-    }
-}
-
-
-// Build a map that contains a the set of targets used by each local
-// generator directory level.
-void cmGlobalGenerator::FillLocalGeneratorToTargetMap()
-{
-  this->LocalGeneratorToTargetMap.clear();
-  // Loop over all targets in all local generators.
-  for(std::vector<cmLocalGenerator*>::const_iterator
-        lgi = this->LocalGenerators.begin();
-      lgi != this->LocalGenerators.end(); ++lgi)
-    {
-    cmLocalGenerator* lg = *lgi;
-    cmMakefile* mf = lg->GetMakefile();
-    cmTargets const& targets = mf->GetTargets();
-    for(cmTargets::const_iterator t = targets.begin(); t != targets.end(); ++t)
-      {
-      cmTarget const& target = t->second;
-
-      // Consider the directory containing the target and all its
-      // parents until something excludes the target.
-      for(cmLocalGenerator* clg = lg; clg && !this->IsExcluded(clg, target);
-          clg = clg->GetParent())
-        {
-        // This local generator includes the target.
-        std::set<cmGeneratorTarget const*>& targetSet =
-          this->LocalGeneratorToTargetMap[clg];
-        cmGeneratorTarget* gt = this->GetGeneratorTarget(&target);
-        targetSet.insert(gt);
-
-        // Add dependencies of the included target.  An excluded
-        // target may still be included if it is a dependency of a
-        // non-excluded target.
-        TargetDependSet const& tgtdeps = this->GetTargetDirectDepends(gt);
-        for(TargetDependSet::const_iterator ti = tgtdeps.begin();
-            ti != tgtdeps.end(); ++ti)
-          {
-          targetSet.insert(*ti);
-          }
-        }
-      }
-    }
-}
-
-
-///! Find a local generator by its startdirectory
-cmLocalGenerator*
-cmGlobalGenerator::FindLocalGenerator(const std::string& start_dir) const
-{
-  for(std::vector<cmLocalGenerator*>::const_iterator it =
-      this->LocalGenerators.begin(); it != this->LocalGenerators.end(); ++it)
-    {
-    std::string sd = (*it)->GetMakefile()->GetCurrentSourceDirectory();
-    if (sd == start_dir)
-      {
-      return *it;
-      }
-    }
-  return 0;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::AddAlias(const std::string& name, cmTarget *tgt)
-{
-  this->AliasTargets[name] = tgt;
-}
-
-//----------------------------------------------------------------------------
-bool cmGlobalGenerator::IsAlias(const std::string& name) const
-{
-  return this->AliasTargets.find(name) != this->AliasTargets.end();
-}
-
-//----------------------------------------------------------------------------
-cmTarget*
-cmGlobalGenerator::FindTarget(const std::string& name,
-                              bool excludeAliases) const
-{
-  if (!excludeAliases)
-    {
-    TargetMap::const_iterator ai = this->AliasTargets.find(name);
-    if (ai != this->AliasTargets.end())
-      {
-      return ai->second;
-      }
-    }
-  TargetMap::const_iterator i = this->TotalTargets.find ( name );
-  if ( i != this->TotalTargets.end() )
-    {
-    return i->second;
-    }
-  i = this->ImportedTargets.find(name);
-  if ( i != this->ImportedTargets.end() )
-    {
-    return i->second;
-    }
-  return 0;
-}
-
-//----------------------------------------------------------------------------
-bool
-cmGlobalGenerator::NameResolvesToFramework(const std::string& libname) const
-{
-  if(cmSystemTools::IsPathToFramework(libname.c_str()))
-    {
-    return true;
-    }
-
-  if(cmTarget* tgt = this->FindTarget(libname))
-    {
-    if(tgt->IsFrameworkOnApple())
-       {
-       return true;
-       }
-    }
-
-  return false;
-}
-
-//----------------------------------------------------------------------------
-inline std::string removeQuotes(const std::string& s)
-{
-  if(s[0] == '\"' && s[s.size()-1] == '\"')
-    {
-    return s.substr(1, s.size()-2);
-    }
-  return s;
-}
-
-void cmGlobalGenerator::CreateDefaultGlobalTargets(cmTargets* targets)
-{
-  cmMakefile* mf = this->LocalGenerators[0]->GetMakefile();
-  const char* cmakeCfgIntDir = this->GetCMakeCFGIntDir();
-
-  // CPack
-  std::string workingDir =  mf->GetCurrentBinaryDirectory();
-  cmCustomCommandLines cpackCommandLines;
-  std::vector<std::string> depends;
-  cmCustomCommandLine singleLine;
-  singleLine.push_back(cmSystemTools::GetCPackCommand());
-  if ( cmakeCfgIntDir && *cmakeCfgIntDir && cmakeCfgIntDir[0] != '.' )
-    {
-    singleLine.push_back("-C");
-    singleLine.push_back(cmakeCfgIntDir);
-    }
-  singleLine.push_back("--config");
-  std::string configFile = mf->GetCurrentBinaryDirectory();;
-  configFile += "/CPackConfig.cmake";
-  std::string relConfigFile = "./CPackConfig.cmake";
-  singleLine.push_back(relConfigFile);
-  cpackCommandLines.push_back(singleLine);
-  if ( this->GetPreinstallTargetName() )
-    {
-    depends.push_back(this->GetPreinstallTargetName());
-    }
-  else
-    {
-    const char* noPackageAll =
-      mf->GetDefinition("CMAKE_SKIP_PACKAGE_ALL_DEPENDENCY");
-    if(!noPackageAll || cmSystemTools::IsOff(noPackageAll))
-      {
-      depends.push_back(this->GetAllTargetName());
-      }
-    }
-  if(cmSystemTools::FileExists(configFile.c_str()))
-    {
-    (*targets)[this->GetPackageTargetName()]
-      = this->CreateGlobalTarget(this->GetPackageTargetName(),
-                                 "Run CPack packaging tool...",
-                                 &cpackCommandLines, depends,
-                                 workingDir.c_str(), /*uses_terminal*/true);
-    }
-  // CPack source
-  const char* packageSourceTargetName = this->GetPackageSourceTargetName();
-  if ( packageSourceTargetName )
-    {
-    cpackCommandLines.erase(cpackCommandLines.begin(),
-                            cpackCommandLines.end());
-    singleLine.erase(singleLine.begin(), singleLine.end());
-    depends.erase(depends.begin(), depends.end());
-    singleLine.push_back(cmSystemTools::GetCPackCommand());
-    singleLine.push_back("--config");
-    configFile = mf->GetCurrentBinaryDirectory();;
-    configFile += "/CPackSourceConfig.cmake";
-    relConfigFile = "./CPackSourceConfig.cmake";
-    singleLine.push_back(relConfigFile);
-    if(cmSystemTools::FileExists(configFile.c_str()))
-      {
-      singleLine.push_back(configFile);
-      cpackCommandLines.push_back(singleLine);
-      (*targets)[packageSourceTargetName]
-        = this->CreateGlobalTarget(packageSourceTargetName,
-                                   "Run CPack packaging tool for source...",
-                                   &cpackCommandLines, depends,
-                                   workingDir.c_str(), /*uses_terminal*/true);
-      }
-    }
-
-  // Test
-  if(mf->IsOn("CMAKE_TESTING_ENABLED"))
-    {
-    cpackCommandLines.erase(cpackCommandLines.begin(),
-                            cpackCommandLines.end());
-    singleLine.erase(singleLine.begin(), singleLine.end());
-    depends.erase(depends.begin(), depends.end());
-    singleLine.push_back(cmSystemTools::GetCTestCommand());
-    singleLine.push_back("--force-new-ctest-process");
-    if(cmakeCfgIntDir && *cmakeCfgIntDir && cmakeCfgIntDir[0] != '.')
-      {
-      singleLine.push_back("-C");
-      singleLine.push_back(cmakeCfgIntDir);
-      }
-    else // TODO: This is a hack. Should be something to do with the generator
-      {
-      singleLine.push_back("$(ARGS)");
-      }
-    cpackCommandLines.push_back(singleLine);
-    (*targets)[this->GetTestTargetName()]
-      = this->CreateGlobalTarget(this->GetTestTargetName(),
-        "Running tests...", &cpackCommandLines, depends, 0,
-        /*uses_terminal*/true);
-    }
-
-  //Edit Cache
-  const char* editCacheTargetName = this->GetEditCacheTargetName();
-  if ( editCacheTargetName )
-    {
-    cpackCommandLines.erase(cpackCommandLines.begin(),
-                            cpackCommandLines.end());
-    singleLine.erase(singleLine.begin(), singleLine.end());
-    depends.erase(depends.begin(), depends.end());
-
-    // Use generator preference for the edit_cache rule if it is defined.
-    std::string edit_cmd = this->GetEditCacheCommand();
-    if (!edit_cmd.empty())
-      {
-      singleLine.push_back(edit_cmd);
-      singleLine.push_back("-H$(CMAKE_SOURCE_DIR)");
-      singleLine.push_back("-B$(CMAKE_BINARY_DIR)");
-      cpackCommandLines.push_back(singleLine);
-      (*targets)[editCacheTargetName] =
-        this->CreateGlobalTarget(
-          editCacheTargetName, "Running CMake cache editor...",
-          &cpackCommandLines, depends, 0, /*uses_terminal*/true);
-      }
-    else
-      {
-      singleLine.push_back(cmSystemTools::GetCMakeCommand());
-      singleLine.push_back("-E");
-      singleLine.push_back("echo");
-      singleLine.push_back("No interactive CMake dialog available.");
-      cpackCommandLines.push_back(singleLine);
-      (*targets)[editCacheTargetName] =
-        this->CreateGlobalTarget(
-          editCacheTargetName,
-          "No interactive CMake dialog available...",
-          &cpackCommandLines, depends, 0, /*uses_terminal*/false);
-      }
-    }
-
-  //Rebuild Cache
-  const char* rebuildCacheTargetName = this->GetRebuildCacheTargetName();
-  if ( rebuildCacheTargetName )
-    {
-    cpackCommandLines.erase(cpackCommandLines.begin(),
-                            cpackCommandLines.end());
-    singleLine.erase(singleLine.begin(), singleLine.end());
-    depends.erase(depends.begin(), depends.end());
-    singleLine.push_back(cmSystemTools::GetCMakeCommand());
-    singleLine.push_back("-H$(CMAKE_SOURCE_DIR)");
-    singleLine.push_back("-B$(CMAKE_BINARY_DIR)");
-    cpackCommandLines.push_back(singleLine);
-    (*targets)[rebuildCacheTargetName] =
-      this->CreateGlobalTarget(
-        rebuildCacheTargetName, "Running CMake to regenerate build system...",
-        &cpackCommandLines, depends, 0, /*uses_terminal*/true);
-    }
-
-  //Install
-  bool skipInstallRules = mf->IsOn("CMAKE_SKIP_INSTALL_RULES");
-  if(this->InstallTargetEnabled && skipInstallRules)
-    {
-    mf->IssueMessage(cmake::WARNING,
-      "CMAKE_SKIP_INSTALL_RULES was enabled even though "
-      "installation rules have been specified");
-    }
-  else if(this->InstallTargetEnabled && !skipInstallRules)
-    {
-    if(!cmakeCfgIntDir || !*cmakeCfgIntDir || cmakeCfgIntDir[0] == '.')
-      {
-      std::set<std::string>* componentsSet = &this->InstallComponents;
-      cpackCommandLines.erase(cpackCommandLines.begin(),
-        cpackCommandLines.end());
-      depends.erase(depends.begin(), depends.end());
-      std::ostringstream ostr;
-      if (!componentsSet->empty())
-        {
-        ostr << "Available install components are: ";
-        ostr << cmWrap('"', *componentsSet, '"', " ");
-        }
-      else
-        {
-        ostr << "Only default component available";
-        }
-      singleLine.push_back(ostr.str());
-      (*targets)["list_install_components"]
-        = this->CreateGlobalTarget("list_install_components",
-          ostr.str().c_str(),
-          &cpackCommandLines, depends, 0, /*uses_terminal*/false);
-      }
-    std::string cmd = cmSystemTools::GetCMakeCommand();
-    cpackCommandLines.erase(cpackCommandLines.begin(),
-      cpackCommandLines.end());
-    singleLine.erase(singleLine.begin(), singleLine.end());
-    depends.erase(depends.begin(), depends.end());
-    if ( this->GetPreinstallTargetName() )
-      {
-      depends.push_back(this->GetPreinstallTargetName());
-      }
-    else
-      {
-      const char* noall =
-        mf->GetDefinition("CMAKE_SKIP_INSTALL_ALL_DEPENDENCY");
-      if(!noall || cmSystemTools::IsOff(noall))
-        {
-        depends.push_back(this->GetAllTargetName());
-        }
-      }
-    if(mf->GetDefinition("CMake_BINARY_DIR") &&
-       !mf->IsOn("CMAKE_CROSSCOMPILING"))
-      {
-      // We are building CMake itself.  We cannot use the original
-      // executable to install over itself.  The generator will
-      // automatically convert this name to the build-time location.
-      cmd = "cmake";
-      }
-    singleLine.push_back(cmd);
-    if ( cmakeCfgIntDir && *cmakeCfgIntDir && cmakeCfgIntDir[0] != '.' )
-      {
-      std::string cfgArg = "-DBUILD_TYPE=";
-      cfgArg += mf->GetDefinition("CMAKE_CFG_INTDIR");
-      singleLine.push_back(cfgArg);
-      }
-    singleLine.push_back("-P");
-    singleLine.push_back("cmake_install.cmake");
-    cpackCommandLines.push_back(singleLine);
-    (*targets)[this->GetInstallTargetName()] =
-      this->CreateGlobalTarget(
-        this->GetInstallTargetName(), "Install the project...",
-        &cpackCommandLines, depends, 0, /*uses_terminal*/true);
-
-    // install_local
-    if(const char* install_local = this->GetInstallLocalTargetName())
-      {
-      cmCustomCommandLine localCmdLine = singleLine;
-
-      localCmdLine.insert(localCmdLine.begin()+1,
-                                               "-DCMAKE_INSTALL_LOCAL_ONLY=1");
-      cpackCommandLines.erase(cpackCommandLines.begin(),
-                                                      cpackCommandLines.end());
-      cpackCommandLines.push_back(localCmdLine);
-
-      (*targets)[install_local] =
-        this->CreateGlobalTarget(
-          install_local, "Installing only the local directory...",
-          &cpackCommandLines, depends, 0, /*uses_terminal*/true);
-      }
-
-    // install_strip
-    const char* install_strip = this->GetInstallStripTargetName();
-    if((install_strip !=0) && (mf->IsSet("CMAKE_STRIP")))
-      {
-      cmCustomCommandLine stripCmdLine = singleLine;
-
-      stripCmdLine.insert(stripCmdLine.begin()+1,"-DCMAKE_INSTALL_DO_STRIP=1");
-      cpackCommandLines.erase(cpackCommandLines.begin(),
-        cpackCommandLines.end());
-      cpackCommandLines.push_back(stripCmdLine);
-
-      (*targets)[install_strip] =
-        this->CreateGlobalTarget(
-          install_strip, "Installing the project stripped...",
-          &cpackCommandLines, depends, 0, /*uses_terminal*/true);
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-const char* cmGlobalGenerator::GetPredefinedTargetsFolder()
-{
-  const char* prop = this->GetCMakeInstance()->GetState()
-                         ->GetGlobalProperty("PREDEFINED_TARGETS_FOLDER");
-
-  if (prop)
-    {
-    return prop;
-    }
-
-  return "CMakePredefinedTargets";
-}
-
-//----------------------------------------------------------------------------
-bool cmGlobalGenerator::UseFolderProperty()
-{
-  const char* prop = this->GetCMakeInstance()->GetState()
-                         ->GetGlobalProperty("USE_FOLDERS");
-
-  // If this property is defined, let the setter turn this on or off...
-  //
-  if (prop)
-    {
-    return cmSystemTools::IsOn(prop);
-    }
-
-  // By default, this feature is OFF, since it is not supported in the
-  // Visual Studio Express editions until VS11:
-  //
-  return false;
-}
-
-//----------------------------------------------------------------------------
-cmTarget cmGlobalGenerator::CreateGlobalTarget(
-  const std::string& name, const char* message,
-  const cmCustomCommandLines* commandLines,
-  std::vector<std::string> depends,
-  const char* workingDirectory,
-  bool uses_terminal)
-{
-  // Package
-  cmTarget target;
-  target.SetType(cmTarget::GLOBAL_TARGET, name);
-  target.SetProperty("EXCLUDE_FROM_ALL","TRUE");
-
-  std::vector<std::string> no_outputs;
-  std::vector<std::string> no_byproducts;
-  std::vector<std::string> no_depends;
-  // Store the custom command in the target.
-  cmCustomCommand cc(0, no_outputs, no_byproducts, no_depends,
-                     *commandLines, 0, workingDirectory);
-  cc.SetUsesTerminal(uses_terminal);
-  target.AddPostBuildCommand(cc);
-  target.SetProperty("EchoString", message);
-  std::vector<std::string>::iterator dit;
-  for ( dit = depends.begin(); dit != depends.end(); ++ dit )
-    {
-    target.AddUtility(*dit);
-    }
-
-  // Organize in the "predefined targets" folder:
-  //
-  if (this->UseFolderProperty())
-    {
-    target.SetProperty("FOLDER", this->GetPredefinedTargetsFolder());
-    }
-
-  return target;
-}
-
-//----------------------------------------------------------------------------
-std::string
-cmGlobalGenerator::GenerateRuleFile(std::string const& output) const
-{
-  std::string ruleFile = output;
-  ruleFile += ".rule";
-  const char* dir = this->GetCMakeCFGIntDir();
-  if(dir && dir[0] == '$')
-    {
-    cmSystemTools::ReplaceString(ruleFile, dir,
-                                 cmake::GetCMakeFilesDirectory());
-    }
-  return ruleFile;
-}
-
-//----------------------------------------------------------------------------
-std::string cmGlobalGenerator::GetSharedLibFlagsForLanguage(
-                                                  std::string const& l) const
-{
-  std::map<std::string, std::string>::const_iterator it =
-                              this->LanguageToOriginalSharedLibFlags.find(l);
-  if(it != this->LanguageToOriginalSharedLibFlags.end())
-    {
-    return it->second;
-    }
-  return "";
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::AppendDirectoryForConfig(const std::string&,
-                                                 const std::string&,
-                                                 const std::string&,
-                                                 std::string&)
-{
-  // Subclasses that support multiple configurations should implement
-  // this method to append the subdirectory for the given build
-  // configuration.
-}
-
-//----------------------------------------------------------------------------
-cmGlobalGenerator::TargetDependSet const&
-cmGlobalGenerator::GetTargetDirectDepends(cmGeneratorTarget const* target)
-{
-  return this->TargetDependencies[target];
-}
-
-void cmGlobalGenerator::AddTarget(cmTarget* t)
-{
-  if(t->IsImported())
-    {
-    this->ImportedTargets[t->GetName()] = t;
-    }
-  else
-    {
-    this->TotalTargets[t->GetName()] = t;
-    }
-}
-
-bool cmGlobalGenerator::IsReservedTarget(std::string const& name)
-{
-  // The following is a list of targets reserved
-  // by one or more of the cmake generators.
-
-  // Adding additional targets to this list will require a policy!
-  const char* reservedTargets[] =
-  {
-    "all", "ALL_BUILD",
-    "help",
-    "install", "INSTALL",
-    "preinstall",
-    "clean",
-    "edit_cache",
-    "rebuild_cache",
-    "test", "RUN_TESTS",
-    "package", "PACKAGE",
-    "package_source",
-    "ZERO_CHECK"
-  };
-
-  return std::find(cmArrayBegin(reservedTargets),
-                   cmArrayEnd(reservedTargets), name)
-      != cmArrayEnd(reservedTargets);
-}
-
-void cmGlobalGenerator::SetExternalMakefileProjectGenerator(
-                            cmExternalMakefileProjectGenerator *extraGenerator)
-{
-  this->ExtraGenerator = extraGenerator;
-  if (this->ExtraGenerator!=0)
-    {
-    this->ExtraGenerator->SetGlobalGenerator(this);
-    }
-}
-
-std::string cmGlobalGenerator::GetExtraGeneratorName() const
-{
-  return this->ExtraGenerator? this->ExtraGenerator->GetName() : std::string();
-}
-
-void cmGlobalGenerator::FileReplacedDuringGenerate(const std::string& filename)
-{
-  this->FilesReplacedDuringGenerate.push_back(filename);
-}
-
-void
-cmGlobalGenerator
-::GetFilesReplacedDuringGenerate(std::vector<std::string>& filenames)
-{
-  filenames.clear();
-  std::copy(
-    this->FilesReplacedDuringGenerate.begin(),
-    this->FilesReplacedDuringGenerate.end(),
-    std::back_inserter(filenames));
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::GetTargetSets(TargetDependSet& projectTargets,
-                                      TargetDependSet& originalTargets,
-                                      cmLocalGenerator* root,
-                                      GeneratorVector const& generators)
-{
-  // loop over all local generators
-  for(std::vector<cmLocalGenerator*>::const_iterator i = generators.begin();
-      i != generators.end(); ++i)
-    {
-    // check to make sure generator is not excluded
-    if(this->IsExcluded(root, *i))
-      {
-      continue;
-      }
-    cmMakefile* mf = (*i)->GetMakefile();
-    // Get the targets in the makefile
-    cmTargets &tgts = mf->GetTargets();
-    // loop over all the targets
-    for (cmTargets::iterator l = tgts.begin(); l != tgts.end(); ++l)
-      {
-      cmTarget* target = &l->second;
-      if(this->IsRootOnlyTarget(target) &&
-         target->GetMakefile() != root->GetMakefile())
-        {
-        continue;
-        }
-      // put the target in the set of original targets
-      cmGeneratorTarget* gt = this->GetGeneratorTarget(target);
-      originalTargets.insert(gt);
-      // Get the set of targets that depend on target
-      this->AddTargetDepends(gt, projectTargets);
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-bool cmGlobalGenerator::IsRootOnlyTarget(cmTarget* target) const
-{
-  return (target->GetType() == cmTarget::GLOBAL_TARGET ||
-          target->GetName() == this->GetAllTargetName());
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::AddTargetDepends(cmGeneratorTarget const* target,
-                                         TargetDependSet& projectTargets)
-{
-  // add the target itself
-  if(projectTargets.insert(target).second)
-    {
-    // This is the first time we have encountered the target.
-    // Recursively follow its dependencies.
-    TargetDependSet const& ts = this->GetTargetDirectDepends(target);
-    for(TargetDependSet::const_iterator i = ts.begin(); i != ts.end(); ++i)
-      {
-      this->AddTargetDepends(*i, projectTargets);
-      }
-    }
-}
-
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::AddToManifest(std::string const& f)
-{
-  // Add to the content listing for the file's directory.
-  std::string dir = cmSystemTools::GetFilenamePath(f);
-  std::string file = cmSystemTools::GetFilenameName(f);
-  DirectoryContent& dc = this->DirectoryContentMap[dir];
-  dc.Generated.insert(file);
-  dc.All.insert(file);
-}
-
-//----------------------------------------------------------------------------
-std::set<std::string> const&
-cmGlobalGenerator::GetDirectoryContent(std::string const& dir, bool needDisk)
-{
-  DirectoryContent& dc = this->DirectoryContentMap[dir];
-  if(needDisk)
-    {
-    long mt = cmSystemTools::ModifiedTime(dir);
-    if (mt != dc.LastDiskTime)
-      {
-      // Reset to non-loaded directory content.
-      dc.All = dc.Generated;
-
-      // Load the directory content from disk.
-      cmsys::Directory d;
-      if(d.Load(dir))
-        {
-        unsigned long n = d.GetNumberOfFiles();
-        for(unsigned long i = 0; i < n; ++i)
-          {
-          const char* f = d.GetFile(i);
-          if(strcmp(f, ".") != 0 && strcmp(f, "..") != 0)
-            {
-            dc.All.insert(f);
-            }
-          }
-        }
-      dc.LastDiskTime = mt;
-      }
-    }
-  return dc.All;
-}
-
-//----------------------------------------------------------------------------
-void
-cmGlobalGenerator::AddRuleHash(const std::vector<std::string>& outputs,
-                               std::string const& content)
-{
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-  // Ignore if there are no outputs.
-  if(outputs.empty())
-    {
-    return;
-    }
-
-  // Compute a hash of the rule.
-  RuleHash hash;
-  {
-  unsigned char const* data =
-    reinterpret_cast<unsigned char const*>(content.c_str());
-  int length = static_cast<int>(content.length());
-  cmsysMD5* sum = cmsysMD5_New();
-  cmsysMD5_Initialize(sum);
-  cmsysMD5_Append(sum, data, length);
-  cmsysMD5_FinalizeHex(sum, hash.Data);
-  cmsysMD5_Delete(sum);
-  }
-
-  // Shorten the output name (in expected use case).
-  cmOutputConverter converter(this->GetMakefiles()[0]->GetStateSnapshot());
-  std::string fname = converter.Convert(
-        outputs[0], cmLocalGenerator::HOME_OUTPUT);
-
-  // Associate the hash with this output.
-  this->RuleHashes[fname] = hash;
-#else
-  (void)outputs;
-  (void)content;
-#endif
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::CheckRuleHashes()
-{
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-  std::string home = this->GetCMakeInstance()->GetHomeOutputDirectory();
-  std::string pfile = home;
-  pfile += this->GetCMakeInstance()->GetCMakeFilesDirectory();
-  pfile += "/CMakeRuleHashes.txt";
-  this->CheckRuleHashes(pfile, home);
-  this->WriteRuleHashes(pfile);
-#endif
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::CheckRuleHashes(std::string const& pfile,
-                                        std::string const& home)
-{
-#if defined(_WIN32) || defined(__CYGWIN__)
-  cmsys::ifstream fin(pfile.c_str(), std::ios::in | std::ios::binary);
-#else
-  cmsys::ifstream fin(pfile.c_str(), std::ios::in);
-#endif
-  if(!fin)
-    {
-    return;
-    }
-  std::string line;
-  std::string fname;
-  while(cmSystemTools::GetLineFromStream(fin, line))
-    {
-    // Line format is a 32-byte hex string followed by a space
-    // followed by a file name (with no escaping).
-
-    // Skip blank and comment lines.
-    if(line.size() < 34 || line[0] == '#')
-      {
-      continue;
-      }
-
-    // Get the filename.
-    fname = line.substr(33, line.npos);
-
-    // Look for a hash for this file's rule.
-    std::map<std::string, RuleHash>::const_iterator rhi =
-      this->RuleHashes.find(fname);
-    if(rhi != this->RuleHashes.end())
-      {
-      // Compare the rule hash in the file to that we were given.
-      if(strncmp(line.c_str(), rhi->second.Data, 32) != 0)
-        {
-        // The rule has changed.  Delete the output so it will be
-        // built again.
-        fname = cmSystemTools::CollapseFullPath(fname, home.c_str());
-        cmSystemTools::RemoveFile(fname);
-        }
-      }
-    else
-      {
-      // We have no hash for a rule previously listed.  This may be a
-      // case where a user has turned off a build option and might
-      // want to turn it back on later, so do not delete the file.
-      // Instead, we keep the rule hash as long as the file exists so
-      // that if the feature is turned back on and the rule has
-      // changed the file is still rebuilt.
-      std::string fpath =
-        cmSystemTools::CollapseFullPath(fname, home.c_str());
-      if(cmSystemTools::FileExists(fpath.c_str()))
-        {
-        RuleHash hash;
-        strncpy(hash.Data, line.c_str(), 32);
-        this->RuleHashes[fname] = hash;
-        }
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::WriteRuleHashes(std::string const& pfile)
-{
-  // Now generate a new persistence file with the current hashes.
-  if(this->RuleHashes.empty())
-    {
-    cmSystemTools::RemoveFile(pfile);
-    }
-  else
-    {
-    cmGeneratedFileStream fout(pfile.c_str());
-    fout << "# Hashes of file build rules.\n";
-    for(std::map<std::string, RuleHash>::const_iterator
-          rhi = this->RuleHashes.begin(); rhi != this->RuleHashes.end(); ++rhi)
-      {
-      fout.write(rhi->second.Data, 32);
-      fout << " " << rhi->first << "\n";
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::WriteSummary()
-{
-  cmMakefile* mf = this->LocalGenerators[0]->GetMakefile();
-
-  // Record all target directories in a central location.
-  std::string fname = mf->GetHomeOutputDirectory();
-  fname += cmake::GetCMakeFilesDirectory();
-  fname += "/TargetDirectories.txt";
-  cmGeneratedFileStream fout(fname.c_str());
-
-  // Generate summary information files for each target.
-  for(TargetMap::const_iterator ti =
-        this->TotalTargets.begin(); ti != this->TotalTargets.end(); ++ti)
-    {
-    if ((ti->second)->GetType() == cmTarget::INTERFACE_LIBRARY)
-      {
-      continue;
-      }
-    this->WriteSummary(ti->second);
-    fout << ti->second->GetSupportDirectory() << "\n";
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::WriteSummary(cmTarget* target)
-{
-  // Place the labels file in a per-target support directory.
-  std::string dir = target->GetSupportDirectory();
-  std::string file = dir;
-  file += "/Labels.txt";
-  std::string json_file = dir + "/Labels.json";
-
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  // Check whether labels are enabled for this target.
-  if(const char* value = target->GetProperty("LABELS"))
-    {
-    Json::Value lj_root(Json::objectValue);
-    Json::Value& lj_target =
-      lj_root["target"] = Json::objectValue;
-    lj_target["name"] = target->GetName();
-    Json::Value& lj_target_labels =
-      lj_target["labels"] = Json::arrayValue;
-    Json::Value& lj_sources =
-      lj_root["sources"] = Json::arrayValue;
-
-    cmSystemTools::MakeDirectory(dir.c_str());
-    cmGeneratedFileStream fout(file.c_str());
-
-    // List the target-wide labels.  All sources in the target get
-    // these labels.
-    std::vector<std::string> labels;
-    cmSystemTools::ExpandListArgument(value, labels);
-    if(!labels.empty())
-      {
-      fout << "# Target labels\n";
-      for(std::vector<std::string>::const_iterator li = labels.begin();
-          li != labels.end(); ++li)
-        {
-        fout << " " << *li << "\n";
-        lj_target_labels.append(*li);
-        }
-      }
-
-    // List the source files with any per-source labels.
-    fout << "# Source files and their labels\n";
-    std::vector<cmSourceFile*> sources;
-    std::vector<std::string> configs;
-    target->GetMakefile()->GetConfigurations(configs);
-    if (configs.empty())
-      {
-      configs.push_back("");
-      }
-    for(std::vector<std::string>::const_iterator ci = configs.begin();
-        ci != configs.end(); ++ci)
-      {
-      target->GetSourceFiles(sources, *ci);
-      }
-    std::vector<cmSourceFile*>::const_iterator sourcesEnd
-        = cmRemoveDuplicates(sources);
-    for(std::vector<cmSourceFile*>::const_iterator si = sources.begin();
-        si != sourcesEnd; ++si)
-      {
-      Json::Value& lj_source = lj_sources.append(Json::objectValue);
-      cmSourceFile* sf = *si;
-      std::string const& sfp = sf->GetFullPath();
-      fout << sfp << "\n";
-      lj_source["file"] = sfp;
-      if(const char* svalue = sf->GetProperty("LABELS"))
-        {
-        labels.clear();
-        Json::Value& lj_source_labels =
-          lj_source["labels"] = Json::arrayValue;
-        cmSystemTools::ExpandListArgument(svalue, labels);
-        for(std::vector<std::string>::const_iterator li = labels.begin();
-            li != labels.end(); ++li)
-          {
-          fout << " " << *li << "\n";
-          lj_source_labels.append(*li);
-          }
-        }
-      }
-    cmGeneratedFileStream json_fout(json_file.c_str());
-    json_fout << lj_root;
-    }
-  else
-#endif
-    {
-    cmSystemTools::RemoveFile(file);
-    cmSystemTools::RemoveFile(json_file);
-    }
-}
-
-//----------------------------------------------------------------------------
-// static
-std::string cmGlobalGenerator::EscapeJSON(const std::string& s) {
-  std::string result;
-  for (std::string::size_type i = 0; i < s.size(); ++i) {
-    if (s[i] == '"' || s[i] == '\\') {
-      result += '\\';
-    }
-    result += s[i];
-  }
-  return result;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::SetFilenameTargetDepends(cmSourceFile* sf,
-                                              std::set<cmTarget const*> tgts)
-{
-  this->FilenameTargetDepends[sf] = tgts;
-}
-
-//----------------------------------------------------------------------------
-std::set<cmTarget const*> const&
-cmGlobalGenerator::GetFilenameTargetDepends(cmSourceFile* sf) const {
-  return this->FilenameTargetDepends[sf];
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::CreateEvaluationSourceFiles(
-                                              std::string const& config) const
-{
-  unsigned int i;
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->LocalGenerators[i]->CreateEvaluationFileOutputs(config);
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::ProcessEvaluationFiles()
-{
-  std::vector<std::string> generatedFiles;
-  unsigned int i;
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->LocalGenerators[i]->ProcessEvaluationFiles(generatedFiles);
-    }
-}
-
-//----------------------------------------------------------------------------
-std::string cmGlobalGenerator::ExpandCFGIntDir(const std::string& str,
-                            const std::string& /*config*/) const
-{
-  return str;
-}
-
-//----------------------------------------------------------------------------
-bool cmGlobalGenerator::GenerateCPackPropertiesFile()
-{
-  cmake::InstalledFilesMap const& installedFiles =
-    this->CMakeInstance->GetInstalledFiles();
-
-  cmLocalGenerator* lg = this->LocalGenerators[0];
-  cmMakefile* mf = lg->GetMakefile();
-
-  std::vector<std::string> configs;
-  std::string config = mf->GetConfigurations(configs, false);
-
-  std::string path = this->CMakeInstance->GetHomeOutputDirectory();
-  path += "/CPackProperties.cmake";
-
-  if(!cmSystemTools::FileExists(path.c_str()) && installedFiles.empty())
-    {
-      return true;
-    }
-
-  cmGeneratedFileStream file(path.c_str());
-  file << "# CPack properties\n";
-
-  for(cmake::InstalledFilesMap::const_iterator i = installedFiles.begin();
-    i != installedFiles.end(); ++i)
-    {
-    cmInstalledFile const& installedFile = i->second;
-
-    cmCPackPropertiesGenerator cpackPropertiesGenerator(
-      lg, installedFile, configs);
-
-    cpackPropertiesGenerator.Generate(file, config, configs);
-    }
-
-  return true;
-}

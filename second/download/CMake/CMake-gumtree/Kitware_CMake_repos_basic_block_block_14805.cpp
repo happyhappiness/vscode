@@ -1,0 +1,1 @@
+ret = hfs_write_decmpfs(a)

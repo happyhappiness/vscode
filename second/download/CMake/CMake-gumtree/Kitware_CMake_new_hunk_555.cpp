@@ -1,15 +1,21 @@
-  sprintf(temp, "%d", cmVersion::GetMinorVersion());
-  this->AddCacheEntry("CMAKE_CACHE_MINOR_VERSION", temp,
-                      "Minor version of cmake used to create the "
-                      "current loaded cache", cmState::INTERNAL);
-  sprintf(temp, "%d", cmVersion::GetMajorVersion());
-  this->AddCacheEntry("CMAKE_CACHE_MAJOR_VERSION", temp,
-                      "Major version of cmake used to create the "
-                      "current loaded cache", cmState::INTERNAL);
-  sprintf(temp, "%d", cmVersion::GetPatchVersion());
-  this->AddCacheEntry("CMAKE_CACHE_PATCH_VERSION", temp,
-                      "Patch version of cmake used to create the "
-                      "current loaded cache", cmState::INTERNAL);
 
-  // Let us store the current working directory so that if somebody
-  // Copies it, he will not be surprised
+  /* not set means empty */
+  if(!userp)
+    userp = "";
+
+  if(!passwdp)
+    passwdp = "";
+
+#if defined(USE_WINDOWS_SSPI)
+  have_chlg = digest->input_token ? TRUE : FALSE;
+#else
+  have_chlg = digest->nonce ? TRUE : FALSE;
+#endif
+
+  if(!have_chlg) {
+    authp->done = FALSE;
+    return CURLE_OK;
+  }
+
+  /* So IE browsers < v7 cut off the URI part at the query part when they
+     evaluate the MD5 and some (IIS?) servers work with them so we may need to

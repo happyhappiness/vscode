@@ -1,0 +1,1 @@
+return (a->lookup_gid)(a->lookup_gid_data, name, id);

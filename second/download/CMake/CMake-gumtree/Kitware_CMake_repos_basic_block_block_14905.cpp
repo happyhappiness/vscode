@@ -1,0 +1,1 @@
+r = lstat(a->name, &a->st)

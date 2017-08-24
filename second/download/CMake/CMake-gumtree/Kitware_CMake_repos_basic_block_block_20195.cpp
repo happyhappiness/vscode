@@ -1,0 +1,1 @@
+req->flags |= UV_FS_FREE_PTR

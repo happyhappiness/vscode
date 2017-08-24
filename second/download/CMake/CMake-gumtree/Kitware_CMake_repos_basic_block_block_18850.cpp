@@ -1,0 +1,1 @@
+(sysctl(which, 2, &info, &size, NULL, 0) < 0) return;

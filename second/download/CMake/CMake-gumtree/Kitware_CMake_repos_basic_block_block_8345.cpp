@@ -1,0 +1,1 @@
+errors_.resize(errorCount)

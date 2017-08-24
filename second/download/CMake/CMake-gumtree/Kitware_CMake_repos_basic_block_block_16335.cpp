@@ -1,0 +1,5 @@
+(allow_vernum) {
+				*p++ = ';';
+				*p++ = '1';
+				np->id_len += 2;
+			}

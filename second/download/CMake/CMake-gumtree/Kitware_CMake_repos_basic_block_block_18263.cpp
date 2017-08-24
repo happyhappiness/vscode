@@ -1,0 +1,1 @@
+coder->opts[++len_end].price = RC_INFINITY_PRICE

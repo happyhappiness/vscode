@@ -1,0 +1,1 @@
+conn->handler->disconnect(conn, dead_connection)

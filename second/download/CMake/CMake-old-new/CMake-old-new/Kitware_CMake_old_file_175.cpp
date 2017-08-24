@@ -1,646 +1,1130 @@
-/*-
- * Copyright (c) 2014 Michihiro NAKAJIMA
- * All rights reserved.
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at http://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ ***************************************************************************/
+
+#include "curl_setup.h"
+
+/*
+ * See comment in curl_memory.h for the explanation of this sanity check.
  */
 
-#include "archive_platform.h"
-
-__FBSDID("$FreeBSD$");
-
-#ifdef HAVE_ERRNO_H
-#include <errno.h>
-#endif
-#include <stdio.h>
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-#ifdef HAVE_STRING_H
-#include <string.h>
-#endif
-#ifdef HAVE_LZ4_H
-#include <lz4.h>
-#endif
-#ifdef HAVE_LZ4HC_H
-#include <lz4hc.h>
+#ifdef CURLX_NO_MEMORY_CALLBACKS
+#error "libcurl shall not ever be built with CURLX_NO_MEMORY_CALLBACKS defined"
 #endif
 
-#include "archive.h"
-#include "archive_endian.h"
-#include "archive_private.h"
-#include "archive_write_private.h"
-#include "archive_xxhash.h"
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
+#endif
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
+#ifdef HAVE_NET_IF_H
+#include <net/if.h>
+#endif
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
 
-#define LZ4_MAGICNUMBER	0x184d2204
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h>
+#endif
 
-struct private_data {
-	int		 compression_level;
-	uint8_t		 header_written:1;
-	uint8_t		 version_number:1;
-	uint8_t		 block_independence:1;
-	uint8_t		 block_checksum:1;
-	uint8_t		 stream_size:1;
-	uint8_t		 stream_checksum:1;
-	uint8_t		 preset_dictionary:1;
-	uint8_t		 block_maximum_size:3;
-#if defined(HAVE_LIBLZ4) && LZ4_VERSION_MAJOR >= 1 && LZ4_VERSION_MINOR >= 2
-	int64_t		 total_in;
-	char		*out;
-	char		*out_buffer;
-	size_t		 out_buffer_size;
-	size_t		 out_block_size;
-	char		*in;
-	char		*in_buffer_allocated;
-	char		*in_buffer;
-	size_t		 in_buffer_size;
-	size_t		 block_size;
+#include "strequal.h"
+#include "urldata.h"
+#include <curl/curl.h>
+#include "transfer.h"
+#include "vtls/vtls.h"
+#include "url.h"
+#include "getinfo.h"
+#include "hostip.h"
+#include "share.h"
+#include "strdup.h"
+#include "progress.h"
+#include "easyif.h"
+#include "select.h"
+#include "sendf.h" /* for failf function prototype */
+#include "curl_ntlm.h"
+#include "connect.h" /* for Curl_getconnectinfo */
+#include "slist.h"
+#include "amigaos.h"
+#include "non-ascii.h"
+#include "warnless.h"
+#include "conncache.h"
+#include "multiif.h"
+#include "sigpipe.h"
+#include "ssh.h"
+#include "curl_printf.h"
 
-	void		*xxh32_state;
-	void		*lz4_stream;
+/* The last #include files should be: */
+#include "curl_memory.h"
+#include "memdebug.h"
+
+/* win32_cleanup() is for win32 socket cleanup functionality, the opposite
+   of win32_init() */
+static void win32_cleanup(void)
+{
+#ifdef USE_WINSOCK
+  WSACleanup();
+#endif
+#ifdef USE_WINDOWS_SSPI
+  Curl_sspi_global_cleanup();
+#endif
+}
+
+/* win32_init() performs win32 socket initialization to properly setup the
+   stack to allow networking */
+static CURLcode win32_init(void)
+{
+#ifdef USE_WINSOCK
+  WORD wVersionRequested;
+  WSADATA wsaData;
+  int res;
+
+#if defined(ENABLE_IPV6) && (USE_WINSOCK < 2)
+  Error IPV6_requires_winsock2
+#endif
+
+  wVersionRequested = MAKEWORD(USE_WINSOCK, USE_WINSOCK);
+
+  res = WSAStartup(wVersionRequested, &wsaData);
+
+  if(res != 0)
+    /* Tell the user that we couldn't find a useable */
+    /* winsock.dll.     */
+    return CURLE_FAILED_INIT;
+
+  /* Confirm that the Windows Sockets DLL supports what we need.*/
+  /* Note that if the DLL supports versions greater */
+  /* than wVersionRequested, it will still return */
+  /* wVersionRequested in wVersion. wHighVersion contains the */
+  /* highest supported version. */
+
+  if(LOBYTE( wsaData.wVersion ) != LOBYTE(wVersionRequested) ||
+     HIBYTE( wsaData.wVersion ) != HIBYTE(wVersionRequested) ) {
+    /* Tell the user that we couldn't find a useable */
+
+    /* winsock.dll. */
+    WSACleanup();
+    return CURLE_FAILED_INIT;
+  }
+  /* The Windows Sockets DLL is acceptable. Proceed. */
+#elif defined(USE_LWIPSOCK)
+  lwip_init();
+#endif
+
+#ifdef USE_WINDOWS_SSPI
+  {
+    CURLcode result = Curl_sspi_global_init();
+    if(result)
+      return result;
+  }
+#endif
+
+  return CURLE_OK;
+}
+
+#ifdef USE_LIBIDN
+/*
+ * Initialise use of IDNA library.
+ * It falls back to ASCII if $CHARSET isn't defined. This doesn't work for
+ * idna_to_ascii_lz().
+ */
+static void idna_init (void)
+{
+#ifdef WIN32
+  char buf[60];
+  UINT cp = GetACP();
+
+  if(!getenv("CHARSET") && cp > 0) {
+    snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);
+    putenv(buf);
+  }
 #else
-	struct archive_write_program_data *pdata;
+  /* to do? */
 #endif
+}
+#endif  /* USE_LIBIDN */
+
+/* true globals -- for curl_global_init() and curl_global_cleanup() */
+static unsigned int  initialized;
+static long          init_flags;
+
+/*
+ * strdup (and other memory functions) is redefined in complicated
+ * ways, but at this point it must be defined as the system-supplied strdup
+ * so the callback pointer is initialized correctly.
+ */
+#if defined(_WIN32_WCE)
+#define system_strdup _strdup
+#elif !defined(HAVE_STRDUP)
+#define system_strdup curlx_strdup
+#else
+#define system_strdup strdup
+#endif
+
+#if defined(_MSC_VER) && defined(_DLL) && !defined(__POCC__)
+#  pragma warning(disable:4232) /* MSVC extension, dllimport identity */
+#endif
+
+#ifndef __SYMBIAN32__
+/*
+ * If a memory-using function (like curl_getenv) is used before
+ * curl_global_init() is called, we need to have these pointers set already.
+ */
+curl_malloc_callback Curl_cmalloc = (curl_malloc_callback)malloc;
+curl_free_callback Curl_cfree = (curl_free_callback)free;
+curl_realloc_callback Curl_crealloc = (curl_realloc_callback)realloc;
+curl_strdup_callback Curl_cstrdup = (curl_strdup_callback)system_strdup;
+curl_calloc_callback Curl_ccalloc = (curl_calloc_callback)calloc;
+#if defined(WIN32) && defined(UNICODE)
+curl_wcsdup_callback Curl_cwcsdup = (curl_wcsdup_callback)_wcsdup;
+#endif
+#else
+/*
+ * Symbian OS doesn't support initialization to code in writeable static data.
+ * Initialization will occur in the curl_global_init() call.
+ */
+curl_malloc_callback Curl_cmalloc;
+curl_free_callback Curl_cfree;
+curl_realloc_callback Curl_crealloc;
+curl_strdup_callback Curl_cstrdup;
+curl_calloc_callback Curl_ccalloc;
+#endif
+
+#if defined(_MSC_VER) && defined(_DLL) && !defined(__POCC__)
+#  pragma warning(default:4232) /* MSVC extension, dllimport identity */
+#endif
+
+/**
+ * curl_global_init() globally initializes cURL given a bitwise set of the
+ * different features of what to initialize.
+ */
+CURLcode curl_global_init(long flags)
+{
+  if(initialized++)
+    return CURLE_OK;
+
+  /* Setup the default memory functions here (again) */
+  Curl_cmalloc = (curl_malloc_callback)malloc;
+  Curl_cfree = (curl_free_callback)free;
+  Curl_crealloc = (curl_realloc_callback)realloc;
+  Curl_cstrdup = (curl_strdup_callback)system_strdup;
+  Curl_ccalloc = (curl_calloc_callback)calloc;
+#if defined(WIN32) && defined(UNICODE)
+  Curl_cwcsdup = (curl_wcsdup_callback)_wcsdup;
+#endif
+
+  if(flags & CURL_GLOBAL_SSL)
+    if(!Curl_ssl_init()) {
+      DEBUGF(fprintf(stderr, "Error: Curl_ssl_init failed\n"));
+      return CURLE_FAILED_INIT;
+    }
+
+  if(flags & CURL_GLOBAL_WIN32)
+    if(win32_init()) {
+      DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));
+      return CURLE_FAILED_INIT;
+    }
+
+#ifdef __AMIGA__
+  if(!Curl_amiga_init()) {
+    DEBUGF(fprintf(stderr, "Error: Curl_amiga_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }
+#endif
+
+#ifdef NETWARE
+  if(netware_init()) {
+    DEBUGF(fprintf(stderr, "Warning: LONG namespace not available\n"));
+  }
+#endif
+
+#ifdef USE_LIBIDN
+  idna_init();
+#endif
+
+  if(Curl_resolver_global_init()) {
+    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }
+
+#if defined(USE_LIBSSH2) && defined(HAVE_LIBSSH2_INIT)
+  if(libssh2_init(0)) {
+    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }
+#endif
+
+  if(flags & CURL_GLOBAL_ACK_EINTR)
+    Curl_ack_eintr = 1;
+
+  init_flags  = flags;
+
+  return CURLE_OK;
+}
+
+/*
+ * curl_global_init_mem() globally initializes cURL and also registers the
+ * user provided callback routines.
+ */
+CURLcode curl_global_init_mem(long flags, curl_malloc_callback m,
+                              curl_free_callback f, curl_realloc_callback r,
+                              curl_strdup_callback s, curl_calloc_callback c)
+{
+  CURLcode result = CURLE_OK;
+
+  /* Invalid input, return immediately */
+  if(!m || !f || !r || !s || !c)
+    return CURLE_FAILED_INIT;
+
+  if(initialized) {
+    /* Already initialized, don't do it again, but bump the variable anyway to
+       work like curl_global_init() and require the same amount of cleanup
+       calls. */
+    initialized++;
+    return CURLE_OK;
+  }
+
+  /* Call the actual init function first */
+  result = curl_global_init(flags);
+  if(!result) {
+    Curl_cmalloc = m;
+    Curl_cfree = f;
+    Curl_cstrdup = s;
+    Curl_crealloc = r;
+    Curl_ccalloc = c;
+  }
+
+  return result;
+}
+
+/**
+ * curl_global_cleanup() globally cleanups cURL, uses the value of
+ * "init_flags" to determine what needs to be cleaned up and what doesn't.
+ */
+void curl_global_cleanup(void)
+{
+  if(!initialized)
+    return;
+
+  if(--initialized)
+    return;
+
+  Curl_global_host_cache_dtor();
+
+  if(init_flags & CURL_GLOBAL_SSL)
+    Curl_ssl_cleanup();
+
+  Curl_resolver_global_cleanup();
+
+  if(init_flags & CURL_GLOBAL_WIN32)
+    win32_cleanup();
+
+  Curl_amiga_cleanup();
+
+#if defined(USE_LIBSSH2) && defined(HAVE_LIBSSH2_EXIT)
+  (void)libssh2_exit();
+#endif
+
+  init_flags  = 0;
+}
+
+/*
+ * curl_easy_init() is the external interface to alloc, setup and init an
+ * easy handle that is returned. If anything goes wrong, NULL is returned.
+ */
+CURL *curl_easy_init(void)
+{
+  CURLcode result;
+  struct SessionHandle *data;
+
+  /* Make sure we inited the global SSL stuff */
+  if(!initialized) {
+    result = curl_global_init(CURL_GLOBAL_DEFAULT);
+    if(result) {
+      /* something in the global init failed, return nothing */
+      DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"));
+      return NULL;
+    }
+  }
+
+  /* We use curl_open() with undefined URL so far */
+  result = Curl_open(&data);
+  if(result) {
+    DEBUGF(fprintf(stderr, "Error: Curl_open failed\n"));
+    return NULL;
+  }
+
+  return data;
+}
+
+/*
+ * curl_easy_setopt() is the external interface for setting options on an
+ * easy handle.
+ */
+
+#undef curl_easy_setopt
+CURLcode curl_easy_setopt(CURL *curl, CURLoption tag, ...)
+{
+  va_list arg;
+  struct SessionHandle *data = curl;
+  CURLcode result;
+
+  if(!curl)
+    return CURLE_BAD_FUNCTION_ARGUMENT;
+
+  va_start(arg, tag);
+
+  result = Curl_setopt(data, tag, arg);
+
+  va_end(arg);
+  return result;
+}
+
+#ifdef CURLDEBUG
+
+struct socketmonitor {
+  struct socketmonitor *next; /* the next node in the list or NULL */
+  struct pollfd socket; /* socket info of what to monitor */
 };
 
-static int archive_filter_lz4_close(struct archive_write_filter *);
-static int archive_filter_lz4_free(struct archive_write_filter *);
-static int archive_filter_lz4_open(struct archive_write_filter *);
-static int archive_filter_lz4_options(struct archive_write_filter *,
-		    const char *, const char *);
-static int archive_filter_lz4_write(struct archive_write_filter *,
-		    const void *, size_t);
+struct events {
+  long ms;              /* timeout, run the timeout function when reached */
+  bool msbump;          /* set TRUE when timeout is set by callback */
+  int num_sockets;      /* number of nodes in the monitor list */
+  struct socketmonitor *list; /* list of sockets to monitor */
+  int running_handles;  /* store the returned number */
+};
 
-/*
- * Add a lz4 compression filter to this write handle.
- */
-int
-archive_write_add_filter_lz4(struct archive *_a)
-{
-	struct archive_write *a = (struct archive_write *)_a;
-	struct archive_write_filter *f = __archive_write_allocate_filter(_a);
-	struct private_data *data;
-
-	archive_check_magic(&a->archive, ARCHIVE_WRITE_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_write_add_filter_lz4");
-
-	data = calloc(1, sizeof(*data));
-	if (data == NULL) {
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
-
-	/*
-	 * Setup default settings.
-	 */
-	data->compression_level = 1;
-	data->version_number = 0x01;
-	data->block_independence = 1;
-	data->block_checksum = 0;
-	data->stream_size = 0;
-	data->stream_checksum = 1;
-	data->preset_dictionary = 0;
-	data->block_maximum_size = 7;
-
-	/*
-	 * Setup a filter setting.
-	 */
-	f->data = data;
-	f->options = &archive_filter_lz4_options;
-	f->close = &archive_filter_lz4_close;
-	f->free = &archive_filter_lz4_free;
-	f->open = &archive_filter_lz4_open;
-	f->code = ARCHIVE_FILTER_LZ4;
-	f->name = "lz4";
-#if defined(HAVE_LIBLZ4) && LZ4_VERSION_MAJOR >= 1 && LZ4_VERSION_MINOR >= 2
-	return (ARCHIVE_OK);
-#else
-	/*
-	 * We don't have lz4 library, and execute external lz4 program
-	 * instead.
-	 */
-	data->pdata = __archive_write_program_allocate();
-	if (data->pdata == NULL) {
-		free(data);
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
-	data->compression_level = 0;
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-	    "Using external lz4 program");
-	return (ARCHIVE_WARN);
-#endif
-}
-
-/*
- * Set write options.
- */
-static int
-archive_filter_lz4_options(struct archive_write_filter *f,
-    const char *key, const char *value)
-{
-	struct private_data *data = (struct private_data *)f->data;
-
-	if (strcmp(key, "compression-level") == 0) {
-		if (value == NULL || !(value[0] >= '1' && value[0] <= '9') ||
-		    value[1] != '\0')
-			return (ARCHIVE_WARN);
-		data->compression_level = value[0] - '0';
-		return (ARCHIVE_OK);
-	}
-	if (strcmp(key, "stream-checksum") == 0) {
-		data->stream_checksum = value != NULL;
-		return (ARCHIVE_OK);
-	}
-	if (strcmp(key, "block-checksum") == 0) {
-		data->block_checksum = value != NULL;
-		return (ARCHIVE_OK);
-	}
-	if (strcmp(key, "block-size") == 0) {
-		if (value == NULL || !(value[0] >= '4' && value[0] <= '7') ||
-		    value[1] != '\0')
-			return (ARCHIVE_WARN);
-		data->block_maximum_size = value[0] - '0';
-		return (ARCHIVE_OK);
-	}
-	if (strcmp(key, "block-dependence") == 0) {
-		data->block_independence = value == NULL;
-		return (ARCHIVE_OK);
-	}
-
-	/* Note: The "warn" return is just to inform the options
-	 * supervisor that we didn't handle it.  It will generate
-	 * a suitable error if no one used this option. */
-	return (ARCHIVE_WARN);
-}
-
-#if defined(HAVE_LIBLZ4) && LZ4_VERSION_MAJOR >= 1 && LZ4_VERSION_MINOR >= 2
-/* Don't compile this if we don't have liblz4. */
-
-static int drive_compressor(struct archive_write_filter *, const char *,
-    size_t);
-static int drive_compressor_independence(struct archive_write_filter *,
-    const char *, size_t);
-static int drive_compressor_dependence(struct archive_write_filter *,
-    const char *, size_t);
-static int lz4_write_stream_descriptor(struct archive_write_filter *);
-static ssize_t lz4_write_one_block(struct archive_write_filter *, const char *,
-    size_t);
-
-
-/*
- * Setup callback.
- */
-static int
-archive_filter_lz4_open(struct archive_write_filter *f)
-{
-	struct private_data *data = (struct private_data *)f->data;
-	int ret;
-	size_t required_size;
-	static size_t bkmap[] = { 64 * 1024, 256 * 1024, 1 * 1024 * 1024,
-			   4 * 1024 * 1024 };
-	size_t pre_block_size;
-
-	ret = __archive_write_open_filter(f->next_filter);
-	if (ret != 0)
-		return (ret);
-
-	if (data->block_maximum_size < 4)
-		data->block_size = bkmap[0];
-	else
-		data->block_size = bkmap[data->block_maximum_size - 4];
-
-	required_size = 4 + 15 + 4 + data->block_size + 4 + 4;
-	if (data->out_buffer_size < required_size) {
-		size_t bs = required_size, bpb;
-		free(data->out_buffer);
-		if (f->archive->magic == ARCHIVE_WRITE_MAGIC) {
-			/* Buffer size should be a multiple number of
-			 * the of bytes per block for performance. */
-			bpb = archive_write_get_bytes_per_block(f->archive);
-			if (bpb > bs)
-				bs = bpb;
-			else if (bpb != 0) {
-				bs += bpb;
-				bs -= bs % bpb;
-			}
-		}
-		data->out_block_size = bs;
-		bs += required_size;
-		data->out_buffer = malloc(bs);
-		data->out = data->out_buffer;
-		data->out_buffer_size = bs;
-	}
-
-	pre_block_size = (data->block_independence)? 0: 64 * 1024;
-	if (data->in_buffer_size < data->block_size + pre_block_size) {
-		free(data->in_buffer_allocated);
-		data->in_buffer_size = data->block_size;
-		data->in_buffer_allocated =
-		    malloc(data->in_buffer_size + pre_block_size);
-		data->in_buffer = data->in_buffer_allocated + pre_block_size;
-		if (!data->block_independence && data->compression_level >= 3)
-		    data->in_buffer = data->in_buffer_allocated;
-		data->in = data->in_buffer;
-		data->in_buffer_size = data->block_size;
-	}
-
-	if (data->out_buffer == NULL || data->in_buffer_allocated == NULL) {
-		archive_set_error(f->archive, ENOMEM,
-		    "Can't allocate data for compression buffer");
-		return (ARCHIVE_FATAL);
-	}
-
-	f->write = archive_filter_lz4_write;
-
-	return (ARCHIVE_OK);
-}
-
-/*
- * Write data to the out stream.
+/* events_timer
  *
- * Returns ARCHIVE_OK if all data written, error otherwise.
+ * Callback that gets called with a new value when the timeout should be
+ * updated.
  */
-static int
-archive_filter_lz4_write(struct archive_write_filter *f,
-    const void *buff, size_t length)
+
+static int events_timer(CURLM *multi,    /* multi handle */
+                        long timeout_ms, /* see above */
+                        void *userp)    /* private callback pointer */
 {
-	struct private_data *data = (struct private_data *)f->data;
-	int ret = ARCHIVE_OK;
-	const char *p;
-	size_t remaining;
-	ssize_t size;
+  struct events *ev = userp;
+  (void)multi;
+  if(timeout_ms == -1)
+    /* timeout removed */
+    timeout_ms = 0;
+  else if(timeout_ms == 0)
+    /* timeout is already reached! */
+    timeout_ms = 1; /* trigger asap */
 
-	/* If we haven't written a stream descriptor, we have to do it first. */
-	if (!data->header_written) {
-		ret = lz4_write_stream_descriptor(f);
-		if (ret != ARCHIVE_OK)
-			return (ret);
-		data->header_written = 1;
-	}
-
-	/* Update statistics */
-	data->total_in += length;
-
-	p = (const char *)buff;
-	remaining = length;
-	while (remaining) {
-		size_t l;
-		/* Compress input data to output buffer */
-		size = lz4_write_one_block(f, p, remaining);
-		if (size < ARCHIVE_OK)
-			return (ARCHIVE_FATAL);
-		l = data->out - data->out_buffer;
-		if (l >= data->out_block_size) {
-			ret = __archive_write_filter(f->next_filter,
-			    data->out_buffer, data->out_block_size);
-			l -= data->out_block_size;
-			memcpy(data->out_buffer,
-			    data->out_buffer + data->out_block_size, l);
-			data->out = data->out_buffer + l;
-			if (ret < ARCHIVE_WARN)
-				break;
-		}
-		p += size;
-		remaining -= size;
-	}
-
-	return (ret);
-}
-
-/*
- * Finish the compression.
- */
-static int
-archive_filter_lz4_close(struct archive_write_filter *f)
-{
-	struct private_data *data = (struct private_data *)f->data;
-	int ret, r1;
-
-	/* Finish compression cycle. */
-	ret = (int)lz4_write_one_block(f, NULL, 0);
-	if (ret >= 0) {
-		/*
-		 * Write the last block and the end of the stream data.
-		 */
-
-		/* Write End Of Stream. */
-		memset(data->out, 0, 4); data->out += 4;
-		/* Write Stream checksum if needed. */
-		if (data->stream_checksum) {
-			unsigned int checksum;
-			checksum = __archive_xxhash.XXH32_digest(
-					data->xxh32_state);
-			data->xxh32_state = NULL;
-			archive_le32enc(data->out, checksum);
-			data->out += 4;
-		}
-		ret = __archive_write_filter(f->next_filter,
-			    data->out_buffer, data->out - data->out_buffer);
-	}
-
-	r1 = __archive_write_close_filter(f->next_filter);
-	return (r1 < ret ? r1 : ret);
-}
-
-static int
-archive_filter_lz4_free(struct archive_write_filter *f)
-{
-	struct private_data *data = (struct private_data *)f->data;
-
-	if (data->lz4_stream != NULL) {
-		if (data->compression_level < 3)
-#if LZ4_VERSION_MINOR >= 3
-			LZ4_freeStream(data->lz4_stream);
-#else
-			LZ4_free(data->lz4_stream);
-#endif
-		else
-			LZ4_freeHC(data->lz4_stream);
-	}
-	free(data->out_buffer);
-	free(data->in_buffer_allocated);
-	free(data->xxh32_state);
-	free(data);
-	f->data = NULL;
-	return (ARCHIVE_OK);
-}
-
-static int
-lz4_write_stream_descriptor(struct archive_write_filter *f)
-{
-	struct private_data *data = (struct private_data *)f->data;
-	uint8_t *sd;
-
-	sd = (uint8_t *)data->out;
-	/* Write Magic Number. */
-	archive_le32enc(&sd[0], LZ4_MAGICNUMBER);
-	/* FLG */
-	sd[4] = (data->version_number << 6)
-	      | (data->block_independence << 5)
-	      | (data->block_checksum << 4)
-	      | (data->stream_size << 3)
-	      | (data->stream_checksum << 2)
-	      | (data->preset_dictionary << 0);
-	/* BD */
-	sd[5] = (data->block_maximum_size << 4);
-	sd[6] = (__archive_xxhash.XXH32(&sd[4], 2, 0) >> 8) & 0xff;
-	data->out += 7;
-	if (data->stream_checksum)
-		data->xxh32_state = __archive_xxhash.XXH32_init(0);
-	else
-		data->xxh32_state = NULL;
-	return (ARCHIVE_OK);
-}
-
-static ssize_t
-lz4_write_one_block(struct archive_write_filter *f, const char *p,
-    size_t length)
-{
-	struct private_data *data = (struct private_data *)f->data;
-	ssize_t r;
-
-	if (p == NULL) {
-		/* Compress remaining uncompressed data. */
-		if (data->in_buffer == data->in)
-			return 0;
-		else {
-			size_t l = data->in - data->in_buffer;
-			r = drive_compressor(f, data->in_buffer, l);
-			if (r == ARCHIVE_OK)
-				r = (ssize_t)l;
-		}
-	} else if ((data->block_independence || data->compression_level < 3) &&
-	    data->in_buffer == data->in && length >= data->block_size) {
-		r = drive_compressor(f, p, data->block_size);
-		if (r == ARCHIVE_OK)
-			r = (ssize_t)data->block_size;
-	} else {
-		size_t remaining_size = data->in_buffer_size -
-			(data->in - data->in_buffer);
-		size_t l = (remaining_size > length)? length: remaining_size;
-		memcpy(data->in, p, l);
-		data->in += l;
-		if (l == remaining_size) {
-			r = drive_compressor(f, data->in_buffer,
-			    data->block_size);
-			if (r == ARCHIVE_OK)
-				r = (ssize_t)l;
-			data->in = data->in_buffer;
-		} else
-			r = (ssize_t)l;
-	}
-
-	return (r);
+  ev->ms = timeout_ms;
+  ev->msbump = TRUE;
+  return 0;
 }
 
 
-/*
- * Utility function to push input data through compressor, writing
- * full output blocks as necessary.
+/* poll2cselect
  *
- * Note that this handles both the regular write case (finishing ==
- * false) and the end-of-archive case (finishing == true).
+ * convert from poll() bit definitions to libcurl's CURL_CSELECT_* ones
  */
-static int
-drive_compressor(struct archive_write_filter *f, const char *p, size_t length)
+static int poll2cselect(int pollmask)
 {
-	struct private_data *data = (struct private_data *)f->data;
-
-	if (data->stream_checksum)
-		__archive_xxhash.XXH32_update(data->xxh32_state,
-			p, (int)length);
-	if (data->block_independence)
-		return drive_compressor_independence(f, p, length);
-	else
-		return drive_compressor_dependence(f, p, length);
+  int omask=0;
+  if(pollmask & POLLIN)
+    omask |= CURL_CSELECT_IN;
+  if(pollmask & POLLOUT)
+    omask |= CURL_CSELECT_OUT;
+  if(pollmask & POLLERR)
+    omask |= CURL_CSELECT_ERR;
+  return omask;
 }
 
-static int
-drive_compressor_independence(struct archive_write_filter *f, const char *p,
-    size_t length)
+
+/* socketcb2poll
+ *
+ * convert from libcurl' CURL_POLL_* bit definitions to poll()'s
+ */
+static short socketcb2poll(int pollmask)
 {
-	struct private_data *data = (struct private_data *)f->data;
-	unsigned int outsize;
-
-	if (data->compression_level < 4)
-		outsize = LZ4_compress_limitedOutput(p, data->out + 4,
-		    (int)length, (int)data->block_size);
-	else
-		outsize = LZ4_compressHC2_limitedOutput(p, data->out + 4,
-		    (int)length, (int)data->block_size,
-		    data->compression_level);
-
-	if (outsize) {
-		/* The buffer is compressed. */
-		archive_le32enc(data->out, outsize);
-		data->out += 4;
-	} else {
-		/* The buffer is not compressed. The commpressed size was
-		 * bigger than its uncompressed size. */
-		archive_le32enc(data->out, length | 0x80000000);
-		data->out += 4;
-		memcpy(data->out, p, length);
-		outsize = length;
-	}
-	data->out += outsize;
-	if (data->block_checksum) {
-		unsigned int checksum =
-		    __archive_xxhash.XXH32(data->out - outsize, outsize, 0);
-		archive_le32enc(data->out, checksum);
-		data->out += 4;
-	}
-	return (ARCHIVE_OK);
+  short omask=0;
+  if(pollmask & CURL_POLL_IN)
+    omask |= POLLIN;
+  if(pollmask & CURL_POLL_OUT)
+    omask |= POLLOUT;
+  return omask;
 }
 
-static int
-drive_compressor_dependence(struct archive_write_filter *f, const char *p,
-    size_t length)
+/* events_socket
+ *
+ * Callback that gets called with information about socket activity to
+ * monitor.
+ */
+static int events_socket(CURL *easy,      /* easy handle */
+                         curl_socket_t s, /* socket */
+                         int what,        /* see above */
+                         void *userp,     /* private callback
+                                             pointer */
+                         void *socketp)   /* private socket
+                                             pointer */
 {
-	struct private_data *data = (struct private_data *)f->data;
-	int outsize;
+  struct events *ev = userp;
+  struct socketmonitor *m;
+  struct socketmonitor *prev=NULL;
 
-	if (data->compression_level < 3) {
-		if (data->lz4_stream == NULL) {
-			data->lz4_stream = LZ4_createStream();
-			if (data->lz4_stream == NULL) {
-				archive_set_error(f->archive, ENOMEM,
-				    "Can't allocate data for compression"
-				    " buffer");
-				return (ARCHIVE_FATAL);
-			}
-		}
-		outsize = LZ4_compress_limitedOutput_continue(
-		    data->lz4_stream, p, data->out + 4, (int)length,
-		    (int)data->block_size);
-	} else {
-		if (data->lz4_stream == NULL) {
-			data->lz4_stream =
-			    LZ4_createHC(data->in_buffer_allocated);
-			if (data->lz4_stream == NULL) {
-				archive_set_error(f->archive, ENOMEM,
-				    "Can't allocate data for compression"
-				    " buffer");
-				return (ARCHIVE_FATAL);
-			}
-		}
-		outsize = LZ4_compressHC2_limitedOutput_continue(
-		    data->lz4_stream, p, data->out + 4, (int)length,
-		    (int)data->block_size, data->compression_level);
-	}
+#if defined(CURL_DISABLE_VERBOSE_STRINGS)
+  (void) easy;
+#endif
+  (void)socketp;
 
-	if (outsize) {
-		/* The buffer is compressed. */
-		archive_le32enc(data->out, outsize);
-		data->out += 4;
-	} else {
-		/* The buffer is not compressed. The commpressed size was
-		 * bigger than its uncompressed size. */
-		archive_le32enc(data->out, length | 0x80000000);
-		data->out += 4;
-		memcpy(data->out, p, length);
-		outsize = length;
-	}
-	data->out += outsize;
-	if (data->block_checksum) {
-		unsigned int checksum =
-		    __archive_xxhash.XXH32(data->out - outsize, outsize, 0);
-		archive_le32enc(data->out, checksum);
-		data->out += 4;
-	}
+  m = ev->list;
+  while(m) {
+    if(m->socket.fd == s) {
 
-	if (length == data->block_size) {
-#define DICT_SIZE	(64 * 1024)
-		if (data->compression_level < 3)
-			LZ4_saveDict(data->lz4_stream,
-			    data->in_buffer_allocated, DICT_SIZE);
-		else {
-			LZ4_slideInputBufferHC(data->lz4_stream);
-			data->in_buffer = data->in_buffer_allocated + DICT_SIZE;
-		}
-#undef DICT_SIZE
-	}
-	return (ARCHIVE_OK);
+      if(what == CURL_POLL_REMOVE) {
+        struct socketmonitor *nxt = m->next;
+        /* remove this node from the list of monitored sockets */
+        if(prev)
+          prev->next = nxt;
+        else
+          ev->list = nxt;
+        free(m);
+        m = nxt;
+        infof(easy, "socket cb: socket %d REMOVED\n", s);
+      }
+      else {
+        /* The socket 's' is already being monitored, update the activity
+           mask. Convert from libcurl bitmask to the poll one. */
+        m->socket.events = socketcb2poll(what);
+        infof(easy, "socket cb: socket %d UPDATED as %s%s\n", s,
+              what&CURL_POLL_IN?"IN":"",
+              what&CURL_POLL_OUT?"OUT":"");
+      }
+      break;
+    }
+    prev = m;
+    m = m->next; /* move to next node */
+  }
+  if(!m) {
+    if(what == CURL_POLL_REMOVE) {
+      /* this happens a bit too often, libcurl fix perhaps? */
+      /* fprintf(stderr,
+         "%s: socket %d asked to be REMOVED but not present!\n",
+                 __func__, s); */
+    }
+    else {
+      m = malloc(sizeof(struct socketmonitor));
+      m->next = ev->list;
+      m->socket.fd = s;
+      m->socket.events = socketcb2poll(what);
+      m->socket.revents = 0;
+      ev->list = m;
+      infof(easy, "socket cb: socket %d ADDED as %s%s\n", s,
+            what&CURL_POLL_IN?"IN":"",
+            what&CURL_POLL_OUT?"OUT":"");
+    }
+  }
+
+  return 0;
 }
 
-#else /* HAVE_LIBLZ4 */
 
-static int
-archive_filter_lz4_open(struct archive_write_filter *f)
+/*
+ * events_setup()
+ *
+ * Do the multi handle setups that only event-based transfers need.
+ */
+static void events_setup(CURLM *multi, struct events *ev)
 {
-	struct private_data *data = (struct private_data *)f->data;
-	struct archive_string as;
-	int r;
+  /* timer callback */
+  curl_multi_setopt(multi, CURLMOPT_TIMERFUNCTION, events_timer);
+  curl_multi_setopt(multi, CURLMOPT_TIMERDATA, ev);
 
-	archive_string_init(&as);
-	archive_strcpy(&as, "lz4 -z -q -q");
-
-	/* Specify a compression level. */
-	if (data->compression_level > 0) {
-		archive_strcat(&as, " -");
-		archive_strappend_char(&as, '0' + data->compression_level);
-	}
-	/* Specify a block size. */
-	archive_strcat(&as, " -B");
-	archive_strappend_char(&as, '0' + data->block_maximum_size);
-
-	if (data->block_checksum)
-		archive_strcat(&as, " -BX");
-	if (data->stream_checksum == 0)
-		archive_strcat(&as, " -Sx");
-	if (data->block_independence == 0)
-		archive_strcat(&as, " -BD");
-
-	f->write = archive_filter_lz4_write;
-
-	r = __archive_write_program_open(f, data->pdata, as.s);
-	archive_string_free(&as);
-	return (r);
+  /* socket callback */
+  curl_multi_setopt(multi, CURLMOPT_SOCKETFUNCTION, events_socket);
+  curl_multi_setopt(multi, CURLMOPT_SOCKETDATA, ev);
 }
 
-static int
-archive_filter_lz4_write(struct archive_write_filter *f, const void *buff,
-    size_t length)
-{
-	struct private_data *data = (struct private_data *)f->data;
 
-	return __archive_write_program_write(f, data->pdata, buff, length);
+/* wait_or_timeout()
+ *
+ * waits for activity on any of the given sockets, or the timeout to trigger.
+ */
+
+static CURLcode wait_or_timeout(struct Curl_multi *multi, struct events *ev)
+{
+  bool done = FALSE;
+  CURLMcode mcode;
+  CURLcode result = CURLE_OK;
+
+  while(!done) {
+    CURLMsg *msg;
+    struct socketmonitor *m;
+    struct pollfd *f;
+    struct pollfd fds[4];
+    int numfds=0;
+    int pollrc;
+    int i;
+    struct timeval before;
+    struct timeval after;
+
+    /* populate the fds[] array */
+    for(m = ev->list, f=&fds[0]; m; m = m->next) {
+      f->fd = m->socket.fd;
+      f->events = m->socket.events;
+      f->revents = 0;
+      /* fprintf(stderr, "poll() %d check socket %d\n", numfds, f->fd); */
+      f++;
+      numfds++;
+    }
+
+    /* get the time stamp to use to figure out how long poll takes */
+    before = curlx_tvnow();
+
+    /* wait for activity or timeout */
+    pollrc = Curl_poll(fds, numfds, (int)ev->ms);
+
+    after = curlx_tvnow();
+
+    ev->msbump = FALSE; /* reset here */
+
+    if(0 == pollrc) {
+      /* timeout! */
+      ev->ms = 0;
+      /* fprintf(stderr, "call curl_multi_socket_action( TIMEOUT )\n"); */
+      mcode = curl_multi_socket_action(multi, CURL_SOCKET_TIMEOUT, 0,
+                                       &ev->running_handles);
+    }
+    else if(pollrc > 0) {
+      /* loop over the monitored sockets to see which ones had activity */
+      for(i = 0; i< numfds; i++) {
+        if(fds[i].revents) {
+          /* socket activity, tell libcurl */
+          int act = poll2cselect(fds[i].revents); /* convert */
+          infof(multi->easyp, "call curl_multi_socket_action( socket %d )\n",
+                fds[i].fd);
+          mcode = curl_multi_socket_action(multi, fds[i].fd, act,
+                                           &ev->running_handles);
+        }
+      }
+
+      if(!ev->msbump)
+        /* If nothing updated the timeout, we decrease it by the spent time.
+         * If it was updated, it has the new timeout time stored already.
+         */
+        ev->ms += curlx_tvdiff(after, before);
+
+    }
+    else
+      return CURLE_RECV_ERROR;
+
+    if(mcode)
+      return CURLE_URL_MALFORMAT; /* TODO: return a proper error! */
+
+    /* we don't really care about the "msgs_in_queue" value returned in the
+       second argument */
+    msg = curl_multi_info_read(multi, &pollrc);
+    if(msg) {
+      result = msg->data.result;
+      done = TRUE;
+    }
+  }
+
+  return result;
 }
 
-static int
-archive_filter_lz4_close(struct archive_write_filter *f)
-{
-	struct private_data *data = (struct private_data *)f->data;
 
-	return __archive_write_program_close(f, data->pdata);
+/* easy_events()
+ *
+ * Runs a transfer in a blocking manner using the events-based API
+ */
+static CURLcode easy_events(CURLM *multi)
+{
+  struct events evs= {2, FALSE, 0, NULL, 0};
+
+  /* if running event-based, do some further multi inits */
+  events_setup(multi, &evs);
+
+  return wait_or_timeout(multi, &evs);
+}
+#else /* CURLDEBUG */
+/* when not built with debug, this function doesn't exist */
+#define easy_events(x) CURLE_NOT_BUILT_IN
+#endif
+
+static CURLcode easy_transfer(CURLM *multi)
+{
+  bool done = FALSE;
+  CURLMcode mcode = CURLM_OK;
+  CURLcode result = CURLE_OK;
+  struct timeval before;
+  int without_fds = 0;  /* count number of consecutive returns from
+                           curl_multi_wait() without any filedescriptors */
+
+  while(!done && !mcode) {
+    int still_running = 0;
+    int ret;
+
+    before = curlx_tvnow();
+    mcode = curl_multi_wait(multi, NULL, 0, 1000, &ret);
+
+    if(mcode == CURLM_OK) {
+      if(ret == -1) {
+        /* poll() failed not on EINTR, indicate a network problem */
+        result = CURLE_RECV_ERROR;
+        break;
+      }
+      else if(ret == 0) {
+        struct timeval after = curlx_tvnow();
+        /* If it returns without any filedescriptor instantly, we need to
+           avoid busy-looping during periods where it has nothing particular
+           to wait for */
+        if(curlx_tvdiff(after, before) <= 10) {
+          without_fds++;
+          if(without_fds > 2) {
+            int sleep_ms = without_fds < 10 ? (1 << (without_fds-1)): 1000;
+            Curl_wait_ms(sleep_ms);
+          }
+        }
+        else
+          /* it wasn't "instant", restart counter */
+          without_fds = 0;
+      }
+      else
+        /* got file descriptor, restart counter */
+        without_fds = 0;
+
+      mcode = curl_multi_perform(multi, &still_running);
+    }
+
+    /* only read 'still_running' if curl_multi_perform() return OK */
+    if((mcode == CURLM_OK) && !still_running) {
+      int rc;
+      CURLMsg *msg = curl_multi_info_read(multi, &rc);
+      if(msg) {
+        result = msg->data.result;
+        done = TRUE;
+      }
+    }
+  }
+
+  /* Make sure to return some kind of error if there was a multi problem */
+  if(mcode) {
+    return (mcode == CURLM_OUT_OF_MEMORY) ? CURLE_OUT_OF_MEMORY :
+            /* The other multi errors should never happen, so return
+               something suitably generic */
+            CURLE_BAD_FUNCTION_ARGUMENT;
+  }
+
+  return result;
 }
 
-static int
-archive_filter_lz4_free(struct archive_write_filter *f)
-{
-	struct private_data *data = (struct private_data *)f->data;
 
-	__archive_write_program_free(data->pdata);
-	free(data);
-	return (ARCHIVE_OK);
+/*
+ * easy_perform() is the external interface that performs a blocking
+ * transfer as previously setup.
+ *
+ * CONCEPT: This function creates a multi handle, adds the easy handle to it,
+ * runs curl_multi_perform() until the transfer is done, then detaches the
+ * easy handle, destroys the multi handle and returns the easy handle's return
+ * code.
+ *
+ * REALITY: it can't just create and destroy the multi handle that easily. It
+ * needs to keep it around since if this easy handle is used again by this
+ * function, the same multi handle must be re-used so that the same pools and
+ * caches can be used.
+ *
+ * DEBUG: if 'events' is set TRUE, this function will use a replacement engine
+ * instead of curl_multi_perform() and use curl_multi_socket_action().
+ */
+static CURLcode easy_perform(struct SessionHandle *data, bool events)
+{
+  CURLM *multi;
+  CURLMcode mcode;
+  CURLcode result = CURLE_OK;
+  SIGPIPE_VARIABLE(pipe_st);
+
+  if(!data)
+    return CURLE_BAD_FUNCTION_ARGUMENT;
+
+  if(data->multi) {
+    failf(data, "easy handle already used in multi handle");
+    return CURLE_FAILED_INIT;
+  }
+
+  if(data->multi_easy)
+    multi = data->multi_easy;
+  else {
+    /* this multi handle will only ever have a single easy handled attached
+       to it, so make it use minimal hashes */
+    multi = Curl_multi_handle(1, 3);
+    if(!multi)
+      return CURLE_OUT_OF_MEMORY;
+    data->multi_easy = multi;
+  }
+
+  /* Copy the MAXCONNECTS option to the multi handle */
+  curl_multi_setopt(multi, CURLMOPT_MAXCONNECTS, data->set.maxconnects);
+
+  mcode = curl_multi_add_handle(multi, data);
+  if(mcode) {
+    curl_multi_cleanup(multi);
+    if(mcode == CURLM_OUT_OF_MEMORY)
+      return CURLE_OUT_OF_MEMORY;
+    else
+      return CURLE_FAILED_INIT;
+  }
+
+  sigpipe_ignore(data, &pipe_st);
+
+  /* assign this after curl_multi_add_handle() since that function checks for
+     it and rejects this handle otherwise */
+  data->multi = multi;
+
+  /* run the transfer */
+  result = events ? easy_events(multi) : easy_transfer(multi);
+
+  /* ignoring the return code isn't nice, but atm we can't really handle
+     a failure here, room for future improvement! */
+  (void)curl_multi_remove_handle(multi, data);
+
+  sigpipe_restore(&pipe_st);
+
+  /* The multi handle is kept alive, owned by the easy handle */
+  return result;
 }
 
-#endif /* HAVE_LIBLZ4 */
+
+/*
+ * curl_easy_perform() is the external interface that performs a blocking
+ * transfer as previously setup.
+ */
+CURLcode curl_easy_perform(CURL *easy)
+{
+  return easy_perform(easy, FALSE);
+}
+
+#ifdef CURLDEBUG
+/*
+ * curl_easy_perform_ev() is the external interface that performs a blocking
+ * transfer using the event-based API internally.
+ */
+CURLcode curl_easy_perform_ev(CURL *easy)
+{
+  return easy_perform(easy, TRUE);
+}
+
+#endif
+
+/*
+ * curl_easy_cleanup() is the external interface to cleaning/freeing the given
+ * easy handle.
+ */
+void curl_easy_cleanup(CURL *curl)
+{
+  struct SessionHandle *data = (struct SessionHandle *)curl;
+  SIGPIPE_VARIABLE(pipe_st);
+
+  if(!data)
+    return;
+
+  sigpipe_ignore(data, &pipe_st);
+  Curl_close(data);
+  sigpipe_restore(&pipe_st);
+}
+
+/*
+ * curl_easy_getinfo() is an external interface that allows an app to retrieve
+ * information from a performed transfer and similar.
+ */
+#undef curl_easy_getinfo
+CURLcode curl_easy_getinfo(CURL *curl, CURLINFO info, ...)
+{
+  va_list arg;
+  void *paramp;
+  CURLcode result;
+  struct SessionHandle *data = (struct SessionHandle *)curl;
+
+  va_start(arg, info);
+  paramp = va_arg(arg, void *);
+
+  result = Curl_getinfo(data, info, paramp);
+
+  va_end(arg);
+  return result;
+}
+
+/*
+ * curl_easy_duphandle() is an external interface to allow duplication of a
+ * given input easy handle. The returned handle will be a new working handle
+ * with all options set exactly as the input source handle.
+ */
+CURL *curl_easy_duphandle(CURL *incurl)
+{
+  struct SessionHandle *data=(struct SessionHandle *)incurl;
+
+  struct SessionHandle *outcurl = calloc(1, sizeof(struct SessionHandle));
+  if(NULL == outcurl)
+    goto fail;
+
+  /*
+   * We setup a few buffers we need. We should probably make them
+   * get setup on-demand in the code, as that would probably decrease
+   * the likeliness of us forgetting to init a buffer here in the future.
+   */
+  outcurl->state.headerbuff = malloc(HEADERSIZE);
+  if(!outcurl->state.headerbuff)
+    goto fail;
+  outcurl->state.headersize = HEADERSIZE;
+
+  /* copy all userdefined values */
+  if(Curl_dupset(outcurl, data))
+    goto fail;
+
+  /* the connection cache is setup on demand */
+  outcurl->state.conn_cache = NULL;
+
+  outcurl->state.lastconnect = NULL;
+
+  outcurl->progress.flags    = data->progress.flags;
+  outcurl->progress.callback = data->progress.callback;
+
+  if(data->cookies) {
+    /* If cookies are enabled in the parent handle, we enable them
+       in the clone as well! */
+    outcurl->cookies = Curl_cookie_init(data,
+                                        data->cookies->filename,
+                                        outcurl->cookies,
+                                        data->set.cookiesession);
+    if(!outcurl->cookies)
+      goto fail;
+  }
+
+  /* duplicate all values in 'change' */
+  if(data->change.cookielist) {
+    outcurl->change.cookielist =
+      Curl_slist_duplicate(data->change.cookielist);
+    if(!outcurl->change.cookielist)
+      goto fail;
+  }
+
+  if(data->change.url) {
+    outcurl->change.url = strdup(data->change.url);
+    if(!outcurl->change.url)
+      goto fail;
+    outcurl->change.url_alloc = TRUE;
+  }
+
+  if(data->change.referer) {
+    outcurl->change.referer = strdup(data->change.referer);
+    if(!outcurl->change.referer)
+      goto fail;
+    outcurl->change.referer_alloc = TRUE;
+  }
+
+  /* Clone the resolver handle, if present, for the new handle */
+  if(Curl_resolver_duphandle(&outcurl->state.resolver,
+                             data->state.resolver))
+    goto fail;
+
+  Curl_convert_setup(outcurl);
+
+  outcurl->magic = CURLEASY_MAGIC_NUMBER;
+
+  /* we reach this point and thus we are OK */
+
+  return outcurl;
+
+  fail:
+
+  if(outcurl) {
+    curl_slist_free_all(outcurl->change.cookielist);
+    outcurl->change.cookielist = NULL;
+    Curl_safefree(outcurl->state.headerbuff);
+    Curl_safefree(outcurl->change.url);
+    Curl_safefree(outcurl->change.referer);
+    Curl_freeset(outcurl);
+    free(outcurl);
+  }
+
+  return NULL;
+}
+
+/*
+ * curl_easy_reset() is an external interface that allows an app to re-
+ * initialize a session handle to the default values.
+ */
+void curl_easy_reset(CURL *curl)
+{
+  struct SessionHandle *data = (struct SessionHandle *)curl;
+
+  Curl_safefree(data->state.pathbuffer);
+
+  data->state.path = NULL;
+
+  Curl_free_request_state(data);
+
+  /* zero out UserDefined data: */
+  Curl_freeset(data);
+  memset(&data->set, 0, sizeof(struct UserDefined));
+  (void)Curl_init_userdefined(&data->set);
+
+  /* zero out Progress data: */
+  memset(&data->progress, 0, sizeof(struct Progress));
+
+  data->progress.flags |= PGRS_HIDE;
+  data->state.current_speed = -1; /* init to negative == impossible */
+}
+
+/*
+ * curl_easy_pause() allows an application to pause or unpause a specific
+ * transfer and direction. This function sets the full new state for the
+ * current connection this easy handle operates on.
+ *
+ * NOTE: if you have the receiving paused and you call this function to remove
+ * the pausing, you may get your write callback called at this point.
+ *
+ * Action is a bitmask consisting of CURLPAUSE_* bits in curl/curl.h
+ */
+CURLcode curl_easy_pause(CURL *curl, int action)
+{
+  struct SessionHandle *data = (struct SessionHandle *)curl;
+  struct SingleRequest *k = &data->req;
+  CURLcode result = CURLE_OK;
+
+  /* first switch off both pause bits */
+  int newstate = k->keepon &~ (KEEP_RECV_PAUSE| KEEP_SEND_PAUSE);
+
+  /* set the new desired pause bits */
+  newstate |= ((action & CURLPAUSE_RECV)?KEEP_RECV_PAUSE:0) |
+    ((action & CURLPAUSE_SEND)?KEEP_SEND_PAUSE:0);
+
+  /* put it back in the keepon */
+  k->keepon = newstate;
+
+  if(!(newstate & KEEP_RECV_PAUSE) && data->state.tempwrite) {
+    /* we have a buffer for sending that we now seem to be able to deliver
+       since the receive pausing is lifted! */
+
+    /* get the pointer in local copy since the function may return PAUSE
+       again and then we'll get a new copy allocted and stored in
+       the tempwrite variables */
+    char *tempwrite = data->state.tempwrite;
+
+    data->state.tempwrite = NULL;
+    result = Curl_client_chop_write(data->easy_conn, data->state.tempwritetype,
+                                    tempwrite, data->state.tempwritesize);
+    free(tempwrite);
+  }
+
+  /* if there's no error and we're not pausing both directions, we want
+     to have this handle checked soon */
+  if(!result &&
+     ((newstate&(KEEP_RECV_PAUSE|KEEP_SEND_PAUSE)) !=
+      (KEEP_RECV_PAUSE|KEEP_SEND_PAUSE)) )
+    Curl_expire(data, 1); /* get this handle going again */
+
+  return result;
+}
+
+
+static CURLcode easy_connection(struct SessionHandle *data,
+                                curl_socket_t *sfd,
+                                struct connectdata **connp)
+{
+  if(data == NULL)
+    return CURLE_BAD_FUNCTION_ARGUMENT;
+
+  /* only allow these to be called on handles with CURLOPT_CONNECT_ONLY */
+  if(!data->set.connect_only) {
+    failf(data, "CONNECT_ONLY is required!");
+    return CURLE_UNSUPPORTED_PROTOCOL;
+  }
+
+  *sfd = Curl_getconnectinfo(data, connp);
+
+  if(*sfd == CURL_SOCKET_BAD) {
+    failf(data, "Failed to get recent socket");
+    return CURLE_UNSUPPORTED_PROTOCOL;
+  }
+
+  return CURLE_OK;
+}
+
+/*
+ * Receives data from the connected socket. Use after successful
+ * curl_easy_perform() with CURLOPT_CONNECT_ONLY option.
+ * Returns CURLE_OK on success, error code on error.
+ */
+CURLcode curl_easy_recv(CURL *curl, void *buffer, size_t buflen, size_t *n)
+{
+  curl_socket_t sfd;
+  CURLcode result;
+  ssize_t n1;
+  struct connectdata *c;
+  struct SessionHandle *data = (struct SessionHandle *)curl;
+
+  result = easy_connection(data, &sfd, &c);
+  if(result)
+    return result;
+
+  *n = 0;
+  result = Curl_read(c, sfd, buffer, buflen, &n1);
+
+  if(result)
+    return result;
+
+  *n = (size_t)n1;
+
+  return CURLE_OK;
+}
+
+/*
+ * Sends data over the connected socket. Use after successful
+ * curl_easy_perform() with CURLOPT_CONNECT_ONLY option.
+ */
+CURLcode curl_easy_send(CURL *curl, const void *buffer, size_t buflen,
+                        size_t *n)
+{
+  curl_socket_t sfd;
+  CURLcode result;
+  ssize_t n1;
+  struct connectdata *c = NULL;
+  struct SessionHandle *data = (struct SessionHandle *)curl;
+
+  result = easy_connection(data, &sfd, &c);
+  if(result)
+    return result;
+
+  *n = 0;
+  result = Curl_write(c, sfd, buffer, buflen, &n1);
+
+  if(n1 == -1)
+    return CURLE_SEND_ERROR;
+
+  /* detect EAGAIN */
+  if(!result && !n1)
+    return CURLE_AGAIN;
+
+  *n = (size_t)n1;
+
+  return result;
+}

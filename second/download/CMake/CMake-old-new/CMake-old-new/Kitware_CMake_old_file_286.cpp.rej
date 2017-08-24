@@ -1,0 +1,36 @@
+--- /dev/null
++++ /dev/null
+@@ -1157,26 +1209,26 @@
+                         size_t *n)
+ {
+   curl_socket_t sfd;
+-  CURLcode result;
++  CURLcode ret;
+   ssize_t n1;
+   struct connectdata *c = NULL;
+   struct SessionHandle *data = (struct SessionHandle *)curl;
+ 
+-  result = easy_connection(data, &sfd, &c);
+-  if(result)
+-    return result;
++  ret = easy_connection(data, &sfd, &c);
++  if(ret)
++    return ret;
+ 
+   *n = 0;
+-  result = Curl_write(c, sfd, buffer, buflen, &n1);
++  ret = Curl_write(c, sfd, buffer, buflen, &n1);
+ 
+   if(n1 == -1)
+     return CURLE_SEND_ERROR;
+ 
+   /* detect EAGAIN */
+-  if(!result && !n1)
++  if((CURLE_OK == ret) && (0 == n1))
+     return CURLE_AGAIN;
+ 
+   *n = (size_t)n1;
+ 
+-  return result;
++  return ret;
+ 

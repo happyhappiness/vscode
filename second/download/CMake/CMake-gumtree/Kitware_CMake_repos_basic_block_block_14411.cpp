@@ -1,0 +1,1 @@
+b64_encode(&state->encoded_buff, p, LBYTES)

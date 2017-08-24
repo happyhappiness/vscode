@@ -1,0 +1,1 @@
+length_update_prices(lencoder, pos_state)

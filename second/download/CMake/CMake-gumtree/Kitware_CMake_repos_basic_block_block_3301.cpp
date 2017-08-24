@@ -1,0 +1,1 @@
+(ISFLAG("--compress"))          opMode           = OM_Z

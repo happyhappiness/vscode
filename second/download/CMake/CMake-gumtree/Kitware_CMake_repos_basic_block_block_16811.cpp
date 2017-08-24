@@ -1,0 +1,1 @@
+archive_sha384_update(&mtree->sha384ctx, buff, n)

@@ -1,9 +1,7 @@
-{
-  // Create a fake output that forces the rule to run.
-  char* output = new char[(strlen(this->Makefile->GetStartOutputDirectory()) +
-                           target.GetName().size() + 30)];
-  sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
-          target.GetName().c_str(), count);
-  std::string comment = this->ConstructComment(origCommand, "<hack>");
-
-  // Add the rule with the given dependencies and commands.
+        li != testLangs.end(); ++li)
+      {
+      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
+      const char* flags = this->Makefile->GetDefinition(langFlags);
+      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              lg->EscapeForCMake(flags?flags:"").c_str());
+      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"

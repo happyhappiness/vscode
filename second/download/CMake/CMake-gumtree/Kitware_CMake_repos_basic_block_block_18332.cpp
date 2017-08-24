@@ -1,0 +1,1 @@
+prev_pos = now_pos - 5

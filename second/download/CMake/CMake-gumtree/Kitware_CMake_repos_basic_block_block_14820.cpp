@@ -1,0 +1,1 @@
+return ((ssize_t)size);

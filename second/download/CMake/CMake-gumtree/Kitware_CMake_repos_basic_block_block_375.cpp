@@ -1,0 +1,1 @@
+return (char *)0;

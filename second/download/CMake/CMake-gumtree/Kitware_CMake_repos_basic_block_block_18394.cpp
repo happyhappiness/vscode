@@ -1,0 +1,1 @@
+uv_close((uv_handle_t*)&ctx->timer_handle, timer_close_cb)

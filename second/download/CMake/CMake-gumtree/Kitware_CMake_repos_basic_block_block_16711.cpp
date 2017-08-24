@@ -1,0 +1,1 @@
+archive_strcat(str, " type=fifo")

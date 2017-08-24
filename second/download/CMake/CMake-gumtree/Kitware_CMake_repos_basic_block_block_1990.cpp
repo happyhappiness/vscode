@@ -1,0 +1,3 @@
+{
+    pathEnv += pathSep;
+  }

@@ -1,0 +1,1 @@
+return CURLE_SSL_CRL_BADFILE;

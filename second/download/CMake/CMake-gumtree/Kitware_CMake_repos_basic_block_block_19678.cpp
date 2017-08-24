@@ -1,0 +1,1 @@
+uv__close(handle->io_watcher.fd)

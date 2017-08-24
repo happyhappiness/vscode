@@ -1,0 +1,1 @@
+FD_SET(fd, s->sread)

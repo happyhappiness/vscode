@@ -1,12 +1,10 @@
-    if(res)
-      return res;
-
-    free(*allocuserpwd);
-    *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
-                            proxy ? "Proxy-" : "",
-                            conn->response_header);
-    DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
-    free(conn->response_header);
-    conn->response_header = NULL;
-    break;
-  case NTLMSTATE_TYPE2:
+			return (0);
+		if (bytes_read < 0)
+			return (ARCHIVE_FATAL);
+		nl = memchr(t, '\n', bytes_read);
+		/* If we found '\n', trim the read to end exactly there. */
+		if (nl != NULL) {
+			bytes_read = ((const char *)nl) - ((const char *)t) + 1;
+		}
+		if (total_size + bytes_read + 1 > limit) {
+			archive_set_error(&a->archive,

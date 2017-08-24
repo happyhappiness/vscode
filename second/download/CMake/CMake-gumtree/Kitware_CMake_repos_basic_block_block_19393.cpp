@@ -1,0 +1,2 @@
+(pthread_sigmask(SIG_UNBLOCK, pset, NULL))
+        abort()

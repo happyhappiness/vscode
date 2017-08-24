@@ -1,0 +1,1 @@
+bs = rar->unp_buffer_size - rar->unp_offset

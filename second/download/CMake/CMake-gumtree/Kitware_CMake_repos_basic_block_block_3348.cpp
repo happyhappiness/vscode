@@ -1,0 +1,3 @@
+{
+         bsPutBit ( bsWr, b );
+      }

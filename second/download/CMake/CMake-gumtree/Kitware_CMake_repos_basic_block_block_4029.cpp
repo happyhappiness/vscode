@@ -1,0 +1,1 @@
+iter->current_element = iter->current_element->next

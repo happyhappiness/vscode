@@ -1,9 +1,14 @@
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::DisplayFinalEntries()
 {
-  // Create a fake output that forces the rule to run.
-  char* output = new char[(strlen(this->Makefile->GetStartOutputDirectory()) +
-                           target.GetName().size() + 30)];
-  sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
-          target.GetName().c_str(), count);
-  std::string comment = this->ConstructComment(origCommand, "<hack>");
-
-  // Add the rule with the given dependencies and commands.
+  fprintf(stderr, "target [%s] links to:\n", this->Target->GetName().c_str());
+  for(std::vector<LinkEntry>::const_iterator lei =
+        this->FinalLinkEntries.begin();
+      lei != this->FinalLinkEntries.end(); ++lei)
+    {
+    if(lei->Target)
+      {
+      fprintf(stderr, "  target [%s]\n", lei->Target->GetName().c_str());
+      }
+    else
+      {

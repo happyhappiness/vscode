@@ -1,0 +1,1 @@
+revents |= UV__POLLRDHUP

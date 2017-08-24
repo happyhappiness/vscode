@@ -1,0 +1,1 @@
+sc->cd = iconv_open(tc, "SJIS")

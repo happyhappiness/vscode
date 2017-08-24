@@ -1,0 +1,1 @@
+archive_mstring_copy_wcs(&(match->pattern), name)

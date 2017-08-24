@@ -1,0 +1,4 @@
+{
+      fileName = fullName;
+      return true;
+    }

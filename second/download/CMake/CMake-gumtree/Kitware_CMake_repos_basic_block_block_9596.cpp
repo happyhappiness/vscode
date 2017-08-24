@@ -1,0 +1,1 @@
+size = fgetxattr(fd, name, NULL, 0)

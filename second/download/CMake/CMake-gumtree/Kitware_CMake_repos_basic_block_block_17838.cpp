@@ -1,0 +1,1 @@
+return XXH32_update_endian(state_in, input, len, XXH_littleEndian);

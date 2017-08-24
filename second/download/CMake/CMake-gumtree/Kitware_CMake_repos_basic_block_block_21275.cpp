@@ -1,0 +1,4 @@
+{
+      closesocket(sock);
+      return err;
+    }

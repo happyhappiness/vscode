@@ -1,48 +1,62 @@
-@@ -451,24 +451,25 @@ void cmCursesMainForm::PrintKeys(int process /* = 0 */)
-     }
+@@ -6225,7 +6225,7 @@ isoent_gen_joliet_identifier(struct archive_write *a, struct isoent *isoent,
+ 	unsigned char *p;
+ 	size_t l;
+ 	int r;
+-	int ffmax, parent_len;
++	size_t ffmax, parent_len;
+ 	static const struct archive_rb_tree_ops rb_ops = {
+ 		isoent_cmp_node_joliet, isoent_cmp_key_joliet
+ 	};
+@@ -6239,7 +6239,7 @@ isoent_gen_joliet_identifier(struct archive_write *a, struct isoent *isoent,
+ 	else
+ 		ffmax = 128;
  
-   curses_move(y-4,0);
-+  char fmt_s[] = "%s";
-   char fmt[512] = "Press [enter] to edit option";
-   if ( process )
-     {
-     strcpy(fmt, "                           ");
-     }
--  printw(fmt);
-+  printw(fmt_s, fmt);
-   curses_move(y-3,0);
--  printw(firstLine);
-+  printw(fmt_s, firstLine);
-   curses_move(y-2,0);
--  printw(secondLine);
-+  printw(fmt_s, secondLine);
-   curses_move(y-1,0);
--  printw(thirdLine);
-+  printw(fmt_s, thirdLine);
+-	r = idr_start(a, idr, isoent->children.cnt, ffmax, 6, 2, &rb_ops);
++	r = idr_start(a, idr, isoent->children.cnt, (int)ffmax, 6, 2, &rb_ops);
+ 	if (r < 0)
+ 		return (r);
  
-   if (cw)
-     {
-     sprintf(firstLine, "Page %d of %d", cw->GetPage(), this->NumberOfPages);
-     curses_move(0,65-static_cast<unsigned int>(strlen(firstLine))-1);
--    printw(firstLine);
-+    printw(fmt_s, firstLine);
-     }
- //    }
+@@ -6252,7 +6252,7 @@ isoent_gen_joliet_identifier(struct archive_write *a, struct isoent *isoent,
+ 		int ext_off, noff, weight;
+ 		size_t lt;
  
-@@ -612,13 +613,13 @@ void cmCursesMainForm::UpdateStatusBar(const char* message)
-   version[width] = '\0';
+-		if ((int)(l = np->file->basename_utf16.length) > ffmax)
++		if ((l = np->file->basename_utf16.length) > ffmax)
+ 			l = ffmax;
  
-   // Now print both lines
-+  char fmt_s[] = "%s";
-   curses_move(y-5,0);
-   attron(A_STANDOUT);
--  char format[] = "%s";
--  printw(format, bar);
-+  printw(fmt_s, bar);
-   attroff(A_STANDOUT);
-   curses_move(y-4,0);
--  printw(version);
-+  printw(fmt_s, version);
-   pos_form_cursor(this->Form);
- }
+ 		p = malloc((l+1)*2);
+@@ -6285,7 +6285,7 @@ isoent_gen_joliet_identifier(struct archive_write *a, struct isoent *isoent,
+ 		/*
+ 		 * Get a length of MBS of a full-pathname.
+ 		 */
+-		if ((int)np->file->basename_utf16.length > ffmax) {
++		if (np->file->basename_utf16.length > ffmax) {
+ 			if (archive_strncpy_l(&iso9660->mbs,
+ 			    (const char *)np->identifier, l,
+ 				iso9660->sconv_from_utf16be) != 0 &&
+@@ -6302,7 +6302,9 @@ isoent_gen_joliet_identifier(struct archive_write *a, struct isoent *isoent,
  
+ 		/* If a length of full-pathname is longer than 240 bytes,
+ 		 * it violates Joliet extensions regulation. */
+-		if (parent_len + np->mb_len > 240) {
++		if (parent_len > 240
++		    || np->mb_len > 240
++		    || parent_len + np->mb_len > 240) {
+ 			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+ 			    "The regulation of Joliet extensions;"
+ 			    " A length of a full-pathname of `%s' is "
+@@ -6314,11 +6316,11 @@ isoent_gen_joliet_identifier(struct archive_write *a, struct isoent *isoent,
+ 
+ 		/* Make an offset of the number which is used to be set
+ 		 * hexadecimal number to avoid duplicate identifier. */
+-		if ((int)l == ffmax)
++		if (l == ffmax)
+ 			noff = ext_off - 6;
+-		else if ((int)l == ffmax-2)
++		else if (l == ffmax-2)
+ 			noff = ext_off - 4;
+-		else if ((int)l == ffmax-4)
++		else if (l == ffmax-4)
+ 			noff = ext_off - 2;
+ 		else
+ 			noff = ext_off;

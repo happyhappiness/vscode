@@ -1,0 +1,1 @@
+(s->len[t][i] > maxLen) maxLen = s->len[t][i]

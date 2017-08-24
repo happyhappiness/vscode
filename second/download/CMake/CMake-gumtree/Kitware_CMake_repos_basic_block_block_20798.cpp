@@ -1,0 +1,1 @@
+handle->flags |= UV_HANDLE_BLOCKING_WRITES

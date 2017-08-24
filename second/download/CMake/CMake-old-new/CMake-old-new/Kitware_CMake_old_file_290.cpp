@@ -1,1008 +1,598 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
+ *
+ * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
+ *
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at http://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ ***************************************************************************/
 
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
+#include "curl_setup.h"
 
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-#include "cmComputeLinkDepends.h"
+#if !defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_CRYPTO_AUTH)
 
-#include "cmComputeComponentGraph.h"
-#include "cmGlobalGenerator.h"
-#include "cmLocalGenerator.h"
-#include "cmMakefile.h"
-#include "cmTarget.h"
-#include "cmake.h"
+#include "urldata.h"
+#include "rawstr.h"
+#include "curl_base64.h"
+#include "curl_md5.h"
+#include "http_digest.h"
+#include "strtok.h"
+#include "curl_memory.h"
+#include "vtls/vtls.h" /* for Curl_rand() */
+#include "non-ascii.h" /* included for Curl_convert_... prototypes */
+#include "warnless.h"
 
-#include <cmsys/stl/algorithm>
+#define _MPRINTF_REPLACE /* use our functions only */
+#include <curl/mprintf.h>
 
-#include <assert.h>
+/* The last #include file should be: */
+#include "memdebug.h"
+
+#define MAX_VALUE_LENGTH 256
+#define MAX_CONTENT_LENGTH 1024
+
+static void digest_cleanup_one(struct digestdata *dig);
 
 /*
+ * Return 0 on success and then the buffers are filled in fine.
+ *
+ * Non-zero means failure to parse.
+ */
+static int get_pair(const char *str, char *value, char *content,
+                    const char **endptr)
+{
+  int c;
+  bool starts_with_quote = FALSE;
+  bool escape = FALSE;
 
-This file computes an ordered list of link items to use when linking a
-single target in one configuration.  Each link item is identified by
-the string naming it.  A graph of dependencies is created in which
-each node corresponds to one item and directed edges lead from nodes to
-those which must *follow* them on the link line.  For example, the
-graph
+  for(c=MAX_VALUE_LENGTH-1; (*str && (*str != '=') && c--); )
+    *value++ = *str++;
+  *value=0;
 
-  A -> B -> C
+  if('=' != *str++)
+    /* eek, no match */
+    return 1;
 
-will lead to the link line order
+  if('\"' == *str) {
+    /* this starts with a quote so it must end with one as well! */
+    str++;
+    starts_with_quote = TRUE;
+  }
 
-  A B C
+  for(c=MAX_CONTENT_LENGTH-1; *str && c--; str++) {
+    switch(*str) {
+    case '\\':
+      if(!escape) {
+        /* possibly the start of an escaped quote */
+        escape = TRUE;
+        *content++ = '\\'; /* even though this is an escape character, we still
+                              store it as-is in the target buffer */
+        continue;
+      }
+      break;
+    case ',':
+      if(!starts_with_quote) {
+        /* this signals the end of the content if we didn't get a starting
+           quote and then we do "sloppy" parsing */
+        c=0; /* the end */
+        continue;
+      }
+      break;
+    case '\r':
+    case '\n':
+      /* end of string */
+      c=0;
+      continue;
+    case '\"':
+      if(!escape && starts_with_quote) {
+        /* end of string */
+        c=0;
+        continue;
+      }
+      break;
+    }
+    escape = FALSE;
+    *content++ = *str;
+  }
+  *content=0;
 
-The set of items placed in the graph is formed with a breadth-first
-search of the link dependencies starting from the main target.
+  *endptr = str;
 
-There are two types of items: those with known direct dependencies and
-those without known dependencies.  We will call the two types "known
-items" and "unknown items", respectively.  Known items are those whose
-names correspond to targets (built or imported) and those for which an
-old-style <item>_LIB_DEPENDS variable is defined.  All other items are
-unknown and we must infer dependencies for them.  For items that look
-like flags (beginning with '-') we trivially infer no dependencies,
-and do not include them in the dependencies of other items.
+  return 0; /* all is fine! */
+}
 
-Known items have dependency lists ordered based on how the user
-specified them.  We can use this order to infer potential dependencies
-of unknown items.  For example, if link items A and B are unknown and
-items X and Y are known, then we might have the following dependency
-lists:
+/* Test example headers:
 
-  X: Y A B
-  Y: A B
-
-The explicitly known dependencies form graph edges
-
-  X -> Y  ,  X -> A  ,  X -> B  ,  Y -> A  ,  Y -> B
-
-We can also infer the edge
-
-  A -> B
-
-because *every* time A appears B is seen on its right.  We do not know
-whether A really needs symbols from B to link, but it *might* so we
-must preserve their order.  This is the case also for the following
-explicit lists:
-
-  X: A B Y
-  Y: A B
-
-Here, A is followed by the set {B,Y} in one list, and {B} in the other
-list.  The intersection of these sets is {B}, so we can infer that A
-depends on at most B.  Meanwhile B is followed by the set {Y} in one
-list and {} in the other.  The intersection is {} so we can infer that
-B has no dependencies.
-
-Let's make a more complex example by adding unknown item C and
-considering these dependency lists:
-
-  X: A B Y C
-  Y: A C B
-
-The explicit edges are
-
-  X -> Y  ,  X -> A  ,  X -> B  ,  X -> C  ,  Y -> A  ,  Y -> B  ,  Y -> C
-
-For the unknown items, we infer dependencies by looking at the
-"follow" sets:
-
-  A: intersect( {B,Y,C} , {C,B} ) = {B,C} ; infer edges  A -> B  ,  A -> C
-  B: intersect( {Y,C}   , {}    ) = {}    ; infer no edges
-  C: intersect( {}      , {B}   ) = {}    ; infer no edges
-
-Note that targets are never inferred as dependees because outside
-libraries should not depend on them.
-
-------------------------------------------------------------------------------
-
-The initial exploration of dependencies using a BFS associates an
-integer index with each link item.  When the graph is built outgoing
-edges are sorted by this index.
-
-After the initial exploration of the link interface tree, any
-transitive (dependent) shared libraries that were encountered and not
-included in the interface are processed in their own BFS.  This BFS
-follows only the dependent library lists and not the link interfaces.
-They are added to the link items with a mark indicating that the are
-transitive dependencies.  Then cmComputeLinkInformation deals with
-them on a per-platform basis.
-
-The complete graph formed from all known and inferred dependencies may
-not be acyclic, so an acyclic version must be created.
-The original graph is converted to a directed acyclic graph in which
-each node corresponds to a strongly connected component of the
-original graph.  For example, the dependency graph
-
-  X -> A -> B -> C -> A -> Y
-
-contains strongly connected components {X}, {A,B,C}, and {Y}.  The
-implied directed acyclic graph (DAG) is
-
-  {X} -> {A,B,C} -> {Y}
-
-We then compute a topological order for the DAG nodes to serve as a
-reference for satisfying dependencies efficiently.  We perform the DFS
-in reverse order and assign topological order indices counting down so
-that the result is as close to the original BFS order as possible
-without violating dependencies.
-
-------------------------------------------------------------------------------
-
-The final link entry order is constructed as follows.  We first walk
-through and emit the *original* link line as specified by the user.
-As each item is emitted, a set of pending nodes in the component DAG
-is maintained.  When a pending component has been completely seen, it
-is removed from the pending set and its dependencies (following edges
-of the DAG) are added.  A trivial component (those with one item) is
-complete as soon as its item is seen.  A non-trivial component (one
-with more than one item; assumed to be static libraries) is complete
-when *all* its entries have been seen *twice* (all entries seen once,
-then all entries seen again, not just each entry twice).  A pending
-component tracks which items have been seen and a count of how many
-times the component needs to be seen (once for trivial components,
-twice for non-trivial).  If at any time another component finishes and
-re-adds an already pending component, the pending component is reset
-so that it needs to be seen in its entirety again.  This ensures that
-all dependencies of a component are satisfied no matter where it
-appears.
-
-After the original link line has been completed, we append to it the
-remaining pending components and their dependencies.  This is done by
-repeatedly emitting the first item from the first pending component
-and following the same update rules as when traversing the original
-link line.  Since the pending components are kept in topological order
-they are emitted with minimal repeats (we do not want to emit a
-component just to have it added again when another component is
-completed later).  This process continues until no pending components
-remain.  We know it will terminate because the component graph is
-guaranteed to be acyclic.
-
-The final list of items produced by this procedure consists of the
-original user link line followed by minimal additional items needed to
-satisfy dependencies.
+WWW-Authenticate: Digest realm="testrealm", nonce="1053604598"
+Proxy-Authenticate: Digest realm="testrealm", nonce="1053604598"
 
 */
 
-//----------------------------------------------------------------------------
-cmComputeLinkDepends
-::cmComputeLinkDepends(cmTarget const* target, const char* config,
-                       cmTarget const* head)
+CURLdigest Curl_input_digest(struct connectdata *conn,
+                             bool proxy,
+                             const char *header) /* rest of the *-authenticate:
+                                                    header */
 {
-  // Store context information.
-  this->Target = target;
-  this->HeadTarget = head;
-  this->Makefile = this->Target->GetMakefile();
-  this->LocalGenerator = this->Makefile->GetLocalGenerator();
-  this->GlobalGenerator = this->LocalGenerator->GetGlobalGenerator();
-  this->CMakeInstance = this->GlobalGenerator->GetCMakeInstance();
+  char *token = NULL;
+  char *tmp = NULL;
+  bool foundAuth = FALSE;
+  bool foundAuthInt = FALSE;
+  struct SessionHandle *data=conn->data;
+  bool before = FALSE; /* got a nonce before */
+  struct digestdata *d;
 
-  // The configuration being linked.
-  this->Config = (config && *config)? config : 0;
-  this->LinkType = this->Target->ComputeLinkType(this->Config);
+  if(proxy) {
+    d = &data->state.proxydigest;
+  }
+  else {
+    d = &data->state.digest;
+  }
 
-  // Enable debug mode if requested.
-  this->DebugMode = this->Makefile->IsOn("CMAKE_LINK_DEPENDS_DEBUG_MODE");
+  if(checkprefix("Digest", header)) {
+    header += strlen("Digest");
 
-  // Assume no compatibility until set.
-  this->OldLinkDirMode = false;
+    /* If we already have received a nonce, keep that in mind */
+    if(d->nonce)
+      before = TRUE;
 
-  // No computation has been done.
-  this->CCG = 0;
-}
+    /* clear off any former leftovers and init to defaults */
+    digest_cleanup_one(d);
 
-//----------------------------------------------------------------------------
-cmComputeLinkDepends::~cmComputeLinkDepends()
-{
-  for(std::vector<DependSetList*>::iterator
-        i = this->InferredDependSets.begin();
-      i != this->InferredDependSets.end(); ++i)
-    {
-    delete *i;
-    }
-  delete this->CCG;
-}
+    for(;;) {
+      char value[MAX_VALUE_LENGTH];
+      char content[MAX_CONTENT_LENGTH];
 
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::SetOldLinkDirMode(bool b)
-{
-  this->OldLinkDirMode = b;
-}
+      while(*header && ISSPACE(*header))
+        header++;
 
-//----------------------------------------------------------------------------
-std::vector<cmComputeLinkDepends::LinkEntry> const&
-cmComputeLinkDepends::Compute()
-{
-  // Follow the link dependencies of the target to be linked.
-  this->AddDirectLinkEntries();
-
-  // Complete the breadth-first search of dependencies.
-  while(!this->BFSQueue.empty())
-    {
-    // Get the next entry.
-    BFSEntry qe = this->BFSQueue.front();
-    this->BFSQueue.pop();
-
-    // Follow the entry's dependencies.
-    this->FollowLinkEntry(qe);
-    }
-
-  // Complete the search of shared library dependencies.
-  while(!this->SharedDepQueue.empty())
-    {
-    // Handle the next entry.
-    this->HandleSharedDependency(this->SharedDepQueue.front());
-    this->SharedDepQueue.pop();
-    }
-
-  // Infer dependencies of targets for which they were not known.
-  this->InferDependencies();
-
-  // Cleanup the constraint graph.
-  this->CleanConstraintGraph();
-
-  // Display the constraint graph.
-  if(this->DebugMode)
-    {
-    fprintf(stderr,
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName(), this->Config?this->Config:"noconfig");
-    this->DisplayConstraintGraph();
-    }
-
-  // Compute the final ordering.
-  this->OrderLinkEntires();
-
-  // Compute the final set of link entries.
-  for(std::vector<int>::const_iterator li = this->FinalLinkOrder.begin();
-      li != this->FinalLinkOrder.end(); ++li)
-    {
-    this->FinalLinkEntries.push_back(this->EntryList[*li]);
-    }
-
-  // Display the final set.
-  if(this->DebugMode)
-    {
-    this->DisplayFinalEntries();
-    }
-
-  return this->FinalLinkEntries;
-}
-
-//----------------------------------------------------------------------------
-std::map<cmStdString, int>::iterator
-cmComputeLinkDepends::AllocateLinkEntry(std::string const& item)
-{
-  std::map<cmStdString, int>::value_type
-    index_entry(item, static_cast<int>(this->EntryList.size()));
-  std::map<cmStdString, int>::iterator
-    lei = this->LinkEntryIndex.insert(index_entry).first;
-  this->EntryList.push_back(LinkEntry());
-  this->InferredDependSets.push_back(0);
-  this->EntryConstraintGraph.push_back(EdgeList());
-  return lei;
-}
-
-//----------------------------------------------------------------------------
-int cmComputeLinkDepends::AddLinkEntry(int depender_index,
-                                       std::string const& item)
-{
-  // Check if the item entry has already been added.
-  std::map<cmStdString, int>::iterator lei = this->LinkEntryIndex.find(item);
-  if(lei != this->LinkEntryIndex.end())
-    {
-    // Yes.  We do not need to follow the item's dependencies again.
-    return lei->second;
-    }
-
-  // Allocate a spot for the item entry.
-  lei = this->AllocateLinkEntry(item);
-
-  // Initialize the item entry.
-  int index = lei->second;
-  LinkEntry& entry = this->EntryList[index];
-  entry.Item = item;
-  entry.Target = this->FindTargetToLink(depender_index, entry.Item.c_str());
-  entry.IsFlag = (!entry.Target && item[0] == '-' && item[1] != 'l' &&
-                  item.substr(0, 10) != "-framework");
-
-  // If the item has dependencies queue it to follow them.
-  if(entry.Target)
-    {
-    // Target dependencies are always known.  Follow them.
-    BFSEntry qe = {index, 0};
-    this->BFSQueue.push(qe);
-    }
-  else
-    {
-    // Look for an old-style <item>_LIB_DEPENDS variable.
-    std::string var = entry.Item;
-    var += "_LIB_DEPENDS";
-    if(const char* val = this->Makefile->GetDefinition(var.c_str()))
-      {
-      // The item dependencies are known.  Follow them.
-      BFSEntry qe = {index, val};
-      this->BFSQueue.push(qe);
-      }
-    else if(!entry.IsFlag)
-      {
-      // The item dependencies are not known.  We need to infer them.
-      this->InferredDependSets[index] = new DependSetList;
-      }
-    }
-
-  return index;
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::FollowLinkEntry(BFSEntry const& qe)
-{
-  // Get this entry representation.
-  int depender_index = qe.Index;
-  LinkEntry const& entry = this->EntryList[depender_index];
-
-  // Follow the item's dependencies.
-  if(entry.Target)
-    {
-    // Follow the target dependencies.
-    if(cmTarget::LinkInterface const* iface =
-       entry.Target->GetLinkInterface(this->Config, this->HeadTarget))
-      {
-      const bool isIface =
-                      entry.Target->GetType() == cmTarget::INTERFACE_LIBRARY;
-      // This target provides its own link interface information.
-      this->AddLinkEntries(depender_index, iface->Libraries);
-
-      if (isIface)
-        {
-        return;
+      /* extract a value=content pair */
+      if(!get_pair(header, value, content, &header)) {
+        if(Curl_raw_equal(value, "nonce")) {
+          d->nonce = strdup(content);
+          if(!d->nonce)
+            return CURLDIGEST_NOMEM;
         }
-
-      // Handle dependent shared libraries.
-      this->FollowSharedDeps(depender_index, iface);
-
-      // Support for CMP0003.
-      for(std::vector<std::string>::const_iterator
-            oi = iface->WrongConfigLibraries.begin();
-          oi != iface->WrongConfigLibraries.end(); ++oi)
-        {
-        this->CheckWrongConfigItem(depender_index, *oi);
-        }
-      }
-    }
-  else
-    {
-    // Follow the old-style dependency list.
-    this->AddVarLinkEntries(depender_index, qe.LibDepends);
-    }
-}
-
-//----------------------------------------------------------------------------
-void
-cmComputeLinkDepends
-::FollowSharedDeps(int depender_index, cmTarget::LinkInterface const* iface,
-                   bool follow_interface)
-{
-  // Follow dependencies if we have not followed them already.
-  if(this->SharedDepFollowed.insert(depender_index).second)
-    {
-    if(follow_interface)
-      {
-      this->QueueSharedDependencies(depender_index, iface->Libraries);
-      }
-    this->QueueSharedDependencies(depender_index, iface->SharedDeps);
-    }
-}
-
-//----------------------------------------------------------------------------
-void
-cmComputeLinkDepends
-::QueueSharedDependencies(int depender_index,
-                          std::vector<std::string> const& deps)
-{
-  for(std::vector<std::string>::const_iterator li = deps.begin();
-      li != deps.end(); ++li)
-    {
-    SharedDepEntry qe;
-    qe.Item = *li;
-    qe.DependerIndex = depender_index;
-    this->SharedDepQueue.push(qe);
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::HandleSharedDependency(SharedDepEntry const& dep)
-{
-  // Check if the target already has an entry.
-  std::map<cmStdString, int>::iterator lei =
-    this->LinkEntryIndex.find(dep.Item);
-  if(lei == this->LinkEntryIndex.end())
-    {
-    // Allocate a spot for the item entry.
-    lei = this->AllocateLinkEntry(dep.Item);
-
-    // Initialize the item entry.
-    LinkEntry& entry = this->EntryList[lei->second];
-    entry.Item = dep.Item;
-    entry.Target = this->FindTargetToLink(dep.DependerIndex,
-                                          dep.Item.c_str());
-
-    // This item was added specifically because it is a dependent
-    // shared library.  It may get special treatment
-    // in cmComputeLinkInformation.
-    entry.IsSharedDep = true;
-    }
-
-  // Get the link entry for this target.
-  int index = lei->second;
-  LinkEntry& entry = this->EntryList[index];
-
-  // This shared library dependency must follow the item that listed
-  // it.
-  this->EntryConstraintGraph[dep.DependerIndex].push_back(index);
-
-  // Target items may have their own dependencies.
-  if(entry.Target)
-    {
-    if(cmTarget::LinkInterface const* iface =
-       entry.Target->GetLinkInterface(this->Config, this->HeadTarget))
-      {
-      // Follow public and private dependencies transitively.
-      this->FollowSharedDeps(index, iface, true);
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::AddVarLinkEntries(int depender_index,
-                                             const char* value)
-{
-  // This is called to add the dependencies named by
-  // <item>_LIB_DEPENDS.  The variable contains a semicolon-separated
-  // list.  The list contains link-type;item pairs and just items.
-  std::vector<std::string> deplist;
-  cmSystemTools::ExpandListArgument(value, deplist);
-
-  // Look for entries meant for this configuration.
-  std::vector<std::string> actual_libs;
-  cmTarget::LinkLibraryType llt = cmTarget::GENERAL;
-  bool haveLLT = false;
-  for(std::vector<std::string>::const_iterator di = deplist.begin();
-      di != deplist.end(); ++di)
-    {
-    if(*di == "debug")
-      {
-      llt = cmTarget::DEBUG;
-      haveLLT = true;
-      }
-    else if(*di == "optimized")
-      {
-      llt = cmTarget::OPTIMIZED;
-      haveLLT = true;
-      }
-    else if(*di == "general")
-      {
-      llt = cmTarget::GENERAL;
-      haveLLT = true;
-      }
-    else if(!di->empty())
-      {
-      // If no explicit link type was given prior to this entry then
-      // check if the entry has its own link type variable.  This is
-      // needed for compatibility with dependency files generated by
-      // the export_library_dependencies command from CMake 2.4 and
-      // lower.
-      if(!haveLLT)
-        {
-        std::string var = *di;
-        var += "_LINK_TYPE";
-        if(const char* val = this->Makefile->GetDefinition(var.c_str()))
-          {
-          if(strcmp(val, "debug") == 0)
-            {
-            llt = cmTarget::DEBUG;
-            }
-          else if(strcmp(val, "optimized") == 0)
-            {
-            llt = cmTarget::OPTIMIZED;
-            }
+        else if(Curl_raw_equal(value, "stale")) {
+          if(Curl_raw_equal(content, "true")) {
+            d->stale = TRUE;
+            d->nc = 1; /* we make a new nonce now */
           }
         }
-
-      // If the library is meant for this link type then use it.
-      if(llt == cmTarget::GENERAL || llt == this->LinkType)
-        {
-        actual_libs.push_back(*di);
+        else if(Curl_raw_equal(value, "realm")) {
+          d->realm = strdup(content);
+          if(!d->realm)
+            return CURLDIGEST_NOMEM;
         }
-      else if(this->OldLinkDirMode)
-        {
-        this->CheckWrongConfigItem(depender_index, *di);
+        else if(Curl_raw_equal(value, "opaque")) {
+          d->opaque = strdup(content);
+          if(!d->opaque)
+            return CURLDIGEST_NOMEM;
         }
-
-      // Reset the link type until another explicit type is given.
-      llt = cmTarget::GENERAL;
-      haveLLT = false;
-      }
-    }
-
-  // Add the entries from this list.
-  this->AddLinkEntries(depender_index, actual_libs);
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::AddDirectLinkEntries()
-{
-  // Add direct link dependencies in this configuration.
-  cmTarget::LinkImplementation const* impl =
-    this->Target->GetLinkImplementation(this->Config, this->HeadTarget);
-  this->AddLinkEntries(-1, impl->Libraries);
-  for(std::vector<std::string>::const_iterator
-        wi = impl->WrongConfigLibraries.begin();
-      wi != impl->WrongConfigLibraries.end(); ++wi)
-    {
-    this->CheckWrongConfigItem(-1, *wi);
-    }
-}
-
-//----------------------------------------------------------------------------
-void
-cmComputeLinkDepends::AddLinkEntries(int depender_index,
-                                     std::vector<std::string> const& libs)
-{
-  // Track inferred dependency sets implied by this list.
-  std::map<int, DependSet> dependSets;
-
-  // Loop over the libraries linked directly by the depender.
-  for(std::vector<std::string>::const_iterator li = libs.begin();
-      li != libs.end(); ++li)
-    {
-    // Skip entries that will resolve to the target getting linked or
-    // are empty.
-    std::string item = this->Target->CheckCMP0004(*li);
-    if(item == this->Target->GetName() || item.empty())
-      {
-      continue;
-      }
-
-    // Add a link entry for this item.
-    int dependee_index = this->AddLinkEntry(depender_index, item);
-
-    // The dependee must come after the depender.
-    if(depender_index >= 0)
-      {
-      this->EntryConstraintGraph[depender_index].push_back(dependee_index);
-      }
-    else
-      {
-      // This is a direct dependency of the target being linked.
-      this->OriginalEntries.push_back(dependee_index);
-      }
-
-    // Update the inferred dependencies for earlier items.
-    for(std::map<int, DependSet>::iterator dsi = dependSets.begin();
-        dsi != dependSets.end(); ++dsi)
-      {
-      // Add this item to the inferred dependencies of other items.
-      // Target items are never inferred dependees because unknown
-      // items are outside libraries that should not be depending on
-      // targets.
-      if(!this->EntryList[dependee_index].Target &&
-         !this->EntryList[dependee_index].IsFlag &&
-         dependee_index != dsi->first)
-        {
-        dsi->second.insert(dependee_index);
+        else if(Curl_raw_equal(value, "qop")) {
+          char *tok_buf;
+          /* tokenize the list and choose auth if possible, use a temporary
+             clone of the buffer since strtok_r() ruins it */
+          tmp = strdup(content);
+          if(!tmp)
+            return CURLDIGEST_NOMEM;
+          token = strtok_r(tmp, ",", &tok_buf);
+          while(token != NULL) {
+            if(Curl_raw_equal(token, "auth")) {
+              foundAuth = TRUE;
+            }
+            else if(Curl_raw_equal(token, "auth-int")) {
+              foundAuthInt = TRUE;
+            }
+            token = strtok_r(NULL, ",", &tok_buf);
+          }
+          free(tmp);
+          /*select only auth o auth-int. Otherwise, ignore*/
+          if(foundAuth) {
+            d->qop = strdup("auth");
+            if(!d->qop)
+              return CURLDIGEST_NOMEM;
+          }
+          else if(foundAuthInt) {
+            d->qop = strdup("auth-int");
+            if(!d->qop)
+              return CURLDIGEST_NOMEM;
+          }
+        }
+        else if(Curl_raw_equal(value, "algorithm")) {
+          d->algorithm = strdup(content);
+          if(!d->algorithm)
+            return CURLDIGEST_NOMEM;
+          if(Curl_raw_equal(content, "MD5-sess"))
+            d->algo = CURLDIGESTALGO_MD5SESS;
+          else if(Curl_raw_equal(content, "MD5"))
+            d->algo = CURLDIGESTALGO_MD5;
+          else
+            return CURLDIGEST_BADALGO;
+        }
+        else {
+          /* unknown specifier, ignore it! */
         }
       }
-
-    // If this item needs to have dependencies inferred, do so.
-    if(this->InferredDependSets[dependee_index])
-      {
-      // Make sure an entry exists to hold the set for the item.
-      dependSets[dependee_index];
-      }
-    }
-
-  // Store the inferred dependency sets discovered for this list.
-  for(std::map<int, DependSet>::iterator dsi = dependSets.begin();
-      dsi != dependSets.end(); ++dsi)
-    {
-    this->InferredDependSets[dsi->first]->push_back(dsi->second);
-    }
-}
-
-//----------------------------------------------------------------------------
-cmTarget const* cmComputeLinkDepends::FindTargetToLink(int depender_index,
-                                                 const char* name)
-{
-  // Look for a target in the scope of the depender.
-  cmMakefile* mf = this->Makefile;
-  if(depender_index >= 0)
-    {
-    if(cmTarget const* depender = this->EntryList[depender_index].Target)
-      {
-      mf = depender->GetMakefile();
-      }
-    }
-  cmTarget const* tgt = mf->FindTargetToUse(name);
-
-  // Skip targets that will not really be linked.  This is probably a
-  // name conflict between an external library and an executable
-  // within the project.
-  if(tgt && tgt->GetType() == cmTarget::EXECUTABLE &&
-     !tgt->IsExecutableWithExports())
-    {
-    tgt = 0;
-    }
-
-  if(tgt && tgt->GetType() == cmTarget::OBJECT_LIBRARY)
-    {
-    cmOStringStream e;
-    e << "Target \"" << this->Target->GetName() << "\" links to "
-      "OBJECT library \"" << tgt->GetName() << "\" but this is not "
-      "allowed.  "
-      "One may link only to STATIC or SHARED libraries, or to executables "
-      "with the ENABLE_EXPORTS property set.";
-    this->CMakeInstance->IssueMessage(cmake::FATAL_ERROR, e.str(),
-                                      this->Target->GetBacktrace());
-    tgt = 0;
-    }
-
-  // Return the target found, if any.
-  return tgt;
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::InferDependencies()
-{
-  // The inferred dependency sets for each item list the possible
-  // dependencies.  The intersection of the sets for one item form its
-  // inferred dependencies.
-  for(unsigned int depender_index=0;
-      depender_index < this->InferredDependSets.size(); ++depender_index)
-    {
-    // Skip items for which dependencies do not need to be inferred or
-    // for which the inferred dependency sets are empty.
-    DependSetList* sets = this->InferredDependSets[depender_index];
-    if(!sets || sets->empty())
-      {
-      continue;
-      }
-
-    // Intersect the sets for this item.
-    DependSetList::const_iterator i = sets->begin();
-    DependSet common = *i;
-    for(++i; i != sets->end(); ++i)
-      {
-      DependSet intersection;
-      cmsys_stl::set_intersection
-        (common.begin(), common.end(), i->begin(), i->end(),
-         std::inserter(intersection, intersection.begin()));
-      common = intersection;
-      }
-
-    // Add the inferred dependencies to the graph.
-    for(DependSet::const_iterator j = common.begin(); j != common.end(); ++j)
-      {
-      int dependee_index = *j;
-      this->EntryConstraintGraph[depender_index].push_back(dependee_index);
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::CleanConstraintGraph()
-{
-  for(Graph::iterator i = this->EntryConstraintGraph.begin();
-      i != this->EntryConstraintGraph.end(); ++i)
-    {
-    // Sort the outgoing edges for each graph node so that the
-    // original order will be preserved as much as possible.
-    cmsys_stl::sort(i->begin(), i->end());
-
-    // Make the edge list unique.
-    EdgeList::iterator last = cmsys_stl::unique(i->begin(), i->end());
-    i->erase(last, i->end());
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::DisplayConstraintGraph()
-{
-  // Display the graph nodes and their edges.
-  cmOStringStream e;
-  for(unsigned int i=0; i < this->EntryConstraintGraph.size(); ++i)
-    {
-    EdgeList const& nl = this->EntryConstraintGraph[i];
-    e << "item " << i << " is [" << this->EntryList[i].Item << "]\n";
-    for(EdgeList::const_iterator j = nl.begin(); j != nl.end(); ++j)
-      {
-      e << "  item " << *j << " must follow it\n";
-      }
-    }
-  fprintf(stderr, "%s\n", e.str().c_str());
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::OrderLinkEntires()
-{
-  // Compute the DAG of strongly connected components.  The algorithm
-  // used by cmComputeComponentGraph should identify the components in
-  // the same order in which the items were originally discovered in
-  // the BFS.  This should preserve the original order when no
-  // constraints disallow it.
-  this->CCG = new cmComputeComponentGraph(this->EntryConstraintGraph);
-
-  // The component graph is guaranteed to be acyclic.  Start a DFS
-  // from every entry to compute a topological order for the
-  // components.
-  Graph const& cgraph = this->CCG->GetComponentGraph();
-  int n = static_cast<int>(cgraph.size());
-  this->ComponentVisited.resize(cgraph.size(), 0);
-  this->ComponentOrder.resize(cgraph.size(), n);
-  this->ComponentOrderId = n;
-  // Run in reverse order so the topological order will preserve the
-  // original order where there are no constraints.
-  for(int c = n-1; c >= 0; --c)
-    {
-    this->VisitComponent(c);
-    }
-
-  // Display the component graph.
-  if(this->DebugMode)
-    {
-    this->DisplayComponents();
-    }
-
-  // Start with the original link line.
-  for(std::vector<int>::const_iterator i = this->OriginalEntries.begin();
-      i != this->OriginalEntries.end(); ++i)
-    {
-    this->VisitEntry(*i);
-    }
-
-  // Now explore anything left pending.  Since the component graph is
-  // guaranteed to be acyclic we know this will terminate.
-  while(!this->PendingComponents.empty())
-    {
-    // Visit one entry from the first pending component.  The visit
-    // logic will update the pending components accordingly.  Since
-    // the pending components are kept in topological order this will
-    // not repeat one.
-    int e = *this->PendingComponents.begin()->second.Entries.begin();
-    this->VisitEntry(e);
-    }
-}
-
-//----------------------------------------------------------------------------
-void
-cmComputeLinkDepends::DisplayComponents()
-{
-  fprintf(stderr, "The strongly connected components are:\n");
-  std::vector<NodeList> const& components = this->CCG->GetComponents();
-  for(unsigned int c=0; c < components.size(); ++c)
-    {
-    fprintf(stderr, "Component (%u):\n", c);
-    NodeList const& nl = components[c];
-    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int i = *ni;
-      fprintf(stderr, "  item %d [%s]\n", i,
-              this->EntryList[i].Item.c_str());
-      }
-    EdgeList const& ol = this->CCG->GetComponentGraphEdges(c);
-    for(EdgeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
-      {
-      int i = *oi;
-      fprintf(stderr, "  followed by Component (%d)\n", i);
-      }
-    fprintf(stderr, "  topo order index %d\n",
-            this->ComponentOrder[c]);
-    }
-  fprintf(stderr, "\n");
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::VisitComponent(unsigned int c)
-{
-  // Check if the node has already been visited.
-  if(this->ComponentVisited[c])
-    {
-    return;
-    }
-
-  // We are now visiting this component so mark it.
-  this->ComponentVisited[c] = 1;
-
-  // Visit the neighbors of the component first.
-  // Run in reverse order so the topological order will preserve the
-  // original order where there are no constraints.
-  EdgeList const& nl = this->CCG->GetComponentGraphEdges(c);
-  for(EdgeList::const_reverse_iterator ni = nl.rbegin();
-      ni != nl.rend(); ++ni)
-    {
-    this->VisitComponent(*ni);
-    }
-
-  // Assign an ordering id to this component.
-  this->ComponentOrder[c] = --this->ComponentOrderId;
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::VisitEntry(int index)
-{
-  // Include this entry on the link line.
-  this->FinalLinkOrder.push_back(index);
-
-  // This entry has now been seen.  Update its component.
-  bool completed = false;
-  int component = this->CCG->GetComponentMap()[index];
-  std::map<int, PendingComponent>::iterator mi =
-    this->PendingComponents.find(this->ComponentOrder[component]);
-  if(mi != this->PendingComponents.end())
-    {
-    // The entry is in an already pending component.
-    PendingComponent& pc = mi->second;
-
-    // Remove the entry from those pending in its component.
-    pc.Entries.erase(index);
-    if(pc.Entries.empty())
-      {
-      // The complete component has been seen since it was last needed.
-      --pc.Count;
-
-      if(pc.Count == 0)
-        {
-        // The component has been completed.
-        this->PendingComponents.erase(mi);
-        completed = true;
-        }
       else
-        {
-        // The whole component needs to be seen again.
-        NodeList const& nl = this->CCG->GetComponent(component);
-        assert(nl.size() > 1);
-        pc.Entries.insert(nl.begin(), nl.end());
-        }
-      }
+        break; /* we're done here */
+
+      /* pass all additional spaces here */
+      while(*header && ISSPACE(*header))
+        header++;
+      if(',' == *header)
+        /* allow the list to be comma-separated */
+        header++;
     }
+    /* We had a nonce since before, and we got another one now without
+       'stale=true'. This means we provided bad credentials in the previous
+       request */
+    if(before && !d->stale)
+      return CURLDIGEST_BAD;
+
+    /* We got this header without a nonce, that's a bad Digest line! */
+    if(!d->nonce)
+      return CURLDIGEST_BAD;
+  }
   else
-    {
-    // The entry is not in an already pending component.
-    NodeList const& nl = this->CCG->GetComponent(component);
-    if(nl.size() > 1)
-      {
-      // This is a non-trivial component.  It is now pending.
-      PendingComponent& pc = this->MakePendingComponent(component);
+    /* else not a digest, get out */
+    return CURLDIGEST_NONE;
 
-      // The starting entry has already been seen.
-      pc.Entries.erase(index);
-      }
-    else
-      {
-      // This is a trivial component, so it is already complete.
-      completed = true;
-      }
-    }
-
-  // If the entry completed a component, the component's dependencies
-  // are now pending.
-  if(completed)
-    {
-    EdgeList const& ol = this->CCG->GetComponentGraphEdges(component);
-    for(EdgeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
-      {
-      // This entire component is now pending no matter whether it has
-      // been partially seen already.
-      this->MakePendingComponent(*oi);
-      }
-    }
+  return CURLDIGEST_FINE;
 }
 
-//----------------------------------------------------------------------------
-cmComputeLinkDepends::PendingComponent&
-cmComputeLinkDepends::MakePendingComponent(unsigned int component)
+/* convert md5 chunk to RFC2617 (section 3.1.3) -suitable ascii string*/
+static void md5_to_ascii(unsigned char *source, /* 16 bytes */
+                         unsigned char *dest) /* 33 bytes */
 {
-  // Create an entry (in topological order) for the component.
-  PendingComponent& pc =
-    this->PendingComponents[this->ComponentOrder[component]];
-  pc.Id = component;
-  NodeList const& nl = this->CCG->GetComponent(component);
+  int i;
+  for(i=0; i<16; i++)
+    snprintf((char *)&dest[i*2], 3, "%02x", source[i]);
+}
 
-  if(nl.size() == 1)
-    {
-    // Trivial components need be seen only once.
-    pc.Count = 1;
+/* Perform quoted-string escaping as described in RFC2616 and its errata */
+static char *string_quoted(const char *source)
+{
+  char *dest, *d;
+  const char *s = source;
+  size_t n = 1; /* null terminator */
+
+  /* Calculate size needed */
+  while(*s) {
+    ++n;
+    if(*s == '"' || *s == '\\') {
+      ++n;
     }
+    ++s;
+  }
+
+  dest = malloc(n);
+  if(dest) {
+    s = source;
+    d = dest;
+    while(*s) {
+      if(*s == '"' || *s == '\\') {
+        *d++ = '\\';
+      }
+      *d++ = *s++;
+    }
+    *d = 0;
+  }
+
+  return dest;
+}
+
+CURLcode Curl_output_digest(struct connectdata *conn,
+                            bool proxy,
+                            const unsigned char *request,
+                            const unsigned char *uripath)
+{
+  /* We have a Digest setup for this, use it!  Now, to get all the details for
+     this sorted out, I must urge you dear friend to read up on the RFC2617
+     section 3.2.2, */
+  size_t urilen;
+  unsigned char md5buf[16]; /* 16 bytes/128 bits */
+  unsigned char request_digest[33];
+  unsigned char *md5this;
+  unsigned char ha1[33];/* 32 digits and 1 zero byte */
+  unsigned char ha2[33];/* 32 digits and 1 zero byte */
+  char cnoncebuf[33];
+  char *cnonce = NULL;
+  size_t cnonce_sz = 0;
+  char *tmp = NULL;
+  char **allocuserpwd;
+  size_t userlen;
+  const char *userp;
+  char *userp_quoted;
+  const char *passwdp;
+  struct auth *authp;
+
+  struct SessionHandle *data = conn->data;
+  struct digestdata *d;
+  CURLcode rc;
+/* The CURL_OUTPUT_DIGEST_CONV macro below is for non-ASCII machines.
+   It converts digest text to ASCII so the MD5 will be correct for
+   what ultimately goes over the network.
+*/
+#define CURL_OUTPUT_DIGEST_CONV(a, b) \
+  rc = Curl_convert_to_network(a, (char *)b, strlen((const char*)b)); \
+  if(rc != CURLE_OK) { \
+    free(b); \
+    return rc; \
+  }
+
+  if(proxy) {
+    d = &data->state.proxydigest;
+    allocuserpwd = &conn->allocptr.proxyuserpwd;
+    userp = conn->proxyuser;
+    passwdp = conn->proxypasswd;
+    authp = &data->state.authproxy;
+  }
+  else {
+    d = &data->state.digest;
+    allocuserpwd = &conn->allocptr.userpwd;
+    userp = conn->user;
+    passwdp = conn->passwd;
+    authp = &data->state.authhost;
+  }
+
+  Curl_safefree(*allocuserpwd);
+
+  /* not set means empty */
+  if(!userp)
+    userp="";
+
+  if(!passwdp)
+    passwdp="";
+
+  if(!d->nonce) {
+    authp->done = FALSE;
+    return CURLE_OK;
+  }
+  authp->done = TRUE;
+
+  if(!d->nc)
+    d->nc = 1;
+
+  if(!d->cnonce) {
+    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+             Curl_rand(data), Curl_rand(data),
+             Curl_rand(data), Curl_rand(data));
+    rc = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
+                            &cnonce, &cnonce_sz);
+    if(rc)
+      return rc;
+    d->cnonce = cnonce;
+  }
+
+  /*
+    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
+
+    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
+
+    if the algorithm is "MD5-sess" then:
+
+    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
+         ":" unq(nonce-value) ":" unq(cnonce-value)
+  */
+
+  md5this = (unsigned char *)
+    aprintf("%s:%s:%s", userp, d->realm, passwdp);
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  Curl_safefree(md5this);
+  md5_to_ascii(md5buf, ha1);
+
+  if(d->algo == CURLDIGESTALGO_MD5SESS) {
+    /* nonce and cnonce are OUTSIDE the hash */
+    tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
+    Curl_md5it(md5buf, (unsigned char *)tmp);
+    Curl_safefree(tmp);
+    md5_to_ascii(md5buf, ha1);
+  }
+
+  /*
+    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
+
+      A2       = Method ":" digest-uri-value
+
+          If the "qop" value is "auth-int", then A2 is:
+
+      A2       = Method ":" digest-uri-value ":" H(entity-body)
+
+    (The "Method" value is the HTTP request method as specified in section
+    5.1.1 of RFC 2616)
+  */
+
+  /* So IE browsers < v7 cut off the URI part at the query part when they
+     evaluate the MD5 and some (IIS?) servers work with them so we may need to
+     do the Digest IE-style. Note that the different ways cause different MD5
+     sums to get sent.
+
+     Apache servers can be set to do the Digest IE-style automatically using
+     the BrowserMatch feature:
+     http://httpd.apache.org/docs/2.2/mod/mod_auth_digest.html#msie
+
+     Further details on Digest implementation differences:
+     http://www.fngtps.com/2006/09/http-authentication
+  */
+
+  if(authp->iestyle && ((tmp = strchr((char *)uripath, '?')) != NULL))
+    urilen = tmp - (char *)uripath;
   else
-    {
-    // This is a non-trivial strongly connected component of the
-    // original graph.  It consists of two or more libraries
-    // (archives) that mutually require objects from one another.  In
-    // the worst case we may have to repeat the list of libraries as
-    // many times as there are object files in the biggest archive.
-    // For now we just list them twice.
-    //
-    // The list of items in the component has been sorted by the order
-    // of discovery in the original BFS of dependencies.  This has the
-    // advantage that the item directly linked by a target requiring
-    // this component will come first which minimizes the number of
-    // repeats needed.
-    pc.Count = this->ComputeComponentCount(nl);
-    }
+    urilen = strlen((char *)uripath);
 
-  // Store the entries to be seen.
-  pc.Entries.insert(nl.begin(), nl.end());
+  md5this = (unsigned char *)aprintf("%s:%.*s", request, urilen, uripath);
 
-  return pc;
+  if(d->qop && Curl_raw_equal(d->qop, "auth-int")) {
+    /* We don't support auth-int for PUT or POST at the moment.
+       TODO: replace md5 of empty string with entity-body for PUT/POST */
+    unsigned char *md5this2 = (unsigned char *)
+      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
+    Curl_safefree(md5this);
+    md5this = md5this2;
+  }
+
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  Curl_safefree(md5this);
+  md5_to_ascii(md5buf, ha2);
+
+  if(d->qop) {
+    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
+                                       ha1,
+                                       d->nonce,
+                                       d->nc,
+                                       d->cnonce,
+                                       d->qop,
+                                       ha2);
+  }
+  else {
+    md5this = (unsigned char *)aprintf("%s:%s:%s",
+                                       ha1,
+                                       d->nonce,
+                                       ha2);
+  }
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  Curl_safefree(md5this);
+  md5_to_ascii(md5buf, request_digest);
+
+  /* for test case 64 (snooped from a Mozilla 1.3a request)
+
+    Authorization: Digest username="testuser", realm="testrealm", \
+    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
+
+    Digest parameters are all quoted strings.  Username which is provided by
+    the user will need double quotes and backslashes within it escaped.  For
+    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
+    are copied as is from the server, escapes and all.  cnonce is generated
+    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
+    characters.  algorithm and qop with standard values only contain web-safe
+    chracters.
+  */
+  userp_quoted = string_quoted(userp);
+  if(!userp_quoted)
+    return CURLE_OUT_OF_MEMORY;
+
+  if(d->qop) {
+    *allocuserpwd =
+      aprintf( "%sAuthorization: Digest "
+               "username=\"%s\", "
+               "realm=\"%s\", "
+               "nonce=\"%s\", "
+               "uri=\"%.*s\", "
+               "cnonce=\"%s\", "
+               "nc=%08x, "
+               "qop=%s, "
+               "response=\"%s\"",
+               proxy?"Proxy-":"",
+               userp_quoted,
+               d->realm,
+               d->nonce,
+               urilen, uripath, /* this is the PATH part of the URL */
+               d->cnonce,
+               d->nc,
+               d->qop,
+               request_digest);
+
+    if(Curl_raw_equal(d->qop, "auth"))
+      d->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0 padded
+                  which tells to the server how many times you are using the
+                  same nonce in the qop=auth mode. */
+  }
+  else {
+    *allocuserpwd =
+      aprintf( "%sAuthorization: Digest "
+               "username=\"%s\", "
+               "realm=\"%s\", "
+               "nonce=\"%s\", "
+               "uri=\"%.*s\", "
+               "response=\"%s\"",
+               proxy?"Proxy-":"",
+               userp_quoted,
+               d->realm,
+               d->nonce,
+               urilen, uripath, /* this is the PATH part of the URL */
+               request_digest);
+  }
+  Curl_safefree(userp_quoted);
+  if(!*allocuserpwd)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Add optional fields */
+  if(d->opaque) {
+    /* append opaque */
+    tmp = aprintf("%s, opaque=\"%s\"", *allocuserpwd, d->opaque);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+    free(*allocuserpwd);
+    *allocuserpwd = tmp;
+  }
+
+  if(d->algorithm) {
+    /* append algorithm */
+    tmp = aprintf("%s, algorithm=\"%s\"", *allocuserpwd, d->algorithm);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+    free(*allocuserpwd);
+    *allocuserpwd = tmp;
+  }
+
+  /* append CRLF + zero (3 bytes) to the userpwd header */
+  userlen = strlen(*allocuserpwd);
+  tmp = realloc(*allocuserpwd, userlen + 3);
+  if(!tmp)
+    return CURLE_OUT_OF_MEMORY;
+  strcpy(&tmp[userlen], "\r\n"); /* append the data */
+  *allocuserpwd = tmp;
+
+  return CURLE_OK;
 }
 
-//----------------------------------------------------------------------------
-int cmComputeLinkDepends::ComputeComponentCount(NodeList const& nl)
+static void digest_cleanup_one(struct digestdata *d)
 {
-  int count = 2;
-  for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-    {
-    if(cmTarget const* target = this->EntryList[*ni].Target)
-      {
-      if(cmTarget::LinkInterface const* iface =
-         target->GetLinkInterface(this->Config, this->HeadTarget))
-        {
-        if(iface->Multiplicity > count)
-          {
-          count = iface->Multiplicity;
-          }
-        }
-      }
-    }
-  return count;
+  Curl_safefree(d->nonce);
+  Curl_safefree(d->cnonce);
+  Curl_safefree(d->realm);
+  Curl_safefree(d->opaque);
+  Curl_safefree(d->qop);
+  Curl_safefree(d->algorithm);
+
+  d->nc = 0;
+  d->algo = CURLDIGESTALGO_MD5; /* default algorithm */
+  d->stale = FALSE; /* default means normal, not stale */
 }
 
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::DisplayFinalEntries()
+
+void Curl_digest_cleanup(struct SessionHandle *data)
 {
-  fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());
-  for(std::vector<LinkEntry>::const_iterator lei =
-        this->FinalLinkEntries.begin();
-      lei != this->FinalLinkEntries.end(); ++lei)
-    {
-    if(lei->Target)
-      {
-      fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
-      }
-    else
-      {
-      fprintf(stderr, "  item [%s]\n", lei->Item.c_str());
-      }
-    }
-  fprintf(stderr, "\n");
+  digest_cleanup_one(&data->state.digest);
+  digest_cleanup_one(&data->state.proxydigest);
 }
 
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::CheckWrongConfigItem(int depender_index,
-                                                std::string const& item)
-{
-  if(!this->OldLinkDirMode)
-    {
-    return;
-    }
-
-  // For CMake 2.4 bug-compatibility we need to consider the output
-  // directories of targets linked in another configuration as link
-  // directories.
-  if(cmTarget const* tgt
-                      = this->FindTargetToLink(depender_index, item.c_str()))
-    {
-    if(!tgt->IsImported())
-      {
-      this->OldWrongConfigItems.insert(tgt);
-      }
-    }
-}
+#endif

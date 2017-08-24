@@ -1,0 +1,1 @@
+archive_rmd160_update(&mtree->rmd160ctx, buff, n)

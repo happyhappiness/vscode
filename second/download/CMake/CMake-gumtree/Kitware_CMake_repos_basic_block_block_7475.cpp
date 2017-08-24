@@ -1,0 +1,2 @@
+(oldExternalEntityRefHandlerArg != oldParser)
+    externalEntityRefHandlerArg = oldExternalEntityRefHandlerArg

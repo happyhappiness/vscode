@@ -1,0 +1,1 @@
+attr &= ~FILE_ATTRIBUTE_READONLY

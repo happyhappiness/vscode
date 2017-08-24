@@ -1,0 +1,1 @@
+r = _archive_read_close(&a->archive)

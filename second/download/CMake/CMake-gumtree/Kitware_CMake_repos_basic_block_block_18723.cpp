@@ -1,0 +1,1 @@
+r = setsockopt(fd, SOL_SOCKET, optname, (const void*) value, len)

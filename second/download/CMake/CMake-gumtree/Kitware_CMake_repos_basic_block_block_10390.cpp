@@ -1,0 +1,1 @@
+n = avail_in - used

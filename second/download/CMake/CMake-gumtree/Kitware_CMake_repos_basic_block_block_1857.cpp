@@ -1,0 +1,3 @@
+{
+        memTotal = min(hostLimit, memTotal);
+      }

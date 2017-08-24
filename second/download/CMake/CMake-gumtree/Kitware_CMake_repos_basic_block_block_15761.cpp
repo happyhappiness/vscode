@@ -1,0 +1,1 @@
+copy_length = GNUTAR_gname_size

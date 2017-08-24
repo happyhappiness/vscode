@@ -1,0 +1,1 @@
+lzh_br_consume(br, 3)

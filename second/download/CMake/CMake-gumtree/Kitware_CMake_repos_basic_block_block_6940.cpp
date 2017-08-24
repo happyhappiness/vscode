@@ -1,0 +1,2 @@
+f(*certverifyresult == SSL_ERROR_BAD_CERT_DOMAIN)
+      result = CURLE_PEER_FAILED_VERIFICATION

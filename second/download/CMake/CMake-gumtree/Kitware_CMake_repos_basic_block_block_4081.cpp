@@ -1,0 +1,1 @@
+return CURLRESOLV_TIMEDOUT;

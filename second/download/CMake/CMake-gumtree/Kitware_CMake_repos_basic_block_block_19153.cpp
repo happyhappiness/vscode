@@ -1,0 +1,1 @@
+ci[num].speed = read_cpufreq(num) / 1000

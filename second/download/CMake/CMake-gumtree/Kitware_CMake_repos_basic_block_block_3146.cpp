@@ -1,0 +1,1 @@
+(zStream != stdin) fclose(zStream)

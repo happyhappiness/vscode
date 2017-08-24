@@ -1,51 +1,72 @@
-		zip->end_of_entry = 1;
-
-	/* Set up a more descriptive format name. */
-	archive_string_sprintf(&zip->format_name, "ZIP %d.%d (%s)",
-	    version / 10, version % 10,
-	    compression_name(zip->entry->compression));
-	a->archive.archive_format_name = zip->format_name.s;
-
-	return (ret);
-}
-
-static int
-check_authentication_code(struct archive_read *a, const void *_p)
+ *      because 16-bit word addressed copies were faster?)  Anyhow, it should
+ *      have been ripped out long ago.
+ */
+static int copy_ar(CF* cfp, off_t size)
 {
-	struct zip *zip = (struct zip *)(a->format->data);
+  static char pad = '\n';
+  off_t sz = size;
+  size_t nr, nw;
+  char buf[8 * 1024];
 
-	/* Check authentication code. */
-	if (zip->hctx_valid) {
-		const void *p;
-		uint8_t hmac[20];
-		size_t hmac_len = 20;
-		int cmp;
+  if (sz == 0)
+    return 0;
 
-		archive_hmac_sha1_final(&zip->hctx, hmac, &hmac_len);
-		if (_p == NULL) {
-			/* Read authentication code. */
-			p = __archive_read_ahead(a, AUTH_CODE_SIZE, NULL);
-			if (p == NULL) {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Truncated ZIP file data");
-				return (ARCHIVE_FATAL);
-			}
-		} else {
-			p = _p;
-		}
-		cmp = memcmp(hmac, p, AUTH_CODE_SIZE);
-		__archive_read_consume(a, AUTH_CODE_SIZE);
-		if (cmp != 0) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "ZIP bad Authentication code");
-			return (ARCHIVE_WARN);
-		}
-	}
-	return (ARCHIVE_OK);
+  FILE* from = cfp->rFile;
+  FILE* to = cfp->wFile;
+  while (sz &&
+         (nr = fread(buf, 1, sz < static_cast<off_t>(sizeof(buf))
+                       ? static_cast<size_t>(sz)
+                       : sizeof(buf),
+                     from)) > 0) {
+    sz -= nr;
+    for (size_t off = 0; off < nr; nr -= off, off += nw)
+      if ((nw = fwrite(buf + off, 1, nr, to)) < nr)
+        return -1;
+  }
+  if (sz)
+    return -2;
+
+  if (cfp->flags & WPAD && (size + ar_already_written) & 1 &&
+      fwrite(&pad, 1, 1, to) != 1)
+    return -4;
+
+  return 0;
 }
 
-/*
- * Read "uncompressed" data.  There are three cases:
- *  1) We know the size of the data.  This is always true for the
+/* put_arobj --  Write an archive member to a file. */
+static int put_arobj(CF* cfp, struct stat* sb)
+{
+  int result = 0;
+  struct ar_hdr* hdr;
+
+  /* If passed an sb structure, reading a file from disk.  Get stat(2)
+   * information, build a name and construct a header.  (Files are named
+   * by their last component in the archive.) */
+  const char* name = ar_rname(cfp->rname);
+  (void)stat(cfp->rname, sb);
+
+  /* If not truncating names and the name is too long or contains
+   * a space, use extended format 1.   */
+  size_t lname = strlen(name);
+  uid_t uid = sb->st_uid;
+  gid_t gid = sb->st_gid;
+  if (uid > USHRT_MAX) {
+    uid = USHRT_MAX;
+  }
+  if (gid > USHRT_MAX) {
+    gid = USHRT_MAX;
+  }
+  if (lname > sizeof(hdr->ar_name) || strchr(name, ' '))
+    (void)sprintf(ar_hb, HDR1, AR_EFMT1, (int)lname, (long int)sb->st_mtime,
+                  (unsigned)uid, (unsigned)gid, (unsigned)sb->st_mode,
+                  (long long)sb->st_size + lname, ARFMAG);
+  else {
+    lname = 0;
+    (void)sprintf(ar_hb, HDR2, name, (long int)sb->st_mtime, (unsigned)uid,
+                  (unsigned)gid, (unsigned)sb->st_mode, (long long)sb->st_size,
+                  ARFMAG);
+  }
+  off_t size = sb->st_size;
+
+  if (fwrite(ar_hb, 1, sizeof(HDR), cfp->wFile) != sizeof(HDR))
+    return -1;

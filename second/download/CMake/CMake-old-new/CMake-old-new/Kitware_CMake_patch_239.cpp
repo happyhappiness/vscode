@@ -1,98 +1,133 @@
-@@ -1,8 +1,8 @@
- /* GSSAPI/krb5 support for FTP - loosely based on old krb4.c
-  *
-- * Copyright (c) 1995, 1996, 1997, 1998, 1999, 2013 Kungliga Tekniska H�gskolan
-+ * Copyright (c) 1995, 1996, 1997, 1998, 1999 Kungliga Tekniska H�gskolan
-  * (Royal Institute of Technology, Stockholm, Sweden).
-- * Copyright (c) 2004 - 2012 Daniel Stenberg
-+ * Copyright (c) 2004 - 2015 Daniel Stenberg
-  * All rights reserved.
-  *
-  * Redistribution and use in source and binary forms, with or without
-@@ -34,13 +34,7 @@
+@@ -387,7 +387,7 @@ static int	archive_read_format_iso9660_read_data(struct archive_read *,
+ static int	archive_read_format_iso9660_read_data_skip(struct archive_read *);
+ static int	archive_read_format_iso9660_read_header(struct archive_read *,
+ 		    struct archive_entry *);
+-static const char *build_pathname(struct archive_string *, struct file_info *);
++static const char *build_pathname(struct archive_string *, struct file_info *, int);
+ static int	build_pathname_utf16be(unsigned char *, size_t, size_t *,
+ 		    struct file_info *);
+ #if DEBUG
+@@ -1225,6 +1225,7 @@ archive_read_format_iso9660_read_header(struct archive_read *a,
+ 			archive_set_error(&a->archive,
+ 			    ARCHIVE_ERRNO_FILE_FORMAT,
+ 			    "Pathname is too long");
++			return (ARCHIVE_FATAL);
+ 		}
  
- #include "curl_setup.h"
+ 		r = archive_entry_copy_pathname_l(entry,
+@@ -1247,9 +1248,16 @@ archive_read_format_iso9660_read_header(struct archive_read *a,
+ 			rd_r = ARCHIVE_WARN;
+ 		}
+ 	} else {
+-		archive_string_empty(&iso9660->pathname);
+-		archive_entry_set_pathname(entry,
+-		    build_pathname(&iso9660->pathname, file));
++		const char *path = build_pathname(&iso9660->pathname, file, 0);
++		if (path == NULL) {
++			archive_set_error(&a->archive,
++			    ARCHIVE_ERRNO_FILE_FORMAT,
++			    "Pathname is too long");
++			return (ARCHIVE_FATAL);
++		} else {
++			archive_string_empty(&iso9660->pathname);
++			archive_entry_set_pathname(entry, path);
++		}
+ 	}
  
--#ifndef CURL_DISABLE_FTP
--#ifdef HAVE_GSSAPI
--
--#ifdef HAVE_OLD_GSSMIT
--#define GSS_C_NT_HOSTBASED_SERVICE gss_nt_service_name
--#define NCOMPAT 1
--#endif
-+#if defined(HAVE_GSSAPI) && !defined(CURL_DISABLE_FTP)
+ 	iso9660->entry_bytes_remaining = file->size;
+@@ -1744,12 +1752,12 @@ parse_file_info(struct archive_read *a, struct file_info *parent,
+     const unsigned char *isodirrec)
+ {
+ 	struct iso9660 *iso9660;
+-	struct file_info *file;
++	struct file_info *file, *filep;
+ 	size_t name_len;
+ 	const unsigned char *rr_start, *rr_end;
+ 	const unsigned char *p;
+ 	size_t dr_len;
+-	uint64_t fsize;
++	uint64_t fsize, offset;
+ 	int32_t location;
+ 	int flags;
  
- #ifdef HAVE_NETDB_H
- #include <netdb.h>
-@@ -52,13 +46,11 @@
- #include "curl_gssapi.h"
- #include "sendf.h"
- #include "curl_sec.h"
--#include "curl_memory.h"
- #include "warnless.h"
-+#include "curl_printf.h"
+@@ -1793,6 +1801,16 @@ parse_file_info(struct archive_read *a, struct file_info *parent,
+ 		return (NULL);
+ 	}
  
--#define _MPRINTF_REPLACE /* use our functions only */
--#include <curl/mprintf.h>
--
--/* The last #include file should be: */
-+/* The last #include files should be: */
-+#include "curl_memory.h"
- #include "memdebug.h"
- 
- #define LOCAL_ADDR (&conn->local_addr)
-@@ -121,18 +113,14 @@ krb5_overhead(void *app_data, int level, int len)
++	/* Sanity check that this entry does not create a cycle. */
++	offset = iso9660->logical_block_size * (uint64_t)location;
++	for (filep = parent; filep != NULL; filep = filep->parent) {
++		if (filep->offset == offset) {
++			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
++			    "Directory structure contains loop");
++			return (NULL);
++		}
++	}
++
+ 	/* Create a new file entry and copy data from the ISO dir record. */
+ 	file = (struct file_info *)calloc(1, sizeof(*file));
+ 	if (file == NULL) {
+@@ -1801,7 +1819,7 @@ parse_file_info(struct archive_read *a, struct file_info *parent,
+ 		return (NULL);
+ 	}
+ 	file->parent = parent;
+-	file->offset = iso9660->logical_block_size * (uint64_t)location;
++	file->offset = offset;
+ 	file->size = fsize;
+ 	file->mtime = isodate7(isodirrec + DR_date_offset);
+ 	file->ctime = file->atime = file->mtime;
+@@ -3147,29 +3165,39 @@ static time_t
+ time_from_tm(struct tm *t)
+ {
+ #if HAVE_TIMEGM
+-	/* Use platform timegm() if available. */
+-	return (timegm(t));
++        /* Use platform timegm() if available. */
++        return (timegm(t));
+ #elif HAVE__MKGMTIME64
+-	return (_mkgmtime64(t));
++        return (_mkgmtime64(t));
+ #else
+-	/* Else use direct calculation using POSIX assumptions. */
+-	/* First, fix up tm_yday based on the year/month/day. */
+-	if (mktime(t) == (time_t)-1)
+-		return ((time_t)-1);
+-	/* Then we can compute timegm() from first principles. */
+-	return (t->tm_sec + t->tm_min * 60 + t->tm_hour * 3600
+-	    + t->tm_yday * 86400 + (t->tm_year - 70) * 31536000
+-	    + ((t->tm_year - 69) / 4) * 86400 -
+-	    ((t->tm_year - 1) / 100) * 86400
+-	    + ((t->tm_year + 299) / 400) * 86400);
++        /* Else use direct calculation using POSIX assumptions. */
++        /* First, fix up tm_yday based on the year/month/day. */
++        if (mktime(t) == (time_t)-1)
++                return ((time_t)-1);
++        /* Then we can compute timegm() from first principles. */
++        return (t->tm_sec
++            + t->tm_min * 60
++            + t->tm_hour * 3600
++            + t->tm_yday * 86400
++            + (t->tm_year - 70) * 31536000
++            + ((t->tm_year - 69) / 4) * 86400
++            - ((t->tm_year - 1) / 100) * 86400
++            + ((t->tm_year + 299) / 400) * 86400);
+ #endif
  }
  
- static int
--krb5_encode(void *app_data, const void *from, int length, int level, void **to,
--            struct connectdata *conn UNUSED_PARAM)
-+krb5_encode(void *app_data, const void *from, int length, int level, void **to)
+ static const char *
+-build_pathname(struct archive_string *as, struct file_info *file)
++build_pathname(struct archive_string *as, struct file_info *file, int depth)
  {
-   gss_ctx_id_t *context = app_data;
-   gss_buffer_desc dec, enc;
-   OM_uint32 maj, min;
-   int state;
-   int len;
- 
--  /* shut gcc up */
--  conn = NULL;
--
-   /* NOTE that the cast is safe, neither of the krb5, gnu gss and heimdal
-    * libraries modify the input buffer in gss_seal()
-    */
-@@ -240,6 +228,7 @@ krb5_auth(void *app_data, struct connectdata *conn)
-                                       &chan,
-                                       gssresp,
-                                       &output_buffer,
-+                                      TRUE,
-                                       NULL);
- 
-       if(gssresp) {
-@@ -257,7 +246,8 @@ krb5_auth(void *app_data, struct connectdata *conn)
-         result = Curl_base64_encode(data, (char *)output_buffer.value,
-                                     output_buffer.length, &p, &base64_sz);
-         if(result) {
--          Curl_infof(data,"base64-encoding: %s\n", curl_easy_strerror(result));
-+          Curl_infof(data, "base64-encoding: %s\n",
-+                     curl_easy_strerror(result));
-           ret = AUTH_CONTINUE;
-           break;
-         }
-@@ -289,7 +279,8 @@ krb5_auth(void *app_data, struct connectdata *conn)
-                                       (unsigned char **)&_gssresp.value,
-                                       &_gssresp.length);
-           if(result) {
--            Curl_failf(data,"base64-decoding: %s", curl_easy_strerror(result));
-+            Curl_failf(data, "base64-decoding: %s",
-+                       curl_easy_strerror(result));
-             ret = AUTH_CONTINUE;
-             break;
-           }
-@@ -338,5 +329,4 @@ struct Curl_sec_client_mech Curl_krb5_client_mech = {
-     krb5_decode
- };
- 
--#endif /* HAVE_GSSAPI */
--#endif /* CURL_DISABLE_FTP */
-+#endif /* HAVE_GSSAPI && !CURL_DISABLE_FTP */
++	// Plain ISO9660 only allows 8 dir levels; if we get
++	// to 1000, then something is very, very wrong.
++	if (depth > 1000) {
++		return NULL;
++	}
+ 	if (file->parent != NULL && archive_strlen(&file->parent->name) > 0) {
+-		build_pathname(as, file->parent);
++		if (build_pathname(as, file->parent, depth + 1) == NULL) {
++			return NULL;
++		}
+ 		archive_strcat(as, "/");
+ 	}
+ 	if (archive_strlen(&file->name) == 0)

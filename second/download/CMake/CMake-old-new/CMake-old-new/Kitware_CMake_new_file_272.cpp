@@ -1,663 +1,431 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2011 Kitware, Inc., Insight Software Consortium
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
+ *
+ * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
+ *
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at http://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ ***************************************************************************/
 
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
+#include "curl_setup.h"
 
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-#include "cmCoreTryCompile.h"
-#include "cmake.h"
-#include "cmCacheManager.h"
-#include "cmLocalGenerator.h"
-#include "cmGlobalGenerator.h"
-#include "cmExportTryCompileFileGenerator.h"
-#include <cmsys/Directory.hxx>
+#if !defined(CURL_DISABLE_HTTP) && defined(USE_NTLM) && \
+    defined(NTLM_WB_ENABLED)
 
-#include <assert.h>
+/*
+ * NTLM details:
+ *
+ * http://davenport.sourceforge.net/ntlm.html
+ * http://www.innovation.ch/java/ntlm.html
+ */
 
-int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
-{
-  this->BinaryDirectory = argv[1].c_str();
-  this->OutputFile = "";
-  // which signature were we called with ?
-  this->SrcFileSignature = true;
+#define DEBUG_ME 0
 
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  std::string targetName;
-  std::vector<std::string> cmakeFlags;
-  std::vector<std::string> compileDefs;
-  std::string outputVariable;
-  std::string copyFile;
-  std::string copyFileError;
-  std::vector<cmTarget const*> targets;
-  std::string libsToLink = " ";
-  bool useOldLinkLibs = true;
-  char targetNameBuf[64];
-  bool didOutputVariable = false;
-  bool didCopyFile = false;
-  bool didCopyFileError = false;
-  bool useSources = argv[2] == "SOURCES";
-  std::vector<std::string> sources;
-
-  enum Doing { DoingNone, DoingCMakeFlags, DoingCompileDefinitions,
-               DoingLinkLibraries, DoingOutputVariable, DoingCopyFile,
-               DoingCopyFileError, DoingSources };
-  Doing doing = useSources? DoingSources : DoingNone;
-  for(size_t i=3; i < argv.size(); ++i)
-    {
-    if(argv[i] == "CMAKE_FLAGS")
-      {
-      doing = DoingCMakeFlags;
-      // CMAKE_FLAGS is the first argument because we need an argv[0] that
-      // is not used, so it matches regular command line parsing which has
-      // the program name as arg 0
-      cmakeFlags.push_back(argv[i]);
-      }
-    else if(argv[i] == "COMPILE_DEFINITIONS")
-      {
-      doing = DoingCompileDefinitions;
-      }
-    else if(argv[i] == "LINK_LIBRARIES")
-      {
-      doing = DoingLinkLibraries;
-      useOldLinkLibs = false;
-      }
-    else if(argv[i] == "OUTPUT_VARIABLE")
-      {
-      doing = DoingOutputVariable;
-      didOutputVariable = true;
-      }
-    else if(argv[i] == "COPY_FILE")
-      {
-      doing = DoingCopyFile;
-      didCopyFile = true;
-      }
-    else if(argv[i] == "COPY_FILE_ERROR")
-      {
-      doing = DoingCopyFileError;
-      didCopyFileError = true;
-      }
-    else if(doing == DoingCMakeFlags)
-      {
-      cmakeFlags.push_back(argv[i]);
-      }
-    else if(doing == DoingCompileDefinitions)
-      {
-      compileDefs.push_back(argv[i]);
-      }
-    else if(doing == DoingLinkLibraries)
-      {
-      libsToLink += "\"" + cmSystemTools::TrimWhitespace(argv[i]) + "\" ";
-      if(cmTarget *tgt = this->Makefile->FindTargetToUse(argv[i]))
-        {
-        switch(tgt->GetType())
-          {
-          case cmTarget::SHARED_LIBRARY:
-          case cmTarget::STATIC_LIBRARY:
-          case cmTarget::INTERFACE_LIBRARY:
-          case cmTarget::UNKNOWN_LIBRARY:
-            break;
-          case cmTarget::EXECUTABLE:
-            if (tgt->IsExecutableWithExports())
-              {
-              break;
-              }
-          default:
-            this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-              "Only libraries may be used as try_compile IMPORTED "
-              "LINK_LIBRARIES.  Got " + std::string(tgt->GetName()) + " of "
-              "type " + tgt->GetTargetTypeName(tgt->GetType()) + ".");
-            return -1;
-          }
-        if (tgt->IsImported())
-          {
-          targets.push_back(tgt);
-          }
-        }
-      }
-    else if(doing == DoingOutputVariable)
-      {
-      outputVariable = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingCopyFile)
-      {
-      copyFile = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingCopyFileError)
-      {
-      copyFileError = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingSources)
-      {
-      sources.push_back(argv[i]);
-      }
-    else if(i == 3)
-      {
-      this->SrcFileSignature = false;
-      projectName = argv[i].c_str();
-      }
-    else if(i == 4 && !this->SrcFileSignature)
-      {
-      targetName = argv[i].c_str();
-      }
-    else
-      {
-      cmOStringStream m;
-      m << "try_compile given unknown argument \"" << argv[i] << "\".";
-      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, m.str());
-      }
-    }
-
-  if(didCopyFile && copyFile.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE must be followed by a file path");
-    return -1;
-    }
-
-  if(didCopyFileError && copyFileError.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE_ERROR must be followed by a variable name");
-    return -1;
-    }
-
-  if(didCopyFileError && !didCopyFile)
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE_ERROR may be used only with COPY_FILE");
-    return -1;
-    }
-
-  if(didOutputVariable && outputVariable.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "OUTPUT_VARIABLE must be followed by a variable name");
-    return -1;
-    }
-
-  if(useSources && sources.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "SOURCES must be followed by at least one source file");
-    return -1;
-    }
-
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (this->SrcFileSignature)
-    {
-    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
-    this->BinaryDirectory += "/CMakeTmp";
-    }
-  else
-    {
-    // only valid for srcfile signatures
-    if (compileDefs.size())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    if (copyFile.size())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COPY_FILE specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
-
-  // do not allow recursive try Compiles
-  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory())
-    {
-    cmOStringStream e;
-    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
-      << "  " << this->BinaryDirectory << "\n";
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-    return -1;
-    }
-
-  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (this->SrcFileSignature)
-    {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile.c_str());
-
-    // Choose sources.
-    if(!useSources)
-      {
-      sources.push_back(argv[2]);
-      }
-
-    // Detect languages to enable.
-    cmLocalGenerator* lg = this->Makefile->GetLocalGenerator();
-    cmGlobalGenerator* gg = lg->GetGlobalGenerator();
-    std::set<std::string> testLangs;
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
-      std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
-      std::string lang = gg->GetLanguageFromExtension(ext.c_str());
-      if(!lang.empty())
-        {
-        testLangs.insert(lang);
-        }
-      else
-        {
-        cmOStringStream err;
-        err << "Unknown extension \"" << ext << "\" for file\n"
-            << "  " << *si << "\n"
-            << "try_compile() works only for enabled languages.  "
-            << "Currently these are:\n ";
-        std::vector<std::string> langs;
-        gg->GetEnabledLanguages(langs);
-        for(std::vector<std::string>::iterator l = langs.begin();
-            l != langs.end(); ++l)
-          {
-          err << " " << *l;
-          }
-        err << "\nSee project() command to enable other languages.";
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
-        return -1;
-        }
-      }
-
-    // we need to create a directory and CMakeLists file etc...
-    // first create the directories
-    sourceDirectory = this->BinaryDirectory.c_str();
-
-    // now create a CMakeLists.txt file in that directory
-    FILE *fout = cmsys::SystemTools::Fopen(outFileName.c_str(),"w");
-    if (!fout)
-      {
-      cmOStringStream e;
-      e << "Failed to open\n"
-        << "  " << outFileName << "\n"
-        << cmSystemTools::GetLastSystemError();
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-      return -1;
-      }
-
-    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
-    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
-            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
-            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
-    if(def)
-      {
-      fprintf(fout, "set(CMAKE_MODULE_PATH %s)\n", def);
-      }
-
-    std::string projectLangs;
-    for(std::set<std::string>::iterator li = testLangs.begin();
-        li != testLangs.end(); ++li)
-      {
-      projectLangs += " " + *li;
-      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
-      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
-      if(const char* rulesOverridePath =
-         this->Makefile->GetDefinition(rulesOverrideLang))
-        {
-        fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideLang.c_str(), rulesOverridePath);
-        }
-      else if(const char* rulesOverridePath2 =
-              this->Makefile->GetDefinition(rulesOverrideBase))
-        {
-        fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideBase.c_str(), rulesOverridePath2);
-        }
-      }
-    fprintf(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
-    fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");
-    for(std::set<std::string>::iterator li = testLangs.begin();
-        li != testLangs.end(); ++li)
-      {
-      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
-      const char* flags = this->Makefile->GetDefinition(langFlags);
-      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-              lg->EscapeForCMake(flags?flags:"").c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
-              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
-      }
-    fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");
-    fprintf(fout, "link_directories(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (compileDefs.size())
-      {
-      fprintf(fout, "add_definitions( ");
-      for (size_t i = 0; i < compileDefs.size(); ++i)
-        {
-        fprintf(fout,"%s ",compileDefs[i].c_str());
-        }
-      fprintf(fout, ")\n");
-      }
-
-    /* Use a random file name to avoid rapid creation and deletion
-       of the same executable name (some filesystems fail on that).  */
-    sprintf(targetNameBuf, "cmTryCompileExec%u",
-            cmSystemTools::RandomSeed());
-    targetName = targetNameBuf;
-
-    if (!targets.empty())
-      {
-      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
-      cmExportTryCompileFileGenerator tcfg;
-      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
-      tcfg.SetExports(targets);
-      tcfg.SetConfig(this->Makefile->GetSafeDefinition(
-                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
-
-      if(!tcfg.GenerateImportFile())
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-                                     "could not write export file.");
-        fclose(fout);
-        return -1;
-        }
-      fprintf(fout,
-              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
-              fname.c_str());
-      }
-
-    /* for the TRY_COMPILEs we want to be able to specify the architecture.
-      So the user can set CMAKE_OSX_ARCHITECTURES to i386;ppc and then set
-      CMAKE_TRY_COMPILE_OSX_ARCHITECTURES first to i386 and then to ppc to
-      have the tests run for each specific architecture. Since
-      cmLocalGenerator doesn't allow building for "the other"
-      architecture only via CMAKE_OSX_ARCHITECTURES.
-      */
-    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition(
-                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_SYSROOT=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *cxxDef
-              = this->Makefile->GetDefinition("CMAKE_CXX_COMPILER_TARGET"))
-      {
-      std::string flag="-DCMAKE_CXX_COMPILER_TARGET=";
-      flag += cxxDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *cDef
-                = this->Makefile->GetDefinition("CMAKE_C_COMPILER_TARGET"))
-      {
-      std::string flag="-DCMAKE_C_COMPILER_TARGET=";
-      flag += cDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *tcxxDef = this->Makefile->GetDefinition(
-                                  "CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN"))
-      {
-      std::string flag="-DCMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN=";
-      flag += tcxxDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *tcDef = this->Makefile->GetDefinition(
-                                    "CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN"))
-      {
-      std::string flag="-DCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN=";
-      flag += tcDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *rootDef
-              = this->Makefile->GetDefinition("CMAKE_SYSROOT"))
-      {
-      std::string flag="-DCMAKE_SYSROOT=";
-      flag += rootDef;
-      cmakeFlags.push_back(flag);
-      }
-    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
-      {
-      fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
-      }
-
-    /* Put the executable at a known location (for COPY_FILE).  */
-    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-            this->BinaryDirectory.c_str());
-    /* Create the actual executable.  */
-    fprintf(fout, "add_executable(%s", targetName.c_str());
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
-      fprintf(fout, " \"%s\"", si->c_str());
-
-      // Add dependencies on any non-temporary sources.
-      if(si->find("CMakeTmp") == si->npos)
-        {
-        this->Makefile->AddCMakeDependFile(*si);
-        }
-      }
-    fprintf(fout, ")\n");
-    if (useOldLinkLibs)
-      {
-      fprintf(fout,
-              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
-              targetName.c_str());
-      }
-    else
-      {
-      fprintf(fout, "target_link_libraries(%s %s)\n",
-              targetName.c_str(),
-              libsToLink.c_str());
-      }
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
-    }
-
-  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
-  cmSystemTools::ResetErrorOccuredFlag();
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = this->Makefile->TryCompile(sourceDirectory,
-                                       this->BinaryDirectory,
-                                       projectName,
-                                       targetName,
-                                       this->SrcFileSignature,
-                                       &cmakeFlags,
-                                       &output);
-  if ( erroroc )
-    {
-    cmSystemTools::SetErrorOccured();
-    }
-
-  // set the result var to the return value to indicate success or failure
-  this->Makefile->AddCacheDefinition(argv[0],
-                                     (res == 0 ? "TRUE" : "FALSE"),
-                                     "Result of TRY_COMPILE",
-                                     cmCacheManager::INTERNAL);
-
-  if ( outputVariable.size() > 0 )
-    {
-    this->Makefile->AddDefinition(outputVariable, output.c_str());
-    }
-
-  if (this->SrcFileSignature)
-    {
-    std::string copyFileErrorMessage;
-    this->FindOutputFile(targetName);
-
-    if ((res==0) && (copyFile.size()))
-      {
-      if(this->OutputFile.empty() ||
-         !cmSystemTools::CopyFileAlways(this->OutputFile.c_str(),
-                                        copyFile.c_str()))
-        {
-        cmOStringStream emsg;
-        emsg << "Cannot copy output executable\n"
-             << "  '" << this->OutputFile << "'\n"
-             << "to destination specified by COPY_FILE:\n"
-             << "  '" << copyFile << "'\n";
-        if(!this->FindErrorMessage.empty())
-          {
-          emsg << this->FindErrorMessage.c_str();
-          }
-        if(copyFileError.empty())
-          {
-          this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
-          return -1;
-          }
-        else
-          {
-          copyFileErrorMessage = emsg.str();
-          }
-        }
-      }
-
-    if(!copyFileError.empty())
-      {
-      this->Makefile->AddDefinition(copyFileError,
-                                    copyFileErrorMessage.c_str());
-      }
-    }
-  return res;
-}
-
-void cmCoreTryCompile::CleanupFiles(const char* binDir)
-{
-  if ( !binDir )
-    {
-    return;
-    }
-
-  std::string bdir = binDir;
-  if(bdir.find("CMakeTmp") == std::string::npos)
-    {
-    cmSystemTools::Error(
-      "TRY_COMPILE attempt to remove -rf directory that does not contain "
-      "CMakeTmp:", binDir);
-    return;
-    }
-
-  cmsys::Directory dir;
-  dir.Load(binDir);
-  size_t fileNum;
-  std::set<std::string> deletedFiles;
-  for (fileNum = 0; fileNum <  dir.GetNumberOfFiles(); ++fileNum)
-    {
-    if (strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".") &&
-        strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".."))
-      {
-
-      if(deletedFiles.find( dir.GetFile(static_cast<unsigned long>(fileNum)))
-         == deletedFiles.end())
-        {
-        deletedFiles.insert(dir.GetFile(static_cast<unsigned long>(fileNum)));
-        std::string fullPath = binDir;
-        fullPath += "/";
-        fullPath += dir.GetFile(static_cast<unsigned long>(fileNum));
-        if(cmSystemTools::FileIsDirectory(fullPath.c_str()))
-          {
-          this->CleanupFiles(fullPath.c_str());
-          cmSystemTools::RemoveADirectory(fullPath.c_str());
-          }
-        else
-          {
-#ifdef _WIN32
-          // Sometimes anti-virus software hangs on to new files so we
-          // cannot delete them immediately.  Try a few times.
-          cmSystemTools::WindowsFileRetry retry =
-            cmSystemTools::GetWindowsFileRetry();
-          while(!cmSystemTools::RemoveFile(fullPath.c_str()) &&
-                --retry.Count && cmSystemTools::FileExists(fullPath.c_str()))
-            {
-            cmSystemTools::Delay(retry.Delay);
-            }
-          if(retry.Count == 0)
-#else
-          if(!cmSystemTools::RemoveFile(fullPath.c_str()))
+#ifdef HAVE_SYS_WAIT_H
+#include <sys/wait.h>
 #endif
-            {
-            std::string m = "Remove failed on file: " + fullPath;
-            cmSystemTools::ReportLastSystemError(m.c_str());
-            }
-          }
-        }
-      }
-    }
-}
+#ifdef HAVE_SIGNAL_H
+#include <signal.h>
+#endif
+#ifdef HAVE_PWD_H
+#include <pwd.h>
+#endif
 
-void cmCoreTryCompile::FindOutputFile(const std::string& targetName)
+#include "urldata.h"
+#include "sendf.h"
+#include "select.h"
+#include "curl_ntlm_msgs.h"
+#include "curl_ntlm_wb.h"
+#include "url.h"
+#include "strerror.h"
+#include "curl_printf.h"
+
+/* The last #include files should be: */
+#include "curl_memory.h"
+#include "memdebug.h"
+
+#if DEBUG_ME
+# define DEBUG_OUT(x) x
+#else
+# define DEBUG_OUT(x) Curl_nop_stmt
+#endif
+
+/* Portable 'sclose_nolog' used only in child process instead of 'sclose'
+   to avoid fooling the socket leak detector */
+#if defined(HAVE_CLOSESOCKET)
+#  define sclose_nolog(x)  closesocket((x))
+#elif defined(HAVE_CLOSESOCKET_CAMEL)
+#  define sclose_nolog(x)  CloseSocket((x))
+#else
+#  define sclose_nolog(x)  close((x))
+#endif
+
+void Curl_ntlm_wb_cleanup(struct connectdata *conn)
 {
-  this->FindErrorMessage = "";
-  this->OutputFile = "";
-  std::string tmpOutputFile = "/";
-  tmpOutputFile += targetName;
-  tmpOutputFile +=this->Makefile->GetSafeDefinition("CMAKE_EXECUTABLE_SUFFIX");
+  if(conn->ntlm_auth_hlpr_socket != CURL_SOCKET_BAD) {
+    sclose(conn->ntlm_auth_hlpr_socket);
+    conn->ntlm_auth_hlpr_socket = CURL_SOCKET_BAD;
+  }
 
-  // a list of directories where to search for the compilation result
-  // at first directly in the binary dir
-  std::vector<std::string> searchDirs;
-  searchDirs.push_back("");
-
-  const char* config = this->Makefile->GetDefinition(
-                                            "CMAKE_TRY_COMPILE_CONFIGURATION");
-  // if a config was specified try that first
-  if (config && config[0])
-    {
-    std::string tmp = "/";
-    tmp += config;
-    searchDirs.push_back(tmp);
-    }
-  searchDirs.push_back("/Debug");
-  searchDirs.push_back("/Development");
-
-  for(std::vector<std::string>::const_iterator it = searchDirs.begin();
-      it != searchDirs.end();
-      ++it)
-    {
-    std::string command = this->BinaryDirectory;
-    command += *it;
-    command += tmpOutputFile;
-    if(cmSystemTools::FileExists(command.c_str()))
-      {
-      tmpOutputFile = cmSystemTools::CollapseFullPath(command.c_str());
-      this->OutputFile = tmpOutputFile;
-      return;
+  if(conn->ntlm_auth_hlpr_pid) {
+    int i;
+    for(i = 0; i < 4; i++) {
+      pid_t ret = waitpid(conn->ntlm_auth_hlpr_pid, NULL, WNOHANG);
+      if(ret == conn->ntlm_auth_hlpr_pid || errno == ECHILD)
+        break;
+      switch(i) {
+      case 0:
+        kill(conn->ntlm_auth_hlpr_pid, SIGTERM);
+        break;
+      case 1:
+        /* Give the process another moment to shut down cleanly before
+           bringing down the axe */
+        Curl_wait_ms(1);
+        break;
+      case 2:
+        kill(conn->ntlm_auth_hlpr_pid, SIGKILL);
+        break;
+      case 3:
+        break;
       }
     }
+    conn->ntlm_auth_hlpr_pid = 0;
+  }
 
-  cmOStringStream emsg;
-  emsg << "Unable to find the executable at any of:\n";
-  for (unsigned int i = 0; i < searchDirs.size(); ++i)
-    {
-    emsg << "  " << this->BinaryDirectory << searchDirs[i]
-         << tmpOutputFile << "\n";
-    }
-  this->FindErrorMessage = emsg.str();
-  return;
+  free(conn->challenge_header);
+  conn->challenge_header = NULL;
+  free(conn->response_header);
+  conn->response_header = NULL;
 }
+
+static CURLcode ntlm_wb_init(struct connectdata *conn, const char *userp)
+{
+  curl_socket_t sockfds[2];
+  pid_t child_pid;
+  const char *username;
+  char *slash, *domain = NULL;
+  const char *ntlm_auth = NULL;
+  char *ntlm_auth_alloc = NULL;
+#if defined(HAVE_GETPWUID_R) && defined(HAVE_GETEUID)
+  struct passwd pw, *pw_res;
+  char pwbuf[1024];
+#endif
+  int error;
+
+  /* Return if communication with ntlm_auth already set up */
+  if(conn->ntlm_auth_hlpr_socket != CURL_SOCKET_BAD ||
+     conn->ntlm_auth_hlpr_pid)
+    return CURLE_OK;
+
+  username = userp;
+  /* The real ntlm_auth really doesn't like being invoked with an
+     empty username. It won't make inferences for itself, and expects
+     the client to do so (mostly because it's really designed for
+     servers like squid to use for auth, and client support is an
+     afterthought for it). So try hard to provide a suitable username
+     if we don't already have one. But if we can't, provide the
+     empty one anyway. Perhaps they have an implementation of the
+     ntlm_auth helper which *doesn't* need it so we might as well try */
+  if(!username || !username[0]) {
+    username = getenv("NTLMUSER");
+    if(!username || !username[0])
+      username = getenv("LOGNAME");
+    if(!username || !username[0])
+      username = getenv("USER");
+#if defined(HAVE_GETPWUID_R) && defined(HAVE_GETEUID)
+    if((!username || !username[0]) &&
+       !getpwuid_r(geteuid(), &pw, pwbuf, sizeof(pwbuf), &pw_res) &&
+       pw_res) {
+      username = pw.pw_name;
+    }
+#endif
+    if(!username || !username[0])
+      username = userp;
+  }
+  slash = strpbrk(username, "\\/");
+  if(slash) {
+    if((domain = strdup(username)) == NULL)
+      return CURLE_OUT_OF_MEMORY;
+    slash = domain + (slash - username);
+    *slash = '\0';
+    username = username + (slash - domain) + 1;
+  }
+
+  /* For testing purposes, when DEBUGBUILD is defined and environment
+     variable CURL_NTLM_WB_FILE is set a fake_ntlm is used to perform
+     NTLM challenge/response which only accepts commands and output
+     strings pre-written in test case definitions */
+#ifdef DEBUGBUILD
+  ntlm_auth_alloc = curl_getenv("CURL_NTLM_WB_FILE");
+  if(ntlm_auth_alloc)
+    ntlm_auth = ntlm_auth_alloc;
+  else
+#endif
+    ntlm_auth = NTLM_WB_FILE;
+
+  if(access(ntlm_auth, X_OK) != 0) {
+    error = ERRNO;
+    failf(conn->data, "Could not access ntlm_auth: %s errno %d: %s",
+          ntlm_auth, error, Curl_strerror(conn, error));
+    goto done;
+  }
+
+  if(socketpair(AF_UNIX, SOCK_STREAM, 0, sockfds)) {
+    error = ERRNO;
+    failf(conn->data, "Could not open socket pair. errno %d: %s",
+          error, Curl_strerror(conn, error));
+    goto done;
+  }
+
+  child_pid = fork();
+  if(child_pid == -1) {
+    error = ERRNO;
+    sclose(sockfds[0]);
+    sclose(sockfds[1]);
+    failf(conn->data, "Could not fork. errno %d: %s",
+          error, Curl_strerror(conn, error));
+    goto done;
+  }
+  else if(!child_pid) {
+    /*
+     * child process
+     */
+
+    /* Don't use sclose in the child since it fools the socket leak detector */
+    sclose_nolog(sockfds[0]);
+    if(dup2(sockfds[1], STDIN_FILENO) == -1) {
+      error = ERRNO;
+      failf(conn->data, "Could not redirect child stdin. errno %d: %s",
+            error, Curl_strerror(conn, error));
+      exit(1);
+    }
+
+    if(dup2(sockfds[1], STDOUT_FILENO) == -1) {
+      error = ERRNO;
+      failf(conn->data, "Could not redirect child stdout. errno %d: %s",
+            error, Curl_strerror(conn, error));
+      exit(1);
+    }
+
+    if(domain)
+      execl(ntlm_auth, ntlm_auth,
+            "--helper-protocol", "ntlmssp-client-1",
+            "--use-cached-creds",
+            "--username", username,
+            "--domain", domain,
+            NULL);
+    else
+      execl(ntlm_auth, ntlm_auth,
+            "--helper-protocol", "ntlmssp-client-1",
+            "--use-cached-creds",
+            "--username", username,
+            NULL);
+
+    error = ERRNO;
+    sclose_nolog(sockfds[1]);
+    failf(conn->data, "Could not execl(). errno %d: %s",
+          error, Curl_strerror(conn, error));
+    exit(1);
+  }
+
+  sclose(sockfds[1]);
+  conn->ntlm_auth_hlpr_socket = sockfds[0];
+  conn->ntlm_auth_hlpr_pid = child_pid;
+  free(domain);
+  free(ntlm_auth_alloc);
+  return CURLE_OK;
+
+done:
+  free(domain);
+  free(ntlm_auth_alloc);
+  return CURLE_REMOTE_ACCESS_DENIED;
+}
+
+static CURLcode ntlm_wb_response(struct connectdata *conn,
+                                 const char *input, curlntlm state)
+{
+  char *buf = malloc(NTLM_BUFSIZE);
+  size_t len_in = strlen(input), len_out = 0;
+
+  if(!buf)
+    return CURLE_OUT_OF_MEMORY;
+
+  while(len_in > 0) {
+    ssize_t written = swrite(conn->ntlm_auth_hlpr_socket, input, len_in);
+    if(written == -1) {
+      /* Interrupted by a signal, retry it */
+      if(errno == EINTR)
+        continue;
+      /* write failed if other errors happen */
+      goto done;
+    }
+    input += written;
+    len_in -= written;
+  }
+  /* Read one line */
+  while(1) {
+    ssize_t size;
+    char *newbuf;
+
+    size = sread(conn->ntlm_auth_hlpr_socket, buf + len_out, NTLM_BUFSIZE);
+    if(size == -1) {
+      if(errno == EINTR)
+        continue;
+      goto done;
+    }
+    else if(size == 0)
+      goto done;
+
+    len_out += size;
+    if(buf[len_out - 1] == '\n') {
+      buf[len_out - 1] = '\0';
+      break;
+    }
+    newbuf = realloc(buf, len_out + NTLM_BUFSIZE);
+    if(!newbuf) {
+      free(buf);
+      return CURLE_OUT_OF_MEMORY;
+    }
+    buf = newbuf;
+  }
+
+  /* Samba/winbind installed but not configured */
+  if(state == NTLMSTATE_TYPE1 &&
+     len_out == 3 &&
+     buf[0] == 'P' && buf[1] == 'W')
+    goto done;
+  /* invalid response */
+  if(len_out < 4)
+    goto done;
+  if(state == NTLMSTATE_TYPE1 &&
+     (buf[0]!='Y' || buf[1]!='R' || buf[2]!=' '))
+    goto done;
+  if(state == NTLMSTATE_TYPE2 &&
+     (buf[0]!='K' || buf[1]!='K' || buf[2]!=' ') &&
+     (buf[0]!='A' || buf[1]!='F' || buf[2]!=' '))
+    goto done;
+
+  conn->response_header = aprintf("NTLM %.*s", len_out - 4, buf + 3);
+  free(buf);
+  return CURLE_OK;
+done:
+  free(buf);
+  return CURLE_REMOTE_ACCESS_DENIED;
+}
+
+/*
+ * This is for creating ntlm header output by delegating challenge/response
+ * to Samba's winbind daemon helper ntlm_auth.
+ */
+CURLcode Curl_output_ntlm_wb(struct connectdata *conn,
+                              bool proxy)
+{
+  /* point to the address of the pointer that holds the string to send to the
+     server, which is for a plain host or for a HTTP proxy */
+  char **allocuserpwd;
+  /* point to the name and password for this */
+  const char *userp;
+  /* point to the correct struct with this */
+  struct ntlmdata *ntlm;
+  struct auth *authp;
+
+  CURLcode res = CURLE_OK;
+  char *input;
+
+  DEBUGASSERT(conn);
+  DEBUGASSERT(conn->data);
+
+  if(proxy) {
+    allocuserpwd = &conn->allocptr.proxyuserpwd;
+    userp = conn->proxyuser;
+    ntlm = &conn->proxyntlm;
+    authp = &conn->data->state.authproxy;
+  }
+  else {
+    allocuserpwd = &conn->allocptr.userpwd;
+    userp = conn->user;
+    ntlm = &conn->ntlm;
+    authp = &conn->data->state.authhost;
+  }
+  authp->done = FALSE;
+
+  /* not set means empty */
+  if(!userp)
+    userp="";
+
+  switch(ntlm->state) {
+  case NTLMSTATE_TYPE1:
+  default:
+    /* Use Samba's 'winbind' daemon to support NTLM authentication,
+     * by delegating the NTLM challenge/response protocal to a helper
+     * in ntlm_auth.
+     * http://devel.squid-cache.org/ntlm/squid_helper_protocol.html
+     * http://www.samba.org/samba/docs/man/manpages-3/winbindd.8.html
+     * http://www.samba.org/samba/docs/man/manpages-3/ntlm_auth.1.html
+     * Preprocessor symbol 'NTLM_WB_ENABLED' is defined when this
+     * feature is enabled and 'NTLM_WB_FILE' symbol holds absolute
+     * filename of ntlm_auth helper.
+     * If NTLM authentication using winbind fails, go back to original
+     * request handling process.
+     */
+    /* Create communication with ntlm_auth */
+    res = ntlm_wb_init(conn, userp);
+    if(res)
+      return res;
+    res = ntlm_wb_response(conn, "YR\n", ntlm->state);
+    if(res)
+      return res;
+
+    free(*allocuserpwd);
+    *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
+                            proxy ? "Proxy-" : "",
+                            conn->response_header);
+    DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
+    free(conn->response_header);
+    conn->response_header = NULL;
+    break;
+  case NTLMSTATE_TYPE2:
+    input = aprintf("TT %s\n", conn->challenge_header);
+    if(!input)
+      return CURLE_OUT_OF_MEMORY;
+    res = ntlm_wb_response(conn, input, ntlm->state);
+    free(input);
+    input = NULL;
+    if(res)
+      return res;
+
+    free(*allocuserpwd);
+    *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
+                            proxy ? "Proxy-" : "",
+                            conn->response_header);
+    DEBUG_OUT(fprintf(stderr, "**** %s\n ", *allocuserpwd));
+    ntlm->state = NTLMSTATE_TYPE3; /* we sent a type-3 */
+    authp->done = TRUE;
+    Curl_ntlm_wb_cleanup(conn);
+    break;
+  case NTLMSTATE_TYPE3:
+    /* connection is already authenticated,
+     * don't send a header in future requests */
+    free(*allocuserpwd);
+    *allocuserpwd=NULL;
+    authp->done = TRUE;
+    break;
+  }
+
+  return CURLE_OK;
+}
+
+#endif /* !CURL_DISABLE_HTTP && USE_NTLM && NTLM_WB_ENABLED */

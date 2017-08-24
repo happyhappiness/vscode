@@ -1,8 +1,9 @@
-	struct mtree_entry *entry;
-	struct mtree_option *iter;
-	const char *next, *eq, *name, *end;
-	size_t len;
-	int r;
+/* returns an allocated key to find a bundle for this connection */
+static char *hashkey(struct connectdata *conn)
+{
+  return aprintf("%s:%d",
+                 conn->bits.proxy?conn->proxy.name:conn->host.name,
+                 conn->localport);
+}
 
-	if ((entry = malloc(sizeof(*entry))) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
+/* Look up the bundle with all the connections to the same host this

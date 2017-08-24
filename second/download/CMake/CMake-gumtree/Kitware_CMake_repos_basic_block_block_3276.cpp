@@ -1,0 +1,1 @@
+(aa->name[0] == '-' && decode) continue;

@@ -1,0 +1,1 @@
+term_signal = WTERMSIG(process->status)

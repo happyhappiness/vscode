@@ -1,7 +1,9 @@
-
-      host_port = aprintf("%s:%hu", hostname, remote_port);
-      if(!host_port) {
-        free(req_buffer);
-        return CURLE_OUT_OF_MEMORY;
-      }
-
+		 * impact.
+		 */
+		if (lchmod(a->name, mode) != 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't set permissions to 0%o", (int)mode);
+			r = ARCHIVE_WARN;
+		}
+#endif
+	} else if (!S_ISDIR(a->mode)) {

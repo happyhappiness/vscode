@@ -1,0 +1,1 @@
+smtpc->size_supported = TRUE

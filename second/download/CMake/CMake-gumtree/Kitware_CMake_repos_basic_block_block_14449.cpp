@@ -1,0 +1,1 @@
+state->cur_maxcode = state->max_maxcode

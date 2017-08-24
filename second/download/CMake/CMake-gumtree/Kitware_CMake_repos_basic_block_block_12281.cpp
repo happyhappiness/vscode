@@ -1,0 +1,5 @@
+{
+				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Missing number");
+				return ARCHIVE_WARN;
+			}

@@ -1,0 +1,1 @@
+alg = CKSUM_SHA1

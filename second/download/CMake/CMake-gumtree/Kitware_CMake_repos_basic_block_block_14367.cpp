@@ -1,0 +1,1 @@
+a->archive.state = ARCHIVE_STATE_CLOSED

@@ -1,15 +1,22 @@
-static char *get_netscape_format(const struct Cookie *co)
+ */
+CURL *curl_easy_init(void)
 {
-  return aprintf(
-    "%s"     /* httponly preamble */
-    "%s%s\t" /* domain */
-    "%s\t"   /* tailmatch */
-    "%s\t"   /* path */
-    "%s\t"   /* secure */
-    "%" CURL_FORMAT_CURL_OFF_T "\t"   /* expires */
-    "%s\t"   /* name */
-    "%s",    /* value */
-    co->httponly?"#HttpOnly_":"",
-    /* Make sure all domains are prefixed with a dot if they allow
-       tailmatching. This is Mozilla-style. */
-    (co->tailmatch && co->domain && co->domain[0] != '.')? ".":"",
+  CURLcode result;
+  struct SessionHandle *data;
+
+  /* Make sure we inited the global SSL stuff */
+  if(!initialized) {
+    result = curl_global_init(CURL_GLOBAL_DEFAULT);
+    if(result) {
+      /* something in the global init failed, return nothing */
+      DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"));
+      return NULL;
+    }
+  }
+
+  /* We use curl_open() with undefined URL so far */
+  result = Curl_open(&data);
+  if(result) {
+    DEBUGF(fprintf(stderr, "Error: Curl_open failed\n"));
+    return NULL;
+  }

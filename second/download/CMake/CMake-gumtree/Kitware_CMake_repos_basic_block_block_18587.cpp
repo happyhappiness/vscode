@@ -1,0 +1,1 @@
+process_argv[1] = NULL

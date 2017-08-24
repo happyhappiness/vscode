@@ -1,0 +1,1 @@
+version_info.features |= CURL_VERSION_IDN

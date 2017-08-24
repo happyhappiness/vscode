@@ -1,7 +1,7 @@
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 1 second.  */
-  testProcess_sleep(1);
-  fprintf(stdout, "Output on stdout after sleep.\n");
-  fprintf(stderr, "Output on stderr after sleep.\n");
-  fflush(stdout);
+
+	if (value == NULL)
+		return (ARCHIVE_OK);
+
+	r = xmlTextWriterStartElement(writer, BAD_CAST_CONST(key));
+	if (r < 0) {
+		archive_set_error(&a->archive,

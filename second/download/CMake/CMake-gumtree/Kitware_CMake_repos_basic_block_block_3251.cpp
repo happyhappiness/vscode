@@ -1,0 +1,1 @@
+panic ( "testf: bad modes\n" )

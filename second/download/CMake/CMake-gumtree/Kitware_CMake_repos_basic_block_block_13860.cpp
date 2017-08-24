@@ -1,0 +1,1 @@
+return ("UTF-16LE");

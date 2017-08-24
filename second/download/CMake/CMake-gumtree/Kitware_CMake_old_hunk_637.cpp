@@ -1,12 +1,24 @@
-  // do not check the return value here
-  // if the list var is not found varArgsExpanded will have size 0
-  // and we will return 0
-  this->GetList(varArgsExpanded, listName.c_str());
-  size_t length = varArgsExpanded.size();
-  char buffer[1024];
-  sprintf(buffer, "%d", static_cast<int>(length));
-
-  this->Makefile->AddDefinition(variableName.c_str(), buffer);
-  return true;
-}
-
+  intptr_t srchHandle;
+#endif
+  char* buf;
+  size_t n = strlen(name);
+  if ( name[n - 1] == '/' || name[n - 1] == '\\' )
+    {
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
+    }
+  else
+    {
+    // Make sure the slashes in the wildcard suffix are consistent with the
+    // rest of the path
+    buf = new char[n + 2 + 1];
+    if ( strchr(name, '\\') )
+      {
+      sprintf(buf, "%s\\*", name);
+      }
+    else
+      {
+      sprintf(buf, "%s/*", name);
+      }
+    }
+  struct _wfinddata_t data;      // data of current file

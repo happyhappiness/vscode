@@ -1,0 +1,1 @@
+(ISFLAG("--exponential"))       workFactor = 1

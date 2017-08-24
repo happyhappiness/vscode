@@ -1,0 +1,1 @@
+((bbSize >> shifts) > 65534) shifts++

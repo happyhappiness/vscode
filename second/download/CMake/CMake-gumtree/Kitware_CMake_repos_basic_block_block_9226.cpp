@@ -1,0 +1,2 @@
+(brother == NULL)
+					return;

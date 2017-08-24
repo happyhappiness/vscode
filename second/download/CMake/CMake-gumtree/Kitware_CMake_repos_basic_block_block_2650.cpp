@@ -1,0 +1,3 @@
+{
+    fname = "lockedFile.txt";
+  }

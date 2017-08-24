@@ -1,24 +1,17 @@
-  return _findclose(srchHandle) != -1;
-}
-
-unsigned long Directory::GetNumberOfFilesInDirectory(const char* name)
-{
-#if _MSC_VER < 1300
-  long srchHandle;
-#else
-  intptr_t srchHandle;
-#endif
-  char* buf;
-  size_t n = strlen(name);
-  if ( name[n - 1] == '/' )
-    {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name);
+    if(((httpreq == HTTPREQ_GET) || (httpreq == HTTPREQ_HEAD)) &&
+       !Curl_checkheaders(conn, "Range:")) {
+      /* if a line like this was already allocated, free the previous one */
+      if(conn->allocptr.rangeline)
+        free(conn->allocptr.rangeline);
+      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
+                                         data->state.range);
     }
-  else
-    {
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name);
-    }
-  struct _wfinddata_t data;      // data of current file
+    else if((httpreq != HTTPREQ_GET) &&
+            !Curl_checkheaders(conn, "Content-Range:")) {
 
+      /* if a line like this was already allocated, free the previous one */
+      if(conn->allocptr.rangeline)
+        free(conn->allocptr.rangeline);
+
+      if(data->set.set_resume_from < 0) {
+        /* Upload resume was asked for, but we don't know the size of the

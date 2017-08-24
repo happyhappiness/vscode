@@ -1,0 +1,1 @@
+*(*p)++ = nfsv4_acl_perm_map[i].c

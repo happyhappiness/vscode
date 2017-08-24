@@ -1,0 +1,3 @@
+{
+      heap->min = NULL;
+    }

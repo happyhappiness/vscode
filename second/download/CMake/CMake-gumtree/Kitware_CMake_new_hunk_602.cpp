@@ -1,7 +1,19 @@
-		else
-			flags |= FILE_FLAG_SEQUENTIAL_SCAN;
-		t->entry_fh = CreateFileW(tree_current_access_path(t),
-		    GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, flags, NULL);
-		if (t->entry_fh == INVALID_HANDLE_VALUE) {
-			archive_set_error(&a->archive, errno,
-			    "Couldn't open %ls", tree_current_path(a->tree));
+      case 6: test6(argc, argv); return 0;
+      case 7: return test7(argc, argv);
+      case 8: return test8(argc, argv);
+      case 9: return test9(argc, argv);
+      case 10: return test10(argc, argv);
+      case 108: return test8_grandchild(argc, argv);
+      case 109: return test9_grandchild(argc, argv);
+      case 110: return test10_grandchild(argc, argv);
+      }
+    fprintf(stderr, "Invalid test number %d.\n", n);
+    return 1;
+    }
+  else if(n >= 1 && n <= 10)
+    {
+    /* This is the parent process for a requested test number.  */
+    int states[10] =
+    {
+      kwsysProcess_State_Exited,
+      kwsysProcess_State_Exited,

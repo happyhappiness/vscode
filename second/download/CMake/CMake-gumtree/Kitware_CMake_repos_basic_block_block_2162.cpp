@@ -1,0 +1,3 @@
+(!fout) {
+      return false;
+    }

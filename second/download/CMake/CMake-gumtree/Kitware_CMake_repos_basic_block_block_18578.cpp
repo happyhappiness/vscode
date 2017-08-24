@@ -1,0 +1,1 @@
+str_offset = 2

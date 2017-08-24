@@ -1,0 +1,1 @@
+return CURLE_FAILED_INIT;

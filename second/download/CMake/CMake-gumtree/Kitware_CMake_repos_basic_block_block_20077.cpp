@@ -1,0 +1,3 @@
+{
+    errmsg = buf;
+  }

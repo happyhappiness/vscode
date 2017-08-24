@@ -1,0 +1,1 @@
+retry = (newurl)?TRUE:FALSE

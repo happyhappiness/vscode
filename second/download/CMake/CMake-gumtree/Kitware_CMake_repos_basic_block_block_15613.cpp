@@ -1,0 +1,1 @@
+s = (size_t)ar->entry_bytes_remaining

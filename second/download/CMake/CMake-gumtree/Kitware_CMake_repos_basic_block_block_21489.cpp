@@ -1,0 +1,10 @@
+(n = 0; n < next_ptr; n++) {
+        if (ptr != table[n].new_ptr) continue;
+
+        farfree(table[n].org_ptr);
+        while (++n < next_ptr) {
+            table[n-1] = table[n];
+        }
+        next_ptr--;
+        return;
+    }

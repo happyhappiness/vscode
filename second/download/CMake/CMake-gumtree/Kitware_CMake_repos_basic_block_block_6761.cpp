@@ -1,0 +1,1 @@
+begin = PORT_Strchr(body, '\r')

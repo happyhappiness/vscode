@@ -1,107 +1,177 @@
-@@ -16,6 +16,7 @@
- #include "cmSourceFile.h"
- #include "cmCacheManager.h"
- #include "cmGeneratorTarget.h"
-+#include "cmCustomCommandGenerator.h"
- #include "cmake.h"
- 
- #include "cmComputeLinkInformation.h"
-@@ -59,6 +60,7 @@ class cmLocalVisualStudio6Generator::EventWriter
-     }
-   void Write(cmCustomCommand const& cc)
-     {
-+    cmCustomCommandGenerator ccg(cc, this->Config, this->LG->GetMakefile());
-     if(this->First)
-       {
-       this->Code += this->Event + "_Cmds=";
-@@ -68,7 +70,7 @@ class cmLocalVisualStudio6Generator::EventWriter
-       {
-       this->Code += "\\\n\t";
-       }
--    this->Code += this->LG->ConstructScript(cc, this->Config, "\\\n\t");
-+    this->Code += this->LG->ConstructScript(ccg, "\\\n\t");
-     }
- private:
-   cmLocalVisualStudio6Generator* LG;
-@@ -575,14 +577,18 @@ ::AddUtilityCommandHack(cmTarget& target, int count,
-                            target.GetName().size() + 30)];
-   sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
-           target.GetName().c_str(), count);
--  std::string comment = this->ConstructComment(origCommand, "<hack>");
-+  const char* comment = origCommand.GetComment();
-+  if(!comment && origCommand.GetOutputs().empty())
-+    {
-+    comment = "<hack>";
-+    }
- 
-   // Add the rule with the given dependencies and commands.
-   std::string no_main_dependency = "";
-   if(cmSourceFile* outsf =
-      this->Makefile->AddCustomCommandToOutput(
-        output, depends, no_main_dependency,
--       origCommand.GetCommandLines(), comment.c_str(),
-+       origCommand.GetCommandLines(), comment,
-        origCommand.GetWorkingDirectory().c_str()))
-     {
-     target.AddSourceFile(outsf);
-@@ -604,20 +610,21 @@ ::WriteCustomRule(std::ostream& fout,
-                   const cmCustomCommand& command,
-                   const char* flags)
- {
--  std::string comment =
--    this->ConstructComment(command, "Building Custom Rule $(InputPath)");
--  if(comment == "<hack>")
--    {
--    comment = "";
--    }
+@@ -5,7 +5,7 @@
+  *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
+  *
+- * Copyright (C) 1998 - 2013, Daniel Stenberg, <daniel@haxx.se>, et al.
++ * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+@@ -53,16 +53,46 @@
+ #include "inet_ntop.h"
+ #include "strequal.h"
+ #include "if2ip.h"
 -
-   // Write the rule for each configuration.
-   std::vector<std::string>::iterator i;
-   for(i = this->Configurations.begin(); i != this->Configurations.end(); ++i)
-     {
-     std::string config = this->GetConfigName(*i);
-+    cmCustomCommandGenerator ccg(command, config, this->Makefile);
-+    std::string comment =
-+      this->ConstructComment(ccg, "Building Custom Rule $(InputPath)");
-+    if(comment == "<hack>")
-+      {
-+      comment = "";
-+      }
-+
-     std::string script =
--      this->ConstructScript(command, config.c_str(), "\\\n\t");
-+      this->ConstructScript(ccg, "\\\n\t");
+-#define _MPRINTF_REPLACE /* use our functions only */
+-#include <curl/mprintf.h>
++#include "curl_printf.h"
  
-     if (i == this->Configurations.begin())
-       {
-@@ -634,8 +641,8 @@ ::WriteCustomRule(std::ostream& fout,
-     // Write out the dependencies for the rule.
-     fout << "USERDEP__HACK=";
-     for(std::vector<std::string>::const_iterator d =
--          command.GetDepends().begin();
--        d != command.GetDepends().end();
-+          ccg.GetDepends().begin();
-+        d != ccg.GetDepends().end();
-         ++d)
-       {
-       // Lookup the real name of the dependency in case it is a CMake target.
-@@ -655,7 +662,7 @@ ::WriteCustomRule(std::ostream& fout,
-       fout << " " << comment.c_str();
+ #include "curl_memory.h"
+ /* The last #include file should be: */
+ #include "memdebug.h"
+ 
+ /* ------------------------------------------------------------------ */
+ 
++/* Return the scope of the given address. */
++unsigned int Curl_ipv6_scope(const struct sockaddr *sa)
++{
++#ifndef ENABLE_IPV6
++  (void) sa;
++#else
++  if(sa->sa_family == AF_INET6) {
++    const struct sockaddr_in6 * sa6 = (const struct sockaddr_in6 *) sa;
++    const unsigned char * b = sa6->sin6_addr.s6_addr;
++    unsigned short w = (unsigned short) ((b[0] << 8) | b[1]);
++
++    switch(w & 0xFFC0) {
++    case 0xFE80:
++      return IPV6_SCOPE_LINKLOCAL;
++    case 0xFEC0:
++      return IPV6_SCOPE_SITELOCAL;
++    case 0x0000:
++      w = b[1] | b[2] | b[3] | b[4] | b[5] | b[6] | b[7] | b[8] | b[9] |
++          b[10] | b[11] | b[12] | b[13] | b[14];
++      if(w || b[15] != 0x01)
++        break;
++      return IPV6_SCOPE_NODELOCAL;
++    default:
++      break;
++    }
++  }
++#endif
++
++  return IPV6_SCOPE_GLOBAL;
++}
++
++
+ #if defined(HAVE_GETIFADDRS)
+ 
+ bool Curl_if_is_interface_name(const char *interf)
+@@ -84,41 +114,58 @@ bool Curl_if_is_interface_name(const char *interf)
+ }
+ 
+ if2ip_result_t Curl_if2ip(int af, unsigned int remote_scope,
+-                          const char *interf, char *buf, int buf_size)
++                          unsigned int remote_scope_id, const char *interf,
++                          char *buf, int buf_size)
+ {
+   struct ifaddrs *iface, *head;
+   if2ip_result_t res = IF2IP_NOT_FOUND;
+ 
+ #ifndef ENABLE_IPV6
+   (void) remote_scope;
++
++#ifndef HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID
++  (void) remote_scope_id;
++#endif
++
+ #endif
+ 
+   if(getifaddrs(&head) >= 0) {
+-    for(iface=head; iface != NULL; iface=iface->ifa_next) {
++    for(iface = head; iface != NULL; iface=iface->ifa_next) {
+       if(iface->ifa_addr != NULL) {
+         if(iface->ifa_addr->sa_family == af) {
+           if(curl_strequal(iface->ifa_name, interf)) {
+             void *addr;
+             char *ip;
+-            char scope[12]="";
++            char scope[12] = "";
+             char ipstr[64];
+ #ifdef ENABLE_IPV6
+             if(af == AF_INET6) {
+               unsigned int scopeid = 0;
++              unsigned int ifscope = Curl_ipv6_scope(iface->ifa_addr);
++
++              if(ifscope != remote_scope) {
++                /* We are interested only in interface addresses whose
++                   scope matches the remote address we want to
++                   connect to: global for global, link-local for
++                   link-local, etc... */
++                if(res == IF2IP_NOT_FOUND) res = IF2IP_AF_NOT_SUPPORTED;
++                continue;
++              }
++
+               addr = &((struct sockaddr_in6 *)iface->ifa_addr)->sin6_addr;
+ #ifdef HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID
+               /* Include the scope of this interface as part of the address */
+               scopeid =
+                 ((struct sockaddr_in6 *)iface->ifa_addr)->sin6_scope_id;
+-#endif
+-              if(scopeid != remote_scope) {
+-                /* We are interested only in interface addresses whose
+-                   scope ID matches the remote address we want to
+-                   connect to: global (0) for global, link-local for
+-                   link-local, etc... */
+-                if(res == IF2IP_NOT_FOUND) res = IF2IP_AF_NOT_SUPPORTED;
++
++              /* If given, scope id should match. */
++              if(remote_scope_id && scopeid != remote_scope_id) {
++                if(res == IF2IP_NOT_FOUND)
++                  res = IF2IP_AF_NOT_SUPPORTED;
++
+                 continue;
+               }
++#endif
+               if(scopeid)
+                 snprintf(scope, sizeof(scope), "%%%u", scopeid);
+             }
+@@ -137,8 +184,10 @@ if2ip_result_t Curl_if2ip(int af, unsigned int remote_scope,
+         }
        }
-     fout << "\n\n";
--    if(command.GetOutputs().empty())
-+    if(ccg.GetOutputs().empty())
-       {
-       fout << source
-            << "_force :  \"$(SOURCE)\" \"$(INTDIR)\" \"$(OUTDIR)\"\n\t";
-@@ -664,8 +671,8 @@ ::WriteCustomRule(std::ostream& fout,
-     else
-       {
-       for(std::vector<std::string>::const_iterator o =
--          command.GetOutputs().begin();
--          o != command.GetOutputs().end();
-+          ccg.GetOutputs().begin();
-+          o != ccg.GetOutputs().end();
-           ++o)
-         {
-         // Write a rule for every output generated by this command.
+     }
++
+     freeifaddrs(head);
+   }
++
+   return res;
+ }
+ 
+@@ -149,12 +198,13 @@ bool Curl_if_is_interface_name(const char *interf)
+   /* This is here just to support the old interfaces */
+   char buf[256];
+ 
+-  return (Curl_if2ip(AF_INET, 0, interf, buf, sizeof(buf)) ==
++  return (Curl_if2ip(AF_INET, 0 /* unused */, 0, interf, buf, sizeof(buf)) ==
+           IF2IP_NOT_FOUND) ? FALSE : TRUE;
+ }
+ 
+ if2ip_result_t Curl_if2ip(int af, unsigned int remote_scope,
+-                          const char *interf, char *buf, int buf_size)
++                          unsigned int remote_scope_id, const char *interf,
++                          char *buf, int buf_size)
+ {
+   struct ifreq req;
+   struct in_addr in;
+@@ -163,6 +213,7 @@ if2ip_result_t Curl_if2ip(int af, unsigned int remote_scope,
+   size_t len;
+ 
+   (void)remote_scope;
++  (void)remote_scope_id;
+ 
+   if(!interf || (af != AF_INET))
+     return IF2IP_NOT_FOUND;
+@@ -205,10 +256,12 @@ bool Curl_if_is_interface_name(const char *interf)
+ }
+ 
+ if2ip_result_t Curl_if2ip(int af, unsigned int remote_scope,
+-                          const char *interf, char *buf, int buf_size)
++                          unsigned int remote_scope_id, const char *interf,
++                          char *buf, int buf_size)
+ {
+     (void) af;
+     (void) remote_scope;
++    (void) remote_scope_id;
+     (void) interf;
+     (void) buf;
+     (void) buf_size;

@@ -1,0 +1,2 @@
+(!poolGrow(pool))
+      return NULL;

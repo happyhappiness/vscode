@@ -1,0 +1,1 @@
+(ge >= s->nMTF) ge = s->nMTF-1

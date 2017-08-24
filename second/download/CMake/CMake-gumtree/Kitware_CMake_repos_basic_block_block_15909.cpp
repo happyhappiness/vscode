@@ -1,0 +1,2 @@
+(iso9660->opt.joliet)
+		blocks += SUPPLEMENTARY_VOLUME_DESCRIPTOR_BLOCK

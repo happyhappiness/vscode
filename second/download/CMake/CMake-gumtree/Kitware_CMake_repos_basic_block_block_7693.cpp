@@ -1,0 +1,4 @@
+{
+    eventPP = &eventPtr;
+    eventEndPP = &eventEndPtr;
+  }

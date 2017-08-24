@@ -1,0 +1,1 @@
+return memcmp(iso9660->null, h + offset, bytes) == 0;

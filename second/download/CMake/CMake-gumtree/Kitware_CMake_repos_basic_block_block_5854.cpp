@@ -1,0 +1,1 @@
+dead = Curl_rtsp_connisdead(conn)

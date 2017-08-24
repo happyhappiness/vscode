@@ -1,0 +1,1 @@
+sep = p + strlen(p)

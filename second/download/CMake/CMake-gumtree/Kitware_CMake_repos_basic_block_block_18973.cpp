@@ -1,0 +1,4 @@
+{
+      err = -ENOMEM;
+      goto final;
+    }

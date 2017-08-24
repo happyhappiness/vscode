@@ -1,0 +1,1 @@
+r = uv__open_cloexec(path, O_RDWR)

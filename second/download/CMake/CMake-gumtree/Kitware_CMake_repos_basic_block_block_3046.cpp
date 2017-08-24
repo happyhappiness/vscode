@@ -1,0 +1,1 @@
+quadrant[a2update + nblock] = qVal

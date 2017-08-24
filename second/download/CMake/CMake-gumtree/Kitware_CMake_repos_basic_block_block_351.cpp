@@ -1,0 +1,1 @@
+res = (BI->cmd)(form)

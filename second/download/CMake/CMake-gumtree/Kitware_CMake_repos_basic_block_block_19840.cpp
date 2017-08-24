@@ -1,0 +1,1 @@
+r = semaphore_wait(*sem)

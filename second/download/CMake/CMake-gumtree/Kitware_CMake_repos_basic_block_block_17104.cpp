@@ -1,0 +1,1 @@
+free(shar->last_dir)

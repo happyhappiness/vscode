@@ -1,0 +1,1 @@
+memset(s,C_BLANK,len-(unsigned int)(s-p))

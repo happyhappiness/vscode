@@ -1,0 +1,1 @@
+(MY_S_ISREG(statBuf.st_mode)) return False;

@@ -1,0 +1,1 @@
+bytes_read = (ssize_t)iso9660->entry_bytes_remaining

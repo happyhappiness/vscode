@@ -1,0 +1,1 @@
+notationDeclHandler = handler

@@ -1,0 +1,1 @@
+return LDAP_NO_MEMORY;

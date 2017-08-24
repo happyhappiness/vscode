@@ -1,0 +1,1 @@
+pe->events |= w->pevents & (POLLIN | POLLOUT)

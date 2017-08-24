@@ -1,0 +1,3 @@
+(!testExtraStuff()) {
+    return -1;
+  }

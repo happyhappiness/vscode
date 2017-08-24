@@ -1,0 +1,1 @@
+(incs[hp] < bigN) hp++

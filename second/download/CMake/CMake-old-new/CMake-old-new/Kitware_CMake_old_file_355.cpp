@@ -9,982 +9,1000 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#include "cmStringCommand.h"
-#include "cmCryptoHash.h"
+#include "cmComputeLinkDepends.h"
 
-#include <cmsys/RegularExpression.hxx>
-#include <cmsys/SystemTools.hxx>
+#include "cmComputeComponentGraph.h"
+#include "cmGlobalGenerator.h"
+#include "cmLocalGenerator.h"
+#include "cmMakefile.h"
+#include "cmTarget.h"
+#include "cmake.h"
 
-#include <stdlib.h> // required for atoi
-#include <ctype.h>
-#include <time.h>
+#include <cmsys/stl/algorithm>
 
-#include <cmTimestamp.h>
+#include <assert.h>
+
+/*
+
+This file computes an ordered list of link items to use when linking a
+single target in one configuration.  Each link item is identified by
+the string naming it.  A graph of dependencies is created in which
+each node corresponds to one item and directed edges lead from nodes to
+those which must *follow* them on the link line.  For example, the
+graph
+
+  A -> B -> C
+
+will lead to the link line order
+
+  A B C
+
+The set of items placed in the graph is formed with a breadth-first
+search of the link dependencies starting from the main target.
+
+There are two types of items: those with known direct dependencies and
+those without known dependencies.  We will call the two types "known
+items" and "unknown items", respectively.  Known items are those whose
+names correspond to targets (built or imported) and those for which an
+old-style <item>_LIB_DEPENDS variable is defined.  All other items are
+unknown and we must infer dependencies for them.  For items that look
+like flags (beginning with '-') we trivially infer no dependencies,
+and do not include them in the dependencies of other items.
+
+Known items have dependency lists ordered based on how the user
+specified them.  We can use this order to infer potential dependencies
+of unknown items.  For example, if link items A and B are unknown and
+items X and Y are known, then we might have the following dependency
+lists:
+
+  X: Y A B
+  Y: A B
+
+The explicitly known dependencies form graph edges
+
+  X -> Y  ,  X -> A  ,  X -> B  ,  Y -> A  ,  Y -> B
+
+We can also infer the edge
+
+  A -> B
+
+because *every* time A appears B is seen on its right.  We do not know
+whether A really needs symbols from B to link, but it *might* so we
+must preserve their order.  This is the case also for the following
+explicit lists:
+
+  X: A B Y
+  Y: A B
+
+Here, A is followed by the set {B,Y} in one list, and {B} in the other
+list.  The intersection of these sets is {B}, so we can infer that A
+depends on at most B.  Meanwhile B is followed by the set {Y} in one
+list and {} in the other.  The intersection is {} so we can infer that
+B has no dependencies.
+
+Let's make a more complex example by adding unknown item C and
+considering these dependency lists:
+
+  X: A B Y C
+  Y: A C B
+
+The explicit edges are
+
+  X -> Y  ,  X -> A  ,  X -> B  ,  X -> C  ,  Y -> A  ,  Y -> B  ,  Y -> C
+
+For the unknown items, we infer dependencies by looking at the
+"follow" sets:
+
+  A: intersect( {B,Y,C} , {C,B} ) = {B,C} ; infer edges  A -> B  ,  A -> C
+  B: intersect( {Y,C}   , {}    ) = {}    ; infer no edges
+  C: intersect( {}      , {B}   ) = {}    ; infer no edges
+
+Note that targets are never inferred as dependees because outside
+libraries should not depend on them.
+
+------------------------------------------------------------------------------
+
+The initial exploration of dependencies using a BFS associates an
+integer index with each link item.  When the graph is built outgoing
+edges are sorted by this index.
+
+After the initial exploration of the link interface tree, any
+transitive (dependent) shared libraries that were encountered and not
+included in the interface are processed in their own BFS.  This BFS
+follows only the dependent library lists and not the link interfaces.
+They are added to the link items with a mark indicating that the are
+transitive dependencies.  Then cmComputeLinkInformation deals with
+them on a per-platform basis.
+
+The complete graph formed from all known and inferred dependencies may
+not be acyclic, so an acyclic version must be created.
+The original graph is converted to a directed acyclic graph in which
+each node corresponds to a strongly connected component of the
+original graph.  For example, the dependency graph
+
+  X -> A -> B -> C -> A -> Y
+
+contains strongly connected components {X}, {A,B,C}, and {Y}.  The
+implied directed acyclic graph (DAG) is
+
+  {X} -> {A,B,C} -> {Y}
+
+We then compute a topological order for the DAG nodes to serve as a
+reference for satisfying dependencies efficiently.  We perform the DFS
+in reverse order and assign topological order indices counting down so
+that the result is as close to the original BFS order as possible
+without violating dependencies.
+
+------------------------------------------------------------------------------
+
+The final link entry order is constructed as follows.  We first walk
+through and emit the *original* link line as specified by the user.
+As each item is emitted, a set of pending nodes in the component DAG
+is maintained.  When a pending component has been completely seen, it
+is removed from the pending set and its dependencies (following edges
+of the DAG) are added.  A trivial component (those with one item) is
+complete as soon as its item is seen.  A non-trivial component (one
+with more than one item; assumed to be static libraries) is complete
+when *all* its entries have been seen *twice* (all entries seen once,
+then all entries seen again, not just each entry twice).  A pending
+component tracks which items have been seen and a count of how many
+times the component needs to be seen (once for trivial components,
+twice for non-trivial).  If at any time another component finishes and
+re-adds an already pending component, the pending component is reset
+so that it needs to be seen in its entirety again.  This ensures that
+all dependencies of a component are satisfied no matter where it
+appears.
+
+After the original link line has been completed, we append to it the
+remaining pending components and their dependencies.  This is done by
+repeatedly emitting the first item from the first pending component
+and following the same update rules as when traversing the original
+link line.  Since the pending components are kept in topological order
+they are emitted with minimal repeats (we do not want to emit a
+component just to have it added again when another component is
+completed later).  This process continues until no pending components
+remain.  We know it will terminate because the component graph is
+guaranteed to be acyclic.
+
+The final list of items produced by this procedure consists of the
+original user link line followed by minimal additional items needed to
+satisfy dependencies.
+
+*/
 
 //----------------------------------------------------------------------------
-bool cmStringCommand
-::InitialPass(std::vector<std::string> const& args, cmExecutionStatus &)
+cmComputeLinkDepends
+::cmComputeLinkDepends(cmTarget const* target, const char* config,
+                       cmTarget const* head)
 {
-  if(args.size() < 1)
-    {
-    this->SetError("must be called with at least one argument.");
-    return false;
-    }
+  // Store context information.
+  this->Target = target;
+  this->HeadTarget = head;
+  this->Makefile = this->Target->GetMakefile();
+  this->LocalGenerator = this->Makefile->GetLocalGenerator();
+  this->GlobalGenerator = this->LocalGenerator->GetGlobalGenerator();
+  this->CMakeInstance = this->GlobalGenerator->GetCMakeInstance();
 
-  const std::string &subCommand = args[0];
-  if(subCommand == "REGEX")
-    {
-    return this->HandleRegexCommand(args);
-    }
-  else if(subCommand == "REPLACE")
-    {
-    return this->HandleReplaceCommand(args);
-    }
-  else if ( subCommand == "MD5" ||
-            subCommand == "SHA1" ||
-            subCommand == "SHA224" ||
-            subCommand == "SHA256" ||
-            subCommand == "SHA384" ||
-            subCommand == "SHA512" )
-    {
-    return this->HandleHashCommand(args);
-    }
-  else if(subCommand == "TOLOWER")
-    {
-    return this->HandleToUpperLowerCommand(args, false);
-    }
-  else if(subCommand == "TOUPPER")
-    {
-    return this->HandleToUpperLowerCommand(args, true);
-    }
-  else if(subCommand == "COMPARE")
-    {
-    return this->HandleCompareCommand(args);
-    }
-  else if(subCommand == "ASCII")
-    {
-    return this->HandleAsciiCommand(args);
-    }
-  else if(subCommand == "CONFIGURE")
-    {
-    return this->HandleConfigureCommand(args);
-    }
-  else if(subCommand == "LENGTH")
-    {
-    return this->HandleLengthCommand(args);
-    }
-  else if(subCommand == "CONCAT")
-    {
-    return this->HandleConcatCommand(args);
-    }
-  else if(subCommand == "SUBSTRING")
-    {
-    return this->HandleSubstringCommand(args);
-    }
-  else if(subCommand == "STRIP")
-    {
-    return this->HandleStripCommand(args);
-    }
-  else if(subCommand == "RANDOM")
-    {
-    return this->HandleRandomCommand(args);
-    }
-  else if(subCommand == "FIND")
-    {
-    return this->HandleFindCommand(args);
-    }
-  else if(subCommand == "TIMESTAMP")
-    {
-    return this->HandleTimestampCommand(args);
-    }
-  else if(subCommand == "MAKE_C_IDENTIFIER")
-    {
-    return this->HandleMakeCIdentifierCommand(args);
-    }
+  // The configuration being linked.
+  this->Config = (config && *config)? config : 0;
+  this->LinkType = this->Target->ComputeLinkType(this->Config);
 
-  std::string e = "does not recognize sub-command "+subCommand;
-  this->SetError(e.c_str());
-  return false;
+  // Enable debug mode if requested.
+  this->DebugMode = this->Makefile->IsOn("CMAKE_LINK_DEPENDS_DEBUG_MODE");
+
+  // Assume no compatibility until set.
+  this->OldLinkDirMode = false;
+
+  // No computation has been done.
+  this->CCG = 0;
 }
 
 //----------------------------------------------------------------------------
-bool cmStringCommand::HandleHashCommand(std::vector<std::string> const& args)
+cmComputeLinkDepends::~cmComputeLinkDepends()
 {
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-  if(args.size() != 3)
+  for(std::vector<DependSetList*>::iterator
+        i = this->InferredDependSets.begin();
+      i != this->InferredDependSets.end(); ++i)
+    {
+    delete *i;
+    }
+  delete this->CCG;
+}
+
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::SetOldLinkDirMode(bool b)
+{
+  this->OldLinkDirMode = b;
+}
+
+//----------------------------------------------------------------------------
+std::vector<cmComputeLinkDepends::LinkEntry> const&
+cmComputeLinkDepends::Compute()
+{
+  // Follow the link dependencies of the target to be linked.
+  this->AddDirectLinkEntries();
+
+  // Complete the breadth-first search of dependencies.
+  while(!this->BFSQueue.empty())
+    {
+    // Get the next entry.
+    BFSEntry qe = this->BFSQueue.front();
+    this->BFSQueue.pop();
+
+    // Follow the entry's dependencies.
+    this->FollowLinkEntry(qe);
+    }
+
+  // Complete the search of shared library dependencies.
+  while(!this->SharedDepQueue.empty())
+    {
+    // Handle the next entry.
+    this->HandleSharedDependency(this->SharedDepQueue.front());
+    this->SharedDepQueue.pop();
+    }
+
+  // Infer dependencies of targets for which they were not known.
+  this->InferDependencies();
+
+  // Cleanup the constraint graph.
+  this->CleanConstraintGraph();
+
+  // Display the constraint graph.
+  if(this->DebugMode)
+    {
+    fprintf(stderr,
+            "---------------------------------------"
+            "---------------------------------------\n");
+    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
+            this->Target->GetName(), this->Config?this->Config:"noconfig");
+    this->DisplayConstraintGraph();
+    }
+
+  // Compute the final ordering.
+  this->OrderLinkEntires();
+
+  // Compute the final set of link entries.
+  for(std::vector<int>::const_iterator li = this->FinalLinkOrder.begin();
+      li != this->FinalLinkOrder.end(); ++li)
+    {
+    this->FinalLinkEntries.push_back(this->EntryList[*li]);
+    }
+
+  // Display the final set.
+  if(this->DebugMode)
+    {
+    this->DisplayFinalEntries();
+    }
+
+  return this->FinalLinkEntries;
+}
+
+//----------------------------------------------------------------------------
+std::map<cmStdString, int>::iterator
+cmComputeLinkDepends::AllocateLinkEntry(std::string const& item)
+{
+  std::map<cmStdString, int>::value_type
+    index_entry(item, static_cast<int>(this->EntryList.size()));
+  std::map<cmStdString, int>::iterator
+    lei = this->LinkEntryIndex.insert(index_entry).first;
+  this->EntryList.push_back(LinkEntry());
+  this->InferredDependSets.push_back(0);
+  this->EntryConstraintGraph.push_back(EdgeList());
+  return lei;
+}
+
+//----------------------------------------------------------------------------
+int cmComputeLinkDepends::AddLinkEntry(int depender_index,
+                                       std::string const& item)
+{
+  // Check if the item entry has already been added.
+  std::map<cmStdString, int>::iterator lei = this->LinkEntryIndex.find(item);
+  if(lei != this->LinkEntryIndex.end())
+    {
+    // Yes.  We do not need to follow the item's dependencies again.
+    return lei->second;
+    }
+
+  // Allocate a spot for the item entry.
+  lei = this->AllocateLinkEntry(item);
+
+  // Initialize the item entry.
+  int index = lei->second;
+  LinkEntry& entry = this->EntryList[index];
+  entry.Item = item;
+  entry.Target = this->FindTargetToLink(depender_index, entry.Item.c_str());
+  entry.IsFlag = (!entry.Target && item[0] == '-' && item[1] != 'l' &&
+                  item.substr(0, 10) != "-framework");
+
+  // If the item has dependencies queue it to follow them.
+  if(entry.Target)
+    {
+    // Target dependencies are always known.  Follow them.
+    BFSEntry qe = {index, 0};
+    this->BFSQueue.push(qe);
+    }
+  else
+    {
+    // Look for an old-style <item>_LIB_DEPENDS variable.
+    std::string var = entry.Item;
+    var += "_LIB_DEPENDS";
+    if(const char* val = this->Makefile->GetDefinition(var.c_str()))
+      {
+      // The item dependencies are known.  Follow them.
+      BFSEntry qe = {index, val};
+      this->BFSQueue.push(qe);
+      }
+    else if(!entry.IsFlag)
+      {
+      // The item dependencies are not known.  We need to infer them.
+      this->InferredDependSets[index] = new DependSetList;
+      }
+    }
+
+  return index;
+}
+
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::FollowLinkEntry(BFSEntry const& qe)
+{
+  // Get this entry representation.
+  int depender_index = qe.Index;
+  LinkEntry const& entry = this->EntryList[depender_index];
+
+  // Follow the item's dependencies.
+  if(entry.Target)
+    {
+    // Follow the target dependencies.
+    if(cmTarget::LinkInterface const* iface =
+       entry.Target->GetLinkInterface(this->Config, this->HeadTarget))
+      {
+      const bool isIface =
+                      entry.Target->GetType() == cmTarget::INTERFACE_LIBRARY;
+      // This target provides its own link interface information.
+      this->AddLinkEntries(depender_index, iface->Libraries);
+
+      if (isIface)
+        {
+        return;
+        }
+
+      // Handle dependent shared libraries.
+      this->FollowSharedDeps(depender_index, iface);
+
+      // Support for CMP0003.
+      for(std::vector<std::string>::const_iterator
+            oi = iface->WrongConfigLibraries.begin();
+          oi != iface->WrongConfigLibraries.end(); ++oi)
+        {
+        this->CheckWrongConfigItem(depender_index, *oi);
+        }
+      }
+    }
+  else
+    {
+    // Follow the old-style dependency list.
+    this->AddVarLinkEntries(depender_index, qe.LibDepends);
+    }
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeLinkDepends
+::FollowSharedDeps(int depender_index, cmTarget::LinkInterface const* iface,
+                   bool follow_interface)
+{
+  // Follow dependencies if we have not followed them already.
+  if(this->SharedDepFollowed.insert(depender_index).second)
+    {
+    if(follow_interface)
+      {
+      this->QueueSharedDependencies(depender_index, iface->Libraries);
+      }
+    this->QueueSharedDependencies(depender_index, iface->SharedDeps);
+    }
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeLinkDepends
+::QueueSharedDependencies(int depender_index,
+                          std::vector<std::string> const& deps)
+{
+  for(std::vector<std::string>::const_iterator li = deps.begin();
+      li != deps.end(); ++li)
+    {
+    SharedDepEntry qe;
+    qe.Item = *li;
+    qe.DependerIndex = depender_index;
+    this->SharedDepQueue.push(qe);
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::HandleSharedDependency(SharedDepEntry const& dep)
+{
+  // Check if the target already has an entry.
+  std::map<cmStdString, int>::iterator lei =
+    this->LinkEntryIndex.find(dep.Item);
+  if(lei == this->LinkEntryIndex.end())
+    {
+    // Allocate a spot for the item entry.
+    lei = this->AllocateLinkEntry(dep.Item);
+
+    // Initialize the item entry.
+    LinkEntry& entry = this->EntryList[lei->second];
+    entry.Item = dep.Item;
+    entry.Target = this->FindTargetToLink(dep.DependerIndex,
+                                          dep.Item.c_str());
+
+    // This item was added specifically because it is a dependent
+    // shared library.  It may get special treatment
+    // in cmComputeLinkInformation.
+    entry.IsSharedDep = true;
+    }
+
+  // Get the link entry for this target.
+  int index = lei->second;
+  LinkEntry& entry = this->EntryList[index];
+
+  // This shared library dependency must follow the item that listed
+  // it.
+  this->EntryConstraintGraph[dep.DependerIndex].push_back(index);
+
+  // Target items may have their own dependencies.
+  if(entry.Target)
+    {
+    if(cmTarget::LinkInterface const* iface =
+       entry.Target->GetLinkInterface(this->Config, this->HeadTarget))
+      {
+      // Follow public and private dependencies transitively.
+      this->FollowSharedDeps(index, iface, true);
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::AddVarLinkEntries(int depender_index,
+                                             const char* value)
+{
+  // This is called to add the dependencies named by
+  // <item>_LIB_DEPENDS.  The variable contains a semicolon-separated
+  // list.  The list contains link-type;item pairs and just items.
+  std::vector<std::string> deplist;
+  cmSystemTools::ExpandListArgument(value, deplist);
+
+  // Look for entries meant for this configuration.
+  std::vector<std::string> actual_libs;
+  cmTarget::LinkLibraryType llt = cmTarget::GENERAL;
+  bool haveLLT = false;
+  for(std::vector<std::string>::const_iterator di = deplist.begin();
+      di != deplist.end(); ++di)
+    {
+    if(*di == "debug")
+      {
+      llt = cmTarget::DEBUG;
+      haveLLT = true;
+      }
+    else if(*di == "optimized")
+      {
+      llt = cmTarget::OPTIMIZED;
+      haveLLT = true;
+      }
+    else if(*di == "general")
+      {
+      llt = cmTarget::GENERAL;
+      haveLLT = true;
+      }
+    else if(!di->empty())
+      {
+      // If no explicit link type was given prior to this entry then
+      // check if the entry has its own link type variable.  This is
+      // needed for compatibility with dependency files generated by
+      // the export_library_dependencies command from CMake 2.4 and
+      // lower.
+      if(!haveLLT)
+        {
+        std::string var = *di;
+        var += "_LINK_TYPE";
+        if(const char* val = this->Makefile->GetDefinition(var.c_str()))
+          {
+          if(strcmp(val, "debug") == 0)
+            {
+            llt = cmTarget::DEBUG;
+            }
+          else if(strcmp(val, "optimized") == 0)
+            {
+            llt = cmTarget::OPTIMIZED;
+            }
+          }
+        }
+
+      // If the library is meant for this link type then use it.
+      if(llt == cmTarget::GENERAL || llt == this->LinkType)
+        {
+        actual_libs.push_back(*di);
+        }
+      else if(this->OldLinkDirMode)
+        {
+        this->CheckWrongConfigItem(depender_index, *di);
+        }
+
+      // Reset the link type until another explicit type is given.
+      llt = cmTarget::GENERAL;
+      haveLLT = false;
+      }
+    }
+
+  // Add the entries from this list.
+  this->AddLinkEntries(depender_index, actual_libs);
+}
+
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::AddDirectLinkEntries()
+{
+  // Add direct link dependencies in this configuration.
+  cmTarget::LinkImplementation const* impl =
+    this->Target->GetLinkImplementation(this->Config, this->HeadTarget);
+  this->AddLinkEntries(-1, impl->Libraries);
+  for(std::vector<std::string>::const_iterator
+        wi = impl->WrongConfigLibraries.begin();
+      wi != impl->WrongConfigLibraries.end(); ++wi)
+    {
+    this->CheckWrongConfigItem(-1, *wi);
+    }
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeLinkDepends::AddLinkEntries(int depender_index,
+                                     std::vector<std::string> const& libs)
+{
+  // Track inferred dependency sets implied by this list.
+  std::map<int, DependSet> dependSets;
+
+  // Loop over the libraries linked directly by the depender.
+  for(std::vector<std::string>::const_iterator li = libs.begin();
+      li != libs.end(); ++li)
+    {
+    // Skip entries that will resolve to the target getting linked or
+    // are empty.
+    std::string item = this->Target->CheckCMP0004(*li);
+    if(item == this->Target->GetName() || item.empty())
+      {
+      continue;
+      }
+
+    // Add a link entry for this item.
+    int dependee_index = this->AddLinkEntry(depender_index, item);
+
+    // The dependee must come after the depender.
+    if(depender_index >= 0)
+      {
+      this->EntryConstraintGraph[depender_index].push_back(dependee_index);
+      }
+    else
+      {
+      // This is a direct dependency of the target being linked.
+      this->OriginalEntries.push_back(dependee_index);
+      }
+
+    // Update the inferred dependencies for earlier items.
+    for(std::map<int, DependSet>::iterator dsi = dependSets.begin();
+        dsi != dependSets.end(); ++dsi)
+      {
+      // Add this item to the inferred dependencies of other items.
+      // Target items are never inferred dependees because unknown
+      // items are outside libraries that should not be depending on
+      // targets.
+      if(!this->EntryList[dependee_index].Target &&
+         !this->EntryList[dependee_index].IsFlag &&
+         dependee_index != dsi->first)
+        {
+        dsi->second.insert(dependee_index);
+        }
+      }
+
+    // If this item needs to have dependencies inferred, do so.
+    if(this->InferredDependSets[dependee_index])
+      {
+      // Make sure an entry exists to hold the set for the item.
+      dependSets[dependee_index];
+      }
+    }
+
+  // Store the inferred dependency sets discovered for this list.
+  for(std::map<int, DependSet>::iterator dsi = dependSets.begin();
+      dsi != dependSets.end(); ++dsi)
+    {
+    this->InferredDependSets[dsi->first]->push_back(dsi->second);
+    }
+}
+
+//----------------------------------------------------------------------------
+cmTarget const* cmComputeLinkDepends::FindTargetToLink(int depender_index,
+                                                 const char* name)
+{
+  // Look for a target in the scope of the depender.
+  cmMakefile* mf = this->Makefile;
+  if(depender_index >= 0)
+    {
+    if(cmTarget const* depender = this->EntryList[depender_index].Target)
+      {
+      mf = depender->GetMakefile();
+      }
+    }
+  cmTarget const* tgt = mf->FindTargetToUse(name);
+
+  // Skip targets that will not really be linked.  This is probably a
+  // name conflict between an external library and an executable
+  // within the project.
+  if(tgt && tgt->GetType() == cmTarget::EXECUTABLE &&
+     !tgt->IsExecutableWithExports())
+    {
+    tgt = 0;
+    }
+
+  if(tgt && tgt->GetType() == cmTarget::OBJECT_LIBRARY)
     {
     cmOStringStream e;
-    e << args[0] << " requires an output variable and an input string";
-    this->SetError(e.str().c_str());
-    return false;
+    e << "Target \"" << this->Target->GetName() << "\" links to "
+      "OBJECT library \"" << tgt->GetName() << "\" but this is not "
+      "allowed.  "
+      "One may link only to STATIC or SHARED libraries, or to executables "
+      "with the ENABLE_EXPORTS property set.";
+    this->CMakeInstance->IssueMessage(cmake::FATAL_ERROR, e.str(),
+                                      this->Target->GetBacktrace());
+    tgt = 0;
     }
 
-  cmsys::auto_ptr<cmCryptoHash> hash(cmCryptoHash::New(args[0].c_str()));
-  if(hash.get())
+  // Return the target found, if any.
+  return tgt;
+}
+
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::InferDependencies()
+{
+  // The inferred dependency sets for each item list the possible
+  // dependencies.  The intersection of the sets for one item form its
+  // inferred dependencies.
+  for(unsigned int depender_index=0;
+      depender_index < this->InferredDependSets.size(); ++depender_index)
     {
-    std::string out = hash->HashString(args[2].c_str());
-    this->Makefile->AddDefinition(args[1].c_str(), out.c_str());
-    return true;
+    // Skip items for which dependencies do not need to be inferred or
+    // for which the inferred dependency sets are empty.
+    DependSetList* sets = this->InferredDependSets[depender_index];
+    if(!sets || sets->empty())
+      {
+      continue;
+      }
+
+    // Intersect the sets for this item.
+    DependSetList::const_iterator i = sets->begin();
+    DependSet common = *i;
+    for(++i; i != sets->end(); ++i)
+      {
+      DependSet intersection;
+      cmsys_stl::set_intersection
+        (common.begin(), common.end(), i->begin(), i->end(),
+         std::inserter(intersection, intersection.begin()));
+      common = intersection;
+      }
+
+    // Add the inferred dependencies to the graph.
+    for(DependSet::const_iterator j = common.begin(); j != common.end(); ++j)
+      {
+      int dependee_index = *j;
+      this->EntryConstraintGraph[depender_index].push_back(dependee_index);
+      }
     }
-  return false;
-#else
+}
+
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::CleanConstraintGraph()
+{
+  for(Graph::iterator i = this->EntryConstraintGraph.begin();
+      i != this->EntryConstraintGraph.end(); ++i)
+    {
+    // Sort the outgoing edges for each graph node so that the
+    // original order will be preserved as much as possible.
+    cmsys_stl::sort(i->begin(), i->end());
+
+    // Make the edge list unique.
+    EdgeList::iterator last = cmsys_stl::unique(i->begin(), i->end());
+    i->erase(last, i->end());
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::DisplayConstraintGraph()
+{
+  // Display the graph nodes and their edges.
   cmOStringStream e;
-  e << args[0] << " not available during bootstrap";
-  this->SetError(e.str().c_str());
-  return false;
-#endif
+  for(unsigned int i=0; i < this->EntryConstraintGraph.size(); ++i)
+    {
+    EdgeList const& nl = this->EntryConstraintGraph[i];
+    e << "item " << i << " is [" << this->EntryList[i].Item << "]\n";
+    for(EdgeList::const_iterator j = nl.begin(); j != nl.end(); ++j)
+      {
+      e << "  item " << *j << " must follow it\n";
+      }
+    }
+  fprintf(stderr, "%s\n", e.str().c_str());
 }
 
 //----------------------------------------------------------------------------
-bool cmStringCommand::HandleToUpperLowerCommand(
-  std::vector<std::string> const& args, bool toUpper)
+void cmComputeLinkDepends::OrderLinkEntires()
 {
-  if ( args.size() < 3 )
+  // Compute the DAG of strongly connected components.  The algorithm
+  // used by cmComputeComponentGraph should identify the components in
+  // the same order in which the items were originally discovered in
+  // the BFS.  This should preserve the original order when no
+  // constraints disallow it.
+  this->CCG = new cmComputeComponentGraph(this->EntryConstraintGraph);
+
+  // The component graph is guaranteed to be acyclic.  Start a DFS
+  // from every entry to compute a topological order for the
+  // components.
+  Graph const& cgraph = this->CCG->GetComponentGraph();
+  int n = static_cast<int>(cgraph.size());
+  this->ComponentVisited.resize(cgraph.size(), 0);
+  this->ComponentOrder.resize(cgraph.size(), n);
+  this->ComponentOrderId = n;
+  // Run in reverse order so the topological order will preserve the
+  // original order where there are no constraints.
+  for(int c = n-1; c >= 0; --c)
     {
-    this->SetError("no output variable specified");
-    return false;
+    this->VisitComponent(c);
     }
 
-  std::string outvar = args[2];
-  std::string output;
-
-  if (toUpper)
+  // Display the component graph.
+  if(this->DebugMode)
     {
-    output = cmSystemTools::UpperCase(args[1]);
-    }
-  else
-    {
-    output = cmSystemTools::LowerCase(args[1]);
+    this->DisplayComponents();
     }
 
-  // Store the output in the provided variable.
-  this->Makefile->AddDefinition(outvar.c_str(), output.c_str());
-  return true;
+  // Start with the original link line.
+  for(std::vector<int>::const_iterator i = this->OriginalEntries.begin();
+      i != this->OriginalEntries.end(); ++i)
+    {
+    this->VisitEntry(*i);
+    }
+
+  // Now explore anything left pending.  Since the component graph is
+  // guaranteed to be acyclic we know this will terminate.
+  while(!this->PendingComponents.empty())
+    {
+    // Visit one entry from the first pending component.  The visit
+    // logic will update the pending components accordingly.  Since
+    // the pending components are kept in topological order this will
+    // not repeat one.
+    int e = *this->PendingComponents.begin()->second.Entries.begin();
+    this->VisitEntry(e);
+    }
 }
 
 //----------------------------------------------------------------------------
-bool cmStringCommand::HandleAsciiCommand(std::vector<std::string> const& args)
+void
+cmComputeLinkDepends::DisplayComponents()
 {
-  if ( args.size() < 3 )
+  fprintf(stderr, "The strongly connected components are:\n");
+  std::vector<NodeList> const& components = this->CCG->GetComponents();
+  for(unsigned int c=0; c < components.size(); ++c)
     {
-    this->SetError("No output variable specified");
-    return false;
-    }
-  std::string::size_type cc;
-  std::string outvar = args[args.size()-1];
-  std::string output = "";
-  for ( cc = 1; cc < args.size()-1; cc ++ )
-    {
-    int ch = atoi(args[cc].c_str());
-    if ( ch > 0 && ch < 256 )
+    fprintf(stderr, "Component (%u):\n", c);
+    NodeList const& nl = components[c];
+    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
       {
-      output += static_cast<char>(ch);
+      int i = *ni;
+      fprintf(stderr, "  item %d [%s]\n", i,
+              this->EntryList[i].Item.c_str());
       }
-    else
+    EdgeList const& ol = this->CCG->GetComponentGraphEdges(c);
+    for(EdgeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
       {
-      std::string error = "Character with code ";
-      error += args[cc];
-      error += " does not exist.";
-      this->SetError(error.c_str());
-      return false;
+      int i = *oi;
+      fprintf(stderr, "  followed by Component (%d)\n", i);
       }
+    fprintf(stderr, "  topo order index %d\n",
+            this->ComponentOrder[c]);
     }
-  // Store the output in the provided variable.
-  this->Makefile->AddDefinition(outvar.c_str(), output.c_str());
-  return true;
+  fprintf(stderr, "\n");
 }
 
 //----------------------------------------------------------------------------
-bool cmStringCommand::HandleConfigureCommand(
-  std::vector<std::string> const& args)
+void cmComputeLinkDepends::VisitComponent(unsigned int c)
 {
-  if ( args.size() < 2 )
+  // Check if the node has already been visited.
+  if(this->ComponentVisited[c])
     {
-    this->SetError("No input string specified.");
-    return false;
-    }
-  else if ( args.size() < 3 )
-    {
-    this->SetError("No output variable specified.");
-    return false;
+    return;
     }
 
-  // Parse options.
-  bool escapeQuotes = false;
-  bool atOnly = false;
-  for(unsigned int i = 3; i < args.size(); ++i)
+  // We are now visiting this component so mark it.
+  this->ComponentVisited[c] = 1;
+
+  // Visit the neighbors of the component first.
+  // Run in reverse order so the topological order will preserve the
+  // original order where there are no constraints.
+  EdgeList const& nl = this->CCG->GetComponentGraphEdges(c);
+  for(EdgeList::const_reverse_iterator ni = nl.rbegin();
+      ni != nl.rend(); ++ni)
     {
-    if(args[i] == "@ONLY")
-      {
-      atOnly = true;
-      }
-    else if(args[i] == "ESCAPE_QUOTES")
-      {
-      escapeQuotes = true;
-      }
-    else
-      {
-      cmOStringStream err;
-      err << "Unrecognized argument \"" << args[i] << "\"";
-      this->SetError(err.str().c_str());
-      return false;
-      }
+    this->VisitComponent(*ni);
     }
 
-  // Configure the string.
-  std::string output;
-  this->Makefile->ConfigureString(args[1], output, atOnly, escapeQuotes);
-
-  // Store the output in the provided variable.
-  this->Makefile->AddDefinition(args[2].c_str(), output.c_str());
-
-  return true;
+  // Assign an ordering id to this component.
+  this->ComponentOrder[c] = --this->ComponentOrderId;
 }
 
 //----------------------------------------------------------------------------
-bool cmStringCommand::HandleRegexCommand(std::vector<std::string> const& args)
+void cmComputeLinkDepends::VisitEntry(int index)
 {
-  if(args.size() < 2)
+  // Include this entry on the link line.
+  this->FinalLinkOrder.push_back(index);
+
+  // This entry has now been seen.  Update its component.
+  bool completed = false;
+  int component = this->CCG->GetComponentMap()[index];
+  std::map<int, PendingComponent>::iterator mi =
+    this->PendingComponents.find(this->ComponentOrder[component]);
+  if(mi != this->PendingComponents.end())
     {
-    this->SetError("sub-command REGEX requires a mode to be specified.");
-    return false;
-    }
-  std::string mode = args[1];
-  if(mode == "MATCH")
-    {
-    if(args.size() < 5)
+    // The entry is in an already pending component.
+    PendingComponent& pc = mi->second;
+
+    // Remove the entry from those pending in its component.
+    pc.Entries.erase(index);
+    if(pc.Entries.empty())
       {
-      this->SetError("sub-command REGEX, mode MATCH needs "
-                     "at least 5 arguments total to command.");
-      return false;
-      }
-    return this->RegexMatch(args);
-    }
-  else if(mode == "MATCHALL")
-    {
-    if(args.size() < 5)
-      {
-      this->SetError("sub-command REGEX, mode MATCHALL needs "
-                     "at least 5 arguments total to command.");
-      return false;
-      }
-    return this->RegexMatchAll(args);
-    }
-  else if(mode == "REPLACE")
-    {
-    if(args.size() < 6)
-      {
-      this->SetError("sub-command REGEX, mode REPLACE needs "
-                     "at least 6 arguments total to command.");
-      return false;
-      }
-    return this->RegexReplace(args);
-    }
+      // The complete component has been seen since it was last needed.
+      --pc.Count;
 
-  std::string e = "sub-command REGEX does not recognize mode "+mode;
-  this->SetError(e.c_str());
-  return false;
-}
-
-//----------------------------------------------------------------------------
-bool cmStringCommand::RegexMatch(std::vector<std::string> const& args)
-{
-  //"STRING(REGEX MATCH <regular_expression> <output variable>
-  // <input> [<input>...])\n";
-  std::string regex = args[2];
-  std::string outvar = args[3];
-
-  // Concatenate all the last arguments together.
-  std::string input = args[4];
-  for(unsigned int i=5; i < args.size(); ++i)
-    {
-    input += args[i];
-    }
-
-  this->ClearMatches(this->Makefile);
-  // Compile the regular expression.
-  cmsys::RegularExpression re;
-  if(!re.compile(regex.c_str()))
-    {
-    std::string e =
-      "sub-command REGEX, mode MATCH failed to compile regex \""+regex+"\".";
-    this->SetError(e.c_str());
-    return false;
-    }
-
-  // Scan through the input for all matches.
-  std::string output;
-  if(re.find(input.c_str()))
-    {
-    this->StoreMatches(this->Makefile, re);
-    std::string::size_type l = re.start();
-    std::string::size_type r = re.end();
-    if(r-l == 0)
-      {
-      std::string e =
-        "sub-command REGEX, mode MATCH regex \""+regex+
-        "\" matched an empty string.";
-      this->SetError(e.c_str());
-      return false;
-      }
-    output = input.substr(l, r-l);
-    }
-
-  // Store the output in the provided variable.
-  this->Makefile->AddDefinition(outvar.c_str(), output.c_str());
-  return true;
-}
-
-//----------------------------------------------------------------------------
-bool cmStringCommand::RegexMatchAll(std::vector<std::string> const& args)
-{
-  //"STRING(REGEX MATCHALL <regular_expression> <output variable> <input>
-  // [<input>...])\n";
-  std::string regex = args[2];
-  std::string outvar = args[3];
-
-  // Concatenate all the last arguments together.
-  std::string input = args[4];
-  for(unsigned int i=5; i < args.size(); ++i)
-    {
-    input += args[i];
-    }
-
-  this->ClearMatches(this->Makefile);
-  // Compile the regular expression.
-  cmsys::RegularExpression re;
-  if(!re.compile(regex.c_str()))
-    {
-    std::string e =
-      "sub-command REGEX, mode MATCHALL failed to compile regex \""+
-      regex+"\".";
-    this->SetError(e.c_str());
-    return false;
-    }
-
-  // Scan through the input for all matches.
-  std::string output;
-  const char* p = input.c_str();
-  while(re.find(p))
-    {
-    this->StoreMatches(this->Makefile, re);
-    std::string::size_type l = re.start();
-    std::string::size_type r = re.end();
-    if(r-l == 0)
-      {
-      std::string e = "sub-command REGEX, mode MATCHALL regex \""+
-        regex+"\" matched an empty string.";
-      this->SetError(e.c_str());
-      return false;
-      }
-    if(output.length() > 0)
-      {
-      output += ";";
-      }
-    output += std::string(p+l, r-l);
-    p += r;
-    }
-
-  // Store the output in the provided variable.
-  this->Makefile->AddDefinition(outvar.c_str(), output.c_str());
-  return true;
-}
-
-//----------------------------------------------------------------------------
-bool cmStringCommand::RegexReplace(std::vector<std::string> const& args)
-{
-  //"STRING(REGEX REPLACE <regular_expression> <replace_expression>
-  // <output variable> <input> [<input>...])\n"
-  std::string regex = args[2];
-  std::string replace = args[3];
-  std::string outvar = args[4];
-
-  // Pull apart the replace expression to find the escaped [0-9] values.
-  std::vector<RegexReplacement> replacement;
-  std::string::size_type l = 0;
-  while(l < replace.length())
-    {
-    std::string::size_type r = replace.find("\\", l);
-    if(r == std::string::npos)
-      {
-      r = replace.length();
-      replacement.push_back(replace.substr(l, r-l));
-      }
-    else
-      {
-      if(r-l > 0)
+      if(pc.Count == 0)
         {
-        replacement.push_back(replace.substr(l, r-l));
-        }
-      if(r == (replace.length()-1))
-        {
-        this->SetError("sub-command REGEX, mode REPLACE: "
-                       "replace-expression ends in a backslash.");
-        return false;
-        }
-      if((replace[r+1] >= '0') && (replace[r+1] <= '9'))
-        {
-        replacement.push_back(replace[r+1]-'0');
-        }
-      else if(replace[r+1] == 'n')
-        {
-        replacement.push_back("\n");
-        }
-      else if(replace[r+1] == '\\')
-        {
-        replacement.push_back("\\");
+        // The component has been completed.
+        this->PendingComponents.erase(mi);
+        completed = true;
         }
       else
         {
-        std::string e = "sub-command REGEX, mode REPLACE: Unknown escape \"";
-        e += replace.substr(r, 2);
-        e += "\" in replace-expression.";
-        this->SetError(e.c_str());
-        return false;
-        }
-      r += 2;
-      }
-    l = r;
-    }
-
-  // Concatenate all the last arguments together.
-  std::string input = args[5];
-  for(unsigned int i=6; i < args.size(); ++i)
-    {
-    input += args[i];
-    }
-
-  this->ClearMatches(this->Makefile);
-  // Compile the regular expression.
-  cmsys::RegularExpression re;
-  if(!re.compile(regex.c_str()))
-    {
-    std::string e =
-      "sub-command REGEX, mode REPLACE failed to compile regex \""+
-      regex+"\".";
-    this->SetError(e.c_str());
-    return false;
-    }
-
-  // Scan through the input for all matches.
-  std::string output;
-  std::string::size_type base = 0;
-  while(re.find(input.c_str()+base))
-    {
-    this->StoreMatches(this->Makefile, re);
-    std::string::size_type l2 = re.start();
-    std::string::size_type r = re.end();
-
-    // Concatenate the part of the input that was not matched.
-    output += input.substr(base, l2);
-
-    // Make sure the match had some text.
-    if(r-l2 == 0)
-      {
-      std::string e = "sub-command REGEX, mode REPLACE regex \""+
-        regex+"\" matched an empty string.";
-      this->SetError(e.c_str());
-      return false;
-      }
-
-    // Concatenate the replacement for the match.
-    for(unsigned int i=0; i < replacement.size(); ++i)
-      {
-      if(replacement[i].number < 0)
-        {
-        // This is just a plain-text part of the replacement.
-        output += replacement[i].value;
-        }
-      else
-        {
-        // Replace with part of the match.
-        int n = replacement[i].number;
-        std::string::size_type start = re.start(n);
-        std::string::size_type end = re.end(n);
-        std::string::size_type len = input.length()-base;
-        if((start != std::string::npos) && (end != std::string::npos) &&
-           (start <= len) && (end <= len))
-          {
-          output += input.substr(base+start, end-start);
-          }
-        else
-          {
-          std::string e =
-            "sub-command REGEX, mode REPLACE: replace expression \""+
-            replace+"\" contains an out-of-range escape for regex \""+
-            regex+"\".";
-          this->SetError(e.c_str());
-          return false;
-          }
+        // The whole component needs to be seen again.
+        NodeList const& nl = this->CCG->GetComponent(component);
+        assert(nl.size() > 1);
+        pc.Entries.insert(nl.begin(), nl.end());
         }
       }
-
-    // Move past the match.
-    base += r;
-    }
-
-  // Concatenate the text after the last match.
-  output += input.substr(base, input.length()-base);
-
-  // Store the output in the provided variable.
-  this->Makefile->AddDefinition(outvar.c_str(), output.c_str());
-  return true;
-}
-
-//----------------------------------------------------------------------------
-void cmStringCommand::ClearMatches(cmMakefile* mf)
-{
-  for (unsigned int i=0; i<10; i++)
-    {
-    char name[128];
-    sprintf(name, "CMAKE_MATCH_%d", i);
-    const char* s = mf->GetDefinition(name);
-    if(s && *s != 0)
-      {
-      mf->AddDefinition(name, "");
-      mf->MarkVariableAsUsed(name);
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmStringCommand::StoreMatches(cmMakefile* mf,cmsys::RegularExpression& re)
-{
-  for (unsigned int i=0; i<10; i++)
-    {
-    std::string m = re.match(i);
-    if(m.size() > 0)
-      {
-      char name[128];
-      sprintf(name, "CMAKE_MATCH_%d", i);
-      mf->AddDefinition(name, re.match(i).c_str());
-      mf->MarkVariableAsUsed(name);
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-bool cmStringCommand::HandleFindCommand(std::vector<std::string> const&
-                                           args)
-{
-  // check if all required parameters were passed
-  if(args.size() < 4 || args.size() > 5)
-    {
-    this->SetError("sub-command FIND requires 3 or 4 parameters.");
-    return false;
-    }
-
-  // check if the reverse flag was set or not
-  bool reverseMode = false;
-  if(args.size() == 5 && args[4] == "REVERSE")
-    {
-    reverseMode = true;
-    }
-
-  // if we have 5 arguments the last one must be REVERSE
-  if(args.size() == 5 && args[4] != "REVERSE")
-    {
-    this->SetError("sub-command FIND: unknown last parameter");
-    return false;
-    }
-
-  // local parameter names.
-  const std::string& sstring = args[1];
-  const std::string& schar = args[2];
-  const std::string& outvar = args[3];
-
-  // ensure that the user cannot accidentally specify REVERSE as a variable
-  if(outvar == "REVERSE")
-    {
-    this->SetError("sub-command FIND does not allow to select REVERSE as "
-                   "the output variable.  "
-                   "Maybe you missed the actual output variable?");
-    return false;
-    }
-
-  // try to find the character and return its position
-  size_t pos;
-  if(!reverseMode)
-    {
-    pos = sstring.find(schar);
     }
   else
     {
-    pos = sstring.rfind(schar);
-    }
-  if(std::string::npos != pos)
-    {
-    cmOStringStream s;
-    s << pos;
-    this->Makefile->AddDefinition(outvar.c_str(), s.str().c_str());
-    return true;
-    }
+    // The entry is not in an already pending component.
+    NodeList const& nl = this->CCG->GetComponent(component);
+    if(nl.size() > 1)
+      {
+      // This is a non-trivial component.  It is now pending.
+      PendingComponent& pc = this->MakePendingComponent(component);
 
-  // the character was not found, but this is not really an error
-  this->Makefile->AddDefinition(outvar.c_str(), "-1");
-  return true;
-}
-
-//----------------------------------------------------------------------------
-bool cmStringCommand::HandleCompareCommand(std::vector<std::string> const&
-                                           args)
-{
-  if(args.size() < 2)
-    {
-    this->SetError("sub-command COMPARE requires a mode to be specified.");
-    return false;
-    }
-  std::string mode = args[1];
-  if((mode == "EQUAL") || (mode == "NOTEQUAL") ||
-     (mode == "LESS") || (mode == "GREATER"))
-    {
-    if(args.size() < 5)
-      {
-      std::string e = "sub-command COMPARE, mode ";
-      e += mode;
-      e += " needs at least 5 arguments total to command.";
-      this->SetError(e.c_str());
-      return false;
-      }
-
-    const std::string& left = args[2];
-    const std::string& right = args[3];
-    const std::string& outvar = args[4];
-    bool result;
-    if(mode == "LESS")
-      {
-      result = (left < right);
-      }
-    else if(mode == "GREATER")
-      {
-      result = (left > right);
-      }
-    else if(mode == "EQUAL")
-      {
-      result = (left == right);
-      }
-    else // if(mode == "NOTEQUAL")
-      {
-      result = !(left == right);
-      }
-    if(result)
-      {
-      this->Makefile->AddDefinition(outvar.c_str(), "1");
+      // The starting entry has already been seen.
+      pc.Entries.erase(index);
       }
     else
       {
-      this->Makefile->AddDefinition(outvar.c_str(), "0");
+      // This is a trivial component, so it is already complete.
+      completed = true;
       }
-    return true;
-    }
-  std::string e = "sub-command COMPARE does not recognize mode "+mode;
-  this->SetError(e.c_str());
-  return false;
-}
-
-//----------------------------------------------------------------------------
-bool cmStringCommand::HandleReplaceCommand(std::vector<std::string> const&
-                                           args)
-{
-  if(args.size() < 5)
-    {
-    this->SetError("sub-command REPLACE requires at least four arguments.");
-    return false;
     }
 
-  const std::string& matchExpression = args[1];
-  const std::string& replaceExpression = args[2];
-  const std::string& variableName = args[3];
-
-  std::string input = args[4];
-  for(unsigned int i=5; i < args.size(); ++i)
+  // If the entry completed a component, the component's dependencies
+  // are now pending.
+  if(completed)
     {
-    input += args[i];
-    }
-
-  cmsys::SystemTools::ReplaceString(input, matchExpression.c_str(),
-                                    replaceExpression.c_str());
-
-  this->Makefile->AddDefinition(variableName.c_str(), input.c_str());
-  return true;
-}
-
-//----------------------------------------------------------------------------
-bool cmStringCommand::HandleSubstringCommand(std::vector<std::string> const&
-                                             args)
-{
-  if(args.size() != 5)
-    {
-    this->SetError("sub-command SUBSTRING requires four arguments.");
-    return false;
-    }
-
-  const std::string& stringValue = args[1];
-  int begin = atoi(args[2].c_str());
-  int end = atoi(args[3].c_str());
-  const std::string& variableName = args[4];
-
-  size_t stringLength = stringValue.size();
-  int intStringLength = static_cast<int>(stringLength);
-  if ( begin < 0 || begin > intStringLength )
-    {
-    cmOStringStream ostr;
-    ostr << "begin index: " << begin << " is out of range 0 - "
-         << stringLength;
-    this->SetError(ostr.str().c_str());
-    return false;
-    }
-  int leftOverLength = intStringLength - begin;
-  if ( end < -1 || end > leftOverLength )
-    {
-    cmOStringStream ostr;
-    ostr << "end index: " << end << " is out of range -1 - "
-         << leftOverLength;
-    this->SetError(ostr.str().c_str());
-    return false;
-    }
-
-  this->Makefile->AddDefinition(variableName.c_str(),
-                                stringValue.substr(begin, end).c_str());
-  return true;
-}
-
-//----------------------------------------------------------------------------
-bool cmStringCommand
-::HandleLengthCommand(std::vector<std::string> const& args)
-{
-  if(args.size() != 3)
-    {
-    this->SetError("sub-command LENGTH requires two arguments.");
-    return false;
-    }
-
-  const std::string& stringValue = args[1];
-  const std::string& variableName = args[2];
-
-  size_t length = stringValue.size();
-  char buffer[1024];
-  sprintf(buffer, "%d", static_cast<int>(length));
-
-  this->Makefile->AddDefinition(variableName.c_str(), buffer);
-  return true;
-}
-
-//----------------------------------------------------------------------------
-bool cmStringCommand
-::HandleConcatCommand(std::vector<std::string> const& args)
-{
-  if(args.size() < 2)
-    {
-    this->SetError("sub-command CONCAT requires at least one argument.");
-    return false;
-    }
-
-  std::string const& variableName = args[1];
-  std::string value;
-  for(unsigned int i = 2; i < args.size(); ++i)
-    {
-    value += args[i];
-    }
-
-  this->Makefile->AddDefinition(variableName.c_str(), value.c_str());
-  return true;
-}
-
-//----------------------------------------------------------------------------
-bool cmStringCommand
-::HandleMakeCIdentifierCommand(std::vector<std::string> const& args)
-{
-  if(args.size() != 3)
-    {
-    this->SetError("sub-command MAKE_C_IDENTIFIER requires two arguments.");
-    return false;
-    }
-
-  const std::string& input = args[1];
-  const std::string& variableName = args[2];
-
-  this->Makefile->AddDefinition(variableName.c_str(),
-                      cmSystemTools::MakeCidentifier(input.c_str()).c_str());
-  return true;
-}
-
-//----------------------------------------------------------------------------
-bool cmStringCommand::HandleStripCommand(
-  std::vector<std::string> const& args)
-{
- if(args.size() != 3)
-    {
-    this->SetError("sub-command STRIP requires two arguments.");
-    return false;
-    }
-
-  const std::string& stringValue = args[1];
-  const std::string& variableName = args[2];
-  size_t inStringLength = stringValue.size();
-  size_t startPos = inStringLength + 1;
-  size_t endPos = 0;
-  const char* ptr = stringValue.c_str();
-  size_t cc;
-  for ( cc = 0; cc < inStringLength; ++ cc )
-    {
-    if ( !isspace(*ptr) )
+    EdgeList const& ol = this->CCG->GetComponentGraphEdges(component);
+    for(EdgeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
       {
-      if ( startPos > inStringLength )
-        {
-        startPos = cc;
-        }
-      endPos = cc;
+      // This entire component is now pending no matter whether it has
+      // been partially seen already.
+      this->MakePendingComponent(*oi);
       }
-    ++ ptr;
     }
+}
 
-  size_t outLength = 0;
+//----------------------------------------------------------------------------
+cmComputeLinkDepends::PendingComponent&
+cmComputeLinkDepends::MakePendingComponent(unsigned int component)
+{
+  // Create an entry (in topological order) for the component.
+  PendingComponent& pc =
+    this->PendingComponents[this->ComponentOrder[component]];
+  pc.Id = component;
+  NodeList const& nl = this->CCG->GetComponent(component);
 
-  // if the input string didn't contain any non-space characters, return
-  // an empty string
-  if (startPos > inStringLength)
+  if(nl.size() == 1)
     {
-    outLength = 0;
-    startPos = 0;
+    // Trivial components need be seen only once.
+    pc.Count = 1;
     }
   else
     {
-    outLength=endPos - startPos + 1;
+    // This is a non-trivial strongly connected component of the
+    // original graph.  It consists of two or more libraries
+    // (archives) that mutually require objects from one another.  In
+    // the worst case we may have to repeat the list of libraries as
+    // many times as there are object files in the biggest archive.
+    // For now we just list them twice.
+    //
+    // The list of items in the component has been sorted by the order
+    // of discovery in the original BFS of dependencies.  This has the
+    // advantage that the item directly linked by a target requiring
+    // this component will come first which minimizes the number of
+    // repeats needed.
+    pc.Count = this->ComputeComponentCount(nl);
     }
 
-  this->Makefile->AddDefinition(variableName.c_str(),
-    stringValue.substr(startPos, outLength).c_str());
-  return true;
+  // Store the entries to be seen.
+  pc.Entries.insert(nl.begin(), nl.end());
+
+  return pc;
 }
 
 //----------------------------------------------------------------------------
-bool cmStringCommand
-::HandleRandomCommand(std::vector<std::string> const& args)
+int cmComputeLinkDepends::ComputeComponentCount(NodeList const& nl)
 {
-  if(args.size() < 2 || args.size() == 3 || args.size() == 5)
+  int count = 2;
+  for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
     {
-    this->SetError("sub-command RANDOM requires at least one argument.");
-    return false;
-    }
-
-  static bool seeded = false;
-  bool force_seed = false;
-  unsigned int seed = 0;
-  int length = 5;
-  const char cmStringCommandDefaultAlphabet[] = "qwertyuiopasdfghjklzxcvbnm"
-    "QWERTYUIOPASDFGHJKLZXCVBNM"
-    "0123456789";
-  std::string alphabet;
-
-  if ( args.size() > 3 )
-    {
-    size_t i = 1;
-    size_t stopAt = args.size() - 2;
-
-    for ( ; i < stopAt; ++i )
+    if(cmTarget const* target = this->EntryList[*ni].Target)
       {
-      if ( args[i] == "LENGTH" )
+      if(cmTarget::LinkInterface const* iface =
+         target->GetLinkInterface(this->Config, this->HeadTarget))
         {
-        ++i;
-        length = atoi(args[i].c_str());
-        }
-      else if ( args[i] == "ALPHABET" )
-        {
-        ++i;
-        alphabet = args[i];
-        }
-      else if ( args[i] == "RANDOM_SEED" )
-        {
-        ++i;
-        seed = static_cast<unsigned int>(atoi(args[i].c_str()));
-        force_seed = true;
+        if(iface->Multiplicity > count)
+          {
+          count = iface->Multiplicity;
+          }
         }
       }
     }
-  if ( !alphabet.size() )
-    {
-    alphabet = cmStringCommandDefaultAlphabet;
-    }
-
-  double sizeofAlphabet = static_cast<double>(alphabet.size());
-  if ( sizeofAlphabet < 1 )
-    {
-    this->SetError("sub-command RANDOM invoked with bad alphabet.");
-    return false;
-    }
-  if ( length < 1 )
-    {
-    this->SetError("sub-command RANDOM invoked with bad length.");
-    return false;
-    }
-  const std::string& variableName = args[args.size()-1];
-
-  std::vector<char> result;
-
-  if (!seeded || force_seed)
-    {
-    seeded = true;
-    srand(force_seed? seed : cmSystemTools::RandomSeed());
-    }
-
-  const char* alphaPtr = alphabet.c_str();
-  int cc;
-  for ( cc = 0; cc < length; cc ++ )
-    {
-    int idx=(int) (sizeofAlphabet* rand()/(RAND_MAX+1.0));
-    result.push_back(*(alphaPtr + idx));
-    }
-  result.push_back(0);
-
-  this->Makefile->AddDefinition(variableName.c_str(), &*result.begin());
-  return true;
+  return count;
 }
 
 //----------------------------------------------------------------------------
-bool cmStringCommand
-::HandleTimestampCommand(std::vector<std::string> const& args)
+void cmComputeLinkDepends::DisplayFinalEntries()
 {
-  if(args.size() < 2)
+  fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());
+  for(std::vector<LinkEntry>::const_iterator lei =
+        this->FinalLinkEntries.begin();
+      lei != this->FinalLinkEntries.end(); ++lei)
     {
-    this->SetError("sub-command TIMESTAMP requires at least one argument.");
-    return false;
-    }
-  else if(args.size() > 4)
-    {
-    this->SetError("sub-command TIMESTAMP takes at most three arguments.");
-    return false;
-    }
-
-  unsigned int argsIndex = 1;
-
-  const std::string &outputVariable = args[argsIndex++];
-
-  std::string formatString;
-  if(args.size() > argsIndex && args[argsIndex] != "UTC")
-    {
-    formatString = args[argsIndex++];
-    }
-
-  bool utcFlag = false;
-  if(args.size() > argsIndex)
-    {
-    if(args[argsIndex] == "UTC")
+    if(lei->Target)
       {
-      utcFlag = true;
+      fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
       }
     else
       {
-      std::string e = " TIMESTAMP sub-command does not recognize option " +
-          args[argsIndex] + ".";
-      this->SetError(e.c_str());
-      return false;
+      fprintf(stderr, "  item [%s]\n", lei->Item.c_str());
       }
     }
+  fprintf(stderr, "\n");
+}
 
-  cmTimestamp timestamp;
-  std::string result = timestamp.CurrentTime(formatString, utcFlag);
-  this->Makefile->AddDefinition(outputVariable.c_str(), result.c_str());
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::CheckWrongConfigItem(int depender_index,
+                                                std::string const& item)
+{
+  if(!this->OldLinkDirMode)
+    {
+    return;
+    }
 
-  return true;
+  // For CMake 2.4 bug-compatibility we need to consider the output
+  // directories of targets linked in another configuration as link
+  // directories.
+  if(cmTarget const* tgt
+                      = this->FindTargetToLink(depender_index, item.c_str()))
+    {
+    if(!tgt->IsImported())
+      {
+      this->OldWrongConfigItems.insert(tgt);
+      }
+    }
 }

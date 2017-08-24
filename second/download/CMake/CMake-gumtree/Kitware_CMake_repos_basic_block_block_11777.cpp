@@ -1,0 +1,1 @@
+archive_string_empty(&file->name)

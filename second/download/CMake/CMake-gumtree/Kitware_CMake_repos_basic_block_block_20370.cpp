@@ -1,0 +1,1 @@
+close(pipe->u.fd)

@@ -1,0 +1,1 @@
+Curl_getASN1Element(param, beg, end)

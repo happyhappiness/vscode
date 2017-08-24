@@ -1,0 +1,1 @@
+pax_attribute_xattr(entry, key, value)

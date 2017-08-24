@@ -1,0 +1,1 @@
+return (truncated_error(a));

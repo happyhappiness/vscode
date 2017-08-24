@@ -1,0 +1,1 @@
+coder->lz.end(coder->lz.coder, allocator)

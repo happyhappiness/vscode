@@ -1,0 +1,1 @@
+w->cb(loop, w, revents)

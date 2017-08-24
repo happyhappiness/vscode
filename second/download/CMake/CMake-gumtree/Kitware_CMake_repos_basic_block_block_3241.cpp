@@ -1,0 +1,1 @@
+(!allOK) testFailsExist = True

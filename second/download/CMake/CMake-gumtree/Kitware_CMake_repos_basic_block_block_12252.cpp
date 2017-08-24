@@ -1,0 +1,1 @@
+archive_entry_set_uid(entry, st->st_uid)

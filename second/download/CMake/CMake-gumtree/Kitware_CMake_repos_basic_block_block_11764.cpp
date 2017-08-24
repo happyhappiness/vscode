@@ -1,0 +1,1 @@
+new_size = heap->allocated * 2

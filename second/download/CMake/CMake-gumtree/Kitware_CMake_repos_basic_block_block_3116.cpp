@@ -1,0 +1,1 @@
+(stream != stdout) fclose(stream)

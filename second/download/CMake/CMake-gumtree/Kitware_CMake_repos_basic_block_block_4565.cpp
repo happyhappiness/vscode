@@ -1,0 +1,1 @@
+CryptGetHashParam(ctx->hHash, HP_HASHVAL, digest, &length, 0)

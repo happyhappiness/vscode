@@ -1,0 +1,1 @@
+mentry->full = 1

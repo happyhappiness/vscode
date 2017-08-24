@@ -1,0 +1,1 @@
+b64[j++] = cert_start[i]

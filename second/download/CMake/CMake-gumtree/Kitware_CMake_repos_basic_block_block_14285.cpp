@@ -1,0 +1,2 @@
+(attr & FILE_ATTRIBUTE_DIRECTORY)
+				errno = EISDIR

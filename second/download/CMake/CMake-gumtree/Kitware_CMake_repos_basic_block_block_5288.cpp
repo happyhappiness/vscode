@@ -1,0 +1,4 @@
+{
+      free(share);
+      return NULL;
+    }

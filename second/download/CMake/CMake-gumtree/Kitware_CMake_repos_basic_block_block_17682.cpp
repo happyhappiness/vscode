@@ -1,0 +1,1 @@
+zip->entry = archive_entry_clone(entry)

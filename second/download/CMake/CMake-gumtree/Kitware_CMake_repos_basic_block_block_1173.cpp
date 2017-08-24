@@ -1,0 +1,3 @@
+{
+        max = cp->PipeReadEnds[i];
+      }

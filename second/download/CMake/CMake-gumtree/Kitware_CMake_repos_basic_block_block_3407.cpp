@@ -1,0 +1,1 @@
+(s->len[t][i] < minLen) minLen = s->len[t][i]

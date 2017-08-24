@@ -1,0 +1,1 @@
+(result) be32_copy(result, 0, ctx->hash, ctx->digest_length)

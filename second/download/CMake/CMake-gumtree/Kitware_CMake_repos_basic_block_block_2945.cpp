@@ -1,0 +1,1 @@
+(r3 == 1) med = eclass[fmap[(lo+hi)>>1]]

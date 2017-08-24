@@ -1,17 +1,10 @@
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Unexpected codec ID: %lX", zip->codec);
-		return (ARCHIVE_FAILED);
-	case _7Z_CRYPTO_MAIN_ZIP:
-	case _7Z_CRYPTO_RAR_29:
-	case _7Z_CRYPTO_AES_256_SHA_256:
-		if (a->entry) {
-			archive_entry_set_is_metadata_encrypted(a->entry, 1);
-			archive_entry_set_is_data_encrypted(a->entry, 1);
-			zip->has_encrypted_entries = 1;
-		}
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Crypto codec not supported yet (ID: 0x%lX)", zip->codec);
-		return (ARCHIVE_FAILED);
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Unknown codec ID: %lX", zip->codec);
+    fprintf(stderr, "Output on stderr before test %d.\n", n);
+    fflush(stdout);
+    fflush(stderr);
+    r = runChild(cmd, states[n-1], exceptions[n-1], values[n-1], shares[n-1],
+                 outputs[n-1], delays[n-1], timeouts[n-1],
+                 polls[n-1], repeat[n-1], 0, createNewGroups[n-1],
+                 interruptDelays[n-1]);
+    fprintf(stdout, "Output on stdout after test %d.\n", n);
+    fprintf(stderr, "Output on stderr after test %d.\n", n);
+    fflush(stdout);

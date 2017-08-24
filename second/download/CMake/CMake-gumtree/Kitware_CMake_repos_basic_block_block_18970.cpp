@@ -1,0 +1,1 @@
+uv_sem_post(&state->fsevent_sem)

@@ -1,0 +1,1 @@
+nftyp->status |= _HAS_CHOICE

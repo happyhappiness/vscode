@@ -1,0 +1,1 @@
+ret = ret.substr(1, ret.size() - 2)

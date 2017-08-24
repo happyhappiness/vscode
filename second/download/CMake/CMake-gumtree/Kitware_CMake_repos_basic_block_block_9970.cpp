@@ -1,0 +1,1 @@
+t->async_io = ASYNC_IO

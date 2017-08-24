@@ -1,0 +1,3 @@
+{
+    ret = RunXCode(argv, hitbug);
+  }

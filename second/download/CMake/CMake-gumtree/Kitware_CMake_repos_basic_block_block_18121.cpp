@@ -1,0 +1,1 @@
+mf->sons_count *= 2

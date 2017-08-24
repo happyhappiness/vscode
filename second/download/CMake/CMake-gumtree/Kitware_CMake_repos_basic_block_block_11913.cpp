@@ -1,0 +1,1 @@
+lha->entry_is_compressed = 1

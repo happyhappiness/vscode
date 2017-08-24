@@ -1,0 +1,1 @@
+(ISFLAG("--fast"))              blockSize100k = 1

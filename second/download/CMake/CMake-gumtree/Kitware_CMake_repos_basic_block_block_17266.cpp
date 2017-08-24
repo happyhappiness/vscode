@@ -1,0 +1,1 @@
+memcpy(h + V7TAR_name_offset, pp, copy_length)

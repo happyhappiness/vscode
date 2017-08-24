@@ -1,0 +1,1 @@
+hs += HASH_3_SIZE

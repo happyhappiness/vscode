@@ -1,0 +1,1 @@
+r = setup_sparse_from_disk(a, entry, t->entry_fh)

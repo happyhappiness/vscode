@@ -1,9 +1,15 @@
-  // update the cache entry for the number of local generators, this is used
-  // for progress
-  char num[100];
-  sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
-  this->GetCMakeInstance()->AddCacheEntry
-    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
-     "number of local generators", cmState::INTERNAL);
 
-  // check for link libraries and include directories containing "NOTFOUND"
+void
+cmLocalVisualStudio6Generator
+::AddUtilityCommandHack(cmTarget& target, int count,
+                        std::vector<std::string>& depends,
+                        const cmCustomCommand& origCommand)
+{
+  // Create a fake output that forces the rule to run.
+  char* output = new char[(strlen(this->GetCurrentBinaryDirectory())
+                           + target.GetName().size() + 30)];
+  sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
+          target.GetName().c_str(), count);
+  const char* comment = origCommand.GetComment();
+  if(!comment && origCommand.GetOutputs().empty())
+    {

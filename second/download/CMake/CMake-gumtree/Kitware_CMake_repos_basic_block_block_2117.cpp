@@ -1,0 +1,3 @@
+(!int(isalpha(*cur))) {
+          ++cur;
+        }

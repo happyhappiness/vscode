@@ -1,0 +1,1 @@
+return fastpos_result(pos, 0, 1);

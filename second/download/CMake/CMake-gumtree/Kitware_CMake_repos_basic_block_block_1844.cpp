@@ -1,0 +1,3 @@
+{
+      this->ChipID.ProcessorName = cpuname;
+    }

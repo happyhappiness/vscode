@@ -1,0 +1,1 @@
+ftab[eclass8[i]]++

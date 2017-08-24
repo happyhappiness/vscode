@@ -1,0 +1,2 @@
+fremovexattr(a->fd, XATTR_RESOURCEFORK_NAME,
+			    XATTR_SHOWCOMPRESSION)

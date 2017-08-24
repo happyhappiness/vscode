@@ -1,0 +1,1 @@
+crc = crc_tbl[(crc ^ *p++) & 0xff] ^ (crc >> 8)

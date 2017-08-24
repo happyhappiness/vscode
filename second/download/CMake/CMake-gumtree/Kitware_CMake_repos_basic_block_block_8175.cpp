@@ -1,0 +1,2 @@
+(!tem)
+        return 0;

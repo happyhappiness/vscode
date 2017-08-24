@@ -1,0 +1,4 @@
+{
+          fclose(fp);
+          return -ENOMEM;
+        }

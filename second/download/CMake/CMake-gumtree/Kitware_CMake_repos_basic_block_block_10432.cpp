@@ -1,0 +1,1 @@
+memmove(ptr, uudecode->in_buff, uudecode->in_cnt)

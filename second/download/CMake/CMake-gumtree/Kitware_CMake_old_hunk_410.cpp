@@ -1,7 +1,7 @@
-	if (strncmp(h + AR_fmag_offset, "`\n", 2) != 0) {
-		archive_set_error(&a->archive, EINVAL,
-		    "Incorrect file header signature");
-		return (ARCHIVE_WARN);
-	}
 
-	/* Copy filename into work buffer. */
+		/* If a length of full-pathname is longer than 240 bytes,
+		 * it violates Joliet extensions regulation. */
+		if (parent_len + np->mb_len > 240) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "The regulation of Joliet extensions;"
+			    " A length of a full-pathname of `%s' is "

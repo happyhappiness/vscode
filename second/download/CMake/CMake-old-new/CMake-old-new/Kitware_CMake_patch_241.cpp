@@ -1,723 +1,450 @@
-@@ -109,14 +109,15 @@ static DWORD WINAPI kwsysProcessPipeThreadWake(LPVOID ptd);
- static void kwsysProcessPipeThreadWakePipe(kwsysProcess* cp,
-                                            kwsysProcessPipeData* td);
- static int kwsysProcessInitialize(kwsysProcess* cp);
--static int kwsysProcessCreate(kwsysProcess* cp, int index,
--                              kwsysProcessCreateInformation* si);
-+static DWORD kwsysProcessCreate(kwsysProcess* cp, int index,
-+                                kwsysProcessCreateInformation* si);
- static void kwsysProcessDestroy(kwsysProcess* cp, int event);
--static int kwsysProcessSetupOutputPipeFile(PHANDLE handle, const char* name);
-+static DWORD kwsysProcessSetupOutputPipeFile(PHANDLE handle,
-+                                             const char* name);
- static void kwsysProcessSetupSharedPipe(DWORD nStdHandle, PHANDLE handle);
- static void kwsysProcessSetupPipeNative(HANDLE native, PHANDLE handle);
- static void kwsysProcessCleanupHandle(PHANDLE h);
--static void kwsysProcessCleanup(kwsysProcess* cp, int error);
-+static void kwsysProcessCleanup(kwsysProcess* cp, DWORD error);
- static void kwsysProcessCleanErrorMessage(kwsysProcess* cp);
- static int kwsysProcessGetTimeoutTime(kwsysProcess* cp, double* userTimeout,
-                                       kwsysProcessTime* timeoutTime);
-@@ -133,6 +134,13 @@ static kwsysProcessTime kwsysProcessTimeSubtract(kwsysProcessTime in1, kwsysProc
- static void kwsysProcessSetExitException(kwsysProcess* cp, int code);
- static void kwsysProcessKillTree(int pid);
- static void kwsysProcessDisablePipeThreads(kwsysProcess* cp);
-+static int kwsysProcessesInitialize(void);
-+static int kwsysTryEnterCreateProcessSection(void);
-+static void kwsysLeaveCreateProcessSection(void);
-+static int kwsysProcessesAdd(HANDLE hProcess, DWORD dwProcessId,
-+                             int newProcessGroup);
-+static void kwsysProcessesRemove(HANDLE hProcess);
-+static BOOL WINAPI kwsysCtrlHandler(DWORD dwCtrlType);
- 
- /*--------------------------------------------------------------------------*/
- /* A structure containing synchronization data for each thread.  */
-@@ -222,6 +230,9 @@ struct kwsysProcess_s
-   /* Whether to merge stdout/stderr of the child.  */
-   int MergeOutput;
- 
-+  /* Whether to create the process in a new process group.  */
-+  int CreateProcessGroup;
-+
-   /* Mutex to protect the shared index used by threads to report data.  */
-   HANDLE SharedIndexMutex;
- 
-@@ -321,6 +332,16 @@ kwsysProcess* kwsysProcess_New(void)
-   /* Windows version number data.  */
-   OSVERSIONINFO osv;
- 
-+  /* Initialize list of processes before we get any farther.  It's especially
-+     important that the console Ctrl handler be added BEFORE starting the
-+     first process.  This prevents the risk of an orphaned process being
-+     started by the main thread while the default Ctrl handler is in
-+     progress.  */
-+  if(!kwsysProcessesInitialize())
-+    {
-+    return 0;
-+    }
-+
-   /* Allocate a process control structure.  */
-   cp = (kwsysProcess*)malloc(sizeof(kwsysProcess));
-   if(!cp)
-@@ -836,6 +857,8 @@ int kwsysProcess_GetOption(kwsysProcess* cp, int optionId)
-     case kwsysProcess_Option_HideWindow: return cp->HideWindow;
-     case kwsysProcess_Option_MergeOutput: return cp->MergeOutput;
-     case kwsysProcess_Option_Verbatim: return cp->Verbatim;
-+    case kwsysProcess_Option_CreateProcessGroup:
-+      return cp->CreateProcessGroup;
-     default: return 0;
-     }
- }
-@@ -854,6 +877,8 @@ void kwsysProcess_SetOption(kwsysProcess* cp, int optionId, int value)
-     case kwsysProcess_Option_HideWindow: cp->HideWindow = value; break;
-     case kwsysProcess_Option_MergeOutput: cp->MergeOutput = value; break;
-     case kwsysProcess_Option_Verbatim: cp->Verbatim = value; break;
-+    case kwsysProcess_Option_CreateProcessGroup:
-+      cp->CreateProcessGroup = value; break;
-     default: break;
-     }
- }
-@@ -945,7 +970,7 @@ void kwsysProcess_Execute(kwsysProcess* cp)
-     if(!GetCurrentDirectoryW(cp->RealWorkingDirectoryLength,
-                             cp->RealWorkingDirectory))
-       {
--      kwsysProcessCleanup(cp, 1);
-+      kwsysProcessCleanup(cp, GetLastError());
-       return;
-       }
-     SetCurrentDirectoryW(cp->WorkingDirectory);
-@@ -957,14 +982,16 @@ void kwsysProcess_Execute(kwsysProcess* cp)
-     {
-     /* Create a handle to read a file for stdin.  */
-     wchar_t* wstdin = kwsysEncoding_DupToWide(cp->PipeFileSTDIN);
-+    DWORD error;
-     cp->PipeChildStd[0] =
-       CreateFileW(wstdin, GENERIC_READ|GENERIC_WRITE,
-                   FILE_SHARE_READ|FILE_SHARE_WRITE,
-                   0, OPEN_EXISTING, 0, 0);
-+    error = GetLastError(); /* Check now in case free changes this.  */
-     free(wstdin);
-     if(cp->PipeChildStd[0] == INVALID_HANDLE_VALUE)
-       {
--      kwsysProcessCleanup(cp, 1);
-+      kwsysProcessCleanup(cp, error);
-       return;
-       }
-     }
-@@ -990,17 +1017,18 @@ void kwsysProcess_Execute(kwsysProcess* cp)
-   if(!CreatePipe(&cp->Pipe[KWSYSPE_PIPE_STDOUT].Read,
-                  &cp->Pipe[KWSYSPE_PIPE_STDOUT].Write, 0, 0))
-     {
--    kwsysProcessCleanup(cp, 1);
-+    kwsysProcessCleanup(cp, GetLastError());
-     return;
-     }
- 
-   if(cp->PipeFileSTDOUT)
-     {
-     /* Use a file for stdout.  */
--    if(!kwsysProcessSetupOutputPipeFile(&cp->PipeChildStd[1],
--                                        cp->PipeFileSTDOUT))
-+    DWORD error = kwsysProcessSetupOutputPipeFile(&cp->PipeChildStd[1],
-+                                                  cp->PipeFileSTDOUT);
-+    if(error)
-       {
--      kwsysProcessCleanup(cp, 1);
-+      kwsysProcessCleanup(cp, error);
-       return;
-       }
-     }
-@@ -1023,7 +1051,7 @@ void kwsysProcess_Execute(kwsysProcess* cp)
-                         GetCurrentProcess(), &cp->PipeChildStd[1],
-                         0, FALSE, DUPLICATE_SAME_ACCESS))
-       {
--      kwsysProcessCleanup(cp, 1);
-+      kwsysProcessCleanup(cp, GetLastError());
-       return;
-       }
-     }
-@@ -1034,17 +1062,18 @@ void kwsysProcess_Execute(kwsysProcess* cp)
-   if(!CreatePipe(&cp->Pipe[KWSYSPE_PIPE_STDERR].Read,
-                  &cp->Pipe[KWSYSPE_PIPE_STDERR].Write, 0, 0))
-     {
--    kwsysProcessCleanup(cp, 1);
-+    kwsysProcessCleanup(cp, GetLastError());
-     return;
-     }
- 
-   if(cp->PipeFileSTDERR)
-     {
-     /* Use a file for stderr.  */
--    if(!kwsysProcessSetupOutputPipeFile(&cp->PipeChildStd[2],
--                                        cp->PipeFileSTDERR))
-+    DWORD error = kwsysProcessSetupOutputPipeFile(&cp->PipeChildStd[2],
-+                                                  cp->PipeFileSTDERR);
-+    if(error)
-       {
--      kwsysProcessCleanup(cp, 1);
-+      kwsysProcessCleanup(cp, error);
-       return;
-       }
-     }
-@@ -1067,7 +1096,7 @@ void kwsysProcess_Execute(kwsysProcess* cp)
-                         GetCurrentProcess(), &cp->PipeChildStd[2],
-                         0, FALSE, DUPLICATE_SAME_ACCESS))
-       {
--      kwsysProcessCleanup(cp, 1);
-+      kwsysProcessCleanup(cp, GetLastError());
-       return;
-       }
-     }
-@@ -1106,11 +1135,12 @@ void kwsysProcess_Execute(kwsysProcess* cp)
-       HANDLE p[2] = {INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE};
-       if (!CreatePipe(&p[0], &p[1], 0, 0))
-         {
-+        DWORD error = GetLastError();
-         if (nextStdInput != cp->PipeChildStd[0])
-           {
-           kwsysProcessCleanupHandle(&nextStdInput);
-           }
--        kwsysProcessCleanup(cp, 1);
-+        kwsysProcessCleanup(cp, error);
-         return;
-         }
-       nextStdInput = p[0];
-@@ -1119,7 +1149,7 @@ void kwsysProcess_Execute(kwsysProcess* cp)
-     si.hStdError = cp->MergeOutput? cp->PipeChildStd[1] : cp->PipeChildStd[2];
- 
-     {
--    int res = kwsysProcessCreate(cp, i, &si);
-+    DWORD error = kwsysProcessCreate(cp, i, &si);
- 
-     /* Close our copies of pipes used between children.  */
-     if (si.hStdInput != cp->PipeChildStd[0])
-@@ -1134,7 +1164,7 @@ void kwsysProcess_Execute(kwsysProcess* cp)
-       {
-       kwsysProcessCleanupHandle(&si.hStdError);
-       }
--    if (res)
-+    if (!error)
-       {
-       cp->ProcessEvents[i+1] = cp->ProcessInformation[i].hProcess;
-       }
-@@ -1144,7 +1174,7 @@ void kwsysProcess_Execute(kwsysProcess* cp)
-         {
-         kwsysProcessCleanupHandle(&nextStdInput);
-         }
--      kwsysProcessCleanup(cp, 1);
-+      kwsysProcessCleanup(cp, error);
-       return;
-       }
-     }
-@@ -1460,6 +1490,52 @@ int kwsysProcess_WaitForExit(kwsysProcess* cp, double* userTimeout)
+@@ -139,16 +139,19 @@ get_time_t_max(void)
+ #if defined(TIME_T_MAX)
+ 	return TIME_T_MAX;
+ #else
+-	static time_t t;
+-	time_t a;
+-	if (t == 0) {
+-		a = 1;
+-		while (a > t) {
+-			t = a;
+-			a = a * 2 + 1;
+-		}
++	/* ISO C allows time_t to be a floating-point type,
++	   but POSIX requires an integer type.  The following
++	   should work on any system that follows the POSIX
++	   conventions. */
++	if (((time_t)0) < ((time_t)-1)) {
++		/* Time_t is unsigned */
++		return (~(time_t)0);
++	} else {
++		/* Time_t is signed. */
++		const uintmax_t max_unsigned_time_t = (uintmax_t)(~(time_t)0);
++		const uintmax_t max_signed_time_t = max_unsigned_time_t >> 1;
++		return (time_t)max_signed_time_t;
+ 	}
+-	return t;
+ #endif
  }
  
- /*--------------------------------------------------------------------------*/
-+void kwsysProcess_Interrupt(kwsysProcess* cp)
-+{
-+  int i;
-+  /* Make sure we are executing a process.  */
-+  if(!cp || cp->State != kwsysProcess_State_Executing || cp->TimeoutExpired ||
-+     cp->Killed)
-+    {
-+    KWSYSPE_DEBUG((stderr, "interrupt: child not executing\n"));
-+    return;
-+    }
+@@ -158,20 +161,16 @@ get_time_t_min(void)
+ #if defined(TIME_T_MIN)
+ 	return TIME_T_MIN;
+ #else
+-	/* 't' will hold the minimum value, which will be zero (if
+-	 * time_t is unsigned) or -2^n (if time_t is signed). */
+-	static int computed;
+-	static time_t t;
+-	time_t a;
+-	if (computed == 0) {
+-		a = (time_t)-1;
+-		while (a < t) {
+-			t = a;
+-			a = a * 2;
+-		}			
+-		computed = 1;
++	if (((time_t)0) < ((time_t)-1)) {
++		/* Time_t is unsigned */
++		return (time_t)0;
++	} else {
++		/* Time_t is signed. */
++		const uintmax_t max_unsigned_time_t = (uintmax_t)(~(time_t)0);
++		const uintmax_t max_signed_time_t = max_unsigned_time_t >> 1;
++		const intmax_t min_signed_time_t = (intmax_t)~max_signed_time_t;
++		return (time_t)min_signed_time_t;
+ 	}
+-	return t;
+ #endif
+ }
+ 
+@@ -532,32 +531,34 @@ bid_entry(const char *p, ssize_t len, ssize_t nl, int *last_is_path)
+ 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* E0 - EF */
+ 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* F0 - FF */
+ 	};
+-	ssize_t ll = len;
++	ssize_t ll;
+ 	const char *pp = p;
++	const char * const pp_end = pp + len;
+ 
+ 	*last_is_path = 0;
+ 	/*
+ 	 * Skip the path-name which is quoted.
+ 	 */
+-	while (ll > 0 && *pp != ' ' &&*pp != '\t' && *pp != '\r' &&
+-	    *pp != '\n') {
++	for (;pp < pp_end; ++pp) {
+ 		if (!safe_char[*(const unsigned char *)pp]) {
+-			f = 0;
++			if (*pp != ' ' && *pp != '\t' && *pp != '\r'
++			    && *pp != '\n')
++				f = 0;
+ 			break;
+ 		}
+-		++pp;
+-		--ll;
+-		++f;
++		f = 1;
+ 	}
++	ll = pp_end - pp;
 +
-+  /* Skip actually interrupting the child if it has already terminated.  */
-+  if(cp->Terminated)
-+    {
-+    KWSYSPE_DEBUG((stderr, "interrupt: child already terminated\n"));
-+    return;
-+    }
-+
-+  /* Interrupt the children.  */
-+  if (cp->CreateProcessGroup)
-+    {
-+    if(cp->ProcessInformation)
-+      {
-+      for(i=0; i < cp->NumberOfCommands; ++i)
-+        {
-+        /* Make sure the process handle isn't closed (e.g. from disowning). */
-+        if(cp->ProcessInformation[i].hProcess)
-+          {
-+          /* The user created a process group for this process.  The group ID
-+             is the process ID for the original process in the group.  Note
-+             that we have to use Ctrl+Break: Ctrl+C is not allowed for process
-+             groups.  */
-+          GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT,
-+                                   cp->ProcessInformation[i].dwProcessId);
-+          }
-+        }
-+      }
-+    }
-+  else
-+    {
-+    /* No process group was created.  Kill our own process group...  */
-+    GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
-+    }
-+}
-+
-+/*--------------------------------------------------------------------------*/
- void kwsysProcess_Kill(kwsysProcess* cp)
+ 	/* If a path-name was not found at the first, try to check
+-	 * a mtree format ``NetBSD's mtree -D'' creates, which
+-	 * places the path-name at the last. */
++	 * a mtree format(a.k.a form D) ``NetBSD's mtree -D'' creates,
++	 * which places the path-name at the last. */
+ 	if (f == 0) {
+ 		const char *pb = p + len - nl;
+ 		int name_len = 0;
+ 		int slash;
+ 
+-		/* Do not accept multi lines for form D. */
++		/* The form D accepts only a single line for an entry. */
+ 		if (pb-2 >= p &&
+ 		    pb[-1] == '\\' && (pb[-2] == ' ' || pb[-2] == '\t'))
+ 			return (-1);
+@@ -1056,7 +1057,8 @@ read_header(struct archive_read *a, struct archive_entry *entry)
+ 		}
+ 		if (!mtree->this_entry->used) {
+ 			use_next = 0;
+-			r = parse_file(a, entry, mtree, mtree->this_entry, &use_next);
++			r = parse_file(a, entry, mtree, mtree->this_entry,
++				&use_next);
+ 			if (use_next == 0)
+ 				return (r);
+ 		}
+@@ -1151,8 +1153,8 @@ parse_file(struct archive_read *a, struct archive_entry *entry,
+ 			mtree->fd = open(path, O_RDONLY | O_BINARY | O_CLOEXEC);
+ 			__archive_ensure_cloexec_flag(mtree->fd);
+ 			if (mtree->fd == -1 &&
+-					(errno != ENOENT ||
+-					 archive_strlen(&mtree->contents_name) > 0)) {
++				(errno != ENOENT ||
++				 archive_strlen(&mtree->contents_name) > 0)) {
+ 				archive_set_error(&a->archive, errno,
+ 						"Can't open %s", path);
+ 				r = ARCHIVE_WARN;
+@@ -1175,76 +1177,79 @@ parse_file(struct archive_read *a, struct archive_entry *entry,
+ 		}
+ 
+ 		/*
+-		 * Check for a mismatch between the type in the specification and
+-		 * the type of the contents object on disk.
++		 * Check for a mismatch between the type in the specification
++		 * and the type of the contents object on disk.
+ 		 */
+ 		if (st != NULL) {
+-			if (
+-					((st->st_mode & S_IFMT) == S_IFREG &&
+-					 archive_entry_filetype(entry) == AE_IFREG)
++			if (((st->st_mode & S_IFMT) == S_IFREG &&
++			      archive_entry_filetype(entry) == AE_IFREG)
+ #ifdef S_IFLNK
+-					|| ((st->st_mode & S_IFMT) == S_IFLNK &&
+-						archive_entry_filetype(entry) == AE_IFLNK)
++			  ||((st->st_mode & S_IFMT) == S_IFLNK &&
++			      archive_entry_filetype(entry) == AE_IFLNK)
+ #endif
+ #ifdef S_IFSOCK
+-					|| ((st->st_mode & S_IFSOCK) == S_IFSOCK &&
+-						archive_entry_filetype(entry) == AE_IFSOCK)
++			  ||((st->st_mode & S_IFSOCK) == S_IFSOCK &&
++			      archive_entry_filetype(entry) == AE_IFSOCK)
+ #endif
+ #ifdef S_IFCHR
+-					|| ((st->st_mode & S_IFMT) == S_IFCHR &&
+-						archive_entry_filetype(entry) == AE_IFCHR)
++			  ||((st->st_mode & S_IFMT) == S_IFCHR &&
++			      archive_entry_filetype(entry) == AE_IFCHR)
+ #endif
+ #ifdef S_IFBLK
+-					|| ((st->st_mode & S_IFMT) == S_IFBLK &&
+-						archive_entry_filetype(entry) == AE_IFBLK)
++			  ||((st->st_mode & S_IFMT) == S_IFBLK &&
++			      archive_entry_filetype(entry) == AE_IFBLK)
+ #endif
+-					|| ((st->st_mode & S_IFMT) == S_IFDIR &&
+-						archive_entry_filetype(entry) == AE_IFDIR)
++			  ||((st->st_mode & S_IFMT) == S_IFDIR &&
++			      archive_entry_filetype(entry) == AE_IFDIR)
+ #ifdef S_IFIFO
+-					|| ((st->st_mode & S_IFMT) == S_IFIFO &&
+-							archive_entry_filetype(entry) == AE_IFIFO)
++			  ||((st->st_mode & S_IFMT) == S_IFIFO &&
++			      archive_entry_filetype(entry) == AE_IFIFO)
+ #endif
+-					) {
+-						/* Types match. */
+-					} else {
+-						/* Types don't match; bail out gracefully. */
+-						if (mtree->fd >= 0)
+-							close(mtree->fd);
+-						mtree->fd = -1;
+-						if (parsed_kws & MTREE_HAS_OPTIONAL) {
+-							/* It's not an error for an optional entry
+-							   to not match disk. */
+-							*use_next = 1;
+-						} else if (r == ARCHIVE_OK) {
+-							archive_set_error(&a->archive,
+-									ARCHIVE_ERRNO_MISC,
+-									"mtree specification has different type for %s",
+-									archive_entry_pathname(entry));
+-							r = ARCHIVE_WARN;
+-						}
+-						return r;
+-					}
++			) {
++				/* Types match. */
++			} else {
++				/* Types don't match; bail out gracefully. */
++				if (mtree->fd >= 0)
++					close(mtree->fd);
++				mtree->fd = -1;
++				if (parsed_kws & MTREE_HAS_OPTIONAL) {
++					/* It's not an error for an optional
++					 * entry to not match disk. */
++					*use_next = 1;
++				} else if (r == ARCHIVE_OK) {
++					archive_set_error(&a->archive,
++					    ARCHIVE_ERRNO_MISC,
++					    "mtree specification has different"
++					    " type for %s",
++					    archive_entry_pathname(entry));
++					r = ARCHIVE_WARN;
++				}
++				return (r);
++			}
+ 		}
+ 
+ 		/*
+-		 * If there is a contents file on disk, pick some of the metadata
+-		 * from that file.  For most of these, we only set it from the contents
+-		 * if it wasn't already parsed from the specification.
++		 * If there is a contents file on disk, pick some of the
++		 * metadata from that file.  For most of these, we only
++		 * set it from the contents if it wasn't already parsed
++		 * from the specification.
+ 		 */
+ 		if (st != NULL) {
+ 			if (((parsed_kws & MTREE_HAS_DEVICE) == 0 ||
+-						(parsed_kws & MTREE_HAS_NOCHANGE) != 0) &&
+-					(archive_entry_filetype(entry) == AE_IFCHR ||
+-					 archive_entry_filetype(entry) == AE_IFBLK))
++				(parsed_kws & MTREE_HAS_NOCHANGE) != 0) &&
++				(archive_entry_filetype(entry) == AE_IFCHR ||
++				 archive_entry_filetype(entry) == AE_IFBLK))
+ 				archive_entry_set_rdev(entry, st->st_rdev);
+-			if ((parsed_kws & (MTREE_HAS_GID | MTREE_HAS_GNAME)) == 0 ||
+-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
++			if ((parsed_kws & (MTREE_HAS_GID | MTREE_HAS_GNAME))
++				== 0 ||
++			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
+ 				archive_entry_set_gid(entry, st->st_gid);
+-			if ((parsed_kws & (MTREE_HAS_UID | MTREE_HAS_UNAME)) == 0 ||
+-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
++			if ((parsed_kws & (MTREE_HAS_UID | MTREE_HAS_UNAME))
++				== 0 ||
++			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
+ 				archive_entry_set_uid(entry, st->st_uid);
+ 			if ((parsed_kws & MTREE_HAS_MTIME) == 0 ||
+-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0) {
++			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0) {
+ #if HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
+ 				archive_entry_set_mtime(entry, st->st_mtime,
+ 						st->st_mtimespec.tv_nsec);
+@@ -1265,23 +1270,24 @@ parse_file(struct archive_read *a, struct archive_entry *entry,
+ #endif
+ 			}
+ 			if ((parsed_kws & MTREE_HAS_NLINK) == 0 ||
+-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
++			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
+ 				archive_entry_set_nlink(entry, st->st_nlink);
+ 			if ((parsed_kws & MTREE_HAS_PERM) == 0 ||
+-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
++			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
+ 				archive_entry_set_perm(entry, st->st_mode);
+ 			if ((parsed_kws & MTREE_HAS_SIZE) == 0 ||
+-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
++			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
+ 				archive_entry_set_size(entry, st->st_size);
+ 			archive_entry_set_ino(entry, st->st_ino);
+ 			archive_entry_set_dev(entry, st->st_dev);
+ 
+-			archive_entry_linkify(mtree->resolver, &entry, &sparse_entry);
++			archive_entry_linkify(mtree->resolver, &entry,
++				&sparse_entry);
+ 		} else if (parsed_kws & MTREE_HAS_OPTIONAL) {
+ 			/*
+ 			 * Couldn't open the entry, stat it or the on-disk type
+-			 * didn't match.  If this entry is optional, just ignore it
+-			 * and read the next header entry.
++			 * didn't match.  If this entry is optional, just
++			 * ignore it and read the next header entry.
+ 			 */
+ 			*use_next = 1;
+ 			return ARCHIVE_OK;
+@@ -1370,7 +1376,7 @@ parse_device(dev_t *pdev, struct archive *a, char *val)
+ 				    "Missing number");
+ 				return ARCHIVE_WARN;
+ 			}
+-			numbers[argc++] = mtree_atol(&p);
++			numbers[argc++] = (unsigned long)mtree_atol(&p);
+ 			if (argc > MAX_PACK_ARGS) {
+ 				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+ 				    "Too many arguments");
+@@ -1583,32 +1589,38 @@ parse_keyword(struct archive_read *a, struct mtree *mtree,
+ 				}
+ 			case 'c':
+ 				if (strcmp(val, "char") == 0) {
+-					archive_entry_set_filetype(entry, AE_IFCHR);
++					archive_entry_set_filetype(entry,
++						AE_IFCHR);
+ 					break;
+ 				}
+ 			case 'd':
+ 				if (strcmp(val, "dir") == 0) {
+-					archive_entry_set_filetype(entry, AE_IFDIR);
++					archive_entry_set_filetype(entry,
++						AE_IFDIR);
+ 					break;
+ 				}
+ 			case 'f':
+ 				if (strcmp(val, "fifo") == 0) {
+-					archive_entry_set_filetype(entry, AE_IFIFO);
++					archive_entry_set_filetype(entry,
++						AE_IFIFO);
+ 					break;
+ 				}
+ 				if (strcmp(val, "file") == 0) {
+-					archive_entry_set_filetype(entry, AE_IFREG);
++					archive_entry_set_filetype(entry,
++						AE_IFREG);
+ 					break;
+ 				}
+ 			case 'l':
+ 				if (strcmp(val, "link") == 0) {
+-					archive_entry_set_filetype(entry, AE_IFLNK);
++					archive_entry_set_filetype(entry,
++						AE_IFLNK);
+ 					break;
+ 				}
+ 			default:
+ 				archive_set_error(&a->archive,
+ 				    ARCHIVE_ERRNO_FILE_FORMAT,
+-				    "Unrecognized file type \"%s\"; assuming \"file\"", val);
++				    "Unrecognized file type \"%s\"; "
++				    "assuming \"file\"", val);
+ 				archive_entry_set_filetype(entry, AE_IFREG);
+ 				return (ARCHIVE_WARN);
+ 			}
+@@ -1635,7 +1647,8 @@ parse_keyword(struct archive_read *a, struct mtree *mtree,
+ }
+ 
+ static int
+-read_data(struct archive_read *a, const void **buff, size_t *size, int64_t *offset)
++read_data(struct archive_read *a, const void **buff, size_t *size,
++    int64_t *offset)
  {
-   int i;
-@@ -1487,7 +1563,8 @@ void kwsysProcess_Kill(kwsysProcess* cp)
-   for(i=0; i < cp->NumberOfCommands; ++i)
-     {
-     kwsysProcessKillTree(cp->ProcessInformation[i].dwProcessId);
--    // close the handle if we kill it
-+    /* Remove from global list of processes and close handles.  */
-+    kwsysProcessesRemove(cp->ProcessInformation[i].hProcess);
-     kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hThread);
-     kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hProcess);
-     }
-@@ -1686,7 +1763,7 @@ int kwsysProcessInitialize(kwsysProcess* cp)
- }
- 
- /*--------------------------------------------------------------------------*/
--static int kwsysProcessCreateChildHandle(PHANDLE out, HANDLE in, int isStdIn)
-+static DWORD kwsysProcessCreateChildHandle(PHANDLE out, HANDLE in, int isStdIn)
+ 	size_t bytes_to_read;
+ 	ssize_t bytes_read;
+@@ -1761,6 +1774,10 @@ parse_escapes(char *src, struct mtree_entry *mentry)
+ 				c = '\v';
+ 				++src;
+ 				break;
++			case '\\':
++				c = '\\';
++				++src;
++				break;
+ 			}
+ 		}
+ 		*dest++ = c;
+@@ -1898,14 +1915,14 @@ mtree_atol(char **p)
+  * point to first character of line.
+  */
+ static ssize_t
+-readline(struct archive_read *a, struct mtree *mtree, char **start, ssize_t limit)
++readline(struct archive_read *a, struct mtree *mtree, char **start,
++    ssize_t limit)
  {
-   DWORD flags;
+ 	ssize_t bytes_read;
+ 	ssize_t total_size = 0;
+ 	ssize_t find_off = 0;
+ 	const void *t;
+-	const char *s;
+-	void *p;
++	void *nl;
+ 	char *u;
  
-@@ -1697,13 +1774,19 @@ static int kwsysProcessCreateChildHandle(PHANDLE out, HANDLE in, int isStdIn)
-     if (flags & HANDLE_FLAG_INHERIT)
-       {
-       *out = in;
--      return 1;
-+      return ERROR_SUCCESS;
-       }
- 
-     /* Create an inherited copy of this handle.  */
--    return DuplicateHandle(GetCurrentProcess(), in,
--                           GetCurrentProcess(), out,
--                           0, TRUE, DUPLICATE_SAME_ACCESS);
-+    if (DuplicateHandle(GetCurrentProcess(), in, GetCurrentProcess(), out,
-+                        0, TRUE, DUPLICATE_SAME_ACCESS))
-+      {
-+      return ERROR_SUCCESS;
-+      }
-+    else
-+      {
-+      return GetLastError();
-+      }
-     }
-   else
-     {
-@@ -1719,29 +1802,46 @@ static int kwsysProcessCreateChildHandle(PHANDLE out, HANDLE in, int isStdIn)
-                         (GENERIC_WRITE | FILE_READ_ATTRIBUTES)),
-                        FILE_SHARE_READ|FILE_SHARE_WRITE,
-                        &sa, OPEN_EXISTING, 0, 0);
--    return *out != INVALID_HANDLE_VALUE;
-+    return (*out != INVALID_HANDLE_VALUE) ? ERROR_SUCCESS : GetLastError();
-     }
--
- }
- 
- /*--------------------------------------------------------------------------*/
--int kwsysProcessCreate(kwsysProcess* cp, int index,
--                       kwsysProcessCreateInformation* si)
-+DWORD kwsysProcessCreate(kwsysProcess* cp, int index,
-+                         kwsysProcessCreateInformation* si)
- {
--  int res =
-+  DWORD creationFlags;
-+  DWORD error = ERROR_SUCCESS;
+ 	/* Accumulate line in a line buffer. */
+@@ -1916,11 +1933,10 @@ readline(struct archive_read *a, struct mtree *mtree, char **start, ssize_t limi
+ 			return (0);
+ 		if (bytes_read < 0)
+ 			return (ARCHIVE_FATAL);
+-		s = t;  /* Start of line? */
+-		p = memchr(t, '\n', bytes_read);
+-		/* If we found '\n', trim the read. */
+-		if (p != NULL) {
+-			bytes_read = 1 + ((const char *)p) - s;
++		nl = memchr(t, '\n', bytes_read);
++		/* If we found '\n', trim the read to end exactly there. */
++		if (nl != NULL) {
++			bytes_read = ((const char *)nl) - ((const char *)t) + 1;
+ 		}
+ 		if (total_size + bytes_read + 1 > limit) {
+ 			archive_set_error(&a->archive,
+@@ -1934,38 +1950,34 @@ readline(struct archive_read *a, struct mtree *mtree, char **start, ssize_t limi
+ 			    "Can't allocate working buffer");
+ 			return (ARCHIVE_FATAL);
+ 		}
++		/* Append new bytes to string. */
+ 		memcpy(mtree->line.s + total_size, t, bytes_read);
+ 		__archive_read_consume(a, bytes_read);
+ 		total_size += bytes_read;
+-		/* Null terminate. */
+ 		mtree->line.s[total_size] = '\0';
+-		/* If we found an unescaped '\n', clean up and return. */
 +
-+  /* Check if we are currently exiting.  */
-+  if (!kwsysTryEnterCreateProcessSection())
-+    {
-+    /* The Ctrl handler is currently working on exiting our process.  Rather
-+    than return an error code, which could cause incorrect conclusions to be
-+    reached by the caller, we simply hang.  (For example, a CMake try_run
-+    configure step might cause the project to configure wrong.)  */
-+    Sleep(INFINITE);
-+    }
- 
--    /* Create inherited copies the handles.  */
--    kwsysProcessCreateChildHandle(&si->StartupInfo.hStdInput,
--                                  si->hStdInput, 1) &&
--    kwsysProcessCreateChildHandle(&si->StartupInfo.hStdOutput,
--                                  si->hStdOutput, 0) &&
--    kwsysProcessCreateChildHandle(&si->StartupInfo.hStdError,
--                                  si->hStdError, 0) &&
-+  /* Create the child in a suspended state so we can wait until all
-+     children have been created before running any one.  */
-+  creationFlags = CREATE_SUSPENDED;
-+  if (cp->CreateProcessGroup)
-+    {
-+    creationFlags |= CREATE_NEW_PROCESS_GROUP;
-+    }
- 
--    /* Create the child in a suspended state so we can wait until all
--       children have been created before running any one.  */
--    CreateProcessW(0, cp->Commands[index], 0, 0, TRUE, CREATE_SUSPENDED, 0,
--                   0, &si->StartupInfo, &cp->ProcessInformation[index]);
-+  /* Create inherited copies of the handles.  */
-+  (error = kwsysProcessCreateChildHandle(&si->StartupInfo.hStdInput,
-+                                          si->hStdInput, 1)) ||
-+  (error = kwsysProcessCreateChildHandle(&si->StartupInfo.hStdOutput,
-+                                          si->hStdOutput, 0)) ||
-+  (error = kwsysProcessCreateChildHandle(&si->StartupInfo.hStdError,
-+                                          si->hStdError, 0)) ||
-+  /* Create the process.  */
-+  (!CreateProcessW(0, cp->Commands[index], 0, 0, TRUE, creationFlags, 0,
-+                  0, &si->StartupInfo, &cp->ProcessInformation[index]) &&
-+    (error = GetLastError()));
- 
-   /* Close the inherited copies of the handles. */
-   if (si->StartupInfo.hStdInput != si->hStdInput)
-@@ -1757,7 +1857,23 @@ int kwsysProcessCreate(kwsysProcess* cp, int index,
-     kwsysProcessCleanupHandle(&si->StartupInfo.hStdError);
-     }
- 
--  return res;
-+  /* Add the process to the global list of processes. */
-+  if (!error &&
-+      !kwsysProcessesAdd(cp->ProcessInformation[index].hProcess,
-+      cp->ProcessInformation[index].dwProcessId, cp->CreateProcessGroup))
-+    {
-+    /* This failed for some reason.  Kill the suspended process. */
-+    TerminateProcess(cp->ProcessInformation[index].hProcess, 1);
-+    /* And clean up... */
-+    kwsysProcessCleanupHandle(&cp->ProcessInformation[index].hProcess);
-+    kwsysProcessCleanupHandle(&cp->ProcessInformation[index].hThread);
-+    strcpy(cp->ErrorMessage, "kwsysProcessesAdd function failed");
-+    error = ERROR_NOT_ENOUGH_MEMORY; /* Most likely reason.  */
-+    }
-+
-+  /* If the console Ctrl handler is waiting for us, this will release it... */
-+  kwsysLeaveCreateProcessSection();
-+  return error;
- }
- 
- /*--------------------------------------------------------------------------*/
-@@ -1779,6 +1895,9 @@ void kwsysProcessDestroy(kwsysProcess* cp, int event)
-   GetExitCodeProcess(cp->ProcessInformation[index].hProcess,
-                      &cp->CommandExitCodes[index]);
- 
-+  /* Remove from global list of processes.  */
-+  kwsysProcessesRemove(cp->ProcessInformation[index].hProcess);
-+
-   /* Close the process handle for the terminated process.  */
-   kwsysProcessCleanupHandle(&cp->ProcessInformation[index].hProcess);
- 
-@@ -1813,13 +1932,14 @@ void kwsysProcessDestroy(kwsysProcess* cp, int event)
- }
- 
- /*--------------------------------------------------------------------------*/
--int kwsysProcessSetupOutputPipeFile(PHANDLE phandle, const char* name)
-+DWORD kwsysProcessSetupOutputPipeFile(PHANDLE phandle, const char* name)
- {
-   HANDLE fout;
-   wchar_t* wname;
-+  DWORD error;
-   if(!name)
-     {
--    return 1;
-+    return ERROR_INVALID_PARAMETER;
-     }
- 
-   /* Close the existing handle.  */
-@@ -1829,15 +1949,16 @@ int kwsysProcessSetupOutputPipeFile(PHANDLE phandle, const char* name)
-   wname = kwsysEncoding_DupToWide(name);
-   fout = CreateFileW(wname, GENERIC_WRITE, FILE_SHARE_READ, 0,
-                     CREATE_ALWAYS, 0, 0);
-+  error = GetLastError();
-   free(wname);
-   if(fout == INVALID_HANDLE_VALUE)
-     {
--    return 0;
-+    return error;
-     }
- 
-   /* Assign the replacement handle.  */
-   *phandle = fout;
--  return 1;
-+  return ERROR_SUCCESS;
- }
- 
- /*--------------------------------------------------------------------------*/
-@@ -1876,7 +1997,7 @@ void kwsysProcessCleanupHandle(PHANDLE h)
- /*--------------------------------------------------------------------------*/
- 
- /* Close all handles created by kwsysProcess_Execute.  */
--void kwsysProcessCleanup(kwsysProcess* cp, int error)
-+void kwsysProcessCleanup(kwsysProcess* cp, DWORD error)
- {
-   int i;
-   /* If this is an error case, report the error.  */
-@@ -1886,21 +2007,27 @@ void kwsysProcessCleanup(kwsysProcess* cp, int error)
-     if(cp->ErrorMessage[0] == 0)
-       {
-       /* Format the error message.  */
--      DWORD original = GetLastError();
-       wchar_t err_msg[KWSYSPE_PIPE_BUFFER_SIZE];
-       DWORD length = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
--                                   FORMAT_MESSAGE_IGNORE_INSERTS, 0, original,
-+                                   FORMAT_MESSAGE_IGNORE_INSERTS, 0, error,
-                                    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                                    err_msg, KWSYSPE_PIPE_BUFFER_SIZE, 0);
--      WideCharToMultiByte(CP_UTF8, 0, err_msg, -1, cp->ErrorMessage,
--                          KWSYSPE_PIPE_BUFFER_SIZE, NULL, NULL);
-       if(length < 1)
-         {
-         /* FormatMessage failed.  Use a default message.  */
-         _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
-                   "Process execution failed with error 0x%X.  "
-                   "FormatMessage failed with error 0x%X",
--                  original, GetLastError());
-+                  error, GetLastError());
-+        }
-+      if(!WideCharToMultiByte(CP_UTF8, 0, err_msg, -1, cp->ErrorMessage,
-+                              KWSYSPE_PIPE_BUFFER_SIZE, NULL, NULL))
-+        {
-+        /* WideCharToMultiByte failed.  Use a default message.  */
-+        _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
-+                  "Process execution failed with error 0x%X.  "
-+                  "WideCharToMultiByte failed with error 0x%X",
-+                  error, GetLastError());
-         }
-       }
- 
-@@ -1923,6 +2050,8 @@ void kwsysProcessCleanup(kwsysProcess* cp, int error)
-         }
-       for(i=0; i < cp->NumberOfCommands; ++i)
-         {
-+        /* Remove from global list of processes and close handles.  */
-+        kwsysProcessesRemove(cp->ProcessInformation[i].hProcess);
-         kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hThread);
-         kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hProcess);
-         }
-@@ -2659,3 +2788,230 @@ static void kwsysProcessDisablePipeThreads(kwsysProcess* cp)
-     ReleaseSemaphore(cp->Pipe[cp->CurrentIndex].Reader.Go, 1, 0);
-     }
- }
-+
-+/*--------------------------------------------------------------------------*/
-+/* Global set of executing processes for use by the Ctrl handler.
-+   This global instance will be zero-initialized by the compiler.
-+
-+   Note that the console Ctrl handler runs on a background thread and so
-+   everything it does must be thread safe.  Here, we track the hProcess
-+   HANDLEs directly instead of kwsysProcess instances, so that we don't have
-+   to make kwsysProcess thread safe.  */
-+typedef struct kwsysProcessInstance_s
-+{
-+  HANDLE hProcess;
-+  DWORD dwProcessId;
-+  int NewProcessGroup; /* Whether the process was created in a new group.  */
-+} kwsysProcessInstance;
-+
-+typedef struct kwsysProcessInstances_s
-+{
-+  /* Whether we have initialized key fields below, like critical sections.  */
-+  int Initialized;
-+
-+  /* Ctrl handler runs on a different thread, so we must sync access.  */
-+  CRITICAL_SECTION Lock;
-+
-+  int Exiting;
-+  size_t Count;
-+  size_t Size;
-+  kwsysProcessInstance* Processes;
-+} kwsysProcessInstances;
-+static kwsysProcessInstances kwsysProcesses;
-+
-+/*--------------------------------------------------------------------------*/
-+/* Initialize critial section and set up console Ctrl handler.  You MUST call
-+   this before using any other kwsysProcesses* functions below.  */
-+static int kwsysProcessesInitialize(void)
-+{
-+  /* Initialize everything if not done already.  */
-+  if(!kwsysProcesses.Initialized)
-+    {
-+    InitializeCriticalSection(&kwsysProcesses.Lock);
-+
-+    /* Set up console ctrl handler.  */
-+    if(!SetConsoleCtrlHandler(kwsysCtrlHandler, TRUE))
-+      {
-+      return 0;
-+      }
-+
-+    kwsysProcesses.Initialized = 1;
-+    }
-+  return 1;
-+}
-+
-+/*--------------------------------------------------------------------------*/
-+/* The Ctrl handler waits on the global list of processes.  To prevent an
-+   orphaned process, do not create a new process if the Ctrl handler is
-+   already running.  Do so by using this function to check if it is ok to
-+   create a process.  */
-+static int kwsysTryEnterCreateProcessSection(void)
-+{
-+  /* Enter main critical section; this means creating a process and the Ctrl
-+     handler are mutually exclusive.  */
-+  EnterCriticalSection(&kwsysProcesses.Lock);
-+  /* Indicate to the caller if they can create a process.  */
-+  if(kwsysProcesses.Exiting)
-+    {
-+    LeaveCriticalSection(&kwsysProcesses.Lock);
-+    return 0;
-+    }
-+  else
-+    {
-+    return 1;
-+    }
-+}
-+
-+/*--------------------------------------------------------------------------*/
-+/* Matching function on successful kwsysTryEnterCreateProcessSection return.
-+   Make sure you called kwsysProcessesAdd if applicable before calling this.*/
-+static void kwsysLeaveCreateProcessSection(void)
-+{
-+  LeaveCriticalSection(&kwsysProcesses.Lock);
-+}
-+
-+/*--------------------------------------------------------------------------*/
-+/* Add new process to global process list.  The Ctrl handler will wait for
-+   the process to exit before it returns.  Do not close the process handle
-+   until after calling kwsysProcessesRemove.  The newProcessGroup parameter
-+   must be set if the process was created with CREATE_NEW_PROCESS_GROUP.  */
-+static int kwsysProcessesAdd(HANDLE hProcess, DWORD dwProcessid,
-+                             int newProcessGroup)
-+{
-+  if(!kwsysProcessesInitialize() || !hProcess ||
-+      hProcess == INVALID_HANDLE_VALUE)
-+    {
-+    return 0;
-+    }
-+
-+  /* Enter the critical section. */
-+  EnterCriticalSection(&kwsysProcesses.Lock);
-+
-+  /* Make sure there is enough space for the new process handle.  */
-+  if(kwsysProcesses.Count == kwsysProcesses.Size)
-+    {
-+    size_t newSize;
-+    kwsysProcessInstance *newArray;
-+    /* Start with enough space for a small number of process handles
-+       and double the size each time more is needed.  */
-+    newSize = kwsysProcesses.Size? kwsysProcesses.Size*2 : 4;
-+
-+    /* Try allocating the new block of memory.  */
-+    if(newArray = (kwsysProcessInstance*)malloc(
-+       newSize*sizeof(kwsysProcessInstance)))
-+      {
-+      /* Copy the old process handles to the new memory.  */
-+      if(kwsysProcesses.Count > 0)
-+        {
-+        memcpy(newArray, kwsysProcesses.Processes,
-+               kwsysProcesses.Count * sizeof(kwsysProcessInstance));
-+        }
-+      }
-+    else
-+      {
-+      /* Failed to allocate memory for the new process handle set.  */
-+      LeaveCriticalSection(&kwsysProcesses.Lock);
-+      return 0;
-+      }
-+
-+    /* Free original array. */
-+    free(kwsysProcesses.Processes);
-+
-+    /* Update original structure with new allocation. */
-+    kwsysProcesses.Size = newSize;
-+    kwsysProcesses.Processes = newArray;
-+    }
-+
-+  /* Append the new process information to the set.  */
-+  kwsysProcesses.Processes[kwsysProcesses.Count].hProcess = hProcess;
-+  kwsysProcesses.Processes[kwsysProcesses.Count].dwProcessId = dwProcessid;
-+  kwsysProcesses.Processes[kwsysProcesses.Count++].NewProcessGroup =
-+    newProcessGroup;
-+
-+  /* Leave critical section and return success. */
-+  LeaveCriticalSection(&kwsysProcesses.Lock);
-+
-+  return 1;
-+}
-+
-+/*--------------------------------------------------------------------------*/
-+/* Removes process to global process list.  */
-+static void kwsysProcessesRemove(HANDLE hProcess)
-+{
-+  size_t i;
-+
-+  if (!hProcess || hProcess == INVALID_HANDLE_VALUE)
-+    {
-+    return;
-+    }
-+
-+  EnterCriticalSection(&kwsysProcesses.Lock);
-+
-+  /* Find the given process in the set.  */
-+  for(i=0; i < kwsysProcesses.Count; ++i)
-+    {
-+    if(kwsysProcesses.Processes[i].hProcess == hProcess)
-+      {
-+      break;
-+      }
-+    }
-+  if(i < kwsysProcesses.Count)
-+    {
-+    /* Found it!  Remove the process from the set.  */
-+    --kwsysProcesses.Count;
-+    for(; i < kwsysProcesses.Count; ++i)
-+      {
-+      kwsysProcesses.Processes[i] = kwsysProcesses.Processes[i+1];
-+      }
-+
-+    /* If this was the last process, free the array.  */
-+    if(kwsysProcesses.Count == 0)
-+      {
-+      kwsysProcesses.Size = 0;
-+      free(kwsysProcesses.Processes);
-+      kwsysProcesses.Processes = 0;
-+      }
-+    }
-+
-+  LeaveCriticalSection(&kwsysProcesses.Lock);
-+}
-+
-+/*--------------------------------------------------------------------------*/
-+static BOOL WINAPI kwsysCtrlHandler(DWORD dwCtrlType)
-+{
-+  size_t i;
-+  (void)dwCtrlType;
-+  /* Enter critical section.  */
-+  EnterCriticalSection(&kwsysProcesses.Lock);
-+
-+  /* Set flag indicating that we are exiting.  */
-+  kwsysProcesses.Exiting = 1;
-+
-+  /* If some of our processes were created in a new process group, we must
-+     manually interrupt them.  They won't otherwise receive a Ctrl+C/Break. */
-+  for(i=0; i < kwsysProcesses.Count; ++i)
-+    {
-+    if(kwsysProcesses.Processes[i].NewProcessGroup)
-+      {
-+      DWORD groupId = kwsysProcesses.Processes[i].dwProcessId;
-+      if(groupId)
-+        {
-+        GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, groupId);
-+        }
-+      }
-+    }
-+
-+  /* Wait for each child process to exit.  This is the key step that prevents
-+     us from leaving several orphaned children processes running in the
-+     background when the user presses Ctrl+C.  */
-+  for(i=0; i < kwsysProcesses.Count; ++i)
-+    {
-+    WaitForSingleObject(kwsysProcesses.Processes[i].hProcess, INFINITE);
-+    }
-+
-+  /* Leave critical section.  */
-+  LeaveCriticalSection(&kwsysProcesses.Lock);
-+
-+  /* Continue on to default Ctrl handler (which calls ExitProcess).  */
-+  return FALSE;
-+}
+ 		for (u = mtree->line.s + find_off; *u; ++u) {
+ 			if (u[0] == '\n') {
++				/* Ends with unescaped newline. */
+ 				*start = mtree->line.s;
+ 				return total_size;
+-			}
+-			if (u[0] == '#') {
+-				if (p == NULL)
++			} else if (u[0] == '#') {
++				/* Ends with comment sequence #...\n */
++				if (nl == NULL) {
++					/* But we've not found the \n yet */
+ 					break;
+-				*start = mtree->line.s;
+-				return total_size;
+-			}
+-			if (u[0] != '\\')
+-				continue;
+-			if (u[1] == '\\') {
+-				++u;
+-				continue;
+-			}
+-			if (u[1] == '\n') {
+-				memmove(u, u + 1,
+-				    total_size - (u - mtree->line.s) + 1);
+-				--total_size;
+-				++u;
+-				break;
++				}
++			} else if (u[0] == '\\') {
++				if (u[1] == '\n') {
++					/* Trim escaped newline. */
++					total_size -= 2;
++					mtree->line.s[total_size] = '\0';
++					break;
++				} else if (u[1] != '\0') {
++					/* Skip the two-char escape sequence */
++					++u;
++				}
+ 			}
+-			if (u[1] == '\0')
+-				break;
+ 		}
+ 		find_off = u - mtree->line.s;
+ 	}

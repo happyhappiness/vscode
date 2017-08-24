@@ -1,0 +1,5 @@
+{
+        outptr--;
+        if(*outptr == '/')
+          break;
+      }

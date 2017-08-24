@@ -1,0 +1,1 @@
+r = inflateReset(&cab->stream)

@@ -1,0 +1,1 @@
+conn->bits.close = TRUE

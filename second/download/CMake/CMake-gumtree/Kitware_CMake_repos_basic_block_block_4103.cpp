@@ -1,0 +1,1 @@
+infof(conn->data, "Curl_ipv4_resolve_r failed for %s\n", hostname)

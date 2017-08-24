@@ -1,0 +1,1 @@
+r = (ssize_t)data->block_size

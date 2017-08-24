@@ -1,0 +1,1 @@
+releaseStringValue(const_cast<char*>(cstr_))

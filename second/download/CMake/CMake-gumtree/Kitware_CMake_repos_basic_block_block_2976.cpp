@@ -1,0 +1,1 @@
+ftabCopy[i] = ftab[i]

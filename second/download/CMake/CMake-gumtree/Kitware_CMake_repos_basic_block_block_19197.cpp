@@ -1,0 +1,1 @@
+size = read(loop->inotify_fd, buf, sizeof(buf))

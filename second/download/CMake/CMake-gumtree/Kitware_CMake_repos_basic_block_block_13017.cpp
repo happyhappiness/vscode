@@ -1,0 +1,3 @@
+{
+		*endptr = deconst(s);
+	}

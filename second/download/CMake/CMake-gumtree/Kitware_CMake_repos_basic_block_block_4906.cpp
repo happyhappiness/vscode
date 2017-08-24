@@ -1,0 +1,2 @@
+r(i=0; i< MAX_SOCKSPEREASYHANDLE; i++)
+    socks[i] = CURL_SOCKET_BAD

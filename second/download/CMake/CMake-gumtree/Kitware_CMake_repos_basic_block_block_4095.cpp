@@ -1,0 +1,1 @@
+Curl_share_unlock(data, CURL_LOCK_DATA_DNS)

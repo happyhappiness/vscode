@@ -1,0 +1,1 @@
+op_status = semop(*sem, &buf, 1)

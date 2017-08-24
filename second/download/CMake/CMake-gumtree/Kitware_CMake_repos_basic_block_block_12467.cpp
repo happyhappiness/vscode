@@ -1,0 +1,1 @@
+rar->mode = AE_IFDIR | S_IXUSR | S_IXGRP | S_IXOTH

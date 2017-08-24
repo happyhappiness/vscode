@@ -1,0 +1,1 @@
+archive_strncat(s, start, str - start)

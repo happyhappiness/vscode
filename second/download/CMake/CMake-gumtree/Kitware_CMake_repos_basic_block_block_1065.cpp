@@ -1,0 +1,3 @@
+{
+    maxDigitIndex = 8;
+  }

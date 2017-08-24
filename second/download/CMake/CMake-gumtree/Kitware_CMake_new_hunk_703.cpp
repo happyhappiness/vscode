@@ -1,16 +1,7 @@
-}
-inline const char* Getcwd(char* buf, unsigned int len)
-{
-  if(const char* ret = _getcwd(buf, len))
-    {
-    // make sure the drive letter is capital
-    if(strlen(buf) > 1 && buf[1] == ':')
-      {
-      buf[0] = toupper(buf[0]);
-      }
-    return ret;
-    }
-  return 0;
-}
-inline int Chdir(const char* dir)
-{
+    cmSystemTools::ExpandListArgument(includes, includeDirs);
+
+    std::string includeFlags = lg->GetIncludeFlags(includeDirs, 0,
+                                                   language, false);
+
+    std::string definitions = mf->GetSafeDefinition("PACKAGE_DEFINITIONS");
+    printf("%s %s\n", includeFlags.c_str(), definitions.c_str());

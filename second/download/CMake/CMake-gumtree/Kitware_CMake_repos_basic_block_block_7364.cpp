@@ -1,0 +1,1 @@
+infof(data, "   %s: %s\n", label, output)

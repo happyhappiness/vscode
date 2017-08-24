@@ -1,0 +1,4 @@
+{
+    fp = stdin;
+    fromfile=FALSE;
+  }

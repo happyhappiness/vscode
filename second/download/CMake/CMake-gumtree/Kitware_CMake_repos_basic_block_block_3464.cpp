@@ -1,0 +1,1 @@
+s->cftabCopy[i] = s->cftab[i]

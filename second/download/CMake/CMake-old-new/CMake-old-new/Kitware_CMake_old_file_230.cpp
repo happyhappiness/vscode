@@ -1,412 +1,646 @@
-/***************************************************************************
- *                                  _   _ ____  _
- *  Project                     ___| | | |  _ \| |
- *                             / __| | | | |_) | |
- *                            | (__| |_| |  _ <| |___
- *                             \___|\___/|_| \_\_____|
+/*-
+ * Copyright (c) 2014 Michihiro NAKAJIMA
+ * All rights reserved.
  *
- * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
  *
- * This software is licensed as described in the file COPYING, which
- * you should have received as part of this distribution. The terms
- * are also available at http://curl.haxx.se/docs/copyright.html.
- *
- * You may opt to use, copy, modify, merge, publish, distribute and/or sell
- * copies of the Software, and permit persons to whom the Software is
- * furnished to do so, under the terms of the COPYING file.
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
- * KIND, either express or implied.
- *
- ***************************************************************************/
-
-#include "curl_setup.h"
-
-#if defined(USE_NTLM) && defined(NTLM_WB_ENABLED)
-
-/*
- * NTLM details:
- *
- * http://davenport.sourceforge.net/ntlm.html
- * http://www.innovation.ch/java/ntlm.html
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define DEBUG_ME 0
+#include "archive_platform.h"
 
-#ifdef HAVE_SYS_WAIT_H
-#include <sys/wait.h>
+__FBSDID("$FreeBSD$");
+
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
 #endif
-#ifdef HAVE_SIGNAL_H
-#include <signal.h>
+#include <stdio.h>
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
 #endif
-#ifdef HAVE_PWD_H
-#include <pwd.h>
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
+#ifdef HAVE_LZ4_H
+#include <lz4.h>
+#endif
+#ifdef HAVE_LZ4HC_H
+#include <lz4hc.h>
 #endif
 
-#include "urldata.h"
-#include "sendf.h"
-#include "select.h"
-#include "curl_ntlm_msgs.h"
-#include "curl_ntlm_wb.h"
-#include "url.h"
-#include "strerror.h"
-#include "curl_memory.h"
+#include "archive.h"
+#include "archive_endian.h"
+#include "archive_private.h"
+#include "archive_write_private.h"
+#include "archive_xxhash.h"
 
-#define _MPRINTF_REPLACE /* use our functions only */
-#include <curl/mprintf.h>
+#define LZ4_MAGICNUMBER	0x184d2204
 
-/* The last #include file should be: */
-#include "memdebug.h"
+struct private_data {
+	int		 compression_level;
+	uint8_t		 header_written:1;
+	uint8_t		 version_number:1;
+	uint8_t		 block_independence:1;
+	uint8_t		 block_checksum:1;
+	uint8_t		 stream_size:1;
+	uint8_t		 stream_checksum:1;
+	uint8_t		 preset_dictionary:1;
+	uint8_t		 block_maximum_size:3;
+#if defined(HAVE_LIBLZ4) && LZ4_VERSION_MAJOR >= 1 && LZ4_VERSION_MINOR >= 2
+	int64_t		 total_in;
+	char		*out;
+	char		*out_buffer;
+	size_t		 out_buffer_size;
+	size_t		 out_block_size;
+	char		*in;
+	char		*in_buffer_allocated;
+	char		*in_buffer;
+	size_t		 in_buffer_size;
+	size_t		 block_size;
 
-#if DEBUG_ME
-# define DEBUG_OUT(x) x
+	void		*xxh32_state;
+	void		*lz4_stream;
 #else
-# define DEBUG_OUT(x) Curl_nop_stmt
+	struct archive_write_program_data *pdata;
 #endif
+};
 
-/* Portable 'sclose_nolog' used only in child process instead of 'sclose'
-   to avoid fooling the socket leak detector */
-#if defined(HAVE_CLOSESOCKET)
-#  define sclose_nolog(x)  closesocket((x))
-#elif defined(HAVE_CLOSESOCKET_CAMEL)
-#  define sclose_nolog(x)  CloseSocket((x))
+static int archive_filter_lz4_close(struct archive_write_filter *);
+static int archive_filter_lz4_free(struct archive_write_filter *);
+static int archive_filter_lz4_open(struct archive_write_filter *);
+static int archive_filter_lz4_options(struct archive_write_filter *,
+		    const char *, const char *);
+static int archive_filter_lz4_write(struct archive_write_filter *,
+		    const void *, size_t);
+
+/*
+ * Add a lz4 compression filter to this write handle.
+ */
+int
+archive_write_add_filter_lz4(struct archive *_a)
+{
+	struct archive_write *a = (struct archive_write *)_a;
+	struct archive_write_filter *f = __archive_write_allocate_filter(_a);
+	struct private_data *data;
+
+	archive_check_magic(&a->archive, ARCHIVE_WRITE_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_write_add_filter_lz4");
+
+	data = calloc(1, sizeof(*data));
+	if (data == NULL) {
+		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Setup default settings.
+	 */
+	data->compression_level = 1;
+	data->version_number = 0x01;
+	data->block_independence = 1;
+	data->block_checksum = 0;
+	data->stream_size = 0;
+	data->stream_checksum = 1;
+	data->preset_dictionary = 0;
+	data->block_maximum_size = 7;
+
+	/*
+	 * Setup a filter setting.
+	 */
+	f->data = data;
+	f->options = &archive_filter_lz4_options;
+	f->close = &archive_filter_lz4_close;
+	f->free = &archive_filter_lz4_free;
+	f->open = &archive_filter_lz4_open;
+	f->code = ARCHIVE_FILTER_LZ4;
+	f->name = "lz4";
+#if defined(HAVE_LIBLZ4) && LZ4_VERSION_MAJOR >= 1 && LZ4_VERSION_MINOR >= 2
+	return (ARCHIVE_OK);
 #else
-#  define sclose_nolog(x)  close((x))
+	/*
+	 * We don't have lz4 library, and execute external lz4 program
+	 * instead.
+	 */
+	data->pdata = __archive_write_program_allocate();
+	if (data->pdata == NULL) {
+		free(data);
+		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+	data->compression_level = 0;
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    "Using external lz4 program");
+	return (ARCHIVE_WARN);
 #endif
-
-void Curl_ntlm_wb_cleanup(struct connectdata *conn)
-{
-  if(conn->ntlm_auth_hlpr_socket != CURL_SOCKET_BAD) {
-    sclose(conn->ntlm_auth_hlpr_socket);
-    conn->ntlm_auth_hlpr_socket = CURL_SOCKET_BAD;
-  }
-
-  if(conn->ntlm_auth_hlpr_pid) {
-    int i;
-    for(i = 0; i < 4; i++) {
-      pid_t ret = waitpid(conn->ntlm_auth_hlpr_pid, NULL, WNOHANG);
-      if(ret == conn->ntlm_auth_hlpr_pid || errno == ECHILD)
-        break;
-      switch(i) {
-      case 0:
-        kill(conn->ntlm_auth_hlpr_pid, SIGTERM);
-        break;
-      case 1:
-        /* Give the process another moment to shut down cleanly before
-           bringing down the axe */
-        Curl_wait_ms(1);
-        break;
-      case 2:
-        kill(conn->ntlm_auth_hlpr_pid, SIGKILL);
-        break;
-      case 3:
-        break;
-      }
-    }
-    conn->ntlm_auth_hlpr_pid = 0;
-  }
-
-  Curl_safefree(conn->challenge_header);
-  conn->challenge_header = NULL;
-  Curl_safefree(conn->response_header);
-  conn->response_header = NULL;
-}
-
-static CURLcode ntlm_wb_init(struct connectdata *conn, const char *userp)
-{
-  curl_socket_t sockfds[2];
-  pid_t child_pid;
-  const char *username;
-  char *slash, *domain = NULL;
-  const char *ntlm_auth = NULL;
-  char *ntlm_auth_alloc = NULL;
-#if defined(HAVE_GETPWUID_R) && defined(HAVE_GETEUID)
-  struct passwd pw, *pw_res;
-  char pwbuf[1024];
-#endif
-  int error;
-
-  /* Return if communication with ntlm_auth already set up */
-  if(conn->ntlm_auth_hlpr_socket != CURL_SOCKET_BAD ||
-     conn->ntlm_auth_hlpr_pid)
-    return CURLE_OK;
-
-  username = userp;
-  /* The real ntlm_auth really doesn't like being invoked with an
-     empty username. It won't make inferences for itself, and expects
-     the client to do so (mostly because it's really designed for
-     servers like squid to use for auth, and client support is an
-     afterthought for it). So try hard to provide a suitable username
-     if we don't already have one. But if we can't, provide the
-     empty one anyway. Perhaps they have an implementation of the
-     ntlm_auth helper which *doesn't* need it so we might as well try */
-  if(!username || !username[0]) {
-    username = getenv("NTLMUSER");
-    if(!username || !username[0])
-      username = getenv("LOGNAME");
-    if(!username || !username[0])
-      username = getenv("USER");
-#if defined(HAVE_GETPWUID_R) && defined(HAVE_GETEUID)
-    if((!username || !username[0]) &&
-       !getpwuid_r(geteuid(), &pw, pwbuf, sizeof(pwbuf), &pw_res) &&
-       pw_res) {
-      username = pw.pw_name;
-    }
-#endif
-    if(!username || !username[0])
-      username = userp;
-  }
-  slash = strpbrk(username, "\\/");
-  if(slash) {
-    if((domain = strdup(username)) == NULL)
-      return CURLE_OUT_OF_MEMORY;
-    slash = domain + (slash - username);
-    *slash = '\0';
-    username = username + (slash - domain) + 1;
-  }
-
-  /* For testing purposes, when DEBUGBUILD is defined and environment
-     variable CURL_NTLM_WB_FILE is set a fake_ntlm is used to perform
-     NTLM challenge/response which only accepts commands and output
-     strings pre-written in test case definitions */
-#ifdef DEBUGBUILD
-  ntlm_auth_alloc = curl_getenv("CURL_NTLM_WB_FILE");
-  if(ntlm_auth_alloc)
-    ntlm_auth = ntlm_auth_alloc;
-  else
-#endif
-    ntlm_auth = NTLM_WB_FILE;
-
-  if(access(ntlm_auth, X_OK) != 0) {
-    error = ERRNO;
-    failf(conn->data, "Could not access ntlm_auth: %s errno %d: %s",
-          ntlm_auth, error, Curl_strerror(conn, error));
-    goto done;
-  }
-
-  if(socketpair(AF_UNIX, SOCK_STREAM, 0, sockfds)) {
-    error = ERRNO;
-    failf(conn->data, "Could not open socket pair. errno %d: %s",
-          error, Curl_strerror(conn, error));
-    goto done;
-  }
-
-  child_pid = fork();
-  if(child_pid == -1) {
-    error = ERRNO;
-    sclose(sockfds[0]);
-    sclose(sockfds[1]);
-    failf(conn->data, "Could not fork. errno %d: %s",
-          error, Curl_strerror(conn, error));
-    goto done;
-  }
-  else if(!child_pid) {
-    /*
-     * child process
-     */
-
-    /* Don't use sclose in the child since it fools the socket leak detector */
-    sclose_nolog(sockfds[0]);
-    if(dup2(sockfds[1], STDIN_FILENO) == -1) {
-      error = ERRNO;
-      failf(conn->data, "Could not redirect child stdin. errno %d: %s",
-            error, Curl_strerror(conn, error));
-      exit(1);
-    }
-
-    if(dup2(sockfds[1], STDOUT_FILENO) == -1) {
-      error = ERRNO;
-      failf(conn->data, "Could not redirect child stdout. errno %d: %s",
-            error, Curl_strerror(conn, error));
-      exit(1);
-    }
-
-    if(domain)
-      execl(ntlm_auth, ntlm_auth,
-            "--helper-protocol", "ntlmssp-client-1",
-            "--use-cached-creds",
-            "--username", username,
-            "--domain", domain,
-            NULL);
-    else
-      execl(ntlm_auth, ntlm_auth,
-            "--helper-protocol", "ntlmssp-client-1",
-            "--use-cached-creds",
-            "--username", username,
-            NULL);
-
-    error = ERRNO;
-    sclose_nolog(sockfds[1]);
-    failf(conn->data, "Could not execl(). errno %d: %s",
-          error, Curl_strerror(conn, error));
-    exit(1);
-  }
-
-  sclose(sockfds[1]);
-  conn->ntlm_auth_hlpr_socket = sockfds[0];
-  conn->ntlm_auth_hlpr_pid = child_pid;
-  Curl_safefree(domain);
-  Curl_safefree(ntlm_auth_alloc);
-  return CURLE_OK;
-
-done:
-  Curl_safefree(domain);
-  Curl_safefree(ntlm_auth_alloc);
-  return CURLE_REMOTE_ACCESS_DENIED;
-}
-
-static CURLcode ntlm_wb_response(struct connectdata *conn,
-                                 const char *input, curlntlm state)
-{
-  char *buf = malloc(NTLM_BUFSIZE);
-  size_t len_in = strlen(input), len_out = 0;
-
-  if(!buf)
-    return CURLE_OUT_OF_MEMORY;
-
-  while(len_in > 0) {
-    ssize_t written = swrite(conn->ntlm_auth_hlpr_socket, input, len_in);
-    if(written == -1) {
-      /* Interrupted by a signal, retry it */
-      if(errno == EINTR)
-        continue;
-      /* write failed if other errors happen */
-      goto done;
-    }
-    input += written;
-    len_in -= written;
-  }
-  /* Read one line */
-  while(1) {
-    ssize_t size;
-    char *newbuf;
-
-    size = sread(conn->ntlm_auth_hlpr_socket, buf + len_out, NTLM_BUFSIZE);
-    if(size == -1) {
-      if(errno == EINTR)
-        continue;
-      goto done;
-    }
-    else if(size == 0)
-      goto done;
-
-    len_out += size;
-    if(buf[len_out - 1] == '\n') {
-      buf[len_out - 1] = '\0';
-      goto wrfinish;
-    }
-    newbuf = realloc(buf, len_out + NTLM_BUFSIZE);
-    if(!newbuf) {
-      free(buf);
-      return CURLE_OUT_OF_MEMORY;
-    }
-    buf = newbuf;
-  }
-  goto done;
-wrfinish:
-  /* Samba/winbind installed but not configured */
-  if(state == NTLMSTATE_TYPE1 &&
-     len_out == 3 &&
-     buf[0] == 'P' && buf[1] == 'W')
-    return CURLE_REMOTE_ACCESS_DENIED;
-  /* invalid response */
-  if(len_out < 4)
-    goto done;
-  if(state == NTLMSTATE_TYPE1 &&
-     (buf[0]!='Y' || buf[1]!='R' || buf[2]!=' '))
-    goto done;
-  if(state == NTLMSTATE_TYPE2 &&
-     (buf[0]!='K' || buf[1]!='K' || buf[2]!=' ') &&
-     (buf[0]!='A' || buf[1]!='F' || buf[2]!=' '))
-    goto done;
-
-  conn->response_header = aprintf("NTLM %.*s", len_out - 4, buf + 3);
-  free(buf);
-  return CURLE_OK;
-done:
-  free(buf);
-  return CURLE_REMOTE_ACCESS_DENIED;
 }
 
 /*
- * This is for creating ntlm header output by delegating challenge/response
- * to Samba's winbind daemon helper ntlm_auth.
+ * Set write options.
  */
-CURLcode Curl_output_ntlm_wb(struct connectdata *conn,
-                              bool proxy)
+static int
+archive_filter_lz4_options(struct archive_write_filter *f,
+    const char *key, const char *value)
 {
-  /* point to the address of the pointer that holds the string to send to the
-     server, which is for a plain host or for a HTTP proxy */
-  char **allocuserpwd;
-  /* point to the name and password for this */
-  const char *userp;
-  /* point to the correct struct with this */
-  struct ntlmdata *ntlm;
-  struct auth *authp;
+	struct private_data *data = (struct private_data *)f->data;
 
-  CURLcode res = CURLE_OK;
-  char *input;
+	if (strcmp(key, "compression-level") == 0) {
+		if (value == NULL || !(value[0] >= '1' && value[0] <= '9') ||
+		    value[1] != '\0')
+			return (ARCHIVE_WARN);
+		data->compression_level = value[0] - '0';
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "stream-checksum") == 0) {
+		data->stream_checksum = value != NULL;
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "block-checksum") == 0) {
+		data->block_checksum = value != NULL;
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "block-size") == 0) {
+		if (value == NULL || !(value[0] >= '4' && value[0] <= '7') ||
+		    value[1] != '\0')
+			return (ARCHIVE_WARN);
+		data->block_maximum_size = value[0] - '0';
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "block-dependence") == 0) {
+		data->block_independence = value == NULL;
+		return (ARCHIVE_OK);
+	}
 
-  DEBUGASSERT(conn);
-  DEBUGASSERT(conn->data);
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
+}
 
-  if(proxy) {
-    allocuserpwd = &conn->allocptr.proxyuserpwd;
-    userp = conn->proxyuser;
-    ntlm = &conn->proxyntlm;
-    authp = &conn->data->state.authproxy;
-  }
-  else {
-    allocuserpwd = &conn->allocptr.userpwd;
-    userp = conn->user;
-    ntlm = &conn->ntlm;
-    authp = &conn->data->state.authhost;
-  }
-  authp->done = FALSE;
+#if defined(HAVE_LIBLZ4) && LZ4_VERSION_MAJOR >= 1 && LZ4_VERSION_MINOR >= 2
+/* Don't compile this if we don't have liblz4. */
 
-  /* not set means empty */
-  if(!userp)
-    userp="";
+static int drive_compressor(struct archive_write_filter *, const char *,
+    size_t);
+static int drive_compressor_independence(struct archive_write_filter *,
+    const char *, size_t);
+static int drive_compressor_dependence(struct archive_write_filter *,
+    const char *, size_t);
+static int lz4_write_stream_descriptor(struct archive_write_filter *);
+static ssize_t lz4_write_one_block(struct archive_write_filter *, const char *,
+    size_t);
 
-  switch(ntlm->state) {
-  case NTLMSTATE_TYPE1:
-  default:
-    /* Use Samba's 'winbind' daemon to support NTLM authentication,
-     * by delegating the NTLM challenge/response protocal to a helper
-     * in ntlm_auth.
-     * http://devel.squid-cache.org/ntlm/squid_helper_protocol.html
-     * http://www.samba.org/samba/docs/man/manpages-3/winbindd.8.html
-     * http://www.samba.org/samba/docs/man/manpages-3/ntlm_auth.1.html
-     * Preprocessor symbol 'NTLM_WB_ENABLED' is defined when this
-     * feature is enabled and 'NTLM_WB_FILE' symbol holds absolute
-     * filename of ntlm_auth helper.
-     * If NTLM authentication using winbind fails, go back to original
-     * request handling process.
-     */
-    /* Create communication with ntlm_auth */
-    res = ntlm_wb_init(conn, userp);
-    if(res)
-      return res;
-    res = ntlm_wb_response(conn, "YR\n", ntlm->state);
-    if(res)
-      return res;
 
-    Curl_safefree(*allocuserpwd);
-    *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
-                            proxy ? "Proxy-" : "",
-                            conn->response_header);
-    DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
-    Curl_safefree(conn->response_header);
-    conn->response_header = NULL;
-    break;
-  case NTLMSTATE_TYPE2:
-    input = aprintf("TT %s\n", conn->challenge_header);
-    if(!input)
-      return CURLE_OUT_OF_MEMORY;
-    res = ntlm_wb_response(conn, input, ntlm->state);
-    free(input);
-    input = NULL;
-    if(res)
-      return res;
+/*
+ * Setup callback.
+ */
+static int
+archive_filter_lz4_open(struct archive_write_filter *f)
+{
+	struct private_data *data = (struct private_data *)f->data;
+	int ret;
+	size_t required_size;
+	static size_t bkmap[] = { 64 * 1024, 256 * 1024, 1 * 1024 * 1024,
+			   4 * 1024 * 1024 };
+	size_t pre_block_size;
 
-    Curl_safefree(*allocuserpwd);
+	ret = __archive_write_open_filter(f->next_filter);
+	if (ret != 0)
+		return (ret);
+
+	if (data->block_maximum_size < 4)
+		data->block_size = bkmap[0];
+	else
+		data->block_size = bkmap[data->block_maximum_size - 4];
+
+	required_size = 4 + 15 + 4 + data->block_size + 4 + 4;
+	if (data->out_buffer_size < required_size) {
+		size_t bs = required_size, bpb;
+		free(data->out_buffer);
+		if (f->archive->magic == ARCHIVE_WRITE_MAGIC) {
+			/* Buffer size should be a multiple number of
+			 * the of bytes per block for performance. */
+			bpb = archive_write_get_bytes_per_block(f->archive);
+			if (bpb > bs)
+				bs = bpb;
+			else if (bpb != 0) {
+				bs += bpb;
+				bs -= bs % bpb;
+			}
+		}
+		data->out_block_size = bs;
+		bs += required_size;
+		data->out_buffer = malloc(bs);
+		data->out = data->out_buffer;
+		data->out_buffer_size = bs;
+	}
+
+	pre_block_size = (data->block_independence)? 0: 64 * 1024;
+	if (data->in_buffer_size < data->block_size + pre_block_size) {
+		free(data->in_buffer_allocated);
+		data->in_buffer_size = data->block_size;
+		data->in_buffer_allocated =
+		    malloc(data->in_buffer_size + pre_block_size);
+		data->in_buffer = data->in_buffer_allocated + pre_block_size;
+		if (!data->block_independence && data->compression_level >= 3)
+		    data->in_buffer = data->in_buffer_allocated;
+		data->in = data->in_buffer;
+		data->in_buffer_size = data->block_size;
+	}
+
+	if (data->out_buffer == NULL || data->in_buffer_allocated == NULL) {
+		archive_set_error(f->archive, ENOMEM,
+		    "Can't allocate data for compression buffer");
+		return (ARCHIVE_FATAL);
+	}
+
+	f->write = archive_filter_lz4_write;
+
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Write data to the out stream.
+ *
+ * Returns ARCHIVE_OK if all data written, error otherwise.
+ */
+static int
+archive_filter_lz4_write(struct archive_write_filter *f,
+    const void *buff, size_t length)
+{
+	struct private_data *data = (struct private_data *)f->data;
+	int ret = ARCHIVE_OK;
+	const char *p;
+	size_t remaining;
+	ssize_t size;
+
+	/* If we haven't written a stream descriptor, we have to do it first. */
+	if (!data->header_written) {
+		ret = lz4_write_stream_descriptor(f);
+		if (ret != ARCHIVE_OK)
+			return (ret);
+		data->header_written = 1;
+	}
+
+	/* Update statistics */
+	data->total_in += length;
+
+	p = (const char *)buff;
+	remaining = length;
+	while (remaining) {
+		size_t l;
+		/* Compress input data to output buffer */
+		size = lz4_write_one_block(f, p, remaining);
+		if (size < ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+		l = data->out - data->out_buffer;
+		if (l >= data->out_block_size) {
+			ret = __archive_write_filter(f->next_filter,
+			    data->out_buffer, data->out_block_size);
+			l -= data->out_block_size;
+			memcpy(data->out_buffer,
+			    data->out_buffer + data->out_block_size, l);
+			data->out = data->out_buffer + l;
+			if (ret < ARCHIVE_WARN)
+				break;
+		}
+		p += size;
+		remaining -= size;
+	}
+
+	return (ret);
+}
+
+/*
+ * Finish the compression.
+ */
+static int
+archive_filter_lz4_close(struct archive_write_filter *f)
+{
+	struct private_data *data = (struct private_data *)f->data;
+	int ret, r1;
+
+	/* Finish compression cycle. */
+	ret = (int)lz4_write_one_block(f, NULL, 0);
+	if (ret >= 0) {
+		/*
+		 * Write the last block and the end of the stream data.
+		 */
+
+		/* Write End Of Stream. */
+		memset(data->out, 0, 4); data->out += 4;
+		/* Write Stream checksum if needed. */
+		if (data->stream_checksum) {
+			unsigned int checksum;
+			checksum = __archive_xxhash.XXH32_digest(
+					data->xxh32_state);
+			data->xxh32_state = NULL;
+			archive_le32enc(data->out, checksum);
+			data->out += 4;
+		}
+		ret = __archive_write_filter(f->next_filter,
+			    data->out_buffer, data->out - data->out_buffer);
+	}
+
+	r1 = __archive_write_close_filter(f->next_filter);
+	return (r1 < ret ? r1 : ret);
+}
+
+static int
+archive_filter_lz4_free(struct archive_write_filter *f)
+{
+	struct private_data *data = (struct private_data *)f->data;
+
+	if (data->lz4_stream != NULL) {
+		if (data->compression_level < 3)
+#if LZ4_VERSION_MINOR >= 3
+			LZ4_freeStream(data->lz4_stream);
+#else
+			LZ4_free(data->lz4_stream);
+#endif
+		else
+			LZ4_freeHC(data->lz4_stream);
+	}
+	free(data->out_buffer);
+	free(data->in_buffer_allocated);
+	free(data->xxh32_state);
+	free(data);
+	f->data = NULL;
+	return (ARCHIVE_OK);
+}
+
+static int
+lz4_write_stream_descriptor(struct archive_write_filter *f)
+{
+	struct private_data *data = (struct private_data *)f->data;
+	uint8_t *sd;
+
+	sd = (uint8_t *)data->out;
+	/* Write Magic Number. */
+	archive_le32enc(&sd[0], LZ4_MAGICNUMBER);
+	/* FLG */
+	sd[4] = (data->version_number << 6)
+	      | (data->block_independence << 5)
+	      | (data->block_checksum << 4)
+	      | (data->stream_size << 3)
+	      | (data->stream_checksum << 2)
+	      | (data->preset_dictionary << 0);
+	/* BD */
+	sd[5] = (data->block_maximum_size << 4);
+	sd[6] = (__archive_xxhash.XXH32(&sd[4], 2, 0) >> 8) & 0xff;
+	data->out += 7;
+	if (data->stream_checksum)
+		data->xxh32_state = __archive_xxhash.XXH32_init(0);
+	else
+		data->xxh32_state = NULL;
+	return (ARCHIVE_OK);
+}
+
+static ssize_t
+lz4_write_one_block(struct archive_write_filter *f, const char *p,
+    size_t length)
+{
+	struct private_data *data = (struct private_data *)f->data;
+	ssize_t r;
+
+	if (p == NULL) {
+		/* Compress remaining uncompressed data. */
+		if (data->in_buffer == data->in)
+			return 0;
+		else {
+			size_t l = data->in - data->in_buffer;
+			r = drive_compressor(f, data->in_buffer, l);
+			if (r == ARCHIVE_OK)
+				r = (ssize_t)l;
+		}
+	} else if ((data->block_independence || data->compression_level < 3) &&
+	    data->in_buffer == data->in && length >= data->block_size) {
+		r = drive_compressor(f, p, data->block_size);
+		if (r == ARCHIVE_OK)
+			r = (ssize_t)data->block_size;
+	} else {
+		size_t remaining_size = data->in_buffer_size -
+			(data->in - data->in_buffer);
+		size_t l = (remaining_size > length)? length: remaining_size;
+		memcpy(data->in, p, l);
+		data->in += l;
+		if (l == remaining_size) {
+			r = drive_compressor(f, data->in_buffer,
+			    data->block_size);
+			if (r == ARCHIVE_OK)
+				r = (ssize_t)l;
+			data->in = data->in_buffer;
+		} else
+			r = (ssize_t)l;
+	}
+
+	return (r);
+}
+
+
+/*
+ * Utility function to push input data through compressor, writing
+ * full output blocks as necessary.
+ *
+ * Note that this handles both the regular write case (finishing ==
+ * false) and the end-of-archive case (finishing == true).
+ */
+static int
+drive_compressor(struct archive_write_filter *f, const char *p, size_t length)
+{
+	struct private_data *data = (struct private_data *)f->data;
+
+	if (data->stream_checksum)
+		__archive_xxhash.XXH32_update(data->xxh32_state,
+			p, (int)length);
+	if (data->block_independence)
+		return drive_compressor_independence(f, p, length);
+	else
+		return drive_compressor_dependence(f, p, length);
+}
+
+static int
+drive_compressor_independence(struct archive_write_filter *f, const char *p,
+    size_t length)
+{
+	struct private_data *data = (struct private_data *)f->data;
+	unsigned int outsize;
+
+	if (data->compression_level < 4)
+		outsize = LZ4_compress_limitedOutput(p, data->out + 4,
+		    (int)length, (int)data->block_size);
+	else
+		outsize = LZ4_compressHC2_limitedOutput(p, data->out + 4,
+		    (int)length, (int)data->block_size,
+		    data->compression_level);
+
+	if (outsize) {
+		/* The buffer is compressed. */
+		archive_le32enc(data->out, outsize);
+		data->out += 4;
+	} else {
+		/* The buffer is not compressed. The commpressed size was
+		 * bigger than its uncompressed size. */
+		archive_le32enc(data->out, length | 0x80000000);
+		data->out += 4;
+		memcpy(data->out, p, length);
+		outsize = length;
+	}
+	data->out += outsize;
+	if (data->block_checksum) {
+		unsigned int checksum =
+		    __archive_xxhash.XXH32(data->out - outsize, outsize, 0);
+		archive_le32enc(data->out, checksum);
+		data->out += 4;
+	}
+	return (ARCHIVE_OK);
+}
+
+static int
+drive_compressor_dependence(struct archive_write_filter *f, const char *p,
+    size_t length)
+{
+	struct private_data *data = (struct private_data *)f->data;
+	int outsize;
+
+	if (data->compression_level < 3) {
+		if (data->lz4_stream == NULL) {
+			data->lz4_stream = LZ4_createStream();
+			if (data->lz4_stream == NULL) {
+				archive_set_error(f->archive, ENOMEM,
+				    "Can't allocate data for compression"
+				    " buffer");
+				return (ARCHIVE_FATAL);
+			}
+		}
+		outsize = LZ4_compress_limitedOutput_continue(
+		    data->lz4_stream, p, data->out + 4, (int)length,
+		    (int)data->block_size);
+	} else {
+		if (data->lz4_stream == NULL) {
+			data->lz4_stream =
+			    LZ4_createHC(data->in_buffer_allocated);
+			if (data->lz4_stream == NULL) {
+				archive_set_error(f->archive, ENOMEM,
+				    "Can't allocate data for compression"
+				    " buffer");
+				return (ARCHIVE_FATAL);
+			}
+		}
+		outsize = LZ4_compressHC2_limitedOutput_continue(
+		    data->lz4_stream, p, data->out + 4, (int)length,
+		    (int)data->block_size, data->compression_level);
+	}
+
+	if (outsize) {
+		/* The buffer is compressed. */
+		archive_le32enc(data->out, outsize);
+		data->out += 4;
+	} else {
+		/* The buffer is not compressed. The commpressed size was
+		 * bigger than its uncompressed size. */
+		archive_le32enc(data->out, length | 0x80000000);
+		data->out += 4;
+		memcpy(data->out, p, length);
+		outsize = length;
+	}
+	data->out += outsize;
+	if (data->block_checksum) {
+		unsigned int checksum =
+		    __archive_xxhash.XXH32(data->out - outsize, outsize, 0);
+		archive_le32enc(data->out, checksum);
+		data->out += 4;
+	}
+
+	if (length == data->block_size) {
+#define DICT_SIZE	(64 * 1024)
+		if (data->compression_level < 3)
+			LZ4_saveDict(data->lz4_stream,
+			    data->in_buffer_allocated, DICT_SIZE);
+		else {
+			LZ4_slideInputBufferHC(data->lz4_stream);
+			data->in_buffer = data->in_buffer_allocated + DICT_SIZE;
+		}
+#undef DICT_SIZE
+	}
+	return (ARCHIVE_OK);
+}
+
+#else /* HAVE_LIBLZ4 */
+
+static int
+archive_filter_lz4_open(struct archive_write_filter *f)
+{
+	struct private_data *data = (struct private_data *)f->data;
+	struct archive_string as;
+	int r;
+
+	archive_string_init(&as);
+	archive_strcpy(&as, "lz4 -z -q -q");
+
+	/* Specify a compression level. */
+	if (data->compression_level > 0) {
+		archive_strcat(&as, " -");
+		archive_strappend_char(&as, '0' + data->compression_level);
+	}
+	/* Specify a block size. */
+	archive_strcat(&as, " -B");
+	archive_strappend_char(&as, '0' + data->block_maximum_size);
+
+	if (data->block_checksum)
+		archive_strcat(&as, " -BX");
+	if (data->stream_checksum == 0)
+		archive_strcat(&as, " -Sx");
+	if (data->block_independence == 0)
+		archive_strcat(&as, " -BD");
+
+	f->write = archive_filter_lz4_write;
+
+	r = __archive_write_program_open(f, data->pdata, as.s);
+	archive_string_free(&as);
+	return (r);
+}
+
+static int
+archive_filter_lz4_write(struct archive_write_filter *f, const void *buff,
+    size_t length)
+{
+	struct private_data *data = (struct private_data *)f->data;
+
+	return __archive_write_program_write(f, data->pdata, buff, length);
+}
+
+static int
+archive_filter_lz4_close(struct archive_write_filter *f)
+{
+	struct private_data *data = (struct private_data *)f->data;
+
+	return __archive_write_program_close(f, data->pdata);
+}
+
+static int
+archive_filter_lz4_free(struct archive_write_filter *f)
+{
+	struct private_data *data = (struct private_data *)f->data;
+
+	__archive_write_program_free(data->pdata);
+	free(data);
+	return (ARCHIVE_OK);
+}
+
+#endif /* HAVE_LIBLZ4 */

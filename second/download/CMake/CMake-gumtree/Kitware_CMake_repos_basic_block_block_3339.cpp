@@ -1,0 +1,1 @@
+( !endsInBz2(outFileName)) strcat ( outFileName, ".bz2" )

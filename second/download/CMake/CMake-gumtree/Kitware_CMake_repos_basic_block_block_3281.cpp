@@ -1,0 +1,1 @@
+(opMode != OM_Z) blockSize100k = 0

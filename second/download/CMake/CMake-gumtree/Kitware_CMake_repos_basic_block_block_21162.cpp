@@ -1,0 +1,1 @@
+(fg_color & 1) info.wAttributes |= FOREGROUND_RED

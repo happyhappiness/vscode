@@ -1,0 +1,4 @@
+{
+    free(proxy);
+    proxy = NULL;
+  }

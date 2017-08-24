@@ -1,0 +1,1 @@
+archive_sha512_final(&mtree->sha512ctx, reg->buf_sha512)

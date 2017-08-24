@@ -1,0 +1,1 @@
+archive_strcpy(&me->fflags_text, s)

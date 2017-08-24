@@ -1,0 +1,1 @@
+data->easy_conn = NULL

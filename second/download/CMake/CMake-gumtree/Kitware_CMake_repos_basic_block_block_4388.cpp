@@ -1,0 +1,1 @@
+result = Curl_add_bufferf(req_buffer, "\r\n")

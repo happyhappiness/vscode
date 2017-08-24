@@ -1,0 +1,1 @@
+folder->compname = compression_name[folder->comptype]

@@ -1,10 +1,12 @@
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name);
-    }
-  struct _finddata_t data;      // data of current file
+  // do not check the return value here
+  // if the list var is not found varArgsExpanded will have size 0
+  // and we will return 0
+  this->GetList(varArgsExpanded, listName.c_str());
+  size_t length = varArgsExpanded.size();
+  char buffer[1024];
+  sprintf(buffer, "%d", static_cast<int>(length));
 
-  // Now put them into the file array
-  srchHandle = _findfirst(buf, &data);
-  delete [] buf;
+  this->Makefile->AddDefinition(variableName.c_str(), buffer);
+  return true;
+}
 
-  if ( srchHandle == -1 )

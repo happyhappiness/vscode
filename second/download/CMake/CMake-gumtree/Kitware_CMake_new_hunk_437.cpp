@@ -1,7 +1,9 @@
-			archive_le64enc(z, zip->entry_offset);
-			z += 8;
+		unsigned short datasize = archive_le16dec(p + offset + 2);
+
+		offset += 4;
+		if (offset + datasize > extra_length) {
+			break;
 		}
-		archive_le16enc(zip64 + 2, (uint16_t)(z - (zip64 + 4)));
-		zd = cd_alloc(zip, z - zip64);
-		if (zd == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
+#ifdef DEBUG
+		fprintf(stderr, "Header id 0x%04x, length %d\n",
+		    headerid, datasize);

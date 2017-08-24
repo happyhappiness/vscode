@@ -1,0 +1,1 @@
+(void)sscanf(buf, "%d", &ret_code)

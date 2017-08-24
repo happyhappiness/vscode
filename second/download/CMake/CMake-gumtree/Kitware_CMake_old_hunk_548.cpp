@@ -1,13 +1,22 @@
-            }
+ */
+CURL *curl_easy_init(void)
+{
+  CURLcode res;
+  struct SessionHandle *data;
 
-            while (isspace(symbol[0])) symbol.erase(0,1);
-#ifdef _MSC_VER
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (fort) {
-               std::string::size_type posAt = symbol.find('@');
-               if (posAt != std::string::npos) symbol.erase(posAt);
-            }
-#endif
-            if (fImportFlag) {
-               fImportFlag = 0;
-               fprintf(fout,"EXPORTS \n");
+  /* Make sure we inited the global SSL stuff */
+  if(!initialized) {
+    res = curl_global_init(CURL_GLOBAL_DEFAULT);
+    if(res) {
+      /* something in the global init failed, return nothing */
+      DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"));
+      return NULL;
+    }
+  }
+
+  /* We use curl_open() with undefined URL so far */
+  res = Curl_open(&data);
+  if(res != CURLE_OK) {
+    DEBUGF(fprintf(stderr, "Error: Curl_open failed\n"));
+    return NULL;
+  }

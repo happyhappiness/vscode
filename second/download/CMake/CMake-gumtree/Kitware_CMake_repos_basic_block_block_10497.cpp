@@ -1,0 +1,1 @@
+state->in_stream = 1

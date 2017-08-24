@@ -1,0 +1,1 @@
+__archive_errx(1, "Negative skip requested.")

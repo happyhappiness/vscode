@@ -1,0 +1,1 @@
+poolFinish(&dtd->pool)

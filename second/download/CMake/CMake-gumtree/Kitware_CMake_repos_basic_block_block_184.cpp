@@ -1,0 +1,1 @@
+form->begincol = form->curcol - field->cols + 1

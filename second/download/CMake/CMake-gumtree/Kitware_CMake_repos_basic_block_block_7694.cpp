@@ -1,0 +1,1 @@
+endNamespaceDeclHandler(handlerArg, b->prefix->name)

@@ -1,0 +1,2 @@
+(err == -ECONNABORTED)
+        continue;

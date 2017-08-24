@@ -1,0 +1,3 @@
+{
+      CloseHandle(hFile1);
+    }

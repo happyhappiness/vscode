@@ -1,7 +1,9 @@
-	 * We don't have lz4 library, and execute external lz4 program
-	 * instead.
-	 */
-	data->pdata = __archive_write_program_allocate("lz4");
-	if (data->pdata == NULL) {
-		free(data);
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+     information. Which for FILE can't be much more than the file size and
+     date. */
+  if(data->set.opt_no_body && data->set.include_header && fstated) {
+    time_t filetime;
+    struct tm buffer;
+    const struct tm *tm = &buffer;
+    snprintf(buf, sizeof(data->state.buffer),
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);

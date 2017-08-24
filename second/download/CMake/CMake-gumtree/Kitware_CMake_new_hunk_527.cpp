@@ -1,7 +1,7 @@
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Disowned, kwsysProcess_Exception_None,
-               1, 1, 1, 0, 10, 0, 1, 1, 0, 0);
-  fprintf(stdout, "Output on stdout after grandchild test.\n");
-  fprintf(stderr, "Output on stderr after grandchild test.\n");
-  fflush(stdout);
+		zip->stream.opaque = Z_NULL;
+		zip->stream.next_out = zip->buf;
+		zip->stream.avail_out = (uInt)zip->len_buf;
+		if (deflateInit2(&zip->stream, zip->deflate_compression_level,
+		    Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't init deflate compressor");

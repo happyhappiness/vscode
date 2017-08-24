@@ -1,0 +1,1 @@
+set_num_722(bp+7, np->parent->dir_number)

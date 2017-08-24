@@ -1,0 +1,1 @@
+SSL_InvalidateSession(connssl->handle)

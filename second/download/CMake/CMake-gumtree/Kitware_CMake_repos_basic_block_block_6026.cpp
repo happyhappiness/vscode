@@ -1,0 +1,1 @@
+*envp++ = (char)tolower((int)*protop++)

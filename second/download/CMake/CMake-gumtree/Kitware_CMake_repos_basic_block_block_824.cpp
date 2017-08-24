@@ -1,0 +1,1 @@
+tmp = tmp.substr(cwd.size())

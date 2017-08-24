@@ -1,0 +1,1 @@
+r = archive_read_open_filename_w(ar, pathname, 512*20)

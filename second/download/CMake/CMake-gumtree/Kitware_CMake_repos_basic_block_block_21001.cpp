@@ -1,0 +1,1 @@
+return uv_cond_condvar_init(cond);

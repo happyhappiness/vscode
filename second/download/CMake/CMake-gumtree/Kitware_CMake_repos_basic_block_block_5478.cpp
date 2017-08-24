@@ -1,0 +1,1 @@
+Curl_setup_transfer(conn, -1, -1, FALSE, NULL, -1, NULL)

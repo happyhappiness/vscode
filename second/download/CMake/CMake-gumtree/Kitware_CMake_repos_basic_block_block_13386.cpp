@@ -1,0 +1,1 @@
+archive_strappend_char(&(xar->file->fflags_text), ',')

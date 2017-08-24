@@ -1,0 +1,1 @@
+Curl_http2_remove_child(data->set.stream_depends_on, data)

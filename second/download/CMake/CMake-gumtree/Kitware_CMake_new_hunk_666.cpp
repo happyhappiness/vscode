@@ -1,23 +1,17 @@
-
-//----------------------------------------------------------------------------
-void
-cmComputeTargetDepends::DisplayGraph(Graph const& graph,
-                                     const std::string& name)
-{
-  fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());
-  int n = static_cast<int>(graph.size());
-  for(int depender_index = 0; depender_index < n; ++depender_index)
-    {
-    EdgeList const& nl = graph[depender_index];
-    cmTarget const* depender = this->Targets[depender_index];
-    fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName().c_str());
-    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int dependee_index = *ni;
-      cmTarget const* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName().c_str(), ni->IsStrong()? "strong" : "weak");
-      }
-    }
-  fprintf(stderr, "\n");
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Unexpected codec ID: %lX", zip->codec);
+		return (ARCHIVE_FAILED);
+	case _7Z_CRYPTO_MAIN_ZIP:
+	case _7Z_CRYPTO_RAR_29:
+	case _7Z_CRYPTO_AES_256_SHA_256:
+		if (a->entry) {
+			archive_entry_set_is_metadata_encrypted(a->entry, 1);
+			archive_entry_set_is_data_encrypted(a->entry, 1);
+			zip->has_encrypted_entries = 1;
+		}
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Crypto codec not supported yet (ID: 0x%lX)", zip->codec);
+		return (ARCHIVE_FAILED);
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Unknown codec ID: %lX", zip->codec);

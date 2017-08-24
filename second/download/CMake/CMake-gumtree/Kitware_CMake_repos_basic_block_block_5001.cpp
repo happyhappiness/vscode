@@ -1,0 +1,1 @@
+NXMutexFree(app_data->lock)

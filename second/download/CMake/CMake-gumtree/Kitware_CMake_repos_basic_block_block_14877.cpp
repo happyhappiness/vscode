@@ -1,0 +1,1 @@
+memset(null_d, 0, sizeof(null_d))

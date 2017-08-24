@@ -1,0 +1,1 @@
+CloseHandle(data->child)

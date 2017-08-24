@@ -1,511 +1,450 @@
-@@ -22,7 +22,7 @@
- #include "cmMakefile.h"
- #include "cmSystemTools.h"
- #include "cmGeneratedFileStream.h"
--#include "cmXMLSafe.h"
-+#include "cmXMLWriter.h"
- 
- #include <cmsys/Process.h>
- #include <cmsys/RegularExpression.hxx>
-@@ -185,28 +185,13 @@ bool cmCTestCoverageHandler::StartCoverageLogFile(
-       << covLogFilename << std::endl);
-     return false;
-     }
--  std::string local_start_time = this->CTest->CurrentTime();
--  this->CTest->StartXML(covLogFile, this->AppendXML);
--  covLogFile << "<CoverageLog>" << std::endl
--             << "\t<StartDateTime>" << local_start_time << "</StartDateTime>"
--             << "\t<StartTime>"
--             << static_cast<unsigned int>(cmSystemTools::GetTime())
--             << "</StartTime>"
--    << std::endl;
-   return true;
+@@ -139,16 +139,19 @@ get_time_t_max(void)
+ #if defined(TIME_T_MAX)
+ 	return TIME_T_MAX;
+ #else
+-	static time_t t;
+-	time_t a;
+-	if (t == 0) {
+-		a = 1;
+-		while (a > t) {
+-			t = a;
+-			a = a * 2 + 1;
+-		}
++	/* ISO C allows time_t to be a floating-point type,
++	   but POSIX requires an integer type.  The following
++	   should work on any system that follows the POSIX
++	   conventions. */
++	if (((time_t)0) < ((time_t)-1)) {
++		/* Time_t is unsigned */
++		return (~(time_t)0);
++	} else {
++		/* Time_t is signed. */
++		const uintmax_t max_unsigned_time_t = (uintmax_t)(~(time_t)0);
++		const uintmax_t max_signed_time_t = max_unsigned_time_t >> 1;
++		return (time_t)max_signed_time_t;
+ 	}
+-	return t;
+ #endif
  }
  
- //----------------------------------------------------------------------
- void cmCTestCoverageHandler::EndCoverageLogFile(cmGeneratedFileStream& ostr,
-   int logFileCount)
+@@ -158,20 +161,16 @@ get_time_t_min(void)
+ #if defined(TIME_T_MIN)
+ 	return TIME_T_MIN;
+ #else
+-	/* 't' will hold the minimum value, which will be zero (if
+-	 * time_t is unsigned) or -2^n (if time_t is signed). */
+-	static int computed;
+-	static time_t t;
+-	time_t a;
+-	if (computed == 0) {
+-		a = (time_t)-1;
+-		while (a < t) {
+-			t = a;
+-			a = a * 2;
+-		}			
+-		computed = 1;
++	if (((time_t)0) < ((time_t)-1)) {
++		/* Time_t is unsigned */
++		return (time_t)0;
++	} else {
++		/* Time_t is signed. */
++		const uintmax_t max_unsigned_time_t = (uintmax_t)(~(time_t)0);
++		const uintmax_t max_signed_time_t = max_unsigned_time_t >> 1;
++		const intmax_t min_signed_time_t = (intmax_t)~max_signed_time_t;
++		return (time_t)min_signed_time_t;
+ 	}
+-	return t;
+ #endif
+ }
+ 
+@@ -532,32 +531,34 @@ bid_entry(const char *p, ssize_t len, ssize_t nl, int *last_is_path)
+ 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* E0 - EF */
+ 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* F0 - FF */
+ 	};
+-	ssize_t ll = len;
++	ssize_t ll;
+ 	const char *pp = p;
++	const char * const pp_end = pp + len;
+ 
+ 	*last_is_path = 0;
+ 	/*
+ 	 * Skip the path-name which is quoted.
+ 	 */
+-	while (ll > 0 && *pp != ' ' &&*pp != '\t' && *pp != '\r' &&
+-	    *pp != '\n') {
++	for (;pp < pp_end; ++pp) {
+ 		if (!safe_char[*(const unsigned char *)pp]) {
+-			f = 0;
++			if (*pp != ' ' && *pp != '\t' && *pp != '\r'
++			    && *pp != '\n')
++				f = 0;
+ 			break;
+ 		}
+-		++pp;
+-		--ll;
+-		++f;
++		f = 1;
+ 	}
++	ll = pp_end - pp;
++
+ 	/* If a path-name was not found at the first, try to check
+-	 * a mtree format ``NetBSD's mtree -D'' creates, which
+-	 * places the path-name at the last. */
++	 * a mtree format(a.k.a form D) ``NetBSD's mtree -D'' creates,
++	 * which places the path-name at the last. */
+ 	if (f == 0) {
+ 		const char *pb = p + len - nl;
+ 		int name_len = 0;
+ 		int slash;
+ 
+-		/* Do not accept multi lines for form D. */
++		/* The form D accepts only a single line for an entry. */
+ 		if (pb-2 >= p &&
+ 		    pb[-1] == '\\' && (pb[-2] == ' ' || pb[-2] == '\t'))
+ 			return (-1);
+@@ -1056,7 +1057,8 @@ read_header(struct archive_read *a, struct archive_entry *entry)
+ 		}
+ 		if (!mtree->this_entry->used) {
+ 			use_next = 0;
+-			r = parse_file(a, entry, mtree, mtree->this_entry, &use_next);
++			r = parse_file(a, entry, mtree, mtree->this_entry,
++				&use_next);
+ 			if (use_next == 0)
+ 				return (r);
+ 		}
+@@ -1151,8 +1153,8 @@ parse_file(struct archive_read *a, struct archive_entry *entry,
+ 			mtree->fd = open(path, O_RDONLY | O_BINARY | O_CLOEXEC);
+ 			__archive_ensure_cloexec_flag(mtree->fd);
+ 			if (mtree->fd == -1 &&
+-					(errno != ENOENT ||
+-					 archive_strlen(&mtree->contents_name) > 0)) {
++				(errno != ENOENT ||
++				 archive_strlen(&mtree->contents_name) > 0)) {
+ 				archive_set_error(&a->archive, errno,
+ 						"Can't open %s", path);
+ 				r = ARCHIVE_WARN;
+@@ -1175,76 +1177,79 @@ parse_file(struct archive_read *a, struct archive_entry *entry,
+ 		}
+ 
+ 		/*
+-		 * Check for a mismatch between the type in the specification and
+-		 * the type of the contents object on disk.
++		 * Check for a mismatch between the type in the specification
++		 * and the type of the contents object on disk.
+ 		 */
+ 		if (st != NULL) {
+-			if (
+-					((st->st_mode & S_IFMT) == S_IFREG &&
+-					 archive_entry_filetype(entry) == AE_IFREG)
++			if (((st->st_mode & S_IFMT) == S_IFREG &&
++			      archive_entry_filetype(entry) == AE_IFREG)
+ #ifdef S_IFLNK
+-					|| ((st->st_mode & S_IFMT) == S_IFLNK &&
+-						archive_entry_filetype(entry) == AE_IFLNK)
++			  ||((st->st_mode & S_IFMT) == S_IFLNK &&
++			      archive_entry_filetype(entry) == AE_IFLNK)
+ #endif
+ #ifdef S_IFSOCK
+-					|| ((st->st_mode & S_IFSOCK) == S_IFSOCK &&
+-						archive_entry_filetype(entry) == AE_IFSOCK)
++			  ||((st->st_mode & S_IFSOCK) == S_IFSOCK &&
++			      archive_entry_filetype(entry) == AE_IFSOCK)
+ #endif
+ #ifdef S_IFCHR
+-					|| ((st->st_mode & S_IFMT) == S_IFCHR &&
+-						archive_entry_filetype(entry) == AE_IFCHR)
++			  ||((st->st_mode & S_IFMT) == S_IFCHR &&
++			      archive_entry_filetype(entry) == AE_IFCHR)
+ #endif
+ #ifdef S_IFBLK
+-					|| ((st->st_mode & S_IFMT) == S_IFBLK &&
+-						archive_entry_filetype(entry) == AE_IFBLK)
++			  ||((st->st_mode & S_IFMT) == S_IFBLK &&
++			      archive_entry_filetype(entry) == AE_IFBLK)
+ #endif
+-					|| ((st->st_mode & S_IFMT) == S_IFDIR &&
+-						archive_entry_filetype(entry) == AE_IFDIR)
++			  ||((st->st_mode & S_IFMT) == S_IFDIR &&
++			      archive_entry_filetype(entry) == AE_IFDIR)
+ #ifdef S_IFIFO
+-					|| ((st->st_mode & S_IFMT) == S_IFIFO &&
+-							archive_entry_filetype(entry) == AE_IFIFO)
++			  ||((st->st_mode & S_IFMT) == S_IFIFO &&
++			      archive_entry_filetype(entry) == AE_IFIFO)
+ #endif
+-					) {
+-						/* Types match. */
+-					} else {
+-						/* Types don't match; bail out gracefully. */
+-						if (mtree->fd >= 0)
+-							close(mtree->fd);
+-						mtree->fd = -1;
+-						if (parsed_kws & MTREE_HAS_OPTIONAL) {
+-							/* It's not an error for an optional entry
+-							   to not match disk. */
+-							*use_next = 1;
+-						} else if (r == ARCHIVE_OK) {
+-							archive_set_error(&a->archive,
+-									ARCHIVE_ERRNO_MISC,
+-									"mtree specification has different type for %s",
+-									archive_entry_pathname(entry));
+-							r = ARCHIVE_WARN;
+-						}
+-						return r;
+-					}
++			) {
++				/* Types match. */
++			} else {
++				/* Types don't match; bail out gracefully. */
++				if (mtree->fd >= 0)
++					close(mtree->fd);
++				mtree->fd = -1;
++				if (parsed_kws & MTREE_HAS_OPTIONAL) {
++					/* It's not an error for an optional
++					 * entry to not match disk. */
++					*use_next = 1;
++				} else if (r == ARCHIVE_OK) {
++					archive_set_error(&a->archive,
++					    ARCHIVE_ERRNO_MISC,
++					    "mtree specification has different"
++					    " type for %s",
++					    archive_entry_pathname(entry));
++					r = ARCHIVE_WARN;
++				}
++				return (r);
++			}
+ 		}
+ 
+ 		/*
+-		 * If there is a contents file on disk, pick some of the metadata
+-		 * from that file.  For most of these, we only set it from the contents
+-		 * if it wasn't already parsed from the specification.
++		 * If there is a contents file on disk, pick some of the
++		 * metadata from that file.  For most of these, we only
++		 * set it from the contents if it wasn't already parsed
++		 * from the specification.
+ 		 */
+ 		if (st != NULL) {
+ 			if (((parsed_kws & MTREE_HAS_DEVICE) == 0 ||
+-						(parsed_kws & MTREE_HAS_NOCHANGE) != 0) &&
+-					(archive_entry_filetype(entry) == AE_IFCHR ||
+-					 archive_entry_filetype(entry) == AE_IFBLK))
++				(parsed_kws & MTREE_HAS_NOCHANGE) != 0) &&
++				(archive_entry_filetype(entry) == AE_IFCHR ||
++				 archive_entry_filetype(entry) == AE_IFBLK))
+ 				archive_entry_set_rdev(entry, st->st_rdev);
+-			if ((parsed_kws & (MTREE_HAS_GID | MTREE_HAS_GNAME)) == 0 ||
+-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
++			if ((parsed_kws & (MTREE_HAS_GID | MTREE_HAS_GNAME))
++				== 0 ||
++			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
+ 				archive_entry_set_gid(entry, st->st_gid);
+-			if ((parsed_kws & (MTREE_HAS_UID | MTREE_HAS_UNAME)) == 0 ||
+-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
++			if ((parsed_kws & (MTREE_HAS_UID | MTREE_HAS_UNAME))
++				== 0 ||
++			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
+ 				archive_entry_set_uid(entry, st->st_uid);
+ 			if ((parsed_kws & MTREE_HAS_MTIME) == 0 ||
+-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0) {
++			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0) {
+ #if HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
+ 				archive_entry_set_mtime(entry, st->st_mtime,
+ 						st->st_mtimespec.tv_nsec);
+@@ -1265,23 +1270,24 @@ parse_file(struct archive_read *a, struct archive_entry *entry,
+ #endif
+ 			}
+ 			if ((parsed_kws & MTREE_HAS_NLINK) == 0 ||
+-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
++			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
+ 				archive_entry_set_nlink(entry, st->st_nlink);
+ 			if ((parsed_kws & MTREE_HAS_PERM) == 0 ||
+-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
++			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
+ 				archive_entry_set_perm(entry, st->st_mode);
+ 			if ((parsed_kws & MTREE_HAS_SIZE) == 0 ||
+-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
++			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
+ 				archive_entry_set_size(entry, st->st_size);
+ 			archive_entry_set_ino(entry, st->st_ino);
+ 			archive_entry_set_dev(entry, st->st_dev);
+ 
+-			archive_entry_linkify(mtree->resolver, &entry, &sparse_entry);
++			archive_entry_linkify(mtree->resolver, &entry,
++				&sparse_entry);
+ 		} else if (parsed_kws & MTREE_HAS_OPTIONAL) {
+ 			/*
+ 			 * Couldn't open the entry, stat it or the on-disk type
+-			 * didn't match.  If this entry is optional, just ignore it
+-			 * and read the next header entry.
++			 * didn't match.  If this entry is optional, just
++			 * ignore it and read the next header entry.
+ 			 */
+ 			*use_next = 1;
+ 			return ARCHIVE_OK;
+@@ -1370,7 +1376,7 @@ parse_device(dev_t *pdev, struct archive *a, char *val)
+ 				    "Missing number");
+ 				return ARCHIVE_WARN;
+ 			}
+-			numbers[argc++] = mtree_atol(&p);
++			numbers[argc++] = (unsigned long)mtree_atol(&p);
+ 			if (argc > MAX_PACK_ARGS) {
+ 				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+ 				    "Too many arguments");
+@@ -1583,32 +1589,38 @@ parse_keyword(struct archive_read *a, struct mtree *mtree,
+ 				}
+ 			case 'c':
+ 				if (strcmp(val, "char") == 0) {
+-					archive_entry_set_filetype(entry, AE_IFCHR);
++					archive_entry_set_filetype(entry,
++						AE_IFCHR);
+ 					break;
+ 				}
+ 			case 'd':
+ 				if (strcmp(val, "dir") == 0) {
+-					archive_entry_set_filetype(entry, AE_IFDIR);
++					archive_entry_set_filetype(entry,
++						AE_IFDIR);
+ 					break;
+ 				}
+ 			case 'f':
+ 				if (strcmp(val, "fifo") == 0) {
+-					archive_entry_set_filetype(entry, AE_IFIFO);
++					archive_entry_set_filetype(entry,
++						AE_IFIFO);
+ 					break;
+ 				}
+ 				if (strcmp(val, "file") == 0) {
+-					archive_entry_set_filetype(entry, AE_IFREG);
++					archive_entry_set_filetype(entry,
++						AE_IFREG);
+ 					break;
+ 				}
+ 			case 'l':
+ 				if (strcmp(val, "link") == 0) {
+-					archive_entry_set_filetype(entry, AE_IFLNK);
++					archive_entry_set_filetype(entry,
++						AE_IFLNK);
+ 					break;
+ 				}
+ 			default:
+ 				archive_set_error(&a->archive,
+ 				    ARCHIVE_ERRNO_FILE_FORMAT,
+-				    "Unrecognized file type \"%s\"; assuming \"file\"", val);
++				    "Unrecognized file type \"%s\"; "
++				    "assuming \"file\"", val);
+ 				archive_entry_set_filetype(entry, AE_IFREG);
+ 				return (ARCHIVE_WARN);
+ 			}
+@@ -1635,7 +1647,8 @@ parse_keyword(struct archive_read *a, struct mtree *mtree,
+ }
+ 
+ static int
+-read_data(struct archive_read *a, const void **buff, size_t *size, int64_t *offset)
++read_data(struct archive_read *a, const void **buff, size_t *size,
++    int64_t *offset)
  {
--  std::string local_end_time = this->CTest->CurrentTime();
--  ostr << "\t<EndDateTime>" << local_end_time << "</EndDateTime>" << std::endl
--       << "\t<EndTime>" <<
--       static_cast<unsigned int>(cmSystemTools::GetTime())
--       << "</EndTime>" << std::endl
--    << "</CoverageLog>" << std::endl;
--  this->CTest->EndXML(ostr);
-   char covLogFilename[1024];
-   sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-   cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Close file: "
-@@ -215,6 +200,25 @@ void cmCTestCoverageHandler::EndCoverageLogFile(cmGeneratedFileStream& ostr,
- }
- 
- //----------------------------------------------------------------------
-+void cmCTestCoverageHandler::StartCoverageLogXML(cmXMLWriter& xml)
-+{
-+  this->CTest->StartXML(xml, this->AppendXML);
-+  xml.StartElement("CoverageLog");
-+  xml.Element("StartDateTime", this->CTest->CurrentTime());
-+  xml.Element("StartTime",
-+    static_cast<unsigned int>(cmSystemTools::GetTime()));
-+}
-+
-+//----------------------------------------------------------------------
-+void cmCTestCoverageHandler::EndCoverageLogXML(cmXMLWriter& xml)
-+{
-+  xml.Element("EndDateTime", this->CTest->CurrentTime());
-+  xml.Element("EndTime", static_cast<unsigned int>(cmSystemTools::GetTime()));
-+  xml.EndElement(); // CoverageLog
-+  this->CTest->EndXML(xml);
-+}
-+
-+//----------------------------------------------------------------------
- bool cmCTestCoverageHandler::ShouldIDoCoverage(const char* file,
-   const char* srcDir,
-   const char* binDir)
-@@ -451,27 +455,30 @@ int cmCTestCoverageHandler::ProcessHandler()
-     }
-   cmGeneratedFileStream covSumFile;
-   cmGeneratedFileStream covLogFile;
-+  cmXMLWriter covSumXML(covSumFile);
-+  cmXMLWriter covLogXML(covLogFile);
- 
-   if(!this->StartResultingXML(cmCTest::PartCoverage, "Coverage", covSumFile))
-     {
-     cmCTestLog(this->CTest, ERROR_MESSAGE,
-       "Cannot open coverage summary file." << std::endl);
-     return -1;
-     }
-+  covSumFile.setf(std::ios::fixed, std::ios::floatfield);
-+  covSumFile.precision(2);
- 
--  this->CTest->StartXML(covSumFile, this->AppendXML);
-+  this->CTest->StartXML(covSumXML, this->AppendXML);
-   // Produce output xml files
- 
--  covSumFile << "<Coverage>" << std::endl
--    << "\t<StartDateTime>" << coverage_start_time << "</StartDateTime>"
--    << std::endl
--    << "\t<StartTime>" << coverage_start_time_time << "</StartTime>"
--    << std::endl;
-+  covSumXML.StartElement("Coverage");
-+  covSumXML.Element("StartDateTime", coverage_start_time);
-+  covSumXML.Element("StartTime", coverage_start_time_time);
-   int logFileCount = 0;
-   if ( !this->StartCoverageLogFile(covLogFile, logFileCount) )
-     {
-     return -1;
-     }
-+  this->StartCoverageLogXML(covLogXML);
-   cmCTestCoverageHandlerContainer::TotalCoverageMap::iterator fileIterator;
-   int cnt = 0;
-   long total_tested = 0;
-@@ -528,12 +535,14 @@ int cmCTestCoverageHandler::ProcessHandler()
- 
-     if ( ++cnt % 100 == 0 )
-       {
-+      this->EndCoverageLogXML(covLogXML);
-       this->EndCoverageLogFile(covLogFile, logFileCount);
-       logFileCount ++;
-       if ( !this->StartCoverageLogFile(covLogFile, logFileCount) )
-         {
-         return -1;
-         }
-+      this->StartCoverageLogXML(covLogXML);
-       }
- 
-     const std::string fileName
-@@ -542,9 +551,10 @@ int cmCTestCoverageHandler::ProcessHandler()
-       this->CTest->GetShortPathToFile(fullFileName.c_str());
-     const cmCTestCoverageHandlerContainer::SingleFileCoverageVector& fcov
-       = fileIterator->second;
--    covLogFile << "\t<File Name=\"" << cmXMLSafe(fileName)
--      << "\" FullPath=\"" << cmXMLSafe(shortFileName) << "\">\n"
--      << "\t\t<Report>" << std::endl;
-+    covLogXML.StartElement("File");
-+    covLogXML.Attribute("Name", fileName);
-+    covLogXML.Attribute("FullPath", shortFileName);
-+    covLogXML.StartElement("Report");
- 
-     cmsys::ifstream ifs(fullFileName.c_str());
-     if ( !ifs)
-@@ -576,9 +586,11 @@ int cmCTestCoverageHandler::ProcessHandler()
-         error ++;
-         break;
-         }
--      covLogFile << "\t\t<Line Number=\"" << cc << "\" Count=\"" << fcov[cc]
--        << "\">"
--        << cmXMLSafe(line) << "</Line>" << std::endl;
-+      covLogXML.StartElement("Line");
-+      covLogXML.Attribute("Number", cc);
-+      covLogXML.Attribute("Count", fcov[cc]);
-+      covLogXML.Content(line);
-+      covLogXML.EndElement(); // Line
-       if ( fcov[cc] == 0 )
-         {
-         untested ++;
-@@ -605,24 +617,19 @@ int cmCTestCoverageHandler::ProcessHandler()
-       }
-     total_tested += tested;
-     total_untested += untested;
--    covLogFile << "\t\t</Report>" << std::endl
--      << "\t</File>" << std::endl;
--    covSumFile << "\t<File Name=\"" << cmXMLSafe(fileName)
--      << "\" FullPath=\"" << cmXMLSafe(
--        this->CTest->GetShortPathToFile(fullFileName.c_str()))
--      << "\" Covered=\"" << (tested+untested > 0 ? "true":"false") << "\">\n"
--      << "\t\t<LOCTested>" << tested << "</LOCTested>\n"
--      << "\t\t<LOCUnTested>" << untested << "</LOCUnTested>\n"
--      << "\t\t<PercentCoverage>";
--    covSumFile.setf(std::ios::fixed, std::ios::floatfield);
--    covSumFile.precision(2);
--    covSumFile << (cper) << "</PercentCoverage>\n"
--      << "\t\t<CoverageMetric>";
--    covSumFile.setf(std::ios::fixed, std::ios::floatfield);
--    covSumFile.precision(2);
--    covSumFile << (cmet) << "</CoverageMetric>\n";
--    this->WriteXMLLabels(covSumFile, shortFileName);
--    covSumFile << "\t</File>" << std::endl;
-+    covLogXML.EndElement(); // Report
-+    covLogXML.EndElement(); // File
-+    covSumXML.StartElement("File");
-+    covSumXML.Attribute("Name", fileName);
-+    covSumXML.Attribute("FullPath",
-+      this->CTest->GetShortPathToFile(fullFileName.c_str()));
-+    covSumXML.Attribute("Covered", tested + untested > 0 ? "true" : "false");
-+    covSumXML.Element("LOCTested", tested);
-+    covSumXML.Element("LOCUnTested", untested);
-+    covSumXML.Element("PercentCoverage", cper);
-+    covSumXML.Element("CoverageMetric", cmet);
-+    this->WriteXMLLabels(covSumXML, shortFileName);
-+    covSumXML.EndElement(); // File
-     }
- 
-   //Handle all the files in the extra coverage globs that have no cov data
-@@ -632,9 +639,10 @@ int cmCTestCoverageHandler::ProcessHandler()
-     std::string fileName = cmSystemTools::GetFilenameName(*i);
-     std::string fullPath = cont.SourceDir + "/" + *i;
- 
--    covLogFile << "\t<File Name=\"" << cmXMLSafe(fileName)
--      << "\" FullPath=\"" << cmXMLSafe(*i) << "\">\n"
--      << "\t\t<Report>" << std::endl;
-+    covLogXML.StartElement("File");
-+    covLogXML.Attribute("Name", fileName);
-+    covLogXML.Attribute("FullPath", *i);
-+    covLogXML.StartElement("Report");
- 
-     cmsys::ifstream ifs(fullPath.c_str());
-     if (!ifs)
-@@ -651,24 +659,30 @@ int cmCTestCoverageHandler::ProcessHandler()
-       "Actually performing coverage for: " << *i << std::endl, this->Quiet);
-     while (cmSystemTools::GetLineFromStream(ifs, line))
-       {
--      covLogFile << "\t\t<Line Number=\"" << untested << "\" Count=\"0\">"
--        << cmXMLSafe(line) << "</Line>" << std::endl;
-+      covLogXML.StartElement("Line");
-+      covLogXML.Attribute("Number", untested);
-+      covLogXML.Attribute("Count", 0);
-+      covLogXML.Content(line);
-+      covLogXML.EndElement(); // Line
-       untested ++;
-       }
--    covLogFile << "\t\t</Report>\n\t</File>" << std::endl;
-+    covLogXML.EndElement(); // Report
-+    covLogXML.EndElement(); // File
- 
-     total_untested += untested;
--    covSumFile << "\t<File Name=\"" << cmXMLSafe(fileName)
--      << "\" FullPath=\"" << cmXMLSafe(i->c_str())
--      << "\" Covered=\"true\">\n"
--      << "\t\t<LOCTested>0</LOCTested>\n"
--      << "\t\t<LOCUnTested>" << untested << "</LOCUnTested>\n"
--      << "\t\t<PercentCoverage>0</PercentCoverage>\n"
--      << "\t\t<CoverageMetric>0</CoverageMetric>\n";
--    this->WriteXMLLabels(covSumFile, *i);
--    covSumFile << "\t</File>" << std::endl;
--    }
--
-+    covSumXML.StartElement("File");
-+    covSumXML.Attribute("Name", fileName);
-+    covSumXML.Attribute("FullPath", *i);
-+    covSumXML.Attribute("Covered", "true");
-+    covSumXML.Element("LOCTested", 0);
-+    covSumXML.Element("LOCUnTested", untested);
-+    covSumXML.Element("PercentCoverage", 0);
-+    covSumXML.Element("CoverageMetric", 0);
-+    this->WriteXMLLabels(covSumXML, *i);
-+    covSumXML.EndElement(); // File
-+    }
-+
-+  this->EndCoverageLogXML(covLogXML);
-   this->EndCoverageLogFile(covLogFile, logFileCount);
- 
-   if (!errorsWhileAccumulating.empty())
-@@ -696,22 +710,17 @@ int cmCTestCoverageHandler::ProcessHandler()
- 
-   std::string end_time = this->CTest->CurrentTime();
- 
--  covSumFile << "\t<LOCTested>" << total_tested << "</LOCTested>\n"
--    << "\t<LOCUntested>" << total_untested << "</LOCUntested>\n"
--    << "\t<LOC>" << total_lines << "</LOC>\n"
--    << "\t<PercentCoverage>";
--  covSumFile.setf(std::ios::fixed, std::ios::floatfield);
--  covSumFile.precision(2);
--  covSumFile << (percent_coverage)<< "</PercentCoverage>\n"
--    << "\t<EndDateTime>" << end_time << "</EndDateTime>\n"
--    << "\t<EndTime>" <<
--         static_cast<unsigned int>(cmSystemTools::GetTime())
--    << "</EndTime>\n";
--  covSumFile << "<ElapsedMinutes>" <<
--    static_cast<int>((cmSystemTools::GetTime() - elapsed_time_start)/6)/10.0
--    << "</ElapsedMinutes>"
--    << "</Coverage>" << std::endl;
--  this->CTest->EndXML(covSumFile);
-+  covSumXML.Element("LOCTested", total_tested);
-+  covSumXML.Element("LOCUntested", total_untested);
-+  covSumXML.Element("LOC", total_lines);
-+  covSumXML.Element("PercentCoverage", percent_coverage);
-+  covSumXML.Element("EndDateTime", end_time);
-+  covSumXML.Element("EndTime",
-+    static_cast<unsigned int>(cmSystemTools::GetTime()));
-+  covSumXML.Element("ElapsedMinutes",
-+    static_cast<int>((cmSystemTools::GetTime() - elapsed_time_start)/6)/10.0);
-+  covSumXML.EndElement(); // Coverage
-+  this->CTest->EndXML(covSumXML);
- 
-   cmCTestLog(this->CTest, HANDLER_OUTPUT, "" << std::endl
-     << "\tCovered LOC:         "
-@@ -1952,11 +1961,13 @@ int cmCTestCoverageHandler::RunBullseyeCoverageBranch(
-     }
-   // create the output stream for the CoverageLog-N.xml file
-   cmGeneratedFileStream covLogFile;
-+  cmXMLWriter covLogXML(covLogFile);
-   int logFileCount = 0;
-   if ( !this->StartCoverageLogFile(covLogFile, logFileCount) )
-     {
-     return -1;
-     }
-+  this->StartCoverageLogXML(covLogXML);
-   // for each file run covbr on that file to get the coverage
-   // information for that file
-   std::string outputFile;
-@@ -2009,20 +2020,22 @@ int cmCTestCoverageHandler::RunBullseyeCoverageBranch(
-       // if we are in a valid file close it because a new one started
-       if(valid)
-         {
--        covLogFile << "\t\t</Report>" << std::endl
--                   << "\t</File>" << std::endl;
-+        covLogXML.EndElement(); // Report
-+        covLogXML.EndElement(); // File
-         }
-       // only allow 100 files in each log file
-       if ( count != 0 && count % 100 == 0 )
-         {
-         cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-           "start a new log file: " << count << std::endl, this->Quiet);
-+        this->EndCoverageLogXML(covLogXML);
-         this->EndCoverageLogFile(covLogFile, logFileCount);
-         logFileCount ++;
-         if ( !this->StartCoverageLogFile(covLogFile, logFileCount) )
-           {
-           return -1;
-           }
-+        this->StartCoverageLogXML(covLogXML);
-         count++; // move on one
-         }
-       std::map<std::string, std::string>::iterator
-@@ -2036,19 +2049,20 @@ int cmCTestCoverageHandler::RunBullseyeCoverageBranch(
-           "Produce coverage for file: " << file << " " << count
-           << std::endl, this->Quiet);
-         // start the file output
--        covLogFile << "\t<File Name=\""
--                   << cmXMLSafe(i->first)
--                   << "\" FullPath=\"" << cmXMLSafe(
--                     this->CTest->GetShortPathToFile(
--                       i->second.c_str())) << "\">" << std::endl
--                   << "\t\t<Report>" << std::endl;
-+        covLogXML.StartElement("File");
-+        covLogXML.Attribute("Name", i->first);
-+        covLogXML.Attribute("FullPath",
-+          this->CTest->GetShortPathToFile(i->second.c_str()));
-+        covLogXML.StartElement("Report");
-         // write the bullseye header
-         line =0;
-         for(int k =0; bullseyeHelp[k] != 0; ++k)
-           {
--          covLogFile << "\t\t<Line Number=\"" << line << "\" Count=\"-1\">"
--                     << cmXMLSafe(bullseyeHelp[k])
--                     << "</Line>" << std::endl;
-+          covLogXML.StartElement("Line");
-+          covLogXML.Attribute("Number", line);
-+          covLogXML.Attribute("Count", -1);
-+          covLogXML.Content(bullseyeHelp[k]);
-+          covLogXML.EndElement(); // Line
-           line++;
-           }
-         valid = true; // we are in a valid file section
-@@ -2062,18 +2076,21 @@ int cmCTestCoverageHandler::RunBullseyeCoverageBranch(
-     // we are not at a start file, and we are in a valid file output the line
-     else if(valid)
-       {
--      covLogFile << "\t\t<Line Number=\"" << line << "\" Count=\"-1\">"
--                 << cmXMLSafe(lineIn)
--                 << "</Line>" << std::endl;
-+      covLogXML.StartElement("Line");
-+      covLogXML.Attribute("Number", line);
-+      covLogXML.Attribute("Count", -1);
-+      covLogXML.Content(lineIn);
-+      covLogXML.EndElement(); // Line
-       line++;
-       }
-     }
-   // if we ran out of lines a valid file then close that file
-   if(valid)
-     {
--    covLogFile << "\t\t</Report>" << std::endl
--               << "\t</File>" << std::endl;
-+    covLogXML.EndElement(); // Report
-+    covLogXML.EndElement(); // File
-     }
-+  this->EndCoverageLogXML(covLogXML);
-   this->EndCoverageLogFile(covLogFile, logFileCount);
-   return 1;
- }
-@@ -2143,23 +2160,20 @@ int cmCTestCoverageHandler::RunBullseyeSourceSummary(
-   std::ostream& tmpLog = *cont->OFS;
-   // copen the Coverage.xml file in the Testing directory
-   cmGeneratedFileStream covSumFile;
-+  cmXMLWriter xml(covSumFile);
-   if(!this->StartResultingXML(cmCTest::PartCoverage, "Coverage", covSumFile))
-     {
-     cmCTestLog(this->CTest, ERROR_MESSAGE,
-       "Cannot open coverage summary file." << std::endl);
-     return 0;
-     }
--  this->CTest->StartXML(covSumFile, this->AppendXML);
-+  this->CTest->StartXML(xml, this->AppendXML);
-   double elapsed_time_start = cmSystemTools::GetTime();
-   std::string coverage_start_time = this->CTest->CurrentTime();
--  covSumFile << "<Coverage>" << std::endl
--             << "\t<StartDateTime>"
--             << coverage_start_time << "</StartDateTime>"
--             << std::endl
--             << "\t<StartTime>"
--             << static_cast<unsigned int>(cmSystemTools::GetTime())
--             << "</StartTime>"
--             << std::endl;
-+  xml.StartElement("Coverage");
-+  xml.Element("StartDateTime", coverage_start_time);
-+  xml.Element("StartTime",
-+    static_cast<unsigned int>(cmSystemTools::GetTime()));
-   std::string stdline;
-   std::string errline;
-   // expected output:
-@@ -2271,58 +2285,35 @@ int cmCTestCoverageHandler::RunBullseyeSourceSummary(
-       tmpLog << "percentBranch: " << percentBranch << "\n";
-       tmpLog << "percentCoverage: " << percent_coverage << "\n";
-       tmpLog << "coverage metric: " << cmet << "\n";
--      covSumFile << "\t<File Name=\"" << cmXMLSafe(sourceFile)
--                 << "\" FullPath=\"" << cmXMLSafe(shortFileName)
--                 << "\" Covered=\"" << (cmet>0?"true":"false") << "\">\n"
--                 << "\t\t<BranchesTested>"
--                 << branchCovered
--                 << "</BranchesTested>\n"
--                 << "\t\t<BranchesUnTested>"
--                 << totalBranches - branchCovered
--                 << "</BranchesUnTested>\n"
--                 << "\t\t<FunctionsTested>"
--                 << functionsCalled
--                 << "</FunctionsTested>\n"
--                 << "\t\t<FunctionsUnTested>"
--                 << totalFunctions - functionsCalled
--                 << "</FunctionsUnTested>\n"
--        // Hack for conversion of function to loc assume a function
--        // has 100 lines of code
--                 << "\t\t<LOCTested>" << functionsCalled *100
--                 << "</LOCTested>\n"
--                 << "\t\t<LOCUnTested>"
--                 << (totalFunctions - functionsCalled)*100
--                 << "</LOCUnTested>\n"
--                 << "\t\t<PercentCoverage>";
--      covSumFile.setf(std::ios::fixed, std::ios::floatfield);
--      covSumFile.precision(2);
--      covSumFile << (cper) << "</PercentCoverage>\n"
--                 << "\t\t<CoverageMetric>";
--      covSumFile.setf(std::ios::fixed, std::ios::floatfield);
--      covSumFile.precision(2);
--      covSumFile << (cmet) << "</CoverageMetric>\n";
--      this->WriteXMLLabels(covSumFile, shortFileName);
--      covSumFile << "\t</File>" << std::endl;
-+      xml.StartElement("File");
-+      xml.Attribute("Name", sourceFile);
-+      xml.Attribute("FullPath", shortFileName);
-+      xml.Attribute("Covered", cmet > 0 ? "true" : "false");
-+      xml.Element("BranchesTested", branchCovered);
-+      xml.Element("BranchesUnTested", totalBranches - branchCovered);
-+      xml.Element("FunctionsTested", functionsCalled);
-+      xml.Element("FunctionsUnTested", totalFunctions - functionsCalled);
-+      // Hack for conversion of function to loc assume a function
-+      // has 100 lines of code
-+      xml.Element("LOCTested", functionsCalled * 100);
-+      xml.Element("LOCUnTested", (totalFunctions - functionsCalled) * 100);
-+      xml.Element("PercentCoverage", cper);
-+      xml.Element("CoverageMetric", cmet);
-+      this->WriteXMLLabels(xml, shortFileName);
-+      xml.EndElement(); // File
-       }
-     }
-   std::string end_time = this->CTest->CurrentTime();
--  covSumFile << "\t<LOCTested>" << total_tested << "</LOCTested>\n"
--    << "\t<LOCUntested>" << total_untested << "</LOCUntested>\n"
--    << "\t<LOC>" << total_functions << "</LOC>\n"
--    << "\t<PercentCoverage>";
--  covSumFile.setf(std::ios::fixed, std::ios::floatfield);
--  covSumFile.precision(2);
--  covSumFile
--    << SAFEDIV(percent_coverage,number_files)<< "</PercentCoverage>\n"
--    << "\t<EndDateTime>" << end_time << "</EndDateTime>\n"
--    << "\t<EndTime>" << static_cast<unsigned int>(cmSystemTools::GetTime())
--    << "</EndTime>\n";
--  covSumFile
--    << "<ElapsedMinutes>" <<
--    static_cast<int>((cmSystemTools::GetTime() - elapsed_time_start)/6)/10.0
--    << "</ElapsedMinutes>"
--    << "</Coverage>" << std::endl;
--  this->CTest->EndXML(covSumFile);
-+  xml.Element("LOCTested", total_tested);
-+  xml.Element("LOCUntested", total_untested);
-+  xml.Element("LOC", total_functions);
-+  xml.Element("PercentCoverage", SAFEDIV(percent_coverage, number_files));
-+  xml.Element("EndDateTime", end_time);
-+  xml.Element("EndTime", static_cast<unsigned int>(cmSystemTools::GetTime()));
-+  xml.Element("ElapsedMinutes",
-+    static_cast<int>((cmSystemTools::GetTime() - elapsed_time_start)/6)/10.0);
-+  xml.EndElement(); // Coverage
-+  this->CTest->EndXML(xml);
- 
-   // Now create the coverage information for each file
-   return this->RunBullseyeCoverageBranch(cont,
-@@ -2514,19 +2505,19 @@ void cmCTestCoverageHandler::LoadLabels(const char* dir)
- }
- 
- //----------------------------------------------------------------------
--void cmCTestCoverageHandler::WriteXMLLabels(std::ostream& os,
-+void cmCTestCoverageHandler::WriteXMLLabels(cmXMLWriter& xml,
-                                             std::string const& source)
+ 	size_t bytes_to_read;
+ 	ssize_t bytes_read;
+@@ -1761,6 +1774,10 @@ parse_escapes(char *src, struct mtree_entry *mentry)
+ 				c = '\v';
+ 				++src;
+ 				break;
++			case '\\':
++				c = '\\';
++				++src;
++				break;
+ 			}
+ 		}
+ 		*dest++ = c;
+@@ -1898,14 +1915,14 @@ mtree_atol(char **p)
+  * point to first character of line.
+  */
+ static ssize_t
+-readline(struct archive_read *a, struct mtree *mtree, char **start, ssize_t limit)
++readline(struct archive_read *a, struct mtree *mtree, char **start,
++    ssize_t limit)
  {
-   LabelMapType::const_iterator li = this->SourceLabels.find(source);
-   if(li != this->SourceLabels.end() && !li->second.empty())
-     {
--    os << "\t\t<Labels>\n";
-+    xml.StartElement("Labels");
-     for(LabelSet::const_iterator lsi = li->second.begin();
-         lsi != li->second.end(); ++lsi)
-       {
--      os << "\t\t\t<Label>" << cmXMLSafe(this->Labels[*lsi]) << "</Label>\n";
-+      xml.Element("Label", this->Labels[*lsi]);
-       }
--    os << "\t\t</Labels>\n";
-+    xml.EndElement(); // Labels
-     }
- }
+ 	ssize_t bytes_read;
+ 	ssize_t total_size = 0;
+ 	ssize_t find_off = 0;
+ 	const void *t;
+-	const char *s;
+-	void *p;
++	void *nl;
+ 	char *u;
  
+ 	/* Accumulate line in a line buffer. */
+@@ -1916,11 +1933,10 @@ readline(struct archive_read *a, struct mtree *mtree, char **start, ssize_t limi
+ 			return (0);
+ 		if (bytes_read < 0)
+ 			return (ARCHIVE_FATAL);
+-		s = t;  /* Start of line? */
+-		p = memchr(t, '\n', bytes_read);
+-		/* If we found '\n', trim the read. */
+-		if (p != NULL) {
+-			bytes_read = 1 + ((const char *)p) - s;
++		nl = memchr(t, '\n', bytes_read);
++		/* If we found '\n', trim the read to end exactly there. */
++		if (nl != NULL) {
++			bytes_read = ((const char *)nl) - ((const char *)t) + 1;
+ 		}
+ 		if (total_size + bytes_read + 1 > limit) {
+ 			archive_set_error(&a->archive,
+@@ -1934,38 +1950,34 @@ readline(struct archive_read *a, struct mtree *mtree, char **start, ssize_t limi
+ 			    "Can't allocate working buffer");
+ 			return (ARCHIVE_FATAL);
+ 		}
++		/* Append new bytes to string. */
+ 		memcpy(mtree->line.s + total_size, t, bytes_read);
+ 		__archive_read_consume(a, bytes_read);
+ 		total_size += bytes_read;
+-		/* Null terminate. */
+ 		mtree->line.s[total_size] = '\0';
+-		/* If we found an unescaped '\n', clean up and return. */
++
+ 		for (u = mtree->line.s + find_off; *u; ++u) {
+ 			if (u[0] == '\n') {
++				/* Ends with unescaped newline. */
+ 				*start = mtree->line.s;
+ 				return total_size;
+-			}
+-			if (u[0] == '#') {
+-				if (p == NULL)
++			} else if (u[0] == '#') {
++				/* Ends with comment sequence #...\n */
++				if (nl == NULL) {
++					/* But we've not found the \n yet */
+ 					break;
+-				*start = mtree->line.s;
+-				return total_size;
+-			}
+-			if (u[0] != '\\')
+-				continue;
+-			if (u[1] == '\\') {
+-				++u;
+-				continue;
+-			}
+-			if (u[1] == '\n') {
+-				memmove(u, u + 1,
+-				    total_size - (u - mtree->line.s) + 1);
+-				--total_size;
+-				++u;
+-				break;
++				}
++			} else if (u[0] == '\\') {
++				if (u[1] == '\n') {
++					/* Trim escaped newline. */
++					total_size -= 2;
++					mtree->line.s[total_size] = '\0';
++					break;
++				} else if (u[1] != '\0') {
++					/* Skip the two-char escape sequence */
++					++u;
++				}
+ 			}
+-			if (u[1] == '\0')
+-				break;
+ 		}
+ 		find_off = u - mtree->line.s;
+ 	}

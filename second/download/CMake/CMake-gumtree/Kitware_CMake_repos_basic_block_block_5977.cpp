@@ -1,0 +1,1 @@
+query = strchr(conn->host.name, '?')

@@ -1,0 +1,1 @@
+set_num_733(bp+3, xisoent->dir_location)

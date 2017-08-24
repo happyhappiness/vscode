@@ -1,0 +1,1 @@
+uv__free(dirents[--dirents_used])

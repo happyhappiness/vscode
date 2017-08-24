@@ -1,0 +1,1 @@
+connssl->recv_unrecoverable_err = *err

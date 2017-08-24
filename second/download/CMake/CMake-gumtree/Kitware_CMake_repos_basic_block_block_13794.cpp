@@ -1,0 +1,1 @@
+sc->flag |= SCONV_TO_UTF16BE

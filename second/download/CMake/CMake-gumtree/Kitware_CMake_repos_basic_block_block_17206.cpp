@@ -1,0 +1,1 @@
+mytartype = '1'

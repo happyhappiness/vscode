@@ -77,8 +77,7 @@ def cluster_record(feature_lists, z3_api):
         for i in range(myclusters_len - 1):
             for j in range(i + 1, myclusters_len):
                 # compute similaritys if no record in dictory of similaritys
-                if similarity_dic.get((myclusters[i].id, myclusters[j].id)) is None:
-
+                if not similarity_dic.has_key((myclusters[i].id, myclusters[j].id)):
                     # compute similaritys by calling computeSim on (vector a, vector b)
                     similarity_dic[(myclusters[i].id, myclusters[j].id)] =\
                         compute_sim_cluster(myclusters[i], myclusters[j], similarity_dic, z3_api)
@@ -166,8 +165,9 @@ def cluster():
         # get cdg z3 feature
         cdg_feature = json.loads(record[my_constant.ANALYZE_REPOS_BASIC_BLOCK_NORMALIZED_CONDITION])
         # cdg_feature = json.loads(record[0])
+        # print cdg_feature
         cdg_z3_feature = z3_api.get_infix_for_postfix(cdg_feature)
-        print 'have processed record %d' %(index)
+        print 'cluster have processed record %d' %(index)
         index += 1
         feature_lists.append(cdg_z3_feature)
 

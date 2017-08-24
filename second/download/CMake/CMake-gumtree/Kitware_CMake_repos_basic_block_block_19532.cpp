@@ -1,0 +1,1 @@
+r = write(s->fake_fd, "x", 1)

@@ -1,0 +1,1 @@
+heap_node_swap(heap, newnode->parent, newnode)

@@ -1,0 +1,1 @@
+QUEUE_REMOVE(&w->wq)

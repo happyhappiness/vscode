@@ -1,0 +1,1 @@
+archive_strncat(as, (const char *)buff, len)

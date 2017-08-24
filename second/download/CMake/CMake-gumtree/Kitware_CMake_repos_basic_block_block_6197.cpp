@@ -1,0 +1,1 @@
+fix_hostname(conn, &conn->http_proxy.host)

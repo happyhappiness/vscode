@@ -1,0 +1,1 @@
+s->cftab[i] += s->cftab[i-1]

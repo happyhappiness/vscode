@@ -1,0 +1,1 @@
+(s->inUse[i * 16 + j]) bsW(s,1,1); else bsW(s,1,0)

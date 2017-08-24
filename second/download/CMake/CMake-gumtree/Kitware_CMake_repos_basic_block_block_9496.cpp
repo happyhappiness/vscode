@@ -1,0 +1,1 @@
+accpath = archive_entry_pathname(entry)

@@ -1,0 +1,1 @@
+stream->upload_left -= nread

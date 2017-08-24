@@ -1,9 +1,11 @@
-                            sizeof(rar->reserved2));
+            symbol = stringTable + pSymbolTable->N.Name.Long;
+            while (isspace(symbol[0]))  symbol.erase(0,1);
+            if (symbol[0] == '_') symbol.erase(0,1);
+            if (!fImportFlag) {
+               fImportFlag = 1;
+               fprintf(fout,"IMPORTS \n");
+            }
+            fprintf(fout, "\t%s DATA \n", symbol.c_str()+1);
+         }
       }
 
-      if (rar->main_flags & MHD_PASSWORD)
-      {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "RAR encryption support unavailable.");
-        return (ARCHIVE_FATAL);
-      }

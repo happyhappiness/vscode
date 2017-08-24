@@ -1,0 +1,1 @@
+p->NS2Indx[i] = (Byte)i

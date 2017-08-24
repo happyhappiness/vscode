@@ -1,0 +1,1 @@
+result = Curl_convert_from_network(data, ptr, gotbytes)

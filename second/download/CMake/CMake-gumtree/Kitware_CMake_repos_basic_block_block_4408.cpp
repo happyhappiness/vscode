@@ -1,0 +1,2 @@
+f(*out)
+        success = TRUE

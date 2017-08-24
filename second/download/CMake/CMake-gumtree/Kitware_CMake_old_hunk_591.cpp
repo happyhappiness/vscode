@@ -1,9 +1,7 @@
-
-  if (rar->file_flags & FHD_PASSWORD)
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "RAR encryption support unavailable.");
-    return (ARCHIVE_FATAL);
-  }
-
-  if (rar->file_flags & FHD_LARGE)
+              value, kwsysProcess_GetExitValue(kp));
+      }
+    }
+  
+  if(kwsysProcess_GetState(kp) != state)
+    {
+    fprintf(stderr, "Mismatch in state.  "

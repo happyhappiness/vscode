@@ -1,0 +1,1 @@
+grabbing_bytes += AUTH_CODE_SIZE

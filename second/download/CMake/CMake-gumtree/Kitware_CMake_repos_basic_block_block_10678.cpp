@@ -1,0 +1,2 @@
+(j == f->numBindPairs)
+				break;

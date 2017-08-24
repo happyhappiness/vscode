@@ -1,0 +1,3 @@
+{
+    mexErrMsgTxt("Incorrect arguments");
+  }

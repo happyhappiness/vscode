@@ -1,0 +1,1 @@
+no_proxy = curl_getenv("NO_PROXY")

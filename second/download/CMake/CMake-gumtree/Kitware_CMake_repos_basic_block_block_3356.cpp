@@ -1,0 +1,3 @@
+{
+            bEnd[currBlock] = 0;
+         }

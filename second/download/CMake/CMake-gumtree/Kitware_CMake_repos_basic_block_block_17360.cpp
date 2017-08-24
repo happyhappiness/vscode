@@ -1,0 +1,1 @@
+s = a->null_length

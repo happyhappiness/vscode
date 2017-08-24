@@ -1,0 +1,1 @@
+saved_flags = fcntl(fd, F_GETFL)

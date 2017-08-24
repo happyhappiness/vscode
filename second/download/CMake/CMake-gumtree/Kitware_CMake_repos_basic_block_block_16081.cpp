@@ -1,0 +1,1 @@
+iso9660->wbuff_tail = iso9660->wbuff_offset + used

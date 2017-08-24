@@ -1,0 +1,1 @@
+return state == kSSLConnected || state == kSSLHandshake;

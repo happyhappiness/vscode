@@ -1,0 +1,4 @@
+{
+        regc(*regparse++);
+        len--;
+      }

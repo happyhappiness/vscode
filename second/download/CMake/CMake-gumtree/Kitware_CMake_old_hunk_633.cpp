@@ -1,14 +1,13 @@
-                           target.GetName().size() + 30)];
-  sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
-          target.GetName().c_str(), count);
-  std::string comment = this->ConstructComment(origCommand, "<hack>");
-
-  // Add the rule with the given dependencies and commands.
-  std::string no_main_dependency = "";
-  if(cmSourceFile* outsf =
-     this->Makefile->AddCustomCommandToOutput(
-       output, depends, no_main_dependency,
-       origCommand.GetCommandLines(), comment.c_str(),
-       origCommand.GetWorkingDirectory().c_str()))
-    {
-    target.AddSourceFile(outsf);
+static char *get_netscape_format(const struct Cookie *co)
+{
+  return aprintf(
+    "%s%s\t" /* domain */
+    "%s\t"   /* tailmatch */
+    "%s\t"   /* path */
+    "%s\t"   /* secure */
+    "%" FORMAT_OFF_T "\t"   /* expires */
+    "%s\t"   /* name */
+    "%s",    /* value */
+    /* Make sure all domains are prefixed with a dot if they allow
+       tailmatching. This is Mozilla-style. */
+    (co->tailmatch && co->domain && co->domain[0] != '.')? ".":"",

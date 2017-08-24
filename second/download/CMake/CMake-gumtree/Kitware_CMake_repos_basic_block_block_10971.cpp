@@ -1,0 +1,1 @@
+free(zip->sub_stream_buff[i])

@@ -1,0 +1,1 @@
+r = move_reading_point(a, file->offset)

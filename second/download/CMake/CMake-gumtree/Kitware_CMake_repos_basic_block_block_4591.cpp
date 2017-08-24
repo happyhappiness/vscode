@@ -1,0 +1,1 @@
+flags |= FLAGS_LONG

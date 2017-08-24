@@ -1,0 +1,1 @@
+gnutls_transport_set_global_errno(gtls_mapped_sockerrno())

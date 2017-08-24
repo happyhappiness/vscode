@@ -1,0 +1,1 @@
+return typ->fcheck(field,(void *)argp);

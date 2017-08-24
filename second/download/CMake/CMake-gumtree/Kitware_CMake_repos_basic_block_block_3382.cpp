@@ -1,0 +1,1 @@
+s->mtfFreq[i] = 0

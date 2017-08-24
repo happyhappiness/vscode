@@ -1,12 +1,7 @@
-    fprintf(stderr, "[%s]\n", i->c_str());
+      }
+      fprintf(out, "%s\n", format_ptr);
+      free(format_ptr);
+      co=co->next;
     }
-#endif
+  }
 
-  // Short-circuit if there is nothing to do.
-  if(this->FindRootPathMode == RootPathModeNever)
-    {
-    return;
-    }
-  const char* sysroot =
-    this->Makefile->GetDefinition("CMAKE_SYSROOT");
-  const char* rootPath =

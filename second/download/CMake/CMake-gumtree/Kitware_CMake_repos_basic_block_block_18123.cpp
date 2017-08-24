@@ -1,0 +1,1 @@
+hs += HASH_2_SIZE

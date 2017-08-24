@@ -1,0 +1,4 @@
+{
+      lastLineStart = current;
+      ++line;
+    }

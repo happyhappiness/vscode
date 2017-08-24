@@ -1,0 +1,1 @@
+xar->cur_dirstr.s[0] = 0

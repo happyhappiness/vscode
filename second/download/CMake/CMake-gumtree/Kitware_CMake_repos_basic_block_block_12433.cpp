@@ -1,0 +1,1 @@
+*offset = rar->unp_size

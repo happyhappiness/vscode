@@ -1,0 +1,1 @@
+return (char *)PORT_Strdup((char *)arg);

@@ -1,0 +1,2 @@
+(ll == len)
+			break;

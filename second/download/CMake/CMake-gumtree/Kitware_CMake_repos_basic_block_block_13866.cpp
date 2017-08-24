@@ -1,0 +1,1 @@
+sc->cd_w = iconv_open("UTF-8", "SJIS")

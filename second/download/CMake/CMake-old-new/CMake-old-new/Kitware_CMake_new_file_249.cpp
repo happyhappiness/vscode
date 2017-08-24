@@ -1,694 +1,635 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
+/*-
+ * Copyright (c) 2007 Kai Wang
+ * Copyright (c) 2007 Tim Kientzle
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer
+ *    in this position and unchanged.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
+#include "archive_platform.h"
+__FBSDID("$FreeBSD: head/lib/libarchive/archive_read_support_format_ar.c 201101 2009-12-28 03:06:27Z kientzle $");
 
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-#include "cmComputeTargetDepends.h"
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif
 
-#include "cmComputeComponentGraph.h"
-#include "cmGlobalGenerator.h"
-#include "cmLocalGenerator.h"
-#include "cmMakefile.h"
-#include "cmState.h"
-#include "cmSystemTools.h"
-#include "cmSourceFile.h"
-#include "cmTarget.h"
-#include "cmake.h"
+#include "archive.h"
+#include "archive_entry.h"
+#include "archive_private.h"
+#include "archive_read_private.h"
 
-#include <algorithm>
-
-#include <assert.h>
+struct ar {
+	int64_t	 entry_bytes_remaining;
+	/* unconsumed is purely to track data we've gotten from readahead,
+	 * but haven't yet marked as consumed.  Must be paired with
+	 * entry_bytes_remaining usage/modification.
+	 */
+	size_t   entry_bytes_unconsumed;
+	int64_t	 entry_offset;
+	int64_t	 entry_padding;
+	char	*strtab;
+	size_t	 strtab_size;
+	char	 read_global_header;
+};
 
 /*
+ * Define structure of the "ar" header.
+ */
+#define AR_name_offset 0
+#define AR_name_size 16
+#define AR_date_offset 16
+#define AR_date_size 12
+#define AR_uid_offset 28
+#define AR_uid_size 6
+#define AR_gid_offset 34
+#define AR_gid_size 6
+#define AR_mode_offset 40
+#define AR_mode_size 8
+#define AR_size_offset 48
+#define AR_size_size 10
+#define AR_fmag_offset 58
+#define AR_fmag_size 2
 
-This class is meant to analyze inter-target dependencies globally
-during the generation step.  The goal is to produce a set of direct
-dependencies for each target such that no cycles are left and the
-build order is safe.
+static int	archive_read_format_ar_bid(struct archive_read *a, int);
+static int	archive_read_format_ar_cleanup(struct archive_read *a);
+static int	archive_read_format_ar_read_data(struct archive_read *a,
+		    const void **buff, size_t *size, int64_t *offset);
+static int	archive_read_format_ar_skip(struct archive_read *a);
+static int	archive_read_format_ar_read_header(struct archive_read *a,
+		    struct archive_entry *e);
+static uint64_t	ar_atol8(const char *p, unsigned char_cnt);
+static uint64_t	ar_atol10(const char *p, unsigned char_cnt);
+static int	ar_parse_gnu_filename_table(struct archive_read *a);
+static int	ar_parse_common_header(struct ar *ar, struct archive_entry *,
+		    const char *h);
 
-For most target types cyclic dependencies are not allowed.  However
-STATIC libraries may depend on each other in a cyclic fashion.  In
-general the directed dependency graph forms a directed-acyclic-graph
-of strongly connected components.  All strongly connected components
-should consist of only STATIC_LIBRARY targets.
-
-In order to safely break dependency cycles we must preserve all other
-dependencies passing through the corresponding strongly connected component.
-The approach taken by this class is as follows:
-
-  - Collect all targets and form the original dependency graph
-  - Run Tarjan's algorithm to extract the strongly connected components
-    (error if any member of a non-trivial component is not STATIC)
-  - The original dependencies imply a DAG on the components.
-    Use the implied DAG to construct a final safe set of dependencies.
-
-The final dependency set is constructed as follows:
-
-  - For each connected component targets are placed in an arbitrary
-    order.  Each target depends on the target following it in the order.
-    The first target is designated the head and the last target the tail.
-    (most components will be just 1 target anyway)
-
-  - Original dependencies between targets in different components are
-    converted to connect the depender's component tail to the
-    dependee's component head.
-
-In most cases this will reproduce the original dependencies.  However
-when there are cycles of static libraries they will be broken in a
-safe manner.
-
-For example, consider targets A0, A1, A2, B0, B1, B2, and C with these
-dependencies:
-
-  A0 -> A1 -> A2 -> A0  ,  B0 -> B1 -> B2 -> B0 -> A0  ,  C -> B0
-
-Components may be identified as
-
-  Component 0: A0, A1, A2
-  Component 1: B0, B1, B2
-  Component 2: C
-
-Intra-component dependencies are:
-
-  0: A0 -> A1 -> A2   , head=A0, tail=A2
-  1: B0 -> B1 -> B2   , head=B0, tail=B2
-  2: head=C, tail=C
-
-The inter-component dependencies are converted as:
-
-  B0 -> A0  is component 1->0 and becomes  B2 -> A0
-  C  -> B0  is component 2->1 and becomes  C  -> B0
-
-This leads to the final target dependencies:
-
-  C -> B0 -> B1 -> B2 -> A0 -> A1 -> A2
-
-These produce a safe build order since C depends directly or
-transitively on all the static libraries it links.
-
-*/
-
-//----------------------------------------------------------------------------
-cmComputeTargetDepends::cmComputeTargetDepends(cmGlobalGenerator* gg)
+int
+archive_read_support_format_ar(struct archive *_a)
 {
-  this->GlobalGenerator = gg;
-  cmake* cm = this->GlobalGenerator->GetCMakeInstance();
-  this->DebugMode = cm->GetState()
-                      ->GetGlobalPropertyAsBool("GLOBAL_DEPENDS_DEBUG_MODE");
-  this->NoCycles = cm->GetState()
-                      ->GetGlobalPropertyAsBool("GLOBAL_DEPENDS_NO_CYCLES");
+	struct archive_read *a = (struct archive_read *)_a;
+	struct ar *ar;
+	int r;
+
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_format_ar");
+
+	ar = (struct ar *)malloc(sizeof(*ar));
+	if (ar == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate ar data");
+		return (ARCHIVE_FATAL);
+	}
+	memset(ar, 0, sizeof(*ar));
+	ar->strtab = NULL;
+
+	r = __archive_read_register_format(a,
+	    ar,
+	    "ar",
+	    archive_read_format_ar_bid,
+	    NULL,
+	    archive_read_format_ar_read_header,
+	    archive_read_format_ar_read_data,
+	    archive_read_format_ar_skip,
+	    NULL,
+	    archive_read_format_ar_cleanup,
+	    NULL,
+	    NULL);
+
+	if (r != ARCHIVE_OK) {
+		free(ar);
+		return (r);
+	}
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------------
-cmComputeTargetDepends::~cmComputeTargetDepends()
+static int
+archive_read_format_ar_cleanup(struct archive_read *a)
 {
+	struct ar *ar;
+
+	ar = (struct ar *)(a->format->data);
+	if (ar->strtab)
+		free(ar->strtab);
+	free(ar);
+	(a->format->data) = NULL;
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------------
-bool cmComputeTargetDepends::Compute()
+static int
+archive_read_format_ar_bid(struct archive_read *a, int best_bid)
 {
-  // Build the original graph.
-  this->CollectTargets();
-  this->CollectDepends();
-  if(this->DebugMode)
-    {
-    this->DisplayGraph(this->InitialGraph, "initial");
-    }
+	const void *h;
 
-  // Identify components.
-  cmComputeComponentGraph ccg(this->InitialGraph);
-  if(this->DebugMode)
-    {
-    this->DisplayComponents(ccg);
-    }
-  if(!this->CheckComponents(ccg))
-    {
-    return false;
-    }
+	(void)best_bid; /* UNUSED */
 
-  // Compute the final dependency graph.
-  if(!this->ComputeFinalDepends(ccg))
-    {
-    return false;
-    }
-  if(this->DebugMode)
-    {
-    this->DisplayGraph(this->FinalGraph, "final");
-    }
-
-  return true;
+	/*
+	 * Verify the 8-byte file signature.
+	 * TODO: Do we need to check more than this?
+	 */
+	if ((h = __archive_read_ahead(a, 8, NULL)) == NULL)
+		return (-1);
+	if (memcmp(h, "!<arch>\n", 8) == 0) {
+		return (64);
+	}
+	return (-1);
 }
 
-//----------------------------------------------------------------------------
-void
-cmComputeTargetDepends::GetTargetDirectDepends(cmGeneratorTarget const* t,
-                                               cmTargetDependSet& deps)
+static int
+_ar_read_header(struct archive_read *a, struct archive_entry *entry,
+	struct ar *ar, const char *h, size_t *unconsumed)
 {
-  // Lookup the index for this target.  All targets should be known by
-  // this point.
-  std::map<cmGeneratorTarget const*, int>::const_iterator tii
-                                                  = this->TargetIndex.find(t);
-  assert(tii != this->TargetIndex.end());
-  int i = tii->second;
+	char filename[AR_name_size + 1];
+	uint64_t number; /* Used to hold parsed numbers before validation. */
+	size_t bsd_name_length, entry_size;
+	char *p, *st;
+	const void *b;
+	int r;
 
-  // Get its final dependencies.
-  EdgeList const& nl = this->FinalGraph[i];
-  for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-    {
-    cmGeneratorTarget const* dep = this->Targets[*ni];
-    cmTargetDependSet::iterator di = deps.insert(dep).first;
-    di->SetType(ni->IsStrong());
-    }
+	/* Verify the magic signature on the file header. */
+	if (strncmp(h + AR_fmag_offset, "`\n", 2) != 0) {
+		archive_set_error(&a->archive, EINVAL,
+		    "Incorrect file header signature");
+		return (ARCHIVE_FATAL);
+	}
+
+	/* Copy filename into work buffer. */
+	strncpy(filename, h + AR_name_offset, AR_name_size);
+	filename[AR_name_size] = '\0';
+
+	/*
+	 * Guess the format variant based on the filename.
+	 */
+	if (a->archive.archive_format == ARCHIVE_FORMAT_AR) {
+		/* We don't already know the variant, so let's guess. */
+		/*
+		 * Biggest clue is presence of '/': GNU starts special
+		 * filenames with '/', appends '/' as terminator to
+		 * non-special names, so anything with '/' should be
+		 * GNU except for BSD long filenames.
+		 */
+		if (strncmp(filename, "#1/", 3) == 0)
+			a->archive.archive_format = ARCHIVE_FORMAT_AR_BSD;
+		else if (strchr(filename, '/') != NULL)
+			a->archive.archive_format = ARCHIVE_FORMAT_AR_GNU;
+		else if (strncmp(filename, "__.SYMDEF", 9) == 0)
+			a->archive.archive_format = ARCHIVE_FORMAT_AR_BSD;
+		/*
+		 * XXX Do GNU/SVR4 'ar' programs ever omit trailing '/'
+		 * if name exactly fills 16-byte field?  If so, we
+		 * can't assume entries without '/' are BSD. XXX
+		 */
+	}
+
+	/* Update format name from the code. */
+	if (a->archive.archive_format == ARCHIVE_FORMAT_AR_GNU)
+		a->archive.archive_format_name = "ar (GNU/SVR4)";
+	else if (a->archive.archive_format == ARCHIVE_FORMAT_AR_BSD)
+		a->archive.archive_format_name = "ar (BSD)";
+	else
+		a->archive.archive_format_name = "ar";
+
+	/*
+	 * Remove trailing spaces from the filename.  GNU and BSD
+	 * variants both pad filename area out with spaces.
+	 * This will only be wrong if GNU/SVR4 'ar' implementations
+	 * omit trailing '/' for 16-char filenames and we have
+	 * a 16-char filename that ends in ' '.
+	 */
+	p = filename + AR_name_size - 1;
+	while (p >= filename && *p == ' ') {
+		*p = '\0';
+		p--;
+	}
+
+	/*
+	 * Remove trailing slash unless first character is '/'.
+	 * (BSD entries never end in '/', so this will only trim
+	 * GNU-format entries.  GNU special entries start with '/'
+	 * and are not terminated in '/', so we don't trim anything
+	 * that starts with '/'.)
+	 */
+	if (filename[0] != '/' && p > filename && *p == '/') {
+		*p = '\0';
+	}
+
+	if (p < filename) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Found entry with empty filename");
+		return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * '//' is the GNU filename table.
+	 * Later entries can refer to names in this table.
+	 */
+	if (strcmp(filename, "//") == 0) {
+		/* This must come before any call to _read_ahead. */
+		ar_parse_common_header(ar, entry, h);
+		archive_entry_copy_pathname(entry, filename);
+		archive_entry_set_filetype(entry, AE_IFREG);
+		/* Get the size of the filename table. */
+		number = ar_atol10(h + AR_size_offset, AR_size_size);
+		if (number > SIZE_MAX) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Filename table too large");
+			return (ARCHIVE_FATAL);
+		}
+		entry_size = (size_t)number;
+		if (entry_size == 0) {
+			archive_set_error(&a->archive, EINVAL,
+			    "Invalid string table");
+			return (ARCHIVE_FATAL);
+		}
+		if (ar->strtab != NULL) {
+			archive_set_error(&a->archive, EINVAL,
+			    "More than one string tables exist");
+			return (ARCHIVE_FATAL);
+		}
+
+		/* Read the filename table into memory. */
+		st = malloc(entry_size);
+		if (st == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate filename table buffer");
+			return (ARCHIVE_FATAL);
+		}
+		ar->strtab = st;
+		ar->strtab_size = entry_size;
+
+		if (*unconsumed) {
+			__archive_read_consume(a, *unconsumed);
+			*unconsumed = 0;
+		}
+
+		if ((b = __archive_read_ahead(a, entry_size, NULL)) == NULL)
+			return (ARCHIVE_FATAL);
+		memcpy(st, b, entry_size);
+		__archive_read_consume(a, entry_size);
+		/* All contents are consumed. */
+		ar->entry_bytes_remaining = 0;
+		archive_entry_set_size(entry, ar->entry_bytes_remaining);
+
+		/* Parse the filename table. */
+		return (ar_parse_gnu_filename_table(a));
+	}
+
+	/*
+	 * GNU variant handles long filenames by storing /<number>
+	 * to indicate a name stored in the filename table.
+	 * XXX TODO: Verify that it's all digits... Don't be fooled
+	 * by "/9xyz" XXX
+	 */
+	if (filename[0] == '/' && filename[1] >= '0' && filename[1] <= '9') {
+		number = ar_atol10(h + AR_name_offset + 1, AR_name_size - 1);
+		/*
+		 * If we can't look up the real name, warn and return
+		 * the entry with the wrong name.
+		 */
+		if (ar->strtab == NULL || number > ar->strtab_size) {
+			archive_set_error(&a->archive, EINVAL,
+			    "Can't find long filename for GNU/SVR4 archive entry");
+			archive_entry_copy_pathname(entry, filename);
+			/* Parse the time, owner, mode, size fields. */
+			ar_parse_common_header(ar, entry, h);
+			return (ARCHIVE_FATAL);
+		}
+
+		archive_entry_copy_pathname(entry, &ar->strtab[(size_t)number]);
+		/* Parse the time, owner, mode, size fields. */
+		return (ar_parse_common_header(ar, entry, h));
+	}
+
+	/*
+	 * BSD handles long filenames by storing "#1/" followed by the
+	 * length of filename as a decimal number, then prepends the
+	 * the filename to the file contents.
+	 */
+	if (strncmp(filename, "#1/", 3) == 0) {
+		/* Parse the time, owner, mode, size fields. */
+		/* This must occur before _read_ahead is called again. */
+		ar_parse_common_header(ar, entry, h);
+
+		/* Parse the size of the name, adjust the file size. */
+		number = ar_atol10(h + AR_name_offset + 3, AR_name_size - 3);
+		bsd_name_length = (size_t)number;
+		/* Guard against the filename + trailing NUL
+		 * overflowing a size_t and against the filename size
+		 * being larger than the entire entry. */
+		if (number > (uint64_t)(bsd_name_length + 1)
+		    || (int64_t)bsd_name_length > ar->entry_bytes_remaining) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Bad input file size");
+			return (ARCHIVE_FATAL);
+		}
+		ar->entry_bytes_remaining -= bsd_name_length;
+		/* Adjust file size reported to client. */
+		archive_entry_set_size(entry, ar->entry_bytes_remaining);
+
+		if (*unconsumed) {
+			__archive_read_consume(a, *unconsumed);
+			*unconsumed = 0;
+		}
+
+		/* Read the long name into memory. */
+		if ((b = __archive_read_ahead(a, bsd_name_length, NULL)) == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated input file");
+			return (ARCHIVE_FATAL);
+		}
+		/* Store it in the entry. */
+		p = (char *)malloc(bsd_name_length + 1);
+		if (p == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate fname buffer");
+			return (ARCHIVE_FATAL);
+		}
+		strncpy(p, b, bsd_name_length);
+		p[bsd_name_length] = '\0';
+
+		__archive_read_consume(a, bsd_name_length);
+
+		archive_entry_copy_pathname(entry, p);
+		free(p);
+		return (ARCHIVE_OK);
+	}
+
+	/*
+	 * "/" is the SVR4/GNU archive symbol table.
+	 */
+	if (strcmp(filename, "/") == 0) {
+		archive_entry_copy_pathname(entry, "/");
+		/* Parse the time, owner, mode, size fields. */
+		r = ar_parse_common_header(ar, entry, h);
+		/* Force the file type to a regular file. */
+		archive_entry_set_filetype(entry, AE_IFREG);
+		return (r);
+	}
+
+	/*
+	 * "__.SYMDEF" is a BSD archive symbol table.
+	 */
+	if (strcmp(filename, "__.SYMDEF") == 0) {
+		archive_entry_copy_pathname(entry, filename);
+		/* Parse the time, owner, mode, size fields. */
+		return (ar_parse_common_header(ar, entry, h));
+	}
+
+	/*
+	 * Otherwise, this is a standard entry.  The filename
+	 * has already been trimmed as much as possible, based
+	 * on our current knowledge of the format.
+	 */
+	archive_entry_copy_pathname(entry, filename);
+	return (ar_parse_common_header(ar, entry, h));
 }
 
-//----------------------------------------------------------------------------
-void cmComputeTargetDepends::CollectTargets()
+static int
+archive_read_format_ar_read_header(struct archive_read *a,
+    struct archive_entry *entry)
 {
-  // Collect all targets from all generators.
-  std::vector<cmLocalGenerator*> const& lgens =
-    this->GlobalGenerator->GetLocalGenerators();
-  for(unsigned int i = 0; i < lgens.size(); ++i)
-    {
-    const cmTargets& targets = lgens[i]->GetMakefile()->GetTargets();
-    for(cmTargets::const_iterator ti = targets.begin();
-        ti != targets.end(); ++ti)
-      {
-      cmTarget const* target = &ti->second;
-      cmGeneratorTarget* gt =
-          this->GlobalGenerator->GetGeneratorTarget(target);
-      int index = static_cast<int>(this->Targets.size());
-      this->TargetIndex[gt] = index;
-      this->Targets.push_back(gt);
-      }
-    }
+	struct ar *ar = (struct ar*)(a->format->data);
+	size_t unconsumed;
+	const void *header_data;
+	int ret;
+
+	if (!ar->read_global_header) {
+		/*
+		 * We are now at the beginning of the archive,
+		 * so we need first consume the ar global header.
+		 */
+		__archive_read_consume(a, 8);
+		ar->read_global_header = 1;
+		/* Set a default format code for now. */
+		a->archive.archive_format = ARCHIVE_FORMAT_AR;
+	}
+
+	/* Read the header for the next file entry. */
+	if ((header_data = __archive_read_ahead(a, 60, NULL)) == NULL)
+		/* Broken header. */
+		return (ARCHIVE_EOF);
+	
+	unconsumed = 60;
+	
+	ret = _ar_read_header(a, entry, ar, (const char *)header_data, &unconsumed);
+
+	if (unconsumed)
+		__archive_read_consume(a, unconsumed);
+
+	return ret;
 }
 
-//----------------------------------------------------------------------------
-void cmComputeTargetDepends::CollectDepends()
-{
-  // Allocate the dependency graph adjacency lists.
-  this->InitialGraph.resize(this->Targets.size());
 
-  // Compute each dependency list.
-  for(unsigned int i=0; i < this->Targets.size(); ++i)
-    {
-    this->CollectTargetDepends(i);
-    }
+static int
+ar_parse_common_header(struct ar *ar, struct archive_entry *entry,
+    const char *h)
+{
+	uint64_t n;
+
+	/* Copy remaining header */
+	archive_entry_set_mtime(entry,
+	    (time_t)ar_atol10(h + AR_date_offset, AR_date_size), 0L);
+	archive_entry_set_uid(entry,
+	    (uid_t)ar_atol10(h + AR_uid_offset, AR_uid_size));
+	archive_entry_set_gid(entry,
+	    (gid_t)ar_atol10(h + AR_gid_offset, AR_gid_size));
+	archive_entry_set_mode(entry,
+	    (mode_t)ar_atol8(h + AR_mode_offset, AR_mode_size));
+	n = ar_atol10(h + AR_size_offset, AR_size_size);
+
+	ar->entry_offset = 0;
+	ar->entry_padding = n % 2;
+	archive_entry_set_size(entry, n);
+	ar->entry_bytes_remaining = n;
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------------
-void cmComputeTargetDepends::CollectTargetDepends(int depender_index)
+static int
+archive_read_format_ar_read_data(struct archive_read *a,
+    const void **buff, size_t *size, int64_t *offset)
 {
-  // Get the depender.
-  cmGeneratorTarget const* depender = this->Targets[depender_index];
-  if (depender->GetType() == cmTarget::INTERFACE_LIBRARY)
-    {
-    return;
-    }
+	ssize_t bytes_read;
+	struct ar *ar;
 
-  // Loop over all targets linked directly in all configs.
-  // We need to make targets depend on the union of all config-specific
-  // dependencies in all targets, because the generated build-systems can't
-  // deal with config-specific dependencies.
-  {
-  std::set<std::string> emitted;
+	ar = (struct ar *)(a->format->data);
 
-  std::vector<std::string> configs;
-  depender->Makefile->GetConfigurations(configs);
-  if (configs.empty())
-    {
-    configs.push_back("");
-    }
-  for (std::vector<std::string>::const_iterator it = configs.begin();
-    it != configs.end(); ++it)
-    {
-    std::vector<cmSourceFile const*> objectFiles;
-    depender->GetExternalObjects(objectFiles, *it);
-    for(std::vector<cmSourceFile const*>::const_iterator
-        oi = objectFiles.begin(); oi != objectFiles.end(); ++oi)
-      {
-      std::string objLib = (*oi)->GetObjectLibrary();
-      if (!objLib.empty() && emitted.insert(objLib).second)
-        {
-        if(depender->GetType() != cmTarget::EXECUTABLE &&
-            depender->GetType() != cmTarget::STATIC_LIBRARY &&
-            depender->GetType() != cmTarget::SHARED_LIBRARY &&
-            depender->GetType() != cmTarget::MODULE_LIBRARY)
-          {
-          this->GlobalGenerator->GetCMakeInstance()
-            ->IssueMessage(cmake::FATAL_ERROR,
-                            "Only executables and non-OBJECT libraries may "
-                            "reference target objects.",
-                            depender->Target->GetBacktrace());
-          return;
-          }
-        const_cast<cmGeneratorTarget*>(depender)->Target->AddUtility(objLib);
-        }
-      }
+	if (ar->entry_bytes_unconsumed) {
+		__archive_read_consume(a, ar->entry_bytes_unconsumed);
+		ar->entry_bytes_unconsumed = 0;
+	}
 
-    cmTarget::LinkImplementation const* impl =
-      depender->Target->GetLinkImplementation(*it);
-
-    // A target should not depend on itself.
-    emitted.insert(depender->GetName());
-    for(std::vector<cmLinkImplItem>::const_iterator
-          lib = impl->Libraries.begin();
-        lib != impl->Libraries.end(); ++lib)
-      {
-      // Don't emit the same library twice for this target.
-      if(emitted.insert(*lib).second)
-        {
-        this->AddTargetDepend(depender_index, *lib, true);
-        this->AddInterfaceDepends(depender_index, *lib, emitted);
-        }
-      }
-    }
-  }
-
-  // Loop over all utility dependencies.
-  {
-  std::set<cmLinkItem> const& tutils = depender->Target->GetUtilityItems();
-  std::set<std::string> emitted;
-  // A target should not depend on itself.
-  emitted.insert(depender->GetName());
-  for(std::set<cmLinkItem>::const_iterator util = tutils.begin();
-      util != tutils.end(); ++util)
-    {
-    // Don't emit the same utility twice for this target.
-    if(emitted.insert(*util).second)
-      {
-      this->AddTargetDepend(depender_index, *util, false);
-      }
-    }
-  }
+	if (ar->entry_bytes_remaining > 0) {
+		*buff = __archive_read_ahead(a, 1, &bytes_read);
+		if (bytes_read == 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated ar archive");
+			return (ARCHIVE_FATAL);
+		}
+		if (bytes_read < 0)
+			return (ARCHIVE_FATAL);
+		if (bytes_read > ar->entry_bytes_remaining)
+			bytes_read = (ssize_t)ar->entry_bytes_remaining;
+		*size = bytes_read;
+		ar->entry_bytes_unconsumed = bytes_read;
+		*offset = ar->entry_offset;
+		ar->entry_offset += bytes_read;
+		ar->entry_bytes_remaining -= bytes_read;
+		return (ARCHIVE_OK);
+	} else {
+		int64_t skipped = __archive_read_consume(a, ar->entry_padding);
+		if (skipped >= 0) {
+			ar->entry_padding -= skipped;
+		}
+		if (ar->entry_padding) {
+			if (skipped >= 0) {
+				archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+					"Truncated ar archive- failed consuming padding");
+			}
+			return (ARCHIVE_FATAL);
+		}
+		*buff = NULL;
+		*size = 0;
+		*offset = ar->entry_offset;
+		return (ARCHIVE_EOF);
+	}
 }
 
-//----------------------------------------------------------------------------
-void cmComputeTargetDepends::AddInterfaceDepends(int depender_index,
-                                             const cmGeneratorTarget* dependee,
-                                             const std::string& config,
-                                             std::set<std::string> &emitted)
+static int
+archive_read_format_ar_skip(struct archive_read *a)
 {
-  cmGeneratorTarget const* depender = this->Targets[depender_index];
-  if(cmTarget::LinkInterface const* iface =
-                                dependee->Target->GetLinkInterface(config,
-                                                           depender->Target))
-    {
-    for(std::vector<cmLinkItem>::const_iterator
-        lib = iface->Libraries.begin();
-        lib != iface->Libraries.end(); ++lib)
-      {
-      // Don't emit the same library twice for this target.
-      if(emitted.insert(*lib).second)
-        {
-        this->AddTargetDepend(depender_index, *lib, true);
-        this->AddInterfaceDepends(depender_index, *lib, emitted);
-        }
-      }
-    }
+	int64_t bytes_skipped;
+	struct ar* ar;
+
+	ar = (struct ar *)(a->format->data);
+
+	bytes_skipped = __archive_read_consume(a,
+	    ar->entry_bytes_remaining + ar->entry_padding
+	    + ar->entry_bytes_unconsumed);
+	if (bytes_skipped < 0)
+		return (ARCHIVE_FATAL);
+
+	ar->entry_bytes_remaining = 0;
+	ar->entry_bytes_unconsumed = 0;
+	ar->entry_padding = 0;
+
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------------
-void cmComputeTargetDepends::AddInterfaceDepends(int depender_index,
-                                             cmLinkItem const& dependee_name,
-                                             std::set<std::string> &emitted)
+static int
+ar_parse_gnu_filename_table(struct archive_read *a)
 {
-  cmGeneratorTarget const* depender = this->Targets[depender_index];
-  cmTarget const* dependee = dependee_name.Target;
-  // Skip targets that will not really be linked.  This is probably a
-  // name conflict between an external library and an executable
-  // within the project.
-  if(dependee &&
-     dependee->GetType() == cmTarget::EXECUTABLE &&
-     !dependee->IsExecutableWithExports())
-    {
-    dependee = 0;
-    }
+	struct ar *ar;
+	char *p;
+	size_t size;
 
-  if(dependee)
-    {
-    cmGeneratorTarget* gt =
-        this->GlobalGenerator->GetGeneratorTarget(dependee);
-    this->AddInterfaceDepends(depender_index, gt, "", emitted);
-    std::vector<std::string> configs;
-    depender->Makefile->GetConfigurations(configs);
-    for (std::vector<std::string>::const_iterator it = configs.begin();
-      it != configs.end(); ++it)
-      {
-      // A target should not depend on itself.
-      emitted.insert(depender->GetName());
-      this->AddInterfaceDepends(depender_index, gt, *it, emitted);
-      }
-    }
+	ar = (struct ar*)(a->format->data);
+	size = ar->strtab_size;
+
+	for (p = ar->strtab; p < ar->strtab + size - 1; ++p) {
+		if (*p == '/') {
+			*p++ = '\0';
+			if (*p != '\n')
+				goto bad_string_table;
+			*p = '\0';
+		}
+	}
+	/*
+	 * GNU ar always pads the table to an even size.
+	 * The pad character is either '\n' or '`'.
+	 */
+	if (p != ar->strtab + size && *p != '\n' && *p != '`')
+		goto bad_string_table;
+
+	/* Enforce zero termination. */
+	ar->strtab[size - 1] = '\0';
+
+	return (ARCHIVE_OK);
+
+bad_string_table:
+	archive_set_error(&a->archive, EINVAL,
+	    "Invalid string table");
+	free(ar->strtab);
+	ar->strtab = NULL;
+	return (ARCHIVE_FATAL);
 }
 
-//----------------------------------------------------------------------------
-void cmComputeTargetDepends::AddTargetDepend(
-  int depender_index, cmLinkItem const& dependee_name,
-  bool linking)
+static uint64_t
+ar_atol8(const char *p, unsigned char_cnt)
 {
-  // Get the depender.
-  cmGeneratorTarget const* depender = this->Targets[depender_index];
+	uint64_t l, limit, last_digit_limit;
+	unsigned int digit, base;
 
-  // Check the target's makefile first.
-  cmTarget const* dependee = dependee_name.Target;
+	base = 8;
+	limit = UINT64_MAX / base;
+	last_digit_limit = UINT64_MAX % base;
 
-  if(!dependee && !linking &&
-    (depender->GetType() != cmTarget::GLOBAL_TARGET))
-    {
-    cmake::MessageType messageType = cmake::AUTHOR_WARNING;
-    bool issueMessage = false;
-    std::ostringstream e;
-    switch(depender->Target->GetPolicyStatusCMP0046())
-      {
-      case cmPolicies::WARN:
-        e << cmPolicies::GetPolicyWarning(cmPolicies::CMP0046) << "\n";
-        issueMessage = true;
-      case cmPolicies::OLD:
-        break;
-      case cmPolicies::NEW:
-      case cmPolicies::REQUIRED_IF_USED:
-      case cmPolicies::REQUIRED_ALWAYS:
-        issueMessage = true;
-        messageType = cmake::FATAL_ERROR;
-      }
-    if(issueMessage)
-      {
-      cmake* cm = this->GlobalGenerator->GetCMakeInstance();
+	while ((*p == ' ' || *p == '\t') && char_cnt-- > 0)
+		p++;
 
-      e << "The dependency target \"" <<  dependee_name
-        << "\" of target \"" << depender->GetName() << "\" does not exist.";
-
-      cmListFileBacktrace const* backtrace =
-        depender->Target->GetUtilityBacktrace(dependee_name);
-      if(backtrace)
-        {
-        cm->IssueMessage(messageType, e.str(), *backtrace);
-        }
-      else
-        {
-        cm->IssueMessage(messageType, e.str());
-        }
-
-      }
-    }
-
-  // Skip targets that will not really be linked.  This is probably a
-  // name conflict between an external library and an executable
-  // within the project.
-  if(linking && dependee &&
-     dependee->GetType() == cmTarget::EXECUTABLE &&
-     !dependee->IsExecutableWithExports())
-    {
-    dependee = 0;
-    }
-
-  if(dependee)
-    {
-    cmGeneratorTarget* gt =
-        this->GlobalGenerator->GetGeneratorTarget(dependee);
-    this->AddTargetDepend(depender_index, gt, linking);
-    }
+	l = 0;
+	digit = *p - '0';
+	while (*p >= '0' && digit < base  && char_cnt-- > 0) {
+		if (l>limit || (l == limit && digit > last_digit_limit)) {
+			l = UINT64_MAX; /* Truncate on overflow. */
+			break;
+		}
+		l = (l * base) + digit;
+		digit = *++p - '0';
+	}
+	return (l);
 }
 
-//----------------------------------------------------------------------------
-void cmComputeTargetDepends::AddTargetDepend(int depender_index,
-                                             const cmGeneratorTarget* dependee,
-                                             bool linking)
+static uint64_t
+ar_atol10(const char *p, unsigned char_cnt)
 {
-  if(dependee->Target->IsImported() ||
-     dependee->GetType() == cmTarget::INTERFACE_LIBRARY)
-    {
-    // Skip IMPORTED and INTERFACE targets but follow their utility
-    // dependencies.
-    std::set<cmLinkItem> const& utils = dependee->Target->GetUtilityItems();
-    for(std::set<cmLinkItem>::const_iterator i = utils.begin();
-        i != utils.end(); ++i)
-      {
-      if(cmTarget const* transitive_dependee = i->Target)
-        {
-        cmGeneratorTarget* gt =
-            this->GlobalGenerator->GetGeneratorTarget(transitive_dependee);
-        this->AddTargetDepend(depender_index, gt, false);
-        }
-      }
-    }
-  else
-    {
-    // Lookup the index for this target.  All targets should be known by
-    // this point.
-    std::map<cmGeneratorTarget const*, int>::const_iterator tii =
-      this->TargetIndex.find(dependee);
-    assert(tii != this->TargetIndex.end());
-    int dependee_index = tii->second;
+	uint64_t l, limit, last_digit_limit;
+	unsigned int base, digit;
 
-    // Add this entry to the dependency graph.
-    this->InitialGraph[depender_index].push_back(
-      cmGraphEdge(dependee_index, !linking));
-    }
-}
+	base = 10;
+	limit = UINT64_MAX / base;
+	last_digit_limit = UINT64_MAX % base;
 
-//----------------------------------------------------------------------------
-void
-cmComputeTargetDepends::DisplayGraph(Graph const& graph,
-                                     const std::string& name)
-{
-  fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());
-  int n = static_cast<int>(graph.size());
-  for(int depender_index = 0; depender_index < n; ++depender_index)
-    {
-    EdgeList const& nl = graph[depender_index];
-    cmGeneratorTarget const* depender = this->Targets[depender_index];
-    fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName().c_str());
-    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int dependee_index = *ni;
-      cmGeneratorTarget const* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName().c_str(), ni->IsStrong()? "strong" : "weak");
-      }
-    }
-  fprintf(stderr, "\n");
-}
-
-//----------------------------------------------------------------------------
-void
-cmComputeTargetDepends
-::DisplayComponents(cmComputeComponentGraph const& ccg)
-{
-  fprintf(stderr, "The strongly connected components are:\n");
-  std::vector<NodeList> const& components = ccg.GetComponents();
-  int n = static_cast<int>(components.size());
-  for(int c = 0; c < n; ++c)
-    {
-    NodeList const& nl = components[c];
-    fprintf(stderr, "Component (%d):\n", c);
-    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int i = *ni;
-      fprintf(stderr, "  contains target %d [%s]\n",
-              i, this->Targets[i]->GetName().c_str());
-      }
-    }
-  fprintf(stderr, "\n");
-}
-
-//----------------------------------------------------------------------------
-bool
-cmComputeTargetDepends
-::CheckComponents(cmComputeComponentGraph const& ccg)
-{
-  // All non-trivial components should consist only of static
-  // libraries.
-  std::vector<NodeList> const& components = ccg.GetComponents();
-  int nc = static_cast<int>(components.size());
-  for(int c=0; c < nc; ++c)
-    {
-    // Get the current component.
-    NodeList const& nl = components[c];
-
-    // Skip trivial components.
-    if(nl.size() < 2)
-      {
-      continue;
-      }
-
-    // Immediately complain if no cycles are allowed at all.
-    if(this->NoCycles)
-      {
-      this->ComplainAboutBadComponent(ccg, c);
-      return false;
-      }
-
-    // Make sure the component is all STATIC_LIBRARY targets.
-    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      if(this->Targets[*ni]->GetType() != cmTarget::STATIC_LIBRARY)
-        {
-        this->ComplainAboutBadComponent(ccg, c);
-        return false;
-        }
-      }
-    }
-  return true;
-}
-
-//----------------------------------------------------------------------------
-void
-cmComputeTargetDepends
-::ComplainAboutBadComponent(cmComputeComponentGraph const& ccg, int c,
-                            bool strong)
-{
-  // Construct the error message.
-  std::ostringstream e;
-  e << "The inter-target dependency graph contains the following "
-    << "strongly connected component (cycle):\n";
-  std::vector<NodeList> const& components = ccg.GetComponents();
-  std::vector<int> const& cmap = ccg.GetComponentMap();
-  NodeList const& cl = components[c];
-  for(NodeList::const_iterator ci = cl.begin(); ci != cl.end(); ++ci)
-    {
-    // Get the depender.
-    int i = *ci;
-    cmGeneratorTarget const* depender = this->Targets[i];
-
-    // Describe the depender.
-    e << "  \"" << depender->GetName() << "\" of type "
-      << cmTarget::GetTargetTypeName(depender->Target->GetType()) << "\n";
-
-    // List its dependencies that are inside the component.
-    EdgeList const& nl = this->InitialGraph[i];
-    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int j = *ni;
-      if(cmap[j] == c)
-        {
-        cmGeneratorTarget const* dependee = this->Targets[j];
-        e << "    depends on \"" << dependee->GetName() << "\""
-          << " (" << (ni->IsStrong()? "strong" : "weak") << ")\n";
-        }
-      }
-    }
-  if(strong)
-    {
-    // Custom command executable dependencies cannot occur within a
-    // component of static libraries.  The cycle must appear in calls
-    // to add_dependencies.
-    e << "The component contains at least one cycle consisting of strong "
-      << "dependencies (created by add_dependencies) that cannot be broken.";
-    }
-  else if(this->NoCycles)
-    {
-    e << "The GLOBAL_DEPENDS_NO_CYCLES global property is enabled, so "
-      << "cyclic dependencies are not allowed even among static libraries.";
-    }
-  else
-    {
-    e << "At least one of these targets is not a STATIC_LIBRARY.  "
-      << "Cyclic dependencies are allowed only among static libraries.";
-    }
-  cmSystemTools::Error(e.str().c_str());
-}
-
-//----------------------------------------------------------------------------
-bool
-cmComputeTargetDepends
-::IntraComponent(std::vector<int> const& cmap, int c, int i, int* head,
-                 std::set<int>& emitted, std::set<int>& visited)
-{
-  if(!visited.insert(i).second)
-    {
-    // Cycle in utility depends!
-    return false;
-    }
-  if(emitted.insert(i).second)
-    {
-    // Honor strong intra-component edges in the final order.
-    EdgeList const& el = this->InitialGraph[i];
-    for(EdgeList::const_iterator ei = el.begin(); ei != el.end(); ++ei)
-      {
-      int j = *ei;
-      if(cmap[j] == c && ei->IsStrong())
-        {
-        this->FinalGraph[i].push_back(cmGraphEdge(j, true));
-        if(!this->IntraComponent(cmap, c, j, head, emitted, visited))
-          {
-          return false;
-          }
-        }
-      }
-
-    // Prepend to a linear linked-list of intra-component edges.
-    if(*head >= 0)
-      {
-      this->FinalGraph[i].push_back(cmGraphEdge(*head, false));
-      }
-    else
-      {
-      this->ComponentTail[c] = i;
-      }
-    *head = i;
-    }
-  return true;
-}
-
-//----------------------------------------------------------------------------
-bool
-cmComputeTargetDepends
-::ComputeFinalDepends(cmComputeComponentGraph const& ccg)
-{
-  // Get the component graph information.
-  std::vector<NodeList> const& components = ccg.GetComponents();
-  Graph const& cgraph = ccg.GetComponentGraph();
-
-  // Allocate the final graph.
-  this->FinalGraph.resize(0);
-  this->FinalGraph.resize(this->InitialGraph.size());
-
-  // Choose intra-component edges to linearize dependencies.
-  std::vector<int> const& cmap = ccg.GetComponentMap();
-  this->ComponentHead.resize(components.size());
-  this->ComponentTail.resize(components.size());
-  int nc = static_cast<int>(components.size());
-  for(int c=0; c < nc; ++c)
-    {
-    int head = -1;
-    std::set<int> emitted;
-    NodeList const& nl = components[c];
-    for(NodeList::const_reverse_iterator ni = nl.rbegin();
-        ni != nl.rend(); ++ni)
-      {
-      std::set<int> visited;
-      if(!this->IntraComponent(cmap, c, *ni, &head, emitted, visited))
-        {
-        // Cycle in add_dependencies within component!
-        this->ComplainAboutBadComponent(ccg, c, true);
-        return false;
-        }
-      }
-    this->ComponentHead[c] = head;
-    }
-
-  // Convert inter-component edges to connect component tails to heads.
-  int n = static_cast<int>(cgraph.size());
-  for(int depender_component=0; depender_component < n; ++depender_component)
-    {
-    int depender_component_tail = this->ComponentTail[depender_component];
-    EdgeList const& nl = cgraph[depender_component];
-    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int dependee_component = *ni;
-      int dependee_component_head = this->ComponentHead[dependee_component];
-      this->FinalGraph[depender_component_tail]
-        .push_back(cmGraphEdge(dependee_component_head, ni->IsStrong()));
-      }
-    }
-  return true;
+	while ((*p == ' ' || *p == '\t') && char_cnt-- > 0)
+		p++;
+	l = 0;
+	digit = *p - '0';
+	while (*p >= '0' && digit < base  && char_cnt-- > 0) {
+		if (l > limit || (l == limit && digit > last_digit_limit)) {
+			l = UINT64_MAX; /* Truncate on overflow. */
+			break;
+		}
+		l = (l * base) + digit;
+		digit = *++p - '0';
+	}
+	return (l);
 }

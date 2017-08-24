@@ -1,0 +1,1 @@
+events[i].fd = -1

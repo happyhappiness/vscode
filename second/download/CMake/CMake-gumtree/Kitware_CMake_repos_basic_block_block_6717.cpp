@@ -1,0 +1,1 @@
+gnutls_bye(conn->ssl[sockindex].session, GNUTLS_SHUT_WR)

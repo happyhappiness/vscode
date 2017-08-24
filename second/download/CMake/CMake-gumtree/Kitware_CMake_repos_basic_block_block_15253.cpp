@@ -1,0 +1,1 @@
+a->current_fixup = new_fixup(a, pathname)

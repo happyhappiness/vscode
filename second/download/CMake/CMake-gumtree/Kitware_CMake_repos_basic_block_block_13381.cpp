@@ -1,0 +1,1 @@
+archive_strncat(&(xar->file->pathname), s, len)

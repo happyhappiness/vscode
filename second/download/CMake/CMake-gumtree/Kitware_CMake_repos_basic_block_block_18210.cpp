@@ -1,0 +1,1 @@
+bit_reset(probs[i][j])

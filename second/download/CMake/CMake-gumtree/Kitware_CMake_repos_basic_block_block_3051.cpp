@@ -1,0 +1,1 @@
+ptr[ copyEnd[c1]-- ] = k

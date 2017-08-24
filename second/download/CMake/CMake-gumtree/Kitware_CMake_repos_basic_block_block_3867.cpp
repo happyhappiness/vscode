@@ -1,0 +1,1 @@
+PK11_FreeSymKey(symkey)

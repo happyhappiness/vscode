@@ -1,0 +1,1 @@
+archive_sha256_final(&mtree->sha256ctx, reg->buf_sha256)

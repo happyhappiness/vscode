@@ -1,0 +1,1 @@
+comments_ = new CommentInfo[numberOfCommentPlacement]

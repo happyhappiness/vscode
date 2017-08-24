@@ -1,0 +1,1 @@
+longestFileName = (Int32)strlen(aa->name)

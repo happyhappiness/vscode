@@ -1,0 +1,1 @@
+multistate(data, CURLM_STATE_WAITPERFORM)

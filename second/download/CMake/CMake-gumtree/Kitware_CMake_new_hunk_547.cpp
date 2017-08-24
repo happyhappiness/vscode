@@ -1,12 +1,7 @@
-*----------------------------------------------------------------------
-*/
+  idna_init();
+#endif
 
-#include <windows.h>
-#include <stdio.h>
-#include <string>
-#include <fstream>
-
-/*
-+ * Utility func, strstr with size
-+ */
-const char* StrNStr(const char* start, const char* find, size_t &size) {
+  if(Curl_resolver_global_init()) {
+    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }

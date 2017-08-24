@@ -1,0 +1,1 @@
+mtree->current_dir.length = n

@@ -1,0 +1,1 @@
+connclose(conn, "asynch resolve failed")

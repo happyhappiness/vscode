@@ -1,0 +1,1 @@
+new_block_size *= 2

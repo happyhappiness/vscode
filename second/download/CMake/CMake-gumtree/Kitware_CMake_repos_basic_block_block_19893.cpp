@@ -1,0 +1,1 @@
+flags |= UV_STREAM_WRITABLE

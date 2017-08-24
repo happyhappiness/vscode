@@ -1,0 +1,1 @@
+share->unlockfunc(NULL, CURL_LOCK_DATA_SHARE, share->clientdata)

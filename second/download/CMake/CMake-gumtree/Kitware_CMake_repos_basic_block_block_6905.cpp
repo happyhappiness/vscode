@@ -1,0 +1,1 @@
+PR_Close(nspr_io)

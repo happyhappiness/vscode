@@ -1,0 +1,2 @@
+(rep == 3)
+				coder->reps[3] = coder->reps[2]

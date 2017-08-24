@@ -1,0 +1,1 @@
+s = (size_t)iso9660->bytes_remaining

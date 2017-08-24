@@ -1,0 +1,4 @@
+{
+    free(ptr);
+    goto out;
+  }

@@ -1,0 +1,1 @@
+return XML_ERROR_NOT_STANDALONE;

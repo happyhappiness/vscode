@@ -1,0 +1,1 @@
+currentBatch_ = currentBatch_->next_

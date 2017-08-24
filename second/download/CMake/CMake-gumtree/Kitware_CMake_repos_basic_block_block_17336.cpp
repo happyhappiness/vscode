@@ -1,0 +1,1 @@
+file_register(xar, file)

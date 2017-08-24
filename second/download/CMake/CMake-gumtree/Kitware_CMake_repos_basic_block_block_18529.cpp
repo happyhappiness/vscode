@@ -1,0 +1,1 @@
+*size = abspath_size

@@ -1,0 +1,1 @@
+archive_strcat(&mtree->current_dir, "/")

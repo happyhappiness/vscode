@@ -1,0 +1,1 @@
+t->current = t->current->parent

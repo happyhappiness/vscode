@@ -1,0 +1,4 @@
+{
+    /* queue empty */
+    return NULL;
+  }

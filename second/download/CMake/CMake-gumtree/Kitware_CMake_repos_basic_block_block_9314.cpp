@@ -1,0 +1,4 @@
+{
+		count++;
+		p = p->upstream;
+	}

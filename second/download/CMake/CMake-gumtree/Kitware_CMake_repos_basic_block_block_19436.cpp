@@ -1,0 +1,10 @@
+{
+    /* When dropping privileges from root, the `setgroups` call will
+     * remove any extraneous groups. If we don't call this, then
+     * even though our uid has dropped, we may still have groups
+     * that enable us to do super-user things. This will fail if we
+     * aren't root, so don't bother checking the return value, this
+     * is just done as an optimistic privilege dropping function.
+     */
+    SAVE_ERRNO(setgroups(0, NULL));
+  }

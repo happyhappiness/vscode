@@ -1,133 +1,128 @@
-@@ -5,7 +5,7 @@
-  *                            | (__| |_| |  _ <| |___
-  *                             \___|\___/|_| \_\_____|
-  *
-- * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
-+ * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
-  *
-  * This software is licensed as described in the file COPYING, which
-  * you should have received as part of this distribution. The terms
-@@ -22,7 +22,8 @@
+@@ -717,6 +717,7 @@ _archive_read_data_block(struct archive *_a, const void **buff,
+ 	int r;
+ 	ssize_t bytes;
+ 	size_t buffbytes;
++	int empty_sparse_region = 0;
  
- #include "curl_setup.h"
+ 	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
+ 	    "archive_read_data_block");
+@@ -798,6 +799,9 @@ _archive_read_data_block(struct archive *_a, const void **buff,
+ 	if ((int64_t)buffbytes > t->current_sparse->length)
+ 		buffbytes = t->current_sparse->length;
  
--#if defined(USE_NTLM) && defined(NTLM_WB_ENABLED)
-+#if !defined(CURL_DISABLE_HTTP) && defined(USE_NTLM) && \
-+    defined(NTLM_WB_ENABLED)
- 
- /*
-  * NTLM details:
-@@ -50,12 +51,10 @@
- #include "curl_ntlm_wb.h"
- #include "url.h"
- #include "strerror.h"
--#include "curl_memory.h"
--
--#define _MPRINTF_REPLACE /* use our functions only */
--#include <curl/mprintf.h>
-+#include "curl_printf.h"
- 
--/* The last #include file should be: */
-+/* The last #include files should be: */
-+#include "curl_memory.h"
- #include "memdebug.h"
- 
- #if DEBUG_ME
-@@ -106,9 +105,9 @@ void Curl_ntlm_wb_cleanup(struct connectdata *conn)
-     conn->ntlm_auth_hlpr_pid = 0;
-   }
- 
--  Curl_safefree(conn->challenge_header);
-+  free(conn->challenge_header);
-   conn->challenge_header = NULL;
--  Curl_safefree(conn->response_header);
-+  free(conn->response_header);
-   conn->response_header = NULL;
- }
- 
-@@ -245,13 +244,13 @@ static CURLcode ntlm_wb_init(struct connectdata *conn, const char *userp)
-   sclose(sockfds[1]);
-   conn->ntlm_auth_hlpr_socket = sockfds[0];
-   conn->ntlm_auth_hlpr_pid = child_pid;
--  Curl_safefree(domain);
--  Curl_safefree(ntlm_auth_alloc);
-+  free(domain);
-+  free(ntlm_auth_alloc);
-   return CURLE_OK;
- 
- done:
--  Curl_safefree(domain);
--  Curl_safefree(ntlm_auth_alloc);
-+  free(domain);
-+  free(ntlm_auth_alloc);
-   return CURLE_REMOTE_ACCESS_DENIED;
- }
- 
-@@ -293,7 +292,7 @@ static CURLcode ntlm_wb_response(struct connectdata *conn,
-     len_out += size;
-     if(buf[len_out - 1] == '\n') {
-       buf[len_out - 1] = '\0';
--      goto wrfinish;
-+      break;
-     }
-     newbuf = realloc(buf, len_out + NTLM_BUFSIZE);
-     if(!newbuf) {
-@@ -302,13 +301,12 @@ static CURLcode ntlm_wb_response(struct connectdata *conn,
-     }
-     buf = newbuf;
-   }
--  goto done;
--wrfinish:
++	if (t->current_sparse->length == 0)
++		empty_sparse_region = 1;
 +
-   /* Samba/winbind installed but not configured */
-   if(state == NTLMSTATE_TYPE1 &&
-      len_out == 3 &&
-      buf[0] == 'P' && buf[1] == 'W')
--    return CURLE_REMOTE_ACCESS_DENIED;
-+    goto done;
-   /* invalid response */
-   if(len_out < 4)
-     goto done;
-@@ -391,12 +389,12 @@ CURLcode Curl_output_ntlm_wb(struct connectdata *conn,
-     if(res)
-       return res;
+ 	/*
+ 	 * Skip hole.
+ 	 * TODO: Should we consider t->current_filesystem->xfer_align?
+@@ -828,7 +832,11 @@ _archive_read_data_block(struct archive *_a, const void **buff,
+ 		}
+ 	} else
+ 		bytes = 0;
+-	if (bytes == 0) {
++	/*
++	 * Return an EOF unless we've read a leading empty sparse region, which
++	 * is used to represent fully-sparse files.
++	*/
++	if (bytes == 0 && !empty_sparse_region) {
+ 		/* Get EOF */
+ 		t->entry_eof = 1;
+ 		r = ARCHIVE_EOF;
+@@ -1576,6 +1584,7 @@ setup_current_filesystem(struct archive_read_disk *a)
+ #if defined(HAVE_STRUCT_STATFS_F_NAMEMAX)
+ 	t->current_filesystem->name_max = sfs.f_namemax;
+ #else
++# if defined(_PC_NAME_MAX)
+ 	/* Mac OS X does not have f_namemax in struct statfs. */
+ 	if (tree_current_is_symblic_link_target(t)) {
+ 		if (tree_enter_working_dir(t) != 0) {
+@@ -1585,6 +1594,9 @@ setup_current_filesystem(struct archive_read_disk *a)
+ 		nm = pathconf(tree_current_access_path(t), _PC_NAME_MAX);
+ 	} else
+ 		nm = fpathconf(tree_current_dir_fd(t), _PC_NAME_MAX);
++# else
++	nm = -1;
++# endif
+ 	if (nm == -1)
+ 		t->current_filesystem->name_max = NAME_MAX;
+ 	else
+@@ -1681,7 +1693,9 @@ setup_current_filesystem(struct archive_read_disk *a)
+ {
+ 	struct tree *t = a->tree;
+ 	struct statfs sfs;
++#if defined(HAVE_STATVFS)
+ 	struct statvfs svfs;
++#endif
+ 	int r, vr = 0, xr = 0;
  
--    Curl_safefree(*allocuserpwd);
-+    free(*allocuserpwd);
-     *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
-                             proxy ? "Proxy-" : "",
-                             conn->response_header);
-     DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
--    Curl_safefree(conn->response_header);
-+    free(conn->response_header);
-     conn->response_header = NULL;
-     break;
-   case NTLMSTATE_TYPE2:
-@@ -409,7 +407,7 @@ CURLcode Curl_output_ntlm_wb(struct connectdata *conn,
-     if(res)
-       return res;
+ 	if (tree_current_is_symblic_link_target(t)) {
+@@ -1698,7 +1712,9 @@ setup_current_filesystem(struct archive_read_disk *a)
+ 			    "openat failed");
+ 			return (ARCHIVE_FAILED);
+ 		}
++#if defined(HAVE_FSTATVFS)
+ 		vr = fstatvfs(fd, &svfs);/* for f_flag, mount flags */
++#endif
+ 		r = fstatfs(fd, &sfs);
+ 		if (r == 0)
+ 			xr = get_xfer_size(t, fd, NULL);
+@@ -1708,14 +1724,18 @@ setup_current_filesystem(struct archive_read_disk *a)
+ 			archive_set_error(&a->archive, errno, "fchdir failed");
+ 			return (ARCHIVE_FAILED);
+ 		}
++#if defined(HAVE_STATVFS)
+ 		vr = statvfs(tree_current_access_path(t), &svfs);
++#endif
+ 		r = statfs(tree_current_access_path(t), &sfs);
+ 		if (r == 0)
+ 			xr = get_xfer_size(t, -1, tree_current_access_path(t));
+ #endif
+ 	} else {
+ #ifdef HAVE_FSTATFS
++#if defined(HAVE_FSTATVFS)
+ 		vr = fstatvfs(tree_current_dir_fd(t), &svfs);
++#endif
+ 		r = fstatfs(tree_current_dir_fd(t), &sfs);
+ 		if (r == 0)
+ 			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
+@@ -1724,7 +1744,9 @@ setup_current_filesystem(struct archive_read_disk *a)
+ 			archive_set_error(&a->archive, errno, "fchdir failed");
+ 			return (ARCHIVE_FAILED);
+ 		}
++#if defined(HAVE_STATVFS)
+ 		vr = statvfs(".", &svfs);
++#endif
+ 		r = statfs(".", &sfs);
+ 		if (r == 0)
+ 			xr = get_xfer_size(t, -1, ".");
+@@ -1737,10 +1759,17 @@ setup_current_filesystem(struct archive_read_disk *a)
+ 		return (ARCHIVE_FAILED);
+ 	} else if (xr == 1) {
+ 		/* pathconf(_PC_REX_*) operations are not supported. */
++#if defined(HAVE_STATVFS)
+ 		t->current_filesystem->xfer_align = svfs.f_frsize;
+ 		t->current_filesystem->max_xfer_size = -1;
+ 		t->current_filesystem->min_xfer_size = svfs.f_bsize;
+ 		t->current_filesystem->incr_xfer_size = svfs.f_bsize;
++#else
++		t->current_filesystem->xfer_align = sfs.f_frsize;
++		t->current_filesystem->max_xfer_size = -1;
++		t->current_filesystem->min_xfer_size = sfs.f_bsize;
++		t->current_filesystem->incr_xfer_size = sfs.f_bsize;
++#endif
+ 	}
+ 	switch (sfs.f_type) {
+ 	case AFS_SUPER_MAGIC:
+@@ -1765,7 +1794,11 @@ setup_current_filesystem(struct archive_read_disk *a)
+ 	}
  
--    Curl_safefree(*allocuserpwd);
-+    free(*allocuserpwd);
-     *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
-                             proxy ? "Proxy-" : "",
-                             conn->response_header);
-@@ -421,15 +419,13 @@ CURLcode Curl_output_ntlm_wb(struct connectdata *conn,
-   case NTLMSTATE_TYPE3:
-     /* connection is already authenticated,
-      * don't send a header in future requests */
--    if(*allocuserpwd) {
--      free(*allocuserpwd);
--      *allocuserpwd=NULL;
--    }
-+    free(*allocuserpwd);
-+    *allocuserpwd=NULL;
-     authp->done = TRUE;
-     break;
-   }
- 
-   return CURLE_OK;
- }
- 
--#endif /* USE_NTLM && NTLM_WB_ENABLED */
-+#endif /* !CURL_DISABLE_HTTP && USE_NTLM && NTLM_WB_ENABLED */
+ #if defined(ST_NOATIME)
++#if defined(HAVE_STATVFS)
+ 	if (svfs.f_flag & ST_NOATIME)
++#else
++	if (sfs.f_flag & ST_NOATIME)
++#endif
+ 		t->current_filesystem->noatime = 1;
+ 	else
+ #endif

@@ -1,0 +1,2 @@
+(p == NULL)
+			goto truncated;

@@ -1,0 +1,1 @@
+r = __archive_write_output(a, iso9660->wbuff, wsize - nw)

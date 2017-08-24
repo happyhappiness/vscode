@@ -1,12 +1,7 @@
-    fprintf(stderr, "\n****\n");
-    fprintf(stderr, "**** Header %s\n ", header);
-  });
+	if (strncmp(h + AR_fmag_offset, "`\n", 2) != 0) {
+		archive_set_error(&a->archive, EINVAL,
+		    "Incorrect file header signature");
+		return (ARCHIVE_FATAL);
+	}
 
-  free(type2);
-
-  return result;
-}
-
-/* copy the source to the destination and fill in zeroes in every
-   other destination byte! */
-static void unicodecpy(unsigned char *dest, const char *src, size_t length)
+	/* Copy filename into work buffer. */

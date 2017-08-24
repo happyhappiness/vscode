@@ -1,0 +1,1 @@
+return (- *(const unsigned char *)(s2 - 1));

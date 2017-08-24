@@ -1,2752 +1,2919 @@
 /*-
- * Copyright (c) 2003-2007 Tim Kientzle
- * Copyright (c) 2011-2012 Michihiro NAKAJIMA
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+* Copyright (c) 2003-2007 Tim Kientzle
+* Copyright (c) 2011 Andres Mejia
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions
+* are met:
+* 1. Redistributions of source code must retain the above copyright
+*    notice, this list of conditions and the following disclaimer.
+* 2. Redistributions in binary form must reproduce the above copyright
+*    notice, this list of conditions and the following disclaimer in the
+*    documentation and/or other materials provided with the distribution.
+*
+* THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+* IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+* OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+* IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+* INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+* NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+* THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
 
 #include "archive_platform.h"
-__FBSDID("$FreeBSD: head/lib/libarchive/archive_read_support_format_tar.c 201161 2009-12-29 05:44:39Z kientzle $");
 
 #ifdef HAVE_ERRNO_H
 #include <errno.h>
 #endif
-#include <stddef.h>
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-#ifdef HAVE_STRING_H
-#include <string.h>
+#include <time.h>
+#include <limits.h>
+#ifdef HAVE_ZLIB_H
+#include <cm_zlib.h> /* crc32 */
 #endif
 
 #include "archive.h"
-#include "archive_acl_private.h" /* For ACL parsing routines. */
+#ifndef HAVE_ZLIB_H
+#include "archive_crc32.h"
+#endif
+#include "archive_endian.h"
 #include "archive_entry.h"
 #include "archive_entry_locale.h"
+#include "archive_ppmd7_private.h"
 #include "archive_private.h"
 #include "archive_read_private.h"
 
-#define tar_min(a,b) ((a) < (b) ? (a) : (b))
+/* RAR signature, also known as the mark header */
+#define RAR_SIGNATURE "\x52\x61\x72\x21\x1A\x07\x00"
+
+/* Header types */
+#define MARK_HEAD    0x72
+#define MAIN_HEAD    0x73
+#define FILE_HEAD    0x74
+#define COMM_HEAD    0x75
+#define AV_HEAD      0x76
+#define SUB_HEAD     0x77
+#define PROTECT_HEAD 0x78
+#define SIGN_HEAD    0x79
+#define NEWSUB_HEAD  0x7a
+#define ENDARC_HEAD  0x7b
+
+/* Main Header Flags */
+#define MHD_VOLUME       0x0001
+#define MHD_COMMENT      0x0002
+#define MHD_LOCK         0x0004
+#define MHD_SOLID        0x0008
+#define MHD_NEWNUMBERING 0x0010
+#define MHD_AV           0x0020
+#define MHD_PROTECT      0x0040
+#define MHD_PASSWORD     0x0080
+#define MHD_FIRSTVOLUME  0x0100
+#define MHD_ENCRYPTVER   0x0200
+
+/* Flags common to all headers */
+#define HD_MARKDELETION     0x4000
+#define HD_ADD_SIZE_PRESENT 0x8000
+
+/* File Header Flags */
+#define FHD_SPLIT_BEFORE 0x0001
+#define FHD_SPLIT_AFTER  0x0002
+#define FHD_PASSWORD     0x0004
+#define FHD_COMMENT      0x0008
+#define FHD_SOLID        0x0010
+#define FHD_LARGE        0x0100
+#define FHD_UNICODE      0x0200
+#define FHD_SALT         0x0400
+#define FHD_VERSION      0x0800
+#define FHD_EXTTIME      0x1000
+#define FHD_EXTFLAGS     0x2000
+
+/* File dictionary sizes */
+#define DICTIONARY_SIZE_64   0x00
+#define DICTIONARY_SIZE_128  0x20
+#define DICTIONARY_SIZE_256  0x40
+#define DICTIONARY_SIZE_512  0x60
+#define DICTIONARY_SIZE_1024 0x80
+#define DICTIONARY_SIZE_2048 0xA0
+#define DICTIONARY_SIZE_4096 0xC0
+#define FILE_IS_DIRECTORY    0xE0
+#define DICTIONARY_MASK      FILE_IS_DIRECTORY
+
+/* OS Flags */
+#define OS_MSDOS  0
+#define OS_OS2    1
+#define OS_WIN32  2
+#define OS_UNIX   3
+#define OS_MAC_OS 4
+#define OS_BEOS   5
+
+/* Compression Methods */
+#define COMPRESS_METHOD_STORE   0x30
+/* LZSS */
+#define COMPRESS_METHOD_FASTEST 0x31
+#define COMPRESS_METHOD_FAST    0x32
+#define COMPRESS_METHOD_NORMAL  0x33
+/* PPMd Variant H */
+#define COMPRESS_METHOD_GOOD    0x34
+#define COMPRESS_METHOD_BEST    0x35
+
+#define CRC_POLYNOMIAL 0xEDB88320
+
+#define NS_UNIT 10000000
+
+#define DICTIONARY_MAX_SIZE 0x400000
+
+#define MAINCODE_SIZE      299
+#define OFFSETCODE_SIZE    60
+#define LOWOFFSETCODE_SIZE 17
+#define LENGTHCODE_SIZE    28
+#define HUFFMAN_TABLE_SIZE \
+  MAINCODE_SIZE + OFFSETCODE_SIZE + LOWOFFSETCODE_SIZE + LENGTHCODE_SIZE
+
+#define MAX_SYMBOL_LENGTH 0xF
+#define MAX_SYMBOLS       20
 
 /*
- * Layout of POSIX 'ustar' tar header.
+ * Considering L1,L2 cache miss and a calling of write system-call,
+ * the best size of the output buffer(uncompressed buffer) is 128K.
+ * If the structure of extracting process is changed, this value
+ * might be researched again.
  */
-struct archive_entry_header_ustar {
-	char	name[100];
-	char	mode[8];
-	char	uid[8];
-	char	gid[8];
-	char	size[12];
-	char	mtime[12];
-	char	checksum[8];
-	char	typeflag[1];
-	char	linkname[100];	/* "old format" header ends here */
-	char	magic[6];	/* For POSIX: "ustar\0" */
-	char	version[2];	/* For POSIX: "00" */
-	char	uname[32];
-	char	gname[32];
-	char	rdevmajor[8];
-	char	rdevminor[8];
-	char	prefix[155];
-};
+#define UNP_BUFFER_SIZE   (128 * 1024)
 
-/*
- * Structure of GNU tar header
- */
-struct gnu_sparse {
-	char	offset[12];
-	char	numbytes[12];
-};
-
-struct archive_entry_header_gnutar {
-	char	name[100];
-	char	mode[8];
-	char	uid[8];
-	char	gid[8];
-	char	size[12];
-	char	mtime[12];
-	char	checksum[8];
-	char	typeflag[1];
-	char	linkname[100];
-	char	magic[8];  /* "ustar  \0" (note blank/blank/null at end) */
-	char	uname[32];
-	char	gname[32];
-	char	rdevmajor[8];
-	char	rdevminor[8];
-	char	atime[12];
-	char	ctime[12];
-	char	offset[12];
-	char	longnames[4];
-	char	unused[1];
-	struct gnu_sparse sparse[4];
-	char	isextended[1];
-	char	realsize[12];
-	/*
-	 * Old GNU format doesn't use POSIX 'prefix' field; they use
-	 * the 'L' (longname) entry instead.
-	 */
-};
-
-/*
- * Data specific to this format.
- */
-struct sparse_block {
-	struct sparse_block	*next;
-	int64_t	offset;
-	int64_t	remaining;
-	int hole;
-};
-
-struct tar {
-	struct archive_string	 acl_text;
-	struct archive_string	 entry_pathname;
-	/* For "GNU.sparse.name" and other similar path extensions. */
-	struct archive_string	 entry_pathname_override;
-	struct archive_string	 entry_linkpath;
-	struct archive_string	 entry_uname;
-	struct archive_string	 entry_gname;
-	struct archive_string	 longlink;
-	struct archive_string	 longname;
-	struct archive_string	 pax_header;
-	struct archive_string	 pax_global;
-	struct archive_string	 line;
-	int			 pax_hdrcharset_binary;
-	int			 header_recursion_depth;
-	int64_t			 entry_bytes_remaining;
-	int64_t			 entry_offset;
-	int64_t			 entry_padding;
-	int64_t 		 entry_bytes_unconsumed;
-	int64_t			 realsize;
-	struct sparse_block	*sparse_list;
-	struct sparse_block	*sparse_last;
-	int64_t			 sparse_offset;
-	int64_t			 sparse_numbytes;
-	int			 sparse_gnu_major;
-	int			 sparse_gnu_minor;
-	char			 sparse_gnu_pending;
-
-	struct archive_string	 localname;
-	struct archive_string_conv *opt_sconv;
-	struct archive_string_conv *sconv;
-	struct archive_string_conv *sconv_acl;
-	struct archive_string_conv *sconv_default;
-	int			 init_default_conversion;
-	int			 compat_2x;
-	int			 process_mac_extensions;
-	int			 read_concatenated_archives;
-};
-
-static int	archive_block_is_null(const char *p);
-static char	*base64_decode(const char *, size_t, size_t *);
-static int	gnu_add_sparse_entry(struct archive_read *, struct tar *,
-		    int64_t offset, int64_t remaining);
-
-static void	gnu_clear_sparse_list(struct tar *);
-static int	gnu_sparse_old_read(struct archive_read *, struct tar *,
-		    const struct archive_entry_header_gnutar *header, size_t *);
-static int	gnu_sparse_old_parse(struct archive_read *, struct tar *,
-		    const struct gnu_sparse *sparse, int length);
-static int	gnu_sparse_01_parse(struct archive_read *, struct tar *,
-		    const char *);
-static ssize_t	gnu_sparse_10_read(struct archive_read *, struct tar *,
-			size_t *);
-static int	header_Solaris_ACL(struct archive_read *,  struct tar *,
-		    struct archive_entry *, const void *, size_t *);
-static int	header_common(struct archive_read *,  struct tar *,
-		    struct archive_entry *, const void *);
-static int	header_old_tar(struct archive_read *, struct tar *,
-		    struct archive_entry *, const void *);
-static int	header_pax_extensions(struct archive_read *, struct tar *,
-		    struct archive_entry *, const void *, size_t *);
-static int	header_pax_global(struct archive_read *, struct tar *,
-		    struct archive_entry *, const void *h, size_t *);
-static int	header_longlink(struct archive_read *, struct tar *,
-		    struct archive_entry *, const void *h, size_t *);
-static int	header_longname(struct archive_read *, struct tar *,
-		    struct archive_entry *, const void *h, size_t *);
-static int	read_mac_metadata_blob(struct archive_read *, struct tar *,
-		    struct archive_entry *, const void *h, size_t *);
-static int	header_volume(struct archive_read *, struct tar *,
-		    struct archive_entry *, const void *h, size_t *);
-static int	header_ustar(struct archive_read *, struct tar *,
-		    struct archive_entry *, const void *h);
-static int	header_gnutar(struct archive_read *, struct tar *,
-		    struct archive_entry *, const void *h, size_t *);
-static int	archive_read_format_tar_bid(struct archive_read *, int);
-static int	archive_read_format_tar_options(struct archive_read *,
-		    const char *, const char *);
-static int	archive_read_format_tar_cleanup(struct archive_read *);
-static int	archive_read_format_tar_read_data(struct archive_read *a,
-		    const void **buff, size_t *size, int64_t *offset);
-static int	archive_read_format_tar_skip(struct archive_read *a);
-static int	archive_read_format_tar_read_header(struct archive_read *,
-		    struct archive_entry *);
-static int	checksum(struct archive_read *, const void *);
-static int 	pax_attribute(struct archive_read *, struct tar *,
-		    struct archive_entry *, char *key, char *value);
-static int 	pax_header(struct archive_read *, struct tar *,
-		    struct archive_entry *, char *attr);
-static void	pax_time(const char *, int64_t *sec, long *nanos);
-static ssize_t	readline(struct archive_read *, struct tar *, const char **,
-		    ssize_t limit, size_t *);
-static int	read_body_to_string(struct archive_read *, struct tar *,
-		    struct archive_string *, const void *h, size_t *);
-static int	solaris_sparse_parse(struct archive_read *, struct tar *,
-		    struct archive_entry *, const char *);
-static int64_t	tar_atol(const char *, size_t);
-static int64_t	tar_atol10(const char *, size_t);
-static int64_t	tar_atol256(const char *, size_t);
-static int64_t	tar_atol8(const char *, size_t);
-static int	tar_read_header(struct archive_read *, struct tar *,
-		    struct archive_entry *, size_t *);
-static int	tohex(int c);
-static char	*url_decode(const char *);
-static void	tar_flush_unconsumed(struct archive_read *, size_t *);
-
-
-int
-archive_read_support_format_gnutar(struct archive *a)
-{
-	archive_check_magic(a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_gnutar");
-	return (archive_read_support_format_tar(a));
-}
-
-
-int
-archive_read_support_format_tar(struct archive *_a)
-{
-	struct archive_read *a = (struct archive_read *)_a;
-	struct tar *tar;
-	int r;
-
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_tar");
-
-	tar = (struct tar *)calloc(1, sizeof(*tar));
-#ifdef HAVE_COPYFILE_H
-	/* Set this by default on Mac OS. */
-	tar->process_mac_extensions = 1;
+/* Define this here for non-Windows platforms */
+#if !((defined(__WIN32__) || defined(_WIN32) || defined(__WIN32)) && !defined(__CYGWIN__))
+#define FILE_ATTRIBUTE_DIRECTORY 0x10
 #endif
-	if (tar == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate tar data");
-		return (ARCHIVE_FATAL);
-	}
 
-	r = __archive_read_register_format(a, tar, "tar",
-	    archive_read_format_tar_bid,
-	    archive_read_format_tar_options,
-	    archive_read_format_tar_read_header,
-	    archive_read_format_tar_read_data,
-	    archive_read_format_tar_skip,
-	    NULL,
-	    archive_read_format_tar_cleanup,
-	    NULL,
-	    NULL);
-
-	if (r != ARCHIVE_OK)
-		free(tar);
-	return (ARCHIVE_OK);
-}
-
-static int
-archive_read_format_tar_cleanup(struct archive_read *a)
+/* Fields common to all headers */
+struct rar_header
 {
-	struct tar *tar;
+  char crc[2];
+  char type;
+  char flags[2];
+  char size[2];
+};
 
-	tar = (struct tar *)(a->format->data);
-	gnu_clear_sparse_list(tar);
-	archive_string_free(&tar->acl_text);
-	archive_string_free(&tar->entry_pathname);
-	archive_string_free(&tar->entry_pathname_override);
-	archive_string_free(&tar->entry_linkpath);
-	archive_string_free(&tar->entry_uname);
-	archive_string_free(&tar->entry_gname);
-	archive_string_free(&tar->line);
-	archive_string_free(&tar->pax_global);
-	archive_string_free(&tar->pax_header);
-	archive_string_free(&tar->longname);
-	archive_string_free(&tar->longlink);
-	archive_string_free(&tar->localname);
-	free(tar);
-	(a->format->data) = NULL;
-	return (ARCHIVE_OK);
-}
-
-
-static int
-archive_read_format_tar_bid(struct archive_read *a, int best_bid)
+/* Fields common to all file headers */
+struct rar_file_header
 {
-	int bid;
-	const char *h;
-	const struct archive_entry_header_ustar *header;
+  char pack_size[4];
+  char unp_size[4];
+  char host_os;
+  char file_crc[4];
+  char file_time[4];
+  char unp_ver;
+  char method;
+  char name_size[2];
+  char file_attr[4];
+};
 
-	(void)best_bid; /* UNUSED */
+struct huffman_tree_node
+{
+  int branches[2];
+};
 
-	bid = 0;
+struct huffman_table_entry
+{
+  unsigned int length;
+  int value;
+};
 
-	/* Now let's look at the actual header and see if it matches. */
-	h = __archive_read_ahead(a, 512, NULL);
-	if (h == NULL)
-		return (-1);
+struct huffman_code
+{
+  struct huffman_tree_node *tree;
+  int numentries;
+  int minlength;
+  int maxlength;
+  int tablesize;
+  struct huffman_table_entry *table;
+};
 
-	/* If it's an end-of-archive mark, we can handle it. */
-	if (h[0] == 0 && archive_block_is_null(h)) {
-		/*
-		 * Usually, I bid the number of bits verified, but
-		 * in this case, 4096 seems excessive so I picked 10 as
-		 * an arbitrary but reasonable-seeming value.
-		 */
-		return (10);
-	}
+struct lzss
+{
+  unsigned char *window;
+  int mask;
+  int64_t position;
+};
 
-	/* If it's not an end-of-archive mark, it must have a valid checksum.*/
-	if (!checksum(a, h))
-		return (0);
-	bid += 48;  /* Checksum is usually 6 octal digits. */
+struct data_block_offsets
+{
+  int64_t header_size;
+  int64_t start_offset;
+  int64_t end_offset;
+};
 
-	header = (const struct archive_entry_header_ustar *)h;
+struct rar
+{
+  /* Entries from main RAR header */
+  unsigned main_flags;
+  unsigned long file_crc;
+  char reserved1[2];
+  char reserved2[4];
+  char encryptver;
 
-	/* Recognize POSIX formats. */
-	if ((memcmp(header->magic, "ustar\0", 6) == 0)
-	    && (memcmp(header->version, "00", 2) == 0))
-		bid += 56;
+  /* File header entries */
+  char compression_method;
+  unsigned file_flags;
+  int64_t packed_size;
+  int64_t unp_size;
+  time_t mtime;
+  long mnsec;
+  mode_t mode;
+  char *filename;
+  char *filename_save;
+  size_t filename_allocated;
 
-	/* Recognize GNU tar format. */
-	if ((memcmp(header->magic, "ustar ", 6) == 0)
-	    && (memcmp(header->version, " \0", 2) == 0))
-		bid += 56;
+  /* File header optional entries */
+  char salt[8];
+  time_t atime;
+  long ansec;
+  time_t ctime;
+  long cnsec;
+  time_t arctime;
+  long arcnsec;
 
-	/* Type flag must be null, digit or A-Z, a-z. */
-	if (header->typeflag[0] != 0 &&
-	    !( header->typeflag[0] >= '0' && header->typeflag[0] <= '9') &&
-	    !( header->typeflag[0] >= 'A' && header->typeflag[0] <= 'Z') &&
-	    !( header->typeflag[0] >= 'a' && header->typeflag[0] <= 'z') )
-		return (0);
-	bid += 2;  /* 6 bits of variation in an 8-bit field leaves 2 bits. */
+  /* Fields to help with tracking decompression of files. */
+  int64_t bytes_unconsumed;
+  int64_t bytes_remaining;
+  int64_t bytes_uncopied;
+  int64_t offset;
+  int64_t offset_outgoing;
+  int64_t offset_seek;
+  char valid;
+  unsigned int unp_offset;
+  unsigned int unp_buffer_size;
+  unsigned char *unp_buffer;
+  unsigned int dictionary_size;
+  char start_new_block;
+  char entry_eof;
+  unsigned long crc_calculated;
+  int found_first_header;
+  char has_endarc_header;
+  struct data_block_offsets *dbo;
+  unsigned int cursor;
+  unsigned int nodes;
 
-	/* Sanity check: Look at first byte of mode field. */
-	switch (255 & (unsigned)header->mode[0]) {
-	case 0: case 255:
-		/* Base-256 value: No further verification possible! */
-		break;
-	case ' ': /* Not recommended, but not illegal, either. */
-		break;
-	case '0': case '1': case '2': case '3':
-	case '4': case '5': case '6': case '7':
-		/* Octal Value. */
-		/* TODO: Check format of remainder of this field. */
-		break;
-	default:
-		/* Not a valid mode; bail out here. */
-		return (0);
-	}
-	/* TODO: Sanity test uid/gid/size/mtime/rdevmajor/rdevminor fields. */
+  /* LZSS members */
+  struct huffman_code maincode;
+  struct huffman_code offsetcode;
+  struct huffman_code lowoffsetcode;
+  struct huffman_code lengthcode;
+  unsigned char lengthtable[HUFFMAN_TABLE_SIZE];
+  struct lzss lzss;
+  char output_last_match;
+  unsigned int lastlength;
+  unsigned int lastoffset;
+  unsigned int oldoffset[4];
+  unsigned int lastlowoffset;
+  unsigned int numlowoffsetrepeats;
+  int64_t filterstart;
+  char start_new_table;
 
-	return (bid);
+  /* PPMd Variant H members */
+  char ppmd_valid;
+  char ppmd_eod;
+  char is_ppmd_block;
+  int ppmd_escape;
+  CPpmd7 ppmd7_context;
+  CPpmd7z_RangeDec range_dec;
+  IByteIn bytein;
+
+  /*
+   * String conversion object.
+   */
+  int init_default_conversion;
+  struct archive_string_conv *sconv_default;
+  struct archive_string_conv *opt_sconv;
+  struct archive_string_conv *sconv_utf8;
+  struct archive_string_conv *sconv_utf16be;
+
+  /*
+   * Bit stream reader.
+   */
+  struct rar_br {
+#define CACHE_TYPE	uint64_t
+#define CACHE_BITS	(8 * sizeof(CACHE_TYPE))
+    /* Cache buffer. */
+    CACHE_TYPE		 cache_buffer;
+    /* Indicates how many bits avail in cache_buffer. */
+    int			 cache_avail;
+    ssize_t		 avail_in;
+    const unsigned char *next_in;
+  } br;
+
+  /*
+   * Custom field to denote that this archive contains encrypted entries
+   */
+  int has_encrypted_entries;
+};
+
+static int archive_read_support_format_rar_capabilities(struct archive_read *);
+static int archive_read_format_rar_has_encrypted_entries(struct archive_read *);
+static int archive_read_format_rar_bid(struct archive_read *, int);
+static int archive_read_format_rar_options(struct archive_read *,
+    const char *, const char *);
+static int archive_read_format_rar_read_header(struct archive_read *,
+    struct archive_entry *);
+static int archive_read_format_rar_read_data(struct archive_read *,
+    const void **, size_t *, int64_t *);
+static int archive_read_format_rar_read_data_skip(struct archive_read *a);
+static int64_t archive_read_format_rar_seek_data(struct archive_read *, int64_t,
+    int);
+static int archive_read_format_rar_cleanup(struct archive_read *);
+
+/* Support functions */
+static int read_header(struct archive_read *, struct archive_entry *, char);
+static time_t get_time(int);
+static int read_exttime(const char *, struct rar *, const char *);
+static int read_symlink_stored(struct archive_read *, struct archive_entry *,
+                               struct archive_string_conv *);
+static int read_data_stored(struct archive_read *, const void **, size_t *,
+                            int64_t *);
+static int read_data_compressed(struct archive_read *, const void **, size_t *,
+                          int64_t *);
+static int rar_br_preparation(struct archive_read *, struct rar_br *);
+static int parse_codes(struct archive_read *);
+static void free_codes(struct archive_read *);
+static int read_next_symbol(struct archive_read *, struct huffman_code *);
+static int create_code(struct archive_read *, struct huffman_code *,
+                        unsigned char *, int, char);
+static int add_value(struct archive_read *, struct huffman_code *, int, int,
+                     int);
+static int new_node(struct huffman_code *);
+static int make_table(struct archive_read *, struct huffman_code *);
+static int make_table_recurse(struct archive_read *, struct huffman_code *, int,
+                              struct huffman_table_entry *, int, int);
+static int64_t expand(struct archive_read *, int64_t);
+static int copy_from_lzss_window(struct archive_read *, const void **,
+                                   int64_t, int);
+static const void *rar_read_ahead(struct archive_read *, size_t, ssize_t *);
+
+/*
+ * Bit stream reader.
+ */
+/* Check that the cache buffer has enough bits. */
+#define rar_br_has(br, n) ((br)->cache_avail >= n)
+/* Get compressed data by bit. */
+#define rar_br_bits(br, n)        \
+  (((uint32_t)((br)->cache_buffer >>    \
+    ((br)->cache_avail - (n)))) & cache_masks[n])
+#define rar_br_bits_forced(br, n)     \
+  (((uint32_t)((br)->cache_buffer <<    \
+    ((n) - (br)->cache_avail))) & cache_masks[n])
+/* Read ahead to make sure the cache buffer has enough compressed data we
+ * will use.
+ *  True  : completed, there is enough data in the cache buffer.
+ *  False : there is no data in the stream. */
+#define rar_br_read_ahead(a, br, n) \
+  ((rar_br_has(br, (n)) || rar_br_fillup(a, br)) || rar_br_has(br, (n)))
+/* Notify how many bits we consumed. */
+#define rar_br_consume(br, n) ((br)->cache_avail -= (n))
+#define rar_br_consume_unalined_bits(br) ((br)->cache_avail &= ~7)
+
+static const uint32_t cache_masks[] = {
+  0x00000000, 0x00000001, 0x00000003, 0x00000007,
+  0x0000000F, 0x0000001F, 0x0000003F, 0x0000007F,
+  0x000000FF, 0x000001FF, 0x000003FF, 0x000007FF,
+  0x00000FFF, 0x00001FFF, 0x00003FFF, 0x00007FFF,
+  0x0000FFFF, 0x0001FFFF, 0x0003FFFF, 0x0007FFFF,
+  0x000FFFFF, 0x001FFFFF, 0x003FFFFF, 0x007FFFFF,
+  0x00FFFFFF, 0x01FFFFFF, 0x03FFFFFF, 0x07FFFFFF,
+  0x0FFFFFFF, 0x1FFFFFFF, 0x3FFFFFFF, 0x7FFFFFFF,
+  0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF
+};
+
+/*
+ * Shift away used bits in the cache data and fill it up with following bits.
+ * Call this when cache buffer does not have enough bits you need.
+ *
+ * Returns 1 if the cache buffer is full.
+ * Returns 0 if the cache buffer is not full; input buffer is empty.
+ */
+static int
+rar_br_fillup(struct archive_read *a, struct rar_br *br)
+{
+  struct rar *rar = (struct rar *)(a->format->data);
+  int n = CACHE_BITS - br->cache_avail;
+
+  for (;;) {
+    switch (n >> 3) {
+    case 8:
+      if (br->avail_in >= 8) {
+        br->cache_buffer =
+            ((uint64_t)br->next_in[0]) << 56 |
+            ((uint64_t)br->next_in[1]) << 48 |
+            ((uint64_t)br->next_in[2]) << 40 |
+            ((uint64_t)br->next_in[3]) << 32 |
+            ((uint32_t)br->next_in[4]) << 24 |
+            ((uint32_t)br->next_in[5]) << 16 |
+            ((uint32_t)br->next_in[6]) << 8 |
+             (uint32_t)br->next_in[7];
+        br->next_in += 8;
+        br->avail_in -= 8;
+        br->cache_avail += 8 * 8;
+        rar->bytes_unconsumed += 8;
+        rar->bytes_remaining -= 8;
+        return (1);
+      }
+      break;
+    case 7:
+      if (br->avail_in >= 7) {
+        br->cache_buffer =
+           (br->cache_buffer << 56) |
+            ((uint64_t)br->next_in[0]) << 48 |
+            ((uint64_t)br->next_in[1]) << 40 |
+            ((uint64_t)br->next_in[2]) << 32 |
+            ((uint32_t)br->next_in[3]) << 24 |
+            ((uint32_t)br->next_in[4]) << 16 |
+            ((uint32_t)br->next_in[5]) << 8 |
+             (uint32_t)br->next_in[6];
+        br->next_in += 7;
+        br->avail_in -= 7;
+        br->cache_avail += 7 * 8;
+        rar->bytes_unconsumed += 7;
+        rar->bytes_remaining -= 7;
+        return (1);
+      }
+      break;
+    case 6:
+      if (br->avail_in >= 6) {
+        br->cache_buffer =
+           (br->cache_buffer << 48) |
+            ((uint64_t)br->next_in[0]) << 40 |
+            ((uint64_t)br->next_in[1]) << 32 |
+            ((uint32_t)br->next_in[2]) << 24 |
+            ((uint32_t)br->next_in[3]) << 16 |
+            ((uint32_t)br->next_in[4]) << 8 |
+             (uint32_t)br->next_in[5];
+        br->next_in += 6;
+        br->avail_in -= 6;
+        br->cache_avail += 6 * 8;
+        rar->bytes_unconsumed += 6;
+        rar->bytes_remaining -= 6;
+        return (1);
+      }
+      break;
+    case 0:
+      /* We have enough compressed data in
+       * the cache buffer.*/
+      return (1);
+    default:
+      break;
+    }
+    if (br->avail_in <= 0) {
+
+      if (rar->bytes_unconsumed > 0) {
+        /* Consume as much as the decompressor
+         * actually used. */
+        __archive_read_consume(a, rar->bytes_unconsumed);
+        rar->bytes_unconsumed = 0;
+      }
+      br->next_in = rar_read_ahead(a, 1, &(br->avail_in));
+      if (br->next_in == NULL)
+        return (0);
+      if (br->avail_in == 0)
+        return (0);
+    }
+    br->cache_buffer =
+       (br->cache_buffer << 8) | *br->next_in++;
+    br->avail_in--;
+    br->cache_avail += 8;
+    n -= 8;
+    rar->bytes_unconsumed++;
+    rar->bytes_remaining--;
+  }
 }
 
 static int
-archive_read_format_tar_options(struct archive_read *a,
+rar_br_preparation(struct archive_read *a, struct rar_br *br)
+{
+  struct rar *rar = (struct rar *)(a->format->data);
+
+  if (rar->bytes_remaining > 0) {
+    br->next_in = rar_read_ahead(a, 1, &(br->avail_in));
+    if (br->next_in == NULL) {
+      archive_set_error(&a->archive,
+          ARCHIVE_ERRNO_FILE_FORMAT,
+          "Truncated RAR file data");
+      return (ARCHIVE_FATAL);
+    }
+    if (br->cache_avail == 0)
+      (void)rar_br_fillup(a, br);
+  }
+  return (ARCHIVE_OK);
+}
+
+/* Find last bit set */
+static inline int
+rar_fls(unsigned int word)
+{
+  word |= (word >>  1);
+  word |= (word >>  2);
+  word |= (word >>  4);
+  word |= (word >>  8);
+  word |= (word >> 16);
+  return word - (word >> 1);
+}
+
+/* LZSS functions */
+static inline int64_t
+lzss_position(struct lzss *lzss)
+{
+  return lzss->position;
+}
+
+static inline int
+lzss_mask(struct lzss *lzss)
+{
+  return lzss->mask;
+}
+
+static inline int
+lzss_size(struct lzss *lzss)
+{
+  return lzss->mask + 1;
+}
+
+static inline int
+lzss_offset_for_position(struct lzss *lzss, int64_t pos)
+{
+  return (int)(pos & lzss->mask);
+}
+
+static inline unsigned char *
+lzss_pointer_for_position(struct lzss *lzss, int64_t pos)
+{
+  return &lzss->window[lzss_offset_for_position(lzss, pos)];
+}
+
+static inline int
+lzss_current_offset(struct lzss *lzss)
+{
+  return lzss_offset_for_position(lzss, lzss->position);
+}
+
+static inline uint8_t *
+lzss_current_pointer(struct lzss *lzss)
+{
+  return lzss_pointer_for_position(lzss, lzss->position);
+}
+
+static inline void
+lzss_emit_literal(struct rar *rar, uint8_t literal)
+{
+  *lzss_current_pointer(&rar->lzss) = literal;
+  rar->lzss.position++;
+}
+
+static inline void
+lzss_emit_match(struct rar *rar, int offset, int length)
+{
+  int dstoffs = lzss_current_offset(&rar->lzss);
+  int srcoffs = (dstoffs - offset) & lzss_mask(&rar->lzss);
+  int l, li, remaining;
+  unsigned char *d, *s;
+
+  remaining = length;
+  while (remaining > 0) {
+    l = remaining;
+    if (dstoffs > srcoffs) {
+      if (l > lzss_size(&rar->lzss) - dstoffs)
+        l = lzss_size(&rar->lzss) - dstoffs;
+    } else {
+      if (l > lzss_size(&rar->lzss) - srcoffs)
+        l = lzss_size(&rar->lzss) - srcoffs;
+    }
+    d = &(rar->lzss.window[dstoffs]);
+    s = &(rar->lzss.window[srcoffs]);
+    if ((dstoffs + l < srcoffs) || (srcoffs + l < dstoffs))
+      memcpy(d, s, l);
+    else {
+      for (li = 0; li < l; li++)
+        d[li] = s[li];
+    }
+    remaining -= l;
+    dstoffs = (dstoffs + l) & lzss_mask(&(rar->lzss));
+    srcoffs = (srcoffs + l) & lzss_mask(&(rar->lzss));
+  }
+  rar->lzss.position += length;
+}
+
+static void *
+ppmd_alloc(void *p, size_t size)
+{
+  (void)p;
+  return malloc(size);
+}
+static void
+ppmd_free(void *p, void *address)
+{
+  (void)p;
+  free(address);
+}
+static ISzAlloc g_szalloc = { ppmd_alloc, ppmd_free };
+
+static Byte
+ppmd_read(void *p)
+{
+  struct archive_read *a = ((IByteIn*)p)->a;
+  struct rar *rar = (struct rar *)(a->format->data);
+  struct rar_br *br = &(rar->br);
+  Byte b;
+  if (!rar_br_read_ahead(a, br, 8))
+  {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Truncated RAR file data");
+    rar->valid = 0;
+    return 0;
+  }
+  b = rar_br_bits(br, 8);
+  rar_br_consume(br, 8);
+  return b;
+}
+
+int
+archive_read_support_format_rar(struct archive *_a)
+{
+  struct archive_read *a = (struct archive_read *)_a;
+  struct rar *rar;
+  int r;
+
+  archive_check_magic(_a, ARCHIVE_READ_MAGIC, ARCHIVE_STATE_NEW,
+                      "archive_read_support_format_rar");
+
+  rar = (struct rar *)malloc(sizeof(*rar));
+  if (rar == NULL)
+  {
+    archive_set_error(&a->archive, ENOMEM, "Can't allocate rar data");
+    return (ARCHIVE_FATAL);
+  }
+  memset(rar, 0, sizeof(*rar));
+
+	/*
+	 * Until enough data has been read, we cannot tell about
+	 * any encrypted entries yet.
+	 */
+	rar->has_encrypted_entries = ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
+
+  r = __archive_read_register_format(a,
+                                     rar,
+                                     "rar",
+                                     archive_read_format_rar_bid,
+                                     archive_read_format_rar_options,
+                                     archive_read_format_rar_read_header,
+                                     archive_read_format_rar_read_data,
+                                     archive_read_format_rar_read_data_skip,
+                                     archive_read_format_rar_seek_data,
+                                     archive_read_format_rar_cleanup,
+                                     archive_read_support_format_rar_capabilities,
+                                     archive_read_format_rar_has_encrypted_entries);
+
+  if (r != ARCHIVE_OK)
+    free(rar);
+  return (r);
+}
+
+static int
+archive_read_support_format_rar_capabilities(struct archive_read * a)
+{
+	(void)a; /* UNUSED */
+	return (ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_DATA
+			| ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_METADATA);
+}
+
+static int
+archive_read_format_rar_has_encrypted_entries(struct archive_read *_a)
+{
+	if (_a && _a->format) {
+		struct rar * rar = (struct rar *)_a->format->data;
+		if (rar) {
+			return rar->has_encrypted_entries;
+		}
+	}
+	return ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
+}
+
+
+static int
+archive_read_format_rar_bid(struct archive_read *a, int best_bid)
+{
+  const char *p;
+
+  /* If there's already a bid > 30, we'll never win. */
+  if (best_bid > 30)
+	  return (-1);
+
+  if ((p = __archive_read_ahead(a, 7, NULL)) == NULL)
+    return (-1);
+
+  if (memcmp(p, RAR_SIGNATURE, 7) == 0)
+    return (30);
+
+  if ((p[0] == 'M' && p[1] == 'Z') || memcmp(p, "\x7F\x45LF", 4) == 0) {
+    /* This is a PE file */
+    ssize_t offset = 0x10000;
+    ssize_t window = 4096;
+    ssize_t bytes_avail;
+    while (offset + window <= (1024 * 128)) {
+      const char *buff = __archive_read_ahead(a, offset + window, &bytes_avail);
+      if (buff == NULL) {
+        /* Remaining bytes are less than window. */
+        window >>= 1;
+        if (window < 0x40)
+          return (0);
+        continue;
+      }
+      p = buff + offset;
+      while (p + 7 < buff + bytes_avail) {
+        if (memcmp(p, RAR_SIGNATURE, 7) == 0)
+          return (30);
+        p += 0x10;
+      }
+      offset = p - buff;
+    }
+  }
+  return (0);
+}
+
+static int
+skip_sfx(struct archive_read *a)
+{
+  const void *h;
+  const char *p, *q;
+  size_t skip, total;
+  ssize_t bytes, window;
+
+  total = 0;
+  window = 4096;
+  while (total + window <= (1024 * 128)) {
+    h = __archive_read_ahead(a, window, &bytes);
+    if (h == NULL) {
+      /* Remaining bytes are less than window. */
+      window >>= 1;
+      if (window < 0x40)
+      	goto fatal;
+      continue;
+    }
+    if (bytes < 0x40)
+      goto fatal;
+    p = h;
+    q = p + bytes;
+
+    /*
+     * Scan ahead until we find something that looks
+     * like the RAR header.
+     */
+    while (p + 7 < q) {
+      if (memcmp(p, RAR_SIGNATURE, 7) == 0) {
+      	skip = p - (const char *)h;
+      	__archive_read_consume(a, skip);
+      	return (ARCHIVE_OK);
+      }
+      p += 0x10;
+    }
+    skip = p - (const char *)h;
+    __archive_read_consume(a, skip);
+	total += skip;
+  }
+fatal:
+  archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+      "Couldn't find out RAR header");
+  return (ARCHIVE_FATAL);
+}
+
+static int
+archive_read_format_rar_options(struct archive_read *a,
     const char *key, const char *val)
 {
-	struct tar *tar;
-	int ret = ARCHIVE_FAILED;
+  struct rar *rar;
+  int ret = ARCHIVE_FAILED;
 
-	tar = (struct tar *)(a->format->data);
-	if (strcmp(key, "compat-2x")  == 0) {
-		/* Handle UTF-8 filnames as libarchive 2.x */
-		tar->compat_2x = (val != NULL && val[0] != 0);
-		tar->init_default_conversion = tar->compat_2x;
-		return (ARCHIVE_OK);
-	} else if (strcmp(key, "hdrcharset")  == 0) {
-		if (val == NULL || val[0] == 0)
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "tar: hdrcharset option needs a character-set name");
-		else {
-			tar->opt_sconv =
-			    archive_string_conversion_from_charset(
-				&a->archive, val, 0);
-			if (tar->opt_sconv != NULL)
-				ret = ARCHIVE_OK;
-			else
-				ret = ARCHIVE_FATAL;
-		}
-		return (ret);
-	} else if (strcmp(key, "mac-ext") == 0) {
-		tar->process_mac_extensions = (val != NULL && val[0] != 0);
-		return (ARCHIVE_OK);
-	} else if (strcmp(key, "read_concatenated_archives") == 0) {
-		tar->read_concatenated_archives = (val != NULL && val[0] != 0);
-		return (ARCHIVE_OK);
-	}
+  rar = (struct rar *)(a->format->data);
+  if (strcmp(key, "hdrcharset")  == 0) {
+    if (val == NULL || val[0] == 0)
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+          "rar: hdrcharset option needs a character-set name");
+    else {
+      rar->opt_sconv =
+          archive_string_conversion_from_charset(
+              &a->archive, val, 0);
+      if (rar->opt_sconv != NULL)
+        ret = ARCHIVE_OK;
+      else
+        ret = ARCHIVE_FATAL;
+    }
+    return (ret);
+  }
 
-	/* Note: The "warn" return is just to inform the options
-	 * supervisor that we didn't handle it.  It will generate
-	 * a suitable error if no one used this option. */
-	return (ARCHIVE_WARN);
-}
-
-/* utility function- this exists to centralize the logic of tracking
- * how much unconsumed data we have floating around, and to consume
- * anything outstanding since we're going to do read_aheads
- */
-static void
-tar_flush_unconsumed(struct archive_read *a, size_t *unconsumed)
-{
-	if (*unconsumed) {
-/*
-		void *data = (void *)__archive_read_ahead(a, *unconsumed, NULL);
-		 * this block of code is to poison claimed unconsumed space, ensuring
-		 * things break if it is in use still.
-		 * currently it WILL break things, so enable it only for debugging this issue
-		if (data) {
-			memset(data, 0xff, *unconsumed);
-		}
-*/
-		__archive_read_consume(a, *unconsumed);
-		*unconsumed = 0;
-	}
-}
-
-/*
- * The function invoked by archive_read_next_header().  This
- * just sets up a few things and then calls the internal
- * tar_read_header() function below.
- */
-static int
-archive_read_format_tar_read_header(struct archive_read *a,
-    struct archive_entry *entry)
-{
-	/*
-	 * When converting tar archives to cpio archives, it is
-	 * essential that each distinct file have a distinct inode
-	 * number.  To simplify this, we keep a static count here to
-	 * assign fake dev/inode numbers to each tar entry.  Note that
-	 * pax format archives may overwrite this with something more
-	 * useful.
-	 *
-	 * Ideally, we would track every file read from the archive so
-	 * that we could assign the same dev/ino pair to hardlinks,
-	 * but the memory required to store a complete lookup table is
-	 * probably not worthwhile just to support the relatively
-	 * obscure tar->cpio conversion case.
-	 */
-	static int default_inode;
-	static int default_dev;
-	struct tar *tar;
-	const char *p;
-	int r;
-	size_t l, unconsumed = 0;
-
-	/* Assign default device/inode values. */
-	archive_entry_set_dev(entry, 1 + default_dev); /* Don't use zero. */
-	archive_entry_set_ino(entry, ++default_inode); /* Don't use zero. */
-	/* Limit generated st_ino number to 16 bits. */
-	if (default_inode >= 0xffff) {
-		++default_dev;
-		default_inode = 0;
-	}
-
-	tar = (struct tar *)(a->format->data);
-	tar->entry_offset = 0;
-	gnu_clear_sparse_list(tar);
-	tar->realsize = -1; /* Mark this as "unset" */
-
-	/* Setup default string conversion. */
-	tar->sconv = tar->opt_sconv;
-	if (tar->sconv == NULL) {
-		if (!tar->init_default_conversion) {
-			tar->sconv_default =
-			    archive_string_default_conversion_for_read(&(a->archive));
-			tar->init_default_conversion = 1;
-		}
-		tar->sconv = tar->sconv_default;
-	}
-
-	r = tar_read_header(a, tar, entry, &unconsumed);
-
-	tar_flush_unconsumed(a, &unconsumed);
-
-	/*
-	 * "non-sparse" files are really just sparse files with
-	 * a single block.
-	 */
-	if (tar->sparse_list == NULL) {
-		if (gnu_add_sparse_entry(a, tar, 0, tar->entry_bytes_remaining)
-		    != ARCHIVE_OK)
-			return (ARCHIVE_FATAL);
-	} else {
-		struct sparse_block *sb;
-
-		for (sb = tar->sparse_list; sb != NULL; sb = sb->next) {
-			if (!sb->hole)
-				archive_entry_sparse_add_entry(entry,
-				    sb->offset, sb->remaining);
-		}
-	}
-
-	if (r == ARCHIVE_OK) {
-		/*
-		 * "Regular" entry with trailing '/' is really
-		 * directory: This is needed for certain old tar
-		 * variants and even for some broken newer ones.
-		 */
-		const wchar_t *wp;
-		wp = archive_entry_pathname_w(entry);
-		if (wp != NULL) {
-			l = wcslen(wp);
-			if (archive_entry_filetype(entry) == AE_IFREG
-			    && wp[l-1] == L'/')
-				archive_entry_set_filetype(entry, AE_IFDIR);
-		} else {
-			p = archive_entry_pathname(entry);
-			if (p == NULL)
-				return (ARCHIVE_FAILED);
-			l = strlen(p);
-			if (archive_entry_filetype(entry) == AE_IFREG
-			    && p[l-1] == '/')
-				archive_entry_set_filetype(entry, AE_IFDIR);
-		}
-	}
-	return (r);
+  /* Note: The "warn" return is just to inform the options
+   * supervisor that we didn't handle it.  It will generate
+   * a suitable error if no one used this option. */
+  return (ARCHIVE_WARN);
 }
 
 static int
-archive_read_format_tar_read_data(struct archive_read *a,
-    const void **buff, size_t *size, int64_t *offset)
+archive_read_format_rar_read_header(struct archive_read *a,
+                                    struct archive_entry *entry)
 {
-	ssize_t bytes_read;
-	struct tar *tar;
-	struct sparse_block *p;
+  const void *h;
+  const char *p;
+  struct rar *rar;
+  size_t skip;
+  char head_type;
+  int ret;
+  unsigned flags;
 
-	tar = (struct tar *)(a->format->data);
+  a->archive.archive_format = ARCHIVE_FORMAT_RAR;
+  if (a->archive.archive_format_name == NULL)
+    a->archive.archive_format_name = "RAR";
 
-	for (;;) {
-		/* Remove exhausted entries from sparse list. */
-		while (tar->sparse_list != NULL &&
-		    tar->sparse_list->remaining == 0) {
-			p = tar->sparse_list;
-			tar->sparse_list = p->next;
-			free(p);
-		}
+  rar = (struct rar *)(a->format->data);
 
-		if (tar->entry_bytes_unconsumed) {
-			__archive_read_consume(a, tar->entry_bytes_unconsumed);
-			tar->entry_bytes_unconsumed = 0;
-		}
+  /*
+   * It should be sufficient to call archive_read_next_header() for
+   * a reader to determine if an entry is encrypted or not. If the
+   * encryption of an entry is only detectable when calling
+   * archive_read_data(), so be it. We'll do the same check there
+   * as well.
+   */
+  if (rar->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
+	  rar->has_encrypted_entries = 0;
+  }
 
-		/* If we're at end of file, return EOF. */
-		if (tar->sparse_list == NULL ||
-		    tar->entry_bytes_remaining == 0) {
-			if (__archive_read_consume(a, tar->entry_padding) < 0)
-				return (ARCHIVE_FATAL);
-			tar->entry_padding = 0;
-			*buff = NULL;
-			*size = 0;
-			*offset = tar->realsize;
-			return (ARCHIVE_EOF);
-		}
+  /* RAR files can be generated without EOF headers, so return ARCHIVE_EOF if
+  * this fails.
+  */
+  if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
+    return (ARCHIVE_EOF);
 
-		*buff = __archive_read_ahead(a, 1, &bytes_read);
-		if (bytes_read < 0)
-			return (ARCHIVE_FATAL);
-		if (*buff == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Truncated tar archive");
-			return (ARCHIVE_FATAL);
-		}
-		if (bytes_read > tar->entry_bytes_remaining)
-			bytes_read = (ssize_t)tar->entry_bytes_remaining;
-		/* Don't read more than is available in the
-		 * current sparse block. */
-		if (tar->sparse_list->remaining < bytes_read)
-			bytes_read = (ssize_t)tar->sparse_list->remaining;
-		*size = bytes_read;
-		*offset = tar->sparse_list->offset;
-		tar->sparse_list->remaining -= bytes_read;
-		tar->sparse_list->offset += bytes_read;
-		tar->entry_bytes_remaining -= bytes_read;
-		tar->entry_bytes_unconsumed = bytes_read;
+  p = h;
+  if (rar->found_first_header == 0 &&
+     ((p[0] == 'M' && p[1] == 'Z') || memcmp(p, "\x7F\x45LF", 4) == 0)) {
+    /* This is an executable ? Must be self-extracting... */
+    ret = skip_sfx(a);
+    if (ret < ARCHIVE_WARN)
+      return (ret);
+  }
+  rar->found_first_header = 1;
 
-		if (!tar->sparse_list->hole)
-			return (ARCHIVE_OK);
-		/* Current is hole data and skip this. */
-	}
+  while (1)
+  {
+    unsigned long crc32_val;
+
+    if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
+      return (ARCHIVE_FATAL);
+    p = h;
+
+    head_type = p[2];
+    switch(head_type)
+    {
+    case MARK_HEAD:
+      if (memcmp(p, RAR_SIGNATURE, 7) != 0) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid marker header");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_read_consume(a, 7);
+      break;
+
+    case MAIN_HEAD:
+      rar->main_flags = archive_le16dec(p + 3);
+      skip = archive_le16dec(p + 5);
+      if (skip < 7 + sizeof(rar->reserved1) + sizeof(rar->reserved2)) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid header size");
+        return (ARCHIVE_FATAL);
+      }
+      if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
+        return (ARCHIVE_FATAL);
+      p = h;
+      memcpy(rar->reserved1, p + 7, sizeof(rar->reserved1));
+      memcpy(rar->reserved2, p + 7 + sizeof(rar->reserved1),
+             sizeof(rar->reserved2));
+      if (rar->main_flags & MHD_ENCRYPTVER) {
+        if (skip < 7 + sizeof(rar->reserved1) + sizeof(rar->reserved2)+1) {
+          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+            "Invalid header size");
+          return (ARCHIVE_FATAL);
+        }
+        rar->encryptver = *(p + 7 + sizeof(rar->reserved1) +
+                            sizeof(rar->reserved2));
+      }
+
+      /* Main header is password encrytped, so we cannot read any
+         file names or any other info about files from the header. */
+      if (rar->main_flags & MHD_PASSWORD)
+      {
+        archive_entry_set_is_metadata_encrypted(entry, 1);
+        archive_entry_set_is_data_encrypted(entry, 1);
+        rar->has_encrypted_entries = 1;
+         archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "RAR encryption support unavailable.");
+        return (ARCHIVE_FATAL);
+      }
+
+      crc32_val = crc32(0, (const unsigned char *)p + 2, (unsigned)skip - 2);
+      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Header CRC error");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_read_consume(a, skip);
+      break;
+
+    case FILE_HEAD:
+      return read_header(a, entry, head_type);
+
+    case COMM_HEAD:
+    case AV_HEAD:
+    case SUB_HEAD:
+    case PROTECT_HEAD:
+    case SIGN_HEAD:
+    case ENDARC_HEAD:
+      flags = archive_le16dec(p + 3);
+      skip = archive_le16dec(p + 5);
+      if (skip < 7) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid header size");
+        return (ARCHIVE_FATAL);
+      }
+      if (skip > 7) {
+        if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
+          return (ARCHIVE_FATAL);
+        p = h;
+      }
+      if (flags & HD_ADD_SIZE_PRESENT)
+      {
+        if (skip < 7 + 4) {
+          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+            "Invalid header size");
+          return (ARCHIVE_FATAL);
+        }
+        skip += archive_le32dec(p + 7);
+        if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
+          return (ARCHIVE_FATAL);
+        p = h;
+      }
+
+      crc32_val = crc32(0, (const unsigned char *)p + 2, (unsigned)skip - 2);
+      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Header CRC error");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_read_consume(a, skip);
+      if (head_type == ENDARC_HEAD)
+        return (ARCHIVE_EOF);
+      break;
+
+    case NEWSUB_HEAD:
+      if ((ret = read_header(a, entry, head_type)) < ARCHIVE_WARN)
+        return ret;
+      break;
+
+    default:
+      archive_set_error(&a->archive,  ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Bad RAR file");
+      return (ARCHIVE_FATAL);
+    }
+  }
 }
 
 static int
-archive_read_format_tar_skip(struct archive_read *a)
+archive_read_format_rar_read_data(struct archive_read *a, const void **buff,
+                                  size_t *size, int64_t *offset)
 {
-	int64_t bytes_skipped;
-	struct tar* tar;
+  struct rar *rar = (struct rar *)(a->format->data);
+  int ret;
 
-	tar = (struct tar *)(a->format->data);
+  if (rar->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
+	  rar->has_encrypted_entries = 0;
+  }
 
-	bytes_skipped = __archive_read_consume(a,
-	    tar->entry_bytes_remaining + tar->entry_padding +
-	    tar->entry_bytes_unconsumed);
-	if (bytes_skipped < 0)
-		return (ARCHIVE_FATAL);
+  if (rar->bytes_unconsumed > 0) {
+      /* Consume as much as the decompressor actually used. */
+      __archive_read_consume(a, rar->bytes_unconsumed);
+      rar->bytes_unconsumed = 0;
+  }
 
-	tar->entry_bytes_remaining = 0;
-	tar->entry_bytes_unconsumed = 0;
-	tar->entry_padding = 0;
+  if (rar->entry_eof || rar->offset_seek >= rar->unp_size) {
+    *buff = NULL;
+    *size = 0;
+    *offset = rar->offset;
+    if (*offset < rar->unp_size)
+      *offset = rar->unp_size;
+    return (ARCHIVE_EOF);
+  }
 
-	/* Free the sparse list. */
-	gnu_clear_sparse_list(tar);
+  switch (rar->compression_method)
+  {
+  case COMPRESS_METHOD_STORE:
+    ret = read_data_stored(a, buff, size, offset);
+    break;
 
-	return (ARCHIVE_OK);
-}
+  case COMPRESS_METHOD_FASTEST:
+  case COMPRESS_METHOD_FAST:
+  case COMPRESS_METHOD_NORMAL:
+  case COMPRESS_METHOD_GOOD:
+  case COMPRESS_METHOD_BEST:
+    ret = read_data_compressed(a, buff, size, offset);
+    if (ret != ARCHIVE_OK && ret != ARCHIVE_WARN)
+      __archive_ppmd7_functions.Ppmd7_Free(&rar->ppmd7_context, &g_szalloc);
+    break;
 
-/*
- * This function recursively interprets all of the headers associated
- * with a single entry.
- */
-static int
-tar_read_header(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, size_t *unconsumed)
-{
-	ssize_t bytes;
-	int err;
-	const char *h;
-	const struct archive_entry_header_ustar *header;
-	const struct archive_entry_header_gnutar *gnuheader;
-
-	/* Loop until we find a workable header record. */
-	for (;;) {
-		tar_flush_unconsumed(a, unconsumed);
-
-		/* Read 512-byte header record */
-		h = __archive_read_ahead(a, 512, &bytes);
-		if (bytes < 0)
-			return ((int)bytes);
-		if (bytes == 0) { /* EOF at a block boundary. */
-			/* Some writers do omit the block of nulls. <sigh> */
-			return (ARCHIVE_EOF);
-		}
-		if (bytes < 512) {  /* Short block at EOF; this is bad. */
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated tar archive");
-			return (ARCHIVE_FATAL);
-		}
-		*unconsumed = 512;
-
-		/* Header is workable if it's not an end-of-archive mark. */
-		if (h[0] != 0 || !archive_block_is_null(h))
-			break;
-
-		/* Ensure format is set for archives with only null blocks. */
-		if (a->archive.archive_format_name == NULL) {
-			a->archive.archive_format = ARCHIVE_FORMAT_TAR;
-			a->archive.archive_format_name = "tar";
-		}
-
-		if (!tar->read_concatenated_archives) {
-			/* Try to consume a second all-null record, as well. */
-			tar_flush_unconsumed(a, unconsumed);
-			h = __archive_read_ahead(a, 512, NULL);
-			if (h != NULL && h[0] == 0 && archive_block_is_null(h))
-				__archive_read_consume(a, 512);
-			archive_clear_error(&a->archive);
-			return (ARCHIVE_EOF);
-		}
-
-		/*
-		 * We're reading concatenated archives, ignore this block and
-		 * loop to get the next.
-		 */
-	}
-
-	/*
-	 * Note: If the checksum fails and we return ARCHIVE_RETRY,
-	 * then the client is likely to just retry.  This is a very
-	 * crude way to search for the next valid header!
-	 *
-	 * TODO: Improve this by implementing a real header scan.
-	 */
-	if (!checksum(a, h)) {
-		tar_flush_unconsumed(a, unconsumed);
-		archive_set_error(&a->archive, EINVAL, "Damaged tar archive");
-		return (ARCHIVE_RETRY); /* Retryable: Invalid header */
-	}
-
-	if (++tar->header_recursion_depth > 32) {
-		tar_flush_unconsumed(a, unconsumed);
-		archive_set_error(&a->archive, EINVAL, "Too many special headers");
-		return (ARCHIVE_WARN);
-	}
-
-	/* Determine the format variant. */
-	header = (const struct archive_entry_header_ustar *)h;
-
-	switch(header->typeflag[0]) {
-	case 'A': /* Solaris tar ACL */
-		a->archive.archive_format = ARCHIVE_FORMAT_TAR_PAX_INTERCHANGE;
-		a->archive.archive_format_name = "Solaris tar";
-		err = header_Solaris_ACL(a, tar, entry, h, unconsumed);
-		break;
-	case 'g': /* POSIX-standard 'g' header. */
-		a->archive.archive_format = ARCHIVE_FORMAT_TAR_PAX_INTERCHANGE;
-		a->archive.archive_format_name = "POSIX pax interchange format";
-		err = header_pax_global(a, tar, entry, h, unconsumed);
-		if (err == ARCHIVE_EOF)
-			return (err);
-		break;
-	case 'K': /* Long link name (GNU tar, others) */
-		err = header_longlink(a, tar, entry, h, unconsumed);
-		break;
-	case 'L': /* Long filename (GNU tar, others) */
-		err = header_longname(a, tar, entry, h, unconsumed);
-		break;
-	case 'V': /* GNU volume header */
-		err = header_volume(a, tar, entry, h, unconsumed);
-		break;
-	case 'X': /* Used by SUN tar; same as 'x'. */
-		a->archive.archive_format = ARCHIVE_FORMAT_TAR_PAX_INTERCHANGE;
-		a->archive.archive_format_name =
-		    "POSIX pax interchange format (Sun variant)";
-		err = header_pax_extensions(a, tar, entry, h, unconsumed);
-		break;
-	case 'x': /* POSIX-standard 'x' header. */
-		a->archive.archive_format = ARCHIVE_FORMAT_TAR_PAX_INTERCHANGE;
-		a->archive.archive_format_name = "POSIX pax interchange format";
-		err = header_pax_extensions(a, tar, entry, h, unconsumed);
-		break;
-	default:
-		gnuheader = (const struct archive_entry_header_gnutar *)h;
-		if (memcmp(gnuheader->magic, "ustar  \0", 8) == 0) {
-			a->archive.archive_format = ARCHIVE_FORMAT_TAR_GNUTAR;
-			a->archive.archive_format_name = "GNU tar format";
-			err = header_gnutar(a, tar, entry, h, unconsumed);
-		} else if (memcmp(header->magic, "ustar", 5) == 0) {
-			if (a->archive.archive_format != ARCHIVE_FORMAT_TAR_PAX_INTERCHANGE) {
-				a->archive.archive_format = ARCHIVE_FORMAT_TAR_USTAR;
-				a->archive.archive_format_name = "POSIX ustar format";
-			}
-			err = header_ustar(a, tar, entry, h);
-		} else {
-			a->archive.archive_format = ARCHIVE_FORMAT_TAR;
-			a->archive.archive_format_name = "tar (non-POSIX)";
-			err = header_old_tar(a, tar, entry, h);
-		}
-	}
-	if (err == ARCHIVE_FATAL)
-		return (err);
-
-	tar_flush_unconsumed(a, unconsumed);
-
-	h = NULL;
-	header = NULL;
-
-	--tar->header_recursion_depth;
-	/* Yuck.  Apple's design here ends up storing long pathname
-	 * extensions for both the AppleDouble extension entry and the
-	 * regular entry.
-	 */
-	if ((err == ARCHIVE_WARN || err == ARCHIVE_OK) &&
-	    tar->header_recursion_depth == 0 &&
-	    tar->process_mac_extensions) {
-		int err2 = read_mac_metadata_blob(a, tar, entry, h, unconsumed);
-		if (err2 < err)
-			err = err2;
-	}
-
-	/* We return warnings or success as-is.  Anything else is fatal. */
-	if (err == ARCHIVE_WARN || err == ARCHIVE_OK) {
-		if (tar->sparse_gnu_pending) {
-			if (tar->sparse_gnu_major == 1 &&
-			    tar->sparse_gnu_minor == 0) {
-				ssize_t bytes_read;
-
-				tar->sparse_gnu_pending = 0;
-				/* Read initial sparse map. */
-				bytes_read = gnu_sparse_10_read(a, tar, unconsumed);
-				tar->entry_bytes_remaining -= bytes_read;
-				if (bytes_read < 0)
-					return ((int)bytes_read);
-			} else {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Unrecognized GNU sparse file format");
-				return (ARCHIVE_WARN);
-			}
-			tar->sparse_gnu_pending = 0;
-		}
-		return (err);
-	}
-	if (err == ARCHIVE_EOF)
-		/* EOF when recursively reading a header is bad. */
-		archive_set_error(&a->archive, EINVAL, "Damaged tar archive");
-	return (ARCHIVE_FATAL);
-}
-
-/*
- * Return true if block checksum is correct.
- */
-static int
-checksum(struct archive_read *a, const void *h)
-{
-	const unsigned char *bytes;
-	const struct archive_entry_header_ustar	*header;
-	int check, sum;
-	size_t i;
-
-	(void)a; /* UNUSED */
-	bytes = (const unsigned char *)h;
-	header = (const struct archive_entry_header_ustar *)h;
-
-	/* Checksum field must hold an octal number */
-	for (i = 0; i < sizeof(header->checksum); ++i) {
-		char c = header->checksum[i];
-		if (c != ' ' && c != '\0' && (c < '0' || c > '7'))
-			return 0;
-	}
-
-	/*
-	 * Test the checksum.  Note that POSIX specifies _unsigned_
-	 * bytes for this calculation.
-	 */
-	sum = (int)tar_atol(header->checksum, sizeof(header->checksum));
-	check = 0;
-	for (i = 0; i < 148; i++)
-		check += (unsigned char)bytes[i];
-	for (; i < 156; i++)
-		check += 32;
-	for (; i < 512; i++)
-		check += (unsigned char)bytes[i];
-	if (sum == check)
-		return (1);
-
-	/*
-	 * Repeat test with _signed_ bytes, just in case this archive
-	 * was created by an old BSD, Solaris, or HP-UX tar with a
-	 * broken checksum calculation.
-	 */
-	check = 0;
-	for (i = 0; i < 148; i++)
-		check += (signed char)bytes[i];
-	for (; i < 156; i++)
-		check += 32;
-	for (; i < 512; i++)
-		check += (signed char)bytes[i];
-	if (sum == check)
-		return (1);
-
-	return (0);
-}
-
-/*
- * Return true if this block contains only nulls.
- */
-static int
-archive_block_is_null(const char *p)
-{
-	unsigned i;
-
-	for (i = 0; i < 512; i++)
-		if (*p++)
-			return (0);
-	return (1);
-}
-
-/*
- * Interpret 'A' Solaris ACL header
- */
-static int
-header_Solaris_ACL(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const void *h, size_t *unconsumed)
-{
-	const struct archive_entry_header_ustar *header;
-	size_t size;
-	int err;
-	int64_t type;
-	char *acl, *p;
-
-	/*
-	 * read_body_to_string adds a NUL terminator, but we need a little
-	 * more to make sure that we don't overrun acl_text later.
-	 */
-	header = (const struct archive_entry_header_ustar *)h;
-	size = (size_t)tar_atol(header->size, sizeof(header->size));
-	err = read_body_to_string(a, tar, &(tar->acl_text), h, unconsumed);
-	if (err != ARCHIVE_OK)
-		return (err);
-
-	/* Recursively read next header */
-	err = tar_read_header(a, tar, entry, unconsumed);
-	if ((err != ARCHIVE_OK) && (err != ARCHIVE_WARN))
-		return (err);
-
-	/* TODO: Examine the first characters to see if this
-	 * is an AIX ACL descriptor.  We'll likely never support
-	 * them, but it would be polite to recognize and warn when
-	 * we do see them. */
-
-	/* Leading octal number indicates ACL type and number of entries. */
-	p = acl = tar->acl_text.s;
-	type = 0;
-	while (*p != '\0' && p < acl + size) {
-		if (*p < '0' || *p > '7') {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Malformed Solaris ACL attribute (invalid digit)");
-			return(ARCHIVE_WARN);
-		}
-		type <<= 3;
-		type += *p - '0';
-		if (type > 077777777) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Malformed Solaris ACL attribute (count too large)");
-			return (ARCHIVE_WARN);
-		}
-		p++;
-	}
-	switch ((int)type & ~0777777) {
-	case 01000000:
-		/* POSIX.1e ACL */
-		break;
-	case 03000000:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Solaris NFSv4 ACLs not supported");
-		return (ARCHIVE_WARN);
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Malformed Solaris ACL attribute (unsupported type %o)",
-		    (int)type);
-		return (ARCHIVE_WARN);
-	}
-	p++;
-
-	if (p >= acl + size) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Malformed Solaris ACL attribute (body overflow)");
-		return(ARCHIVE_WARN);
-	}
-
-	/* ACL text is null-terminated; find the end. */
-	size -= (p - acl);
-	acl = p;
-
-	while (*p != '\0' && p < acl + size)
-		p++;
-
-	if (tar->sconv_acl == NULL) {
-		tar->sconv_acl = archive_string_conversion_from_charset(
-		    &(a->archive), "UTF-8", 1);
-		if (tar->sconv_acl == NULL)
-			return (ARCHIVE_FATAL);
-	}
-	archive_strncpy(&(tar->localname), acl, p - acl);
-	err = archive_acl_parse_l(archive_entry_acl(entry),
-	    tar->localname.s, ARCHIVE_ENTRY_ACL_TYPE_ACCESS, tar->sconv_acl);
-	if (err != ARCHIVE_OK) {
-		if (errno == ENOMEM) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for ACL");
-		} else
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Malformed Solaris ACL attribute (unparsable)");
-	}
-	return (err);
-}
-
-/*
- * Interpret 'K' long linkname header.
- */
-static int
-header_longlink(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const void *h, size_t *unconsumed)
-{
-	int err;
-
-	err = read_body_to_string(a, tar, &(tar->longlink), h, unconsumed);
-	if (err != ARCHIVE_OK)
-		return (err);
-	err = tar_read_header(a, tar, entry, unconsumed);
-	if ((err != ARCHIVE_OK) && (err != ARCHIVE_WARN))
-		return (err);
-	/* Set symlink if symlink already set, else hardlink. */
-	archive_entry_copy_link(entry, tar->longlink.s);
-	return (ARCHIVE_OK);
+  default:
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Unsupported compression method for RAR file.");
+    ret = ARCHIVE_FATAL;
+    break;
+  }
+  return (ret);
 }
 
 static int
-set_conversion_failed_error(struct archive_read *a,
-    struct archive_string_conv *sconv, const char *name)
+archive_read_format_rar_read_data_skip(struct archive_read *a)
 {
-	if (errno == ENOMEM) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate memory for %s", name);
-		return (ARCHIVE_FATAL);
-	}
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-	    "%s can't be converted from %s to current locale.",
-	    name, archive_string_conversion_charset_name(sconv));
-	return (ARCHIVE_WARN);
+  struct rar *rar;
+  int64_t bytes_skipped;
+  int ret;
+
+  rar = (struct rar *)(a->format->data);
+
+  if (rar->bytes_unconsumed > 0) {
+      /* Consume as much as the decompressor actually used. */
+      __archive_read_consume(a, rar->bytes_unconsumed);
+      rar->bytes_unconsumed = 0;
+  }
+
+  if (rar->bytes_remaining > 0) {
+    bytes_skipped = __archive_read_consume(a, rar->bytes_remaining);
+    if (bytes_skipped < 0)
+      return (ARCHIVE_FATAL);
+  }
+
+  /* Compressed data to skip must be read from each header in a multivolume
+   * archive.
+   */
+  if (rar->main_flags & MHD_VOLUME && rar->file_flags & FHD_SPLIT_AFTER)
+  {
+    ret = archive_read_format_rar_read_header(a, a->entry);
+    if (ret == (ARCHIVE_EOF))
+      ret = archive_read_format_rar_read_header(a, a->entry);
+    if (ret != (ARCHIVE_OK))
+      return ret;
+    return archive_read_format_rar_read_data_skip(a);
+  }
+
+  return (ARCHIVE_OK);
 }
 
-/*
- * Interpret 'L' long filename header.
- */
-static int
-header_longname(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const void *h, size_t *unconsumed)
+static int64_t
+archive_read_format_rar_seek_data(struct archive_read *a, int64_t offset,
+    int whence)
 {
-	int err;
+  int64_t client_offset, ret;
+  unsigned int i;
+  struct rar *rar = (struct rar *)(a->format->data);
 
-	err = read_body_to_string(a, tar, &(tar->longname), h, unconsumed);
-	if (err != ARCHIVE_OK)
-		return (err);
-	/* Read and parse "real" header, then override name. */
-	err = tar_read_header(a, tar, entry, unconsumed);
-	if ((err != ARCHIVE_OK) && (err != ARCHIVE_WARN))
-		return (err);
-	if (archive_entry_copy_pathname_l(entry, tar->longname.s,
-	    archive_strlen(&(tar->longname)), tar->sconv) != 0)
-		err = set_conversion_failed_error(a, tar->sconv, "Pathname");
-	return (err);
-}
+  if (rar->compression_method == COMPRESS_METHOD_STORE)
+  {
+    /* Modify the offset for use with SEEK_SET */
+    switch (whence)
+    {
+      case SEEK_CUR:
+        client_offset = rar->offset_seek;
+        break;
+      case SEEK_END:
+        client_offset = rar->unp_size;
+        break;
+      case SEEK_SET:
+      default:
+        client_offset = 0;
+    }
+    client_offset += offset;
+    if (client_offset < 0)
+    {
+      /* Can't seek past beginning of data block */
+      return -1;
+    }
+    else if (client_offset > rar->unp_size)
+    {
+      /*
+       * Set the returned offset but only seek to the end of
+       * the data block.
+       */
+      rar->offset_seek = client_offset;
+      client_offset = rar->unp_size;
+    }
 
+    client_offset += rar->dbo[0].start_offset;
+    i = 0;
+    while (i < rar->cursor)
+    {
+      i++;
+      client_offset += rar->dbo[i].start_offset - rar->dbo[i-1].end_offset;
+    }
+    if (rar->main_flags & MHD_VOLUME)
+    {
+      /* Find the appropriate offset among the multivolume archive */
+      while (1)
+      {
+        if (client_offset < rar->dbo[rar->cursor].start_offset &&
+          rar->file_flags & FHD_SPLIT_BEFORE)
+        {
+          /* Search backwards for the correct data block */
+          if (rar->cursor == 0)
+          {
+            archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+              "Attempt to seek past beginning of RAR data block");
+            return (ARCHIVE_FAILED);
+          }
+          rar->cursor--;
+          client_offset -= rar->dbo[rar->cursor+1].start_offset -
+            rar->dbo[rar->cursor].end_offset;
+          if (client_offset < rar->dbo[rar->cursor].start_offset)
+            continue;
+          ret = __archive_read_seek(a, rar->dbo[rar->cursor].start_offset -
+            rar->dbo[rar->cursor].header_size, SEEK_SET);
+          if (ret < (ARCHIVE_OK))
+            return ret;
+          ret = archive_read_format_rar_read_header(a, a->entry);
+          if (ret != (ARCHIVE_OK))
+          {
+            archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+              "Error during seek of RAR file");
+            return (ARCHIVE_FAILED);
+          }
+          rar->cursor--;
+          break;
+        }
+        else if (client_offset > rar->dbo[rar->cursor].end_offset &&
+          rar->file_flags & FHD_SPLIT_AFTER)
+        {
+          /* Search forward for the correct data block */
+          rar->cursor++;
+          if (rar->cursor < rar->nodes &&
+            client_offset > rar->dbo[rar->cursor].end_offset)
+          {
+            client_offset += rar->dbo[rar->cursor].start_offset -
+              rar->dbo[rar->cursor-1].end_offset;
+            continue;
+          }
+          rar->cursor--;
+          ret = __archive_read_seek(a, rar->dbo[rar->cursor].end_offset,
+                                    SEEK_SET);
+          if (ret < (ARCHIVE_OK))
+            return ret;
+          ret = archive_read_format_rar_read_header(a, a->entry);
+          if (ret == (ARCHIVE_EOF))
+          {
+            rar->has_endarc_header = 1;
+            ret = archive_read_format_rar_read_header(a, a->entry);
+          }
+          if (ret != (ARCHIVE_OK))
+          {
+            archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+              "Error during seek of RAR file");
+            return (ARCHIVE_FAILED);
+          }
+          client_offset += rar->dbo[rar->cursor].start_offset -
+            rar->dbo[rar->cursor-1].end_offset;
+          continue;
+        }
+        break;
+      }
+    }
 
-/*
- * Interpret 'V' GNU tar volume header.
- */
-static int
-header_volume(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const void *h, size_t *unconsumed)
-{
-	(void)h;
+    ret = __archive_read_seek(a, client_offset, SEEK_SET);
+    if (ret < (ARCHIVE_OK))
+      return ret;
+    rar->bytes_remaining = rar->dbo[rar->cursor].end_offset - ret;
+    i = rar->cursor;
+    while (i > 0)
+    {
+      i--;
+      ret -= rar->dbo[i+1].start_offset - rar->dbo[i].end_offset;
+    }
+    ret -= rar->dbo[0].start_offset;
 
-	/* Just skip this and read the next header. */
-	return (tar_read_header(a, tar, entry, unconsumed));
-}
+    /* Always restart reading the file after a seek */
+    a->read_data_block = NULL;
+    a->read_data_offset = 0;
+    a->read_data_output_offset = 0;
+    a->read_data_remaining = 0;
+    rar->bytes_unconsumed = 0;
+    rar->offset = 0;
 
-/*
- * Read body of an archive entry into an archive_string object.
- */
-static int
-read_body_to_string(struct archive_read *a, struct tar *tar,
-    struct archive_string *as, const void *h, size_t *unconsumed)
-{
-	int64_t size;
-	const struct archive_entry_header_ustar *header;
-	const void *src;
+    /*
+     * If a seek past the end of file was requested, return the requested
+     * offset.
+     */
+    if (ret == rar->unp_size && rar->offset_seek > rar->unp_size)
+      return rar->offset_seek;
 
-	(void)tar; /* UNUSED */
-	header = (const struct archive_entry_header_ustar *)h;
-	size  = tar_atol(header->size, sizeof(header->size));
-	if ((size > 1048576) || (size < 0)) {
-		archive_set_error(&a->archive, EINVAL,
-		    "Special header too large");
-		return (ARCHIVE_FATAL);
-	}
-
-	/* Fail if we can't make our buffer big enough. */
-	if (archive_string_ensure(as, (size_t)size+1) == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "No memory");
-		return (ARCHIVE_FATAL);
-	}
-
-	tar_flush_unconsumed(a, unconsumed);
-
-	/* Read the body into the string. */
-	*unconsumed = (size_t)((size + 511) & ~ 511);
-	src = __archive_read_ahead(a, *unconsumed, NULL);
-	if (src == NULL) {
-		*unconsumed = 0;
-		return (ARCHIVE_FATAL);
-	}
-	memcpy(as->s, src, (size_t)size);
-	as->s[size] = '\0';
-	as->length = (size_t)size;
-	return (ARCHIVE_OK);
-}
-
-/*
- * Parse out common header elements.
- *
- * This would be the same as header_old_tar, except that the
- * filename is handled slightly differently for old and POSIX
- * entries  (POSIX entries support a 'prefix').  This factoring
- * allows header_old_tar and header_ustar
- * to handle filenames differently, while still putting most of the
- * common parsing into one place.
- */
-static int
-header_common(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const void *h)
-{
-	const struct archive_entry_header_ustar	*header;
-	char	tartype;
-	int     err = ARCHIVE_OK;
-
-	header = (const struct archive_entry_header_ustar *)h;
-	if (header->linkname[0])
-		archive_strncpy(&(tar->entry_linkpath),
-		    header->linkname, sizeof(header->linkname));
-	else
-		archive_string_empty(&(tar->entry_linkpath));
-
-	/* Parse out the numeric fields (all are octal) */
-	archive_entry_set_mode(entry,
-		(mode_t)tar_atol(header->mode, sizeof(header->mode)));
-	archive_entry_set_uid(entry, tar_atol(header->uid, sizeof(header->uid)));
-	archive_entry_set_gid(entry, tar_atol(header->gid, sizeof(header->gid)));
-	tar->entry_bytes_remaining = tar_atol(header->size, sizeof(header->size));
-	if (tar->entry_bytes_remaining < 0) {
-		tar->entry_bytes_remaining = 0;
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Tar entry has negative size?");
-		err = ARCHIVE_WARN;
-	}
-	tar->realsize = tar->entry_bytes_remaining;
-	archive_entry_set_size(entry, tar->entry_bytes_remaining);
-	archive_entry_set_mtime(entry, tar_atol(header->mtime, sizeof(header->mtime)), 0);
-
-	/* Handle the tar type flag appropriately. */
-	tartype = header->typeflag[0];
-
-	switch (tartype) {
-	case '1': /* Hard link */
-		if (archive_entry_copy_hardlink_l(entry, tar->entry_linkpath.s,
-		    archive_strlen(&(tar->entry_linkpath)), tar->sconv) != 0) {
-			err = set_conversion_failed_error(a, tar->sconv,
-			    "Linkname");
-			if (err == ARCHIVE_FATAL)
-				return (err);
-		}
-		/*
-		 * The following may seem odd, but: Technically, tar
-		 * does not store the file type for a "hard link"
-		 * entry, only the fact that it is a hard link.  So, I
-		 * leave the type zero normally.  But, pax interchange
-		 * format allows hard links to have data, which
-		 * implies that the underlying entry is a regular
-		 * file.
-		 */
-		if (archive_entry_size(entry) > 0)
-			archive_entry_set_filetype(entry, AE_IFREG);
-
-		/*
-		 * A tricky point: Traditionally, tar readers have
-		 * ignored the size field when reading hardlink
-		 * entries, and some writers put non-zero sizes even
-		 * though the body is empty.  POSIX blessed this
-		 * convention in the 1988 standard, but broke with
-		 * this tradition in 2001 by permitting hardlink
-		 * entries to store valid bodies in pax interchange
-		 * format, but not in ustar format.  Since there is no
-		 * hard and fast way to distinguish pax interchange
-		 * from earlier archives (the 'x' and 'g' entries are
-		 * optional, after all), we need a heuristic.
-		 */
-		if (archive_entry_size(entry) == 0) {
-			/* If the size is already zero, we're done. */
-		}  else if (a->archive.archive_format
-		    == ARCHIVE_FORMAT_TAR_PAX_INTERCHANGE) {
-			/* Definitely pax extended; must obey hardlink size. */
-		} else if (a->archive.archive_format == ARCHIVE_FORMAT_TAR
-		    || a->archive.archive_format == ARCHIVE_FORMAT_TAR_GNUTAR)
-		{
-			/* Old-style or GNU tar: we must ignore the size. */
-			archive_entry_set_size(entry, 0);
-			tar->entry_bytes_remaining = 0;
-		} else if (archive_read_format_tar_bid(a, 50) > 50) {
-			/*
-			 * We don't know if it's pax: If the bid
-			 * function sees a valid ustar header
-			 * immediately following, then let's ignore
-			 * the hardlink size.
-			 */
-			archive_entry_set_size(entry, 0);
-			tar->entry_bytes_remaining = 0;
-		}
-		/*
-		 * TODO: There are still two cases I'd like to handle:
-		 *   = a ustar non-pax archive with a hardlink entry at
-		 *     end-of-archive.  (Look for block of nulls following?)
-		 *   = a pax archive that has not seen any pax headers
-		 *     and has an entry which is a hardlink entry storing
-		 *     a body containing an uncompressed tar archive.
-		 * The first is worth addressing; I don't see any reliable
-		 * way to deal with the second possibility.
-		 */
-		break;
-	case '2': /* Symlink */
-		archive_entry_set_filetype(entry, AE_IFLNK);
-		archive_entry_set_size(entry, 0);
-		tar->entry_bytes_remaining = 0;
-		if (archive_entry_copy_symlink_l(entry, tar->entry_linkpath.s,
-		    archive_strlen(&(tar->entry_linkpath)), tar->sconv) != 0) {
-			err = set_conversion_failed_error(a, tar->sconv,
-			    "Linkname");
-			if (err == ARCHIVE_FATAL)
-				return (err);
-		}
-		break;
-	case '3': /* Character device */
-		archive_entry_set_filetype(entry, AE_IFCHR);
-		archive_entry_set_size(entry, 0);
-		tar->entry_bytes_remaining = 0;
-		break;
-	case '4': /* Block device */
-		archive_entry_set_filetype(entry, AE_IFBLK);
-		archive_entry_set_size(entry, 0);
-		tar->entry_bytes_remaining = 0;
-		break;
-	case '5': /* Dir */
-		archive_entry_set_filetype(entry, AE_IFDIR);
-		archive_entry_set_size(entry, 0);
-		tar->entry_bytes_remaining = 0;
-		break;
-	case '6': /* FIFO device */
-		archive_entry_set_filetype(entry, AE_IFIFO);
-		archive_entry_set_size(entry, 0);
-		tar->entry_bytes_remaining = 0;
-		break;
-	case 'D': /* GNU incremental directory type */
-		/*
-		 * No special handling is actually required here.
-		 * It might be nice someday to preprocess the file list and
-		 * provide it to the client, though.
-		 */
-		archive_entry_set_filetype(entry, AE_IFDIR);
-		break;
-	case 'M': /* GNU "Multi-volume" (remainder of file from last archive)*/
-		/*
-		 * As far as I can tell, this is just like a regular file
-		 * entry, except that the contents should be _appended_ to
-		 * the indicated file at the indicated offset.  This may
-		 * require some API work to fully support.
-		 */
-		break;
-	case 'N': /* Old GNU "long filename" entry. */
-		/* The body of this entry is a script for renaming
-		 * previously-extracted entries.  Ugh.  It will never
-		 * be supported by libarchive. */
-		archive_entry_set_filetype(entry, AE_IFREG);
-		break;
-	case 'S': /* GNU sparse files */
-		/*
-		 * Sparse files are really just regular files with
-		 * sparse information in the extended area.
-		 */
-		/* FALLTHROUGH */
-	default: /* Regular file  and non-standard types */
-		/*
-		 * Per POSIX: non-recognized types should always be
-		 * treated as regular files.
-		 */
-		archive_entry_set_filetype(entry, AE_IFREG);
-		break;
-	}
-	return (err);
-}
-
-/*
- * Parse out header elements for "old-style" tar archives.
- */
-static int
-header_old_tar(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const void *h)
-{
-	const struct archive_entry_header_ustar	*header;
-	int err = ARCHIVE_OK, err2;
-
-	/* Copy filename over (to ensure null termination). */
-	header = (const struct archive_entry_header_ustar *)h;
-	if (archive_entry_copy_pathname_l(entry,
-	    header->name, sizeof(header->name), tar->sconv) != 0) {
-		err = set_conversion_failed_error(a, tar->sconv, "Pathname");
-		if (err == ARCHIVE_FATAL)
-			return (err);
-	}
-
-	/* Grab rest of common fields */
-	err2 = header_common(a, tar, entry, h);
-	if (err > err2)
-		err = err2;
-
-	tar->entry_padding = 0x1ff & (-tar->entry_bytes_remaining);
-	return (err);
-}
-
-/*
- * Read a Mac AppleDouble-encoded blob of file metadata,
- * if there is one.
- */
-static int
-read_mac_metadata_blob(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const void *h, size_t *unconsumed)
-{
-	int64_t size;
-	const void *data;
-	const char *p, *name;
-	const wchar_t *wp, *wname;
-
-	(void)h; /* UNUSED */
-
-	wname = wp = archive_entry_pathname_w(entry);
-	if (wp != NULL) {
-		/* Find the last path element. */
-		for (; *wp != L'\0'; ++wp) {
-			if (wp[0] == '/' && wp[1] != L'\0')
-				wname = wp + 1;
-		}
-		/*
-		 * If last path element starts with "._", then
-		 * this is a Mac extension.
-		 */
-		if (wname[0] != L'.' || wname[1] != L'_' || wname[2] == L'\0')
-			return ARCHIVE_OK;
-	} else {
-		/* Find the last path element. */
-		name = p = archive_entry_pathname(entry);
-		if (p == NULL)
-			return (ARCHIVE_FAILED);
-		for (; *p != '\0'; ++p) {
-			if (p[0] == '/' && p[1] != '\0')
-				name = p + 1;
-		}
-		/*
-		 * If last path element starts with "._", then
-		 * this is a Mac extension.
-		 */
-		if (name[0] != '.' || name[1] != '_' || name[2] == '\0')
-			return ARCHIVE_OK;
-	}
-
- 	/* Read the body as a Mac OS metadata blob. */
-	size = archive_entry_size(entry);
-
-	/*
-	 * TODO: Look beyond the body here to peek at the next header.
-	 * If it's a regular header (not an extension header)
-	 * that has the wrong name, just return the current
-	 * entry as-is, without consuming the body here.
-	 * That would reduce the risk of us mis-identifying
-	 * an ordinary file that just happened to have
-	 * a name starting with "._".
-	 *
-	 * Q: Is the above idea really possible?  Even
-	 * when there are GNU or pax extension entries?
-	 */
-	data = __archive_read_ahead(a, (size_t)size, NULL);
-	if (data == NULL) {
-		*unconsumed = 0;
-		return (ARCHIVE_FATAL);
-	}
-	archive_entry_copy_mac_metadata(entry, data, (size_t)size);
-	*unconsumed = (size_t)((size + 511) & ~ 511);
-	tar_flush_unconsumed(a, unconsumed);
-	return (tar_read_header(a, tar, entry, unconsumed));
-}
-
-/*
- * Parse a file header for a pax extended archive entry.
- */
-static int
-header_pax_global(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const void *h, size_t *unconsumed)
-{
-	int err;
-
-	err = read_body_to_string(a, tar, &(tar->pax_global), h, unconsumed);
-	if (err != ARCHIVE_OK)
-		return (err);
-	err = tar_read_header(a, tar, entry, unconsumed);
-	return (err);
+    /* Return the new offset */
+    rar->offset_seek = ret;
+    return rar->offset_seek;
+  }
+  else
+  {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+      "Seeking of compressed RAR files is unsupported");
+  }
+  return (ARCHIVE_FAILED);
 }
 
 static int
-header_pax_extensions(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const void *h, size_t *unconsumed)
+archive_read_format_rar_cleanup(struct archive_read *a)
 {
-	int err, err2;
+  struct rar *rar;
 
-	err = read_body_to_string(a, tar, &(tar->pax_header), h, unconsumed);
-	if (err != ARCHIVE_OK)
-		return (err);
-
-	/* Parse the next header. */
-	err = tar_read_header(a, tar, entry, unconsumed);
-	if ((err != ARCHIVE_OK) && (err != ARCHIVE_WARN))
-		return (err);
-
-	/*
-	 * TODO: Parse global/default options into 'entry' struct here
-	 * before handling file-specific options.
-	 *
-	 * This design (parse standard header, then overwrite with pax
-	 * extended attribute data) usually works well, but isn't ideal;
-	 * it would be better to parse the pax extended attributes first
-	 * and then skip any fields in the standard header that were
-	 * defined in the pax header.
-	 */
-	err2 = pax_header(a, tar, entry, tar->pax_header.s);
-	err =  err_combine(err, err2);
-	tar->entry_padding = 0x1ff & (-tar->entry_bytes_remaining);
-	return (err);
-}
-
-
-/*
- * Parse a file header for a Posix "ustar" archive entry.  This also
- * handles "pax" or "extended ustar" entries.
- */
-static int
-header_ustar(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const void *h)
-{
-	const struct archive_entry_header_ustar	*header;
-	struct archive_string *as;
-	int err = ARCHIVE_OK, r;
-
-	header = (const struct archive_entry_header_ustar *)h;
-
-	/* Copy name into an internal buffer to ensure null-termination. */
-	as = &(tar->entry_pathname);
-	if (header->prefix[0]) {
-		archive_strncpy(as, header->prefix, sizeof(header->prefix));
-		if (as->s[archive_strlen(as) - 1] != '/')
-			archive_strappend_char(as, '/');
-		archive_strncat(as, header->name, sizeof(header->name));
-	} else {
-		archive_strncpy(as, header->name, sizeof(header->name));
-	}
-	if (archive_entry_copy_pathname_l(entry, as->s, archive_strlen(as),
-	    tar->sconv) != 0) {
-		err = set_conversion_failed_error(a, tar->sconv, "Pathname");
-		if (err == ARCHIVE_FATAL)
-			return (err);
-	}
-
-	/* Handle rest of common fields. */
-	r = header_common(a, tar, entry, h);
-	if (r == ARCHIVE_FATAL)
-		return (r);
-	if (r < err)
-		err = r;
-
-	/* Handle POSIX ustar fields. */
-	if (archive_entry_copy_uname_l(entry,
-	    header->uname, sizeof(header->uname), tar->sconv) != 0) {
-		err = set_conversion_failed_error(a, tar->sconv, "Uname");
-		if (err == ARCHIVE_FATAL)
-			return (err);
-	}
-
-	if (archive_entry_copy_gname_l(entry,
-	    header->gname, sizeof(header->gname), tar->sconv) != 0) {
-		err = set_conversion_failed_error(a, tar->sconv, "Gname");
-		if (err == ARCHIVE_FATAL)
-			return (err);
-	}
-
-	/* Parse out device numbers only for char and block specials. */
-	if (header->typeflag[0] == '3' || header->typeflag[0] == '4') {
-		archive_entry_set_rdevmajor(entry, (dev_t)
-		    tar_atol(header->rdevmajor, sizeof(header->rdevmajor)));
-		archive_entry_set_rdevminor(entry, (dev_t)
-		    tar_atol(header->rdevminor, sizeof(header->rdevminor)));
-	}
-
-	tar->entry_padding = 0x1ff & (-tar->entry_bytes_remaining);
-
-	return (err);
-}
-
-
-/*
- * Parse the pax extended attributes record.
- *
- * Returns non-zero if there's an error in the data.
- */
-static int
-pax_header(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, char *attr)
-{
-	size_t attr_length, l, line_length;
-	char *p;
-	char *key, *value;
-	struct archive_string *as;
-	struct archive_string_conv *sconv;
-	int err, err2;
-
-	attr_length = strlen(attr);
-	tar->pax_hdrcharset_binary = 0;
-	archive_string_empty(&(tar->entry_gname));
-	archive_string_empty(&(tar->entry_linkpath));
-	archive_string_empty(&(tar->entry_pathname));
-	archive_string_empty(&(tar->entry_pathname_override));
-	archive_string_empty(&(tar->entry_uname));
-	err = ARCHIVE_OK;
-	while (attr_length > 0) {
-		/* Parse decimal length field at start of line. */
-		line_length = 0;
-		l = attr_length;
-		p = attr; /* Record start of line. */
-		while (l>0) {
-			if (*p == ' ') {
-				p++;
-				l--;
-				break;
-			}
-			if (*p < '0' || *p > '9') {
-				archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-				    "Ignoring malformed pax extended attributes");
-				return (ARCHIVE_WARN);
-			}
-			line_length *= 10;
-			line_length += *p - '0';
-			if (line_length > 999999) {
-				archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-				    "Rejecting pax extended attribute > 1MB");
-				return (ARCHIVE_WARN);
-			}
-			p++;
-			l--;
-		}
-
-		/*
-		 * Parsed length must be no bigger than available data,
-		 * at least 1, and the last character of the line must
-		 * be '\n'.
-		 */
-		if (line_length > attr_length
-		    || line_length < 1
-		    || attr[line_length - 1] != '\n')
-		{
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Ignoring malformed pax extended attribute");
-			return (ARCHIVE_WARN);
-		}
-
-		/* Null-terminate the line. */
-		attr[line_length - 1] = '\0';
-
-		/* Find end of key and null terminate it. */
-		key = p;
-		if (key[0] == '=')
-			return (-1);
-		while (*p && *p != '=')
-			++p;
-		if (*p == '\0') {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Invalid pax extended attributes");
-			return (ARCHIVE_WARN);
-		}
-		*p = '\0';
-
-		/* Identify null-terminated 'value' portion. */
-		value = p + 1;
-
-		/* Identify this attribute and set it in the entry. */
-		err2 = pax_attribute(a, tar, entry, key, value);
-		if (err2 == ARCHIVE_FATAL)
-			return (err2);
-		err = err_combine(err, err2);
-
-		/* Skip to next line */
-		attr += line_length;
-		attr_length -= line_length;
-	}
-
-	/*
-	 * PAX format uses UTF-8 as default charset for its metadata
-	 * unless hdrcharset=BINARY is present in its header.
-	 * We apply the charset specified by the hdrcharset option only
-	 * when the hdrcharset attribute(in PAX header) is BINARY because
-	 * we respect the charset described in PAX header and BINARY also
-	 * means that metadata(filename,uname and gname) character-set
-	 * is unknown.
-	 */
-	if (tar->pax_hdrcharset_binary)
-		sconv = tar->opt_sconv;
-	else {
-		sconv = archive_string_conversion_from_charset(
-		    &(a->archive), "UTF-8", 1);
-		if (sconv == NULL)
-			return (ARCHIVE_FATAL);
-		if (tar->compat_2x)
-			archive_string_conversion_set_opt(sconv,
-			    SCONV_SET_OPT_UTF8_LIBARCHIVE2X);
-	}
-
-	if (archive_strlen(&(tar->entry_gname)) > 0) {
-		if (archive_entry_copy_gname_l(entry, tar->entry_gname.s,
-		    archive_strlen(&(tar->entry_gname)), sconv) != 0) {
-			err = set_conversion_failed_error(a, sconv, "Gname");
-			if (err == ARCHIVE_FATAL)
-				return (err);
-			/* Use a converted an original name. */
-			archive_entry_copy_gname(entry, tar->entry_gname.s);
-		}
-	}
-	if (archive_strlen(&(tar->entry_linkpath)) > 0) {
-		if (archive_entry_copy_link_l(entry, tar->entry_linkpath.s,
-		    archive_strlen(&(tar->entry_linkpath)), sconv) != 0) {
-			err = set_conversion_failed_error(a, sconv, "Linkname");
-			if (err == ARCHIVE_FATAL)
-				return (err);
-			/* Use a converted an original name. */
-			archive_entry_copy_link(entry, tar->entry_linkpath.s);
-		}
-	}
-	/*
-	 * Some extensions (such as the GNU sparse file extensions)
-	 * deliberately store a synthetic name under the regular 'path'
-	 * attribute and the real file name under a different attribute.
-	 * Since we're supposed to not care about the order, we
-	 * have no choice but to store all of the various filenames
-	 * we find and figure it all out afterwards.  This is the
-	 * figuring out part.
-	 */
-	as = NULL;
-	if (archive_strlen(&(tar->entry_pathname_override)) > 0)
-		as = &(tar->entry_pathname_override);
-	else if (archive_strlen(&(tar->entry_pathname)) > 0)
-		as = &(tar->entry_pathname);
-	if (as != NULL) {
-		if (archive_entry_copy_pathname_l(entry, as->s,
-		    archive_strlen(as), sconv) != 0) {
-			err = set_conversion_failed_error(a, sconv, "Pathname");
-			if (err == ARCHIVE_FATAL)
-				return (err);
-			/* Use a converted an original name. */
-			archive_entry_copy_pathname(entry, as->s);
-		}
-	}
-	if (archive_strlen(&(tar->entry_uname)) > 0) {
-		if (archive_entry_copy_uname_l(entry, tar->entry_uname.s,
-		    archive_strlen(&(tar->entry_uname)), sconv) != 0) {
-			err = set_conversion_failed_error(a, sconv, "Uname");
-			if (err == ARCHIVE_FATAL)
-				return (err);
-			/* Use a converted an original name. */
-			archive_entry_copy_uname(entry, tar->entry_uname.s);
-		}
-	}
-	return (err);
+  rar = (struct rar *)(a->format->data);
+  free_codes(a);
+  free(rar->filename);
+  free(rar->filename_save);
+  free(rar->dbo);
+  free(rar->unp_buffer);
+  free(rar->lzss.window);
+  __archive_ppmd7_functions.Ppmd7_Free(&rar->ppmd7_context, &g_szalloc);
+  free(rar);
+  (a->format->data) = NULL;
+  return (ARCHIVE_OK);
 }
 
 static int
-pax_attribute_xattr(struct archive_entry *entry,
-	char *name, char *value)
+read_header(struct archive_read *a, struct archive_entry *entry,
+            char head_type)
 {
-	char *name_decoded;
-	void *value_decoded;
-	size_t value_len;
+  const void *h;
+  const char *p, *endp;
+  struct rar *rar;
+  struct rar_header rar_header;
+  struct rar_file_header file_header;
+  int64_t header_size;
+  unsigned filename_size, end;
+  char *filename;
+  char *strp;
+  char packed_size[8];
+  char unp_size[8];
+  int ttime;
+  struct archive_string_conv *sconv, *fn_sconv;
+  unsigned long crc32_val;
+  int ret = (ARCHIVE_OK), ret2;
 
-	if (strlen(name) < 18 || (memcmp(name, "LIBARCHIVE.xattr.", 17)) != 0)
-		return 3;
+  rar = (struct rar *)(a->format->data);
 
-	name += 17;
+  /* Setup a string conversion object for non-rar-unicode filenames. */
+  sconv = rar->opt_sconv;
+  if (sconv == NULL) {
+    if (!rar->init_default_conversion) {
+      rar->sconv_default =
+          archive_string_default_conversion_for_read(
+            &(a->archive));
+      rar->init_default_conversion = 1;
+    }
+    sconv = rar->sconv_default;
+  }
 
-	/* URL-decode name */
-	name_decoded = url_decode(name);
-	if (name_decoded == NULL)
-		return 2;
 
-	/* Base-64 decode value */
-	value_decoded = base64_decode(value, strlen(value), &value_len);
-	if (value_decoded == NULL) {
-		free(name_decoded);
-		return 1;
-	}
+  if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
+    return (ARCHIVE_FATAL);
+  p = h;
+  memcpy(&rar_header, p, sizeof(rar_header));
+  rar->file_flags = archive_le16dec(rar_header.flags);
+  header_size = archive_le16dec(rar_header.size);
+  if (header_size < (int64_t)sizeof(file_header) + 7) {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+      "Invalid header size");
+    return (ARCHIVE_FATAL);
+  }
+  crc32_val = crc32(0, (const unsigned char *)p + 2, 7 - 2);
+  __archive_read_consume(a, 7);
 
-	archive_entry_xattr_add_entry(entry, name_decoded,
-		value_decoded, value_len);
+  if (!(rar->file_flags & FHD_SOLID))
+  {
+    rar->compression_method = 0;
+    rar->packed_size = 0;
+    rar->unp_size = 0;
+    rar->mtime = 0;
+    rar->ctime = 0;
+    rar->atime = 0;
+    rar->arctime = 0;
+    rar->mode = 0;
+    memset(&rar->salt, 0, sizeof(rar->salt));
+    rar->atime = 0;
+    rar->ansec = 0;
+    rar->ctime = 0;
+    rar->cnsec = 0;
+    rar->mtime = 0;
+    rar->mnsec = 0;
+    rar->arctime = 0;
+    rar->arcnsec = 0;
+  }
+  else
+  {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "RAR solid archive support unavailable.");
+    return (ARCHIVE_FATAL);
+  }
 
-	free(name_decoded);
-	free(value_decoded);
-	return 0;
+  if ((h = __archive_read_ahead(a, (size_t)header_size - 7, NULL)) == NULL)
+    return (ARCHIVE_FATAL);
+
+  /* File Header CRC check. */
+  crc32_val = crc32(crc32_val, h, (unsigned)(header_size - 7));
+  if ((crc32_val & 0xffff) != archive_le16dec(rar_header.crc)) {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+      "Header CRC error");
+    return (ARCHIVE_FATAL);
+  }
+  /* If no CRC error, Go on parsing File Header. */
+  p = h;
+  endp = p + header_size - 7;
+  memcpy(&file_header, p, sizeof(file_header));
+  p += sizeof(file_header);
+
+  rar->compression_method = file_header.method;
+
+  ttime = archive_le32dec(file_header.file_time);
+  rar->mtime = get_time(ttime);
+
+  rar->file_crc = archive_le32dec(file_header.file_crc);
+
+  if (rar->file_flags & FHD_PASSWORD)
+  {
+	archive_entry_set_is_data_encrypted(entry, 1);
+	rar->has_encrypted_entries = 1;
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "RAR encryption support unavailable.");
+    /* Since it is only the data part itself that is encrypted we can at least
+       extract information about the currently processed entry and don't need
+       to return ARCHIVE_FATAL here. */
+    /*return (ARCHIVE_FATAL);*/
+  }
+
+  if (rar->file_flags & FHD_LARGE)
+  {
+    memcpy(packed_size, file_header.pack_size, 4);
+    memcpy(packed_size + 4, p, 4); /* High pack size */
+    p += 4;
+    memcpy(unp_size, file_header.unp_size, 4);
+    memcpy(unp_size + 4, p, 4); /* High unpack size */
+    p += 4;
+    rar->packed_size = archive_le64dec(&packed_size);
+    rar->unp_size = archive_le64dec(&unp_size);
+  }
+  else
+  {
+    rar->packed_size = archive_le32dec(file_header.pack_size);
+    rar->unp_size = archive_le32dec(file_header.unp_size);
+  }
+
+  if (rar->packed_size < 0 || rar->unp_size < 0)
+  {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Invalid sizes specified.");
+    return (ARCHIVE_FATAL);
+  }
+
+  rar->bytes_remaining = rar->packed_size;
+
+  /* TODO: RARv3 subblocks contain comments. For now the complete block is
+   * consumed at the end.
+   */
+  if (head_type == NEWSUB_HEAD) {
+    size_t distance = p - (const char *)h;
+    header_size += rar->packed_size;
+    /* Make sure we have the extended data. */
+    if ((h = __archive_read_ahead(a, (size_t)header_size - 7, NULL)) == NULL)
+        return (ARCHIVE_FATAL);
+    p = h;
+    endp = p + header_size - 7;
+    p += distance;
+  }
+
+  filename_size = archive_le16dec(file_header.name_size);
+  if (p + filename_size > endp) {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+      "Invalid filename size");
+    return (ARCHIVE_FATAL);
+  }
+  if (rar->filename_allocated < filename_size * 2 + 2) {
+    char *newptr;
+    size_t newsize = filename_size * 2 + 2;
+    newptr = realloc(rar->filename, newsize);
+    if (newptr == NULL) {
+      archive_set_error(&a->archive, ENOMEM,
+                        "Couldn't allocate memory.");
+      return (ARCHIVE_FATAL);
+    }
+    rar->filename = newptr;
+    rar->filename_allocated = newsize;
+  }
+  filename = rar->filename;
+  memcpy(filename, p, filename_size);
+  filename[filename_size] = '\0';
+  if (rar->file_flags & FHD_UNICODE)
+  {
+    if (filename_size != strlen(filename))
+    {
+      unsigned char highbyte, flagbits, flagbyte;
+      unsigned fn_end, offset;
+
+      end = filename_size;
+      fn_end = filename_size * 2;
+      filename_size = 0;
+      offset = (unsigned)strlen(filename) + 1;
+      highbyte = *(p + offset++);
+      flagbits = 0;
+      flagbyte = 0;
+      while (offset < end && filename_size < fn_end)
+      {
+        if (!flagbits)
+        {
+          flagbyte = *(p + offset++);
+          flagbits = 8;
+        }
+
+        flagbits -= 2;
+        switch((flagbyte >> flagbits) & 3)
+        {
+          case 0:
+            filename[filename_size++] = '\0';
+            filename[filename_size++] = *(p + offset++);
+            break;
+          case 1:
+            filename[filename_size++] = highbyte;
+            filename[filename_size++] = *(p + offset++);
+            break;
+          case 2:
+            filename[filename_size++] = *(p + offset + 1);
+            filename[filename_size++] = *(p + offset);
+            offset += 2;
+            break;
+          case 3:
+          {
+            char extra, high;
+            uint8_t length = *(p + offset++);
+
+            if (length & 0x80) {
+              extra = *(p + offset++);
+              high = (char)highbyte;
+            } else
+              extra = high = 0;
+            length = (length & 0x7f) + 2;
+            while (length && filename_size < fn_end) {
+              unsigned cp = filename_size >> 1;
+              filename[filename_size++] = high;
+              filename[filename_size++] = p[cp] + extra;
+              length--;
+            }
+          }
+          break;
+        }
+      }
+      if (filename_size > fn_end) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid filename");
+        return (ARCHIVE_FATAL);
+      }
+      filename[filename_size++] = '\0';
+      filename[filename_size++] = '\0';
+
+      /* Decoded unicode form is UTF-16BE, so we have to update a string
+       * conversion object for it. */
+      if (rar->sconv_utf16be == NULL) {
+        rar->sconv_utf16be = archive_string_conversion_from_charset(
+           &a->archive, "UTF-16BE", 1);
+        if (rar->sconv_utf16be == NULL)
+          return (ARCHIVE_FATAL);
+      }
+      fn_sconv = rar->sconv_utf16be;
+
+      strp = filename;
+      while (memcmp(strp, "\x00\x00", 2))
+      {
+        if (!memcmp(strp, "\x00\\", 2))
+          *(strp + 1) = '/';
+        strp += 2;
+      }
+      p += offset;
+    } else {
+      /*
+       * If FHD_UNICODE is set but no unicode data, this file name form
+       * is UTF-8, so we have to update a string conversion object for
+       * it accordingly.
+       */
+      if (rar->sconv_utf8 == NULL) {
+        rar->sconv_utf8 = archive_string_conversion_from_charset(
+           &a->archive, "UTF-8", 1);
+        if (rar->sconv_utf8 == NULL)
+          return (ARCHIVE_FATAL);
+      }
+      fn_sconv = rar->sconv_utf8;
+      while ((strp = strchr(filename, '\\')) != NULL)
+        *strp = '/';
+      p += filename_size;
+    }
+  }
+  else
+  {
+    fn_sconv = sconv;
+    while ((strp = strchr(filename, '\\')) != NULL)
+      *strp = '/';
+    p += filename_size;
+  }
+
+  /* Split file in multivolume RAR. No more need to process header. */
+  if (rar->filename_save &&
+    !memcmp(rar->filename, rar->filename_save, filename_size + 1))
+  {
+    __archive_read_consume(a, header_size - 7);
+    rar->cursor++;
+    if (rar->cursor >= rar->nodes)
+    {
+      rar->nodes++;
+      if ((rar->dbo =
+        realloc(rar->dbo, sizeof(*rar->dbo) * rar->nodes)) == NULL)
+      {
+        archive_set_error(&a->archive, ENOMEM, "Couldn't allocate memory.");
+        return (ARCHIVE_FATAL);
+      }
+      rar->dbo[rar->cursor].header_size = header_size;
+      rar->dbo[rar->cursor].start_offset = -1;
+      rar->dbo[rar->cursor].end_offset = -1;
+    }
+    if (rar->dbo[rar->cursor].start_offset < 0)
+    {
+      rar->dbo[rar->cursor].start_offset = a->filter->position;
+      rar->dbo[rar->cursor].end_offset = rar->dbo[rar->cursor].start_offset +
+        rar->packed_size;
+    }
+    return ret;
+  }
+
+  rar->filename_save = (char*)realloc(rar->filename_save,
+                                      filename_size + 1);
+  memcpy(rar->filename_save, rar->filename, filename_size + 1);
+
+  /* Set info for seeking */
+  free(rar->dbo);
+  if ((rar->dbo = calloc(1, sizeof(*rar->dbo))) == NULL)
+  {
+    archive_set_error(&a->archive, ENOMEM, "Couldn't allocate memory.");
+    return (ARCHIVE_FATAL);
+  }
+  rar->dbo[0].header_size = header_size;
+  rar->dbo[0].start_offset = -1;
+  rar->dbo[0].end_offset = -1;
+  rar->cursor = 0;
+  rar->nodes = 1;
+
+  if (rar->file_flags & FHD_SALT)
+  {
+    if (p + 8 > endp) {
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+        "Invalid header size");
+      return (ARCHIVE_FATAL);
+    }
+    memcpy(rar->salt, p, 8);
+    p += 8;
+  }
+
+  if (rar->file_flags & FHD_EXTTIME) {
+    if (read_exttime(p, rar, endp) < 0) {
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+        "Invalid header size");
+      return (ARCHIVE_FATAL);
+    }
+  }
+
+  __archive_read_consume(a, header_size - 7);
+  rar->dbo[0].start_offset = a->filter->position;
+  rar->dbo[0].end_offset = rar->dbo[0].start_offset + rar->packed_size;
+
+  switch(file_header.host_os)
+  {
+  case OS_MSDOS:
+  case OS_OS2:
+  case OS_WIN32:
+    rar->mode = archive_le32dec(file_header.file_attr);
+    if (rar->mode & FILE_ATTRIBUTE_DIRECTORY)
+      rar->mode = AE_IFDIR | S_IXUSR | S_IXGRP | S_IXOTH;
+    else
+      rar->mode = AE_IFREG;
+    rar->mode |= S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    break;
+
+  case OS_UNIX:
+  case OS_MAC_OS:
+  case OS_BEOS:
+    rar->mode = archive_le32dec(file_header.file_attr);
+    break;
+
+  default:
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Unknown file attributes from RAR file's host OS");
+    return (ARCHIVE_FATAL);
+  }
+
+  rar->bytes_uncopied = rar->bytes_unconsumed = 0;
+  rar->lzss.position = rar->offset = 0;
+  rar->offset_seek = 0;
+  rar->dictionary_size = 0;
+  rar->offset_outgoing = 0;
+  rar->br.cache_avail = 0;
+  rar->br.avail_in = 0;
+  rar->crc_calculated = 0;
+  rar->entry_eof = 0;
+  rar->valid = 1;
+  rar->is_ppmd_block = 0;
+  rar->start_new_table = 1;
+  free(rar->unp_buffer);
+  rar->unp_buffer = NULL;
+  rar->unp_offset = 0;
+  rar->unp_buffer_size = UNP_BUFFER_SIZE;
+  memset(rar->lengthtable, 0, sizeof(rar->lengthtable));
+  __archive_ppmd7_functions.Ppmd7_Free(&rar->ppmd7_context, &g_szalloc);
+  rar->ppmd_valid = rar->ppmd_eod = 0;
+
+  /* Don't set any archive entries for non-file header types */
+  if (head_type == NEWSUB_HEAD)
+    return ret;
+
+  archive_entry_set_mtime(entry, rar->mtime, rar->mnsec);
+  archive_entry_set_ctime(entry, rar->ctime, rar->cnsec);
+  archive_entry_set_atime(entry, rar->atime, rar->ansec);
+  archive_entry_set_size(entry, rar->unp_size);
+  archive_entry_set_mode(entry, rar->mode);
+
+  if (archive_entry_copy_pathname_l(entry, filename, filename_size, fn_sconv))
+  {
+    if (errno == ENOMEM)
+    {
+      archive_set_error(&a->archive, ENOMEM,
+                        "Can't allocate memory for Pathname");
+      return (ARCHIVE_FATAL);
+    }
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Pathname cannot be converted from %s to current locale.",
+                      archive_string_conversion_charset_name(fn_sconv));
+    ret = (ARCHIVE_WARN);
+  }
+
+  if (((rar->mode) & AE_IFMT) == AE_IFLNK)
+  {
+    /* Make sure a symbolic-link file does not have its body. */
+    rar->bytes_remaining = 0;
+    archive_entry_set_size(entry, 0);
+
+    /* Read a symbolic-link name. */
+    if ((ret2 = read_symlink_stored(a, entry, sconv)) < (ARCHIVE_WARN))
+      return ret2;
+    if (ret > ret2)
+      ret = ret2;
+  }
+
+  if (rar->bytes_remaining == 0)
+    rar->entry_eof = 1;
+
+  return ret;
 }
 
-/*
- * Parse a single key=value attribute.  key/value pointers are
- * assumed to point into reasonably long-lived storage.
- *
- * Note that POSIX reserves all-lowercase keywords.  Vendor-specific
- * extensions should always have keywords of the form "VENDOR.attribute"
- * In particular, it's quite feasible to support many different
- * vendor extensions here.  I'm using "LIBARCHIVE" for extensions
- * unique to this library.
- *
- * Investigate other vendor-specific extensions and see if
- * any of them look useful.
- */
+static time_t
+get_time(int ttime)
+{
+  struct tm tm;
+  tm.tm_sec = 2 * (ttime & 0x1f);
+  tm.tm_min = (ttime >> 5) & 0x3f;
+  tm.tm_hour = (ttime >> 11) & 0x1f;
+  tm.tm_mday = (ttime >> 16) & 0x1f;
+  tm.tm_mon = ((ttime >> 21) & 0x0f) - 1;
+  tm.tm_year = ((ttime >> 25) & 0x7f) + 80;
+  tm.tm_isdst = -1;
+  return mktime(&tm);
+}
+
 static int
-pax_attribute(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, char *key, char *value)
+read_exttime(const char *p, struct rar *rar, const char *endp)
 {
-	int64_t s;
-	long n;
-	int err = ARCHIVE_OK, r;
+  unsigned rmode, flags, rem, j, count;
+  int ttime, i;
+  struct tm *tm;
+  time_t t;
+  long nsec;
 
-	if (value == NULL)
-		value = "";	/* Disable compiler warning; do not pass
-				 * NULL pointer to strlen().  */
-	switch (key[0]) {
-	case 'G':
-		/* GNU "0.0" sparse pax format. */
-		if (strcmp(key, "GNU.sparse.numblocks") == 0) {
-			tar->sparse_offset = -1;
-			tar->sparse_numbytes = -1;
-			tar->sparse_gnu_major = 0;
-			tar->sparse_gnu_minor = 0;
-		}
-		if (strcmp(key, "GNU.sparse.offset") == 0) {
-			tar->sparse_offset = tar_atol10(value, strlen(value));
-			if (tar->sparse_numbytes != -1) {
-				if (gnu_add_sparse_entry(a, tar,
-				    tar->sparse_offset, tar->sparse_numbytes)
-				    != ARCHIVE_OK)
-					return (ARCHIVE_FATAL);
-				tar->sparse_offset = -1;
-				tar->sparse_numbytes = -1;
-			}
-		}
-		if (strcmp(key, "GNU.sparse.numbytes") == 0) {
-			tar->sparse_numbytes = tar_atol10(value, strlen(value));
-			if (tar->sparse_numbytes != -1) {
-				if (gnu_add_sparse_entry(a, tar,
-				    tar->sparse_offset, tar->sparse_numbytes)
-				    != ARCHIVE_OK)
-					return (ARCHIVE_FATAL);
-				tar->sparse_offset = -1;
-				tar->sparse_numbytes = -1;
-			}
-		}
-		if (strcmp(key, "GNU.sparse.size") == 0) {
-			tar->realsize = tar_atol10(value, strlen(value));
-			archive_entry_set_size(entry, tar->realsize);
-		}
+  if (p + 2 > endp)
+    return (-1);
+  flags = archive_le16dec(p);
+  p += 2;
 
-		/* GNU "0.1" sparse pax format. */
-		if (strcmp(key, "GNU.sparse.map") == 0) {
-			tar->sparse_gnu_major = 0;
-			tar->sparse_gnu_minor = 1;
-			if (gnu_sparse_01_parse(a, tar, value) != ARCHIVE_OK)
-				return (ARCHIVE_WARN);
-		}
-
-		/* GNU "1.0" sparse pax format */
-		if (strcmp(key, "GNU.sparse.major") == 0) {
-			tar->sparse_gnu_major = (int)tar_atol10(value, strlen(value));
-			tar->sparse_gnu_pending = 1;
-		}
-		if (strcmp(key, "GNU.sparse.minor") == 0) {
-			tar->sparse_gnu_minor = (int)tar_atol10(value, strlen(value));
-			tar->sparse_gnu_pending = 1;
-		}
-		if (strcmp(key, "GNU.sparse.name") == 0) {
-			/*
-			 * The real filename; when storing sparse
-			 * files, GNU tar puts a synthesized name into
-			 * the regular 'path' attribute in an attempt
-			 * to limit confusion. ;-)
-			 */
-			archive_strcpy(&(tar->entry_pathname_override), value);
-		}
-		if (strcmp(key, "GNU.sparse.realsize") == 0) {
-			tar->realsize = tar_atol10(value, strlen(value));
-			archive_entry_set_size(entry, tar->realsize);
-		}
-		break;
-	case 'L':
-		/* Our extensions */
-/* TODO: Handle arbitrary extended attributes... */
-/*
-		if (strcmp(key, "LIBARCHIVE.xxxxxxx") == 0)
-			archive_entry_set_xxxxxx(entry, value);
-*/
-		if (strcmp(key, "LIBARCHIVE.creationtime") == 0) {
-			pax_time(value, &s, &n);
-			archive_entry_set_birthtime(entry, s, n);
-		}
-		if (memcmp(key, "LIBARCHIVE.xattr.", 17) == 0)
-			pax_attribute_xattr(entry, key, value);
-		break;
-	case 'S':
-		/* We support some keys used by the "star" archiver */
-		if (strcmp(key, "SCHILY.acl.access") == 0) {
-			if (tar->sconv_acl == NULL) {
-				tar->sconv_acl =
-				    archive_string_conversion_from_charset(
-					&(a->archive), "UTF-8", 1);
-				if (tar->sconv_acl == NULL)
-					return (ARCHIVE_FATAL);
-			}
-
-			r = archive_acl_parse_l(archive_entry_acl(entry),
-			    value, ARCHIVE_ENTRY_ACL_TYPE_ACCESS,
-			    tar->sconv_acl);
-			if (r != ARCHIVE_OK) {
-				err = r;
-				if (err == ARCHIVE_FATAL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.access");
-					return (err);
-				}
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.access");
-			}
-		} else if (strcmp(key, "SCHILY.acl.default") == 0) {
-			if (tar->sconv_acl == NULL) {
-				tar->sconv_acl =
-				    archive_string_conversion_from_charset(
-					&(a->archive), "UTF-8", 1);
-				if (tar->sconv_acl == NULL)
-					return (ARCHIVE_FATAL);
-			}
-
-			r = archive_acl_parse_l(archive_entry_acl(entry),
-			    value, ARCHIVE_ENTRY_ACL_TYPE_DEFAULT,
-			    tar->sconv_acl);
-			if (r != ARCHIVE_OK) {
-				err = r;
-				if (err == ARCHIVE_FATAL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.default");
-					return (err);
-				}
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.default");
-			}
-		} else if (strcmp(key, "SCHILY.devmajor") == 0) {
-			archive_entry_set_rdevmajor(entry,
-			    (dev_t)tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "SCHILY.devminor") == 0) {
-			archive_entry_set_rdevminor(entry,
-			    (dev_t)tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "SCHILY.fflags") == 0) {
-			archive_entry_copy_fflags_text(entry, value);
-		} else if (strcmp(key, "SCHILY.dev") == 0) {
-			archive_entry_set_dev(entry,
-			    (dev_t)tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "SCHILY.ino") == 0) {
-			archive_entry_set_ino(entry,
-			    tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "SCHILY.nlink") == 0) {
-			archive_entry_set_nlink(entry, (unsigned)
-			    tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "SCHILY.realsize") == 0) {
-			tar->realsize = tar_atol10(value, strlen(value));
-			archive_entry_set_size(entry, tar->realsize);
-		} else if (strcmp(key, "SUN.holesdata") == 0) {
-			/* A Solaris extension for sparse. */
-			r = solaris_sparse_parse(a, tar, entry, value);
-			if (r < err) {
-				if (r == ARCHIVE_FATAL)
-					return (r);
-				err = r;
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SUN.holesdata");
-			}
-		}
-		break;
-	case 'a':
-		if (strcmp(key, "atime") == 0) {
-			pax_time(value, &s, &n);
-			archive_entry_set_atime(entry, s, n);
-		}
-		break;
-	case 'c':
-		if (strcmp(key, "ctime") == 0) {
-			pax_time(value, &s, &n);
-			archive_entry_set_ctime(entry, s, n);
-		} else if (strcmp(key, "charset") == 0) {
-			/* TODO: Publish charset information in entry. */
-		} else if (strcmp(key, "comment") == 0) {
-			/* TODO: Publish comment in entry. */
-		}
-		break;
-	case 'g':
-		if (strcmp(key, "gid") == 0) {
-			archive_entry_set_gid(entry,
-			    tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "gname") == 0) {
-			archive_strcpy(&(tar->entry_gname), value);
-		}
-		break;
-	case 'h':
-		if (strcmp(key, "hdrcharset") == 0) {
-			if (strcmp(value, "BINARY") == 0)
-				/* Binary  mode. */
-				tar->pax_hdrcharset_binary = 1;
-			else if (strcmp(value, "ISO-IR 10646 2000 UTF-8") == 0)
-				tar->pax_hdrcharset_binary = 0;
-		}
-		break;
-	case 'l':
-		/* pax interchange doesn't distinguish hardlink vs. symlink. */
-		if (strcmp(key, "linkpath") == 0) {
-			archive_strcpy(&(tar->entry_linkpath), value);
-		}
-		break;
-	case 'm':
-		if (strcmp(key, "mtime") == 0) {
-			pax_time(value, &s, &n);
-			archive_entry_set_mtime(entry, s, n);
-		}
-		break;
-	case 'p':
-		if (strcmp(key, "path") == 0) {
-			archive_strcpy(&(tar->entry_pathname), value);
-		}
-		break;
-	case 'r':
-		/* POSIX has reserved 'realtime.*' */
-		break;
-	case 's':
-		/* POSIX has reserved 'security.*' */
-		/* Someday: if (strcmp(key, "security.acl") == 0) { ... } */
-		if (strcmp(key, "size") == 0) {
-			/* "size" is the size of the data in the entry. */
-			tar->entry_bytes_remaining
-			    = tar_atol10(value, strlen(value));
-			/*
-			 * But, "size" is not necessarily the size of
-			 * the file on disk; if this is a sparse file,
-			 * the disk size may have already been set from
-			 * GNU.sparse.realsize or GNU.sparse.size or
-			 * an old GNU header field or SCHILY.realsize
-			 * or ....
-			 */
-			if (tar->realsize < 0) {
-				archive_entry_set_size(entry,
-				    tar->entry_bytes_remaining);
-				tar->realsize
-				    = tar->entry_bytes_remaining;
-			}
-		}
-		break;
-	case 'u':
-		if (strcmp(key, "uid") == 0) {
-			archive_entry_set_uid(entry,
-			    tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "uname") == 0) {
-			archive_strcpy(&(tar->entry_uname), value);
-		}
-		break;
-	}
-	return (err);
-}
-
-
-
-/*
- * parse a decimal time value, which may include a fractional portion
- */
-static void
-pax_time(const char *p, int64_t *ps, long *pn)
-{
-	char digit;
-	int64_t	s;
-	unsigned long l;
-	int sign;
-	int64_t limit, last_digit_limit;
-
-	limit = INT64_MAX / 10;
-	last_digit_limit = INT64_MAX % 10;
-
-	s = 0;
-	sign = 1;
-	if (*p == '-') {
-		sign = -1;
-		p++;
-	}
-	while (*p >= '0' && *p <= '9') {
-		digit = *p - '0';
-		if (s > limit ||
-		    (s == limit && digit > last_digit_limit)) {
-			s = INT64_MAX;
-			break;
-		}
-		s = (s * 10) + digit;
-		++p;
-	}
-
-	*ps = s * sign;
-
-	/* Calculate nanoseconds. */
-	*pn = 0;
-
-	if (*p != '.')
-		return;
-
-	l = 100000000UL;
-	do {
-		++p;
-		if (*p >= '0' && *p <= '9')
-			*pn += (*p - '0') * l;
-		else
-			break;
-	} while (l /= 10);
-}
-
-/*
- * Parse GNU tar header
- */
-static int
-header_gnutar(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const void *h, size_t *unconsumed)
-{
-	const struct archive_entry_header_gnutar *header;
-	int64_t t;
-	int err = ARCHIVE_OK;
-
-	/*
-	 * GNU header is like POSIX ustar, except 'prefix' is
-	 * replaced with some other fields. This also means the
-	 * filename is stored as in old-style archives.
-	 */
-
-	/* Grab fields common to all tar variants. */
-	err = header_common(a, tar, entry, h);
-	if (err == ARCHIVE_FATAL)
-		return (err);
-
-	/* Copy filename over (to ensure null termination). */
-	header = (const struct archive_entry_header_gnutar *)h;
-	if (archive_entry_copy_pathname_l(entry,
-	    header->name, sizeof(header->name), tar->sconv) != 0) {
-		err = set_conversion_failed_error(a, tar->sconv, "Pathname");
-		if (err == ARCHIVE_FATAL)
-			return (err);
-	}
-
-	/* Fields common to ustar and GNU */
-	/* XXX Can the following be factored out since it's common
-	 * to ustar and gnu tar?  Is it okay to move it down into
-	 * header_common, perhaps?  */
-	if (archive_entry_copy_uname_l(entry,
-	    header->uname, sizeof(header->uname), tar->sconv) != 0) {
-		err = set_conversion_failed_error(a, tar->sconv, "Uname");
-		if (err == ARCHIVE_FATAL)
-			return (err);
-	}
-
-	if (archive_entry_copy_gname_l(entry,
-	    header->gname, sizeof(header->gname), tar->sconv) != 0) {
-		err = set_conversion_failed_error(a, tar->sconv, "Gname");
-		if (err == ARCHIVE_FATAL)
-			return (err);
-	}
-
-	/* Parse out device numbers only for char and block specials */
-	if (header->typeflag[0] == '3' || header->typeflag[0] == '4') {
-		archive_entry_set_rdevmajor(entry, (dev_t)
-		    tar_atol(header->rdevmajor, sizeof(header->rdevmajor)));
-		archive_entry_set_rdevminor(entry, (dev_t)
-		    tar_atol(header->rdevminor, sizeof(header->rdevminor)));
-	} else
-		archive_entry_set_rdev(entry, 0);
-
-	tar->entry_padding = 0x1ff & (-tar->entry_bytes_remaining);
-
-	/* Grab GNU-specific fields. */
-	t = tar_atol(header->atime, sizeof(header->atime));
-	if (t > 0)
-		archive_entry_set_atime(entry, t, 0);
-	t = tar_atol(header->ctime, sizeof(header->ctime));
-	if (t > 0)
-		archive_entry_set_ctime(entry, t, 0);
-
-	if (header->realsize[0] != 0) {
-		tar->realsize
-		    = tar_atol(header->realsize, sizeof(header->realsize));
-		archive_entry_set_size(entry, tar->realsize);
-	}
-
-	if (header->sparse[0].offset[0] != 0) {
-		if (gnu_sparse_old_read(a, tar, header, unconsumed)
-		    != ARCHIVE_OK)
-			return (ARCHIVE_FATAL);
-	} else {
-		if (header->isextended[0] != 0) {
-			/* XXX WTF? XXX */
-		}
-	}
-
-	return (err);
+  for (i = 3; i >= 0; i--)
+  {
+    t = 0;
+    if (i == 3)
+      t = rar->mtime;
+    rmode = flags >> i * 4;
+    if (rmode & 8)
+    {
+      if (!t)
+      {
+        if (p + 4 > endp)
+          return (-1);
+        ttime = archive_le32dec(p);
+        t = get_time(ttime);
+        p += 4;
+      }
+      rem = 0;
+      count = rmode & 3;
+      if (p + count > endp)
+        return (-1);
+      for (j = 0; j < count; j++)
+      {
+        rem = ((*p) << 16) | (rem >> 8);
+        p++;
+      }
+      tm = localtime(&t);
+      nsec = tm->tm_sec + rem / NS_UNIT;
+      if (rmode & 4)
+      {
+        tm->tm_sec++;
+        t = mktime(tm);
+      }
+      if (i == 3)
+      {
+        rar->mtime = t;
+        rar->mnsec = nsec;
+      }
+      else if (i == 2)
+      {
+        rar->ctime = t;
+        rar->cnsec = nsec;
+      }
+      else if (i == 1)
+      {
+        rar->atime = t;
+        rar->ansec = nsec;
+      }
+      else
+      {
+        rar->arctime = t;
+        rar->arcnsec = nsec;
+      }
+    }
+  }
+  return (0);
 }
 
 static int
-gnu_add_sparse_entry(struct archive_read *a, struct tar *tar,
-    int64_t offset, int64_t remaining)
+read_symlink_stored(struct archive_read *a, struct archive_entry *entry,
+                    struct archive_string_conv *sconv)
 {
-	struct sparse_block *p;
+  const void *h;
+  const char *p;
+  struct rar *rar;
+  int ret = (ARCHIVE_OK);
 
-	p = (struct sparse_block *)malloc(sizeof(*p));
-	if (p == NULL) {
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
-	memset(p, 0, sizeof(*p));
-	if (tar->sparse_last != NULL)
-		tar->sparse_last->next = p;
-	else
-		tar->sparse_list = p;
-	tar->sparse_last = p;
-	p->offset = offset;
-	p->remaining = remaining;
-	return (ARCHIVE_OK);
+  rar = (struct rar *)(a->format->data);
+  if ((h = rar_read_ahead(a, (size_t)rar->packed_size, NULL)) == NULL)
+    return (ARCHIVE_FATAL);
+  p = h;
+
+  if (archive_entry_copy_symlink_l(entry,
+      p, (size_t)rar->packed_size, sconv))
+  {
+    if (errno == ENOMEM)
+    {
+      archive_set_error(&a->archive, ENOMEM,
+                        "Can't allocate memory for link");
+      return (ARCHIVE_FATAL);
+    }
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "link cannot be converted from %s to current locale.",
+                      archive_string_conversion_charset_name(sconv));
+    ret = (ARCHIVE_WARN);
+  }
+  __archive_read_consume(a, rar->packed_size);
+  return ret;
+}
+
+static int
+read_data_stored(struct archive_read *a, const void **buff, size_t *size,
+                 int64_t *offset)
+{
+  struct rar *rar;
+  ssize_t bytes_avail;
+
+  rar = (struct rar *)(a->format->data);
+  if (rar->bytes_remaining == 0 &&
+    !(rar->main_flags & MHD_VOLUME && rar->file_flags & FHD_SPLIT_AFTER))
+  {
+    *buff = NULL;
+    *size = 0;
+    *offset = rar->offset;
+    if (rar->file_crc != rar->crc_calculated) {
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                        "File CRC error");
+      return (ARCHIVE_FATAL);
+    }
+    rar->entry_eof = 1;
+    return (ARCHIVE_EOF);
+  }
+
+  *buff = rar_read_ahead(a, 1, &bytes_avail);
+  if (bytes_avail <= 0)
+  {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Truncated RAR file data");
+    return (ARCHIVE_FATAL);
+  }
+
+  *size = bytes_avail;
+  *offset = rar->offset;
+  rar->offset += bytes_avail;
+  rar->offset_seek += bytes_avail;
+  rar->bytes_remaining -= bytes_avail;
+  rar->bytes_unconsumed = bytes_avail;
+  /* Calculate File CRC. */
+  rar->crc_calculated = crc32(rar->crc_calculated, *buff,
+    (unsigned)bytes_avail);
+  return (ARCHIVE_OK);
+}
+
+static int
+read_data_compressed(struct archive_read *a, const void **buff, size_t *size,
+               int64_t *offset)
+{
+  struct rar *rar;
+  int64_t start, end, actualend;
+  size_t bs;
+  int ret = (ARCHIVE_OK), sym, code, lzss_offset, length, i;
+
+  rar = (struct rar *)(a->format->data);
+
+  do {
+    if (!rar->valid)
+      return (ARCHIVE_FATAL);
+    if (rar->ppmd_eod ||
+       (rar->dictionary_size && rar->offset >= rar->unp_size))
+    {
+      if (rar->unp_offset > 0) {
+        /*
+         * We have unprocessed extracted data. write it out.
+         */
+        *buff = rar->unp_buffer;
+        *size = rar->unp_offset;
+        *offset = rar->offset_outgoing;
+        rar->offset_outgoing += *size;
+        /* Calculate File CRC. */
+        rar->crc_calculated = crc32(rar->crc_calculated, *buff,
+          (unsigned)*size);
+        rar->unp_offset = 0;
+        return (ARCHIVE_OK);
+      }
+      *buff = NULL;
+      *size = 0;
+      *offset = rar->offset;
+      if (rar->file_crc != rar->crc_calculated) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "File CRC error");
+        return (ARCHIVE_FATAL);
+      }
+      rar->entry_eof = 1;
+      return (ARCHIVE_EOF);
+    }
+
+    if (!rar->is_ppmd_block && rar->dictionary_size && rar->bytes_uncopied > 0)
+    {
+      if (rar->bytes_uncopied > (rar->unp_buffer_size - rar->unp_offset))
+        bs = rar->unp_buffer_size - rar->unp_offset;
+      else
+        bs = (size_t)rar->bytes_uncopied;
+      ret = copy_from_lzss_window(a, buff, rar->offset, (int)bs);
+      if (ret != ARCHIVE_OK)
+        return (ret);
+      rar->offset += bs;
+      rar->bytes_uncopied -= bs;
+      if (*buff != NULL) {
+        rar->unp_offset = 0;
+        *size = rar->unp_buffer_size;
+        *offset = rar->offset_outgoing;
+        rar->offset_outgoing += *size;
+        /* Calculate File CRC. */
+        rar->crc_calculated = crc32(rar->crc_calculated, *buff,
+          (unsigned)*size);
+        return (ret);
+      }
+      continue;
+    }
+
+    if (!rar->br.next_in &&
+      (ret = rar_br_preparation(a, &(rar->br))) < ARCHIVE_WARN)
+      return (ret);
+    if (rar->start_new_table && ((ret = parse_codes(a)) < (ARCHIVE_WARN)))
+      return (ret);
+
+    if (rar->is_ppmd_block)
+    {
+      if ((sym = __archive_ppmd7_functions.Ppmd7_DecodeSymbol(
+        &rar->ppmd7_context, &rar->range_dec.p)) < 0)
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Invalid symbol");
+        return (ARCHIVE_FATAL);
+      }
+      if(sym != rar->ppmd_escape)
+      {
+        lzss_emit_literal(rar, sym);
+        rar->bytes_uncopied++;
+      }
+      else
+      {
+        if ((code = __archive_ppmd7_functions.Ppmd7_DecodeSymbol(
+          &rar->ppmd7_context, &rar->range_dec.p)) < 0)
+        {
+          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                            "Invalid symbol");
+          return (ARCHIVE_FATAL);
+        }
+
+        switch(code)
+        {
+          case 0:
+            rar->start_new_table = 1;
+            return read_data_compressed(a, buff, size, offset);
+
+          case 2:
+            rar->ppmd_eod = 1;/* End Of ppmd Data. */
+            continue;
+
+          case 3:
+            archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+                              "Parsing filters is unsupported.");
+            return (ARCHIVE_FAILED);
+
+          case 4:
+            lzss_offset = 0;
+            for (i = 2; i >= 0; i--)
+            {
+              if ((code = __archive_ppmd7_functions.Ppmd7_DecodeSymbol(
+                &rar->ppmd7_context, &rar->range_dec.p)) < 0)
+              {
+                archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                                  "Invalid symbol");
+                return (ARCHIVE_FATAL);
+              }
+              lzss_offset |= code << (i * 8);
+            }
+            if ((length = __archive_ppmd7_functions.Ppmd7_DecodeSymbol(
+              &rar->ppmd7_context, &rar->range_dec.p)) < 0)
+            {
+              archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                                "Invalid symbol");
+              return (ARCHIVE_FATAL);
+            }
+            lzss_emit_match(rar, lzss_offset + 2, length + 32);
+            rar->bytes_uncopied += length + 32;
+            break;
+
+          case 5:
+            if ((length = __archive_ppmd7_functions.Ppmd7_DecodeSymbol(
+              &rar->ppmd7_context, &rar->range_dec.p)) < 0)
+            {
+              archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                                "Invalid symbol");
+              return (ARCHIVE_FATAL);
+            }
+            lzss_emit_match(rar, 1, length + 4);
+            rar->bytes_uncopied += length + 4;
+            break;
+
+         default:
+           lzss_emit_literal(rar, sym);
+           rar->bytes_uncopied++;
+        }
+      }
+    }
+    else
+    {
+      start = rar->offset;
+      end = start + rar->dictionary_size;
+      rar->filterstart = INT64_MAX;
+
+      if ((actualend = expand(a, end)) < 0)
+        return ((int)actualend);
+
+      rar->bytes_uncopied = actualend - start;
+      if (rar->bytes_uncopied == 0) {
+          /* Broken RAR files cause this case.
+          * NOTE: If this case were possible on a normal RAR file
+          * we would find out where it was actually bad and
+          * what we would do to solve it. */
+          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                            "Internal error extracting RAR file");
+          return (ARCHIVE_FATAL);
+      }
+    }
+    if (rar->bytes_uncopied > (rar->unp_buffer_size - rar->unp_offset))
+      bs = rar->unp_buffer_size - rar->unp_offset;
+    else
+      bs = (size_t)rar->bytes_uncopied;
+    ret = copy_from_lzss_window(a, buff, rar->offset, (int)bs);
+    if (ret != ARCHIVE_OK)
+      return (ret);
+    rar->offset += bs;
+    rar->bytes_uncopied -= bs;
+    /*
+     * If *buff is NULL, it means unp_buffer is not full.
+     * So we have to continue extracting a RAR file.
+     */
+  } while (*buff == NULL);
+
+  rar->unp_offset = 0;
+  *size = rar->unp_buffer_size;
+  *offset = rar->offset_outgoing;
+  rar->offset_outgoing += *size;
+  /* Calculate File CRC. */
+  rar->crc_calculated = crc32(rar->crc_calculated, *buff, (unsigned)*size);
+  return ret;
+}
+
+static int
+parse_codes(struct archive_read *a)
+{
+  int i, j, val, n, r;
+  unsigned char bitlengths[MAX_SYMBOLS], zerocount, ppmd_flags;
+  unsigned int maxorder;
+  struct huffman_code precode;
+  struct rar *rar = (struct rar *)(a->format->data);
+  struct rar_br *br = &(rar->br);
+
+  free_codes(a);
+
+  /* Skip to the next byte */
+  rar_br_consume_unalined_bits(br);
+
+  /* PPMd block flag */
+  if (!rar_br_read_ahead(a, br, 1))
+    goto truncated_data;
+  if ((rar->is_ppmd_block = rar_br_bits(br, 1)) != 0)
+  {
+    rar_br_consume(br, 1);
+    if (!rar_br_read_ahead(a, br, 7))
+      goto truncated_data;
+    ppmd_flags = rar_br_bits(br, 7);
+    rar_br_consume(br, 7);
+
+    /* Memory is allocated in MB */
+    if (ppmd_flags & 0x20)
+    {
+      if (!rar_br_read_ahead(a, br, 8))
+        goto truncated_data;
+      rar->dictionary_size = (rar_br_bits(br, 8) + 1) << 20;
+      rar_br_consume(br, 8);
+    }
+
+    if (ppmd_flags & 0x40)
+    {
+      if (!rar_br_read_ahead(a, br, 8))
+        goto truncated_data;
+      rar->ppmd_escape = rar->ppmd7_context.InitEsc = rar_br_bits(br, 8);
+      rar_br_consume(br, 8);
+    }
+    else
+      rar->ppmd_escape = 2;
+
+    if (ppmd_flags & 0x20)
+    {
+      maxorder = (ppmd_flags & 0x1F) + 1;
+      if(maxorder > 16)
+        maxorder = 16 + (maxorder - 16) * 3;
+
+      if (maxorder == 1)
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Truncated RAR file data");
+        return (ARCHIVE_FATAL);
+      }
+
+      /* Make sure ppmd7_contest is freed before Ppmd7_Construct
+       * because reading a broken file cause this abnormal sequence. */
+      __archive_ppmd7_functions.Ppmd7_Free(&rar->ppmd7_context, &g_szalloc);
+
+      rar->bytein.a = a;
+      rar->bytein.Read = &ppmd_read;
+      __archive_ppmd7_functions.PpmdRAR_RangeDec_CreateVTable(&rar->range_dec);
+      rar->range_dec.Stream = &rar->bytein;
+      __archive_ppmd7_functions.Ppmd7_Construct(&rar->ppmd7_context);
+
+      if (!__archive_ppmd7_functions.Ppmd7_Alloc(&rar->ppmd7_context,
+        rar->dictionary_size, &g_szalloc))
+      {
+        archive_set_error(&a->archive, ENOMEM,
+                          "Out of memory");
+        return (ARCHIVE_FATAL);
+      }
+      if (!__archive_ppmd7_functions.PpmdRAR_RangeDec_Init(&rar->range_dec))
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Unable to initialize PPMd range decoder");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_ppmd7_functions.Ppmd7_Init(&rar->ppmd7_context, maxorder);
+      rar->ppmd_valid = 1;
+    }
+    else
+    {
+      if (!rar->ppmd_valid) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Invalid PPMd sequence");
+        return (ARCHIVE_FATAL);
+      }
+      if (!__archive_ppmd7_functions.PpmdRAR_RangeDec_Init(&rar->range_dec))
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Unable to initialize PPMd range decoder");
+        return (ARCHIVE_FATAL);
+      }
+    }
+  }
+  else
+  {
+    rar_br_consume(br, 1);
+
+    /* Keep existing table flag */
+    if (!rar_br_read_ahead(a, br, 1))
+      goto truncated_data;
+    if (!rar_br_bits(br, 1))
+      memset(rar->lengthtable, 0, sizeof(rar->lengthtable));
+    rar_br_consume(br, 1);
+
+    memset(&bitlengths, 0, sizeof(bitlengths));
+    for (i = 0; i < MAX_SYMBOLS;)
+    {
+      if (!rar_br_read_ahead(a, br, 4))
+        goto truncated_data;
+      bitlengths[i++] = rar_br_bits(br, 4);
+      rar_br_consume(br, 4);
+      if (bitlengths[i-1] == 0xF)
+      {
+        if (!rar_br_read_ahead(a, br, 4))
+          goto truncated_data;
+        zerocount = rar_br_bits(br, 4);
+        rar_br_consume(br, 4);
+        if (zerocount)
+        {
+          i--;
+          for (j = 0; j < zerocount + 2 && i < MAX_SYMBOLS; j++)
+            bitlengths[i++] = 0;
+        }
+      }
+    }
+
+    memset(&precode, 0, sizeof(precode));
+    r = create_code(a, &precode, bitlengths, MAX_SYMBOLS, MAX_SYMBOL_LENGTH);
+    if (r != ARCHIVE_OK) {
+      free(precode.tree);
+      free(precode.table);
+      return (r);
+    }
+
+    for (i = 0; i < HUFFMAN_TABLE_SIZE;)
+    {
+      if ((val = read_next_symbol(a, &precode)) < 0) {
+        free(precode.tree);
+        free(precode.table);
+        return (ARCHIVE_FATAL);
+      }
+      if (val < 16)
+      {
+        rar->lengthtable[i] = (rar->lengthtable[i] + val) & 0xF;
+        i++;
+      }
+      else if (val < 18)
+      {
+        if (i == 0)
+        {
+          free(precode.tree);
+          free(precode.table);
+          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                            "Internal error extracting RAR file.");
+          return (ARCHIVE_FATAL);
+        }
+
+        if(val == 16) {
+          if (!rar_br_read_ahead(a, br, 3)) {
+            free(precode.tree);
+            free(precode.table);
+            goto truncated_data;
+          }
+          n = rar_br_bits(br, 3) + 3;
+          rar_br_consume(br, 3);
+        } else {
+          if (!rar_br_read_ahead(a, br, 7)) {
+            free(precode.tree);
+            free(precode.table);
+            goto truncated_data;
+          }
+          n = rar_br_bits(br, 7) + 11;
+          rar_br_consume(br, 7);
+        }
+
+        for (j = 0; j < n && i < HUFFMAN_TABLE_SIZE; j++)
+        {
+          rar->lengthtable[i] = rar->lengthtable[i-1];
+          i++;
+        }
+      }
+      else
+      {
+        if(val == 18) {
+          if (!rar_br_read_ahead(a, br, 3)) {
+            free(precode.tree);
+            free(precode.table);
+            goto truncated_data;
+          }
+          n = rar_br_bits(br, 3) + 3;
+          rar_br_consume(br, 3);
+        } else {
+          if (!rar_br_read_ahead(a, br, 7)) {
+            free(precode.tree);
+            free(precode.table);
+            goto truncated_data;
+          }
+          n = rar_br_bits(br, 7) + 11;
+          rar_br_consume(br, 7);
+        }
+
+        for(j = 0; j < n && i < HUFFMAN_TABLE_SIZE; j++)
+          rar->lengthtable[i++] = 0;
+      }
+    }
+    free(precode.tree);
+    free(precode.table);
+
+    r = create_code(a, &rar->maincode, &rar->lengthtable[0], MAINCODE_SIZE,
+                MAX_SYMBOL_LENGTH);
+    if (r != ARCHIVE_OK)
+      return (r);
+    r = create_code(a, &rar->offsetcode, &rar->lengthtable[MAINCODE_SIZE],
+                OFFSETCODE_SIZE, MAX_SYMBOL_LENGTH);
+    if (r != ARCHIVE_OK)
+      return (r);
+    r = create_code(a, &rar->lowoffsetcode,
+                &rar->lengthtable[MAINCODE_SIZE + OFFSETCODE_SIZE],
+                LOWOFFSETCODE_SIZE, MAX_SYMBOL_LENGTH);
+    if (r != ARCHIVE_OK)
+      return (r);
+    r = create_code(a, &rar->lengthcode,
+                &rar->lengthtable[MAINCODE_SIZE + OFFSETCODE_SIZE +
+                LOWOFFSETCODE_SIZE], LENGTHCODE_SIZE, MAX_SYMBOL_LENGTH);
+    if (r != ARCHIVE_OK)
+      return (r);
+  }
+
+  if (!rar->dictionary_size || !rar->lzss.window)
+  {
+    /* Seems as though dictionary sizes are not used. Even so, minimize
+     * memory usage as much as possible.
+     */
+    void *new_window;
+    unsigned int new_size;
+
+    if (rar->unp_size >= DICTIONARY_MAX_SIZE)
+      new_size = DICTIONARY_MAX_SIZE;
+    else
+      new_size = rar_fls((unsigned int)rar->unp_size) << 1;
+    new_window = realloc(rar->lzss.window, new_size);
+    if (new_window == NULL) {
+      archive_set_error(&a->archive, ENOMEM,
+                        "Unable to allocate memory for uncompressed data.");
+      return (ARCHIVE_FATAL);
+    }
+    rar->lzss.window = (unsigned char *)new_window;
+    rar->dictionary_size = new_size;
+    memset(rar->lzss.window, 0, rar->dictionary_size);
+    rar->lzss.mask = rar->dictionary_size - 1;
+  }
+
+  rar->start_new_table = 0;
+  return (ARCHIVE_OK);
+truncated_data:
+  archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                    "Truncated RAR file data");
+  rar->valid = 0;
+  return (ARCHIVE_FATAL);
 }
 
 static void
-gnu_clear_sparse_list(struct tar *tar)
+free_codes(struct archive_read *a)
 {
-	struct sparse_block *p;
-
-	while (tar->sparse_list != NULL) {
-		p = tar->sparse_list;
-		tar->sparse_list = p->next;
-		free(p);
-	}
-	tar->sparse_last = NULL;
+  struct rar *rar = (struct rar *)(a->format->data);
+  free(rar->maincode.tree);
+  free(rar->offsetcode.tree);
+  free(rar->lowoffsetcode.tree);
+  free(rar->lengthcode.tree);
+  free(rar->maincode.table);
+  free(rar->offsetcode.table);
+  free(rar->lowoffsetcode.table);
+  free(rar->lengthcode.table);
+  memset(&rar->maincode, 0, sizeof(rar->maincode));
+  memset(&rar->offsetcode, 0, sizeof(rar->offsetcode));
+  memset(&rar->lowoffsetcode, 0, sizeof(rar->lowoffsetcode));
+  memset(&rar->lengthcode, 0, sizeof(rar->lengthcode));
 }
 
-/*
- * GNU tar old-format sparse data.
- *
- * GNU old-format sparse data is stored in a fixed-field
- * format.  Offset/size values are 11-byte octal fields (same
- * format as 'size' field in ustart header).  These are
- * stored in the header, allocating subsequent header blocks
- * as needed.  Extending the header in this way is a pretty
- * severe POSIX violation; this design has earned GNU tar a
- * lot of criticism.
- */
 
 static int
-gnu_sparse_old_read(struct archive_read *a, struct tar *tar,
-    const struct archive_entry_header_gnutar *header, size_t *unconsumed)
+read_next_symbol(struct archive_read *a, struct huffman_code *code)
 {
-	ssize_t bytes_read;
-	const void *data;
-	struct extended {
-		struct gnu_sparse sparse[21];
-		char	isextended[1];
-		char	padding[7];
-	};
-	const struct extended *ext;
+  unsigned char bit;
+  unsigned int bits;
+  int length, value, node;
+  struct rar *rar;
+  struct rar_br *br;
 
-	if (gnu_sparse_old_parse(a, tar, header->sparse, 4) != ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
-	if (header->isextended[0] == 0)
-		return (ARCHIVE_OK);
+  if (!code->table)
+  {
+    if (make_table(a, code) != (ARCHIVE_OK))
+      return -1;
+  }
 
-	do {
-		tar_flush_unconsumed(a, unconsumed);
-		data = __archive_read_ahead(a, 512, &bytes_read);
-		if (bytes_read < 0)
-			return (ARCHIVE_FATAL);
-		if (bytes_read < 512) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated tar archive "
-			    "detected while reading sparse file data");
-			return (ARCHIVE_FATAL);
-		}
-		*unconsumed = 512;
-		ext = (const struct extended *)data;
-		if (gnu_sparse_old_parse(a, tar, ext->sparse, 21) != ARCHIVE_OK)
-			return (ARCHIVE_FATAL);
-	} while (ext->isextended[0] != 0);
-	if (tar->sparse_list != NULL)
-		tar->entry_offset = tar->sparse_list->offset;
-	return (ARCHIVE_OK);
-}
+  rar = (struct rar *)(a->format->data);
+  br = &(rar->br);
 
-static int
-gnu_sparse_old_parse(struct archive_read *a, struct tar *tar,
-    const struct gnu_sparse *sparse, int length)
-{
-	while (length > 0 && sparse->offset[0] != 0) {
-		if (gnu_add_sparse_entry(a, tar,
-		    tar_atol(sparse->offset, sizeof(sparse->offset)),
-		    tar_atol(sparse->numbytes, sizeof(sparse->numbytes)))
-		    != ARCHIVE_OK)
-			return (ARCHIVE_FATAL);
-		sparse++;
-		length--;
-	}
-	return (ARCHIVE_OK);
-}
+  /* Look ahead (peek) at bits */
+  if (!rar_br_read_ahead(a, br, code->tablesize)) {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Truncated RAR file data");
+    rar->valid = 0;
+    return -1;
+  }
+  bits = rar_br_bits(br, code->tablesize);
 
-/*
- * GNU tar sparse format 0.0
- *
- * Beginning with GNU tar 1.15, sparse files are stored using
- * information in the pax extended header.  The GNU tar maintainers
- * have gone through a number of variations in the process of working
- * out this scheme; fortunately, they're all numbered.
- *
- * Sparse format 0.0 uses attribute GNU.sparse.numblocks to store the
- * number of blocks, and GNU.sparse.offset/GNU.sparse.numbytes to
- * store offset/size for each block.  The repeated instances of these
- * latter fields violate the pax specification (which frowns on
- * duplicate keys), so this format was quickly replaced.
- */
+  length = code->table[bits].length;
+  value = code->table[bits].value;
 
-/*
- * GNU tar sparse format 0.1
- *
- * This version replaced the offset/numbytes attributes with
- * a single "map" attribute that stored a list of integers.  This
- * format had two problems: First, the "map" attribute could be very
- * long, which caused problems for some implementations.  More
- * importantly, the sparse data was lost when extracted by archivers
- * that didn't recognize this extension.
- */
+  if (length < 0)
+  {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Invalid prefix code in bitstream");
+    return -1;
+  }
 
-static int
-gnu_sparse_01_parse(struct archive_read *a, struct tar *tar, const char *p)
-{
-	const char *e;
-	int64_t offset = -1, size = -1;
+  if (length <= code->tablesize)
+  {
+    /* Skip length bits */
+    rar_br_consume(br, length);
+    return value;
+  }
 
-	for (;;) {
-		e = p;
-		while (*e != '\0' && *e != ',') {
-			if (*e < '0' || *e > '9')
-				return (ARCHIVE_WARN);
-			e++;
-		}
-		if (offset < 0) {
-			offset = tar_atol10(p, e - p);
-			if (offset < 0)
-				return (ARCHIVE_WARN);
-		} else {
-			size = tar_atol10(p, e - p);
-			if (size < 0)
-				return (ARCHIVE_WARN);
-			if (gnu_add_sparse_entry(a, tar, offset, size)
-			    != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-			offset = -1;
-		}
-		if (*e == '\0')
-			return (ARCHIVE_OK);
-		p = e + 1;
-	}
-}
+  /* Skip tablesize bits */
+  rar_br_consume(br, code->tablesize);
 
-/*
- * GNU tar sparse format 1.0
- *
- * The idea: The offset/size data is stored as a series of base-10
- * ASCII numbers prepended to the file data, so that dearchivers that
- * don't support this format will extract the block map along with the
- * data and a separate post-process can restore the sparseness.
- *
- * Unfortunately, GNU tar 1.16 had a bug that added unnecessary
- * padding to the body of the file when using this format.  GNU tar
- * 1.17 corrected this bug without bumping the version number, so
- * it's not possible to support both variants.  This code supports
- * the later variant at the expense of not supporting the former.
- *
- * This variant also replaced GNU.sparse.size with GNU.sparse.realsize
- * and introduced the GNU.sparse.major/GNU.sparse.minor attributes.
- */
+  node = value;
+  while (!(code->tree[node].branches[0] ==
+    code->tree[node].branches[1]))
+  {
+    if (!rar_br_read_ahead(a, br, 1)) {
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Truncated RAR file data");
+      rar->valid = 0;
+      return -1;
+    }
+    bit = rar_br_bits(br, 1);
+    rar_br_consume(br, 1);
 
-/*
- * Read the next line from the input, and parse it as a decimal
- * integer followed by '\n'.  Returns positive integer value or
- * negative on error.
- */
-static int64_t
-gnu_sparse_10_atol(struct archive_read *a, struct tar *tar,
-    int64_t *remaining, size_t *unconsumed)
-{
-	int64_t l, limit, last_digit_limit;
-	const char *p;
-	ssize_t bytes_read;
-	int base, digit;
+    if (code->tree[node].branches[bit] < 0)
+    {
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Invalid prefix code in bitstream");
+      return -1;
+    }
+    node = code->tree[node].branches[bit];
+  }
 
-	base = 10;
-	limit = INT64_MAX / base;
-	last_digit_limit = INT64_MAX % base;
-
-	/*
-	 * Skip any lines starting with '#'; GNU tar specs
-	 * don't require this, but they should.
-	 */
-	do {
-		bytes_read = readline(a, tar, &p,
-			(ssize_t)tar_min(*remaining, 100), unconsumed);
-		if (bytes_read <= 0)
-			return (ARCHIVE_FATAL);
-		*remaining -= bytes_read;
-	} while (p[0] == '#');
-
-	l = 0;
-	while (bytes_read > 0) {
-		if (*p == '\n')
-			return (l);
-		if (*p < '0' || *p >= '0' + base)
-			return (ARCHIVE_WARN);
-		digit = *p - '0';
-		if (l > limit || (l == limit && digit > last_digit_limit))
-			l = INT64_MAX; /* Truncate on overflow. */
-		else
-			l = (l * base) + digit;
-		p++;
-		bytes_read--;
-	}
-	/* TODO: Error message. */
-	return (ARCHIVE_WARN);
-}
-
-/*
- * Returns length (in bytes) of the sparse data description
- * that was read.
- */
-static ssize_t
-gnu_sparse_10_read(struct archive_read *a, struct tar *tar, size_t *unconsumed)
-{
-	ssize_t bytes_read;
-	int entries;
-	int64_t offset, size, to_skip, remaining;
-
-	/* Clear out the existing sparse list. */
-	gnu_clear_sparse_list(tar);
-
-	remaining = tar->entry_bytes_remaining;
-
-	/* Parse entries. */
-	entries = (int)gnu_sparse_10_atol(a, tar, &remaining, unconsumed);
-	if (entries < 0)
-		return (ARCHIVE_FATAL);
-	/* Parse the individual entries. */
-	while (entries-- > 0) {
-		/* Parse offset/size */
-		offset = gnu_sparse_10_atol(a, tar, &remaining, unconsumed);
-		if (offset < 0)
-			return (ARCHIVE_FATAL);
-		size = gnu_sparse_10_atol(a, tar, &remaining, unconsumed);
-		if (size < 0)
-			return (ARCHIVE_FATAL);
-		/* Add a new sparse entry. */
-		if (gnu_add_sparse_entry(a, tar, offset, size) != ARCHIVE_OK)
-			return (ARCHIVE_FATAL);
-	}
-	/* Skip rest of block... */
-	tar_flush_unconsumed(a, unconsumed);
-	bytes_read = (ssize_t)(tar->entry_bytes_remaining - remaining);
-	to_skip = 0x1ff & -bytes_read;
-	if (to_skip != __archive_read_consume(a, to_skip))
-		return (ARCHIVE_FATAL);
-	return ((ssize_t)(bytes_read + to_skip));
-}
-
-/*
- * Solaris pax extension for a sparse file. This is recorded with the
- * data and hole pairs. The way recording sparse information by Solaris'
- * pax simply indicates where data and sparse are, so the stored contents
- * consist of both data and hole.
- */
-static int
-solaris_sparse_parse(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const char *p)
-{
-	const char *e;
-	int64_t start, end;
-	int hole = 1;
-
-	(void)entry; /* UNUSED */
-
-	end = 0;
-	if (*p == ' ')
-		p++;
-	else
-		return (ARCHIVE_WARN);
-	for (;;) {
-		e = p;
-		while (*e != '\0' && *e != ' ') {
-			if (*e < '0' || *e > '9')
-				return (ARCHIVE_WARN);
-			e++;
-		}
-		start = end;
-		end = tar_atol10(p, e - p);
-		if (end < 0)
-			return (ARCHIVE_WARN);
-		if (start < end) {
-			if (gnu_add_sparse_entry(a, tar, start,
-			    end - start) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-			tar->sparse_last->hole = hole;
-		}
-		if (*e == '\0')
-			return (ARCHIVE_OK);
-		p = e + 1;
-		hole = hole == 0;
-	}
-}
-
-/*-
- * Convert text->integer.
- *
- * Traditional tar formats (including POSIX) specify base-8 for
- * all of the standard numeric fields.  This is a significant limitation
- * in practice:
- *   = file size is limited to 8GB
- *   = rdevmajor and rdevminor are limited to 21 bits
- *   = uid/gid are limited to 21 bits
- *
- * There are two workarounds for this:
- *   = pax extended headers, which use variable-length string fields
- *   = GNU tar and STAR both allow either base-8 or base-256 in
- *      most fields.  The high bit is set to indicate base-256.
- *
- * On read, this implementation supports both extensions.
- */
-static int64_t
-tar_atol(const char *p, size_t char_cnt)
-{
-	/*
-	 * Technically, GNU tar considers a field to be in base-256
-	 * only if the first byte is 0xff or 0x80.
-	 */
-	if (*p & 0x80)
-		return (tar_atol256(p, char_cnt));
-	return (tar_atol8(p, char_cnt));
-}
-
-/*
- * Note that this implementation does not (and should not!) obey
- * locale settings; you cannot simply substitute strtol here, since
- * it does obey locale.
- */
-static int64_t
-tar_atol_base_n(const char *p, size_t char_cnt, int base)
-{
-	int64_t	l, maxval, limit, last_digit_limit;
-	int digit, sign;
-
-	maxval = INT64_MAX;
-	limit = INT64_MAX / base;
-	last_digit_limit = INT64_MAX % base;
-
-	/* the pointer will not be dereferenced if char_cnt is zero
-	 * due to the way the && operator is evaulated.
-	 */
-	while (char_cnt != 0 && (*p == ' ' || *p == '\t')) {
-		p++;
-		char_cnt--;
-	}
-
-	sign = 1;
-	if (char_cnt != 0 && *p == '-') {
-		sign = -1;
-		p++;
-		char_cnt--;
-
-		maxval = INT64_MIN;
-		limit = -(INT64_MIN / base);
-		last_digit_limit = INT64_MIN % base;
-	}
-
-	l = 0;
-	if (char_cnt != 0) {
-		digit = *p - '0';
-		while (digit >= 0 && digit < base  && char_cnt != 0) {
-			if (l>limit || (l == limit && digit > last_digit_limit)) {
-				return maxval; /* Truncate on overflow. */
-			}
-			l = (l * base) + digit;
-			digit = *++p - '0';
-			char_cnt--;
-		}
-	}
-	return (sign < 0) ? -l : l;
-}
-
-static int64_t
-tar_atol8(const char *p, size_t char_cnt)
-{
-	return tar_atol_base_n(p, char_cnt, 8);
-}
-
-static int64_t
-tar_atol10(const char *p, size_t char_cnt)
-{
-	return tar_atol_base_n(p, char_cnt, 10);
-}
-
-/*
- * Parse a base-256 integer.  This is just a variable-length
- * twos-complement signed binary value in big-endian order, except
- * that the high-order bit is ignored.  The values here can be up to
- * 12 bytes, so we need to be careful about overflowing 64-bit
- * (8-byte) integers.
- *
- * This code unashamedly assumes that the local machine uses 8-bit
- * bytes and twos-complement arithmetic.
- */
-static int64_t
-tar_atol256(const char *_p, size_t char_cnt)
-{
-	uint64_t l;
-	const unsigned char *p = (const unsigned char *)_p;
-	unsigned char c, neg;
-
-	/* Extend 7-bit 2s-comp to 8-bit 2s-comp, decide sign. */
-	c = *p;
-	if (c & 0x40) {
-		neg = 0xff;
-		c |= 0x80;
-		l = ~ARCHIVE_LITERAL_ULL(0);
-	} else {
-		neg = 0;
-		c &= 0x7f;
-		l = 0;
-	}
-
-	/* If more than 8 bytes, check that we can ignore
-	 * high-order bits without overflow. */
-	while (char_cnt > sizeof(int64_t)) {
-		--char_cnt;
-		if (c != neg)
-			return neg ? INT64_MIN : INT64_MAX;
-		c = *++p;
-	}
-
-	/* c is first byte that fits; if sign mismatch, return overflow */
-	if ((c ^ neg) & 0x80) {
-		return neg ? INT64_MIN : INT64_MAX;
-	}
-
-	/* Accumulate remaining bytes. */
-	while (--char_cnt > 0) {
-		l = (l << 8) | c;
-		c = *++p;
-	}
-	l = (l << 8) | c;
-	/* Return signed twos-complement value. */
-	return (int64_t)(l);
-}
-
-/*
- * Returns length of line (including trailing newline)
- * or negative on error.  'start' argument is updated to
- * point to first character of line.  This avoids copying
- * when possible.
- */
-static ssize_t
-readline(struct archive_read *a, struct tar *tar, const char **start,
-    ssize_t limit, size_t *unconsumed)
-{
-	ssize_t bytes_read;
-	ssize_t total_size = 0;
-	const void *t;
-	const char *s;
-	void *p;
-
-	tar_flush_unconsumed(a, unconsumed);
-
-	t = __archive_read_ahead(a, 1, &bytes_read);
-	if (bytes_read <= 0)
-		return (ARCHIVE_FATAL);
-	s = t;  /* Start of line? */
-	p = memchr(t, '\n', bytes_read);
-	/* If we found '\n' in the read buffer, return pointer to that. */
-	if (p != NULL) {
-		bytes_read = 1 + ((const char *)p) - s;
-		if (bytes_read > limit) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Line too long");
-			return (ARCHIVE_FATAL);
-		}
-		*unconsumed = bytes_read;
-		*start = s;
-		return (bytes_read);
-	}
-	*unconsumed = bytes_read;
-	/* Otherwise, we need to accumulate in a line buffer. */
-	for (;;) {
-		if (total_size + bytes_read > limit) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Line too long");
-			return (ARCHIVE_FATAL);
-		}
-		if (archive_string_ensure(&tar->line, total_size + bytes_read) == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate working buffer");
-			return (ARCHIVE_FATAL);
-		}
-		memcpy(tar->line.s + total_size, t, bytes_read);
-		tar_flush_unconsumed(a, unconsumed);
-		total_size += bytes_read;
-		/* If we found '\n', clean up and return. */
-		if (p != NULL) {
-			*start = tar->line.s;
-			return (total_size);
-		}
-		/* Read some more. */
-		t = __archive_read_ahead(a, 1, &bytes_read);
-		if (bytes_read <= 0)
-			return (ARCHIVE_FATAL);
-		s = t;  /* Start of line? */
-		p = memchr(t, '\n', bytes_read);
-		/* If we found '\n', trim the read. */
-		if (p != NULL) {
-			bytes_read = 1 + ((const char *)p) - s;
-		}
-		*unconsumed = bytes_read;
-	}
-}
-
-/*
- * base64_decode - Base64 decode
- *
- * This accepts most variations of base-64 encoding, including:
- *    * with or without line breaks
- *    * with or without the final group padded with '=' or '_' characters
- * (The most economical Base-64 variant does not pad the last group and
- * omits line breaks; RFC1341 used for MIME requires both.)
- */
-static char *
-base64_decode(const char *s, size_t len, size_t *out_len)
-{
-	static const unsigned char digits[64] = {
-		'A','B','C','D','E','F','G','H','I','J','K','L','M','N',
-		'O','P','Q','R','S','T','U','V','W','X','Y','Z','a','b',
-		'c','d','e','f','g','h','i','j','k','l','m','n','o','p',
-		'q','r','s','t','u','v','w','x','y','z','0','1','2','3',
-		'4','5','6','7','8','9','+','/' };
-	static unsigned char decode_table[128];
-	char *out, *d;
-	const unsigned char *src = (const unsigned char *)s;
-
-	/* If the decode table is not yet initialized, prepare it. */
-	if (decode_table[digits[1]] != 1) {
-		unsigned i;
-		memset(decode_table, 0xff, sizeof(decode_table));
-		for (i = 0; i < sizeof(digits); i++)
-			decode_table[digits[i]] = i;
-	}
-
-	/* Allocate enough space to hold the entire output. */
-	/* Note that we may not use all of this... */
-	out = (char *)malloc(len - len / 4 + 1);
-	if (out == NULL) {
-		*out_len = 0;
-		return (NULL);
-	}
-	d = out;
-
-	while (len > 0) {
-		/* Collect the next group of (up to) four characters. */
-		int v = 0;
-		int group_size = 0;
-		while (group_size < 4 && len > 0) {
-			/* '=' or '_' padding indicates final group. */
-			if (*src == '=' || *src == '_') {
-				len = 0;
-				break;
-			}
-			/* Skip illegal characters (including line breaks) */
-			if (*src > 127 || *src < 32
-			    || decode_table[*src] == 0xff) {
-				len--;
-				src++;
-				continue;
-			}
-			v <<= 6;
-			v |= decode_table[*src++];
-			len --;
-			group_size++;
-		}
-		/* Align a short group properly. */
-		v <<= 6 * (4 - group_size);
-		/* Unpack the group we just collected. */
-		switch (group_size) {
-		case 4: d[2] = v & 0xff;
-			/* FALLTHROUGH */
-		case 3: d[1] = (v >> 8) & 0xff;
-			/* FALLTHROUGH */
-		case 2: d[0] = (v >> 16) & 0xff;
-			break;
-		case 1: /* this is invalid! */
-			break;
-		}
-		d += group_size * 3 / 4;
-	}
-
-	*out_len = d - out;
-	return (out);
-}
-
-static char *
-url_decode(const char *in)
-{
-	char *out, *d;
-	const char *s;
-
-	out = (char *)malloc(strlen(in) + 1);
-	if (out == NULL)
-		return (NULL);
-	for (s = in, d = out; *s != '\0'; ) {
-		if (s[0] == '%' && s[1] != '\0' && s[2] != '\0') {
-			/* Try to convert % escape */
-			int digit1 = tohex(s[1]);
-			int digit2 = tohex(s[2]);
-			if (digit1 >= 0 && digit2 >= 0) {
-				/* Looks good, consume three chars */
-				s += 3;
-				/* Convert output */
-				*d++ = ((digit1 << 4) | digit2);
-				continue;
-			}
-			/* Else fall through and treat '%' as normal char */
-		}
-		*d++ = *s++;
-	}
-	*d = '\0';
-	return (out);
+  return code->tree[node].branches[0];
 }
 
 static int
-tohex(int c)
+create_code(struct archive_read *a, struct huffman_code *code,
+            unsigned char *lengths, int numsymbols, char maxlength)
 {
-	if (c >= '0' && c <= '9')
-		return (c - '0');
-	else if (c >= 'A' && c <= 'F')
-		return (c - 'A' + 10);
-	else if (c >= 'a' && c <= 'f')
-		return (c - 'a' + 10);
-	else
-		return (-1);
+  int i, j, codebits = 0, symbolsleft = numsymbols;
+
+  if (new_node(code) < 0) {
+    archive_set_error(&a->archive, ENOMEM,
+                      "Unable to allocate memory for node data.");
+    return (ARCHIVE_FATAL);
+  }
+  code->numentries = 1;
+  code->minlength = INT_MAX;
+  code->maxlength = INT_MIN;
+  codebits = 0;
+  for(i = 1; i <= maxlength; i++)
+  {
+    for(j = 0; j < numsymbols; j++)
+    {
+      if (lengths[j] != i) continue;
+      if (add_value(a, code, j, codebits, i) != ARCHIVE_OK)
+        return (ARCHIVE_FATAL);
+      codebits++;
+      if (--symbolsleft <= 0) { break; break; }
+    }
+    codebits <<= 1;
+  }
+  return (ARCHIVE_OK);
+}
+
+static int
+add_value(struct archive_read *a, struct huffman_code *code, int value,
+          int codebits, int length)
+{
+  int repeatpos, lastnode, bitpos, bit, repeatnode, nextnode;
+
+  free(code->table);
+  code->table = NULL;
+
+  if(length > code->maxlength)
+    code->maxlength = length;
+  if(length < code->minlength)
+    code->minlength = length;
+
+  repeatpos = -1;
+  if (repeatpos == 0 || (repeatpos >= 0
+    && (((codebits >> (repeatpos - 1)) & 3) == 0
+    || ((codebits >> (repeatpos - 1)) & 3) == 3)))
+  {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Invalid repeat position");
+    return (ARCHIVE_FATAL);
+  }
+
+  lastnode = 0;
+  for (bitpos = length - 1; bitpos >= 0; bitpos--)
+  {
+    bit = (codebits >> bitpos) & 1;
+
+    /* Leaf node check */
+    if (code->tree[lastnode].branches[0] ==
+      code->tree[lastnode].branches[1])
+    {
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Prefix found");
+      return (ARCHIVE_FATAL);
+    }
+
+    if (bitpos == repeatpos)
+    {
+      /* Open branch check */
+      if (!(code->tree[lastnode].branches[bit] < 0))
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Invalid repeating code");
+        return (ARCHIVE_FATAL);
+      }
+
+      if ((repeatnode = new_node(code)) < 0) {
+        archive_set_error(&a->archive, ENOMEM,
+                          "Unable to allocate memory for node data.");
+        return (ARCHIVE_FATAL);
+      }
+      if ((nextnode = new_node(code)) < 0) {
+        archive_set_error(&a->archive, ENOMEM,
+                          "Unable to allocate memory for node data.");
+        return (ARCHIVE_FATAL);
+      }
+
+      /* Set branches */
+      code->tree[lastnode].branches[bit] = repeatnode;
+      code->tree[repeatnode].branches[bit] = repeatnode;
+      code->tree[repeatnode].branches[bit^1] = nextnode;
+      lastnode = nextnode;
+
+      bitpos++; /* terminating bit already handled, skip it */
+    }
+    else
+    {
+      /* Open branch check */
+      if (code->tree[lastnode].branches[bit] < 0)
+      {
+        if (new_node(code) < 0) {
+          archive_set_error(&a->archive, ENOMEM,
+                            "Unable to allocate memory for node data.");
+          return (ARCHIVE_FATAL);
+        }
+        code->tree[lastnode].branches[bit] = code->numentries++;
+      }
+
+      /* set to branch */
+      lastnode = code->tree[lastnode].branches[bit];
+    }
+  }
+
+  if (!(code->tree[lastnode].branches[0] == -1
+    && code->tree[lastnode].branches[1] == -2))
+  {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Prefix found");
+    return (ARCHIVE_FATAL);
+  }
+
+  /* Set leaf value */
+  code->tree[lastnode].branches[0] = value;
+  code->tree[lastnode].branches[1] = value;
+
+  return (ARCHIVE_OK);
+}
+
+static int
+new_node(struct huffman_code *code)
+{
+  void *new_tree;
+
+  new_tree = realloc(code->tree, (code->numentries + 1) * sizeof(*code->tree));
+  if (new_tree == NULL)
+    return (-1);
+  code->tree = (struct huffman_tree_node *)new_tree;
+  code->tree[code->numentries].branches[0] = -1;
+  code->tree[code->numentries].branches[1] = -2;
+  return 1;
+}
+
+static int
+make_table(struct archive_read *a, struct huffman_code *code)
+{
+  if (code->maxlength < code->minlength || code->maxlength > 10)
+    code->tablesize = 10;
+  else
+    code->tablesize = code->maxlength;
+
+  code->table =
+    (struct huffman_table_entry *)calloc(1, sizeof(*code->table)
+    * ((size_t)1 << code->tablesize));
+
+  return make_table_recurse(a, code, 0, code->table, 0, code->tablesize);
+}
+
+static int
+make_table_recurse(struct archive_read *a, struct huffman_code *code, int node,
+                   struct huffman_table_entry *table, int depth,
+                   int maxdepth)
+{
+  int currtablesize, i, ret = (ARCHIVE_OK);
+
+  if (!code->tree)
+  {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Huffman tree was not created.");
+    return (ARCHIVE_FATAL);
+  }
+  if (node < 0 || node >= code->numentries)
+  {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Invalid location to Huffman tree specified.");
+    return (ARCHIVE_FATAL);
+  }
+
+  currtablesize = 1 << (maxdepth - depth);
+
+  if (code->tree[node].branches[0] ==
+    code->tree[node].branches[1])
+  {
+    for(i = 0; i < currtablesize; i++)
+    {
+      table[i].length = depth;
+      table[i].value = code->tree[node].branches[0];
+    }
+  }
+  else if (node < 0)
+  {
+    for(i = 0; i < currtablesize; i++)
+      table[i].length = -1;
+  }
+  else
+  {
+    if(depth == maxdepth)
+    {
+      table[0].length = maxdepth + 1;
+      table[0].value = node;
+    }
+    else
+    {
+      ret |= make_table_recurse(a, code, code->tree[node].branches[0], table,
+                                depth + 1, maxdepth);
+      ret |= make_table_recurse(a, code, code->tree[node].branches[1],
+                         table + currtablesize / 2, depth + 1, maxdepth);
+    }
+  }
+  return ret;
+}
+
+static int64_t
+expand(struct archive_read *a, int64_t end)
+{
+  static const unsigned char lengthbases[] =
+    {   0,   1,   2,   3,   4,   5,   6,
+        7,   8,  10,  12,  14,  16,  20,
+       24,  28,  32,  40,  48,  56,  64,
+       80,  96, 112, 128, 160, 192, 224 };
+  static const unsigned char lengthbits[] =
+    { 0, 0, 0, 0, 0, 0, 0,
+      0, 1, 1, 1, 1, 2, 2,
+      2, 2, 3, 3, 3, 3, 4,
+      4, 4, 4, 5, 5, 5, 5 };
+  static const unsigned int offsetbases[] =
+    {       0,       1,       2,       3,       4,       6,
+            8,      12,      16,      24,      32,      48,
+           64,      96,     128,     192,     256,     384,
+          512,     768,    1024,    1536,    2048,    3072,
+         4096,    6144,    8192,   12288,   16384,   24576,
+        32768,   49152,   65536,   98304,  131072,  196608,
+       262144,  327680,  393216,  458752,  524288,  589824,
+       655360,  720896,  786432,  851968,  917504,  983040,
+      1048576, 1310720, 1572864, 1835008, 2097152, 2359296,
+      2621440, 2883584, 3145728, 3407872, 3670016, 3932160 };
+  static const unsigned char offsetbits[] =
+    {  0,  0,  0,  0,  1,  1,  2,  2,  3,  3,  4,  4,
+       5,  5,  6,  6,  7,  7,  8,  8,  9,  9, 10, 10,
+      11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16,
+      16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
+      18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18 };
+  static const unsigned char shortbases[] =
+    { 0, 4, 8, 16, 32, 64, 128, 192 };
+  static const unsigned char shortbits[] =
+    { 2, 2, 3, 4, 5, 6, 6, 6 };
+
+  int symbol, offs, len, offsindex, lensymbol, i, offssymbol, lowoffsetsymbol;
+  unsigned char newfile;
+  struct rar *rar = (struct rar *)(a->format->data);
+  struct rar_br *br = &(rar->br);
+
+  if (rar->filterstart < end)
+    end = rar->filterstart;
+
+  while (1)
+  {
+    if (rar->output_last_match &&
+      lzss_position(&rar->lzss) + rar->lastlength <= end)
+    {
+      lzss_emit_match(rar, rar->lastoffset, rar->lastlength);
+      rar->output_last_match = 0;
+    }
+
+    if(rar->is_ppmd_block || rar->output_last_match ||
+      lzss_position(&rar->lzss) >= end)
+      return lzss_position(&rar->lzss);
+
+    if ((symbol = read_next_symbol(a, &rar->maincode)) < 0)
+      return (ARCHIVE_FATAL);
+    rar->output_last_match = 0;
+
+    if (symbol < 256)
+    {
+      lzss_emit_literal(rar, symbol);
+      continue;
+    }
+    else if (symbol == 256)
+    {
+      if (!rar_br_read_ahead(a, br, 1))
+        goto truncated_data;
+      newfile = !rar_br_bits(br, 1);
+      rar_br_consume(br, 1);
+
+      if(newfile)
+      {
+        rar->start_new_block = 1;
+        if (!rar_br_read_ahead(a, br, 1))
+          goto truncated_data;
+        rar->start_new_table = rar_br_bits(br, 1);
+        rar_br_consume(br, 1);
+        return lzss_position(&rar->lzss);
+      }
+      else
+      {
+        if (parse_codes(a) != ARCHIVE_OK)
+          return (ARCHIVE_FATAL);
+        continue;
+      }
+    }
+    else if(symbol==257)
+    {
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+                        "Parsing filters is unsupported.");
+      return (ARCHIVE_FAILED);
+    }
+    else if(symbol==258)
+    {
+      if(rar->lastlength == 0)
+        continue;
+
+      offs = rar->lastoffset;
+      len = rar->lastlength;
+    }
+    else if (symbol <= 262)
+    {
+      offsindex = symbol - 259;
+      offs = rar->oldoffset[offsindex];
+
+      if ((lensymbol = read_next_symbol(a, &rar->lengthcode)) < 0)
+        goto bad_data;
+      if (lensymbol > (int)(sizeof(lengthbases)/sizeof(lengthbases[0])))
+        goto bad_data;
+      if (lensymbol > (int)(sizeof(lengthbits)/sizeof(lengthbits[0])))
+        goto bad_data;
+      len = lengthbases[lensymbol] + 2;
+      if (lengthbits[lensymbol] > 0) {
+        if (!rar_br_read_ahead(a, br, lengthbits[lensymbol]))
+          goto truncated_data;
+        len += rar_br_bits(br, lengthbits[lensymbol]);
+        rar_br_consume(br, lengthbits[lensymbol]);
+      }
+
+      for (i = offsindex; i > 0; i--)
+        rar->oldoffset[i] = rar->oldoffset[i-1];
+      rar->oldoffset[0] = offs;
+    }
+    else if(symbol<=270)
+    {
+      offs = shortbases[symbol-263] + 1;
+      if(shortbits[symbol-263] > 0) {
+        if (!rar_br_read_ahead(a, br, shortbits[symbol-263]))
+          goto truncated_data;
+        offs += rar_br_bits(br, shortbits[symbol-263]);
+        rar_br_consume(br, shortbits[symbol-263]);
+      }
+
+      len = 2;
+
+      for(i = 3; i > 0; i--)
+        rar->oldoffset[i] = rar->oldoffset[i-1];
+      rar->oldoffset[0] = offs;
+    }
+    else
+    {
+      if (symbol-271 > (int)(sizeof(lengthbases)/sizeof(lengthbases[0])))
+        goto bad_data;
+      if (symbol-271 > (int)(sizeof(lengthbits)/sizeof(lengthbits[0])))
+        goto bad_data;
+      len = lengthbases[symbol-271]+3;
+      if(lengthbits[symbol-271] > 0) {
+        if (!rar_br_read_ahead(a, br, lengthbits[symbol-271]))
+          goto truncated_data;
+        len += rar_br_bits(br, lengthbits[symbol-271]);
+        rar_br_consume(br, lengthbits[symbol-271]);
+      }
+
+      if ((offssymbol = read_next_symbol(a, &rar->offsetcode)) < 0)
+        goto bad_data;
+      if (offssymbol > (int)(sizeof(offsetbases)/sizeof(offsetbases[0])))
+        goto bad_data;
+      if (offssymbol > (int)(sizeof(offsetbits)/sizeof(offsetbits[0])))
+        goto bad_data;
+      offs = offsetbases[offssymbol]+1;
+      if(offsetbits[offssymbol] > 0)
+      {
+        if(offssymbol > 9)
+        {
+          if(offsetbits[offssymbol] > 4) {
+            if (!rar_br_read_ahead(a, br, offsetbits[offssymbol] - 4))
+              goto truncated_data;
+            offs += rar_br_bits(br, offsetbits[offssymbol] - 4) << 4;
+            rar_br_consume(br, offsetbits[offssymbol] - 4);
+	  }
+
+          if(rar->numlowoffsetrepeats > 0)
+          {
+            rar->numlowoffsetrepeats--;
+            offs += rar->lastlowoffset;
+          }
+          else
+          {
+            if ((lowoffsetsymbol =
+              read_next_symbol(a, &rar->lowoffsetcode)) < 0)
+              return (ARCHIVE_FATAL);
+            if(lowoffsetsymbol == 16)
+            {
+              rar->numlowoffsetrepeats = 15;
+              offs += rar->lastlowoffset;
+            }
+            else
+            {
+              offs += lowoffsetsymbol;
+              rar->lastlowoffset = lowoffsetsymbol;
+            }
+          }
+        }
+        else {
+          if (!rar_br_read_ahead(a, br, offsetbits[offssymbol]))
+            goto truncated_data;
+          offs += rar_br_bits(br, offsetbits[offssymbol]);
+          rar_br_consume(br, offsetbits[offssymbol]);
+        }
+      }
+
+      if (offs >= 0x40000)
+        len++;
+      if (offs >= 0x2000)
+        len++;
+
+      for(i = 3; i > 0; i--)
+        rar->oldoffset[i] = rar->oldoffset[i-1];
+      rar->oldoffset[0] = offs;
+    }
+
+    rar->lastoffset = offs;
+    rar->lastlength = len;
+    rar->output_last_match = 1;
+  }
+truncated_data:
+  archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                    "Truncated RAR file data");
+  rar->valid = 0;
+  return (ARCHIVE_FATAL);
+bad_data:
+  archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                    "Bad RAR file data");
+  return (ARCHIVE_FATAL);
+}
+
+static int
+copy_from_lzss_window(struct archive_read *a, const void **buffer,
+                        int64_t startpos, int length)
+{
+  int windowoffs, firstpart;
+  struct rar *rar = (struct rar *)(a->format->data);
+
+  if (!rar->unp_buffer)
+  {
+    if ((rar->unp_buffer = malloc(rar->unp_buffer_size)) == NULL)
+    {
+      archive_set_error(&a->archive, ENOMEM,
+                        "Unable to allocate memory for uncompressed data.");
+      return (ARCHIVE_FATAL);
+    }
+  }
+
+  windowoffs = lzss_offset_for_position(&rar->lzss, startpos);
+  if(windowoffs + length <= lzss_size(&rar->lzss))
+    memcpy(&rar->unp_buffer[rar->unp_offset], &rar->lzss.window[windowoffs],
+           length);
+  else
+  {
+    firstpart = lzss_size(&rar->lzss) - windowoffs;
+    if (firstpart < 0) {
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Bad RAR file data");
+      return (ARCHIVE_FATAL);
+    }
+    if (firstpart < length) {
+      memcpy(&rar->unp_buffer[rar->unp_offset],
+             &rar->lzss.window[windowoffs], firstpart);
+      memcpy(&rar->unp_buffer[rar->unp_offset + firstpart],
+             &rar->lzss.window[0], length - firstpart);
+    } else
+      memcpy(&rar->unp_buffer[rar->unp_offset],
+             &rar->lzss.window[windowoffs], length);
+  }
+  rar->unp_offset += length;
+  if (rar->unp_offset >= rar->unp_buffer_size)
+    *buffer = rar->unp_buffer;
+  else
+    *buffer = NULL;
+  return (ARCHIVE_OK);
+}
+
+static const void *
+rar_read_ahead(struct archive_read *a, size_t min, ssize_t *avail)
+{
+  struct rar *rar = (struct rar *)(a->format->data);
+  const void *h = __archive_read_ahead(a, min, avail);
+  int ret;
+  if (avail)
+  {
+    if (a->read_data_is_posix_read && *avail > (ssize_t)a->read_data_requested)
+      *avail = a->read_data_requested;
+    if (*avail > rar->bytes_remaining)
+      *avail = (ssize_t)rar->bytes_remaining;
+    if (*avail < 0)
+      return NULL;
+    else if (*avail == 0 && rar->main_flags & MHD_VOLUME &&
+      rar->file_flags & FHD_SPLIT_AFTER)
+    {
+      ret = archive_read_format_rar_read_header(a, a->entry);
+      if (ret == (ARCHIVE_EOF))
+      {
+        rar->has_endarc_header = 1;
+        ret = archive_read_format_rar_read_header(a, a->entry);
+      }
+      if (ret != (ARCHIVE_OK))
+        return NULL;
+      return rar_read_ahead(a, min, avail);
+    }
+  }
+  return h;
 }

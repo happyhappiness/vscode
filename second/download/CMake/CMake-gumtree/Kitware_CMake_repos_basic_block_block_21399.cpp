@@ -1,0 +1,1 @@
+prefix_len = (sa->sa_family == AF_INET6) ? 128 : 32

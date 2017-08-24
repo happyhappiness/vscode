@@ -1,0 +1,1 @@
+return (ARCHIVE_ENTRY_ACL_TYPE_NFS4);

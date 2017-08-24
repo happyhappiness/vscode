@@ -1,0 +1,1 @@
+mode |= S_IWUSR | S_IWGRP | S_IWOTH

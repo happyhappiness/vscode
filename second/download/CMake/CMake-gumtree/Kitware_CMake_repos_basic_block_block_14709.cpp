@@ -1,0 +1,1 @@
+ace->a_type = ACE_ACCESS_DENIED_ACE_TYPE

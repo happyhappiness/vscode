@@ -1,42 +1,69 @@
-@@ -7,7 +7,7 @@
-  *                            | (__| |_| |  _ <| |___
-  *                             \___|\___/|_| \_\_____|
-  *
-- * Copyright (C) 1998 - 2006, Daniel Stenberg, <daniel@haxx.se>, et al.
-+ * Copyright (C) 1998 - 2013, Daniel Stenberg, <daniel@haxx.se>, et al.
-  *
-  * This software is licensed as described in the file COPYING, which
-  * you should have received as part of this distribution. The terms
-@@ -20,7 +20,6 @@
-  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
-  * KIND, either express or implied.
-  *
-- * $Id$
-  ***************************************************************************/
+@@ -16,7 +16,6 @@
+ #include "cmake.h"
+ #include "cmFunctionBlocker.h"
+ #include "cmMakefile.h"
+-#include "cmLocalGenerator.h"
+ #include "cmGlobalGenerator.h"
+ #include "cmGeneratedFileStream.h"
  
- #include <stdarg.h>
-@@ -35,11 +34,13 @@ extern "C" {
- CURL_EXTERN int curl_mprintf(const char *format, ...);
- CURL_EXTERN int curl_mfprintf(FILE *fd, const char *format, ...);
- CURL_EXTERN int curl_msprintf(char *buffer, const char *format, ...);
--CURL_EXTERN int curl_msnprintf(char *buffer, size_t maxlength, const char *format, ...);
-+CURL_EXTERN int curl_msnprintf(char *buffer, size_t maxlength,
-+                               const char *format, ...);
- CURL_EXTERN int curl_mvprintf(const char *format, va_list args);
- CURL_EXTERN int curl_mvfprintf(FILE *fd, const char *format, va_list args);
- CURL_EXTERN int curl_mvsprintf(char *buffer, const char *format, va_list args);
--CURL_EXTERN int curl_mvsnprintf(char *buffer, size_t maxlength, const char *format, va_list args);
-+CURL_EXTERN int curl_mvsnprintf(char *buffer, size_t maxlength,
-+                                const char *format, va_list args);
- CURL_EXTERN char *curl_maprintf(const char *format, ...);
- CURL_EXTERN char *curl_mvaprintf(const char *format, va_list args);
+@@ -86,7 +85,6 @@ cmCTestScriptHandler::cmCTestScriptHandler()
+   this->EmptyBinDir = false;
+   this->EmptyBinDirOnce = false;
+   this->Makefile = 0;
+-  this->LocalGenerator = 0;
+   this->CMake = 0;
+   this->GlobalGenerator = 0;
  
-@@ -57,7 +58,7 @@ CURL_EXTERN char *curl_mvaprintf(const char *format, va_list args);
- # define printf curl_mprintf
- # define fprintf curl_mfprintf
- #ifdef CURLDEBUG
--/* When built with CURLDEBUG we define away the sprintf() functions since we
-+/* When built with CURLDEBUG we define away the sprintf functions since we
-    don't want internal code to be using them */
- # define sprintf sprintf_was_used
- # define vsprintf vsprintf_was_used
+@@ -128,9 +126,6 @@ void cmCTestScriptHandler::Initialize()
+   delete this->Makefile;
+   this->Makefile = 0;
+ 
+-  delete this->LocalGenerator;
+-  this->LocalGenerator = 0;
+-
+   delete this->GlobalGenerator;
+   this->GlobalGenerator = 0;
+ 
+@@ -141,7 +136,6 @@ void cmCTestScriptHandler::Initialize()
+ cmCTestScriptHandler::~cmCTestScriptHandler()
+ {
+   delete this->Makefile;
+-  delete this->LocalGenerator;
+   delete this->GlobalGenerator;
+   delete this->CMake;
+ }
+@@ -179,15 +173,14 @@ int cmCTestScriptHandler::ProcessHandler()
+ 
+ void cmCTestScriptHandler::UpdateElapsedTime()
+ {
+-  if (this->LocalGenerator)
++  if (this->Makefile)
+     {
+     // set the current elapsed time
+     char timeString[20];
+     int itime = static_cast<unsigned int>(cmSystemTools::GetTime()
+                                           - this->ScriptStartTime);
+     sprintf(timeString,"%i",itime);
+-    this->LocalGenerator->GetMakefile()->AddDefinition("CTEST_ELAPSED_TIME",
+-                                                   timeString);
++    this->Makefile->AddDefinition("CTEST_ELAPSED_TIME", timeString);
+     }
+ }
+ 
+@@ -316,7 +309,6 @@ void cmCTestScriptHandler::CreateCMake()
+     {
+     delete this->CMake;
+     delete this->GlobalGenerator;
+-    delete this->LocalGenerator;
+     delete this->Makefile;
+     }
+   this->CMake = new cmake;
+@@ -327,8 +319,6 @@ void cmCTestScriptHandler::CreateCMake()
+ 
+   cmState::Snapshot snapshot = this->CMake->GetCurrentSnapshot();
+   this->Makefile = new cmMakefile(this->GlobalGenerator, snapshot);
+-  this->LocalGenerator =
+-      this->GlobalGenerator->CreateLocalGenerator(this->Makefile);
+ 
+   this->CMake->SetProgressCallback(ctestScriptProgressCallback, this->CTest);
+ 

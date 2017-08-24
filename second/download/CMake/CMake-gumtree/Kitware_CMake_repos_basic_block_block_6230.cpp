@@ -1,0 +1,1 @@
+data->set.httpreq = HTTPREQ_GET

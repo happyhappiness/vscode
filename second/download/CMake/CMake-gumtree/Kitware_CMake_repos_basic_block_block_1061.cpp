@@ -1,0 +1,4 @@
+{
+        ++out;
+        foundNonZero = true;
+      }

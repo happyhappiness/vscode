@@ -1,0 +1,3 @@
+{
+		lpNewFilePointer->QuadPart = li.QuadPart;
+	}

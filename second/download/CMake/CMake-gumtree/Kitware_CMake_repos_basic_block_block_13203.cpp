@@ -1,0 +1,1 @@
+file->id = atol10(attr->value, strlen(attr->value))

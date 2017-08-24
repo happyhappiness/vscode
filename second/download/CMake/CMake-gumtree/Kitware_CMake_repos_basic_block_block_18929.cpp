@@ -1,0 +1,1 @@
+r = write(req->file, req->bufs[0].base, req->bufs[0].len)

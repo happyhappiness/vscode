@@ -1,0 +1,3 @@
+{
+            this->OSRelease += " Enterprise Server";
+          }

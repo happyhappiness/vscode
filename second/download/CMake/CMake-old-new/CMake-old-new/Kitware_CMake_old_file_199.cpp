@@ -1,2172 +1,2824 @@
-/*-
- * Copyright (c) 2004-2013 Tim Kientzle
- * Copyright (c) 2011-2012 Michihiro NAKAJIMA
- * Copyright (c) 2013 Konrad Kleine
- * All rights reserved.
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at http://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ ***************************************************************************/
 
-#include "archive_platform.h"
-__FBSDID("$FreeBSD: head/lib/libarchive/archive_read_support_format_zip.c 201102 2009-12-28 03:11:36Z kientzle $");
+#include "curl_setup.h"
+
+#include <curl/curl.h>
+
+#include "urldata.h"
+#include "transfer.h"
+#include "url.h"
+#include "connect.h"
+#include "progress.h"
+#include "easyif.h"
+#include "share.h"
+#include "multiif.h"
+#include "sendf.h"
+#include "timeval.h"
+#include "http.h"
+#include "select.h"
+#include "warnless.h"
+#include "speedcheck.h"
+#include "conncache.h"
+#include "multihandle.h"
+#include "pipeline.h"
+#include "sigpipe.h"
+#include "curl_printf.h"
+#include "curl_memory.h"
+/* The last #include file should be: */
+#include "memdebug.h"
 
 /*
- * The definitive documentation of the Zip file format is:
- *   http://www.pkware.com/documents/casestudies/APPNOTE.TXT
- *
- * The Info-Zip project has pioneered various extensions to better
- * support Zip on Unix, including the 0x5455 "UT", 0x5855 "UX", 0x7855
- * "Ux", and 0x7875 "ux" extensions for time and ownership
- * information.
- *
- * History of this code: The streaming Zip reader was first added to
- * libarchive in January 2005.  Support for seekable input sources was
- * added in Nov 2011.
- */
-
-#ifdef HAVE_ERRNO_H
-#include <errno.h>
-#endif
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-#ifdef HAVE_ZLIB_H
-#include <zlib.h>
+  CURL_SOCKET_HASH_TABLE_SIZE should be a prime number. Increasing it from 97
+  to 911 takes on a 32-bit machine 4 x 804 = 3211 more bytes.  Still, every
+  CURL handle takes 45-50 K memory, therefore this 3K are not significant.
+*/
+#ifndef CURL_SOCKET_HASH_TABLE_SIZE
+#define CURL_SOCKET_HASH_TABLE_SIZE 911
 #endif
 
-#include "archive.h"
-#include "archive_endian.h"
-#include "archive_entry.h"
-#include "archive_entry_locale.h"
-#include "archive_private.h"
-#include "archive_rb.h"
-#include "archive_read_private.h"
+#define CURL_CONNECTION_HASH_SIZE 97
 
-#ifndef HAVE_ZLIB_H
-#include "archive_crc32.h"
-#endif
+#define CURL_MULTI_HANDLE 0x000bab1e
 
-struct zip_entry {
-	struct archive_rb_node	node;
-	struct zip_entry	*next;
-	int64_t			local_header_offset;
-	int64_t			compressed_size;
-	int64_t			uncompressed_size;
-	int64_t			gid;
-	int64_t			uid;
-	struct archive_string	rsrcname;
-	time_t			mtime;
-	time_t			atime;
-	time_t			ctime;
-	uint32_t		crc32;
-	uint16_t		mode;
-	uint16_t		zip_flags; /* From GP Flags Field */
-	unsigned char		compression;
-	unsigned char		system; /* From "version written by" */
-	unsigned char		flags; /* Our extra markers. */
+#define GOOD_MULTI_HANDLE(x) \
+  ((x) && (((struct Curl_multi *)(x))->type == CURL_MULTI_HANDLE))
+
+static void singlesocket(struct Curl_multi *multi,
+                         struct SessionHandle *data);
+static int update_timer(struct Curl_multi *multi);
+
+static CURLMcode add_next_timeout(struct timeval now,
+                                  struct Curl_multi *multi,
+                                  struct SessionHandle *d);
+static CURLMcode multi_timeout(struct Curl_multi *multi,
+                               long *timeout_ms);
+
+#ifdef DEBUGBUILD
+static const char * const statename[]={
+  "INIT",
+  "CONNECT_PEND",
+  "CONNECT",
+  "WAITRESOLVE",
+  "WAITCONNECT",
+  "WAITPROXYCONNECT",
+  "SENDPROTOCONNECT",
+  "PROTOCONNECT",
+  "WAITDO",
+  "DO",
+  "DOING",
+  "DO_MORE",
+  "DO_DONE",
+  "WAITPERFORM",
+  "PERFORM",
+  "TOOFAST",
+  "DONE",
+  "COMPLETED",
+  "MSGSENT",
 };
-
-/* Bits used in zip_flags. */
-#define ZIP_ENCRYPTED	(1 << 0)
-#define ZIP_LENGTH_AT_END	(1 << 3)
-#define ZIP_STRONG_ENCRYPTED	(1 << 6)
-#define ZIP_UTF8_NAME	(1 << 11)
-/* See "7.2 Single Password Symmetric Encryption Method"
-   in http://www.pkware.com/documents/casestudies/APPNOTE.TXT */
-#define ZIP_CENTRAL_DIRECTORY_ENCRYPTED	(1 << 13)
-
-/* Bits used in flags. */
-#define LA_USED_ZIP64	(1 << 0)
-#define LA_FROM_CENTRAL_DIRECTORY (1 << 1)
-
-struct zip {
-	/* Structural information about the archive. */
-	char			format_name[64];
-	int64_t			central_directory_offset;
-	size_t			central_directory_entries_total;
-	size_t			central_directory_entries_on_this_disk;
-	int			has_encrypted_entries;
-
-	/* List of entries (seekable Zip only) */
-	struct zip_entry	*zip_entries;
-	struct archive_rb_tree	tree;
-	struct archive_rb_tree	tree_rsrc;
-
-	/* Bytes read but not yet consumed via __archive_read_consume() */
-	size_t			unconsumed;
-
-	/* Information about entry we're currently reading. */
-	struct zip_entry	*entry;
-	int64_t			entry_bytes_remaining;
-
-	/* These count the number of bytes actually read for the entry. */
-	int64_t			entry_compressed_bytes_read;
-	int64_t			entry_uncompressed_bytes_read;
-
-	/* Running CRC32 of the decompressed data */
-	unsigned long		entry_crc32;
-	unsigned long		(*crc32func)(unsigned long, const void *, size_t);
-	char			ignore_crc32;
-
-	/* Flags to mark progress of decompression. */
-	char			decompress_init;
-	char			end_of_entry;
-
-#ifdef HAVE_ZLIB_H
-	unsigned char 		*uncompressed_buffer;
-	size_t 			uncompressed_buffer_size;
-	z_stream		stream;
-	char			stream_valid;
 #endif
 
-	struct archive_string_conv *sconv;
-	struct archive_string_conv *sconv_default;
-	struct archive_string_conv *sconv_utf8;
-	int			init_default_conversion;
-	int			process_mac_extensions;
+static void multi_freetimeout(void *a, void *b);
+
+/* always use this function to change state, to make debugging easier */
+static void mstate(struct SessionHandle *data, CURLMstate state
+#ifdef DEBUGBUILD
+                   , int lineno
+#endif
+)
+{
+  CURLMstate oldstate = data->mstate;
+
+#if defined(DEBUGBUILD) && defined(CURL_DISABLE_VERBOSE_STRINGS)
+  (void) lineno;
+#endif
+
+  if(oldstate == state)
+    /* don't bother when the new state is the same as the old state */
+    return;
+
+  data->mstate = state;
+
+#if defined(DEBUGBUILD) && !defined(CURL_DISABLE_VERBOSE_STRINGS)
+  if(data->mstate >= CURLM_STATE_CONNECT_PEND &&
+     data->mstate < CURLM_STATE_COMPLETED) {
+    long connection_id = -5000;
+
+    if(data->easy_conn)
+      connection_id = data->easy_conn->connection_id;
+
+    infof(data,
+          "STATE: %s => %s handle %p; line %d (connection #%ld) \n",
+          statename[oldstate], statename[data->mstate],
+          (void *)data, lineno, connection_id);
+  }
+#endif
+
+  if(state == CURLM_STATE_COMPLETED)
+    /* changing to COMPLETED means there's one less easy handle 'alive' */
+    data->multi->num_alive--;
+}
+
+#ifndef DEBUGBUILD
+#define multistate(x,y) mstate(x,y)
+#else
+#define multistate(x,y) mstate(x,y, __LINE__)
+#endif
+
+/*
+ * We add one of these structs to the sockhash for a particular socket
+ */
+
+struct Curl_sh_entry {
+  struct SessionHandle *easy;
+  int action;  /* what action READ/WRITE this socket waits for */
+  curl_socket_t socket; /* mainly to ease debugging */
+  void *socketp; /* settable by users with curl_multi_assign() */
 };
+/* bits for 'action' having no bits means this socket is not expecting any
+   action */
+#define SH_READ  1
+#define SH_WRITE 2
 
-/* Many systems define min or MIN, but not all. */
-#define	zipmin(a,b) ((a) < (b) ? (a) : (b))
+/* make sure this socket is present in the hash for this handle */
+static struct Curl_sh_entry *sh_addentry(struct curl_hash *sh,
+                                         curl_socket_t s,
+                                         struct SessionHandle *data)
+{
+  struct Curl_sh_entry *there =
+    Curl_hash_pick(sh, (char *)&s, sizeof(curl_socket_t));
+  struct Curl_sh_entry *check;
 
-/* ------------------------------------------------------------------------ */
+  if(there)
+    /* it is present, return fine */
+    return there;
+
+  /* not present, add it */
+  check = calloc(1, sizeof(struct Curl_sh_entry));
+  if(!check)
+    return NULL; /* major failure */
+
+  check->easy = data;
+  check->socket = s;
+
+  /* make/add new hash entry */
+  if(!Curl_hash_add(sh, (char *)&s, sizeof(curl_socket_t), check)) {
+    free(check);
+    return NULL; /* major failure */
+  }
+
+  return check; /* things are good in sockhash land */
+}
+
+
+/* delete the given socket + handle from the hash */
+static void sh_delentry(struct curl_hash *sh, curl_socket_t s)
+{
+  struct Curl_sh_entry *there =
+    Curl_hash_pick(sh, (char *)&s, sizeof(curl_socket_t));
+
+  if(there) {
+    /* this socket is in the hash */
+    /* We remove the hash entry. (This'll end up in a call to
+       sh_freeentry().) */
+    Curl_hash_delete(sh, (char *)&s, sizeof(curl_socket_t));
+  }
+}
 
 /*
- * Common code for streaming or seeking modes.
+ * free a sockhash entry
+ */
+static void sh_freeentry(void *freethis)
+{
+  struct Curl_sh_entry *p = (struct Curl_sh_entry *) freethis;
+
+  free(p);
+}
+
+static size_t fd_key_compare(void *k1, size_t k1_len, void *k2, size_t k2_len)
+{
+  (void) k1_len; (void) k2_len;
+
+  return (*((int *) k1)) == (*((int *) k2));
+}
+
+static size_t hash_fd(void *key, size_t key_length, size_t slots_num)
+{
+  int fd = *((int *) key);
+  (void) key_length;
+
+  return (fd % (int)slots_num);
+}
+
+/*
+ * sh_init() creates a new socket hash and returns the handle for it.
  *
- * Includes code to read local file headers, decompress data
- * from entry bodies, and common API.
- */
-
-static unsigned long
-real_crc32(unsigned long crc, const void *buff, size_t len)
-{
-	return crc32(crc, buff, len);
-}
-
-static unsigned long
-fake_crc32(unsigned long crc, const void *buff, size_t len)
-{
-	(void)crc; /* UNUSED */
-	(void)buff; /* UNUSED */
-	(void)len; /* UNUSED */
-	return 0;
-}
-
-static struct {
-	int id;
-	const char * name;
-} compression_methods[] = {
-	{0, "uncompressed"}, /* The file is stored (no compression) */
-	{1, "shrinking"}, /* The file is Shrunk */
-	{2, "reduced-1"}, /* The file is Reduced with compression factor 1 */
-	{3, "reduced-2"}, /* The file is Reduced with compression factor 2 */
-	{4, "reduced-3"}, /* The file is Reduced with compression factor 3 */
-	{5, "reduced-4"}, /* The file is Reduced with compression factor 4 */
-	{6, "imploded"}, /* The file is Imploded */
-	{7, "reserved"}, /* Reserved for Tokenizing compression algorithm */
-	{8, "deflation"}, /* The file is Deflated */
-	{9, "deflation-64-bit"}, /* Enhanced Deflating using Deflate64(tm) */
-	{10, "ibm-terse"}, /* PKWARE Data Compression Library Imploding (old IBM TERSE) */
-	{11, "reserved"}, /* Reserved by PKWARE */
-	{12, "bzip"}, /* File is compressed using BZIP2 algorithm */
-	{13, "reserved"}, /* Reserved by PKWARE */
-	{14, "lzma"}, /* LZMA (EFS) */
-	{15, "reserved"}, /* Reserved by PKWARE */
-	{16, "reserved"}, /* Reserved by PKWARE */
-	{17, "reserved"}, /* Reserved by PKWARE */
-	{18, "ibm-terse-new"}, /* File is compressed using IBM TERSE (new) */
-	{19, "ibm-lz777"}, /* IBM LZ77 z Architecture (PFS) */
-	{97, "wav-pack"}, /* WavPack compressed data */
-	{98, "ppmd-1"} /* PPMd version I, Rev 1 */
-};
-
-static const char *
-compression_name(const int compression)
-{
-	static const int num_compression_methods = sizeof(compression_methods)/sizeof(compression_methods[0]);
-	int i=0;
-	while(compression >= 0 && i < num_compression_methods) {
-		if (compression_methods[i].id == compression) {
-			return compression_methods[i].name;
-		}
-		i++;
-	}
-	return "??";
-}
-
-/* Convert an MSDOS-style date/time into Unix-style time. */
-static time_t
-zip_time(const char *p)
-{
-	int msTime, msDate;
-	struct tm ts;
-
-	msTime = (0xff & (unsigned)p[0]) + 256 * (0xff & (unsigned)p[1]);
-	msDate = (0xff & (unsigned)p[2]) + 256 * (0xff & (unsigned)p[3]);
-
-	memset(&ts, 0, sizeof(ts));
-	ts.tm_year = ((msDate >> 9) & 0x7f) + 80; /* Years since 1900. */
-	ts.tm_mon = ((msDate >> 5) & 0x0f) - 1; /* Month number. */
-	ts.tm_mday = msDate & 0x1f; /* Day of month. */
-	ts.tm_hour = (msTime >> 11) & 0x1f;
-	ts.tm_min = (msTime >> 5) & 0x3f;
-	ts.tm_sec = (msTime << 1) & 0x3e;
-	ts.tm_isdst = -1;
-	return mktime(&ts);
-}
-
-/*
- * The extra data is stored as a list of
- *	id1+size1+data1 + id2+size2+data2 ...
- *  triplets.  id and size are 2 bytes each.
- */
-static void
-process_extra(const char *p, size_t extra_length, struct zip_entry* zip_entry)
-{
-	unsigned offset = 0;
-
-	while (offset < extra_length - 4)
-	{
-		unsigned short headerid = archive_le16dec(p + offset);
-		unsigned short datasize = archive_le16dec(p + offset + 2);
-		offset += 4;
-		if (offset + datasize > extra_length)
-			break;
-#ifdef DEBUG
-		fprintf(stderr, "Header id 0x%x, length %d\n",
-		    headerid, datasize);
-#endif
-		switch (headerid) {
-		case 0x0001:
-			/* Zip64 extended information extra field. */
-			zip_entry->flags |= LA_USED_ZIP64;
-			if (zip_entry->uncompressed_size == 0xffffffff) {
-				if (datasize < 8)
-					break;
-				zip_entry->uncompressed_size =
-				    archive_le64dec(p + offset);
-				offset += 8;
-				datasize -= 8;
-			}
-			if (zip_entry->compressed_size == 0xffffffff) {
-				if (datasize < 8)
-					break;
-				zip_entry->compressed_size =
-				    archive_le64dec(p + offset);
-				offset += 8;
-				datasize -= 8;
-			}
-			if (zip_entry->local_header_offset == 0xffffffff) {
-				if (datasize < 8)
-					break;
-				zip_entry->local_header_offset =
-				    archive_le64dec(p + offset);
-				offset += 8;
-				datasize -= 8;
-			}
-			/* archive_le32dec(p + offset) gives disk
-			 * on which file starts, but we don't handle
-			 * multi-volume Zip files. */
-			break;
-		case 0x5455:
-		{
-			/* Extended time field "UT". */
-			int flags = p[offset];
-			offset++;
-			datasize--;
-			/* Flag bits indicate which dates are present. */
-			if (flags & 0x01)
-			{
-#ifdef DEBUG
-				fprintf(stderr, "mtime: %lld -> %d\n",
-				    (long long)zip_entry->mtime,
-				    archive_le32dec(p + offset));
-#endif
-				if (datasize < 4)
-					break;
-				zip_entry->mtime = archive_le32dec(p + offset);
-				offset += 4;
-				datasize -= 4;
-			}
-			if (flags & 0x02)
-			{
-				if (datasize < 4)
-					break;
-				zip_entry->atime = archive_le32dec(p + offset);
-				offset += 4;
-				datasize -= 4;
-			}
-			if (flags & 0x04)
-			{
-				if (datasize < 4)
-					break;
-				zip_entry->ctime = archive_le32dec(p + offset);
-				offset += 4;
-				datasize -= 4;
-			}
-			break;
-		}
-		case 0x5855:
-		{
-			/* Info-ZIP Unix Extra Field (old version) "UX". */
-			if (datasize >= 8) {
-				zip_entry->atime = archive_le32dec(p + offset);
-				zip_entry->mtime =
-				    archive_le32dec(p + offset + 4);
-			}
-			if (datasize >= 12) {
-				zip_entry->uid =
-				    archive_le16dec(p + offset + 8);
-				zip_entry->gid =
-				    archive_le16dec(p + offset + 10);
-			}
-			break;
-		}
-		case 0x6c65:
-		{
-			/* Experimental 'el' field */
-			/*
-			 * Introduced Dec 2013 to provide a way to
-			 * include external file attributes in local file
-			 * header.  This provides file type and permission
-			 * information necessary to support full streaming
-			 * extraction.  Currently being discussed with
-			 * other Zip developers... subject to change.
-			 */
-			int bitmap, bitmap_last;
-
-			if (datasize < 1)
-				break;
-			bitmap_last = bitmap = 0xff & p[offset];
-			offset += 1;
-			datasize -= 1;
-
-			/* We only support first 7 bits of bitmap; skip rest. */
-			while ((bitmap_last & 0x80) != 0
-			    && datasize >= 1) {
-				bitmap_last = p[offset];
-				offset += 1;
-				datasize -= 1;
-			}
-
-			if (bitmap & 1) {
-				// 2 byte "version made by"
-				if (datasize < 2)
-					break;
-				zip_entry->system
-				    = archive_le16dec(p + offset) >> 8;
-				offset += 2;
-				datasize -= 2;
-			}
-			if (bitmap & 2) {
-				// 2 byte "internal file attributes"
-				uint32_t internal_attributes;
-				if (datasize < 2)
-					break;
-				internal_attributes
-				    = archive_le16dec(p + offset);
-				// Not used by libarchive at present.
-				(void)internal_attributes; /* UNUSED */
-				offset += 2;
-				datasize -= 2;
-			}
-			if (bitmap & 4) {
-				// 4 byte "external file attributes"
-				uint32_t external_attributes;
-				if (datasize < 4)
-					break;
-				external_attributes
-				    = archive_le32dec(p + offset);
-				if (zip_entry->system == 3) {
-					zip_entry->mode
-					    = external_attributes >> 16;
-				}
-				offset += 4;
-				datasize -= 4;
-			}
-			if (bitmap & 8) {
-				// 2 byte comment length + comment
-				uint32_t comment_length;
-				if (datasize < 2)
-					break;
-				comment_length
-				    = archive_le16dec(p + offset);
-				offset += 2;
-				datasize -= 2;
-
-				if (datasize < comment_length)
-					break;
-				// Comment is not supported by libarchive
-				offset += comment_length;
-				datasize -= comment_length;
-			}
-			break;
-		}
-		case 0x7855:
-			/* Info-ZIP Unix Extra Field (type 2) "Ux". */
-#ifdef DEBUG
-			fprintf(stderr, "uid %d gid %d\n",
-			    archive_le16dec(p + offset),
-			    archive_le16dec(p + offset + 2));
-#endif
-			if (datasize >= 2)
-				zip_entry->uid = archive_le16dec(p + offset);
-			if (datasize >= 4)
-				zip_entry->gid =
-				    archive_le16dec(p + offset + 2);
-			break;
-		case 0x7875:
-		{
-			/* Info-Zip Unix Extra Field (type 3) "ux". */
-			int uidsize = 0, gidsize = 0;
-
-			/* TODO: support arbitrary uidsize/gidsize. */
-			if (datasize >= 1 && p[offset] == 1) {/* version=1 */
-				if (datasize >= 4) {
-					/* get a uid size. */
-					uidsize = p[offset+1];
-					if (uidsize == 2)
-						zip_entry->uid =
-						    archive_le16dec(
-						        p + offset + 2);
-					else if (uidsize == 4 && datasize >= 6)
-						zip_entry->uid =
-						    archive_le32dec(
-						        p + offset + 2);
-				}
-				if (datasize >= (2 + uidsize + 3)) {
-					/* get a gid size. */
-					gidsize = p[offset+2+uidsize];
-					if (gidsize == 2)
-						zip_entry->gid =
-						    archive_le16dec(
-						        p+offset+2+uidsize+1);
-					else if (gidsize == 4 &&
-					    datasize >= (2 + uidsize + 5))
-						zip_entry->gid =
-						    archive_le32dec(
-						        p+offset+2+uidsize+1);
-				}
-			}
-			break;
-		}
-		default:
-			break;
-		}
-		offset += datasize;
-	}
-#ifdef DEBUG
-	if (offset != extra_length)
-	{
-		fprintf(stderr,
-		    "Extra data field contents do not match reported size!\n");
-	}
-#endif
-}
-
-/*
- * Assumes file pointer is at beginning of local file header.
- */
-static int
-zip_read_local_file_header(struct archive_read *a, struct archive_entry *entry,
-    struct zip *zip)
-{
-	const char *p;
-	const void *h;
-	const wchar_t *wp;
-	const char *cp;
-	size_t len, filename_length, extra_length;
-	struct archive_string_conv *sconv;
-	struct zip_entry *zip_entry = zip->entry;
-	struct zip_entry zip_entry_central_dir;
-	int ret = ARCHIVE_OK;
-	char version;
-
-	/* Save a copy of the original for consistency checks. */
-	zip_entry_central_dir = *zip_entry;
-
-	zip->decompress_init = 0;
-	zip->end_of_entry = 0;
-	zip->entry_uncompressed_bytes_read = 0;
-	zip->entry_compressed_bytes_read = 0;
-	zip->entry_crc32 = zip->crc32func(0, NULL, 0);
-
-	/* Setup default conversion. */
-	if (zip->sconv == NULL && !zip->init_default_conversion) {
-		zip->sconv_default =
-		    archive_string_default_conversion_for_read(&(a->archive));
-		zip->init_default_conversion = 1;
-	}
-
-	if ((p = __archive_read_ahead(a, 30, NULL)) == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file header");
-		return (ARCHIVE_FATAL);
-	}
-
-	if (memcmp(p, "PK\003\004", 4) != 0) {
-		archive_set_error(&a->archive, -1, "Damaged Zip archive");
-		return ARCHIVE_FATAL;
-	}
-	version = p[4];
-	zip_entry->system = p[5];
-	zip_entry->zip_flags = archive_le16dec(p + 6);
-	if (zip_entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
-		zip->has_encrypted_entries = 1;
-		archive_entry_set_is_data_encrypted(entry, 1);
-		if (zip_entry->zip_flags & ZIP_CENTRAL_DIRECTORY_ENCRYPTED &&
-			zip_entry->zip_flags & ZIP_ENCRYPTED &&
-			zip_entry->zip_flags & ZIP_STRONG_ENCRYPTED) {
-			archive_entry_set_is_metadata_encrypted(entry, 1);
-			return ARCHIVE_FATAL;
-		}
-	}
-	zip_entry->compression = (char)archive_le16dec(p + 8);
-	zip_entry->mtime = zip_time(p + 10);
-	zip_entry->crc32 = archive_le32dec(p + 14);
-	zip_entry->compressed_size = archive_le32dec(p + 18);
-	zip_entry->uncompressed_size = archive_le32dec(p + 22);
-	filename_length = archive_le16dec(p + 26);
-	extra_length = archive_le16dec(p + 28);
-
-	__archive_read_consume(a, 30);
-
-	/* Read the filename. */
-	if ((h = __archive_read_ahead(a, filename_length, NULL)) == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file header");
-		return (ARCHIVE_FATAL);
-	}
-	if (zip_entry->zip_flags & ZIP_UTF8_NAME) {
-		/* The filename is stored to be UTF-8. */
-		if (zip->sconv_utf8 == NULL) {
-			zip->sconv_utf8 =
-			    archive_string_conversion_from_charset(
-				&a->archive, "UTF-8", 1);
-			if (zip->sconv_utf8 == NULL)
-				return (ARCHIVE_FATAL);
-		}
-		sconv = zip->sconv_utf8;
-	} else if (zip->sconv != NULL)
-		sconv = zip->sconv;
-	else
-		sconv = zip->sconv_default;
-
-	if (archive_entry_copy_pathname_l(entry,
-	    h, filename_length, sconv) != 0) {
-		if (errno == ENOMEM) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Pathname");
-			return (ARCHIVE_FATAL);
-		}
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Pathname cannot be converted "
-		    "from %s to current locale.",
-		    archive_string_conversion_charset_name(sconv));
-		ret = ARCHIVE_WARN;
-	}
-	__archive_read_consume(a, filename_length);
-
-	/* Work around a bug in Info-Zip: When reading from a pipe, it
-	 * stats the pipe instead of synthesizing a file entry. */
-	if ((zip_entry->mode & AE_IFMT) == AE_IFIFO) {
-		zip_entry->mode &= ~ AE_IFMT;
-		zip_entry->mode |= AE_IFREG;
-	}
-
-	if ((zip_entry->mode & AE_IFMT) == 0) {
-		/* Especially in streaming mode, we can end up
-		   here without having seen proper mode information.
-		   Guess from the filename. */
-		wp = archive_entry_pathname_w(entry);
-		if (wp != NULL) {
-			len = wcslen(wp);
-			if (len > 0 && wp[len - 1] == L'/')
-				zip_entry->mode |= AE_IFDIR;
-			else
-				zip_entry->mode |= AE_IFREG;
-		} else {
-			cp = archive_entry_pathname(entry);
-			len = (cp != NULL)?strlen(cp):0;
-			if (len > 0 && cp[len - 1] == '/')
-				zip_entry->mode |= AE_IFDIR;
-			else
-				zip_entry->mode |= AE_IFREG;
-		}
-		if (zip_entry->mode == AE_IFDIR) {
-			zip_entry->mode |= 0775;
-		} else if (zip_entry->mode == AE_IFREG) {
-			zip_entry->mode |= 0664;
-		}
-	}
-
-	/* Read the extra data. */
-	if ((h = __archive_read_ahead(a, extra_length, NULL)) == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file header");
-		return (ARCHIVE_FATAL);
-	}
-
-	process_extra(h, extra_length, zip_entry);
-	__archive_read_consume(a, extra_length);
-
-	if (zip_entry->flags & LA_FROM_CENTRAL_DIRECTORY) {
-		/* If this came from the central dir, it's size info
-		 * is definitive, so ignore the length-at-end flag. */
-		zip_entry->zip_flags &= ~ZIP_LENGTH_AT_END;
-		/* If local header is missing a value, use the one from
-		   the central directory.  If both have it, warn about
-		   mismatches. */
-		if (zip_entry->crc32 == 0) {
-			zip_entry->crc32 = zip_entry_central_dir.crc32;
-		} else if (!zip->ignore_crc32
-		    && zip_entry->crc32 != zip_entry_central_dir.crc32) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Inconsistent CRC32 values");
-			ret = ARCHIVE_WARN;
-		}
-		if (zip_entry->compressed_size == 0) {
-			zip_entry->compressed_size
-			    = zip_entry_central_dir.compressed_size;
-		} else if (zip_entry->compressed_size
-		    != zip_entry_central_dir.compressed_size) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Inconsistent compressed size: "
-			    "%jd in central directory, %jd in local header",
-			    (intmax_t)zip_entry_central_dir.compressed_size,
-			    (intmax_t)zip_entry->compressed_size);
-			ret = ARCHIVE_WARN;
-		}
-		if (zip_entry->uncompressed_size == 0) {
-			zip_entry->uncompressed_size
-			    = zip_entry_central_dir.uncompressed_size;
-		} else if (zip_entry->uncompressed_size
-		    != zip_entry_central_dir.uncompressed_size) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Inconsistent uncompressed size: "
-			    "%jd in central directory, %jd in local header",
-			    (intmax_t)zip_entry_central_dir.uncompressed_size,
-			    (intmax_t)zip_entry->uncompressed_size);
-			ret = ARCHIVE_WARN;
-		}
-	}
-
-	/* Populate some additional entry fields: */
-	archive_entry_set_mode(entry, zip_entry->mode);
-	archive_entry_set_uid(entry, zip_entry->uid);
-	archive_entry_set_gid(entry, zip_entry->gid);
-	archive_entry_set_mtime(entry, zip_entry->mtime, 0);
-	archive_entry_set_ctime(entry, zip_entry->ctime, 0);
-	archive_entry_set_atime(entry, zip_entry->atime, 0);
-
-	if ((zip->entry->mode & AE_IFMT) == AE_IFLNK) {
-		size_t linkname_length = zip_entry->compressed_size;
-
-		archive_entry_set_size(entry, 0);
-		p = __archive_read_ahead(a, linkname_length, NULL);
-		if (p == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Truncated Zip file");
-			return ARCHIVE_FATAL;
-		}
-		if (__archive_read_consume(a, linkname_length) < 0) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Read error skipping symlink target name");
-			return ARCHIVE_FATAL;
-		}
-
-		sconv = zip->sconv;
-		if (sconv == NULL && (zip->entry->zip_flags & ZIP_UTF8_NAME))
-			sconv = zip->sconv_utf8;
-		if (sconv == NULL)
-			sconv = zip->sconv_default;
-		if (archive_entry_copy_symlink_l(entry, p, linkname_length,
-		    sconv) != 0) {
-			if (errno != ENOMEM && sconv == zip->sconv_utf8 &&
-			    (zip->entry->zip_flags & ZIP_UTF8_NAME))
-			    archive_entry_copy_symlink_l(entry, p,
-				linkname_length, NULL);
-			if (errno == ENOMEM) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate memory for Symlink");
-				return (ARCHIVE_FATAL);
-			}
-			/*
-			 * Since there is no character-set regulation for
-			 * symlink name, do not report the conversion error
-			 * in an automatic conversion.
-			 */
-			if (sconv != zip->sconv_utf8 ||
-			    (zip->entry->zip_flags & ZIP_UTF8_NAME) == 0) {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Symlink cannot be converted "
-				    "from %s to current locale.",
-				    archive_string_conversion_charset_name(
-					sconv));
-				ret = ARCHIVE_WARN;
-			}
-		}
-		zip_entry->uncompressed_size = zip_entry->compressed_size = 0;
-	} else if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
-	    || zip_entry->uncompressed_size > 0) {
-		/* Set the size only if it's meaningful. */
-		archive_entry_set_size(entry, zip_entry->uncompressed_size);
-	}
-	zip->entry_bytes_remaining = zip_entry->compressed_size;
-
-	/* If there's no body, force read_data() to return EOF immediately. */
-	if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
-	    && zip->entry_bytes_remaining < 1)
-		zip->end_of_entry = 1;
-
-	/* Set up a more descriptive format name. */
-	snprintf(zip->format_name, sizeof(zip->format_name), "ZIP %d.%d (%s)",
-	    version / 10, version % 10,
-	    compression_name(zip->entry->compression));
-	a->archive.archive_format_name = zip->format_name;
-
-	return (ret);
-}
-
-/*
- * Read "uncompressed" data.  There are three cases:
- *  1) We know the size of the data.  This is always true for the
- * seeking reader (we've examined the Central Directory already).
- *  2) ZIP_LENGTH_AT_END was set, but only the CRC was deferred.
- * Info-ZIP seems to do this; we know the size but have to grab
- * the CRC from the data descriptor afterwards.
- *  3) We're streaming and ZIP_LENGTH_AT_END was specified and
- * we have no size information.  In this case, we can do pretty
- * well by watching for the data descriptor record.  The data
- * descriptor is 16 bytes and includes a computed CRC that should
- * provide a strong check.
+ * Quote from README.multi_socket:
  *
- * TODO: Technically, the PK\007\010 signature is optional.
- * In the original spec, the data descriptor contained CRC
- * and size fields but had no leading signature.  In practice,
- * newer writers seem to provide the signature pretty consistently.
+ * "Some tests at 7000 and 9000 connections showed that the socket hash lookup
+ * is somewhat of a bottle neck. Its current implementation may be a bit too
+ * limiting. It simply has a fixed-size array, and on each entry in the array
+ * it has a linked list with entries. So the hash only checks which list to
+ * scan through. The code I had used so for used a list with merely 7 slots
+ * (as that is what the DNS hash uses) but with 7000 connections that would
+ * make an average of 1000 nodes in each list to run through. I upped that to
+ * 97 slots (I believe a prime is suitable) and noticed a significant speed
+ * increase.  I need to reconsider the hash implementation or use a rather
+ * large default value like this. At 9000 connections I was still below 10us
+ * per call."
  *
- * For uncompressed data, the PK\007\010 marker seems essential
- * to be sure we've actually seen the end of the entry.
+ */
+static int sh_init(struct curl_hash *hash, int hashsize)
+{
+  return Curl_hash_init(hash, hashsize, hash_fd, fd_key_compare,
+                        sh_freeentry);
+}
+
+/*
+ * multi_addmsg()
  *
- * Returns ARCHIVE_OK if successful, ARCHIVE_FATAL otherwise, sets
- * zip->end_of_entry if it consumes all of the data.
+ * Called when a transfer is completed. Adds the given msg pointer to
+ * the list kept in the multi handle.
  */
-static int
-zip_read_data_none(struct archive_read *a, const void **_buff,
-    size_t *size, int64_t *offset)
+static CURLMcode multi_addmsg(struct Curl_multi *multi,
+                              struct Curl_message *msg)
 {
-	struct zip *zip;
-	const char *buff;
-	ssize_t bytes_avail;
+  if(!Curl_llist_insert_next(multi->msglist, multi->msglist->tail, msg))
+    return CURLM_OUT_OF_MEMORY;
 
-	(void)offset; /* UNUSED */
-
-	zip = (struct zip *)(a->format->data);
-
-	if (zip->entry->zip_flags & ZIP_LENGTH_AT_END) {
-		const char *p;
-
-		/* Grab at least 24 bytes. */
-		buff = __archive_read_ahead(a, 24, &bytes_avail);
-		if (bytes_avail < 24) {
-			/* Zip archives have end-of-archive markers
-			   that are longer than this, so a failure to get at
-			   least 24 bytes really does indicate a truncated
-			   file. */
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file data");
-			return (ARCHIVE_FATAL);
-		}
-		/* Check for a complete PK\007\010 signature, followed
-		 * by the correct 4-byte CRC. */
-		p = buff;
-		if (p[0] == 'P' && p[1] == 'K'
-		    && p[2] == '\007' && p[3] == '\010'
-		    && (archive_le32dec(p + 4) == zip->entry_crc32
-			|| zip->ignore_crc32)) {
-			if (zip->entry->flags & LA_USED_ZIP64) {
-				zip->entry->crc32 = archive_le32dec(p + 4);
-				zip->entry->compressed_size = archive_le64dec(p + 8);
-				zip->entry->uncompressed_size = archive_le64dec(p + 16);
-				zip->unconsumed = 24;
-			} else {
-				zip->entry->crc32 = archive_le32dec(p + 4);
-				zip->entry->compressed_size = archive_le32dec(p + 8);
-				zip->entry->uncompressed_size = archive_le32dec(p + 12);
-				zip->unconsumed = 16;
-			}
-			zip->end_of_entry = 1;
-			return (ARCHIVE_OK);
-		}
-		/* If not at EOF, ensure we consume at least one byte. */
-		++p;
-
-		/* Scan forward until we see where a PK\007\010 signature
-		 * might be. */
-		/* Return bytes up until that point.  On the next call,
-		 * the code above will verify the data descriptor. */
-		while (p < buff + bytes_avail - 4) {
-			if (p[3] == 'P') { p += 3; }
-			else if (p[3] == 'K') { p += 2; }
-			else if (p[3] == '\007') { p += 1; }
-			else if (p[3] == '\010' && p[2] == '\007'
-			    && p[1] == 'K' && p[0] == 'P') {
-				break;
-			} else { p += 4; }
-		}
-		bytes_avail = p - buff;
-	} else {
-		if (zip->entry_bytes_remaining == 0) {
-			zip->end_of_entry = 1;
-			return (ARCHIVE_OK);
-		}
-		/* Grab a bunch of bytes. */
-		buff = __archive_read_ahead(a, 1, &bytes_avail);
-		if (bytes_avail <= 0) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file data");
-			return (ARCHIVE_FATAL);
-		}
-		if (bytes_avail > zip->entry_bytes_remaining)
-			bytes_avail = (ssize_t)zip->entry_bytes_remaining;
-	}
-	*size = bytes_avail;
-	zip->entry_bytes_remaining -= bytes_avail;
-	zip->entry_uncompressed_bytes_read += bytes_avail;
-	zip->entry_compressed_bytes_read += bytes_avail;
-	zip->unconsumed += bytes_avail;
-	*_buff = buff;
-	return (ARCHIVE_OK);
-}
-
-#ifdef HAVE_ZLIB_H
-static int
-zip_deflate_init(struct archive_read *a, struct zip *zip)
-{
-	int r;
-
-	/* If we haven't yet read any data, initialize the decompressor. */
-	if (!zip->decompress_init) {
-		if (zip->stream_valid)
-			r = inflateReset(&zip->stream);
-		else
-			r = inflateInit2(&zip->stream,
-			    -15 /* Don't check for zlib header */);
-		if (r != Z_OK) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Can't initialize ZIP decompression.");
-			return (ARCHIVE_FATAL);
-		}
-		/* Stream structure has been set up. */
-		zip->stream_valid = 1;
-		/* We've initialized decompression for this stream. */
-		zip->decompress_init = 1;
-	}
-	return (ARCHIVE_OK);
-}
-
-static int
-zip_read_data_deflate(struct archive_read *a, const void **buff,
-    size_t *size, int64_t *offset)
-{
-	struct zip *zip;
-	ssize_t bytes_avail;
-	const void *compressed_buff;
-	int r;
-
-	(void)offset; /* UNUSED */
-
-	zip = (struct zip *)(a->format->data);
-
-	/* If the buffer hasn't been allocated, allocate it now. */
-	if (zip->uncompressed_buffer == NULL) {
-		zip->uncompressed_buffer_size = 256 * 1024;
-		zip->uncompressed_buffer
-		    = (unsigned char *)malloc(zip->uncompressed_buffer_size);
-		if (zip->uncompressed_buffer == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "No memory for ZIP decompression");
-			return (ARCHIVE_FATAL);
-		}
-	}
-
-	r = zip_deflate_init(a, zip);
-	if (r != ARCHIVE_OK)
-		return (r);
-
-	/*
-	 * Note: '1' here is a performance optimization.
-	 * Recall that the decompression layer returns a count of
-	 * available bytes; asking for more than that forces the
-	 * decompressor to combine reads by copying data.
-	 */
-	compressed_buff = __archive_read_ahead(a, 1, &bytes_avail);
-	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
-	    && bytes_avail > zip->entry_bytes_remaining) {
-		bytes_avail = (ssize_t)zip->entry_bytes_remaining;
-	}
-	if (bytes_avail <= 0) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file body");
-		return (ARCHIVE_FATAL);
-	}
-
-	/*
-	 * A bug in zlib.h: stream.next_in should be marked 'const'
-	 * but isn't (the library never alters data through the
-	 * next_in pointer, only reads it).  The result: this ugly
-	 * cast to remove 'const'.
-	 */
-	zip->stream.next_in = (Bytef *)(uintptr_t)(const void *)compressed_buff;
-	zip->stream.avail_in = (uInt)bytes_avail;
-	zip->stream.total_in = 0;
-	zip->stream.next_out = zip->uncompressed_buffer;
-	zip->stream.avail_out = (uInt)zip->uncompressed_buffer_size;
-	zip->stream.total_out = 0;
-
-	r = inflate(&zip->stream, 0);
-	switch (r) {
-	case Z_OK:
-		break;
-	case Z_STREAM_END:
-		zip->end_of_entry = 1;
-		break;
-	case Z_MEM_ERROR:
-		archive_set_error(&a->archive, ENOMEM,
-		    "Out of memory for ZIP decompression");
-		return (ARCHIVE_FATAL);
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "ZIP decompression failed (%d)", r);
-		return (ARCHIVE_FATAL);
-	}
-
-	/* Consume as much as the compressor actually used. */
-	bytes_avail = zip->stream.total_in;
-	__archive_read_consume(a, bytes_avail);
-	zip->entry_bytes_remaining -= bytes_avail;
-	zip->entry_compressed_bytes_read += bytes_avail;
-
-	*size = zip->stream.total_out;
-	zip->entry_uncompressed_bytes_read += zip->stream.total_out;
-	*buff = zip->uncompressed_buffer;
-
-	if (zip->end_of_entry && (zip->entry->zip_flags & ZIP_LENGTH_AT_END)) {
-		const char *p;
-
-		if (NULL == (p = __archive_read_ahead(a, 24, NULL))) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP end-of-file record");
-			return (ARCHIVE_FATAL);
-		}
-		/* Consume the optional PK\007\010 marker. */
-		if (p[0] == 'P' && p[1] == 'K' &&
-		    p[2] == '\007' && p[3] == '\010') {
-			p += 4;
-			zip->unconsumed = 4;
-		}
-		if (zip->entry->flags & LA_USED_ZIP64) {
-			zip->entry->crc32 = archive_le32dec(p);
-			zip->entry->compressed_size = archive_le64dec(p + 4);
-			zip->entry->uncompressed_size = archive_le64dec(p + 12);
-			zip->unconsumed += 20;
-		} else {
-			zip->entry->crc32 = archive_le32dec(p);
-			zip->entry->compressed_size = archive_le32dec(p + 4);
-			zip->entry->uncompressed_size = archive_le32dec(p + 8);
-			zip->unconsumed += 12;
-		}
-	}
-
-	return (ARCHIVE_OK);
-}
-#endif
-
-static int
-archive_read_format_zip_read_data(struct archive_read *a,
-    const void **buff, size_t *size, int64_t *offset)
-{
-	int r;
-	struct zip *zip = (struct zip *)(a->format->data);
-
-	if (zip->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
-		zip->has_encrypted_entries = 0;
-	}
-
-	*offset = zip->entry_uncompressed_bytes_read;
-	*size = 0;
-	*buff = NULL;
-
-	/* If we hit end-of-entry last time, return ARCHIVE_EOF. */
-	if (zip->end_of_entry)
-		return (ARCHIVE_EOF);
-
-	/* Return EOF immediately if this is a non-regular file. */
-	if (AE_IFREG != (zip->entry->mode & AE_IFMT))
-		return (ARCHIVE_EOF);
-
-	if (zip->entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
-		zip->has_encrypted_entries = 1;
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Encrypted file is unsupported");
-		return (ARCHIVE_FAILED);
-	}
-
-	__archive_read_consume(a, zip->unconsumed);
-	zip->unconsumed = 0;
-
-	switch(zip->entry->compression) {
-	case 0:  /* No compression. */
-		r =  zip_read_data_none(a, buff, size, offset);
-		break;
-#ifdef HAVE_ZLIB_H
-	case 8: /* Deflate compression. */
-		r =  zip_read_data_deflate(a, buff, size, offset);
-		break;
-#endif
-	default: /* Unsupported compression. */
-		/* Return a warning. */
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unsupported ZIP compression method (%s)",
-		    compression_name(zip->entry->compression));
-		/* We can't decompress this entry, but we will
-		 * be able to skip() it and try the next entry. */
-		return (ARCHIVE_FAILED);
-		break;
-	}
-	if (r != ARCHIVE_OK)
-		return (r);
-	/* Update checksum */
-	if (*size)
-		zip->entry_crc32 = zip->crc32func(zip->entry_crc32, *buff,
-		    (unsigned)*size);
-	/* If we hit the end, swallow any end-of-data marker. */
-	if (zip->end_of_entry) {
-		/* Check file size, CRC against these values. */
-		if (zip->entry->compressed_size !=
-		    zip->entry_compressed_bytes_read) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP compressed data is wrong size "
-			    "(read %jd, expected %jd)",
-			    (intmax_t)zip->entry_compressed_bytes_read,
-			    (intmax_t)zip->entry->compressed_size);
-			return (ARCHIVE_WARN);
-		}
-		/* Size field only stores the lower 32 bits of the actual
-		 * size. */
-		if ((zip->entry->uncompressed_size & UINT32_MAX)
-		    != (zip->entry_uncompressed_bytes_read & UINT32_MAX)) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP uncompressed data is wrong size "
-			    "(read %jd, expected %jd)\n",
-			    (intmax_t)zip->entry_uncompressed_bytes_read,
-			    (intmax_t)zip->entry->uncompressed_size);
-			return (ARCHIVE_WARN);
-		}
-		/* Check computed CRC against header */
-		if (zip->entry->crc32 != zip->entry_crc32
-		    && !zip->ignore_crc32) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP bad CRC: 0x%lx should be 0x%lx",
-			    (unsigned long)zip->entry_crc32,
-			    (unsigned long)zip->entry->crc32);
-			return (ARCHIVE_WARN);
-		}
-	}
-
-	return (ARCHIVE_OK);
-}
-
-static int
-archive_read_format_zip_cleanup(struct archive_read *a)
-{
-	struct zip *zip;
-	struct zip_entry *zip_entry, *next_zip_entry;
-
-	zip = (struct zip *)(a->format->data);
-#ifdef HAVE_ZLIB_H
-	if (zip->stream_valid)
-		inflateEnd(&zip->stream);
-	free(zip->uncompressed_buffer);
-#endif
-	if (zip->zip_entries) {
-		zip_entry = zip->zip_entries;
-		while (zip_entry != NULL) {
-			next_zip_entry = zip_entry->next;
-			archive_string_free(&zip_entry->rsrcname);
-			free(zip_entry);
-			zip_entry = next_zip_entry;
-		}
-	}
-	free(zip);
-	(a->format->data) = NULL;
-	return (ARCHIVE_OK);
-}
-
-static int
-archive_read_format_zip_has_encrypted_entries(struct archive_read *_a)
-{
-	if (_a && _a->format) {
-		struct zip * zip = (struct zip *)_a->format->data;
-		if (zip) {
-			return zip->has_encrypted_entries;
-		}
-	}
-	return ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
-}
-
-static int
-archive_read_format_zip_options(struct archive_read *a,
-    const char *key, const char *val)
-{
-	struct zip *zip;
-	int ret = ARCHIVE_FAILED;
-
-	zip = (struct zip *)(a->format->data);
-	if (strcmp(key, "compat-2x")  == 0) {
-		/* Handle filenames as libarchive 2.x */
-		zip->init_default_conversion = (val != NULL) ? 1 : 0;
-		return (ARCHIVE_OK);
-	} else if (strcmp(key, "hdrcharset")  == 0) {
-		if (val == NULL || val[0] == 0)
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "zip: hdrcharset option needs a character-set name"
-			);
-		else {
-			zip->sconv = archive_string_conversion_from_charset(
-			    &a->archive, val, 0);
-			if (zip->sconv != NULL) {
-				if (strcmp(val, "UTF-8") == 0)
-					zip->sconv_utf8 = zip->sconv;
-				ret = ARCHIVE_OK;
-			} else
-				ret = ARCHIVE_FATAL;
-		}
-		return (ret);
-	} else if (strcmp(key, "ignorecrc32") == 0) {
-		/* Mostly useful for testing. */
-		if (val == NULL || val[0] == 0) {
-			zip->crc32func = real_crc32;
-			zip->ignore_crc32 = 0;
-		} else {
-			zip->crc32func = fake_crc32;
-			zip->ignore_crc32 = 1;
-		}
-		return (ARCHIVE_OK);
-	} else if (strcmp(key, "mac-ext") == 0) {
-		zip->process_mac_extensions = (val != NULL && val[0] != 0);
-		return (ARCHIVE_OK);
-	}
-
-	/* Note: The "warn" return is just to inform the options
-	 * supervisor that we didn't handle it.  It will generate
-	 * a suitable error if no one used this option. */
-	return (ARCHIVE_WARN);
-}
-
-int
-archive_read_support_format_zip(struct archive *a)
-{
-	int r;
-	r = archive_read_support_format_zip_streamable(a);
-	if (r != ARCHIVE_OK)
-		return r;
-	return (archive_read_support_format_zip_seekable(a));
-}
-
-/* ------------------------------------------------------------------------ */
-
-/*
- * Streaming-mode support
- */
-
-
-static int
-archive_read_support_format_zip_capabilities_streamable(struct archive_read * a)
-{
-	(void)a; /* UNUSED */
-	return (ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_DATA | ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_METADATA);
-}
-
-static int
-archive_read_format_zip_streamable_bid(struct archive_read *a, int best_bid)
-{
-	const char *p;
-
-	(void)best_bid; /* UNUSED */
-
-	if ((p = __archive_read_ahead(a, 4, NULL)) == NULL)
-		return (-1);
-
-	/*
-	 * Bid of 29 here comes from:
-	 *  + 16 bits for "PK",
-	 *  + next 16-bit field has 6 options so contributes
-	 *    about 16 - log_2(6) ~= 16 - 2.6 ~= 13 bits
-	 *
-	 * So we've effectively verified ~29 total bits of check data.
-	 */
-	if (p[0] == 'P' && p[1] == 'K') {
-		if ((p[2] == '\001' && p[3] == '\002')
-		    || (p[2] == '\003' && p[3] == '\004')
-		    || (p[2] == '\005' && p[3] == '\006')
-		    || (p[2] == '\006' && p[3] == '\006')
-		    || (p[2] == '\007' && p[3] == '\010')
-		    || (p[2] == '0' && p[3] == '0'))
-			return (29);
-	}
-
-	/* TODO: It's worth looking ahead a little bit for a valid
-	 * PK signature.  In particular, that would make it possible
-	 * to read some UUEncoded SFX files or SFX files coming from
-	 * a network socket. */
-
-	return (0);
-}
-
-static int
-archive_read_format_zip_streamable_read_header(struct archive_read *a,
-    struct archive_entry *entry)
-{
-	struct zip *zip;
-
-	a->archive.archive_format = ARCHIVE_FORMAT_ZIP;
-	if (a->archive.archive_format_name == NULL)
-		a->archive.archive_format_name = "ZIP";
-
-	zip = (struct zip *)(a->format->data);
-
-	/*
-	 * It should be sufficient to call archive_read_next_header() for
-	 * a reader to determine if an entry is encrypted or not. If the
-	 * encryption of an entry is only detectable when calling
-	 * archive_read_data(), so be it. We'll do the same check there
-	 * as well.
-	 */
-	if (zip->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
-		zip->has_encrypted_entries = 0;
-	}
-
-	/* Make sure we have a zip_entry structure to use. */
-	if (zip->zip_entries == NULL) {
-		zip->zip_entries = malloc(sizeof(struct zip_entry));
-		if (zip->zip_entries == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Out  of memory");
-			return ARCHIVE_FATAL;
-		}
-	}
-	zip->entry = zip->zip_entries;
-	memset(zip->entry, 0, sizeof(struct zip_entry));
-
-	/* Search ahead for the next local file header. */
-	__archive_read_consume(a, zip->unconsumed);
-	zip->unconsumed = 0;
-	for (;;) {
-		int64_t skipped = 0;
-		const char *p, *end;
-		ssize_t bytes;
-
-		p = __archive_read_ahead(a, 4, &bytes);
-		if (p == NULL)
-			return (ARCHIVE_FATAL);
-		end = p + bytes;
-
-		while (p + 4 <= end) {
-			if (p[0] == 'P' && p[1] == 'K') {
-				if (p[2] == '\003' && p[3] == '\004') {
-					/* Regular file entry. */
-					__archive_read_consume(a, skipped);
-					return zip_read_local_file_header(a,
-					    entry, zip);
-				}
-
-                              /*
-                               * TODO: We cannot restore permissions
-                               * based only on the local file headers.
-                               * Consider scanning the central
-                               * directory and returning additional
-                               * entries for at least directories.
-                               * This would allow us to properly set
-                               * directory permissions.
-			       *
-			       * This won't help us fix symlinks
-			       * and may not help with regular file
-			       * permissions, either.  <sigh>
-                               */
-                              if (p[2] == '\001' && p[3] == '\002') {
-                                      return (ARCHIVE_EOF);
-                              }
-
-                              /* End of central directory?  Must be an
-                               * empty archive. */
-                              if ((p[2] == '\005' && p[3] == '\006')
-                                  || (p[2] == '\006' && p[3] == '\006'))
-                                      return (ARCHIVE_EOF);
-			}
-			++p;
-			++skipped;
-		}
-		__archive_read_consume(a, skipped);
-	}
-}
-
-static int
-archive_read_format_zip_read_data_skip_streamable(struct archive_read *a)
-{
-	struct zip *zip;
-	int64_t bytes_skipped;
-
-	zip = (struct zip *)(a->format->data);
-	bytes_skipped = __archive_read_consume(a, zip->unconsumed);
-	zip->unconsumed = 0;
-	if (bytes_skipped < 0)
-		return (ARCHIVE_FATAL);
-
-	/* If we've already read to end of data, we're done. */
-	if (zip->end_of_entry)
-		return (ARCHIVE_OK);
-
-	/* So we know we're streaming... */
-	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
-	    || zip->entry->compressed_size > 0) {
-		/* We know the compressed length, so we can just skip. */
-		bytes_skipped = __archive_read_consume(a, zip->entry_bytes_remaining);
-		if (bytes_skipped < 0)
-			return (ARCHIVE_FATAL);
-		return (ARCHIVE_OK);
-	}
-
-	/* We're streaming and we don't know the length. */
-	/* If the body is compressed and we know the format, we can
-	 * find an exact end-of-entry by decompressing it. */
-	switch (zip->entry->compression) {
-#ifdef HAVE_ZLIB_H
-	case 8: /* Deflate compression. */
-		while (!zip->end_of_entry) {
-			int64_t offset = 0;
-			const void *buff = NULL;
-			size_t size = 0;
-			int r;
-			r =  zip_read_data_deflate(a, &buff, &size, &offset);
-			if (r != ARCHIVE_OK)
-				return (r);
-		}
-		return ARCHIVE_OK;
-#endif
-	default: /* Uncompressed or unknown. */
-		/* Scan for a PK\007\010 signature. */
-		for (;;) {
-			const char *p, *buff;
-			ssize_t bytes_avail;
-			buff = __archive_read_ahead(a, 16, &bytes_avail);
-			if (bytes_avail < 16) {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Truncated ZIP file data");
-				return (ARCHIVE_FATAL);
-			}
-			p = buff;
-			while (p <= buff + bytes_avail - 16) {
-				if (p[3] == 'P') { p += 3; }
-				else if (p[3] == 'K') { p += 2; }
-				else if (p[3] == '\007') { p += 1; }
-				else if (p[3] == '\010' && p[2] == '\007'
-				    && p[1] == 'K' && p[0] == 'P') {
-					if (zip->entry->flags & LA_USED_ZIP64)
-						__archive_read_consume(a, p - buff + 24);
-					else
-						__archive_read_consume(a, p - buff + 16);
-					return ARCHIVE_OK;
-				} else { p += 4; }
-			}
-			__archive_read_consume(a, p - buff);
-		}
-	}
-}
-
-int
-archive_read_support_format_zip_streamable(struct archive *_a)
-{
-	struct archive_read *a = (struct archive_read *)_a;
-	struct zip *zip;
-	int r;
-
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_zip");
-
-	zip = (struct zip *)malloc(sizeof(*zip));
-	if (zip == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate zip data");
-		return (ARCHIVE_FATAL);
-	}
-	memset(zip, 0, sizeof(*zip));
-
-	/* Streamable reader doesn't support mac extensions. */
-	zip->process_mac_extensions = 0;
-
-	/*
-	 * Until enough data has been read, we cannot tell about
-	 * any encrypted entries yet.
-	 */
-	zip->has_encrypted_entries = ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
-	zip->crc32func = real_crc32;
-
-	r = __archive_read_register_format(a,
-	    zip,
-	    "zip",
-	    archive_read_format_zip_streamable_bid,
-	    archive_read_format_zip_options,
-	    archive_read_format_zip_streamable_read_header,
-	    archive_read_format_zip_read_data,
-	    archive_read_format_zip_read_data_skip_streamable,
-	    NULL,
-	    archive_read_format_zip_cleanup,
-	    archive_read_support_format_zip_capabilities_streamable,
-	    archive_read_format_zip_has_encrypted_entries);
-
-	if (r != ARCHIVE_OK)
-		free(zip);
-	return (ARCHIVE_OK);
-}
-
-/* ------------------------------------------------------------------------ */
-
-/*
- * Seeking-mode support
- */
-
-static int
-archive_read_support_format_zip_capabilities_seekable(struct archive_read * a)
-{
-	(void)a; /* UNUSED */
-	return (ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_DATA | ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_METADATA);
+  return CURLM_OK;
 }
 
 /*
- * TODO: This is a performance sink because it forces the read core to
- * drop buffered data from the start of file, which will then have to
- * be re-read again if this bidder loses.
+ * multi_freeamsg()
  *
- * We workaround this a little by passing in the best bid so far so
- * that later bidders can do nothing if they know they'll never
- * outbid.  But we can certainly do better...
+ * Callback used by the llist system when a single list entry is destroyed.
  */
-static int
-read_eocd(struct zip *zip, const char *p, int64_t current_offset)
+static void multi_freeamsg(void *a, void *b)
 {
-	/* Sanity-check the EOCD we've found. */
-
-	/* This must be the first volume. */
-	if (archive_le16dec(p + 4) != 0)
-		return 0;
-	/* Central directory must be on this volume. */
-	if (archive_le16dec(p + 4) != archive_le16dec(p + 6))
-		return 0;
-	/* All central directory entries must be on this volume. */
-	if (archive_le16dec(p + 10) != archive_le16dec(p + 8))
-		return 0;
-	/* Central directory can't extend beyond start of EOCD record. */
-	if (archive_le32dec(p + 16) + archive_le32dec(p + 12)
-	    > current_offset)
-		return 0;
-
-	/* Save the central directory location for later use. */
-	zip->central_directory_offset = archive_le32dec(p + 16);
-
-	/* This is just a tiny bit higher than the maximum
-	   returned by the streaming Zip bidder.  This ensures
-	   that the more accurate seeking Zip parser wins
-	   whenever seek is available. */
-	return 32;
+  (void)a;
+  (void)b;
 }
 
-static int
-read_zip64_eocd(struct archive_read *a, struct zip *zip, const char *p)
+struct Curl_multi *Curl_multi_handle(int hashsize, /* socket hash */
+                                     int chashsize) /* connection hash */
 {
-	int64_t eocd64_offset;
-	int64_t eocd64_size;
+  struct Curl_multi *multi = calloc(1, sizeof(struct Curl_multi));
 
-	/* Sanity-check the locator record. */
+  if(!multi)
+    return NULL;
 
-	/* Central dir must be on first volume. */
-	if (archive_le32dec(p + 4) != 0)
-		return 0;
-	/* Must be only a single volume. */
-	if (archive_le32dec(p + 16) != 1)
-		return 0;
+  multi->type = CURL_MULTI_HANDLE;
 
-	/* Find the Zip64 EOCD record. */
-	eocd64_offset = archive_le64dec(p + 8);
-	if (__archive_read_seek(a, eocd64_offset, SEEK_SET) < 0)
-		return 0;
-	if ((p = __archive_read_ahead(a, 56, NULL)) == NULL)
-		return 0;
-	/* Make sure we can read all of it. */
-	eocd64_size = archive_le64dec(p + 4) + 12;
-	if (eocd64_size < 56 || eocd64_size > 16384)
-		return 0;
-	if ((p = __archive_read_ahead(a, eocd64_size, NULL)) == NULL)
-		return 0;
+  if(Curl_mk_dnscache(&multi->hostcache))
+    goto error;
 
-	/* Sanity-check the EOCD64 */
-	if (archive_le32dec(p + 16) != 0) /* Must be disk #0 */
-		return 0;
-	if (archive_le32dec(p + 20) != 0) /* CD must be on disk #0 */
-		return 0;
-	/* CD can't be split. */
-	if (archive_le64dec(p + 24) != archive_le64dec(p + 32))
-		return 0;
+  if(sh_init(&multi->sockhash, hashsize))
+    goto error;
 
-	/* Save the central directory offset for later use. */
-	zip->central_directory_offset = archive_le64dec(p + 48);
+  if(Curl_conncache_init(&multi->conn_cache, chashsize))
+    goto error;
 
-	return 32;
+  multi->msglist = Curl_llist_alloc(multi_freeamsg);
+  if(!multi->msglist)
+    goto error;
+
+  multi->pending = Curl_llist_alloc(multi_freeamsg);
+  if(!multi->pending)
+    goto error;
+
+  /* allocate a new easy handle to use when closing cached connections */
+  multi->closure_handle = curl_easy_init();
+  if(!multi->closure_handle)
+    goto error;
+
+  multi->closure_handle->multi = multi;
+  multi->closure_handle->state.conn_cache = &multi->conn_cache;
+
+  multi->max_pipeline_length = 5;
+
+  /* -1 means it not set by user, use the default value */
+  multi->maxconnects = -1;
+  return (CURLM *) multi;
+
+  error:
+
+  Curl_hash_destroy(&multi->sockhash);
+  Curl_hash_destroy(&multi->hostcache);
+  Curl_conncache_destroy(&multi->conn_cache);
+  Curl_close(multi->closure_handle);
+  multi->closure_handle = NULL;
+  Curl_llist_destroy(multi->msglist, NULL);
+  Curl_llist_destroy(multi->pending, NULL);
+
+  free(multi);
+  return NULL;
 }
 
-static int
-archive_read_format_zip_seekable_bid(struct archive_read *a, int best_bid)
+CURLM *curl_multi_init(void)
 {
-	struct zip *zip = (struct zip *)a->format->data;
-	int64_t file_size, current_offset;
-	const char *p;
-	int i, tail;
-
-	/* If someone has already bid more than 32, then avoid
-	   trashing the look-ahead buffers with a seek. */
-	if (best_bid > 32)
-		return (-1);
-
-	file_size = __archive_read_seek(a, 0, SEEK_END);
-	if (file_size <= 0)
-		return 0;
-
-	/* Search last 16k of file for end-of-central-directory
-	 * record (which starts with PK\005\006) or Zip64 locator
-	 * record (which begins with PK\006\007) */
-	tail = zipmin(1024 * 16, file_size);
-	current_offset = __archive_read_seek(a, -tail, SEEK_END);
-	if (current_offset < 0)
-		return 0;
-	if ((p = __archive_read_ahead(a, (size_t)tail, NULL)) == NULL)
-		return 0;
-	/* TODO: Rework this to search backwards from the end.  We
-	 * normally expect the EOCD record to be at the very end, so
-	 * that should be significantly faster.  Tricky part: Make
-	 * sure we still prefer the Zip64 locator if it's present. */
-	for (i = 0; i <= tail - 22;) {
-		switch (p[i + 3]) {
-		case 'P': i += 3; break;
-		case 'K': i += 2; break;
-		case 005: i += 1; break;
-		case 006:
-			if (memcmp(p + i, "PK\005\006", 4) == 0) {
-				int ret = read_eocd(zip, p + i, current_offset + i);
-				if (ret > 0)
-					return (ret);
-			}
-			i += 1; /* Look for PK\006\007 next */
-			break;
-		case 007:
-			if (memcmp(p + i, "PK\006\007", 4) == 0) {
-				int ret = read_zip64_eocd(a, zip, p + i);
-				if (ret > 0)
-					return (ret);
-			}
-			i += 4;
-			break;
-		default: i += 4; break;
-		}
-	}
-	return 0;
+  return Curl_multi_handle(CURL_SOCKET_HASH_TABLE_SIZE,
+                           CURL_CONNECTION_HASH_SIZE);
 }
 
-/* The red-black trees are only used in seeking mode to manage
- * the in-memory copy of the central directory. */
-
-static int
-cmp_node(const struct archive_rb_node *n1, const struct archive_rb_node *n2)
+CURLMcode curl_multi_add_handle(CURLM *multi_handle,
+                                CURL *easy_handle)
 {
-	const struct zip_entry *e1 = (const struct zip_entry *)n1;
-	const struct zip_entry *e2 = (const struct zip_entry *)n2;
+  struct curl_llist *timeoutlist;
+  struct Curl_multi *multi = (struct Curl_multi *)multi_handle;
+  struct SessionHandle *data = (struct SessionHandle *)easy_handle;
 
-	if (e1->local_header_offset > e2->local_header_offset)
-		return -1;
-	if (e1->local_header_offset < e2->local_header_offset)
-		return 1;
-	return 0;
+  /* First, make some basic checks that the CURLM handle is a good handle */
+  if(!GOOD_MULTI_HANDLE(multi))
+    return CURLM_BAD_HANDLE;
+
+  /* Verify that we got a somewhat good easy handle too */
+  if(!GOOD_EASY_HANDLE(easy_handle))
+    return CURLM_BAD_EASY_HANDLE;
+
+  /* Prevent users from adding same easy handle more than once and prevent
+     adding to more than one multi stack */
+  if(data->multi)
+    return CURLM_ADDED_ALREADY;
+
+  /* Allocate and initialize timeout list for easy handle */
+  timeoutlist = Curl_llist_alloc(multi_freetimeout);
+  if(!timeoutlist)
+    return CURLM_OUT_OF_MEMORY;
+
+  /*
+   * No failure allowed in this function beyond this point. And no
+   * modification of easy nor multi handle allowed before this except for
+   * potential multi's connection cache growing which won't be undone in this
+   * function no matter what.
+   */
+
+  /* Make easy handle use timeout list initialized above */
+  data->state.timeoutlist = timeoutlist;
+  timeoutlist = NULL;
+
+  /* set the easy handle */
+  multistate(data, CURLM_STATE_INIT);
+
+  if((data->set.global_dns_cache) &&
+     (data->dns.hostcachetype != HCACHE_GLOBAL)) {
+    /* global dns cache was requested but still isn't */
+    struct curl_hash *global = Curl_global_host_cache_init();
+    if(global) {
+      /* only do this if the global cache init works */
+      data->dns.hostcache = global;
+      data->dns.hostcachetype = HCACHE_GLOBAL;
+    }
+  }
+  /* for multi interface connections, we share DNS cache automatically if the
+     easy handle's one is currently not set. */
+  else if(!data->dns.hostcache ||
+     (data->dns.hostcachetype == HCACHE_NONE)) {
+    data->dns.hostcache = &multi->hostcache;
+    data->dns.hostcachetype = HCACHE_MULTI;
+  }
+
+  /* Point to the multi's connection cache */
+  data->state.conn_cache = &multi->conn_cache;
+
+  /* This adds the new entry at the 'end' of the doubly-linked circular
+     list of SessionHandle structs to try and maintain a FIFO queue so
+     the pipelined requests are in order. */
+
+  /* We add this new entry last in the list. */
+
+  data->next = NULL; /* end of the line */
+  if(multi->easyp) {
+    struct SessionHandle *last = multi->easylp;
+    last->next = data;
+    data->prev = last;
+    multi->easylp = data; /* the new last node */
+  }
+  else {
+    /* first node, make prev NULL! */
+    data->prev = NULL;
+    multi->easylp = multi->easyp = data; /* both first and last */
+  }
+
+  /* make the SessionHandle refer back to this multi handle */
+  data->multi = multi_handle;
+
+  /* Set the timeout for this handle to expire really soon so that it will
+     be taken care of even when this handle is added in the midst of operation
+     when only the curl_multi_socket() API is used. During that flow, only
+     sockets that time-out or have actions will be dealt with. Since this
+     handle has no action yet, we make sure it times out to get things to
+     happen. */
+  Curl_expire(data, 1);
+
+  /* increase the node-counter */
+  multi->num_easy++;
+
+  /* increase the alive-counter */
+  multi->num_alive++;
+
+  /* A somewhat crude work-around for a little glitch in update_timer() that
+     happens if the lastcall time is set to the same time when the handle is
+     removed as when the next handle is added, as then the check in
+     update_timer() that prevents calling the application multiple times with
+     the same timer infor will not trigger and then the new handle's timeout
+     will not be notified to the app.
+
+     The work-around is thus simply to clear the 'lastcall' variable to force
+     update_timer() to always trigger a callback to the app when a new easy
+     handle is added */
+  memset(&multi->timer_lastcall, 0, sizeof(multi->timer_lastcall));
+
+  update_timer(multi);
+  return CURLM_OK;
 }
 
-static int
-cmp_key(const struct archive_rb_node *n, const void *key)
+#if 0
+/* Debug-function, used like this:
+ *
+ * Curl_hash_print(multi->sockhash, debug_print_sock_hash);
+ *
+ * Enable the hash print function first by editing hash.c
+ */
+static void debug_print_sock_hash(void *p)
 {
-	/* This function won't be called */
-	(void)n; /* UNUSED */
-	(void)key; /* UNUSED */
-	return 1;
+  struct Curl_sh_entry *sh = (struct Curl_sh_entry *)p;
+
+  fprintf(stderr, " [easy %p/magic %x/socket %d]",
+          (void *)sh->data, sh->data->magic, (int)sh->socket);
 }
-
-static const struct archive_rb_tree_ops rb_ops = {
-	&cmp_node, &cmp_key
-};
-
-static int
-rsrc_cmp_node(const struct archive_rb_node *n1,
-    const struct archive_rb_node *n2)
-{
-	const struct zip_entry *e1 = (const struct zip_entry *)n1;
-	const struct zip_entry *e2 = (const struct zip_entry *)n2;
-
-	return (strcmp(e2->rsrcname.s, e1->rsrcname.s));
-}
-
-static int
-rsrc_cmp_key(const struct archive_rb_node *n, const void *key)
-{
-	const struct zip_entry *e = (const struct zip_entry *)n;
-	return (strcmp((const char *)key, e->rsrcname.s));
-}
-
-static const struct archive_rb_tree_ops rb_rsrc_ops = {
-	&rsrc_cmp_node, &rsrc_cmp_key
-};
-
-static const char *
-rsrc_basename(const char *name, size_t name_length)
-{
-	const char *s, *r;
-
-	r = s = name;
-	for (;;) {
-		s = memchr(s, '/', name_length - (s - name));
-		if (s == NULL)
-			break;
-		r = ++s;
-	}
-	return (r);
-}
-
-static void
-expose_parent_dirs(struct zip *zip, const char *name, size_t name_length)
-{
-	struct archive_string str;
-	struct zip_entry *dir;
-	char *s;
-
-	archive_string_init(&str);
-	archive_strncpy(&str, name, name_length);
-	for (;;) {
-		s = strrchr(str.s, '/');
-		if (s == NULL)
-			break;
-		*s = '\0';
-		/* Transfer the parent directory from zip->tree_rsrc RB
-		 * tree to zip->tree RB tree to expose. */
-		dir = (struct zip_entry *)
-		    __archive_rb_tree_find_node(&zip->tree_rsrc, str.s);
-		if (dir == NULL)
-			break;
-		__archive_rb_tree_remove_node(&zip->tree_rsrc, &dir->node);
-		archive_string_free(&dir->rsrcname);
-		__archive_rb_tree_insert_node(&zip->tree, &dir->node);
-	}
-	archive_string_free(&str);
-}
-
-static int
-slurp_central_directory(struct archive_read *a, struct zip *zip)
-{
-	ssize_t i;
-	unsigned found;
-	int64_t correction;
-	ssize_t bytes_avail;
-	const char *p;
-
-	/*
-	 * Find the start of the central directory.  The end-of-CD
-	 * record has our starting point, but there are lots of
-	 * Zip archives which have had other data prepended to the
-	 * file, which makes the recorded offsets all too small.
-	 * So we search forward from the specified offset until we
-	 * find the real start of the central directory.  Then we
-	 * know the correction we need to apply to account for leading
-	 * padding.
-	 */
-	if (__archive_read_seek(a, zip->central_directory_offset, SEEK_SET) < 0)
-		return ARCHIVE_FATAL;
-
-	found = 0;
-	while (!found) {
-		if ((p = __archive_read_ahead(a, 20, &bytes_avail)) == NULL)
-			return ARCHIVE_FATAL;
-		for (found = 0, i = 0; !found && i < bytes_avail - 4;) {
-			switch (p[i + 3]) {
-			case 'P': i += 3; break;
-			case 'K': i += 2; break;
-			case 001: i += 1; break;
-			case 002:
-				if (memcmp(p + i, "PK\001\002", 4) == 0) {
-					p += i;
-					found = 1;
-				} else
-					i += 4;
-				break;
-			case 005: i += 1; break;
-			case 006:
-				if (memcmp(p + i, "PK\005\006", 4) == 0) {
-					p += i;
-					found = 1;
-				} else if (memcmp(p + i, "PK\006\006", 4) == 0) {
-					p += i;
-					found = 1;
-				} else
-					i += 1;
-				break;
-			default: i += 4; break;
-			}
-		}
-		__archive_read_consume(a, i);
-	}
-	correction = archive_filter_bytes(&a->archive, 0) - zip->central_directory_offset;
-
-	__archive_rb_tree_init(&zip->tree, &rb_ops);
-	__archive_rb_tree_init(&zip->tree_rsrc, &rb_rsrc_ops);
-
-	zip->central_directory_entries_total = 0;
-	while (1) {
-		struct zip_entry *zip_entry;
-		size_t filename_length, extra_length, comment_length;
-		uint32_t external_attributes;
-		const char *name, *r;
-
-		if ((p = __archive_read_ahead(a, 4, NULL)) == NULL)
-			return ARCHIVE_FATAL;
-		if (memcmp(p, "PK\006\006", 4) == 0
-		    || memcmp(p, "PK\005\006", 4) == 0) {
-			break;
-		} else if (memcmp(p, "PK\001\002", 4) != 0) {
-			archive_set_error(&a->archive,
-			    -1, "Invalid central directory signature");
-			return ARCHIVE_FATAL;
-		}
-		if ((p = __archive_read_ahead(a, 46, NULL)) == NULL)
-			return ARCHIVE_FATAL;
-
-		zip_entry = calloc(1, sizeof(struct zip_entry));
-		zip_entry->next = zip->zip_entries;
-		zip_entry->flags |= LA_FROM_CENTRAL_DIRECTORY;
-		zip->zip_entries = zip_entry;
-		zip->central_directory_entries_total++;
-
-		/* version = p[4]; */
-		zip_entry->system = p[5];
-		/* version_required = archive_le16dec(p + 6); */
-		zip_entry->zip_flags = archive_le16dec(p + 8);
-		if (zip_entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)){
-			zip->has_encrypted_entries = 1;
-		}
-		zip_entry->compression = (char)archive_le16dec(p + 10);
-		zip_entry->mtime = zip_time(p + 12);
-		zip_entry->crc32 = archive_le32dec(p + 16);
-		zip_entry->compressed_size = archive_le32dec(p + 20);
-		zip_entry->uncompressed_size = archive_le32dec(p + 24);
-		filename_length = archive_le16dec(p + 28);
-		extra_length = archive_le16dec(p + 30);
-		comment_length = archive_le16dec(p + 32);
-		/* disk_start = archive_le16dec(p + 34); */ /* Better be zero. */
-		/* internal_attributes = archive_le16dec(p + 36); */ /* text bit */
-		external_attributes = archive_le32dec(p + 38);
-		zip_entry->local_header_offset =
-		    archive_le32dec(p + 42) + correction;
-
-		/* If we can't guess the mode, leave it zero here;
-		   when we read the local file header we might get
-		   more information. */
-		zip_entry->mode = 0;
-		if (zip_entry->system == 3) {
-			zip_entry->mode = external_attributes >> 16;
-		}
-
-		/* We're done with the regular data; get the filename and
-		 * extra data. */
-		__archive_read_consume(a, 46);
-		if ((p = __archive_read_ahead(a, filename_length + extra_length, NULL))
-		    == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file header");
-			return ARCHIVE_FATAL;
-		}
-		process_extra(p + filename_length, extra_length, zip_entry);
-
-		/*
-		 * Mac resource fork files are stored under the
-		 * "__MACOSX/" directory, so we should check if
-		 * it is.
-		 */
-		if (!zip->process_mac_extensions) {
-			/* Treat every entry as a regular entry. */
-			__archive_rb_tree_insert_node(&zip->tree,
-			    &zip_entry->node);
-		} else {
-			name = p;
-			r = rsrc_basename(name, filename_length);
-			if (filename_length >= 9 &&
-			    strncmp("__MACOSX/", name, 9) == 0) {
-				/* If this file is not a resource fork nor
-				 * a directory. We should treat it as a non
-				 * resource fork file to expose it. */
-				if (name[filename_length-1] != '/' &&
-				    (r - name < 3 || r[0] != '.' || r[1] != '_')) {
-					__archive_rb_tree_insert_node(&zip->tree,
-					    &zip_entry->node);
-					/* Expose its parent directories. */
-					expose_parent_dirs(zip, name, filename_length);
-				} else {
-					/* This file is a resource fork file or
-					 * a directory. */
-					archive_strncpy(&(zip_entry->rsrcname), name,
-					    filename_length);
-					__archive_rb_tree_insert_node(&zip->tree_rsrc,
-					    &zip_entry->node);
-				}
-			} else {
-				/* Generate resource fork name to find its resource
-				 * file at zip->tree_rsrc. */
-				archive_strcpy(&(zip_entry->rsrcname), "__MACOSX/");
-				archive_strncat(&(zip_entry->rsrcname), name, r - name);
-				archive_strcat(&(zip_entry->rsrcname), "._");
-				archive_strncat(&(zip_entry->rsrcname),
-				    name + (r - name), filename_length - (r - name));
-				/* Register an entry to RB tree to sort it by
-				 * file offset. */
-				__archive_rb_tree_insert_node(&zip->tree,
-				    &zip_entry->node);
-			}
-		}
-
-		/* Skip the comment too ... */
-		__archive_read_consume(a,
-		    filename_length + extra_length + comment_length);
-	}
-
-	return ARCHIVE_OK;
-}
-
-static ssize_t
-zip_get_local_file_header_size(struct archive_read *a, size_t extra)
-{
-	const char *p;
-	ssize_t filename_length, extra_length;
-
-	if ((p = __archive_read_ahead(a, extra + 30, NULL)) == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file header");
-		return (ARCHIVE_WARN);
-	}
-	p += extra;
-
-	if (memcmp(p, "PK\003\004", 4) != 0) {
-		archive_set_error(&a->archive, -1, "Damaged Zip archive");
-		return ARCHIVE_WARN;
-	}
-	filename_length = archive_le16dec(p + 26);
-	extra_length = archive_le16dec(p + 28);
-
-	return (30 + filename_length + extra_length);
-}
-
-static int
-zip_read_mac_metadata(struct archive_read *a, struct archive_entry *entry,
-    struct zip_entry *rsrc)
-{
-	struct zip *zip = (struct zip *)a->format->data;
-	unsigned char *metadata, *mp;
-	int64_t offset = archive_filter_bytes(&a->archive, 0);
-	size_t remaining_bytes, metadata_bytes;
-	ssize_t hsize;
-	int ret = ARCHIVE_OK, eof;
-
-	switch(rsrc->compression) {
-	case 0:  /* No compression. */
-#ifdef HAVE_ZLIB_H
-	case 8: /* Deflate compression. */
 #endif
-		break;
-	default: /* Unsupported compression. */
-		/* Return a warning. */
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unsupported ZIP compression method (%s)",
-		    compression_name(rsrc->compression));
-		/* We can't decompress this entry, but we will
-		 * be able to skip() it and try the next entry. */
-		return (ARCHIVE_WARN);
-	}
 
-	if (rsrc->uncompressed_size > (4 * 1024 * 1024)) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Mac metadata is too large: %jd > 4M bytes",
-		    (intmax_t)rsrc->uncompressed_size);
-		return (ARCHIVE_WARN);
-	}
+CURLMcode curl_multi_remove_handle(CURLM *multi_handle,
+                                   CURL *curl_handle)
+{
+  struct Curl_multi *multi=(struct Curl_multi *)multi_handle;
+  struct SessionHandle *easy = curl_handle;
+  struct SessionHandle *data = easy;
+  bool premature;
+  bool easy_owns_conn;
+  struct curl_llist_element *e;
 
-	metadata = malloc((size_t)rsrc->uncompressed_size);
-	if (metadata == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate memory for Mac metadata");
-		return (ARCHIVE_FATAL);
-	}
+  /* First, make some basic checks that the CURLM handle is a good handle */
+  if(!GOOD_MULTI_HANDLE(multi))
+    return CURLM_BAD_HANDLE;
 
-	if (offset < rsrc->local_header_offset)
-		__archive_read_consume(a, rsrc->local_header_offset - offset);
-	else if (offset != rsrc->local_header_offset) {
-		__archive_read_seek(a, rsrc->local_header_offset, SEEK_SET);
-	}
+  /* Verify that we got a somewhat good easy handle too */
+  if(!GOOD_EASY_HANDLE(curl_handle))
+    return CURLM_BAD_EASY_HANDLE;
 
-	hsize = zip_get_local_file_header_size(a, 0);
-	__archive_read_consume(a, hsize);
+  /* Prevent users from trying to remove same easy handle more than once */
+  if(!data->multi)
+    return CURLM_OK; /* it is already removed so let's say it is fine! */
 
-	remaining_bytes = (size_t)rsrc->compressed_size;
-	metadata_bytes = (size_t)rsrc->uncompressed_size;
-	mp = metadata;
-	eof = 0;
-	while (!eof && remaining_bytes) {
-		const unsigned char *p;
-		ssize_t bytes_avail;
-		size_t bytes_used;
+  premature = (data->mstate < CURLM_STATE_COMPLETED) ? TRUE : FALSE;
+  easy_owns_conn = (data->easy_conn && (data->easy_conn->data == easy)) ?
+    TRUE : FALSE;
 
-		p = __archive_read_ahead(a, 1, &bytes_avail);
-		if (p == NULL) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file header");
-			ret = ARCHIVE_WARN;
-			goto exit_mac_metadata;
-		}
-		if ((size_t)bytes_avail > remaining_bytes)
-			bytes_avail = remaining_bytes;
-		switch(rsrc->compression) {
-		case 0:  /* No compression. */
-			memcpy(mp, p, bytes_avail);
-			bytes_used = (size_t)bytes_avail;
-			metadata_bytes -= bytes_used;
-			mp += bytes_used;
-			if (metadata_bytes == 0)
-				eof = 1;
-			break;
-#ifdef HAVE_ZLIB_H
-		case 8: /* Deflate compression. */
-		{
-			int r;
+  /* If the 'state' is not INIT or COMPLETED, we might need to do something
+     nice to put the easy_handle in a good known state when this returns. */
+  if(premature) {
+    /* this handle is "alive" so we need to count down the total number of
+       alive connections when this is removed */
+    multi->num_alive--;
 
-			ret = zip_deflate_init(a, zip);
-			if (ret != ARCHIVE_OK)
-				goto exit_mac_metadata;
-			zip->stream.next_in =
-			    (Bytef *)(uintptr_t)(const void *)p;
-			zip->stream.avail_in = (uInt)bytes_avail;
-			zip->stream.total_in = 0;
-			zip->stream.next_out = mp;
-			zip->stream.avail_out = (uInt)metadata_bytes;
-			zip->stream.total_out = 0;
+    /* When this handle gets removed, other handles may be able to get the
+       connection */
+    Curl_multi_process_pending_handles(multi);
+  }
 
-			r = inflate(&zip->stream, 0);
-			switch (r) {
-			case Z_OK:
-				break;
-			case Z_STREAM_END:
-				eof = 1;
-				break;
-			case Z_MEM_ERROR:
-				archive_set_error(&a->archive, ENOMEM,
-				    "Out of memory for ZIP decompression");
-				ret = ARCHIVE_FATAL;
-				goto exit_mac_metadata;
-			default:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "ZIP decompression failed (%d)", r);
-				ret = ARCHIVE_FATAL;
-				goto exit_mac_metadata;
-			}
-			bytes_used = zip->stream.total_in;
-			metadata_bytes -= zip->stream.total_out;
-			mp += zip->stream.total_out;
-			break;
-		}
-#endif
-		default:
-			bytes_used = 0;
-			break;
-		}
-		__archive_read_consume(a, bytes_used);
-		remaining_bytes -= bytes_used;
-	}
-	archive_entry_copy_mac_metadata(entry, metadata,
-	    (size_t)rsrc->uncompressed_size - metadata_bytes);
+  if(data->easy_conn &&
+     data->mstate > CURLM_STATE_DO &&
+     data->mstate < CURLM_STATE_COMPLETED) {
+    /* If the handle is in a pipeline and has started sending off its
+       request but not received its response yet, we need to close
+       connection. */
+    connclose(data->easy_conn, "Removed with partial response");
+    /* Set connection owner so that Curl_done() closes it.
+       We can safely do this here since connection is killed. */
+    data->easy_conn->data = easy;
+    easy_owns_conn = TRUE;
+  }
 
-exit_mac_metadata:
-	__archive_read_seek(a, offset, SEEK_SET);
-	zip->decompress_init = 0;
-	free(metadata);
-	return (ret);
+  /* The timer must be shut down before data->multi is set to NULL,
+     else the timenode will remain in the splay tree after
+     curl_easy_cleanup is called. */
+  Curl_expire(data, 0);
+
+  /* destroy the timeout list that is held in the easy handle */
+  if(data->state.timeoutlist) {
+    Curl_llist_destroy(data->state.timeoutlist, NULL);
+    data->state.timeoutlist = NULL;
+  }
+
+  if(data->dns.hostcachetype == HCACHE_MULTI) {
+    /* stop using the multi handle's DNS cache */
+    data->dns.hostcache = NULL;
+    data->dns.hostcachetype = HCACHE_NONE;
+  }
+
+  if(data->easy_conn) {
+
+    /* we must call Curl_done() here (if we still "own it") so that we don't
+       leave a half-baked one around */
+    if(easy_owns_conn) {
+
+      /* Curl_done() clears the conn->data field to lose the association
+         between the easy handle and the connection
+
+         Note that this ignores the return code simply because there's
+         nothing really useful to do with it anyway! */
+      (void)Curl_done(&data->easy_conn, data->result, premature);
+    }
+    else
+      /* Clear connection pipelines, if Curl_done above was not called */
+      Curl_getoff_all_pipelines(data, data->easy_conn);
+  }
+
+  Curl_wildcard_dtor(&data->wildcard);
+
+  /* as this was using a shared connection cache we clear the pointer to that
+     since we're not part of that multi handle anymore */
+  data->state.conn_cache = NULL;
+
+  /* change state without using multistate(), only to make singlesocket() do
+     what we want */
+  data->mstate = CURLM_STATE_COMPLETED;
+  singlesocket(multi, easy); /* to let the application know what sockets that
+                                vanish with this handle */
+
+  /* Remove the association between the connection and the handle */
+  if(data->easy_conn) {
+    data->easy_conn->data = NULL;
+    data->easy_conn = NULL;
+  }
+
+  data->multi = NULL; /* clear the association to this multi handle */
+
+  /* make sure there's no pending message in the queue sent from this easy
+     handle */
+
+  for(e = multi->msglist->head; e; e = e->next) {
+    struct Curl_message *msg = e->ptr;
+
+    if(msg->extmsg.easy_handle == easy) {
+      Curl_llist_remove(multi->msglist, e, NULL);
+      /* there can only be one from this specific handle */
+      break;
+    }
+  }
+
+  /* make the previous node point to our next */
+  if(data->prev)
+    data->prev->next = data->next;
+  else
+    multi->easyp = data->next; /* point to first node */
+
+  /* make our next point to our previous node */
+  if(data->next)
+    data->next->prev = data->prev;
+  else
+    multi->easylp = data->prev; /* point to last node */
+
+  /* NOTE NOTE NOTE
+     We do not touch the easy handle here! */
+  multi->num_easy--; /* one less to care about now */
+
+  update_timer(multi);
+  return CURLM_OK;
 }
 
-static int
-archive_read_format_zip_seekable_read_header(struct archive_read *a,
-	struct archive_entry *entry)
+/* Return TRUE if the application asked for a certain set of pipelining */
+bool Curl_pipeline_wanted(const struct Curl_multi *multi, int bits)
 {
-	struct zip *zip = (struct zip *)a->format->data;
-	struct zip_entry *rsrc;
-	int64_t offset;
-	int r, ret = ARCHIVE_OK;
+  return (multi && (multi->pipelining & bits)) ? TRUE : FALSE;
+}
 
-	/*
-	 * It should be sufficient to call archive_read_next_header() for
-	 * a reader to determine if an entry is encrypted or not. If the
-	 * encryption of an entry is only detectable when calling
-	 * archive_read_data(), so be it. We'll do the same check there
-	 * as well.
-	 */
-	if (zip->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
-		zip->has_encrypted_entries = 0;
-	}
+void Curl_multi_handlePipeBreak(struct SessionHandle *data)
+{
+  data->easy_conn = NULL;
+}
 
-	a->archive.archive_format = ARCHIVE_FORMAT_ZIP;
-	if (a->archive.archive_format_name == NULL)
-		a->archive.archive_format_name = "ZIP";
+static int waitconnect_getsock(struct connectdata *conn,
+                               curl_socket_t *sock,
+                               int numsocks)
+{
+  int i;
+  int s=0;
+  int rc=0;
 
-	if (zip->zip_entries == NULL) {
-		r = slurp_central_directory(a, zip);
-		if (r != ARCHIVE_OK)
-			return r;
-		/* Get first entry whose local header offset is lower than
-		 * other entries in the archive file. */
-		zip->entry =
-		    (struct zip_entry *)ARCHIVE_RB_TREE_MIN(&zip->tree);
-	} else if (zip->entry != NULL) {
-		/* Get next entry in local header offset order. */
-		zip->entry = (struct zip_entry *)__archive_rb_tree_iterate(
-		    &zip->tree, &zip->entry->node, ARCHIVE_RB_DIR_RIGHT);
-	}
+  if(!numsocks)
+    return GETSOCK_BLANK;
 
-	if (zip->entry == NULL)
-		return ARCHIVE_EOF;
+  for(i=0; i<2; i++) {
+    if(conn->tempsock[i] != CURL_SOCKET_BAD) {
+      sock[s] = conn->tempsock[i];
+      rc |= GETSOCK_WRITESOCK(s++);
+    }
+  }
 
-	if (zip->entry->rsrcname.s)
-		rsrc = (struct zip_entry *)__archive_rb_tree_find_node(
-		    &zip->tree_rsrc, zip->entry->rsrcname.s);
-	else
-		rsrc = NULL;
+  return rc;
+}
 
-	/* File entries are sorted by the header offset, we should mostly
-	 * use __archive_read_consume to advance a read point to avoid redundant
-	 * data reading.  */
-	offset = archive_filter_bytes(&a->archive, 0);
-	if (offset < zip->entry->local_header_offset)
-		__archive_read_consume(a,
-		    zip->entry->local_header_offset - offset);
-	else if (offset != zip->entry->local_header_offset) {
-		__archive_read_seek(a, zip->entry->local_header_offset, SEEK_SET);
-	}
-	zip->unconsumed = 0;
-	r = zip_read_local_file_header(a, entry, zip);
-	if (r != ARCHIVE_OK)
-		return r;
-	if (rsrc) {
-		int ret2 = zip_read_mac_metadata(a, entry, rsrc);
-		if (ret2 < ret)
-			ret = ret2;
-	}
-	return (ret);
+static int waitproxyconnect_getsock(struct connectdata *conn,
+                                    curl_socket_t *sock,
+                                    int numsocks)
+{
+  if(!numsocks)
+    return GETSOCK_BLANK;
+
+  sock[0] = conn->sock[FIRSTSOCKET];
+
+  /* when we've sent a CONNECT to a proxy, we should rather wait for the
+     socket to become readable to be able to get the response headers */
+  if(conn->tunnel_state[FIRSTSOCKET] == TUNNEL_CONNECT)
+    return GETSOCK_READSOCK(0);
+
+  return GETSOCK_WRITESOCK(0);
+}
+
+static int domore_getsock(struct connectdata *conn,
+                          curl_socket_t *socks,
+                          int numsocks)
+{
+  if(conn && conn->handler->domore_getsock)
+    return conn->handler->domore_getsock(conn, socks, numsocks);
+  return GETSOCK_BLANK;
+}
+
+/* returns bitmapped flags for this handle and its sockets */
+static int multi_getsock(struct SessionHandle *data,
+                         curl_socket_t *socks, /* points to numsocks number
+                                                  of sockets */
+                         int numsocks)
+{
+  /* If the pipe broke, or if there's no connection left for this easy handle,
+     then we MUST bail out now with no bitmask set. The no connection case can
+     happen when this is called from curl_multi_remove_handle() =>
+     singlesocket() => multi_getsock().
+  */
+  if(data->state.pipe_broke || !data->easy_conn)
+    return 0;
+
+  if(data->mstate > CURLM_STATE_CONNECT &&
+     data->mstate < CURLM_STATE_COMPLETED) {
+    /* Set up ownership correctly */
+    data->easy_conn->data = data;
+  }
+
+  switch(data->mstate) {
+  default:
+#if 0 /* switch back on these cases to get the compiler to check for all enums
+         to be present */
+  case CURLM_STATE_TOOFAST:  /* returns 0, so will not select. */
+  case CURLM_STATE_COMPLETED:
+  case CURLM_STATE_MSGSENT:
+  case CURLM_STATE_INIT:
+  case CURLM_STATE_CONNECT:
+  case CURLM_STATE_WAITDO:
+  case CURLM_STATE_DONE:
+  case CURLM_STATE_LAST:
+    /* this will get called with CURLM_STATE_COMPLETED when a handle is
+       removed */
+#endif
+    return 0;
+
+  case CURLM_STATE_WAITRESOLVE:
+    return Curl_resolver_getsock(data->easy_conn, socks, numsocks);
+
+  case CURLM_STATE_PROTOCONNECT:
+  case CURLM_STATE_SENDPROTOCONNECT:
+    return Curl_protocol_getsock(data->easy_conn, socks, numsocks);
+
+  case CURLM_STATE_DO:
+  case CURLM_STATE_DOING:
+    return Curl_doing_getsock(data->easy_conn, socks, numsocks);
+
+  case CURLM_STATE_WAITPROXYCONNECT:
+    return waitproxyconnect_getsock(data->easy_conn, socks, numsocks);
+
+  case CURLM_STATE_WAITCONNECT:
+    return waitconnect_getsock(data->easy_conn, socks, numsocks);
+
+  case CURLM_STATE_DO_MORE:
+    return domore_getsock(data->easy_conn, socks, numsocks);
+
+  case CURLM_STATE_DO_DONE: /* since is set after DO is completed, we switch
+                               to waiting for the same as the *PERFORM
+                               states */
+  case CURLM_STATE_PERFORM:
+  case CURLM_STATE_WAITPERFORM:
+    return Curl_single_getsock(data->easy_conn, socks, numsocks);
+  }
+
+}
+
+CURLMcode curl_multi_fdset(CURLM *multi_handle,
+                           fd_set *read_fd_set, fd_set *write_fd_set,
+                           fd_set *exc_fd_set, int *max_fd)
+{
+  /* Scan through all the easy handles to get the file descriptors set.
+     Some easy handles may not have connected to the remote host yet,
+     and then we must make sure that is done. */
+  struct Curl_multi *multi=(struct Curl_multi *)multi_handle;
+  struct SessionHandle *data;
+  int this_max_fd=-1;
+  curl_socket_t sockbunch[MAX_SOCKSPEREASYHANDLE];
+  int bitmap;
+  int i;
+  (void)exc_fd_set; /* not used */
+
+  if(!GOOD_MULTI_HANDLE(multi))
+    return CURLM_BAD_HANDLE;
+
+  data=multi->easyp;
+  while(data) {
+    bitmap = multi_getsock(data, sockbunch, MAX_SOCKSPEREASYHANDLE);
+
+    for(i=0; i< MAX_SOCKSPEREASYHANDLE; i++) {
+      curl_socket_t s = CURL_SOCKET_BAD;
+
+      if((bitmap & GETSOCK_READSOCK(i)) && VALID_SOCK((sockbunch[i]))) {
+        FD_SET(sockbunch[i], read_fd_set);
+        s = sockbunch[i];
+      }
+      if((bitmap & GETSOCK_WRITESOCK(i)) && VALID_SOCK((sockbunch[i]))) {
+        FD_SET(sockbunch[i], write_fd_set);
+        s = sockbunch[i];
+      }
+      if(s == CURL_SOCKET_BAD)
+        /* this socket is unused, break out of loop */
+        break;
+      else {
+        if((int)s > this_max_fd)
+          this_max_fd = (int)s;
+      }
+    }
+
+    data = data->next; /* check next handle */
+  }
+
+  *max_fd = this_max_fd;
+
+  return CURLM_OK;
+}
+
+CURLMcode curl_multi_wait(CURLM *multi_handle,
+                          struct curl_waitfd extra_fds[],
+                          unsigned int extra_nfds,
+                          int timeout_ms,
+                          int *ret)
+{
+  struct Curl_multi *multi=(struct Curl_multi *)multi_handle;
+  struct SessionHandle *data;
+  curl_socket_t sockbunch[MAX_SOCKSPEREASYHANDLE];
+  int bitmap;
+  unsigned int i;
+  unsigned int nfds = 0;
+  unsigned int curlfds;
+  struct pollfd *ufds = NULL;
+  long timeout_internal;
+
+  if(!GOOD_MULTI_HANDLE(multi))
+    return CURLM_BAD_HANDLE;
+
+  /* If the internally desired timeout is actually shorter than requested from
+     the outside, then use the shorter time! But only if the internal timer
+     is actually larger than -1! */
+  (void)multi_timeout(multi, &timeout_internal);
+  if((timeout_internal >= 0) && (timeout_internal < (long)timeout_ms))
+    timeout_ms = (int)timeout_internal;
+
+  /* Count up how many fds we have from the multi handle */
+  data=multi->easyp;
+  while(data) {
+    bitmap = multi_getsock(data, sockbunch, MAX_SOCKSPEREASYHANDLE);
+
+    for(i=0; i< MAX_SOCKSPEREASYHANDLE; i++) {
+      curl_socket_t s = CURL_SOCKET_BAD;
+
+      if(bitmap & GETSOCK_READSOCK(i)) {
+        ++nfds;
+        s = sockbunch[i];
+      }
+      if(bitmap & GETSOCK_WRITESOCK(i)) {
+        ++nfds;
+        s = sockbunch[i];
+      }
+      if(s == CURL_SOCKET_BAD) {
+        break;
+      }
+    }
+
+    data = data->next; /* check next handle */
+  }
+
+  curlfds = nfds; /* number of internal file descriptors */
+  nfds += extra_nfds; /* add the externally provided ones */
+
+  if(nfds || extra_nfds) {
+    ufds = malloc(nfds * sizeof(struct pollfd));
+    if(!ufds)
+      return CURLM_OUT_OF_MEMORY;
+  }
+  nfds = 0;
+
+  /* only do the second loop if we found descriptors in the first stage run
+     above */
+
+  if(curlfds) {
+    /* Add the curl handles to our pollfds first */
+    data=multi->easyp;
+    while(data) {
+      bitmap = multi_getsock(data, sockbunch, MAX_SOCKSPEREASYHANDLE);
+
+      for(i=0; i< MAX_SOCKSPEREASYHANDLE; i++) {
+        curl_socket_t s = CURL_SOCKET_BAD;
+
+        if(bitmap & GETSOCK_READSOCK(i)) {
+          ufds[nfds].fd = sockbunch[i];
+          ufds[nfds].events = POLLIN;
+          ++nfds;
+          s = sockbunch[i];
+        }
+        if(bitmap & GETSOCK_WRITESOCK(i)) {
+          ufds[nfds].fd = sockbunch[i];
+          ufds[nfds].events = POLLOUT;
+          ++nfds;
+          s = sockbunch[i];
+        }
+        if(s == CURL_SOCKET_BAD) {
+          break;
+        }
+      }
+
+      data = data->next; /* check next handle */
+    }
+  }
+
+  /* Add external file descriptions from poll-like struct curl_waitfd */
+  for(i = 0; i < extra_nfds; i++) {
+    ufds[nfds].fd = extra_fds[i].fd;
+    ufds[nfds].events = 0;
+    if(extra_fds[i].events & CURL_WAIT_POLLIN)
+      ufds[nfds].events |= POLLIN;
+    if(extra_fds[i].events & CURL_WAIT_POLLPRI)
+      ufds[nfds].events |= POLLPRI;
+    if(extra_fds[i].events & CURL_WAIT_POLLOUT)
+      ufds[nfds].events |= POLLOUT;
+    ++nfds;
+  }
+
+  if(nfds) {
+    /* wait... */
+    infof(data, "Curl_poll(%d ds, %d ms)\n", nfds, timeout_ms);
+    i = Curl_poll(ufds, nfds, timeout_ms);
+
+    if(i) {
+      unsigned int j;
+      /* copy revents results from the poll to the curl_multi_wait poll
+         struct, the bit values of the actual underlying poll() implementation
+         may not be the same as the ones in the public libcurl API! */
+      for(j = 0; j < extra_nfds; j++) {
+        unsigned short mask = 0;
+        unsigned r = ufds[curlfds + j].revents;
+
+        if(r & POLLIN)
+          mask |= CURL_WAIT_POLLIN;
+        if(r & POLLOUT)
+          mask |= CURL_WAIT_POLLOUT;
+        if(r & POLLPRI)
+          mask |= CURL_WAIT_POLLPRI;
+
+        extra_fds[j].revents = mask;
+      }
+    }
+  }
+  else
+    i = 0;
+
+  free(ufds);
+  if(ret)
+    *ret = i;
+  return CURLM_OK;
 }
 
 /*
- * We're going to seek for the next header anyway, so we don't
- * need to bother doing anything here.
+ * Curl_multi_connchanged() is called to tell that there is a connection in
+ * this multi handle that has changed state (pipelining become possible, the
+ * number of allowed streams changed or similar), and a subsequent use of this
+ * multi handle should move CONNECT_PEND handles back to CONNECT to have them
+ * retry.
  */
-static int
-archive_read_format_zip_read_data_skip_seekable(struct archive_read *a)
+void Curl_multi_connchanged(struct Curl_multi *multi)
 {
-	struct zip *zip;
-	zip = (struct zip *)(a->format->data);
-
-	zip->unconsumed = 0;
-	return (ARCHIVE_OK);
+  multi->recheckstate = TRUE;
 }
 
-int
-archive_read_support_format_zip_seekable(struct archive *_a)
+/*
+ * multi_ischanged() is called
+ *
+ * Returns TRUE/FALSE whether the state is changed to trigger a CONNECT_PEND
+ * => CONNECT action.
+ *
+ * Set 'clear' to TRUE to have it also clear the state variable.
+ */
+static bool multi_ischanged(struct Curl_multi *multi, bool clear)
 {
-	struct archive_read *a = (struct archive_read *)_a;
-	struct zip *zip;
-	int r;
+  bool retval = multi->recheckstate;
+  if(clear)
+    multi->recheckstate = FALSE;
+  return retval;
+}
 
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_zip_seekable");
+CURLMcode Curl_multi_add_perform(struct Curl_multi *multi,
+                                 struct SessionHandle *data,
+                                 struct connectdata *conn)
+{
+  CURLMcode rc;
 
-	zip = (struct zip *)malloc(sizeof(*zip));
-	if (zip == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate zip data");
-		return (ARCHIVE_FATAL);
-	}
-	memset(zip, 0, sizeof(*zip));
+  rc = curl_multi_add_handle(multi, data);
+  if(!rc) {
+    struct SingleRequest *k = &data->req;
 
-#ifdef HAVE_COPYFILE_H
-	/* Set this by default on Mac OS. */
-	zip->process_mac_extensions = 1;
+    /* pass in NULL for 'conn' here since we don't want to init the
+       connection, only this transfer */
+    Curl_init_do(data, NULL);
+
+    /* take this handle to the perform state right away */
+    multistate(data, CURLM_STATE_PERFORM);
+    data->easy_conn = conn;
+    k->keepon |= KEEP_RECV; /* setup to receive! */
+  }
+  return rc;
+}
+
+static CURLMcode multi_runsingle(struct Curl_multi *multi,
+                                 struct timeval now,
+                                 struct SessionHandle *data)
+{
+  struct Curl_message *msg = NULL;
+  bool connected;
+  bool async;
+  bool protocol_connect = FALSE;
+  bool dophase_done = FALSE;
+  bool done = FALSE;
+  CURLMcode rc;
+  CURLcode result = CURLE_OK;
+  struct SingleRequest *k;
+  long timeout_ms;
+  int control;
+
+  if(!GOOD_EASY_HANDLE(data))
+    return CURLM_BAD_EASY_HANDLE;
+
+  do {
+    bool disconnect_conn = FALSE;
+    rc = CURLM_OK;
+
+    /* Handle the case when the pipe breaks, i.e., the connection
+       we're using gets cleaned up and we're left with nothing. */
+    if(data->state.pipe_broke) {
+      infof(data, "Pipe broke: handle %p, url = %s\n",
+            (void *)data, data->state.path);
+
+      if(data->mstate < CURLM_STATE_COMPLETED) {
+        /* Head back to the CONNECT state */
+        multistate(data, CURLM_STATE_CONNECT);
+        rc = CURLM_CALL_MULTI_PERFORM;
+        result = CURLE_OK;
+      }
+
+      data->state.pipe_broke = FALSE;
+      data->easy_conn = NULL;
+      continue;
+    }
+
+    if(!data->easy_conn &&
+       data->mstate > CURLM_STATE_CONNECT &&
+       data->mstate < CURLM_STATE_DONE) {
+      /* In all these states, the code will blindly access 'data->easy_conn'
+         so this is precaution that it isn't NULL. And it silences static
+         analyzers. */
+      failf(data, "In state %d with no easy_conn, bail out!\n", data->mstate);
+      return CURLM_INTERNAL_ERROR;
+    }
+
+    if(multi_ischanged(multi, TRUE)) {
+      DEBUGF(infof(data, "multi changed, check CONNECT_PEND queue!\n"));
+      Curl_multi_process_pending_handles(multi);
+    }
+
+    if(data->easy_conn && data->mstate > CURLM_STATE_CONNECT &&
+       data->mstate < CURLM_STATE_COMPLETED)
+      /* Make sure we set the connection's current owner */
+      data->easy_conn->data = data;
+
+    if(data->easy_conn &&
+       (data->mstate >= CURLM_STATE_CONNECT) &&
+       (data->mstate < CURLM_STATE_COMPLETED)) {
+      /* we need to wait for the connect state as only then is the start time
+         stored, but we must not check already completed handles */
+
+      timeout_ms = Curl_timeleft(data, &now,
+                                 (data->mstate <= CURLM_STATE_WAITDO)?
+                                 TRUE:FALSE);
+
+      if(timeout_ms < 0) {
+        /* Handle timed out */
+        if(data->mstate == CURLM_STATE_WAITRESOLVE)
+          failf(data, "Resolving timed out after %ld milliseconds",
+                Curl_tvdiff(now, data->progress.t_startsingle));
+        else if(data->mstate == CURLM_STATE_WAITCONNECT)
+          failf(data, "Connection timed out after %ld milliseconds",
+                Curl_tvdiff(now, data->progress.t_startsingle));
+        else {
+          k = &data->req;
+          if(k->size != -1) {
+            failf(data, "Operation timed out after %ld milliseconds with %"
+                  CURL_FORMAT_CURL_OFF_T " out of %"
+                  CURL_FORMAT_CURL_OFF_T " bytes received",
+                  Curl_tvdiff(k->now, data->progress.t_startsingle),
+                  k->bytecount, k->size);
+          }
+          else {
+            failf(data, "Operation timed out after %ld milliseconds with %"
+                  CURL_FORMAT_CURL_OFF_T " bytes received",
+                  Curl_tvdiff(now, data->progress.t_startsingle),
+                  k->bytecount);
+          }
+        }
+
+        /* Force connection closed if the connection has indeed been used */
+        if(data->mstate > CURLM_STATE_DO) {
+          connclose(data->easy_conn, "Disconnected with pending data");
+          disconnect_conn = TRUE;
+        }
+        result = CURLE_OPERATION_TIMEDOUT;
+        (void)Curl_done(&data->easy_conn, result, TRUE);
+        /* Skip the statemachine and go directly to error handling section. */
+        goto statemachine_end;
+      }
+    }
+
+    switch(data->mstate) {
+    case CURLM_STATE_INIT:
+      /* init this transfer. */
+      result=Curl_pretransfer(data);
+
+      if(!result) {
+        /* after init, go CONNECT */
+        multistate(data, CURLM_STATE_CONNECT);
+        Curl_pgrsTime(data, TIMER_STARTOP);
+        rc = CURLM_CALL_MULTI_PERFORM;
+      }
+      break;
+
+    case CURLM_STATE_CONNECT_PEND:
+      /* We will stay here until there is a connection available. Then
+         we try again in the CURLM_STATE_CONNECT state. */
+      break;
+
+    case CURLM_STATE_CONNECT:
+      /* Connect. We want to get a connection identifier filled in. */
+      Curl_pgrsTime(data, TIMER_STARTSINGLE);
+      result = Curl_connect(data, &data->easy_conn,
+                            &async, &protocol_connect);
+      if(CURLE_NO_CONNECTION_AVAILABLE == result) {
+        /* There was no connection available. We will go to the pending
+           state and wait for an available connection. */
+        multistate(data, CURLM_STATE_CONNECT_PEND);
+
+        /* add this handle to the list of connect-pending handles */
+        if(!Curl_llist_insert_next(multi->pending, multi->pending->tail, data))
+          result = CURLE_OUT_OF_MEMORY;
+        else
+          result = CURLE_OK;
+        break;
+      }
+
+      if(!result) {
+        /* Add this handle to the send or pend pipeline */
+        result = Curl_add_handle_to_pipeline(data, data->easy_conn);
+        if(result)
+          disconnect_conn = TRUE;
+        else {
+          if(async)
+            /* We're now waiting for an asynchronous name lookup */
+            multistate(data, CURLM_STATE_WAITRESOLVE);
+          else {
+            /* after the connect has been sent off, go WAITCONNECT unless the
+               protocol connect is already done and we can go directly to
+               WAITDO or DO! */
+            rc = CURLM_CALL_MULTI_PERFORM;
+
+            if(protocol_connect)
+              multistate(data, Curl_pipeline_wanted(multi, CURLPIPE_HTTP1)?
+                         CURLM_STATE_WAITDO:CURLM_STATE_DO);
+            else {
+#ifndef CURL_DISABLE_HTTP
+              if(data->easy_conn->tunnel_state[FIRSTSOCKET] == TUNNEL_CONNECT)
+                multistate(data, CURLM_STATE_WAITPROXYCONNECT);
+              else
+#endif
+                multistate(data, CURLM_STATE_WAITCONNECT);
+            }
+          }
+        }
+      }
+      break;
+
+    case CURLM_STATE_WAITRESOLVE:
+      /* awaiting an asynch name resolve to complete */
+    {
+      struct Curl_dns_entry *dns = NULL;
+      struct connectdata *conn = data->easy_conn;
+
+      /* check if we have the name resolved by now */
+      dns = Curl_fetch_addr(conn, conn->host.name, (int)conn->port);
+
+      if(dns) {
+#ifdef CURLRES_ASYNCH
+        conn->async.dns = dns;
+        conn->async.done = TRUE;
+#endif
+        result = CURLE_OK;
+        infof(data, "Hostname was found in DNS cache\n");
+      }
+
+      if(!dns)
+        result = Curl_resolver_is_resolved(data->easy_conn, &dns);
+
+      /* Update sockets here, because the socket(s) may have been
+         closed and the application thus needs to be told, even if it
+         is likely that the same socket(s) will again be used further
+         down.  If the name has not yet been resolved, it is likely
+         that new sockets have been opened in an attempt to contact
+         another resolver. */
+      singlesocket(multi, data);
+
+      if(dns) {
+        /* Perform the next step in the connection phase, and then move on
+           to the WAITCONNECT state */
+        result = Curl_async_resolved(data->easy_conn, &protocol_connect);
+
+        if(result)
+          /* if Curl_async_resolved() returns failure, the connection struct
+             is already freed and gone */
+          data->easy_conn = NULL;           /* no more connection */
+        else {
+          /* call again please so that we get the next socket setup */
+          rc = CURLM_CALL_MULTI_PERFORM;
+          if(protocol_connect)
+            multistate(data, Curl_pipeline_wanted(multi, CURLPIPE_HTTP1)?
+                       CURLM_STATE_WAITDO:CURLM_STATE_DO);
+          else {
+#ifndef CURL_DISABLE_HTTP
+            if(data->easy_conn->tunnel_state[FIRSTSOCKET] == TUNNEL_CONNECT)
+              multistate(data, CURLM_STATE_WAITPROXYCONNECT);
+            else
+#endif
+              multistate(data, CURLM_STATE_WAITCONNECT);
+          }
+        }
+      }
+
+      if(result) {
+        /* failure detected */
+        disconnect_conn = TRUE;
+        break;
+      }
+    }
+    break;
+
+#ifndef CURL_DISABLE_HTTP
+    case CURLM_STATE_WAITPROXYCONNECT:
+      /* this is HTTP-specific, but sending CONNECT to a proxy is HTTP... */
+      result = Curl_http_connect(data->easy_conn, &protocol_connect);
+
+      rc = CURLM_CALL_MULTI_PERFORM;
+      if(data->easy_conn->bits.proxy_connect_closed) {
+        /* connect back to proxy again */
+        result = CURLE_OK;
+        Curl_done(&data->easy_conn, CURLE_OK, FALSE);
+        multistate(data, CURLM_STATE_CONNECT);
+      }
+      else if(!result) {
+        if(data->easy_conn->tunnel_state[FIRSTSOCKET] == TUNNEL_COMPLETE)
+          /* initiate protocol connect phase */
+          multistate(data, CURLM_STATE_SENDPROTOCONNECT);
+      }
+      break;
 #endif
 
-	/*
-	 * Until enough data has been read, we cannot tell about
-	 * any encrypted entries yet.
-	 */
-	zip->has_encrypted_entries = ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
-	zip->crc32func = real_crc32;
+    case CURLM_STATE_WAITCONNECT:
+      /* awaiting a completion of an asynch TCP connect */
+      result = Curl_is_connected(data->easy_conn, FIRSTSOCKET, &connected);
+      if(connected && !result) {
+        rc = CURLM_CALL_MULTI_PERFORM;
+        multistate(data, data->easy_conn->bits.tunnel_proxy?
+                   CURLM_STATE_WAITPROXYCONNECT:
+                   CURLM_STATE_SENDPROTOCONNECT);
+      }
+      else if(result) {
+        /* failure detected */
+        /* Just break, the cleaning up is handled all in one place */
+        disconnect_conn = TRUE;
+        break;
+      }
+      break;
 
-	r = __archive_read_register_format(a,
-	    zip,
-	    "zip",
-	    archive_read_format_zip_seekable_bid,
-	    archive_read_format_zip_options,
-	    archive_read_format_zip_seekable_read_header,
-	    archive_read_format_zip_read_data,
-	    archive_read_format_zip_read_data_skip_seekable,
-	    NULL,
-	    archive_read_format_zip_cleanup,
-	    archive_read_support_format_zip_capabilities_seekable,
-	    archive_read_format_zip_has_encrypted_entries);
+    case CURLM_STATE_SENDPROTOCONNECT:
+      result = Curl_protocol_connect(data->easy_conn, &protocol_connect);
+      if(!protocol_connect)
+        /* switch to waiting state */
+        multistate(data, CURLM_STATE_PROTOCONNECT);
+      else if(!result) {
+        /* protocol connect has completed, go WAITDO or DO */
+        multistate(data, Curl_pipeline_wanted(multi, CURLPIPE_HTTP1)?
+                   CURLM_STATE_WAITDO:CURLM_STATE_DO);
+        rc = CURLM_CALL_MULTI_PERFORM;
+      }
+      else if(result) {
+        /* failure detected */
+        Curl_posttransfer(data);
+        Curl_done(&data->easy_conn, result, TRUE);
+        disconnect_conn = TRUE;
+      }
+      break;
 
-	if (r != ARCHIVE_OK)
-		free(zip);
-	return (ARCHIVE_OK);
+    case CURLM_STATE_PROTOCONNECT:
+      /* protocol-specific connect phase */
+      result = Curl_protocol_connecting(data->easy_conn, &protocol_connect);
+      if(!result && protocol_connect) {
+        /* after the connect has completed, go WAITDO or DO */
+        multistate(data, Curl_pipeline_wanted(multi, CURLPIPE_HTTP1)?
+                   CURLM_STATE_WAITDO:CURLM_STATE_DO);
+        rc = CURLM_CALL_MULTI_PERFORM;
+      }
+      else if(result) {
+        /* failure detected */
+        Curl_posttransfer(data);
+        Curl_done(&data->easy_conn, result, TRUE);
+        disconnect_conn = TRUE;
+      }
+      break;
+
+    case CURLM_STATE_WAITDO:
+      /* Wait for our turn to DO when we're pipelining requests */
+      if(Curl_pipeline_checkget_write(data, data->easy_conn)) {
+        /* Grabbed the channel */
+        multistate(data, CURLM_STATE_DO);
+        rc = CURLM_CALL_MULTI_PERFORM;
+      }
+      break;
+
+    case CURLM_STATE_DO:
+      if(data->set.connect_only) {
+        /* keep connection open for application to use the socket */
+        connkeep(data->easy_conn, "CONNECT_ONLY");
+        multistate(data, CURLM_STATE_DONE);
+        result = CURLE_OK;
+        rc = CURLM_CALL_MULTI_PERFORM;
+      }
+      else {
+        /* Perform the protocol's DO action */
+        result = Curl_do(&data->easy_conn, &dophase_done);
+
+        /* When Curl_do() returns failure, data->easy_conn might be NULL! */
+
+        if(!result) {
+          if(!dophase_done) {
+            /* some steps needed for wildcard matching */
+            if(data->set.wildcardmatch) {
+              struct WildcardData *wc = &data->wildcard;
+              if(wc->state == CURLWC_DONE || wc->state == CURLWC_SKIP) {
+                /* skip some states if it is important */
+                Curl_done(&data->easy_conn, CURLE_OK, FALSE);
+                multistate(data, CURLM_STATE_DONE);
+                rc = CURLM_CALL_MULTI_PERFORM;
+                break;
+              }
+            }
+            /* DO was not completed in one function call, we must continue
+               DOING... */
+            multistate(data, CURLM_STATE_DOING);
+            rc = CURLM_OK;
+          }
+
+          /* after DO, go DO_DONE... or DO_MORE */
+          else if(data->easy_conn->bits.do_more) {
+            /* we're supposed to do more, but we need to sit down, relax
+               and wait a little while first */
+            multistate(data, CURLM_STATE_DO_MORE);
+            rc = CURLM_OK;
+          }
+          else {
+            /* we're done with the DO, now DO_DONE */
+            multistate(data, CURLM_STATE_DO_DONE);
+            rc = CURLM_CALL_MULTI_PERFORM;
+          }
+        }
+        else if((CURLE_SEND_ERROR == result) &&
+                data->easy_conn->bits.reuse) {
+          /*
+           * In this situation, a connection that we were trying to use
+           * may have unexpectedly died.  If possible, send the connection
+           * back to the CONNECT phase so we can try again.
+           */
+          char *newurl = NULL;
+          followtype follow=FOLLOW_NONE;
+          CURLcode drc;
+          bool retry = FALSE;
+
+          drc = Curl_retry_request(data->easy_conn, &newurl);
+          if(drc) {
+            /* a failure here pretty much implies an out of memory */
+            result = drc;
+            disconnect_conn = TRUE;
+          }
+          else
+            retry = (newurl)?TRUE:FALSE;
+
+          Curl_posttransfer(data);
+          drc = Curl_done(&data->easy_conn, result, FALSE);
+
+          /* When set to retry the connection, we must to go back to
+           * the CONNECT state */
+          if(retry) {
+            if(!drc || (drc == CURLE_SEND_ERROR)) {
+              follow = FOLLOW_RETRY;
+              drc = Curl_follow(data, newurl, follow);
+              if(!drc) {
+                multistate(data, CURLM_STATE_CONNECT);
+                rc = CURLM_CALL_MULTI_PERFORM;
+                result = CURLE_OK;
+              }
+              else {
+                /* Follow failed */
+                result = drc;
+                free(newurl);
+              }
+            }
+            else {
+              /* done didn't return OK or SEND_ERROR */
+              result = drc;
+              free(newurl);
+            }
+          }
+          else {
+            /* Have error handler disconnect conn if we can't retry */
+            disconnect_conn = TRUE;
+            free(newurl);
+          }
+        }
+        else {
+          /* failure detected */
+          Curl_posttransfer(data);
+          if(data->easy_conn)
+            Curl_done(&data->easy_conn, result, FALSE);
+          disconnect_conn = TRUE;
+        }
+      }
+      break;
+
+    case CURLM_STATE_DOING:
+      /* we continue DOING until the DO phase is complete */
+      result = Curl_protocol_doing(data->easy_conn,
+                                   &dophase_done);
+      if(!result) {
+        if(dophase_done) {
+          /* after DO, go DO_DONE or DO_MORE */
+          multistate(data, data->easy_conn->bits.do_more?
+                     CURLM_STATE_DO_MORE:
+                     CURLM_STATE_DO_DONE);
+          rc = CURLM_CALL_MULTI_PERFORM;
+        } /* dophase_done */
+      }
+      else {
+        /* failure detected */
+        Curl_posttransfer(data);
+        Curl_done(&data->easy_conn, result, FALSE);
+        disconnect_conn = TRUE;
+      }
+      break;
+
+    case CURLM_STATE_DO_MORE:
+      /*
+       * When we are connected, DO MORE and then go DO_DONE
+       */
+      result = Curl_do_more(data->easy_conn, &control);
+
+      /* No need to remove this handle from the send pipeline here since that
+         is done in Curl_done() */
+      if(!result) {
+        if(control) {
+          /* if positive, advance to DO_DONE
+             if negative, go back to DOING */
+          multistate(data, control==1?
+                     CURLM_STATE_DO_DONE:
+                     CURLM_STATE_DOING);
+          rc = CURLM_CALL_MULTI_PERFORM;
+        }
+        else
+          /* stay in DO_MORE */
+          rc = CURLM_OK;
+      }
+      else {
+        /* failure detected */
+        Curl_posttransfer(data);
+        Curl_done(&data->easy_conn, result, FALSE);
+        disconnect_conn = TRUE;
+      }
+      break;
+
+    case CURLM_STATE_DO_DONE:
+      /* Move ourselves from the send to recv pipeline */
+      Curl_move_handle_from_send_to_recv_pipe(data, data->easy_conn);
+      /* Check if we can move pending requests to send pipe */
+      Curl_multi_process_pending_handles(multi);
+
+      /* Only perform the transfer if there's a good socket to work with.
+         Having both BAD is a signal to skip immediately to DONE */
+      if((data->easy_conn->sockfd != CURL_SOCKET_BAD) ||
+         (data->easy_conn->writesockfd != CURL_SOCKET_BAD))
+        multistate(data, CURLM_STATE_WAITPERFORM);
+      else
+        multistate(data, CURLM_STATE_DONE);
+      rc = CURLM_CALL_MULTI_PERFORM;
+      break;
+
+    case CURLM_STATE_WAITPERFORM:
+      /* Wait for our turn to PERFORM */
+      if(Curl_pipeline_checkget_read(data, data->easy_conn)) {
+        /* Grabbed the channel */
+        multistate(data, CURLM_STATE_PERFORM);
+        rc = CURLM_CALL_MULTI_PERFORM;
+      }
+      break;
+
+    case CURLM_STATE_TOOFAST: /* limit-rate exceeded in either direction */
+      /* if both rates are within spec, resume transfer */
+      if(Curl_pgrsUpdate(data->easy_conn))
+        result = CURLE_ABORTED_BY_CALLBACK;
+      else
+        result = Curl_speedcheck(data, now);
+
+      if(( (data->set.max_send_speed == 0) ||
+           (data->progress.ulspeed < data->set.max_send_speed ))  &&
+         ( (data->set.max_recv_speed == 0) ||
+           (data->progress.dlspeed < data->set.max_recv_speed)))
+        multistate(data, CURLM_STATE_PERFORM);
+      break;
+
+    case CURLM_STATE_PERFORM:
+    {
+      char *newurl = NULL;
+      bool retry = FALSE;
+
+      /* check if over send speed */
+      if((data->set.max_send_speed > 0) &&
+         (data->progress.ulspeed > data->set.max_send_speed)) {
+        int buffersize;
+
+        multistate(data, CURLM_STATE_TOOFAST);
+
+        /* calculate upload rate-limitation timeout. */
+        buffersize = (int)(data->set.buffer_size ?
+                           data->set.buffer_size : BUFSIZE);
+        timeout_ms = Curl_sleep_time(data->set.max_send_speed,
+                                     data->progress.ulspeed, buffersize);
+        Curl_expire_latest(data, timeout_ms);
+        break;
+      }
+
+      /* check if over recv speed */
+      if((data->set.max_recv_speed > 0) &&
+         (data->progress.dlspeed > data->set.max_recv_speed)) {
+        int buffersize;
+
+        multistate(data, CURLM_STATE_TOOFAST);
+
+        /* Calculate download rate-limitation timeout. */
+        buffersize = (int)(data->set.buffer_size ?
+                           data->set.buffer_size : BUFSIZE);
+        timeout_ms = Curl_sleep_time(data->set.max_recv_speed,
+                                     data->progress.dlspeed, buffersize);
+        Curl_expire_latest(data, timeout_ms);
+        break;
+      }
+
+      /* read/write data if it is ready to do so */
+      result = Curl_readwrite(data->easy_conn, data, &done);
+
+      k = &data->req;
+
+      if(!(k->keepon & KEEP_RECV))
+        /* We're done receiving */
+        Curl_pipeline_leave_read(data->easy_conn);
+
+      if(!(k->keepon & KEEP_SEND))
+        /* We're done sending */
+        Curl_pipeline_leave_write(data->easy_conn);
+
+      if(done || (result == CURLE_RECV_ERROR)) {
+        /* If CURLE_RECV_ERROR happens early enough, we assume it was a race
+         * condition and the server closed the re-used connection exactly when
+         * we wanted to use it, so figure out if that is indeed the case.
+         */
+        CURLcode ret = Curl_retry_request(data->easy_conn, &newurl);
+        if(!ret)
+          retry = (newurl)?TRUE:FALSE;
+
+        if(retry) {
+          /* if we are to retry, set the result to OK and consider the
+             request as done */
+          result = CURLE_OK;
+          done = TRUE;
+        }
+      }
+
+      if(result) {
+        /*
+         * The transfer phase returned error, we mark the connection to get
+         * closed to prevent being re-used. This is because we can't possibly
+         * know if the connection is in a good shape or not now.  Unless it is
+         * a protocol which uses two "channels" like FTP, as then the error
+         * happened in the data connection.
+         */
+
+        if(!(data->easy_conn->handler->flags & PROTOPT_DUAL))
+          connclose(data->easy_conn, "Transfer returned error");
+
+        Curl_posttransfer(data);
+        Curl_done(&data->easy_conn, result, FALSE);
+      }
+      else if(done) {
+        followtype follow=FOLLOW_NONE;
+
+        /* call this even if the readwrite function returned error */
+        Curl_posttransfer(data);
+
+        /* we're no longer receiving */
+        Curl_removeHandleFromPipeline(data, data->easy_conn->recv_pipe);
+
+        /* expire the new receiving pipeline head */
+        if(data->easy_conn->recv_pipe->head)
+          Curl_expire_latest(data->easy_conn->recv_pipe->head->ptr, 1);
+
+        /* Check if we can move pending requests to send pipe */
+        Curl_multi_process_pending_handles(multi);
+
+        /* When we follow redirects or is set to retry the connection, we must
+           to go back to the CONNECT state */
+        if(data->req.newurl || retry) {
+          if(!retry) {
+            /* if the URL is a follow-location and not just a retried request
+               then figure out the URL here */
+            free(newurl);
+            newurl = data->req.newurl;
+            data->req.newurl = NULL;
+            follow = FOLLOW_REDIR;
+          }
+          else
+            follow = FOLLOW_RETRY;
+          result = Curl_done(&data->easy_conn, CURLE_OK, FALSE);
+          if(!result) {
+            result = Curl_follow(data, newurl, follow);
+            if(!result) {
+              multistate(data, CURLM_STATE_CONNECT);
+              rc = CURLM_CALL_MULTI_PERFORM;
+              newurl = NULL; /* handed over the memory ownership to
+                                Curl_follow(), make sure we don't free() it
+                                here */
+            }
+          }
+        }
+        else {
+          /* after the transfer is done, go DONE */
+
+          /* but first check to see if we got a location info even though we're
+             not following redirects */
+          if(data->req.location) {
+            free(newurl);
+            newurl = data->req.location;
+            data->req.location = NULL;
+            result = Curl_follow(data, newurl, FOLLOW_FAKE);
+            if(!result)
+              newurl = NULL; /* allocation was handed over Curl_follow() */
+            else
+              disconnect_conn = TRUE;
+          }
+
+          multistate(data, CURLM_STATE_DONE);
+          rc = CURLM_CALL_MULTI_PERFORM;
+        }
+      }
+
+      free(newurl);
+      break;
+    }
+
+    case CURLM_STATE_DONE:
+      /* this state is highly transient, so run another loop after this */
+      rc = CURLM_CALL_MULTI_PERFORM;
+
+      if(data->easy_conn) {
+        CURLcode res;
+
+        /* Remove ourselves from the receive pipeline, if we are there. */
+        Curl_removeHandleFromPipeline(data, data->easy_conn->recv_pipe);
+        /* Check if we can move pending requests to send pipe */
+        Curl_multi_process_pending_handles(multi);
+
+        /* post-transfer command */
+        res = Curl_done(&data->easy_conn, result, FALSE);
+
+        /* allow a previously set error code take precedence */
+        if(!result)
+          result = res;
+
+        /*
+         * If there are other handles on the pipeline, Curl_done won't set
+         * easy_conn to NULL.  In such a case, curl_multi_remove_handle() can
+         * access free'd data, if the connection is free'd and the handle
+         * removed before we perform the processing in CURLM_STATE_COMPLETED
+         */
+        if(data->easy_conn)
+          data->easy_conn = NULL;
+      }
+
+      if(data->set.wildcardmatch) {
+        if(data->wildcard.state != CURLWC_DONE) {
+          /* if a wildcard is set and we are not ending -> lets start again
+             with CURLM_STATE_INIT */
+          multistate(data, CURLM_STATE_INIT);
+          break;
+        }
+      }
+
+      /* after we have DONE what we're supposed to do, go COMPLETED, and
+         it doesn't matter what the Curl_done() returned! */
+      multistate(data, CURLM_STATE_COMPLETED);
+      break;
+
+    case CURLM_STATE_COMPLETED:
+      /* this is a completed transfer, it is likely to still be connected */
+
+      /* This node should be delinked from the list now and we should post
+         an information message that we are complete. */
+
+      /* Important: reset the conn pointer so that we don't point to memory
+         that could be freed anytime */
+      data->easy_conn = NULL;
+
+      Curl_expire(data, 0); /* stop all timers */
+      break;
+
+    case CURLM_STATE_MSGSENT:
+      data->result = result;
+      return CURLM_OK; /* do nothing */
+
+    default:
+      return CURLM_INTERNAL_ERROR;
+    }
+    statemachine_end:
+
+    if(data->mstate < CURLM_STATE_COMPLETED) {
+      if(result) {
+        /*
+         * If an error was returned, and we aren't in completed state now,
+         * then we go to completed and consider this transfer aborted.
+         */
+
+        /* NOTE: no attempt to disconnect connections must be made
+           in the case blocks above - cleanup happens only here */
+
+        data->state.pipe_broke = FALSE;
+
+        /* Check if we can move pending requests to send pipe */
+        Curl_multi_process_pending_handles(multi);
+
+        if(data->easy_conn) {
+          /* if this has a connection, unsubscribe from the pipelines */
+          Curl_pipeline_leave_write(data->easy_conn);
+          Curl_pipeline_leave_read(data->easy_conn);
+          Curl_removeHandleFromPipeline(data, data->easy_conn->send_pipe);
+          Curl_removeHandleFromPipeline(data, data->easy_conn->recv_pipe);
+
+          if(disconnect_conn) {
+            /* Don't attempt to send data over a connection that timed out */
+            bool dead_connection = result == CURLE_OPERATION_TIMEDOUT;
+            /* disconnect properly */
+            Curl_disconnect(data->easy_conn, dead_connection);
+
+            /* This is where we make sure that the easy_conn pointer is reset.
+               We don't have to do this in every case block above where a
+               failure is detected */
+            data->easy_conn = NULL;
+          }
+        }
+        else if(data->mstate == CURLM_STATE_CONNECT) {
+          /* Curl_connect() failed */
+          (void)Curl_posttransfer(data);
+        }
+
+        multistate(data, CURLM_STATE_COMPLETED);
+      }
+      /* if there's still a connection to use, call the progress function */
+      else if(data->easy_conn && Curl_pgrsUpdate(data->easy_conn)) {
+        /* aborted due to progress callback return code must close the
+           connection */
+        result = CURLE_ABORTED_BY_CALLBACK;
+        connclose(data->easy_conn, "Aborted by callback");
+
+        /* if not yet in DONE state, go there, otherwise COMPLETED */
+        multistate(data, (data->mstate < CURLM_STATE_DONE)?
+                   CURLM_STATE_DONE: CURLM_STATE_COMPLETED);
+        rc = CURLM_CALL_MULTI_PERFORM;
+      }
+    }
+
+    if(CURLM_STATE_COMPLETED == data->mstate) {
+      /* now fill in the Curl_message with this info */
+      msg = &data->msg;
+
+      msg->extmsg.msg = CURLMSG_DONE;
+      msg->extmsg.easy_handle = data;
+      msg->extmsg.data.result = result;
+
+      rc = multi_addmsg(multi, msg);
+
+      multistate(data, CURLM_STATE_MSGSENT);
+    }
+  } while((rc == CURLM_CALL_MULTI_PERFORM) || multi_ischanged(multi, FALSE));
+
+  data->result = result;
+
+
+  return rc;
 }
+
+
+CURLMcode curl_multi_perform(CURLM *multi_handle, int *running_handles)
+{
+  struct Curl_multi *multi=(struct Curl_multi *)multi_handle;
+  struct SessionHandle *data;
+  CURLMcode returncode=CURLM_OK;
+  struct Curl_tree *t;
+  struct timeval now = Curl_tvnow();
+
+  if(!GOOD_MULTI_HANDLE(multi))
+    return CURLM_BAD_HANDLE;
+
+  data=multi->easyp;
+  while(data) {
+    CURLMcode result;
+    struct WildcardData *wc = &data->wildcard;
+    SIGPIPE_VARIABLE(pipe_st);
+
+    if(data->set.wildcardmatch) {
+      if(!wc->filelist) {
+        CURLcode ret = Curl_wildcard_init(wc); /* init wildcard structures */
+        if(ret)
+          return CURLM_OUT_OF_MEMORY;
+      }
+    }
+
+    sigpipe_ignore(data, &pipe_st);
+    result = multi_runsingle(multi, now, data);
+    sigpipe_restore(&pipe_st);
+
+    if(data->set.wildcardmatch) {
+      /* destruct wildcard structures if it is needed */
+      if(wc->state == CURLWC_DONE || result)
+        Curl_wildcard_dtor(wc);
+    }
+
+    if(result)
+      returncode = result;
+
+    data = data->next; /* operate on next handle */
+  }
+
+  /*
+   * Simply remove all expired timers from the splay since handles are dealt
+   * with unconditionally by this function and curl_multi_timeout() requires
+   * that already passed/handled expire times are removed from the splay.
+   *
+   * It is important that the 'now' value is set at the entry of this function
+   * and not for the current time as it may have ticked a little while since
+   * then and then we risk this loop to remove timers that actually have not
+   * been handled!
+   */
+  do {
+    multi->timetree = Curl_splaygetbest(now, multi->timetree, &t);
+    if(t)
+      /* the removed may have another timeout in queue */
+      (void)add_next_timeout(now, multi, t->payload);
+
+  } while(t);
+
+  *running_handles = multi->num_alive;
+
+  if(CURLM_OK >= returncode)
+    update_timer(multi);
+
+  return returncode;
+}
+
+static void close_all_connections(struct Curl_multi *multi)
+{
+  struct connectdata *conn;
+
+  conn = Curl_conncache_find_first_connection(&multi->conn_cache);
+  while(conn) {
+    SIGPIPE_VARIABLE(pipe_st);
+    conn->data = multi->closure_handle;
+
+    sigpipe_ignore(conn->data, &pipe_st);
+    /* This will remove the connection from the cache */
+    (void)Curl_disconnect(conn, FALSE);
+    sigpipe_restore(&pipe_st);
+
+    conn = Curl_conncache_find_first_connection(&multi->conn_cache);
+  }
+}
+
+CURLMcode curl_multi_cleanup(CURLM *multi_handle)
+{
+  struct Curl_multi *multi=(struct Curl_multi *)multi_handle;
+  struct SessionHandle *data;
+  struct SessionHandle *nextdata;
+
+  if(GOOD_MULTI_HANDLE(multi)) {
+    bool restore_pipe = FALSE;
+    SIGPIPE_VARIABLE(pipe_st);
+
+    multi->type = 0; /* not good anymore */
+
+    /* Close all the connections in the connection cache */
+    close_all_connections(multi);
+
+    if(multi->closure_handle) {
+      sigpipe_ignore(multi->closure_handle, &pipe_st);
+      restore_pipe = TRUE;
+
+      multi->closure_handle->dns.hostcache = &multi->hostcache;
+      Curl_hostcache_clean(multi->closure_handle,
+                           multi->closure_handle->dns.hostcache);
+
+      Curl_close(multi->closure_handle);
+    }
+
+    Curl_hash_destroy(&multi->sockhash);
+    Curl_conncache_destroy(&multi->conn_cache);
+    Curl_llist_destroy(multi->msglist, NULL);
+    Curl_llist_destroy(multi->pending, NULL);
+
+    /* remove all easy handles */
+    data = multi->easyp;
+    while(data) {
+      nextdata=data->next;
+      if(data->dns.hostcachetype == HCACHE_MULTI) {
+        /* clear out the usage of the shared DNS cache */
+        Curl_hostcache_clean(data, data->dns.hostcache);
+        data->dns.hostcache = NULL;
+        data->dns.hostcachetype = HCACHE_NONE;
+      }
+
+      /* Clear the pointer to the connection cache */
+      data->state.conn_cache = NULL;
+      data->multi = NULL; /* clear the association */
+
+      data = nextdata;
+    }
+
+    Curl_hash_destroy(&multi->hostcache);
+
+    /* Free the blacklists by setting them to NULL */
+    Curl_pipeline_set_site_blacklist(NULL, &multi->pipelining_site_bl);
+    Curl_pipeline_set_server_blacklist(NULL, &multi->pipelining_server_bl);
+
+    free(multi);
+    if(restore_pipe)
+      sigpipe_restore(&pipe_st);
+
+    return CURLM_OK;
+  }
+  else
+    return CURLM_BAD_HANDLE;
+}
+
+/*
+ * curl_multi_info_read()
+ *
+ * This function is the primary way for a multi/multi_socket application to
+ * figure out if a transfer has ended. We MUST make this function as fast as
+ * possible as it will be polled frequently and we MUST NOT scan any lists in
+ * here to figure out things. We must scale fine to thousands of handles and
+ * beyond. The current design is fully O(1).
+ */
+
+CURLMsg *curl_multi_info_read(CURLM *multi_handle, int *msgs_in_queue)
+{
+  struct Curl_multi *multi=(struct Curl_multi *)multi_handle;
+  struct Curl_message *msg;
+
+  *msgs_in_queue = 0; /* default to none */
+
+  if(GOOD_MULTI_HANDLE(multi) && Curl_llist_count(multi->msglist)) {
+    /* there is one or more messages in the list */
+    struct curl_llist_element *e;
+
+    /* extract the head of the list to return */
+    e = multi->msglist->head;
+
+    msg = e->ptr;
+
+    /* remove the extracted entry */
+    Curl_llist_remove(multi->msglist, e, NULL);
+
+    *msgs_in_queue = curlx_uztosi(Curl_llist_count(multi->msglist));
+
+    return &msg->extmsg;
+  }
+  else
+    return NULL;
+}
+
+/*
+ * singlesocket() checks what sockets we deal with and their "action state"
+ * and if we have a different state in any of those sockets from last time we
+ * call the callback accordingly.
+ */
+static void singlesocket(struct Curl_multi *multi,
+                         struct SessionHandle *data)
+{
+  curl_socket_t socks[MAX_SOCKSPEREASYHANDLE];
+  int i;
+  struct Curl_sh_entry *entry;
+  curl_socket_t s;
+  int num;
+  unsigned int curraction;
+  bool remove_sock_from_hash;
+
+  for(i=0; i< MAX_SOCKSPEREASYHANDLE; i++)
+    socks[i] = CURL_SOCKET_BAD;
+
+  /* Fill in the 'current' struct with the state as it is now: what sockets to
+     supervise and for what actions */
+  curraction = multi_getsock(data, socks, MAX_SOCKSPEREASYHANDLE);
+
+  /* We have 0 .. N sockets already and we get to know about the 0 .. M
+     sockets we should have from now on. Detect the differences, remove no
+     longer supervised ones and add new ones */
+
+  /* walk over the sockets we got right now */
+  for(i=0; (i< MAX_SOCKSPEREASYHANDLE) &&
+        (curraction & (GETSOCK_READSOCK(i) | GETSOCK_WRITESOCK(i)));
+      i++) {
+    int action = CURL_POLL_NONE;
+
+    s = socks[i];
+
+    /* get it from the hash */
+    entry = Curl_hash_pick(&multi->sockhash, (char *)&s, sizeof(s));
+
+    if(curraction & GETSOCK_READSOCK(i))
+      action |= CURL_POLL_IN;
+    if(curraction & GETSOCK_WRITESOCK(i))
+      action |= CURL_POLL_OUT;
+
+    if(entry) {
+      /* yeps, already present so check if it has the same action set */
+      if(entry->action == action)
+        /* same, continue */
+        continue;
+    }
+    else {
+      /* this is a socket we didn't have before, add it! */
+      entry = sh_addentry(&multi->sockhash, s, data);
+      if(!entry)
+        /* fatal */
+        return;
+    }
+
+    /* we know (entry != NULL) at this point, see the logic above */
+    if(multi->socket_cb)
+      multi->socket_cb(data,
+                       s,
+                       action,
+                       multi->socket_userp,
+                       entry->socketp);
+
+    entry->action = action; /* store the current action state */
+  }
+
+  num = i; /* number of sockets */
+
+  /* when we've walked over all the sockets we should have right now, we must
+     make sure to detect sockets that are removed */
+  for(i=0; i< data->numsocks; i++) {
+    int j;
+    s = data->sockets[i];
+    for(j=0; j<num; j++) {
+      if(s == socks[j]) {
+        /* this is still supervised */
+        s = CURL_SOCKET_BAD;
+        break;
+      }
+    }
+    if(s != CURL_SOCKET_BAD) {
+
+      /* this socket has been removed. Tell the app to remove it */
+      remove_sock_from_hash = TRUE;
+
+      entry = Curl_hash_pick(&multi->sockhash, (char *)&s, sizeof(s));
+      if(entry) {
+        /* check if the socket to be removed serves a connection which has
+           other easy-s in a pipeline. In this case the socket should not be
+           removed. */
+        struct connectdata *easy_conn = data->easy_conn;
+        if(easy_conn) {
+          if(easy_conn->recv_pipe && easy_conn->recv_pipe->size > 1) {
+            /* the handle should not be removed from the pipe yet */
+            remove_sock_from_hash = FALSE;
+
+            /* Update the sockhash entry to instead point to the next in line
+               for the recv_pipe, or the first (in case this particular easy
+               isn't already) */
+            if(entry->easy == data) {
+              if(Curl_recvpipe_head(data, easy_conn))
+                entry->easy = easy_conn->recv_pipe->head->next->ptr;
+              else
+                entry->easy = easy_conn->recv_pipe->head->ptr;
+            }
+          }
+          if(easy_conn->send_pipe  && easy_conn->send_pipe->size > 1) {
+            /* the handle should not be removed from the pipe yet */
+            remove_sock_from_hash = FALSE;
+
+            /* Update the sockhash entry to instead point to the next in line
+               for the send_pipe, or the first (in case this particular easy
+               isn't already) */
+            if(entry->easy == data) {
+              if(Curl_sendpipe_head(data, easy_conn))
+                entry->easy = easy_conn->send_pipe->head->next->ptr;
+              else
+                entry->easy = easy_conn->send_pipe->head->ptr;
+            }
+          }
+          /* Don't worry about overwriting recv_pipe head with send_pipe_head,
+             when action will be asked on the socket (see multi_socket()), the
+             head of the correct pipe will be taken according to the
+             action. */
+        }
+      }
+      else
+        /* just a precaution, this socket really SHOULD be in the hash already
+           but in case it isn't, we don't have to tell the app to remove it
+           either since it never got to know about it */
+        remove_sock_from_hash = FALSE;
+
+      if(remove_sock_from_hash) {
+        /* in this case 'entry' is always non-NULL */
+        if(multi->socket_cb)
+          multi->socket_cb(data,
+                           s,
+                           CURL_POLL_REMOVE,
+                           multi->socket_userp,
+                           entry->socketp);
+        sh_delentry(&multi->sockhash, s);
+      }
+
+    }
+  }
+
+  memcpy(data->sockets, socks, num*sizeof(curl_socket_t));
+  data->numsocks = num;
+}
+
+/*
+ * Curl_multi_closed()
+ *
+ * Used by the connect code to tell the multi_socket code that one of the
+ * sockets we were using is about to be closed.  This function will then
+ * remove it from the sockethash for this handle to make the multi_socket API
+ * behave properly, especially for the case when libcurl will create another
+ * socket again and it gets the same file descriptor number.
+ */
+
+void Curl_multi_closed(struct connectdata *conn, curl_socket_t s)
+{
+  struct Curl_multi *multi = conn->data->multi;
+  if(multi) {
+    /* this is set if this connection is part of a handle that is added to
+       a multi handle, and only then this is necessary */
+    struct Curl_sh_entry *entry =
+      Curl_hash_pick(&multi->sockhash, (char *)&s, sizeof(s));
+
+    if(entry) {
+      if(multi->socket_cb)
+        multi->socket_cb(conn->data, s, CURL_POLL_REMOVE,
+                         multi->socket_userp,
+                         entry->socketp);
+
+      /* now remove it from the socket hash */
+      sh_delentry(&multi->sockhash, s);
+    }
+  }
+}
+
+
+
+/*
+ * add_next_timeout()
+ *
+ * Each SessionHandle has a list of timeouts. The add_next_timeout() is called
+ * when it has just been removed from the splay tree because the timeout has
+ * expired. This function is then to advance in the list to pick the next
+ * timeout to use (skip the already expired ones) and add this node back to
+ * the splay tree again.
+ *
+ * The splay tree only has each sessionhandle as a single node and the nearest
+ * timeout is used to sort it on.
+ */
+static CURLMcode add_next_timeout(struct timeval now,
+                                  struct Curl_multi *multi,
+                                  struct SessionHandle *d)
+{
+  struct timeval *tv = &d->state.expiretime;
+  struct curl_llist *list = d->state.timeoutlist;
+  struct curl_llist_element *e;
+
+  /* move over the timeout list for this specific handle and remove all
+     timeouts that are now passed tense and store the next pending
+     timeout in *tv */
+  for(e = list->head; e; ) {
+    struct curl_llist_element *n = e->next;
+    long diff = curlx_tvdiff(*(struct timeval *)e->ptr, now);
+    if(diff <= 0)
+      /* remove outdated entry */
+      Curl_llist_remove(list, e, NULL);
+    else
+      /* the list is sorted so get out on the first mismatch */
+      break;
+    e = n;
+  }
+  e = list->head;
+  if(!e) {
+    /* clear the expire times within the handles that we remove from the
+       splay tree */
+    tv->tv_sec = 0;
+    tv->tv_usec = 0;
+  }
+  else {
+    /* copy the first entry to 'tv' */
+    memcpy(tv, e->ptr, sizeof(*tv));
+
+    /* remove first entry from list */
+    Curl_llist_remove(list, e, NULL);
+
+    /* insert this node again into the splay */
+    multi->timetree = Curl_splayinsert(*tv, multi->timetree,
+                                       &d->state.timenode);
+  }
+  return CURLM_OK;
+}
+
+static CURLMcode multi_socket(struct Curl_multi *multi,
+                              bool checkall,
+                              curl_socket_t s,
+                              int ev_bitmask,
+                              int *running_handles)
+{
+  CURLMcode result = CURLM_OK;
+  struct SessionHandle *data = NULL;
+  struct Curl_tree *t;
+  struct timeval now = Curl_tvnow();
+
+  if(checkall) {
+    /* *perform() deals with running_handles on its own */
+    result = curl_multi_perform(multi, running_handles);
+
+    /* walk through each easy handle and do the socket state change magic
+       and callbacks */
+    if(result != CURLM_BAD_HANDLE) {
+      data=multi->easyp;
+      while(data) {
+        singlesocket(multi, data);
+        data = data->next;
+      }
+    }
+
+    /* or should we fall-through and do the timer-based stuff? */
+    return result;
+  }
+  else if(s != CURL_SOCKET_TIMEOUT) {
+
+    struct Curl_sh_entry *entry =
+      Curl_hash_pick(&multi->sockhash, (char *)&s, sizeof(s));
+
+    if(!entry)
+      /* Unmatched socket, we can't act on it but we ignore this fact.  In
+         real-world tests it has been proved that libevent can in fact give
+         the application actions even though the socket was just previously
+         asked to get removed, so thus we better survive stray socket actions
+         and just move on. */
+      ;
+    else {
+      SIGPIPE_VARIABLE(pipe_st);
+
+      data = entry->easy;
+
+      if(data->magic != CURLEASY_MAGIC_NUMBER)
+        /* bad bad bad bad bad bad bad */
+        return CURLM_INTERNAL_ERROR;
+
+      /* If the pipeline is enabled, take the handle which is in the head of
+         the pipeline. If we should write into the socket, take the send_pipe
+         head.  If we should read from the socket, take the recv_pipe head. */
+      if(data->easy_conn) {
+        if((ev_bitmask & CURL_POLL_OUT) &&
+           data->easy_conn->send_pipe &&
+           data->easy_conn->send_pipe->head)
+          data = data->easy_conn->send_pipe->head->ptr;
+        else if((ev_bitmask & CURL_POLL_IN) &&
+                data->easy_conn->recv_pipe &&
+                data->easy_conn->recv_pipe->head)
+          data = data->easy_conn->recv_pipe->head->ptr;
+      }
+
+      if(data->easy_conn &&
+         !(data->easy_conn->handler->flags & PROTOPT_DIRLOCK))
+        /* set socket event bitmask if they're not locked */
+        data->easy_conn->cselect_bits = ev_bitmask;
+
+      sigpipe_ignore(data, &pipe_st);
+      result = multi_runsingle(multi, now, data);
+      sigpipe_restore(&pipe_st);
+
+      if(data->easy_conn &&
+         !(data->easy_conn->handler->flags & PROTOPT_DIRLOCK))
+        /* clear the bitmask only if not locked */
+        data->easy_conn->cselect_bits = 0;
+
+      if(CURLM_OK >= result)
+        /* get the socket(s) and check if the state has been changed since
+           last */
+        singlesocket(multi, data);
+
+      /* Now we fall-through and do the timer-based stuff, since we don't want
+         to force the user to have to deal with timeouts as long as at least
+         one connection in fact has traffic. */
+
+      data = NULL; /* set data to NULL again to avoid calling
+                      multi_runsingle() in case there's no need to */
+      now = Curl_tvnow(); /* get a newer time since the multi_runsingle() loop
+                             may have taken some time */
+    }
+  }
+  else {
+    /* Asked to run due to time-out. Clear the 'lastcall' variable to force
+       update_timer() to trigger a callback to the app again even if the same
+       timeout is still the one to run after this call. That handles the case
+       when the application asks libcurl to run the timeout prematurely. */
+    memset(&multi->timer_lastcall, 0, sizeof(multi->timer_lastcall));
+  }
+
+  /*
+   * The loop following here will go on as long as there are expire-times left
+   * to process in the splay and 'data' will be re-assigned for every expired
+   * handle we deal with.
+   */
+  do {
+    /* the first loop lap 'data' can be NULL */
+    if(data) {
+      SIGPIPE_VARIABLE(pipe_st);
+
+      sigpipe_ignore(data, &pipe_st);
+      result = multi_runsingle(multi, now, data);
+      sigpipe_restore(&pipe_st);
+
+      if(CURLM_OK >= result)
+        /* get the socket(s) and check if the state has been changed since
+           last */
+        singlesocket(multi, data);
+    }
+
+    /* Check if there's one (more) expired timer to deal with! This function
+       extracts a matching node if there is one */
+
+    multi->timetree = Curl_splaygetbest(now, multi->timetree, &t);
+    if(t) {
+      data = t->payload; /* assign this for next loop */
+      (void)add_next_timeout(now, multi, t->payload);
+    }
+
+  } while(t);
+
+  *running_handles = multi->num_alive;
+  return result;
+}
+
+#undef curl_multi_setopt
+CURLMcode curl_multi_setopt(CURLM *multi_handle,
+                            CURLMoption option, ...)
+{
+  struct Curl_multi *multi=(struct Curl_multi *)multi_handle;
+  CURLMcode res = CURLM_OK;
+  va_list param;
+
+  if(!GOOD_MULTI_HANDLE(multi))
+    return CURLM_BAD_HANDLE;
+
+  va_start(param, option);
+
+  switch(option) {
+  case CURLMOPT_SOCKETFUNCTION:
+    multi->socket_cb = va_arg(param, curl_socket_callback);
+    break;
+  case CURLMOPT_SOCKETDATA:
+    multi->socket_userp = va_arg(param, void *);
+    break;
+  case CURLMOPT_PUSHFUNCTION:
+    multi->push_cb = va_arg(param, curl_push_callback);
+    break;
+  case CURLMOPT_PUSHDATA:
+    multi->push_userp = va_arg(param, void *);
+    break;
+  case CURLMOPT_PIPELINING:
+    multi->pipelining = va_arg(param, long);
+    break;
+  case CURLMOPT_TIMERFUNCTION:
+    multi->timer_cb = va_arg(param, curl_multi_timer_callback);
+    break;
+  case CURLMOPT_TIMERDATA:
+    multi->timer_userp = va_arg(param, void *);
+    break;
+  case CURLMOPT_MAXCONNECTS:
+    multi->maxconnects = va_arg(param, long);
+    break;
+  case CURLMOPT_MAX_HOST_CONNECTIONS:
+    multi->max_host_connections = va_arg(param, long);
+    break;
+  case CURLMOPT_MAX_PIPELINE_LENGTH:
+    multi->max_pipeline_length = va_arg(param, long);
+    break;
+  case CURLMOPT_CONTENT_LENGTH_PENALTY_SIZE:
+    multi->content_length_penalty_size = va_arg(param, long);
+    break;
+  case CURLMOPT_CHUNK_LENGTH_PENALTY_SIZE:
+    multi->chunk_length_penalty_size = va_arg(param, long);
+    break;
+  case CURLMOPT_PIPELINING_SITE_BL:
+    res = Curl_pipeline_set_site_blacklist(va_arg(param, char **),
+                                           &multi->pipelining_site_bl);
+    break;
+  case CURLMOPT_PIPELINING_SERVER_BL:
+    res = Curl_pipeline_set_server_blacklist(va_arg(param, char **),
+                                             &multi->pipelining_server_bl);
+    break;
+  case CURLMOPT_MAX_TOTAL_CONNECTIONS:
+    multi->max_total_connections = va_arg(param, long);
+    break;
+  default:
+    res = CURLM_UNKNOWN_OPTION;
+    break;
+  }
+  va_end(param);
+  return res;
+}
+
+/* we define curl_multi_socket() in the public multi.h header */
+#undef curl_multi_socket
+
+CURLMcode curl_multi_socket(CURLM *multi_handle, curl_socket_t s,
+                            int *running_handles)
+{
+  CURLMcode result = multi_socket((struct Curl_multi *)multi_handle, FALSE, s,
+                                  0, running_handles);
+  if(CURLM_OK >= result)
+    update_timer((struct Curl_multi *)multi_handle);
+  return result;
+}
+
+CURLMcode curl_multi_socket_action(CURLM *multi_handle, curl_socket_t s,
+                                   int ev_bitmask, int *running_handles)
+{
+  CURLMcode result = multi_socket((struct Curl_multi *)multi_handle, FALSE, s,
+                                  ev_bitmask, running_handles);
+  if(CURLM_OK >= result)
+    update_timer((struct Curl_multi *)multi_handle);
+  return result;
+}
+
+CURLMcode curl_multi_socket_all(CURLM *multi_handle, int *running_handles)
+
+{
+  CURLMcode result = multi_socket((struct Curl_multi *)multi_handle,
+                                  TRUE, CURL_SOCKET_BAD, 0, running_handles);
+  if(CURLM_OK >= result)
+    update_timer((struct Curl_multi *)multi_handle);
+  return result;
+}
+
+static CURLMcode multi_timeout(struct Curl_multi *multi,
+                               long *timeout_ms)
+{
+  static struct timeval tv_zero = {0, 0};
+
+  if(multi->timetree) {
+    /* we have a tree of expire times */
+    struct timeval now = Curl_tvnow();
+
+    /* splay the lowest to the bottom */
+    multi->timetree = Curl_splay(tv_zero, multi->timetree);
+
+    if(Curl_splaycomparekeys(multi->timetree->key, now) > 0) {
+      /* some time left before expiration */
+      *timeout_ms = curlx_tvdiff(multi->timetree->key, now);
+      if(!*timeout_ms)
+        /*
+         * Since we only provide millisecond resolution on the returned value
+         * and the diff might be less than one millisecond here, we don't
+         * return zero as that may cause short bursts of busyloops on fast
+         * processors while the diff is still present but less than one
+         * millisecond! instead we return 1 until the time is ripe.
+         */
+        *timeout_ms=1;
+    }
+    else
+      /* 0 means immediately */
+      *timeout_ms = 0;
+  }
+  else
+    *timeout_ms = -1;
+
+  return CURLM_OK;
+}
+
+CURLMcode curl_multi_timeout(CURLM *multi_handle,
+                             long *timeout_ms)
+{
+  struct Curl_multi *multi=(struct Curl_multi *)multi_handle;
+
+  /* First, make some basic checks that the CURLM handle is a good handle */
+  if(!GOOD_MULTI_HANDLE(multi))
+    return CURLM_BAD_HANDLE;
+
+  return multi_timeout(multi, timeout_ms);
+}
+
+/*
+ * Tell the application it should update its timers, if it subscribes to the
+ * update timer callback.
+ */
+static int update_timer(struct Curl_multi *multi)
+{
+  long timeout_ms;
+
+  if(!multi->timer_cb)
+    return 0;
+  if(multi_timeout(multi, &timeout_ms)) {
+    return -1;
+  }
+  if(timeout_ms < 0) {
+    static const struct timeval none={0, 0};
+    if(Curl_splaycomparekeys(none, multi->timer_lastcall)) {
+      multi->timer_lastcall = none;
+      /* there's no timeout now but there was one previously, tell the app to
+         disable it */
+      return multi->timer_cb((CURLM*)multi, -1, multi->timer_userp);
+    }
+    return 0;
+  }
+
+  /* When multi_timeout() is done, multi->timetree points to the node with the
+   * timeout we got the (relative) time-out time for. We can thus easily check
+   * if this is the same (fixed) time as we got in a previous call and then
+   * avoid calling the callback again. */
+  if(Curl_splaycomparekeys(multi->timetree->key, multi->timer_lastcall) == 0)
+    return 0;
+
+  multi->timer_lastcall = multi->timetree->key;
+
+  return multi->timer_cb((CURLM*)multi, timeout_ms, multi->timer_userp);
+}
+
+/*
+ * multi_freetimeout()
+ *
+ * Callback used by the llist system when a single timeout list entry is
+ * destroyed.
+ */
+static void multi_freetimeout(void *user, void *entryptr)
+{
+  (void)user;
+
+  /* the entry was plain malloc()'ed */
+  free(entryptr);
+}
+
+/*
+ * multi_addtimeout()
+ *
+ * Add a timestamp to the list of timeouts. Keep the list sorted so that head
+ * of list is always the timeout nearest in time.
+ *
+ */
+static CURLMcode
+multi_addtimeout(struct curl_llist *timeoutlist,
+                 struct timeval *stamp)
+{
+  struct curl_llist_element *e;
+  struct timeval *timedup;
+  struct curl_llist_element *prev = NULL;
+
+  timedup = malloc(sizeof(*timedup));
+  if(!timedup)
+    return CURLM_OUT_OF_MEMORY;
+
+  /* copy the timestamp */
+  memcpy(timedup, stamp, sizeof(*timedup));
+
+  if(Curl_llist_count(timeoutlist)) {
+    /* find the correct spot in the list */
+    for(e = timeoutlist->head; e; e = e->next) {
+      struct timeval *checktime = e->ptr;
+      long diff = curlx_tvdiff(*checktime, *timedup);
+      if(diff > 0)
+        break;
+      prev = e;
+    }
+
+  }
+  /* else
+     this is the first timeout on the list */
+
+  if(!Curl_llist_insert_next(timeoutlist, prev, timedup)) {
+    free(timedup);
+    return CURLM_OUT_OF_MEMORY;
+  }
+
+  return CURLM_OK;
+}
+
+/*
+ * Curl_expire()
+ *
+ * given a number of milliseconds from now to use to set the 'act before
+ * this'-time for the transfer, to be extracted by curl_multi_timeout()
+ *
+ * Note that the timeout will be added to a queue of timeouts if it defines a
+ * moment in time that is later than the current head of queue.
+ *
+ * Pass zero to clear all timeout values for this handle.
+*/
+void Curl_expire(struct SessionHandle *data, long milli)
+{
+  struct Curl_multi *multi = data->multi;
+  struct timeval *nowp = &data->state.expiretime;
+  int rc;
+
+  /* this is only interesting while there is still an associated multi struct
+     remaining! */
+  if(!multi)
+    return;
+
+  if(!milli) {
+    /* No timeout, clear the time data. */
+    if(nowp->tv_sec || nowp->tv_usec) {
+      /* Since this is an cleared time, we must remove the previous entry from
+         the splay tree */
+      struct curl_llist *list = data->state.timeoutlist;
+
+      rc = Curl_splayremovebyaddr(multi->timetree,
+                                  &data->state.timenode,
+                                  &multi->timetree);
+      if(rc)
+        infof(data, "Internal error clearing splay node = %d\n", rc);
+
+      /* flush the timeout list too */
+      while(list->size > 0)
+        Curl_llist_remove(list, list->tail, NULL);
+
+#ifdef DEBUGBUILD
+      infof(data, "Expire cleared\n");
+#endif
+      nowp->tv_sec = 0;
+      nowp->tv_usec = 0;
+    }
+  }
+  else {
+    struct timeval set;
+
+    set = Curl_tvnow();
+    set.tv_sec += milli/1000;
+    set.tv_usec += (milli%1000)*1000;
+
+    if(set.tv_usec >= 1000000) {
+      set.tv_sec++;
+      set.tv_usec -= 1000000;
+    }
+
+    if(nowp->tv_sec || nowp->tv_usec) {
+      /* This means that the struct is added as a node in the splay tree.
+         Compare if the new time is earlier, and only remove-old/add-new if it
+         is. */
+      long diff = curlx_tvdiff(set, *nowp);
+      if(diff > 0) {
+        /* the new expire time was later so just add it to the queue
+           and get out */
+        multi_addtimeout(data->state.timeoutlist, &set);
+        return;
+      }
+
+      /* the new time is newer than the presently set one, so add the current
+         to the queue and update the head */
+      multi_addtimeout(data->state.timeoutlist, nowp);
+
+      /* Since this is an updated time, we must remove the previous entry from
+         the splay tree first and then re-add the new value */
+      rc = Curl_splayremovebyaddr(multi->timetree,
+                                  &data->state.timenode,
+                                  &multi->timetree);
+      if(rc)
+        infof(data, "Internal error removing splay node = %d\n", rc);
+    }
+
+    *nowp = set;
+    data->state.timenode.payload = data;
+    multi->timetree = Curl_splayinsert(*nowp,
+                                       multi->timetree,
+                                       &data->state.timenode);
+  }
+#if 0
+  Curl_splayprint(multi->timetree, 0, TRUE);
+#endif
+}
+
+/*
+ * Curl_expire_latest()
+ *
+ * This is like Curl_expire() but will only add a timeout node to the list of
+ * timers if there is no timeout that will expire before the given time.
+ *
+ * Use this function if the code logic risks calling this function many times
+ * or if there's no particular conditional wait in the code for this specific
+ * time-out period to expire.
+ *
+ */
+void Curl_expire_latest(struct SessionHandle *data, long milli)
+{
+  struct timeval *expire = &data->state.expiretime;
+
+  struct timeval set;
+
+  set = Curl_tvnow();
+  set.tv_sec += milli / 1000;
+  set.tv_usec += (milli % 1000) * 1000;
+
+  if(set.tv_usec >= 1000000) {
+    set.tv_sec++;
+    set.tv_usec -= 1000000;
+  }
+
+  if(expire->tv_sec || expire->tv_usec) {
+    /* This means that the struct is added as a node in the splay tree.
+       Compare if the new time is earlier, and only remove-old/add-new if it
+         is. */
+    long diff = curlx_tvdiff(set, *expire);
+    if(diff > 0)
+      /* the new expire time was later than the top time, so just skip this */
+      return;
+  }
+
+  /* Just add the timeout like normal */
+  Curl_expire(data, milli);
+}
+
+CURLMcode curl_multi_assign(CURLM *multi_handle,
+                            curl_socket_t s, void *hashp)
+{
+  struct Curl_sh_entry *there = NULL;
+  struct Curl_multi *multi = (struct Curl_multi *)multi_handle;
+
+  if(s != CURL_SOCKET_BAD)
+    there = Curl_hash_pick(&multi->sockhash, (char *)&s,
+                           sizeof(curl_socket_t));
+
+  if(!there)
+    return CURLM_BAD_SOCKET;
+
+  there->socketp = hashp;
+
+  return CURLM_OK;
+}
+
+size_t Curl_multi_max_host_connections(struct Curl_multi *multi)
+{
+  return multi ? multi->max_host_connections : 0;
+}
+
+size_t Curl_multi_max_total_connections(struct Curl_multi *multi)
+{
+  return multi ? multi->max_total_connections : 0;
+}
+
+curl_off_t Curl_multi_content_length_penalty_size(struct Curl_multi *multi)
+{
+  return multi ? multi->content_length_penalty_size : 0;
+}
+
+curl_off_t Curl_multi_chunk_length_penalty_size(struct Curl_multi *multi)
+{
+  return multi ? multi->chunk_length_penalty_size : 0;
+}
+
+struct curl_llist *Curl_multi_pipelining_site_bl(struct Curl_multi *multi)
+{
+  return multi->pipelining_site_bl;
+}
+
+struct curl_llist *Curl_multi_pipelining_server_bl(struct Curl_multi *multi)
+{
+  return multi->pipelining_server_bl;
+}
+
+void Curl_multi_process_pending_handles(struct Curl_multi *multi)
+{
+  struct curl_llist_element *e = multi->pending->head;
+
+  while(e) {
+    struct SessionHandle *data = e->ptr;
+    struct curl_llist_element *next = e->next;
+
+    if(data->mstate == CURLM_STATE_CONNECT_PEND) {
+      multistate(data, CURLM_STATE_CONNECT);
+
+      /* Remove this node from the list */
+      Curl_llist_remove(multi->pending, e, NULL);
+
+      /* Make sure that the handle will be processed soonish. */
+      Curl_expire_latest(data, 1);
+    }
+
+    e = next; /* operate on next handle */
+  }
+}
+
+#ifdef DEBUGBUILD
+void Curl_multi_dump(const struct Curl_multi *multi_handle)
+{
+  struct Curl_multi *multi=(struct Curl_multi *)multi_handle;
+  struct SessionHandle *data;
+  int i;
+  fprintf(stderr, "* Multi status: %d handles, %d alive\n",
+          multi->num_easy, multi->num_alive);
+  for(data=multi->easyp; data; data = data->next) {
+    if(data->mstate < CURLM_STATE_COMPLETED) {
+      /* only display handles that are not completed */
+      fprintf(stderr, "handle %p, state %s, %d sockets\n",
+              (void *)data,
+              statename[data->mstate], data->numsocks);
+      for(i=0; i < data->numsocks; i++) {
+        curl_socket_t s = data->sockets[i];
+        struct Curl_sh_entry *entry =
+          Curl_hash_pick(&multi->sockhash, (char *)&s, sizeof(s));
+
+        fprintf(stderr, "%d ", (int)s);
+        if(!entry) {
+          fprintf(stderr, "INTERNAL CONFUSION\n");
+          continue;
+        }
+        fprintf(stderr, "[%s %s] ",
+                entry->action&CURL_POLL_IN?"RECVING":"",
+                entry->action&CURL_POLL_OUT?"SENDING":"");
+      }
+      if(data->numsocks)
+        fprintf(stderr, "\n");
+    }
+  }
+}
+#endif

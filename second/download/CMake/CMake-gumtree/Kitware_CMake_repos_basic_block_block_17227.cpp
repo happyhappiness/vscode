@@ -1,0 +1,1 @@
+s = (size_t)ustar->entry_bytes_remaining

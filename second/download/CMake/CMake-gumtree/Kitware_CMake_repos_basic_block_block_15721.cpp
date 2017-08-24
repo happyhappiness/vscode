@@ -1,0 +1,1 @@
+s = (size_t)gnutar->entry_bytes_remaining

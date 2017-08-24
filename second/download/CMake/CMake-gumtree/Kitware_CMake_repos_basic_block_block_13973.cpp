@@ -1,0 +1,1 @@
+mbflag |= MB_PRECOMPOSED

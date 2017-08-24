@@ -1,0 +1,1 @@
+(loop->inotify_fd == -1) return;

@@ -1,0 +1,3 @@
+{
+              length += strlen(s);
+            }

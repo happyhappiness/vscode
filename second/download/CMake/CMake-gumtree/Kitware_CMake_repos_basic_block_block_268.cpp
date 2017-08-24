@@ -1,0 +1,1 @@
+rows_to_go = (field->drows - field->rows - form->toprow)

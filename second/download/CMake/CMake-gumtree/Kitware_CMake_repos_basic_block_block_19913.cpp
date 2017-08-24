@@ -1,0 +1,1 @@
+err = ioctl(uv__stream_fd(tty), TIOCGWINSZ, &ws)

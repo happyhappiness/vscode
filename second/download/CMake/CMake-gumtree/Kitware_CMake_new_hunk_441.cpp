@@ -1,12 +1,7 @@
-		if (entry_size == 0) {
-			archive_set_error(&a->archive, EINVAL,
-			    "Invalid string table");
-			return (ARCHIVE_FATAL);
-		}
-		if (ar->strtab != NULL) {
-			archive_set_error(&a->archive, EINVAL,
-			    "More than one string tables exist");
-			return (ARCHIVE_FATAL);
-		}
-
-		/* Read the filename table into memory. */
+		    &data->child_stdout);
+	if (child == -1) {
+		archive_set_error(f->archive, EINVAL,
+		    "Can't launch external program: %s", cmd);
+		return (ARCHIVE_FATAL);
+	}
+#if defined(_WIN32) && !defined(__CYGWIN__)

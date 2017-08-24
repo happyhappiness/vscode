@@ -1,0 +1,1 @@
+file_free(xar->file_queue.files[i])

@@ -1,33 +1,29 @@
-	struct private_data *data = (struct private_data *)f->data;
-	int outsize;
+    if(result)
+      return result;
 
-	if (data->compression_level < 3) {
-		if (data->lz4_stream == NULL) {
-			data->lz4_stream = LZ4_createStream();
-			if (data->lz4_stream == NULL) {
-				archive_set_error(f->archive, ENOMEM,
-				    "Can't allocate data for compression"
-				    " buffer");
-				return (ARCHIVE_FATAL);
-			}
-		}
-		outsize = LZ4_compress_limitedOutput_continue(
-		    data->lz4_stream, p, data->out + 4, (int)length,
-		    (int)data->block_size);
-	} else {
-		if (data->lz4_stream == NULL) {
-			data->lz4_stream =
-			    LZ4_createHC(data->in_buffer_allocated);
-			if (data->lz4_stream == NULL) {
-				archive_set_error(f->archive, ENOMEM,
-				    "Can't allocate data for compression"
-				    " buffer");
-				return (ARCHIVE_FATAL);
-			}
-		}
-		outsize = LZ4_compressHC2_limitedOutput_continue(
-		    data->lz4_stream, p, data->out + 4, (int)length,
-		    (int)data->block_size, data->compression_level);
-	}
+    if(fstated) {
+      time_t filetime = (time_t)statbuf.st_mtime;
+      struct tm buffer;
+      const struct tm *tm = &buffer;
+      result = Curl_gmtime(filetime, &buffer);
+      if(result)
+        return result;
 
-	if (outsize) {
+      /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+      snprintf(buf, BUFSIZE-1,
+               "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+               Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+               tm->tm_mday,
+               Curl_month[tm->tm_mon],
+               tm->tm_year + 1900,
+               tm->tm_hour,
+               tm->tm_min,
+               tm->tm_sec);
+      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+    }
+    /* if we fstat()ed the file, set the file size to make it available post-
+       transfer */
+    if(fstated)
+      Curl_pgrsSetDownloadSize(data, expected_size);
+    return result;
+  }

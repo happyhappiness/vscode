@@ -1,6 +1,7 @@
 import re
 from z3 import *
 import my_constant
+import myUtil
 
 class Z3_api:
 
@@ -13,6 +14,11 @@ class Z3_api:
     """
     def judge_equality_for_statments(self, statement_one, statement_two):
 
+        # help_simplify()
+        # statement_one = simplify(statement_one, elim_and = True)
+        # print statement_one
+        # statement_two = simplify(statement_two, elim_and = True)
+        # print statement_two
         if statement_one == statement_two:
             is_equal = True
         elif statement_one is None or statement_two is None:
@@ -45,9 +51,11 @@ class Z3_api:
         infix_expr = []
         for token in postfix_expr:
             if token in ['==', '>', '>=', '!=', '<', '<=', '&&', '||']:
-                op_left = infix_expr.pop()
                 op_right = infix_expr.pop()
+                op_left = infix_expr.pop()
                 result = self.__get_infix_for_binary_operator(token, op_left, op_right)
+                if result is None:
+                    return None
                 infix_expr.append(result)
             elif token == '!':
                 op = infix_expr.pop()
@@ -78,42 +86,63 @@ class Z3_api:
     """
     def __get_infix_for_binary_operator(self, op, op_left, op_right):
 
-        if op == "==":
-            # normalization == operands order
-            op_left, op_right = self.__order_operands(op_left, op_right)
-            op_left = Int(op_left + '_e_l')
-            op_right = Int(op_right + '_e_r')
-            return op_left == op_right
-        elif op == ">":
-            op_left = Int(op_left + '_g_l')
-            op_right = Int(op_right + '_g_r')
-            return op_left > op_right
-        elif op == ">=":
-            op_left = Int(op_left + '_ge_l')
-            op_right = Int(op_right + '_ge_r')
-            return op_left >= op_right
-        # normalization
-        if op == "!=":
-            return Not(self.__get_infix_for_binary_operator('==', op_left, op_right))
-        elif op == "<":
-            op_left = Int(op_left + '_g_r')
-            op_right = Int(op_right + '_g_l')
-            return op_left < op_right
-        elif op == "<=":
-            op_left = Int(op_left + '_ge_r')
-            op_right = Int(op_right + '_ge_l')
-            return op_left <= op_right
-        elif op == '&&':        
+        if op == '&&':  
             op_left = self.__normalize_operand(op_left)
             op_right = self.__normalize_operand(op_right)
             return And(op_left, op_right)
-        elif op == '||':        
+        elif op == '||':
             op_left = self.__normalize_operand(op_left)
             op_right = self.__normalize_operand(op_right)
             return Or(op_left, op_right)
+        # avoid flase translation
         else:
-            print 'can not deal with op: %s, op_left: %s, op_right: %s' %(op, op_left, op_right)
+            if op == "!=":
+                return Not(self.__get_infix_for_binary_operator('==', op_left, op_right))
+            op_left, op_right = self.__normalize_operands(op, op_left, op_right)
+            if op == "==":
+                return op_left == op_right
+            elif op == ">" or op == "<":
+                return op_left > op_right
+            elif op == ">=" or op == "<=":
+                return op_left >= op_right
+            # normalization
 
+            # elif op == "<":
+            #     return op_left > op_right
+            # elif op == "<=":
+            #     return op_left <= op_right
+            else:
+                print 'can not deal with op: %s, op_left: %s, op_right: %s' %(op, op_left, op_right)
+
+    """
+    @ param operand
+    @ return operand after normalization
+    @ involve remove componnet before ::, ->, .
+    """
+    def __normalize_operands(self, op, op_left, op_right):
+        # normalization
+        if isinstance(op_left, unicode) or isinstance(op_left, str):
+             op_left = myUtil.remove_name_space_and_caller(op_left)
+        if isinstance(op_right, unicode) or isinstance(op_right, str):
+             op_right = myUtil.remove_name_space_and_caller(op_right)
+        postfix_dict = {}
+        postfix_dict['=='] = '_e_'
+        postfix_dict['>'] = '_g_'
+        postfix_dict['>='] = '_ge_'
+        # swap orperands
+        postfix_dict['<'] = '_g_'
+        postfix_dict['<='] = '_ge_'
+        if op == '==':
+            # order for ==
+            op_left, op_right = self.__order_operands(op_left, op_right)
+        # normalize < to > and <= to >=
+        if op == '<' or op == '<=':
+            op_left, op_right = op_right, op_left
+        if isinstance(op_left, unicode) or isinstance(op_left, str):
+            op_left = Int(op_left + postfix_dict[op] + 'l')
+        if isinstance(op_right, unicode) or isinstance(op_right, str):
+            op_right = Int(op_right + postfix_dict[op] + 'r')
+        return op_left, op_right
     """
     @ param operand, p
     @ return p == null
@@ -141,7 +170,10 @@ class Z3_api:
 
 if __name__ == "__main__":
     z3_api = Z3_api()
-    print(z3_api.get_infix_for_postfix(['unkown', u'cm_utf8_decode_character_ret', '!']))  
- 
+    a = z3_api.get_infix_for_postfix(['unknown', 'cm_utf8_decode_character_ret', '&&', 'c', '||'])
+    b = z3_api.get_infix_for_postfix(['cm_utf8_decode_character_ret', 'c', '||', 'unknown', 'c', '||', '&&'])
+    print z3_api.judge_equality_for_statments(a, b)
+
+    
 
     

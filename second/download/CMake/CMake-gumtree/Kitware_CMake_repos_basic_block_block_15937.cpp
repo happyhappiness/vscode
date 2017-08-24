@@ -1,0 +1,1 @@
+archive_be16enc(p, 0x005F)

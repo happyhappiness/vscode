@@ -1,0 +1,1 @@
+r = getsockopt(socket, SOL_SOCKET, optname, (char*) value, &len)

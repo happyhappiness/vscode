@@ -1,0 +1,1 @@
+__msan_unpoison(pipefd, sizeof(int[2]))

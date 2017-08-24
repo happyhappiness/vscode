@@ -1,0 +1,1 @@
+Curl_share_unlock(conn->data, CURL_LOCK_DATA_SSL_SESSION)

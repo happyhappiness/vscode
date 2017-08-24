@@ -1,0 +1,1 @@
+this->ChipID.Family = 0x11a

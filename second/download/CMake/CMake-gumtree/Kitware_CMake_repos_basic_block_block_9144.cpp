@@ -1,0 +1,1 @@
+p->MinContext = p->MaxContext = c

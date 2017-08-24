@@ -1,0 +1,1 @@
+(bs->mode == 'w') writeError(); else readError()

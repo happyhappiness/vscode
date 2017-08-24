@@ -1,1008 +1,921 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-#include "cmComputeLinkDepends.h"
-
-#include "cmComputeComponentGraph.h"
-#include "cmGlobalGenerator.h"
-#include "cmLocalGenerator.h"
-#include "cmMakefile.h"
-#include "cmTarget.h"
-#include "cmake.h"
-
-#include <cmsys/stl/algorithm>
-
-#include <assert.h>
+/*-
+ * Copyright (c) 2008 Anselm Strauss
+ * Copyright (c) 2009 Joerg Sonnenberger
+ * Copyright (c) 2011-2012 Michihiro NAKAJIMA
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
 /*
+ * Development supported by Google Summer of Code 2008.
+ */
 
-This file computes an ordered list of link items to use when linking a
-single target in one configuration.  Each link item is identified by
-the string naming it.  A graph of dependencies is created in which
-each node corresponds to one item and directed edges lead from nodes to
-those which must *follow* them on the link line.  For example, the
-graph
+/*
+ * The current implementation is very limited:
+ *
+ *   - No encryption support.
+ *   - No ZIP64 support.
+ *   - No support for splitting and spanning.
+ *   - Only supports regular file and folder entries.
+ *
+ * Note that generally data in ZIP files is little-endian encoded,
+ * with some exceptions.
+ *
+ * TODO: Since Libarchive is generally 64bit oriented, but this implementation
+ * does not yet support sizes exceeding 32bit, it is highly fragile for
+ * big archives. This should change when ZIP64 is finally implemented, otherwise
+ * some serious checking has to be done.
+ *
+ */
 
-  A -> B -> C
+#include "archive_platform.h"
+__FBSDID("$FreeBSD: head/lib/libarchive/archive_write_set_format_zip.c 201168 2009-12-29 06:15:32Z kientzle $");
 
-will lead to the link line order
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
+#endif
+#ifdef HAVE_LANGINFO_H
+#include <langinfo.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
+#ifdef HAVE_ZLIB_H
+#include <zlib.h>
+#endif
 
-  A B C
+#include "archive.h"
+#include "archive_endian.h"
+#include "archive_entry.h"
+#include "archive_entry_locale.h"
+#include "archive_private.h"
+#include "archive_write_private.h"
 
-The set of items placed in the graph is formed with a breadth-first
-search of the link dependencies starting from the main target.
+#ifndef HAVE_ZLIB_H
+#include "archive_crc32.h"
+#endif
 
-There are two types of items: those with known direct dependencies and
-those without known dependencies.  We will call the two types "known
-items" and "unknown items", respectively.  Known items are those whose
-names correspond to targets (built or imported) and those for which an
-old-style <item>_LIB_DEPENDS variable is defined.  All other items are
-unknown and we must infer dependencies for them.  For items that look
-like flags (beginning with '-') we trivially infer no dependencies,
-and do not include them in the dependencies of other items.
+#define ZIP_SIGNATURE_LOCAL_FILE_HEADER 0x04034b50
+#define ZIP_SIGNATURE_DATA_DESCRIPTOR 0x08074b50
+#define ZIP_SIGNATURE_FILE_HEADER 0x02014b50
+#define ZIP_SIGNATURE_CENTRAL_DIRECTORY_END 0x06054b50
+#define ZIP_SIGNATURE_EXTRA_TIMESTAMP 0x5455
+#define ZIP_SIGNATURE_EXTRA_NEW_UNIX 0x7875
+#define ZIP_VERSION_EXTRACT 0x0014 /* ZIP version 2.0 is needed. */
+#define ZIP_VERSION_BY 0x0314 /* Made by UNIX, using ZIP version 2.0. */
+#define ZIP_FLAGS 0x08 /* Flagging bit 3 (count from 0) for using data descriptor. */
+#define ZIP_FLAGS_UTF8_NAME	(1 << 11)
 
-Known items have dependency lists ordered based on how the user
-specified them.  We can use this order to infer potential dependencies
-of unknown items.  For example, if link items A and B are unknown and
-items X and Y are known, then we might have the following dependency
-lists:
+enum compression {
+	COMPRESSION_STORE = 0
+#ifdef HAVE_ZLIB_H
+	,
+	COMPRESSION_DEFLATE = 8
+#endif
+};
 
-  X: Y A B
-  Y: A B
+static ssize_t archive_write_zip_data(struct archive_write *,
+		   const void *buff, size_t s);
+static int archive_write_zip_close(struct archive_write *);
+static int archive_write_zip_free(struct archive_write *);
+static int archive_write_zip_finish_entry(struct archive_write *);
+static int archive_write_zip_header(struct archive_write *,
+	      struct archive_entry *);
+static int archive_write_zip_options(struct archive_write *,
+	      const char *, const char *);
+static unsigned int dos_time(const time_t);
+static size_t path_length(struct archive_entry *);
+static int write_path(struct archive_entry *, struct archive_write *);
 
-The explicitly known dependencies form graph edges
+#define LOCAL_FILE_HEADER_SIGNATURE		0
+#define LOCAL_FILE_HEADER_VERSION		4
+#define LOCAL_FILE_HEADER_FLAGS			6
+#define LOCAL_FILE_HEADER_COMPRESSION		8
+#define LOCAL_FILE_HEADER_TIMEDATE		10
+#define LOCAL_FILE_HEADER_CRC32			14
+#define LOCAL_FILE_HEADER_COMPRESSED_SIZE	18
+#define LOCAL_FILE_HEADER_UNCOMPRESSED_SIZE	22
+#define LOCAL_FILE_HEADER_FILENAME_LENGTH	26
+#define LOCAL_FILE_HEADER_EXTRA_LENGTH		28
+#define SIZE_LOCAL_FILE_HEADER			30
 
-  X -> Y  ,  X -> A  ,  X -> B  ,  Y -> A  ,  Y -> B
+#define FILE_HEADER_SIGNATURE			0
+#define FILE_HEADER_VERSION_BY			4
+#define FILE_HEADER_VERSION_EXTRACT		6
+#define FILE_HEADER_FLAGS			8
+#define FILE_HEADER_COMPRESSION			10
+#define FILE_HEADER_TIMEDATE			12
+#define FILE_HEADER_CRC32			16
+#define FILE_HEADER_COMPRESSED_SIZE		20
+#define FILE_HEADER_UNCOMPRESSED_SIZE		24
+#define FILE_HEADER_FILENAME_LENGTH		28
+#define FILE_HEADER_EXTRA_LENGTH		30
+#define FILE_HEADER_COMMENT_LENGTH		32
+#define FILE_HEADER_DISK_NUMBER			34
+#define FILE_HEADER_ATTRIBUTES_INTERNAL		36
+#define FILE_HEADER_ATTRIBUTES_EXTERNAL		38
+#define FILE_HEADER_OFFSET			42
+#define SIZE_FILE_HEADER			46
 
-We can also infer the edge
+	/* Not mandatory, but recommended by specification. */
+#define DATA_DESCRIPTOR_SIGNATURE		0
+#define DATA_DESCRIPTOR_CRC32			4
+#define DATA_DESCRIPTOR_COMPRESSED_SIZE		8
+#define DATA_DESCRIPTOR_UNCOMPRESSED_SIZE	12
+#define SIZE_DATA_DESCRIPTOR			16
 
-  A -> B
+#define EXTRA_DATA_LOCAL_TIME_ID		0
+#define EXTRA_DATA_LOCAL_TIME_SIZE		2
+#define EXTRA_DATA_LOCAL_TIME_FLAG		4
+#define EXTRA_DATA_LOCAL_MTIME			5
+#define EXTRA_DATA_LOCAL_ATIME			9
+#define EXTRA_DATA_LOCAL_CTIME			13
+#define EXTRA_DATA_LOCAL_UNIX_ID		17
+#define EXTRA_DATA_LOCAL_UNIX_SIZE		19
+#define EXTRA_DATA_LOCAL_UNIX_VERSION		21
+#define EXTRA_DATA_LOCAL_UNIX_UID_SIZE		22
+#define EXTRA_DATA_LOCAL_UNIX_UID		23
+#define EXTRA_DATA_LOCAL_UNIX_GID_SIZE		27
+#define EXTRA_DATA_LOCAL_UNIX_GID		28
+#define SIZE_EXTRA_DATA_LOCAL			32
 
-because *every* time A appears B is seen on its right.  We do not know
-whether A really needs symbols from B to link, but it *might* so we
-must preserve their order.  This is the case also for the following
-explicit lists:
+#define EXTRA_DATA_CENTRAL_TIME_ID		0
+#define EXTRA_DATA_CENTRAL_TIME_SIZE		2
+#define EXTRA_DATA_CENTRAL_TIME_FLAG		4
+#define EXTRA_DATA_CENTRAL_MTIME		5
+#define EXTRA_DATA_CENTRAL_UNIX_ID		9
+#define EXTRA_DATA_CENTRAL_UNIX_SIZE		11
+#define SIZE_EXTRA_DATA_CENTRAL			13
 
-  X: A B Y
-  Y: A B
+#define CENTRAL_DIRECTORY_END_SIGNATURE		0
+#define CENTRAL_DIRECTORY_END_DISK		4
+#define CENTRAL_DIRECTORY_END_START_DISK	6
+#define CENTRAL_DIRECTORY_END_ENTRIES_DISK	8
+#define CENTRAL_DIRECTORY_END_ENTRIES		10
+#define CENTRAL_DIRECTORY_END_SIZE		12
+#define CENTRAL_DIRECTORY_END_OFFSET		16
+#define CENTRAL_DIRECTORY_END_COMMENT_LENGTH	20
+#define SIZE_CENTRAL_DIRECTORY_END		22
 
-Here, A is followed by the set {B,Y} in one list, and {B} in the other
-list.  The intersection of these sets is {B}, so we can infer that A
-depends on at most B.  Meanwhile B is followed by the set {Y} in one
-list and {} in the other.  The intersection is {} so we can infer that
-B has no dependencies.
+struct zip_file_header_link {
+	struct zip_file_header_link *next;
+	struct archive_entry *entry;
+	int64_t offset;
+	unsigned long crc32;
+	int64_t compressed_size;
+	enum compression compression;
+	int flags;
+};
 
-Let's make a more complex example by adding unknown item C and
-considering these dependency lists:
+struct zip {
+	uint8_t data_descriptor[SIZE_DATA_DESCRIPTOR];
+	struct zip_file_header_link *central_directory;
+	struct zip_file_header_link *central_directory_end;
+	int64_t offset;
+	int64_t written_bytes;
+	int64_t remaining_data_bytes;
+	enum compression compression;
+	int flags;
+	struct archive_string_conv *opt_sconv;
+	struct archive_string_conv *sconv_default;
+	int	init_default_conversion;
 
-  X: A B Y C
-  Y: A C B
+#ifdef HAVE_ZLIB_H
+	z_stream stream;
+	size_t len_buf;
+	unsigned char *buf;
+#endif
+};
 
-The explicit edges are
-
-  X -> Y  ,  X -> A  ,  X -> B  ,  X -> C  ,  Y -> A  ,  Y -> B  ,  Y -> C
-
-For the unknown items, we infer dependencies by looking at the
-"follow" sets:
-
-  A: intersect( {B,Y,C} , {C,B} ) = {B,C} ; infer edges  A -> B  ,  A -> C
-  B: intersect( {Y,C}   , {}    ) = {}    ; infer no edges
-  C: intersect( {}      , {B}   ) = {}    ; infer no edges
-
-Note that targets are never inferred as dependees because outside
-libraries should not depend on them.
-
-------------------------------------------------------------------------------
-
-The initial exploration of dependencies using a BFS associates an
-integer index with each link item.  When the graph is built outgoing
-edges are sorted by this index.
-
-After the initial exploration of the link interface tree, any
-transitive (dependent) shared libraries that were encountered and not
-included in the interface are processed in their own BFS.  This BFS
-follows only the dependent library lists and not the link interfaces.
-They are added to the link items with a mark indicating that the are
-transitive dependencies.  Then cmComputeLinkInformation deals with
-them on a per-platform basis.
-
-The complete graph formed from all known and inferred dependencies may
-not be acyclic, so an acyclic version must be created.
-The original graph is converted to a directed acyclic graph in which
-each node corresponds to a strongly connected component of the
-original graph.  For example, the dependency graph
-
-  X -> A -> B -> C -> A -> Y
-
-contains strongly connected components {X}, {A,B,C}, and {Y}.  The
-implied directed acyclic graph (DAG) is
-
-  {X} -> {A,B,C} -> {Y}
-
-We then compute a topological order for the DAG nodes to serve as a
-reference for satisfying dependencies efficiently.  We perform the DFS
-in reverse order and assign topological order indices counting down so
-that the result is as close to the original BFS order as possible
-without violating dependencies.
-
-------------------------------------------------------------------------------
-
-The final link entry order is constructed as follows.  We first walk
-through and emit the *original* link line as specified by the user.
-As each item is emitted, a set of pending nodes in the component DAG
-is maintained.  When a pending component has been completely seen, it
-is removed from the pending set and its dependencies (following edges
-of the DAG) are added.  A trivial component (those with one item) is
-complete as soon as its item is seen.  A non-trivial component (one
-with more than one item; assumed to be static libraries) is complete
-when *all* its entries have been seen *twice* (all entries seen once,
-then all entries seen again, not just each entry twice).  A pending
-component tracks which items have been seen and a count of how many
-times the component needs to be seen (once for trivial components,
-twice for non-trivial).  If at any time another component finishes and
-re-adds an already pending component, the pending component is reset
-so that it needs to be seen in its entirety again.  This ensures that
-all dependencies of a component are satisfied no matter where it
-appears.
-
-After the original link line has been completed, we append to it the
-remaining pending components and their dependencies.  This is done by
-repeatedly emitting the first item from the first pending component
-and following the same update rules as when traversing the original
-link line.  Since the pending components are kept in topological order
-they are emitted with minimal repeats (we do not want to emit a
-component just to have it added again when another component is
-completed later).  This process continues until no pending components
-remain.  We know it will terminate because the component graph is
-guaranteed to be acyclic.
-
-The final list of items produced by this procedure consists of the
-original user link line followed by minimal additional items needed to
-satisfy dependencies.
-
-*/
-
-//----------------------------------------------------------------------------
-cmComputeLinkDepends
-::cmComputeLinkDepends(cmTarget const* target, const char* config,
-                       cmTarget const* head)
+static int
+archive_write_zip_options(struct archive_write *a, const char *key,
+    const char *val)
 {
-  // Store context information.
-  this->Target = target;
-  this->HeadTarget = head;
-  this->Makefile = this->Target->GetMakefile();
-  this->LocalGenerator = this->Makefile->GetLocalGenerator();
-  this->GlobalGenerator = this->LocalGenerator->GetGlobalGenerator();
-  this->CMakeInstance = this->GlobalGenerator->GetCMakeInstance();
+	struct zip *zip = a->format_data;
+	int ret = ARCHIVE_FAILED;
 
-  // The configuration being linked.
-  this->Config = (config && *config)? config : 0;
-  this->LinkType = this->Target->ComputeLinkType(this->Config);
+	if (strcmp(key, "compression") == 0) {
+		if (val == NULL || val[0] == 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%s: compression option needs a compression name",
+			    a->format_name);
+		} else if (strcmp(val, "deflate") == 0) {
+#ifdef HAVE_ZLIB_H
+			zip->compression = COMPRESSION_DEFLATE;
+			ret = ARCHIVE_OK;
+#else
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "deflate compression not supported");
+#endif
+		} else if (strcmp(val, "store") == 0) {
+			zip->compression = COMPRESSION_STORE;
+			ret = ARCHIVE_OK;
+		}
+		return (ret);
+	} else if (strcmp(key, "hdrcharset")  == 0) {
+		if (val == NULL || val[0] == 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%s: hdrcharset option needs a character-set name",
+			    a->format_name);
+		} else {
+			zip->opt_sconv = archive_string_conversion_to_charset(
+			    &a->archive, val, 0);
+			if (zip->opt_sconv != NULL)
+				ret = ARCHIVE_OK;
+			else
+				ret = ARCHIVE_FATAL;
+		}
+		return (ret);
+	}
 
-  // Enable debug mode if requested.
-  this->DebugMode = this->Makefile->IsOn("CMAKE_LINK_DEPENDS_DEBUG_MODE");
-
-  // Assume no compatibility until set.
-  this->OldLinkDirMode = false;
-
-  // No computation has been done.
-  this->CCG = 0;
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
 }
 
-//----------------------------------------------------------------------------
-cmComputeLinkDepends::~cmComputeLinkDepends()
+int
+archive_write_zip_set_compression_deflate(struct archive *_a)
 {
-  for(std::vector<DependSetList*>::iterator
-        i = this->InferredDependSets.begin();
-      i != this->InferredDependSets.end(); ++i)
-    {
-    delete *i;
-    }
-  delete this->CCG;
+	struct archive_write *a = (struct archive_write *)_a;
+	int ret = ARCHIVE_FAILED;
+	
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+		ARCHIVE_STATE_NEW | ARCHIVE_STATE_HEADER,
+		"archive_write_zip_set_compression_deflate");
+	if (a->archive.archive_format != ARCHIVE_FORMAT_ZIP) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		"Can only use archive_write_zip_set_compression_deflate"
+		" with zip format");
+		ret = ARCHIVE_FATAL;
+	} else {
+#ifdef HAVE_ZLIB_H
+		struct zip *zip = a->format_data;
+		zip->compression = COMPRESSION_DEFLATE;
+		ret = ARCHIVE_OK;
+#else
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			"deflate compression not supported");
+#endif
+	}
+	return (ret);
 }
 
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::SetOldLinkDirMode(bool b)
+int
+archive_write_zip_set_compression_store(struct archive *_a)
 {
-  this->OldLinkDirMode = b;
+	struct archive_write *a = (struct archive_write *)_a;
+	struct zip *zip = a->format_data;
+	int ret = ARCHIVE_FAILED;
+	
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+		ARCHIVE_STATE_NEW | ARCHIVE_STATE_HEADER,
+		"archive_write_zip_set_compression_deflate");
+	if (a->archive.archive_format != ARCHIVE_FORMAT_ZIP) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			"Can only use archive_write_zip_set_compression_store"
+			" with zip format");
+		ret = ARCHIVE_FATAL;
+	} else {
+		zip->compression = COMPRESSION_STORE;
+		ret = ARCHIVE_OK;
+	}
+	return (ret);
 }
 
-//----------------------------------------------------------------------------
-std::vector<cmComputeLinkDepends::LinkEntry> const&
-cmComputeLinkDepends::Compute()
+int
+archive_write_set_format_zip(struct archive *_a)
 {
-  // Follow the link dependencies of the target to be linked.
-  this->AddDirectLinkEntries();
+	struct archive_write *a = (struct archive_write *)_a;
+	struct zip *zip;
 
-  // Complete the breadth-first search of dependencies.
-  while(!this->BFSQueue.empty())
-    {
-    // Get the next entry.
-    BFSEntry qe = this->BFSQueue.front();
-    this->BFSQueue.pop();
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_write_set_format_zip");
 
-    // Follow the entry's dependencies.
-    this->FollowLinkEntry(qe);
-    }
+	/* If another format was already registered, unregister it. */
+	if (a->format_free != NULL)
+		(a->format_free)(a);
 
-  // Complete the search of shared library dependencies.
-  while(!this->SharedDepQueue.empty())
-    {
-    // Handle the next entry.
-    this->HandleSharedDependency(this->SharedDepQueue.front());
-    this->SharedDepQueue.pop();
-    }
+	zip = (struct zip *) calloc(1, sizeof(*zip));
+	if (zip == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate zip data");
+		return (ARCHIVE_FATAL);
+	}
+	zip->central_directory = NULL;
+	zip->central_directory_end = NULL;
+	zip->offset = 0;
+	zip->written_bytes = 0;
+	zip->remaining_data_bytes = 0;
 
-  // Infer dependencies of targets for which they were not known.
-  this->InferDependencies();
+#ifdef HAVE_ZLIB_H
+	zip->compression = COMPRESSION_DEFLATE;
+	zip->len_buf = 65536;
+	zip->buf = malloc(zip->len_buf);
+	if (zip->buf == NULL) {
+		free(zip);
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate compression buffer");
+		return (ARCHIVE_FATAL);
+	}
+#else
+	zip->compression = COMPRESSION_STORE;
+#endif
 
-  // Cleanup the constraint graph.
-  this->CleanConstraintGraph();
+	a->format_data = zip;
+	a->format_name = "zip";
+	a->format_options = archive_write_zip_options;
+	a->format_write_header = archive_write_zip_header;
+	a->format_write_data = archive_write_zip_data;
+	a->format_finish_entry = archive_write_zip_finish_entry;
+	a->format_close = archive_write_zip_close;
+	a->format_free = archive_write_zip_free;
+	a->archive.archive_format = ARCHIVE_FORMAT_ZIP;
+	a->archive.archive_format_name = "ZIP";
 
-  // Display the constraint graph.
-  if(this->DebugMode)
-    {
-    fprintf(stderr,
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName(), this->Config?this->Config:"noconfig");
-    this->DisplayConstraintGraph();
-    }
+	archive_le32enc(&zip->data_descriptor[DATA_DESCRIPTOR_SIGNATURE],
+	    ZIP_SIGNATURE_DATA_DESCRIPTOR);
 
-  // Compute the final ordering.
-  this->OrderLinkEntires();
-
-  // Compute the final set of link entries.
-  for(std::vector<int>::const_iterator li = this->FinalLinkOrder.begin();
-      li != this->FinalLinkOrder.end(); ++li)
-    {
-    this->FinalLinkEntries.push_back(this->EntryList[*li]);
-    }
-
-  // Display the final set.
-  if(this->DebugMode)
-    {
-    this->DisplayFinalEntries();
-    }
-
-  return this->FinalLinkEntries;
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------------
-std::map<cmStdString, int>::iterator
-cmComputeLinkDepends::AllocateLinkEntry(std::string const& item)
+static int
+is_all_ascii(const char *p)
 {
-  std::map<cmStdString, int>::value_type
-    index_entry(item, static_cast<int>(this->EntryList.size()));
-  std::map<cmStdString, int>::iterator
-    lei = this->LinkEntryIndex.insert(index_entry).first;
-  this->EntryList.push_back(LinkEntry());
-  this->InferredDependSets.push_back(0);
-  this->EntryConstraintGraph.push_back(EdgeList());
-  return lei;
+	const unsigned char *pp = (const unsigned char *)p;
+
+	while (*pp) {
+		if (*pp++ > 127)
+			return (0);
+	}
+	return (1);
 }
 
-//----------------------------------------------------------------------------
-int cmComputeLinkDepends::AddLinkEntry(int depender_index,
-                                       std::string const& item)
+static int
+archive_write_zip_header(struct archive_write *a, struct archive_entry *entry)
 {
-  // Check if the item entry has already been added.
-  std::map<cmStdString, int>::iterator lei = this->LinkEntryIndex.find(item);
-  if(lei != this->LinkEntryIndex.end())
-    {
-    // Yes.  We do not need to follow the item's dependencies again.
-    return lei->second;
-    }
+	struct zip *zip;
+	uint8_t h[SIZE_LOCAL_FILE_HEADER];
+	uint8_t e[SIZE_EXTRA_DATA_LOCAL];
+	uint8_t *d;
+	struct zip_file_header_link *l;
+	struct archive_string_conv *sconv;
+	int ret, ret2 = ARCHIVE_OK;
+	int64_t size;
+	mode_t type;
 
-  // Allocate a spot for the item entry.
-  lei = this->AllocateLinkEntry(item);
+	/* Entries other than a regular file or a folder are skipped. */
+	type = archive_entry_filetype(entry);
+	if (type != AE_IFREG && type != AE_IFDIR && type != AE_IFLNK) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Filetype not supported");
+		return ARCHIVE_FAILED;
+	};
 
-  // Initialize the item entry.
-  int index = lei->second;
-  LinkEntry& entry = this->EntryList[index];
-  entry.Item = item;
-  entry.Target = this->FindTargetToLink(depender_index, entry.Item.c_str());
-  entry.IsFlag = (!entry.Target && item[0] == '-' && item[1] != 'l' &&
-                  item.substr(0, 10) != "-framework");
+	/* Directory entries should have a size of 0. */
+	if (type == AE_IFDIR)
+		archive_entry_set_size(entry, 0);
 
-  // If the item has dependencies queue it to follow them.
-  if(entry.Target)
-    {
-    // Target dependencies are always known.  Follow them.
-    BFSEntry qe = {index, 0};
-    this->BFSQueue.push(qe);
-    }
-  else
-    {
-    // Look for an old-style <item>_LIB_DEPENDS variable.
-    std::string var = entry.Item;
-    var += "_LIB_DEPENDS";
-    if(const char* val = this->Makefile->GetDefinition(var.c_str()))
-      {
-      // The item dependencies are known.  Follow them.
-      BFSEntry qe = {index, val};
-      this->BFSQueue.push(qe);
-      }
-    else if(!entry.IsFlag)
-      {
-      // The item dependencies are not known.  We need to infer them.
-      this->InferredDependSets[index] = new DependSetList;
-      }
-    }
+	zip = a->format_data;
+	/* Setup default conversion. */
+	if (zip->opt_sconv == NULL && !zip->init_default_conversion) {
+		zip->sconv_default =
+		    archive_string_default_conversion_for_write(&(a->archive));
+		zip->init_default_conversion = 1;
+	}
 
-  return index;
+	if (zip->flags == 0) {
+		/* Initialize the general purpose flags. */
+		zip->flags = ZIP_FLAGS;
+		if (zip->opt_sconv != NULL) {
+			if (strcmp(archive_string_conversion_charset_name(
+			    zip->opt_sconv), "UTF-8") == 0)
+				zip->flags |= ZIP_FLAGS_UTF8_NAME;
+#if HAVE_NL_LANGINFO
+		} else if (strcmp(nl_langinfo(CODESET), "UTF-8") == 0) {
+			zip->flags |= ZIP_FLAGS_UTF8_NAME;
+#endif
+		}
+	}
+	d = zip->data_descriptor;
+	size = archive_entry_size(entry);
+	zip->remaining_data_bytes = size;
+
+	/* Append archive entry to the central directory data. */
+	l = (struct zip_file_header_link *) malloc(sizeof(*l));
+	if (l == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate zip header data");
+		return (ARCHIVE_FATAL);
+	}
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	/* Make sure the path separators in pahtname, hardlink and symlink
+	 * are all slash '/', not the Windows path separator '\'. */
+	l->entry = __la_win_entry_in_posix_pathseparator(entry);
+	if (l->entry == entry)
+		l->entry = archive_entry_clone(entry);
+#else
+	l->entry = archive_entry_clone(entry);
+#endif
+	if (l->entry == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate zip header data");
+		free(l);
+		return (ARCHIVE_FATAL);
+	}
+	l->flags = zip->flags;
+	if (zip->opt_sconv != NULL)
+		sconv = zip->opt_sconv;
+	else
+		sconv = zip->sconv_default;
+	if (sconv != NULL) {
+		const char *p;
+		size_t len;
+
+		if (archive_entry_pathname_l(entry, &p, &len, sconv) != 0) {
+			if (errno == ENOMEM) {
+				archive_entry_free(l->entry);
+				free(l);
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Pathname");
+				return (ARCHIVE_FATAL);
+			}
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Can't translate Pathname '%s' to %s",
+			    archive_entry_pathname(entry),
+			    archive_string_conversion_charset_name(sconv));
+			ret2 = ARCHIVE_WARN;
+		}
+		if (len > 0)
+			archive_entry_set_pathname(l->entry, p);
+
+		/*
+		 * Although there is no character-set regulation for Symlink,
+		 * it is suitable to convert a character-set of Symlinke to
+		 * what those of the Pathname has been converted to.
+		 */
+		if (type == AE_IFLNK) {
+			if (archive_entry_symlink_l(entry, &p, &len, sconv)) {
+				if (errno == ENOMEM) {
+					archive_entry_free(l->entry);
+					free(l);
+					archive_set_error(&a->archive, ENOMEM,
+					    "Can't allocate memory "
+					    " for Symlink");
+					return (ARCHIVE_FATAL);
+				}
+				/*
+				 * Even if the strng conversion failed,
+				 * we should not report the error since
+				 * thre is no regulation for.
+				 */
+			} else if (len > 0)
+				archive_entry_set_symlink(l->entry, p);
+		}
+	}
+	/* If all characters in a filename are ASCII, Reset UTF-8 Name flag. */
+	if ((l->flags & ZIP_FLAGS_UTF8_NAME) != 0 &&
+	    is_all_ascii(archive_entry_pathname(l->entry)))
+		l->flags &= ~ZIP_FLAGS_UTF8_NAME;
+
+	/* Initialize the CRC variable and potentially the local crc32(). */
+	l->crc32 = crc32(0, NULL, 0);
+	if (type == AE_IFLNK) {
+		const char *p = archive_entry_symlink(l->entry);
+		if (p != NULL)
+			size = strlen(p);
+		else
+			size = 0;
+		zip->remaining_data_bytes = 0;
+		archive_entry_set_size(l->entry, size);
+		l->compression = COMPRESSION_STORE;
+		l->compressed_size = size;
+	} else {
+		l->compression = zip->compression;
+		l->compressed_size = 0;
+	}
+	l->next = NULL;
+	if (zip->central_directory == NULL) {
+		zip->central_directory = l;
+	} else {
+		zip->central_directory_end->next = l;
+	}
+	zip->central_directory_end = l;
+
+	/* Store the offset of this header for later use in central
+	 * directory. */
+	l->offset = zip->written_bytes;
+
+	memset(h, 0, sizeof(h));
+	archive_le32enc(&h[LOCAL_FILE_HEADER_SIGNATURE],
+		ZIP_SIGNATURE_LOCAL_FILE_HEADER);
+	archive_le16enc(&h[LOCAL_FILE_HEADER_VERSION], ZIP_VERSION_EXTRACT);
+	archive_le16enc(&h[LOCAL_FILE_HEADER_FLAGS], l->flags);
+	archive_le16enc(&h[LOCAL_FILE_HEADER_COMPRESSION], l->compression);
+	archive_le32enc(&h[LOCAL_FILE_HEADER_TIMEDATE],
+		dos_time(archive_entry_mtime(entry)));
+	archive_le16enc(&h[LOCAL_FILE_HEADER_FILENAME_LENGTH],
+		(uint16_t)path_length(l->entry));
+
+	switch (l->compression) {
+	case COMPRESSION_STORE:
+		/* Setting compressed and uncompressed sizes even when
+		 * specification says to set to zero when using data
+		 * descriptors. Otherwise the end of the data for an
+		 * entry is rather difficult to find. */
+		archive_le32enc(&h[LOCAL_FILE_HEADER_COMPRESSED_SIZE],
+		    (uint32_t)size);
+		archive_le32enc(&h[LOCAL_FILE_HEADER_UNCOMPRESSED_SIZE],
+		    (uint32_t)size);
+		break;
+#ifdef HAVE_ZLIB_H
+	case COMPRESSION_DEFLATE:
+		archive_le32enc(&h[LOCAL_FILE_HEADER_UNCOMPRESSED_SIZE],
+		    (uint32_t)size);
+
+		zip->stream.zalloc = Z_NULL;
+		zip->stream.zfree = Z_NULL;
+		zip->stream.opaque = Z_NULL;
+		zip->stream.next_out = zip->buf;
+		zip->stream.avail_out = (uInt)zip->len_buf;
+		if (deflateInit2(&zip->stream, Z_DEFAULT_COMPRESSION,
+		    Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't init deflate compressor");
+			return (ARCHIVE_FATAL);
+		}
+		break;
+#endif
+	}
+
+	/* Formatting extra data. */
+	archive_le16enc(&h[LOCAL_FILE_HEADER_EXTRA_LENGTH], sizeof(e));
+	archive_le16enc(&e[EXTRA_DATA_LOCAL_TIME_ID],
+		ZIP_SIGNATURE_EXTRA_TIMESTAMP);
+	archive_le16enc(&e[EXTRA_DATA_LOCAL_TIME_SIZE], 1 + 4 * 3);
+	e[EXTRA_DATA_LOCAL_TIME_FLAG] = 0x07;
+	archive_le32enc(&e[EXTRA_DATA_LOCAL_MTIME],
+	    (uint32_t)archive_entry_mtime(entry));
+	archive_le32enc(&e[EXTRA_DATA_LOCAL_ATIME],
+	    (uint32_t)archive_entry_atime(entry));
+	archive_le32enc(&e[EXTRA_DATA_LOCAL_CTIME],
+	    (uint32_t)archive_entry_ctime(entry));
+
+	archive_le16enc(&e[EXTRA_DATA_LOCAL_UNIX_ID],
+		ZIP_SIGNATURE_EXTRA_NEW_UNIX);
+	archive_le16enc(&e[EXTRA_DATA_LOCAL_UNIX_SIZE], 1 + (1 + 4) * 2);
+	e[EXTRA_DATA_LOCAL_UNIX_VERSION] = 1;
+	e[EXTRA_DATA_LOCAL_UNIX_UID_SIZE] = 4;
+	archive_le32enc(&e[EXTRA_DATA_LOCAL_UNIX_UID],
+		(uint32_t)archive_entry_uid(entry));
+	e[EXTRA_DATA_LOCAL_UNIX_GID_SIZE] = 4;
+	archive_le32enc(&e[EXTRA_DATA_LOCAL_UNIX_GID],
+		(uint32_t)archive_entry_gid(entry));
+
+	archive_le32enc(&d[DATA_DESCRIPTOR_UNCOMPRESSED_SIZE],
+	    (uint32_t)size);
+
+	ret = __archive_write_output(a, h, sizeof(h));
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	zip->written_bytes += sizeof(h);
+
+	ret = write_path(l->entry, a);
+	if (ret <= ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	zip->written_bytes += ret;
+
+	ret = __archive_write_output(a, e, sizeof(e));
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	zip->written_bytes += sizeof(e);
+
+	if (type == AE_IFLNK) {
+		const unsigned char *p;
+
+		p = (const unsigned char *)archive_entry_symlink(l->entry);
+		ret = __archive_write_output(a, p, (size_t)size);
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+		zip->written_bytes += size;
+		l->crc32 = crc32(l->crc32, p, (unsigned)size);
+	}
+
+	if (ret2 != ARCHIVE_OK)
+		return (ret2);
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::FollowLinkEntry(BFSEntry const& qe)
+static ssize_t
+archive_write_zip_data(struct archive_write *a, const void *buff, size_t s)
 {
-  // Get this entry representation.
-  int depender_index = qe.Index;
-  LinkEntry const& entry = this->EntryList[depender_index];
+	int ret;
+	struct zip *zip = a->format_data;
+	struct zip_file_header_link *l = zip->central_directory_end;
 
-  // Follow the item's dependencies.
-  if(entry.Target)
-    {
-    // Follow the target dependencies.
-    if(cmTarget::LinkInterface const* iface =
-       entry.Target->GetLinkInterface(this->Config, this->HeadTarget))
-      {
-      const bool isIface =
-                      entry.Target->GetType() == cmTarget::INTERFACE_LIBRARY;
-      // This target provides its own link interface information.
-      this->AddLinkEntries(depender_index, iface->Libraries);
+	if ((int64_t)s > zip->remaining_data_bytes)
+		s = (size_t)zip->remaining_data_bytes;
 
-      if (isIface)
-        {
-        return;
-        }
+	if (s == 0) return 0;
 
-      // Handle dependent shared libraries.
-      this->FollowSharedDeps(depender_index, iface);
+	switch (l->compression) {
+	case COMPRESSION_STORE:
+		ret = __archive_write_output(a, buff, s);
+		if (ret != ARCHIVE_OK) return (ret);
+		zip->written_bytes += s;
+		zip->remaining_data_bytes -= s;
+		l->compressed_size += s;
+		l->crc32 = crc32(l->crc32, buff, (unsigned)s);
+		return (s);
+#if HAVE_ZLIB_H
+	case COMPRESSION_DEFLATE:
+		zip->stream.next_in = (unsigned char*)(uintptr_t)buff;
+		zip->stream.avail_in = (uInt)s;
+		do {
+			ret = deflate(&zip->stream, Z_NO_FLUSH);
+			if (ret == Z_STREAM_ERROR)
+				return (ARCHIVE_FATAL);
+			if (zip->stream.avail_out == 0) {
+				ret = __archive_write_output(a, zip->buf,
+					zip->len_buf);
+				if (ret != ARCHIVE_OK)
+					return (ret);
+				l->compressed_size += zip->len_buf;
+				zip->written_bytes += zip->len_buf;
+				zip->stream.next_out = zip->buf;
+				zip->stream.avail_out = (uInt)zip->len_buf;
+			}
+		} while (zip->stream.avail_in != 0);
+		zip->remaining_data_bytes -= s;
+		/* If we have it, use zlib's fast crc32() */
+		l->crc32 = crc32(l->crc32, buff, (uInt)s);
+		return (s);
+#endif
 
-      // Support for CMP0003.
-      for(std::vector<std::string>::const_iterator
-            oi = iface->WrongConfigLibraries.begin();
-          oi != iface->WrongConfigLibraries.end(); ++oi)
-        {
-        this->CheckWrongConfigItem(depender_index, *oi);
-        }
-      }
-    }
-  else
-    {
-    // Follow the old-style dependency list.
-    this->AddVarLinkEntries(depender_index, qe.LibDepends);
-    }
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Invalid ZIP compression type");
+		return ARCHIVE_FATAL;
+	}
 }
 
-//----------------------------------------------------------------------------
-void
-cmComputeLinkDepends
-::FollowSharedDeps(int depender_index, cmTarget::LinkInterface const* iface,
-                   bool follow_interface)
+static int
+archive_write_zip_finish_entry(struct archive_write *a)
 {
-  // Follow dependencies if we have not followed them already.
-  if(this->SharedDepFollowed.insert(depender_index).second)
-    {
-    if(follow_interface)
-      {
-      this->QueueSharedDependencies(depender_index, iface->Libraries);
-      }
-    this->QueueSharedDependencies(depender_index, iface->SharedDeps);
-    }
+	/* Write the data descripter after file data has been written. */
+	int ret;
+	struct zip *zip = a->format_data;
+	uint8_t *d = zip->data_descriptor;
+	struct zip_file_header_link *l = zip->central_directory_end;
+#if HAVE_ZLIB_H
+	size_t reminder;
+#endif
+
+	switch(l->compression) {
+	case COMPRESSION_STORE:
+		break;
+#if HAVE_ZLIB_H
+	case COMPRESSION_DEFLATE:
+		for (;;) {
+			ret = deflate(&zip->stream, Z_FINISH);
+			if (ret == Z_STREAM_ERROR)
+				return (ARCHIVE_FATAL);
+			reminder = zip->len_buf - zip->stream.avail_out;
+			ret = __archive_write_output(a, zip->buf, reminder);
+			if (ret != ARCHIVE_OK)
+				return (ret);
+			l->compressed_size += reminder;
+			zip->written_bytes += reminder;
+			zip->stream.next_out = zip->buf;
+			if (zip->stream.avail_out != 0)
+				break;
+			zip->stream.avail_out = (uInt)zip->len_buf;
+		}
+		deflateEnd(&zip->stream);
+		break;
+#endif
+	}
+
+	archive_le32enc(&d[DATA_DESCRIPTOR_CRC32], l->crc32);
+	archive_le32enc(&d[DATA_DESCRIPTOR_COMPRESSED_SIZE],
+		(uint32_t)l->compressed_size);
+	ret = __archive_write_output(a, d, SIZE_DATA_DESCRIPTOR);
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	zip->written_bytes += SIZE_DATA_DESCRIPTOR;
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------------
-void
-cmComputeLinkDepends
-::QueueSharedDependencies(int depender_index,
-                          std::vector<std::string> const& deps)
+static int
+archive_write_zip_close(struct archive_write *a)
 {
-  for(std::vector<std::string>::const_iterator li = deps.begin();
-      li != deps.end(); ++li)
-    {
-    SharedDepEntry qe;
-    qe.Item = *li;
-    qe.DependerIndex = depender_index;
-    this->SharedDepQueue.push(qe);
-    }
+	struct zip *zip;
+	struct zip_file_header_link *l;
+	uint8_t h[SIZE_FILE_HEADER];
+	uint8_t end[SIZE_CENTRAL_DIRECTORY_END];
+	uint8_t e[SIZE_EXTRA_DATA_CENTRAL];
+	int64_t offset_start, offset_end;
+	int entries;
+	int ret;
+
+	zip = a->format_data;
+	l = zip->central_directory;
+
+	/*
+	 * Formatting central directory file header fields that are
+	 * fixed for all entries.
+	 * Fields not used (and therefor 0) are:
+	 *
+	 *   - comment_length
+	 *   - disk_number
+	 *   - attributes_internal
+	 */
+	memset(h, 0, sizeof(h));
+	archive_le32enc(&h[FILE_HEADER_SIGNATURE], ZIP_SIGNATURE_FILE_HEADER);
+	archive_le16enc(&h[FILE_HEADER_VERSION_BY], ZIP_VERSION_BY);
+	archive_le16enc(&h[FILE_HEADER_VERSION_EXTRACT], ZIP_VERSION_EXTRACT);
+
+	entries = 0;
+	offset_start = zip->written_bytes;
+
+	/* Formatting individual header fields per entry and
+	 * writing each entry. */
+	while (l != NULL) {
+		archive_le16enc(&h[FILE_HEADER_FLAGS], l->flags);
+		archive_le16enc(&h[FILE_HEADER_COMPRESSION], l->compression);
+		archive_le32enc(&h[FILE_HEADER_TIMEDATE],
+			dos_time(archive_entry_mtime(l->entry)));
+		archive_le32enc(&h[FILE_HEADER_CRC32], l->crc32);
+		archive_le32enc(&h[FILE_HEADER_COMPRESSED_SIZE],
+			(uint32_t)l->compressed_size);
+		archive_le32enc(&h[FILE_HEADER_UNCOMPRESSED_SIZE],
+			(uint32_t)archive_entry_size(l->entry));
+		archive_le16enc(&h[FILE_HEADER_FILENAME_LENGTH],
+			(uint16_t)path_length(l->entry));
+		archive_le16enc(&h[FILE_HEADER_EXTRA_LENGTH], sizeof(e));
+		archive_le16enc(&h[FILE_HEADER_ATTRIBUTES_EXTERNAL+2],
+			archive_entry_mode(l->entry));
+		archive_le32enc(&h[FILE_HEADER_OFFSET], (uint32_t)l->offset);
+
+		/* Formatting extra data. */
+		archive_le16enc(&e[EXTRA_DATA_CENTRAL_TIME_ID],
+			ZIP_SIGNATURE_EXTRA_TIMESTAMP);
+		archive_le16enc(&e[EXTRA_DATA_CENTRAL_TIME_SIZE], 1 + 4);
+		e[EXTRA_DATA_CENTRAL_TIME_FLAG] = 0x07;
+		archive_le32enc(&e[EXTRA_DATA_CENTRAL_MTIME],
+			(uint32_t)archive_entry_mtime(l->entry));
+		archive_le16enc(&e[EXTRA_DATA_CENTRAL_UNIX_ID],
+			ZIP_SIGNATURE_EXTRA_NEW_UNIX);
+		archive_le16enc(&e[EXTRA_DATA_CENTRAL_UNIX_SIZE], 0x0000);
+
+		ret = __archive_write_output(a, h, sizeof(h));
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+		zip->written_bytes += sizeof(h);
+
+		ret = write_path(l->entry, a);
+		if (ret <= ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+		zip->written_bytes += ret;
+
+		ret = __archive_write_output(a, e, sizeof(e));
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+		zip->written_bytes += sizeof(e);
+
+		l = l->next;
+		entries++;
+	}
+	offset_end = zip->written_bytes;
+
+	/* Formatting end of central directory. */
+	memset(end, 0, sizeof(end));
+	archive_le32enc(&end[CENTRAL_DIRECTORY_END_SIGNATURE],
+		ZIP_SIGNATURE_CENTRAL_DIRECTORY_END);
+	archive_le16enc(&end[CENTRAL_DIRECTORY_END_ENTRIES_DISK], entries);
+	archive_le16enc(&end[CENTRAL_DIRECTORY_END_ENTRIES], entries);
+	archive_le32enc(&end[CENTRAL_DIRECTORY_END_SIZE],
+		(uint32_t)(offset_end - offset_start));
+	archive_le32enc(&end[CENTRAL_DIRECTORY_END_OFFSET],
+		(uint32_t)offset_start);
+
+	/* Writing end of central directory. */
+	ret = __archive_write_output(a, end, sizeof(end));
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	zip->written_bytes += sizeof(end);
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::HandleSharedDependency(SharedDepEntry const& dep)
+static int
+archive_write_zip_free(struct archive_write *a)
 {
-  // Check if the target already has an entry.
-  std::map<cmStdString, int>::iterator lei =
-    this->LinkEntryIndex.find(dep.Item);
-  if(lei == this->LinkEntryIndex.end())
-    {
-    // Allocate a spot for the item entry.
-    lei = this->AllocateLinkEntry(dep.Item);
+	struct zip *zip;
+	struct zip_file_header_link *l;
 
-    // Initialize the item entry.
-    LinkEntry& entry = this->EntryList[lei->second];
-    entry.Item = dep.Item;
-    entry.Target = this->FindTargetToLink(dep.DependerIndex,
-                                          dep.Item.c_str());
-
-    // This item was added specifically because it is a dependent
-    // shared library.  It may get special treatment
-    // in cmComputeLinkInformation.
-    entry.IsSharedDep = true;
-    }
-
-  // Get the link entry for this target.
-  int index = lei->second;
-  LinkEntry& entry = this->EntryList[index];
-
-  // This shared library dependency must follow the item that listed
-  // it.
-  this->EntryConstraintGraph[dep.DependerIndex].push_back(index);
-
-  // Target items may have their own dependencies.
-  if(entry.Target)
-    {
-    if(cmTarget::LinkInterface const* iface =
-       entry.Target->GetLinkInterface(this->Config, this->HeadTarget))
-      {
-      // Follow public and private dependencies transitively.
-      this->FollowSharedDeps(index, iface, true);
-      }
-    }
+	zip = a->format_data;
+	while (zip->central_directory != NULL) {
+	   l = zip->central_directory;
+	   zip->central_directory = l->next;
+	   archive_entry_free(l->entry);
+	   free(l);
+	}
+#ifdef HAVE_ZLIB_H
+	free(zip->buf);
+#endif
+	free(zip);
+	a->format_data = NULL;
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::AddVarLinkEntries(int depender_index,
-                                             const char* value)
+/* Convert into MSDOS-style date/time. */
+static unsigned int
+dos_time(const time_t unix_time)
 {
-  // This is called to add the dependencies named by
-  // <item>_LIB_DEPENDS.  The variable contains a semicolon-separated
-  // list.  The list contains link-type;item pairs and just items.
-  std::vector<std::string> deplist;
-  cmSystemTools::ExpandListArgument(value, deplist);
+	struct tm *t;
+	unsigned int dt;
 
-  // Look for entries meant for this configuration.
-  std::vector<std::string> actual_libs;
-  cmTarget::LinkLibraryType llt = cmTarget::GENERAL;
-  bool haveLLT = false;
-  for(std::vector<std::string>::const_iterator di = deplist.begin();
-      di != deplist.end(); ++di)
-    {
-    if(*di == "debug")
-      {
-      llt = cmTarget::DEBUG;
-      haveLLT = true;
-      }
-    else if(*di == "optimized")
-      {
-      llt = cmTarget::OPTIMIZED;
-      haveLLT = true;
-      }
-    else if(*di == "general")
-      {
-      llt = cmTarget::GENERAL;
-      haveLLT = true;
-      }
-    else if(!di->empty())
-      {
-      // If no explicit link type was given prior to this entry then
-      // check if the entry has its own link type variable.  This is
-      // needed for compatibility with dependency files generated by
-      // the export_library_dependencies command from CMake 2.4 and
-      // lower.
-      if(!haveLLT)
-        {
-        std::string var = *di;
-        var += "_LINK_TYPE";
-        if(const char* val = this->Makefile->GetDefinition(var.c_str()))
-          {
-          if(strcmp(val, "debug") == 0)
-            {
-            llt = cmTarget::DEBUG;
-            }
-          else if(strcmp(val, "optimized") == 0)
-            {
-            llt = cmTarget::OPTIMIZED;
-            }
-          }
-        }
+	/* This will not preserve time when creating/extracting the archive
+	 * on two systems with different time zones. */
+	t = localtime(&unix_time);
 
-      // If the library is meant for this link type then use it.
-      if(llt == cmTarget::GENERAL || llt == this->LinkType)
-        {
-        actual_libs.push_back(*di);
-        }
-      else if(this->OldLinkDirMode)
-        {
-        this->CheckWrongConfigItem(depender_index, *di);
-        }
-
-      // Reset the link type until another explicit type is given.
-      llt = cmTarget::GENERAL;
-      haveLLT = false;
-      }
-    }
-
-  // Add the entries from this list.
-  this->AddLinkEntries(depender_index, actual_libs);
+	/* MSDOS-style date/time is only between 1980-01-01 and 2107-12-31 */
+	if (t->tm_year < 1980 - 1900)
+		/* Set minimum date/time '1980-01-01 00:00:00'. */
+		dt = 0x00210000U;
+	else if (t->tm_year > 2107 - 1900)
+		/* Set maximum date/time '2107-12-31 23:59:58'. */
+		dt = 0xff9fbf7dU;
+	else {
+		dt = 0;
+		dt += ((t->tm_year - 80) & 0x7f) << 9;
+		dt += ((t->tm_mon + 1) & 0x0f) << 5;
+		dt += (t->tm_mday & 0x1f);
+		dt <<= 16;
+		dt += (t->tm_hour & 0x1f) << 11;
+		dt += (t->tm_min & 0x3f) << 5;
+		dt += (t->tm_sec & 0x3e) >> 1; /* Only counting every 2 seconds. */
+	}
+	return dt;
 }
 
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::AddDirectLinkEntries()
+static size_t
+path_length(struct archive_entry *entry)
 {
-  // Add direct link dependencies in this configuration.
-  cmTarget::LinkImplementation const* impl =
-    this->Target->GetLinkImplementation(this->Config, this->HeadTarget);
-  this->AddLinkEntries(-1, impl->Libraries);
-  for(std::vector<std::string>::const_iterator
-        wi = impl->WrongConfigLibraries.begin();
-      wi != impl->WrongConfigLibraries.end(); ++wi)
-    {
-    this->CheckWrongConfigItem(-1, *wi);
-    }
+	mode_t type;
+	const char *path;
+
+	type = archive_entry_filetype(entry);
+	path = archive_entry_pathname(entry);
+
+	if (path == NULL)
+		return (0);
+	if (type == AE_IFDIR &&
+	    (path[0] == '\0' || path[strlen(path) - 1] != '/')) {
+		return strlen(path) + 1;
+	} else {
+		return strlen(path);
+	}
 }
 
-//----------------------------------------------------------------------------
-void
-cmComputeLinkDepends::AddLinkEntries(int depender_index,
-                                     std::vector<std::string> const& libs)
+static int
+write_path(struct archive_entry *entry, struct archive_write *archive)
 {
-  // Track inferred dependency sets implied by this list.
-  std::map<int, DependSet> dependSets;
+	int ret;
+	const char *path;
+	mode_t type;
+	size_t written_bytes;
 
-  // Loop over the libraries linked directly by the depender.
-  for(std::vector<std::string>::const_iterator li = libs.begin();
-      li != libs.end(); ++li)
-    {
-    // Skip entries that will resolve to the target getting linked or
-    // are empty.
-    std::string item = this->Target->CheckCMP0004(*li);
-    if(item == this->Target->GetName() || item.empty())
-      {
-      continue;
-      }
+	path = archive_entry_pathname(entry);
+	type = archive_entry_filetype(entry);
+	written_bytes = 0;
 
-    // Add a link entry for this item.
-    int dependee_index = this->AddLinkEntry(depender_index, item);
+	ret = __archive_write_output(archive, path, strlen(path));
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	written_bytes += strlen(path);
 
-    // The dependee must come after the depender.
-    if(depender_index >= 0)
-      {
-      this->EntryConstraintGraph[depender_index].push_back(dependee_index);
-      }
-    else
-      {
-      // This is a direct dependency of the target being linked.
-      this->OriginalEntries.push_back(dependee_index);
-      }
-
-    // Update the inferred dependencies for earlier items.
-    for(std::map<int, DependSet>::iterator dsi = dependSets.begin();
-        dsi != dependSets.end(); ++dsi)
-      {
-      // Add this item to the inferred dependencies of other items.
-      // Target items are never inferred dependees because unknown
-      // items are outside libraries that should not be depending on
-      // targets.
-      if(!this->EntryList[dependee_index].Target &&
-         !this->EntryList[dependee_index].IsFlag &&
-         dependee_index != dsi->first)
-        {
-        dsi->second.insert(dependee_index);
-        }
-      }
-
-    // If this item needs to have dependencies inferred, do so.
-    if(this->InferredDependSets[dependee_index])
-      {
-      // Make sure an entry exists to hold the set for the item.
-      dependSets[dependee_index];
-      }
-    }
-
-  // Store the inferred dependency sets discovered for this list.
-  for(std::map<int, DependSet>::iterator dsi = dependSets.begin();
-      dsi != dependSets.end(); ++dsi)
-    {
-    this->InferredDependSets[dsi->first]->push_back(dsi->second);
-    }
-}
-
-//----------------------------------------------------------------------------
-cmTarget const* cmComputeLinkDepends::FindTargetToLink(int depender_index,
-                                                 const char* name)
-{
-  // Look for a target in the scope of the depender.
-  cmMakefile* mf = this->Makefile;
-  if(depender_index >= 0)
-    {
-    if(cmTarget const* depender = this->EntryList[depender_index].Target)
-      {
-      mf = depender->GetMakefile();
-      }
-    }
-  cmTarget const* tgt = mf->FindTargetToUse(name);
-
-  // Skip targets that will not really be linked.  This is probably a
-  // name conflict between an external library and an executable
-  // within the project.
-  if(tgt && tgt->GetType() == cmTarget::EXECUTABLE &&
-     !tgt->IsExecutableWithExports())
-    {
-    tgt = 0;
-    }
-
-  if(tgt && tgt->GetType() == cmTarget::OBJECT_LIBRARY)
-    {
-    cmOStringStream e;
-    e << "Target \"" << this->Target->GetName() << "\" links to "
-      "OBJECT library \"" << tgt->GetName() << "\" but this is not "
-      "allowed.  "
-      "One may link only to STATIC or SHARED libraries, or to executables "
-      "with the ENABLE_EXPORTS property set.";
-    this->CMakeInstance->IssueMessage(cmake::FATAL_ERROR, e.str(),
-                                      this->Target->GetBacktrace());
-    tgt = 0;
-    }
-
-  // Return the target found, if any.
-  return tgt;
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::InferDependencies()
-{
-  // The inferred dependency sets for each item list the possible
-  // dependencies.  The intersection of the sets for one item form its
-  // inferred dependencies.
-  for(unsigned int depender_index=0;
-      depender_index < this->InferredDependSets.size(); ++depender_index)
-    {
-    // Skip items for which dependencies do not need to be inferred or
-    // for which the inferred dependency sets are empty.
-    DependSetList* sets = this->InferredDependSets[depender_index];
-    if(!sets || sets->empty())
-      {
-      continue;
-      }
-
-    // Intersect the sets for this item.
-    DependSetList::const_iterator i = sets->begin();
-    DependSet common = *i;
-    for(++i; i != sets->end(); ++i)
-      {
-      DependSet intersection;
-      cmsys_stl::set_intersection
-        (common.begin(), common.end(), i->begin(), i->end(),
-         std::inserter(intersection, intersection.begin()));
-      common = intersection;
-      }
-
-    // Add the inferred dependencies to the graph.
-    for(DependSet::const_iterator j = common.begin(); j != common.end(); ++j)
-      {
-      int dependee_index = *j;
-      this->EntryConstraintGraph[depender_index].push_back(dependee_index);
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::CleanConstraintGraph()
-{
-  for(Graph::iterator i = this->EntryConstraintGraph.begin();
-      i != this->EntryConstraintGraph.end(); ++i)
-    {
-    // Sort the outgoing edges for each graph node so that the
-    // original order will be preserved as much as possible.
-    cmsys_stl::sort(i->begin(), i->end());
-
-    // Make the edge list unique.
-    EdgeList::iterator last = cmsys_stl::unique(i->begin(), i->end());
-    i->erase(last, i->end());
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::DisplayConstraintGraph()
-{
-  // Display the graph nodes and their edges.
-  cmOStringStream e;
-  for(unsigned int i=0; i < this->EntryConstraintGraph.size(); ++i)
-    {
-    EdgeList const& nl = this->EntryConstraintGraph[i];
-    e << "item " << i << " is [" << this->EntryList[i].Item << "]\n";
-    for(EdgeList::const_iterator j = nl.begin(); j != nl.end(); ++j)
-      {
-      e << "  item " << *j << " must follow it\n";
-      }
-    }
-  fprintf(stderr, "%s\n", e.str().c_str());
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::OrderLinkEntires()
-{
-  // Compute the DAG of strongly connected components.  The algorithm
-  // used by cmComputeComponentGraph should identify the components in
-  // the same order in which the items were originally discovered in
-  // the BFS.  This should preserve the original order when no
-  // constraints disallow it.
-  this->CCG = new cmComputeComponentGraph(this->EntryConstraintGraph);
-
-  // The component graph is guaranteed to be acyclic.  Start a DFS
-  // from every entry to compute a topological order for the
-  // components.
-  Graph const& cgraph = this->CCG->GetComponentGraph();
-  int n = static_cast<int>(cgraph.size());
-  this->ComponentVisited.resize(cgraph.size(), 0);
-  this->ComponentOrder.resize(cgraph.size(), n);
-  this->ComponentOrderId = n;
-  // Run in reverse order so the topological order will preserve the
-  // original order where there are no constraints.
-  for(int c = n-1; c >= 0; --c)
-    {
-    this->VisitComponent(c);
-    }
-
-  // Display the component graph.
-  if(this->DebugMode)
-    {
-    this->DisplayComponents();
-    }
-
-  // Start with the original link line.
-  for(std::vector<int>::const_iterator i = this->OriginalEntries.begin();
-      i != this->OriginalEntries.end(); ++i)
-    {
-    this->VisitEntry(*i);
-    }
-
-  // Now explore anything left pending.  Since the component graph is
-  // guaranteed to be acyclic we know this will terminate.
-  while(!this->PendingComponents.empty())
-    {
-    // Visit one entry from the first pending component.  The visit
-    // logic will update the pending components accordingly.  Since
-    // the pending components are kept in topological order this will
-    // not repeat one.
-    int e = *this->PendingComponents.begin()->second.Entries.begin();
-    this->VisitEntry(e);
-    }
-}
-
-//----------------------------------------------------------------------------
-void
-cmComputeLinkDepends::DisplayComponents()
-{
-  fprintf(stderr, "The strongly connected components are:\n");
-  std::vector<NodeList> const& components = this->CCG->GetComponents();
-  for(unsigned int c=0; c < components.size(); ++c)
-    {
-    fprintf(stderr, "Component (%u):\n", c);
-    NodeList const& nl = components[c];
-    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int i = *ni;
-      fprintf(stderr, "  item %d [%s]\n", i,
-              this->EntryList[i].Item.c_str());
-      }
-    EdgeList const& ol = this->CCG->GetComponentGraphEdges(c);
-    for(EdgeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
-      {
-      int i = *oi;
-      fprintf(stderr, "  followed by Component (%d)\n", i);
-      }
-    fprintf(stderr, "  topo order index %d\n",
-            this->ComponentOrder[c]);
-    }
-  fprintf(stderr, "\n");
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::VisitComponent(unsigned int c)
-{
-  // Check if the node has already been visited.
-  if(this->ComponentVisited[c])
-    {
-    return;
-    }
-
-  // We are now visiting this component so mark it.
-  this->ComponentVisited[c] = 1;
-
-  // Visit the neighbors of the component first.
-  // Run in reverse order so the topological order will preserve the
-  // original order where there are no constraints.
-  EdgeList const& nl = this->CCG->GetComponentGraphEdges(c);
-  for(EdgeList::const_reverse_iterator ni = nl.rbegin();
-      ni != nl.rend(); ++ni)
-    {
-    this->VisitComponent(*ni);
-    }
-
-  // Assign an ordering id to this component.
-  this->ComponentOrder[c] = --this->ComponentOrderId;
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::VisitEntry(int index)
-{
-  // Include this entry on the link line.
-  this->FinalLinkOrder.push_back(index);
-
-  // This entry has now been seen.  Update its component.
-  bool completed = false;
-  int component = this->CCG->GetComponentMap()[index];
-  std::map<int, PendingComponent>::iterator mi =
-    this->PendingComponents.find(this->ComponentOrder[component]);
-  if(mi != this->PendingComponents.end())
-    {
-    // The entry is in an already pending component.
-    PendingComponent& pc = mi->second;
-
-    // Remove the entry from those pending in its component.
-    pc.Entries.erase(index);
-    if(pc.Entries.empty())
-      {
-      // The complete component has been seen since it was last needed.
-      --pc.Count;
-
-      if(pc.Count == 0)
-        {
-        // The component has been completed.
-        this->PendingComponents.erase(mi);
-        completed = true;
-        }
-      else
-        {
-        // The whole component needs to be seen again.
-        NodeList const& nl = this->CCG->GetComponent(component);
-        assert(nl.size() > 1);
-        pc.Entries.insert(nl.begin(), nl.end());
-        }
-      }
-    }
-  else
-    {
-    // The entry is not in an already pending component.
-    NodeList const& nl = this->CCG->GetComponent(component);
-    if(nl.size() > 1)
-      {
-      // This is a non-trivial component.  It is now pending.
-      PendingComponent& pc = this->MakePendingComponent(component);
-
-      // The starting entry has already been seen.
-      pc.Entries.erase(index);
-      }
-    else
-      {
-      // This is a trivial component, so it is already complete.
-      completed = true;
-      }
-    }
-
-  // If the entry completed a component, the component's dependencies
-  // are now pending.
-  if(completed)
-    {
-    EdgeList const& ol = this->CCG->GetComponentGraphEdges(component);
-    for(EdgeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
-      {
-      // This entire component is now pending no matter whether it has
-      // been partially seen already.
-      this->MakePendingComponent(*oi);
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-cmComputeLinkDepends::PendingComponent&
-cmComputeLinkDepends::MakePendingComponent(unsigned int component)
-{
-  // Create an entry (in topological order) for the component.
-  PendingComponent& pc =
-    this->PendingComponents[this->ComponentOrder[component]];
-  pc.Id = component;
-  NodeList const& nl = this->CCG->GetComponent(component);
-
-  if(nl.size() == 1)
-    {
-    // Trivial components need be seen only once.
-    pc.Count = 1;
-    }
-  else
-    {
-    // This is a non-trivial strongly connected component of the
-    // original graph.  It consists of two or more libraries
-    // (archives) that mutually require objects from one another.  In
-    // the worst case we may have to repeat the list of libraries as
-    // many times as there are object files in the biggest archive.
-    // For now we just list them twice.
-    //
-    // The list of items in the component has been sorted by the order
-    // of discovery in the original BFS of dependencies.  This has the
-    // advantage that the item directly linked by a target requiring
-    // this component will come first which minimizes the number of
-    // repeats needed.
-    pc.Count = this->ComputeComponentCount(nl);
-    }
-
-  // Store the entries to be seen.
-  pc.Entries.insert(nl.begin(), nl.end());
-
-  return pc;
-}
-
-//----------------------------------------------------------------------------
-int cmComputeLinkDepends::ComputeComponentCount(NodeList const& nl)
-{
-  int count = 2;
-  for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-    {
-    if(cmTarget const* target = this->EntryList[*ni].Target)
-      {
-      if(cmTarget::LinkInterface const* iface =
-         target->GetLinkInterface(this->Config, this->HeadTarget))
-        {
-        if(iface->Multiplicity > count)
-          {
-          count = iface->Multiplicity;
-          }
-        }
-      }
-    }
-  return count;
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::DisplayFinalEntries()
-{
-  fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());
-  for(std::vector<LinkEntry>::const_iterator lei =
-        this->FinalLinkEntries.begin();
-      lei != this->FinalLinkEntries.end(); ++lei)
-    {
-    if(lei->Target)
-      {
-      fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
-      }
-    else
-      {
-      fprintf(stderr, "  item [%s]\n", lei->Item.c_str());
-      }
-    }
-  fprintf(stderr, "\n");
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::CheckWrongConfigItem(int depender_index,
-                                                std::string const& item)
-{
-  if(!this->OldLinkDirMode)
-    {
-    return;
-    }
-
-  // For CMake 2.4 bug-compatibility we need to consider the output
-  // directories of targets linked in another configuration as link
-  // directories.
-  if(cmTarget const* tgt
-                      = this->FindTargetToLink(depender_index, item.c_str()))
-    {
-    if(!tgt->IsImported())
-      {
-      this->OldWrongConfigItems.insert(tgt);
-      }
-    }
-}
+	/* Folders are recognized by a traling slash. */

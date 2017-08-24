@@ -1,0 +1,3 @@
+{
+    kwsysProcessCleanupHandle(&cp->PipeChildStd[i]);
+  }

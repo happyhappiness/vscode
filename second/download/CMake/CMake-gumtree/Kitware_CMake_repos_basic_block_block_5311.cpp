@@ -1,0 +1,1 @@
+sigaction(SIGPIPE, &ig->old_pipe_act, NULL)

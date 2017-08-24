@@ -1,0 +1,1 @@
+req->result = CURLE_REMOTE_ACCESS_DENIED

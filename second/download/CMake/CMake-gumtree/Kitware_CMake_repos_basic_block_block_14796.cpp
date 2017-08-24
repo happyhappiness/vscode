@@ -1,0 +1,1 @@
+ret = deflateReset(&a->stream)

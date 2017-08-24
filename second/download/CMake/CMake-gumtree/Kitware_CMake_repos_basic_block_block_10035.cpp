@@ -1,0 +1,1 @@
+wname = archive_entry_pathname_w(entry)

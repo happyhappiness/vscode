@@ -1,0 +1,1 @@
+free(t->filesystem_table[i].allocation_ptr)

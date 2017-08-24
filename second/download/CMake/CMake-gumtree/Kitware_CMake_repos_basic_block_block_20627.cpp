@@ -1,0 +1,3 @@
+{
+    CloseHandle(child_pipe);
+  }

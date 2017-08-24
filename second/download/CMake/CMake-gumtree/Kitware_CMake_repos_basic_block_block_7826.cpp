@@ -1,0 +1,2 @@
+(paramEntityParsing == XML_PARAM_ENTITY_PARSING_UNLESS_STANDALONE)
+      paramEntityParsing = XML_PARAM_ENTITY_PARSING_NEVER

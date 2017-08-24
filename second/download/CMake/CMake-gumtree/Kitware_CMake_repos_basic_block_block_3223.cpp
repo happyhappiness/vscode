@@ -1,0 +1,1 @@
+( inStr != NULL ) fclose ( inStr )

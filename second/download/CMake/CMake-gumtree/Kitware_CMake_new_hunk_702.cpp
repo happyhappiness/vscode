@@ -1,7 +1,7 @@
-    case STATUS_NO_MEMORY:
-    default:
-      cp->ExitException = kwsysProcess_Exception_Other;
-      _snprintf(cp->ExitExceptionString, KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);
-      break;
-    }
+  char buffer[1024];
+  sprintf(buffer, "%d", static_cast<int>(length));
+
+  this->Makefile->AddDefinition(variableName, buffer);
+  return true;
 }
+

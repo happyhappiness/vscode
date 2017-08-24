@@ -1,0 +1,1 @@
+return rar->offset_seek;

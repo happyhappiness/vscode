@@ -1,0 +1,1 @@
+bytes_in = (size_t)zip->pack_stream_inbytes_remaining

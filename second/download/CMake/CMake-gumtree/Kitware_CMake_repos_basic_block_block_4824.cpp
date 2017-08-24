@@ -1,0 +1,1 @@
+rc = CURLM_OK

@@ -1,0 +1,1 @@
+check += (unsigned char)bytes[i]

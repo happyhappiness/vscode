@@ -1,0 +1,1 @@
+( (Int32)strlen(s) >= longestFileName ) return;

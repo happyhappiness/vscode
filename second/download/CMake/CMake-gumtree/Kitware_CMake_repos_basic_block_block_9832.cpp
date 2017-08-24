@@ -1,0 +1,1 @@
+close(t->stack->symlink_parent_fd)

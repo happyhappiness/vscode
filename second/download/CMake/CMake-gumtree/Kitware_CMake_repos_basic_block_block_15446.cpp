@@ -1,0 +1,1 @@
+r = enc_uint64(a, codec_size)

@@ -1,1363 +1,962 @@
-/***************************************************************************
- *                                  _   _ ____  _
- *  Project                     ___| | | |  _ \| |
- *                             / __| | | | |_) | |
- *                            | (__| |_| |  _ <| |___
- *                             \___|\___/|_| \_\_____|
- *
- * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
- *
- * This software is licensed as described in the file COPYING, which
- * you should have received as part of this distribution. The terms
- * are also available at http://curl.haxx.se/docs/copyright.html.
- *
- * You may opt to use, copy, modify, merge, publish, distribute and/or sell
- * copies of the Software, and permit persons to whom the Software is
- * furnished to do so, under the terms of the COPYING file.
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
- * KIND, either express or implied.
- *
- ***************************************************************************/
+/*============================================================================
+  CMake - Cross Platform Makefile Generator
+  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
 
-/***
+  Distributed under the OSI-approved BSD License (the "License");
+  see accompanying file Copyright.txt for details.
 
+  This software is distributed WITHOUT ANY WARRANTY; without even the
+  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  See the License for more information.
+============================================================================*/
+#include "cmComputeLinkDepends.h"
 
-RECEIVING COOKIE INFORMATION
-============================
+#include "cmAlgorithms.h"
+#include "cmComputeComponentGraph.h"
+#include "cmGlobalGenerator.h"
+#include "cmLocalGenerator.h"
+#include "cmMakefile.h"
+#include "cmTarget.h"
+#include "cmake.h"
 
-struct CookieInfo *Curl_cookie_init(struct SessionHandle *data,
-                    const char *file, struct CookieInfo *inc, bool newsession);
-
-        Inits a cookie struct to store data in a local file. This is always
-        called before any cookies are set.
-
-struct Cookie *Curl_cookie_add(struct SessionHandle *data,
-                 struct CookieInfo *c, bool httpheader, char *lineptr,
-                 const char *domain, const char *path);
-
-        The 'lineptr' parameter is a full "Set-cookie:" line as
-        received from a server.
-
-        The function need to replace previously stored lines that this new
-        line superceeds.
-
-        It may remove lines that are expired.
-
-        It should return an indication of success/error.
-
-
-SENDING COOKIE INFORMATION
-==========================
-
-struct Cookies *Curl_cookie_getlist(struct CookieInfo *cookie,
-                                    char *host, char *path, bool secure);
-
-        For a given host and path, return a linked list of cookies that
-        the client should send to the server if used now. The secure
-        boolean informs the cookie if a secure connection is achieved or
-        not.
-
-        It shall only return cookies that haven't expired.
-
-
-Example set of cookies:
-
-    Set-cookie: PRODUCTINFO=webxpress; domain=.fidelity.com; path=/; secure
-    Set-cookie: PERSONALIZE=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
-    domain=.fidelity.com; path=/ftgw; secure
-    Set-cookie: FidHist=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
-    domain=.fidelity.com; path=/; secure
-    Set-cookie: FidOrder=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
-    domain=.fidelity.com; path=/; secure
-    Set-cookie: DisPend=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
-    domain=.fidelity.com; path=/; secure
-    Set-cookie: FidDis=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
-    domain=.fidelity.com; path=/; secure
-    Set-cookie:
-    Session_Key@6791a9e0-901a-11d0-a1c8-9b012c88aa77=none;expires=Monday,
-    13-Jun-1988 03:04:55 GMT; domain=.fidelity.com; path=/; secure
-****/
-
-
-#include "curl_setup.h"
-
-#if !defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_COOKIES)
-
-#include "curl_printf.h"
-#include "urldata.h"
-#include "cookie.h"
-#include "strequal.h"
-#include "strtok.h"
-#include "sendf.h"
-#include "slist.h"
-#include "share.h"
-#include "strtoofft.h"
-#include "rawstr.h"
-#include "curl_memrchr.h"
-#include "inet_pton.h"
-
-/* The last #include files should be: */
-#include "curl_memory.h"
-#include "memdebug.h"
-
-static void freecookie(struct Cookie *co)
-{
-  free(co->expirestr);
-  free(co->domain);
-  free(co->path);
-  free(co->spath);
-  free(co->name);
-  free(co->value);
-  free(co->maxage);
-  free(co->version);
-  free(co);
-}
-
-static bool tailmatch(const char *cooke_domain, const char *hostname)
-{
-  size_t cookie_domain_len = strlen(cooke_domain);
-  size_t hostname_len = strlen(hostname);
-
-  if(hostname_len < cookie_domain_len)
-    return FALSE;
-
-  if(!Curl_raw_equal(cooke_domain, hostname+hostname_len-cookie_domain_len))
-    return FALSE;
-
-  /* A lead char of cookie_domain is not '.'.
-     RFC6265 4.1.2.3. The Domain Attribute says:
-       For example, if the value of the Domain attribute is
-       "example.com", the user agent will include the cookie in the Cookie
-       header when making HTTP requests to example.com, www.example.com, and
-       www.corp.example.com.
-   */
-  if(hostname_len == cookie_domain_len)
-    return TRUE;
-  if('.' == *(hostname + hostname_len - cookie_domain_len - 1))
-    return TRUE;
-  return FALSE;
-}
+#include <assert.h>
 
 /*
- * matching cookie path and url path
- * RFC6265 5.1.4 Paths and Path-Match
- */
-static bool pathmatch(const char* cookie_path, const char* request_uri)
-{
-  size_t cookie_path_len;
-  size_t uri_path_len;
-  char* uri_path = NULL;
-  char* pos;
-  bool ret = FALSE;
-
-  /* cookie_path must not have last '/' separator. ex: /sample */
-  cookie_path_len = strlen(cookie_path);
-  if(1 == cookie_path_len) {
-    /* cookie_path must be '/' */
-    return TRUE;
-  }
-
-  uri_path = strdup(request_uri);
-  if(!uri_path)
-    return FALSE;
-  pos = strchr(uri_path, '?');
-  if(pos)
-    *pos = 0x0;
-
-  /* #-fragments are already cut off! */
-  if(0 == strlen(uri_path) || uri_path[0] != '/') {
-    free(uri_path);
-    uri_path = strdup("/");
-    if(!uri_path)
-      return FALSE;
-  }
-
-  /* here, RFC6265 5.1.4 says
-     4. Output the characters of the uri-path from the first character up
-        to, but not including, the right-most %x2F ("/").
-     but URL path /hoge?fuga=xxx means /hoge/index.cgi?fuga=xxx in some site
-     without redirect.
-     Ignore this algorithm because /hoge is uri path for this case
-     (uri path is not /).
-   */
-
-  uri_path_len = strlen(uri_path);
-
-  if(uri_path_len < cookie_path_len) {
-    ret = FALSE;
-    goto pathmatched;
-  }
-
-  /* not using checkprefix() because matching should be case-sensitive */
-  if(strncmp(cookie_path, uri_path, cookie_path_len)) {
-    ret = FALSE;
-    goto pathmatched;
-  }
-
-  /* The cookie-path and the uri-path are identical. */
-  if(cookie_path_len == uri_path_len) {
-    ret = TRUE;
-    goto pathmatched;
-  }
-
-  /* here, cookie_path_len < url_path_len */
-  if(uri_path[cookie_path_len] == '/') {
-    ret = TRUE;
-    goto pathmatched;
-  }
-
-  ret = FALSE;
-
-pathmatched:
-  free(uri_path);
-  return ret;
-}
-
-/*
- * cookie path sanitize
- */
-static char *sanitize_cookie_path(const char *cookie_path)
-{
-  size_t len;
-  char *new_path = strdup(cookie_path);
-  if(!new_path)
-    return NULL;
-
-  /* some stupid site sends path attribute with '"'. */
-  len = strlen(new_path);
-  if(new_path[0] == '\"') {
-    memmove((void *)new_path, (const void *)(new_path + 1), len);
-    len--;
-  }
-  if(len && (new_path[len - 1] == '\"')) {
-    new_path[len - 1] = 0x0;
-    len--;
-  }
-
-  /* RFC6265 5.2.4 The Path Attribute */
-  if(new_path[0] != '/') {
-    /* Let cookie-path be the default-path. */
-    free(new_path);
-    new_path = strdup("/");
-    return new_path;
-  }
-
-  /* convert /hoge/ to /hoge */
-  if(len && new_path[len - 1] == '/') {
-    new_path[len - 1] = 0x0;
-  }
-
-  return new_path;
-}
-
-/*
- * Load cookies from all given cookie files (CURLOPT_COOKIEFILE).
- *
- * NOTE: OOM or cookie parsing failures are ignored.
- */
-void Curl_cookie_loadfiles(struct SessionHandle *data)
-{
-  struct curl_slist *list = data->change.cookielist;
-  if(list) {
-    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
-    while(list) {
-      struct CookieInfo *newcookies = Curl_cookie_init(data,
-                                        list->data,
-                                        data->cookies,
-                                        data->set.cookiesession);
-      if(!newcookies)
-        /* Failure may be due to OOM or a bad cookie; both are ignored
-         * but only the first should be
-         */
-        infof(data, "ignoring failed cookie_init for %s\n", list->data);
-      else
-        data->cookies = newcookies;
-      list = list->next;
-    }
-    curl_slist_free_all(data->change.cookielist); /* clean up list */
-    data->change.cookielist = NULL; /* don't do this again! */
-    Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
-  }
-}
-
-/*
- * strstore() makes a strdup() on the 'newstr' and if '*str' is non-NULL
- * that will be freed before the allocated string is stored there.
- *
- * It is meant to easily replace strdup()
- */
-static void strstore(char **str, const char *newstr)
-{
-  free(*str);
-  *str = strdup(newstr);
-}
-
-/*
- * remove_expired() removes expired cookies.
- */
-static void remove_expired(struct CookieInfo *cookies)
-{
-  struct Cookie *co, *nx, *pv;
-  curl_off_t now = (curl_off_t)time(NULL);
-
-  co = cookies->cookies;
-  pv = NULL;
-  while(co) {
-    nx = co->next;
-    if((co->expirestr || co->maxage) && co->expires < now) {
-      if(co == cookies->cookies) {
-        cookies->cookies = co->next;
-      }
-      else {
-        pv->next = co->next;
-      }
-      cookies->numcookies--;
-      freecookie(co);
-    }
-    else {
-      pv = co;
-    }
-    co = nx;
-  }
-}
-
-/*
- * Return true if the given string is an IP(v4|v6) address.
- */
-static bool isip(const char *domain)
-{
-  struct in_addr addr;
-#ifdef ENABLE_IPV6
-  struct in6_addr addr6;
-#endif
-
-  if(Curl_inet_pton(AF_INET, domain, &addr)
-#ifdef ENABLE_IPV6
-     || Curl_inet_pton(AF_INET6, domain, &addr6)
-#endif
-    ) {
-    /* domain name given as IP address */
-    return TRUE;
-  }
-
-  return FALSE;
-}
-
-/****************************************************************************
- *
- * Curl_cookie_add()
- *
- * Add a single cookie line to the cookie keeping object.
- *
- * Be aware that sometimes we get an IP-only host name, and that might also be
- * a numerical IPv6 address.
- *
- * Returns NULL on out of memory or invalid cookie. This is suboptimal,
- * as they should be treated separately.
- ***************************************************************************/
-
-struct Cookie *
-Curl_cookie_add(struct SessionHandle *data,
-                /* The 'data' pointer here may be NULL at times, and thus
-                   must only be used very carefully for things that can deal
-                   with data being NULL. Such as infof() and similar */
-
-                struct CookieInfo *c,
-                bool httpheader, /* TRUE if HTTP header-style line */
-                char *lineptr,   /* first character of the line */
-                const char *domain, /* default domain */
-                const char *path)   /* full path used when this cookie is set,
-                                       used to get default path for the cookie
-                                       unless set */
-{
-  struct Cookie *clist;
-  char name[MAX_NAME];
-  struct Cookie *co;
-  struct Cookie *lastc=NULL;
-  time_t now = time(NULL);
-  bool replace_old = FALSE;
-  bool badcookie = FALSE; /* cookies are good by default. mmmmm yummy */
-
-#ifdef CURL_DISABLE_VERBOSE_STRINGS
-  (void)data;
-#endif
-
-  /* First, alloc and init a new struct for it */
-  co = calloc(1, sizeof(struct Cookie));
-  if(!co)
-    return NULL; /* bail out if we're this low on memory */
-
-  if(httpheader) {
-    /* This line was read off a HTTP-header */
-    const char *ptr;
-    const char *semiptr;
-    char *what;
-
-    what = malloc(MAX_COOKIE_LINE);
-    if(!what) {
-      free(co);
-      return NULL;
-    }
-
-    semiptr=strchr(lineptr, ';'); /* first, find a semicolon */
-
-    while(*lineptr && ISBLANK(*lineptr))
-      lineptr++;
-
-    ptr = lineptr;
-    do {
-      /* we have a <what>=<this> pair or a stand-alone word here */
-      name[0]=what[0]=0; /* init the buffers */
-      if(1 <= sscanf(ptr, "%" MAX_NAME_TXT "[^;\r\n =] =%"
-                     MAX_COOKIE_LINE_TXT "[^;\r\n]",
-                     name, what)) {
-        /* Use strstore() below to properly deal with received cookie
-           headers that have the same string property set more than once,
-           and then we use the last one. */
-        const char *whatptr;
-        bool done = FALSE;
-        bool sep;
-        size_t len=strlen(what);
-        const char *endofn = &ptr[ strlen(name) ];
-
-        /* skip trailing spaces in name */
-        while(*endofn && ISBLANK(*endofn))
-          endofn++;
-
-        /* name ends with a '=' ? */
-        sep = (*endofn == '=')?TRUE:FALSE;
-
-        /* Strip off trailing whitespace from the 'what' */
-        while(len && ISBLANK(what[len-1])) {
-          what[len-1]=0;
-          len--;
-        }
-
-        /* Skip leading whitespace from the 'what' */
-        whatptr=what;
-        while(*whatptr && ISBLANK(*whatptr))
-          whatptr++;
-
-        if(!len) {
-          /* this was a "<name>=" with no content, and we must allow
-             'secure' and 'httponly' specified this weirdly */
-          done = TRUE;
-          if(Curl_raw_equal("secure", name))
-            co->secure = TRUE;
-          else if(Curl_raw_equal("httponly", name))
-            co->httponly = TRUE;
-          else if(sep)
-            /* there was a '=' so we're not done parsing this field */
-            done = FALSE;
-        }
-        if(done)
-          ;
-        else if(Curl_raw_equal("path", name)) {
-          strstore(&co->path, whatptr);
-          if(!co->path) {
-            badcookie = TRUE; /* out of memory bad */
-            break;
-          }
-          co->spath = sanitize_cookie_path(co->path);
-          if(!co->spath) {
-            badcookie = TRUE; /* out of memory bad */
-            break;
-          }
-        }
-        else if(Curl_raw_equal("domain", name)) {
-          bool is_ip;
-          const char *dotp;
-
-          /* Now, we make sure that our host is within the given domain,
-             or the given domain is not valid and thus cannot be set. */
-
-          if('.' == whatptr[0])
-            whatptr++; /* ignore preceding dot */
-
-          is_ip = isip(domain ? domain : whatptr);
-
-          /* check for more dots */
-          dotp = strchr(whatptr, '.');
-          if(!dotp)
-            domain=":";
-
-          if(!domain
-             || (is_ip && !strcmp(whatptr, domain))
-             || (!is_ip && tailmatch(whatptr, domain))) {
-            strstore(&co->domain, whatptr);
-            if(!co->domain) {
-              badcookie = TRUE;
-              break;
-            }
-            if(!is_ip)
-              co->tailmatch=TRUE; /* we always do that if the domain name was
-                                     given */
-          }
-          else {
-            /* we did not get a tailmatch and then the attempted set domain
-               is not a domain to which the current host belongs. Mark as
-               bad. */
-            badcookie=TRUE;
-            infof(data, "skipped cookie with bad tailmatch domain: %s\n",
-                  whatptr);
-          }
-        }
-        else if(Curl_raw_equal("version", name)) {
-          strstore(&co->version, whatptr);
-          if(!co->version) {
-            badcookie = TRUE;
-            break;
-          }
-        }
-        else if(Curl_raw_equal("max-age", name)) {
-          /* Defined in RFC2109:
-
-             Optional.  The Max-Age attribute defines the lifetime of the
-             cookie, in seconds.  The delta-seconds value is a decimal non-
-             negative integer.  After delta-seconds seconds elapse, the
-             client should discard the cookie.  A value of zero means the
-             cookie should be discarded immediately.
-
-          */
-          strstore(&co->maxage, whatptr);
-          if(!co->maxage) {
-            badcookie = TRUE;
-            break;
-          }
-        }
-        else if(Curl_raw_equal("expires", name)) {
-          strstore(&co->expirestr, whatptr);
-          if(!co->expirestr) {
-            badcookie = TRUE;
-            break;
-          }
-        }
-        else if(!co->name) {
-          co->name = strdup(name);
-          co->value = strdup(whatptr);
-          if(!co->name || !co->value) {
-            badcookie = TRUE;
-            break;
-          }
-        }
-        /*
-          else this is the second (or more) name we don't know
-          about! */
-      }
-      else {
-        /* this is an "illegal" <what>=<this> pair */
-      }
-
-      if(!semiptr || !*semiptr) {
-        /* we already know there are no more cookies */
-        semiptr = NULL;
-        continue;
-      }
-
-      ptr=semiptr+1;
-      while(*ptr && ISBLANK(*ptr))
-        ptr++;
-      semiptr=strchr(ptr, ';'); /* now, find the next semicolon */
-
-      if(!semiptr && *ptr)
-        /* There are no more semicolons, but there's a final name=value pair
-           coming up */
-        semiptr=strchr(ptr, '\0');
-    } while(semiptr);
-
-    if(co->maxage) {
-      co->expires =
-        curlx_strtoofft((*co->maxage=='\"')?
-                        &co->maxage[1]:&co->maxage[0], NULL, 10);
-      if(CURL_OFF_T_MAX - now < co->expires)
-        /* avoid overflow */
-        co->expires = CURL_OFF_T_MAX;
-      else
-        co->expires += now;
-    }
-    else if(co->expirestr) {
-      /* Note that if the date couldn't get parsed for whatever reason,
-         the cookie will be treated as a session cookie */
-      co->expires = curl_getdate(co->expirestr, NULL);
-
-      /* Session cookies have expires set to 0 so if we get that back
-         from the date parser let's add a second to make it a
-         non-session cookie */
-      if(co->expires == 0)
-        co->expires = 1;
-      else if(co->expires < 0)
-        co->expires = 0;
-    }
-
-    if(!badcookie && !co->domain) {
-      if(domain) {
-        /* no domain was given in the header line, set the default */
-        co->domain=strdup(domain);
-        if(!co->domain)
-          badcookie = TRUE;
-      }
-    }
-
-    if(!badcookie && !co->path && path) {
-      /* No path was given in the header line, set the default.
-         Note that the passed-in path to this function MAY have a '?' and
-         following part that MUST not be stored as part of the path. */
-      char *queryp = strchr(path, '?');
-
-      /* queryp is where the interesting part of the path ends, so now we
-         want to the find the last */
-      char *endslash;
-      if(!queryp)
-        endslash = strrchr(path, '/');
-      else
-        endslash = memrchr(path, '/', (size_t)(queryp - path));
-      if(endslash) {
-        size_t pathlen = (size_t)(endslash-path+1); /* include ending slash */
-        co->path=malloc(pathlen+1); /* one extra for the zero byte */
-        if(co->path) {
-          memcpy(co->path, path, pathlen);
-          co->path[pathlen]=0; /* zero terminate */
-          co->spath = sanitize_cookie_path(co->path);
-          if(!co->spath)
-            badcookie = TRUE; /* out of memory bad */
-        }
-        else
-          badcookie = TRUE;
-      }
-    }
-
-    free(what);
-
-    if(badcookie || !co->name) {
-      /* we didn't get a cookie name or a bad one,
-         this is an illegal line, bail out */
-      freecookie(co);
-      return NULL;
-    }
-
-  }
-  else {
-    /* This line is NOT a HTTP header style line, we do offer support for
-       reading the odd netscape cookies-file format here */
-    char *ptr;
-    char *firstptr;
-    char *tok_buf=NULL;
-    int fields;
-
-    /* IE introduced HTTP-only cookies to prevent XSS attacks. Cookies
-       marked with httpOnly after the domain name are not accessible
-       from javascripts, but since curl does not operate at javascript
-       level, we include them anyway. In Firefox's cookie files, these
-       lines are preceded with #HttpOnly_ and then everything is
-       as usual, so we skip 10 characters of the line..
-    */
-    if(strncmp(lineptr, "#HttpOnly_", 10) == 0) {
-      lineptr += 10;
-      co->httponly = TRUE;
-    }
-
-    if(lineptr[0]=='#') {
-      /* don't even try the comments */
-      free(co);
-      return NULL;
-    }
-    /* strip off the possible end-of-line characters */
-    ptr=strchr(lineptr, '\r');
-    if(ptr)
-      *ptr=0; /* clear it */
-    ptr=strchr(lineptr, '\n');
-    if(ptr)
-      *ptr=0; /* clear it */
-
-    firstptr=strtok_r(lineptr, "\t", &tok_buf); /* tokenize it on the TAB */
-
-    /* Now loop through the fields and init the struct we already have
-       allocated */
-    for(ptr=firstptr, fields=0; ptr && !badcookie;
-        ptr=strtok_r(NULL, "\t", &tok_buf), fields++) {
-      switch(fields) {
-      case 0:
-        if(ptr[0]=='.') /* skip preceding dots */
-          ptr++;
-        co->domain = strdup(ptr);
-        if(!co->domain)
-          badcookie = TRUE;
-        break;
-      case 1:
-        /* This field got its explanation on the 23rd of May 2001 by
-           Andrés García:
-
-           flag: A TRUE/FALSE value indicating if all machines within a given
-           domain can access the variable. This value is set automatically by
-           the browser, depending on the value you set for the domain.
-
-           As far as I can see, it is set to true when the cookie says
-           .domain.com and to false when the domain is complete www.domain.com
-        */
-        co->tailmatch = Curl_raw_equal(ptr, "TRUE")?TRUE:FALSE;
-        break;
-      case 2:
-        /* It turns out, that sometimes the file format allows the path
-           field to remain not filled in, we try to detect this and work
-           around it! Andrés García made us aware of this... */
-        if(strcmp("TRUE", ptr) && strcmp("FALSE", ptr)) {
-          /* only if the path doesn't look like a boolean option! */
-          co->path = strdup(ptr);
-          if(!co->path)
-            badcookie = TRUE;
-          else {
-            co->spath = sanitize_cookie_path(co->path);
-            if(!co->spath) {
-              badcookie = TRUE; /* out of memory bad */
-            }
-          }
-          break;
-        }
-        /* this doesn't look like a path, make one up! */
-        co->path = strdup("/");
-        if(!co->path)
-          badcookie = TRUE;
-        co->spath = strdup("/");
-        if(!co->spath)
-          badcookie = TRUE;
-        fields++; /* add a field and fall down to secure */
-        /* FALLTHROUGH */
-      case 3:
-        co->secure = Curl_raw_equal(ptr, "TRUE")?TRUE:FALSE;
-        break;
-      case 4:
-        co->expires = curlx_strtoofft(ptr, NULL, 10);
-        break;
-      case 5:
-        co->name = strdup(ptr);
-        if(!co->name)
-          badcookie = TRUE;
-        break;
-      case 6:
-        co->value = strdup(ptr);
-        if(!co->value)
-          badcookie = TRUE;
-        break;
-      }
-    }
-    if(6 == fields) {
-      /* we got a cookie with blank contents, fix it */
-      co->value = strdup("");
-      if(!co->value)
-        badcookie = TRUE;
-      else
-        fields++;
-    }
-
-    if(!badcookie && (7 != fields))
-      /* we did not find the sufficient number of fields */
-      badcookie = TRUE;
-
-    if(badcookie) {
-      freecookie(co);
-      return NULL;
-    }
-
-  }
-
-  if(!c->running &&    /* read from a file */
-     c->newsession &&  /* clean session cookies */
-     !co->expires) {   /* this is a session cookie since it doesn't expire! */
-    freecookie(co);
-    return NULL;
-  }
-
-  co->livecookie = c->running;
-
-  /* now, we have parsed the incoming line, we must now check if this
-     superceeds an already existing cookie, which it may if the previous have
-     the same domain and path as this */
-
-  /* at first, remove expired cookies */
-  remove_expired(c);
-
-  clist = c->cookies;
-  replace_old = FALSE;
-  while(clist) {
-    if(Curl_raw_equal(clist->name, co->name)) {
-      /* the names are identical */
-
-      if(clist->domain && co->domain) {
-        if(Curl_raw_equal(clist->domain, co->domain))
-          /* The domains are identical */
-          replace_old=TRUE;
-      }
-      else if(!clist->domain && !co->domain)
-        replace_old = TRUE;
-
-      if(replace_old) {
-        /* the domains were identical */
-
-        if(clist->spath && co->spath) {
-          if(Curl_raw_equal(clist->spath, co->spath)) {
-            replace_old = TRUE;
-          }
-          else
-            replace_old = FALSE;
-        }
-        else if(!clist->spath && !co->spath)
-          replace_old = TRUE;
-        else
-          replace_old = FALSE;
-
-      }
-
-      if(replace_old && !co->livecookie && clist->livecookie) {
-        /* Both cookies matched fine, except that the already present
-           cookie is "live", which means it was set from a header, while
-           the new one isn't "live" and thus only read from a file. We let
-           live cookies stay alive */
-
-        /* Free the newcomer and get out of here! */
-        freecookie(co);
-        return NULL;
-      }
-
-      if(replace_old) {
-        co->next = clist->next; /* get the next-pointer first */
-
-        /* then free all the old pointers */
-        free(clist->name);
-        free(clist->value);
-        free(clist->domain);
-        free(clist->path);
-        free(clist->spath);
-        free(clist->expirestr);
-        free(clist->version);
-        free(clist->maxage);
-
-        *clist = *co;  /* then store all the new data */
-
-        free(co);   /* free the newly alloced memory */
-        co = clist; /* point to the previous struct instead */
-
-        /* We have replaced a cookie, now skip the rest of the list but
-           make sure the 'lastc' pointer is properly set */
-        do {
-          lastc = clist;
-          clist = clist->next;
-        } while(clist);
-        break;
-      }
-    }
-    lastc = clist;
-    clist = clist->next;
-  }
-
-  if(c->running)
-    /* Only show this when NOT reading the cookies from a file */
-    infof(data, "%s cookie %s=\"%s\" for domain %s, path %s, "
-          "expire %" CURL_FORMAT_CURL_OFF_T "\n",
-          replace_old?"Replaced":"Added", co->name, co->value,
-          co->domain, co->path, co->expires);
-
-  if(!replace_old) {
-    /* then make the last item point on this new one */
-    if(lastc)
-      lastc->next = co;
-    else
-      c->cookies = co;
-    c->numcookies++; /* one more cookie in the jar */
-  }
-
-  return co;
-}
-
-/*****************************************************************************
- *
- * Curl_cookie_init()
- *
- * Inits a cookie struct to read data from a local file. This is always
- * called before any cookies are set. File may be NULL.
- *
- * If 'newsession' is TRUE, discard all "session cookies" on read from file.
- *
- * Returns NULL on out of memory. Invalid cookies are ignored.
- ****************************************************************************/
-struct CookieInfo *Curl_cookie_init(struct SessionHandle *data,
-                                    const char *file,
-                                    struct CookieInfo *inc,
-                                    bool newsession)
-{
-  struct CookieInfo *c;
-  FILE *fp = NULL;
-  bool fromfile=TRUE;
-  char *line = NULL;
-
-  if(NULL == inc) {
-    /* we didn't get a struct, create one */
-    c = calloc(1, sizeof(struct CookieInfo));
-    if(!c)
-      return NULL; /* failed to get memory */
-    c->filename = strdup(file?file:"none"); /* copy the name just in case */
-    if(!c->filename)
-      goto fail; /* failed to get memory */
-  }
-  else {
-    /* we got an already existing one, use that */
-    c = inc;
-  }
-  c->running = FALSE; /* this is not running, this is init */
-
-  if(file && strequal(file, "-")) {
-    fp = stdin;
-    fromfile=FALSE;
-  }
-  else if(file && !*file) {
-    /* points to a "" string */
-    fp = NULL;
-  }
-  else
-    fp = file?fopen(file, FOPEN_READTEXT):NULL;
-
-  c->newsession = newsession; /* new session? */
-
-  if(fp) {
-    char *lineptr;
-    bool headerline;
-
-    line = malloc(MAX_COOKIE_LINE);
-    if(!line)
-      goto fail;
-    while(fgets(line, MAX_COOKIE_LINE, fp)) {
-      if(checkprefix("Set-Cookie:", line)) {
-        /* This is a cookie line, get it! */
-        lineptr=&line[11];
-        headerline=TRUE;
-      }
-      else {
-        lineptr=line;
-        headerline=FALSE;
-      }
-      while(*lineptr && ISBLANK(*lineptr))
-        lineptr++;
-
-      Curl_cookie_add(data, c, headerline, lineptr, NULL, NULL);
-    }
-    free(line); /* free the line buffer */
-
-    if(fromfile)
-      fclose(fp);
-  }
-
-  c->running = TRUE;          /* now, we're running */
-
-  return c;
-
-fail:
-  free(line);
-  if(!inc)
-    /* Only clean up if we allocated it here, as the original could still be in
-     * use by a share handle */
-    Curl_cookie_cleanup(c);
-  if(fromfile && fp)
-    fclose(fp);
-  return NULL; /* out of memory */
-}
-
-/* sort this so that the longest path gets before the shorter path */
-static int cookie_sort(const void *p1, const void *p2)
-{
-  struct Cookie *c1 = *(struct Cookie **)p1;
-  struct Cookie *c2 = *(struct Cookie **)p2;
-  size_t l1, l2;
-
-  /* 1 - compare cookie path lengths */
-  l1 = c1->path ? strlen(c1->path) : 0;
-  l2 = c2->path ? strlen(c2->path) : 0;
-
-  if(l1 != l2)
-    return (l2 > l1) ? 1 : -1 ; /* avoid size_t <=> int conversions */
-
-  /* 2 - compare cookie domain lengths */
-  l1 = c1->domain ? strlen(c1->domain) : 0;
-  l2 = c2->domain ? strlen(c2->domain) : 0;
-
-  if(l1 != l2)
-    return (l2 > l1) ? 1 : -1 ;  /* avoid size_t <=> int conversions */
-
-  /* 3 - compare cookie names */
-  if(c1->name && c2->name)
-    return strcmp(c1->name, c2->name);
-
-  /* sorry, can't be more deterministic */
-  return 0;
-}
-
-/*****************************************************************************
- *
- * Curl_cookie_getlist()
- *
- * For a given host and path, return a linked list of cookies that the
- * client should send to the server if used now. The secure boolean informs
- * the cookie if a secure connection is achieved or not.
- *
- * It shall only return cookies that haven't expired.
- *
- ****************************************************************************/
-
-struct Cookie *Curl_cookie_getlist(struct CookieInfo *c,
-                                   const char *host, const char *path,
-                                   bool secure)
-{
-  struct Cookie *newco;
-  struct Cookie *co;
-  time_t now = time(NULL);
-  struct Cookie *mainco=NULL;
-  size_t matches = 0;
-  bool is_ip;
-
-  if(!c || !c->cookies)
-    return NULL; /* no cookie struct or no cookies in the struct */
-
-  /* at first, remove expired cookies */
-  remove_expired(c);
-
-  /* check if host is an IP(v4|v6) address */
-  is_ip = isip(host);
-
-  co = c->cookies;
-
-  while(co) {
-    /* only process this cookie if it is not expired or had no expire
-       date AND that if the cookie requires we're secure we must only
-       continue if we are! */
-    if((!co->expires || (co->expires > now)) &&
-       (co->secure?secure:TRUE)) {
-
-      /* now check if the domain is correct */
-      if(!co->domain ||
-         (co->tailmatch && !is_ip && tailmatch(co->domain, host)) ||
-         ((!co->tailmatch || is_ip) && Curl_raw_equal(host, co->domain)) ) {
-        /* the right part of the host matches the domain stuff in the
-           cookie data */
-
-        /* now check the left part of the path with the cookies path
-           requirement */
-        if(!co->spath || pathmatch(co->spath, path) ) {
-
-          /* and now, we know this is a match and we should create an
-             entry for the return-linked-list */
-
-          newco = malloc(sizeof(struct Cookie));
-          if(newco) {
-            /* first, copy the whole source cookie: */
-            memcpy(newco, co, sizeof(struct Cookie));
-
-            /* then modify our next */
-            newco->next = mainco;
-
-            /* point the main to us */
-            mainco = newco;
-
-            matches++;
-          }
-          else {
-            fail:
-            /* failure, clear up the allocated chain and return NULL */
-            while(mainco) {
-              co = mainco->next;
-              free(mainco);
-              mainco = co;
-            }
-
-            return NULL;
-          }
-        }
-      }
-    }
-    co = co->next;
-  }
-
-  if(matches) {
-    /* Now we need to make sure that if there is a name appearing more than
-       once, the longest specified path version comes first. To make this
-       the swiftest way, we just sort them all based on path length. */
-    struct Cookie **array;
-    size_t i;
-
-    /* alloc an array and store all cookie pointers */
-    array = malloc(sizeof(struct Cookie *) * matches);
-    if(!array)
-      goto fail;
-
-    co = mainco;
-
-    for(i=0; co; co = co->next)
-      array[i++] = co;
-
-    /* now sort the cookie pointers in path length order */
-    qsort(array, matches, sizeof(struct Cookie *), cookie_sort);
-
-    /* remake the linked list order according to the new order */
-
-    mainco = array[0]; /* start here */
-    for(i=0; i<matches-1; i++)
-      array[i]->next = array[i+1];
-    array[matches-1]->next = NULL; /* terminate the list */
-
-    free(array); /* remove the temporary data again */
-  }
-
-  return mainco; /* return the new list */
-}
-
-/*****************************************************************************
- *
- * Curl_cookie_clearall()
- *
- * Clear all existing cookies and reset the counter.
- *
- ****************************************************************************/
-void Curl_cookie_clearall(struct CookieInfo *cookies)
-{
-  if(cookies) {
-    Curl_cookie_freelist(cookies->cookies, TRUE);
-    cookies->cookies = NULL;
-    cookies->numcookies = 0;
-  }
-}
-
-/*****************************************************************************
- *
- * Curl_cookie_freelist()
- *
- * Free a list of cookies previously returned by Curl_cookie_getlist();
- *
- * The 'cookiestoo' argument tells this function whether to just free the
- * list or actually also free all cookies within the list as well.
- *
- ****************************************************************************/
-
-void Curl_cookie_freelist(struct Cookie *co, bool cookiestoo)
-{
-  struct Cookie *next;
-  while(co) {
-    next = co->next;
-    if(cookiestoo)
-      freecookie(co);
-    else
-      free(co); /* we only free the struct since the "members" are all just
-                   pointed out in the main cookie list! */
-    co = next;
-  }
-}
-
-
-/*****************************************************************************
- *
- * Curl_cookie_clearsess()
- *
- * Free all session cookies in the cookies list.
- *
- ****************************************************************************/
-void Curl_cookie_clearsess(struct CookieInfo *cookies)
-{
-  struct Cookie *first, *curr, *next, *prev = NULL;
-
-  if(!cookies || !cookies->cookies)
-    return;
-
-  first = curr = prev = cookies->cookies;
-
-  for(; curr; curr = next) {
-    next = curr->next;
-    if(!curr->expires) {
-      if(first == curr)
-        first = next;
-
-      if(prev == curr)
-        prev = next;
-      else
-        prev->next = next;
-
-      freecookie(curr);
-      cookies->numcookies--;
-    }
-    else
-      prev = curr;
-  }
-
-  cookies->cookies = first;
-}
-
-
-/*****************************************************************************
- *
- * Curl_cookie_cleanup()
- *
- * Free a "cookie object" previous created with Curl_cookie_init().
- *
- ****************************************************************************/
-void Curl_cookie_cleanup(struct CookieInfo *c)
-{
-  if(c) {
-    free(c->filename);
-    Curl_cookie_freelist(c->cookies, TRUE);
-    free(c); /* free the base struct as well */
-  }
-}
-
-/* get_netscape_format()
- *
- * Formats a string for Netscape output file, w/o a newline at the end.
- *
- * Function returns a char * to a formatted line. Has to be free()d
+
+This file computes an ordered list of link items to use when linking a
+single target in one configuration.  Each link item is identified by
+the string naming it.  A graph of dependencies is created in which
+each node corresponds to one item and directed edges lead from nodes to
+those which must *follow* them on the link line.  For example, the
+graph
+
+  A -> B -> C
+
+will lead to the link line order
+
+  A B C
+
+The set of items placed in the graph is formed with a breadth-first
+search of the link dependencies starting from the main target.
+
+There are two types of items: those with known direct dependencies and
+those without known dependencies.  We will call the two types "known
+items" and "unknown items", respectively.  Known items are those whose
+names correspond to targets (built or imported) and those for which an
+old-style <item>_LIB_DEPENDS variable is defined.  All other items are
+unknown and we must infer dependencies for them.  For items that look
+like flags (beginning with '-') we trivially infer no dependencies,
+and do not include them in the dependencies of other items.
+
+Known items have dependency lists ordered based on how the user
+specified them.  We can use this order to infer potential dependencies
+of unknown items.  For example, if link items A and B are unknown and
+items X and Y are known, then we might have the following dependency
+lists:
+
+  X: Y A B
+  Y: A B
+
+The explicitly known dependencies form graph edges
+
+  X -> Y  ,  X -> A  ,  X -> B  ,  Y -> A  ,  Y -> B
+
+We can also infer the edge
+
+  A -> B
+
+because *every* time A appears B is seen on its right.  We do not know
+whether A really needs symbols from B to link, but it *might* so we
+must preserve their order.  This is the case also for the following
+explicit lists:
+
+  X: A B Y
+  Y: A B
+
+Here, A is followed by the set {B,Y} in one list, and {B} in the other
+list.  The intersection of these sets is {B}, so we can infer that A
+depends on at most B.  Meanwhile B is followed by the set {Y} in one
+list and {} in the other.  The intersection is {} so we can infer that
+B has no dependencies.
+
+Let's make a more complex example by adding unknown item C and
+considering these dependency lists:
+
+  X: A B Y C
+  Y: A C B
+
+The explicit edges are
+
+  X -> Y  ,  X -> A  ,  X -> B  ,  X -> C  ,  Y -> A  ,  Y -> B  ,  Y -> C
+
+For the unknown items, we infer dependencies by looking at the
+"follow" sets:
+
+  A: intersect( {B,Y,C} , {C,B} ) = {B,C} ; infer edges  A -> B  ,  A -> C
+  B: intersect( {Y,C}   , {}    ) = {}    ; infer no edges
+  C: intersect( {}      , {B}   ) = {}    ; infer no edges
+
+Note that targets are never inferred as dependees because outside
+libraries should not depend on them.
+
+------------------------------------------------------------------------------
+
+The initial exploration of dependencies using a BFS associates an
+integer index with each link item.  When the graph is built outgoing
+edges are sorted by this index.
+
+After the initial exploration of the link interface tree, any
+transitive (dependent) shared libraries that were encountered and not
+included in the interface are processed in their own BFS.  This BFS
+follows only the dependent library lists and not the link interfaces.
+They are added to the link items with a mark indicating that the are
+transitive dependencies.  Then cmComputeLinkInformation deals with
+them on a per-platform basis.
+
+The complete graph formed from all known and inferred dependencies may
+not be acyclic, so an acyclic version must be created.
+The original graph is converted to a directed acyclic graph in which
+each node corresponds to a strongly connected component of the
+original graph.  For example, the dependency graph
+
+  X -> A -> B -> C -> A -> Y
+
+contains strongly connected components {X}, {A,B,C}, and {Y}.  The
+implied directed acyclic graph (DAG) is
+
+  {X} -> {A,B,C} -> {Y}
+
+We then compute a topological order for the DAG nodes to serve as a
+reference for satisfying dependencies efficiently.  We perform the DFS
+in reverse order and assign topological order indices counting down so
+that the result is as close to the original BFS order as possible
+without violating dependencies.
+
+------------------------------------------------------------------------------
+
+The final link entry order is constructed as follows.  We first walk
+through and emit the *original* link line as specified by the user.
+As each item is emitted, a set of pending nodes in the component DAG
+is maintained.  When a pending component has been completely seen, it
+is removed from the pending set and its dependencies (following edges
+of the DAG) are added.  A trivial component (those with one item) is
+complete as soon as its item is seen.  A non-trivial component (one
+with more than one item; assumed to be static libraries) is complete
+when *all* its entries have been seen *twice* (all entries seen once,
+then all entries seen again, not just each entry twice).  A pending
+component tracks which items have been seen and a count of how many
+times the component needs to be seen (once for trivial components,
+twice for non-trivial).  If at any time another component finishes and
+re-adds an already pending component, the pending component is reset
+so that it needs to be seen in its entirety again.  This ensures that
+all dependencies of a component are satisfied no matter where it
+appears.
+
+After the original link line has been completed, we append to it the
+remaining pending components and their dependencies.  This is done by
+repeatedly emitting the first item from the first pending component
+and following the same update rules as when traversing the original
+link line.  Since the pending components are kept in topological order
+they are emitted with minimal repeats (we do not want to emit a
+component just to have it added again when another component is
+completed later).  This process continues until no pending components
+remain.  We know it will terminate because the component graph is
+guaranteed to be acyclic.
+
+The final list of items produced by this procedure consists of the
+original user link line followed by minimal additional items needed to
+satisfy dependencies.  The final list is then filtered to de-duplicate
+items that we know the linker will re-use automatically (shared libs).
+
 */
-static char *get_netscape_format(const struct Cookie *co)
+
+cmComputeLinkDepends
+::cmComputeLinkDepends(const cmGeneratorTarget* target,
+                       const std::string& config)
 {
-  return aprintf(
-    "%s"     /* httponly preamble */
-    "%s%s\t" /* domain */
-    "%s\t"   /* tailmatch */
-    "%s\t"   /* path */
-    "%s\t"   /* secure */
-    "%" CURL_FORMAT_CURL_OFF_T "\t"   /* expires */
-    "%s\t"   /* name */
-    "%s",    /* value */
-    co->httponly?"#HttpOnly_":"",
-    /* Make sure all domains are prefixed with a dot if they allow
-       tailmatching. This is Mozilla-style. */
-    (co->tailmatch && co->domain && co->domain[0] != '.')? ".":"",
-    co->domain?co->domain:"unknown",
-    co->tailmatch?"TRUE":"FALSE",
-    co->path?co->path:"/",
-    co->secure?"TRUE":"FALSE",
-    co->expires,
-    co->name,
-    co->value?co->value:"");
+  // Store context information.
+  this->Target = target;
+  this->Makefile = this->Target->Target->GetMakefile();
+  this->GlobalGenerator =
+      this->Target->GetLocalGenerator()->GetGlobalGenerator();
+  this->CMakeInstance = this->GlobalGenerator->GetCMakeInstance();
+
+  // The configuration being linked.
+  this->HasConfig = !config.empty();
+  this->Config = (this->HasConfig)? config : std::string();
+  std::vector<std::string> debugConfigs =
+    this->Makefile->GetCMakeInstance()->GetDebugConfigs();
+  this->LinkType = CMP0003_ComputeLinkType(this->Config, debugConfigs);
+
+  // Enable debug mode if requested.
+  this->DebugMode = this->Makefile->IsOn("CMAKE_LINK_DEPENDS_DEBUG_MODE");
+
+  // Assume no compatibility until set.
+  this->OldLinkDirMode = false;
+
+  // No computation has been done.
+  this->CCG = 0;
 }
 
-/*
- * cookie_output()
- *
- * Writes all internally known cookies to the specified file. Specify
- * "-" as file name to write to stdout.
- *
- * The function returns non-zero on write failure.
- */
-static int cookie_output(struct CookieInfo *c, const char *dumphere)
+cmComputeLinkDepends::~cmComputeLinkDepends()
 {
-  struct Cookie *co;
-  FILE *out;
-  bool use_stdout=FALSE;
+  cmDeleteAll(this->InferredDependSets);
+  delete this->CCG;
+}
 
-  if((NULL == c) || (0 == c->numcookies))
-    /* If there are no known cookies, we don't write or even create any
-       destination file */
-    return 0;
+void cmComputeLinkDepends::SetOldLinkDirMode(bool b)
+{
+  this->OldLinkDirMode = b;
+}
 
-  /* at first, remove expired cookies */
-  remove_expired(c);
+std::vector<cmComputeLinkDepends::LinkEntry> const&
+cmComputeLinkDepends::Compute()
+{
+  // Follow the link dependencies of the target to be linked.
+  this->AddDirectLinkEntries();
 
-  if(strequal("-", dumphere)) {
-    /* use stdout */
-    out = stdout;
-    use_stdout=TRUE;
-  }
-  else {
-    out = fopen(dumphere, FOPEN_WRITETEXT);
-    if(!out)
-      return 1; /* failure */
-  }
+  // Complete the breadth-first search of dependencies.
+  while(!this->BFSQueue.empty())
+    {
+    // Get the next entry.
+    BFSEntry qe = this->BFSQueue.front();
+    this->BFSQueue.pop();
 
-  if(c) {
-    char *format_ptr;
+    // Follow the entry's dependencies.
+    this->FollowLinkEntry(qe);
+    }
 
-    fputs("# Netscape HTTP Cookie File\n"
-          "# http://curl.haxx.se/docs/http-cookies.html\n"
-          "# This file was generated by libcurl! Edit at your own risk.\n\n",
-          out);
+  // Complete the search of shared library dependencies.
+  while(!this->SharedDepQueue.empty())
+    {
+    // Handle the next entry.
+    this->HandleSharedDependency(this->SharedDepQueue.front());
+    this->SharedDepQueue.pop();
+    }
 
-    for(co = c->cookies; co; co = co->next) {
-      if(!co->domain)
-        continue;
-      format_ptr = get_netscape_format(co);
-      if(format_ptr == NULL) {
-        fprintf(out, "#\n# Fatal libcurl error\n");
-        if(!use_stdout)
-          fclose(out);
-        return 1;
+  // Infer dependencies of targets for which they were not known.
+  this->InferDependencies();
+
+  // Cleanup the constraint graph.
+  this->CleanConstraintGraph();
+
+  // Display the constraint graph.
+  if(this->DebugMode)
+    {
+    fprintf(stderr,
+            "---------------------------------------"
+            "---------------------------------------\n");
+    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
+            this->Target->GetName().c_str(),
+            this->HasConfig?this->Config.c_str():"noconfig");
+    this->DisplayConstraintGraph();
+    }
+
+  // Compute the final ordering.
+  this->OrderLinkEntires();
+
+  // Compute the final set of link entries.
+  // Iterate in reverse order so we can keep only the last occurrence
+  // of a shared library.
+  std::set<int> emmitted;
+  for(std::vector<int>::const_reverse_iterator
+        li = this->FinalLinkOrder.rbegin(),
+        le = this->FinalLinkOrder.rend();
+      li != le; ++li)
+    {
+    int i = *li;
+    LinkEntry const& e = this->EntryList[i];
+    cmGeneratorTarget const* t = e.Target;
+    // Entries that we know the linker will re-use do not need to be repeated.
+    bool uniquify = t && t->GetType() == cmState::SHARED_LIBRARY;
+    if(!uniquify || emmitted.insert(i).second)
+      {
+      this->FinalLinkEntries.push_back(e);
       }
-      fprintf(out, "%s\n", format_ptr);
-      free(format_ptr);
     }
-  }
+  // Reverse the resulting order since we iterated in reverse.
+  std::reverse(this->FinalLinkEntries.begin(), this->FinalLinkEntries.end());
 
-  if(!use_stdout)
-    fclose(out);
+  // Display the final set.
+  if(this->DebugMode)
+    {
+    this->DisplayFinalEntries();
+    }
 
-  return 0;
+  return this->FinalLinkEntries;
 }
 
-struct curl_slist *Curl_cookie_list(struct SessionHandle *data)
+std::map<std::string, int>::iterator
+cmComputeLinkDepends::AllocateLinkEntry(std::string const& item)
 {
-  struct curl_slist *list = NULL;
-  struct curl_slist *beg;
-  struct Cookie *c;
-  char *line;
+  std::map<std::string, int>::value_type
+    index_entry(item, static_cast<int>(this->EntryList.size()));
+  std::map<std::string, int>::iterator
+    lei = this->LinkEntryIndex.insert(index_entry).first;
+  this->EntryList.push_back(LinkEntry());
+  this->InferredDependSets.push_back(0);
+  this->EntryConstraintGraph.push_back(EdgeList());
+  return lei;
+}
 
-  if((data->cookies == NULL) ||
-      (data->cookies->numcookies == 0))
-    return NULL;
+int cmComputeLinkDepends::AddLinkEntry(cmLinkItem const& item)
+{
+  // Check if the item entry has already been added.
+  std::map<std::string, int>::iterator lei = this->LinkEntryIndex.find(item);
+  if(lei != this->LinkEntryIndex.end())
+    {
+    // Yes.  We do not need to follow the item's dependencies again.
+    return lei->second;
+    }
 
-  for(c = data->cookies->cookies; c; c = c->next) {
-    if(!c->domain)
+  // Allocate a spot for the item entry.
+  lei = this->AllocateLinkEntry(item);
+
+  // Initialize the item entry.
+  int index = lei->second;
+  LinkEntry& entry = this->EntryList[index];
+  entry.Item = item;
+  entry.Target = item.Target;
+  entry.IsFlag = (!entry.Target && item[0] == '-' && item[1] != 'l' &&
+                  item.substr(0, 10) != "-framework");
+
+  // If the item has dependencies queue it to follow them.
+  if(entry.Target)
+    {
+    // Target dependencies are always known.  Follow them.
+    BFSEntry qe = {index, 0};
+    this->BFSQueue.push(qe);
+    }
+  else
+    {
+    // Look for an old-style <item>_LIB_DEPENDS variable.
+    std::string var = entry.Item;
+    var += "_LIB_DEPENDS";
+    if(const char* val = this->Makefile->GetDefinition(var))
+      {
+      // The item dependencies are known.  Follow them.
+      BFSEntry qe = {index, val};
+      this->BFSQueue.push(qe);
+      }
+    else if(!entry.IsFlag)
+      {
+      // The item dependencies are not known.  We need to infer them.
+      this->InferredDependSets[index] = new DependSetList;
+      }
+    }
+
+  return index;
+}
+
+void cmComputeLinkDepends::FollowLinkEntry(BFSEntry const& qe)
+{
+  // Get this entry representation.
+  int depender_index = qe.Index;
+  LinkEntry const& entry = this->EntryList[depender_index];
+
+  // Follow the item's dependencies.
+  if(entry.Target)
+    {
+    // Follow the target dependencies.
+    if(cmLinkInterface const* iface =
+       entry.Target->GetLinkInterface(this->Config, this->Target))
+      {
+      const bool isIface =
+                      entry.Target->GetType() == cmState::INTERFACE_LIBRARY;
+      // This target provides its own link interface information.
+      this->AddLinkEntries(depender_index, iface->Libraries);
+
+      if (isIface)
+        {
+        return;
+        }
+
+      // Handle dependent shared libraries.
+      this->FollowSharedDeps(depender_index, iface);
+
+      // Support for CMP0003.
+      for(std::vector<cmLinkItem>::const_iterator
+            oi = iface->WrongConfigLibraries.begin();
+          oi != iface->WrongConfigLibraries.end(); ++oi)
+        {
+        this->CheckWrongConfigItem(*oi);
+        }
+      }
+    }
+  else
+    {
+    // Follow the old-style dependency list.
+    this->AddVarLinkEntries(depender_index, qe.LibDepends);
+    }
+}
+
+void
+cmComputeLinkDepends
+::FollowSharedDeps(int depender_index, cmLinkInterface const* iface,
+                   bool follow_interface)
+{
+  // Follow dependencies if we have not followed them already.
+  if(this->SharedDepFollowed.insert(depender_index).second)
+    {
+    if(follow_interface)
+      {
+      this->QueueSharedDependencies(depender_index, iface->Libraries);
+      }
+    this->QueueSharedDependencies(depender_index, iface->SharedDeps);
+    }
+}
+
+void
+cmComputeLinkDepends
+::QueueSharedDependencies(int depender_index,
+                          std::vector<cmLinkItem> const& deps)
+{
+  for(std::vector<cmLinkItem>::const_iterator li = deps.begin();
+      li != deps.end(); ++li)
+    {
+    SharedDepEntry qe;
+    qe.Item = *li;
+    qe.DependerIndex = depender_index;
+    this->SharedDepQueue.push(qe);
+    }
+}
+
+void cmComputeLinkDepends::HandleSharedDependency(SharedDepEntry const& dep)
+{
+  // Check if the target already has an entry.
+  std::map<std::string, int>::iterator lei =
+    this->LinkEntryIndex.find(dep.Item);
+  if(lei == this->LinkEntryIndex.end())
+    {
+    // Allocate a spot for the item entry.
+    lei = this->AllocateLinkEntry(dep.Item);
+
+    // Initialize the item entry.
+    LinkEntry& entry = this->EntryList[lei->second];
+    entry.Item = dep.Item;
+    entry.Target = dep.Item.Target;
+
+    // This item was added specifically because it is a dependent
+    // shared library.  It may get special treatment
+    // in cmComputeLinkInformation.
+    entry.IsSharedDep = true;
+    }
+
+  // Get the link entry for this target.
+  int index = lei->second;
+  LinkEntry& entry = this->EntryList[index];
+
+  // This shared library dependency must follow the item that listed
+  // it.
+  this->EntryConstraintGraph[dep.DependerIndex].push_back(index);
+
+  // Target items may have their own dependencies.
+  if(entry.Target)
+    {
+    if(cmLinkInterface const* iface =
+       entry.Target->GetLinkInterface(this->Config, this->Target))
+      {
+      // Follow public and private dependencies transitively.
+      this->FollowSharedDeps(index, iface, true);
+      }
+    }
+}
+
+void cmComputeLinkDepends::AddVarLinkEntries(int depender_index,
+                                             const char* value)
+{
+  // This is called to add the dependencies named by
+  // <item>_LIB_DEPENDS.  The variable contains a semicolon-separated
+  // list.  The list contains link-type;item pairs and just items.
+  std::vector<std::string> deplist;
+  cmSystemTools::ExpandListArgument(value, deplist);
+
+  // Look for entries meant for this configuration.
+  std::vector<cmLinkItem> actual_libs;
+  cmTargetLinkLibraryType llt = GENERAL_LibraryType;
+  bool haveLLT = false;
+  for(std::vector<std::string>::const_iterator di = deplist.begin();
+      di != deplist.end(); ++di)
+    {
+    if(*di == "debug")
+      {
+      llt = DEBUG_LibraryType;
+      haveLLT = true;
+      }
+    else if(*di == "optimized")
+      {
+      llt = OPTIMIZED_LibraryType;
+      haveLLT = true;
+      }
+    else if(*di == "general")
+      {
+      llt = GENERAL_LibraryType;
+      haveLLT = true;
+      }
+    else if(!di->empty())
+      {
+      // If no explicit link type was given prior to this entry then
+      // check if the entry has its own link type variable.  This is
+      // needed for compatibility with dependency files generated by
+      // the export_library_dependencies command from CMake 2.4 and
+      // lower.
+      if(!haveLLT)
+        {
+        std::string var = *di;
+        var += "_LINK_TYPE";
+        if(const char* val = this->Makefile->GetDefinition(var))
+          {
+          if(strcmp(val, "debug") == 0)
+            {
+            llt = DEBUG_LibraryType;
+            }
+          else if(strcmp(val, "optimized") == 0)
+            {
+            llt = OPTIMIZED_LibraryType;
+            }
+          }
+        }
+
+      // If the library is meant for this link type then use it.
+      if(llt == GENERAL_LibraryType || llt == this->LinkType)
+        {
+        cmLinkItem item(*di, this->FindTargetToLink(depender_index, *di));
+        actual_libs.push_back(item);
+        }
+      else if(this->OldLinkDirMode)
+        {
+        cmLinkItem item(*di, this->FindTargetToLink(depender_index, *di));
+        this->CheckWrongConfigItem(item);
+        }
+
+      // Reset the link type until another explicit type is given.
+      llt = GENERAL_LibraryType;
+      haveLLT = false;
+      }
+    }
+
+  // Add the entries from this list.
+  this->AddLinkEntries(depender_index, actual_libs);
+}
+
+void cmComputeLinkDepends::AddDirectLinkEntries()
+{
+  // Add direct link dependencies in this configuration.
+  cmLinkImplementation const* impl =
+    this->Target->GetLinkImplementation(this->Config);
+  this->AddLinkEntries(-1, impl->Libraries);
+  for(std::vector<cmLinkItem>::const_iterator
+        wi = impl->WrongConfigLibraries.begin();
+      wi != impl->WrongConfigLibraries.end(); ++wi)
+    {
+    this->CheckWrongConfigItem(*wi);
+    }
+}
+
+template <typename T>
+void
+cmComputeLinkDepends::AddLinkEntries(
+  int depender_index, std::vector<T> const& libs)
+{
+  // Track inferred dependency sets implied by this list.
+  std::map<int, DependSet> dependSets;
+
+  // Loop over the libraries linked directly by the depender.
+  for(typename std::vector<T>::const_iterator li = libs.begin();
+      li != libs.end(); ++li)
+    {
+    // Skip entries that will resolve to the target getting linked or
+    // are empty.
+    cmLinkItem const& item = *li;
+    if(item == this->Target->GetName() || item.empty())
+      {
       continue;
-    line = get_netscape_format(c);
-    if(!line) {
-      curl_slist_free_all(list);
-      return NULL;
-    }
-    beg = Curl_slist_append_nodup(list, line);
-    if(!beg) {
-      free(line);
-      curl_slist_free_all(list);
-      return NULL;
-    }
-    list = beg;
-  }
+      }
 
-  return list;
+    // Add a link entry for this item.
+    int dependee_index = this->AddLinkEntry(*li);
+
+    // The dependee must come after the depender.
+    if(depender_index >= 0)
+      {
+      this->EntryConstraintGraph[depender_index].push_back(dependee_index);
+      }
+    else
+      {
+      // This is a direct dependency of the target being linked.
+      this->OriginalEntries.push_back(dependee_index);
+      }
+
+    // Update the inferred dependencies for earlier items.
+    for(std::map<int, DependSet>::iterator dsi = dependSets.begin();
+        dsi != dependSets.end(); ++dsi)
+      {
+      // Add this item to the inferred dependencies of other items.
+      // Target items are never inferred dependees because unknown
+      // items are outside libraries that should not be depending on
+      // targets.
+      if(!this->EntryList[dependee_index].Target &&
+         !this->EntryList[dependee_index].IsFlag &&
+         dependee_index != dsi->first)
+        {
+        dsi->second.insert(dependee_index);
+        }
+      }
+
+    // If this item needs to have dependencies inferred, do so.
+    if(this->InferredDependSets[dependee_index])
+      {
+      // Make sure an entry exists to hold the set for the item.
+      dependSets[dependee_index];
+      }
+    }
+
+  // Store the inferred dependency sets discovered for this list.
+  for(std::map<int, DependSet>::iterator dsi = dependSets.begin();
+      dsi != dependSets.end(); ++dsi)
+    {
+    this->InferredDependSets[dsi->first]->push_back(dsi->second);
+    }
 }
 
-void Curl_flush_cookies(struct SessionHandle *data, int cleanup)
+cmGeneratorTarget const*
+cmComputeLinkDepends::FindTargetToLink(int depender_index,
+                                       const std::string& name)
 {
-  if(data->set.str[STRING_COOKIEJAR]) {
-    if(data->change.cookielist) {
-      /* If there is a list of cookie files to read, do it first so that
-         we have all the told files read before we write the new jar.
-         Curl_cookie_loadfiles() LOCKS and UNLOCKS the share itself! */
-      Curl_cookie_loadfiles(data);
+  // Look for a target in the scope of the depender.
+  cmGeneratorTarget const* from = this->Target;
+  if(depender_index >= 0)
+    {
+    if(cmGeneratorTarget const* depender =
+       this->EntryList[depender_index].Target)
+      {
+      from = depender;
+      }
     }
-
-    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
-
-    /* if we have a destination file for all the cookies to get dumped to */
-    if(cookie_output(data->cookies, data->set.str[STRING_COOKIEJAR]))
-      infof(data, "WARNING: failed to save cookies in %s\n",
-            data->set.str[STRING_COOKIEJAR]);
-  }
-  else {
-    if(cleanup && data->change.cookielist) {
-      /* since nothing is written, we can just free the list of cookie file
-         names */
-      curl_slist_free_all(data->change.cookielist); /* clean up list */
-      data->change.cookielist = NULL;
-    }
-    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
-  }
-
-  if(cleanup && (!data->share || (data->cookies != data->share->cookies))) {
-    Curl_cookie_cleanup(data->cookies);
-  }
-  Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
+  return from->FindTargetToLink(name);
 }
 
-#endif /* CURL_DISABLE_HTTP || CURL_DISABLE_COOKIES */
+void cmComputeLinkDepends::InferDependencies()
+{
+  // The inferred dependency sets for each item list the possible
+  // dependencies.  The intersection of the sets for one item form its
+  // inferred dependencies.
+  for(unsigned int depender_index=0;
+      depender_index < this->InferredDependSets.size(); ++depender_index)
+    {
+    // Skip items for which dependencies do not need to be inferred or
+    // for which the inferred dependency sets are empty.
+    DependSetList* sets = this->InferredDependSets[depender_index];
+    if(!sets || sets->empty())
+      {
+      continue;
+      }
+
+    // Intersect the sets for this item.
+    DependSetList::const_iterator i = sets->begin();
+    DependSet common = *i;
+    for(++i; i != sets->end(); ++i)
+      {
+      DependSet intersection;
+      std::set_intersection
+        (common.begin(), common.end(), i->begin(), i->end(),
+         std::inserter(intersection, intersection.begin()));
+      common = intersection;
+      }
+
+    // Add the inferred dependencies to the graph.
+    cmGraphEdgeList& edges = this->EntryConstraintGraph[depender_index];
+    edges.insert(edges.end(), common.begin(), common.end());
+    }
+}
+
+void cmComputeLinkDepends::CleanConstraintGraph()
+{
+  for(Graph::iterator i = this->EntryConstraintGraph.begin();
+      i != this->EntryConstraintGraph.end(); ++i)
+    {
+    // Sort the outgoing edges for each graph node so that the
+    // original order will be preserved as much as possible.
+    std::sort(i->begin(), i->end());
+
+    // Make the edge list unique.
+    i->erase(std::unique(i->begin(), i->end()), i->end());
+    }
+}
+
+void cmComputeLinkDepends::DisplayConstraintGraph()
+{
+  // Display the graph nodes and their edges.
+  std::ostringstream e;
+  for(unsigned int i=0; i < this->EntryConstraintGraph.size(); ++i)
+    {
+    EdgeList const& nl = this->EntryConstraintGraph[i];
+    e << "item " << i << " is [" << this->EntryList[i].Item << "]\n";
+    e << cmWrap("  item ", nl, " must follow it", "\n") << "\n";
+    }
+  fprintf(stderr, "%s\n", e.str().c_str());
+}
+
+void cmComputeLinkDepends::OrderLinkEntires()
+{
+  // Compute the DAG of strongly connected components.  The algorithm
+  // used by cmComputeComponentGraph should identify the components in
+  // the same order in which the items were originally discovered in
+  // the BFS.  This should preserve the original order when no
+  // constraints disallow it.
+  this->CCG = new cmComputeComponentGraph(this->EntryConstraintGraph);
+
+  // The component graph is guaranteed to be acyclic.  Start a DFS
+  // from every entry to compute a topological order for the
+  // components.
+  Graph const& cgraph = this->CCG->GetComponentGraph();
+  int n = static_cast<int>(cgraph.size());
+  this->ComponentVisited.resize(cgraph.size(), 0);
+  this->ComponentOrder.resize(cgraph.size(), n);
+  this->ComponentOrderId = n;
+  // Run in reverse order so the topological order will preserve the
+  // original order where there are no constraints.
+  for(int c = n-1; c >= 0; --c)
+    {
+    this->VisitComponent(c);
+    }
+
+  // Display the component graph.
+  if(this->DebugMode)
+    {
+    this->DisplayComponents();
+    }
+
+  // Start with the original link line.
+  for(std::vector<int>::const_iterator i = this->OriginalEntries.begin();
+      i != this->OriginalEntries.end(); ++i)
+    {
+    this->VisitEntry(*i);
+    }
+
+  // Now explore anything left pending.  Since the component graph is
+  // guaranteed to be acyclic we know this will terminate.
+  while(!this->PendingComponents.empty())
+    {
+    // Visit one entry from the first pending component.  The visit
+    // logic will update the pending components accordingly.  Since
+    // the pending components are kept in topological order this will
+    // not repeat one.
+    int e = *this->PendingComponents.begin()->second.Entries.begin();
+    this->VisitEntry(e);
+    }
+}
+
+void
+cmComputeLinkDepends::DisplayComponents()
+{
+  fprintf(stderr, "The strongly connected components are:\n");
+  std::vector<NodeList> const& components = this->CCG->GetComponents();
+  for(unsigned int c=0; c < components.size(); ++c)
+    {
+    fprintf(stderr, "Component (%u):\n", c);
+    NodeList const& nl = components[c];
+    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int i = *ni;
+      fprintf(stderr, "  item %d [%s]\n", i,
+              this->EntryList[i].Item.c_str());
+      }
+    EdgeList const& ol = this->CCG->GetComponentGraphEdges(c);
+    for(EdgeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
+      {
+      int i = *oi;
+      fprintf(stderr, "  followed by Component (%d)\n", i);
+      }
+    fprintf(stderr, "  topo order index %d\n",
+            this->ComponentOrder[c]);
+    }
+  fprintf(stderr, "\n");
+}
+
+void cmComputeLinkDepends::VisitComponent(unsigned int c)
+{
+  // Check if the node has already been visited.
+  if(this->ComponentVisited[c])
+    {
+    return;
+    }
+
+  // We are now visiting this component so mark it.
+  this->ComponentVisited[c] = 1;
+
+  // Visit the neighbors of the component first.
+  // Run in reverse order so the topological order will preserve the
+  // original order where there are no constraints.
+  EdgeList const& nl = this->CCG->GetComponentGraphEdges(c);
+  for(EdgeList::const_reverse_iterator ni = nl.rbegin();
+      ni != nl.rend(); ++ni)
+    {
+    this->VisitComponent(*ni);
+    }
+
+  // Assign an ordering id to this component.
+  this->ComponentOrder[c] = --this->ComponentOrderId;
+}
+
+void cmComputeLinkDepends::VisitEntry(int index)
+{
+  // Include this entry on the link line.
+  this->FinalLinkOrder.push_back(index);
+
+  // This entry has now been seen.  Update its component.
+  bool completed = false;
+  int component = this->CCG->GetComponentMap()[index];
+  std::map<int, PendingComponent>::iterator mi =
+    this->PendingComponents.find(this->ComponentOrder[component]);
+  if(mi != this->PendingComponents.end())
+    {
+    // The entry is in an already pending component.
+    PendingComponent& pc = mi->second;
+
+    // Remove the entry from those pending in its component.
+    pc.Entries.erase(index);
+    if(pc.Entries.empty())
+      {
+      // The complete component has been seen since it was last needed.
+      --pc.Count;
+
+      if(pc.Count == 0)
+        {
+        // The component has been completed.
+        this->PendingComponents.erase(mi);
+        completed = true;
+        }
+      else
+        {
+        // The whole component needs to be seen again.
+        NodeList const& nl = this->CCG->GetComponent(component);
+        assert(nl.size() > 1);
+        pc.Entries.insert(nl.begin(), nl.end());
+        }
+      }
+    }
+  else
+    {
+    // The entry is not in an already pending component.
+    NodeList const& nl = this->CCG->GetComponent(component);
+    if(nl.size() > 1)
+      {
+      // This is a non-trivial component.  It is now pending.
+      PendingComponent& pc = this->MakePendingComponent(component);
+
+      // The starting entry has already been seen.
+      pc.Entries.erase(index);
+      }
+    else
+      {
+      // This is a trivial component, so it is already complete.
+      completed = true;
+      }
+    }
+
+  // If the entry completed a component, the component's dependencies
+  // are now pending.
+  if(completed)
+    {
+    EdgeList const& ol = this->CCG->GetComponentGraphEdges(component);
+    for(EdgeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
+      {
+      // This entire component is now pending no matter whether it has
+      // been partially seen already.
+      this->MakePendingComponent(*oi);
+      }
+    }
+}
+
+cmComputeLinkDepends::PendingComponent&
+cmComputeLinkDepends::MakePendingComponent(unsigned int component)
+{
+  // Create an entry (in topological order) for the component.
+  PendingComponent& pc =
+    this->PendingComponents[this->ComponentOrder[component]];
+  pc.Id = component;
+  NodeList const& nl = this->CCG->GetComponent(component);
+
+  if(nl.size() == 1)
+    {
+    // Trivial components need be seen only once.
+    pc.Count = 1;
+    }
+  else
+    {
+    // This is a non-trivial strongly connected component of the
+    // original graph.  It consists of two or more libraries
+    // (archives) that mutually require objects from one another.  In
+    // the worst case we may have to repeat the list of libraries as
+    // many times as there are object files in the biggest archive.
+    // For now we just list them twice.
+    //
+    // The list of items in the component has been sorted by the order
+    // of discovery in the original BFS of dependencies.  This has the
+    // advantage that the item directly linked by a target requiring
+    // this component will come first which minimizes the number of
+    // repeats needed.
+    pc.Count = this->ComputeComponentCount(nl);
+    }
+
+  // Store the entries to be seen.
+  pc.Entries.insert(nl.begin(), nl.end());
+
+  return pc;
+}
+
+int cmComputeLinkDepends::ComputeComponentCount(NodeList const& nl)
+{
+  unsigned int count = 2;
+  for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+    {
+    if(cmGeneratorTarget const* target = this->EntryList[*ni].Target)
+      {
+      if(cmLinkInterface const* iface =
+         target->GetLinkInterface(this->Config, this->Target))
+        {
+        if(iface->Multiplicity > count)
+          {
+          count = iface->Multiplicity;
+          }
+        }
+      }
+    }
+  return count;
+}
+
+void cmComputeLinkDepends::DisplayFinalEntries()
+{
+  fprintf(stderr, "target [%s] links to:\n", this->Target->GetName().c_str());
+  for(std::vector<LinkEntry>::const_iterator lei =
+        this->FinalLinkEntries.begin();
+      lei != this->FinalLinkEntries.end(); ++lei)
+    {
+    if(lei->Target)
+      {
+      fprintf(stderr, "  target [%s]\n", lei->Target->GetName().c_str());
+      }
+    else
+      {
+      fprintf(stderr, "  item [%s]\n", lei->Item.c_str());
+      }
+    }
+  fprintf(stderr, "\n");
+}
+
+void cmComputeLinkDepends::CheckWrongConfigItem(cmLinkItem const& item)
+{
+  if(!this->OldLinkDirMode)
+    {
+    return;
+    }
+
+  // For CMake 2.4 bug-compatibility we need to consider the output
+  // directories of targets linked in another configuration as link
+  // directories.
+  if(item.Target && !item.Target->IsImported())
+    {
+    this->OldWrongConfigItems.insert(item.Target);
+    }
+}

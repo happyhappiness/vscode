@@ -1,0 +1,1 @@
+len = ptbl[i]->id_len

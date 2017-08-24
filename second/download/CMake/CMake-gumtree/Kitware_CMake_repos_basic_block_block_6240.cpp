@@ -1,0 +1,1 @@
+result = Curl_base64_decode(chlg64, (unsigned char **) outptr, outlen)

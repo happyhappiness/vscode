@@ -1,0 +1,3 @@
+(!newPointers) {
+      return 0;
+    }

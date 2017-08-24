@@ -1,15 +1,27 @@
-	if ((keys & F_UID) != 0)
-		archive_string_sprintf(str, " uid=%jd", (intmax_t)me->uid);
+    if(cp->ErrorMessage[0] == 0)
+      {
+      /* Format the error message.  */
+      wchar_t err_msg[KWSYSPE_PIPE_BUFFER_SIZE];
+      DWORD length = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
+                                   FORMAT_MESSAGE_IGNORE_INSERTS, 0, error,
+                                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                                   err_msg, KWSYSPE_PIPE_BUFFER_SIZE, 0);
+      if(length < 1)
+        {
+        /* FormatMessage failed.  Use a default message.  */
+        _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  "Process execution failed with error 0x%X.  "
+                  "FormatMessage failed with error 0x%X",
+                  error, GetLastError());
+        }
+      if(!WideCharToMultiByte(CP_UTF8, 0, err_msg, -1, cp->ErrorMessage,
+                              KWSYSPE_PIPE_BUFFER_SIZE, NULL, NULL))
+        {
+        /* WideCharToMultiByte failed.  Use a default message.  */
+        _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  "Process execution failed with error 0x%X.  "
+                  "WideCharToMultiByte failed with error 0x%X",
+                  error, GetLastError());
+        }
+      }
 
-	if ((keys & F_INO) != 0)
-		archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino);
-	if ((keys & F_RESDEV) != 0) {
-		archive_string_sprintf(str,
-		    " resdevice=native,%ju,%ju",
-		    (uintmax_t)me->devmajor,
-		    (uintmax_t)me->devminor);
-	}
-
-	switch (me->filetype) {
-	case AE_IFLNK:
-		if ((keys & F_TYPE) != 0)

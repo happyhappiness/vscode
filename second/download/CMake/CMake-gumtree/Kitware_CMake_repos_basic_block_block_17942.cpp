@@ -1,0 +1,1 @@
+block->uncompressed_size = LZMA_VLI_UNKNOWN

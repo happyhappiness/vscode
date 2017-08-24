@@ -1,0 +1,1 @@
+free(stream->push_headers[i])

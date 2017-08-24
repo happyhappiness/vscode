@@ -1,10 +1,7 @@
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name);
-    }
-  struct _finddata_t data;      // data of current file
-
-  // Now put them into the file array
-  srchHandle = _findfirst(buf, &data);
-  delete [] buf;
-
-  if ( srchHandle == -1 )
+    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+            this->BinaryDirectory.c_str());
+    /* Create the actual executable.  */
+    fprintf(fout, "add_executable(%s", targetName);
+    for(std::vector<std::string>::iterator si = sources.begin();
+        si != sources.end(); ++si)
+      {

@@ -1,0 +1,1 @@
+qDebug() << "Could not find sqlite support from plugin."

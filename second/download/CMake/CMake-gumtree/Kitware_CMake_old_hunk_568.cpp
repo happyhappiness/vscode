@@ -1,15 +1,7 @@
-        fName = dirName;
-        fName += "/";
-        fName += args[i];
-        progFile = cmsys::SystemTools::Fopen(fName.c_str(),"w");
-        if (progFile)
-          {
-          fprintf(progFile,"empty");
-          fclose(progFile);
-          }
-        }
-      int fileNum = static_cast<int>
-        (cmsys::Directory::GetNumberOfFilesInDirectory(dirName.c_str()));
-      if (count > 0)
-        {
-        // print the progress
+    }
+
+  if(flags & CURL_GLOBAL_WIN32)
+    if(win32_init() != CURLE_OK) {
+      DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));
+      return CURLE_FAILED_INIT;
+    }

@@ -1,10 +1,8 @@
-		return (r);
-	if ((size_t)r < size) {
-		archive_set_error(&a->archive, 0,
-		    "Write request too large");
-		return (ARCHIVE_WARN);
-	}
-	return (ARCHIVE_OK);
-}
-
-static ssize_t
+	while (off_s < size) {
+		off_s = lseek(*fd, off_s, SEEK_DATA);
+		if (off_s == (off_t)-1) {
+			if (errno == ENXIO)
+				break;/* no more hole */
+			archive_set_error(&a->archive, errno,
+			    "lseek(SEEK_HOLE) failed");
+			exit_sts = ARCHIVE_FAILED;

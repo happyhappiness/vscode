@@ -1,11 +1,8 @@
-            symbol = stringTable + pSymbolTable->N.Name.Long;
-            while (isspace(symbol[0]))  symbol.erase(0,1);
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (!this->ImportFlag) {
-               this->ImportFlag = true;
-               fprintf(this->FileOut,"IMPORTS \n");
-            }
-            fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);
-         }
-      }
+
+CURLcode Curl_sendf(curl_socket_t sockfd, struct connectdata *,
+                    const char *fmt, ...);
+void Curl_infof(struct SessionHandle *, const char *fmt, ...);
+void Curl_failf(struct SessionHandle *, const char *fmt, ...);
+
+#if defined(CURL_DISABLE_VERBOSE_STRINGS)
 

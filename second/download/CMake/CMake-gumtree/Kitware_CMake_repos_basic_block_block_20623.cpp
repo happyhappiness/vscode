@@ -1,0 +1,1 @@
+uv__stdio_noinherit(si.lpReserved2)

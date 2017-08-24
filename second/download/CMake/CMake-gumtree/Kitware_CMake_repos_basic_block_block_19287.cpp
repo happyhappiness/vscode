@@ -1,0 +1,1 @@
+address->address.address4 = *((struct sockaddr_in*) &p->__nif6e_addr)

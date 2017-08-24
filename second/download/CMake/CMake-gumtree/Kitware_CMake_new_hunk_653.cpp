@@ -1,10 +1,13 @@
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name);
-    }
-  struct _wfinddata_t data;      // data of current file
+    ret = read_data_compressed(a, buff, size, offset);
+    if (ret != ARCHIVE_OK && ret != ARCHIVE_WARN)
+      __archive_ppmd7_functions.Ppmd7_Free(&rar->ppmd7_context, &g_szalloc);
+    break;
 
-  // Now put them into the file array
-  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
-  delete [] buf;
-
-  if ( srchHandle == -1 )
+  default:
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Unsupported compression method for RAR file.");
+    ret = ARCHIVE_FATAL;
+    break;
+  }
+  return (ret);
+}

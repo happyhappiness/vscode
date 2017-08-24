@@ -1,7 +1,7 @@
-        // write the count into the directory
-        std::string fName = dirName;
-        fName += "/count.txt";
-        FILE *progFile = cmsys::SystemTools::Fopen(fName.c_str(),"w");
-        if (progFile)
-          {
-          fprintf(progFile,"%i\n",count);
+    if(res)
+      return res;
+
+    Curl_safefree(*allocuserpwd);
+    *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
+                            proxy ? "Proxy-" : "",
+                            conn->response_header);

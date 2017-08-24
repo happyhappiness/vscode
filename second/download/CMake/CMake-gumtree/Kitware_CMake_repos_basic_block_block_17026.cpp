@@ -1,0 +1,1 @@
+archive_strncpy(&as, p, path_length)

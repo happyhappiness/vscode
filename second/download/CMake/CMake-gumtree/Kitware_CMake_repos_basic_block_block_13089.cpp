@@ -1,0 +1,1 @@
+archive_entry_set_devminor(entry, file->devminor)

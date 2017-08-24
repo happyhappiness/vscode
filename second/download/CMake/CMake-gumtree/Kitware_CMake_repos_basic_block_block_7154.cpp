@@ -1,0 +1,1 @@
+infof(data, "schannel: Curl_read_plain returned error %d\n", *err)

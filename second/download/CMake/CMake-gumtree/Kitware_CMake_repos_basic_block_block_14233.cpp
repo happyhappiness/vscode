@@ -1,0 +1,1 @@
+*p = num[((DWORD)*p) % (sizeof(num)/sizeof(num[0]))]

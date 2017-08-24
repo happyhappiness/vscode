@@ -1,191 +1,176 @@
-@@ -527,10 +527,10 @@ int cmCTestTestHandler::ProcessHandler()
+@@ -47,7 +47,7 @@ __FBSDID("$FreeBSD$");
+ #endif
  
-   this->TestResults.clear();
+ #include "archive.h"
+-#include "archive_crypto_private.h"
++#include "archive_digest_private.h"
+ #include "archive_endian.h"
+ #include "archive_entry.h"
+ #include "archive_entry_locale.h"
+@@ -114,7 +114,7 @@ enum sumalg {
+ #define MAX_SUM_SIZE	20
+ #define MD5_NAME	"md5"
+ #define SHA1_NAME	"sha1"
+- 
++
+ enum enctype {
+ 	NONE,
+ 	GZIP,
+@@ -242,6 +242,7 @@ struct xar {
+ 	enum sumalg		 opt_sumalg;
+ 	enum enctype		 opt_compression;
+ 	int			 opt_compression_level;
++	uint32_t		 opt_threads;
  
--  cmCTestLog(this->CTest, HANDLER_OUTPUT,
-+  cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT,
-              (this->MemCheck ? "Memory check" : "Test")
-              << " project " << cmSystemTools::GetCurrentWorkingDirectory()
--             << std::endl);
-+             << std::endl, this->Quiet);
-   if ( ! this->PreProcessHandler() )
-     {
-     return -1;
-@@ -567,13 +567,13 @@ int cmCTestTestHandler::ProcessHandler()
-     if (this->HandlerVerbose && !passed.empty() &&
-       (this->UseIncludeRegExpFlag || this->UseExcludeRegExpFlag))
-       {
--      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
--        << "The following tests passed:" << std::endl);
-+      cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
-+        << "The following tests passed:" << std::endl, this->Quiet);
-       for(std::vector<std::string>::iterator j = passed.begin();
-           j != passed.end(); ++j)
-         {
--        cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "\t" << *j
--          << std::endl);
-+        cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "\t" << *j
-+          << std::endl, this->Quiet);
-         }
-       }
+ 	struct chksumwork	 a_sumwrk;	/* archived checksum.	*/
+ 	struct chksumwork	 e_sumwrk;	/* extracted checksum.	*/
+@@ -317,7 +318,7 @@ static int	compression_end_bzip2(struct archive *, struct la_zstream *);
+ static int	compression_init_encoder_lzma(struct archive *,
+ 		    struct la_zstream *, int);
+ static int	compression_init_encoder_xz(struct archive *,
+-		    struct la_zstream *, int);
++		    struct la_zstream *, int, int);
+ #if defined(HAVE_LZMA_H)
+ static int	compression_code_lzma(struct archive *,
+ 		    struct la_zstream *, enum la_zaction);
+@@ -380,9 +381,10 @@ archive_write_set_format_xar(struct archive *_a)
+ 	/* Set default checksum type. */
+ 	xar->opt_toc_sumalg = CKSUM_SHA1;
+ 	xar->opt_sumalg = CKSUM_SHA1;
+-	/* Set default compression type and level. */
++	/* Set default compression type, level, and number of threads. */
+ 	xar->opt_compression = GZIP;
+ 	xar->opt_compression_level = 6;
++	xar->opt_threads = 1;
  
-@@ -593,8 +593,8 @@ int cmCTestTestHandler::ProcessHandler()
-       }
-     char realBuf[1024];
-     sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
--    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (real) = "
--               << realBuf << "\n" );
-+    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT,
-+      "\nTotal Test time (real) = " << realBuf << "\n", this->Quiet );
+ 	a->format_data = xar;
  
-     if (!failed.empty())
-       {
-@@ -614,11 +614,11 @@ int cmCTestTestHandler::ProcessHandler()
-         if ( ftit->Status != cmCTestTestHandler::COMPLETED )
-           {
-           ofs << ftit->TestCount << ":" << ftit->Name << std::endl;
--          cmCTestLog(this->CTest, HANDLER_OUTPUT, "\t" << std::setw(3)
-+          cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT, "\t" << std::setw(3)
-                      << ftit->TestCount << " - "
-                      << ftit->Name << " ("
-                      << this->GetTestStatus(ftit->Status) << ")"
--                     << std::endl);
-+                     << std::endl, this->Quiet);
-           }
-         }
-       }
-@@ -700,7 +700,8 @@ void cmCTestTestHandler::PrintLabelSummary()
-   // now print times
-   if(!labels.empty())
-     {
--    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nLabel Time Summary:");
-+    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT, "\nLabel Time Summary:",
-+      this->Quiet);
-     }
-   for(std::set<std::string>::const_iterator i = labels.begin();
-       i != labels.end(); ++i)
-@@ -709,8 +710,8 @@ void cmCTestTestHandler::PrintLabelSummary()
-     label.resize(maxlen +3, ' ');
-     char buf[1024];
-     sprintf(buf, "%6.2f sec", labelTimes[*i]);
--    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\n"
--               << label << " = " << buf );
-+    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT, "\n"
-+               << label << " = " << buf, this->Quiet );
-     if ( this->LogFile )
-       {
-       *this->LogFile << "\n" << *i << " = "
-@@ -723,7 +724,7 @@ void cmCTestTestHandler::PrintLabelSummary()
-       {
-       *this->LogFile << "\n";
-       }
--    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\n");
-+    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT, "\n", this->Quiet);
-     }
+@@ -493,6 +495,26 @@ xar_options(struct archive_write *a, const char *key, const char *value)
+ 		}
+ 		return (ARCHIVE_OK);
+ 	}
++	if (strcmp(key, "threads") == 0) {
++		if (value == NULL)
++			return (ARCHIVE_FAILED);
++		xar->opt_threads = (int)strtoul(value, NULL, 10);
++		if (xar->opt_threads == 0 && errno != 0) {
++			xar->opt_threads = 1;
++			archive_set_error(&(a->archive),
++			    ARCHIVE_ERRNO_MISC,
++			    "Illegal value `%s'",
++			    value);
++			return (ARCHIVE_FAILED);
++		}
++		if (xar->opt_threads == 0) {
++#ifdef HAVE_LZMA_STREAM_ENCODER_MT
++			xar->opt_threads = lzma_cputhreads();
++#else
++			xar->opt_threads = 1;
++#endif
++		}
++	}
  
+ 	/* Note: The "warn" return is just to inform the options
+ 	 * supervisor that we didn't handle it.  It will generate
+@@ -805,7 +827,7 @@ xmlwrite_string(struct archive_write *a, xmlTextWriterPtr writer,
+ 
+ 	if (value == NULL)
+ 		return (ARCHIVE_OK);
+-	
++
+ 	r = xmlTextWriterStartElement(writer, BAD_CAST_CONST(key));
+ 	if (r < 0) {
+ 		archive_set_error(&a->archive,
+@@ -1875,7 +1897,7 @@ file_cmp_node(const struct archive_rb_node *n1,
+ 
+ 	return (strcmp(f1->basename.s, f2->basename.s));
  }
-@@ -1063,6 +1064,7 @@ void cmCTestTestHandler::ProcessDirectory(std::vector<std::string> &passed,
-   parallel->SetCTest(this->CTest);
-   parallel->SetParallelLevel(this->CTest->GetParallelLevel());
-   parallel->SetTestHandler(this);
-+  parallel->SetQuiet(this->Quiet);
- 
-   *this->LogFile << "Start testing: "
-     << this->CTest->CurrentTime() << std::endl
-@@ -1334,8 +1336,8 @@ int cmCTestTestHandler::ExecuteCommands(std::vector<std::string>& vec)
-   for ( it = vec.begin(); it != vec.end(); ++it )
-     {
-     int retVal = 0;
--    cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Run command: " << *it
--      << std::endl);
-+    cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Run command: " <<
-+      *it << std::endl, this->Quiet);
-     if ( !cmSystemTools::RunSingleCommand(it->c_str(), 0, &retVal, 0,
-                                           cmSystemTools::OUTPUT_MERGE
-         /*this->Verbose*/) || retVal != 0 )
-@@ -1541,8 +1543,7 @@ ::FindExecutable(cmCTest *ctest,
-     for(std::vector<std::string>::iterator i = failed.begin();
-         i != failed.end(); ++i)
-       {
--      cmCTestLog(ctest, HANDLER_OUTPUT,
--                 i->c_str() << "\n");
-+      cmCTestLog(ctest, HANDLER_OUTPUT, i->c_str() << "\n");
-       }
-     }
- 
-@@ -1571,8 +1572,8 @@ void cmCTestTestHandler::GetListOfTests()
-     {
-     this->ExcludeTestsRegularExpression.compile(this->ExcludeRegExp.c_str());
-     }
--  cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
--    "Constructing a list of tests" << std::endl);
-+  cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-+    "Constructing a list of tests" << std::endl, this->Quiet);
-   cmake cm;
-   cmGlobalGenerator gg;
-   gg.SetCMakeInstance(&cm);
-@@ -1628,8 +1629,8 @@ void cmCTestTestHandler::GetListOfTests()
-     {
-     return;
-     }
--  cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
--    "Done constructing a list of tests" << std::endl);
-+  cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-+    "Done constructing a list of tests" << std::endl, this->Quiet);
- }
- 
- //----------------------------------------------------------------------
-@@ -2016,8 +2017,8 @@ std::string cmCTestTestHandler::GenerateRegressionImages(
-           << "><Value>File " << filename
-           << " not found</Value></NamedMeasurement>"
-           << std::endl;
--        cmCTestLog(this->CTest, HANDLER_OUTPUT, "File \"" << filename
--          << "\" not found." << std::endl);
-+        cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT, "File \"" << filename
-+          << "\" not found." << std::endl, this->Quiet);
-         }
-       cxml.erase(measurementfile.start(),
-         measurementfile.end() - measurementfile.start());
-@@ -2265,7 +2266,8 @@ bool cmCTestTestHandler::SetTestsProperties(
- bool cmCTestTestHandler::AddTest(const std::vector<std::string>& args)
+-        
++
+ static int
+ file_cmp_key(const struct archive_rb_node *n, const void *key)
  {
-   const std::string& testname = args[0];
--  cmCTestLog(this->CTest, DEBUG, "Add test: " << args[0] << std::endl);
-+  cmCTestOptionalLog(this->CTest, DEBUG, "Add test: " << args[0] << std::endl,
-+    this->Quiet);
+@@ -2154,7 +2176,7 @@ file_gen_utility_names(struct archive_write *a, struct file *file)
+ 		file->parentdir.length = len;
+ 		archive_string_copy(&(file->basename), &(file->parentdir));
+ 		archive_string_empty(&(file->parentdir));
+-		file->parentdir.s = '\0';
++		*file->parentdir.s = '\0';
+ 		return (r);
+ 	}
  
-   if (this->UseExcludeRegExpFlag &&
-     this->UseExcludeRegExpFirst &&
-@@ -2288,8 +2290,8 @@ bool cmCTestTestHandler::AddTest(const std::vector<std::string>& args)
-       }
-     if ( found )
-       {
--      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Ignore memcheck: "
--        << *it << std::endl);
-+      cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-+        "Ignore memcheck: " << *it << std::endl, this->Quiet);
-       return true;
-       }
-     }
-@@ -2308,8 +2310,8 @@ bool cmCTestTestHandler::AddTest(const std::vector<std::string>& args)
-       }
-     if ( found )
-       {
--      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Ignore test: "
--        << *it << std::endl);
-+      cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Ignore test: "
-+        << *it << std::endl, this->Quiet);
-       return true;
-       }
-     }
-@@ -2318,8 +2320,8 @@ bool cmCTestTestHandler::AddTest(const std::vector<std::string>& args)
-   test.Name = testname;
-   test.Args = args;
-   test.Directory = cmSystemTools::GetCurrentWorkingDirectory();
--  cmCTestLog(this->CTest, DEBUG, "Set test directory: "
--    << test.Directory << std::endl);
-+  cmCTestOptionalLog(this->CTest, DEBUG, "Set test directory: "
-+    << test.Directory << std::endl, this->Quiet);
+@@ -2494,7 +2516,7 @@ file_init_hardlinks(struct xar *xar)
+ 	static const struct archive_rb_tree_ops rb_ops = {
+ 		file_hd_cmp_node, file_hd_cmp_key,
+ 	};
+- 
++
+ 	__archive_rb_tree_init(&(xar->hardlink_rbtree), &rb_ops);
+ }
  
-   test.IsInBasedOnREOptions = true;
-   test.WillFail = false;
+@@ -2848,13 +2870,18 @@ compression_init_encoder_lzma(struct archive *a,
+ 
+ static int
+ compression_init_encoder_xz(struct archive *a,
+-    struct la_zstream *lastrm, int level)
++    struct la_zstream *lastrm, int level, int threads)
+ {
+ 	static const lzma_stream lzma_init_data = LZMA_STREAM_INIT;
+ 	lzma_stream *strm;
+ 	lzma_filter *lzmafilters;
+ 	lzma_options_lzma lzma_opt;
+ 	int r;
++#ifdef HAVE_LZMA_STREAM_ENCODER_MT
++	lzma_mt mt_options;
++#endif
++
++	(void)threads; /* UNUSED (if multi-threaded LZMA library not avail) */
+ 
+ 	if (lastrm->valid)
+ 		compression_end(a, lastrm);
+@@ -2879,7 +2906,17 @@ compression_init_encoder_xz(struct archive *a,
+ 	lzmafilters[1].id = LZMA_VLI_UNKNOWN;/* Terminate */
+ 
+ 	*strm = lzma_init_data;
+-	r = lzma_stream_encoder(strm, lzmafilters, LZMA_CHECK_CRC64);
++#ifdef HAVE_LZMA_STREAM_ENCODER_MT
++	if (threads > 1) {
++		bzero(&mt_options, sizeof(mt_options));
++		mt_options.threads = threads;
++		mt_options.timeout = 300;
++		mt_options.filters = lzmafilters;
++		mt_options.check = LZMA_CHECK_CRC64;
++		r = lzma_stream_encoder_mt(strm, &mt_options);
++	} else
++#endif
++		r = lzma_stream_encoder(strm, lzmafilters, LZMA_CHECK_CRC64);
+ 	switch (r) {
+ 	case LZMA_OK:
+ 		lastrm->real_stream = strm;
+@@ -2979,10 +3016,11 @@ compression_init_encoder_lzma(struct archive *a,
+ }
+ static int
+ compression_init_encoder_xz(struct archive *a,
+-    struct la_zstream *lastrm, int level)
++    struct la_zstream *lastrm, int level, int threads)
+ {
+ 
+ 	(void) level; /* UNUSED */
++	(void) threads; /* UNUSED */
+ 	if (lastrm->valid)
+ 		compression_end(a, lastrm);
+ 	return (compression_unsupported_encoder(a, lastrm, "xz"));
+@@ -3015,7 +3053,7 @@ xar_compression_init_encoder(struct archive_write *a)
+ 	case XZ:
+ 		r = compression_init_encoder_xz(
+ 		    &(a->archive), &(xar->stream),
+-		    xar->opt_compression_level);
++		    xar->opt_compression_level, xar->opt_threads);
+ 		break;
+ 	default:
+ 		r = ARCHIVE_OK;
+@@ -3178,4 +3216,3 @@ getalgname(enum sumalg sumalg)
+ }
+ 
+ #endif /* Support xar format */
+-

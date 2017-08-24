@@ -1,0 +1,1 @@
+uc2 = archive_le16dec(utf16)

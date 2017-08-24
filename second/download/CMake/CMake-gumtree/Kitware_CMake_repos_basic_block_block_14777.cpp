@@ -1,0 +1,1 @@
+bytes_to_write = block_end - a->offset

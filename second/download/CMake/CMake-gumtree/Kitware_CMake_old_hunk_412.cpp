@@ -1,11 +1,7 @@
-		 */
-		if (ar->strtab == NULL || number > ar->strtab_size) {
-			archive_set_error(&a->archive, EINVAL,
-			    "Can't find long filename for entry");
-			archive_entry_copy_pathname(entry, filename);
-			/* Parse the time, owner, mode, size fields. */
-			ar_parse_common_header(ar, entry, h);
-			return (ARCHIVE_WARN);
-		}
 
-		archive_entry_copy_pathname(entry, &ar->strtab[(size_t)number]);
+		/* If a length of full-pathname is longer than 240 bytes,
+		 * it violates Joliet extensions regulation. */
+		if (parent_len + np->mb_len > 240) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "The regulation of Joliet extensions;"
+			    " A length of a full-pathname of `%s' is "

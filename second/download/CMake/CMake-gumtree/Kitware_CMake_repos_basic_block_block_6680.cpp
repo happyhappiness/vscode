@@ -1,0 +1,1 @@
+gnutls_x509_crt_import(x509_cert, chainp, GNUTLS_X509_FMT_DER)

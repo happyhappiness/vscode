@@ -1,18 +1,14 @@
-                           target.GetName().size() + 30)];
-  sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
-          target.GetName().c_str(), count);
-  const char* comment = origCommand.GetComment();
-  if(!comment && origCommand.GetOutputs().empty())
-    {
-    comment = "<hack>";
-    }
 
-  // Add the rule with the given dependencies and commands.
-  std::string no_main_dependency = "";
-  if(cmSourceFile* outsf =
-     this->Makefile->AddCustomCommandToOutput(
-       output, depends, no_main_dependency,
-       origCommand.GetCommandLines(), comment,
-       origCommand.GetWorkingDirectory().c_str()))
-    {
-    target.AddSourceFile(outsf);
+  if (rar->file_flags & FHD_PASSWORD)
+  {
+	archive_entry_set_is_data_encrypted(entry, 1);
+	rar->has_encrypted_entries = 1;
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "RAR encryption support unavailable.");
+    /* Since it is only the data part itself that is encrypted we can at least
+       extract information about the currently processed entry and don't need
+       to return ARCHIVE_FATAL here. */
+    /*return (ARCHIVE_FATAL);*/
+  }
+
+  if (rar->file_flags & FHD_LARGE)

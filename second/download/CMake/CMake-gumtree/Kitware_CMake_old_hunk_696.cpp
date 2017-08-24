@@ -1,10 +1,14 @@
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name);
-    }
-  struct _finddata_t data;      // data of current file
+                           target.GetName().size() + 30)];
+  sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
+          target.GetName().c_str(), count);
+  std::string comment = this->ConstructComment(origCommand, "<hack>");
 
-  // Now put them into the file array
-  srchHandle = _findfirst(buf, &data);
-  delete [] buf;
-
-  if ( srchHandle == -1 )
+  // Add the rule with the given dependencies and commands.
+  std::string no_main_dependency = "";
+  if(cmSourceFile* outsf =
+     this->Makefile->AddCustomCommandToOutput(
+       output, depends, no_main_dependency,
+       origCommand.GetCommandLines(), comment.c_str(),
+       origCommand.GetWorkingDirectory().c_str()))
+    {
+    target.AddSourceFile(outsf);

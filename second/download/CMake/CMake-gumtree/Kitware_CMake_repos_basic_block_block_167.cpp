@@ -1,0 +1,1 @@
+growth = Minimum(field->maxgrow - field->drows,growth)

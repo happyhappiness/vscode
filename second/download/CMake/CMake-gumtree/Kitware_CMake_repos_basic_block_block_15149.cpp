@@ -1,0 +1,1 @@
+a->filesize = archive_entry_size(a->entry)

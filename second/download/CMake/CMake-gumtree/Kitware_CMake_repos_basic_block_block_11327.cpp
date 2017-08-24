@@ -1,0 +1,1 @@
+l = ds->w_size - ds->w_pos

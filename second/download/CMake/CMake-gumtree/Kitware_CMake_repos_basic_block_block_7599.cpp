@@ -1,0 +1,2 @@
+(tag->rawName == rawNameBuf)
+      break;

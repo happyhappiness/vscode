@@ -1,0 +1,1 @@
+t->direct_io = DIRECT_IO

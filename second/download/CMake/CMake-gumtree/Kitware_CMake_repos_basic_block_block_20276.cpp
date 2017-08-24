@@ -1,0 +1,1 @@
+req->fs.info.bufs = uv__malloc(nbufs * sizeof(*bufs))

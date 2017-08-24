@@ -1,0 +1,1 @@
+xr = get_xfer_size(t, -1, tree_current_access_path(t))

@@ -1,0 +1,1 @@
+*avail = cfdata->uncompressed_bytes_remaining

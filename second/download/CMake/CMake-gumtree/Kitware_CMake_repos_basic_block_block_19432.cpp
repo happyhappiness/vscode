@@ -1,0 +1,1 @@
+n = write(fd, &val, sizeof(val))

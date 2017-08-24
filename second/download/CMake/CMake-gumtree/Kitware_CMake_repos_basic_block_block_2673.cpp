@@ -1,0 +1,3 @@
+{
+    cmPassed("REMOVE is working");
+  }

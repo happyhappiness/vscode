@@ -1,0 +1,1 @@
+parent->subdirs.last = &(ent->drnext)

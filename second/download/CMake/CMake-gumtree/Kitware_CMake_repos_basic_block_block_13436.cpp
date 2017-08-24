@@ -1,0 +1,1 @@
+r = xml_start(a, (const char *)name, &list)

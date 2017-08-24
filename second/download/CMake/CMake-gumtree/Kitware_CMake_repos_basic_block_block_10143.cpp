@@ -1,0 +1,2 @@
+(r == ARCHIVE_FATAL)
+			return (ARCHIVE_FATAL);

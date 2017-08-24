@@ -1,8 +1,35 @@
-	struct mtree_entry *entry;
-	struct mtree_option *iter;
-	const char *next, *eq, *name, *end;
-	size_t name_len, len;
-	int r, i;
+               table64[obuf[0]],
+               table64[obuf[1]]);
+      break;
 
-	if ((entry = malloc(sizeof(*entry))) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
+    case 2: /* two bytes read */
+      snprintf(output, 5, "%c%c%c=",
+               table64[obuf[0]],
+               table64[obuf[1]],
+               table64[obuf[2]]);
+      break;
+
+    default:
+      snprintf(output, 5, "%c%c%c%c",
+               table64[obuf[0]],
+               table64[obuf[1]],
+               table64[obuf[2]],
+               table64[obuf[3]]);
+      break;
+    }
+    output += 4;
+  }
+
+  /* Zero terminate */
+  *output = '\0';
+
+  /* Return the pointer to the new data (allocated memory) */
+  *outptr = base64data;
+
+  free(convbuf);
+
+  /* Return the length of the new data */
+  *outlen = strlen(base64data);
+
+  return CURLE_OK;
+}

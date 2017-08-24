@@ -1,0 +1,4 @@
+{
+				free(symname);
+				return (r);
+			}

@@ -1,0 +1,1 @@
+mtree->output_global_set = 0

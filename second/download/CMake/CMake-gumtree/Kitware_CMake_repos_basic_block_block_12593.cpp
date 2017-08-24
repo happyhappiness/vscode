@@ -1,0 +1,1 @@
+(--symbolsleft <= 0) { break; break; }

@@ -1,0 +1,1 @@
+(uc != 0x50) RETURN(BZ_DATA_ERROR)

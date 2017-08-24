@@ -1,0 +1,1 @@
+numFolders = (int)zip->total_number_nonempty_entry

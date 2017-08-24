@@ -1,0 +1,1 @@
+hash_secret_salt = generate_hash_secret_salt(parser)

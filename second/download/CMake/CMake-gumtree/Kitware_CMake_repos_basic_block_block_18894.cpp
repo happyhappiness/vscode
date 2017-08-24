@@ -1,0 +1,1 @@
+uv_rwlock_rdlock(&req->loop->cloexec_lock)

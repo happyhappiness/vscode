@@ -1,0 +1,1 @@
+res = _nc_Set_Current_Field(form,field)

@@ -1,0 +1,1 @@
+proxy=curl_getenv("ALL_PROXY")

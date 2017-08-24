@@ -1,0 +1,1 @@
+list_size = flistxattr(*fd, list, list_size)

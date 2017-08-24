@@ -1,0 +1,1 @@
+la_chmod(p->name, p->mode)

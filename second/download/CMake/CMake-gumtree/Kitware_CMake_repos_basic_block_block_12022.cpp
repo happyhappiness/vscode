@@ -1,0 +1,1 @@
+r = lzh_decode_blocks(strm, last)

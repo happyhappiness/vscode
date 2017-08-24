@@ -1,0 +1,1 @@
+memcpy(cfdata->sum_extra, p + sumbytes - odd, odd)

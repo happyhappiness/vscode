@@ -1,0 +1,1 @@
+written = outbuf[1].cbBuffer

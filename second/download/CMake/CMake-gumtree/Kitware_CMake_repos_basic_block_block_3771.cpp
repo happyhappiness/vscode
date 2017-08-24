@@ -1,0 +1,3 @@
+{
+        cookies->cookies = co->next;
+      }

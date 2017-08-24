@@ -1,0 +1,1 @@
+zip->total_number_dir_entry++

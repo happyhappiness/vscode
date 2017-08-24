@@ -1,0 +1,4 @@
+{
+          declEntity = NULL;
+          break;
+        }

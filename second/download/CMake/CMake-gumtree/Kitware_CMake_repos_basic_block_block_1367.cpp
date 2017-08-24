@@ -1,0 +1,4 @@
+{
+      kwsysProcessCleanup(cp, GetLastError());
+      return;
+    }

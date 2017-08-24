@@ -1,0 +1,1 @@
+free(cache[i].name)

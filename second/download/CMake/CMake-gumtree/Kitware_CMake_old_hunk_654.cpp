@@ -1,7 +1,9 @@
-    case STATUS_NO_MEMORY:
-    default:
-      cp->ExitException = kwsysProcess_Exception_Other;
-      sprintf(cp->ExitExceptionString, "Exit code 0x%x\n", code);
-      break;
-    }
-}
+
+  if (rar->file_flags & FHD_PASSWORD)
+  {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "RAR encryption support unavailable.");
+    return (ARCHIVE_FATAL);
+  }
+
+  if (rar->file_flags & FHD_LARGE)

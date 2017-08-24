@@ -1,0 +1,2 @@
+(wsize > remaining)
+			wsize = remaining

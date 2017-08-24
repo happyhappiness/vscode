@@ -1,0 +1,1 @@
+s->len[nPart-1][v] = BZ_LESSER_ICOST

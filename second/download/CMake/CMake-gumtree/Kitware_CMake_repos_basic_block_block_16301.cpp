@@ -1,0 +1,1 @@
+iso9660->dircnt_max = vp->file->dircnt

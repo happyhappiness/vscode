@@ -1,0 +1,3 @@
+{
+    cmFailed(msg);
+  }

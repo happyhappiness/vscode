@@ -1,0 +1,1 @@
+base[length[i]+1]++

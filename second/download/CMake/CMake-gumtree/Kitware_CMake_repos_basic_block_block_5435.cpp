@@ -1,0 +1,1 @@
+smtpc->tls_supported = TRUE

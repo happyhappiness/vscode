@@ -1,0 +1,1 @@
+format_octal(0, h + c_rdev_offset, c_rdev_size)

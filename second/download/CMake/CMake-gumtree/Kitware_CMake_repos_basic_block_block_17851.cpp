@@ -1,0 +1,1 @@
+crc32_table[s][b] = bswap32(crc32_table[s][b])

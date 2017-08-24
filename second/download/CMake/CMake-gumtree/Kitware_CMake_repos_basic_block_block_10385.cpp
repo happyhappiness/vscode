@@ -1,0 +1,1 @@
+rpm->state = ST_PADDING

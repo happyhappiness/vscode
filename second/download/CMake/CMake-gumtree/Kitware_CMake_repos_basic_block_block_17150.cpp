@@ -1,0 +1,1 @@
+shar_quote(&shar->work, u, 1)

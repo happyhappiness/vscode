@@ -1,0 +1,1 @@
+step = PROBE_STEP(h, newMask, newPower)

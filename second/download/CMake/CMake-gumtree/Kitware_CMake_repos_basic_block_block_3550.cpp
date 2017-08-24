@@ -1,0 +1,1 @@
+f(fp_w != stdout) fclose(fp_w)

@@ -1,0 +1,1 @@
+ret = hfs_write_resource_fork_header(a)

@@ -1,0 +1,1 @@
+effkeys &= ~(F_GNAME | F_GID)

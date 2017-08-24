@@ -1,0 +1,1 @@
+s->cftab[i] = s->unzftab[i-1]

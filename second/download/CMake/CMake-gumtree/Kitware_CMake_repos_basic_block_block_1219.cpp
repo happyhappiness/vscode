@@ -1,0 +1,3 @@
+{
+    kwsysProcessesRemove(cp);
+  }

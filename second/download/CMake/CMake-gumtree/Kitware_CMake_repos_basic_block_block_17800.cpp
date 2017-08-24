@@ -1,0 +1,1 @@
+CloseHandle(childStdin[1])

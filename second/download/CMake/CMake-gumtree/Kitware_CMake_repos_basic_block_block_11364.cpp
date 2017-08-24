@@ -1,0 +1,1 @@
+l = w_size - w_pos
