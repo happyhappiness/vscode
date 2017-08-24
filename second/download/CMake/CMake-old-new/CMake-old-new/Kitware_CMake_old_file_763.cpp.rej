@@ -1,0 +1,23 @@
+--- /dev/null
++++ /dev/null
+@@ -1433,13 +1476,17 @@
+     }
+ 
+   // finally call the generator to actually build the resulting project
+-  int ret = gg->TryCompile(srcdir,bindir,projectName, targetName);
++  gg->TryCompile(srcdir,bindir,projectName);
+ 
+   cmSystemTools::ChangeDirectory(cwd.c_str());
+-  return ret;
++  return 0;
+ }
+ 
+ cmCacheManager *cmMakefile::GetCacheManager() const
+ {
+-  return m_LocalGenerator->GetGlobalGenerator()->GetCMakeInstance()->GetCacheManager();
++  if (m_LocalGenerator)
++    {
++    return m_LocalGenerator->GetGlobalGenerator()->GetCMakeInstance()->GetCacheManager();
++    }
++  return 0;
+ 

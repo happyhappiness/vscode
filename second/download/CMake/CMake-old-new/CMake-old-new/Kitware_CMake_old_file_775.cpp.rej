@@ -1,0 +1,9 @@
+--- /dev/null
++++ /dev/null
+@@ -314,5 +314,5 @@
+       }
+     }
+   
+-  return int(failed.size());
++  return failed.size();
+ 
