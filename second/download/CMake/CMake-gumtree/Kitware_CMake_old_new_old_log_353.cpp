@@ -1,2 +1,2 @@
-fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
+fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              cmLocalGenerator::EscapeForCMake(flags?flags:"").c_str());

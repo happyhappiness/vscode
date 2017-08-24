@@ -1,13 +1,26 @@
 {
-    EdgeList const& nl = graph[depender_index];
-    cmTarget const* depender = this->Targets[depender_index];
-    fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName().c_str());
-    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int dependee_index = *ni;
-      cmTarget const* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName().c_str(), ni->IsStrong()? "strong" : "weak");
-      }
+#ifdef CMAKE_BUILD_WITH_CMAKE
+  // Loop over all registered commands and print out documentation
+  const char *name;
+  const char *terse;
+  const char *full;
+  char tmp[1024];
+  sprintf(tmp,"Version %s", cmVersion::GetCMakeVersion());
+  f << "<html>\n";
+  f << "<h1>Documentation for commands of CMake " << tmp << "</h1>\n";
+  f << "<ul>\n";
+  for(RegisteredCommandsMap::iterator j = this->Commands.begin();
+      j != this->Commands.end(); ++j)
+    {
+    name = (*j).second->GetName();
+    terse = (*j).second->GetTerseDocumentation();
+    full = (*j).second->GetFullDocumentation();
+    f << "<li><b>" << name << "</b> - " << terse << std::endl
+      << "<br><i>Usage:</i> " << full << "</li>" << std::endl << std::endl;
     }
+  f << "</ul></html>\n";
+#else
+  (void)f;
+#endif
+  return 1;
+}

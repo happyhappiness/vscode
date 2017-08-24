@@ -1,2 +1,1 @@
-snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
-           entropy[0], entropy[1], entropy[2], entropy[3]);
+yy_fatal_error( "cmCommandArgument_yyset_column called with no buffer" , yyscanner);

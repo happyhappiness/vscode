@@ -1,1 +1,1 @@
-("%s:%s:%s";
+fprintf(this->FileOut,"EXPORTS \n");

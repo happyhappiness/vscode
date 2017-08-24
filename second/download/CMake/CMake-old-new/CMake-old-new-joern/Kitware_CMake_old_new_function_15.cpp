@@ -1,103 +1,237 @@
-static CURLcode ftp_state_mdtm_resp(struct connectdata *conn,
-                                    int ftpcode)
+static int
+translate_acl(struct archive_read_disk *a,
+    struct archive_entry *entry, acl_t acl, int default_entry_acl_type)
 {
-  CURLcode result = CURLE_OK;
-  struct Curl_easy *data=conn->data;
-  struct FTP *ftp = data->req.protop;
-  struct ftp_conn *ftpc = &conn->proto.ftpc;
-
-  switch(ftpcode) {
-  case 213:
-    {
-      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
-         last .sss part is optional and means fractions of a second */
-      int year, month, day, hour, minute, second;
-      char *buf = data->state.buffer;
-      if(6 == sscanf(buf+4, "%04d%02d%02d%02d%02d%02d",
-                     &year, &month, &day, &hour, &minute, &second)) {
-        /* we have a time, reformat it */
-        time_t secs=time(NULL);
-        /* using the good old yacc/bison yuck */
-        snprintf(buf, CURL_BUFSIZE(conn->data->set.buffer_size),
-                 "%04d%02d%02d %02d:%02d:%02d GMT",
-                 year, month, day, hour, minute, second);
-        /* now, convert this into a time() value: */
-        data->info.filetime = (long)curl_getdate(buf, &secs);
-      }
-
-#ifdef CURL_FTP_HTTPSTYLE_HEAD
-      /* If we asked for a time of the file and we actually got one as well,
-         we "emulate" a HTTP-style header in our output. */
-
-      if(data->set.opt_no_body &&
-         ftpc->file &&
-         data->set.get_filetime &&
-         (data->info.filetime>=0) ) {
-        time_t filetime = (time_t)data->info.filetime;
-        struct tm buffer;
-        const struct tm *tm = &buffer;
-
-        result = Curl_gmtime(filetime, &buffer);
-        if(result)
-          return result;
-
-        /* format: "Tue, 15 Nov 1994 12:45:26" */
-        snprintf(buf, BUFSIZE-1,
-                 "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-                 Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-                 tm->tm_mday,
-                 Curl_month[tm->tm_mon],
-                 tm->tm_year + 1900,
-                 tm->tm_hour,
-                 tm->tm_min,
-                 tm->tm_sec);
-        result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-        if(result)
-          return result;
-      } /* end of a ridiculous amount of conditionals */
+	acl_tag_t	 acl_tag;
+#if HAVE_ACL_TYPE_NFS4
+	acl_entry_type_t acl_type;
+	int brand;
 #endif
-    }
-    break;
-  default:
-    infof(data, "unsupported MDTM reply format\n");
-    break;
-  case 550: /* "No such file or directory" */
-    failf(data, "Given file does not exist");
-    result = CURLE_FTP_COULDNT_RETR_FILE;
-    break;
-  }
+#if HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL
+	acl_flagset_t	 acl_flagset;
+#endif
+	acl_entry_t	 acl_entry;
+	acl_permset_t	 acl_permset;
+	int		 i, entry_acl_type;
+	int		 r, s, ae_id, ae_tag, ae_perm;
+#if !HAVE_DARWIN_ACL
+	void		*q;
+#endif
+	const char	*ae_name;
 
-  if(data->set.timecondition) {
-    if((data->info.filetime > 0) && (data->set.timevalue > 0)) {
-      switch(data->set.timecondition) {
-      case CURL_TIMECOND_IFMODSINCE:
-      default:
-        if(data->info.filetime <= data->set.timevalue) {
-          infof(data, "The requested document is not new enough\n");
-          ftp->transfer = FTPTRANSFER_NONE; /* mark to not transfer data */
-          data->info.timecond = TRUE;
-          state(conn, FTP_STOP);
-          return CURLE_OK;
-        }
-        break;
-      case CURL_TIMECOND_IFUNMODSINCE:
-        if(data->info.filetime > data->set.timevalue) {
-          infof(data, "The requested document is not old enough\n");
-          ftp->transfer = FTPTRANSFER_NONE; /* mark to not transfer data */
-          data->info.timecond = TRUE;
-          state(conn, FTP_STOP);
-          return CURLE_OK;
-        }
-        break;
-      } /* switch */
-    }
-    else {
-      infof(data, "Skipping time comparison\n");
-    }
-  }
+#if HAVE_ACL_TYPE_NFS4
+	// FreeBSD "brands" ACLs as POSIX.1e or NFSv4
+	// Make sure the "brand" on this ACL is consistent
+	// with the default_entry_acl_type bits provided.
+	if (acl_get_brand_np(acl, &brand) != 0) {
+		archive_set_error(&a->archive, errno,
+		    "Failed to read ACL brand");
+		return (ARCHIVE_WARN);
+	}
+	switch (brand) {
+	case ACL_BRAND_POSIX:
+		switch (default_entry_acl_type) {
+		case ARCHIVE_ENTRY_ACL_TYPE_ACCESS:
+		case ARCHIVE_ENTRY_ACL_TYPE_DEFAULT:
+			break;
+		default:
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Invalid ACL entry type for POSIX.1e ACL");
+			return (ARCHIVE_WARN);
+		}
+		break;
+	case ACL_BRAND_NFS4:
+		if (default_entry_acl_type & ~ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Invalid ACL entry type for NFSv4 ACL");
+			return (ARCHIVE_WARN);
+		}
+		break;
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Unknown ACL brand");
+		return (ARCHIVE_WARN);
+	}
+#endif
 
-  if(!result)
-    result = ftp_state_type(conn);
+	s = acl_get_entry(acl, ACL_FIRST_ENTRY, &acl_entry);
+	if (s == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Failed to get first ACL entry");
+		return (ARCHIVE_WARN);
+	}
 
-  return result;
+#if HAVE_DARWIN_ACL
+	while (s == 0)
+#else	/* FreeBSD, Linux */
+	while (s == 1)
+#endif
+	{
+		ae_id = -1;
+		ae_name = NULL;
+		ae_perm = 0;
+
+		if (acl_get_tag_type(acl_entry, &acl_tag) != 0) {
+			archive_set_error(&a->archive, errno,
+			    "Failed to get ACL tag type");
+			return (ARCHIVE_WARN);
+		}
+		switch (acl_tag) {
+#if !HAVE_DARWIN_ACL	/* FreeBSD, Linux */
+		case ACL_USER:
+			q = acl_get_qualifier(acl_entry);
+			if (q != NULL) {
+				ae_id = (int)*(uid_t *)q;
+				acl_free(q);
+				ae_name = archive_read_disk_uname(&a->archive,
+				    ae_id);
+			}
+			ae_tag = ARCHIVE_ENTRY_ACL_USER;
+			break;
+		case ACL_GROUP:
+			q = acl_get_qualifier(acl_entry);
+			if (q != NULL) {
+				ae_id = (int)*(gid_t *)q;
+				acl_free(q);
+				ae_name = archive_read_disk_gname(&a->archive,
+				    ae_id);
+			}
+			ae_tag = ARCHIVE_ENTRY_ACL_GROUP;
+			break;
+		case ACL_MASK:
+			ae_tag = ARCHIVE_ENTRY_ACL_MASK;
+			break;
+		case ACL_USER_OBJ:
+			ae_tag = ARCHIVE_ENTRY_ACL_USER_OBJ;
+			break;
+		case ACL_GROUP_OBJ:
+			ae_tag = ARCHIVE_ENTRY_ACL_GROUP_OBJ;
+			break;
+		case ACL_OTHER:
+			ae_tag = ARCHIVE_ENTRY_ACL_OTHER;
+			break;
+#if HAVE_ACL_TYPE_NFS4
+		case ACL_EVERYONE:
+			ae_tag = ARCHIVE_ENTRY_ACL_EVERYONE;
+			break;
+#endif
+#else	/* HAVE_DARWIN_ACL */
+		case ACL_EXTENDED_ALLOW:
+			entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
+			r = translate_guid(&a->archive, acl_entry, &ae_id,
+			    &ae_tag, &ae_name);
+			break;
+		case ACL_EXTENDED_DENY:
+			entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
+			r = translate_guid(&a->archive, acl_entry, &ae_id,
+			    &ae_tag, &ae_name);
+			break;
+#endif	/* HAVE_DARWIN_ACL */
+		default:
+			/* Skip types that libarchive can't support. */
+			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+			continue;
+		}
+
+#if HAVE_DARWIN_ACL
+		/* Skip if translate_guid() above failed */
+		if (r != 0) {
+			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+			continue;
+		}
+#endif
+
+#if !HAVE_DARWIN_ACL
+		// XXX acl_type maps to allow/deny/audit/YYYY bits
+		entry_acl_type = default_entry_acl_type;
+#endif
+#if HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL
+		if (default_entry_acl_type & ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
+#if HAVE_ACL_TYPE_NFS4
+			/*
+			 * acl_get_entry_type_np() fails with non-NFSv4 ACLs
+			 */
+			if (acl_get_entry_type_np(acl_entry, &acl_type) != 0) {
+				archive_set_error(&a->archive, errno, "Failed "
+				    "to get ACL type from a NFSv4 ACL entry");
+				return (ARCHIVE_WARN);
+			}
+			switch (acl_type) {
+			case ACL_ENTRY_TYPE_ALLOW:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
+				break;
+			case ACL_ENTRY_TYPE_DENY:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
+				break;
+			case ACL_ENTRY_TYPE_AUDIT:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_AUDIT;
+				break;
+			case ACL_ENTRY_TYPE_ALARM:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALARM;
+				break;
+			default:
+				archive_set_error(&a->archive, errno,
+				    "Invalid NFSv4 ACL entry type");
+				return (ARCHIVE_WARN);
+			}
+#endif	/* HAVE_ACL_TYPE_NFS4 */
+
+			/*
+			 * Libarchive stores "flag" (NFSv4 inheritance bits)
+			 * in the ae_perm bitmap.
+			 *
+			 * acl_get_flagset_np() fails with non-NFSv4 ACLs
+			 */
+			if (acl_get_flagset_np(acl_entry, &acl_flagset) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Failed to get flagset from a NFSv4 ACL entry");
+				return (ARCHIVE_WARN);
+			}
+			for (i = 0; i < (int)(sizeof(acl_inherit_map) / sizeof(acl_inherit_map[0])); ++i) {
+				r = acl_get_flag_np(acl_flagset,
+				    acl_inherit_map[i].platform_inherit);
+				if (r == -1) {
+					archive_set_error(&a->archive, errno,
+					    "Failed to check flag in a NFSv4 "
+					    "ACL flagset");
+					return (ARCHIVE_WARN);
+				} else if (r)
+					ae_perm |= acl_inherit_map[i].archive_inherit;
+			}
+		}
+#endif	/* HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL */
+
+		if (acl_get_permset(acl_entry, &acl_permset) != 0) {
+			archive_set_error(&a->archive, errno,
+			    "Failed to get ACL permission set");
+			return (ARCHIVE_WARN);
+		}
+		for (i = 0; i < (int)(sizeof(acl_perm_map) / sizeof(acl_perm_map[0])); ++i) {
+			/*
+			 * acl_get_perm() is spelled differently on different
+			 * platforms; see above.
+			 */
+			r = ACL_GET_PERM(acl_permset, acl_perm_map[i].platform_perm);
+			if (r == -1) {
+				archive_set_error(&a->archive, errno,
+				    "Failed to check permission in an ACL permission set");
+				return (ARCHIVE_WARN);
+			} else if (r)
+				ae_perm |= acl_perm_map[i].archive_perm;
+		}
+
+		archive_entry_acl_add_entry(entry, entry_acl_type,
+					    ae_perm, ae_tag,
+					    ae_id, ae_name);
+
+		s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+#if !HAVE_DARWIN_ACL
+		if (s == -1) {
+			archive_set_error(&a->archive, errno,
+			    "Failed to get next ACL entry");
+			return (ARCHIVE_WARN);
+		}
+#endif
+	}
+	return (ARCHIVE_OK);
 }

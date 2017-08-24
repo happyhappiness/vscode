@@ -1,4 +1,5 @@
 {
-               fImportFlag = 0;
-               fprintf(fout,"EXPORTS \n");
-            }
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Encountered out-of-order sparse blocks");
+			return (ARCHIVE_RETRY);
+		}

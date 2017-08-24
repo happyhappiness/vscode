@@ -1,5 +1,5 @@
 {
-      fprintf(fout, "target_link_libraries(%s %s)\n",
-              targetName,
-              libsToLink.c_str());
-      }
+        snprintf(buf + len, sizeof(buf) - len,
+                 ": %s", (char*) status_string.value);
+      len += status_string.length;
+    }

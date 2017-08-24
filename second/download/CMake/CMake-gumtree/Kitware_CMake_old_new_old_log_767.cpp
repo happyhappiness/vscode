@@ -1,0 +1,1 @@
+printf("%d - %s: %s (%d)\n",line,str,msg, lastmsg);

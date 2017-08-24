@@ -1,152 +1,103 @@
-static int
-_warc_rdhdr(struct archive_read *a, struct archive_entry *entry)
+static CURLcode ftp_state_mdtm_resp(struct connectdata *conn,
+                                    int ftpcode)
 {
-#define HDR_PROBE_LEN		(12U)
-	struct warc_s *w = a->format->data;
-	unsigned int ver;
-	const char *buf;
-	ssize_t nrd;
-	const char *eoh;
-	/* for the file name, saves some strndup()'ing */
-	warc_string_t fnam;
-	/* warc record type, not that we really use it a lot */
-	warc_type_t ftyp;
-	/* content-length+error monad */
-	ssize_t cntlen;
-	/* record time is the WARC-Date time we reinterpret it as ctime */
-	time_t rtime;
-	/* mtime is the Last-Modified time which will be the entry's mtime */
-	time_t mtime;
+  CURLcode result = CURLE_OK;
+  struct Curl_easy *data=conn->data;
+  struct FTP *ftp = data->req.protop;
+  struct ftp_conn *ftpc = &conn->proto.ftpc;
 
-start_over:
-	/* just use read_ahead() they keep track of unconsumed
-	 * bits and bobs for us; no need to put an extra shift in
-	 * and reproduce that functionality here */
-	buf = __archive_read_ahead(a, HDR_PROBE_LEN, &nrd);
+  switch(ftpcode) {
+  case 213:
+    {
+      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
+         last .sss part is optional and means fractions of a second */
+      int year, month, day, hour, minute, second;
+      char *buf = data->state.buffer;
+      if(6 == sscanf(buf+4, "%04d%02d%02d%02d%02d%02d",
+                     &year, &month, &day, &hour, &minute, &second)) {
+        /* we have a time, reformat it */
+        time_t secs=time(NULL);
+        /* using the good old yacc/bison yuck */
+        snprintf(buf, CURL_BUFSIZE(conn->data->set.buffer_size),
+                 "%04d%02d%02d %02d:%02d:%02d GMT",
+                 year, month, day, hour, minute, second);
+        /* now, convert this into a time() value: */
+        data->info.filetime = (long)curl_getdate(buf, &secs);
+      }
 
-	if (nrd < 0) {
-		/* no good */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Bad record header");
-		return (ARCHIVE_FATAL);
-	} else if (buf == NULL) {
-		/* there should be room for at least WARC/bla\r\n
-		 * must be EOF therefore */
-		return (ARCHIVE_EOF);
-	}
- 	/* looks good so far, try and find the end of the header now */
-	eoh = _warc_find_eoh(buf, nrd);
-	if (eoh == NULL) {
-		/* still no good, the header end might be beyond the
-		 * probe we've requested, but then again who'd cram
-		 * so much stuff into the header *and* be 28500-compliant */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Bad record header");
-		return (ARCHIVE_FATAL);
-	} else if ((ver = _warc_rdver(buf, eoh - buf)) > 10000U) {
-		/* nawww, I wish they promised backward compatibility
-		 * anyhoo, in their infinite wisdom the 28500 guys might
-		 * come up with something we can't possibly handle so
-		 * best end things here */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Unsupported record version");
-		return (ARCHIVE_FATAL);
-	} else if ((cntlen = _warc_rdlen(buf, eoh - buf)) < 0) {
-		/* nightmare!  the specs say content-length is mandatory
-		 * so I don't feel overly bad stopping the reader here */
-		archive_set_error(
-			&a->archive, EINVAL,
-			"Bad content length");
-		return (ARCHIVE_FATAL);
-	} else if ((rtime = _warc_rdrtm(buf, eoh - buf)) == (time_t)-1) {
-		/* record time is mandatory as per WARC/1.0,
-		 * so just barf here, fast and loud */
-		archive_set_error(
-			&a->archive, EINVAL,
-			"Bad record time");
-		return (ARCHIVE_FATAL);
-	}
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
+      /* If we asked for a time of the file and we actually got one as well,
+         we "emulate" a HTTP-style header in our output. */
 
-	/* let the world know we're a WARC archive */
-	a->archive.archive_format = ARCHIVE_FORMAT_WARC;
-	if (ver != w->pver) {
-		/* stringify this entry's version */
-		archive_string_sprintf(&w->sver,
-			"WARC/%u.%u", ver / 10000, ver % 10000);
-		/* remember the version */
-		w->pver = ver;
-	}
-	/* start off with the type */
-	ftyp = _warc_rdtyp(buf, eoh - buf);
-	/* and let future calls know about the content */
-	w->cntlen = cntlen;
-	w->cntoff = 0U;
-	mtime = 0;/* Avoid compiling error on some platform. */
+      if(data->set.opt_no_body &&
+         ftpc->file &&
+         data->set.get_filetime &&
+         (data->info.filetime>=0) ) {
+        time_t filetime = (time_t)data->info.filetime;
+        struct tm buffer;
+        const struct tm *tm = &buffer;
 
-	switch (ftyp) {
-	case WT_RSRC:
-	case WT_RSP:
-		/* only try and read the filename in the cases that are
-		 * guaranteed to have one */
-		fnam = _warc_rduri(buf, eoh - buf);
-		/* check the last character in the URI to avoid creating
-		 * directory endpoints as files, see Todo above */
-		if (fnam.len == 0 || fnam.str[fnam.len - 1] == '/') {
-			/* break here for now */
-			fnam.len = 0U;
-			fnam.str = NULL;
-			break;
-		}
-		/* bang to our string pool, so we save a
-		 * malloc()+free() roundtrip */
-		if (fnam.len + 1U > w->pool.len) {
-			w->pool.len = ((fnam.len + 64U) / 64U) * 64U;
-			w->pool.str = realloc(w->pool.str, w->pool.len);
-		}
-		memcpy(w->pool.str, fnam.str, fnam.len);
-		w->pool.str[fnam.len] = '\0';
-		/* let noone else know about the pool, it's a secret, shhh */
-		fnam.str = w->pool.str;
+        result = Curl_gmtime(filetime, &buffer);
+        if(result)
+          return result;
 
-		/* snarf mtime or deduce from rtime
-		 * this is a custom header added by our writer, it's quite
-		 * hard to believe anyone else would go through with it
-		 * (apart from being part of some http responses of course) */
-		if ((mtime = _warc_rdmtm(buf, eoh - buf)) == (time_t)-1) {
-			mtime = rtime;
-		}
-		break;
-	default:
-		fnam.len = 0U;
-		fnam.str = NULL;
-		break;
-	}
+        /* format: "Tue, 15 Nov 1994 12:45:26" */
+        snprintf(buf, BUFSIZE-1,
+                 "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+                 Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+                 tm->tm_mday,
+                 Curl_month[tm->tm_mon],
+                 tm->tm_year + 1900,
+                 tm->tm_hour,
+                 tm->tm_min,
+                 tm->tm_sec);
+        result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+        if(result)
+          return result;
+      } /* end of a ridiculous amount of conditionals */
+#endif
+    }
+    break;
+  default:
+    infof(data, "unsupported MDTM reply format\n");
+    break;
+  case 550: /* "No such file or directory" */
+    failf(data, "Given file does not exist");
+    result = CURLE_FTP_COULDNT_RETR_FILE;
+    break;
+  }
 
-	/* now eat some of those delicious buffer bits */
-	__archive_read_consume(a, eoh - buf);
+  if(data->set.timecondition) {
+    if((data->info.filetime > 0) && (data->set.timevalue > 0)) {
+      switch(data->set.timecondition) {
+      case CURL_TIMECOND_IFMODSINCE:
+      default:
+        if(data->info.filetime <= data->set.timevalue) {
+          infof(data, "The requested document is not new enough\n");
+          ftp->transfer = FTPTRANSFER_NONE; /* mark to not transfer data */
+          data->info.timecond = TRUE;
+          state(conn, FTP_STOP);
+          return CURLE_OK;
+        }
+        break;
+      case CURL_TIMECOND_IFUNMODSINCE:
+        if(data->info.filetime > data->set.timevalue) {
+          infof(data, "The requested document is not old enough\n");
+          ftp->transfer = FTPTRANSFER_NONE; /* mark to not transfer data */
+          data->info.timecond = TRUE;
+          state(conn, FTP_STOP);
+          return CURLE_OK;
+        }
+        break;
+      } /* switch */
+    }
+    else {
+      infof(data, "Skipping time comparison\n");
+    }
+  }
 
-	switch (ftyp) {
-	case WT_RSRC:
-	case WT_RSP:
-		if (fnam.len > 0U) {
-			/* populate entry object */
-			archive_entry_set_filetype(entry, AE_IFREG);
-			archive_entry_copy_pathname(entry, fnam.str);
-			archive_entry_set_size(entry, cntlen);
-			archive_entry_set_perm(entry, 0644);
-			/* rtime is the new ctime, mtime stays mtime */
-			archive_entry_set_ctime(entry, rtime, 0L);
-			archive_entry_set_mtime(entry, mtime, 0L);
-			break;
-		}
-		/* FALLTHROUGH */
-	default:
-		/* consume the content and start over */
-		_warc_skip(a);
-		goto start_over;
-	}
-	return (ARCHIVE_OK);
+  if(!result)
+    result = ftp_state_type(conn);
+
+  return result;
 }

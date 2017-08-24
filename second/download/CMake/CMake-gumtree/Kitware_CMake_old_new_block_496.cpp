@@ -1,5 +1,2 @@
-{
-      /* something in the global init failed, return nothing */
-      DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"));
-      return NULL;
-    }
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "tar: unknown keyword ``%s''", key)

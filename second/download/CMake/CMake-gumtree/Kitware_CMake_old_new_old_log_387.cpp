@@ -1,1 +1,2 @@
-fprintf(stderr, "No current working directory\n");
+fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());

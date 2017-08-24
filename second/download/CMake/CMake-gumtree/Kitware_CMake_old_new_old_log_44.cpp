@@ -1,2 +1,3 @@
-archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for lzma decompression");
+snprintf(buf, CURL_BUFSIZE(conn->data->set.buffer_size),
+                 "%04d%02d%02d %02d:%02d:%02d GMT",
+                 year, month, day, hour, minute, second);

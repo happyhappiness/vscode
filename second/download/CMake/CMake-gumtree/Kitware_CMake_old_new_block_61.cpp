@@ -1,16 +1,22 @@
 {
-			case LZMADEC_HEADER_ERROR:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "compression library: "
-				    "invalid header");
-				break;
-			case LZMADEC_MEM_ERROR:
-				archive_set_error(&a->archive,
-				    ENOMEM,
-				    "Internal error initializing "
-				    "compression library: "
-				    "out of memory");
-				break;
-			}
+  va_list ap;
+  size_t len;
+  va_start(ap, fmt);
+
+  vsnprintf(data->state.buffer, BUFSIZE, fmt, ap);
+
+  if(data->set.errorbuffer && !data->state.errorbuf) {
+    snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer);
+    data->state.errorbuf = TRUE; /* wrote error string */
+  }
+  if(data->set.verbose) {
+    len = strlen(data->state.buffer);
+    if(len < BUFSIZE - 1) {
+      data->state.buffer[len] = '\n';
+      data->state.buffer[++len] = '\0';
+    }
+    Curl_debug(data, CURLINFO_TEXT, data->state.buffer, len, NULL);
+  }
+
+  va_end(ap);
+}

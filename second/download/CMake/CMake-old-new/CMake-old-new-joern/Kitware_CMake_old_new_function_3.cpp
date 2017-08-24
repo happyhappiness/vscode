@@ -1,43 +1,64 @@
-static CURLcode http_output_basic(struct connectdata *conn, bool proxy)
+static int
+set_xattrs(struct archive_write_disk *a)
 {
-  size_t size = 0;
-  char *authorization = NULL;
-  struct Curl_easy *data = conn->data;
-  char **userp;
-  const char *user;
-  const char *pwd;
-  CURLcode result;
+	struct archive_entry *entry = a->entry;
+	static int warning_done = 0;
+	int ret = ARCHIVE_OK;
+	int i = archive_entry_xattr_reset(entry);
 
-  if(proxy) {
-    userp = &conn->allocptr.proxyuserpwd;
-    user = conn->http_proxy.user;
-    pwd = conn->http_proxy.passwd;
-  }
-  else {
-    userp = &conn->allocptr.userpwd;
-    user = conn->user;
-    pwd = conn->passwd;
-  }
+	while (i--) {
+		const char *name;
+		const void *value;
+		size_t size;
+		archive_entry_xattr_next(entry, &name, &value, &size);
+		if (name != NULL) {
+			int e;
+			int namespace;
 
-  snprintf(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
-           "%s:%s", user, pwd);
+			if (strncmp(name, "user.", 5) == 0) {
+				/* "user." attributes go to user namespace */
+				name += 5;
+				namespace = EXTATTR_NAMESPACE_USER;
+			} else {
+				/* Warn about other extended attributes. */
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Can't restore extended attribute ``%s''",
+				    name);
+				ret = ARCHIVE_WARN;
+				continue;
+			}
+			errno = 0;
+#if HAVE_EXTATTR_SET_FD
+			if (a->fd >= 0)
+				e = extattr_set_fd(a->fd, namespace, name,
+				    value, size);
+			else
+#endif
+			/* TODO: should we use extattr_set_link() instead? */
+			{
+				e = extattr_set_file(
+				    archive_entry_pathname(entry), namespace,
+				    name, value, size);
+			}
+			if (e != (int)size) {
+				if (errno == ENOTSUP || errno == ENOSYS) {
+					if (!warning_done) {
+						warning_done = 1;
+						archive_set_error(&a->archive,
+						    errno,
+						    "Cannot restore extended "
+						    "attributes on this file "
+						    "system");
+					}
+				} else {
+					archive_set_error(&a->archive, errno,
+					    "Failed to set extended attribute");
+				}
 
-  result = Curl_base64_encode(data,
-                              data->state.buffer, strlen(data->state.buffer),
-                              &authorization, &size);
-  if(result)
-    return result;
-
-  if(!authorization)
-    return CURLE_REMOTE_ACCESS_DENIED;
-
-  free(*userp);
-  *userp = aprintf("%sAuthorization: Basic %s\r\n",
-                   proxy ? "Proxy-" : "",
-                   authorization);
-  free(authorization);
-  if(!*userp)
-    return CURLE_OUT_OF_MEMORY;
-
-  return CURLE_OK;
+				ret = ARCHIVE_WARN;
+			}
+		}
+	}
+	return (ret);
 }

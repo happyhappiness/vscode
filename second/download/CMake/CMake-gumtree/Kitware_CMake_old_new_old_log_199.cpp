@@ -1,1 +1,2 @@
-xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer);
+snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
+           entropy[0], entropy[1], entropy[2], entropy[3]);

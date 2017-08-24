@@ -1,63 +1,46 @@
-CURLcode curl_global_init(long flags)
+static CURLcode sasl_create_cram_md5_message(struct SessionHandle *data,
+                                             const char *chlg,
+                                             const char *userp,
+                                             const char *passwdp,
+                                             char **outptr, size_t *outlen)
 {
-  if(initialized++)
-    return CURLE_OK;
+  CURLcode result = CURLE_OK;
+  size_t chlglen = 0;
+  HMAC_context *ctxt;
+  unsigned char digest[MD5_DIGEST_LEN];
+  char *response;
 
-  /* Setup the default memory functions here (again) */
-  Curl_cmalloc = (curl_malloc_callback)malloc;
-  Curl_cfree = (curl_free_callback)free;
-  Curl_crealloc = (curl_realloc_callback)realloc;
-  Curl_cstrdup = (curl_strdup_callback)system_strdup;
-  Curl_ccalloc = (curl_calloc_callback)calloc;
-#if defined(WIN32) && defined(UNICODE)
-  Curl_cwcsdup = (curl_wcsdup_callback)_wcsdup;
-#endif
+  if(chlg)
+    chlglen = strlen(chlg);
 
-  if(flags & CURL_GLOBAL_SSL)
-    if(!Curl_ssl_init()) {
-      DEBUGF(fprintf(stderr, "Error: Curl_ssl_init failed\n"));
-      return CURLE_FAILED_INIT;
-    }
+  /* Compute the digest using the password as the key */
+  ctxt = Curl_HMAC_init(Curl_HMAC_MD5,
+                        (const unsigned char *) passwdp,
+                        curlx_uztoui(strlen(passwdp)));
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
 
-  if(flags & CURL_GLOBAL_WIN32)
-    if(win32_init()) {
-      DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));
-      return CURLE_FAILED_INIT;
-    }
+  /* Update the digest with the given challenge */
+  if(chlglen > 0)
+    Curl_HMAC_update(ctxt, (const unsigned char *) chlg,
+                     curlx_uztoui(chlglen));
 
-#ifdef __AMIGA__
-  if(!Curl_amiga_init()) {
-    DEBUGF(fprintf(stderr, "Error: Curl_amiga_init failed\n"));
-    return CURLE_FAILED_INIT;
-  }
-#endif
+  /* Finalise the digest */
+  Curl_HMAC_final(ctxt, digest);
 
-#ifdef NETWARE
-  if(netware_init()) {
-    DEBUGF(fprintf(stderr, "Warning: LONG namespace not available\n"));
-  }
-#endif
+  /* Generate the response */
+  response = aprintf(
+      "%s %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+           userp, digest[0], digest[1], digest[2], digest[3], digest[4],
+           digest[5], digest[6], digest[7], digest[8], digest[9], digest[10],
+           digest[11], digest[12], digest[13], digest[14], digest[15]);
+  if(!response)
+    return CURLE_OUT_OF_MEMORY;
 
-#ifdef USE_LIBIDN
-  idna_init();
-#endif
+  /* Base64 encode the response */
+  result = Curl_base64_encode(data, response, 0, outptr, outlen);
 
-  if(Curl_resolver_global_init()) {
-    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
-    return CURLE_FAILED_INIT;
-  }
+  free(response);
 
-#if defined(USE_LIBSSH2) && defined(HAVE_LIBSSH2_INIT)
-  if(libssh2_init(0)) {
-    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
-    return CURLE_FAILED_INIT;
-  }
-#endif
-
-  if(flags & CURL_GLOBAL_ACK_EINTR)
-    Curl_ack_eintr = 1;
-
-  init_flags  = flags;
-
-  return CURLE_OK;
+  return result;
 }

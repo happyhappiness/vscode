@@ -1,209 +1,262 @@
-CURLcode Curl_sasl_create_digest_http_message(struct SessionHandle *data,
-                                              const char *userp,
-                                              const char *passwdp,
-                                              const unsigned char *request,
-                                              const unsigned char *uripath,
-                                              struct digestdata *digest,
-                                              char **outptr, size_t *outlen)
+static int
+pax_attribute(struct archive_read *a, struct tar *tar,
+    struct archive_entry *entry, const char *key, const char *value)
 {
-  CURLcode result;
-  unsigned char md5buf[16]; /* 16 bytes/128 bits */
-  unsigned char request_digest[33];
-  unsigned char *md5this;
-  unsigned char ha1[33];/* 32 digits and 1 zero byte */
-  unsigned char ha2[33];/* 32 digits and 1 zero byte */
-  char cnoncebuf[33];
-  char *cnonce = NULL;
-  size_t cnonce_sz = 0;
-  char *userp_quoted;
-  char *response = NULL;
-  char *tmp = NULL;
+	int64_t s;
+	long n;
+	int err = ARCHIVE_OK, r;
 
-  if(!digest->nc)
-    digest->nc = 1;
+	if (value == NULL)
+		value = "";	/* Disable compiler warning; do not pass
+				 * NULL pointer to strlen().  */
+	switch (key[0]) {
+	case 'G':
+		/* GNU "0.0" sparse pax format. */
+		if (strcmp(key, "GNU.sparse.numblocks") == 0) {
+			tar->sparse_offset = -1;
+			tar->sparse_numbytes = -1;
+			tar->sparse_gnu_major = 0;
+			tar->sparse_gnu_minor = 0;
+		}
+		if (strcmp(key, "GNU.sparse.offset") == 0) {
+			tar->sparse_offset = tar_atol10(value, strlen(value));
+			if (tar->sparse_numbytes != -1) {
+				if (gnu_add_sparse_entry(a, tar,
+				    tar->sparse_offset, tar->sparse_numbytes)
+				    != ARCHIVE_OK)
+					return (ARCHIVE_FATAL);
+				tar->sparse_offset = -1;
+				tar->sparse_numbytes = -1;
+			}
+		}
+		if (strcmp(key, "GNU.sparse.numbytes") == 0) {
+			tar->sparse_numbytes = tar_atol10(value, strlen(value));
+			if (tar->sparse_numbytes != -1) {
+				if (gnu_add_sparse_entry(a, tar,
+				    tar->sparse_offset, tar->sparse_numbytes)
+				    != ARCHIVE_OK)
+					return (ARCHIVE_FATAL);
+				tar->sparse_offset = -1;
+				tar->sparse_numbytes = -1;
+			}
+		}
+		if (strcmp(key, "GNU.sparse.size") == 0) {
+			tar->realsize = tar_atol10(value, strlen(value));
+			archive_entry_set_size(entry, tar->realsize);
+		}
 
-  if(!digest->cnonce) {
-    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
+		/* GNU "0.1" sparse pax format. */
+		if (strcmp(key, "GNU.sparse.map") == 0) {
+			tar->sparse_gnu_major = 0;
+			tar->sparse_gnu_minor = 1;
+			if (gnu_sparse_01_parse(a, tar, value) != ARCHIVE_OK)
+				return (ARCHIVE_WARN);
+		}
 
-    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
-                                &cnonce, &cnonce_sz);
-    if(result)
-      return result;
+		/* GNU "1.0" sparse pax format */
+		if (strcmp(key, "GNU.sparse.major") == 0) {
+			tar->sparse_gnu_major = (int)tar_atol10(value, strlen(value));
+			tar->sparse_gnu_pending = 1;
+		}
+		if (strcmp(key, "GNU.sparse.minor") == 0) {
+			tar->sparse_gnu_minor = (int)tar_atol10(value, strlen(value));
+			tar->sparse_gnu_pending = 1;
+		}
+		if (strcmp(key, "GNU.sparse.name") == 0) {
+			/*
+			 * The real filename; when storing sparse
+			 * files, GNU tar puts a synthesized name into
+			 * the regular 'path' attribute in an attempt
+			 * to limit confusion. ;-)
+			 */
+			archive_strcpy(&(tar->entry_pathname_override), value);
+		}
+		if (strcmp(key, "GNU.sparse.realsize") == 0) {
+			tar->realsize = tar_atol10(value, strlen(value));
+			archive_entry_set_size(entry, tar->realsize);
+		}
+		break;
+	case 'L':
+		/* Our extensions */
+/* TODO: Handle arbitrary extended attributes... */
+/*
+		if (strcmp(key, "LIBARCHIVE.xxxxxxx") == 0)
+			archive_entry_set_xxxxxx(entry, value);
+*/
+		if (strcmp(key, "LIBARCHIVE.creationtime") == 0) {
+			pax_time(value, &s, &n);
+			archive_entry_set_birthtime(entry, s, n);
+		}
+		if (memcmp(key, "LIBARCHIVE.xattr.", 17) == 0)
+			pax_attribute_xattr(entry, key, value);
+		break;
+	case 'S':
+		/* We support some keys used by the "star" archiver */
+		if (strcmp(key, "SCHILY.acl.access") == 0) {
+			if (tar->sconv_acl == NULL) {
+				tar->sconv_acl =
+				    archive_string_conversion_from_charset(
+					&(a->archive), "UTF-8", 1);
+				if (tar->sconv_acl == NULL)
+					return (ARCHIVE_FATAL);
+			}
 
-    digest->cnonce = cnonce;
-  }
+			r = archive_acl_parse_l(archive_entry_acl(entry),
+			    value, ARCHIVE_ENTRY_ACL_TYPE_ACCESS,
+			    tar->sconv_acl);
+			if (r != ARCHIVE_OK) {
+				err = r;
+				if (err == ARCHIVE_FATAL) {
+					archive_set_error(&a->archive, ENOMEM,
+					    "Can't allocate memory for "
+					    "SCHILY.acl.access");
+					return (err);
+				}
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Parse error: SCHILY.acl.access");
+			}
+		} else if (strcmp(key, "SCHILY.acl.default") == 0) {
+			if (tar->sconv_acl == NULL) {
+				tar->sconv_acl =
+				    archive_string_conversion_from_charset(
+					&(a->archive), "UTF-8", 1);
+				if (tar->sconv_acl == NULL)
+					return (ARCHIVE_FATAL);
+			}
 
-  /*
-    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
-
-    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
-
-    if the algorithm is "MD5-sess" then:
-
-    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
-         ":" unq(nonce-value) ":" unq(cnonce-value)
-  */
-
-  md5this = (unsigned char *)
-    aprintf("%s:%s:%s", userp, digest->realm, passwdp);
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, ha1);
-
-  if(digest->algo == CURLDIGESTALGO_MD5SESS) {
-    /* nonce and cnonce are OUTSIDE the hash */
-    tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
-    Curl_md5it(md5buf, (unsigned char *)tmp);
-    free(tmp);
-    sasl_digest_md5_to_ascii(md5buf, ha1);
-  }
-
-  /*
-    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
-
-      A2       = Method ":" digest-uri-value
-
-          If the "qop" value is "auth-int", then A2 is:
-
-      A2       = Method ":" digest-uri-value ":" H(entity-body)
-
-    (The "Method" value is the HTTP request method as specified in section
-    5.1.1 of RFC 2616)
-  */
-
-  md5this = (unsigned char *)aprintf("%s:%s", request, uripath);
-
-  if(digest->qop && Curl_raw_equal(digest->qop, "auth-int")) {
-    /* We don't support auth-int for PUT or POST at the moment.
-       TODO: replace md5 of empty string with entity-body for PUT/POST */
-    unsigned char *md5this2 = (unsigned char *)
-      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
-    free(md5this);
-    md5this = md5this2;
-  }
-
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, ha2);
-
-  if(digest->qop) {
-    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       digest->nc,
-                                       digest->cnonce,
-                                       digest->qop,
-                                       ha2);
-  }
-  else {
-    md5this = (unsigned char *)aprintf("%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       ha2);
-  }
-
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, request_digest);
-
-  /* for test case 64 (snooped from a Mozilla 1.3a request)
-
-    Authorization: Digest username="testuser", realm="testrealm", \
-    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
-
-    Digest parameters are all quoted strings.  Username which is provided by
-    the user will need double quotes and backslashes within it escaped.  For
-    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
-    are copied as is from the server, escapes and all.  cnonce is generated
-    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
-    characters.  algorithm and qop with standard values only contain web-safe
-    chracters.
-  */
-  userp_quoted = sasl_digest_string_quoted(userp);
-  if(!userp_quoted)
-    return CURLE_OUT_OF_MEMORY;
-
-  if(digest->qop) {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "cnonce=\"%s\", "
-                       "nc=%08x, "
-                       "qop=%s, "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       digest->cnonce,
-                       digest->nc,
-                       digest->qop,
-                       request_digest);
-
-    if(Curl_raw_equal(digest->qop, "auth"))
-      digest->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0
-                       padded which tells to the server how many times you are
-                       using the same nonce in the qop=auth mode */
-  }
-  else {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       request_digest);
-  }
-  free(userp_quoted);
-  if(!response)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Add the optional fields */
-  if(digest->opaque) {
-    /* Append the opaque */
-    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    response = tmp;
-  }
-
-  if(digest->algorithm) {
-    /* Append the algorithm */
-    tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    response = tmp;
-  }
-
-  /* Return the output */
-  *outptr = response;
-  *outlen = strlen(response);
-
-  return CURLE_OK;
+			r = archive_acl_parse_l(archive_entry_acl(entry),
+			    value, ARCHIVE_ENTRY_ACL_TYPE_DEFAULT,
+			    tar->sconv_acl);
+			if (r != ARCHIVE_OK) {
+				err = r;
+				if (err == ARCHIVE_FATAL) {
+					archive_set_error(&a->archive, ENOMEM,
+					    "Can't allocate memory for "
+					    "SCHILY.acl.default");
+					return (err);
+				}
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Parse error: SCHILY.acl.default");
+			}
+		} else if (strcmp(key, "SCHILY.devmajor") == 0) {
+			archive_entry_set_rdevmajor(entry,
+			    (dev_t)tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "SCHILY.devminor") == 0) {
+			archive_entry_set_rdevminor(entry,
+			    (dev_t)tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "SCHILY.fflags") == 0) {
+			archive_entry_copy_fflags_text(entry, value);
+		} else if (strcmp(key, "SCHILY.dev") == 0) {
+			archive_entry_set_dev(entry,
+			    (dev_t)tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "SCHILY.ino") == 0) {
+			archive_entry_set_ino(entry,
+			    tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "SCHILY.nlink") == 0) {
+			archive_entry_set_nlink(entry, (unsigned)
+			    tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "SCHILY.realsize") == 0) {
+			tar->realsize = tar_atol10(value, strlen(value));
+			archive_entry_set_size(entry, tar->realsize);
+		} else if (strcmp(key, "SUN.holesdata") == 0) {
+			/* A Solaris extension for sparse. */
+			r = solaris_sparse_parse(a, tar, entry, value);
+			if (r < err) {
+				if (r == ARCHIVE_FATAL)
+					return (r);
+				err = r;
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Parse error: SUN.holesdata");
+			}
+		}
+		break;
+	case 'a':
+		if (strcmp(key, "atime") == 0) {
+			pax_time(value, &s, &n);
+			archive_entry_set_atime(entry, s, n);
+		}
+		break;
+	case 'c':
+		if (strcmp(key, "ctime") == 0) {
+			pax_time(value, &s, &n);
+			archive_entry_set_ctime(entry, s, n);
+		} else if (strcmp(key, "charset") == 0) {
+			/* TODO: Publish charset information in entry. */
+		} else if (strcmp(key, "comment") == 0) {
+			/* TODO: Publish comment in entry. */
+		}
+		break;
+	case 'g':
+		if (strcmp(key, "gid") == 0) {
+			archive_entry_set_gid(entry,
+			    tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "gname") == 0) {
+			archive_strcpy(&(tar->entry_gname), value);
+		}
+		break;
+	case 'h':
+		if (strcmp(key, "hdrcharset") == 0) {
+			if (strcmp(value, "BINARY") == 0)
+				/* Binary  mode. */
+				tar->pax_hdrcharset_binary = 1;
+			else if (strcmp(value, "ISO-IR 10646 2000 UTF-8") == 0)
+				tar->pax_hdrcharset_binary = 0;
+		}
+		break;
+	case 'l':
+		/* pax interchange doesn't distinguish hardlink vs. symlink. */
+		if (strcmp(key, "linkpath") == 0) {
+			archive_strcpy(&(tar->entry_linkpath), value);
+		}
+		break;
+	case 'm':
+		if (strcmp(key, "mtime") == 0) {
+			pax_time(value, &s, &n);
+			archive_entry_set_mtime(entry, s, n);
+		}
+		break;
+	case 'p':
+		if (strcmp(key, "path") == 0) {
+			archive_strcpy(&(tar->entry_pathname), value);
+		}
+		break;
+	case 'r':
+		/* POSIX has reserved 'realtime.*' */
+		break;
+	case 's':
+		/* POSIX has reserved 'security.*' */
+		/* Someday: if (strcmp(key, "security.acl") == 0) { ... } */
+		if (strcmp(key, "size") == 0) {
+			/* "size" is the size of the data in the entry. */
+			tar->entry_bytes_remaining
+			    = tar_atol10(value, strlen(value));
+			/*
+			 * But, "size" is not necessarily the size of
+			 * the file on disk; if this is a sparse file,
+			 * the disk size may have already been set from
+			 * GNU.sparse.realsize or GNU.sparse.size or
+			 * an old GNU header field or SCHILY.realsize
+			 * or ....
+			 */
+			if (tar->realsize < 0) {
+				archive_entry_set_size(entry,
+				    tar->entry_bytes_remaining);
+				tar->realsize
+				    = tar->entry_bytes_remaining;
+			}
+		}
+		break;
+	case 'u':
+		if (strcmp(key, "uid") == 0) {
+			archive_entry_set_uid(entry,
+			    tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "uname") == 0) {
+			archive_strcpy(&(tar->entry_uname), value);
+		}
+		break;
+	}
+	return (err);
 }

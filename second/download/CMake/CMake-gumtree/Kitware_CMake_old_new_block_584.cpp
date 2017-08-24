@@ -1,37 +1,46 @@
 {
-			case 'b':
-				if (strcmp(val, "block") == 0) {
-					archive_entry_set_filetype(entry, AE_IFBLK);
-					break;
-				}
-			case 'c':
-				if (strcmp(val, "char") == 0) {
-					archive_entry_set_filetype(entry, AE_IFCHR);
-					break;
-				}
-			case 'd':
-				if (strcmp(val, "dir") == 0) {
-					archive_entry_set_filetype(entry, AE_IFDIR);
-					break;
-				}
-			case 'f':
-				if (strcmp(val, "fifo") == 0) {
-					archive_entry_set_filetype(entry, AE_IFIFO);
-					break;
-				}
-				if (strcmp(val, "file") == 0) {
-					archive_entry_set_filetype(entry, AE_IFREG);
-					break;
-				}
-			case 'l':
-				if (strcmp(val, "link") == 0) {
-					archive_entry_set_filetype(entry, AE_IFLNK);
-					break;
-				}
-			default:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Unrecognized file type \"%s\"; assuming \"file\"", val);
-				archive_entry_set_filetype(entry, AE_IFREG);
-				return (ARCHIVE_WARN);
-			}
+        HKEY hKey;
+        #define BUFSIZE 80
+        char szProductType[BUFSIZE];
+        DWORD dwBufLen=BUFSIZE;
+        LONG lRet;
+
+        lRet = RegOpenKeyEx(
+          HKEY_LOCAL_MACHINE,
+          "SYSTEM\\CurrentControlSet\\Control\\ProductOptions",
+          0, KEY_QUERY_VALUE, &hKey);
+        if (lRet != ERROR_SUCCESS)
+          {
+          return 0;
+          }
+
+        lRet = RegQueryValueEx(hKey, "ProductType", NULL, NULL,
+                               (LPBYTE) szProductType, &dwBufLen);
+
+        if ((lRet != ERROR_SUCCESS) || (dwBufLen > BUFSIZE))
+          {
+          return 0;
+          }
+
+        RegCloseKey(hKey);
+
+        if (lstrcmpi("WINNT", szProductType) == 0)
+          {
+          res += " Workstation";
+          }
+        if (lstrcmpi("LANMANNT", szProductType) == 0)
+          {
+          res += " Server";
+          }
+        if (lstrcmpi("SERVERNT", szProductType) == 0)
+          {
+          res += " Advanced Server";
+          }
+
+        res += " ";
+        sprintf(buffer, "%d", osvi.dwMajorVersion);
+        res += buffer;
+        res += ".";
+        sprintf(buffer, "%d", osvi.dwMinorVersion);
+        res += buffer;
+        }

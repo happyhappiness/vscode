@@ -1,4 +1,5 @@
 {
-    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
-    return CURLE_FAILED_INIT;
-  }
+          sprintf(argvName,"${ARGV%i}",t);
+          cmSystemTools::ReplaceString(tmps, argvName,
+                                       expandedArgs[t].c_str());
+          }

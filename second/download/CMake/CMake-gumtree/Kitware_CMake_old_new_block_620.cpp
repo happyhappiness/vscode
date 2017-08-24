@@ -1,4 +1,1 @@
-{
-      DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));
-      return CURLE_FAILED_INIT;
-    }
+yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" )

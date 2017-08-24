@@ -1,95 +1,36 @@
-static int
-cleanup_pathname(struct archive_write_disk *a)
+static CURLcode ftp_state_size_resp(struct connectdata *conn,
+                                    int ftpcode,
+                                    ftpstate instate)
 {
-	char *dest, *src;
-	char separator = '\0';
+  CURLcode result = CURLE_OK;
+  struct Curl_easy *data=conn->data;
+  curl_off_t filesize;
+  char *buf = data->state.buffer;
 
-	dest = src = a->name;
-	if (*src == '\0') {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Invalid empty pathname");
-		return (ARCHIVE_FAILED);
-	}
+  /* get the size from the ascii string: */
+  filesize = (ftpcode == 213)?curlx_strtoofft(buf+4, NULL, 0):-1;
 
-#if defined(__CYGWIN__)
-	cleanup_pathname_win(a);
+  if(instate == FTP_SIZE) {
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
+    if(-1 != filesize) {
+      snprintf(buf, sizeof(data->state.buffer),
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);
+      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+      if(result)
+        return result;
+    }
 #endif
-	/* Skip leading '/'. */
-	if (*src == '/') {
-		if (a->flags & ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			                  "Path is absolute");
-			return (ARCHIVE_FAILED);
-		}
+    Curl_pgrsSetDownloadSize(data, filesize);
+    result = ftp_state_rest(conn);
+  }
+  else if(instate == FTP_RETR_SIZE) {
+    Curl_pgrsSetDownloadSize(data, filesize);
+    result = ftp_state_retr(conn, filesize);
+  }
+  else if(instate == FTP_STOR_SIZE) {
+    data->state.resume_from = filesize;
+    result = ftp_state_ul_setup(conn, TRUE);
+  }
 
-		separator = *src++;
-	}
-
-	/* Scan the pathname one element at a time. */
-	for (;;) {
-		/* src points to first char after '/' */
-		if (src[0] == '\0') {
-			break;
-		} else if (src[0] == '/') {
-			/* Found '//', ignore second one. */
-			src++;
-			continue;
-		} else if (src[0] == '.') {
-			if (src[1] == '\0') {
-				/* Ignore trailing '.' */
-				break;
-			} else if (src[1] == '/') {
-				/* Skip './'. */
-				src += 2;
-				continue;
-			} else if (src[1] == '.') {
-				if (src[2] == '/' || src[2] == '\0') {
-					/* Conditionally warn about '..' */
-					if (a->flags & ARCHIVE_EXTRACT_SECURE_NODOTDOT) {
-						archive_set_error(&a->archive,
-						    ARCHIVE_ERRNO_MISC,
-						    "Path contains '..'");
-						return (ARCHIVE_FAILED);
-					}
-				}
-				/*
-				 * Note: Under no circumstances do we
-				 * remove '..' elements.  In
-				 * particular, restoring
-				 * '/foo/../bar/' should create the
-				 * 'foo' dir as a side-effect.
-				 */
-			}
-		}
-
-		/* Copy current element, including leading '/'. */
-		if (separator)
-			*dest++ = '/';
-		while (*src != '\0' && *src != '/') {
-			*dest++ = *src++;
-		}
-
-		if (*src == '\0')
-			break;
-
-		/* Skip '/' separator. */
-		separator = *src++;
-	}
-	/*
-	 * We've just copied zero or more path elements, not including the
-	 * final '/'.
-	 */
-	if (dest == a->name) {
-		/*
-		 * Nothing got copied.  The path must have been something
-		 * like '.' or '/' or './' or '/././././/./'.
-		 */
-		if (separator)
-			*dest++ = '/';
-		else
-			*dest++ = '.';
-	}
-	/* Terminate the result. */
-	*dest = '\0';
-	return (ARCHIVE_OK);
+  return result;
 }

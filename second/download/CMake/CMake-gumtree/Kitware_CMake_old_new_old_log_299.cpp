@@ -1,2 +1,3 @@
-fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
-      cSymbols);
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Unrecognized file type \"%s\"; assuming \"file\"", val);

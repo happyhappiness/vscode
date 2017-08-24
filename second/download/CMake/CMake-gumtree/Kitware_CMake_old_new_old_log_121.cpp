@@ -1,1 +1,2 @@
-DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));

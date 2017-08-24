@@ -1,1 +1,2 @@
-fprintf(fout," hc: %s \n",sectionCharacter.c_str());
+sprintf(output,"%s/%s_force_%i", this->Makefile->GetCurrentBinaryDirectory(),
+          target.GetName().c_str(), count);

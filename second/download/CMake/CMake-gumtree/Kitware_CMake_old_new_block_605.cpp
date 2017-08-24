@@ -1,6 +1,1 @@
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 0.\n");
-  fprintf(stderr, "Output on stderr from test returning 0.\n");
-  return 0;
-}
+conn->allocptr.ref = aprintf("Referer: %s\015\012", data->change.referer)

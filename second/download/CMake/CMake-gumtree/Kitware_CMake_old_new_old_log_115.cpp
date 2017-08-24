@@ -1,1 +1,2 @@
-snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);
+archive_set_error(&a->archive, errno,
+				    "Couldn't change dir");

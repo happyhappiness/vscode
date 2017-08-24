@@ -1,5 +1,7 @@
 {
-				archive_set_error(&a->archive, errno,
-				    "Can't unlink already-existing object");
-				return (ARCHIVE_FAILED);
-			}
+			archive_set_error(&a->archive, GetLastError(),
+			    "Can't GetFileInformationByHandle");
+			if (h != INVALID_HANDLE_VALUE && fd < 0)
+				CloseHandle(h);
+			return (ARCHIVE_FAILED);
+		}

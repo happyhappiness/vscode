@@ -1,0 +1,1 @@
+snprintf(username, sizeof(username), "%d", (int)uid);

@@ -1,1 +1,1 @@
-snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str)
+yy_fatal_error( "cmFortran_yyset_column called with no buffer" , yyscanner)

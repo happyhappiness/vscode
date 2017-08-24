@@ -1,3 +1,1 @@
-fsobj_error(a_eno, a_estr, 0,
-					    "Cannot remove intervening "
-					    "symlink %s", path);
+sprintf(cp->ProcessResults[idx].ExitExceptionString, "Signal %d", sig);

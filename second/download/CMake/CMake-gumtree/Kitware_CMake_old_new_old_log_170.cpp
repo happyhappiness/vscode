@@ -1,1 +1,1 @@
-tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
+snprintf((char *)&dest[i*2], 3, "%02x", source[i]);

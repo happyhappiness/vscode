@@ -1,7 +1,2 @@
-md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       digest->nc,
-                                       digest->cnonce,
-                                       digest->qop,
-                                       ha2);
+archive_string_sprintf(&w->sver,
+			"WARC/%u.%u", ver / 10000, ver % 10000);

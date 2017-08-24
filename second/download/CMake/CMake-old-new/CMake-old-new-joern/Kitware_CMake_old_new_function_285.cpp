@@ -1,279 +1,224 @@
-CURLcode Curl_output_digest(struct connectdata *conn,
-                            bool proxy,
-                            const unsigned char *request,
-                            const unsigned char *uripath)
+static int
+parse_file(struct archive_read *a, struct archive_entry *entry,
+    struct mtree *mtree, struct mtree_entry *mentry, int *use_next)
 {
-  /* We have a Digest setup for this, use it!  Now, to get all the details for
-     this sorted out, I must urge you dear friend to read up on the RFC2617
-     section 3.2.2, */
-  size_t urilen;
-  unsigned char md5buf[16]; /* 16 bytes/128 bits */
-  unsigned char request_digest[33];
-  unsigned char *md5this;
-  unsigned char ha1[33];/* 32 digits and 1 zero byte */
-  unsigned char ha2[33];/* 32 digits and 1 zero byte */
-  char cnoncebuf[33];
-  char *cnonce = NULL;
-  size_t cnonce_sz = 0;
-  char *tmp = NULL;
-  char **allocuserpwd;
-  size_t userlen;
-  const char *userp;
-  char *userp_quoted;
-  const char *passwdp;
-  struct auth *authp;
+	const char *path;
+	struct stat st_storage, *st;
+	struct mtree_entry *mp;
+	struct archive_entry *sparse_entry;
+	int r = ARCHIVE_OK, r1, parsed_kws;
 
-  struct SessionHandle *data = conn->data;
-  struct digestdata *d;
-  CURLcode rc;
-/* The CURL_OUTPUT_DIGEST_CONV macro below is for non-ASCII machines.
-   It converts digest text to ASCII so the MD5 will be correct for
-   what ultimately goes over the network.
-*/
-#define CURL_OUTPUT_DIGEST_CONV(a, b) \
-  rc = Curl_convert_to_network(a, (char *)b, strlen((const char*)b)); \
-  if(rc != CURLE_OK) { \
-    free(b); \
-    return rc; \
-  }
+	mentry->used = 1;
 
-  if(proxy) {
-    d = &data->state.proxydigest;
-    allocuserpwd = &conn->allocptr.proxyuserpwd;
-    userp = conn->proxyuser;
-    passwdp = conn->proxypasswd;
-    authp = &data->state.authproxy;
-  }
-  else {
-    d = &data->state.digest;
-    allocuserpwd = &conn->allocptr.userpwd;
-    userp = conn->user;
-    passwdp = conn->passwd;
-    authp = &data->state.authhost;
-  }
+	/* Initialize reasonable defaults. */
+	archive_entry_set_filetype(entry, AE_IFREG);
+	archive_entry_set_size(entry, 0);
+	archive_string_empty(&mtree->contents_name);
 
-  Curl_safefree(*allocuserpwd);
+	/* Parse options from this line. */
+	parsed_kws = 0;
+	r = parse_line(a, entry, mtree, mentry, &parsed_kws);
 
-  /* not set means empty */
-  if(!userp)
-    userp="";
+	if (mentry->full) {
+		archive_entry_copy_pathname(entry, mentry->name);
+		/*
+		 * "Full" entries are allowed to have multiple lines
+		 * and those lines aren't required to be adjacent.  We
+		 * don't support multiple lines for "relative" entries
+		 * nor do we make any attempt to merge data from
+		 * separate "relative" and "full" entries.  (Merging
+		 * "relative" and "full" entries would require dealing
+		 * with pathname canonicalization, which is a very
+		 * tricky subject.)
+		 */
+		for (mp = mentry->next; mp != NULL; mp = mp->next) {
+			if (mp->full && !mp->used
+			    && strcmp(mentry->name, mp->name) == 0) {
+				/* Later lines override earlier ones. */
+				mp->used = 1;
+				r1 = parse_line(a, entry, mtree, mp,
+				    &parsed_kws);
+				if (r1 < r)
+					r = r1;
+			}
+		}
+	} else {
+		/*
+		 * Relative entries require us to construct
+		 * the full path and possibly update the
+		 * current directory.
+		 */
+		size_t n = archive_strlen(&mtree->current_dir);
+		if (n > 0)
+			archive_strcat(&mtree->current_dir, "/");
+		archive_strcat(&mtree->current_dir, mentry->name);
+		archive_entry_copy_pathname(entry, mtree->current_dir.s);
+		if (archive_entry_filetype(entry) != AE_IFDIR)
+			mtree->current_dir.length = n;
+	}
 
-  if(!passwdp)
-    passwdp="";
+	if (mtree->checkfs) {
+		/*
+		 * Try to open and stat the file to get the real size
+		 * and other file info.  It would be nice to avoid
+		 * this here so that getting a listing of an mtree
+		 * wouldn't require opening every referenced contents
+		 * file.  But then we wouldn't know the actual
+		 * contents size, so I don't see a really viable way
+		 * around this.  (Also, we may want to someday pull
+		 * other unspecified info from the contents file on
+		 * disk.)
+		 */
+		mtree->fd = -1;
+		if (archive_strlen(&mtree->contents_name) > 0)
+			path = mtree->contents_name.s;
+		else
+			path = archive_entry_pathname(entry);
 
-  if(!d->nonce) {
-    authp->done = FALSE;
-    return CURLE_OK;
-  }
-  authp->done = TRUE;
+		if (archive_entry_filetype(entry) == AE_IFREG ||
+				archive_entry_filetype(entry) == AE_IFDIR) {
+			mtree->fd = open(path, O_RDONLY | O_BINARY | O_CLOEXEC);
+			__archive_ensure_cloexec_flag(mtree->fd);
+			if (mtree->fd == -1 &&
+					(errno != ENOENT ||
+					 archive_strlen(&mtree->contents_name) > 0)) {
+				archive_set_error(&a->archive, errno,
+						"Can't open %s", path);
+				r = ARCHIVE_WARN;
+			}
+		}
 
-  if(!d->nc)
-    d->nc = 1;
+		st = &st_storage;
+		if (mtree->fd >= 0) {
+			if (fstat(mtree->fd, st) == -1) {
+				archive_set_error(&a->archive, errno,
+						"Could not fstat %s", path);
+				r = ARCHIVE_WARN;
+				/* If we can't stat it, don't keep it open. */
+				close(mtree->fd);
+				mtree->fd = -1;
+				st = NULL;
+			}
+		} else if (lstat(path, st) == -1) {
+			st = NULL;
+		}
 
-  if(!d->cnonce) {
-    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
-    rc = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
-                            &cnonce, &cnonce_sz);
-    if(rc)
-      return rc;
-    d->cnonce = cnonce;
-  }
+		/*
+		 * Check for a mismatch between the type in the specification and
+		 * the type of the contents object on disk.
+		 */
+		if (st != NULL) {
+			if (
+					((st->st_mode & S_IFMT) == S_IFREG &&
+					 archive_entry_filetype(entry) == AE_IFREG)
+#ifdef S_IFLNK
+					|| ((st->st_mode & S_IFMT) == S_IFLNK &&
+						archive_entry_filetype(entry) == AE_IFLNK)
+#endif
+#ifdef S_IFSOCK
+					|| ((st->st_mode & S_IFSOCK) == S_IFSOCK &&
+						archive_entry_filetype(entry) == AE_IFSOCK)
+#endif
+#ifdef S_IFCHR
+					|| ((st->st_mode & S_IFMT) == S_IFCHR &&
+						archive_entry_filetype(entry) == AE_IFCHR)
+#endif
+#ifdef S_IFBLK
+					|| ((st->st_mode & S_IFMT) == S_IFBLK &&
+						archive_entry_filetype(entry) == AE_IFBLK)
+#endif
+					|| ((st->st_mode & S_IFMT) == S_IFDIR &&
+						archive_entry_filetype(entry) == AE_IFDIR)
+#ifdef S_IFIFO
+					|| ((st->st_mode & S_IFMT) == S_IFIFO &&
+							archive_entry_filetype(entry) == AE_IFIFO)
+#endif
+					) {
+						/* Types match. */
+					} else {
+						/* Types don't match; bail out gracefully. */
+						if (mtree->fd >= 0)
+							close(mtree->fd);
+						mtree->fd = -1;
+						if (parsed_kws & MTREE_HAS_OPTIONAL) {
+							/* It's not an error for an optional entry
+							   to not match disk. */
+							*use_next = 1;
+						} else if (r == ARCHIVE_OK) {
+							archive_set_error(&a->archive,
+									ARCHIVE_ERRNO_MISC,
+									"mtree specification has different type for %s",
+									archive_entry_pathname(entry));
+							r = ARCHIVE_WARN;
+						}
+						return r;
+					}
+		}
 
-  /*
-    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
+		/*
+		 * If there is a contents file on disk, pick some of the metadata
+		 * from that file.  For most of these, we only set it from the contents
+		 * if it wasn't already parsed from the specification.
+		 */
+		if (st != NULL) {
+			if (((parsed_kws & MTREE_HAS_DEVICE) == 0 ||
+						(parsed_kws & MTREE_HAS_NOCHANGE) != 0) &&
+					(archive_entry_filetype(entry) == AE_IFCHR ||
+					 archive_entry_filetype(entry) == AE_IFBLK))
+				archive_entry_set_rdev(entry, st->st_rdev);
+			if ((parsed_kws & (MTREE_HAS_GID | MTREE_HAS_GNAME)) == 0 ||
+					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
+				archive_entry_set_gid(entry, st->st_gid);
+			if ((parsed_kws & (MTREE_HAS_UID | MTREE_HAS_UNAME)) == 0 ||
+					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
+				archive_entry_set_uid(entry, st->st_uid);
+			if ((parsed_kws & MTREE_HAS_MTIME) == 0 ||
+					(parsed_kws & MTREE_HAS_NOCHANGE) != 0) {
+#if HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
+				archive_entry_set_mtime(entry, st->st_mtime,
+						st->st_mtimespec.tv_nsec);
+#elif HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC
+				archive_entry_set_mtime(entry, st->st_mtime,
+						st->st_mtim.tv_nsec);
+#elif HAVE_STRUCT_STAT_ST_MTIME_N
+				archive_entry_set_mtime(entry, st->st_mtime,
+						st->st_mtime_n);
+#elif HAVE_STRUCT_STAT_ST_UMTIME
+				archive_entry_set_mtime(entry, st->st_mtime,
+						st->st_umtime*1000);
+#elif HAVE_STRUCT_STAT_ST_MTIME_USEC
+				archive_entry_set_mtime(entry, st->st_mtime,
+						st->st_mtime_usec*1000);
+#else
+				archive_entry_set_mtime(entry, st->st_mtime, 0);
+#endif
+			}
+			if ((parsed_kws & MTREE_HAS_NLINK) == 0 ||
+					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
+				archive_entry_set_nlink(entry, st->st_nlink);
+			if ((parsed_kws & MTREE_HAS_PERM) == 0 ||
+					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
+				archive_entry_set_perm(entry, st->st_mode);
+			if ((parsed_kws & MTREE_HAS_SIZE) == 0 ||
+					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
+				archive_entry_set_size(entry, st->st_size);
+			archive_entry_set_ino(entry, st->st_ino);
+			archive_entry_set_dev(entry, st->st_dev);
 
-    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
+			archive_entry_linkify(mtree->resolver, &entry, &sparse_entry);
+		} else if (parsed_kws & MTREE_HAS_OPTIONAL) {
+			/*
+			 * Couldn't open the entry, stat it or the on-disk type
+			 * didn't match.  If this entry is optional, just ignore it
+			 * and read the next header entry.
+			 */
+			*use_next = 1;
+			return ARCHIVE_OK;
+		}
+	}
 
-    if the algorithm is "MD5-sess" then:
+	mtree->cur_size = archive_entry_size(entry);
+	mtree->offset = 0;
 
-    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
-         ":" unq(nonce-value) ":" unq(cnonce-value)
-  */
-
-  md5this = (unsigned char *)
-    aprintf("%s:%s:%s", userp, d->realm, passwdp);
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  Curl_safefree(md5this);
-  md5_to_ascii(md5buf, ha1);
-
-  if(d->algo == CURLDIGESTALGO_MD5SESS) {
-    /* nonce and cnonce are OUTSIDE the hash */
-    tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
-    Curl_md5it(md5buf, (unsigned char *)tmp);
-    Curl_safefree(tmp);
-    md5_to_ascii(md5buf, ha1);
-  }
-
-  /*
-    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
-
-      A2       = Method ":" digest-uri-value
-
-          If the "qop" value is "auth-int", then A2 is:
-
-      A2       = Method ":" digest-uri-value ":" H(entity-body)
-
-    (The "Method" value is the HTTP request method as specified in section
-    5.1.1 of RFC 2616)
-  */
-
-  /* So IE browsers < v7 cut off the URI part at the query part when they
-     evaluate the MD5 and some (IIS?) servers work with them so we may need to
-     do the Digest IE-style. Note that the different ways cause different MD5
-     sums to get sent.
-
-     Apache servers can be set to do the Digest IE-style automatically using
-     the BrowserMatch feature:
-     http://httpd.apache.org/docs/2.2/mod/mod_auth_digest.html#msie
-
-     Further details on Digest implementation differences:
-     http://www.fngtps.com/2006/09/http-authentication
-  */
-
-  if(authp->iestyle && ((tmp = strchr((char *)uripath, '?')) != NULL))
-    urilen = tmp - (char *)uripath;
-  else
-    urilen = strlen((char *)uripath);
-
-  md5this = (unsigned char *)aprintf("%s:%.*s", request, urilen, uripath);
-
-  if(d->qop && Curl_raw_equal(d->qop, "auth-int")) {
-    /* We don't support auth-int for PUT or POST at the moment.
-       TODO: replace md5 of empty string with entity-body for PUT/POST */
-    unsigned char *md5this2 = (unsigned char *)
-      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
-    Curl_safefree(md5this);
-    md5this = md5this2;
-  }
-
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  Curl_safefree(md5this);
-  md5_to_ascii(md5buf, ha2);
-
-  if(d->qop) {
-    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
-                                       ha1,
-                                       d->nonce,
-                                       d->nc,
-                                       d->cnonce,
-                                       d->qop,
-                                       ha2);
-  }
-  else {
-    md5this = (unsigned char *)aprintf("%s:%s:%s",
-                                       ha1,
-                                       d->nonce,
-                                       ha2);
-  }
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  Curl_safefree(md5this);
-  md5_to_ascii(md5buf, request_digest);
-
-  /* for test case 64 (snooped from a Mozilla 1.3a request)
-
-    Authorization: Digest username="testuser", realm="testrealm", \
-    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
-
-    Digest parameters are all quoted strings.  Username which is provided by
-    the user will need double quotes and backslashes within it escaped.  For
-    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
-    are copied as is from the server, escapes and all.  cnonce is generated
-    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
-    characters.  algorithm and qop with standard values only contain web-safe
-    chracters.
-  */
-  userp_quoted = string_quoted(userp);
-  if(!userp_quoted)
-    return CURLE_OUT_OF_MEMORY;
-
-  if(d->qop) {
-    *allocuserpwd =
-      aprintf( "%sAuthorization: Digest "
-               "username=\"%s\", "
-               "realm=\"%s\", "
-               "nonce=\"%s\", "
-               "uri=\"%.*s\", "
-               "cnonce=\"%s\", "
-               "nc=%08x, "
-               "qop=%s, "
-               "response=\"%s\"",
-               proxy?"Proxy-":"",
-               userp_quoted,
-               d->realm,
-               d->nonce,
-               urilen, uripath, /* this is the PATH part of the URL */
-               d->cnonce,
-               d->nc,
-               d->qop,
-               request_digest);
-
-    if(Curl_raw_equal(d->qop, "auth"))
-      d->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0 padded
-                  which tells to the server how many times you are using the
-                  same nonce in the qop=auth mode. */
-  }
-  else {
-    *allocuserpwd =
-      aprintf( "%sAuthorization: Digest "
-               "username=\"%s\", "
-               "realm=\"%s\", "
-               "nonce=\"%s\", "
-               "uri=\"%.*s\", "
-               "response=\"%s\"",
-               proxy?"Proxy-":"",
-               userp_quoted,
-               d->realm,
-               d->nonce,
-               urilen, uripath, /* this is the PATH part of the URL */
-               request_digest);
-  }
-  Curl_safefree(userp_quoted);
-  if(!*allocuserpwd)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Add optional fields */
-  if(d->opaque) {
-    /* append opaque */
-    tmp = aprintf("%s, opaque=\"%s\"", *allocuserpwd, d->opaque);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-    free(*allocuserpwd);
-    *allocuserpwd = tmp;
-  }
-
-  if(d->algorithm) {
-    /* append algorithm */
-    tmp = aprintf("%s, algorithm=\"%s\"", *allocuserpwd, d->algorithm);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-    free(*allocuserpwd);
-    *allocuserpwd = tmp;
-  }
-
-  /* append CRLF + zero (3 bytes) to the userpwd header */
-  userlen = strlen(*allocuserpwd);
-  tmp = realloc(*allocuserpwd, userlen + 3);
-  if(!tmp)
-    return CURLE_OUT_OF_MEMORY;
-  strcpy(&tmp[userlen], "\r\n"); /* append the data */
-  *allocuserpwd = tmp;
-
-  return CURLE_OK;
+	return r;
 }

@@ -1,4 +1,1 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Unrecognized file type \"%s\"; "
-				    "assuming \"file\"", val);
+YY_FATAL_ERROR( "cmListFileLexer_yyset_column called with no buffer" );

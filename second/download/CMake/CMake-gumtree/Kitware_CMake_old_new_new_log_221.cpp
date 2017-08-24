@@ -1,1 +1,1 @@
-archive_wstrcat(&s, wp);
+snprintf(buf, sizeof(buf), "%d", state->requested_blksize);

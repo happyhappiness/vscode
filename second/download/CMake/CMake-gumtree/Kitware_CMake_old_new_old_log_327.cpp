@@ -1,1 +1,1 @@
-fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
+snprintf((char *)&dest[i*2], 3, "%02x", source[i]);

@@ -1,1 +1,1 @@
-snprintf((char *)&dest[i*2], 3, "%02x", source[i]);
+tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);

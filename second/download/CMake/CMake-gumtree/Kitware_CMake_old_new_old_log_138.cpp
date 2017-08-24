@@ -1,1 +1,3 @@
-("%s:%s";
+archive_set_error(
+			&a->archive, ARCHIVE_ERRNO_MISC,
+			"Unsupported record version");

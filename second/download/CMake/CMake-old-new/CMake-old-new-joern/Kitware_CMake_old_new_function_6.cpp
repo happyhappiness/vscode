@@ -1,159 +1,95 @@
-CURLcode Curl_auth_create_digest_md5_message(struct Curl_easy *data,
-                                             const char *chlg64,
-                                             const char *userp,
-                                             const char *passwdp,
-                                             const char *service,
-                                             char **outptr, size_t *outlen)
+static int
+setup_mac_metadata(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-  CURLcode result = CURLE_OK;
-  size_t i;
-  MD5_context *ctxt;
-  char *response = NULL;
-  unsigned char digest[MD5_DIGEST_LEN];
-  char HA1_hex[2 * MD5_DIGEST_LEN + 1];
-  char HA2_hex[2 * MD5_DIGEST_LEN + 1];
-  char resp_hash_hex[2 * MD5_DIGEST_LEN + 1];
-  char nonce[64];
-  char realm[128];
-  char algorithm[64];
-  char qop_options[64];
-  int qop_values;
-  char cnonce[33];
-  unsigned int entropy[4];
-  char nonceCount[] = "00000001";
-  char method[]     = "AUTHENTICATE";
-  char qop[]        = DIGEST_QOP_VALUE_STRING_AUTH;
-  char *spn         = NULL;
+	int tempfd = -1;
+	int copyfile_flags = COPYFILE_NOFOLLOW | COPYFILE_ACL | COPYFILE_XATTR;
+	struct stat copyfile_stat;
+	int ret = ARCHIVE_OK;
+	void *buff = NULL;
+	int have_attrs;
+	const char *name, *tempdir;
+	struct archive_string tempfile;
 
-  /* Decode the challenge message */
-  result = auth_decode_digest_md5_message(chlg64, nonce, sizeof(nonce),
-                                          realm, sizeof(realm),
-                                          algorithm, sizeof(algorithm),
-                                          qop_options, sizeof(qop_options));
-  if(result)
-    return result;
+	(void)fd; /* UNUSED */
+	name = archive_entry_sourcepath(entry);
+	if (name == NULL)
+		name = archive_entry_pathname(entry);
+	else if (a->tree != NULL && a->tree_enter_working_dir(a->tree) != 0) {
+		archive_set_error(&a->archive, errno,
+			    "Can't change dir to read extended attributes");
+			return (ARCHIVE_FAILED);
+	}
+	if (name == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Can't open file to read extended attributes: No name");
+		return (ARCHIVE_WARN);
+	}
 
-  /* We only support md5 sessions */
-  if(strcmp(algorithm, "md5-sess") != 0)
-    return CURLE_BAD_CONTENT_ENCODING;
+	/* Short-circuit if there's nothing to do. */
+	have_attrs = copyfile(name, NULL, 0, copyfile_flags | COPYFILE_CHECK);
+	if (have_attrs == -1) {
+		archive_set_error(&a->archive, errno,
+			"Could not check extended attributes");
+		return (ARCHIVE_WARN);
+	}
+	if (have_attrs == 0)
+		return (ARCHIVE_OK);
 
-  /* Get the qop-values from the qop-options */
-  result = auth_digest_get_qop_values(qop_options, &qop_values);
-  if(result)
-    return result;
+	tempdir = NULL;
+	if (issetugid() == 0)
+		tempdir = getenv("TMPDIR");
+	if (tempdir == NULL)
+		tempdir = _PATH_TMP;
+	archive_string_init(&tempfile);
+	archive_strcpy(&tempfile, tempdir);
+	archive_strcat(&tempfile, "tar.md.XXXXXX");
+	tempfd = mkstemp(tempfile.s);
+	if (tempfd < 0) {
+		archive_set_error(&a->archive, errno,
+		    "Could not open extended attribute file");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	__archive_ensure_cloexec_flag(tempfd);
 
-  /* We only support auth quality-of-protection */
-  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
-    return CURLE_BAD_CONTENT_ENCODING;
+	/* XXX I wish copyfile() could pack directly to a memory
+	 * buffer; that would avoid the temp file here.  For that
+	 * matter, it would be nice if fcopyfile() actually worked,
+	 * that would reduce the many open/close races here. */
+	if (copyfile(name, tempfile.s, 0, copyfile_flags | COPYFILE_PACK)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not pack extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	if (fstat(tempfd, &copyfile_stat)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not check size of extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	buff = malloc(copyfile_stat.st_size);
+	if (buff == NULL) {
+		archive_set_error(&a->archive, errno,
+		    "Could not allocate memory for extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	if (copyfile_stat.st_size != read(tempfd, buff, copyfile_stat.st_size)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not read extended attributes into memory");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	archive_entry_copy_mac_metadata(entry, buff, copyfile_stat.st_size);
 
-  /* Generate 16 bytes of random data */
-  result = Curl_rand(data, &entropy[0], 4);
-  if(result)
-    return result;
-
-  /* Convert the random data into a 32 byte hex string */
-  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
-           entropy[0], entropy[1], entropy[2], entropy[3]);
-
-  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt)
-    return CURLE_OUT_OF_MEMORY;
-
-  Curl_MD5_update(ctxt, (const unsigned char *) userp,
-                  curlx_uztoui(strlen(userp)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) realm,
-                  curlx_uztoui(strlen(realm)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) passwdp,
-                  curlx_uztoui(strlen(passwdp)));
-  Curl_MD5_final(ctxt, digest);
-
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt)
-    return CURLE_OUT_OF_MEMORY;
-
-  Curl_MD5_update(ctxt, (const unsigned char *) digest, MD5_DIGEST_LEN);
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
-                  curlx_uztoui(strlen(nonce)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
-                  curlx_uztoui(strlen(cnonce)));
-  Curl_MD5_final(ctxt, digest);
-
-  /* Convert calculated 16 octet hex into 32 bytes string */
-  for(i = 0; i < MD5_DIGEST_LEN; i++)
-    snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);
-
-  /* Generate our SPN */
-  spn = Curl_auth_build_spn(service, realm, NULL);
-  if(!spn)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Calculate H(A2) */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt) {
-    free(spn);
-
-    return CURLE_OUT_OF_MEMORY;
-  }
-
-  Curl_MD5_update(ctxt, (const unsigned char *) method,
-                  curlx_uztoui(strlen(method)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) spn,
-                  curlx_uztoui(strlen(spn)));
-  Curl_MD5_final(ctxt, digest);
-
-  for(i = 0; i < MD5_DIGEST_LEN; i++)
-    snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);
-
-  /* Now calculate the response hash */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt) {
-    free(spn);
-
-    return CURLE_OUT_OF_MEMORY;
-  }
-
-  Curl_MD5_update(ctxt, (const unsigned char *) HA1_hex, 2 * MD5_DIGEST_LEN);
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
-                  curlx_uztoui(strlen(nonce)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-
-  Curl_MD5_update(ctxt, (const unsigned char *) nonceCount,
-                  curlx_uztoui(strlen(nonceCount)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
-                  curlx_uztoui(strlen(cnonce)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) qop,
-                  curlx_uztoui(strlen(qop)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-
-  Curl_MD5_update(ctxt, (const unsigned char *) HA2_hex, 2 * MD5_DIGEST_LEN);
-  Curl_MD5_final(ctxt, digest);
-
-  for(i = 0; i < MD5_DIGEST_LEN; i++)
-    snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
-
-  /* Generate the response */
-  response = aprintf("username=\"%s\",realm=\"%s\",nonce=\"%s\","
-                     "cnonce=\"%s\",nc=\"%s\",digest-uri=\"%s\",response=%s,"
-                     "qop=%s",
-                     userp, realm, nonce,
-                     cnonce, nonceCount, spn, resp_hash_hex, qop);
-  free(spn);
-  if(!response)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Base64 encode the response */
-  result = Curl_base64_encode(data, response, 0, outptr, outlen);
-
-  free(response);
-
-  return result;
+cleanup:
+	if (tempfd >= 0) {
+		close(tempfd);
+		unlink(tempfile.s);
+	}
+	archive_string_free(&tempfile);
+	free(buff);
+	return (ret);
 }

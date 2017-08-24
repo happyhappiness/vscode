@@ -1,4 +1,1 @@
-md5this = (unsigned char *)aprintf("%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       ha2);
+write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap);

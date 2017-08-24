@@ -1,1 +1,2 @@
-fprintf(fout, "\t%s DATA \n", symbol.c_str()+1);
+archive_set_error(&a->archive, ENOMEM,
+			    "No memory for lzh decompression");

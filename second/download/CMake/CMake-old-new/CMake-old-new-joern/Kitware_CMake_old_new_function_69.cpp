@@ -1,95 +1,176 @@
-static int
-cleanup_pathname(struct archive_write_disk *a)
+static CURLcode file_do(struct connectdata *conn, bool *done)
 {
-	char *dest, *src;
-	char separator = '\0';
+  /* This implementation ignores the host name in conformance with
+     RFC 1738. Only local files (reachable via the standard file system)
+     are supported. This means that files on remotely mounted directories
+     (via NFS, Samba, NT sharing) can be accessed through a file:// URL
+  */
+  CURLcode result = CURLE_OK;
+  struct_stat statbuf; /* struct_stat instead of struct stat just to allow the
+                          Windows version to have a different struct without
+                          having to redefine the simple word 'stat' */
+  curl_off_t expected_size=0;
+  bool size_known;
+  bool fstated=FALSE;
+  ssize_t nread;
+  struct Curl_easy *data = conn->data;
+  char *buf = data->state.buffer;
+  curl_off_t bytecount = 0;
+  int fd;
+  struct timeval now = Curl_tvnow();
+  struct FILEPROTO *file;
 
-	dest = src = a->name;
-	if (*src == '\0') {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Invalid empty pathname");
-		return (ARCHIVE_FAILED);
-	}
+  *done = TRUE; /* unconditionally */
 
-#if defined(__CYGWIN__)
-	cleanup_pathname_win(a);
-#endif
-	/* Skip leading '/'. */
-	if (*src == '/') {
-		if (a->flags & ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			                  "Path is absolute");
-			return (ARCHIVE_FAILED);
-		}
+  Curl_initinfo(data);
+  Curl_pgrsStartNow(data);
 
-		separator = *src++;
-	}
+  if(data->set.upload)
+    return file_upload(conn);
 
-	/* Scan the pathname one element at a time. */
-	for (;;) {
-		/* src points to first char after '/' */
-		if (src[0] == '\0') {
-			break;
-		} else if (src[0] == '/') {
-			/* Found '//', ignore second one. */
-			src++;
-			continue;
-		} else if (src[0] == '.') {
-			if (src[1] == '\0') {
-				/* Ignore trailing '.' */
-				break;
-			} else if (src[1] == '/') {
-				/* Skip './'. */
-				src += 2;
-				continue;
-			} else if (src[1] == '.') {
-				if (src[2] == '/' || src[2] == '\0') {
-					/* Conditionally warn about '..' */
-					if (a->flags & ARCHIVE_EXTRACT_SECURE_NODOTDOT) {
-						archive_set_error(&a->archive,
-						    ARCHIVE_ERRNO_MISC,
-						    "Path contains '..'");
-						return (ARCHIVE_FAILED);
-					}
-				}
-				/*
-				 * Note: Under no circumstances do we
-				 * remove '..' elements.  In
-				 * particular, restoring
-				 * '/foo/../bar/' should create the
-				 * 'foo' dir as a side-effect.
-				 */
-			}
-		}
+  file = conn->data->req.protop;
 
-		/* Copy current element, including leading '/'. */
-		if (separator)
-			*dest++ = '/';
-		while (*src != '\0' && *src != '/') {
-			*dest++ = *src++;
-		}
+  /* get the fd from the connection phase */
+  fd = file->fd;
 
-		if (*src == '\0')
-			break;
+  /* VMS: This only works reliable for STREAMLF files */
+  if(-1 != fstat(fd, &statbuf)) {
+    /* we could stat it, then read out the size */
+    expected_size = statbuf.st_size;
+    /* and store the modification time */
+    data->info.filetime = (long)statbuf.st_mtime;
+    fstated = TRUE;
+  }
 
-		/* Skip '/' separator. */
-		separator = *src++;
-	}
-	/*
-	 * We've just copied zero or more path elements, not including the
-	 * final '/'.
-	 */
-	if (dest == a->name) {
-		/*
-		 * Nothing got copied.  The path must have been something
-		 * like '.' or '/' or './' or '/././././/./'.
-		 */
-		if (separator)
-			*dest++ = '/';
-		else
-			*dest++ = '.';
-	}
-	/* Terminate the result. */
-	*dest = '\0';
-	return (ARCHIVE_OK);
+  if(fstated && !data->state.range && data->set.timecondition) {
+    if(!Curl_meets_timecondition(data, (time_t)data->info.filetime)) {
+      *done = TRUE;
+      return CURLE_OK;
+    }
+  }
+
+  /* If we have selected NOBODY and HEADER, it means that we only want file
+     information. Which for FILE can't be much more than the file size and
+     date. */
+  if(data->set.opt_no_body && data->set.include_header && fstated) {
+    time_t filetime;
+    struct tm buffer;
+    const struct tm *tm = &buffer;
+    snprintf(buf, sizeof(data->state.buffer),
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+    if(result)
+      return result;
+
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH,
+                               (char *)"Accept-ranges: bytes\r\n", 0);
+    if(result)
+      return result;
+
+    filetime = (time_t)statbuf.st_mtime;
+    result = Curl_gmtime(filetime, &buffer);
+    if(result)
+      return result;
+
+    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+    snprintf(buf, BUFSIZE-1,
+             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+             tm->tm_mday,
+             Curl_month[tm->tm_mon],
+             tm->tm_year + 1900,
+             tm->tm_hour,
+             tm->tm_min,
+             tm->tm_sec);
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+    if(!result)
+      /* set the file size to make it available post transfer */
+      Curl_pgrsSetDownloadSize(data, expected_size);
+    return result;
+  }
+
+  /* Check whether file range has been specified */
+  file_range(conn);
+
+  /* Adjust the start offset in case we want to get the N last bytes
+   * of the stream iff the filesize could be determined */
+  if(data->state.resume_from < 0) {
+    if(!fstated) {
+      failf(data, "Can't get the size of file.");
+      return CURLE_READ_ERROR;
+    }
+    else
+      data->state.resume_from += (curl_off_t)statbuf.st_size;
+  }
+
+  if(data->state.resume_from <= expected_size)
+    expected_size -= data->state.resume_from;
+  else {
+    failf(data, "failed to resume file:// transfer");
+    return CURLE_BAD_DOWNLOAD_RESUME;
+  }
+
+  /* A high water mark has been specified so we obey... */
+  if(data->req.maxdownload > 0)
+    expected_size = data->req.maxdownload;
+
+  if(!fstated || (expected_size == 0))
+    size_known = FALSE;
+  else
+    size_known = TRUE;
+
+  /* The following is a shortcut implementation of file reading
+     this is both more efficient than the former call to download() and
+     it avoids problems with select() and recv() on file descriptors
+     in Winsock */
+  if(fstated)
+    Curl_pgrsSetDownloadSize(data, expected_size);
+
+  if(data->state.resume_from) {
+    if(data->state.resume_from !=
+       lseek(fd, data->state.resume_from, SEEK_SET))
+      return CURLE_BAD_DOWNLOAD_RESUME;
+  }
+
+  Curl_pgrsTime(data, TIMER_STARTTRANSFER);
+
+  while(!result) {
+    /* Don't fill a whole buffer if we want less than all data */
+    size_t bytestoread;
+
+    if(size_known) {
+      bytestoread =
+        (expected_size < CURL_OFF_T_C(BUFSIZE) - CURL_OFF_T_C(1)) ?
+        curlx_sotouz(expected_size) : BUFSIZE - 1;
+    }
+    else
+      bytestoread = BUFSIZE-1;
+
+    nread = read(fd, buf, bytestoread);
+
+    if(nread > 0)
+      buf[nread] = 0;
+
+    if(nread <= 0 || (size_known && (expected_size == 0)))
+      break;
+
+    bytecount += nread;
+    if(size_known)
+      expected_size -= nread;
+
+    result = Curl_client_write(conn, CLIENTWRITE_BODY, buf, nread);
+    if(result)
+      return result;
+
+    Curl_pgrsSetDownloadCounter(data, bytecount);
+
+    if(Curl_pgrsUpdate(conn))
+      result = CURLE_ABORTED_BY_CALLBACK;
+    else
+      result = Curl_speedcheck(data, now);
+  }
+  if(Curl_pgrsUpdate(conn))
+    result = CURLE_ABORTED_BY_CALLBACK;
+
+  return result;
 }

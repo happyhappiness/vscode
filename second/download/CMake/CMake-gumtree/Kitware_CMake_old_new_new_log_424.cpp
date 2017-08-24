@@ -1,0 +1,1 @@
+fprintf(fout, "add_definitions( ");

@@ -1,5 +1,5 @@
 {
-				archive_set_error(&a->archive, errno,
-				    "Can't unlink already-existing object");
-				return (ARCHIVE_FAILED);
-			}
+  char * temp = new char[32];
+  sprintf(temp,"%d",this->ChipID.Model);
+  return temp;
+}

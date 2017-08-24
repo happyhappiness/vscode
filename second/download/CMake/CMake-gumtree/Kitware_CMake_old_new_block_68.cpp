@@ -1,7 +1,14 @@
 {
-				archive_set_error(&a->archive, 0,
-				    "Cannot extract through symlink %s",
-				    a->name);
-				pn[0] = c;
-				return (ARCHIVE_FAILED);
-			}
+  const char *hostname;
+
+  if(conn->bits.socksproxy)
+    hostname = conn->socks_proxy.host.name;
+  else if(conn->bits.httpproxy)
+    hostname = conn->http_proxy.host.name;
+  else if(conn->bits.conn_to_host)
+    hostname = conn->conn_to_host.name;
+  else
+    hostname = conn->host.name;
+
+  return aprintf("%s:%d", hostname, conn->port);
+}

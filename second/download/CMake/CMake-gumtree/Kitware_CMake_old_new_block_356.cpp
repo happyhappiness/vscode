@@ -1,4 +1,4 @@
 {
-      fprintf(fout,
-              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);
-      }
+        // print the progress
+        fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
+        }

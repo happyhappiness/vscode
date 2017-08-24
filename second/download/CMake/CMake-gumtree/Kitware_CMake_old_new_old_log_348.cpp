@@ -1,3 +1,1 @@
-fprintf(fout, "target_link_libraries(%s %s)\n",
-              targetName,
-              libsToLink.c_str());
+fprintf(fout, " %08X", pSymbolTable->Value);

@@ -1,1 +1,3 @@
-aprintf("%s:%d", hostname, conn->port);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Couldn't determine file path to read "
+			    "extended attributes");

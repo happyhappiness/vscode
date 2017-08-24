@@ -1,2 +1,1 @@
-archive_set_error(f->archive, EINVAL,
-		    "Can't initialise filter");
+snprintf( buf, sizeof(buf), "%d", state->retry_time);

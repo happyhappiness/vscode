@@ -1,1 +1,2 @@
-fprintf(out, "%s", archive_entry_pathname(entry));
+snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+                 conn->ip_addr_str);

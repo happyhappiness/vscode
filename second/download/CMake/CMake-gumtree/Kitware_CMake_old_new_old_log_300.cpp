@@ -1,3 +1,2 @@
-fprintf(fout,
-      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
-      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");
+fprintf(stderr, "Header id 0x%x, length %d\n",
+		    headerid, datasize);

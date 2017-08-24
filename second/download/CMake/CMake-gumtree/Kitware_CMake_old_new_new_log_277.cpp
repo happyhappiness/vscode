@@ -1,0 +1,1 @@
+YY_FATAL_ERROR( "cmFortran_yyset_lineno called with no buffer" );

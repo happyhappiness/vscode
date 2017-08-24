@@ -1,2 +1,1 @@
-snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
-                     conn->host.name)
+yy_fatal_error( "cmFortran_yyset_lineno called with no buffer" , yyscanner)

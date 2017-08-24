@@ -1,6 +1,10 @@
 {
-		zip->has_encrypted_entries = 1;
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Encrypted file is unsupported");
-		return (ARCHIVE_FAILED);
-	}
+    char ver[256];
+    sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
+            cmVersion::GetMinorVersion());
+    this->CacheManager->AddCacheEntry
+      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
+       "For backwards compatibility, what version of CMake commands and "
+       "syntax should this version of CMake allow.",
+       cmCacheManager::INTERNAL);
+    }

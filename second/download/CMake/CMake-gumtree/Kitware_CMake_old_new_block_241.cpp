@@ -1,7 +1,9 @@
 {
-							archive_set_error(&a->archive,
-									ARCHIVE_ERRNO_MISC,
-									"mtree specification has different type for %s",
-									archive_entry_pathname(entry));
-							r = ARCHIVE_WARN;
-						}
+    /* Append the opaque */
+    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
+    free(response);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    response = tmp;
+  }

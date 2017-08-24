@@ -1,4 +1,3 @@
 {
-      fprintf(stderr, "Couldn't open file with CreateFile()\n");
-      return;
-   }
+        sprintf(tz, " -%04ld", -author.TimeZone);
+        }

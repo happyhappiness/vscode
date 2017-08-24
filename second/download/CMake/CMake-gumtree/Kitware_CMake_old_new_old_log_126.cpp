@@ -1,1 +1,4 @@
-snprintf((char *)&dest[i*2], 3, "%02x", source[i]);
+archive_set_error(&self->archive->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library: "
+		    "invalid header");

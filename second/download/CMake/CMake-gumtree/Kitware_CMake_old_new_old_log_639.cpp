@@ -1,0 +1,1 @@
+sprintf(tgtName, "node%d", cnt++);

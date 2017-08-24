@@ -1,262 +1,175 @@
-static int
-pax_attribute(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const char *key, const char *value)
+static CURLcode file_do(struct connectdata *conn, bool *done)
 {
-	int64_t s;
-	long n;
-	int err = ARCHIVE_OK, r;
+  /* This implementation ignores the host name in conformance with
+     RFC 1738. Only local files (reachable via the standard file system)
+     are supported. This means that files on remotely mounted directories
+     (via NFS, Samba, NT sharing) can be accessed through a file:// URL
+  */
+  CURLcode result = CURLE_OK;
+  struct_stat statbuf; /* struct_stat instead of struct stat just to allow the
+                          Windows version to have a different struct without
+                          having to redefine the simple word 'stat' */
+  curl_off_t expected_size=0;
+  bool size_known;
+  bool fstated=FALSE;
+  ssize_t nread;
+  struct Curl_easy *data = conn->data;
+  char *buf = data->state.buffer;
+  curl_off_t bytecount = 0;
+  int fd;
+  struct timeval now = Curl_tvnow();
+  struct FILEPROTO *file;
 
-	if (value == NULL)
-		value = "";	/* Disable compiler warning; do not pass
-				 * NULL pointer to strlen().  */
-	switch (key[0]) {
-	case 'G':
-		/* GNU "0.0" sparse pax format. */
-		if (strcmp(key, "GNU.sparse.numblocks") == 0) {
-			tar->sparse_offset = -1;
-			tar->sparse_numbytes = -1;
-			tar->sparse_gnu_major = 0;
-			tar->sparse_gnu_minor = 0;
-		}
-		if (strcmp(key, "GNU.sparse.offset") == 0) {
-			tar->sparse_offset = tar_atol10(value, strlen(value));
-			if (tar->sparse_numbytes != -1) {
-				if (gnu_add_sparse_entry(a, tar,
-				    tar->sparse_offset, tar->sparse_numbytes)
-				    != ARCHIVE_OK)
-					return (ARCHIVE_FATAL);
-				tar->sparse_offset = -1;
-				tar->sparse_numbytes = -1;
-			}
-		}
-		if (strcmp(key, "GNU.sparse.numbytes") == 0) {
-			tar->sparse_numbytes = tar_atol10(value, strlen(value));
-			if (tar->sparse_numbytes != -1) {
-				if (gnu_add_sparse_entry(a, tar,
-				    tar->sparse_offset, tar->sparse_numbytes)
-				    != ARCHIVE_OK)
-					return (ARCHIVE_FATAL);
-				tar->sparse_offset = -1;
-				tar->sparse_numbytes = -1;
-			}
-		}
-		if (strcmp(key, "GNU.sparse.size") == 0) {
-			tar->realsize = tar_atol10(value, strlen(value));
-			archive_entry_set_size(entry, tar->realsize);
-		}
+  *done = TRUE; /* unconditionally */
 
-		/* GNU "0.1" sparse pax format. */
-		if (strcmp(key, "GNU.sparse.map") == 0) {
-			tar->sparse_gnu_major = 0;
-			tar->sparse_gnu_minor = 1;
-			if (gnu_sparse_01_parse(a, tar, value) != ARCHIVE_OK)
-				return (ARCHIVE_WARN);
-		}
+  Curl_initinfo(data);
+  Curl_pgrsStartNow(data);
 
-		/* GNU "1.0" sparse pax format */
-		if (strcmp(key, "GNU.sparse.major") == 0) {
-			tar->sparse_gnu_major = (int)tar_atol10(value, strlen(value));
-			tar->sparse_gnu_pending = 1;
-		}
-		if (strcmp(key, "GNU.sparse.minor") == 0) {
-			tar->sparse_gnu_minor = (int)tar_atol10(value, strlen(value));
-			tar->sparse_gnu_pending = 1;
-		}
-		if (strcmp(key, "GNU.sparse.name") == 0) {
-			/*
-			 * The real filename; when storing sparse
-			 * files, GNU tar puts a synthesized name into
-			 * the regular 'path' attribute in an attempt
-			 * to limit confusion. ;-)
-			 */
-			archive_strcpy(&(tar->entry_pathname_override), value);
-		}
-		if (strcmp(key, "GNU.sparse.realsize") == 0) {
-			tar->realsize = tar_atol10(value, strlen(value));
-			archive_entry_set_size(entry, tar->realsize);
-		}
-		break;
-	case 'L':
-		/* Our extensions */
-/* TODO: Handle arbitrary extended attributes... */
-/*
-		if (strcmp(key, "LIBARCHIVE.xxxxxxx") == 0)
-			archive_entry_set_xxxxxx(entry, value);
-*/
-		if (strcmp(key, "LIBARCHIVE.creationtime") == 0) {
-			pax_time(value, &s, &n);
-			archive_entry_set_birthtime(entry, s, n);
-		}
-		if (memcmp(key, "LIBARCHIVE.xattr.", 17) == 0)
-			pax_attribute_xattr(entry, key, value);
-		break;
-	case 'S':
-		/* We support some keys used by the "star" archiver */
-		if (strcmp(key, "SCHILY.acl.access") == 0) {
-			if (tar->sconv_acl == NULL) {
-				tar->sconv_acl =
-				    archive_string_conversion_from_charset(
-					&(a->archive), "UTF-8", 1);
-				if (tar->sconv_acl == NULL)
-					return (ARCHIVE_FATAL);
-			}
+  if(data->set.upload)
+    return file_upload(conn);
 
-			r = archive_acl_parse_l(archive_entry_acl(entry),
-			    value, ARCHIVE_ENTRY_ACL_TYPE_ACCESS,
-			    tar->sconv_acl);
-			if (r != ARCHIVE_OK) {
-				err = r;
-				if (err == ARCHIVE_FATAL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.access");
-					return (err);
-				}
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.access");
-			}
-		} else if (strcmp(key, "SCHILY.acl.default") == 0) {
-			if (tar->sconv_acl == NULL) {
-				tar->sconv_acl =
-				    archive_string_conversion_from_charset(
-					&(a->archive), "UTF-8", 1);
-				if (tar->sconv_acl == NULL)
-					return (ARCHIVE_FATAL);
-			}
+  file = conn->data->req.protop;
 
-			r = archive_acl_parse_l(archive_entry_acl(entry),
-			    value, ARCHIVE_ENTRY_ACL_TYPE_DEFAULT,
-			    tar->sconv_acl);
-			if (r != ARCHIVE_OK) {
-				err = r;
-				if (err == ARCHIVE_FATAL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.default");
-					return (err);
-				}
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.default");
-			}
-		} else if (strcmp(key, "SCHILY.devmajor") == 0) {
-			archive_entry_set_rdevmajor(entry,
-			    (dev_t)tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "SCHILY.devminor") == 0) {
-			archive_entry_set_rdevminor(entry,
-			    (dev_t)tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "SCHILY.fflags") == 0) {
-			archive_entry_copy_fflags_text(entry, value);
-		} else if (strcmp(key, "SCHILY.dev") == 0) {
-			archive_entry_set_dev(entry,
-			    (dev_t)tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "SCHILY.ino") == 0) {
-			archive_entry_set_ino(entry,
-			    tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "SCHILY.nlink") == 0) {
-			archive_entry_set_nlink(entry, (unsigned)
-			    tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "SCHILY.realsize") == 0) {
-			tar->realsize = tar_atol10(value, strlen(value));
-			archive_entry_set_size(entry, tar->realsize);
-		} else if (strcmp(key, "SUN.holesdata") == 0) {
-			/* A Solaris extension for sparse. */
-			r = solaris_sparse_parse(a, tar, entry, value);
-			if (r < err) {
-				if (r == ARCHIVE_FATAL)
-					return (r);
-				err = r;
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SUN.holesdata");
-			}
-		}
-		break;
-	case 'a':
-		if (strcmp(key, "atime") == 0) {
-			pax_time(value, &s, &n);
-			archive_entry_set_atime(entry, s, n);
-		}
-		break;
-	case 'c':
-		if (strcmp(key, "ctime") == 0) {
-			pax_time(value, &s, &n);
-			archive_entry_set_ctime(entry, s, n);
-		} else if (strcmp(key, "charset") == 0) {
-			/* TODO: Publish charset information in entry. */
-		} else if (strcmp(key, "comment") == 0) {
-			/* TODO: Publish comment in entry. */
-		}
-		break;
-	case 'g':
-		if (strcmp(key, "gid") == 0) {
-			archive_entry_set_gid(entry,
-			    tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "gname") == 0) {
-			archive_strcpy(&(tar->entry_gname), value);
-		}
-		break;
-	case 'h':
-		if (strcmp(key, "hdrcharset") == 0) {
-			if (strcmp(value, "BINARY") == 0)
-				/* Binary  mode. */
-				tar->pax_hdrcharset_binary = 1;
-			else if (strcmp(value, "ISO-IR 10646 2000 UTF-8") == 0)
-				tar->pax_hdrcharset_binary = 0;
-		}
-		break;
-	case 'l':
-		/* pax interchange doesn't distinguish hardlink vs. symlink. */
-		if (strcmp(key, "linkpath") == 0) {
-			archive_strcpy(&(tar->entry_linkpath), value);
-		}
-		break;
-	case 'm':
-		if (strcmp(key, "mtime") == 0) {
-			pax_time(value, &s, &n);
-			archive_entry_set_mtime(entry, s, n);
-		}
-		break;
-	case 'p':
-		if (strcmp(key, "path") == 0) {
-			archive_strcpy(&(tar->entry_pathname), value);
-		}
-		break;
-	case 'r':
-		/* POSIX has reserved 'realtime.*' */
-		break;
-	case 's':
-		/* POSIX has reserved 'security.*' */
-		/* Someday: if (strcmp(key, "security.acl") == 0) { ... } */
-		if (strcmp(key, "size") == 0) {
-			/* "size" is the size of the data in the entry. */
-			tar->entry_bytes_remaining
-			    = tar_atol10(value, strlen(value));
-			/*
-			 * But, "size" is not necessarily the size of
-			 * the file on disk; if this is a sparse file,
-			 * the disk size may have already been set from
-			 * GNU.sparse.realsize or GNU.sparse.size or
-			 * an old GNU header field or SCHILY.realsize
-			 * or ....
-			 */
-			if (tar->realsize < 0) {
-				archive_entry_set_size(entry,
-				    tar->entry_bytes_remaining);
-				tar->realsize
-				    = tar->entry_bytes_remaining;
-			}
-		}
-		break;
-	case 'u':
-		if (strcmp(key, "uid") == 0) {
-			archive_entry_set_uid(entry,
-			    tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "uname") == 0) {
-			archive_strcpy(&(tar->entry_uname), value);
-		}
-		break;
-	}
-	return (err);
+  /* get the fd from the connection phase */
+  fd = file->fd;
+
+  /* VMS: This only works reliable for STREAMLF files */
+  if(-1 != fstat(fd, &statbuf)) {
+    /* we could stat it, then read out the size */
+    expected_size = statbuf.st_size;
+    /* and store the modification time */
+    data->info.filetime = (long)statbuf.st_mtime;
+    fstated = TRUE;
+  }
+
+  if(fstated && !data->state.range && data->set.timecondition) {
+    if(!Curl_meets_timecondition(data, (time_t)data->info.filetime)) {
+      *done = TRUE;
+      return CURLE_OK;
+    }
+  }
+
+  /* If we have selected NOBODY and HEADER, it means that we only want file
+     information. Which for FILE can't be much more than the file size and
+     date. */
+  if(data->set.opt_no_body && data->set.include_header && fstated) {
+    time_t filetime;
+    struct tm buffer;
+    const struct tm *tm = &buffer;
+    snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+    if(result)
+      return result;
+
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH,
+                               (char *)"Accept-ranges: bytes\r\n", 0);
+    if(result)
+      return result;
+
+    filetime = (time_t)statbuf.st_mtime;
+    result = Curl_gmtime(filetime, &buffer);
+    if(result)
+      return result;
+
+    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+    snprintf(buf, BUFSIZE-1,
+             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+             tm->tm_mday,
+             Curl_month[tm->tm_mon],
+             tm->tm_year + 1900,
+             tm->tm_hour,
+             tm->tm_min,
+             tm->tm_sec);
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+    if(!result)
+      /* set the file size to make it available post transfer */
+      Curl_pgrsSetDownloadSize(data, expected_size);
+    return result;
+  }
+
+  /* Check whether file range has been specified */
+  file_range(conn);
+
+  /* Adjust the start offset in case we want to get the N last bytes
+   * of the stream iff the filesize could be determined */
+  if(data->state.resume_from < 0) {
+    if(!fstated) {
+      failf(data, "Can't get the size of file.");
+      return CURLE_READ_ERROR;
+    }
+    data->state.resume_from += (curl_off_t)statbuf.st_size;
+  }
+
+  if(data->state.resume_from <= expected_size)
+    expected_size -= data->state.resume_from;
+  else {
+    failf(data, "failed to resume file:// transfer");
+    return CURLE_BAD_DOWNLOAD_RESUME;
+  }
+
+  /* A high water mark has been specified so we obey... */
+  if(data->req.maxdownload > 0)
+    expected_size = data->req.maxdownload;
+
+  if(!fstated || (expected_size == 0))
+    size_known = FALSE;
+  else
+    size_known = TRUE;
+
+  /* The following is a shortcut implementation of file reading
+     this is both more efficient than the former call to download() and
+     it avoids problems with select() and recv() on file descriptors
+     in Winsock */
+  if(fstated)
+    Curl_pgrsSetDownloadSize(data, expected_size);
+
+  if(data->state.resume_from) {
+    if(data->state.resume_from !=
+       lseek(fd, data->state.resume_from, SEEK_SET))
+      return CURLE_BAD_DOWNLOAD_RESUME;
+  }
+
+  Curl_pgrsTime(data, TIMER_STARTTRANSFER);
+
+  while(!result) {
+    /* Don't fill a whole buffer if we want less than all data */
+    size_t bytestoread;
+
+    if(size_known) {
+      bytestoread =
+        (expected_size < CURL_OFF_T_C(BUFSIZE) - CURL_OFF_T_C(1)) ?
+        curlx_sotouz(expected_size) : BUFSIZE - 1;
+    }
+    else
+      bytestoread = BUFSIZE-1;
+
+    nread = read(fd, buf, bytestoread);
+
+    if(nread > 0)
+      buf[nread] = 0;
+
+    if(nread <= 0 || (size_known && (expected_size == 0)))
+      break;
+
+    bytecount += nread;
+    if(size_known)
+      expected_size -= nread;
+
+    result = Curl_client_write(conn, CLIENTWRITE_BODY, buf, nread);
+    if(result)
+      return result;
+
+    Curl_pgrsSetDownloadCounter(data, bytecount);
+
+    if(Curl_pgrsUpdate(conn))
+      result = CURLE_ABORTED_BY_CALLBACK;
+    else
+      result = Curl_speedcheck(data, now);
+  }
+  if(Curl_pgrsUpdate(conn))
+    result = CURLE_ABORTED_BY_CALLBACK;
+
+  return result;
 }

@@ -1,1 +1,1 @@
-fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
+md5this = (unsigned char *)aprintf("%s:%s", request, uripath);

@@ -1,4 +1,2 @@
-{
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name);
-    }
+snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+                     conn->host.name)

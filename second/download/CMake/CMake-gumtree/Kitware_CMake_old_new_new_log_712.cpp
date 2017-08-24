@@ -1,0 +1,1 @@
+argcDefStream << expandedArguments.size();

@@ -1,22 +1,26 @@
 {
-  /* Create a disowned grandchild to test handling of processes
-     that exit before their children.  */
-  int r;
-  const char* cmd[4];
-  (void)argc;
-  cmd[0] = argv[0];
-  cmd[1] = "run";
-  cmd[2] = "108";
-  cmd[3] = 0;
-  fprintf(stdout, "Output on stdout before grandchild test.\n");
-  fprintf(stderr, "Output on stderr before grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Disowned, kwsysProcess_Exception_None,
-               1, 1, 1, 0, 10, 0, 1, 1);
-  fprintf(stdout, "Output on stdout after grandchild test.\n");
-  fprintf(stderr, "Output on stderr after grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
-}
+          fprintf(stderr,"***Exception: ");
+          switch ( retVal )
+            {
+          case cmsysProcess_Exception_Fault:
+            fprintf(stderr,"SegFault");
+            cres.m_Status = cmCTest::SEGFAULT;
+            break;
+          case cmsysProcess_Exception_Illegal:
+            fprintf(stderr,"Illegal");
+            cres.m_Status = cmCTest::ILLEGAL;
+            break;
+          case cmsysProcess_Exception_Interrupt:
+            fprintf(stderr,"Interrupt");
+            cres.m_Status = cmCTest::INTERRUPT;
+            break;
+          case cmsysProcess_Exception_Numerical:
+            fprintf(stderr,"Numerical");
+            cres.m_Status = cmCTest::NUMERICAL;
+            break;
+          default:
+            fprintf(stderr,"Other");
+            cres.m_Status = cmCTest::OTHER_FAULT;
+            }
+          fprintf(stderr,"\n");
+          }

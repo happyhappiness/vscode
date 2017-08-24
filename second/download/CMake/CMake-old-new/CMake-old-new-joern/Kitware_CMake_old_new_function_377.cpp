@@ -1,21 +1,22 @@
-void
-cmComputeTargetDepends::DisplayGraph(Graph const& graph, const char* name)
+static int
+parse_device(struct archive *a, struct archive_entry *entry, char *val)
 {
-  fprintf(stderr, "The %s target dependency graph is:\n", name);
-  int n = static_cast<int>(graph.size());
-  for(int depender_index = 0; depender_index < n; ++depender_index)
-    {
-    EdgeList const& nl = graph[depender_index];
-    cmTarget const* depender = this->Targets[depender_index];
-    fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
-    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int dependee_index = *ni;
-      cmTarget const* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
-      }
-    }
-  fprintf(stderr, "\n");
+	char *comma1, *comma2;
+
+	comma1 = strchr(val, ',');
+	if (comma1 == NULL) {
+		archive_entry_set_dev(entry, (dev_t)mtree_atol10(&val));
+		return (ARCHIVE_OK);
+	}
+	++comma1;
+	comma2 = strchr(comma1, ',');
+	if (comma2 == NULL) {
+		archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Malformed device attribute");
+		return (ARCHIVE_WARN);
+	}
+	++comma2;
+	archive_entry_set_rdevmajor(entry, (dev_t)mtree_atol(&comma1));
+	archive_entry_set_rdevminor(entry, (dev_t)mtree_atol(&comma2));
+	return (ARCHIVE_OK);
 }

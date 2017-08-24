@@ -1,2 +1,2 @@
-fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName().c_str(), ni->IsStrong()? "strong" : "weak");
+fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              cmLocalGenerator::EscapeForCMake(flags?flags:"").c_str());

@@ -1,152 +1,170 @@
 static int
-_warc_rdhdr(struct archive_read *a, struct archive_entry *entry)
+header_common(struct archive_read *a, struct tar *tar,
+    struct archive_entry *entry, const void *h)
 {
-#define HDR_PROBE_LEN		(12U)
-	struct warc_s *w = a->format->data;
-	unsigned int ver;
-	const char *buf;
-	ssize_t nrd;
-	const char *eoh;
-	/* for the file name, saves some strndup()'ing */
-	warc_string_t fnam;
-	/* warc record type, not that we really use it a lot */
-	warc_type_t ftyp;
-	/* content-length+error monad */
-	ssize_t cntlen;
-	/* record time is the WARC-Date time we reinterpret it as ctime */
-	time_t rtime;
-	/* mtime is the Last-Modified time which will be the entry's mtime */
-	time_t mtime;
+	const struct archive_entry_header_ustar	*header;
+	char	tartype;
+	int     err = ARCHIVE_OK;
 
-start_over:
-	/* just use read_ahead() they keep track of unconsumed
-	 * bits and bobs for us; no need to put an extra shift in
-	 * and reproduce that functionality here */
-	buf = __archive_read_ahead(a, HDR_PROBE_LEN, &nrd);
+	header = (const struct archive_entry_header_ustar *)h;
+	if (header->linkname[0])
+		archive_strncpy(&(tar->entry_linkpath),
+		    header->linkname, sizeof(header->linkname));
+	else
+		archive_string_empty(&(tar->entry_linkpath));
 
-	if (nrd < 0) {
-		/* no good */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Bad record header");
-		return (ARCHIVE_FATAL);
-	} else if (buf == NULL) {
-		/* there should be room for at least WARC/bla\r\n
-		 * must be EOF therefore */
-		return (ARCHIVE_EOF);
+	/* Parse out the numeric fields (all are octal) */
+	archive_entry_set_mode(entry,
+		(mode_t)tar_atol(header->mode, sizeof(header->mode)));
+	archive_entry_set_uid(entry, tar_atol(header->uid, sizeof(header->uid)));
+	archive_entry_set_gid(entry, tar_atol(header->gid, sizeof(header->gid)));
+	tar->entry_bytes_remaining = tar_atol(header->size, sizeof(header->size));
+	if (tar->entry_bytes_remaining < 0) {
+		tar->entry_bytes_remaining = 0;
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Tar entry has negative size?");
+		err = ARCHIVE_WARN;
 	}
- 	/* looks good so far, try and find the end of the header now */
-	eoh = _warc_find_eoh(buf, nrd);
-	if (eoh == NULL) {
-		/* still no good, the header end might be beyond the
-		 * probe we've requested, but then again who'd cram
-		 * so much stuff into the header *and* be 28500-compliant */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Bad record header");
-		return (ARCHIVE_FATAL);
-	} else if ((ver = _warc_rdver(buf, eoh - buf)) > 10000U) {
-		/* nawww, I wish they promised backward compatibility
-		 * anyhoo, in their infinite wisdom the 28500 guys might
-		 * come up with something we can't possibly handle so
-		 * best end things here */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Unsupported record version");
-		return (ARCHIVE_FATAL);
-	} else if ((cntlen = _warc_rdlen(buf, eoh - buf)) < 0) {
-		/* nightmare!  the specs say content-length is mandatory
-		 * so I don't feel overly bad stopping the reader here */
-		archive_set_error(
-			&a->archive, EINVAL,
-			"Bad content length");
-		return (ARCHIVE_FATAL);
-	} else if ((rtime = _warc_rdrtm(buf, eoh - buf)) == (time_t)-1) {
-		/* record time is mandatory as per WARC/1.0,
-		 * so just barf here, fast and loud */
-		archive_set_error(
-			&a->archive, EINVAL,
-			"Bad record time");
-		return (ARCHIVE_FATAL);
-	}
+	tar->realsize = tar->entry_bytes_remaining;
+	archive_entry_set_size(entry, tar->entry_bytes_remaining);
+	archive_entry_set_mtime(entry, tar_atol(header->mtime, sizeof(header->mtime)), 0);
 
-	/* let the world know we're a WARC archive */
-	a->archive.archive_format = ARCHIVE_FORMAT_WARC;
-	if (ver != w->pver) {
-		/* stringify this entry's version */
-		archive_string_sprintf(&w->sver,
-			"WARC/%u.%u", ver / 10000, ver % 10000);
-		/* remember the version */
-		w->pver = ver;
-	}
-	/* start off with the type */
-	ftyp = _warc_rdtyp(buf, eoh - buf);
-	/* and let future calls know about the content */
-	w->cntlen = cntlen;
-	w->cntoff = 0U;
-	mtime = 0;/* Avoid compiling error on some platform. */
+	/* Handle the tar type flag appropriately. */
+	tartype = header->typeflag[0];
 
-	switch (ftyp) {
-	case WT_RSRC:
-	case WT_RSP:
-		/* only try and read the filename in the cases that are
-		 * guaranteed to have one */
-		fnam = _warc_rduri(buf, eoh - buf);
-		/* check the last character in the URI to avoid creating
-		 * directory endpoints as files, see Todo above */
-		if (fnam.len == 0 || fnam.str[fnam.len - 1] == '/') {
-			/* break here for now */
-			fnam.len = 0U;
-			fnam.str = NULL;
-			break;
+	switch (tartype) {
+	case '1': /* Hard link */
+		if (archive_entry_copy_hardlink_l(entry, tar->entry_linkpath.s,
+		    archive_strlen(&(tar->entry_linkpath)), tar->sconv) != 0) {
+			err = set_conversion_failed_error(a, tar->sconv,
+			    "Linkname");
+			if (err == ARCHIVE_FATAL)
+				return (err);
 		}
-		/* bang to our string pool, so we save a
-		 * malloc()+free() roundtrip */
-		if (fnam.len + 1U > w->pool.len) {
-			w->pool.len = ((fnam.len + 64U) / 64U) * 64U;
-			w->pool.str = realloc(w->pool.str, w->pool.len);
-		}
-		memcpy(w->pool.str, fnam.str, fnam.len);
-		w->pool.str[fnam.len] = '\0';
-		/* let noone else know about the pool, it's a secret, shhh */
-		fnam.str = w->pool.str;
-
-		/* snarf mtime or deduce from rtime
-		 * this is a custom header added by our writer, it's quite
-		 * hard to believe anyone else would go through with it
-		 * (apart from being part of some http responses of course) */
-		if ((mtime = _warc_rdmtm(buf, eoh - buf)) == (time_t)-1) {
-			mtime = rtime;
-		}
-		break;
-	default:
-		fnam.len = 0U;
-		fnam.str = NULL;
-		break;
-	}
-
-	/* now eat some of those delicious buffer bits */
-	__archive_read_consume(a, eoh - buf);
-
-	switch (ftyp) {
-	case WT_RSRC:
-	case WT_RSP:
-		if (fnam.len > 0U) {
-			/* populate entry object */
+		/*
+		 * The following may seem odd, but: Technically, tar
+		 * does not store the file type for a "hard link"
+		 * entry, only the fact that it is a hard link.  So, I
+		 * leave the type zero normally.  But, pax interchange
+		 * format allows hard links to have data, which
+		 * implies that the underlying entry is a regular
+		 * file.
+		 */
+		if (archive_entry_size(entry) > 0)
 			archive_entry_set_filetype(entry, AE_IFREG);
-			archive_entry_copy_pathname(entry, fnam.str);
-			archive_entry_set_size(entry, cntlen);
-			archive_entry_set_perm(entry, 0644);
-			/* rtime is the new ctime, mtime stays mtime */
-			archive_entry_set_ctime(entry, rtime, 0L);
-			archive_entry_set_mtime(entry, mtime, 0L);
-			break;
+
+		/*
+		 * A tricky point: Traditionally, tar readers have
+		 * ignored the size field when reading hardlink
+		 * entries, and some writers put non-zero sizes even
+		 * though the body is empty.  POSIX blessed this
+		 * convention in the 1988 standard, but broke with
+		 * this tradition in 2001 by permitting hardlink
+		 * entries to store valid bodies in pax interchange
+		 * format, but not in ustar format.  Since there is no
+		 * hard and fast way to distinguish pax interchange
+		 * from earlier archives (the 'x' and 'g' entries are
+		 * optional, after all), we need a heuristic.
+		 */
+		if (archive_entry_size(entry) == 0) {
+			/* If the size is already zero, we're done. */
+		}  else if (a->archive.archive_format
+		    == ARCHIVE_FORMAT_TAR_PAX_INTERCHANGE) {
+			/* Definitely pax extended; must obey hardlink size. */
+		} else if (a->archive.archive_format == ARCHIVE_FORMAT_TAR
+		    || a->archive.archive_format == ARCHIVE_FORMAT_TAR_GNUTAR)
+		{
+			/* Old-style or GNU tar: we must ignore the size. */
+			archive_entry_set_size(entry, 0);
+			tar->entry_bytes_remaining = 0;
+		} else if (archive_read_format_tar_bid(a, 50) > 50) {
+			/*
+			 * We don't know if it's pax: If the bid
+			 * function sees a valid ustar header
+			 * immediately following, then let's ignore
+			 * the hardlink size.
+			 */
+			archive_entry_set_size(entry, 0);
+			tar->entry_bytes_remaining = 0;
 		}
+		/*
+		 * TODO: There are still two cases I'd like to handle:
+		 *   = a ustar non-pax archive with a hardlink entry at
+		 *     end-of-archive.  (Look for block of nulls following?)
+		 *   = a pax archive that has not seen any pax headers
+		 *     and has an entry which is a hardlink entry storing
+		 *     a body containing an uncompressed tar archive.
+		 * The first is worth addressing; I don't see any reliable
+		 * way to deal with the second possibility.
+		 */
+		break;
+	case '2': /* Symlink */
+		archive_entry_set_filetype(entry, AE_IFLNK);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		if (archive_entry_copy_symlink_l(entry, tar->entry_linkpath.s,
+		    archive_strlen(&(tar->entry_linkpath)), tar->sconv) != 0) {
+			err = set_conversion_failed_error(a, tar->sconv,
+			    "Linkname");
+			if (err == ARCHIVE_FATAL)
+				return (err);
+		}
+		break;
+	case '3': /* Character device */
+		archive_entry_set_filetype(entry, AE_IFCHR);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		break;
+	case '4': /* Block device */
+		archive_entry_set_filetype(entry, AE_IFBLK);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		break;
+	case '5': /* Dir */
+		archive_entry_set_filetype(entry, AE_IFDIR);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		break;
+	case '6': /* FIFO device */
+		archive_entry_set_filetype(entry, AE_IFIFO);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		break;
+	case 'D': /* GNU incremental directory type */
+		/*
+		 * No special handling is actually required here.
+		 * It might be nice someday to preprocess the file list and
+		 * provide it to the client, though.
+		 */
+		archive_entry_set_filetype(entry, AE_IFDIR);
+		break;
+	case 'M': /* GNU "Multi-volume" (remainder of file from last archive)*/
+		/*
+		 * As far as I can tell, this is just like a regular file
+		 * entry, except that the contents should be _appended_ to
+		 * the indicated file at the indicated offset.  This may
+		 * require some API work to fully support.
+		 */
+		break;
+	case 'N': /* Old GNU "long filename" entry. */
+		/* The body of this entry is a script for renaming
+		 * previously-extracted entries.  Ugh.  It will never
+		 * be supported by libarchive. */
+		archive_entry_set_filetype(entry, AE_IFREG);
+		break;
+	case 'S': /* GNU sparse files */
+		/*
+		 * Sparse files are really just regular files with
+		 * sparse information in the extended area.
+		 */
 		/* FALLTHROUGH */
-	default:
-		/* consume the content and start over */
-		_warc_skip(a);
-		goto start_over;
+	default: /* Regular file  and non-standard types */
+		/*
+		 * Per POSIX: non-recognized types should always be
+		 * treated as regular files.
+		 */
+		archive_entry_set_filetype(entry, AE_IFREG);
+		break;
 	}
-	return (ARCHIVE_OK);
+	return (err);
 }

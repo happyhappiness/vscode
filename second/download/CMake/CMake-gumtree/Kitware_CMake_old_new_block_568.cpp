@@ -1,8 +1,6 @@
 {
-      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
-      const char* flags = this->Makefile->GetDefinition(langFlags);
-      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-              cmLocalGenerator::EscapeForCMake(flags?flags:"").c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
-              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
-      }
+        archive_set_error(&a->archive, EILSEQ,
+            "Can't translate gname '%s' to UTF-8", gname);
+        ret = ARCHIVE_WARN;
+        hdrcharset = "BINARY";
+    }

@@ -1,1 +1,1 @@
-f(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
+archive_string_sprintf(a_estr, errstr, path);

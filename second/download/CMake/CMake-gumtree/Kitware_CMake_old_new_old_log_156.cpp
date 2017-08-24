@@ -1,1 +1,1 @@
-snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);
+yy_fatal_error( "cmExpr_yyset_lineno called with no buffer" , yyscanner);

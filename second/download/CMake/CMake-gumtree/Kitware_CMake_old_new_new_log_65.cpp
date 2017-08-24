@@ -1,3 +1,2 @@
-fsobj_error(a_eno, a_estr, errno,
-					    "Could not remove symlink %s",
-					    path);
+_snprintf(cp->ProcessResults[idx].ExitExceptionString,
+                KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);

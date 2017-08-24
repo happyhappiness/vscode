@@ -1,13 +1,17 @@
 {
-    EdgeList const& nl = graph[depender_index];
-    cmTarget const* depender = this->Targets[depender_index];
-    fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
-    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+  fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());
+  for(std::vector<LinkEntry>::const_iterator lei =
+        this->FinalLinkEntries.begin();
+      lei != this->FinalLinkEntries.end(); ++lei)
+    {
+    if(lei->Target)
       {
-      int dependee_index = *ni;
-      cmTarget const* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
+      fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
+      }
+    else
+      {
+      fprintf(stderr, "  item [%s]\n", lei->Item.c_str());
       }
     }
+  fprintf(stderr, "\n");
+}

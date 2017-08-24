@@ -1,1 +1,3 @@
-tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
+archive_set_error(&a->archive, ENOMEM,
+					    "Can't allocate memory for "
+					    "SCHILY.acl.default");

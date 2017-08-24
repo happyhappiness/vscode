@@ -1,6 +1,4 @@
 {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "LHa data CRC error");
-				return (ARCHIVE_WARN);
-			}
+        sprintf(buf, "%u", this->VersionMajor);
+        this->Makefile->AddDefinition((ver+"_MAJOR").c_str(), buf);
+        }

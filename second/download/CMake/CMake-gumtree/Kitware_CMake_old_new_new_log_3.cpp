@@ -1,1 +1,1 @@
-= aprintf("%s:%s", user, pwd);
+archive_strappend_char(&errlist, ' ');

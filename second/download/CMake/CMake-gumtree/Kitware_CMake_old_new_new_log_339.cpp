@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Invalid ZIP compression type");
+fprintf(this->FileOut, "\t%s\n", symbol.c_str());

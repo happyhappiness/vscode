@@ -1,68 +1,103 @@
-static int
-lzma_bidder_init(struct archive_read_filter *self)
+static CURLcode ftp_state_mdtm_resp(struct connectdata *conn,
+                                    int ftpcode)
 {
-	static const size_t out_block_size = 64 * 1024;
-	void *out_block;
-	struct private_data *state;
-	ssize_t ret, avail_in;
+  CURLcode result = CURLE_OK;
+  struct Curl_easy *data=conn->data;
+  struct FTP *ftp = data->req.protop;
+  struct ftp_conn *ftpc = &conn->proto.ftpc;
 
-	self->code = ARCHIVE_FILTER_LZMA;
-	self->name = "lzma";
+  switch(ftpcode) {
+  case 213:
+    {
+      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
+         last .sss part is optional and means fractions of a second */
+      int year, month, day, hour, minute, second;
+      char *buf = data->state.buffer;
+      if(6 == sscanf(buf+4, "%04d%02d%02d%02d%02d%02d",
+                     &year, &month, &day, &hour, &minute, &second)) {
+        /* we have a time, reformat it */
+        time_t secs=time(NULL);
+        /* using the good old yacc/bison yuck */
+        snprintf(buf, CURL_BUFSIZE(conn->data->set.buffer_size),
+                 "%04d%02d%02d %02d:%02d:%02d GMT",
+                 year, month, day, hour, minute, second);
+        /* now, convert this into a time() value: */
+        data->info.filetime = (long)curl_getdate(buf, &secs);
+      }
 
-	state = (struct private_data *)calloc(sizeof(*state), 1);
-	out_block = (unsigned char *)malloc(out_block_size);
-	if (state == NULL || out_block == NULL) {
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for lzma decompression");
-		free(out_block);
-		free(state);
-		return (ARCHIVE_FATAL);
-	}
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
+      /* If we asked for a time of the file and we actually got one as well,
+         we "emulate" a HTTP-style header in our output. */
 
-	self->data = state;
-	state->out_block_size = out_block_size;
-	state->out_block = out_block;
-	self->read = lzma_filter_read;
-	self->skip = NULL; /* not supported */
-	self->close = lzma_filter_close;
+      if(data->set.opt_no_body &&
+         ftpc->file &&
+         data->set.get_filetime &&
+         (data->info.filetime>=0) ) {
+        time_t filetime = (time_t)data->info.filetime;
+        struct tm buffer;
+        const struct tm *tm = &buffer;
 
-	/* Prime the lzma library with 18 bytes of input. */
-	state->stream.next_in = (unsigned char *)(uintptr_t)
-	    __archive_read_filter_ahead(self->upstream, 18, &avail_in);
-	if (state->stream.next_in == NULL)
-		return (ARCHIVE_FATAL);
-	state->stream.avail_in = avail_in;
-	state->stream.next_out = state->out_block;
-	state->stream.avail_out = state->out_block_size;
+        result = Curl_gmtime(filetime, &buffer);
+        if(result)
+          return result;
 
-	/* Initialize compression library. */
-	ret = lzmadec_init(&(state->stream));
-	__archive_read_filter_consume(self->upstream,
-	    avail_in - state->stream.avail_in);
-	if (ret == LZMADEC_OK)
-		return (ARCHIVE_OK);
+        /* format: "Tue, 15 Nov 1994 12:45:26" */
+        snprintf(buf, BUFSIZE-1,
+                 "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+                 Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+                 tm->tm_mday,
+                 Curl_month[tm->tm_mon],
+                 tm->tm_year + 1900,
+                 tm->tm_hour,
+                 tm->tm_min,
+                 tm->tm_sec);
+        result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+        if(result)
+          return result;
+      } /* end of a ridiculous amount of conditionals */
+#endif
+    }
+    break;
+  default:
+    infof(data, "unsupported MDTM reply format\n");
+    break;
+  case 550: /* "No such file or directory" */
+    failf(data, "Given file does not exist");
+    result = CURLE_FTP_COULDNT_RETR_FILE;
+    break;
+  }
 
-	/* Library setup failed: Clean up. */
-	archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-	    "Internal error initializing lzma library");
+  if(data->set.timecondition) {
+    if((data->info.filetime > 0) && (data->set.timevalue > 0)) {
+      switch(data->set.timecondition) {
+      case CURL_TIMECOND_IFMODSINCE:
+      default:
+        if(data->info.filetime <= data->set.timevalue) {
+          infof(data, "The requested document is not new enough\n");
+          ftp->transfer = FTPTRANSFER_NONE; /* mark to not transfer data */
+          data->info.timecond = TRUE;
+          state(conn, FTP_STOP);
+          return CURLE_OK;
+        }
+        break;
+      case CURL_TIMECOND_IFUNMODSINCE:
+        if(data->info.filetime > data->set.timevalue) {
+          infof(data, "The requested document is not old enough\n");
+          ftp->transfer = FTPTRANSFER_NONE; /* mark to not transfer data */
+          data->info.timecond = TRUE;
+          state(conn, FTP_STOP);
+          return CURLE_OK;
+        }
+        break;
+      } /* switch */
+    }
+    else {
+      infof(data, "Skipping time comparison\n");
+    }
+  }
 
-	/* Override the error message if we know what really went wrong. */
-	switch (ret) {
-	case LZMADEC_HEADER_ERROR:
-		archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Internal error initializing compression library: "
-		    "invalid header");
-		break;
-	case LZMADEC_MEM_ERROR:
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Internal error initializing compression library: "
-		    "out of memory");
-		break;
-	}
+  if(!result)
+    result = ftp_state_type(conn);
 
-	free(state->out_block);
-	free(state);
-	self->data = NULL;
-	return (ARCHIVE_FATAL);
+  return result;
 }

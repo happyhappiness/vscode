@@ -1,0 +1,1 @@
+snprintf(groupname, sizeof(groupname), "%d", (int)gid);

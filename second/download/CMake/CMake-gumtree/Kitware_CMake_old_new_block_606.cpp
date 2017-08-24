@@ -1,6 +1,6 @@
 {
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 0.\n");
-  fprintf(stderr, "Output on stderr from test returning 0.\n");
-  return 0;
-}
+      /* if a line like this was already allocated, free the previous one */
+      if(conn->allocptr.rangeline)
+        free(conn->allocptr.rangeline);
+      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n", conn->range);
+    }

@@ -1,5 +1,4 @@
-#if 0
-      DumpExeFile( dosHeader );
-#else
-      fprintf(stderr, "File is an executable.  I don't dump those.\n");
-      return;
+{
+      printf("Error fetching: http://www.cmake.org/page1.html\n");
+      retVal = 1;
+      }

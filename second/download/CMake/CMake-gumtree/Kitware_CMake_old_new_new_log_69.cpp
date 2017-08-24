@@ -1,2 +1,2 @@
-fsobj_error(a_eno, a_estr, ARCHIVE_ERRNO_MISC,
-		    "Invalid empty ", "pathname");
+snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);

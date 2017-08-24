@@ -1,5 +1,1 @@
-{
-			archive_set_error(f->archive, EIO,
-			    "Can't write to filter");
-			return (ARCHIVE_FATAL);
-		}
+snprintf((char *)&dest[i*2], 3, "%02x", source[i])

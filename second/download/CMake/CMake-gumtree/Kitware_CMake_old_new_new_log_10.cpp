@@ -1,1 +1,0 @@
-= aprintf("%s:%s", user, pwd);

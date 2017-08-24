@@ -1,2 +1,3 @@
-f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
-           "%s:%s", user, pwd);
+fsobj_error(a_eno, a_estr,
+						    errno,
+						    "Could not chdir ", path);

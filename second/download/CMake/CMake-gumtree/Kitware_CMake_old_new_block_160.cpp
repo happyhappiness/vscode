@@ -1,12 +1,9 @@
 {
-    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
+  char s[4096];
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(s, sizeof(s), fmt, ap);
+  va_end(ap);
 
-    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
-                                &cnonce, &cnonce_sz);
-    if(result)
-      return result;
-
-    digest->cnonce = cnonce;
-  }
+  return AddFormData(formp, FORM_DATA, s, 0, size);
+}

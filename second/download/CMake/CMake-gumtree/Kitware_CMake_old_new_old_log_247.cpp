@@ -1,3 +1,3 @@
-archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-			    "Unacceptable dictionary dize for lzip: %d",
-			    dict_size);
+aprintf("%s%s%s:%hu", conn->bits.ipv6_ip?"[":"",
+                  hostname, conn->bits.ipv6_ip?"]":"",
+                  remote_port);

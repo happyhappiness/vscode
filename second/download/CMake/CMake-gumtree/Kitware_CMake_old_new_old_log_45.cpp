@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-	    "Internal error initializing lzma library");
+snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);

@@ -1,23 +1,7 @@
-int
-__archive_write_program_write(struct archive_write_filter *f,
-    struct archive_write_program_data *data, const void *buff, size_t length)
+static void sasl_digest_md5_to_ascii(unsigned char *source, /* 16 bytes */
+                                     unsigned char *dest) /* 33 bytes */
 {
-	ssize_t ret;
-	const char *buf;
-
-	if (data->child == 0)
-		return (ARCHIVE_OK);
-
-	buf = buff;
-	while (length > 0) {
-		ret = child_write(f, data, buf, length);
-		if (ret == -1 || ret == 0) {
-			archive_set_error(f->archive, EIO,
-			    "Can't write to filter");
-			return (ARCHIVE_FATAL);
-		}
-		length -= ret;
-		buf += ret;
-	}
-	return (ARCHIVE_OK);
+  int i;
+  for(i = 0; i < 16; i++)
+    snprintf((char *)&dest[i*2], 3, "%02x", source[i]);
 }

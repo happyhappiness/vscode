@@ -1,21 +1,39 @@
 void
-cmComputeTargetDepends::DisplayGraph(Graph const& graph, const char* name)
+DumpExternals(PIMAGE_SYMBOL pSymbolTable, FILE *fout, unsigned cSymbols)
 {
-  fprintf(stderr, "The %s target dependency graph is:\n", name);
-  int n = static_cast<int>(graph.size());
-  for(int depender_index = 0; depender_index < n; ++depender_index)
-    {
-    EdgeList const& nl = graph[depender_index];
-    cmTarget const* depender = this->Targets[depender_index];
-    fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
-    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int dependee_index = *ni;
-      cmTarget const* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
+   unsigned i;
+   PSTR stringTable;
+   std::string symbol;
+
+   /*
+   * The string table apparently starts right after the symbol table
+   */
+   stringTable = (PSTR)&pSymbolTable[cSymbols];
+
+   for ( i=0; i < cSymbols; i++ ) {
+      if (pSymbolTable->SectionNumber > 0 && pSymbolTable->Type == 0x20) {
+         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
+            if (pSymbolTable->N.Name.Short != 0) {
+               symbol = "";
+               symbol.insert(0, (const char *)(pSymbolTable->N.ShortName), 8);
+            } else {
+               symbol = stringTable + pSymbolTable->N.Name.Long;
+            }
+            std::string::size_type posAt = symbol.find('@');
+            if (posAt != std::string::npos) symbol.erase(posAt);
+#ifndef _MSC_VER
+            fprintf(fout, "\t%s\n", symbol.c_str());
+#else
+            fprintf(fout, "\t%s\n", symbol.c_str()+1);
+#endif
+         }
       }
-    }
-  fprintf(stderr, "\n");
+
+      /*
+      * Take into account any aux symbols
+      */
+      i += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable++;
+   }
 }

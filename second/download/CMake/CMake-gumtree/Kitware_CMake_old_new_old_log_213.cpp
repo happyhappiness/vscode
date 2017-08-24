@@ -1,1 +1,1 @@
-fprintf(stderr, "unknowntag_end:%s\n", name);
+tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);

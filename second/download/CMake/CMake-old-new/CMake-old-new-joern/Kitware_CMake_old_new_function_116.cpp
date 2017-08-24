@@ -1,69 +1,91 @@
-static CURLcode global_init(long flags, bool memoryfuncs)
+static int
+setup_xattrs(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-  if(initialized++)
-    return CURLE_OK;
+	char *list, *p;
+	const char *path;
+	ssize_t list_size;
 
-  if(memoryfuncs) {
-    /* Setup the default memory functions here (again) */
-    Curl_cmalloc = (curl_malloc_callback)malloc;
-    Curl_cfree = (curl_free_callback)free;
-    Curl_crealloc = (curl_realloc_callback)realloc;
-    Curl_cstrdup = (curl_strdup_callback)system_strdup;
-    Curl_ccalloc = (curl_calloc_callback)calloc;
-#if defined(WIN32) && defined(UNICODE)
-    Curl_cwcsdup = (curl_wcsdup_callback)_wcsdup;
-#endif
-  }
+	path = archive_entry_sourcepath(entry);
+	if (path == NULL)
+		path = archive_entry_pathname(entry);
 
-  if(flags & CURL_GLOBAL_SSL)
-    if(!Curl_ssl_init()) {
-      DEBUGF(fprintf(stderr, "Error: Curl_ssl_init failed\n"));
-      return CURLE_FAILED_INIT;
-    }
+	if (*fd < 0 && a->tree != NULL) {
+		if (a->follow_symlinks ||
+		    archive_entry_filetype(entry) != AE_IFLNK)
+			*fd = a->open_on_current_dir(a->tree, path,
+				O_RDONLY | O_NONBLOCK);
+		if (*fd < 0) {
+			if (a->tree_enter_working_dir(a->tree) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Couldn't access %s", path);
+				return (ARCHIVE_FAILED);
+			}
+		}
+	}
 
-  if(flags & CURL_GLOBAL_WIN32)
-    if(win32_init()) {
-      DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));
-      return CURLE_FAILED_INIT;
-    }
-
-#ifdef __AMIGA__
-  if(!Curl_amiga_init()) {
-    DEBUGF(fprintf(stderr, "Error: Curl_amiga_init failed\n"));
-    return CURLE_FAILED_INIT;
-  }
-#endif
-
-#ifdef NETWARE
-  if(netware_init()) {
-    DEBUGF(fprintf(stderr, "Warning: LONG namespace not available\n"));
-  }
+#if HAVE_FLISTXATTR
+	if (*fd >= 0)
+		list_size = flistxattr(*fd, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = llistxattr(path, NULL, 0);
+	else
+		list_size = listxattr(path, NULL, 0);
+#elif HAVE_FLISTEA
+	if (*fd >= 0)
+		list_size = flistea(*fd, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = llistea(path, NULL, 0);
+	else
+		list_size = listea(path, NULL, 0);
 #endif
 
-#ifdef USE_LIBIDN
-  idna_init();
+	if (list_size == -1) {
+		if (errno == ENOTSUP || errno == ENOSYS)
+			return (ARCHIVE_OK);
+		archive_set_error(&a->archive, errno,
+			"Couldn't list extended attributes");
+		return (ARCHIVE_WARN);
+	}
+
+	if (list_size == 0)
+		return (ARCHIVE_OK);
+
+	if ((list = malloc(list_size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+#if HAVE_FLISTXATTR
+	if (*fd >= 0)
+		list_size = flistxattr(*fd, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = llistxattr(path, list, list_size);
+	else
+		list_size = listxattr(path, list, list_size);
+#elif HAVE_FLISTEA
+	if (*fd >= 0)
+		list_size = flistea(*fd, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = llistea(path, list, list_size);
+	else
+		list_size = listea(path, list, list_size);
 #endif
 
-  if(Curl_resolver_global_init()) {
-    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
-    return CURLE_FAILED_INIT;
-  }
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't retrieve extended attributes");
+		free(list);
+		return (ARCHIVE_WARN);
+	}
 
-  (void)Curl_ipv6works();
+	for (p = list; (p - list) < list_size; p += strlen(p) + 1) {
+		if (strncmp(p, "system.", 7) == 0 ||
+				strncmp(p, "xfsroot.", 8) == 0)
+			continue;
+		setup_xattr(a, entry, p, *fd);
+	}
 
-#if defined(USE_LIBSSH2) && defined(HAVE_LIBSSH2_INIT)
-  if(libssh2_init(0)) {
-    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
-    return CURLE_FAILED_INIT;
-  }
-#endif
-
-  if(flags & CURL_GLOBAL_ACK_EINTR)
-    Curl_ack_eintr = 1;
-
-  init_flags = flags;
-
-  Curl_version_init();
-
-  return CURLE_OK;
+	free(list);
+	return (ARCHIVE_OK);
 }

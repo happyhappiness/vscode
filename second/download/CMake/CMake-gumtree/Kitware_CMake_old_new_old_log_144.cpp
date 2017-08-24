@@ -1,1 +1,2 @@
-tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
+fprintf(stderr,
+		    "Extra data field contents do not match reported size!\n");

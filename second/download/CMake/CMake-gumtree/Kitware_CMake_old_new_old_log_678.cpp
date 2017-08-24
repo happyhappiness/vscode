@@ -1,0 +1,1 @@
+snprintf(nbuf, sizeof(nbuf), "?");

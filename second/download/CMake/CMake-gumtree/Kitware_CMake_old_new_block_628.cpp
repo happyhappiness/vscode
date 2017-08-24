@@ -1,2 +1,4 @@
-snprintf(ftpc->newhost, sizeof(ftpc->newhost),
-               "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3])
+{
+    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
+    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
+    }

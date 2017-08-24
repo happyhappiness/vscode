@@ -1,0 +1,1 @@
+fprintf(stderr, "kwsysProcess_New returned NULL!\n");

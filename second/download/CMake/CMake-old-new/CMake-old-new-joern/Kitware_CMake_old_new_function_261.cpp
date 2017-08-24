@@ -1,24 +1,23 @@
-static ssize_t
-_archive_write_disk_data_block(struct archive *_a,
-    const void *buff, size_t size, int64_t offset)
+int
+__archive_write_program_write(struct archive_write_filter *f,
+    struct archive_write_program_data *data, const void *buff, size_t length)
 {
-	struct archive_write_disk *a = (struct archive_write_disk *)_a;
-	ssize_t r;
+	ssize_t ret;
+	const char *buf;
 
-	archive_check_magic(&a->archive, ARCHIVE_WRITE_DISK_MAGIC,
-	    ARCHIVE_STATE_DATA, "archive_write_data_block");
+	if (data->child == 0)
+		return (ARCHIVE_OK);
 
-	a->offset = offset;
-	if (a->todo & TODO_HFS_COMPRESSION)
-		r = hfs_write_data_block(a, buff, size);
-	else
-		r = write_data_block(a, buff, size);
-	if (r < ARCHIVE_OK)
-		return (r);
-	if ((size_t)r < size) {
-		archive_set_error(&a->archive, 0,
-		    "Write request too large");
-		return (ARCHIVE_WARN);
+	buf = buff;
+	while (length > 0) {
+		ret = child_write(f, data, buf, length);
+		if (ret == -1 || ret == 0) {
+			archive_set_error(f->archive, EIO,
+			    "Can't write to filter");
+			return (ARCHIVE_FATAL);
+		}
+		length -= ret;
+		buf += ret;
 	}
 	return (ARCHIVE_OK);
 }

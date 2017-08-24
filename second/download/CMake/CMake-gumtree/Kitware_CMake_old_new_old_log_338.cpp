@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate zip header data");
+fprintf(fout, "\t%s \t DATA\n", symbol.c_str());

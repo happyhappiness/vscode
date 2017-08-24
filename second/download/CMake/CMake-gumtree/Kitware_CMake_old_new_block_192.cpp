@@ -1,8 +1,28 @@
-{
-    /* We don't support auth-int for PUT or POST at the moment.
-       TODO: replace md5 of empty string with entity-body for PUT/POST */
-    unsigned char *md5this2 = (unsigned char *)
-      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
-    free(md5this);
-    md5this = md5this2;
+struct negotiatedata *neg_ctx = proxy?&conn->data->state.proxyneg:
+    &conn->data->state.negotiate;
+  char *encoded = NULL;
+  size_t len = 0;
+  char *userp;
+  CURLcode result;
+  OM_uint32 discard_st;
+
+  result = Curl_base64_encode(conn->data,
+                              neg_ctx->output_token.value,
+                              neg_ctx->output_token.length,
+                              &encoded, &len);
+  if(result) {
+    gss_release_buffer(&discard_st, &neg_ctx->output_token);
+    neg_ctx->output_token.value = NULL;
+    neg_ctx->output_token.length = 0;
+    return result;
   }
+
+  if(!encoded || !len) {
+    gss_release_buffer(&discard_st, &neg_ctx->output_token);
+    neg_ctx->output_token.value = NULL;
+    neg_ctx->output_token.length = 0;
+    return CURLE_REMOTE_ACCESS_DENIED;
+  }
+
+  userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
+                  encoded)

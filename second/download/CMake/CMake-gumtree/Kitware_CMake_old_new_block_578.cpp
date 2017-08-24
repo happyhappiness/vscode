@@ -1,5 +1,4 @@
 {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Pathname is too long");
-		}
+        sprintf(buf, "%u", this->VersionMinor);
+        this->Makefile->AddDefinition((ver+"_MINOR").c_str(), buf);
+        }

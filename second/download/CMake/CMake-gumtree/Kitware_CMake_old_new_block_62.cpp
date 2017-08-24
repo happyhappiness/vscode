@@ -1,9 +1,4 @@
 {
-			case LZMADEC_OK:
-				break;
-			default:
-				archive_set_error(&(a->archive),
-				    ARCHIVE_ERRNO_MISC,
-				    "Failed to clean up lzmadec decompressor");
-				return (ARCHIVE_FATAL);
-			}
+    snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer);
+    data->state.errorbuf = TRUE; /* wrote error string */
+  }

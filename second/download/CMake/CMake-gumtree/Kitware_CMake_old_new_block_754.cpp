@@ -1,0 +1,3 @@
+{
+      snprintf(hbuf, sizeof(hbuf), "?");
+    }

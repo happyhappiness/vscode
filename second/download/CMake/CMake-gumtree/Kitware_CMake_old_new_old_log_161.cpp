@@ -1,1 +1,1 @@
-("%s:%s:%s";
+write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap);

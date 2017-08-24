@@ -1,1 +1,3 @@
-xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer);
+archive_set_error(&a->archive, errno,
+					    "Could not remove symlink %s",
+					    a->name);

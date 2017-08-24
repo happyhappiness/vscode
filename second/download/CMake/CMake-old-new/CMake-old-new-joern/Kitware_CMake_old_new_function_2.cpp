@@ -1,36 +1,59 @@
-static CURLcode ftp_state_size_resp(struct connectdata *conn,
-                                    int ftpcode,
-                                    ftpstate instate)
+int
+set_xattrs(struct archive_write_disk *a)
 {
-  CURLcode result = CURLE_OK;
-  struct Curl_easy *data=conn->data;
-  curl_off_t filesize;
-  char *buf = data->state.buffer;
+	struct archive_entry *entry = a->entry;
+	static int warning_done = 0;
+	int ret = ARCHIVE_OK;
+	int i = archive_entry_xattr_reset(entry);
 
-  /* get the size from the ascii string: */
-  filesize = (ftpcode == 213)?curlx_strtoofft(buf+4, NULL, 0):-1;
-
-  if(instate == FTP_SIZE) {
-#ifdef CURL_FTP_HTTPSTYLE_HEAD
-    if(-1 != filesize) {
-      snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
-               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);
-      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-      if(result)
-        return result;
-    }
+	while (i--) {
+		const char *name;
+		const void *value;
+		size_t size;
+		archive_entry_xattr_next(entry, &name, &value, &size);
+		if (name != NULL &&
+				strncmp(name, "xfsroot.", 8) != 0 &&
+				strncmp(name, "system.", 7) != 0) {
+			int e;
+#if HAVE_FSETXATTR
+			if (a->fd >= 0)
+				e = fsetxattr(a->fd, name, value, size, 0);
+			else
+#elif HAVE_FSETEA
+			if (a->fd >= 0)
+				e = fsetea(a->fd, name, value, size, 0);
+			else
 #endif
-    Curl_pgrsSetDownloadSize(data, filesize);
-    result = ftp_state_rest(conn);
-  }
-  else if(instate == FTP_RETR_SIZE) {
-    Curl_pgrsSetDownloadSize(data, filesize);
-    result = ftp_state_retr(conn, filesize);
-  }
-  else if(instate == FTP_STOR_SIZE) {
-    data->state.resume_from = filesize;
-    result = ftp_state_ul_setup(conn, TRUE);
-  }
-
-  return result;
+			{
+#if HAVE_LSETXATTR
+				e = lsetxattr(archive_entry_pathname(entry),
+				    name, value, size, 0);
+#elif HAVE_LSETEA
+				e = lsetea(archive_entry_pathname(entry),
+				    name, value, size, 0);
+#endif
+			}
+			if (e == -1) {
+				if (errno == ENOTSUP || errno == ENOSYS) {
+					if (!warning_done) {
+						warning_done = 1;
+						archive_set_error(&a->archive,
+						    errno,
+						    "Cannot restore extended "
+						    "attributes on this file "
+						    "system");
+					}
+				} else
+					archive_set_error(&a->archive, errno,
+					    "Failed to set extended attribute");
+				ret = ARCHIVE_WARN;
+			}
+		} else {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Invalid extended attribute encountered");
+			ret = ARCHIVE_WARN;
+		}
+	}
+	return (ret);
 }

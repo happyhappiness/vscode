@@ -1,279 +1,233 @@
-CURLcode Curl_output_digest(struct connectdata *conn,
-                            bool proxy,
-                            const unsigned char *request,
-                            const unsigned char *uripath)
+static int
+parse_keyword(struct archive_read *a, struct mtree *mtree,
+    struct archive_entry *entry, struct mtree_option *opt, int *parsed_kws)
 {
-  /* We have a Digest setup for this, use it!  Now, to get all the details for
-     this sorted out, I must urge you dear friend to read up on the RFC2617
-     section 3.2.2, */
-  size_t urilen;
-  unsigned char md5buf[16]; /* 16 bytes/128 bits */
-  unsigned char request_digest[33];
-  unsigned char *md5this;
-  unsigned char ha1[33];/* 32 digits and 1 zero byte */
-  unsigned char ha2[33];/* 32 digits and 1 zero byte */
-  char cnoncebuf[33];
-  char *cnonce = NULL;
-  size_t cnonce_sz = 0;
-  char *tmp = NULL;
-  char **allocuserpwd;
-  size_t userlen;
-  const char *userp;
-  char *userp_quoted;
-  const char *passwdp;
-  struct auth *authp;
+	char *val, *key;
 
-  struct SessionHandle *data = conn->data;
-  struct digestdata *d;
-  CURLcode rc;
-/* The CURL_OUTPUT_DIGEST_CONV macro below is for non-ASCII machines.
-   It converts digest text to ASCII so the MD5 will be correct for
-   what ultimately goes over the network.
-*/
-#define CURL_OUTPUT_DIGEST_CONV(a, b) \
-  rc = Curl_convert_to_network(a, (char *)b, strlen((const char*)b)); \
-  if(rc != CURLE_OK) { \
-    free(b); \
-    return rc; \
-  }
+	key = opt->value;
 
-  if(proxy) {
-    d = &data->state.proxydigest;
-    allocuserpwd = &conn->allocptr.proxyuserpwd;
-    userp = conn->proxyuser;
-    passwdp = conn->proxypasswd;
-    authp = &data->state.authproxy;
-  }
-  else {
-    d = &data->state.digest;
-    allocuserpwd = &conn->allocptr.userpwd;
-    userp = conn->user;
-    passwdp = conn->passwd;
-    authp = &data->state.authhost;
-  }
+	if (*key == '\0')
+		return (ARCHIVE_OK);
 
-  Curl_safefree(*allocuserpwd);
+	if (strcmp(key, "nochange") == 0) {
+		*parsed_kws |= MTREE_HAS_NOCHANGE;
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "optional") == 0) {
+		*parsed_kws |= MTREE_HAS_OPTIONAL;
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "ignore") == 0) {
+		/*
+		 * The mtree processing is not recursive, so
+		 * recursion will only happen for explicitly listed
+		 * entries.
+		 */
+		return (ARCHIVE_OK);
+	}
 
-  /* not set means empty */
-  if(!userp)
-    userp="";
+	val = strchr(key, '=');
+	if (val == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Malformed attribute \"%s\" (%d)", key, key[0]);
+		return (ARCHIVE_WARN);
+	}
 
-  if(!passwdp)
-    passwdp="";
+	*val = '\0';
+	++val;
 
-  if(!d->nonce) {
-    authp->done = FALSE;
-    return CURLE_OK;
-  }
-  authp->done = TRUE;
+	switch (key[0]) {
+	case 'c':
+		if (strcmp(key, "content") == 0
+		    || strcmp(key, "contents") == 0) {
+			parse_escapes(val, NULL);
+			archive_strcpy(&mtree->contents_name, val);
+			break;
+		}
+		if (strcmp(key, "cksum") == 0)
+			break;
+	case 'd':
+		if (strcmp(key, "device") == 0) {
+			/* stat(2) st_rdev field, e.g. the major/minor IDs
+			 * of a char/block special file */
+			int r;
+			dev_t dev;
 
-  if(!d->nc)
-    d->nc = 1;
+			*parsed_kws |= MTREE_HAS_DEVICE;
+			r = parse_device(&dev, &a->archive, val);
+			if (r == ARCHIVE_OK)
+				archive_entry_set_rdev(entry, dev);
+			return r;
+		}
+	case 'f':
+		if (strcmp(key, "flags") == 0) {
+			*parsed_kws |= MTREE_HAS_FFLAGS;
+			archive_entry_copy_fflags_text(entry, val);
+			break;
+		}
+	case 'g':
+		if (strcmp(key, "gid") == 0) {
+			*parsed_kws |= MTREE_HAS_GID;
+			archive_entry_set_gid(entry, mtree_atol10(&val));
+			break;
+		}
+		if (strcmp(key, "gname") == 0) {
+			*parsed_kws |= MTREE_HAS_GNAME;
+			archive_entry_copy_gname(entry, val);
+			break;
+		}
+	case 'i':
+		if (strcmp(key, "inode") == 0) {
+			archive_entry_set_ino(entry, mtree_atol10(&val));
+			break;
+		}
+	case 'l':
+		if (strcmp(key, "link") == 0) {
+			archive_entry_copy_symlink(entry, val);
+			break;
+		}
+	case 'm':
+		if (strcmp(key, "md5") == 0 || strcmp(key, "md5digest") == 0)
+			break;
+		if (strcmp(key, "mode") == 0) {
+			if (val[0] >= '0' && val[0] <= '9') {
+				*parsed_kws |= MTREE_HAS_PERM;
+				archive_entry_set_perm(entry,
+				    (mode_t)mtree_atol8(&val));
+			} else {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Symbolic mode \"%s\" unsupported", val);
+				return ARCHIVE_WARN;
+			}
+			break;
+		}
+	case 'n':
+		if (strcmp(key, "nlink") == 0) {
+			*parsed_kws |= MTREE_HAS_NLINK;
+			archive_entry_set_nlink(entry,
+				(unsigned int)mtree_atol10(&val));
+			break;
+		}
+	case 'r':
+		if (strcmp(key, "resdevice") == 0) {
+			/* stat(2) st_dev field, e.g. the device ID where the
+			 * inode resides */
+			int r;
+			dev_t dev;
 
-  if(!d->cnonce) {
-    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
-    rc = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
-                            &cnonce, &cnonce_sz);
-    if(rc)
-      return rc;
-    d->cnonce = cnonce;
-  }
+			r = parse_device(&dev, &a->archive, val);
+			if (r == ARCHIVE_OK)
+				archive_entry_set_dev(entry, dev);
+			return r;
+		}
+		if (strcmp(key, "rmd160") == 0 ||
+		    strcmp(key, "rmd160digest") == 0)
+			break;
+	case 's':
+		if (strcmp(key, "sha1") == 0 || strcmp(key, "sha1digest") == 0)
+			break;
+		if (strcmp(key, "sha256") == 0 ||
+		    strcmp(key, "sha256digest") == 0)
+			break;
+		if (strcmp(key, "sha384") == 0 ||
+		    strcmp(key, "sha384digest") == 0)
+			break;
+		if (strcmp(key, "sha512") == 0 ||
+		    strcmp(key, "sha512digest") == 0)
+			break;
+		if (strcmp(key, "size") == 0) {
+			archive_entry_set_size(entry, mtree_atol10(&val));
+			break;
+		}
+	case 't':
+		if (strcmp(key, "tags") == 0) {
+			/*
+			 * Comma delimited list of tags.
+			 * Ignore the tags for now, but the interface
+			 * should be extended to allow inclusion/exclusion.
+			 */
+			break;
+		}
+		if (strcmp(key, "time") == 0) {
+			int64_t m;
+			int64_t my_time_t_max = get_time_t_max();
+			int64_t my_time_t_min = get_time_t_min();
+			long ns;
 
-  /*
-    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
-
-    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
-
-    if the algorithm is "MD5-sess" then:
-
-    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
-         ":" unq(nonce-value) ":" unq(cnonce-value)
-  */
-
-  md5this = (unsigned char *)
-    aprintf("%s:%s:%s", userp, d->realm, passwdp);
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  Curl_safefree(md5this);
-  md5_to_ascii(md5buf, ha1);
-
-  if(d->algo == CURLDIGESTALGO_MD5SESS) {
-    /* nonce and cnonce are OUTSIDE the hash */
-    tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
-    Curl_md5it(md5buf, (unsigned char *)tmp);
-    Curl_safefree(tmp);
-    md5_to_ascii(md5buf, ha1);
-  }
-
-  /*
-    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
-
-      A2       = Method ":" digest-uri-value
-
-          If the "qop" value is "auth-int", then A2 is:
-
-      A2       = Method ":" digest-uri-value ":" H(entity-body)
-
-    (The "Method" value is the HTTP request method as specified in section
-    5.1.1 of RFC 2616)
-  */
-
-  /* So IE browsers < v7 cut off the URI part at the query part when they
-     evaluate the MD5 and some (IIS?) servers work with them so we may need to
-     do the Digest IE-style. Note that the different ways cause different MD5
-     sums to get sent.
-
-     Apache servers can be set to do the Digest IE-style automatically using
-     the BrowserMatch feature:
-     http://httpd.apache.org/docs/2.2/mod/mod_auth_digest.html#msie
-
-     Further details on Digest implementation differences:
-     http://www.fngtps.com/2006/09/http-authentication
-  */
-
-  if(authp->iestyle && ((tmp = strchr((char *)uripath, '?')) != NULL))
-    urilen = tmp - (char *)uripath;
-  else
-    urilen = strlen((char *)uripath);
-
-  md5this = (unsigned char *)aprintf("%s:%.*s", request, urilen, uripath);
-
-  if(d->qop && Curl_raw_equal(d->qop, "auth-int")) {
-    /* We don't support auth-int for PUT or POST at the moment.
-       TODO: replace md5 of empty string with entity-body for PUT/POST */
-    unsigned char *md5this2 = (unsigned char *)
-      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
-    Curl_safefree(md5this);
-    md5this = md5this2;
-  }
-
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  Curl_safefree(md5this);
-  md5_to_ascii(md5buf, ha2);
-
-  if(d->qop) {
-    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
-                                       ha1,
-                                       d->nonce,
-                                       d->nc,
-                                       d->cnonce,
-                                       d->qop,
-                                       ha2);
-  }
-  else {
-    md5this = (unsigned char *)aprintf("%s:%s:%s",
-                                       ha1,
-                                       d->nonce,
-                                       ha2);
-  }
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  Curl_safefree(md5this);
-  md5_to_ascii(md5buf, request_digest);
-
-  /* for test case 64 (snooped from a Mozilla 1.3a request)
-
-    Authorization: Digest username="testuser", realm="testrealm", \
-    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
-
-    Digest parameters are all quoted strings.  Username which is provided by
-    the user will need double quotes and backslashes within it escaped.  For
-    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
-    are copied as is from the server, escapes and all.  cnonce is generated
-    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
-    characters.  algorithm and qop with standard values only contain web-safe
-    chracters.
-  */
-  userp_quoted = string_quoted(userp);
-  if(!userp_quoted)
-    return CURLE_OUT_OF_MEMORY;
-
-  if(d->qop) {
-    *allocuserpwd =
-      aprintf( "%sAuthorization: Digest "
-               "username=\"%s\", "
-               "realm=\"%s\", "
-               "nonce=\"%s\", "
-               "uri=\"%.*s\", "
-               "cnonce=\"%s\", "
-               "nc=%08x, "
-               "qop=%s, "
-               "response=\"%s\"",
-               proxy?"Proxy-":"",
-               userp_quoted,
-               d->realm,
-               d->nonce,
-               urilen, uripath, /* this is the PATH part of the URL */
-               d->cnonce,
-               d->nc,
-               d->qop,
-               request_digest);
-
-    if(Curl_raw_equal(d->qop, "auth"))
-      d->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0 padded
-                  which tells to the server how many times you are using the
-                  same nonce in the qop=auth mode. */
-  }
-  else {
-    *allocuserpwd =
-      aprintf( "%sAuthorization: Digest "
-               "username=\"%s\", "
-               "realm=\"%s\", "
-               "nonce=\"%s\", "
-               "uri=\"%.*s\", "
-               "response=\"%s\"",
-               proxy?"Proxy-":"",
-               userp_quoted,
-               d->realm,
-               d->nonce,
-               urilen, uripath, /* this is the PATH part of the URL */
-               request_digest);
-  }
-  Curl_safefree(userp_quoted);
-  if(!*allocuserpwd)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Add optional fields */
-  if(d->opaque) {
-    /* append opaque */
-    tmp = aprintf("%s, opaque=\"%s\"", *allocuserpwd, d->opaque);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-    free(*allocuserpwd);
-    *allocuserpwd = tmp;
-  }
-
-  if(d->algorithm) {
-    /* append algorithm */
-    tmp = aprintf("%s, algorithm=\"%s\"", *allocuserpwd, d->algorithm);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-    free(*allocuserpwd);
-    *allocuserpwd = tmp;
-  }
-
-  /* append CRLF + zero (3 bytes) to the userpwd header */
-  userlen = strlen(*allocuserpwd);
-  tmp = realloc(*allocuserpwd, userlen + 3);
-  if(!tmp)
-    return CURLE_OUT_OF_MEMORY;
-  strcpy(&tmp[userlen], "\r\n"); /* append the data */
-  *allocuserpwd = tmp;
-
-  return CURLE_OK;
+			*parsed_kws |= MTREE_HAS_MTIME;
+			m = mtree_atol10(&val);
+			/* Replicate an old mtree bug:
+			 * 123456789.1 represents 123456789
+			 * seconds and 1 nanosecond. */
+			if (*val == '.') {
+				++val;
+				ns = (long)mtree_atol10(&val);
+			} else
+				ns = 0;
+			if (m > my_time_t_max)
+				m = my_time_t_max;
+			else if (m < my_time_t_min)
+				m = my_time_t_min;
+			archive_entry_set_mtime(entry, (time_t)m, ns);
+			break;
+		}
+		if (strcmp(key, "type") == 0) {
+			switch (val[0]) {
+			case 'b':
+				if (strcmp(val, "block") == 0) {
+					archive_entry_set_filetype(entry, AE_IFBLK);
+					break;
+				}
+			case 'c':
+				if (strcmp(val, "char") == 0) {
+					archive_entry_set_filetype(entry, AE_IFCHR);
+					break;
+				}
+			case 'd':
+				if (strcmp(val, "dir") == 0) {
+					archive_entry_set_filetype(entry, AE_IFDIR);
+					break;
+				}
+			case 'f':
+				if (strcmp(val, "fifo") == 0) {
+					archive_entry_set_filetype(entry, AE_IFIFO);
+					break;
+				}
+				if (strcmp(val, "file") == 0) {
+					archive_entry_set_filetype(entry, AE_IFREG);
+					break;
+				}
+			case 'l':
+				if (strcmp(val, "link") == 0) {
+					archive_entry_set_filetype(entry, AE_IFLNK);
+					break;
+				}
+			default:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Unrecognized file type \"%s\"; assuming \"file\"", val);
+				archive_entry_set_filetype(entry, AE_IFREG);
+				return (ARCHIVE_WARN);
+			}
+			*parsed_kws |= MTREE_HAS_TYPE;
+			break;
+		}
+	case 'u':
+		if (strcmp(key, "uid") == 0) {
+			*parsed_kws |= MTREE_HAS_UID;
+			archive_entry_set_uid(entry, mtree_atol10(&val));
+			break;
+		}
+		if (strcmp(key, "uname") == 0) {
+			*parsed_kws |= MTREE_HAS_UNAME;
+			archive_entry_copy_uname(entry, val);
+			break;
+		}
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unrecognized key %s=%s", key, val);
+		return (ARCHIVE_WARN);
+	}
+	return (ARCHIVE_OK);
 }

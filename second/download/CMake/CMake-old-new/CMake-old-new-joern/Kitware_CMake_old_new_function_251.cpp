@@ -1,241 +1,534 @@
-static int
-_ar_read_header(struct archive_read *a, struct archive_entry *entry,
-	struct ar *ar, const char *h, size_t *unconsumed)
+int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv,
+                                     bool isTryRun)
 {
-	char filename[AR_name_size + 1];
-	uint64_t number; /* Used to hold parsed numbers before validation. */
-	size_t bsd_name_length, entry_size;
-	char *p, *st;
-	const void *b;
-	int r;
+  this->BinaryDirectory = argv[1].c_str();
+  this->OutputFile = "";
+  // which signature were we called with ?
+  this->SrcFileSignature = true;
 
-	/* Verify the magic signature on the file header. */
-	if (strncmp(h + AR_fmag_offset, "`\n", 2) != 0) {
-		archive_set_error(&a->archive, EINVAL,
-		    "Incorrect file header signature");
-		return (ARCHIVE_WARN);
-	}
+  cmState::TargetType targetType = cmState::EXECUTABLE;
+  const char* tt =
+    this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_TARGET_TYPE");
+  if (!isTryRun && tt && *tt) {
+    if (strcmp(tt, cmState::GetTargetTypeName(cmState::EXECUTABLE)) == 0) {
+      targetType = cmState::EXECUTABLE;
+    } else if (strcmp(tt, cmState::GetTargetTypeName(
+                            cmState::STATIC_LIBRARY)) == 0) {
+      targetType = cmState::STATIC_LIBRARY;
+    } else {
+      this->Makefile->IssueMessage(
+        cmake::FATAL_ERROR, std::string("Invalid value '") + tt +
+          "' for "
+          "CMAKE_TRY_COMPILE_TARGET_TYPE.  Only "
+          "'" +
+          cmState::GetTargetTypeName(cmState::EXECUTABLE) + "' and "
+                                                            "'" +
+          cmState::GetTargetTypeName(cmState::STATIC_LIBRARY) +
+          "' "
+          "are allowed.");
+      return -1;
+    }
+  }
 
-	/* Copy filename into work buffer. */
-	strncpy(filename, h + AR_name_offset, AR_name_size);
-	filename[AR_name_size] = '\0';
+  const char* sourceDirectory = argv[2].c_str();
+  const char* projectName = 0;
+  std::string targetName;
+  std::vector<std::string> cmakeFlags(1, "CMAKE_FLAGS"); // fake argv[0]
+  std::vector<std::string> compileDefs;
+  std::string outputVariable;
+  std::string copyFile;
+  std::string copyFileError;
+  std::vector<std::string> targets;
+  std::string libsToLink = " ";
+  bool useOldLinkLibs = true;
+  char targetNameBuf[64];
+  bool didOutputVariable = false;
+  bool didCopyFile = false;
+  bool didCopyFileError = false;
+  bool useSources = argv[2] == "SOURCES";
+  std::vector<std::string> sources;
 
-	/*
-	 * Guess the format variant based on the filename.
-	 */
-	if (a->archive.archive_format == ARCHIVE_FORMAT_AR) {
-		/* We don't already know the variant, so let's guess. */
-		/*
-		 * Biggest clue is presence of '/': GNU starts special
-		 * filenames with '/', appends '/' as terminator to
-		 * non-special names, so anything with '/' should be
-		 * GNU except for BSD long filenames.
-		 */
-		if (strncmp(filename, "#1/", 3) == 0)
-			a->archive.archive_format = ARCHIVE_FORMAT_AR_BSD;
-		else if (strchr(filename, '/') != NULL)
-			a->archive.archive_format = ARCHIVE_FORMAT_AR_GNU;
-		else if (strncmp(filename, "__.SYMDEF", 9) == 0)
-			a->archive.archive_format = ARCHIVE_FORMAT_AR_BSD;
-		/*
-		 * XXX Do GNU/SVR4 'ar' programs ever omit trailing '/'
-		 * if name exactly fills 16-byte field?  If so, we
-		 * can't assume entries without '/' are BSD. XXX
-		 */
-	}
+  enum Doing
+  {
+    DoingNone,
+    DoingCMakeFlags,
+    DoingCompileDefinitions,
+    DoingLinkLibraries,
+    DoingOutputVariable,
+    DoingCopyFile,
+    DoingCopyFileError,
+    DoingSources
+  };
+  Doing doing = useSources ? DoingSources : DoingNone;
+  for (size_t i = 3; i < argv.size(); ++i) {
+    if (argv[i] == "CMAKE_FLAGS") {
+      doing = DoingCMakeFlags;
+    } else if (argv[i] == "COMPILE_DEFINITIONS") {
+      doing = DoingCompileDefinitions;
+    } else if (argv[i] == "LINK_LIBRARIES") {
+      doing = DoingLinkLibraries;
+      useOldLinkLibs = false;
+    } else if (argv[i] == "OUTPUT_VARIABLE") {
+      doing = DoingOutputVariable;
+      didOutputVariable = true;
+    } else if (argv[i] == "COPY_FILE") {
+      doing = DoingCopyFile;
+      didCopyFile = true;
+    } else if (argv[i] == "COPY_FILE_ERROR") {
+      doing = DoingCopyFileError;
+      didCopyFileError = true;
+    } else if (doing == DoingCMakeFlags) {
+      cmakeFlags.push_back(argv[i]);
+    } else if (doing == DoingCompileDefinitions) {
+      compileDefs.push_back(argv[i]);
+    } else if (doing == DoingLinkLibraries) {
+      libsToLink += "\"" + cmSystemTools::TrimWhitespace(argv[i]) + "\" ";
+      if (cmTarget* tgt = this->Makefile->FindTargetToUse(argv[i])) {
+        switch (tgt->GetType()) {
+          case cmState::SHARED_LIBRARY:
+          case cmState::STATIC_LIBRARY:
+          case cmState::INTERFACE_LIBRARY:
+          case cmState::UNKNOWN_LIBRARY:
+            break;
+          case cmState::EXECUTABLE:
+            if (tgt->IsExecutableWithExports()) {
+              break;
+            }
+          default:
+            this->Makefile->IssueMessage(
+              cmake::FATAL_ERROR,
+              "Only libraries may be used as try_compile or try_run IMPORTED "
+              "LINK_LIBRARIES.  Got " +
+                std::string(tgt->GetName()) + " of "
+                                              "type " +
+                cmState::GetTargetTypeName(tgt->GetType()) + ".");
+            return -1;
+        }
+        if (tgt->IsImported()) {
+          targets.push_back(argv[i]);
+        }
+      }
+    } else if (doing == DoingOutputVariable) {
+      outputVariable = argv[i].c_str();
+      doing = DoingNone;
+    } else if (doing == DoingCopyFile) {
+      copyFile = argv[i].c_str();
+      doing = DoingNone;
+    } else if (doing == DoingCopyFileError) {
+      copyFileError = argv[i].c_str();
+      doing = DoingNone;
+    } else if (doing == DoingSources) {
+      sources.push_back(argv[i]);
+    } else if (i == 3) {
+      this->SrcFileSignature = false;
+      projectName = argv[i].c_str();
+    } else if (i == 4 && !this->SrcFileSignature) {
+      targetName = argv[i].c_str();
+    } else {
+      std::ostringstream m;
+      m << "try_compile given unknown argument \"" << argv[i] << "\".";
+      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, m.str());
+    }
+  }
 
-	/* Update format name from the code. */
-	if (a->archive.archive_format == ARCHIVE_FORMAT_AR_GNU)
-		a->archive.archive_format_name = "ar (GNU/SVR4)";
-	else if (a->archive.archive_format == ARCHIVE_FORMAT_AR_BSD)
-		a->archive.archive_format_name = "ar (BSD)";
-	else
-		a->archive.archive_format_name = "ar";
+  if (didCopyFile && copyFile.empty()) {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+                                 "COPY_FILE must be followed by a file path");
+    return -1;
+  }
 
-	/*
-	 * Remove trailing spaces from the filename.  GNU and BSD
-	 * variants both pad filename area out with spaces.
-	 * This will only be wrong if GNU/SVR4 'ar' implementations
-	 * omit trailing '/' for 16-char filenames and we have
-	 * a 16-char filename that ends in ' '.
-	 */
-	p = filename + AR_name_size - 1;
-	while (p >= filename && *p == ' ') {
-		*p = '\0';
-		p--;
-	}
+  if (didCopyFileError && copyFileError.empty()) {
+    this->Makefile->IssueMessage(
+      cmake::FATAL_ERROR,
+      "COPY_FILE_ERROR must be followed by a variable name");
+    return -1;
+  }
 
-	/*
-	 * Remove trailing slash unless first character is '/'.
-	 * (BSD entries never end in '/', so this will only trim
-	 * GNU-format entries.  GNU special entries start with '/'
-	 * and are not terminated in '/', so we don't trim anything
-	 * that starts with '/'.)
-	 */
-	if (filename[0] != '/' && *p == '/')
-		*p = '\0';
+  if (didCopyFileError && !didCopyFile) {
+    this->Makefile->IssueMessage(
+      cmake::FATAL_ERROR, "COPY_FILE_ERROR may be used only with COPY_FILE");
+    return -1;
+  }
 
-	/*
-	 * '//' is the GNU filename table.
-	 * Later entries can refer to names in this table.
-	 */
-	if (strcmp(filename, "//") == 0) {
-		/* This must come before any call to _read_ahead. */
-		ar_parse_common_header(ar, entry, h);
-		archive_entry_copy_pathname(entry, filename);
-		archive_entry_set_filetype(entry, AE_IFREG);
-		/* Get the size of the filename table. */
-		number = ar_atol10(h + AR_size_offset, AR_size_size);
-		if (number > SIZE_MAX) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Filename table too large");
-			return (ARCHIVE_FATAL);
-		}
-		entry_size = (size_t)number;
-		if (entry_size == 0) {
-			archive_set_error(&a->archive, EINVAL,
-			    "Invalid string table");
-			return (ARCHIVE_WARN);
-		}
-		if (ar->strtab != NULL) {
-			archive_set_error(&a->archive, EINVAL,
-			    "More than one string tables exist");
-			return (ARCHIVE_WARN);
-		}
+  if (didOutputVariable && outputVariable.empty()) {
+    this->Makefile->IssueMessage(
+      cmake::FATAL_ERROR,
+      "OUTPUT_VARIABLE must be followed by a variable name");
+    return -1;
+  }
 
-		/* Read the filename table into memory. */
-		st = malloc(entry_size);
-		if (st == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate filename table buffer");
-			return (ARCHIVE_FATAL);
-		}
-		ar->strtab = st;
-		ar->strtab_size = entry_size;
+  if (useSources && sources.empty()) {
+    this->Makefile->IssueMessage(
+      cmake::FATAL_ERROR,
+      "SOURCES must be followed by at least one source file");
+    return -1;
+  }
 
-		if (*unconsumed) {
-			__archive_read_consume(a, *unconsumed);
-			*unconsumed = 0;
-		}
+  // compute the binary dir when TRY_COMPILE is called with a src file
+  // signature
+  if (this->SrcFileSignature) {
+    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
+    this->BinaryDirectory += "/CMakeTmp";
+  } else {
+    // only valid for srcfile signatures
+    if (!compileDefs.empty()) {
+      this->Makefile->IssueMessage(
+        cmake::FATAL_ERROR,
+        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
+      return -1;
+    }
+    if (!copyFile.empty()) {
+      this->Makefile->IssueMessage(
+        cmake::FATAL_ERROR,
+        "COPY_FILE specified on a srcdir type TRY_COMPILE");
+      return -1;
+    }
+  }
+  // make sure the binary directory exists
+  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
 
-		if ((b = __archive_read_ahead(a, entry_size, NULL)) == NULL)
-			return (ARCHIVE_FATAL);
-		memcpy(st, b, entry_size);
-		__archive_read_consume(a, entry_size);
-		/* All contents are consumed. */
-		ar->entry_bytes_remaining = 0;
-		archive_entry_set_size(entry, ar->entry_bytes_remaining);
+  // do not allow recursive try Compiles
+  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory()) {
+    std::ostringstream e;
+    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
+      << "  " << this->BinaryDirectory << "\n";
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+    return -1;
+  }
 
-		/* Parse the filename table. */
-		return (ar_parse_gnu_filename_table(a));
-	}
+  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
+  // which signature are we using? If we are using var srcfile bindir
+  if (this->SrcFileSignature) {
+    // remove any CMakeCache.txt files so we will have a clean test
+    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
+    cmSystemTools::RemoveFile(ccFile);
 
-	/*
-	 * GNU variant handles long filenames by storing /<number>
-	 * to indicate a name stored in the filename table.
-	 * XXX TODO: Verify that it's all digits... Don't be fooled
-	 * by "/9xyz" XXX
-	 */
-	if (filename[0] == '/' && filename[1] >= '0' && filename[1] <= '9') {
-		number = ar_atol10(h + AR_name_offset + 1, AR_name_size - 1);
-		/*
-		 * If we can't look up the real name, warn and return
-		 * the entry with the wrong name.
-		 */
-		if (ar->strtab == NULL || number > ar->strtab_size) {
-			archive_set_error(&a->archive, EINVAL,
-			    "Can't find long filename for entry");
-			archive_entry_copy_pathname(entry, filename);
-			/* Parse the time, owner, mode, size fields. */
-			ar_parse_common_header(ar, entry, h);
-			return (ARCHIVE_WARN);
-		}
+    // Choose sources.
+    if (!useSources) {
+      sources.push_back(argv[2]);
+    }
 
-		archive_entry_copy_pathname(entry, &ar->strtab[(size_t)number]);
-		/* Parse the time, owner, mode, size fields. */
-		return (ar_parse_common_header(ar, entry, h));
-	}
+    // Detect languages to enable.
+    cmGlobalGenerator* gg = this->Makefile->GetGlobalGenerator();
+    std::set<std::string> testLangs;
+    for (std::vector<std::string>::iterator si = sources.begin();
+         si != sources.end(); ++si) {
+      std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
+      std::string lang = gg->GetLanguageFromExtension(ext.c_str());
+      if (!lang.empty()) {
+        testLangs.insert(lang);
+      } else {
+        std::ostringstream err;
+        err << "Unknown extension \"" << ext << "\" for file\n"
+            << "  " << *si << "\n"
+            << "try_compile() works only for enabled languages.  "
+            << "Currently these are:\n  ";
+        std::vector<std::string> langs;
+        gg->GetEnabledLanguages(langs);
+        err << cmJoin(langs, " ");
+        err << "\nSee project() command to enable other languages.";
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
+        return -1;
+      }
+    }
 
-	/*
-	 * BSD handles long filenames by storing "#1/" followed by the
-	 * length of filename as a decimal number, then prepends the
-	 * the filename to the file contents.
-	 */
-	if (strncmp(filename, "#1/", 3) == 0) {
-		/* Parse the time, owner, mode, size fields. */
-		/* This must occur before _read_ahead is called again. */
-		ar_parse_common_header(ar, entry, h);
+    std::string const tcConfig =
+      this->Makefile->GetSafeDefinition("CMAKE_TRY_COMPILE_CONFIGURATION");
 
-		/* Parse the size of the name, adjust the file size. */
-		number = ar_atol10(h + AR_name_offset + 3, AR_name_size - 3);
-		bsd_name_length = (size_t)number;
-		/* Guard against the filename + trailing NUL
-		 * overflowing a size_t and against the filename size
-		 * being larger than the entire entry. */
-		if (number > (uint64_t)(bsd_name_length + 1)
-		    || (int64_t)bsd_name_length > ar->entry_bytes_remaining) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Bad input file size");
-			return (ARCHIVE_FATAL);
-		}
-		ar->entry_bytes_remaining -= bsd_name_length;
-		/* Adjust file size reported to client. */
-		archive_entry_set_size(entry, ar->entry_bytes_remaining);
+    // we need to create a directory and CMakeLists file etc...
+    // first create the directories
+    sourceDirectory = this->BinaryDirectory.c_str();
 
-		if (*unconsumed) {
-			__archive_read_consume(a, *unconsumed);
-			*unconsumed = 0;
-		}
+    // now create a CMakeLists.txt file in that directory
+    FILE* fout = cmsys::SystemTools::Fopen(outFileName, "w");
+    if (!fout) {
+      std::ostringstream e;
+      /* clang-format off */
+      e << "Failed to open\n"
+        << "  " << outFileName << "\n"
+        << cmSystemTools::GetLastSystemError();
+      /* clang-format on */
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+      return -1;
+    }
 
-		/* Read the long name into memory. */
-		if ((b = __archive_read_ahead(a, bsd_name_length, NULL)) == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Truncated input file");
-			return (ARCHIVE_FATAL);
-		}
-		/* Store it in the entry. */
-		p = (char *)malloc(bsd_name_length + 1);
-		if (p == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate fname buffer");
-			return (ARCHIVE_FATAL);
-		}
-		strncpy(p, b, bsd_name_length);
-		p[bsd_name_length] = '\0';
+    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
+    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
+            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
+            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
+    if (def) {
+      fprintf(fout, "set(CMAKE_MODULE_PATH \"%s\")\n", def);
+    }
 
-		__archive_read_consume(a, bsd_name_length);
+    std::string projectLangs;
+    for (std::set<std::string>::iterator li = testLangs.begin();
+         li != testLangs.end(); ++li) {
+      projectLangs += " " + *li;
+      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
+      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
+      if (const char* rulesOverridePath =
+            this->Makefile->GetDefinition(rulesOverrideLang)) {
+        fprintf(fout, "set(%s \"%s\")\n", rulesOverrideLang.c_str(),
+                rulesOverridePath);
+      } else if (const char* rulesOverridePath2 =
+                   this->Makefile->GetDefinition(rulesOverrideBase)) {
+        fprintf(fout, "set(%s \"%s\")\n", rulesOverrideBase.c_str(),
+                rulesOverridePath2);
+      }
+    }
+    fprintf(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
+    fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");
+    for (std::set<std::string>::iterator li = testLangs.begin();
+         li != testLangs.end(); ++li) {
+      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
+      const char* flags = this->Makefile->GetDefinition(langFlags);
+      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              cmOutputConverter::EscapeForCMake(flags ? flags : "").c_str());
+      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
+                    " ${COMPILE_DEFINITIONS}\")\n",
+              li->c_str(), li->c_str());
+      static std::string const cfgDefault = "DEBUG";
+      std::string const cfg =
+        !tcConfig.empty() ? cmSystemTools::UpperCase(tcConfig) : cfgDefault;
+      std::string const langFlagsCfg = "CMAKE_" + *li + "_FLAGS_" + cfg;
+      const char* flagsCfg = this->Makefile->GetDefinition(langFlagsCfg);
+      fprintf(
+        fout, "set(%s %s)\n", langFlagsCfg.c_str(),
+        cmOutputConverter::EscapeForCMake(flagsCfg ? flagsCfg : "").c_str());
+    }
+    switch (this->Makefile->GetPolicyStatus(cmPolicies::CMP0056)) {
+      case cmPolicies::WARN:
+        if (this->Makefile->PolicyOptionalWarningEnabled(
+              "CMAKE_POLICY_WARNING_CMP0056")) {
+          std::ostringstream w;
+          /* clang-format off */
+          w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0056) << "\n"
+            "For compatibility with older versions of CMake, try_compile "
+            "is not honoring caller link flags (e.g. CMAKE_EXE_LINKER_FLAGS) "
+            "in the test project."
+            ;
+          /* clang-format on */
+          this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, w.str());
+        }
+      case cmPolicies::OLD:
+        // OLD behavior is to do nothing.
+        break;
+      case cmPolicies::REQUIRED_IF_USED:
+      case cmPolicies::REQUIRED_ALWAYS:
+        this->Makefile->IssueMessage(
+          cmake::FATAL_ERROR,
+          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0056));
+      case cmPolicies::NEW:
+        // NEW behavior is to pass linker flags.
+        {
+          const char* exeLinkFlags =
+            this->Makefile->GetDefinition("CMAKE_EXE_LINKER_FLAGS");
+          fprintf(
+            fout, "set(CMAKE_EXE_LINKER_FLAGS %s)\n",
+            cmOutputConverter::EscapeForCMake(exeLinkFlags ? exeLinkFlags : "")
+              .c_str());
+        }
+        break;
+    }
+    fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS \"${CMAKE_EXE_LINKER_FLAGS}"
+                  " ${EXE_LINKER_FLAGS}\")\n");
+    fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");
+    fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");
+    fprintf(fout, "link_directories(${LINK_DIRECTORIES})\n");
+    // handle any compile flags we need to pass on
+    if (!compileDefs.empty()) {
+      fprintf(fout, "add_definitions(%s)\n", cmJoin(compileDefs, " ").c_str());
+    }
 
-		archive_entry_copy_pathname(entry, p);
-		free(p);
-		return (ARCHIVE_OK);
-	}
+    /* Use a random file name to avoid rapid creation and deletion
+       of the same executable name (some filesystems fail on that).  */
+    sprintf(targetNameBuf, "cmTC_%05x", cmSystemTools::RandomSeed() & 0xFFFFF);
+    targetName = targetNameBuf;
 
-	/*
-	 * "/" is the SVR4/GNU archive symbol table.
-	 */
-	if (strcmp(filename, "/") == 0) {
-		archive_entry_copy_pathname(entry, "/");
-		/* Parse the time, owner, mode, size fields. */
-		r = ar_parse_common_header(ar, entry, h);
-		/* Force the file type to a regular file. */
-		archive_entry_set_filetype(entry, AE_IFREG);
-		return (r);
-	}
+    if (!targets.empty()) {
+      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
+      cmExportTryCompileFileGenerator tcfg(gg, targets, this->Makefile);
+      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
+      tcfg.SetConfig(tcConfig);
 
-	/*
-	 * "__.SYMDEF" is a BSD archive symbol table.
-	 */
-	if (strcmp(filename, "__.SYMDEF") == 0) {
-		archive_entry_copy_pathname(entry, filename);
-		/* Parse the time, owner, mode, size fields. */
-		return (ar_parse_common_header(ar, entry, h));
-	}
+      if (!tcfg.GenerateImportFile()) {
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+                                     "could not write export file.");
+        fclose(fout);
+        return -1;
+      }
+      fprintf(fout, "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
+              fname.c_str());
+    }
 
-	/*
-	 * Otherwise, this is a standard entry.  The filename
-	 * has already been trimmed as much as possible, based
-	 * on our current knowledge of the format.
-	 */
-	archive_entry_copy_pathname(entry, filename);
-	return (ar_parse_common_header(ar, entry, h));
+    /* for the TRY_COMPILEs we want to be able to specify the architecture.
+      So the user can set CMAKE_OSX_ARCHITECTURES to i386;ppc and then set
+      CMAKE_TRY_COMPILE_OSX_ARCHITECTURES first to i386 and then to ppc to
+      have the tests run for each specific architecture. Since
+      cmLocalGenerator doesn't allow building for "the other"
+      architecture only via CMAKE_OSX_ARCHITECTURES.
+      */
+    if (this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES") !=
+        0) {
+      std::string flag = "-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition(
+        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+    } else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES") != 0) {
+      std::string flag = "-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+    }
+    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
+    if (this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT") != 0) {
+      std::string flag = "-DCMAKE_OSX_SYSROOT=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
+      cmakeFlags.push_back(flag);
+    }
+    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
+    if (this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET") != 0) {
+      std::string flag = "-DCMAKE_OSX_DEPLOYMENT_TARGET=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
+      cmakeFlags.push_back(flag);
+    }
+    if (const char* cxxDef =
+          this->Makefile->GetDefinition("CMAKE_CXX_COMPILER_TARGET")) {
+      std::string flag = "-DCMAKE_CXX_COMPILER_TARGET=";
+      flag += cxxDef;
+      cmakeFlags.push_back(flag);
+    }
+    if (const char* cDef =
+          this->Makefile->GetDefinition("CMAKE_C_COMPILER_TARGET")) {
+      std::string flag = "-DCMAKE_C_COMPILER_TARGET=";
+      flag += cDef;
+      cmakeFlags.push_back(flag);
+    }
+    if (const char* tcxxDef = this->Makefile->GetDefinition(
+          "CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN")) {
+      std::string flag = "-DCMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN=";
+      flag += tcxxDef;
+      cmakeFlags.push_back(flag);
+    }
+    if (const char* tcDef = this->Makefile->GetDefinition(
+          "CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN")) {
+      std::string flag = "-DCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN=";
+      flag += tcDef;
+      cmakeFlags.push_back(flag);
+    }
+    if (const char* rootDef = this->Makefile->GetDefinition("CMAKE_SYSROOT")) {
+      std::string flag = "-DCMAKE_SYSROOT=";
+      flag += rootDef;
+      cmakeFlags.push_back(flag);
+    }
+    if (this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE") !=
+        0) {
+      fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
+    }
+    if (const char* lssDef =
+          this->Makefile->GetDefinition("CMAKE_LINK_SEARCH_START_STATIC")) {
+      fprintf(fout, "set(CMAKE_LINK_SEARCH_START_STATIC \"%s\")\n", lssDef);
+    }
+    if (const char* lssDef =
+          this->Makefile->GetDefinition("CMAKE_LINK_SEARCH_END_STATIC")) {
+      fprintf(fout, "set(CMAKE_LINK_SEARCH_END_STATIC \"%s\")\n", lssDef);
+    }
+
+    /* Set the appropriate policy information for ENABLE_EXPORTS */
+    fprintf(fout, "cmake_policy(SET CMP0065 %s)\n",
+            this->Makefile->GetPolicyStatus(cmPolicies::CMP0065) ==
+                cmPolicies::NEW
+              ? "NEW"
+              : "OLD");
+    if (const char* ee =
+          this->Makefile->GetDefinition("CMAKE_ENABLE_EXPORTS")) {
+      fprintf(fout, "set(CMAKE_ENABLE_EXPORTS %s)\n", ee);
+    }
+
+    if (targetType == cmState::EXECUTABLE) {
+      /* Put the executable at a known location (for COPY_FILE).  */
+      fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+              this->BinaryDirectory.c_str());
+      /* Create the actual executable.  */
+      fprintf(fout, "add_executable(%s", targetName.c_str());
+    } else // if (targetType == cmState::STATIC_LIBRARY)
+    {
+      /* Put the static library at a known location (for COPY_FILE).  */
+      fprintf(fout, "set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY \"%s\")\n",
+              this->BinaryDirectory.c_str());
+      /* Create the actual static library.  */
+      fprintf(fout, "add_library(%s STATIC", targetName.c_str());
+    }
+    for (std::vector<std::string>::iterator si = sources.begin();
+         si != sources.end(); ++si) {
+      fprintf(fout, " \"%s\"", si->c_str());
+
+      // Add dependencies on any non-temporary sources.
+      if (si->find("CMakeTmp") == si->npos) {
+        this->Makefile->AddCMakeDependFile(*si);
+      }
+    }
+    fprintf(fout, ")\n");
+    if (useOldLinkLibs) {
+      fprintf(fout, "target_link_libraries(%s ${LINK_LIBRARIES})\n",
+              targetName.c_str());
+    } else {
+      fprintf(fout, "target_link_libraries(%s %s)\n", targetName.c_str(),
+              libsToLink.c_str());
+    }
+    fclose(fout);
+    projectName = "CMAKE_TRY_COMPILE";
+  }
+
+  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
+  cmSystemTools::ResetErrorOccuredFlag();
+  std::string output;
+  // actually do the try compile now that everything is setup
+  int res = this->Makefile->TryCompile(
+    sourceDirectory, this->BinaryDirectory, projectName, targetName,
+    this->SrcFileSignature, &cmakeFlags, output);
+  if (erroroc) {
+    cmSystemTools::SetErrorOccured();
+  }
+
+  // set the result var to the return value to indicate success or failure
+  this->Makefile->AddCacheDefinition(argv[0], (res == 0 ? "TRUE" : "FALSE"),
+                                     "Result of TRY_COMPILE",
+                                     cmState::INTERNAL);
+
+  if (!outputVariable.empty()) {
+    this->Makefile->AddDefinition(outputVariable, output.c_str());
+  }
+
+  if (this->SrcFileSignature) {
+    std::string copyFileErrorMessage;
+    this->FindOutputFile(targetName, targetType);
+
+    if ((res == 0) && !copyFile.empty()) {
+      if (this->OutputFile.empty() ||
+          !cmSystemTools::CopyFileAlways(this->OutputFile, copyFile)) {
+        std::ostringstream emsg;
+        /* clang-format off */
+        emsg << "Cannot copy output executable\n"
+             << "  '" << this->OutputFile << "'\n"
+             << "to destination specified by COPY_FILE:\n"
+             << "  '" << copyFile << "'\n";
+        /* clang-format on */
+        if (!this->FindErrorMessage.empty()) {
+          emsg << this->FindErrorMessage.c_str();
+        }
+        if (copyFileError.empty()) {
+          this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
+          return -1;
+        } else {
+          copyFileErrorMessage = emsg.str();
+        }
+      }
+    }
+
+    if (!copyFileError.empty()) {
+      this->Makefile->AddDefinition(copyFileError,
+                                    copyFileErrorMessage.c_str());
+    }
+  }
+  return res;
 }

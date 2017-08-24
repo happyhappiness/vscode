@@ -1,241 +1,209 @@
-static int
-_ar_read_header(struct archive_read *a, struct archive_entry *entry,
-	struct ar *ar, const char *h, size_t *unconsumed)
+CURLcode Curl_sasl_create_digest_http_message(struct SessionHandle *data,
+                                              const char *userp,
+                                              const char *passwdp,
+                                              const unsigned char *request,
+                                              const unsigned char *uripath,
+                                              struct digestdata *digest,
+                                              char **outptr, size_t *outlen)
 {
-	char filename[AR_name_size + 1];
-	uint64_t number; /* Used to hold parsed numbers before validation. */
-	size_t bsd_name_length, entry_size;
-	char *p, *st;
-	const void *b;
-	int r;
+  CURLcode result;
+  unsigned char md5buf[16]; /* 16 bytes/128 bits */
+  unsigned char request_digest[33];
+  unsigned char *md5this;
+  unsigned char ha1[33];/* 32 digits and 1 zero byte */
+  unsigned char ha2[33];/* 32 digits and 1 zero byte */
+  char cnoncebuf[33];
+  char *cnonce = NULL;
+  size_t cnonce_sz = 0;
+  char *userp_quoted;
+  char *response = NULL;
+  char *tmp = NULL;
 
-	/* Verify the magic signature on the file header. */
-	if (strncmp(h + AR_fmag_offset, "`\n", 2) != 0) {
-		archive_set_error(&a->archive, EINVAL,
-		    "Incorrect file header signature");
-		return (ARCHIVE_WARN);
-	}
+  if(!digest->nc)
+    digest->nc = 1;
 
-	/* Copy filename into work buffer. */
-	strncpy(filename, h + AR_name_offset, AR_name_size);
-	filename[AR_name_size] = '\0';
+  if(!digest->cnonce) {
+    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+             Curl_rand(data), Curl_rand(data),
+             Curl_rand(data), Curl_rand(data));
 
-	/*
-	 * Guess the format variant based on the filename.
-	 */
-	if (a->archive.archive_format == ARCHIVE_FORMAT_AR) {
-		/* We don't already know the variant, so let's guess. */
-		/*
-		 * Biggest clue is presence of '/': GNU starts special
-		 * filenames with '/', appends '/' as terminator to
-		 * non-special names, so anything with '/' should be
-		 * GNU except for BSD long filenames.
-		 */
-		if (strncmp(filename, "#1/", 3) == 0)
-			a->archive.archive_format = ARCHIVE_FORMAT_AR_BSD;
-		else if (strchr(filename, '/') != NULL)
-			a->archive.archive_format = ARCHIVE_FORMAT_AR_GNU;
-		else if (strncmp(filename, "__.SYMDEF", 9) == 0)
-			a->archive.archive_format = ARCHIVE_FORMAT_AR_BSD;
-		/*
-		 * XXX Do GNU/SVR4 'ar' programs ever omit trailing '/'
-		 * if name exactly fills 16-byte field?  If so, we
-		 * can't assume entries without '/' are BSD. XXX
-		 */
-	}
+    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
+                                &cnonce, &cnonce_sz);
+    if(result)
+      return result;
 
-	/* Update format name from the code. */
-	if (a->archive.archive_format == ARCHIVE_FORMAT_AR_GNU)
-		a->archive.archive_format_name = "ar (GNU/SVR4)";
-	else if (a->archive.archive_format == ARCHIVE_FORMAT_AR_BSD)
-		a->archive.archive_format_name = "ar (BSD)";
-	else
-		a->archive.archive_format_name = "ar";
+    digest->cnonce = cnonce;
+  }
 
-	/*
-	 * Remove trailing spaces from the filename.  GNU and BSD
-	 * variants both pad filename area out with spaces.
-	 * This will only be wrong if GNU/SVR4 'ar' implementations
-	 * omit trailing '/' for 16-char filenames and we have
-	 * a 16-char filename that ends in ' '.
-	 */
-	p = filename + AR_name_size - 1;
-	while (p >= filename && *p == ' ') {
-		*p = '\0';
-		p--;
-	}
+  /*
+    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
 
-	/*
-	 * Remove trailing slash unless first character is '/'.
-	 * (BSD entries never end in '/', so this will only trim
-	 * GNU-format entries.  GNU special entries start with '/'
-	 * and are not terminated in '/', so we don't trim anything
-	 * that starts with '/'.)
-	 */
-	if (filename[0] != '/' && *p == '/')
-		*p = '\0';
+    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
 
-	/*
-	 * '//' is the GNU filename table.
-	 * Later entries can refer to names in this table.
-	 */
-	if (strcmp(filename, "//") == 0) {
-		/* This must come before any call to _read_ahead. */
-		ar_parse_common_header(ar, entry, h);
-		archive_entry_copy_pathname(entry, filename);
-		archive_entry_set_filetype(entry, AE_IFREG);
-		/* Get the size of the filename table. */
-		number = ar_atol10(h + AR_size_offset, AR_size_size);
-		if (number > SIZE_MAX) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Filename table too large");
-			return (ARCHIVE_FATAL);
-		}
-		entry_size = (size_t)number;
-		if (entry_size == 0) {
-			archive_set_error(&a->archive, EINVAL,
-			    "Invalid string table");
-			return (ARCHIVE_WARN);
-		}
-		if (ar->strtab != NULL) {
-			archive_set_error(&a->archive, EINVAL,
-			    "More than one string tables exist");
-			return (ARCHIVE_WARN);
-		}
+    if the algorithm is "MD5-sess" then:
 
-		/* Read the filename table into memory. */
-		st = malloc(entry_size);
-		if (st == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate filename table buffer");
-			return (ARCHIVE_FATAL);
-		}
-		ar->strtab = st;
-		ar->strtab_size = entry_size;
+    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
+         ":" unq(nonce-value) ":" unq(cnonce-value)
+  */
 
-		if (*unconsumed) {
-			__archive_read_consume(a, *unconsumed);
-			*unconsumed = 0;
-		}
+  md5this = (unsigned char *)
+    aprintf("%s:%s:%s", userp, digest->realm, passwdp);
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
 
-		if ((b = __archive_read_ahead(a, entry_size, NULL)) == NULL)
-			return (ARCHIVE_FATAL);
-		memcpy(st, b, entry_size);
-		__archive_read_consume(a, entry_size);
-		/* All contents are consumed. */
-		ar->entry_bytes_remaining = 0;
-		archive_entry_set_size(entry, ar->entry_bytes_remaining);
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  sasl_digest_md5_to_ascii(md5buf, ha1);
 
-		/* Parse the filename table. */
-		return (ar_parse_gnu_filename_table(a));
-	}
+  if(digest->algo == CURLDIGESTALGO_MD5SESS) {
+    /* nonce and cnonce are OUTSIDE the hash */
+    tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
 
-	/*
-	 * GNU variant handles long filenames by storing /<number>
-	 * to indicate a name stored in the filename table.
-	 * XXX TODO: Verify that it's all digits... Don't be fooled
-	 * by "/9xyz" XXX
-	 */
-	if (filename[0] == '/' && filename[1] >= '0' && filename[1] <= '9') {
-		number = ar_atol10(h + AR_name_offset + 1, AR_name_size - 1);
-		/*
-		 * If we can't look up the real name, warn and return
-		 * the entry with the wrong name.
-		 */
-		if (ar->strtab == NULL || number > ar->strtab_size) {
-			archive_set_error(&a->archive, EINVAL,
-			    "Can't find long filename for entry");
-			archive_entry_copy_pathname(entry, filename);
-			/* Parse the time, owner, mode, size fields. */
-			ar_parse_common_header(ar, entry, h);
-			return (ARCHIVE_WARN);
-		}
+    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
+    Curl_md5it(md5buf, (unsigned char *)tmp);
+    free(tmp);
+    sasl_digest_md5_to_ascii(md5buf, ha1);
+  }
 
-		archive_entry_copy_pathname(entry, &ar->strtab[(size_t)number]);
-		/* Parse the time, owner, mode, size fields. */
-		return (ar_parse_common_header(ar, entry, h));
-	}
+  /*
+    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
 
-	/*
-	 * BSD handles long filenames by storing "#1/" followed by the
-	 * length of filename as a decimal number, then prepends the
-	 * the filename to the file contents.
-	 */
-	if (strncmp(filename, "#1/", 3) == 0) {
-		/* Parse the time, owner, mode, size fields. */
-		/* This must occur before _read_ahead is called again. */
-		ar_parse_common_header(ar, entry, h);
+      A2       = Method ":" digest-uri-value
 
-		/* Parse the size of the name, adjust the file size. */
-		number = ar_atol10(h + AR_name_offset + 3, AR_name_size - 3);
-		bsd_name_length = (size_t)number;
-		/* Guard against the filename + trailing NUL
-		 * overflowing a size_t and against the filename size
-		 * being larger than the entire entry. */
-		if (number > (uint64_t)(bsd_name_length + 1)
-		    || (int64_t)bsd_name_length > ar->entry_bytes_remaining) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Bad input file size");
-			return (ARCHIVE_FATAL);
-		}
-		ar->entry_bytes_remaining -= bsd_name_length;
-		/* Adjust file size reported to client. */
-		archive_entry_set_size(entry, ar->entry_bytes_remaining);
+          If the "qop" value is "auth-int", then A2 is:
 
-		if (*unconsumed) {
-			__archive_read_consume(a, *unconsumed);
-			*unconsumed = 0;
-		}
+      A2       = Method ":" digest-uri-value ":" H(entity-body)
 
-		/* Read the long name into memory. */
-		if ((b = __archive_read_ahead(a, bsd_name_length, NULL)) == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Truncated input file");
-			return (ARCHIVE_FATAL);
-		}
-		/* Store it in the entry. */
-		p = (char *)malloc(bsd_name_length + 1);
-		if (p == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate fname buffer");
-			return (ARCHIVE_FATAL);
-		}
-		strncpy(p, b, bsd_name_length);
-		p[bsd_name_length] = '\0';
+    (The "Method" value is the HTTP request method as specified in section
+    5.1.1 of RFC 2616)
+  */
 
-		__archive_read_consume(a, bsd_name_length);
+  md5this = (unsigned char *)aprintf("%s:%s", request, uripath);
 
-		archive_entry_copy_pathname(entry, p);
-		free(p);
-		return (ARCHIVE_OK);
-	}
+  if(digest->qop && Curl_raw_equal(digest->qop, "auth-int")) {
+    /* We don't support auth-int for PUT or POST at the moment.
+       TODO: replace md5 of empty string with entity-body for PUT/POST */
+    unsigned char *md5this2 = (unsigned char *)
+      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
+    free(md5this);
+    md5this = md5this2;
+  }
 
-	/*
-	 * "/" is the SVR4/GNU archive symbol table.
-	 */
-	if (strcmp(filename, "/") == 0) {
-		archive_entry_copy_pathname(entry, "/");
-		/* Parse the time, owner, mode, size fields. */
-		r = ar_parse_common_header(ar, entry, h);
-		/* Force the file type to a regular file. */
-		archive_entry_set_filetype(entry, AE_IFREG);
-		return (r);
-	}
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
 
-	/*
-	 * "__.SYMDEF" is a BSD archive symbol table.
-	 */
-	if (strcmp(filename, "__.SYMDEF") == 0) {
-		archive_entry_copy_pathname(entry, filename);
-		/* Parse the time, owner, mode, size fields. */
-		return (ar_parse_common_header(ar, entry, h));
-	}
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  sasl_digest_md5_to_ascii(md5buf, ha2);
 
-	/*
-	 * Otherwise, this is a standard entry.  The filename
-	 * has already been trimmed as much as possible, based
-	 * on our current knowledge of the format.
-	 */
-	archive_entry_copy_pathname(entry, filename);
-	return (ar_parse_common_header(ar, entry, h));
+  if(digest->qop) {
+    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       digest->nc,
+                                       digest->cnonce,
+                                       digest->qop,
+                                       ha2);
+  }
+  else {
+    md5this = (unsigned char *)aprintf("%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       ha2);
+  }
+
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  sasl_digest_md5_to_ascii(md5buf, request_digest);
+
+  /* for test case 64 (snooped from a Mozilla 1.3a request)
+
+    Authorization: Digest username="testuser", realm="testrealm", \
+    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
+
+    Digest parameters are all quoted strings.  Username which is provided by
+    the user will need double quotes and backslashes within it escaped.  For
+    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
+    are copied as is from the server, escapes and all.  cnonce is generated
+    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
+    characters.  algorithm and qop with standard values only contain web-safe
+    chracters.
+  */
+  userp_quoted = sasl_digest_string_quoted(userp);
+  if(!userp_quoted)
+    return CURLE_OUT_OF_MEMORY;
+
+  if(digest->qop) {
+    response = aprintf("username=\"%s\", "
+                       "realm=\"%s\", "
+                       "nonce=\"%s\", "
+                       "uri=\"%s\", "
+                       "cnonce=\"%s\", "
+                       "nc=%08x, "
+                       "qop=%s, "
+                       "response=\"%s\"",
+                       userp_quoted,
+                       digest->realm,
+                       digest->nonce,
+                       uripath,
+                       digest->cnonce,
+                       digest->nc,
+                       digest->qop,
+                       request_digest);
+
+    if(Curl_raw_equal(digest->qop, "auth"))
+      digest->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0
+                       padded which tells to the server how many times you are
+                       using the same nonce in the qop=auth mode */
+  }
+  else {
+    response = aprintf("username=\"%s\", "
+                       "realm=\"%s\", "
+                       "nonce=\"%s\", "
+                       "uri=\"%s\", "
+                       "response=\"%s\"",
+                       userp_quoted,
+                       digest->realm,
+                       digest->nonce,
+                       uripath,
+                       request_digest);
+  }
+  free(userp_quoted);
+  if(!response)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Add the optional fields */
+  if(digest->opaque) {
+    /* Append the opaque */
+    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
+    free(response);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    response = tmp;
+  }
+
+  if(digest->algorithm) {
+    /* Append the algorithm */
+    tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
+    free(response);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    response = tmp;
+  }
+
+  /* Return the output */
+  *outptr = response;
+  *outlen = strlen(response);
+
+  return CURLE_OK;
 }

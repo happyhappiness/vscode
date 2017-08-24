@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, errno,
-			    "Can't change dir to read extended attributes");
+fsobj_error(a_eno, a_estr, 0,
+					    "Cannot extract through "
+					    "symlink ", path);

@@ -1,4 +1,3 @@
 {
-    sprintf(argvName,"${ARGV%i}",j);
-    argVs.push_back(argvName);
-    }
+      sprintf("%s", getenv("HTTP_PROXY"));
+      }

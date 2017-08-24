@@ -1,209 +1,168 @@
-CURLcode Curl_sasl_create_digest_http_message(struct SessionHandle *data,
-                                              const char *userp,
-                                              const char *passwdp,
-                                              const unsigned char *request,
-                                              const unsigned char *uripath,
-                                              struct digestdata *digest,
-                                              char **outptr, size_t *outlen)
+static int
+decompression_init(struct archive_read *a, enum enctype encoding)
 {
-  CURLcode result;
-  unsigned char md5buf[16]; /* 16 bytes/128 bits */
-  unsigned char request_digest[33];
-  unsigned char *md5this;
-  unsigned char ha1[33];/* 32 digits and 1 zero byte */
-  unsigned char ha2[33];/* 32 digits and 1 zero byte */
-  char cnoncebuf[33];
-  char *cnonce = NULL;
-  size_t cnonce_sz = 0;
-  char *userp_quoted;
-  char *response = NULL;
-  char *tmp = NULL;
+	struct xar *xar;
+	const char *detail;
+	int r;
 
-  if(!digest->nc)
-    digest->nc = 1;
-
-  if(!digest->cnonce) {
-    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
-
-    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
-                                &cnonce, &cnonce_sz);
-    if(result)
-      return result;
-
-    digest->cnonce = cnonce;
-  }
-
-  /*
-    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
-
-    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
-
-    if the algorithm is "MD5-sess" then:
-
-    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
-         ":" unq(nonce-value) ":" unq(cnonce-value)
-  */
-
-  md5this = (unsigned char *)
-    aprintf("%s:%s:%s", userp, digest->realm, passwdp);
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, ha1);
-
-  if(digest->algo == CURLDIGESTALGO_MD5SESS) {
-    /* nonce and cnonce are OUTSIDE the hash */
-    tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
-    Curl_md5it(md5buf, (unsigned char *)tmp);
-    free(tmp);
-    sasl_digest_md5_to_ascii(md5buf, ha1);
-  }
-
-  /*
-    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
-
-      A2       = Method ":" digest-uri-value
-
-          If the "qop" value is "auth-int", then A2 is:
-
-      A2       = Method ":" digest-uri-value ":" H(entity-body)
-
-    (The "Method" value is the HTTP request method as specified in section
-    5.1.1 of RFC 2616)
-  */
-
-  md5this = (unsigned char *)aprintf("%s:%s", request, uripath);
-
-  if(digest->qop && Curl_raw_equal(digest->qop, "auth-int")) {
-    /* We don't support auth-int for PUT or POST at the moment.
-       TODO: replace md5 of empty string with entity-body for PUT/POST */
-    unsigned char *md5this2 = (unsigned char *)
-      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
-    free(md5this);
-    md5this = md5this2;
-  }
-
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, ha2);
-
-  if(digest->qop) {
-    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       digest->nc,
-                                       digest->cnonce,
-                                       digest->qop,
-                                       ha2);
-  }
-  else {
-    md5this = (unsigned char *)aprintf("%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       ha2);
-  }
-
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, request_digest);
-
-  /* for test case 64 (snooped from a Mozilla 1.3a request)
-
-    Authorization: Digest username="testuser", realm="testrealm", \
-    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
-
-    Digest parameters are all quoted strings.  Username which is provided by
-    the user will need double quotes and backslashes within it escaped.  For
-    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
-    are copied as is from the server, escapes and all.  cnonce is generated
-    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
-    characters.  algorithm and qop with standard values only contain web-safe
-    chracters.
-  */
-  userp_quoted = sasl_digest_string_quoted(userp);
-  if(!userp_quoted)
-    return CURLE_OUT_OF_MEMORY;
-
-  if(digest->qop) {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "cnonce=\"%s\", "
-                       "nc=%08x, "
-                       "qop=%s, "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       digest->cnonce,
-                       digest->nc,
-                       digest->qop,
-                       request_digest);
-
-    if(Curl_raw_equal(digest->qop, "auth"))
-      digest->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0
-                       padded which tells to the server how many times you are
-                       using the same nonce in the qop=auth mode */
-  }
-  else {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       request_digest);
-  }
-  free(userp_quoted);
-  if(!response)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Add the optional fields */
-  if(digest->opaque) {
-    /* Append the opaque */
-    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    response = tmp;
-  }
-
-  if(digest->algorithm) {
-    /* Append the algorithm */
-    tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    response = tmp;
-  }
-
-  /* Return the output */
-  *outptr = response;
-  *outlen = strlen(response);
-
-  return CURLE_OK;
+	xar = (struct xar *)(a->format->data);
+	xar->rd_encoding = encoding;
+	switch (encoding) {
+	case NONE:
+		break;
+	case GZIP:
+		if (xar->stream_valid)
+			r = inflateReset(&(xar->stream));
+		else
+			r = inflateInit(&(xar->stream));
+		if (r != Z_OK) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Couldn't initialize zlib stream.");
+			return (ARCHIVE_FATAL);
+		}
+		xar->stream_valid = 1;
+		xar->stream.total_in = 0;
+		xar->stream.total_out = 0;
+		break;
+#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
+	case BZIP2:
+		if (xar->bzstream_valid) {
+			BZ2_bzDecompressEnd(&(xar->bzstream));
+			xar->bzstream_valid = 0;
+		}
+		r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 0);
+		if (r == BZ_MEM_ERROR)
+			r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 1);
+		if (r != BZ_OK) {
+			int err = ARCHIVE_ERRNO_MISC;
+			detail = NULL;
+			switch (r) {
+			case BZ_PARAM_ERROR:
+				detail = "invalid setup parameter";
+				break;
+			case BZ_MEM_ERROR:
+				err = ENOMEM;
+				detail = "out of memory";
+				break;
+			case BZ_CONFIG_ERROR:
+				detail = "mis-compiled library";
+				break;
+			}
+			archive_set_error(&a->archive, err,
+			    "Internal error initializing decompressor: %s",
+			    detail == NULL ? "??" : detail);
+			xar->bzstream_valid = 0;
+			return (ARCHIVE_FATAL);
+		}
+		xar->bzstream_valid = 1;
+		xar->bzstream.total_in_lo32 = 0;
+		xar->bzstream.total_in_hi32 = 0;
+		xar->bzstream.total_out_lo32 = 0;
+		xar->bzstream.total_out_hi32 = 0;
+		break;
+#endif
+#if defined(HAVE_LZMA_H) && defined(HAVE_LIBLZMA)
+#if LZMA_VERSION_MAJOR >= 5
+/* Effectively disable the limiter. */
+#define LZMA_MEMLIMIT   UINT64_MAX
+#else
+/* NOTE: This needs to check memory size which running system has. */
+#define LZMA_MEMLIMIT   (1U << 30)
+#endif
+	case XZ:
+	case LZMA:
+		if (xar->lzstream_valid) {
+			lzma_end(&(xar->lzstream));
+			xar->lzstream_valid = 0;
+		}
+		if (xar->entry_encoding == XZ)
+			r = lzma_stream_decoder(&(xar->lzstream),
+			    LZMA_MEMLIMIT,/* memlimit */
+			    LZMA_CONCATENATED);
+		else
+			r = lzma_alone_decoder(&(xar->lzstream),
+			    LZMA_MEMLIMIT);/* memlimit */
+		if (r != LZMA_OK) {
+			switch (r) {
+			case LZMA_MEM_ERROR:
+				archive_set_error(&a->archive,
+				    ENOMEM,
+				    "Internal error initializing "
+				    "compression library: "
+				    "Cannot allocate memory");
+				break;
+			case LZMA_OPTIONS_ERROR:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Internal error initializing "
+				    "compression library: "
+				    "Invalid or unsupported options");
+				break;
+			default:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Internal error initializing "
+				    "lzma library");
+				break;
+			}
+			return (ARCHIVE_FATAL);
+		}
+		xar->lzstream_valid = 1;
+		xar->lzstream.total_in = 0;
+		xar->lzstream.total_out = 0;
+		break;
+#elif defined(HAVE_LZMADEC_H) && defined(HAVE_LIBLZMADEC)
+	case LZMA:
+		if (xar->lzstream_valid)
+			lzmadec_end(&(xar->lzstream));
+		r = lzmadec_init(&(xar->lzstream));
+		if (r != LZMADEC_OK) {
+			switch (r) {
+			case LZMADEC_HEADER_ERROR:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Internal error initializing "
+				    "compression library: "
+				    "invalid header");
+				break;
+			case LZMADEC_MEM_ERROR:
+				archive_set_error(&a->archive,
+				    ENOMEM,
+				    "Internal error initializing "
+				    "compression library: "
+				    "out of memory");
+				break;
+			}
+			return (ARCHIVE_FATAL);
+		}
+		xar->lzstream_valid = 1;
+		xar->lzstream.total_in = 0;
+		xar->lzstream.total_out = 0;
+		break;
+#endif
+	/*
+	 * Unsupported compression.
+	 */
+	default:
+#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR)
+	case BZIP2:
+#endif
+#if !defined(HAVE_LZMA_H) || !defined(HAVE_LIBLZMA)
+#if !defined(HAVE_LZMADEC_H) || !defined(HAVE_LIBLZMADEC)
+	case LZMA:
+#endif
+	case XZ:
+#endif
+		switch (xar->entry_encoding) {
+		case BZIP2: detail = "bzip2"; break;
+		case LZMA: detail = "lzma"; break;
+		case XZ: detail = "xz"; break;
+		default: detail = "??"; break;
+		}
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "%s compression not supported on this platform",
+		    detail);
+		return (ARCHIVE_FAILED);
+	}
+	return (ARCHIVE_OK);
 }

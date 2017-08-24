@@ -1,12 +1,11 @@
 {
-      format_ptr = get_netscape_format(co);
-      if(format_ptr == NULL) {
-        fprintf(out, "#\n# Fatal libcurl error\n");
-        if(!use_stdout)
-          fclose(out);
-        return 1;
-      }
-      fprintf(out, "%s\n", format_ptr);
-      free(format_ptr);
-      co=co->next;
-    }
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Ignoring out-of-order file @%jx (%s) %jd < %jd",
+		    (intmax_t)file->number,
+		    iso9660->pathname.s,
+		    (intmax_t)file->offset,
+		    (intmax_t)iso9660->current_position);
+		iso9660->entry_bytes_remaining = 0;
+		iso9660->entry_sparse_offset = 0;
+		return (ARCHIVE_WARN);
+	}

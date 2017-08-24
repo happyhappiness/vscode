@@ -1,4 +1,3 @@
 {
-               fImportFlag = 0;
-               fprintf(fout,"EXPORTS \n");
-            }
+      printf("Checking -%s-\n", absFilename.c_str());
+      }

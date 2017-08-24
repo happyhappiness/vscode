@@ -1,6 +1,4 @@
 {
-			archive_set_error(f->archive, errno,
-			    "Read from filter failed unexpectedly.");
-			ret = ARCHIVE_FATAL;
-			goto cleanup;
-		}
+  /* Generate and return our SPN */
+  return aprintf("%s/%s", service, host);
+}

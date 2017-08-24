@@ -1,8 +1,2 @@
-{
-    fprintf(stderr,
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName(), this->Config?this->Config:"noconfig");
-    this->DisplayConstraintGraph();
-    }
+snprintf(ftpc->newhost, sizeof(ftpc->newhost),
+               "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3])

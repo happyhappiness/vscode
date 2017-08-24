@@ -1,5 +1,5 @@
 {
-		archive_set_error(&a->archive, 0,
-		    "Write request too large");
-		return (ARCHIVE_WARN);
-	}
+  char * temp = new char[32];
+  sprintf(temp,"%d",this->ChipID.Family);
+  return temp;
+}

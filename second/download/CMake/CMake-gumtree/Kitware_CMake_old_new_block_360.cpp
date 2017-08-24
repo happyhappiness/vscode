@@ -1,3 +1,4 @@
 {
-      fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
-      }
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
+    }

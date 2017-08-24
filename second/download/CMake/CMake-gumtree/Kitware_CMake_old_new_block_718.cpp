@@ -1,4 +1,21 @@
 {
-      fprintf(stderr, "File is an executable.  I don't dump those.\n");
-      return;
-   }
+              case cmsysProcess_Exception_Fault:
+                fprintf(stderr,"SegFault");
+                cres.m_Status = cmCTest::SEGFAULT;
+                break;
+              case cmsysProcess_Exception_Illegal:
+                fprintf(stderr,"SegFault");
+                cres.m_Status = cmCTest::ILLEGAL;
+                break;
+              case cmsysProcess_Exception_Interrupt:
+                fprintf(stderr,"SegFault");
+                cres.m_Status = cmCTest::INTERRUPT;
+                break;
+              case cmsysProcess_Exception_Numerical:
+                fprintf(stderr,"SegFault");
+                cres.m_Status = cmCTest::NUMERICAL;
+                break;
+              default:
+                fprintf(stderr,"Other");
+                cres.m_Status = cmCTest::OTHER_FAULT;
+                }

@@ -1,0 +1,1 @@
+(void)vsprintf(buf, format, va);

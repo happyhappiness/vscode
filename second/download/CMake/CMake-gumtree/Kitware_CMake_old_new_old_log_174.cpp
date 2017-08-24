@@ -1,2 +1,1 @@
-userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
-                  encoded);
+snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);

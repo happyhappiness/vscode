@@ -1,2 +1,4 @@
-archive_set_error(&a->archive, EINVAL,
-			    "Can't find long filename for entry");
+md5this = (unsigned char *)aprintf("%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       ha2);

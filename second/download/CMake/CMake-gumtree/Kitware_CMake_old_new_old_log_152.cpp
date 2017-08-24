@@ -1,1 +1,2 @@
-snprintf((char *)&dest[i*2], 3, "%02x", source[i]);
+snprintf(service.value, service.length+1, "%s@%s",
+             serviceptr, conn->proxy.name);

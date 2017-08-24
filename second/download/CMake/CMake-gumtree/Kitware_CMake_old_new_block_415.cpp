@@ -1,5 +1,4 @@
 {
-				archive_set_error(&a->archive, errno,
-				    "Can't replace existing directory with non-directory");
-				return (ARCHIVE_FAILED);
-			}
+        fprintf(fout, "SET(%s \"%s\")\n",
+                rulesOverrideLang.c_str(), rulesOverridePath);
+        }

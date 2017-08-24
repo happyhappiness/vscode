@@ -1,5 +1,5 @@
 {
-		archive_set_error(&a->archive, 0,
-		    "Write request too large");
-		return (ARCHIVE_WARN);
-	}
+				archive_set_error(&a->archive, GetLastError(),
+				    "Can't CreateFileW");
+				return (ARCHIVE_FAILED);
+			}

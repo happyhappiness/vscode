@@ -1,18 +1,7 @@
-void cmComputeLinkDepends::DisplayFinalEntries()
+static void md5_to_ascii(unsigned char *source, /* 16 bytes */
+                         unsigned char *dest) /* 33 bytes */
 {
-  fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());
-  for(std::vector<LinkEntry>::const_iterator lei =
-        this->FinalLinkEntries.begin();
-      lei != this->FinalLinkEntries.end(); ++lei)
-    {
-    if(lei->Target)
-      {
-      fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
-      }
-    else
-      {
-      fprintf(stderr, "  item [%s]\n", lei->Item.c_str());
-      }
-    }
-  fprintf(stderr, "\n");
+  int i;
+  for(i=0; i<16; i++)
+    snprintf((char *)&dest[i*2], 3, "%02x", source[i]);
 }

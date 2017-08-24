@@ -1,1 +1,2 @@
-sprintf(buf, "%s*", name);
+snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+                     conn->host.name);

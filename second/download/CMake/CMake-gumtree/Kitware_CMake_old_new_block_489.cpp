@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_scan_bytes()" )
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "cpio: unknown keyword ``%s''", key)

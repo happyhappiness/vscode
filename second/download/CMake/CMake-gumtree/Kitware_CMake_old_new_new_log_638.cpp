@@ -1,0 +1,1 @@
+sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);

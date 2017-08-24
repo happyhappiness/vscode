@@ -1,1 +1,1 @@
-snprintf(buf, sizeof(buf), "%s", prefix);
+fprintf(this->FileOut,"IMPORTS \n");

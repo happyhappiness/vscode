@@ -1,1 +1,3 @@
-fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName)
+{
+        sprintf(tz, " -%04ld", -committer.TimeZone);
+        }

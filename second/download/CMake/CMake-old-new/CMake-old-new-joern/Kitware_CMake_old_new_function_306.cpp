@@ -1,53 +1,37 @@
 void
-DumpSymbolTable(PIMAGE_SYMBOL pSymbolTable, PIMAGE_SECTION_HEADER pSectionHeaders, FILE *fout, unsigned cSymbols)
+cmLocalVisualStudio6Generator
+::AddUtilityCommandHack(cmTarget& target, int count,
+                        std::vector<std::string>& depends,
+                        const cmCustomCommand& origCommand)
 {
-   unsigned i;
-   PSTR stringTable;
-   std::string sectionName;
-   std::string sectionCharacter;
-   int iSectNum;
+  // Create a fake output that forces the rule to run.
+  char* output = new char[(strlen(this->Makefile->GetCurrentBinaryDirectory())
+                           + target.GetName().size() + 30)];
+  sprintf(output,"%s/%s_force_%i", this->Makefile->GetCurrentBinaryDirectory(),
+          target.GetName().c_str(), count);
+  const char* comment = origCommand.GetComment();
+  if(!comment && origCommand.GetOutputs().empty())
+    {
+    comment = "<hack>";
+    }
 
-   fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
-      cSymbols);
+  // Add the rule with the given dependencies and commands.
+  std::string no_main_dependency = "";
+  if(cmSourceFile* outsf =
+     this->Makefile->AddCustomCommandToOutput(
+       output, depends, no_main_dependency,
+       origCommand.GetCommandLines(), comment,
+       origCommand.GetWorkingDirectory().c_str()))
+    {
+    cmGeneratorTarget* gt = this->GlobalGenerator->GetGeneratorTarget(&target);
+    gt->AddSource(outsf->GetFullPath());
+    }
 
-   fprintf(fout,
-      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
-      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");
+  // Replace the dependencies with the output of this rule so that the
+  // next rule added will run after this one.
+  depends.clear();
+  depends.push_back(output);
 
-   /*
-   * The string table apparently starts right after the symbol table
-   */
-   stringTable = (PSTR)&pSymbolTable[cSymbols];
-
-   for ( i=0; i < cSymbols; i++ ) {
-      fprintf(fout, "%04X ", i);
-      if ( pSymbolTable->N.Name.Short != 0 )
-         fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
-      else
-         fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);
-
-      fprintf(fout, " %08X", pSymbolTable->Value);
-
-      iSectNum = pSymbolTable->SectionNumber;
-      GetSectionName(pSymbolTable, sectionName);
-      fprintf(fout, " sect:%s aux:%X type:%02X st:%s",
-         sectionName.c_str(),
-         pSymbolTable->NumberOfAuxSymbols,
-         pSymbolTable->Type,
-         GetSZStorageClass(pSymbolTable->StorageClass) );
-
-      GetSectionCharacteristics(pSectionHeaders,iSectNum,sectionCharacter);
-      fprintf(fout," hc: %s \n",sectionCharacter.c_str());
-#if 0
-      if ( pSymbolTable->NumberOfAuxSymbols )
-         DumpAuxSymbols(pSymbolTable);
-#endif
-
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-   }
+  // Free the fake output name.
+  delete [] output;
 }

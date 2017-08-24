@@ -1,5 +1,3 @@
 archive_set_error(&a->archive,
-				    ENOMEM,
-				    "Internal error initializing "
-				    "compression library: "
-				    "out of memory");
+				    ARCHIVE_ERRNO_MISC,
+				    "Parse error: SCHILY.acl.access");

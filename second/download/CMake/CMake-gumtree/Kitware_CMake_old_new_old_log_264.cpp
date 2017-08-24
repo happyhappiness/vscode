@@ -1,2 +1,1 @@
-snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
-                     conn->host.name);
+fprintf(stderr, "unknowntag_end:%s\n", name);

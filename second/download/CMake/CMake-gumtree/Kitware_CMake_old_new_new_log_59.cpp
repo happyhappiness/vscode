@@ -1,2 +1,2 @@
-archive_string_sprintf(&w->sver,
-			"WARC/%u.%u", ver / 10000, (ver % 10000) / 100);
+snprintf(clbuf, sizeof(clbuf),
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);

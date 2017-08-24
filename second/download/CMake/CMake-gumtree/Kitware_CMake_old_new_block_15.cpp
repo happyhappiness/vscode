@@ -1,10 +1,24 @@
 {
-        /* we have a time, reformat it */
-        time_t secs=time(NULL);
-        /* using the good old yacc/bison yuck */
-        snprintf(buf, CURL_BUFSIZE(conn->data->set.buffer_size),
-                 "%04d%02d%02d %02d:%02d:%02d GMT",
-                 year, month, day, hour, minute, second);
-        /* now, convert this into a time() value: */
-        data->info.filetime = (long)curl_getdate(buf, &secs);
-      }
+	case ACL_BRAND_POSIX:
+		switch (default_entry_acl_type) {
+		case ARCHIVE_ENTRY_ACL_TYPE_ACCESS:
+		case ARCHIVE_ENTRY_ACL_TYPE_DEFAULT:
+			break;
+		default:
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Invalid ACL entry type for POSIX.1e ACL");
+			return (ARCHIVE_WARN);
+		}
+		break;
+	case ACL_BRAND_NFS4:
+		if (default_entry_acl_type & ~ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Invalid ACL entry type for NFSv4 ACL");
+			return (ARCHIVE_WARN);
+		}
+		break;
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Unknown ACL brand");
+		return (ARCHIVE_WARN);
+	}

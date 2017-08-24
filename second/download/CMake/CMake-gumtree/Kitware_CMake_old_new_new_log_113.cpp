@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "cmExpr_yyset_lineno called with no buffer" );
+fsobj_error(a_eno, a_estr, ARCHIVE_ERRNO_MISC,
+			    "Path is ", "absolute");

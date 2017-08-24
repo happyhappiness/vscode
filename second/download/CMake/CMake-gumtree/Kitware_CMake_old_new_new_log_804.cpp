@@ -1,0 +1,1 @@
+fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");

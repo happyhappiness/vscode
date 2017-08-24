@@ -1,1 +1,1 @@
-snprintf((char *)&dest[i*2], 3, "%02x", source[i])
+YY_FATAL_ERROR( "out of dynamic memory in yy_create_buffer()" )

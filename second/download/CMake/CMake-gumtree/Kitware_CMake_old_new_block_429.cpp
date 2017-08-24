@@ -1,5 +1,5 @@
 {
-				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Too many arguments");
-				return ARCHIVE_WARN;
-			}
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Ignored the request descending the current object");
+		return (ARCHIVE_WARN);
+	}
