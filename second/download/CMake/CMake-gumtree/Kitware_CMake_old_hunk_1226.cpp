@@ -1,8 +1,7 @@
-  std::string extra_update_opts;
-  if ( m_CTest->GetTestModel() == cmCTest::NIGHTLY )
-    {
-    struct tm* t = cmCTest::GetNightlyTime(m_CTest->GetCTestConfiguration("NightlyStartTime"),
-      m_Verbose, m_CTest->GetTomorrowTag());
-    char current_time[1024];
-    sprintf(current_time, "%04d-%02d-%02d %02d:%02d:%02d",
-      t->tm_year + 1900,
+      sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
+      targetNamesNodes[realTargetName] = tgtName;
+      targetPtrs[realTargetName] = &tit->second;
+      //str << "    \"" << tgtName << "\" [ label=\"" << tit->first.c_str() <<  "\" shape=\"box\"];" << std::endl;
+      }
+    }
+  // Ok, now find all the stuff we link to that is not in cmake

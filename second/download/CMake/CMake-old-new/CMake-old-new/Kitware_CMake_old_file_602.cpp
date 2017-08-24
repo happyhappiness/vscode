@@ -1,726 +1,948 @@
-/***************************************************************************
- *                                  _   _ ____  _     
- *  Project                     ___| | | |  _ \| |    
- *                             / __| | | | |_) | |    
- *                            | (__| |_| |  _ <| |___ 
- *                             \___|\___/|_| \_\_____|
- *
- * Copyright (C) 1998 - 2002, Daniel Stenberg, <daniel@haxx.se>, et al.
- *
- * This software is licensed as described in the file COPYING, which
- * you should have received as part of this distribution. The terms
- * are also available at http://curl.haxx.se/docs/copyright.html.
- * 
- * You may opt to use, copy, modify, merge, publish, distribute and/or sell
- * copies of the Software, and permit persons to whom the Software is
- * furnished to do so, under the terms of the COPYING file.
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
- * KIND, either express or implied.
- *
- * $Id$
- ***************************************************************************/
+/*=========================================================================
 
-/***
+Program:   CMake - Cross-Platform Makefile Generator
+Module:    $RCSfile$
+Language:  C++
+Date:      $Date$
+Version:   $Revision$
 
+Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
+See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
 
-RECEIVING COOKIE INFORMATION
-============================
+This software is distributed WITHOUT ANY WARRANTY; without even 
+the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
+PURPOSE.  See the above copyright notices for more information.
 
-struct CookieInfo *cookie_init(char *file);
-        
-        Inits a cookie struct to store data in a local file. This is always
-        called before any cookies are set.
+=========================================================================*/
+#include "cmCTestSubmitHandler.h"
 
-int cookies_set(struct CookieInfo *cookie, char *cookie_line);
+#include "cmSystemTools.h"
+#include "cmVersion.h"
+#include "cmGeneratedFileStream.h"
+#include "cmCTest.h"
 
-        The 'cookie_line' parameter is a full "Set-cookie:" line as
-        received from a server.
+#include <cmsys/Process.h>
+#include <cmsys/Base64.h>
 
-        The function need to replace previously stored lines that this new
-        line superceeds.
+// For XML-RPC submission
+#include "xmlrpc.h"
+#include "xmlrpc_client.h"
 
-        It may remove lines that are expired.
+// For curl submission
+#include "cmcurl/curl/curl.h"
 
-        It should return an indication of success/error.
+#include <sys/stat.h>
 
+typedef std::vector<char> cmCTestSubmitHandlerVectorOfChar;
 
-SENDING COOKIE INFORMATION
-==========================
-
-struct Cookies *cookie_getlist(struct CookieInfo *cookie,
-                               char *host, char *path, bool secure);
-
-        For a given host and path, return a linked list of cookies that
-        the client should send to the server if used now. The secure
-        boolean informs the cookie if a secure connection is achieved or
-        not.
-
-        It shall only return cookies that haven't expired.
-
-    
-Example set of cookies:
-    
-    Set-cookie: PRODUCTINFO=webxpress; domain=.fidelity.com; path=/; secure
-    Set-cookie: PERSONALIZE=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
-    domain=.fidelity.com; path=/ftgw; secure
-    Set-cookie: FidHist=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
-    domain=.fidelity.com; path=/; secure
-    Set-cookie: FidOrder=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
-    domain=.fidelity.com; path=/; secure
-    Set-cookie: DisPend=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
-    domain=.fidelity.com; path=/; secure
-    Set-cookie: FidDis=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
-    domain=.fidelity.com; path=/; secure
-    Set-cookie:
-    Session_Key@6791a9e0-901a-11d0-a1c8-9b012c88aa77=none;expires=Monday,
-    13-Jun-1988 03:04:55 GMT; domain=.fidelity.com; path=/; secure
-****/
-
-#include "setup.h"
-
-#ifndef CURL_DISABLE_HTTP
-
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-
-#include "cookie.h"
-#include "getdate.h"
-#include "strequal.h"
-#include "strtok.h"
-
-/* The last #include file should be: */
-#ifdef MALLOCDEBUG
-#include "memdebug.h"
-#endif
-
-static void
-free_cookiemess(struct Cookie *co)
+static size_t
+cmCTestSubmitHandlerWriteMemoryCallback(void *ptr, size_t size, size_t nmemb, void *data)
 {
-  if(co->domain)
-    free(co->domain);
-  if(co->path)
-    free(co->path);
-  if(co->name)
-    free(co->name);
-  if(co->value)
-    free(co->value);
+  register int realsize = size * nmemb;
 
-  free(co);
+  cmCTestSubmitHandlerVectorOfChar *vec = static_cast<cmCTestSubmitHandlerVectorOfChar*>(data);
+  const char* chPtr = static_cast<char*>(ptr);
+  vec->insert(vec->end(), chPtr, chPtr + realsize);
+
+  return realsize;
 }
 
-/****************************************************************************
- *
- * Curl_cookie_add()
- *
- * Add a single cookie line to the cookie keeping object.
- *
- ***************************************************************************/
-
-struct Cookie *
-Curl_cookie_add(struct CookieInfo *c,
-                bool httpheader, /* TRUE if HTTP header-style line */
-                char *lineptr,   /* first character of the line */
-                char *domain)    /* default domain */
+static size_t
+cmCTestSubmitHandlerCurlDebugCallback(CURL *, curl_infotype, char *chPtr, size_t size, void *data)
 {
-  struct Cookie *clist;
-  char what[MAX_COOKIE_LINE];
-  char name[MAX_NAME];
-  char *ptr;
-  char *semiptr;
-  struct Cookie *co;
-  struct Cookie *lastc=NULL;
-  time_t now = time(NULL);
-  bool replace_old = FALSE;
+  cmCTestSubmitHandlerVectorOfChar *vec = static_cast<cmCTestSubmitHandlerVectorOfChar*>(data);
+  vec->insert(vec->end(), chPtr, chPtr + size);
 
-  /* First, alloc and init a new struct for it */
-  co = (struct Cookie *)malloc(sizeof(struct Cookie));
-  if(!co)
-    return NULL; /* bail out if we're this low on memory */
+  return size;
+}
 
-  /* clear the whole struct first */
-  memset(co, 0, sizeof(struct Cookie));
-            
-  if(httpheader) {
-    /* This line was read off a HTTP-header */
-    char *sep;
-    semiptr=strchr(lineptr, ';'); /* first, find a semicolon */
+//----------------------------------------------------------------------------
+cmCTestSubmitHandler::cmCTestSubmitHandler() : m_HTTPProxy(), m_FTPProxy()
+{
+  m_HTTPProxy = "";
+  m_HTTPProxyType = 0;
+  m_HTTPProxyAuth = "";
 
-    while(*lineptr && isspace((int)*lineptr))
-      lineptr++;
+  m_FTPProxy = "";
+  m_FTPProxyType = 0;
+}
 
-    ptr = lineptr;
-    do {
-      /* we have a <what>=<this> pair or a 'secure' word here */
-      sep = strchr(ptr, '=');
-      if(sep && (!semiptr || (semiptr>sep)) ) {
-        /*
-         * There is a = sign and if there was a semicolon too, which make sure
-         * that the semicolon comes _after_ the equal sign.
-         */
+//----------------------------------------------------------------------------
+void cmCTestSubmitHandler::Initialize()
+{
+  this->Superclass::Initialize();
+  m_HTTPProxy = "";
+  m_HTTPProxyType = 0;
+  m_HTTPProxyAuth = "";
+  m_FTPProxy = "";
+  m_FTPProxyType = 0;
+  m_LogFile = 0;
+}
 
-        name[0]=what[0]=0; /* init the buffers */
-        if(1 <= sscanf(ptr, "%" MAX_NAME_TXT "[^;=]=%"
-                       MAX_COOKIE_LINE_TXT "[^;\r\n]",
-                       name, what)) {
-          /* this is a <name>=<what> pair */
+//----------------------------------------------------------------------------
+bool cmCTestSubmitHandler::SubmitUsingFTP(const cmStdString& localprefix, 
+  const std::set<cmStdString>& files,
+  const cmStdString& remoteprefix, 
+  const cmStdString& url)
+{
+  CURL *curl;
+  CURLcode res;
+  FILE* ftpfile;
+  char error_buffer[1024];
 
-          char *whatptr;
+  /* In windows, this will init the winsock stuff */
+  ::curl_global_init(CURL_GLOBAL_ALL);
 
-          /* Strip off trailing whitespace from the 'what' */
-          size_t len=strlen(what);
-          while(len && isspace((int)what[len-1])) {
-            what[len-1]=0;
-            len--;
-          }
-
-          /* Skip leading whitespace from the 'what' */
-          whatptr=what;
-          while(isspace((int)*whatptr)) {
-            whatptr++;
-          }
-
-          if(strequal("path", name)) {
-            co->path=strdup(whatptr);
-          }
-          else if(strequal("domain", name)) {
-            co->domain=strdup(whatptr);
-            co->field1= (char)((whatptr[0]=='.')?2:1);
-          }
-          else if(strequal("version", name)) {
-            co->version=strdup(whatptr);
-          }
-          else if(strequal("max-age", name)) {
-            /* Defined in RFC2109:
-
-               Optional.  The Max-Age attribute defines the lifetime of the
-               cookie, in seconds.  The delta-seconds value is a decimal non-
-               negative integer.  After delta-seconds seconds elapse, the
-               client should discard the cookie.  A value of zero means the
-               cookie should be discarded immediately.
-
-             */
-            co->maxage = strdup(whatptr);
-            co->expires =
-              atoi((*co->maxage=='\"')?&co->maxage[1]:&co->maxage[0]) + (long)now;
-          }
-          else if(strequal("expires", name)) {
-            co->expirestr=strdup(whatptr);
-            co->expires = (long)curl_getdate(what, &now);
-          }
-          else if(!co->name) {
-            co->name = strdup(name);
-            co->value = strdup(whatptr);
-          }
-          /*
-            else this is the second (or more) name we don't know
-            about! */
-        }
-        else {
-          /* this is an "illegal" <what>=<this> pair */
-        }
-      }
-      else {
-        if(sscanf(ptr, "%" MAX_COOKIE_LINE_TXT "[^;\r\n]",
-                  what)) {
-          if(strequal("secure", what))
-            co->secure = TRUE;
-          /* else,
-             unsupported keyword without assign! */
-
-        }
-      }
-      if(!semiptr || !*semiptr) {
-        /* we already know there are no more cookies */
-        semiptr = NULL;
-        continue;
-      }
-
-      ptr=semiptr+1;
-      while(ptr && *ptr && isspace((int)*ptr))
-        ptr++;
-      semiptr=strchr(ptr, ';'); /* now, find the next semicolon */
-
-      if(!semiptr && *ptr)
-        /* There are no more semicolons, but there's a final name=value pair
-           coming up */
-        semiptr=strchr(ptr, '\0');
-    } while(semiptr);
-
-    if(NULL == co->name) {
-      /* we didn't get a cookie name, this is an illegal line, bail out */
-      if(co->domain)
-        free(co->domain);
-      if(co->path)
-        free(co->path);
-      if(co->name)
-        free(co->name);
-      if(co->value)
-        free(co->value);
-      free(co);
-      return NULL;
-    }
-
-    if(NULL == co->domain)
-      /* no domain given in the header line, set the default now */
-      co->domain=domain?strdup(domain):NULL;
-  }
-  else {
-    /* This line is NOT a HTTP header style line, we do offer support for
-       reading the odd netscape cookies-file format here */
-    char *firstptr;
-    char *tok_buf;
-    int fields;
-
-    if(lineptr[0]=='#') {
-      /* don't even try the comments */
-      free(co);
-      return NULL;
-    }
-    /* strip off the possible end-of-line characters */
-    ptr=strchr(lineptr, '\r');
-    if(ptr)
-      *ptr=0; /* clear it */
-    ptr=strchr(lineptr, '\n');
-    if(ptr)
-      *ptr=0; /* clear it */
-
-    firstptr=strtok_r(lineptr, "\t", &tok_buf); /* first tokenize it on the TAB */
-
-    /* Here's a quick check to eliminate normal HTTP-headers from this */
-    if(!firstptr || strchr(firstptr, ':')) {
-      free(co);
-      return NULL;
-    }
-
-    /* Now loop through the fields and init the struct we already have
-       allocated */
-    for(ptr=firstptr, fields=0; ptr; ptr=strtok_r(NULL, "\t", &tok_buf), fields++) {
-      switch(fields) {
-      case 0:
-        co->domain = strdup(ptr);
-        break;
-      case 1:
-        /* This field got its explanation on the 23rd of May 2001 by
-           Andrés García:
-
-           flag: A TRUE/FALSE value indicating if all machines within a given
-           domain can access the variable. This value is set automatically by
-           the browser, depending on the value you set for the domain.
-
-           As far as I can see, it is set to true when the cookie says
-           .domain.com and to false when the domain is complete www.domain.com
-
-           We don't currently take advantage of this knowledge.
-        */
-        co->field1=(char)(strequal(ptr, "TRUE")+1); /* store information */
-        break;
-      case 2:
-        /* It turns out, that sometimes the file format allows the path
-           field to remain not filled in, we try to detect this and work
-           around it! Andrés García made us aware of this... */
-        if (strcmp("TRUE", ptr) && strcmp("FALSE", ptr)) {
-          /* only if the path doesn't look like a boolean option! */
-          co->path = strdup(ptr);
+  cmCTest::tm_SetOfStrings::const_iterator file;
+  for ( file = files.begin(); file != files.end(); ++file )
+    {
+    /* get a curl handle */
+    curl = curl_easy_init();
+    if(curl) 
+      {
+      // Using proxy
+      if ( m_FTPProxyType > 0 )
+        {
+        curl_easy_setopt(curl, CURLOPT_PROXY, m_FTPProxy.c_str()); 
+        switch (m_FTPProxyType)
+          {
+        case 2:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS4);
           break;
-        }
-        /* this doesn't look like a path, make one up! */
-        co->path = strdup("/");
-        fields++; /* add a field and fall down to secure */
-        /* FALLTHROUGH */
-      case 3:
-        co->secure = (bool)strequal(ptr, "TRUE");
-        break;
-      case 4:
-        co->expires = atoi(ptr);
-        break;
-      case 5:
-        co->name = strdup(ptr);
-        break;
-      case 6:
-        co->value = strdup(ptr);
-        break;
-      }
-    }
-
-    if(7 != fields) {
-      /* we did not find the sufficient number of fields to recognize this
-         as a valid line, abort and go home */
-      free_cookiemess(co);
-      return NULL;
-    }
-
-  }
-
-  if(!c->running &&    /* read from a file */
-     c->newsession &&  /* clean session cookies */
-     !co->expires) {   /* this is a session cookie since it doesn't expire! */
-    free_cookiemess(co);
-    return NULL;
-  }
-
-  co->livecookie = c->running;
-
-  /* now, we have parsed the incoming line, we must now check if this
-     superceeds an already existing cookie, which it may if the previous have
-     the same domain and path as this */
-
-  clist = c->cookies;
-  replace_old = FALSE;
-  while(clist) {
-    if(strequal(clist->name, co->name)) {
-      /* the names are identical */
-
-      if(clist->domain && co->domain) {
-        if(strequal(clist->domain, co->domain) ||
-           (clist->domain[0]=='.' &&
-            strequal(&(clist->domain[1]), co->domain)) ||
-           (co->domain[0]=='.' &&
-            strequal(clist->domain, &(co->domain[1]))) )
-          /* The domains are identical, or at least identical if you skip the
-             preceeding dot */
-          replace_old=TRUE;
-      }
-      else if(!clist->domain && !co->domain)
-        replace_old = TRUE;
-
-      if(replace_old) {
-        /* the domains were identical */
-
-        if(clist->path && co->path) {
-          if(strequal(clist->path, co->path)) {
-            replace_old = TRUE;
+        case 3:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5);
+          break;
+        default:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);           
           }
-          else
-            replace_old = FALSE;
         }
-        else if(!clist->path && !co->path)
-          replace_old = TRUE;
-        else
-          replace_old = FALSE;
-        
-      }
 
-      if(replace_old && !co->livecookie && clist->livecookie) {
-        /* Both cookies matched fine, except that the already present
-           cookie is "live", which means it was set from a header, while
-           the new one isn't "live" and thus only read from a file. We let
-           live cookies stay alive */
+      // enable uploading
+      ::curl_easy_setopt(curl, CURLOPT_UPLOAD, 1) ;
 
-        /* Free the newcomer and get out of here! */
-        if(co->domain)
-          free(co->domain);
-        if(co->path)
-          free(co->path);
-        if(co->name)
-          free(co->name);
-        if(co->value)
-          free(co->value);
+      cmStdString local_file = *file;
+      if ( !cmSystemTools::FileExists(local_file.c_str()) )
+        {
+        local_file = localprefix + "/" + *file;
+        }
+      cmStdString upload_as = url + "/" + remoteprefix + cmSystemTools::GetFilenameName(*file);
 
-        free(co);
-        return NULL;
-      }
+      struct stat st;
+      if ( ::stat(local_file.c_str(), &st) )
+        {
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "   Cannot find file: " << local_file.c_str() << std::endl);
+        ::curl_easy_cleanup(curl);
+        ::curl_global_cleanup(); 
+        return false;
+        }
 
-      if(replace_old) {
-        co->next = clist->next; /* get the next-pointer first */
+      ftpfile = ::fopen(local_file.c_str(), "rb");
+      *m_LogFile << "\tUpload file: " << local_file.c_str() << " to "
+          << upload_as.c_str() << std::endl;
+      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "   Upload file: " << local_file.c_str() << " to " 
+        << upload_as.c_str() << std::endl);
 
-        /* then free all the old pointers */
-        if(clist->name)
-          free(clist->name);
-        if(clist->value)
-          free(clist->value);
-        if(clist->domain)
-          free(clist->domain);
-        if(clist->path)
-          free(clist->path);
-        if(clist->expirestr)
-          free(clist->expirestr);
+      ::curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
 
-        if(clist->version)
-          free(clist->version);
-        if(clist->maxage)
-          free(clist->maxage);
+      // specify target
+      ::curl_easy_setopt(curl,CURLOPT_URL, upload_as.c_str());
 
-        *clist = *co;  /* then store all the new data */
+      // now specify which file to upload
+      ::curl_easy_setopt(curl, CURLOPT_INFILE, ftpfile);
 
-        free(co);   /* free the newly alloced memory */
-        co = clist; /* point to the previous struct instead */
+      // and give the size of the upload (optional)
+      ::curl_easy_setopt(curl, CURLOPT_INFILESIZE, static_cast<long>(st.st_size));
 
-        /* We have replaced a cookie, now skip the rest of the list but
-           make sure the 'lastc' pointer is properly set */
-        do {
-          lastc = clist;
-          clist = clist->next;
-        } while(clist);
-        break;
+      // and give curl the buffer for errors
+      ::curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, &error_buffer);
+
+      // specify handler for output
+      ::curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cmCTestSubmitHandlerWriteMemoryCallback);
+      ::curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, cmCTestSubmitHandlerCurlDebugCallback);
+
+      /* we pass our 'chunk' struct to the callback function */
+      cmCTestSubmitHandlerVectorOfChar chunk;
+      cmCTestSubmitHandlerVectorOfChar chunkDebug;
+      ::curl_easy_setopt(curl, CURLOPT_FILE, (void *)&chunk);
+      ::curl_easy_setopt(curl, CURLOPT_DEBUGDATA, (void *)&chunkDebug);
+
+      // Now run off and do what you've been told!
+      res = ::curl_easy_perform(curl);
+
+      if ( chunk.size() > 0 )
+        {
+        cmCTestLog(m_CTest, DEBUG, "CURL output: ["
+          << cmCTestLogWrite(&*chunk.begin(), chunk.size()) << "]" << std::endl);
+        }
+      if ( chunkDebug.size() > 0 )
+        {
+        cmCTestLog(m_CTest, DEBUG, "CURL debug output: ["
+          << cmCTestLogWrite(&*chunkDebug.begin(), chunkDebug.size()) << "]" << std::endl);
+        }
+
+      fclose(ftpfile);
+      if ( res )
+        {
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "   Error when uploading file: " << local_file.c_str() << std::endl);
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "   Error message was: " << error_buffer << std::endl);
+        *m_LogFile << "   Error when uploading file: " << local_file.c_str() << std::endl
+          << "   Error message was: " << error_buffer << std::endl
+          << "   Curl output was: " << cmCTestLogWrite(&*chunk.begin(), chunk.size()) << std::endl;
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "CURL output: ["
+          << cmCTestLogWrite(&*chunk.begin(), chunk.size()) << "]" << std::endl);
+        ::curl_easy_cleanup(curl);
+        ::curl_global_cleanup(); 
+        return false;
+        }
+      // always cleanup
+      ::curl_easy_cleanup(curl);
+      cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Uploaded: " + local_file << std::endl);
       }
     }
-    lastc = clist;
-    clist = clist->next;
-  }
-
-  if(!replace_old) {
-    /* then make the last item point on this new one */
-    if(lastc)
-      lastc->next = co;
-    else
-      c->cookies = co;
-  }
-
-  c->numcookies++; /* one more cookie in the jar */
-
-  return co;
+  ::curl_global_cleanup(); 
+  return true;
 }
 
-/*****************************************************************************
- *
- * Curl_cookie_init()
- *
- * Inits a cookie struct to read data from a local file. This is always
- * called before any cookies are set. File may be NULL.
- *
- * If 'newsession' is TRUE, discard all "session cookies" on read from file.
- *
- ****************************************************************************/
-struct CookieInfo *Curl_cookie_init(char *file,
-                                    struct CookieInfo *inc,
-                                    bool newsession)
+//----------------------------------------------------------------------------
+// Uploading files is simpler
+bool cmCTestSubmitHandler::SubmitUsingHTTP(const cmStdString& localprefix, 
+  const std::set<cmStdString>& files,
+  const cmStdString& remoteprefix, 
+  const cmStdString& url)
 {
-  char line[MAX_COOKIE_LINE];
-  struct CookieInfo *c;
-  FILE *fp;
-  bool fromfile=TRUE;
-  
-  if(NULL == inc) {
-    /* we didn't get a struct, create one */
-    c = (struct CookieInfo *)malloc(sizeof(struct CookieInfo));
-    if(!c)
-      return NULL; /* failed to get memory */
-    memset(c, 0, sizeof(struct CookieInfo));
-    c->filename = strdup(file?file:"none"); /* copy the name just in case */
-  }
-  else {
-    /* we got an already existing one, use that */
-    c = inc;
-  }
-  c->running = FALSE; /* this is not running, this is init */
+  CURL *curl;
+  CURLcode res;
+  FILE* ftpfile;
+  char error_buffer[1024];
 
-  if(file && strequal(file, "-")) {
-    fp = stdin;
-    fromfile=FALSE;
-  }
-  else
-    fp = file?fopen(file, "r"):NULL;
+  /* In windows, this will init the winsock stuff */
+  ::curl_global_init(CURL_GLOBAL_ALL);
 
-  c->newsession = newsession; /* new session? */
+  cmStdString::size_type kk;
+  cmCTest::tm_SetOfStrings::const_iterator file;
+  for ( file = files.begin(); file != files.end(); ++file )
+    {
+    /* get a curl handle */
+    curl = curl_easy_init();
+    if(curl) 
+      {
 
-  if(fp) {
-    char *lineptr;
-    bool headerline;
-    while(fgets(line, MAX_COOKIE_LINE, fp)) {
-      if(checkprefix("Set-Cookie:", line)) {
-        /* This is a cookie line, get it! */
-        lineptr=&line[11];
-        headerline=TRUE;
-      }
-      else {
-        lineptr=line;
-        headerline=FALSE;
-      }
-      while(*lineptr && isspace((int)*lineptr))
-        lineptr++;
-
-      Curl_cookie_add(c, headerline, lineptr, NULL);
-    }
-    if(fromfile)
-      fclose(fp);
-  }
-
-  c->running = TRUE;          /* now, we're running */
-
-  return c;
-}
-
-/*****************************************************************************
- *
- * Curl_cookie_getlist()
- *
- * For a given host and path, return a linked list of cookies that the
- * client should send to the server if used now. The secure boolean informs
- * the cookie if a secure connection is achieved or not.
- *
- * It shall only return cookies that haven't expired.
- *
- ****************************************************************************/
-
-struct Cookie *Curl_cookie_getlist(struct CookieInfo *c,
-                                   char *host, char *path, bool secure)
-{
-   struct Cookie *newco;
-   struct Cookie *co;
-   time_t now = time(NULL);
-   int hostlen=(int)strlen(host);
-   int domlen;
-
-   struct Cookie *mainco=NULL;
-
-   if(!c || !c->cookies)
-      return NULL; /* no cookie struct or no cookies in the struct */
-
-   co = c->cookies;
-
-   while(co) {
-      /* only process this cookie if it is not expired or had no expire
-         date AND that if the cookie requires we're secure we must only
-         continue if we are! */
-     if( (co->expires<=0 || (co->expires> now)) &&
-         (co->secure?secure:TRUE) ) {
-
-         /* now check if the domain is correct */
-         domlen=co->domain?(int)strlen(co->domain):0;
-         if(!co->domain ||
-            ((domlen<=hostlen) &&
-             strequal(host+(hostlen-domlen), co->domain)) ) {
-            /* the right part of the host matches the domain stuff in the
-               cookie data */
-
-            /* now check the left part of the path with the cookies path
-               requirement */
-           if(!co->path ||
-              checkprefix(co->path, path) ) {
-
-               /* and now, we know this is a match and we should create an
-                  entry for the return-linked-list */
-
-               newco = (struct Cookie *)malloc(sizeof(struct Cookie));
-               if(newco) {
-                  /* first, copy the whole source cookie: */
-                  memcpy(newco, co, sizeof(struct Cookie));
-
-                  /* then modify our next */
-                  newco->next = mainco;
-
-                  /* point the main to us */
-                  mainco = newco;
-               }
+      // Using proxy
+      if ( m_HTTPProxyType > 0 )
+        {
+        curl_easy_setopt(curl, CURLOPT_PROXY, m_HTTPProxy.c_str()); 
+        switch (m_HTTPProxyType)
+          {
+        case 2:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS4);
+          break;
+        case 3:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5);
+          break;
+        default:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
+          if (m_HTTPProxyAuth.size() > 0)
+            {
+            curl_easy_setopt(curl, CURLOPT_PROXYUSERPWD,
+              m_HTTPProxyAuth.c_str());
             }
-         }
-      }
-      co = co->next;
-   }
+          }
+        }
 
-   return mainco; /* return the new list */
+      /* enable uploading */
+      curl_easy_setopt(curl, CURLOPT_UPLOAD, 1) ;
+
+      /* HTTP PUT please */
+      ::curl_easy_setopt(curl, CURLOPT_PUT, 1);
+      ::curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+
+      cmStdString local_file = *file;
+      if ( !cmSystemTools::FileExists(local_file.c_str()) )
+        {
+        local_file = localprefix + "/" + *file;
+        }
+      cmStdString remote_file = remoteprefix + cmSystemTools::GetFilenameName(*file);
+
+      *m_LogFile << "\tUpload file: " << local_file.c_str() << " to "
+          << remote_file.c_str() << std::endl;
+
+      cmStdString ofile = "";
+      for ( kk = 0; kk < remote_file.size(); kk ++ )
+        {
+        char c = remote_file[kk];
+        char hexCh[4] = { 0, 0, 0, 0 };
+        hexCh[0] = c;
+        switch ( c )
+          {
+        case '+':
+        case '?':
+        case '/':
+        case '\\':
+        case '&':
+        case ' ':
+        case '=':
+        case '%':
+          sprintf(hexCh, "%%%02X", (int)c);
+          ofile.append(hexCh);
+          break;
+        default: 
+          ofile.append(hexCh);
+          }
+        }
+      cmStdString upload_as 
+        = url + ((url.find("?",0) == cmStdString::npos) ? "?" : "&") 
+        + "FileName=" + ofile;
+
+      struct stat st;
+      if ( ::stat(local_file.c_str(), &st) )
+        {
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "   Cannot find file: " << local_file.c_str() << std::endl);
+        ::curl_easy_cleanup(curl);
+        ::curl_global_cleanup(); 
+        return false;
+        }
+
+      ftpfile = ::fopen(local_file.c_str(), "rb");
+      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "   Upload file: " << local_file.c_str() << " to " 
+        << upload_as.c_str() << " Size: " << st.st_size << std::endl);
+
+
+      // specify target
+      ::curl_easy_setopt(curl,CURLOPT_URL, upload_as.c_str());
+
+      // now specify which file to upload
+      ::curl_easy_setopt(curl, CURLOPT_INFILE, ftpfile);
+
+      // and give the size of the upload (optional)
+      ::curl_easy_setopt(curl, CURLOPT_INFILESIZE, static_cast<long>(st.st_size));
+
+      // and give curl the buffer for errors
+      ::curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, &error_buffer);
+
+      // specify handler for output
+      ::curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cmCTestSubmitHandlerWriteMemoryCallback);
+      ::curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, cmCTestSubmitHandlerCurlDebugCallback);
+
+      /* we pass our 'chunk' struct to the callback function */
+      cmCTestSubmitHandlerVectorOfChar chunk;
+      cmCTestSubmitHandlerVectorOfChar chunkDebug;
+      ::curl_easy_setopt(curl, CURLOPT_FILE, (void *)&chunk);
+      ::curl_easy_setopt(curl, CURLOPT_DEBUGDATA, (void *)&chunkDebug);
+
+      // Now run off and do what you've been told!
+      res = ::curl_easy_perform(curl);
+
+      if ( chunk.size() > 0 )
+        {
+        cmCTestLog(m_CTest, DEBUG, "CURL output: ["
+          << cmCTestLogWrite(&*chunk.begin(), chunk.size()) << "]" << std::endl);
+        }
+      if ( chunkDebug.size() > 0 )
+        {
+        cmCTestLog(m_CTest, DEBUG, "CURL debug output: ["
+          << cmCTestLogWrite(&*chunkDebug.begin(), chunkDebug.size()) << "]" << std::endl);
+        }
+
+      fclose(ftpfile);
+      if ( res )
+        {
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "   Error when uploading file: " << local_file.c_str() << std::endl);
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "   Error message was: " << error_buffer << std::endl);
+        *m_LogFile << "   Error when uploading file: " << local_file.c_str() << std::endl
+          << "   Error message was: " << error_buffer << std::endl
+          << "   Curl output was: " << cmCTestLogWrite(&*chunk.begin(), chunk.size()) << std::endl;
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "CURL output: ["
+          << cmCTestLogWrite(&*chunk.begin(), chunk.size()) << "]" << std::endl);
+        ::curl_easy_cleanup(curl);
+        ::curl_global_cleanup(); 
+        return false;
+        }
+      // always cleanup
+      ::curl_easy_cleanup(curl);
+      cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Uploaded: " + local_file << std::endl);
+      }
+    }
+  ::curl_global_cleanup(); 
+  return true;
 }
 
-
-/*****************************************************************************
- *
- * Curl_cookie_freelist()
- *
- * Free a list of cookies previously returned by Curl_cookie_getlist();
- *
- ****************************************************************************/
-
-void Curl_cookie_freelist(struct Cookie *co)
+//----------------------------------------------------------------------------
+bool cmCTestSubmitHandler::TriggerUsingHTTP(const std::set<cmStdString>& files,
+  const cmStdString& remoteprefix, 
+  const cmStdString& url)
 {
-   struct Cookie *next;
-   if(co) {
-      while(co) {
-         next = co->next;
-         free(co); /* we only free the struct since the "members" are all
-                      just copied! */
-         co = next;
+  CURL *curl;
+  char error_buffer[1024];
+
+  /* In windows, this will init the winsock stuff */
+  ::curl_global_init(CURL_GLOBAL_ALL);
+
+  cmCTest::tm_SetOfStrings::const_iterator file;
+  for ( file = files.begin(); file != files.end(); ++file )
+    {
+    /* get a curl handle */
+    curl = curl_easy_init();
+    if(curl) 
+      {
+      // Using proxy
+      if ( m_HTTPProxyType > 0 )
+        {
+        curl_easy_setopt(curl, CURLOPT_PROXY, m_HTTPProxy.c_str()); 
+        switch (m_HTTPProxyType)
+          {
+        case 2:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS4);
+          break;
+        case 3:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5);
+          break;
+        default:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);           
+          if (m_HTTPProxyAuth.size() > 0)
+            {
+            curl_easy_setopt(curl, CURLOPT_PROXYUSERPWD,
+              m_HTTPProxyAuth.c_str());
+            }
+          }
+        }
+
+      ::curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+
+      // and give curl the buffer for errors
+      ::curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, &error_buffer);
+
+      // specify handler for output
+      ::curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cmCTestSubmitHandlerWriteMemoryCallback);
+      ::curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, cmCTestSubmitHandlerCurlDebugCallback);
+
+      /* we pass our 'chunk' struct to the callback function */
+      cmCTestSubmitHandlerVectorOfChar chunk;
+      cmCTestSubmitHandlerVectorOfChar chunkDebug;
+      ::curl_easy_setopt(curl, CURLOPT_FILE, (void *)&chunk);
+      ::curl_easy_setopt(curl, CURLOPT_DEBUGDATA, (void *)&chunkDebug);
+
+      cmStdString rfile = remoteprefix + cmSystemTools::GetFilenameName(*file);
+      cmStdString ofile = "";
+      cmStdString::iterator kk;
+      for ( kk = rfile.begin(); kk < rfile.end(); ++ kk)
+        {
+        char c = *kk;
+        char hexCh[4] = { 0, 0, 0, 0 };
+        hexCh[0] = c;
+        switch ( c )
+          {
+        case '+':
+        case '?':
+        case '/':
+        case '\\':
+        case '&':
+        case ' ':
+        case '=':
+        case '%':
+          sprintf(hexCh, "%%%02X", (int)c);
+          ofile.append(hexCh);
+          break;
+        default: 
+          ofile.append(hexCh);
+          }
+        }
+      cmStdString turl 
+        = url + ((url.find("?",0) == cmStdString::npos) ? "?" : "&") 
+        + "xmlfile=" + ofile;
+      *m_LogFile << "Trigger url: " << turl.c_str() << std::endl;
+      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "   Trigger url: " << turl.c_str() << std::endl);
+      curl_easy_setopt(curl, CURLOPT_URL, turl.c_str());
+      if ( curl_easy_perform(curl) )
+        {
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "   Error when triggering: " << turl.c_str() << std::endl);
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "   Error message was: " << error_buffer << std::endl);
+        *m_LogFile << "\tTrigerring failed with error: " << error_buffer << std::endl
+          << "   Error message was: " << error_buffer << std::endl
+          << "   Curl output was: " << cmCTestLogWrite(&*chunk.begin(), chunk.size()) << std::endl;
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "CURL output: ["
+          << cmCTestLogWrite(&*chunk.begin(), chunk.size()) << "]" << std::endl);
+        ::curl_easy_cleanup(curl);
+        ::curl_global_cleanup(); 
+        return false;
+        }
+
+      if ( chunk.size() > 0 )
+        {
+        cmCTestLog(m_CTest, DEBUG, "CURL output: ["
+          << cmCTestLogWrite(&*chunk.begin(), chunk.size()) << "]" << std::endl);
+        }
+      if ( chunkDebug.size() > 0 )
+        {
+        cmCTestLog(m_CTest, DEBUG, "CURL debug output: ["
+          << cmCTestLogWrite(&*chunkDebug.begin(), chunkDebug.size()) << "]" << std::endl);
+        }
+
+      // always cleanup
+      ::curl_easy_cleanup(curl);
+      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, std::endl);
       }
-   }
+    }
+  ::curl_global_cleanup(); 
+  cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Dart server triggered..." << std::endl);
+  return true;
 }
 
-/*****************************************************************************
- *
- * Curl_cookie_cleanup()
- *
- * Free a "cookie object" previous created with cookie_init().
- *
- ****************************************************************************/
-void Curl_cookie_cleanup(struct CookieInfo *c)
+//----------------------------------------------------------------------------
+bool cmCTestSubmitHandler::SubmitUsingSCP(
+  const cmStdString& scp_command, 
+  const cmStdString& localprefix, 
+  const std::set<cmStdString>& files,
+  const cmStdString& remoteprefix, 
+  const cmStdString& url)
 {
-   struct Cookie *co;
-   struct Cookie *next;
-   if(c) {
-      if(c->filename)
-         free(c->filename);
-      co = c->cookies;
-
-      while(co) {
-         if(co->name)
-            free(co->name);
-         if(co->value)
-            free(co->value);
-         if(co->domain)
-            free(co->domain);
-         if(co->path)
-            free(co->path);
-         if(co->expirestr)
-            free(co->expirestr);
-
-         if(co->version)
-            free(co->version);
-         if(co->maxage)
-            free(co->maxage);
-
-         next = co->next;
-         free(co);
-         co = next;
-      }
-      free(c); /* free the base struct as well */
-   }
-}
-
-/*
- * Curl_cookie_output()
- *
- * Writes all internally known cookies to the specified file. Specify
- * "-" as file name to write to stdout.
- *
- * The function returns non-zero on write failure.
- */
-int Curl_cookie_output(struct CookieInfo *c, char *dumphere)
-{
-  struct Cookie *co;
-  FILE *out;
-  bool use_stdout=FALSE;
-
-  if((NULL == c) || (0 == c->numcookies))
-    /* If there are no known cookies, we don't write or even create any
-       destination file */
+  if ( !scp_command.size() || !localprefix.size() ||
+    !files.size() || !remoteprefix.size() || !url.size() )
+    {
     return 0;
+    }
+  std::vector<const char*> argv;
+  argv.push_back(scp_command.c_str()); // Scp command
+  argv.push_back(scp_command.c_str()); // Dummy string for file
+  argv.push_back(scp_command.c_str()); // Dummy string for remote url
+  argv.push_back(0);
 
-  if(strequal("-", dumphere)) {
-    /* use stdout */
-    out = stdout;
-    use_stdout=TRUE;
-  }
-  else {
-    out = fopen(dumphere, "w");
-    if(!out)
-      return 1; /* failure */
-  }
+  cmsysProcess* cp = cmsysProcess_New();
+  cmsysProcess_SetOption(cp, cmsysProcess_Option_HideWindow, 1);
+  //cmsysProcess_SetTimeout(cp, timeout);
 
-  if(c) {
-    fputs("# Netscape HTTP Cookie File\n"
-          "# http://www.netscape.com/newsref/std/cookie_spec.html\n"
-          "# This file was generated by libcurl! Edit at your own risk.\n\n",
-          out);
-    co = c->cookies;
-     
-    while(co) {
-      fprintf(out,
-              "%s\t" /* domain */
-              "%s\t" /* field1 */
-              "%s\t" /* path */
-              "%s\t" /* secure */
-              "%u\t" /* expires */
-              "%s\t" /* name */
-              "%s\n", /* value */
-              co->domain?co->domain:"unknown",
-              co->field1==2?"TRUE":"FALSE",
+  int problems = 0;
+
+  cmCTest::tm_SetOfStrings::const_iterator file;
+  for ( file = files.begin(); file != files.end(); ++file )
+    {
+    int retVal;
+
+    std::string lfname = localprefix;
+    cmSystemTools::ConvertToUnixSlashes(lfname);
+    lfname += "/" + *file;
+    lfname = cmSystemTools::ConvertToOutputPath(lfname.c_str());
+    argv[1] = lfname.c_str();
+    std::string rfname = url + "/" + remoteprefix + *file;
+    argv[2] = rfname.c_str();
+    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Execute \"" << argv[0] << "\" \"" << argv[1] << "\" \"" 
+      << argv[2] << "\"" << std::endl);
+    *m_LogFile << "Execute \"" << argv[0] << "\" \"" << argv[1] << "\" \"" 
+      << argv[2] << "\"" << std::endl;
+
+    cmsysProcess_SetCommand(cp, &*argv.begin());
+    cmsysProcess_Execute(cp);
+    char* data;
+    int length;
+
+    while(cmsysProcess_WaitForData(cp, &data, &length, 0))
+      {
+      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, cmCTestLogWrite(data, length));
+      }
+
+    cmsysProcess_WaitForExit(cp, 0);
+
+    int result = cmsysProcess_GetState(cp);
+
+    if(result == cmsysProcess_State_Exited)
+      {
+      retVal = cmsysProcess_GetExitValue(cp);
+      if ( retVal != 0 )
+        {
+        cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "\tSCP returned: " << retVal << std::endl);
+        *m_LogFile << "\tSCP returned: " << retVal << std::endl;
+        problems ++;
+        }
+      }
+    else if(result == cmsysProcess_State_Exception)
+      {
+      retVal = cmsysProcess_GetExitException(cp);
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "\tThere was an exception: " << retVal << std::endl);
+      *m_LogFile << "\tThere was an exception: " << retVal << std::endl;
+      problems ++;
+      }
+    else if(result == cmsysProcess_State_Expired)
+      {
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "\tThere was a timeout" << std::endl);
+      *m_LogFile << "\tThere was a timeout" << std::endl;
+      problems ++;
+      } 
+    else if(result == cmsysProcess_State_Error)
+      {
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "\tError executing SCP: "
+        << cmsysProcess_GetErrorString(cp) << std::endl);
+      *m_LogFile << "\tError executing SCP: "
+        << cmsysProcess_GetErrorString(cp) << std::endl;
+      problems ++;
+      }
+    }
+  cmsysProcess_Delete(cp);
+  if ( problems )
+    {
+    return false;
+    }
+  return true;
+}
+
+//----------------------------------------------------------------------------
+bool cmCTestSubmitHandler::SubmitUsingXMLRPC(const cmStdString& localprefix, 
+  const std::set<cmStdString>& files,
+  const cmStdString& remoteprefix, 
+  const cmStdString& url)
+{
+  xmlrpc_env env;
+  std::string ctestVersion = cmVersion::GetCMakeVersion();
+
+  cmStdString realURL = url + "/" + remoteprefix + "/Command/";
+
+  /* Start up our XML-RPC client library. */
+  xmlrpc_client_init(XMLRPC_CLIENT_NO_FLAGS, "CTest", ctestVersion.c_str());
+
+  /* Initialize our error-handling environment. */
+  xmlrpc_env_init(&env);
+
+  /* Call the famous server at UserLand. */
+  cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Submitting to: " << realURL.c_str() << " (" << remoteprefix.c_str() << ")" << std::endl);
+  cmCTest::tm_SetOfStrings::const_iterator file;
+  for ( file = files.begin(); file != files.end(); ++file )
+    {
+    xmlrpc_value *result;
+
+    cmStdString local_file = *file;
+    if ( !cmSystemTools::FileExists(local_file.c_str()) )
+      {
+      local_file = localprefix + "/" + *file;
+      }
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Submit file: " << local_file.c_str() << std::endl);
+    struct stat st;
+    if ( ::stat(local_file.c_str(), &st) )
+      {
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "  Cannot find file: " << local_file.c_str() << std::endl);
+      return false;
+      }
+
+    size_t fileSize = st.st_size;
+    FILE* fp = fopen(local_file.c_str(), "rb");
+    if ( !fp )
+      {
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "  Cannot open file: " << local_file.c_str() << std::endl);
+      return false;
+      }
+
+    unsigned char *fileBuffer = new unsigned char[fileSize];
+    if ( fread(fileBuffer, 1, fileSize, fp) != fileSize )
+      {
+      delete [] fileBuffer;
+      fclose(fp);
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "  Cannot read file: " << local_file.c_str() << std::endl);
+      return false;
+      }
+    fclose(fp);
+
+    std::string remoteCommand = "Submit.put";
+    result = xmlrpc_client_call(&env, realURL.c_str(),
+      remoteCommand.c_str(),
+      "(6)", fileBuffer, (xmlrpc_int32)fileSize );
+
+    delete [] fileBuffer;
+
+    if ( env.fault_occurred )
+      {
+      cmCTestLog(m_CTest, ERROR_MESSAGE, " Submission problem: " << env.fault_string << " (" << env.fault_code << ")" << std::endl);
+      xmlrpc_env_clean(&env);
+      xmlrpc_client_cleanup();
+      return false;
+      }
+
+    /* Dispose of our result value. */
+    xmlrpc_DECREF(result);
+    }
+
+  /* Clean up our error-handling environment. */
+  xmlrpc_env_clean(&env);
+
+  /* Shutdown our XML-RPC client library. */
+  xmlrpc_client_cleanup();
+  return true;
+}
+
+//----------------------------------------------------------------------------
+int cmCTestSubmitHandler::ProcessHandler()
+{
+  const std::string &buildDirectory = m_CTest->GetCTestConfiguration("BuildDirectory");
+  if ( buildDirectory.size() == 0 )
+    {
+    cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot find BuildDirectory  key in the DartConfiguration.tcl" << std::endl);
+    return -1;
+    }
+
+  if ( getenv("HTTP_PROXY") )
+    {
+    m_HTTPProxyType = 1;
+    m_HTTPProxy = getenv("HTTP_PROXY");
+    if ( getenv("HTTP_PROXY_PORT") )
+      {
+      m_HTTPProxy += ":";
+      m_HTTPProxy += getenv("HTTP_PROXY_PORT");
+      }
+    if ( getenv("HTTP_PROXY_TYPE") )
+      {
+      cmStdString type = getenv("HTTP_PROXY_TYPE");
+      // HTTP/SOCKS4/SOCKS5
+      if ( type == "HTTP" )
+        {
+        m_HTTPProxyType = 1;
+        }
+      else if ( type == "SOCKS4" )
+        {
+        m_HTTPProxyType = 2;
+        }
+      else if ( type == "SOCKS5" )
+        {
+        m_HTTPProxyType = 3;
+        }
+      }
+    if ( getenv("HTTP_PROXY_USER") )
+      {
+      m_HTTPProxyAuth = getenv("HTTP_PROXY_USER");
+      }
+    if ( getenv("HTTP_PROXY_PASSWD") )
+      {
+      m_HTTPProxyAuth += ":";
+      m_HTTPProxyAuth += getenv("HTTP_PROXY_PASSWD");
+      }
+    }
+
+  if ( getenv("FTP_PROXY") )
+    {
+    m_FTPProxyType = 1;
+    m_FTPProxy = getenv("FTP_PROXY");
+    if ( getenv("FTP_PROXY_PORT") )
+      {
+      m_FTPProxy += ":";
+      m_FTPProxy += getenv("FTP_PROXY_PORT");
+      }
+    if ( getenv("FTP_PROXY_TYPE") )
+      {
+      cmStdString type = getenv("FTP_PROXY_TYPE");
+      // HTTP/SOCKS4/SOCKS5
+      if ( type == "HTTP" )
+        {
+        m_FTPProxyType = 1;
+        }
+      else if ( type == "SOCKS4" )
+        {
+        m_FTPProxyType = 2;
+        }
+      else if ( type == "SOCKS5" )
+        {
+        m_FTPProxyType = 3;
+        }
+      }
+    }
+
+  if ( m_HTTPProxy.size() > 0 )
+    {
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Use HTTP Proxy: " << m_HTTPProxy << std::endl);
+    }
+  if ( m_FTPProxy.size() > 0 )
+    {
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Use FTP Proxy: " << m_FTPProxy << std::endl);
+    }
+  cmGeneratedFileStream ofs;
+  this->StartLogFile("Submit", ofs);
+
+  cmCTest::tm_SetOfStrings files;
+  std::string prefix = this->GetSubmitResultsPrefix();
+  // TODO:
+  // Check if test is enabled
+  m_CTest->AddIfExists(files, "Update.xml");
+  m_CTest->AddIfExists(files, "Configure.xml");
+  m_CTest->AddIfExists(files, "Build.xml");
+  m_CTest->AddIfExists(files, "Test.xml");
+  if ( m_CTest->AddIfExists(files, "Coverage.xml") )
+    {
+    cmCTest::tm_VectorOfStrings gfiles;
+    std::string gpath = buildDirectory + "/Testing/" + m_CTest->GetCurrentTag();
+    std::string::size_type glen = gpath.size() + 1;
+    gpath = gpath + "/CoverageLog*";
+    cmCTestLog(m_CTest, DEBUG, "Globbing for: " << gpath.c_str() << std::endl);
+    if ( cmSystemTools::SimpleGlob(gpath, gfiles, 1) )
+      {
+      size_t cc;
+      for ( cc = 0; cc < gfiles.size(); cc ++ )
+        {
+        gfiles[cc] = gfiles[cc].substr(glen);
+        cmCTestLog(m_CTest, DEBUG, "Glob file: " << gfiles[cc].c_str() << std::endl);
+        files.insert(gfiles[cc]);
+        }
+      }
+    else
+      {
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "Problem globbing" << std::endl);
+      }
+    }
+  m_CTest->AddIfExists(files, "DynamicAnalysis.xml");
+  m_CTest->AddIfExists(files, "Purify.xml");
+  m_CTest->AddIfExists(files, "Notes.xml");
+
+  cmCTest::tm_SetOfStrings::iterator it;
+  for ( it = m_CTest->GetSubmitFiles()->begin();
+   it != m_CTest->GetSubmitFiles()->end();
+   ++ it )
+    {
+    files.insert(files.end(), *it);
+    }
+
+  if ( ofs )
+    {
+    ofs << "Upload files:" << std::endl;
+    int cnt = 0;
+    for ( it = files.begin(); it != files.end(); ++ it )
+      {
+      ofs << cnt << "\t" << it->c_str() << std::endl;
+      cnt ++;
+      }
+    }
+  cmCTestLog(m_CTest, HANDLER_OUTPUT, "Submit files (using " << m_CTest->GetCTestConfiguration("DropMethod") << ")"
+    << std::endl);
+  this->SetLogFile(&ofs);
+  if ( m_CTest->GetCTestConfiguration("DropMethod") == "" ||
+    m_CTest->GetCTestConfiguration("DropMethod") ==  "ftp" )
+    {
+    ofs << "Using drop method: FTP" << std::endl;
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Using FTP submit method" << std::endl
+      << "   Drop site: ftp://");
+    std::string url = "ftp://";
+    url += cmCTest::MakeURLSafe(m_CTest->GetCTestConfiguration("DropSiteUser")) + ":" + 
+      cmCTest::MakeURLSafe(m_CTest->GetCTestConfiguration("DropSitePassword")) + "@" + 
+      m_CTest->GetCTestConfiguration("DropSite") + 
+      cmCTest::MakeURLSafe(m_CTest->GetCTestConfiguration("DropLocation"));
+    if ( m_CTest->GetCTestConfiguration("DropSiteUser").size() > 0 )
+      {
+      cmCTestLog(m_CTest, HANDLER_OUTPUT, m_CTest->GetCTestConfiguration("DropSiteUser").c_str());
+      if ( m_CTest->GetCTestConfiguration("DropSitePassword").size() > 0 )
+        {
+        cmCTestLog(m_CTest, HANDLER_OUTPUT, ":******");
+        }
+      cmCTestLog(m_CTest, HANDLER_OUTPUT, "@");
+      }
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, m_CTest->GetCTestConfiguration("DropSite")
+      << m_CTest->GetCTestConfiguration("DropLocation") << std::endl);
+    if ( !this->SubmitUsingFTP(buildDirectory+"/Testing/"+m_CTest->GetCurrentTag(), 
+        files, prefix, url) )
+      {
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "   Problems when submitting via FTP" << std::endl);
+      ofs << "   Problems when submitting via FTP" << std::endl;
+      return -1;
+      }
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Using HTTP trigger method" << std::endl
+      << "   Trigger site: " << m_CTest->GetCTestConfiguration("TriggerSite") << std::endl);
+    if ( !this->TriggerUsingHTTP(files, prefix, m_CTest->GetCTestConfiguration("TriggerSite")) )
+      {
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "   Problems when triggering via HTTP" << std::endl);
+      ofs << "   Problems when triggering via HTTP" << std::endl;
+      return -1;
+      }
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Submission successful" << std::endl);
+    ofs << "   Submission successful" << std::endl;
+    return 0;
+    }
+  else if ( m_CTest->GetCTestConfiguration("DropMethod") == "http" )
+    {
+    ofs << "Using drop method: HTTP" << std::endl;
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Using HTTP submit method" << std::endl
+      << "   Drop site: http://");
+    std::string url = "http://";
+    if ( m_CTest->GetCTestConfiguration("DropSiteUser").size() > 0 )
+      {
+      url += m_CTest->GetCTestConfiguration("DropSiteUser");
+      cmCTestLog(m_CTest, HANDLER_OUTPUT, m_CTest->GetCTestConfiguration("DropSiteUser").c_str());
+      if ( m_CTest->GetCTestConfiguration("DropSitePassword").size() > 0 )
+        {
+        url += ":" + m_CTest->GetCTestConfiguration("DropSitePassword");
+        cmCTestLog(m_CTest, HANDLER_OUTPUT, ":******");
+        }
+      url += "@";
+      cmCTestLog(m_CTest, HANDLER_OUTPUT, "@");
+      }
+    url += m_CTest->GetCTestConfiguration("DropSite") + m_CTest->GetCTestConfiguration("DropLocation");
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, m_CTest->GetCTestConfiguration("DropSite")
+      << m_CTest->GetCTestConfiguration("DropLocation") << std::endl);
+    if ( !this->SubmitUsingHTTP(buildDirectory +"/Testing/"+m_CTest->GetCurrentTag(), files, prefix, url) )
+      {
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "   Problems when submitting via HTTP" << std::endl);
+      ofs << "   Problems when submitting via HTTP" << std::endl;
+      return -1;
+      }
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Using HTTP trigger method" << std::endl
+      << "   Trigger site: " << m_CTest->GetCTestConfiguration("TriggerSite") << std::endl);
+    if ( !this->TriggerUsingHTTP(files, prefix, m_CTest->GetCTestConfiguration("TriggerSite")) )
+      {
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "   Problems when triggering via HTTP" << std::endl);
+      ofs << "   Problems when triggering via HTTP" << std::endl;
+      return -1;
+      }
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Submission successful" << std::endl);
+    ofs << "   Submission successful" << std::endl;
+    return 0;
+    }
+  else if ( m_CTest->GetCTestConfiguration("DropMethod") == "xmlrpc" )
+    {
+    ofs << "Using drop method: XML-RPC" << std::endl;
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Using XML-RPC submit method" << std::endl);
+    std::string url = m_CTest->GetCTestConfiguration("DropSite");
+    prefix = m_CTest->GetCTestConfiguration("DropLocation");
+    if ( !this->SubmitUsingXMLRPC(buildDirectory+"/Testing/"+m_CTest->GetCurrentTag(), files, prefix, url) )
+      {
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "   Problems when submitting via XML-RPC" << std::endl);
+      ofs << "   Problems when submitting via XML-RPC" << std::endl;
+      return -1;
+      }
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Submission successful" << std::endl);
+    ofs << "   Submission successful" << std::endl;
+    return 0;
+    }
+  else if ( m_CTest->GetCTestConfiguration("DropMethod") == "scp" )
+    {
+    std::string url;
+    std::string oldWorkingDirectory;
+    if ( m_CTest->GetCTestConfiguration("DropSiteUser").size() > 0 )
+      {
+      url += m_CTest->GetCTestConfiguration("DropSiteUser") + "@";
+      }
+    url += m_CTest->GetCTestConfiguration("DropSite") + ":" + m_CTest->GetCTestConfiguration("DropLocation");
+
+    // change to the build directory so that we can uses a relative path
+    // on windows since scp dosn't support "c:" a drive in the path
+    oldWorkingDirectory = cmSystemTools::GetCurrentWorkingDirectory();
+    cmSystemTools::ChangeDirectory(buildDirectory.c_str());
+
+    if ( !this->SubmitUsingSCP(m_CTest->GetCTestConfiguration("ScpCommand"),
+        "Testing/"+m_CTest->GetCurrentTag(), files, prefix, url) )
+      {
+      cmSystemTools::ChangeDirectory(oldWorkingDirectory.c_str());
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "   Problems when submitting via SCP" << std::endl);
+      ofs << "   Problems when submitting via SCP" << std::endl;
+      return -1;
+      }
+    cmSystemTools::ChangeDirectory(oldWorkingDirectory.c_str());
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Submission successful" << std::endl);
+    ofs << "   Submission successful" << std::endl;
+    return 0;
+    }
+
+  cmCTestLog(m_CTest, ERROR_MESSAGE, "   Unknown submission method: \"" << m_CTest->GetCTestConfiguration("DropMethod") << "\"" << std::endl);
+  return -1;
+}
+
+//----------------------------------------------------------------------------
+std::string cmCTestSubmitHandler::GetSubmitResultsPrefix()
+{
+  std::string name = m_CTest->GetCTestConfiguration("Site") +
+    "___" + m_CTest->GetCTestConfiguration("BuildName") +
+    "___" + m_CTest->GetCurrentTag() + "-" +
+    m_CTest->GetTestModelString() + "___XML___";
+  return name;
+}
+
+

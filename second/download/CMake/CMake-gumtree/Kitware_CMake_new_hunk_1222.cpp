@@ -1,11 +1,7 @@
+    YY_BUFFER_STATE cmDependsFortran_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
 {
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Open file: " << covLogFilename << std::endl);
-  if (!m_CTest->OpenOutputFile(m_CTest->GetCurrentTag(), 
-      covLogFilename, covLogFile, true))
-    {
-    cmCTestLog(m_CTest, ERROR, "Cannot open log file: " << covLogFilename << std::endl);
-    return false;
-    }
-  std::string local_start_time = m_CTest->CurrentTime();
+        YY_BUFFER_STATE b;
+
+        b = (YY_BUFFER_STATE) cmDependsFortran_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
+        if ( ! b )
+                YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yy_create_buffer()" );

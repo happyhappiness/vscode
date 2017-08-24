@@ -1,7 +1,14 @@
-  char buffer[1024];
-  sprintf(buffer, "%d", static_cast<int>(length));
+    return -1;
+    }
 
-  m_Makefile->AddDefinition(variableName.c_str(), buffer);
-  return true;
-}
-
+#ifdef DEBUG
+  printf("  ==> extracting: %s (mode %04o, directory)\n", filename,
+         mode);
+#endif
+#ifdef WIN32
+  if (mkdir(filename) == -1)
+#else
+  if (mkdir(filename, mode) == -1)
+#endif
+  {
+#ifdef __BORLANDC__

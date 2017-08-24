@@ -1,13 +1,7 @@
-  buf[sizeof(buf)-1] = 0;
 
-  if (mkdirhier(dirname(buf)) == -1)
+int main ()
+{
+  int class = 0;
+  if ( LibC1Func() != 2.0 )
     {
-    if (pathname)
-      {
-      free(pathname);
-      }
-    return -1;
-    }
-
-#ifdef DEBUG
-  printf("  ==> extracting: %s (fifo)\n", filename);
+    printf("Problem with libc1\n");

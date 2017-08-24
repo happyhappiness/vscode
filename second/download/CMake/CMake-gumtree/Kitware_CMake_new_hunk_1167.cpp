@@ -1,7 +1,7 @@
+#define YY_EXIT_FAILURE 2
+#endif
 
-bool cmakewizard::AskAdvanced()
+static void yy_fatal_error (yyconst char* msg )
 {
-  printf("Would you like to see advanced options? [No]:");
-  char buffer[4096];
-  buffer[0] = 0;
-  fgets(buffer, sizeof(buffer)-1, stdin);
+        (void) fprintf( stderr, "%s\n", msg );
+        exit( YY_EXIT_FAILURE );

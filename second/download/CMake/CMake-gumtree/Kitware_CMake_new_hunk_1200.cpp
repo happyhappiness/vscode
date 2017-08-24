@@ -1,7 +1,7 @@
-      | 0) == -1)
-    {
-    fprintf(stderr, "tar_open(): %s\n", strerror(errno));
-    return false;
-    }
+  char buffer[1024];
+  sprintf(buffer, "%d", static_cast<int>(length));
 
-  std::vector<cmStdString>::const_iterator it;
+  this->Makefile->AddDefinition(variableName.c_str(), buffer);
+  return true;
+}
+

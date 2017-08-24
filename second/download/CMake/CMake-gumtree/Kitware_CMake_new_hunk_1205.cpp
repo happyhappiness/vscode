@@ -1,7 +1,9 @@
-    }
-  else
+
+  // capitalized commands just once
+  std::vector<std::string> capcommands;
+  for (i = 0; i < this->Commands.size(); i++)
     {
-#if defined( KWSYS_GLOB_CASE_INDEPENDENT )
-    // On Windows and apple, no difference between lower and upper case
-    sprintf(buffer, "%c", tolower(ch));
-#else
+    capcommands.push_back(cmSystemTools::Capitalized(this->Commands[i]));
+    }
+  
+  fprintf(fout,"#include \"vtkTclUtil.h\"\n");

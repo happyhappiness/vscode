@@ -1,11 +1,14 @@
-        case ' ':
-        case '=':
-        case '%':
-          sprintf(hexCh, "%%%02X", (int)c);
-          ofile.append(hexCh);
-          break;
-        default: 
-          ofile.append(hexCh);
-          }
-        }
-      cmStdString upload_as 
+
+void cmCTestScriptHandler::UpdateElapsedTime()
+{
+  if (this->LocalGenerator)
+    {
+    // set the current elapsed time
+    char timeString[20];
+    int itime = static_cast<unsigned int>(cmSystemTools::GetTime()
+                                          - this->ScriptStartTime);
+    sprintf(timeString,"%i",itime);
+    this->LocalGenerator->GetMakefile()->AddDefinition("CTEST_ELAPSED_TIME",
+                                                   timeString);
+    }
+}

@@ -1,91 +1,127 @@
-@@ -31,7 +31,8 @@
- #endif
+@@ -215,6 +215,8 @@ void cmLocalVisualStudio6Generator::AddDSPBuildRule(cmTarget& tgt)
+   std::string makefileIn = this->Makefile->GetStartDirectory();
+   makefileIn += "/";
+   makefileIn += "CMakeLists.txt";
++  std::string comment = "Building Custom Rule ";
++  comment += makefileIn;
+   std::string args;
+   args = "-H";
+   args +=
+@@ -246,10 +248,11 @@ void cmLocalVisualStudio6Generator::AddDSPBuildRule(cmTarget& tgt)
  
- int runChild(const char* cmd[], int state, int exception, int value,
--             int share, int output, int delay, double timeout, int poll);
-+             int share, int output, int delay, double timeout, int poll,
-+             int repeat);
- 
- int test1(int argc, const char* argv[])
- {
-@@ -97,7 +98,7 @@ int test5(int argc, const char* argv[])
-   fflush(stdout);
-   fflush(stderr);
-   r = runChild(cmd, kwsysProcess_State_Exception,
--               kwsysProcess_Exception_Fault, 1, 1, 1, 0, 15, 0);
-+               kwsysProcess_Exception_Fault, 1, 1, 1, 0, 15, 0, 1);
-   fprintf(stdout, "Output on stdout after recursive test.\n");
-   fprintf(stderr, "Output on stderr after recursive test.\n");
-   fflush(stdout);
-@@ -150,22 +151,16 @@ int test7(int argc, const char* argv[])
-   return 0;
- }
- 
--int runChild(const char* cmd[], int state, int exception, int value,
--             int share, int output, int delay, double timeout,
--             int poll)
-+int runChild2(kwsysProcess* kp,
-+              const char* cmd[], int state, int exception, int value,
-+              int share, int output, int delay, double timeout,
-+              int poll)
- {
-   int result = 0;
-   char* data = 0;
-   int length = 0;
-   double userTimeout = 0;
-   double* pUserTimeout = 0;
--  kwsysProcess* kp = kwsysProcess_New();
--  if(!kp)
--    {
--    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
--    return 1;
--    }
--  
-   kwsysProcess_SetCommand(kp, cmd);
-   if(timeout >= 0)
+   cmCustomCommandLines commandLines;
+   commandLines.push_back(commandLine);
+-  const char* no_comment = 0;
+   const char* no_working_directory = 0;
+-  this->Makefile->AddCustomCommandToOutput(dspname.c_str(), listFiles, makefileIn.c_str(),
+-                                       commandLines, no_comment, no_working_directory, true);
++  this->Makefile->AddCustomCommandToOutput(dspname.c_str(), listFiles,
++                                           makefileIn.c_str(), commandLines,
++                                           comment.c_str(),
++                                           no_working_directory, true);
+   if(cmSourceFile* file = this->Makefile->GetSource(makefileIn.c_str()))
      {
-@@ -288,7 +283,26 @@ int runChild(const char* cmd[], int state, int exception, int value,
-             poll, MINPOLL);
-     result = 1;
-     }
--  
-+
-+  return result;
-+}
-+
-+int runChild(const char* cmd[], int state, int exception, int value,
-+             int share, int output, int delay, double timeout,
-+             int poll, int repeat)
-+{
-+  int result;
-+  kwsysProcess* kp = kwsysProcess_New();
-+  if(!kp)
-+    {
-+    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-+    return 1;
-+    }
-+  while(repeat-- > 0)
-+    {
-+    result = runChild2(kp, cmd, state, exception, value, share,
-+                       output, delay, timeout, poll);
-+    }
-   kwsysProcess_Delete(kp);
-   return result;
+     tgt.GetSourceFiles().push_back(file);
+@@ -443,12 +446,17 @@ void cmLocalVisualStudio6Generator::WriteGroup(const cmSourceGroup *sg, cmTarget
+           this->ConstructScript(command->GetCommandLines(), 
+                                 command->GetWorkingDirectory(),
+                                 "\\\n\t");
+-        const char* comment = command->GetComment();
++        std::string comment =
++          this->ConstructComment(*command,
++                                 "Building Custom Rule $(InputPath)");
++        if(comment == "<hack>")
++          {
++          comment = "";
++          }
+         const char* flags = compileFlags.size() ? compileFlags.c_str(): 0;
+-        this->WriteCustomRule(fout, source.c_str(), script.c_str(), 
+-                              (*comment?comment:"Custom Rule"),
+-                              command->GetDepends(), 
+-                              command->GetOutput(), flags);
++        this->WriteCustomRule(fout, source.c_str(), script.c_str(),
++                              comment.c_str(), command->GetDepends(),
++                              command->GetOutputs(), flags);
+         }
+       else if(compileFlags.size())
+         {
+@@ -501,14 +509,15 @@ ::AddUtilityCommandHack(cmTarget& target, int count,
+                            strlen(target.GetName()) + 30)];
+   sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
+           target.GetName(), count);
++  std::string comment = this->ConstructComment(origCommand, "<hack>");
+ 
+   // Add the rule with the given dependencies and commands.
+   const char* no_main_dependency = 0;
+   this->Makefile->AddCustomCommandToOutput(output,
+                                        depends,
+                                        no_main_dependency,
+                                        origCommand.GetCommandLines(),
+-                                       origCommand.GetComment(),
++                                       comment.c_str(),
+                                        origCommand.GetWorkingDirectory());
+ 
+   // Replace the dependencies with the output of this rule so that the
+@@ -524,15 +533,17 @@ ::AddUtilityCommandHack(cmTarget& target, int count,
+   delete [] output;
  }
-@@ -369,6 +383,7 @@ int main(int argc, const char* argv[])
-     int delays[7] = {0, 0, 0, 0, 0, 1, 0};
-     double timeouts[7] = {10, 10, 10, 10, 30, 10, -1};
-     int polls[7] = {0, 0, 0, 0, 0, 0, 1};
-+    int repeat[7] = {2, 1, 1, 1, 1, 1, 1};
-     int r;
-     const char* cmd[4];
- #ifdef _WIN32
-@@ -402,7 +417,7 @@ int main(int argc, const char* argv[])
-     fflush(stderr);
-     r = runChild(cmd, states[n-1], exceptions[n-1], values[n-1], 0,
-                  outputs[n-1], delays[n-1], timeouts[n-1],
--                 polls[n-1]);
-+                 polls[n-1], repeat[n-1]);
-     fprintf(stdout, "Output on stdout after test %d.\n", n);
-     fprintf(stderr, "Output on stderr after test %d.\n", n);
-     fflush(stdout);
+ 
+-void cmLocalVisualStudio6Generator::WriteCustomRule(std::ostream& fout,
+-                                                    const char* source,
+-                                                    const char* command,
+-                                                    const char* comment,
+-                                                    const std::vector<std::string>& depends,
+-                                                    const char *output,
+-                                                    const char* flags
+-  )
++void
++cmLocalVisualStudio6Generator
++::WriteCustomRule(std::ostream& fout,
++                  const char* source,
++                  const char* command,
++                  const char* comment,
++                  const std::vector<std::string>& depends,
++                  const std::vector<std::string>& outputs,
++                  const char* flags)
+ {
++  // Write the rule for each configuration.
+   std::vector<std::string>::iterator i;
+   for(i = this->Configurations.begin(); i != this->Configurations.end(); ++i)
+     {
+@@ -561,18 +572,28 @@ void cmLocalVisualStudio6Generator::WriteCustomRule(std::ostream& fout,
+     fout << "\n";
+ 
+     fout << "# PROP Ignore_Default_Tool 1\n";
+-    fout << "# Begin Custom Build - Building " << comment 
+-         << " $(InputPath)\n\n";
+-    if(output == 0)
++    fout << "# Begin Custom Build -";
++    if(comment && *comment)
++      {
++      fout << " " << comment;
++      }
++    fout << "\n\n";
++    if(outputs.empty())
+       {
+       fout << source << "_force :  \"$(SOURCE)\" \"$(INTDIR)\" \"$(OUTDIR)\"\n\t";
+       fout << command << "\n\n";
+       }
+-    
+-    // Write a rule for every output generated by this command.
+-    fout << this->ConvertToOptionallyRelativeOutputPath(output)
+-         << " :  \"$(SOURCE)\" \"$(INTDIR)\" \"$(OUTDIR)\"\n\t";
+-    fout << command << "\n\n";
++    else
++      {
++      for(std::vector<std::string>::const_iterator o = outputs.begin();
++          o != outputs.end(); ++o)
++        {
++        // Write a rule for every output generated by this command.
++        fout << this->ConvertToOptionallyRelativeOutputPath(o->c_str())
++             << " :  \"$(SOURCE)\" \"$(INTDIR)\" \"$(OUTDIR)\"\n\t";
++        fout << command << "\n\n";
++        }
++      }
+     fout << "# End Custom Build\n\n";
+     }
+   

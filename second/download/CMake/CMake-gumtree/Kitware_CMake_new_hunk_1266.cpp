@@ -1,11 +1,10 @@
-      }
-    }
+        strcmp(dent->d_name, "..") == 0)
+      continue;
 
-  maxlen += 2; // For the space after option
+    snprintf(realpath, TAR_MAXPATHLEN, "%s/%s", realdir,
+       dent->d_name);
+    if (savedir)
+      snprintf(savepath, TAR_MAXPATHLEN, "%s/%s", savedir,
+         dent->d_name);
 
-  // Create format for that string
-  char format[80];
-  sprintf(format, "%%%ds  ", static_cast<unsigned int>(maxlen-2));
-
-
-  // Print help for each option
+#ifndef WIN32

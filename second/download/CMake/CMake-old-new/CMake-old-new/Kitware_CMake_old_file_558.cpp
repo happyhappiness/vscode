@@ -1,599 +1,374 @@
 /*
-**  Copyright 1998-2003 University of Illinois Board of Trustees
-**  Copyright 1998-2003 Mark D. Roth
-**  All rights reserved.
-**
-**  extract.c - libtar code to extract a file from a tar archive
-**
-**  Mark D. Roth <roth@uiuc.edu>
-**  Campus Information Technologies and Educational Services
-**  University of Illinois at Urbana-Champaign
-*/
+ * Copyright (c) 1985, 1986 The Regents of the University of California.
+ * All rights reserved.
+ *
+ * This code is derived from software contributed to Berkeley by
+ * James A. Woods, derived from original work by Spencer Thomas
+ * and Joseph Orost.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *  This product includes software developed by the University of
+ *  California, Berkeley and its contributors.
+ * 4. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
 
-#include <libtarint/internal.h>
+#include "cmcompress.h"
 
-#include <stdio.h>
-#include <libtar/compat.h>
-#include <sys/types.h>
-#include <fcntl.h>
 #include <errno.h>
+#include <string.h>
 
-#if defined(_WIN32) && !defined(__CYGWIN__)
-# ifdef _MSC_VER
-#  include <sys/utime.h>
-# else
-#  include <utime.h>
-# endif
-# include <io.h>
-# include <direct.h>
+static const char_type magic_header[] = { "\037\235" };  /* 1F 9D */
+
+/* Defines for third byte of header */
+#define BIT_MASK  0x1f
+#define BLOCK_MASK  0x80
+#define CHECK_GAP 10000  /* ratio check interval */
+/* Masks 0x40 and 0x20 are free.  I think 0x20 should mean that there is
+   a fourth header byte (for expansion).
+   */
+#define INIT_BITS 9      /* initial number of bits/code */
+
+#ifdef COMPATIBLE    /* But wrong! */
+# define MAXCODE(n_bits)  (1 << (n_bits) - 1)
 #else
-# include <utime.h>
-# include <sys/param.h>
+# define MAXCODE(n_bits)  ((1 << (n_bits)) - 1)
+#endif /* COMPATIBLE */
+
+#define htabof(i)  cdata->htab[i]
+#define codetabof(i)  cdata->codetab[i]
+
+/*
+ * the next two codes should not be changed lightly, as they must not
+ * lie within the contiguous general code space.
+ */
+#define FIRST  257  /* first free entry */
+#define  CLEAR  256  /* table clear output code */
+
+static void cl_hash(struct cmcompress_stream* cdata, count_int hsize);    /* reset code table */
+static int cl_block (struct cmcompress_stream* cdata);    /* table clear for block compress */
+static int output(struct cmcompress_stream* cdata, code_int  code);
+#ifdef DEBUG
+static void prratio( FILE *stream, long int num, long int den);
 #endif
 
-#ifdef STDC_HEADERS
-# include <stdlib.h>
-# include <string.h>
-#endif
-
-#ifdef HAVE_UNISTD_H
-# include <unistd.h>
-#endif
-
-#ifdef HAVE_SYS_MKDEV_H
-# include <sys/mkdev.h>
-#endif
-
-
-struct linkname
+int cmcompress_compress_initialize(struct cmcompress_stream* cdata)
 {
-  char ln_save[TAR_MAXPATHLEN];
-  char ln_real[TAR_MAXPATHLEN];
-};
-typedef struct linkname linkname_t;
+  cdata->maxbits = BITS;      /* user settable max # bits/code */
+  cdata->maxmaxcode = 1 << BITS;  /* should NEVER generate this code */
+  cdata->hsize = HSIZE;      /* for dynamic table sizing */
+  cdata->free_ent = 0;      /* first unused entry */
+  cdata->nomagic = 0;  /* Use a 3-byte magic number header, unless old file */
+  cdata->block_compress = BLOCK_MASK;
+  cdata->clear_flg = 0;
+  cdata->ratio = 0;
+  cdata->checkpoint = CHECK_GAP;
 
+  cdata->input_stream = 0;
+  cdata->output_stream = 0;
+  cdata->client_data = 0;
+  return 1;
+}
 
-static int
-tar_set_file_perms(TAR *t, char *realname)
+/*
+ * compress stdin to stdout
+ *
+ * Algorithm:  use open addressing double hashing (no chaining) on the
+ * prefix code / next character combination.  We do a variant of Knuth's
+ * algorithm D (vol. 3, sec. 6.4) along with G. Knott's relatively-prime
+ * secondary probe.  Here, the modular division first probe is gives way
+ * to a faster exclusive-or manipulation.  Also do block compression with
+ * an adaptive reset, whereby the code table is cleared when the compression
+ * ratio decreases, but after the table fills.  The variable-length output
+ * codes are re-sized at this point, and a special CLEAR code is generated
+ * for the decompressor.  Late addition:  construct the table according to
+ * file size for noticeable speed improvement on small files.  Please direct
+ * questions about this implementation to ames!jaw.
+ */
+
+int cmcompress_compress_start(struct cmcompress_stream* cdata)
 {
-  mode_t mode;
-  uid_t uid;
-  gid_t gid;
-  struct utimbuf ut;
-  char *filename;
-
-  filename = (realname ? realname : th_get_pathname(t));
-  mode = th_get_mode(t);
-  uid = th_get_uid(t);
-  gid = th_get_gid(t);
-  ut.modtime = ut.actime = th_get_mtime(t);
-
-  /* change owner/group */
-#ifndef WIN32
-  if (geteuid() == 0)
-#ifdef HAVE_LCHOWN
-    if (lchown(filename, uid, gid) == -1)
+#ifndef COMPATIBLE
+  if (cdata->nomagic == 0)
     {
-# ifdef DEBUG
-      fprintf(stderr, "lchown(\"%s\", %d, %d): %s\n",
-        filename, uid, gid, strerror(errno));
-# endif
-#else /* ! HAVE_LCHOWN */
-    if (!TH_ISSYM(t) && chown(filename, uid, gid) == -1)
-    {
-# ifdef DEBUG
-      fprintf(stderr, "chown(\"%s\", %d, %d): %s\n",
-        filename, uid, gid, strerror(errno));
-# endif
-#endif /* HAVE_LCHOWN */
-      return -1;
-    }
-
-  /* change access/modification time */
-  if (!TH_ISSYM(t) && utime(filename, &ut) == -1)
-  {
-#ifdef DEBUG
-    perror("utime()");
-#endif
-    return -1;
-  }
-  /* change permissions */
-  if (!TH_ISSYM(t) && chmod(filename, mode) == -1)
-  {
-#ifdef DEBUG
-    perror("chmod()");
-#endif
-    return -1;
-  }
-
-#else /* WIN32 */
-  (void)filename;
-  (void)gid;
-  (void)uid;
-  (void)mode;
-#endif /* WIN32 */
-
-  return 0;
-}
-
-
-/* switchboard */
-int
-tar_extract_file(TAR *t, char *realname)
-{
-  int i;
-  linkname_t *lnp;
-
-  if (t->options & TAR_NOOVERWRITE)
-  {
-    struct stat s;
-
-#ifdef WIN32
-    if (stat(realname, &s) == 0 || errno != ENOENT)
-#else
-    if (lstat(realname, &s) == 0 || errno != ENOENT)
-#endif
-    {
-      errno = EEXIST;
-      return -1;
-    }
-  }
-
-  if (TH_ISDIR(t))
-  {
-    i = tar_extract_dir(t, realname);
-    if (i == 1)
-      i = 0;
-  }
-#ifndef _WIN32
-  else if (TH_ISLNK(t))
-    i = tar_extract_hardlink(t, realname);
-  else if (TH_ISSYM(t))
-    i = tar_extract_symlink(t, realname);
-  else if (TH_ISCHR(t))
-    i = tar_extract_chardev(t, realname);
-  else if (TH_ISBLK(t))
-    i = tar_extract_blockdev(t, realname);
-  else if (TH_ISFIFO(t))
-    i = tar_extract_fifo(t, realname);
-#endif
-  else /* if (TH_ISREG(t)) */
-    i = tar_extract_regfile(t, realname);
-
-  if (i != 0)
-    return i;
-
-  i = tar_set_file_perms(t, realname);
-  if (i != 0)
-    return i;
-
-  lnp = (linkname_t *)calloc(1, sizeof(linkname_t));
-  if (lnp == NULL)
-    return -1;
-  strlcpy(lnp->ln_save, th_get_pathname(t), sizeof(lnp->ln_save));
-  strlcpy(lnp->ln_real, realname, sizeof(lnp->ln_real));
-#ifdef DEBUG
-  printf("tar_extract_file(): calling libtar_hash_add(): key=\"%s\", "
-         "value=\"%s\"\n", th_get_pathname(t), realname);
-#endif
-  if (libtar_hash_add(t->h, lnp) != 0)
-    return -1;
-
-  return 0;
-}
-
-
-/* extract regular file */
-int
-tar_extract_regfile(TAR *t, char *realname)
-{
-  mode_t mode;
-  size_t size;
-  uid_t uid;
-  gid_t gid;
-  int fdout;
-  int i, k;
-  char buf[T_BLOCKSIZE];
-  char *filename;
-
-#ifdef DEBUG
-  printf("==> tar_extract_regfile(t=0x%lx, realname=\"%s\")\n", t,
-         realname);
-#endif
-
-  if (!TH_ISREG(t))
-  {
-    errno = EINVAL;
-    return -1;
-  }
-
-  filename = (realname ? realname : th_get_pathname(t));
-  mode = th_get_mode(t);
-  size = th_get_size(t);
-  uid = th_get_uid(t);
-  gid = th_get_gid(t);
-
-  strncpy(buf, filename, sizeof(buf)-1);
-  buf[sizeof(buf)-1] = 0;
-
-
-  if (mkdirhier(dirname(buf)) == -1)
-    {
-    return -1;
-    }
-
-#ifdef DEBUG
-  printf("  ==> extracting: %s (mode %04o, uid %d, gid %d, %d bytes)\n",
-         filename, mode, uid, gid, size);
-#endif
-  fdout = open(filename, O_WRONLY | O_CREAT | O_TRUNC
-#ifdef O_BINARY
-         | O_BINARY
-#endif
-        , 0666);
-  if (fdout == -1)
-  {
-#ifdef DEBUG
-    perror("open()");
-#endif
-    return -1;
-  }
-
-#if 0
-  /* change the owner.  (will only work if run as root) */
-  if (fchown(fdout, uid, gid) == -1 && errno != EPERM)
-  {
-#ifdef DEBUG
-    perror("fchown()");
-#endif
-    return -1;
-  }
-
-  /* make sure the mode isn't inheritted from a file we're overwriting */
-  if (fchmod(fdout, mode & 07777) == -1)
-  {
-#ifdef DEBUG
-    perror("fchmod()");
-#endif
-    return -1;
-  }
-#endif
-
-  /* extract the file */
-  for (i = size; i > 0; i -= T_BLOCKSIZE)
-  {
-    k = tar_block_read(t, buf);
-    if (k != T_BLOCKSIZE)
-    {
-      if (k != -1)
-        errno = EINVAL;
-      return -1;
-    }
-
-    /* write block to output file */
-    if (write(fdout, buf,
-        ((i > T_BLOCKSIZE) ? T_BLOCKSIZE : i)) == -1)
-      return -1;
-  }
-
-  /* close output file */
-  if (close(fdout) == -1)
-    return -1;
-
-#ifdef DEBUG
-  printf("### done extracting %s\n", filename);
-#endif
-
-  (void)filename;
-  (void)gid;
-  (void)uid;
-  (void)mode;
-
-  return 0;
-}
-
-
-/* skip regfile */
-int
-tar_skip_regfile(TAR *t)
-{
-  int i, k;
-  size_t size;
-  char buf[T_BLOCKSIZE];
-
-  if (!TH_ISREG(t))
-  {
-    errno = EINVAL;
-    return -1;
-  }
-
-  size = th_get_size(t);
-  for (i = size; i > 0; i -= T_BLOCKSIZE)
-  {
-    k = tar_block_read(t, buf);
-    if (k != T_BLOCKSIZE)
-    {
-      if (k != -1)
-        errno = EINVAL;
-      return -1;
-    }
-  }
-
-  return 0;
-}
-
-
-/* hardlink */
-int
-tar_extract_hardlink(TAR * t, char *realname)
-{
-  char *filename;
-  char *linktgt = NULL;
-  linkname_t *lnp;
-  libtar_hashptr_t hp;
-
-  if (!TH_ISLNK(t))
-  {
-    errno = EINVAL;
-    return -1;
-  }
-
-  filename = (realname ? realname : th_get_pathname(t));
-  if (mkdirhier(dirname(filename)) == -1)
-    return -1;
-  libtar_hashptr_reset(&hp);
-  if (libtar_hash_getkey(t->h, &hp, th_get_linkname(t),
-             (libtar_matchfunc_t)libtar_str_match) != 0)
-  {
-    lnp = (linkname_t *)libtar_hashptr_data(&hp);
-    linktgt = lnp->ln_real;
-  }
-  else
-    linktgt = th_get_linkname(t);
-
-#ifdef DEBUG
-  printf("  ==> extracting: %s (link to %s)\n", filename, linktgt);
-#endif
-#ifndef WIN32
-  if (link(linktgt, filename) == -1)
-#else
-  (void)linktgt;
-#endif
-  {
-#ifdef DEBUG
-    perror("link()");
-#endif
-    return -1;
-  }
-
-  return 0;
-}
-
-
-/* symlink */
-int
-tar_extract_symlink(TAR *t, char *realname)
-{
-  char *filename;
-
-#ifndef _WIN32
-  if (!TH_ISSYM(t))
-  {
-    errno = EINVAL;
-    return -1;
-  }
-#endif
-
-  filename = (realname ? realname : th_get_pathname(t));
-  if (mkdirhier(dirname(filename)) == -1)
-    return -1;
-
-  if (unlink(filename) == -1 && errno != ENOENT)
-    return -1;
-
-#ifdef DEBUG
-  printf("  ==> extracting: %s (symlink to %s)\n",
-         filename, th_get_linkname(t));
-#endif
-#ifndef WIN32
-  if (symlink(th_get_linkname(t), filename) == -1)
-#endif
-  {
-#ifdef DEBUG
-    perror("symlink()");
-#endif
-    return -1;
-  }
-
-  return 0;
-}
-
-
-/* character device */
-int
-tar_extract_chardev(TAR *t, char *realname)
-{
-  mode_t mode;
-  unsigned long devmaj, devmin;
-  char *filename;
-
-#ifndef _WIN32
-  if (!TH_ISCHR(t))
-  {
-    errno = EINVAL;
-    return -1;
-  }
-#endif
-  filename = (realname ? realname : th_get_pathname(t));
-  mode = th_get_mode(t);
-  devmaj = th_get_devmajor(t);
-  devmin = th_get_devminor(t);
-
-  if (mkdirhier(dirname(filename)) == -1)
-    return -1;
-
-#ifdef DEBUG
-  printf("  ==> extracting: %s (character device %ld,%ld)\n",
-         filename, devmaj, devmin);
-#endif
-#ifndef WIN32
-  if (mknod(filename, mode | S_IFCHR,
-      compat_makedev(devmaj, devmin)) == -1)
-#else
-  (void)devmin;
-  (void)devmaj;
-  (void)mode;
-#endif
-  {
-#ifdef DEBUG
-    perror("mknod()");
-#endif
-    return -1;
-  }
-
-  return 0;
-}
-
-
-/* block device */
-int
-tar_extract_blockdev(TAR *t, char *realname)
-{
-  mode_t mode;
-  unsigned long devmaj, devmin;
-  char *filename;
-
-  if (!TH_ISBLK(t))
-  {
-    errno = EINVAL;
-    return -1;
-  }
-
-  filename = (realname ? realname : th_get_pathname(t));
-  mode = th_get_mode(t);
-  devmaj = th_get_devmajor(t);
-  devmin = th_get_devminor(t);
-
-  if (mkdirhier(dirname(filename)) == -1)
-    return -1;
-
-#ifdef DEBUG
-  printf("  ==> extracting: %s (block device %ld,%ld)\n",
-         filename, devmaj, devmin);
-#endif
-#ifndef WIN32
-  if (mknod(filename, mode | S_IFBLK,
-      compat_makedev(devmaj, devmin)) == -1)
-#else
-  (void)devmin;
-  (void)devmaj;
-  (void)mode;
-#endif
-  {
-#ifdef DEBUG
-    perror("mknod()");
-#endif
-    return -1;
-  }
-
-  return 0;
-}
-
-
-/* directory */
-int
-tar_extract_dir(TAR *t, char *realname)
-{
-  mode_t mode;
-  char *filename;
-
-  if (!TH_ISDIR(t))
-  {
-    errno = EINVAL;
-    return -1;
-  }
-
-  filename = (realname ? realname : th_get_pathname(t));
-  mode = th_get_mode(t);
-
-  if (mkdirhier(dirname(filename)) == -1)
-    return -1;
-
-#ifdef DEBUG
-  printf("  ==> extracting: %s (mode %04o, directory)\n", filename,
-         mode);
-#endif
-#ifdef WIN32
-  if (mkdir(filename) == -1)
-#else
-  if (mkdir(filename, mode) == -1)
-#endif
-  {
-    if (errno == EEXIST)
-    {
-      if (chmod(filename, mode) == -1)
+    char headLast = (char)(cdata->maxbits | cdata->block_compress);
+    cdata->output_stream(cdata, (const char*)magic_header, 2);
+    cdata->output_stream(cdata, &headLast, 1);
+    if(ferror(stdout))
       {
-#ifdef DEBUG
-        perror("chmod()");
-#endif
-        return -1;
-      }
-      else
-      {
-#ifdef DEBUG
-        puts("  *** using existing directory");
-#endif
-        return 1;
+      printf("Error...\n");
       }
     }
+#endif /* COMPATIBLE */
+
+  cdata->offset = 0;
+  cdata->bytes_out = 3;    /* includes 3-byte header mojo */
+  cdata->out_count = 0;
+  cdata->clear_flg = 0;
+  cdata->ratio = 0;
+  cdata->in_count = 1;
+  cdata->checkpoint = CHECK_GAP;
+  cdata->maxcode = MAXCODE(cdata->n_bits = INIT_BITS);
+  cdata->free_ent = ((cdata->block_compress) ? FIRST : 256 );
+
+  cdata->first_pass = 1;
+
+  cdata->hshift = 0;
+  for ( cdata->fcode = (long) cdata->hsize;  cdata->fcode < 65536L; cdata->fcode *= 2L )
+    {
+    cdata->hshift++;
+    }
+  cdata->hshift = 8 - cdata->hshift;    /* set hash code range bound */
+
+  cdata->hsize_reg = cdata->hsize;
+  cl_hash(cdata, (count_int) cdata->hsize_reg);    /* clear hash table */
+
+  return 1;
+}
+
+int cmcompress_compress(struct cmcompress_stream* cdata, void* buff, size_t n)
+{
+  register code_int i;
+  register int c;
+  register int disp;
+
+  unsigned char* input_buffer = (unsigned char*)buff;
+
+  size_t cc;
+
+  /*printf("cmcompress_compress(%p, %p, %d)\n", cdata, buff, n);*/
+
+  if ( cdata->first_pass )
+    {
+    cdata->ent = input_buffer[0];
+    ++ input_buffer;
+    -- n;
+    cdata->first_pass = 0;
+    }
+
+  for ( cc = 0; cc < n; ++ cc )
+    {
+    c = input_buffer[cc];
+    cdata->in_count++;
+    cdata->fcode = (long) (((long) c << cdata->maxbits) + cdata->ent);
+    i = ((c << cdata->hshift) ^ cdata->ent);  /* xor hashing */
+
+    if ( htabof (i) == cdata->fcode )
+      {
+      cdata->ent = codetabof (i);
+      continue;
+      }
+    else if ( (long)htabof (i) < 0 )  /* empty slot */
+      {
+      goto nomatch;
+      }
+    disp = cdata->hsize_reg - i;    /* secondary hash (after G. Knott) */
+    if ( i == 0 )
+      {
+      disp = 1;
+      }
+probe:
+    if ( (i -= disp) < 0 )
+      {
+      i += cdata->hsize_reg;
+      }
+
+    if ( htabof (i) == cdata->fcode )
+      {
+      cdata->ent = codetabof (i);
+      continue;
+      }
+    if ( (long)htabof (i) > 0 )
+      {
+      goto probe;
+      }
+nomatch:
+    if ( !output(cdata, (code_int) cdata->ent ) )
+      {
+      return 0;
+      }
+    cdata->out_count++;
+    cdata->ent = c;
+    if (
+#ifdef SIGNED_COMPARE_SLOW
+      (unsigned) cdata->free_ent < (unsigned) cdata->maxmaxcode
+#else
+      cdata->free_ent < cdata->maxmaxcode
+#endif
+    )
+      {
+      codetabof (i) = (unsigned short)(cdata->free_ent++);  /* code -> hashtable */
+      htabof (i) = cdata->fcode;
+      }
+    else if ( (count_int)cdata->in_count >= cdata->checkpoint && cdata->block_compress )
+      {
+      if ( !cl_block (cdata) )
+        {
+        return 0;
+        }
+      }
+    }
+
+  return 1;
+}
+
+int cmcompress_compress_finalize(struct cmcompress_stream* cdata)
+{
+  /*
+   * Put out the final code.
+   */
+  if ( !output(cdata, (code_int)cdata->ent ) )
+    {
+    return 0;
+    }
+  cdata->out_count++;
+  if ( !output(cdata, (code_int)-1 ) )
+    {
+    return 0;
+    }
+
+  if(cdata->bytes_out > cdata->in_count)  /* exit(2) if no savings */
+    {
+    return 0;
+    }
+  return 1;
+}
+
+static int cl_block (struct cmcompress_stream* cdata)    /* table clear for block compress */
+{
+  register long int rat;
+
+  cdata->checkpoint = cdata->in_count + CHECK_GAP;
+#ifdef DEBUG
+  if ( cdata->debug )
+    {
+    fprintf ( stderr, "count: %ld, ratio: ", cdata->in_count );
+    prratio ( stderr, cdata->in_count, cdata->bytes_out );
+    fprintf ( stderr, "\n");
+    }
+#endif /* DEBUG */
+
+  if(cdata->in_count > 0x007fffff)
+    {  /* shift will overflow */
+    rat = cdata->bytes_out >> 8;
+    if(rat == 0)
+      {    /* Don't divide by zero */
+      rat = 0x7fffffff;
+      }
     else
-    {
-#ifdef DEBUG
-      perror("mkdir()");
-#endif
-      return -1;
+      {
+      rat = cdata->in_count / rat;
+      }
     }
-  }
-
-  return 0;
+  else
+    {
+    rat = (cdata->in_count << 8) / cdata->bytes_out;  /* 8 fractional bits */
+    }
+  if ( rat > cdata->ratio )
+    {
+    cdata->ratio = rat;
+    }
+  else
+    {
+    cdata->ratio = 0;
+#ifdef DEBUG
+    if(cdata->verbose)
+      {
+      dump_tab();  /* dump string table */
+      }
+#endif
+    cl_hash (cdata, (count_int) cdata->hsize );
+    cdata->free_ent = FIRST;
+    cdata->clear_flg = 1;
+    if ( !output (cdata, (code_int) CLEAR ) )
+      {
+      return 0;
+      }
+#ifdef DEBUG
+    if(cdata->debug)
+      {
+      fprintf ( stderr, "clear\n" );
+      }
+#endif /* DEBUG */
+    }
+  return 1;
 }
 
-
-/* FIFO */
-int
-tar_extract_fifo(TAR *t, char *realname)
+static void cl_hash(struct cmcompress_stream* cdata, count_int hsize)    /* reset code table */
 {
-  mode_t mode;
-  char *filename;
+  register count_int *htab_p = cdata->htab+hsize;
+  register long i;
+  register long m1 = -1;
 
-  if (!TH_ISFIFO(t))
-  {
-    errno = EINVAL;
-    return -1;
-  }
-
-  filename = (realname ? realname : th_get_pathname(t));
-  mode = th_get_mode(t);
-
-  if (mkdirhier(dirname(filename)) == -1)
-    return -1;
-
-#ifdef DEBUG
-  printf("  ==> extracting: %s (fifo)\n", filename);
-#endif
-#ifndef WIN32
-  if (mkfifo(filename, mode) == -1)
-#else
-    (void)mode;
-#endif
-  {
-#ifdef DEBUG
-    perror("mkfifo()");
-#endif
-    return -1;
-  }
-
-  return 0;
+  i = hsize - 16;
+  do
+    {        /* might use Sys V memset(3) here */
+    *(htab_p-16) = m1;
+    *(htab_p-15) = m1;
+    *(htab_p-14) = m1;
+    *(htab_p-13) = m1;
+    *(htab_p-12) = m1;
+    *(htab_p-11) = m1;
+    *(htab_p-10) = m1;
+    *(htab_p-9) = m1;
+    *(htab_p-8) = m1;
+    *(htab_p-7) = m1;
+    *(htab_p-6) = m1;
+    *(htab_p-5) = m1;
+    *(htab_p-4) = m1;
+    *(htab_p-3) = m1;
+    *(htab_p-2) = m1;
+    *(htab_p-1) = m1;
+    htab_p -= 16;
+    }
+  while ((i -= 16) >= 0);
+  for ( i += 16; i > 0; i-- )
+    {
+    *--htab_p = m1;
+    }
 }
 
+#if defined(DEBUG)
+static void prratio(FILE *stream, long int num, long int den)
+{
+  register int q;      /* Doesn't need to be long */
+
+  if(num > 214748L)
+    {    /* 2147483647/10000 */
+    q = num / (den / 10000L);
+    }
+  else
+    {
+    q = 10000L * num / den;    /* Long calculations, though */
+    }
+  if (q < 0)
+    {
+    putc('-', stream);
+    q = -q;
+    }
+  fprintf(stream, "%d.%02d%%", q / 100, q % 100);
+}
+#endif
 

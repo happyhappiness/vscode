@@ -1,19 +1,13 @@
-        hex[0] = c;
-        switch ( c )
-          {
-          case '+':
-          case '?':
-          case '/':
-          case '\\':
-          case '&':
-          case ' ':
-          case '=':
-          case '%':
-            sprintf(hex, "%%%02X", (int)c);
-            ofile.append(hex);
-            break;
-          default: 
-            ofile.append(hex);
-          }
-        }
-      std::string upload_as = url + "?FileName=" + ofile;
+ * @param line_number
+ * @param yyscanner The scanner object.
+ */
+void yyset_column (int  column_no , yyscan_t yyscanner)
+{
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+
+        /* column is only valid if an input buffer exists. */
+        if (! YY_CURRENT_BUFFER )
+           yy_fatal_error( "yyset_column called with no buffer" , yyscanner); 
+    
+    yycolumn = column_no;
+}

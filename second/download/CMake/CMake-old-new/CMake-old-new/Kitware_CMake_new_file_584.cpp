@@ -14,824 +14,1270 @@
      PURPOSE.  See the above copyright notices for more information.
 
 =========================================================================*/
-
-#include "cmCTestUpdateHandler.h"
-
-#include "cmCTest.h"
-#include "cmake.h"
-#include "cmMakefile.h"
-#include "cmLocalGenerator.h"
 #include "cmGlobalGenerator.h"
-#include "cmVersion.h"
-#include "cmGeneratedFileStream.h"
-#include "cmXMLParser.h"
+#include "cmLocalVisualStudio6Generator.h"
+#include "cmMakefile.h"
+#include "cmSystemTools.h"
+#include "cmSourceFile.h"
+#include "cmCacheManager.h"
+#include "cmake.h"
 
-//#include <cmsys/RegularExpression.hxx>
-#include <cmsys/Process.h>
+#include <cmsys/RegularExpression.hxx>
 
-// used for sleep
-#ifdef _WIN32
-#include "windows.h"
-#endif
-
-#include <stdlib.h> 
-#include <math.h>
-#include <float.h>
-
-//----------------------------------------------------------------------
-//**********************************************************************
-class cmCTestUpdateHandlerSVNXMLParser : public cmXMLParser
+cmLocalVisualStudio6Generator::cmLocalVisualStudio6Generator()
 {
-public:
-  struct t_CommitLog
-    {
-    int m_Revision;
-    std::string m_Author;
-    std::string m_Date;
-    std::string m_Message;
-    };
-  cmCTestUpdateHandlerSVNXMLParser(cmCTestUpdateHandler* up)
-    : cmXMLParser(), m_UpdateHandler(up), m_MinRevision(-1), m_MaxRevision(-1)
-    {
-    }
-
-  int Parse(const char* str)
-    {
-    m_MinRevision = -1;
-    m_MaxRevision = -1;
-    int res = this->cmXMLParser::Parse(str);
-    if ( m_MinRevision == -1 || m_MaxRevision == -1 )
-      {
-      return 0;
-      }
-    return res;
-    }
-
-  typedef std::vector<t_CommitLog> t_VectorOfCommits;
-
-  t_VectorOfCommits* GetCommits() { return &m_Commits; }
-  int GetMinRevision() { return m_MinRevision; }
-  int GetMaxRevision() { return m_MaxRevision; }
-
-protected:
-  void StartElement(const char* name, const char** atts)
-    {
-    if ( strcmp(name, "logentry") == 0 )
-      {
-      m_CommitLog = t_CommitLog();
-      const char* rev = this->FindAttribute(atts, "revision");
-      if ( rev)
-        {
-        m_CommitLog.m_Revision = atoi(rev);
-        if ( m_MinRevision < 0 || m_MinRevision > m_CommitLog.m_Revision )
-          {
-          m_MinRevision = m_CommitLog.m_Revision;
-          }
-        if ( m_MaxRevision < 0 || m_MaxRevision < m_CommitLog.m_Revision )
-          {
-          m_MaxRevision = m_CommitLog.m_Revision;
-          }
-        }
-      }
-    m_CharacterData.erase(m_CharacterData.begin(), m_CharacterData.end());
-    }
-  void EndElement(const char* name)
-    {
-    if ( strcmp(name, "logentry") == 0 )
-      {
-      cmCTestLog(m_UpdateHandler->GetCTestInstance(), HANDLER_VERBOSE_OUTPUT, "\tRevision: " << m_CommitLog.m_Revision<< std::endl
-        << "\tAuthor:   " << m_CommitLog.m_Author.c_str() << std::endl
-        << "\tDate:     " << m_CommitLog.m_Date.c_str() << std::endl
-        << "\tMessage:  " << m_CommitLog.m_Message.c_str() << std::endl);
-      m_Commits.push_back(m_CommitLog);
-      }
-    else if ( strcmp(name, "author") == 0 )
-      {
-      m_CommitLog.m_Author.assign(&(*(m_CharacterData.begin())), m_CharacterData.size());
-      }
-    else if ( strcmp(name, "date") == 0 )
-      {
-      m_CommitLog.m_Date.assign(&(*(m_CharacterData.begin())), m_CharacterData.size());
-      }
-    else if ( strcmp(name, "msg") == 0 )
-      {
-      m_CommitLog.m_Message.assign(&(*(m_CharacterData.begin())), m_CharacterData.size());
-      }
-    m_CharacterData.erase(m_CharacterData.begin(), m_CharacterData.end());
-    }
-  void CharacterDataHandler(const char* data, int length)
-    {
-    m_CharacterData.insert(m_CharacterData.end(), data, data+length);
-    }
-  const char* FindAttribute( const char** atts, const char* attribute )
-    {
-    if ( !atts || !attribute )
-      {
-      return 0;
-      }
-    const char **atr = atts;
-    while ( *atr && **atr && **(atr+1) )
-      {
-      if ( strcmp(*atr, attribute) == 0 )
-        {
-        return *(atr+1);
-        }
-      atr+=2;
-      }
-    return 0;
-    }
-
-private:
-  std::vector<char> m_CharacterData;
-  cmCTestUpdateHandler* m_UpdateHandler;
-  t_CommitLog m_CommitLog;
-
-  t_VectorOfCommits m_Commits;
-  int m_MinRevision;
-  int m_MaxRevision;
-};
-//**********************************************************************
-//----------------------------------------------------------------------
-
-//----------------------------------------------------------------------
-cmCTestUpdateHandler::cmCTestUpdateHandler()
-{
-  m_CTest = 0;
 }
 
-//----------------------------------------------------------------------
-int cmCTestUpdateHandler::DetermineType(const char* cmd, const char* type)
+cmLocalVisualStudio6Generator::~cmLocalVisualStudio6Generator()
 {
-  if ( type && *type )
-    {
-    std::string stype = cmSystemTools::LowerCase(type);
-    if ( stype.find("cvs") != std::string::npos )
-      {
-      return cmCTestUpdateHandler::e_CVS;
-      }
-    if ( stype.find("svn") != std::string::npos )
-      {
-      return cmCTestUpdateHandler::e_SVN;
-      }
-    }
-  else
-    {
-    std::string stype = cmSystemTools::LowerCase(cmd);
-    if ( stype.find("cvs") != std::string::npos )
-      {
-      return cmCTestUpdateHandler::e_CVS;
-      }
-    if ( stype.find("svn") != std::string::npos )
-      {
-      return cmCTestUpdateHandler::e_SVN;
-      }
-    }
-  return cmCTestUpdateHandler::e_CVS;
 }
 
-//----------------------------------------------------------------------
-//clearly it would be nice if this were broken up into a few smaller
-//functions and commented...
-int cmCTestUpdateHandler::ProcessHandler()
-{
-  int count = 0;
-  int updateType = e_CVS;
-  std::string::size_type cc, kk;
-  bool updateProducedError = false;
 
+void cmLocalVisualStudio6Generator::Generate()
+{ 
+  std::set<cmStdString> lang;
+  lang.insert("C");
+  lang.insert("CXX");
+  this->CreateCustomTargetsAndCommands(lang);
+  this->OutputDSPFile();
+}
 
-  // Get source dir
-  const char* sourceDirectory = this->GetOption("SourceDirectory");
-  if ( !sourceDirectory )
+void cmLocalVisualStudio6Generator::OutputDSPFile()
+{ 
+  // If not an in source build, then create the output directory
+  if(strcmp(this->Makefile->GetStartOutputDirectory(),
+            this->Makefile->GetHomeDirectory()) != 0)
     {
-    cmCTestLog(m_CTest, ERROR, "Cannot find SourceDirectory  key in the DartConfiguration.tcl" << std::endl);
-    return -1;
+    if(!cmSystemTools::MakeDirectory(this->Makefile->GetStartOutputDirectory()))
+      {
+      cmSystemTools::Error("Error creating directory ",
+                           this->Makefile->GetStartOutputDirectory());
+      }
     }
 
-  cmCTestLog(m_CTest, HANDLER_OUTPUT, "Updating the repository: " << sourceDirectory << std::endl);
-
-  // Get update command
-  std::string updateCommand = m_CTest->GetCTestConfiguration("UpdateCommand");
-  if ( updateCommand.empty() )
+  // Setup /I and /LIBPATH options for the resulting DSP file.  VS 6
+  // truncates long include paths so make it as short as possible if
+  // the length threatents this problem.
+  unsigned int maxIncludeLength = 3000;
+  bool useShortPath = false;
+  for(int j=0; j < 2; ++j)
     {
-    updateCommand = m_CTest->GetCTestConfiguration("CVSCommand");
-    if ( updateCommand.empty() )
+    std::vector<std::string> includes;
+    this->GetIncludeDirectories(includes);
+    std::vector<std::string>::iterator i;
+    for(i = includes.begin(); i != includes.end(); ++i)
       {
-      updateCommand = m_CTest->GetCTestConfiguration("SVNCommand");
-      if ( updateCommand.empty() )
+      std::string tmp = 
+        this->ConvertToOptionallyRelativeOutputPath(i->c_str());
+      if(useShortPath)
         {
-        cmCTestLog(m_CTest, ERROR, "Cannot find CVSCommand, SVNCommand, or UpdateCommand key in the DartConfiguration.tcl" << std::endl);
-        return -1;
+        cmSystemTools::GetShortPath(tmp.c_str(), tmp);
+        }
+      this->IncludeOptions +=  " /I ";
+
+      // quote if not already quoted
+      if (tmp[0] != '"')
+        {
+        this->IncludeOptions += "\"";
+        this->IncludeOptions += tmp;
+        this->IncludeOptions += "\"";
         }
       else
         {
-        updateType = e_SVN;
+        this->IncludeOptions += tmp;
         }
+      }
+    if(j == 0 && this->IncludeOptions.size() > maxIncludeLength)
+      {
+      this->IncludeOptions = "";
+      useShortPath = true;
       }
     else
       {
-      updateType = e_CVS;
+      break;
       }
+    }
+  
+  // Create the DSP or set of DSP's for libraries and executables
+
+  // clear project names
+  this->CreatedProjectNames.clear();
+  // Call TraceVSDependencies on all targets
+  cmTargets &tgts = this->Makefile->GetTargets(); 
+  for(cmTargets::iterator l = tgts.begin(); 
+      l != tgts.end(); l++)
+    {
+    // Add a rule to regenerate the build system when the target
+    // specification source changes.
+    const char* suppRegenRule =
+      this->Makefile->GetDefinition("CMAKE_SUPPRESS_REGENERATION");
+    if (!cmSystemTools::IsOn(suppRegenRule))
+      {
+      this->AddDSPBuildRule(l->second);
+      }
+
+    // INCLUDE_EXTERNAL_MSPROJECT command only affects the workspace
+    // so don't build a projectfile for it
+    if ((l->second.GetType() != cmTarget::INSTALL_FILES)
+        && (l->second.GetType() != cmTarget::INSTALL_PROGRAMS)
+        && (strncmp(l->first.c_str(), "INCLUDE_EXTERNAL_MSPROJECT", 26) != 0))
+      {
+      cmTarget& target = l->second;
+      target.TraceVSDependencies(target.GetName(), this->Makefile);
+      }
+    }
+  // now for all custom commands that are not used directly in a 
+  // target, add them to all targets in the current directory or
+  // makefile
+  std::vector<cmSourceFile*> & classesmf = this->Makefile->GetSourceFiles();
+  for(std::vector<cmSourceFile*>::const_iterator i = classesmf.begin(); 
+      i != classesmf.end(); i++)
+    {
+    if(cmCustomCommand* cc = (*i)->GetCustomCommand())
+      {
+      if(!cc->IsUsed())
+        {
+        for(cmTargets::iterator l = tgts.begin(); 
+            l != tgts.end(); l++)
+          {
+          if ((l->second.GetType() != cmTarget::INSTALL_FILES)
+              && (l->second.GetType() != cmTarget::INSTALL_PROGRAMS)
+              && (strncmp(l->first.c_str(), "INCLUDE_EXTERNAL_MSPROJECT", 26) != 0)
+              && (strcmp(l->first.c_str(), "ALL_BUILD") != 0)
+              && (strcmp(l->first.c_str(), "RUN_TESTS") != 0)
+              && (strcmp(l->first.c_str(), "INSTALL") != 0))
+            {
+            cmTarget& target = l->second;
+            bool sameAsTarget = false;
+            // make sure we don't add a custom command that depends on
+            // this target
+            for(unsigned int k =0; k < cc->GetDepends().size(); k++)
+              {
+              if(cmSystemTools::GetFilenameName(cc->GetDepends()[k]) == target.GetFullName())
+                {
+                sameAsTarget = true;
+                }
+              }
+            if(!sameAsTarget)
+              {
+              target.GetSourceFiles().push_back(*i);
+              }
+            }
+          }
+        }
+      }
+    }
+  // build any targets
+  for(cmTargets::iterator l = tgts.begin(); 
+      l != tgts.end(); l++)
+    {
+    switch(l->second.GetType())
+      {
+      case cmTarget::STATIC_LIBRARY:
+        this->SetBuildType(STATIC_LIBRARY, l->first.c_str(), l->second);
+        break;
+      case cmTarget::SHARED_LIBRARY:
+      case cmTarget::MODULE_LIBRARY:
+        this->SetBuildType(DLL, l->first.c_str(), l->second);
+        break;
+      case cmTarget::EXECUTABLE:
+        this->SetBuildType(EXECUTABLE,l->first.c_str(), l->second);
+        break;
+      case cmTarget::UTILITY:
+      case cmTarget::GLOBAL_TARGET:
+        this->SetBuildType(UTILITY, l->first.c_str(), l->second);
+        break;
+      case cmTarget::INSTALL_FILES:
+        break;
+      case cmTarget::INSTALL_PROGRAMS:
+        break;
+      default:
+        cmSystemTools::Error("Bad target type", l->first.c_str());
+        break;
+      }
+    // INCLUDE_EXTERNAL_MSPROJECT command only affects the workspace
+    // so don't build a projectfile for it
+    if ((l->second.GetType() != cmTarget::INSTALL_FILES)
+        && (l->second.GetType() != cmTarget::INSTALL_PROGRAMS)
+        && (strncmp(l->first.c_str(), "INCLUDE_EXTERNAL_MSPROJECT", 26) != 0))
+      {
+      // check to see if the dsp is going into a sub-directory
+      std::string::size_type pos = l->first.rfind('/');
+      if(pos != std::string::npos)
+        {
+        std::string dir = this->Makefile->GetStartOutputDirectory();
+        dir += "/";
+        dir += l->first.substr(0, pos);
+        if(!cmSystemTools::MakeDirectory(dir.c_str()))
+          {
+          cmSystemTools::Error("Error creating directory ", dir.c_str());
+          }
+        }
+      this->CreateSingleDSP(l->first.c_str(),l->second);
+      }
+    }
+}
+
+void cmLocalVisualStudio6Generator::CreateSingleDSP(const char *lname, cmTarget &target)
+{
+  // add to the list of projects
+  std::string pname = lname;
+  this->CreatedProjectNames.push_back(pname);
+  // create the dsp.cmake file
+  std::string fname;
+  fname = this->Makefile->GetStartOutputDirectory();
+  fname += "/";
+  fname += lname;
+  fname += ".dsp";
+  // save the name of the real dsp file
+  std::string realDSP = fname;
+  fname += ".cmake";
+  std::ofstream fout(fname.c_str());
+  if(!fout)
+    {
+    cmSystemTools::Error("Error Writing ", fname.c_str());
+    cmSystemTools::ReportLastSystemError("");
+    }
+  this->WriteDSPFile(fout,lname,target);
+  fout.close();
+  // if the dsp file has changed, then write it.
+  cmSystemTools::CopyFileIfDifferent(fname.c_str(), realDSP.c_str());
+}
+
+
+void cmLocalVisualStudio6Generator::AddDSPBuildRule(cmTarget& tgt)
+{
+  std::string dspname = tgt.GetName();
+  dspname += ".dsp.cmake";
+  const char* dsprule = this->Makefile->GetRequiredDefinition("CMAKE_COMMAND");
+  cmCustomCommandLine commandLine;
+  commandLine.push_back(dsprule);
+  std::string makefileIn = this->Makefile->GetStartDirectory();
+  makefileIn += "/";
+  makefileIn += "CMakeLists.txt";
+  std::string args;
+  args = "-H";
+  args +=
+    this->Convert(this->Makefile->GetHomeDirectory(),START_OUTPUT, SHELL, true);
+  commandLine.push_back(args);
+  args = "-B";
+  args += 
+    this->Convert(this->Makefile->GetHomeOutputDirectory(), 
+                  START_OUTPUT, SHELL, true);
+  commandLine.push_back(args);
+
+  std::string configFile = 
+    this->Makefile->GetRequiredDefinition("CMAKE_ROOT");
+  configFile += "/Templates/CMakeWindowsSystemConfig.cmake";
+  std::vector<std::string> listFiles = this->Makefile->GetListFiles();
+  bool found = false;
+  for(std::vector<std::string>::iterator i = listFiles.begin();
+      i != listFiles.end(); ++i)
+    {
+    if(*i == configFile)
+      {
+      found  = true;
+      }
+    }
+  if(!found)
+    {
+    listFiles.push_back(configFile);
+    }
+
+  cmCustomCommandLines commandLines;
+  commandLines.push_back(commandLine);
+  const char* no_comment = 0;
+  const char* no_working_directory = 0;
+  this->Makefile->AddCustomCommandToOutput(dspname.c_str(), listFiles, makefileIn.c_str(),
+                                       commandLines, no_comment, no_working_directory, true);
+  if(cmSourceFile* file = this->Makefile->GetSource(makefileIn.c_str()))
+    {
+    tgt.GetSourceFiles().push_back(file);
     }
   else
     {
-    updateType = this->DetermineType(updateCommand.c_str(), m_CTest->GetCTestConfiguration("UpdateType").c_str());
+    cmSystemTools::Error("Error adding rule for ", makefileIn.c_str());
     }
+}
 
-  // And update options
-  std::string updateOptions = m_CTest->GetCTestConfiguration("UpdateOptions");
-  if ( updateOptions.empty() )
+
+void cmLocalVisualStudio6Generator::WriteDSPFile(std::ostream& fout, 
+                                                 const char *libName,
+                                                 cmTarget &target)
+{
+  // For utility targets need custom command since pre- and post-
+  // build does not do anything in Visual Studio 6.  In order for the
+  // rules to run in the correct order as custom commands, we need
+  // special care for dependencies.  The first rule must depend on all
+  // the dependencies of all the rules.  The later rules must each
+  // depend only on the previous rule.
+  if ((target.GetType() == cmTarget::UTILITY ||
+      target.GetType() == cmTarget::GLOBAL_TARGET) &&
+      (!target.GetPreBuildCommands().empty() ||
+       !target.GetPostBuildCommands().empty()))
     {
-    switch (updateType)
+    // Accumulate the dependencies of all the commands.
+    std::vector<std::string> depends;
+    for (std::vector<cmCustomCommand>::const_iterator cr =
+           target.GetPreBuildCommands().begin();
+         cr != target.GetPreBuildCommands().end(); ++cr)
       {
-    case cmCTestUpdateHandler::e_CVS:
-      updateOptions = m_CTest->GetCTestConfiguration("CVSUpdateOptions");
-      break;
-    case cmCTestUpdateHandler::e_SVN:
-      updateOptions = m_CTest->GetCTestConfiguration("SVNUpdateOptions");
-      break;
+      depends.insert(depends.end(),
+                     cr->GetDepends().begin(), cr->GetDepends().end());
+      }
+    for (std::vector<cmCustomCommand>::const_iterator cr =
+           target.GetPostBuildCommands().begin();
+         cr != target.GetPostBuildCommands().end(); ++cr)
+      {
+      depends.insert(depends.end(),
+                     cr->GetDepends().begin(), cr->GetDepends().end());
+      }
+
+    // Add the pre- and post-build commands in order.
+    int count = 1;
+    for (std::vector<cmCustomCommand>::const_iterator cr =
+           target.GetPreBuildCommands().begin();
+         cr != target.GetPreBuildCommands().end(); ++cr)
+      {
+      this->AddUtilityCommandHack(target, count++, depends, *cr);
+      }
+    for (std::vector<cmCustomCommand>::const_iterator cr =
+           target.GetPostBuildCommands().begin();
+         cr != target.GetPostBuildCommands().end(); ++cr)
+      {
+      this->AddUtilityCommandHack(target, count++, depends, *cr);
       }
     }
+  
+  // trace the visual studio dependencies
+  std::string name = libName;
+  name += ".dsp.cmake";
 
-  // Get update time
-  std::string extra_update_opts;
-  if ( m_CTest->GetTestModel() == cmCTest::NIGHTLY )
+  // We may be modifying the source groups temporarily, so make a copy.
+  std::vector<cmSourceGroup> sourceGroups = this->Makefile->GetSourceGroups();
+  
+  // get the classes from the source lists then add them to the groups
+  std::vector<cmSourceFile*> & classes = target.GetSourceFiles();
+
+  // now all of the source files have been properly assigned to the target
+  // now stick them into source groups using the reg expressions
+  for(std::vector<cmSourceFile*>::iterator i = classes.begin(); 
+      i != classes.end(); i++)
     {
-    struct tm* t = m_CTest->GetNightlyTime(m_CTest->GetCTestConfiguration("NightlyStartTime"),
-      m_CTest->GetTomorrowTag());
-    char current_time[1024];
-    sprintf(current_time, "%04d-%02d-%02d %02d:%02d:%02d",
-      t->tm_year + 1900,
-      t->tm_mon + 1,
-      t->tm_mday,
-      t->tm_hour,
-      t->tm_min,
-      t->tm_sec);
-    std::string today_update_date = current_time;
-
-    // TODO: SVN
-    switch ( updateType )
+    // Add the file to the list of sources.
+    std::string source = (*i)->GetFullPath();
+    cmSourceGroup& sourceGroup = this->Makefile->FindSourceGroup(source.c_str(),
+                                                             sourceGroups);
+    sourceGroup.AssignSource(*i);
+    // while we are at it, if it is a .rule file then for visual studio 6 we
+    // must generate it
+    if ((*i)->GetSourceExtension() == "rule")
       {
-    case cmCTestUpdateHandler::e_CVS:
-      extra_update_opts += "-D \"" + today_update_date +" UTC\"";
-      break;
-    case cmCTestUpdateHandler::e_SVN:
-      extra_update_opts += "-r \"{" + today_update_date +" +0000}\"";
-      break;
-      }
-    }
-
-  updateCommand = "\"" + updateCommand + "\"";
-
-  // First, check what the current state of repository is
-  std::string command = "";
-  switch( updateType )
-    {
-  case cmCTestUpdateHandler::e_CVS:
-    // TODO: CVS - for now just leave empty
-    break;
-  case cmCTestUpdateHandler::e_SVN:
-    command = updateCommand + " info";
-    break;
-    }
-
-  cmGeneratedFileStream ofs;
-  if ( !m_CTest->GetShowOnly() )
-    {
-    m_CTest->OpenOutputFile("Temporary", "LastUpdate.log", ofs);
-    }
-
-  // CVS variables
-  // SVN variables
-  int svn_current_revision = 0;
-  int svn_latest_revision = 0;
-  int svn_use_status = 0;
-
-  std::string goutput;
-  int retVal = 0;
-  bool res = true;
-
-
-  //
-  // Get initial repository information if that is possible. With subversion, this will check the current revision.
-  //
-  if ( !command.empty() )
-    {
-      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "* Get repository information: " << command.c_str() << std::endl);
-    if ( !m_CTest->GetShowOnly() )
-      {
-      res = cmSystemTools::RunSingleCommand(command.c_str(), &goutput, 
-        &retVal, sourceDirectory,
-        m_HandlerVerbose, 0 /*m_TimeOut*/);
-      if ( ofs )
+      if(!cmSystemTools::FileExists(source.c_str()))
         {
-        ofs << "--- Update information ---" << std::endl;
-        ofs << goutput << std::endl;
-        }
-      switch ( updateType )
-        {
-      case cmCTestUpdateHandler::e_CVS:
-        // TODO: CVS - for now just leave empty
-        break;
-      case cmCTestUpdateHandler::e_SVN:
+        cmSystemTools::ReplaceString(source, "$(IntDir)/", "");
+#if defined(_WIN32) || defined(__CYGWIN__)
+        std::ofstream fout(source.c_str(), 
+                           std::ios::binary | std::ios::out | std::ios::trunc);
+#else
+        std::ofstream fout(source.c_str(), 
+                           std::ios::out | std::ios::trunc);
+#endif
+        if(fout)
           {
-          cmsys::RegularExpression current_revision_regex("Revision: ([0-9]+)");
-          if ( current_revision_regex.find(goutput.c_str()) )
-            {
-            std::string currentRevisionString = current_revision_regex.match(1);
-            svn_current_revision = atoi(currentRevisionString.c_str());
-            cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Old revision of repository is: " << svn_current_revision << std::endl);
-            }
+          fout.write("# generated from CMake",22);
+          fout.flush();
+          fout.close();
           }
-        break;
         }
+      }
+    }
+  
+  // Write the DSP file's header.
+  this->WriteDSPHeader(fout, libName, target, sourceGroups);
+  
+
+  // Loop through every source group.
+  for(std::vector<cmSourceGroup>::const_iterator sg = sourceGroups.begin();
+      sg != sourceGroups.end(); ++sg)
+    {
+    this->WriteGroup(&(*sg), target, fout, libName);
+    }  
+
+  // Write the DSP file's footer.
+  this->WriteDSPFooter(fout);
+}
+
+void cmLocalVisualStudio6Generator::WriteGroup(const cmSourceGroup *sg, cmTarget target, std::ostream &fout, const char *libName)
+{
+  const std::vector<const cmSourceFile *> &sourceFiles = 
+    sg->GetSourceFiles();
+  // If the group is empty, don't write it at all.
+        
+  if(sourceFiles.empty())
+    { 
+    return; 
+    }
+    
+  // If the group has a name, write the header.
+  std::string name = sg->GetName();
+  if(name != "")
+    {
+    this->WriteDSPBeginGroup(fout, name.c_str(), "");
+    }
+    
+  // Loop through each source in the source group.
+  for(std::vector<const cmSourceFile *>::const_iterator sf =
+        sourceFiles.begin(); sf != sourceFiles.end(); ++sf)
+    {
+    std::string source = (*sf)->GetFullPath();
+    const cmCustomCommand *command = 
+      (*sf)->GetCustomCommand();
+    std::string compileFlags;
+    std::vector<std::string> depends;
+
+    // Add per-source file flags.
+    if(const char* cflags = (*sf)->GetProperty("COMPILE_FLAGS"))
+      {
+      compileFlags += cflags;
+      }
+
+    const char* lang = 
+      this->GlobalGenerator->GetLanguageFromExtension((*sf)->GetSourceExtension().c_str());
+    if(lang && strcmp(lang, "CXX") == 0)
+      {
+      // force a C++ file type
+      compileFlags += " /TP ";
+      }
+      
+    // Check for extra object-file dependencies.
+    const char* dependsValue = (*sf)->GetProperty("OBJECT_DEPENDS");
+    if(dependsValue)
+      {
+      cmSystemTools::ExpandListArgument(dependsValue, depends);
+      }
+    if (source != libName || target.GetType() == cmTarget::UTILITY ||
+      target.GetType() == cmTarget::GLOBAL_TARGET)
+      {
+      fout << "# Begin Source File\n\n";
+        
+      // Tell MS-Dev what the source is.  If the compiler knows how to
+      // build it, then it will.
+      fout << "SOURCE=" << 
+        this->ConvertToOptionallyRelativeOutputPath(source.c_str()) << "\n\n";
+      if(!depends.empty())
+        {
+        // Write out the dependencies for the rule.
+        fout << "USERDEP__HACK=";
+        for(std::vector<std::string>::const_iterator d = depends.begin();
+            d != depends.end(); ++d)
+          { 
+          fout << "\\\n\t" << 
+            this->ConvertToOptionallyRelativeOutputPath(d->c_str());
+          }
+        fout << "\n";
+        }
+      if (command)
+        {
+        std::string script =
+          this->ConstructScript(command->GetCommandLines(), 
+                                command->GetWorkingDirectory(),
+                                "\\\n\t");
+        const char* comment = command->GetComment();
+        const char* flags = compileFlags.size() ? compileFlags.c_str(): 0;
+        this->WriteCustomRule(fout, source.c_str(), script.c_str(), 
+                              (*comment?comment:"Custom Rule"),
+                              command->GetDepends(), 
+                              command->GetOutput(), flags);
+        }
+      else if(compileFlags.size())
+        {
+        for(std::vector<std::string>::iterator i
+              = this->Configurations.begin(); i != this->Configurations.end(); ++i)
+          { 
+          if (i == this->Configurations.begin())
+            {
+            fout << "!IF  \"$(CFG)\" == " << i->c_str() << std::endl;
+            }
+          else 
+            {
+            fout << "!ELSEIF  \"$(CFG)\" == " << i->c_str() << std::endl;
+            }
+          fout << "\n# ADD CPP " << compileFlags << "\n\n";
+          } 
+        fout << "!ENDIF\n\n";
+        }
+      fout << "# End Source File\n";
+      }
+    }
+
+  std::vector<cmSourceGroup> children  = sg->GetGroupChildren();
+
+  for(unsigned int i=0;i<children.size();++i)
+    {
+    this->WriteGroup(&children[i], target, fout, libName);
+    }
+
+
+
+    
+  // If the group has a name, write the footer.
+  if(name != "")
+    {
+    this->WriteDSPEndGroup(fout);
+    }
+
+}
+
+
+void
+cmLocalVisualStudio6Generator
+::AddUtilityCommandHack(cmTarget& target, int count,
+                        std::vector<std::string>& depends,
+                        const cmCustomCommand& origCommand)
+{
+  // Create a fake output that forces the rule to run.
+  char* output = new char[(strlen(this->Makefile->GetStartOutputDirectory()) +
+                           strlen(target.GetName()) + 30)];
+  sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
+          target.GetName(), count);
+
+  // Add the rule with the given dependencies and commands.
+  const char* no_main_dependency = 0;
+  this->Makefile->AddCustomCommandToOutput(output,
+                                       depends,
+                                       no_main_dependency,
+                                       origCommand.GetCommandLines(),
+                                       origCommand.GetComment(),
+                                       origCommand.GetWorkingDirectory());
+
+  // Replace the dependencies with the output of this rule so that the
+  // next rule added will run after this one.
+  depends.clear();
+  depends.push_back(output);
+
+  // Add a source file representing this output to the project.
+  cmSourceFile* outsf = this->Makefile->GetSourceFileWithOutput(output);
+  target.GetSourceFiles().push_back(outsf);
+
+  // Free the fake output name.
+  delete [] output;
+}
+
+void cmLocalVisualStudio6Generator::WriteCustomRule(std::ostream& fout,
+                                                    const char* source,
+                                                    const char* command,
+                                                    const char* comment,
+                                                    const std::vector<std::string>& depends,
+                                                    const char *output,
+                                                    const char* flags
+  )
+{
+  std::vector<std::string>::iterator i;
+  for(i = this->Configurations.begin(); i != this->Configurations.end(); ++i)
+    {
+    if (i == this->Configurations.begin())
+      {
+      fout << "!IF  \"$(CFG)\" == " << i->c_str() << std::endl;
+      }
+    else 
+      {
+      fout << "!ELSEIF  \"$(CFG)\" == " << i->c_str() << std::endl;
+      }
+    if(flags)
+      {
+      fout << "\n# ADD CPP " << flags << "\n\n";
+      }
+    // Write out the dependencies for the rule.
+    fout << "USERDEP__HACK=";
+    for(std::vector<std::string>::const_iterator d = depends.begin();
+        d != depends.end(); ++d)
+      {
+      // Lookup the real name of the dependency in case it is a CMake target.
+      std::string dep = this->GetRealDependency(d->c_str(), i->c_str());
+      fout << "\\\n\t" <<
+        this->ConvertToOptionallyRelativeOutputPath(dep.c_str());
+      }
+    fout << "\n";
+
+    fout << "# PROP Ignore_Default_Tool 1\n";
+    fout << "# Begin Custom Build - Building " << comment 
+         << " $(InputPath)\n\n";
+    if(output == 0)
+      {
+      fout << source << "_force :  \"$(SOURCE)\" \"$(INTDIR)\" \"$(OUTDIR)\"\n\t";
+      fout << command << "\n\n";
+      }
+    
+    // Write a rule for every output generated by this command.
+    fout << this->ConvertToOptionallyRelativeOutputPath(output)
+         << " :  \"$(SOURCE)\" \"$(INTDIR)\" \"$(OUTDIR)\"\n\t";
+    fout << command << "\n\n";
+    fout << "# End Custom Build\n\n";
+    }
+  
+  fout << "!ENDIF\n\n";
+}
+
+
+void cmLocalVisualStudio6Generator::WriteDSPBeginGroup(std::ostream& fout, 
+                                                       const char* group,
+                                                       const char* filter)
+{
+  fout << "# Begin Group \"" << group << "\"\n"
+    "# PROP Default_Filter \"" << filter << "\"\n";
+}
+
+
+void cmLocalVisualStudio6Generator::WriteDSPEndGroup(std::ostream& fout)
+{
+  fout << "# End Group\n";
+}
+
+
+
+
+void cmLocalVisualStudio6Generator::SetBuildType(BuildType b,
+                                                 const char* libName,
+                                                 cmTarget& target)
+{
+  std::string root= this->Makefile->GetRequiredDefinition("CMAKE_ROOT");
+  const char *def= this->Makefile->GetDefinition( "MSPROJECT_TEMPLATE_DIRECTORY");
+
+  if( def)
+    {
+    root = def;
+    }
+  else
+    {
+    root += "/Templates";
+    }
+  
+  switch(b)
+    {
+    case STATIC_LIBRARY:
+      this->DSPHeaderTemplate = root;
+      this->DSPHeaderTemplate += "/staticLibHeader.dsptemplate";
+      this->DSPFooterTemplate = root;
+      this->DSPFooterTemplate += "/staticLibFooter.dsptemplate";
+      break;
+    case DLL:
+      this->DSPHeaderTemplate =  root;
+      this->DSPHeaderTemplate += "/DLLHeader.dsptemplate";
+      this->DSPFooterTemplate =  root;
+      this->DSPFooterTemplate += "/DLLFooter.dsptemplate";
+      break;
+    case EXECUTABLE:
+      if ( target.GetPropertyAsBool("WIN32_EXECUTABLE") )
+        {
+        this->DSPHeaderTemplate = root;
+        this->DSPHeaderTemplate += "/EXEWinHeader.dsptemplate";
+        this->DSPFooterTemplate = root;
+        this->DSPFooterTemplate += "/EXEFooter.dsptemplate";
+        }
+      else
+        {
+        this->DSPHeaderTemplate = root;
+        this->DSPHeaderTemplate += "/EXEHeader.dsptemplate";
+        this->DSPFooterTemplate = root;
+        this->DSPFooterTemplate += "/EXEFooter.dsptemplate";
+        }
+      break;
+    case UTILITY:
+      this->DSPHeaderTemplate = root;
+      this->DSPHeaderTemplate += "/UtilityHeader.dsptemplate";
+      this->DSPFooterTemplate = root;
+      this->DSPFooterTemplate += "/UtilityFooter.dsptemplate";
+      break;
+    }
+
+  // once the build type is set, determine what configurations are
+  // possible
+  std::ifstream fin(this->DSPHeaderTemplate.c_str());
+
+  cmsys::RegularExpression reg("# Name ");
+  if(!fin)
+    {
+    cmSystemTools::Error("Error Reading ", this->DSPHeaderTemplate.c_str());
+    }
+
+  // reset this->Configurations
+  this->Configurations.erase(this->Configurations.begin(), this->Configurations.end());
+  // now add all the configurations possible
+  std::string line;
+  while(cmSystemTools::GetLineFromStream(fin, line))
+    {
+    cmSystemTools::ReplaceString(line, "OUTPUT_LIBNAME",libName);
+    if (reg.find(line))
+      {
+      this->Configurations.push_back(line.substr(reg.end()));
+      }
+    }
+}
+
+// look for custom rules on a target and collect them together
+std::string 
+cmLocalVisualStudio6Generator::CreateTargetRules(cmTarget &target, 
+                                                 const char * /* libName */)
+{
+  std::string customRuleCode = "";
+
+  if (target.GetType() >= cmTarget::UTILITY )
+    {
+    return customRuleCode;
+    }
+
+  // are there any rules?
+  if (target.GetPreBuildCommands().size() + 
+      target.GetPreLinkCommands().size() + 
+      target.GetPostBuildCommands().size() == 0)
+    {
+    return customRuleCode;
+    }
+    
+  customRuleCode = "# Begin Special Build Tool\n";
+
+  // Write the pre-build and pre-link together (VS6 does not support
+  // both).  Make sure no continuation character is put on the last
+  // line.
+  int prelink_total = (static_cast<int>(target.GetPreBuildCommands().size())+
+                       static_cast<int>(target.GetPreLinkCommands().size()));
+  int prelink_count = 0;
+  if(prelink_total > 0)
+    {
+    // header stuff
+    customRuleCode += "PreLink_Cmds=";
+    }
+  const char* prelink_newline = "\\\n\t";
+  for (std::vector<cmCustomCommand>::const_iterator cr =
+         target.GetPreBuildCommands().begin();
+       cr != target.GetPreBuildCommands().end(); ++cr)
+    {
+    if(++prelink_count == prelink_total)
+      {
+      prelink_newline = "";
+      }
+    customRuleCode += this->ConstructScript(cr->GetCommandLines(),
+                                            cr->GetWorkingDirectory(),
+                                            prelink_newline);
+    }
+  for (std::vector<cmCustomCommand>::const_iterator cr =
+         target.GetPreLinkCommands().begin();
+       cr != target.GetPreLinkCommands().end(); ++cr)
+    {
+    if(++prelink_count == prelink_total)
+      {
+      prelink_newline = "";
+      }
+    customRuleCode += this->ConstructScript(cr->GetCommandLines(),
+                                            cr->GetWorkingDirectory(),
+                                            prelink_newline);
+    }
+  if(prelink_total > 0)
+    {
+    customRuleCode += "\n";
+    }
+
+  // Write the post-build rules.  Make sure no continuation character
+  // is put on the last line.
+  int postbuild_total = static_cast<int>(target.GetPostBuildCommands().size());
+  int postbuild_count = 0;
+  const char* postbuild_newline = "\\\n\t";
+  if(postbuild_total > 0)
+    {
+    customRuleCode += "PostBuild_Cmds=";
+    }
+  for (std::vector<cmCustomCommand>::const_iterator cr =
+         target.GetPostBuildCommands().begin();
+       cr != target.GetPostBuildCommands().end(); ++cr)
+    {
+    if(++postbuild_count == postbuild_total)
+      {
+      postbuild_newline = "";
+      }
+    customRuleCode += this->ConstructScript(cr->GetCommandLines(),
+                                            cr->GetWorkingDirectory(),
+                                            postbuild_newline);
+    }
+  if(postbuild_total > 0)
+    {
+    customRuleCode += "\n";
+    }
+
+  customRuleCode += "# End Special Build Tool\n";
+  return customRuleCode;
+}
+
+
+inline std::string removeQuotes(const std::string& s)
+{
+  if(s[0] == '\"' && s[s.size()-1] == '\"')
+    {
+    return s.substr(1, s.size()-2);
+    }
+  return s;
+}
+
+  
+void cmLocalVisualStudio6Generator
+::WriteDSPHeader(std::ostream& fout, 
+                 const char *libName, cmTarget &target, 
+                 std::vector<cmSourceGroup> &)
+{
+  std::set<std::string> pathEmitted;
+  
+  // determine the link directories
+  std::string libOptions;
+  std::string libDebugOptions;
+  std::string libOptimizedOptions;
+
+  std::string libMultiLineOptions;
+  std::string libMultiLineOptionsForDebug;
+  std::string libMultiLineDebugOptions;
+  std::string libMultiLineOptimizedOptions;
+
+  // suppoirt override in output directory
+  std::string libPath = "";
+  if (this->Makefile->GetDefinition("LIBRARY_OUTPUT_PATH"))
+    {
+    libPath = this->Makefile->GetDefinition("LIBRARY_OUTPUT_PATH");
+    }
+  std::string exePath = "";
+  if (this->Makefile->GetDefinition("EXECUTABLE_OUTPUT_PATH"))
+    {
+    exePath = this->Makefile->GetDefinition("EXECUTABLE_OUTPUT_PATH");
+    
+    }
+  if(libPath.size())
+    {
+    // make sure there is a trailing slash
+    if(libPath[libPath.size()-1] != '/')
+      {
+      libPath += "/";
+      }
+    std::string lpath = 
+      this->ConvertToOptionallyRelativeOutputPath(libPath.c_str());
+    if(lpath.size() == 0)
+      {
+      lpath = ".";
+      }
+    std::string lpathIntDir = libPath + "$(INTDIR)";
+    lpathIntDir =  this->ConvertToOptionallyRelativeOutputPath(lpathIntDir.c_str());
+    if(pathEmitted.insert(lpath).second)
+      {
+      libOptions += " /LIBPATH:";
+      libOptions += lpathIntDir;
+      libOptions += " ";
+      libOptions += " /LIBPATH:";
+      libOptions += lpath;
+      libOptions += " ";
+      libMultiLineOptions += "# ADD LINK32 /LIBPATH:";
+      libMultiLineOptions += lpathIntDir;
+      libMultiLineOptions += " ";
+      libMultiLineOptions += " /LIBPATH:";
+      libMultiLineOptions += lpath;
+      libMultiLineOptions += " \n";
+      libMultiLineOptionsForDebug += "# ADD LINK32 /LIBPATH:";
+      libMultiLineOptionsForDebug += lpathIntDir;
+      libMultiLineOptionsForDebug += " ";
+      libMultiLineOptionsForDebug += " /LIBPATH:";
+      libMultiLineOptionsForDebug += lpath;
+      libMultiLineOptionsForDebug += " \n";
+      }
+    }
+  if(exePath.size())
+    {
+    // make sure there is a trailing slash
+    if(exePath[exePath.size()-1] != '/')
+      {
+      exePath += "/";
+      }
+    std::string lpath = 
+      this->ConvertToOptionallyRelativeOutputPath(exePath.c_str());
+    if(lpath.size() == 0)
+      {
+      lpath = ".";
+      }
+    std::string lpathIntDir = exePath + "$(INTDIR)";
+    lpathIntDir =  this->ConvertToOptionallyRelativeOutputPath(lpathIntDir.c_str());
+    
+    if(pathEmitted.insert(lpath).second)
+      {
+      libOptions += " /LIBPATH:";
+      libOptions += lpathIntDir;
+      libOptions += " ";
+      libOptions += " /LIBPATH:";
+      libOptions += lpath;
+      libOptions += " ";
+      libMultiLineOptions += "# ADD LINK32 /LIBPATH:";
+      libMultiLineOptions += lpathIntDir;
+      libMultiLineOptions += " ";
+      libMultiLineOptions += " /LIBPATH:";
+      libMultiLineOptions += lpath;
+      libMultiLineOptions += " \n";
+      libMultiLineOptionsForDebug += "# ADD LINK32 /LIBPATH:";
+      libMultiLineOptionsForDebug += lpathIntDir;
+      libMultiLineOptionsForDebug += " ";
+      libMultiLineOptionsForDebug += " /LIBPATH:";
+      libMultiLineOptionsForDebug += lpath;
+      libMultiLineOptionsForDebug += " \n";
+      }
+    }
+  std::vector<std::string>::const_iterator i;
+  const std::vector<std::string>& libdirs = target.GetLinkDirectories();
+  for(i = libdirs.begin(); i != libdirs.end(); ++i)
+    {
+    std::string path = *i;
+    if(path[path.size()-1] != '/')
+      {
+      path += "/";
+      }
+    std::string lpath = 
+      this->ConvertToOptionallyRelativeOutputPath(path.c_str());
+    if(lpath.size() == 0)
+      {
+      lpath = ".";
+      }
+    std::string lpathIntDir = path + "$(INTDIR)";
+    lpathIntDir =  this->ConvertToOptionallyRelativeOutputPath(lpathIntDir.c_str());
+    if(pathEmitted.insert(lpath).second)
+      {
+      libOptions += " /LIBPATH:";
+      libOptions += lpathIntDir;
+      libOptions += " ";
+      libOptions += " /LIBPATH:";
+      libOptions += lpath;
+      libOptions += " ";
+      
+      libMultiLineOptions += "# ADD LINK32 /LIBPATH:";
+      libMultiLineOptions += lpathIntDir;
+      libMultiLineOptions += " ";
+      libMultiLineOptions += " /LIBPATH:";
+      libMultiLineOptions += lpath;
+      libMultiLineOptions += " \n";
+      libMultiLineOptionsForDebug += "# ADD LINK32 /LIBPATH:";
+      libMultiLineOptionsForDebug += lpathIntDir;
+      libMultiLineOptionsForDebug += " ";
+      libMultiLineOptionsForDebug += " /LIBPATH:";
+      libMultiLineOptionsForDebug += lpath;
+      libMultiLineOptionsForDebug += " \n";
+      }
+    }
+  // find link libraries
+  const cmTarget::LinkLibraryVectorType& libs = target.GetLinkLibraries();
+  cmTarget::LinkLibraryVectorType::const_iterator j;
+  for(j = libs.begin(); j != libs.end(); ++j)
+    {
+    // add libraries to executables and dlls (but never include
+    // a library in a library, bad recursion)
+    // NEVER LINK STATIC LIBRARIES TO OTHER STATIC LIBRARIES
+    if ((target.GetType() != cmTarget::SHARED_LIBRARY
+         && target.GetType() != cmTarget::STATIC_LIBRARY 
+         && target.GetType() != cmTarget::MODULE_LIBRARY) || 
+        (target.GetType()==cmTarget::SHARED_LIBRARY && libName != j->first) ||
+        (target.GetType()==cmTarget::MODULE_LIBRARY && libName != j->first))
+      {
+      // Compute the proper name to use to link this library.
+      std::string lib;
+      std::string libDebug;
+      cmTarget* tgt = this->GlobalGenerator->FindTarget(0, j->first.c_str());
+      if(tgt)
+        {
+        lib = cmSystemTools::GetFilenameWithoutExtension(tgt->GetFullName().c_str());
+        libDebug = cmSystemTools::GetFilenameWithoutExtension(tgt->GetFullName("Debug").c_str());
+        lib += ".lib";
+        libDebug += ".lib";
+        }
+      else
+        {
+        lib = j->first.c_str();
+        libDebug = j->first.c_str();
+        if(j->first.find(".lib") == std::string::npos)
+          {
+          lib += ".lib";
+          libDebug += ".lib";
+          }
+        }
+      lib = this->ConvertToOptionallyRelativeOutputPath(lib.c_str());
+      libDebug = this->ConvertToOptionallyRelativeOutputPath(libDebug.c_str());
+
+      if (j->second == cmTarget::GENERAL)
+        {
+        libOptions += " ";
+        libOptions += lib;
+        libMultiLineOptions += "# ADD LINK32 ";
+        libMultiLineOptions +=  lib;
+        libMultiLineOptions += "\n";
+        libMultiLineOptionsForDebug += "# ADD LINK32 ";
+        libMultiLineOptionsForDebug +=  libDebug;
+        libMultiLineOptionsForDebug += "\n";
+        }
+      if (j->second == cmTarget::DEBUG)
+        {
+        libDebugOptions += " ";
+        libDebugOptions += lib;
+
+        libMultiLineDebugOptions += "# ADD LINK32 ";
+        libMultiLineDebugOptions += libDebug;
+        libMultiLineDebugOptions += "\n";
+        }
+      if (j->second == cmTarget::OPTIMIZED)
+        {
+        libOptimizedOptions += " ";
+        libOptimizedOptions += lib;
+
+        libMultiLineOptimizedOptions += "# ADD LINK32 ";
+        libMultiLineOptimizedOptions += lib;
+        libMultiLineOptimizedOptions += "\n";
+        }      
+      }
+    }
+  std::string outputName = "(OUTPUT_NAME is for executables only)";
+  std::string extraLinkOptions;
+  // TODO: Fix construction of library/executable name through
+  // cmTarget.  OUTPUT_LIBNAMEDEBUG_POSTFIX should be replaced by the
+  // library's debug configuration name.  OUTPUT_LIBNAME should be
+  // replaced by the non-debug configuration name.  This generator
+  // should just be re-written to not use template files and just
+  // generate the code.  Setting up these substitutions is a pain.
+  if(target.GetType() == cmTarget::EXECUTABLE)
+    {
+    extraLinkOptions = 
+      this->Makefile->GetRequiredDefinition("CMAKE_EXE_LINKER_FLAGS");
+
+    // Use the OUTPUT_NAME property if it was set.  This is supported
+    // only for executables.
+    if(const char* outName = target.GetProperty("OUTPUT_NAME"))
+      {
+      outputName = outName;
       }
     else
       {
-      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Update with command: " << command << std::endl);
+      outputName = target.GetName();
       }
+    outputName += ".exe";
+    }
+  if(target.GetType() == cmTarget::SHARED_LIBRARY)
+    {
+    extraLinkOptions = this->Makefile->GetRequiredDefinition("CMAKE_SHARED_LINKER_FLAGS");
+    }
+  if(target.GetType() == cmTarget::MODULE_LIBRARY)
+    {
+    extraLinkOptions = this->Makefile->GetRequiredDefinition("CMAKE_MODULE_LINKER_FLAGS");
     }
 
-
-  //
-  // Now update repository and remember what files were updated
-  // 
-  cmGeneratedFileStream os; 
-  if ( !m_CTest->OpenOutputFile(m_CTest->GetCurrentTag(), "Update.xml", os, true) )
+  if(extraLinkOptions.size())
     {
-    cmCTestLog(m_CTest, ERROR, "Cannot open log file" << std::endl);
+    libOptions += " ";
+    libOptions += extraLinkOptions;
+    libOptions += " ";
+    libMultiLineOptions += "# ADD LINK32 ";
+    libMultiLineOptions +=  extraLinkOptions;
+    libMultiLineOptions += " \n";
+    libMultiLineOptionsForDebug += "# ADD LINK32 ";
+    libMultiLineOptionsForDebug +=  extraLinkOptions;
+    libMultiLineOptionsForDebug += " \n";
     }
-  std::string start_time = m_CTest->CurrentTime();
-  double elapsed_time_start = cmSystemTools::GetTime();
-
-  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "* Update repository: " << command.c_str() << std::endl);
-  if ( !m_CTest->GetShowOnly() )
+  if(const char* stdLibs =  this->Makefile->GetDefinition("CMAKE_STANDARD_LIBRARIES"))
     {
-    command = "";
-    switch( updateType )
+    libOptions += " ";
+    libOptions += stdLibs;
+    libOptions += " ";
+    libMultiLineOptions += "# ADD LINK32 ";
+    libMultiLineOptions +=  stdLibs;
+    libMultiLineOptions += " \n";
+    libMultiLineOptionsForDebug += "# ADD LINK32 ";
+    libMultiLineOptionsForDebug +=  stdLibs;
+    libMultiLineOptionsForDebug += " \n";
+    }
+  if(const char* targetLinkFlags = target.GetProperty("LINK_FLAGS"))
+    {
+    libOptions += " ";
+    libOptions += targetLinkFlags;
+    libOptions += " ";
+    libMultiLineOptions += "# ADD LINK32 ";
+    libMultiLineOptions +=  targetLinkFlags;
+    libMultiLineOptions += " \n";
+    libMultiLineOptionsForDebug += "# ADD LINK32 ";
+    libMultiLineOptionsForDebug +=  targetLinkFlags;
+    libMultiLineOptionsForDebug += " \n";
+    }
+
+  
+  // are there any custom rules on the target itself
+  // only if the target is a lib or exe
+  std::string customRuleCode = this->CreateTargetRules(target, libName);
+
+  std::ifstream fin(this->DSPHeaderTemplate.c_str());
+  if(!fin)
+    {
+    cmSystemTools::Error("Error Reading ", this->DSPHeaderTemplate.c_str());
+    }
+  std::string staticLibOptions;
+  if(target.GetType() == cmTarget::STATIC_LIBRARY )
+    { 
+    if(const char* libflags = target.GetProperty("STATIC_LIBRARY_FLAGS"))
       {
-    case cmCTestUpdateHandler::e_CVS:
-      command = updateCommand + " -z3 update " + updateOptions +
-        " " + extra_update_opts;
-      res = cmSystemTools::RunSingleCommand(command.c_str(), &goutput, 
-        &retVal, sourceDirectory,
-        m_HandlerVerbose, 0 /*m_TimeOut*/);
-      break;
-    case cmCTestUpdateHandler::e_SVN:
-        {
-        std::string partialOutput;
-        command = updateCommand + " update " + updateOptions +
-          " " + extra_update_opts;
-        bool res1 = cmSystemTools::RunSingleCommand(command.c_str(), &partialOutput, 
-          &retVal, sourceDirectory,
-          m_HandlerVerbose, 0 /*m_TimeOut*/);
-        command = updateCommand + " status";
-        res = cmSystemTools::RunSingleCommand(command.c_str(), &partialOutput, 
-          &retVal, sourceDirectory,
-          m_HandlerVerbose, 0 /*m_TimeOut*/);
-        goutput += partialOutput;
-        res = res && res1;
-        }
+      staticLibOptions = libflags;
       }
-    if ( ofs )
+    }
+  std::string exportSymbol;
+  if (const char* custom_export_name = target.GetProperty("DEFINE_SYMBOL"))
+    {
+    exportSymbol = custom_export_name;
+    }
+  else
+    {
+    std::string in = libName;
+    in += "_EXPORTS";
+    exportSymbol = cmSystemTools::MakeCindentifier(in.c_str());
+    }
+
+
+  std::string line;
+  while(cmSystemTools::GetLineFromStream(fin, line))
+    {
+    const char* mfcFlag = this->Makefile->GetDefinition("CMAKE_MFC_FLAG");
+    if(!mfcFlag)
       {
-      ofs << "--- Update repository ---" << std::endl;
-      ofs << goutput << std::endl;; 
+      mfcFlag = "0";
       }
-    }
-  if ( !res || retVal )
-    {
-    updateProducedError = true;
-    }
-
-  os << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-    << "<Update mode=\"Client\" Generator=\"ctest-"
-    << cmVersion::GetCMakeVersion() << "\">\n"
-    << "\t<Site>" << m_CTest->GetCTestConfiguration("Site") << "</Site>\n"
-    << "\t<BuildName>" << m_CTest->GetCTestConfiguration("BuildName")
-    << "</BuildName>\n"
-    << "\t<BuildStamp>" << m_CTest->GetCurrentTag() << "-"
-    << m_CTest->GetTestModelString() << "</BuildStamp>" << std::endl;
-  os << "\t<StartDateTime>" << start_time << "</StartDateTime>\n"
-    << "\t<UpdateCommand>" << m_CTest->MakeXMLSafe(command)
-    << "</UpdateCommand>\n";
-
-  // Even though it failed, we may have some useful information. Try to continue...
-  std::vector<cmStdString> lines;
-  cmSystemTools::Split(goutput.c_str(), lines);
-
-  // CVS style regular expressions
-  cmsys::RegularExpression cvs_date_author_regex("^date: +([^;]+); +author: +([^;]+); +state: +[^;]+;");
-  cmsys::RegularExpression cvs_revision_regex("^revision +([^ ]*) *$");
-  cmsys::RegularExpression cvs_end_of_file_regex("^=============================================================================$");
-  cmsys::RegularExpression cvs_end_of_comment_regex("^----------------------------$");
-
-  // Subversion style regular expressions
-  cmsys::RegularExpression svn_status_line_regex("^ *([0-9]+)  *([0-9]+)  *([^ ]+)  *([^ ][^\t\r\n]*)[ \t\r\n]*$");
-  cmsys::RegularExpression svn_latest_revision_regex("(Updated to|At) revision ([0-9]+)\\.");
-
-  cmsys::RegularExpression file_update_line("([A-Z])  *(.*)");
-  std::string current_path = "<no-path>";
-  bool first_file = true;
-
-  cmCTestUpdateHandler::AuthorsToUpdatesMap authors_files_map;
-  int num_updated = 0;
-  int num_modified = 0;
-  int num_conflicting = 0;
-  // In subversion, get the latest revision
-  if ( updateType == cmCTestUpdateHandler::e_SVN )
-    {
-    for ( cc= 0 ; cc < lines.size(); cc ++ )
+    cmSystemTools::ReplaceString(line, "OUTPUT_LIBNAME_EXPORTS",
+                                 exportSymbol.c_str());
+    cmSystemTools::ReplaceString(line, "CMAKE_CUSTOM_RULE_CODE",
+                                 customRuleCode.c_str());
+    cmSystemTools::ReplaceString(line, "CMAKE_MFC_FLAG",
+                                 mfcFlag);
+    if(target.GetType() == cmTarget::STATIC_LIBRARY )
       {
-      const char* line = lines[cc].c_str();
-      if ( svn_latest_revision_regex.find(line) )
-        {
-        svn_latest_revision = atoi(svn_latest_revision_regex.match(2).c_str());
-        }
-      }
-    }
-  if ( updateType == cmCTestUpdateHandler::e_SVN )
-    {
-    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Current revision of repository is: " << svn_latest_revision << std::endl);
-    }
-
-  cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Gathering version information (each . represents one updated file):" << std::endl);
-  int file_count = 0;
-  for ( cc= 0 ; cc < lines.size(); cc ++ )
-    {
-    const char* line = lines[cc].c_str();
-    if ( file_update_line.find(line) )
+      cmSystemTools::ReplaceString(line, "CM_STATIC_LIB_ARGS",
+                                   staticLibOptions.c_str());
+      } 
+    if(this->Makefile->IsOn("CMAKE_VERBOSE_MAKEFILE"))
       {
-      if ( file_count == 0 )
-        {
-        cmCTestLog(m_CTest, HANDLER_OUTPUT, "    " << std::flush);
-        }
-      cmCTestLog(m_CTest, HANDLER_OUTPUT, "." << std::flush);
-      std::string upChar = file_update_line.match(1);
-      std::string upFile = file_update_line.match(2);
-      char mod = upChar[0];
-      bool modifiedOrConflict = false;
-      if ( mod != 'M' && mod != 'C' && mod != 'G' )
-        {
-        count ++;
-        modifiedOrConflict = true;
-        }
-      const char* file = upFile.c_str();
-      cmCTestLog(m_CTest, DEBUG, "Line" << cc << ": " << mod << " - " << file << std::endl);
-
-      std::string output;
-      if ( modifiedOrConflict )
-        {
-        std::string logcommand;
-        switch ( updateType )
-          {
-        case cmCTestUpdateHandler::e_CVS:
-          logcommand = updateCommand + " -z3 log -N \"" + file + "\"";
-          break;
-        case cmCTestUpdateHandler::e_SVN:
-          if ( svn_latest_revision > 0 && svn_latest_revision > svn_current_revision )
-            {
-            cmOStringStream logCommandStream;
-            logCommandStream << updateCommand << " log -r " << svn_current_revision << ":" << svn_latest_revision
-              << " --xml \"" << file << "\"";
-            logcommand = logCommandStream.str();
-            }
-          else
-            {
-            logcommand = updateCommand + " status  --verbose \"" + file + "\"";
-            svn_use_status = 1;
-            }
-          break;
-          }
-        cmCTestLog(m_CTest, DEBUG, "Do log: " << logcommand << std::endl);
-        cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "* Get file update information: " << logcommand.c_str() << std::endl);
-        res = cmSystemTools::RunSingleCommand(logcommand.c_str(), &output, 
-          &retVal, sourceDirectory,
-          m_HandlerVerbose, 0 /*m_TimeOut*/);
-        if ( ofs )
-          {
-          ofs << output << std::endl;
-          }
-        }
-      if ( res && retVal == 0)
-        {
-        cmCTestLog(m_CTest, DEBUG, output << std::endl);
-        std::string::size_type sline = 0;
-        std::string srevision1 = "Unknown";
-        std::string sdate1     = "Unknown";
-        std::string sauthor1   = "Unknown";
-        std::string semail1    = "Unknown";
-        std::string comment1   = "";
-        std::string srevision2 = "Unknown";
-        std::string sdate2     = "Unknown";
-        std::string sauthor2   = "Unknown";
-        std::string comment2   = "";
-        std::string semail2    = "Unknown";
-        if ( updateType == cmCTestUpdateHandler::e_CVS )
-          {
-          bool have_first = false;
-          bool have_second = false;
-          std::vector<cmStdString> ulines;
-          cmSystemTools::Split(output.c_str(), ulines);
-          for ( kk = 0; kk < ulines.size(); kk ++ )
-            {
-            const char* clp = ulines[kk].c_str();
-            if ( !have_second && !sline && cvs_revision_regex.find(clp) )
-              {
-              if ( !have_first )
-                {
-                srevision1 = cvs_revision_regex.match(1);
-                }
-              else
-                {
-                srevision2 = cvs_revision_regex.match(1);
-                }
-              }
-            else if ( !have_second && !sline && cvs_date_author_regex.find(clp) )
-              {
-              sline = kk + 1;
-              if ( !have_first )
-                {
-                sdate1 = cvs_date_author_regex.match(1);
-                sauthor1 = cvs_date_author_regex.match(2);
-                }
-              else
-                {
-                sdate2 = cvs_date_author_regex.match(1);
-                sauthor2 = cvs_date_author_regex.match(2);
-                }
-              }
-            else if ( sline && cvs_end_of_comment_regex.find(clp) || cvs_end_of_file_regex.find(clp))
-              {
-              if ( !have_first )
-                {
-                have_first = true;
-                }
-              else if ( !have_second )
-                {
-                have_second = true;
-                }
-              sline = 0;
-              }
-            else if ( sline )
-              {
-              if ( !have_first )
-                {
-                comment1 += clp;
-                comment1 += "\n";
-                }
-              else
-                {
-                comment2 += clp;
-                comment2 += "\n";
-                }
-              }
-            }
-          }
-        else if ( updateType == cmCTestUpdateHandler::e_SVN )
-          {
-          if ( svn_use_status )
-            {
-            cmOStringStream str;
-            str << svn_current_revision;
-            srevision1 = str.str();
-            if (!svn_status_line_regex.find(output))
-              {
-              cmCTestLog(m_CTest, ERROR, "Bad output from SVN status command: " << output << std::endl);
-              }
-            else if ( svn_status_line_regex.match(4) != file )
-              {
-              cmCTestLog(m_CTest, ERROR, "Bad output from SVN status command. The file name returned: \"" << svn_status_line_regex.match(4) << "\" was different than the file specified: \"" << file << "\"" << std::endl);
-              }
-            else
-              {
-              srevision1 = svn_status_line_regex.match(2);
-              int latest_revision = atoi(svn_status_line_regex.match(2).c_str());
-              if ( svn_current_revision < latest_revision )
-                {
-                srevision2 = str.str();
-                }
-              sauthor1 = svn_status_line_regex.match(3);
-              }
-            }
-          else
-            {
-            cmCTestUpdateHandlerSVNXMLParser parser(this);
-            if ( parser.Parse(output.c_str()) )
-              {
-              int minrev = parser.GetMinRevision();
-              int maxrev = parser.GetMaxRevision();
-              cmCTestUpdateHandlerSVNXMLParser::t_VectorOfCommits::iterator it;
-              for ( it = parser.GetCommits()->begin(); 
-                it != parser.GetCommits()->end(); 
-                ++ it )
-                {
-                if ( it->m_Revision == maxrev )
-                  {
-                  cmOStringStream mRevStream;
-                  mRevStream << maxrev;
-                  srevision1 = mRevStream.str();
-                  sauthor1 = it->m_Author;
-                  comment1 = it->m_Message;
-                  sdate1 = it->m_Date;
-                  }
-                else if ( it->m_Revision == minrev )
-                  {
-                  cmOStringStream mRevStream;
-                  mRevStream << minrev;
-                  srevision2 = mRevStream.str();
-                  sauthor2 = it->m_Author;
-                  comment2 = it->m_Message;       
-                  sdate2 = it->m_Date;
-                  }
-                }
-              }
-            }
-          }
-        if ( mod == 'M' )
-          {
-          comment1 = "Locally modified file\n";
-          sauthor1 = "Local User";
-          }
-        if ( mod == 'C' )
-          {
-          comment1 = "Conflict while updating\n";
-          sauthor1 = "Local User";
-          }
-        std::string path = cmSystemTools::GetFilenamePath(file);
-        std::string fname = cmSystemTools::GetFilenameName(file);
-        if ( path != current_path )
-          {
-          if ( !first_file )
-            {
-            os << "\t</Directory>" << std::endl;
-            }
-          else
-            {
-            first_file = false;
-            }
-          os << "\t<Directory>\n"
-            << "\t\t<Name>" << path << "</Name>" << std::endl;
-          }
-        if ( mod == 'C' )
-          {
-          num_conflicting ++;
-          os << "\t<Conflicting>" << std::endl;
-          }
-        else if ( mod == 'G' )
-          {
-          num_conflicting ++;
-          os << "\t<Conflicting>" << std::endl;
-          }
-        else if ( mod == 'M' )
-          {
-          num_modified ++;
-          os << "\t<Modified>" << std::endl;
-          }
-        else
-          {
-          num_updated ++;
-          os << "\t<Updated>" << std::endl;
-          }
-        if ( srevision2 == "Unknown" )
-          {
-          srevision2 = srevision1;
-          }
-        cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "File: " << path.c_str() << " / " << fname.c_str() << " was updated by "
-          << sauthor1.c_str() << " to revision: " << srevision1.c_str()
-          << " from revision: " << srevision2.c_str() << std::endl);
-        os << "\t\t<File Directory=\"" << cmCTest::MakeXMLSafe(path) << "\">" << cmCTest::MakeXMLSafe(fname)
-          << "</File>\n"
-          << "\t\t<Directory>" << cmCTest::MakeXMLSafe(path) << "</Directory>\n"
-          << "\t\t<FullName>" << cmCTest::MakeXMLSafe(file) << "</FullName>\n"
-          << "\t\t<CheckinDate>" << cmCTest::MakeXMLSafe(sdate1) << "</CheckinDate>\n"
-          << "\t\t<Author>" << cmCTest::MakeXMLSafe(sauthor1) << "</Author>\n"
-          << "\t\t<Email>" << cmCTest::MakeXMLSafe(semail1) << "</Email>\n"
-          << "\t\t<Log>" << cmCTest::MakeXMLSafe(comment1) << "</Log>\n"
-          << "\t\t<Revision>" << srevision1 << "</Revision>\n"
-          << "\t\t<PriorRevision>" << srevision2 << "</PriorRevision>"
-          << std::endl;
-        if ( srevision2 != srevision1 )
-          {
-          os
-            << "\t\t<Revisions>\n"
-            << "\t\t\t<Revision>" << srevision1 << "</Revision>\n"
-            << "\t\t\t<PreviousRevision>" << srevision2 << "</PreviousRevision>\n"
-            << "\t\t\t<Author>" << cmCTest::MakeXMLSafe(sauthor1) << "</Author>\n"
-            << "\t\t\t<Date>" << cmCTest::MakeXMLSafe(sdate1) << "</Date>\n"
-            << "\t\t\t<Comment>" << cmCTest::MakeXMLSafe(comment1) << "</Comment>\n"
-            << "\t\t\t<Email>" << cmCTest::MakeXMLSafe(semail1) << "</Email>\n"
-            << "\t\t</Revisions>\n"
-            << "\t\t<Revisions>\n"
-            << "\t\t\t<Revision>" << srevision2 << "</Revision>\n"
-            << "\t\t\t<PreviousRevision>" << srevision2 << "</PreviousRevision>\n"
-            << "\t\t\t<Author>" << cmCTest::MakeXMLSafe(sauthor2) << "</Author>\n"
-            << "\t\t\t<Date>" << cmCTest::MakeXMLSafe(sdate2) << "</Date>\n"
-            << "\t\t\t<Comment>" << cmCTest::MakeXMLSafe(comment2) << "</Comment>\n"
-            << "\t\t\t<Email>" << cmCTest::MakeXMLSafe(semail2) << "</Email>\n"
-            << "\t\t</Revisions>" << std::endl;
-          }
-        if ( mod == 'C' )
-          {
-          os << "\t</Conflicting>" << std::endl;
-          }
-        else if ( mod == 'G' )
-          {
-          os << "\t</Conflicting>" << std::endl;
-          }
-        else if ( mod == 'M' )
-          {
-          os << "\t</Modified>" << std::endl;
-          }
-        else
-          {
-          os << "\t</Updated>" << std::endl;
-          }
-        cmCTestUpdateHandler::UpdateFiles *u = &authors_files_map[sauthor1];
-        cmCTestUpdateHandler::StringPair p;
-        p.first = path;
-        p.second = fname;
-        u->push_back(p);
-
-        current_path = path;
-        }
-      file_count ++;
+      cmSystemTools::ReplaceString(line, "/nologo", "");
       }
-    }
-  if ( file_count )
-    {
-    cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl);
-    }
-  if ( num_updated )
-    {
-    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Found " << num_updated << " updated files" << std::endl);
-    }
-  if ( num_modified )
-    {
-    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Found " << num_modified << " locally modified files" 
-      << std::endl);
-    }
-  if ( num_conflicting )
-    {
-    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Found " << num_conflicting << " conflicting files" 
-      << std::endl);
-    }
-  if ( num_modified == 0 && num_conflicting == 0 && num_updated == 0 )
-    {
-    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Project is up-to-date" << std::endl);
-    }
-  if ( !first_file )
-    {
-    os << "\t</Directory>" << std::endl;
-    }
+    
+    cmSystemTools::ReplaceString(line, "CM_LIBRARIES",
+                                 libOptions.c_str());
+    cmSystemTools::ReplaceString(line, "CM_DEBUG_LIBRARIES",
+                                 libDebugOptions.c_str());
+    cmSystemTools::ReplaceString(line, "CM_OPTIMIZED_LIBRARIES",
+                                 libOptimizedOptions.c_str());
+    cmSystemTools::ReplaceString(line, "CM_MULTILINE_LIBRARIES_FOR_DEBUG",
+                                 libMultiLineOptionsForDebug.c_str());
+    cmSystemTools::ReplaceString(line, "CM_MULTILINE_LIBRARIES",
+                                 libMultiLineOptions.c_str());
+    cmSystemTools::ReplaceString(line, "CM_MULTILINE_DEBUG_LIBRARIES",
+                                 libMultiLineDebugOptions.c_str());
+    cmSystemTools::ReplaceString(line, "CM_MULTILINE_OPTIMIZED_LIBRARIES",
+                                 libMultiLineOptimizedOptions.c_str());
 
-  cmCTestUpdateHandler::AuthorsToUpdatesMap::iterator it;
-  for ( it = authors_files_map.begin();
-    it != authors_files_map.end();
-    it ++ )
-    {
-    os << "\t<Author>\n"
-      << "\t\t<Name>" << it->first << "</Name>" << std::endl;
-    cmCTestUpdateHandler::UpdateFiles *u = &(it->second);
-    for ( cc = 0; cc < u->size(); cc ++ )
+    // Replace the template file text OUTPUT_NAME with the real output
+    // name that will be used.  Only the executable template should
+    // have this text.
+    cmSystemTools::ReplaceString(line, "OUTPUT_NAME", outputName.c_str());
+
+    cmSystemTools::ReplaceString(line, "BUILD_INCLUDES",
+                                 this->IncludeOptions.c_str());
+    cmSystemTools::ReplaceString(line, "OUTPUT_LIBNAME",libName);
+    // because LIBRARY_OUTPUT_PATH and EXECUTABLE_OUTPUT_PATH 
+    // are already quoted in the template file,
+    // we need to remove the quotes here, we still need
+    // to convert to output path for unix to win32 conversion 
+    cmSystemTools::ReplaceString(line, "LIBRARY_OUTPUT_PATH",
+                                 removeQuotes(
+                                   this->ConvertToOptionallyRelativeOutputPath(libPath.c_str())).c_str());
+    cmSystemTools::ReplaceString(line, "EXECUTABLE_OUTPUT_PATH",
+                                 removeQuotes(
+                                   this->ConvertToOptionallyRelativeOutputPath(exePath.c_str())).c_str());
+
+
+    cmSystemTools::ReplaceString(line, 
+                                 "EXTRA_DEFINES", 
+                                 this->Makefile->GetDefineFlags());
+    const char* debugPostfix
+      = this->Makefile->GetDefinition("CMAKE_DEBUG_POSTFIX");
+    cmSystemTools::ReplaceString(line, "DEBUG_POSTFIX", 
+                                 debugPostfix?debugPostfix:"");
+    // store flags for each configuration
+    std::string flags = " ";
+    std::string flagsRelease = " ";
+    std::string flagsMinSize = " ";
+    std::string flagsDebug = " ";
+    std::string flagsDebugRel = " ";
+    if(target.GetType() >= cmTarget::EXECUTABLE && 
+       target.GetType() <= cmTarget::MODULE_LIBRARY)
       {
-      os << "\t\t<File Directory=\"" << (*u)[cc].first << "\">"
-        << (*u)[cc].second << "</File>" << std::endl;
+      const char* linkLanguage = target.GetLinkerLanguage(this->GetGlobalGenerator());
+      if(!linkLanguage)
+        {
+        cmSystemTools::Error("CMake can not determine linker language for target:",
+                             target.GetName());
+        return;
+        }
+      // if CXX is on and the target contains cxx code then add the cxx flags
+      std::string baseFlagVar = "CMAKE_";
+      baseFlagVar += linkLanguage;
+      baseFlagVar += "_FLAGS";
+      flags = this->Makefile->GetRequiredDefinition(baseFlagVar.c_str());
+      
+      std::string flagVar = baseFlagVar + "_RELEASE";
+      flagsRelease = this->Makefile->GetRequiredDefinition(flagVar.c_str());
+      flagsRelease += " -DCMAKE_INTDIR=\\\"Release\\\" ";
+      
+      flagVar = baseFlagVar + "_MINSIZEREL";
+      flagsMinSize = this->Makefile->GetRequiredDefinition(flagVar.c_str());
+      flagsMinSize += " -DCMAKE_INTDIR=\\\"MinSizeRel\\\" ";
+      
+      flagVar = baseFlagVar + "_DEBUG";
+      flagsDebug = this->Makefile->GetRequiredDefinition(flagVar.c_str());
+      flagsDebug += " -DCMAKE_INTDIR=\\\"Debug\\\" ";
+      
+      flagVar = baseFlagVar + "_RELWITHDEBINFO";
+      flagsDebugRel = this->Makefile->GetRequiredDefinition(flagVar.c_str());
+      flagsDebugRel += " -DCMAKE_INTDIR=\\\"RelWithDebInfo\\\" ";
       }
-    os << "\t</Author>" << std::endl;
-    }
+    
+    // if unicode is not found, then add -D_MBCS
+    std::string defs = this->Makefile->GetDefineFlags();
+    if(flags.find("D_UNICODE") == flags.npos &&
+       defs.find("D_UNICODE") == flags.npos) 
+      {
+      flags += " /D \"_MBCS\"";
+      }
 
-  cmCTestLog(m_CTest, DEBUG, "End" << std::endl);
-  std::string end_time = m_CTest->CurrentTime();
-  os << "\t<EndDateTime>" << end_time << "</EndDateTime>\n"
-    << "<ElapsedMinutes>" << 
-    static_cast<int>((cmSystemTools::GetTime() - elapsed_time_start)/6)/10.0 
-    << "</ElapsedMinutes>\n"
-    << "\t<UpdateReturnStatus>";
-  if ( num_modified > 0 || num_conflicting > 0 )
-    {
-    os << "Update error: There are modified or conflicting files in the repository";
-    cmCTestLog(m_CTest, ERROR, "   There are modified or conflicting files in the repository" << std::endl);
-    }
-  if ( updateProducedError )
-    {
-    os << "Update error: ";
-    os << m_CTest->MakeXMLSafe(goutput);
-    cmCTestLog(m_CTest, ERROR, "   Update with command: " << command << " failed" << std::endl);
-    }
-  os << "</UpdateReturnStatus>" << std::endl;
-  os << "</Update>" << std::endl;
+    // Add per-target flags.
+    if(const char* targetFlags = target.GetProperty("COMPILE_FLAGS"))
+      {
+      flags += " ";
+      flags += targetFlags;
+      }
 
-  if ( ofs )
-    {
-    ofs.close();
+    // The template files have CXX FLAGS in them, that need to be replaced.
+    // There are not separate CXX and C template files, so we use the same
+    // variable names.   The previous code sets up flags* variables to contain
+    // the correct C or CXX flags
+    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_MINSIZEREL", flagsMinSize.c_str());
+    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_DEBUG", flagsDebug.c_str());
+    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_RELWITHDEBINFO", flagsDebugRel.c_str());
+    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_RELEASE", flagsRelease.c_str());
+    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS", flags.c_str());
+    fout << line.c_str() << std::endl;
     }
+}
 
-  if (! res || retVal )
+void cmLocalVisualStudio6Generator::WriteDSPFooter(std::ostream& fout)
+{  
+  std::ifstream fin(this->DSPFooterTemplate.c_str());
+  if(!fin)
     {
-    cmCTestLog(m_CTest, ERROR, "Error(s) when updating the project" << std::endl);
-    cmCTestLog(m_CTest, ERROR, "Output: " << goutput << std::endl);
-    return -1;
+    cmSystemTools::Error("Error Reading ",
+                         this->DSPFooterTemplate.c_str());
     }
-  return count;
+  std::string line;
+  while(cmSystemTools::GetLineFromStream(fin, line))
+    {
+    fout << line << std::endl;
+    }
 }

@@ -1,14 +1,9 @@
-                        const cmCustomCommand& origCommand)
-{
-  // Create a fake output that forces the rule to run.
-  char* output = new char[(strlen(this->Makefile->GetStartOutputDirectory()) +
-                           strlen(target.GetName()) + 30)];
-  sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
-          target.GetName(), count);
-
-  // Add the rule with the given dependencies and commands.
-  const char* no_main_dependency = 0;
-  this->Makefile->AddCustomCommandToOutput(output,
-                                       depends,
-                                       no_main_dependency,
-                                       origCommand.GetCommandLines(),
+  const char *terse;
+  const char *full;
+  char tmp[1024];
+  sprintf(tmp,"Version %d.%d (%s)", cmVersion::GetMajorVersion(),
+          cmVersion::GetMinorVersion(),
+          cmVersion::GetReleaseVersion().c_str());
+  f << "<html>\n";
+  f << "<h1>Documentation for commands of CMake " << tmp << "</h1>\n";
+  f << "<ul>\n";

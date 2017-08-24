@@ -1,13 +1,7 @@
- * @param line_number
- * @param yyscanner The scanner object.
- */
-void yyset_column (int  column_no , yyscan_t yyscanner)
-{
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+  buf[sizeof(buf)-1] = 0;
 
-        /* column is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           yy_fatal_error( "yyset_column called with no buffer" , yyscanner); 
-    
-    yycolumn = column_no;
-}
+  if (mkdirhier(dirname(buf)) == -1)
+    return -1;
+
+#ifdef DEBUG
+  printf("  ==> extracting: %s (character device %ld,%ld)\n",

@@ -1,16 +1,7 @@
-//----------------------------------------------------------------------
-void cmCTestCoverageHandler::Initialize()
-{
-}
-
-//----------------------------------------------------------------------
-bool cmCTestCoverageHandler::StartLogFile(cmGeneratedFileStream& covLogFile, int logFileCount)
-{
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Open file: " << covLogFilename << std::endl);
-  if (!m_CTest->OpenOutputFile(m_CTest->GetCurrentTag(), 
-      covLogFilename, covLogFile, true))
-    {
-    cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot open log file: " << covLogFilename << std::endl);
-    return false;
+      {
+      percent = 99;
+      }
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl
+      << static_cast<int>(percent + .5) << "% tests passed, "
+      << failed.size() << " tests failed out of " << total << std::endl);
+    //fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",

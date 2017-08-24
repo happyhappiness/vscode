@@ -1,64 +1,43 @@
-@@ -106,6 +106,11 @@ tar_set_file_perms(TAR *t, char *realname)
-     return -1;
-   }
- 
-+#else /* WIN32 */
-+  (void)filename;
-+  (void)gid;
-+  (void)uid;
-+  (void)mode;
- #endif /* WIN32 */
- 
-   return 0;
-@@ -273,6 +278,11 @@ tar_extract_regfile(TAR *t, char *realname)
-   printf("### done extracting %s\n", filename);
+@@ -29,9 +29,10 @@
+ # include "cmVariableWatch.h"
+ # include "cmVersion.h"
+ # include <cmsys/Terminal.h>
+-# include <cmsys/Directory.hxx>
  #endif
  
-+  (void)filename;
-+  (void)gid;
-+  (void)uid;
-+  (void)mode;
++# include <cmsys/Directory.hxx>
 +
-   return 0;
- }
+ // only build kdevelop generator on non-windows platforms
+ // when not bootstrapping cmake
+ #if !defined(_WIN32)
+@@ -977,7 +978,6 @@ int cmake::ExecuteCMakeCommand(std::vector<std::string>& args)
+     // Command to start progress for a build
+     else if (args[1] == "cmake_progress_start" && args.size() == 4)
+       {
+-#if defined(CMAKE_BUILD_WITH_CMAKE)
+       // bascially remove the directory
+       std::string dirName = args[2];
+       dirName += "/Progress";
+@@ -993,14 +993,12 @@ int cmake::ExecuteCMakeCommand(std::vector<std::string>& args)
+         fprintf(progFile,"%i\n",count);
+         fclose(progFile);
+         }
+-#endif
+       return 0;
+       }
  
-@@ -340,6 +350,8 @@ tar_extract_hardlink(TAR * t, char *realname)
- #endif
- #ifndef WIN32
-   if (link(linktgt, filename) == -1)
-+#else
-+  (void)linktgt;
- #endif
-   {
- #ifdef DEBUG
-@@ -421,6 +433,10 @@ tar_extract_chardev(TAR *t, char *realname)
- #ifndef WIN32
-   if (mknod(filename, mode | S_IFCHR,
-       compat_makedev(devmaj, devmin)) == -1)
-+#else
-+  (void)devmin;
-+  (void)devmaj;
-+  (void)mode;
- #endif
-   {
- #ifdef DEBUG
-@@ -462,6 +478,10 @@ tar_extract_blockdev(TAR *t, char *realname)
- #ifndef WIN32
-   if (mknod(filename, mode | S_IFBLK,
-       compat_makedev(devmaj, devmin)) == -1)
-+#else
-+  (void)devmin;
-+  (void)devmaj;
-+  (void)mode;
- #endif
-   {
- #ifdef DEBUG
-@@ -557,6 +577,8 @@ tar_extract_fifo(TAR *t, char *realname)
- #endif
- #ifndef WIN32
-   if (mkfifo(filename, mode) == -1)
-+#else
-+    (void)mode;
- #endif
-   {
- #ifdef DEBUG
+     // Command to report progress for a build
+     else if (args[1] == "cmake_progress_report" && args.size() >= 4)
+       {
+-#if defined(CMAKE_BUILD_WITH_CMAKE)
+       std::string dirName = args[2];
+       dirName += "/Progress";
+       std::string fName;
+@@ -1036,7 +1034,6 @@ int cmake::ExecuteCMakeCommand(std::vector<std::string>& args)
+           }
+         fclose(progFile);
+         }
+-#endif
+       return 0;
+       }
+     

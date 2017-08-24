@@ -1,1415 +1,1490 @@
-/*=========================================================================
+// pcbuilderdialogDlg.cpp : implementation file
+//
 
-  Program:   CMake - Cross-Platform Makefile Generator
-  Module:    $RCSfile$
-  Language:  C++
-  Date:      $Date$
-  Version:   $Revision$
-
-  Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
-  See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
-
-     This software is distributed WITHOUT ANY WARRANTY; without even 
-     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
-     PURPOSE.  See the above copyright notices for more information.
-
-=========================================================================*/
-#include "cmSystemTools.h"   
-#include <ctype.h>
-#include <errno.h>
-#include <time.h>
-
-#include <cmsys/RegularExpression.hxx>
-#include <cmsys/Directory.hxx>
-#include <cmsys/Process.h>
-
-// support for realpath call
-#ifndef _WIN32
-#include <limits.h>
-#include <stdlib.h>
-#include <sys/param.h>
-#include <sys/wait.h>
+#include "stdafx.h"
+#include "shellapi.h"
+// a fun undef for DOT NET
+#undef DEBUG
+#include "CMakeSetup.h"
+#include "MakeHelp.h"
+#include "PathDialog.h"
+#include "CMakeSetupDialog.h"
+#include "CMakeCommandLineInfo.h"
+#include "../cmListFileCache.h"
+#include "../cmCacheManager.h"
+#include "../cmake.h"
+#include "../cmGlobalGenerator.h"
+#include "../cmDynamicLoader.h"
+#ifdef _DEBUG
+#define new DEBUG_NEW
+#undef THIS_FILE
+static char THIS_FILE[] = __FILE__;
 #endif
 
-#if defined(_WIN32) && (defined(_MSC_VER) || defined(__BORLANDC__))
-#include <string.h>
-#include <windows.h>
-#include <direct.h>
-#include <io.h>
-#define _unlink unlink
-#else
-#include <sys/types.h>
-#include <fcntl.h>
-#include <unistd.h>
-#endif
 
-#include <sys/stat.h>
+/////////////////////////////////////////////////////////////////////////////
+// CAboutDlg dialog used for App About
 
-#if defined(__sgi) && !defined(__GNUC__)
-# pragma set woff 1375 /* base class destructor not virtual */
-#endif
-
-bool cmSystemTools::s_RunCommandHideConsole = false;
-bool cmSystemTools::s_DisableRunCommandOutput = false;
-bool cmSystemTools::s_ErrorOccured = false;
-bool cmSystemTools::s_FatalErrorOccured = false;
-bool cmSystemTools::s_DisableMessages = false;
-bool cmSystemTools::s_ForceUnixPaths = false;
-
-std::string cmSystemTools::s_Windows9xComspecSubstitute = "command.com";
-void cmSystemTools::SetWindows9xComspecSubstitute(const char* str)
+class CAboutDlg : public CDialog
 {
-  if ( str )
+public:
+  CAboutDlg();
+
+  // Dialog Data
+  //{{AFX_DATA(CAboutDlg)
+  enum { IDD = IDD_ABOUTBOX };
+  //}}AFX_DATA
+
+  // ClassWizard generated virtual function overrides
+  //{{AFX_VIRTUAL(CAboutDlg)
+protected:
+  virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
+  //}}AFX_VIRTUAL
+
+// Implementation
+protected:
+  //{{AFX_MSG(CAboutDlg)
+  //}}AFX_MSG
+  DECLARE_MESSAGE_MAP()
+    };
+
+CAboutDlg::CAboutDlg() : CDialog(CAboutDlg::IDD)
+{
+  //{{AFX_DATA_INIT(CAboutDlg)
+  //}}AFX_DATA_INIT
+}
+
+void CAboutDlg::DoDataExchange(CDataExchange* pDX)
+{
+  CDialog::DoDataExchange(pDX);
+  //{{AFX_DATA_MAP(CAboutDlg)
+  //}}AFX_DATA_MAP
+}
+
+BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)
+  //{{AFX_MSG_MAP(CAboutDlg)
+  // No message handlers
+  //}}AFX_MSG_MAP
+  END_MESSAGE_MAP();
+
+
+void MFCMessageCallback(const char* m, const char* title, bool& nomore, void*)
+{ 
+  std::string message = m;
+  message += "\n\n(Press  Cancel to suppress any further messages.)";
+  if(::MessageBox(0, message.c_str(), title, 
+                  MB_OKCANCEL|MB_TASKMODAL) == IDCANCEL)
     {
-    cmSystemTools::s_Windows9xComspecSubstitute = str;
+    nomore = true;
     }
 }
-const char* cmSystemTools::GetWindows9xComspecSubstitute()
-{
-  return cmSystemTools::s_Windows9xComspecSubstitute.c_str();
-}
 
-void (*cmSystemTools::s_ErrorCallback)(const char*, const char*, bool&, void*);
-void (*cmSystemTools::s_StdoutCallback)(const char*, int len, void*);
-void* cmSystemTools::s_ErrorCallbackClientData = 0;
-void* cmSystemTools::s_StdoutCallbackClientData = 0;
-
-// replace replace with with as many times as it shows up in source.
-// write the result into source.
-#if defined(_WIN32) && !defined(__CYGWIN__)
-void cmSystemTools::ExpandRegistryValues(std::string& source)
+/////////////////////////////////////////////////////////////////////////////
+// CMakeSetupDialog dialog
+void updateProgress(const char *msg, float prog, void *cd)
 {
-  // Regular expression to match anything inside [...] that begins in HKEY.
-  // Note that there is a special rule for regular expressions to match a
-  // close square-bracket inside a list delimited by square brackets.
-  // The "[^]]" part of this expression will match any character except
-  // a close square-bracket.  The ']' character must be the first in the
-  // list of characters inside the [^...] block of the expression.
-  cmsys::RegularExpression regEntry("\\[(HKEY[^]]*)\\]");
-  
-  // check for black line or comment
-  while (regEntry.find(source))
+  char tmp[1024];
+  if (prog >= 0)
     {
-    // the arguments are the second match
-    std::string key = regEntry.match(1);
-    std::string val;
-    if (ReadRegistryValue(key.c_str(), val))
+    sprintf(tmp,"%s %i%%",msg,(int)(100*prog));
+    }
+  else
+    {
+    sprintf(tmp,"%s",msg);    
+    }
+  CMakeSetupDialog *self = (CMakeSetupDialog *)cd;
+  self->SetDlgItemText(IDC_PROGRESS, tmp); 
+  CWnd* cancel = self->GetDlgItem(IDCANCEL);
+  //
+  // Retrieve and dispatch any waiting messages.
+  //
+  MSG wmsg;
+  while (::PeekMessage (&wmsg, NULL, 0, 0, PM_REMOVE))
+    {
+    switch(wmsg.message)
       {
-      std::string reg = "[";
-      reg += key + "]";
-      cmSystemTools::ReplaceString(source, reg.c_str(), val.c_str());
-      }
-    else
+      case WM_LBUTTONDOWN:
+      case WM_LBUTTONUP:
+      case WM_LBUTTONDBLCLK:
       {
-      std::string reg = "[";
-      reg += key + "]";
-      cmSystemTools::ReplaceString(source, reg.c_str(), "/registry");
+      if(wmsg.hwnd == cancel->m_hWnd)
+        {
+        ::DispatchMessage(&wmsg);
+        }
+      }
+      break;
+      case WM_COMMAND:
+      case WM_SETCURSOR:
+      case WM_PAINT:
+        ::DispatchMessage(&wmsg);
+      break;
       }
     }
-}
-#else
-void cmSystemTools::ExpandRegistryValues(std::string&)
-{
-}
-#endif
-
-std::string cmSystemTools::EscapeQuotes(const char* str)
-{
-  std::string result = "";
-  for(const char* ch = str; *ch != '\0'; ++ch)
-    {
-    if(*ch == '"')
-      {
-      result += '\\';
-      }
-    result += *ch;
-    }
-  return result;
 }
 
-std::string cmSystemTools::EscapeSpaces(const char* str)
+// Convert to Win32 path (slashes). This calls the system tools one and then
+// removes the spaces. It is not in system tools because we don't want any
+// generators accidentally use it
+std::string ConvertToWindowsPath(const char* path)
 {
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  bool useDoubleQ = true;
-#else
-  bool useDoubleQ = false;
-#endif
-  if(cmSystemTools::s_ForceUnixPaths)
+  // Convert to output path.
+  // Remove the "" around it (if any) since it's an output path for
+  // the shell. If another shell-oriented feature is not designed 
+  // for a GUI use, then we are in trouble.
+  // save the value of the force to unix path option
+  bool saveForce = cmSystemTools::GetForceUnixPaths();
+  // make sure we get windows paths no matter what for the GUI
+  cmSystemTools::SetForceUnixPaths(false);
+  std::string s = cmSystemTools::ConvertToOutputPath(path);
+  // now restore the force unix path to its previous value
+  cmSystemTools::SetForceUnixPaths(saveForce);
+  if (s.size())
     {
-    useDoubleQ = false;
+    std::string::iterator i = s.begin();
+    if (*i == '\"')
+      {
+      s.erase(i, i + 1);
+      }
+    i = s.begin() + s.length() - 1;
+    if (*i == '\"')
+      {
+      s.erase(i, i + 1);
+      }
     }
-  
-  if(useDoubleQ)
+  return s;
+}
+
+CMakeSetupDialog::CMakeSetupDialog(const CMakeCommandLineInfo& cmdInfo,
+                                   CWnd* pParent /*=NULL*/)
+  : CDialog(CMakeSetupDialog::IDD, pParent)
+{ 
+  m_GeneratorPicked = false;
+  m_Cursor = LoadCursor(NULL, IDC_ARROW);
+  m_RunningConfigure = false;
+  cmSystemTools::SetRunCommandHideConsole(true);
+  cmSystemTools::SetErrorCallback(MFCMessageCallback);
+  m_RegistryKey  = "Software\\Kitware\\CMakeSetup\\Settings\\StartPath";
+  m_CacheEntriesList.m_CMakeSetupDialog = this;
+
+  m_CMakeInstance = new cmake;
+  m_CMakeInstance->SetProgressCallback(updateProgress, (void *)this);
+
+  //{{AFX_DATA_INIT(CMakeSetupDialog)
+        //}}AFX_DATA_INIT
+
+  // Get the parameters from the command line info
+  // If an unknown parameter is found, try to interpret it too, since it
+  // is likely to be a file dropped on the shortcut :)
+  if (cmdInfo.m_LastUnknownParameter.IsEmpty())
     {
-    std::string result;
+    this->m_WhereSource = cmdInfo.m_WhereSource;
+    this->m_WhereBuild = cmdInfo.m_WhereBuild;
+    this->m_GeneratorDialog.m_GeneratorChoiceString = 
+      cmdInfo.m_GeneratorChoiceString;
+    this->m_AdvancedValues = cmdInfo.m_AdvancedValues;
+    }
+  else
+    {
+    this->m_WhereSource = _T("");
+    this->m_WhereBuild = _T("");
+    this->m_AdvancedValues = FALSE;
+    this->m_GeneratorDialog.m_GeneratorChoiceString = 
+      cmdInfo.m_GeneratorChoiceString;
+    this->ChangeDirectoriesFromFile((LPCTSTR)cmdInfo.m_LastUnknownParameter);
+    }
+
+  // Note that LoadIcon does not require a subsequent DestroyIcon in Win32
+  m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+  m_BuildPathChanged = false;
+  // Find the path to the cmake.exe executable
+  char fname[1024];
+  ::GetModuleFileName(NULL,fname,1023);
+  // extract just the path part
+  m_PathToExecutable = cmSystemTools::GetProgramPath(fname).c_str();
+  // add the cmake.exe to the path
+  m_PathToExecutable += "/cmake.exe";
+
+  m_oldCX = -1;
+  m_deltaXRemainder = 0;
+}
+
+CMakeSetupDialog::~CMakeSetupDialog()
+{
+  delete m_CMakeInstance;
+  // clean up globals 
+  cmDynamicLoader::FlushCache();
+}
+
+void CMakeSetupDialog::DoDataExchange(CDataExchange* pDX)
+{
+  CDialog::DoDataExchange(pDX);
+  //{{AFX_DATA_MAP(CMakeSetupDialog)
+        DDX_Control(pDX, IDC_AdvancedValues, m_AdvancedValuesControl);
+        DDX_Control(pDX, IDC_BROWSE_SOURCE, m_BrowseSource);
+        DDX_Control(pDX, IDC_BROWSE_BUILD, m_BrowseBuild);
+        DDX_Control(pDX, IDC_DELETE_BUTTON, m_DeleteButton);
+        DDX_Control(pDX, IDC_HELP_BUTTON, m_HelpButton);
+        DDX_Control(pDX, IDC_OK, m_OKButton);
+        DDX_Control(pDX, IDCANCEL, m_CancelButton);
+        DDX_CBStringExact(pDX, IDC_WhereSource, m_WhereSource);
+        DDX_CBStringExact(pDX, IDC_WhereBuild, m_WhereBuild);
+        DDX_Control(pDX, IDC_FRAME, m_ListFrame);
+        DDX_Control(pDX, IDC_WhereSource, m_WhereSourceControl);
+        DDX_Control(pDX, IDC_WhereBuild, m_WhereBuildControl);
+        DDX_Control(pDX, IDC_LIST2, m_CacheEntriesList);
+        DDX_Control(pDX, IDC_MouseHelpCaption, m_MouseHelp);
+        DDX_Control(pDX, IDC_PROGRESS, m_StatusDisplay);
+        DDX_Control(pDX, IDC_BuildProjects, m_Configure);
+        DDX_Check(pDX, IDC_AdvancedValues, m_AdvancedValues);
+        //}}AFX_DATA_MAP
+}
+
+BEGIN_MESSAGE_MAP(CMakeSetupDialog, CDialog)
+  //{{AFX_MSG_MAP(CMakeSetupDialog)
+  ON_WM_SYSCOMMAND()
+  ON_WM_PAINT()
+  ON_WM_QUERYDRAGICON()
+  ON_BN_CLICKED(IDC_BUTTON2, OnBrowseWhereSource)
+  ON_BN_CLICKED(IDC_BuildProjects, OnConfigure)
+  ON_BN_CLICKED(IDC_BUTTON3, OnBrowseWhereBuild)
+  ON_CBN_EDITCHANGE(IDC_WhereBuild, OnChangeWhereBuild)
+  ON_CBN_SELCHANGE(IDC_WhereBuild, OnSelendokWhereBuild)
+  ON_CBN_EDITCHANGE(IDC_WhereSource, OnChangeWhereSource)
+  ON_CBN_SELENDOK(IDC_WhereSource, OnSelendokWhereSource)
+  ON_WM_SIZE()
+  ON_WM_GETMINMAXINFO()
+  ON_BN_CLICKED(IDC_OK, OnOk)
+  ON_BN_CLICKED(IDC_DELETE_BUTTON, OnDeleteButton)
+  ON_BN_CLICKED(IDC_HELP_BUTTON, OnHelpButton)
+  ON_BN_CLICKED(IDC_AdvancedValues, OnAdvancedValues)
+  ON_BN_DOUBLECLICKED(IDC_AdvancedValues, OnDoubleclickedAdvancedValues)
+  ON_WM_DROPFILES()
+  ON_BN_CLICKED(IDCANCEL, OnCancel)
+        ON_WM_SETCURSOR()
+        //}}AFX_MSG_MAP
+END_MESSAGE_MAP()
+
+/////////////////////////////////////////////////////////////////////////////
+// CMakeSetupDialog message handlers
+
+BOOL CMakeSetupDialog::OnInitDialog()
+{
+  CDialog::OnInitDialog();
+  this->DragAcceptFiles(true);
+
+  // Add "Create shortcut" menu item to system menu.
+
+  // IDM_CREATESHORTCUT must be in the system command range.
+  ASSERT((IDM_CREATESHORTCUT & 0xFFF0) == IDM_CREATESHORTCUT);
+  ASSERT(IDM_CREATESHORTCUT < 0xF000);
+
+  // Add "About..." menu item to system menu.
+
+  // IDM_ABOUTBOX must be in the system command range.
+  ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
+  ASSERT(IDM_ABOUTBOX < 0xF000);
+
+  CMenu* pSysMenu = GetSystemMenu(FALSE);
+  if (pSysMenu != NULL)
+    {
+    CString strCreateShortcutMenu;
+    strCreateShortcutMenu.LoadString(IDS_CREATESHORTCUT);
+    if (!strCreateShortcutMenu.IsEmpty())
+      {
+      pSysMenu->AppendMenu(MF_SEPARATOR);
+      pSysMenu->AppendMenu(MF_STRING, 
+                           IDM_CREATESHORTCUT, 
+                           strCreateShortcutMenu);
+      }
+
+    CString strAboutMenu;
+    strAboutMenu.LoadString(IDS_ABOUTBOX);
+    if (!strAboutMenu.IsEmpty())
+      {
+      pSysMenu->AppendMenu(MF_SEPARATOR);
+      pSysMenu->AppendMenu(MF_STRING, 
+                           IDM_ABOUTBOX, 
+                           strAboutMenu);
+      }
+    }
+
+  // Set the icon for this dialog.  The framework does this automatically
+  //  when the application's main window is not a dialog
+  SetIcon(m_hIcon, TRUE);                        // Set big icon
+  SetIcon(m_hIcon, FALSE);                // Set small icon
+  // Load source and build dirs from registry
+  this->LoadFromRegistry();
+
+  // try to load the cmake cache from disk
+  this->LoadCacheFromDiskToGUI();
+  m_WhereBuildControl.LimitText(2048);
+  m_WhereSourceControl.LimitText(2048);
     
-    // if there are spaces
-    std::string temp = str;
-    if (temp.find(" ") != std::string::npos && 
-        temp.find("\"")==std::string::npos)
-      {
-      result = "\"";
-      result += str;
-      result += "\"";
-      return result;
-      }
-    return str;
+  // Set the version number
+  char tmp[1024];
+  sprintf(tmp,"CMake %d.%d - %s", cmake::GetMajorVersion(),
+          cmake::GetMinorVersion(), cmake::GetReleaseVersion());
+  SetDlgItemText(IDC_PROGRESS, "");
+  this->SetWindowText(tmp);
+  this->UpdateData(FALSE);
+  return TRUE;  // return TRUE  unless you set the focus to a control
+}
+
+
+// About dialog invoke
+void CMakeSetupDialog::OnSysCommand(UINT nID, LPARAM lParam)
+{
+  if ((nID & 0xFFF0) == IDM_ABOUTBOX)
+    {
+    CAboutDlg dlgAbout;
+    dlgAbout.DoModal();
+    }
+  else if ((nID & 0xFFF0) == IDM_CREATESHORTCUT)
+    {
+    CreateShortcut();
     }
   else
     {
-    std::string result = "";
-    for(const char* ch = str; *ch != '\0'; ++ch)
-      {
-      if(*ch == ' ')
-        {
-        result += '\\';
-        }
-      result += *ch;
-      }
-    return result;
+    CDialog::OnSysCommand(nID, lParam);
     }
 }
 
+// If you add a minimize button to your dialog, you will need the code below
+//  to draw the icon.  For MFC applications using the document/view model,
+//  this is automatically done for you by the framework.
 
-std::string cmSystemTools::RemoveEscapes(const char* s)
+void CMakeSetupDialog::OnPaint() 
 {
-  std::string result = "";
-  for(const char* ch = s; *ch; ++ch)
+  if (IsIconic())
     {
-    if(*ch == '\\' && *(ch+1) != ';')
-      {
-      ++ch;
-      switch (*ch)
-        {
-        case '\\': result.insert(result.end(), '\\'); break;
-        case '"': result.insert(result.end(), '"'); break;
-        case ' ': result.insert(result.end(), ' '); break;
-        case 't': result.insert(result.end(), '\t'); break;
-        case 'n': result.insert(result.end(), '\n'); break;
-        case 'r': result.insert(result.end(), '\r'); break;
-        case '#': result.insert(result.end(), '#'); break;
-        case '(': result.insert(result.end(), '('); break;
-        case ')': result.insert(result.end(), ')'); break;
-        case '0': result.insert(result.end(), '\0'); break;
-        case '\0':
-          {
-          cmSystemTools::Error("Trailing backslash in argument:\n", s);
-          return result;
-          }
-        default:
-          {
-          std::string chStr(1, *ch);
-          cmSystemTools::Error("Invalid escape sequence \\", chStr.c_str(),
-                               "\nin argument ", s);
-          }
-        }
-      }
-    else
-      {
-      result.insert(result.end(), *ch);
-      }
-    }
-  return result;
-}
+    CPaintDC dc(this); // device context for painting
 
-void cmSystemTools::Error(const char* m1, const char* m2,
-                          const char* m3, const char* m4)
-{
-  std::string message = "CMake Error: ";
-  if(m1)
-    {
-    message += m1;
-    }
-  if(m2)
-    {
-    message += m2;
-    }
-  if(m3)
-    {
-    message += m3;
-    }
-  if(m4)
-    {
-    message += m4;
-    }
-  cmSystemTools::s_ErrorOccured = true;
-  cmSystemTools::Message(message.c_str(),"Error");
-}
+    SendMessage(WM_ICONERASEBKGND, (WPARAM) dc.GetSafeHdc(), 0);
 
+    // Center icon in client rectangle
+    int cxIcon = GetSystemMetrics(SM_CXICON);
+    int cyIcon = GetSystemMetrics(SM_CYICON);
+    CRect rect;
+    GetClientRect(&rect);
+    int x = (rect.Width() - cxIcon + 1) / 2;
+    int y = (rect.Height() - cyIcon + 1) / 2;
 
-void cmSystemTools::SetErrorCallback(ErrorCallback f, void* clientData)
-{
-  s_ErrorCallback = f;
-  s_ErrorCallbackClientData = clientData;
-}
-
-void cmSystemTools::SetStdoutCallback(StdoutCallback f, void* clientData)
-{
-  s_StdoutCallback = f;
-  s_StdoutCallbackClientData = clientData;
-}
-
-void cmSystemTools::Stdout(const char* s)
-{
-  if(s_StdoutCallback)
-    {
-    (*s_StdoutCallback)(s, strlen(s), s_StdoutCallbackClientData);
+    // Draw the icon
+    dc.DrawIcon(x, y, m_hIcon);
     }
   else
     {
-    std::cout << s;
-    std::cout.flush();
+    CDialog::OnPaint();
     }
 }
 
-void cmSystemTools::Stdout(const char* s, int length)
+// The system calls this to obtain the cursor to display while the user drags
+//  the minimized window.
+HCURSOR CMakeSetupDialog::OnQueryDragIcon()
 {
-  if(s_StdoutCallback)
-    {
-    (*s_StdoutCallback)(s, length, s_StdoutCallbackClientData);
-    }
-  else
-    {
-    std::cout.write(s, length);
-    std::cout.flush();
-    }
-}
-
-void cmSystemTools::Message(const char* m1, const char *title)
-{
-  if(s_DisableMessages)
-    {
-    return;
-    }
-  if(s_ErrorCallback)
-    {
-    (*s_ErrorCallback)(m1, title, s_DisableMessages, s_ErrorCallbackClientData);
-    return;
-    }
-  else
-    {
-    std::cerr << m1 << std::endl << std::flush;
-    }
-  
+  return (HCURSOR) m_hIcon;
 }
 
 
-void cmSystemTools::ReportLastSystemError(const char* msg)
-{
-  std::string m = msg;
-  m += ": System Error: ";
-  m += Superclass::GetLastSystemError();
-  cmSystemTools::Error(m.c_str());
-}
 
- 
-bool cmSystemTools::IsOn(const char* val)
+// Browse button
+bool CMakeSetupDialog::Browse(CString &result, const char *title)
 {
-  if (!val)
+  CString initialDir = result;
+  initialDir.Replace("/", "\\");
+  CPathDialog dlg("Select Path", title, initialDir); 
+  if(dlg.DoModal()==IDOK)
     {
-    return false;
-    }
-  std::basic_string<char> v = val;
-  
-  for(std::basic_string<char>::iterator c = v.begin();
-      c != v.end(); c++)
-    {
-    *c = toupper(*c);
-    }
-  return (v == "ON" || v == "1" || v == "YES" || v == "TRUE" || v == "Y");
-}
-
-bool cmSystemTools::IsNOTFOUND(const char* val)
-{
-  int len = strlen(val);
-  const char* notfound = "-NOTFOUND";
-  const int lenNotFound = 9;
-  if(len < lenNotFound-1)
-    {
-    return false;
-    }
-  if(len == lenNotFound-1)
-    {
-    return ( strcmp(val, "NOTFOUND") == 0);
-    }
-  return ((strncmp((val + (len - lenNotFound)), notfound, lenNotFound) == 0));
-}
-
-
-bool cmSystemTools::IsOff(const char* val)
-{
-  if (!val || strlen(val) == 0)
-    {
+    result =  dlg.GetPathName();
     return true;
     }
-  std::basic_string<char> v = val;
-  
-  for(std::basic_string<char>::iterator c = v.begin();
-      c != v.end(); c++)
+  else
     {
-    *c = toupper(*c);
+    return false;
     }
-  return (v == "OFF" || v == "0" || v == "NO" || v == "FALSE" || 
-          v == "N" || cmSystemTools::IsNOTFOUND(v.c_str()) || v == "IGNORE");
 }
 
-std::vector<cmStdString> cmSystemTools::ParseArguments(const char* command)
-{
-  std::vector<cmStdString> args;
-  std::string arg;
 
-  bool win_path = false;
 
-  if ( command[0] != '/' && command[1] == ':' && command[2] == '\\' ||
-       command[0] == '\"' && command[1] != '/' && command[2] == ':' && command[3] == '\\' || 
-       command[0] == '\'' && command[1] != '/' && command[2] == ':' && command[3] == '\\' || 
-       command[0] == '\\' && command[1] == '\\')
+
+void CMakeSetupDialog::SaveToRegistry()
+{ 
+  HKEY hKey;
+  DWORD dwDummy;
+
+  if(RegCreateKeyEx(HKEY_CURRENT_USER, 
+                    m_RegistryKey,
+                    0, "", REG_OPTION_NON_VOLATILE, KEY_READ|KEY_WRITE, 
+                    NULL, &hKey, &dwDummy) != ERROR_SUCCESS) 
     {
-    win_path = true;
+    return;
     }
-  // Split the command into an argv array.
-  for(const char* c = command; *c;)
+  else
     {
-    // Skip over whitespace.
-    while(*c == ' ' || *c == '\t')
+    // save some values
+    CString regvalue;
+    this->ReadRegistryValue(hKey, &(regvalue),"WhereSource1","C:\\");
+    int shiftEnd = 9;
+    if(m_WhereSource != regvalue)
       {
-      ++c;
-      }
-    arg = "";
-    if(*c == '"')
-      {
-      // Parse a quoted argument.
-      ++c;
-      while(*c && *c != '"')
+      char keyName[1024];
+      char keyName2[1024];
+      int i;
+      for (i = 2; i < 10; ++i)
         {
-        arg.append(1, *c);
-        ++c;
-        }
-      if(*c)
-        {
-        ++c;
-        }
-      args.push_back(arg);
-      }
-    else if(*c == '\'')
-      {
-      // Parse a quoted argument.
-      ++c;
-      while(*c && *c != '\'')
-        {
-        arg.append(1, *c);
-        ++c;
-        }
-      if(*c)
-        {
-        ++c;
-        }
-      args.push_back(arg);
-      }
-    else if(*c)
-      {
-      // Parse an unquoted argument.
-      while(*c && *c != ' ' && *c != '\t')
-        {
-        if(*c == '\\' && !win_path)
+        regvalue = "";
+        sprintf(keyName,"WhereSource%i",i);
+        this->ReadRegistryValue(hKey, &(regvalue),keyName,"");
+        // check for short circuit, if the new value is already in
+        // the list then we stop
+        if (m_WhereSource == regvalue)
           {
-          ++c;
-          if(*c)
-            {
-            arg.append(1, *c);
-            ++c;
-            }
+          shiftEnd = i - 1;
+          }
+        }
+      
+      for (i = shiftEnd; i; --i)
+        {
+        regvalue = "";
+        sprintf(keyName,"WhereSource%i",i);
+        sprintf(keyName2,"WhereSource%i",i+1);
+        
+        this->ReadRegistryValue(hKey, &(regvalue),keyName,"");
+        if (strlen(regvalue))
+          {
+          RegSetValueEx(hKey, _T(keyName2), 0, REG_SZ, 
+                        (CONST BYTE *)(const char *)regvalue, 
+                        regvalue.GetLength());
+          }
+        }
+      RegSetValueEx(hKey, _T("WhereSource1"), 0, REG_SZ, 
+                    (CONST BYTE *)(const char *)m_WhereSource, 
+                    m_WhereSource.GetLength());
+      }
+    
+    this->ReadRegistryValue(hKey, &(regvalue),"WhereBuild1","C:\\");
+    if(m_WhereBuild != regvalue)
+      {
+      int i;
+      char keyName[1024];
+      char keyName2[1024];
+      for (i = 2; i < 10; ++i)
+        {
+        regvalue = "";
+        sprintf(keyName,"WhereBuild%i",i);
+        this->ReadRegistryValue(hKey, &(regvalue),keyName,"");
+        // check for short circuit, if the new value is already in
+        // the list then we stop
+        if (m_WhereBuild == regvalue)
+          {
+          shiftEnd = i - 1;
+          }
+        }
+      for (i = shiftEnd; i; --i)
+        {
+        regvalue = "";
+        sprintf(keyName,"WhereBuild%i",i);
+        sprintf(keyName2,"WhereBuild%i",i+1);
+        
+        this->ReadRegistryValue(hKey, &(regvalue),keyName,"");
+        if (strlen(regvalue))
+          {
+          RegSetValueEx(hKey, _T(keyName2), 0, REG_SZ, 
+                        (CONST BYTE *)(const char *)regvalue, 
+                        regvalue.GetLength());
+          }
+        }
+      RegSetValueEx(hKey, _T("WhereBuild1"), 0, REG_SZ, 
+                    (CONST BYTE *)(const char *)m_WhereBuild, 
+                    m_WhereBuild.GetLength());
+      }
+    }
+  RegCloseKey(hKey);
+}
+
+
+void CMakeSetupDialog::ReadRegistryValue(HKEY hKey,
+                                         CString *val,
+                                         const char *key,
+                                         const char *adefault)
+{
+  DWORD dwType, dwSize;
+  char *pb;
+
+  dwType = REG_SZ;
+  pb = val->GetBuffer(MAX_PATH);
+  dwSize = MAX_PATH;
+  if(RegQueryValueEx(hKey,_T(key), NULL, &dwType, 
+                     (BYTE *)pb, &dwSize) != ERROR_SUCCESS)
+    {
+    val->ReleaseBuffer();
+    *val = _T(adefault);
+    }
+  else
+    {
+    val->ReleaseBuffer();
+    }
+}
+
+
+void CMakeSetupDialog::LoadFromRegistry()
+{ 
+  HKEY hKey;
+  if(RegOpenKeyEx(HKEY_CURRENT_USER, 
+                  m_RegistryKey, 
+                  0, KEY_READ, &hKey) != ERROR_SUCCESS)
+    {
+    return;
+    }
+  else
+    {
+    // load some values
+    if (m_WhereSource.IsEmpty()) 
+      {
+      this->ReadRegistryValue(hKey, &(m_WhereSource),"WhereSource1","C:\\");
+      }
+    if (m_WhereBuild.IsEmpty()) 
+      {
+      this->ReadRegistryValue(hKey, &(m_WhereBuild),"WhereBuild1","C:\\");
+      }
+    m_WhereSourceControl.AddString(m_WhereSource);
+    m_WhereBuildControl.AddString(m_WhereBuild);
+
+    char keyname[1024];
+    CString regvalue;
+    int i;
+    for (i = 2; i <= 10; ++i)
+      {
+      sprintf(keyname,"WhereSource%i",i);
+      regvalue = "";
+      this->ReadRegistryValue(hKey, &(regvalue),keyname,"C:\\");
+      if (strcmp("C:\\",regvalue))
+        {
+        m_WhereSourceControl.AddString(regvalue);
+        }
+      sprintf(keyname,"WhereBuild%i",i);
+      regvalue = "";
+      this->ReadRegistryValue(hKey, &(regvalue),keyname,"C:\\");
+      if (strcmp("C:\\",regvalue))
+        {
+        m_WhereBuildControl.AddString(regvalue);
+        }
+      }
+    }
+  RegCloseKey(hKey);
+}
+
+
+
+// Callback for browse source button
+void CMakeSetupDialog::OnBrowseWhereSource() 
+{
+  this->UpdateData();
+  Browse(m_WhereSource, "Enter Path to Source");
+  this->UpdateData(false);
+  this->OnChangeWhereSource();
+}
+
+// Callback for browser build button
+void CMakeSetupDialog::OnBrowseWhereBuild() 
+{
+  this->UpdateData();
+  Browse(m_WhereBuild, "Enter Path to Build");
+  this->UpdateData(false);
+  this->OnChangeWhereBuild();
+}
+
+void CMakeSetupDialog::RunCMake(bool generateProjectFiles)
+{
+  if(!cmSystemTools::FileExists(m_WhereBuild))
+    {
+    std::string message =
+      "Build directory does not exist, should I create it?\n\n"
+      "Directory: ";
+    message += (const char*)m_WhereBuild;
+    if(MessageBox(message.c_str(), "Create Directory", MB_OKCANCEL) == IDOK)
+      {
+      cmSystemTools::MakeDirectory(m_WhereBuild);
+      }
+    else
+      {
+      MessageBox("Build Project aborted, nothing done.");
+      return;
+      }
+    }
+  // set the wait cursor
+  m_Cursor = LoadCursor(NULL, IDC_WAIT);
+  ::SetCursor(m_Cursor);
+  m_RunningConfigure = true;
+  
+  // get all the info from the dialog
+  this->UpdateData();
+  // always save the current gui values to disk
+  this->SaveCacheFromGUI();
+  // Make sure we are working from the cache on disk
+  this->LoadCacheFromDiskToGUI(); 
+  m_OKButton.EnableWindow(false);
+
+  // setup the cmake instance
+  if (generateProjectFiles)
+    {
+    if(m_CMakeInstance->Generate() != 0)
+      {
+      cmSystemTools::Error(
+        "Error in generation process, project files may be invalid");
+      }
+    }
+  else
+    {
+    m_CMakeInstance->SetHomeDirectory(m_WhereSource);
+    m_CMakeInstance->SetStartDirectory(m_WhereSource);
+    m_CMakeInstance->SetHomeOutputDirectory(m_WhereBuild);
+    m_CMakeInstance->SetStartOutputDirectory(m_WhereBuild);
+    m_CMakeInstance->SetGlobalGenerator(
+      m_CMakeInstance->CreateGlobalGenerator(m_GeneratorDialog.m_GeneratorChoiceString));
+    m_CMakeInstance->SetCMakeCommand(m_PathToExecutable);
+    m_CMakeInstance->LoadCache();
+    if(m_CMakeInstance->Configure() != 0)
+      {
+      cmSystemTools::Error(
+        "Error in configuration process, project files may be invalid");
+      }
+    // update the GUI with any new values in the caused by the
+    // generation process
+    this->LoadCacheFromDiskToGUI();
+    }
+
+  // save source and build paths to registry
+  this->SaveToRegistry();
+  // path is up-to-date now
+  m_BuildPathChanged = false;
+  // put the cursor back 
+  m_Cursor = LoadCursor(NULL, IDC_ARROW);
+  ::SetCursor(m_Cursor);
+  m_RunningConfigure = false;
+  cmSystemTools::ResetErrorOccuredFlag();
+}
+
+
+// Callback for build projects button
+void CMakeSetupDialog::OnConfigure() 
+{
+  if(!m_GeneratorPicked)
+    {
+    m_GeneratorDialog.m_CMakeInstance = this->m_CMakeInstance;
+    if(m_GeneratorDialog.DoModal() != IDOK)
+      {
+      return;
+      }
+    // save the generator choice in the registry
+    HKEY hKey;
+    DWORD dwDummy;
+    
+    if(RegCreateKeyEx(HKEY_CURRENT_USER, 
+                      m_RegistryKey,
+                      0, "", REG_OPTION_NON_VOLATILE, KEY_READ|KEY_WRITE, 
+                      NULL, &hKey, &dwDummy) == ERROR_SUCCESS) 
+      {
+      // save some values
+      RegSetValueEx(hKey, _T("LastGenerator"), 0, REG_SZ, 
+                    (CONST BYTE *)(const char *)m_GeneratorDialog.m_GeneratorChoiceString, 
+                    m_GeneratorDialog.m_GeneratorChoiceString.GetLength());
+      }
+    }
+  
+  // enable error messages each time configure is pressed
+  cmSystemTools::EnableMessages();
+  this->RunCMake(false);
+}
+
+
+
+
+// callback for combo box menu where build selection
+void CMakeSetupDialog::OnSelendokWhereBuild() 
+{
+  m_WhereBuildControl.GetLBText(m_WhereBuildControl.GetCurSel(), 
+                                m_WhereBuild);
+  m_WhereBuildControl.SetWindowText( m_WhereBuild);
+  this->UpdateData(FALSE);
+  this->OnChangeWhereBuild();
+}
+
+// callback for combo box menu where source selection
+void CMakeSetupDialog::OnSelendokWhereSource() 
+{
+  m_WhereSourceControl.GetLBText(m_WhereSourceControl.GetCurSel(), 
+                                 m_WhereSource);
+  this->UpdateData(FALSE);
+  this->OnChangeWhereSource();
+}
+
+// callback for chaing source directory
+void CMakeSetupDialog::OnChangeWhereSource() 
+{
+}
+
+// callback for changing the build directory
+void CMakeSetupDialog::OnChangeWhereBuild() 
+{
+  this->UpdateData();
+
+  // The build dir has changed, check if there is a cache, and 
+  // grab the source dir from it
+
+  std::string path = this->m_WhereBuild;
+  cmSystemTools::ConvertToUnixSlashes(path);
+
+  // adjust the cmake instance
+  m_CMakeInstance->SetHomeOutputDirectory(m_WhereBuild);
+  m_CMakeInstance->SetStartOutputDirectory(m_WhereBuild);
+
+  std::string cache_file = path;
+  cache_file += "/CMakeCache.txt";
+
+  cmCacheManager *cachem = this->m_CMakeInstance->GetCacheManager();
+  cmCacheManager::CacheIterator it = cachem->NewIterator();
+
+  m_GeneratorPicked = false;
+
+  // make sure we have a normal cache file, specifically if one exists make
+  // sure it can be read
+  if (cmSystemTools::FileExists(cache_file.c_str()))
+    {
+    if (cachem->LoadCache(path.c_str()))
+      {
+      if (it.Find("CMAKE_HOME_DIRECTORY"))
+        {
+        path = ConvertToWindowsPath(it.GetValue());
+        this->m_WhereSource = path.c_str();
+        this->m_WhereSourceControl.SetWindowText(this->m_WhereSource);
+        this->OnChangeWhereSource();
+        m_GeneratorPicked = true;
+        }
+      }
+    else
+      {
+      //file exists but cqnnot be read
+      cmSystemTools::Error("There is a CMakeCache.txt file for the current binary tree but cmake does not have permission to read it. Please check the permissions of the directory you are trying to run CMake on.");
+      return;
+      }
+    }
+  
+  m_CacheEntriesList.RemoveAll();
+  m_CacheEntriesList.ShowWindow(SW_SHOW);
+  this->LoadCacheFromDiskToGUI();
+  m_BuildPathChanged = true;
+}
+
+
+// copy from the cache manager to the cache edit list box
+void CMakeSetupDialog::FillCacheGUIFromCacheManager()
+{ 
+  cmCacheManager *cachem = this->m_CMakeInstance->GetCacheManager();
+  cmCacheManager::CacheIterator it = cachem->NewIterator();
+  size_t size = m_CacheEntriesList.GetItems().size();
+  // if there are already entries in the cache, then
+  // put the new ones in the top, so they show up first
+  bool reverseOrder = false;
+  // all the current values are not new any more
+  std::set<CPropertyItem*> items = m_CacheEntriesList.GetItems();
+  for(std::set<CPropertyItem*>::iterator i = items.begin();
+      i != items.end(); ++i)
+    {
+    // first check to see if it is still in the cache
+    CPropertyItem* item = *i;
+    if ( !it.Find((const char*)item->m_propName) )
+      {
+      m_CacheEntriesList.RemoveProperty((const char*)item->m_propName);
+      }
+    else
+      {
+      // if it is still in the cache then it is no longer new
+      item->m_NewValue = false;
+      }
+    }
+  for(cmCacheManager::CacheIterator i = cachem->NewIterator();
+      !i.IsAtEnd(); i.Next())
+    {
+    const char* key = i.GetName();
+
+    // if value has trailing space or tab, enclose it in single quotes
+    // to enforce the fact that it has 'invisible' trailing stuff
+    std::string value = i.GetValue();
+    if (value.size() && 
+        (value[value.size() - 1] == ' ' || 
+         value[value.size() - 1] == '\t'))
+      {
+      value = '\'' + value +  '\'';
+      }
+    bool advanced = i.GetPropertyAsBool("ADVANCED");
+    switch(i.GetType() )
+      {
+      case cmCacheManager::BOOL:
+        if(cmSystemTools::IsOn(value.c_str()))
+          {
+          m_CacheEntriesList.AddProperty(key,
+                                         "ON",
+                                         i.GetProperty("HELPSTRING"),
+                                         CPropertyList::COMBO,"ON|OFF",
+                                         reverseOrder,
+                                         advanced
+            );
           }
         else
           {
-          arg.append(1, *c);
-          ++c;
+          m_CacheEntriesList.AddProperty(key,
+                                         "OFF",
+                                         i.GetProperty("HELPSTRING"),
+                                         CPropertyList::COMBO,"ON|OFF",
+                                         reverseOrder, advanced
+            );
           }
-        }
-      args.push_back(arg);
+        break;
+      case cmCacheManager::PATH:
+        m_CacheEntriesList.AddProperty(key, 
+                                       value.c_str(),
+                                       i.GetProperty("HELPSTRING"),
+                                       CPropertyList::PATH,"",
+                                       reverseOrder, advanced
+          );
+        break;
+      case cmCacheManager::FILEPATH:
+        m_CacheEntriesList.AddProperty(key, 
+                                       value.c_str(),
+                                       i.GetProperty("HELPSTRING"),
+                                       CPropertyList::FILE,"",
+                                       reverseOrder, advanced
+          );
+        break;
+      case cmCacheManager::STRING:
+        m_CacheEntriesList.AddProperty(key,
+                                       value.c_str(),
+                                       i.GetProperty("HELPSTRING"),
+                                       CPropertyList::EDIT,"",
+                                       reverseOrder, advanced
+          );
+        break;
+      case cmCacheManager::INTERNAL:
+        m_CacheEntriesList.RemoveProperty(key);
+        break;
       }
     }
-  
-  return args;
-}
-
-bool cmSystemTools::RunSingleCommand(
-  const char* command, 
-  std::string* output,
-  int *retVal, 
-  const char* dir,
-  bool verbose,
-  double timeout)
-{
-  if(s_DisableRunCommandOutput)
+  if(m_CacheEntriesList.GetShowAdvanced())
     {
-    verbose = false;
-    }
-
-  std::vector<cmStdString> args = cmSystemTools::ParseArguments(command);
-
-  if(args.size() < 1)
-    {
-    return false;
-    }
-  
-  std::vector<const char*> argv;
-  for(std::vector<cmStdString>::const_iterator a = args.begin();
-      a != args.end(); ++a)
-    {
-    argv.push_back(a->c_str());
-    }
-  argv.push_back(0);
-  if ( output )
-    {
-    *output = "";
-    }
-
-  cmsysProcess* cp = cmsysProcess_New();
-  cmsysProcess_SetCommand(cp, &*argv.begin());
-  cmsysProcess_SetWorkingDirectory(cp, dir);
-  if(cmSystemTools::GetRunCommandHideConsole())
-    {
-    cmsysProcess_SetOption(cp, cmsysProcess_Option_HideWindow, 1);
-    }
-  cmsysProcess_SetTimeout(cp, timeout);
-  cmsysProcess_Execute(cp);
-  
-  std::vector<char> tempOutput;
-  char* data;
-  int length;
-  if ( output || verbose )
-    {
-  while(cmsysProcess_WaitForData(cp, &data, &length, 0))
-    {
-    if(output || verbose)
-      {
-      // Translate NULL characters in the output into valid text.
-      // Visual Studio 7 puts these characters in the output of its
-      // build process.
-      for(int i=0; i < length; ++i)
-        {
-        if(data[i] == '\0')
-          {
-          data[i] = ' ';
-          }
-        }
-      }
-    if ( output )
-      {
-      tempOutput.insert(tempOutput.end(), data, data+length);
-      }
-    if(verbose)
-      {
-      cmSystemTools::Stdout(data, length);
-      }
-    }
-    }
-  
-  cmsysProcess_WaitForExit(cp, 0);
-  if ( output && tempOutput.begin() != tempOutput.end())
-    {
-    output->append(&*tempOutput.begin(), tempOutput.size());
-    }
-  
-  bool result = true;
-  if(cmsysProcess_GetState(cp) == cmsysProcess_State_Exited)
-    {
-    if ( retVal )
-      {
-      *retVal = cmsysProcess_GetExitValue(cp);
-      }
-    else
-      {
-      if ( cmsysProcess_GetExitValue(cp) !=  0 )
-        {
-        result = false;
-        }
-      }
-    }
-  else if(cmsysProcess_GetState(cp) == cmsysProcess_State_Exception)
-    {
-    const char* exception_str = cmsysProcess_GetExceptionString(cp);
-    if ( verbose )
-      {
-      std::cerr << exception_str << std::endl;
-      }
-    if ( output )
-      {
-      output->append(exception_str, strlen(exception_str));
-      }
-    result = false;
-    }
-  else if(cmsysProcess_GetState(cp) == cmsysProcess_State_Error)
-    {
-    const char* error_str = cmsysProcess_GetErrorString(cp);
-    if ( verbose )
-      {
-      std::cerr << error_str << std::endl;
-      }
-    if ( output )
-      {
-      output->append(error_str, strlen(error_str));
-      }
-    result = false;
-    }
-  else if(cmsysProcess_GetState(cp) == cmsysProcess_State_Expired)
-    {
-    const char* error_str = "Process terminated due to timeout\n";
-    if ( verbose )
-      {
-      std::cerr << error_str << std::endl;
-      }
-    if ( output )
-      {
-      output->append(error_str, strlen(error_str));
-      }
-    result = false;
-    }
-  
-  cmsysProcess_Delete(cp);
-  return result;
-}
-bool cmSystemTools::RunCommand(const char* command, 
-                               std::string& output,
-                               const char* dir,
-                               bool verbose,
-                               int timeout)
-{
-  int dummy;
-  return cmSystemTools::RunCommand(command, output, dummy, 
-                                   dir, verbose, timeout);
-}
-
-#if defined(WIN32) && !defined(__CYGWIN__)
-#include "cmWin32ProcessExecution.h"
-// use this for shell commands like echo and dir
-bool RunCommandViaWin32(const char* command,
-                        const char* dir,
-                        std::string& output,
-                        int& retVal,
-                        bool verbose,
-                        int timeout)
-{
-#if defined(__BORLANDC__)
-  return cmWin32ProcessExecution::BorlandRunCommand(command, dir, output, 
-                                                    retVal, 
-                                                    verbose, timeout, 
-                                                    cmSystemTools::GetRunCommandHideConsole());
-#else // Visual studio
-  ::SetLastError(ERROR_SUCCESS);
-  if ( ! command )
-    {
-    cmSystemTools::Error("No command specified");
-    return false;
-    }
-  cmWin32ProcessExecution resProc;
-  if(cmSystemTools::GetRunCommandHideConsole())
-    {
-    resProc.SetHideWindows(true);
-    }
-  
-  if ( cmSystemTools::GetWindows9xComspecSubstitute() )
-    {
-    resProc.SetConsoleSpawn(cmSystemTools::GetWindows9xComspecSubstitute() );
-    }
-  if ( !resProc.StartProcess(command, dir, verbose) )
-    {
-    output = resProc.GetOutput();
-    if(verbose)
-      {
-      cmSystemTools::Stdout(output.c_str());
-      }
-    return false;
-    }
-  resProc.Wait(timeout);
-  output = resProc.GetOutput();
-  retVal = resProc.GetExitValue();
-  return true;
-#endif
-}
-
-// use this for shell commands like echo and dir
-bool RunCommandViaSystem(const char* command,
-                         const char* dir,
-                         std::string& output,
-                         int& retVal,
-                         bool verbose)
-{  
-  std::cout << "@@ " << command << std::endl;
-
-  std::string commandInDir;
-  if(dir)
-    {
-    commandInDir = "cd ";
-    commandInDir += cmSystemTools::ConvertToOutputPath(dir);
-    commandInDir += " && ";
-    commandInDir += command;
+    m_CacheEntriesList.ShowAdvanced();
     }
   else
     {
-    commandInDir = command;
-    }
-  command = commandInDir.c_str();
-  std::string commandToFile = command;
-  commandToFile += " > ";
-  std::string tempFile;
-  tempFile += _tempnam(0, "cmake");
-
-  commandToFile += tempFile;
-  retVal = system(commandToFile.c_str());
-  std::ifstream fin(tempFile.c_str());
-  if(!fin)
-    {
-    if(verbose)
-      {
-      std::string errormsg = "RunCommand produced no output: command: \"";
-      errormsg += command;
-      errormsg += "\"";
-      errormsg += "\nOutput file: ";
-      errormsg += tempFile;
-      cmSystemTools::Error(errormsg.c_str());
-      }
-    fin.close();
-    cmSystemTools::RemoveFile(tempFile.c_str());
-    return false;
-    }
-  bool multiLine = false;
-  std::string line;
-  while(cmSystemTools::GetLineFromStream(fin, line))
-    {
-    output += line;
-    if(multiLine)
-      {
-      output += "\n";
-      }
-    multiLine = true;
-    }
-  fin.close();
-  cmSystemTools::RemoveFile(tempFile.c_str());
-  return true;
-}
-
-#else // We have popen
-
-bool RunCommandViaPopen(const char* command,
-                        const char* dir,
-                        std::string& output,
-                        int& retVal,
-                        bool verbose,
-                        int /*timeout*/)
-{
-  // if only popen worked on windows.....
-  std::string commandInDir;
-  if(dir)
-    {
-    commandInDir = "cd \"";
-    commandInDir += dir;
-    commandInDir += "\" && ";
-    commandInDir += command;
-    }
-  else
-    {
-    commandInDir = command;
-    }
-  commandInDir += " 2>&1";
-  command = commandInDir.c_str();
-  const int BUFFER_SIZE = 4096;
-  char buffer[BUFFER_SIZE];
-  if(verbose)
-    {
-    cmSystemTools::Stdout("running ");
-    cmSystemTools::Stdout(command);
-    cmSystemTools::Stdout("\n");
-    }
-  fflush(stdout);
-  fflush(stderr);
-  FILE* cpipe = popen(command, "r");
-  if(!cpipe)
-    {
-    return false;
-    }
-  fgets(buffer, BUFFER_SIZE, cpipe);
-  while(!feof(cpipe))
-    {
-    if(verbose)
-      {
-      cmSystemTools::Stdout(buffer);
-      }
-    output += buffer;
-    fgets(buffer, BUFFER_SIZE, cpipe);
-    }
-
-  retVal = pclose(cpipe);
-  if (WIFEXITED(retVal))
-    {
-    retVal = WEXITSTATUS(retVal);
-    return true;
-    }
-  if (WIFSIGNALED(retVal))
-    {
-    retVal = WTERMSIG(retVal);
-    cmOStringStream error;
-    error << "\nProcess terminated due to ";
-    switch (retVal)
-      {
-#ifdef SIGKILL
-      case SIGKILL:
-        error << "SIGKILL";
-        break;
-#endif
-#ifdef SIGFPE
-      case SIGFPE:
-        error << "SIGFPE";
-        break;
-#endif
-#ifdef SIGBUS
-      case SIGBUS:
-        error << "SIGBUS";
-        break;
-#endif
-#ifdef SIGSEGV
-      case SIGSEGV:
-        error << "SIGSEGV";
-        break;
-#endif
-      default:
-        error << "signal " << retVal;
-        break;
-      }
-    output += error.str();
-    }
-  return false;
-}
-
-#endif  // endif WIN32 not CYGWIN
-
-
-// run a command unix uses popen (easy)
-// windows uses system and ShortPath
-bool cmSystemTools::RunCommand(const char* command, 
-                               std::string& output,
-                               int &retVal, 
-                               const char* dir,
-                               bool verbose,
-                               int timeout)
-{
-  if(s_DisableRunCommandOutput)
-    {
-    verbose = false;
+    m_CacheEntriesList.HideAdvanced();
     }
   
-#if defined(WIN32) && !defined(__CYGWIN__)
-  // if the command does not start with a quote, then
-  // try to find the program, and if the program can not be
-  // found use system to run the command as it must be a built in
-  // shell command like echo or dir
-  int count = 0;
-  if(command[0] == '\"')
+  m_OKButton.EnableWindow(false);
+  if(cachem->GetSize() > 0 && !cmSystemTools::GetErrorOccuredFlag())
     {
-    // count the number of quotes
-    for(const char* s = command; *s != 0; ++s)
+    bool enable = true;
+    items = m_CacheEntriesList.GetItems();
+    for(std::set<CPropertyItem*>::iterator i = items.begin();
+        i != items.end(); ++i)
       {
-      if(*s == '\"')
+      CPropertyItem* item = *i;
+      if(item->m_Advanced )
         {
-        count++;
-        if(count > 2)
+        if(item->m_NewValue && m_CacheEntriesList.GetShowAdvanced())
           {
+          enable = false;
           break;
           }
-        }      
-      }
-    // if there are more than two double quotes use 
-    // GetShortPathName, the cmd.exe program in windows which
-    // is used by system fails to execute if there are more than
-    // one set of quotes in the arguments
-    if(count > 2)
-      {
-      cmsys::RegularExpression quoted("^\"([^\"]*)\"[ \t](.*)");
-      if(quoted.find(command))
-        {
-        std::string shortCmd;
-        std::string cmd = quoted.match(1);
-        std::string args = quoted.match(2);
-        if(! cmSystemTools::FileExists(cmd.c_str()) )
-          {
-          shortCmd = cmd;
-          }
-        else if(!cmSystemTools::GetShortPath(cmd.c_str(), shortCmd))
-          {
-         cmSystemTools::Error("GetShortPath failed for " , cmd.c_str());
-          return false;
-          }
-        shortCmd += " ";
-        shortCmd += args;
-
-        //return RunCommandViaSystem(shortCmd.c_str(), dir, 
-        //                           output, retVal, verbose);
-        //return WindowsRunCommand(shortCmd.c_str(), dir, 
-        //output, retVal, verbose);
-        return RunCommandViaWin32(shortCmd.c_str(), dir, 
-                                  output, retVal, verbose, timeout);
         }
       else
         {
-        cmSystemTools::Error("Could not parse command line with quotes ", 
-                             command);
-        }
-      }
-    }
-  // if there is only one set of quotes or no quotes then just run the command
-  //return RunCommandViaSystem(command, dir, output, retVal, verbose);
-  //return WindowsRunCommand(command, dir, output, retVal, verbose);
-  return ::RunCommandViaWin32(command, dir, output, retVal, verbose, timeout);
-#else
-  return ::RunCommandViaPopen(command, dir, output, retVal, verbose, timeout);
-#endif
-}
-
-bool cmSystemTools::DoesFileExistWithExtensions(
-  const char* name,
-  const std::vector<std::string>& headerExts)
-{
-  std::string hname;
-
-  for( std::vector<std::string>::const_iterator ext = headerExts.begin();
-       ext != headerExts.end(); ++ext )
-    {
-    hname = name;
-    hname += ".";
-    hname += *ext;
-    if(cmSystemTools::FileExists(hname.c_str()))
-      {
-      return true;
-      }
-    }
-  return false;
-}
-
-bool cmSystemTools::cmCopyFile(const char* source, const char* destination)
-{
-  return Superclass::CopyFileAlways(source, destination);
-}
-
-bool cmSystemTools::CopyFileIfDifferent(const char* source, 
-  const char* destination)
-{
-  return Superclass::CopyFileIfDifferent(source, destination);
-}
-
-void cmSystemTools::Glob(const char *directory, const char *regexp,
-                         std::vector<std::string>& files)
-{
-  cmsys::Directory d;
-  cmsys::RegularExpression reg(regexp);
-  
-  if (d.Load(directory))
-    {
-    size_t numf;
-        unsigned int i;
-    numf = d.GetNumberOfFiles();
-    for (i = 0; i < numf; i++)
-      {
-      std::string fname = d.GetFile(i);
-      if (reg.find(fname))
-        {
-        files.push_back(fname);
-        }
-      }
-    }
-}
-
-
-void cmSystemTools::GlobDirs(const char *fullPath,
-                             std::vector<std::string>& files)
-{
-  std::string path = fullPath;
-  std::string::size_type pos = path.find("/*");
-  if(pos == std::string::npos)
-    {
-    files.push_back(fullPath);
-    return;
-    }
-  std::string startPath = path.substr(0, pos);
-  std::string finishPath = path.substr(pos+2);
-
-  cmsys::Directory d;
-  if (d.Load(startPath.c_str()))
-    {
-    for (unsigned int i = 0; i < d.GetNumberOfFiles(); ++i)
-      {
-      if((std::string(d.GetFile(i)) != ".")
-         && (std::string(d.GetFile(i)) != ".."))
-        {
-        std::string fname = startPath;
-        fname +="/";
-        fname += d.GetFile(i);
-        if(cmSystemTools::FileIsDirectory(fname.c_str()))
+        if(item->m_NewValue)
           {
-          fname += finishPath;
-          cmSystemTools::GlobDirs(fname.c_str(), files);
+          // if one new value then disable to OK button
+          enable = false;
+          break;
           }
         }
       }
-    }
-}
-
-
-void cmSystemTools::ExpandList(std::vector<std::string> const& arguments, 
-                               std::vector<std::string>& newargs)
-{
-  std::vector<std::string>::const_iterator i;
-  for(i = arguments.begin();i != arguments.end(); ++i)
-    {
-    cmSystemTools::ExpandListArgument(*i, newargs);
-    }
-}
-
-void cmSystemTools::ExpandListArgument(const std::string& arg,
-                                       std::vector<std::string>& newargs)
-{
-  // If argument is empty, it is an empty list.
-  if(arg.length() == 0)
-    {
-    return;
-    }
-  // if there are no ; in the name then just copy the current string
-  if(arg.find(';') == std::string::npos)
-    {
-    newargs.push_back(arg);
-    return;
-    }
-  std::vector<char> newArgVec;
-  // Break the string at non-escaped semicolons not nested in [].
-  int squareNesting = 0;
-  for(const char* c = arg.c_str(); *c; ++c)
-    {
-    switch(*c)
+    if(enable)
       {
-      case '\\':
-        {
-        // We only want to allow escaping of semicolons.  Other
-        // escapes should not be processed here.
-        ++c;
-        if(*c == ';')
-          {
-          newArgVec.push_back(*c);
-          }
-        else
-          {
-          newArgVec.push_back('\\');
-          if(*c)
-            {
-            newArgVec.push_back(*c);
-            }
-          }
-        } break;
-      case '[':
-        {
-        ++squareNesting;
-        newArgVec.push_back(*c);
-        } break;
-      case ']':
-        {
-        --squareNesting;
-        newArgVec.push_back(*c);
-        } break;
-      case ';':
-        {
-        // Break the string here if we are not nested inside square
-        // brackets.
-        if(squareNesting == 0)
-          {
-          if ( newArgVec.size() )
-            {
-            // Add the last argument if the string is not empty.
-            newArgVec.push_back(0);
-            newargs.push_back(&*newArgVec.begin());
-            newArgVec.clear();
-            }
-          }
-        else
-          {
-          newArgVec.push_back(*c);
-          }
-        } break;
-      default:
-        {
-        // Just append this character.
-        newArgVec.push_back(*c);
-        } break;
+      m_OKButton.EnableWindow(true);
       }
     }
-  if ( newArgVec.size() )
-    {
-    // Add the last argument if the string is not empty.
-    newArgVec.push_back(0);
-    newargs.push_back(&*newArgVec.begin());
-    }
+
+  // redraw the list
+  m_CacheEntriesList.SetTopIndex(0);
+  m_CacheEntriesList.Invalidate();
 }
 
-bool cmSystemTools::SimpleGlob(const cmStdString& glob, 
-                               std::vector<cmStdString>& files, 
-                               int type /* = 0 */)
-{
-  files.clear();
-  if ( glob[glob.size()-1] != '*' )
-    {
-    return false;
-    }
-  std::string path = cmSystemTools::GetFilenamePath(glob);
-  std::string ppath = cmSystemTools::GetFilenameName(glob);
-  ppath = ppath.substr(0, ppath.size()-1);
-  if ( path.size() == 0 )
-    {
-    path = "/";
-    }
-
-  bool res = false;
-  cmsys::Directory d;
-  if (d.Load(path.c_str()))
-    {
-    for (unsigned int i = 0; i < d.GetNumberOfFiles(); ++i)
-      {
-      if((std::string(d.GetFile(i)) != ".")
-         && (std::string(d.GetFile(i)) != ".."))
-        {
-        std::string fname = path;
-        if ( path[path.size()-1] != '/' )
-          {
-          fname +="/";
-          }
-        fname += d.GetFile(i);
-        std::string sfname = d.GetFile(i);
-        if ( type > 0 && cmSystemTools::FileIsDirectory(fname.c_str()) )
-          {
-          continue;
-          }
-        if ( type < 0 && !cmSystemTools::FileIsDirectory(fname.c_str()) )
-          {
-          continue;
-          }
-        if ( sfname.size() >= ppath.size() && 
-             sfname.substr(0, ppath.size()) == 
-             ppath )
-          {
-          files.push_back(fname);
-          res = true;
-          }
-        }
-      }
-    }
-  return res;
-}
-
-cmSystemTools::FileFormat cmSystemTools::GetFileFormat(const char* cext)
-{
-  if ( ! cext || *cext == 0 )
-    {
-    return cmSystemTools::NO_FILE_FORMAT;
-    }
-  //std::string ext = cmSystemTools::LowerCase(cext);
-  std::string ext = cext;
-  if ( ext == "c" || ext == ".c" ) { return cmSystemTools::C_FILE_FORMAT; }
-  if ( 
-    ext == "C" || ext == ".C" ||
-    ext == "M" || ext == ".M" ||
-    ext == "c++" || ext == ".c++" ||
-    ext == "cc" || ext == ".cc" ||
-    ext == "cpp" || ext == ".cpp" ||
-    ext == "cxx" || ext == ".cxx" ||
-    ext == "m" || ext == ".m" ||
-    ext == "mm" || ext == ".mm"
-    ) { return cmSystemTools::CXX_FILE_FORMAT; }
-  if ( 
-    ext == "f" || ext == ".f" ||
-    ext == "F" || ext == ".F" ||
-    ext == "f77" || ext == ".f77" ||
-    ext == "f90" || ext == ".f90" ||
-    ext == "for" || ext == ".for" ||
-    ext == "f95" || ext == ".f95" 
-    ) { return cmSystemTools::FORTRAN_FILE_FORMAT; }
-  if ( ext == "java" || ext == ".java" ) { return cmSystemTools::JAVA_FILE_FORMAT; }
-  if ( 
-    ext == "H" || ext == ".H" || 
-    ext == "h" || ext == ".h" || 
-    ext == "h++" || ext == ".h++" ||
-    ext == "hm" || ext == ".hm" || 
-    ext == "hpp" || ext == ".hpp" || 
-    ext == "hxx" || ext == ".hxx" ||
-    ext == "in" || ext == ".in" ||
-    ext == "txx" || ext == ".txx"
-    ) { return cmSystemTools::HEADER_FILE_FORMAT; }
-  if ( ext == "rc" || ext == ".rc" ) { return cmSystemTools::RESOURCE_FILE_FORMAT; }
-  if ( ext == "def" || ext == ".def" ) { return cmSystemTools::DEFINITION_FILE_FORMAT; }
-  if ( ext == "lib" || ext == ".lib" ||
-       ext == "a" || ext == ".a") { return cmSystemTools::STATIC_LIBRARY_FILE_FORMAT; }
-  if ( ext == "o" || ext == ".o" ||
-       ext == "obj" || ext == ".obj") { return cmSystemTools::OBJECT_FILE_FORMAT; }
-#ifdef __APPLE__
-  if ( ext == "dylib" || ext == ".dylib" ) 
-    { return cmSystemTools::SHARED_LIBRARY_FILE_FORMAT; }
-  if ( ext == "so" || ext == ".so" || 
-       ext == "bundle" || ext == ".bundle" ) 
-    { return cmSystemTools::MODULE_FILE_FORMAT; } 
-#else // __APPLE__
-  if ( ext == "so" || ext == ".so" || 
-       ext == "sl" || ext == ".sl" || 
-       ext == "dll" || ext == ".dll" ) 
-    { return cmSystemTools::SHARED_LIBRARY_FILE_FORMAT; }
-#endif // __APPLE__
-  return cmSystemTools::UNKNOWN_FILE_FORMAT;
-}
-
-bool cmSystemTools::Split(const char* s, std::vector<cmStdString>& l)
-{
-  std::vector<std::string> temp;
-  bool res = Superclass::Split(s, temp);
-  for(std::vector<std::string>::const_iterator i = temp.begin();
-      i != temp.end(); ++i)
-    {
-    l.push_back(*i);
-    }
-  return res;
-}
-
-std::string cmSystemTools::ConvertToOutputPath(const char* path)
-{
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  if(s_ForceUnixPaths)
-    {
-    return cmSystemTools::ConvertToUnixOutputPath(path);
-    }
-  return cmSystemTools::ConvertToWindowsOutputPath(path);
-#else
-  return cmSystemTools::ConvertToUnixOutputPath(path);
-#endif
-}
-
-std::string cmSystemTools::ConvertToRunCommandPath(const char* path)
-{
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  return cmSystemTools::ConvertToWindowsOutputPath(path);
-#else
-  return cmSystemTools::ConvertToUnixOutputPath(path);
-#endif
-}
-
-bool cmSystemTools::StringEndsWith(const char* str1, const char* str2)
-{
-  if ( !str1 || !str2 || strlen(str1) < strlen(str2) )
-    {
-    return 0;
-    }
-  return !strncmp(str1 + (strlen(str1)-strlen(str2)), str2, strlen(str2));
-}
-
-#if defined(_WIN32) && !defined(__CYGWIN__)
-bool cmSystemTools::CreateSymlink(const char*, const char*)
-{
-  // Should we create a copy here?
-  return false;
-}
-#else
-bool cmSystemTools::CreateSymlink(const char* origName, const char* newName)
-{
-  return (symlink(origName, newName) >= 0);
-}
-#endif
-
-
-std::vector<cmStdString> cmSystemTools::SplitString(const char* p, char sep, bool isPath)
-{
-  std::string path = p;
-  std::vector<cmStdString> paths;
-  if(isPath && path[0] == '/')
-    {
-    path.erase(path.begin());
-    paths.push_back("/"); 
-    }
-  std::string::size_type pos1 = 0;
-  std::string::size_type pos2 = path.find(sep, pos1+1);
-  while(pos2 != std::string::npos)
-    {
-    paths.push_back(path.substr(pos1, pos2-pos1));
-    pos1 = pos2+1;
-    pos2 = path.find(sep, pos1+1);
-    } 
-  paths.push_back(path.substr(pos1, pos2-pos1));
-  
-  return paths;
-}
-
-
-// compute the relative path from here to there
-std::string cmSystemTools::RelativePath(const char* local, const char* remote)
-{
-  if(!cmSystemTools::FileIsFullPath(local))
-    {
-    cmSystemTools::Error("RelativePath must be passed a full path to local: ", local);
-    }
-  if(!cmSystemTools::FileIsFullPath(remote))
-    {
-    cmSystemTools::Error("RelativePath must be passed a full path to remote: ", remote);
-    }
-  
-  // split up both paths into arrays of strings using / as a separator
-  std::vector<cmStdString> localSplit = cmSystemTools::SplitString(local, '/', true); 
-  std::vector<cmStdString> remoteSplit = cmSystemTools::SplitString(remote, '/', true);
-  std::vector<cmStdString> commonPath; // store shared parts of path in this array
-  std::vector<cmStdString> finalPath;  // store the final relative path here
-  // count up how many matching directory names there are from the start
-  unsigned int sameCount = 0;
-  while(
-    ((sameCount <= (localSplit.size()-1)) && (sameCount <= (remoteSplit.size()-1)))
-    && 
-// for windows and apple do a case insensitive string compare    
-#if defined(_WIN32) || defined(__APPLE__)
-    cmSystemTools::Strucmp(localSplit[sameCount].c_str(),
-                           remoteSplit[sameCount].c_str()) == 0
-#else
-    localSplit[sameCount] == remoteSplit[sameCount]
-#endif
-    )
-    {
-    // put the common parts of the path into the commonPath array
-    commonPath.push_back(localSplit[sameCount]);
-    // erase the common parts of the path from the original path arrays
-    localSplit[sameCount] = "";
-    remoteSplit[sameCount] = "";
-    sameCount++;
-    }
-  // If there is nothing in common but the root directory, then just
-  // return the full path.
-  if(sameCount <= 1)
-    {
-    return remote;
-    }
-  
-  // for each entry that is not common in the local path
-  // add a ../ to the finalpath array, this gets us out of the local
-  // path into the remote dir
-  for(unsigned int i = 0; i < localSplit.size(); ++i)
-    {
-    if(localSplit[i].size())
-      {
-      finalPath.push_back("../");
-      }
-    }
-  // for each entry that is not common in the remote path add it
-  // to the final path.
-  for(std::vector<cmStdString>::iterator i = remoteSplit.begin();
-      i != remoteSplit.end(); ++i)
-    {
-    if(i->size())
-      {
-      finalPath.push_back(*i);
-      }
-    }
-  std::string relativePath;     // result string
-  // now turn the array of directories into a unix path by puttint / 
-  // between each entry that does not already have one
-  for(std::vector<cmStdString>::iterator i = finalPath.begin();
-      i != finalPath.end(); ++i)
-    {
-    if(relativePath.size() && relativePath[relativePath.size()-1] != '/')
-      {
-      relativePath += "/";
-      }
-    relativePath += *i;
-    }
-  return relativePath;
-}
-class cmDeletingCharVector : public std::vector<char*>
-{
-public:
-  ~cmDeletingCharVector()
-    {
-      for(std::vector<char*>::iterator i = this->begin();
-          i != this->end(); ++i)
-        {
-        delete []*i;
-        }
-    }
-};
-
-        
-bool cmSystemTools::PutEnv(const char* value)
+// copy from the list box to the cache manager
+void CMakeSetupDialog::FillCacheManagerFromCacheGUI()
 { 
-  static cmDeletingCharVector localEnvironment;
-  char* envVar = new char[strlen(value)+1];
-  strcpy(envVar, value);
-  int ret = putenv(envVar);
-  // save the pointer in the static vector so that it can
-  // be deleted on exit
-  localEnvironment.push_back(envVar);
-  return ret == 0;
-}
-
-bool cmSystemTools::IsPathToFramework(const char* path)
-{
-  if(cmSystemTools::FileIsFullPath(path))
+  cmCacheManager *cachem = this->m_CMakeInstance->GetCacheManager();
+  std::set<CPropertyItem*> items = m_CacheEntriesList.GetItems();
+  cmCacheManager::CacheIterator it = cachem->NewIterator();
+  for(std::set<CPropertyItem*>::iterator i = items.begin();
+      i != items.end(); ++i)
     {
-    std::string libname = path;
-    if(libname.find(".framework") == libname.size()+1-sizeof(".framework"))
+    CPropertyItem* item = *i; 
+    if ( it.Find((const char*)item->m_propName) )
       {
-      return true;
+      // if value is enclosed in single quotes ('foo') then remove them
+      // they were used to enforce the fact that it had 'invisible' 
+      // trailing stuff
+      if (item->m_curValue.GetLength() >= 2 &&
+          item->m_curValue[0] == '\'' && 
+          item->m_curValue[item->m_curValue.GetLength() - 1] == '\'') 
+        {
+        it.SetValue(item->m_curValue.Mid(
+          1, item->m_curValue.GetLength() - 2));
+        }
+      else
+        {
+        it.SetValue(item->m_curValue);
+        }
       }
     }
-  return false;
 }
 
-#include <libtar/libtar.h>
-#include <memory> // auto_ptr
+  
 
-bool cmSystemTools::CreateTar(const char* outFileName, const std::vector<cmStdString>& files)
+//! Load cache file from m_WhereBuild and display in GUI editor
+void CMakeSetupDialog::LoadCacheFromDiskToGUI()
 {
-  TAR *t;
-  char buf[TAR_MAXPATHLEN];
-  char pathname[TAR_MAXPATHLEN];
-
-  // Ok, this libtar is not const safe. for now use auto_ptr hack
-  char* realName = new char[ strlen(outFileName) + 1 ];
-  std::auto_ptr<char> realNamePtr(realName);
-  strcpy(realName, outFileName);
-  if (tar_open(&t, realName,
-      NULL,
-      O_WRONLY | O_CREAT, 0644,
-      TAR_VERBOSE
-      | 0) == -1)
+  cmCacheManager *cachem = this->m_CMakeInstance->GetCacheManager();
+  if(m_WhereBuild != "")
     {
-    fprintf(stderr, "tar_open(): %s\n", strerror(errno));
-    return -1;
-    }
-
-  std::vector<cmStdString>::const_iterator it;
-  for (it = files.begin(); it != files.end(); ++ it )
-    {
-    strncpy(pathname, it->c_str(), sizeof(pathname));
-    pathname[sizeof(pathname)-1] = 0;
-    strncpy(buf, pathname, sizeof(buf));
-    buf[sizeof(buf)-1] = 0;
-    if (tar_append_tree(t, buf, pathname) != 0)
+    if (!cachem->LoadCache(m_WhereBuild))
       {
-      fprintf(stderr,
-        "tar_append_tree(\"%s\", \"%s\"): %s\n", buf,
-        pathname, strerror(errno));
-      tar_close(t);
-      return false;
+      // if it does exist, but isn;t readable then warn the user
+      std::string cacheFile = m_WhereBuild;
+      cacheFile += "/CMakeCache.txt";
+      if(cmSystemTools::FileExists(cacheFile.c_str()))
+        {
+        cmSystemTools::Error("There is a CMakeCache.txt file for the current binary tree but cmake does not have permission to read it. Please check the permissions of the directory you are trying to run CMake on.");
+        return;
+        }
+      }
+    cmCacheManager::CacheIterator itm = cachem->NewIterator();
+    if ( itm.Find("CMAKE_HOME_DIRECTORY"))
+      {
+      std::string path = ConvertToWindowsPath(itm.GetValue());
+      this->m_WhereSource = path.c_str();
+      this->m_WhereSourceControl.SetWindowText(this->m_WhereSource);
+      this->OnChangeWhereSource();
+      }
+    m_CMakeInstance->SetHomeDirectory(m_WhereSource);
+    m_CMakeInstance->SetStartDirectory(m_WhereSource);
+    m_CMakeInstance->SetHomeOutputDirectory(m_WhereBuild);
+    m_CMakeInstance->SetStartOutputDirectory(m_WhereBuild);
+    m_CMakeInstance->PreLoadCMakeFiles();
+    this->FillCacheGUIFromCacheManager();
+    cmCacheManager::CacheIterator it = 
+      cachem->GetCacheIterator("CMAKE_GENERATOR");
+    if(!it.IsAtEnd())
+      {
+      m_GeneratorPicked = true;
+      std::string curGen = it.GetValue();
+      if(m_GeneratorDialog.m_GeneratorChoiceString != curGen.c_str())
+        {
+        m_GeneratorDialog.m_GeneratorChoiceString = curGen.c_str();
+        this->UpdateData(FALSE);
+        }
       }
     }
+}
 
-  if (tar_append_eof(t) != 0)
+//! Save GUI values to cmCacheManager and then save to disk.
+void CMakeSetupDialog::SaveCacheFromGUI()
+{
+  cmCacheManager *cachem = this->m_CMakeInstance->GetCacheManager();
+  this->FillCacheManagerFromCacheGUI();
+  if(m_WhereBuild != "")
     {
-    fprintf(stderr, "tar_append_eof(): %s\n", strerror(errno));
-    tar_close(t);
-    return false;
+    cachem->SaveCache(m_WhereBuild);
+    }
+}
+
+
+void CMakeSetupDialog::OnSize(UINT nType, int cx, int cy) 
+{
+  if (nType == SIZE_MINIMIZED)
+    {
+    CDialog::OnSize(nType, cx, cy);
+    return;
+    }  
+  if (m_oldCX == -1)
+    {
+    m_oldCX = cx;
+    m_oldCY = cy;
+    }
+  int deltax = cx - m_oldCX;
+  int deltay = cy - m_oldCY;
+
+  m_oldCX = cx;
+  m_oldCY = cy;
+
+  CDialog::OnSize(nType, cx, cy);
+
+  if (deltax == 0 && deltay == 0)
+    {
+    return;
+    }
+  
+  if(m_CacheEntriesList.m_hWnd)
+    {
+    // get the original sizes/positions
+    CRect cRect;
+    m_AdvancedValuesControl.GetWindowRect(&cRect);
+    this->ScreenToClient(&cRect);
+    m_AdvancedValuesControl.SetWindowPos(&wndTop, cRect.left + deltax, 
+                                         cRect.top, 
+                                         0, 0,
+                                         SWP_NOCOPYBITS | 
+                                         SWP_NOSIZE | SWP_NOZORDER);
+    m_BrowseSource.GetWindowRect(&cRect);
+    this->ScreenToClient(&cRect);
+    m_BrowseSource.SetWindowPos(&wndTop, cRect.left + deltax, 
+                                cRect.top, 
+                                0, 0,
+                                SWP_NOCOPYBITS | SWP_NOSIZE | SWP_NOZORDER);
+    m_BrowseBuild.GetWindowRect(&cRect);
+    this->ScreenToClient(&cRect);
+    m_BrowseBuild.SetWindowPos(&wndTop, cRect.left + deltax, 
+                               cRect.top, 
+                               0, 0,
+                               SWP_NOCOPYBITS | SWP_NOSIZE | SWP_NOZORDER);
+    
+    m_WhereSourceControl.GetWindowRect(&cRect);
+    m_WhereSourceControl.SetWindowPos(&wndTop, cRect.left, cRect.top, 
+                                      cRect.Width() + deltax, 
+                                      cRect.Height(), 
+                                      SWP_NOCOPYBITS | 
+                                      SWP_NOMOVE | SWP_NOZORDER);
+    m_WhereBuildControl.GetWindowRect(&cRect);
+    m_WhereBuildControl.SetWindowPos(&wndTop, cRect.left, cRect.top, 
+                                     cRect.Width() + deltax, 
+                                     cRect.Height(), 
+                                     SWP_NOCOPYBITS | 
+                                     SWP_NOMOVE | SWP_NOZORDER);
+    m_ListFrame.GetWindowRect(&cRect);
+    m_ListFrame.SetWindowPos(&wndTop, cRect.left, cRect.top, 
+                             cRect.Width() + deltax, 
+                             cRect.Height() + deltay, 
+                             SWP_NOCOPYBITS | SWP_NOMOVE | SWP_NOZORDER);
+    m_CacheEntriesList.GetWindowRect(&cRect);
+    m_CacheEntriesList.SetWindowPos(&wndTop, cRect.left, cRect.top, 
+                                    cRect.Width() + deltax, 
+                                    cRect.Height() + deltay, 
+                                    SWP_NOCOPYBITS | SWP_NOMOVE | SWP_NOZORDER);
+
+    m_StatusDisplay.GetWindowRect(&cRect);
+    this->ScreenToClient(&cRect);
+    m_StatusDisplay.SetWindowPos(&wndBottom, cRect.left, 
+                                 cRect.top + deltay, 
+                                 cRect.Width() + deltax,  cRect.Height(),
+                                 SWP_NOCOPYBITS);
+
+    m_MouseHelp.GetWindowRect(&cRect);
+    this->ScreenToClient(&cRect);
+    m_MouseHelp.SetWindowPos(&wndTop, cRect.left , 
+                             cRect.top + deltay, 
+                             cRect.Width() +  deltax, cRect.Height(),
+                             SWP_NOCOPYBITS | SWP_NOZORDER);
+    
+    deltax = int(deltax + m_deltaXRemainder);
+    m_deltaXRemainder = float(deltax%2);
+
+
+    m_Configure.GetWindowRect(&cRect);
+    this->ScreenToClient(&cRect);
+    m_Configure.SetWindowPos(&wndTop, cRect.left + deltax/2, 
+                                 cRect.top + deltay, 
+                                 0, 0,
+                                 SWP_NOCOPYBITS | SWP_NOSIZE);
+    m_CancelButton.GetWindowRect(&cRect);
+    this->ScreenToClient(&cRect);
+    m_CancelButton.SetWindowPos(&wndTop, cRect.left + deltax/2, 
+                                cRect.top + deltay, 
+                                0, 0,
+                                SWP_NOCOPYBITS | SWP_NOSIZE);
+    m_OKButton.GetWindowRect(&cRect);
+    this->ScreenToClient(&cRect);
+    m_OKButton.SetWindowPos(&wndTop, cRect.left + deltax/2, 
+                            cRect.top + deltay, 
+                            0, 0,
+                            SWP_NOCOPYBITS | SWP_NOSIZE);
+    m_DeleteButton.GetWindowRect(&cRect);
+    this->ScreenToClient(&cRect);
+    m_DeleteButton.SetWindowPos(&wndTop, cRect.left + deltax/2, 
+                                cRect.top + deltay, 
+                                0, 0,
+                                SWP_NOCOPYBITS | SWP_NOSIZE);
+    m_HelpButton.GetWindowRect(&cRect);
+    this->ScreenToClient(&cRect);
+    m_HelpButton.SetWindowPos(&wndTop, cRect.left + deltax/2, 
+                              cRect.top + deltay, 
+                              0, 0,
+                              SWP_NOCOPYBITS | SWP_NOSIZE);
+    }
+  
+}
+
+
+void CMakeSetupDialog::OnGetMinMaxInfo( MINMAXINFO FAR* lpMMI )
+{
+  lpMMI->ptMinTrackSize.x = 550;
+  lpMMI->ptMinTrackSize.y = 272;
+}
+
+void CMakeSetupDialog::OnCancel()
+{
+  if(m_RunningConfigure)
+    {
+     if(MessageBox("You are in the middle of a Configure.\n"
+                   "If you Cancel now the configure information will be lost.\n"
+                   "Are you sure you want to Cancel?", "Confirm Exit",
+                   MB_YESNO) == IDYES)
+       {
+       cmSystemTools::SetFatalErrorOccured();
+       }
+     return;
+    }
+  if(m_CacheEntriesList.IsDirty())
+    {
+    if(MessageBox("You have changed options but not rebuilt, "
+                  "are you sure you want to exit?", "Confirm Exit",
+                  MB_YESNO) == IDYES)
+      {
+      CDialog::OnOK();
+      }
+    }
+  else
+    {
+    CDialog::OnOK();
+    }
+}
+
+void CMakeSetupDialog::OnOk() 
+{
+  // enable error messages each time configure is pressed
+  cmSystemTools::EnableMessages();
+  m_CacheEntriesList.ClearDirty();
+  this->RunCMake(true);
+  if (!(::GetKeyState(VK_SHIFT) & 0x1000))
+    {
+    CDialog::OnOK();
+    }
+}
+
+// Create a shortcut on the desktop with the current Source/Build dir.
+int CMakeSetupDialog::CreateShortcut() 
+{
+  // Find the desktop folder and create the link name
+
+  HKEY hKey;
+  if(RegOpenKeyEx(HKEY_CURRENT_USER, 
+      "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders", 
+                  0, KEY_READ, &hKey) != ERROR_SUCCESS)
+    {
+    AfxMessageBox ("Create shortcut: unable to find 'Shell Folders' key in registry!");
+    return 1;
+    }
+  
+  DWORD dwType, dwSize;
+#define MAXPATH 1024
+  char link_name[MAXPATH];
+  dwSize = MAXPATH;
+  if(RegQueryValueEx(hKey, 
+                     (LPCTSTR)"Desktop", 
+                     NULL, 
+                     &dwType, 
+                     (BYTE *)link_name, 
+                     &dwSize) != ERROR_SUCCESS)
+    {
+    AfxMessageBox ("Create shortcut: unable to find 'Desktop' registry value in 'Shell Folders' key!");
+    return 1;
+    }
+  
+  if(dwType != REG_SZ)
+    {
+    AfxMessageBox ("Create shortcut: 'Desktop' registry value in 'Shell Folders' key has wrong type!");
+    return 1;
     }
 
-  if (tar_close(t) != 0)
+  strcat(link_name, "\\CMake - ");
+  std::string current_dir = cmSystemTools::GetFilenameName((LPCTSTR)m_WhereSource);
+  strcat(link_name, current_dir.c_str());
+  strcat(link_name, ".lnk");
+  
+  // Find the path to the current executable
+
+  char path_to_current_exe[MAXPATH];
+  ::GetModuleFileName(NULL, path_to_current_exe, MAXPATH);
+
+  // Create the shortcut
+
+  HRESULT hres;
+  IShellLink *psl;
+
+  // Initialize the COM library
+
+  hres = CoInitialize(NULL);
+
+  if (! SUCCEEDED (hres))
     {
-    fprintf(stderr, "tar_close(): %s\n", strerror(errno));
-    return false;
+    AfxMessageBox ("Create shortcut: unable to initialize the COM library!");
+    return 1;
     }
-  return true;
+
+  // Create an IShellLink object and get a pointer to the IShellLink 
+  // interface (returned from CoCreateInstance).
+
+  hres = CoCreateInstance(CLSID_ShellLink, 
+                          NULL, 
+                          CLSCTX_INPROC_SERVER,
+                          IID_IShellLink, 
+                          (void **)&psl);
+
+  if (! SUCCEEDED (hres))
+    {
+    AfxMessageBox ("Create shortcut: unable to create IShellLink instance!");
+    return 1;
+    }
+
+  IPersistFile *ppf;
+
+  // Query IShellLink for the IPersistFile interface for 
+  // saving the shortcut in persistent storage.
+
+  hres = psl->QueryInterface(IID_IPersistFile, (void **)&ppf);
+
+  if (SUCCEEDED (hres))
+    { 
+    // Set the path to the shortcut target.
+    hres = psl->SetPath(path_to_current_exe);
+
+    if (! SUCCEEDED (hres))
+      {
+      AfxMessageBox ("Create shortcut: SetPath failed!");
+      }
+    
+    // Set the arguments of the shortcut.
+    CString args = " /H=\"" + m_WhereSource + "\" /B=\"" + m_WhereBuild + "\" /G=\"" + m_GeneratorDialog.m_GeneratorChoiceString + "\" /A=\"" + (m_AdvancedValues ? "TRUE" : "FALSE") + "\"";
+    
+    hres = psl->SetArguments(args);
+
+    if (! SUCCEEDED (hres))
+      {
+      AfxMessageBox ("Create shortcut: SetArguments failed!");
+      }
+    
+    // Set the description of the shortcut.
+    hres = psl->SetDescription("Shortcut to CMakeSetup");
+    
+    if (! SUCCEEDED (hres))
+      {
+      AfxMessageBox ("Create shortcut: SetDescription failed!");
+      }
+    
+    // Ensure that the string consists of ANSI characters.
+    WORD wszAr[MAX_PATH]; 
+    LPWSTR wsz = (LPWSTR)wszAr;
+    MultiByteToWideChar(CP_ACP, 0, link_name, -1, (LPWSTR)(wsz), MAX_PATH);
+
+    // Save the shortcut via the IPersistFile::Save member function.
+    hres = ppf->Save(wsz, TRUE);
+
+    if (! SUCCEEDED (hres))
+      {
+      AfxMessageBox ("Create shortcut: Save failed!");
+      }
+    
+    // Release the pointer to IPersistFile.
+    ppf->Release ();
+    }
+  // Release the pointer to IShellLink.
+  psl->Release ();
+
+  return 0;
+}
+
+void CMakeSetupDialog::OnHelpButton() 
+{
+  CMakeHelp dialog;
+  dialog.DoModal();
+}
+
+void CMakeSetupDialog::OnDeleteButton() 
+{
+  std::string message = "Are you sure you want to delete the CMakeCache.txt file for:\n";
+  message += m_WhereBuild;
+  if(::MessageBox(0, message.c_str(), "Delete Cache?", 
+                  MB_YESNO|MB_TASKMODAL) == IDNO)
+    {
+    return;
+    }
+  m_GeneratorPicked = false;
+
+  if(m_WhereBuild != "" && this->m_CMakeInstance)
+    {
+    this->m_CMakeInstance->GetCacheManager()->DeleteCache(m_WhereBuild);
+    }
+  
+  // Make sure we are working from the cache on disk
+  this->LoadCacheFromDiskToGUI(); 
+  
+  m_OKButton.EnableWindow(false);
+}
+
+void CMakeSetupDialog::ShowAdvancedValues()
+{
+  m_CacheEntriesList.ShowAdvanced();
+}
+
+void CMakeSetupDialog::RemoveAdvancedValues()
+{
+  m_CacheEntriesList.HideAdvanced();
+}
+
+
+void CMakeSetupDialog::OnAdvancedValues() 
+{
+  this->UpdateData();
+  if(m_AdvancedValues)
+    {
+    this->ShowAdvancedValues();
+    }
+  else
+    {
+    this->RemoveAdvancedValues();
+    }
+}
+
+void CMakeSetupDialog::OnDoubleclickedAdvancedValues() 
+{
+  this->OnAdvancedValues();
+}
+
+// Handle param or single dropped file.
+void CMakeSetupDialog::ChangeDirectoriesFromFile(const char* arg)
+{
+  // Check if the argument refers to a CMakeCache.txt or
+  // CMakeLists.txt file.
+  std::string listPath;
+  std::string cachePath;
+  bool argIsFile = false;
+  if(cmSystemTools::FileIsDirectory(arg))
+    {
+    std::string path = cmSystemTools::CollapseFullPath(arg);
+    cmSystemTools::ConvertToUnixSlashes(path);
+    std::string cacheFile = path;
+    cacheFile += "/CMakeCache.txt";
+    std::string listFile = path;
+    listFile += "/CMakeLists.txt";
+    if(cmSystemTools::FileExists(cacheFile.c_str()))
+      {
+      cachePath = path;
+      }
+    if(cmSystemTools::FileExists(listFile.c_str()))
+      {
+      listPath = path;
+      }
+    }
+  else if(cmSystemTools::FileExists(arg))
+    {
+    argIsFile = true;
+    std::string fullPath = cmSystemTools::CollapseFullPath(arg);
+    std::string name = cmSystemTools::GetFilenameName(fullPath.c_str());
+    name = cmSystemTools::LowerCase(name);
+    if(name == "cmakecache.txt")
+      {
+      cachePath = cmSystemTools::GetFilenamePath(fullPath.c_str());
+      }
+    else if(name == "cmakelists.txt")
+      {
+      listPath = cmSystemTools::GetFilenamePath(fullPath.c_str());
+      }
+    }
+  
+  // If there is a CMakeCache.txt file, use its settings.
+  if(cachePath.length() > 0)
+    {
+    cmCacheManager* cachem = m_CMakeInstance->GetCacheManager();
+    cmCacheManager::CacheIterator it = cachem->NewIterator();
+    if(cachem->LoadCache(cachePath.c_str()) && it.Find("CMAKE_HOME_DIRECTORY"))
+      {
+      std::string path = ConvertToWindowsPath(cachePath.c_str());
+      m_WhereBuild = path.c_str();
+      
+      path = ConvertToWindowsPath(it.GetValue());
+      m_WhereSource = path.c_str();
+      
+      m_GeneratorDialog.m_GeneratorChoiceString = _T("");
+      return;
+      }
+    }
+  
+  // If there is a CMakeLists.txt file, use it as the source tree.
+  if(listPath.length() > 0)
+    {
+    std::string path = ConvertToWindowsPath(listPath.c_str());
+    m_WhereSource = path.c_str();
+    
+    if(argIsFile)
+      {
+      // Source CMakeLists.txt file given.  It was probably dropped
+      // onto the window or executable.  Default to an in-source
+      // build.
+      m_WhereBuild = path.c_str();
+      }
+    else
+      {
+      // Source directory given on command line.  Use current working
+      // directory as build tree.
+      std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
+      path = ConvertToWindowsPath(cwd.c_str());
+      m_WhereBuild = path.c_str();
+      }
+    }
+}
+
+
+// The framework calls this member function when the user releases the
+// left mouse button over a window that has registered itself as the 
+// recipient of dropped files. 
+
+void CMakeSetupDialog::OnDropFiles(HDROP hDropInfo)
+{
+  UINT nb_files = DragQueryFile(hDropInfo, 0xFFFFFFFF, NULL, 0);
+  if (nb_files > 0)
+    {
+    UINT buffer_size = DragQueryFile(hDropInfo, 0, NULL, 0);
+    char *buffer = new char [buffer_size + 1];
+    DragQueryFile(hDropInfo, 0, buffer, buffer_size + 1);
+
+    this->ChangeDirectoriesFromFile(buffer);
+    delete [] buffer;
+
+    this->m_WhereSourceControl.SetWindowText(this->m_WhereSource);
+    this->m_WhereBuildControl.SetWindowText(this->m_WhereBuild);
+
+    this->UpdateData(FALSE);
+
+    this->OnChangeWhereSource();
+    this->OnChangeWhereBuild();
+    }
+
+  DragFinish(hDropInfo);
+}
+
+BOOL CMakeSetupDialog::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message) 
+{
+  CDialog::OnSetCursor(pWnd, nHitTest, message);
+  if(m_Cursor == LoadCursor(NULL, IDC_WAIT))
+    {
+    ::SetCursor(m_Cursor);
+    }
+   return true;
 }

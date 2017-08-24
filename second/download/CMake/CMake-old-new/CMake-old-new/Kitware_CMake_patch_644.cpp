@@ -1,40 +1,115 @@
-@@ -247,25 +247,19 @@ kwsysProcess* kwsysProcess_New()
-     char tempDir[_MAX_PATH+1] = "";
-     
-     /* We will try putting the executable in the system temp
--       directory.  */
--    DWORD length = GetEnvironmentVariable("TEMP", tempDir, _MAX_PATH);
-+       directory.  Note that the returned path already has a trailing
-+       slash.  */
-+    DWORD length = GetTempPath(_MAX_PATH+1, tempDir);
-     
-     /* Construct the executable name from the process id and kwsysProcess
-        instance.  This should be unique.  */
-     sprintf(fwdName, "cmw9xfwd_%u_%p.exe", GetCurrentProcessId(), cp);
-     
--    /* If the environment variable "TEMP" gave us a directory, use it.  */
-+    /* If we have a temp directory, use it.  */
-     if(length > 0 && length <= _MAX_PATH)
+@@ -217,35 +217,48 @@ void cmLocalVisualStudio6Generator::WriteDSPFile(std::ostream& fout,
+     this->AddDSPBuildRule();
+     }
+ 
+-  // for utility targets need custom command since post build doesn't
+-  // do anything (Visual Studio 7 seems to do this correctly without 
+-  // the hack)
+-  if (target.GetType() == cmTarget::UTILITY && 
+-      target.GetPostBuildCommands().size())
++  // For utility targets need custom command since pre- and post-
++  // build does not do anything in Visual Studio 6.  In order for the
++  // rules to run in the correct order as custom commands, we need
++  // special care for dependencies.  The first rule must depend on all
++  // the dependencies of all the rules.  The later rules must each
++  // depend only on the previous rule.
++  if (target.GetType() == cmTarget::UTILITY &&
++      (!target.GetPreBuildCommands().empty() ||
++       !target.GetPostBuildCommands().empty()))
+     {
++    // Accumulate the dependencies of all the commands.
++    std::vector<std::string> depends;
++    for (std::vector<cmCustomCommand>::const_iterator cr =
++           target.GetPreBuildCommands().begin();
++         cr != target.GetPreBuildCommands().end(); ++cr)
++      {
++      depends.insert(depends.end(),
++                     cr->GetDepends().begin(), cr->GetDepends().end());
++      }
++    for (std::vector<cmCustomCommand>::const_iterator cr =
++           target.GetPostBuildCommands().begin();
++         cr != target.GetPostBuildCommands().end(); ++cr)
++      {
++      depends.insert(depends.end(),
++                     cr->GetDepends().begin(), cr->GetDepends().end());
++      }
++
++    // Add the pre- and post-build commands in order.
+     int count = 1;
+-    for (std::vector<cmCustomCommand>::const_iterator cr = 
+-           target.GetPostBuildCommands().begin(); 
++    for (std::vector<cmCustomCommand>::const_iterator cr =
++           target.GetPreBuildCommands().begin();
++         cr != target.GetPreBuildCommands().end(); ++cr)
++      {
++      this->AddUtilityCommandHack(target, count++, depends,
++                                  cr->GetCommandLines());
++      }
++    for (std::vector<cmCustomCommand>::const_iterator cr =
++           target.GetPostBuildCommands().begin();
+          cr != target.GetPostBuildCommands().end(); ++cr)
        {
--      /* Make sure there is no trailing slash.  */
--      size_t tdlen = strlen(tempDir);
--      if(tempDir[tdlen-1] == '/' || tempDir[tdlen-1] == '\\')
--        {
--        tempDir[tdlen-1] = 0;
--        --tdlen;
--        }
--      
-       /* Allocate a buffer to hold the forwarding executable path.  */
-+      size_t tdlen = strlen(tempDir);
-       win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
-       if(!win9x)
-         {
-@@ -274,7 +268,7 @@ kwsysProcess* kwsysProcess_New()
-         }
-       
-       /* Construct the full path to the forwarding executable.  */
--      sprintf(win9x, "%s/%s", tempDir, fwdName);
-+      sprintf(win9x, "%s%s", tempDir, fwdName);
+-      char *output = new char [
+-        strlen(m_Makefile->GetStartOutputDirectory()) + 
+-        strlen(libName) + 30];
+-      sprintf(output,"%s/%s_force_%i",
+-              m_Makefile->GetStartOutputDirectory(),
+-              libName, count);
+-      const char* no_main_dependency = 0;
+-      const char* no_comment = 0;
+-      m_Makefile->AddCustomCommandToOutput(output,
+-                                           cr->GetDepends(),
+-                                           no_main_dependency,
+-                                           cr->GetCommandLines(),
+-                                           no_comment);
+-      cmSourceFile* outsf = 
+-        m_Makefile->GetSourceFileWithOutput(output);
+-      target.GetSourceFiles().push_back(outsf);
+-      count++;
+-      delete [] output;
++      this->AddUtilityCommandHack(target, count++, depends,
++                                  cr->GetCommandLines());
        }
-     
-     /* If we found a place to put the forwarding executable, try to
+     }
+   
+@@ -409,6 +422,40 @@ void cmLocalVisualStudio6Generator::WriteDSPFile(std::ostream& fout,
+ }
+ 
+ 
++void
++cmLocalVisualStudio6Generator
++::AddUtilityCommandHack(cmTarget& target, int count,
++                        std::vector<std::string>& depends,
++                        const cmCustomCommandLines& commandLines)
++{
++  // Create a fake output that forces the rule to run.
++  char* output = new char[(strlen(m_Makefile->GetStartOutputDirectory()) +
++                           strlen(target.GetName()) + 30)];
++  sprintf(output,"%s/%s_force_%i", m_Makefile->GetStartOutputDirectory(),
++          target.GetName(), count);
++
++  // Add the rule with the given dependencies and commands.
++  const char* no_main_dependency = 0;
++  const char* no_comment = 0;
++  m_Makefile->AddCustomCommandToOutput(output,
++                                       depends,
++                                       no_main_dependency,
++                                       commandLines,
++                                       no_comment);
++
++  // Replace the dependencies with the output of this rule so that the
++  // next rule added will run after this one.
++  depends.clear();
++  depends.push_back(output);
++
++  // Add a source file representing this output to the project.
++  cmSourceFile* outsf = m_Makefile->GetSourceFileWithOutput(output);
++  target.GetSourceFiles().push_back(outsf);
++
++  // Free the fake output name.
++  delete [] output;
++}
++
+ void cmLocalVisualStudio6Generator::WriteCustomRule(std::ostream& fout,
+                                   const char* source,
+                                   const char* command,

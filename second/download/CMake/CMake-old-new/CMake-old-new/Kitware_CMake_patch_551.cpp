@@ -1,143 +1,70 @@
-@@ -2008,10 +2008,60 @@ void cmake::GenerateGraphViz(const char* fileName)
+@@ -1487,8 +1487,8 @@ int cmake::Configure()
+   if(!this->CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
      {
-     return;
+     char ver[256];
+-    sprintf(ver,"%i.%i",cmMakefile::GetMajorVersion(),
+-            cmMakefile::GetMinorVersion());
++    sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
++            cmVersion::GetMinorVersion());
+     this->CacheManager->AddCacheEntry
+       ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
+        "For backwards compatibility, what version of CMake commands and "
+@@ -1680,10 +1680,10 @@ bool cmake::CacheVersionMatches()
+     this->CacheManager->GetCacheValue("CMAKE_CACHE_RELEASE_VERSION");
+   bool cacheSameCMake = false;
+   if(majv &&
+-     atoi(majv) == static_cast<int>(cmMakefile::GetMajorVersion())
++     atoi(majv) == static_cast<int>(cmVersion::GetMajorVersion())
+      && minv &&
+-     atoi(minv) == static_cast<int>(cmMakefile::GetMinorVersion())
+-     && relv && (strcmp(relv, cmMakefile::GetReleaseVersion()) == 0))
++     atoi(minv) == static_cast<int>(cmVersion::GetMinorVersion())
++     && relv && (strcmp(relv, cmVersion::GetReleaseVersion().c_str()) == 0))
+     {
+     cacheSameCMake = true;
      }
--  str << "digraph G {" << std::endl;
--  str << "node [" << std::endl;
--  str << "  fontsize = \"12\"" << std::endl;
--  str << "];" << std::endl;
-+  cmake cm;
-+  cmGlobalGenerator ggi;
-+  ggi.SetCMakeInstance(&cm);
-+  std::auto_ptr<cmLocalGenerator> lg(ggi.CreateLocalGenerator());
-+  lg->SetGlobalGenerator(&ggi);
-+  cmMakefile *mf = lg->GetMakefile();
-+
-+  std::string infile = this->GetHomeOutputDirectory();
-+  infile += "/CMakeGraphVizOptions.cmake";
-+  if ( !cmSystemTools::FileExists(infile.c_str()) )
-+    {
-+    infile = this->GetHomeDirectory();
-+    infile += "/CMakeGraphVizOptions.cmake";
-+    if ( !cmSystemTools::FileExists(infile.c_str()) )
-+      {
-+      infile = "";
-+      }
-+    }
-+
-+  if ( !infile.empty() )
-+    {
-+    if ( !mf->ReadListFile(0, infile.c_str()) )
-+      {
-+      cmSystemTools::Error("Problem opening GraphViz options file: ", infile.c_str());
-+      return;
-+      }
-+    std::cout << "Read GraphViz options file: " << infile.c_str() << std::endl;
-+    }
-+
-+#define __set_if_not_set(var, value, cmakeDefinition) \
-+  const char* var = mf->GetDefinition(cmakeDefinition); \
-+  if ( !var ) \
-+    { \
-+    var = value; \
-+    }
-+  __set_if_not_set(graphType, "digraph", "GRAPHVIZ_GRAPH_TYPE");
-+  __set_if_not_set(graphName, "GG", "GRAPHVIZ_GRAPH_NAME");
-+  __set_if_not_set(graphHeader, "node [\n  fontsize = \"12\"\n];", "GRAPHVIZ_GRAPH_HEADER");
-+  __set_if_not_set(graphNodePrefix, "node", "GRAPHVIZ_NODE_PREFIX");
-+  const char* ignoreTargets = mf->GetDefinition("GRAPHVIZ_IGNORE_TARGETS");
-+  std::set<cmStdString> ignoreTargetsSet;
-+  if ( ignoreTargets )
-+    {
-+    std::vector<std::string> ignoreTargetsVector;
-+    cmSystemTools::ExpandListArgument(ignoreTargets,ignoreTargetsVector);
-+    std::vector<std::string>::iterator itvIt;
-+    for ( itvIt = ignoreTargetsVector.begin(); itvIt != ignoreTargetsVector.end(); ++ itvIt )
-+      {
-+      ignoreTargetsSet.insert(itvIt->c_str());
-+      }
-+    }
-+ 
-+  str << graphType << " " << graphName << " {" << std::endl;
-+  str << graphHeader << std::endl;
+@@ -1815,21 +1815,6 @@ int cmake::Generate()
+   return 0;
+ }
  
-   cmGlobalGenerator* gg = this->GetGlobalGenerator();
-   std::vector<cmLocalGenerator*> localGenerators;
-@@ -2033,10 +2083,16 @@ void cmake::GenerateGraphViz(const char* fileName)
-     cmTargets::iterator tit;
-     for ( tit = targets->begin(); tit != targets->end(); ++ tit )
-       {
-+      const char* realTargetName = tit->first.c_str();
-+      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
-+        {
-+        // Skip ignored targets
-+        continue;
-+        }
-       //std::cout << "Found target: " << tit->first.c_str() << std::endl;
--      sprintf(tgtName, "node%d", cnt++);
--      targetNamesNodes[tit->first.c_str()] = tgtName;
--      targetPtrs[tit->first.c_str()] = &tit->second;
-+      sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
-+      targetNamesNodes[realTargetName] = tgtName;
-+      targetPtrs[realTargetName] = &tit->second;
-       //str << "    \"" << tgtName << "\" [ label=\"" << tit->first.c_str() <<  "\" shape=\"box\"];" << std::endl;
-       }
-     }
-@@ -2049,17 +2105,28 @@ void cmake::GenerateGraphViz(const char* fileName)
-       {
-       const cmTarget::LinkLibraries* ll = &(tit->second.GetOriginalLinkLibraries());
-       cmTarget::LinkLibraries::const_iterator llit;
-+      const char* realTargetName = tit->first.c_str();
-+      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
-+        {
-+        // Skip ignored targets
-+        continue;
-+        }
-       if ( ll->size() > 0 )
-         {
--        targetDeps[tit->first.c_str()] = 1;
-+        targetDeps[realTargetName] = 1;
-         }
-       for ( llit = ll->begin(); llit != ll->end(); ++ llit )
-         {
-         const char* libName = llit->first.c_str();
-         std::map<cmStdString, cmStdString>::iterator tarIt = targetNamesNodes.find(libName);
-+        if ( ignoreTargetsSet.find(libName) != ignoreTargetsSet.end() )
-+          {
-+          // Skip ignored targets
-+          continue;
-+          }
-         if ( tarIt == targetNamesNodes.end() )
-           {
--          sprintf(tgtName, "node%d", cnt++);
-+          sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
-           targetDeps[libName] = 2;
-           targetNamesNodes[libName] = tgtName;
-           //str << "    \"" << tgtName << "\" [ label=\"" << libName <<  "\" shape=\"ellipse\"];" << std::endl;
-@@ -2085,7 +2152,7 @@ void cmake::GenerateGraphViz(const char* fileName)
-     if ( tarIt == targetNamesNodes.end() )
-       {
-       // We should not be here.
--      std::cout << "Cannot find library: " << newTargetName << " even though it was added in the previous pass" << std::endl;
-+      std::cout << __LINE__ << " Cannot find library: " << newTargetName << " even though it was added in the previous pass" << std::endl;
-       abort();
-       }
- 
-@@ -2096,7 +2163,7 @@ void cmake::GenerateGraphViz(const char* fileName)
-       if ( tarTypeIt == targetPtrs.end() )
-         {
-         // We should not be here.
--        std::cout << "Cannot find library: " << newTargetName << " even though it was added in the previous pass" << std::endl;
-+        std::cout << __LINE__ << " Cannot find library: " << newTargetName << " even though it was added in the previous pass" << std::endl;
-         abort();
-         }
-       cmTarget* tg = tarTypeIt->second;
-@@ -2147,7 +2214,7 @@ void cmake::GenerateGraphViz(const char* fileName)
-         if ( tarIt == targetNamesNodes.end() )
-           {
-           // We should not be here.
--          std::cout << "Cannot find library: " << libName << " even though it was added in the previous pass" << std::endl;
-+          std::cout << __LINE__ << " Cannot find library: " << libName << " even though it was added in the previous pass" << std::endl;
-           abort();
-           }
-         str << "    \"" << cmakeTarIt->second.c_str() << "\" -> \"" << tarIt->second.c_str() << "\"" << std::endl;
+-unsigned int cmake::GetMajorVersion()
+-{
+-  return cmMakefile::GetMajorVersion();
+-}
+-
+-unsigned int cmake::GetMinorVersion()
+-{
+-  return cmMakefile::GetMinorVersion();
+-}
+-
+-const char *cmake::GetReleaseVersion()
+-{
+-  return cmMakefile::GetReleaseVersion();
+-}
+-
+ void cmake::AddCacheEntry(const char* key, const char* value,
+                           const char* helpString,
+                           int type)
+@@ -1852,8 +1837,9 @@ int cmake::DumpDocumentationToFile(std::ostream& f)
+   const char *terse;
+   const char *full;
+   char tmp[1024];
+-  sprintf(tmp,"Version %d.%d (%s)", cmake::GetMajorVersion(),
+-          cmake::GetMinorVersion(), cmVersion::GetReleaseVersion().c_str());
++  sprintf(tmp,"Version %d.%d (%s)", cmVersion::GetMajorVersion(),
++          cmVersion::GetMinorVersion(),
++          cmVersion::GetReleaseVersion().c_str());
+   f << "<html>\n";
+   f << "<h1>Documentation for commands of CMake " << tmp << "</h1>\n";
+   f << "<ul>\n";
+@@ -1959,8 +1945,8 @@ int cmake::LoadCache()
+   if(!this->CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
+     {
+     char ver[256];
+-    sprintf(ver,"%i.%i",cmMakefile::GetMajorVersion(),
+-            cmMakefile::GetMinorVersion());
++    sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
++            cmVersion::GetMinorVersion());
+     this->CacheManager->AddCacheEntry
+       ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
+        "For backwards compatibility, what version of CMake commands and "

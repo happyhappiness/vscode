@@ -1,16 +1,19 @@
-       work-around a Windows 9x bug.  */
-    char fwdName[_MAX_FNAME+1] = "";
-    char tempDir[_MAX_PATH+1] = "";
-    
-    /* We will try putting the executable in the system temp
-       directory.  Note that the returned path already has a trailing
-       slash.  */
-    DWORD length = GetTempPath(_MAX_PATH+1, tempDir);
-    
-    /* Construct the executable name from the process id and kwsysProcess
-       instance.  This should be unique.  */
-    sprintf(fwdName, "cmw9xfwd_%u_%p.exe", GetCurrentProcessId(), cp);
-    
-    /* If we have a temp directory, use it.  */
-    if(length > 0 && length <= _MAX_PATH)
+    {
+    if(exception != kwsysProcess_GetExitException(kp))
       {
+      fprintf(stderr, "Mismatch in exit exception.  Should have been %d.\n",
+              exception);
+      }
+    if(value != kwsysProcess_GetExitValue(kp))
+      {
+      fprintf(stderr, "Mismatch in exit value.  Should have been %d.\n",
+              value);
+      }
+    }
+  
+  if(kwsysProcess_GetState(kp) != state)
+    {
+    fprintf(stderr, "Mismatch in state.  Should have been %d.\n", state);
+    result = 1;
+    }
+  

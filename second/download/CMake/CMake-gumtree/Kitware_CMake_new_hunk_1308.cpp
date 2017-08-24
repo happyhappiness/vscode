@@ -1,30 +1,19 @@
-        hex[0] = c;
-        switch ( c )
-          {
-        case '+':
-        case '?':
-        case '/':
-        case '\\':
-        case '&':
-        case ' ':
-        case '=':
-        case '%':
-          sprintf(hex, "%%%02X", (int)c);
-          ofile.append(hex);
-          break;
-        default: 
-          ofile.append(hex);
-          }
-        }
-      std::string turl = url + "?xmlfile=" + ofile;
-      if ( m_Verbose )
-        {
-        std::cout << "  Trigger url: " << turl.c_str() << std::endl;
-        }
-      curl_easy_setopt(curl, CURLOPT_URL, turl.c_str());
-      if ( curl_easy_perform(curl) )
-        {
-        std::cout << "  Error when triggering: " << turl.c_str() << std::endl;
-        ::curl_easy_cleanup(curl);
-        ::curl_global_cleanup(); 
-        return false;
+    return false;
+    }
+  std::string local_start_time = m_CTest->CurrentTime();
+  m_CTest->StartXML(covLogFile);
+  covLogFile << "<CoverageLog>" << std::endl
+    << "\t<StartDateTime>" << local_start_time << "</StartDateTime>" << std::endl;
+  return true;
+}
+
+//----------------------------------------------------------------------
+void cmCTestCoverageHandler::EndLogFile(std::ofstream& ostr, int logFileCount)
+{
+  std::string local_end_time = m_CTest->CurrentTime();
+  ostr << "\t<EndDateTime>" << local_end_time << "</EndDateTime>" << std::endl
+    << "</CoverageLog>" << std::endl;
+  m_CTest->EndXML(ostr);
+  char covLogFilename[1024];
+  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
+  std::cout << "Close file: " << covLogFilename << std::endl;

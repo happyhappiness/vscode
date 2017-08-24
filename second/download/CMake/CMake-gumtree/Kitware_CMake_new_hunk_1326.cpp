@@ -1,0 +1,31 @@
+
+  // do an initial cvs update as required
+  command = m_CVSCmd;
+  std::vector<cmStdString>::iterator it;
+  for (it = m_ExtraUpdates.begin(); it != m_ExtraUpdates.end(); ++ it )
+    {
+    std::vector<std::string> cvsArgs;
+    cmSystemTools::ExpandListArgument(it->c_str(),cvsArgs);
+    if (cvsArgs.size() == 2)
+      {
+      std::string fullCommand = command;
+      fullCommand += " update ";
+      fullCommand += cvsArgs[1];
+      output = "";
+      retVal = 0;
+      if ( m_Verbose )
+        {
+        std::cerr << "Run CVS: " << fullCommand.c_str() << std::endl;
+        }
+      res = cmSystemTools::RunSingleCommand(fullCommand.c_str(), &output, 
+        &retVal, cvsArgs[0].c_str(),
+        m_Verbose, 0 /*m_TimeOut*/);
+      if (!res || retVal != 0)
+        {
+        cmSystemTools::Error("Unable to perform extra cvs updates:\n", 
+          output.c_str());
+        this->RestoreBackupDirectories();
+        return 8;
+        }
+      }
+    }

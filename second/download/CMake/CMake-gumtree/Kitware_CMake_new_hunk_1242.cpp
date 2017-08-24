@@ -1,9 +1,17 @@
-                /* They forgot to leave room for the EOB's. */
-                return 0;
+  lnp = (linkname_t *)calloc(1, sizeof(linkname_t));
+  if (lnp == NULL)
+    return -1;
+  pathname = th_get_pathname(t);
+  strlcpy(lnp->ln_save, pathname, sizeof(lnp->ln_save));
+  strlcpy(lnp->ln_real, realname, sizeof(lnp->ln_real));
+#ifdef DEBUG
+  printf("tar_extract_file(): calling libtar_hash_add(): key=\"%s\", "
+         "value=\"%s\"\n", pathname, realname);
+#endif
+  if (pathname)
+    {
+    free(pathname);
+    }
+  if (libtar_hash_add(t->h, lnp) != 0)
+    return -1;
 
-        b = (YY_BUFFER_STATE) cmListFileLexer_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
-        if ( ! b )
-                YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_scan_buffer()" );
-
-        b->yy_buf_size = size - 2;      /* "- 2" to take care of EOB's */
-        b->yy_buf_pos = b->yy_ch_buf = base;

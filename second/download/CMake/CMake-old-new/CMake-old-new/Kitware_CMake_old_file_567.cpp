@@ -1,276 +1,456 @@
-/*
-**  Copyright 1998-2003 University of Illinois Board of Trustees
-**  Copyright 1998-2003 Mark D. Roth
-**  All rights reserved.
-**
-**  append.c - libtar code to append files to a tar archive
-**
-**  Mark D. Roth <roth@uiuc.edu>
-**  Campus Information Technologies and Educational Services
-**  University of Illinois at Urbana-Champaign
-*/
+/*=========================================================================
 
-#include <libtarint/internal.h>
+  Program:   KWSys - Kitware System Library
+  Module:    $RCSfile$
+
+  Copyright (c) Kitware, Inc., Insight Consortium.  All rights reserved.
+  See Copyright.txt or http://www.kitware.com/Copyright.htm for details.
+
+     This software is distributed WITHOUT ANY WARRANTY; without even
+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+     PURPOSE.  See the above copyright notices for more information.
+
+=========================================================================*/
+#include "kwsysPrivate.h"
+#include KWSYS_HEADER(Process.h)
+
+/* Work-around CMake dependency scanning limitation.  This must
+   duplicate the above list of headers.  */
+#if 0
+# include "Process.h.in"
+#endif
 
 #include <stdio.h>
-#include <errno.h>
-#include <fcntl.h>
-#ifdef _MSC_VER
-# include <libtar/compat.h>
+#include <stdlib.h>
+#include <string.h>
+
+#if defined(_WIN32)
+# include <windows.h>
 #else
-# include <sys/param.h>
-#endif
-#include <libtar/compat.h>
-#include <sys/types.h>
-
-#ifdef STDC_HEADERS
-# include <stdlib.h>
-# include <string.h>
-#endif
-
-#ifdef HAVE_UNISTD_H
 # include <unistd.h>
 #endif
-#ifdef _MSC_VER
-#include <io.h>
-#endif
 
-struct tar_dev
+int runChild(const char* cmd[], int state, int exception, int value,
+             int share, int output, int delay, double timeout, int poll,
+             int repeat);
+
+int test1(int argc, const char* argv[])
 {
-  dev_t td_dev;
-  libtar_hash_t *td_h;
-};
-typedef struct tar_dev tar_dev_t;
-
-struct tar_ino
-{
-  ino_t ti_ino;
-  char ti_name[MAXPATHLEN];
-};
-typedef struct tar_ino tar_ino_t;
-
-
-/* free memory associated with a tar_dev_t */
-void
-tar_dev_free(tar_dev_t *tdp)
-{
-  libtar_hash_free(tdp->td_h, free);
-  free(tdp);
+  (void)argc; (void)argv;
+  fprintf(stdout, "Output on stdout from test returning 0.\n");
+  fprintf(stderr, "Output on stderr from test returning 0.\n");
+  return 0;
 }
 
-
-/* appends a file to the tar archive */
-int
-tar_append_file(TAR *t, char *realname, char *savename)
+int test2(int argc, const char* argv[])
 {
-  struct stat s;
+  (void)argc; (void)argv;
+  fprintf(stdout, "Output on stdout from test returning 123.\n");
+  fprintf(stderr, "Output on stderr from test returning 123.\n");
+  return 123;
+}
+
+int test3(int argc, const char* argv[])
+{
+  (void)argc; (void)argv;
+  fprintf(stdout, "Output before sleep on stdout from timeout test.\n");
+  fprintf(stderr, "Output before sleep on stderr from timeout test.\n");
+  fflush(stdout);
+  fflush(stderr);
+#if defined(_WIN32)
+  Sleep(15000);
+#else
+  sleep(15);
+#endif
+  fprintf(stdout, "Output after sleep on stdout from timeout test.\n");
+  fprintf(stderr, "Output after sleep on stderr from timeout test.\n");
+  return 0;
+}
+
+int test4(int argc, const char* argv[])
+{
+#if defined(_WIN32)
+  /* Avoid error diagnostic popups since we are crashing on purpose.  */
+  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+#endif
+  (void)argc; (void)argv;
+  fprintf(stdout, "Output before crash on stdout from crash test.\n");
+  fprintf(stderr, "Output before crash on stderr from crash test.\n");  
+  fflush(stdout);
+  fflush(stderr);
+  *(int*)0 = 0;
+  fprintf(stdout, "Output after crash on stdout from crash test.\n");
+  fprintf(stderr, "Output after crash on stderr from crash test.\n");
+  return 0;
+}
+
+/* Quick hack to test grandchild killing.  */
+/*#define TEST5_GRANDCHILD_KILL*/
+#ifdef TEST5_GRANDCHILD_KILL
+# define TEST5_TIMEOUT 10
+#else
+# define TEST5_TIMEOUT 30
+#endif
+
+int test5(int argc, const char* argv[])
+{
+  int r;
+  const char* cmd[4];
+  (void)argc;
+  cmd[0] = argv[0];
+  cmd[1] = "run";
+#ifdef TEST5_GRANDCHILD_KILL
+  cmd[2] = "3";
+#else
+  cmd[2] = "4";
+#endif
+  cmd[3] = 0;
+  fprintf(stdout, "Output on stdout before recursive test.\n");
+  fprintf(stderr, "Output on stderr before recursive test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  r = runChild(cmd, kwsysProcess_State_Exception,
+               kwsysProcess_Exception_Fault, 1, 1, 1, 0, 15, 0, 1);
+  fprintf(stdout, "Output on stdout after recursive test.\n");
+  fprintf(stderr, "Output on stderr after recursive test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  return r;
+}
+
+#define TEST6_SIZE (4096*2)
+void test6(int argc, const char* argv[])
+{
   int i;
-  libtar_hashptr_t hp;
-  tar_dev_t *td = NULL;
-  tar_ino_t *ti = NULL;
-  char path[MAXPATHLEN];
-
-#ifdef DEBUG
-  printf("==> tar_append_file(TAR=0x%lx (\"%s\"), realname=\"%s\", "
-         "savename=\"%s\")\n", t, t->pathname, realname,
-         (savename ? savename : "[NULL]"));
-#endif
-
-#ifdef WIN32
-  if (stat(realname, &s) != 0)
-#else
-  if (lstat(realname, &s) != 0)
-#endif
-  {
-#ifdef DEBUG
-    perror("lstat()");
-#endif
-    return -1;
-  }
-
-  /* set header block */
-#ifdef DEBUG
-  puts("    tar_append_file(): setting header block...");
-#endif
-  memset(&(t->th_buf), 0, sizeof(struct tar_header));
-  th_set_from_stat(t, &s);
-
-  /* set the header path */
-#ifdef DEBUG
-  puts("    tar_append_file(): setting header path...");
-#endif
-  th_set_path(t, (savename ? savename : realname));
-
-  /* check if it's a hardlink */
-#ifdef DEBUG
-  puts("    tar_append_file(): checking inode cache for hardlink...");
-#endif
-  libtar_hashptr_reset(&hp);
-  if (libtar_hash_getkey(t->h, &hp, &(s.st_dev),
-             (libtar_matchfunc_t)dev_match) != 0)
-    td = (tar_dev_t *)libtar_hashptr_data(&hp);
-  else
-  {
-#ifdef DEBUG
-    printf("+++ adding hash for device (0x%lx, 0x%lx)...\n",
-           major(s.st_dev), minor(s.st_dev));
-#endif
-    td = (tar_dev_t *)calloc(1, sizeof(tar_dev_t));
-    td->td_dev = s.st_dev;
-    td->td_h = libtar_hash_new(256, (libtar_hashfunc_t)ino_hash);
-    if (td->td_h == NULL)
-      return -1;
-    if (libtar_hash_add(t->h, td) == -1)
-      return -1;
-  }
-  libtar_hashptr_reset(&hp);
-  if (libtar_hash_getkey(td->td_h, &hp, &(s.st_ino),
-             (libtar_matchfunc_t)ino_match) != 0)
-  {
-    ti = (tar_ino_t *)libtar_hashptr_data(&hp);
-#ifdef DEBUG
-    printf("    tar_append_file(): encoding hard link \"%s\" "
-           "to \"%s\"...\n", realname, ti->ti_name);
-#endif
-    t->th_buf.typeflag = LNKTYPE;
-    th_set_link(t, ti->ti_name);
-  }
-  else
-  {
-#ifdef DEBUG
-    printf("+++ adding entry: device (0x%lx,0x%lx), inode %ld "
-           "(\"%s\")...\n", major(s.st_dev), minor(s.st_dev),
-           s.st_ino, realname);
-#endif
-    ti = (tar_ino_t *)calloc(1, sizeof(tar_ino_t));
-    if (ti == NULL)
-      return -1;
-    ti->ti_ino = s.st_ino;
-    snprintf(ti->ti_name, sizeof(ti->ti_name), "%s",
-       savename ? savename : realname);
-    libtar_hash_add(td->td_h, ti);
-  }
-
-#ifndef WIN32
-  /* check if it's a symlink */
-  if (TH_ISSYM(t))
-  {
-#ifdef WIN32
-    i = -1;
-#else
-    i = readlink(realname, path, sizeof(path));
-#endif
-    if (i == -1)
-      return -1;
-    if (i >= MAXPATHLEN)
-      i = MAXPATHLEN - 1;
-    path[i] = '\0';
-#ifdef DEBUG
-    printf("    tar_append_file(): encoding symlink \"%s\" -> "
-           "\"%s\"...\n", realname, path);
-#endif
-    th_set_link(t, path);
-  }
-#endif
-  /* print file info */
-  if (t->options & TAR_VERBOSE)
-    th_print_long_ls(t);
-
-#ifdef DEBUG
-  puts("    tar_append_file(): writing header");
-#endif
-  /* write header */
-  if (th_write(t) != 0)
-  {
-#ifdef DEBUG
-    printf("t->fd = %d\n", t->fd);
-#endif
-    return -1;
-  }
-#ifdef DEBUG
-  puts("    tar_append_file(): back from th_write()");
-#endif
-
-  /* if it's a regular file, write the contents as well */
-  if (TH_ISREG(t) && tar_append_regfile(t, realname) != 0)
-    return -1;
-
-  return 0;
-}
-
-
-/* write EOF indicator */
-int
-tar_append_eof(TAR *t)
-{
-  int i, j;
-  char block[T_BLOCKSIZE];
-
-  memset(&block, 0, T_BLOCKSIZE);
-  for (j = 0; j < 2; j++)
-  {
-    i = tar_block_write(t, &block);
-    if (i != T_BLOCKSIZE)
+  char runaway[TEST6_SIZE+1];
+  (void)argc; (void)argv;
+  for(i=0;i < TEST6_SIZE;++i)
     {
-      if (i != -1)
-        errno = EINVAL;
-      return -1;
+    runaway[i] = '.';
     }
-  }
+  runaway[TEST6_SIZE] = '\n';
 
+  /* Generate huge amounts of output to test killing.  */
+  for(;;)
+    {
+    fwrite(runaway, 1, TEST6_SIZE+1, stdout);
+    fflush(stdout);
+    }
+}
+
+/* Define MINPOLL to be one more than the number of times output is
+   written.  Define MAXPOLL to be the largest number of times a loop
+   delaying 1/10th of a second should ever have to poll.  */
+#define MINPOLL 5
+#define MAXPOLL 20
+int test7(int argc, const char* argv[])
+{
+  (void)argc; (void)argv;
+  fprintf(stdout, "Output on stdout before sleep.\n");
+  fprintf(stderr, "Output on stderr before sleep.\n");
+  fflush(stdout);
+  fflush(stderr);
+  /* Sleep for 1 second.  */
+#if defined(_WIN32)
+  Sleep(1000);
+#else
+  sleep(1);
+#endif
+  fprintf(stdout, "Output on stdout after sleep.\n");
+  fprintf(stderr, "Output on stderr after sleep.\n");
+  fflush(stdout);
+  fflush(stderr);
   return 0;
 }
 
-
-/* add file contents to a tarchive */
-int
-tar_append_regfile(TAR *t, char *realname)
+int runChild2(kwsysProcess* kp,
+              const char* cmd[], int state, int exception, int value,
+              int share, int output, int delay, double timeout,
+              int poll)
 {
-  char block[T_BLOCKSIZE];
-  int filefd;
-  int i, j;
-  size_t size;
+  int result = 0;
+  char* data = 0;
+  int length = 0;
+  double userTimeout = 0;
+  double* pUserTimeout = 0;
+  kwsysProcess_SetCommand(kp, cmd);
+  if(timeout >= 0)
+    {
+    kwsysProcess_SetTimeout(kp, timeout);
+    }
+  if(share)
+    {
+    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
+    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
+    }
+  kwsysProcess_Execute(kp);
 
+  if(poll)
+    {
+    pUserTimeout = &userTimeout;
+    }
+
+  if(!share)
+    {
+    int p;
+    while((p = kwsysProcess_WaitForData(kp, &data, &length, pUserTimeout)))
+      {
+      if(output)
+        {
+        if(poll && p == kwsysProcess_Pipe_Timeout)
+          {
+          fprintf(stdout, "WaitForData timeout reached.\n");
+          fflush(stdout);
+
+          /* Count the number of times we polled without getting data.
+             If it is excessive then kill the child and fail.  */
+          if(++poll >= MAXPOLL)
+            {
+            fprintf(stdout, "Poll count reached limit %d.\n",
+                    MAXPOLL);
+            kwsysProcess_Kill(kp);
+            }
+          }
+        else
+          {
+          fwrite(data, 1, length, stdout);
+          fflush(stdout);
+          }
+        }
+      if(poll)
+        {
+        /* Delay to avoid busy loop during polling.  */
+#if defined(_WIN32)
+        Sleep(100);
+#else
+        usleep(100000);
+#endif
+        }
+      if(delay)
+        {
+        /* Purposely sleeping only on Win32 to let pipe fill up.  */
+#if defined(_WIN32)
+        Sleep(100);
+#endif
+        }
+      }
+    }
+  
+  kwsysProcess_WaitForExit(kp, 0);
+
+  switch (kwsysProcess_GetState(kp))
+    {
+    case kwsysProcess_State_Starting:
+      printf("No process has been executed.\n"); break;
+    case kwsysProcess_State_Executing:
+      printf("The process is still executing.\n"); break;
+    case kwsysProcess_State_Expired:
+      printf("Child was killed when timeout expired.\n"); break;
+    case kwsysProcess_State_Exited:
+      printf("Child exited with value = %d\n",
+             kwsysProcess_GetExitValue(kp));
+      result = ((exception != kwsysProcess_GetExitException(kp)) ||
+                (value != kwsysProcess_GetExitValue(kp))); break;
+    case kwsysProcess_State_Killed:
+      printf("Child was killed by parent.\n"); break;
+    case kwsysProcess_State_Exception:
+      printf("Child terminated abnormally: %s\n",
+             kwsysProcess_GetExceptionString(kp));
+      result = ((exception != kwsysProcess_GetExitException(kp)) ||
+                (value != kwsysProcess_GetExitValue(kp))); break;
+    case kwsysProcess_State_Error:
+      printf("Error in administrating child process: [%s]\n",
+             kwsysProcess_GetErrorString(kp)); break;
+    };
+  
+  if(result)
+    {
+    if(exception != kwsysProcess_GetExitException(kp))
+      {
+      fprintf(stderr, "Mismatch in exit exception.  "
+              "Should have been %d, was %d.\n",
+              exception, kwsysProcess_GetExitException(kp));
+      }
+    if(value != kwsysProcess_GetExitValue(kp))
+      {
+      fprintf(stderr, "Mismatch in exit value.  "
+              "Should have been %d, was %d.\n",
+              value, kwsysProcess_GetExitValue(kp));
+      }
+    }
+  
+  if(kwsysProcess_GetState(kp) != state)
+    {
+    fprintf(stderr, "Mismatch in state.  "
+            "Should have been %d, was %d.\n",
+            state, kwsysProcess_GetState(kp));
+    result = 1;
+    }
+
+  /* We should have polled more times than there were data if polling
+     was enabled.  */
+  if(poll && poll < MINPOLL)
+    {
+    fprintf(stderr, "Poll count is %d, which is less than %d.\n",
+            poll, MINPOLL);
+    result = 1;
+    }
+
+  return result;
+}
+
+int runChild(const char* cmd[], int state, int exception, int value,
+             int share, int output, int delay, double timeout,
+             int poll, int repeat)
+{
+  int result = 1;
+  kwsysProcess* kp = kwsysProcess_New();
+  if(!kp)
+    {
+    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
+    return 1;
+    }
+  while(repeat-- > 0)
+    {
+    result = runChild2(kp, cmd, state, exception, value, share,
+                       output, delay, timeout, poll);
+    }
+  kwsysProcess_Delete(kp);
+  return result;
+}
+
+int main(int argc, const char* argv[])
+{
+  int n = 0;
+#if 0
+    {
+    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+    DuplicateHandle(GetCurrentProcess(), out,
+                    GetCurrentProcess(), &out, 0, FALSE,
+                    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
+    SetStdHandle(STD_OUTPUT_HANDLE, out);
+    }
+    {
+    HANDLE out = GetStdHandle(STD_ERROR_HANDLE);
+    DuplicateHandle(GetCurrentProcess(), out,
+                    GetCurrentProcess(), &out, 0, FALSE,
+                    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
+    SetStdHandle(STD_ERROR_HANDLE, out);
+    }
+#endif
+  if(argc == 2)
+    {
+    n = atoi(argv[1]);
+    }
+  else if(argc == 3 && strcmp(argv[1], "run") == 0)
+    {
+    n = atoi(argv[2]);
+    }
+  /* Check arguments.  */
+  if(n >= 1 && n <= 7 && argc == 3)
+    {
+    /* This is the child process for a requested test number.  */
+    switch (n)
+      {
+      case 1: return test1(argc, argv);
+      case 2: return test2(argc, argv);
+      case 3: return test3(argc, argv);
+      case 4: return test4(argc, argv);
+      case 5: return test5(argc, argv);
+      case 6: test6(argc, argv); return 0;
+      case 7: return test7(argc, argv);
+      }
+    fprintf(stderr, "Invalid test number %d.\n", n);
+    return 1;
+    }
+  else if(n >= 1 && n <= 7)
+    {
+    /* This is the parent process for a requested test number.  */
+    int states[7] =
+    {
+      kwsysProcess_State_Exited,
+      kwsysProcess_State_Exited,
+      kwsysProcess_State_Expired,
+      kwsysProcess_State_Exception,
+      kwsysProcess_State_Exited,
+      kwsysProcess_State_Expired,
+      kwsysProcess_State_Exited
+    };
+    int exceptions[7] =
+    {
+      kwsysProcess_Exception_None,
+      kwsysProcess_Exception_None,
+      kwsysProcess_Exception_None,
+      kwsysProcess_Exception_Fault,
+      kwsysProcess_Exception_None,
+      kwsysProcess_Exception_None,
+      kwsysProcess_Exception_None
+    };
+    int values[7] = {0, 123, 1, 1, 0, 0, 0};
+    int outputs[7] = {1, 1, 1, 1, 1, 0, 1};
+    int delays[7] = {0, 0, 0, 0, 0, 1, 0};
+    double timeouts[7] = {10, 10, 10, 10, TEST5_TIMEOUT, 10, -1};
+    int polls[7] = {0, 0, 0, 0, 0, 0, 1};
+    int repeat[7] = {2, 1, 1, 1, 1, 1, 1};
+    int r;
+    const char* cmd[4];
 #ifdef _WIN32
-  filefd = open(realname, O_RDONLY | O_BINARY);
+    char* argv0 = 0;
+    if(n == 0 && (argv0 = strdup(argv[0])))
+      {
+      /* Try converting to forward slashes to see if it works.  */
+      char* c;
+      for(c=argv0; *c; ++c)
+        {
+        if(*c == '\\')
+          {
+          *c = '/';
+          }
+        }
+      cmd[0] = argv0;
+      }
+    else
+      {
+      cmd[0] = argv[0];
+      }
 #else
-  filefd = open(realname, O_RDONLY);
+    cmd[0] = argv[0];
 #endif
-  if (filefd == -1)
-  {
-#ifdef DEBUG
-    perror("open()");
+    cmd[1] = "run";
+    cmd[2] = argv[1];
+    cmd[3] = 0;
+    fprintf(stdout, "Output on stdout before test %d.\n", n);
+    fprintf(stderr, "Output on stderr before test %d.\n", n);
+    fflush(stdout);
+    fflush(stderr);
+    r = runChild(cmd, states[n-1], exceptions[n-1], values[n-1], 0,
+                 outputs[n-1], delays[n-1], timeouts[n-1],
+                 polls[n-1], repeat[n-1]);
+    fprintf(stdout, "Output on stdout after test %d.\n", n);
+    fprintf(stderr, "Output on stderr after test %d.\n", n);
+    fflush(stdout);
+    fflush(stderr);
+#if _WIN32
+    if(argv0) { free(argv0); }
 #endif
-    return -1;
-  }
-
-  size = th_get_size(t);
-  for (i = size; i > T_BLOCKSIZE; i -= T_BLOCKSIZE)
-  {
-    j = read(filefd, &block, T_BLOCKSIZE);
-    if (j != T_BLOCKSIZE)
-    {
-      if (j != -1)
-        errno = EINVAL;
-      return -1;
+    return r;
     }
-    if (tar_block_write(t, &block) == -1)
-      return -1;
-  }
-
-  if (i > 0)
-  {
-    j = read(filefd, &block, i);
-    if (j == -1)
-      return -1;
-    memset(&(block[i]), 0, T_BLOCKSIZE - i);
-    if (tar_block_write(t, &block) == -1)
-      return -1;
-  }
-
-  close(filefd);
-
-  return 0;
+  else if(argc > 2 && strcmp(argv[1], "0") == 0)
+    {
+    /* This is the special debugging test to run a given command
+       line.  */
+    const char** cmd = argv+2;
+    int state = kwsysProcess_State_Exited;
+    int exception = kwsysProcess_Exception_None;
+    int value = 0;
+    double timeout = 0;
+    int r = runChild(cmd, state, exception, value, 0, 1, 0, timeout, 0, 1);
+    return r;
+    }
+  else
+    {
+    /* Improper usage.  */
+    fprintf(stdout, "Usage: %s <test number>\n", argv[0]);
+    return 1;
+    }
 }
-
-

@@ -1,16 +1,16 @@
-  return 0;
-}
-
-int runChild2(kwsysProcess* kp,
-              const char* cmd[], int state, int exception, int value,
-              int share, int output, int delay, double timeout,
-              int poll)
 {
-  int result = 0;
-  char* data = 0;
-  int length = 0;
-  double userTimeout = 0;
-  double* pUserTimeout = 0;
-  kwsysProcess_SetCommand(kp, cmd);
-  if(timeout >= 0)
+  char covLogFilename[1024];
+  sprintf(covLogFilename, "CoverageLog-%d", logFileCount);
+  cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Open file: "
+    << covLogFilename << std::endl);
+  if (!this->StartResultingXML(covLogFilename, covLogFile) )
     {
+    cmCTestLog(this->CTest, ERROR_MESSAGE, "Cannot open log file: "
+      << covLogFilename << std::endl);
+    return false;
+    }
+  std::string local_start_time = this->CTest->CurrentTime();
+  this->CTest->StartXML(covLogFile);
+  covLogFile << "<CoverageLog>" << std::endl
+    << "\t<StartDateTime>" << local_start_time << "</StartDateTime>"
+    << std::endl;

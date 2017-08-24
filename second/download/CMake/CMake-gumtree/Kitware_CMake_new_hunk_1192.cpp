@@ -1,14 +1,7 @@
-    {
-    n = atoi(argv[1]);
     }
-  else if(argc == 3 && strcmp(argv[1], "run") == 0)
+  else
     {
-    n = atoi(argv[2]);
-    }
-  /* Check arguments.  */
-  if(n >= 1 && n <= 7 && argc == 3)
-    {
-    /* This is the child process for a requested test number.  */
-    switch (n)
+    if (this->OkToGenerate)
       {
-      case 1: return test1(argc, argv);
+      sprintf(firstLine,  
+              "Press [c] to configure     Press [g] to generate and exit");

@@ -1,131 +1,144 @@
-@@ -40,20 +40,20 @@ namespace KWSYS_NAMESPACE
- {
- #if defined( _WIN32 ) || defined( APPLE ) || defined( __CYGWIN__ )
-   // On Windows and apple, no difference between lower and upper case
--  #define CM_GLOB_CASE_INDEPENDENT
-+  #define KWSYS_GLOB_CASE_INDEPENDENT
- #endif
- 
- #if defined( _WIN32 ) || defined( __CYGWIN__ )
-   // Handle network paths
--  #define CM_GLOB_SUPPORT_NETWORK_PATHS
-+  #define KWSYS_GLOB_SUPPORT_NETWORK_PATHS
- #endif
- 
- //----------------------------------------------------------------------------
- class GlobInternals
- {
- public:
-   std::vector<std::string> Files;
--  std::vector<cmsys::RegularExpression> Expressions;
-+  std::vector<kwsys::RegularExpression> Expressions;
-   std::vector<std::string> TextExpressions;
- };
- 
-@@ -82,7 +82,7 @@ void Glob::Escape(int ch, char* buffer)
-     }
-   else
-     {
--#if defined( CM_GLOB_CASE_INDEPENDENT )
-+#if defined( KWSYS_GLOB_CASE_INDEPENDENT )
-     // On Windows and apple, no difference between lower and upper case
-     sprintf(buffer, "%c", tolower(ch));
- #else
-@@ -180,7 +180,7 @@ std::string Glob::ConvertExpression(const std::string& expr)
- void Glob::RecurseDirectory(std::string::size_type start,
-   const std::string& dir, bool dir_only)
- {
--  cmsys::Directory d;
-+  kwsys::Directory d;
-   if ( !d.Load(dir.c_str()) )
-     {
-     return;
-@@ -207,9 +207,9 @@ void Glob::RecurseDirectory(std::string::size_type start,
-       realname = dir + "/" + fname;
-       }
- 
--#if defined( CM_GLOB_CASE_INDEPENDENT )
-+#if defined( KWSYS_GLOB_CASE_INDEPENDENT )
-     // On Windows and apple, no difference between lower and upper case
--    fname = cmsys::SystemTools::LowerCase(fname);
-+    fname = kwsys::SystemTools::LowerCase(fname);
- #endif
- 
-     if ( start == 0 )
-@@ -221,14 +221,14 @@ void Glob::RecurseDirectory(std::string::size_type start,
-       fullname = dir + "/" + fname;
-       }
- 
--    if ( !dir_only || !cmsys::SystemTools::FileIsDirectory(realname.c_str()) )
-+    if ( !dir_only || !kwsys::SystemTools::FileIsDirectory(realname.c_str()) )
+@@ -84,7 +84,8 @@ bool cmVTKWrapTclCommand::InitialPass(std::vector<std::string> const& argsIn)
+     std::string sourceListValue;
+     
+     // was the list already populated
+-    const char *def = this->Makefile->GetDefinition(this->SourceList.c_str());  
++    const char *def =
++      this->Makefile->GetDefinition(this->SourceList.c_str());  
+     if (def)
        {
-       if ( m_Internals->Expressions[m_Internals->Expressions.size()-1].find(fname.c_str()) )
-         {
-         m_Internals->Files.push_back(realname);
-         }
-       }
--    if ( cmsys::SystemTools::FileIsDirectory(realname.c_str()) )
-+    if ( kwsys::SystemTools::FileIsDirectory(realname.c_str()) )
-       {
-       this->RecurseDirectory(start+1, realname, dir_only);
-       }
-@@ -246,7 +246,7 @@ void Glob::ProcessDirectory(std::string::size_type start,
-     this->RecurseDirectory(start, dir, dir_only);
-     return;
+       sourceListValue = def;
+@@ -114,7 +115,8 @@ bool cmVTKWrapTclCommand::InitialPass(std::vector<std::string> const& argsIn)
+         std::string srcName = cmSystemTools::GetFilenameWithoutExtension(*j);
+         std::string newName = srcName + "Tcl";
+         std::string hname = srcDir + "/" + srcName + ".h";
+-        file.SetName(newName.c_str(), this->Makefile->GetCurrentOutputDirectory(),
++        file.SetName(newName.c_str(),
++                     this->Makefile->GetCurrentOutputDirectory(),
+                      "cxx",false);
+         this->WrapHeaders.push_back(hname);
+         // add starting depends
+@@ -130,10 +132,12 @@ bool cmVTKWrapTclCommand::InitialPass(std::vector<std::string> const& argsIn)
+     std::string newName = this->LibraryName;
+     newName += "Init";
+     this->CreateInitFile(res);
+-    cfile.SetName(newName.c_str(), this->Makefile->GetCurrentOutputDirectory(),
++    cfile.SetName(newName.c_str(),
++                  this->Makefile->GetCurrentOutputDirectory(),
+                   "cxx",false);
+     this->Makefile->AddSource(cfile);
+-    this->Makefile->AddDefinition(this->SourceList.c_str(), sourceListValue.c_str());  
++    this->Makefile->AddDefinition(this->SourceList.c_str(),
++                                  sourceListValue.c_str());  
      }
--  cmsys::Directory d;
-+  kwsys::Directory d;
-   if ( !d.Load(dir.c_str()) )
+   
+   return true;
+@@ -144,7 +148,8 @@ void cmVTKWrapTclCommand::FinalPass()
+   // first we add the rules for all the .h to Tcl.cxx files
+   size_t lastClass = this->WrapClasses.size();
+   std::vector<std::string> depends;
+-  const char* wtcl = this->Makefile->GetRequiredDefinition("VTK_WRAP_TCL_EXE");
++  const char* wtcl =
++    this->Makefile->GetRequiredDefinition("VTK_WRAP_TCL_EXE");
+   const char* hints = this->Makefile->GetDefinition("VTK_WRAP_HINTS");
+ 
+   // wrap all the .h files
+@@ -247,17 +252,22 @@ bool cmVTKWrapTclCommand::WriteInit(const char *kitName,
+   fprintf(fout,
+           "extern \"C\"\n"
+           "{\n"
+-          "#if (TCL_MAJOR_VERSION == 8) && (TCL_MINOR_VERSION >= 4) && (TCL_RELEASE_LEVEL >= TCL_FINAL_RELEASE)\n"
+-          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, CONST84 char *[]);\n"
++          "#if (TCL_MAJOR_VERSION == 8) && (TCL_MINOR_VERSION >= 4) "
++          "&& (TCL_RELEASE_LEVEL >= TCL_FINAL_RELEASE)\n"
++          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,"
++          "int, CONST84 char *[]);\n"
+           "#else\n"
+-          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, char *[]);\n"
++          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,"
++          "int, char *[]);\n"
+           "#endif\n"
+           "}\n"
+           "\n");
+ 
+   for (i = 0; i < classes.size(); i++)
      {
-     return;
-@@ -273,9 +273,9 @@ void Glob::ProcessDirectory(std::string::size_type start,
-       realname = dir + "/" + fname;
-       }
- 
--#if defined( CM_GLOB_CASE_INDEPENDENT )
-+#if defined( KWSYS_GLOB_CASE_INDEPENDENT )
-     // On Windows and apple, no difference between lower and upper case
--    fname = cmsys::SystemTools::LowerCase(fname);
-+    fname = kwsys::SystemTools::LowerCase(fname);
- #endif
- 
-     if ( start == 0 )
-@@ -291,7 +291,7 @@ void Glob::ProcessDirectory(std::string::size_type start,
-     //std::cout << "Match: " << m_Internals->TextExpressions[start].c_str() << std::endl;
-     //std::cout << "Full name: " << fullname << std::endl;
- 
--    if ( (!dir_only || !last) && !cmsys::SystemTools::FileIsDirectory(realname.c_str()) )
-+    if ( (!dir_only || !last) && !kwsys::SystemTools::FileIsDirectory(realname.c_str()) )
-       {
-       continue;
-       }
-@@ -320,9 +320,9 @@ bool Glob::FindFiles(const std::string& inexpr)
-   m_Internals->Expressions.clear();
-   m_Internals->Files.clear();
- 
--  if ( !cmsys::SystemTools::FileIsFullPath(expr.c_str()) )
-+  if ( !kwsys::SystemTools::FileIsFullPath(expr.c_str()) )
-     {
--    expr = cmsys::SystemTools::GetCurrentWorkingDirectory();
-+    expr = kwsys::SystemTools::GetCurrentWorkingDirectory();
-     expr += "/" + inexpr;
+-    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
++    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n"
++            ,classes[i].c_str());
++    fprintf(fout,"             int argc, char *argv[]);\n");
+     fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
      }
-   std::string fexpr = expr;
-@@ -349,7 +349,7 @@ bool Glob::FindFiles(const std::string& inexpr)
+   
+@@ -280,32 +290,37 @@ bool cmVTKWrapTclCommand::WriteInit(const char *kitName,
+     fprintf(fout,"extern Tcl_HashTable vtkCommandLookup;\n");
      }
-   if ( skip == 0 )
+   fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
+-  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
++  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp,"
++          "ClientData arg);\n");
+ 
+   for (i = 0; i < this->Commands.size(); i++)
      {
--#if defined( CM_GLOB_SUPPORT_NETWORK_PATHS )
-+#if defined( KWSYS_GLOB_SUPPORT_NETWORK_PATHS )
-     // Handle network paths
-     if ( expr[0] == '/' && expr[1] == '/' )
-       {
-@@ -419,7 +419,7 @@ bool Glob::FindFiles(const std::string& inexpr)
- void Glob::AddExpression(const char* expr)
- {
-   m_Internals->Expressions.push_back(
--    cmsys::RegularExpression(
-+    kwsys::RegularExpression(
-       this->ConvertExpression(expr).c_str()));
-   m_Internals->TextExpressions.push_back(this->ConvertExpression(expr));
- }
+-    fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
++    fprintf(fout,
++            "\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
+             capcommands[i].c_str());
+     }
+   
+-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n",
+-          kitName);
+-  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
+-          kitName);
++  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT "
++          "%s_SafeInit(Tcl_Interp *interp);}\n", kitName);
++  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init"
++          "(Tcl_Interp *interp);}\n", kitName);
+   
+   /* create an extern ref to the generic delete function */
+   fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
+ 
+   if (!strcmp(kitName,"Vtkcommontcl"))
+     {
+-    fprintf(fout,"extern \"C\"\n{\nvoid vtkCommonDeleteAssocData(ClientData cd)\n");
++    fprintf(fout,"extern \"C\"\n{\nvoid "
++            "vtkCommonDeleteAssocData(ClientData cd)\n");
+     fprintf(fout,"  {\n");
+-    fprintf(fout,"  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n");
++    fprintf(fout,"  vtkTclInterpStruct *tis = "
++            "static_cast<vtkTclInterpStruct*>(cd);\n");
+     fprintf(fout,"  delete tis;\n  }\n}\n");
+     }
+     
+   /* the main declaration */
+-  fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
++  fprintf(fout,
++          "\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
+   fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
+   
+   fprintf(fout,"\n\nint VTK_EXPORT %s_Init(Tcl_Interp *interp)\n{\n",
+@@ -324,15 +339,17 @@ bool cmVTKWrapTclCommand::WriteInit(const char *kitName,
+             "  Tcl_InitHashTable(&info->PointerLookup, TCL_STRING_KEYS);\n");
+     fprintf(fout,
+             "  Tcl_InitHashTable(&info->CommandLookup, TCL_STRING_KEYS);\n");
+-    fprintf(fout,
+-            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");
+-    fprintf(fout,
+-            "  Tcl_CreateExitHandler(vtkCommonDeleteAssocData,(ClientData *)info);\n");
++    fprintf(fout, "  Tcl_SetAssocData(interp,(char *) "
++            "\"vtk\",NULL,(ClientData *)info);\n");
++    fprintf(fout, "  Tcl_CreateExitHandler(vtkCommonDeleteAssocData"
++            ",(ClientData *)info);\n");
+ 
+     /* create special vtkCommand command */
+-    fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",\n"
+-                 "                    reinterpret_cast<vtkTclCommandType>(vtkCommandForward),\n"
+-                 "                    (ClientData *)NULL, NULL);\n\n");
++    fprintf(fout,
++            "  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",\n"
++            "                    reinterpret_cast<vtkTclCommandType>("
++            "vtkCommandForward),\n"
++            "                    (ClientData *)NULL, NULL);\n\n");
+     }
+   
+   for (i = 0; i < this->Commands.size(); i++)

@@ -1,36 +1,37 @@
-@@ -84,14 +84,26 @@ int test4(int argc, const char* argv[])
-   return 0;
- }
+@@ -34,6 +34,17 @@
+ # pragma warn -8060 /* possibly incorrect assignment */
+ #endif
  
-+/* Quick hack to test grandchild killing.  */
-+/*#define TEST5_GRANDCHILD_KILL*/
-+#ifdef TEST5_GRANDCHILD_KILL
-+# define TEST5_TIMEOUT 10
++#if defined(__BEOS__) && !defined(__ZETA__)
++/* BeOS 5 doesn't have usleep(), but it has snooze(), which is identical. */
++# include <be/kernel/OS.h>
++static inline void testProcess_usleep(unsigned int msec)
++{
++  snooze(msec);
++}
 +#else
-+# define TEST5_TIMEOUT 30
++# define testProcess_usleep usleep
 +#endif
 +
- int test5(int argc, const char* argv[])
- {
-   int r;
-   const char* cmd[4];
-   (void)argc;
-   cmd[0] = argv[0];
-   cmd[1] = "run";
-+#ifdef TEST5_GRANDCHILD_KILL
-+  cmd[2] = "3";
-+#else
-   cmd[2] = "4";
-+#endif
-   cmd[3] = 0;
-   fprintf(stdout, "Output on stdout before recursive test.\n");
-   fprintf(stderr, "Output on stderr before recursive test.\n");
-@@ -377,7 +389,7 @@ int main(int argc, const char* argv[])
-     int values[7] = {0, 123, 1, 1, 0, 0, 0};
-     int outputs[7] = {1, 1, 1, 1, 1, 0, 1};
-     int delays[7] = {0, 0, 0, 0, 0, 1, 0};
--    double timeouts[7] = {10, 10, 10, 10, 30, 10, -1};
-+    double timeouts[7] = {10, 10, 10, 10, TEST5_TIMEOUT, 10, -1};
-     int polls[7] = {0, 0, 0, 0, 0, 0, 1};
-     int repeat[7] = {2, 1, 1, 1, 1, 1, 1};
-     int r;
+ int runChild(const char* cmd[], int state, int exception, int value,
+              int share, int output, int delay, double timeout, int poll,
+              int repeat, int disown);
+@@ -76,6 +87,9 @@ int test4(int argc, const char* argv[])
+ #if defined(_WIN32)
+   /* Avoid error diagnostic popups since we are crashing on purpose.  */
+   SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
++#elif defined(__BEOS__)
++  /* Avoid error diagnostic popups since we are crashing on purpose.  */
++  disable_debugger(1);
+ #endif
+   (void)argc; (void)argv;
+   fprintf(stdout, "Output before crash on stdout from crash test.\n");
+@@ -264,7 +278,7 @@ int runChild2(kwsysProcess* kp,
+ #if defined(_WIN32)
+         Sleep(100);
+ #else
+-        usleep(100000);
++        testProcess_usleep(100000);
+ #endif
+         }
+       if(delay)

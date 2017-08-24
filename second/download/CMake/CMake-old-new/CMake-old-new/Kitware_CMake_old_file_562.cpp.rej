@@ -1,0 +1,184 @@
+--- /dev/null
++++ /dev/null
+@@ -678,181 +709,4 @@
+   this->Help = str.str();
+ }
+ 
+-//----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(
+-  bool* variable, const kwsys_stl::string& value)
+-{
+-  if ( value == "1" || value == "ON" || value == "on" || value == "On" ||
+-    value == "TRUE" || value == "true" || value == "True" ||
+-    value == "yes" || value == "Yes" || value == "YES" )
+-    {
+-    *variable = true;
+-    }
+-  else
+-    {
+-    *variable = false;
+-    }
+-}
+-
+-//----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(
+-  int* variable, const kwsys_stl::string& value)
+-{
+-  char* res = 0;
+-  *variable = strtol(value.c_str(), &res, 10);
+-  //if ( res && *res )
+-  //  {
+-  //  Can handle non-int
+-  //  }
+-}
+-
+-//----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(
+-  double* variable, const kwsys_stl::string& value)
+-{
+-  char* res = 0;
+-  *variable = strtod(value.c_str(), &res);
+-  //if ( res && *res )
+-  //  {
+-  //  Can handle non-double
+-  //  }
+-}
+-
+-//----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(
+-  char** variable, const kwsys_stl::string& value)
+-{
+-  if ( *variable )
+-    {
+-    delete [] *variable;
+-    *variable = 0;
+-    }
+-  *variable = new char[ value.size() + 1 ];
+-  strcpy(*variable, value.c_str());
+-}
+-
+-//----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(
+-  kwsys_stl::string* variable, const kwsys_stl::string& value)
+-{
+-  *variable = value;
+-}
+-
+-//----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(
+-  kwsys_stl::vector<bool>* variable, const kwsys_stl::string& value)
+-{
+-  bool val = false;
+-  if ( value == "1" || value == "ON" || value == "on" || value == "On" ||
+-    value == "TRUE" || value == "true" || value == "True" ||
+-    value == "yes" || value == "Yes" || value == "YES" )
+-    {
+-    val = true;
+-    }
+-  variable->push_back(val);
+-}
+-
+-//----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(
+-  kwsys_stl::vector<int>* variable, const kwsys_stl::string& value)
+-{
+-  char* res = 0;
+-  variable->push_back(strtol(value.c_str(), &res, 10));
+-  //if ( res && *res )
+-  //  {
+-  //  Can handle non-int
+-  //  }
+-}
+-
+-//----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(
+-  kwsys_stl::vector<double>* variable, const kwsys_stl::string& value)
+-{
+-  char* res = 0;
+-  variable->push_back(strtod(value.c_str(), &res));
+-  //if ( res && *res )
+-  //  {
+-  //  Can handle non-int
+-  //  }
+-}
+-
+-//----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(
+-  kwsys_stl::vector<char*>* variable, const kwsys_stl::string& value)
+-{
+-  char* var = new char[ value.size() + 1 ];
+-  strcpy(var, value.c_str());
+-  variable->push_back(var);
+-}
+-
+-//----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(
+-  kwsys_stl::vector<kwsys_stl::string>* variable,
+-  const kwsys_stl::string& value)
+-{
+-  variable->push_back(value);
+-}
+-
+-//----------------------------------------------------------------------------
+-bool CommandLineArguments::PopulateVariable(CommandLineArgumentsCallbackStructure* cs,
+-  const char* value)
+-{
+-  // Call the callback
+-  if ( cs->Callback )
+-    {
+-    if ( !cs->Callback(cs->Argument, value, cs->CallData) )
+-      {
+-      this->Internals->LastArgument --;
+-      return 0;
+-      }
+-    }
+-  if ( cs->Variable )
+-    {
+-    kwsys_stl::string var = "1";
+-    if ( value )
+-      {
+-      var = value;
+-      }
+-    switch ( cs->VariableType )
+-      {
+-    case CommandLineArguments::INT_TYPE:
+-      this->PopulateVariable(static_cast<int*>(cs->Variable), var);
+-      break;
+-    case CommandLineArguments::DOUBLE_TYPE:
+-      this->PopulateVariable(static_cast<double*>(cs->Variable), var);
+-      break;
+-    case CommandLineArguments::STRING_TYPE:
+-      this->PopulateVariable(static_cast<char**>(cs->Variable), var);
+-      break;
+-    case CommandLineArguments::STL_STRING_TYPE:
+-      this->PopulateVariable(static_cast<kwsys_stl::string*>(cs->Variable), var);
+-      break;
+-    case CommandLineArguments::BOOL_TYPE:
+-      this->PopulateVariable(static_cast<bool*>(cs->Variable), var);
+-      break;
+-    case CommandLineArguments::VECTOR_BOOL_TYPE:
+-      this->PopulateVariable(static_cast<kwsys_stl::vector<bool>*>(cs->Variable), var);
+-      break;
+-    case CommandLineArguments::VECTOR_INT_TYPE:
+-      this->PopulateVariable(static_cast<kwsys_stl::vector<int>*>(cs->Variable), var);
+-      break;
+-    case CommandLineArguments::VECTOR_DOUBLE_TYPE:
+-      this->PopulateVariable(static_cast<kwsys_stl::vector<double>*>(cs->Variable), var);
+-      break;
+-    case CommandLineArguments::VECTOR_STRING_TYPE:
+-      this->PopulateVariable(static_cast<kwsys_stl::vector<char*>*>(cs->Variable), var);
+-      break;
+-    case CommandLineArguments::VECTOR_STL_STRING_TYPE:
+-      this->PopulateVariable(static_cast<kwsys_stl::vector<kwsys_stl::string>*>(cs->Variable), var);
+-      break;
+-    default:
+-      kwsys_ios::cerr << "Got unknown variable type: \"" << cs->VariableType << "\"" << kwsys_ios::endl;
+-      this->Internals->LastArgument --;
+-      return 0;
+-      }
+-    }
+-  return 1;
+-}
+-
+-
+ 

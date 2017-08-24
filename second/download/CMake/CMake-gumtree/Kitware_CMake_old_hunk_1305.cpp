@@ -1,41 +1,18 @@
+    
+        /* Get memory for full buffer, including space for trailing EOB's. */
+        n = len + 2;
+        buf = (char *) yyalloc(n ,yyscanner );
+        if ( ! buf )
+                YY_FATAL_ERROR( "out of dynamic memory in yy_scan_bytes()" );
 
-        if ( !m_ShowOnly )
-          {
-          if (!res || retVal != 0)
-            {
-            fprintf(stderr,"***Failed\n");
-            if (output != "")
-              {
-              if (dartStuff.find(output.c_str()))
-                {
-                std::string dartString = dartStuff.match(1);
-                cmSystemTools::ReplaceString(output, dartString.c_str(),"");
-                cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
-                }
-              if (output != "" && m_Verbose)
-                {
-                std::cerr << output.c_str() << "\n";
-                }
-              }
-            failed.push_back(args[0].Value); 
-            }
-          else
-            {
-            fprintf(stderr,"   Passed\n");
-            if (output != "")
-              {
-              if (dartStuff.find(output.c_str()))
-                {
-                std::string dartString = dartStuff.match(1);
-                cmSystemTools::ReplaceString(output, dartString.c_str(),"");
-                cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
-                }
-              if (output != "" && m_Verbose)
-                {
-                std::cerr << output.c_str() << "\n";
-                }
-              }
-            passed.push_back(args[0].Value); 
-            }
-          }
-        cres.m_Output = output;
+        for ( i = 0; i < len; ++i )
+                buf[i] = bytes[i];
+
+        buf[len] = buf[len+1] = YY_END_OF_BUFFER_CHAR;
+
+        b = yy_scan_buffer(buf,n ,yyscanner);
+        if ( ! b )
+                YY_FATAL_ERROR( "bad buffer in yy_scan_bytes()" );
+
+        /* It's okay to grow etc. this buffer, and we should throw it
+         * away when we're done.

@@ -1,13 +1,18 @@
- * @param line_number
- * @param yyscanner The scanner object.
- */
-void yyset_lineno (int  line_number , yyscan_t yyscanner)
-{
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+    {
+      if (k != -1)
+        errno = EINVAL;
+      return -1;
+    }
 
-        /* lineno is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           yy_fatal_error( "yyset_lineno called with no buffer" , yyscanner); 
-    
-    yylineno = line_number;
-}
+    /* write block to output file */
+    if (write(fdout, buf,
+        ((i > T_BLOCKSIZE) ? T_BLOCKSIZE : i)) == -1)
+      return -1;
+  }
+
+  /* close output file */
+  if (close(fdout) == -1)
+    return -1;
+
+#ifdef DEBUG
+  printf("### done extracting %s\n", filename);

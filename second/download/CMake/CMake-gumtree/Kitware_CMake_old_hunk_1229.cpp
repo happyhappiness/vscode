@@ -1,7 +1,7 @@
-  std::string extra_update_opts;
-  if ( m_CTest->GetTestModel() == cmCTest::NIGHTLY )
-    {
-    struct tm* t = cmCTest::GetNightlyTime(m_CTest->GetDartConfiguration("NightlyStartTime"),
-      m_Verbose, m_CTest->GetTomorrowTag());
-    char current_time[1024];
-    sprintf(current_time, "%04d-%02d-%02d %02d:%02d:%02d",
+
+bool cmakewizard::AskAdvanced()
+{
+  printf("Would you like to see advanced options? [No]:");  
+  char buffer[4096];
+  buffer[0] = 0;
+  fgets(buffer, sizeof(buffer)-1, stdin);

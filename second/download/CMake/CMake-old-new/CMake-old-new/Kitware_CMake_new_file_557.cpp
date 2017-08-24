@@ -12,433 +12,479 @@
 
 =========================================================================*/
 #include "kwsysPrivate.h"
-#include KWSYS_HEADER(Process.h)
+#include KWSYS_HEADER(Glob.hxx)
 
-/* Work-around CMake dependency scanning limitation.  This must
-   duplicate the above list of headers.  */
+#include KWSYS_HEADER(Configure.hxx)
+
+#include KWSYS_HEADER(RegularExpression.hxx)
+#include KWSYS_HEADER(SystemTools.hxx)
+#include KWSYS_HEADER(Directory.hxx)
+#include KWSYS_HEADER(stl/string)
+#include KWSYS_HEADER(stl/vector)
+
+// Work-around CMake dependency scanning limitation.  This must
+// duplicate the above list of headers.
 #if 0
-# include "Process.h.in"
+# include "Glob.hxx.in"
+# include "Directory.hxx.in"
+# include "Configure.hxx.in"
+# include "RegularExpression.hxx.in"
+# include "SystemTools.hxx.in"
+# include "kwsys_stl.hxx.in"
+# include "kwsys_stl_string.hxx.in"
 #endif
 
+#include <ctype.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-
-#if defined(_WIN32)
-# include <windows.h>
-#else
-# include <unistd.h>
+namespace KWSYS_NAMESPACE
+{
+#if defined(_WIN32) || defined(APPLE) || defined(__CYGWIN__)
+// On Windows and apple, no difference between lower and upper case
+# define KWSYS_GLOB_CASE_INDEPENDENT
 #endif
 
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int output, int delay, double timeout, int poll,
-             int repeat);
-
-int test1(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 0.\n");
-  fprintf(stderr, "Output on stderr from test returning 0.\n");
-  return 0;
-}
-
-int test2(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 123.\n");
-  fprintf(stderr, "Output on stderr from test returning 123.\n");
-  return 123;
-}
-
-int test3(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output before sleep on stderr from timeout test.\n");
-  fflush(stdout);
-  fflush(stderr);
-#if defined(_WIN32)
-  Sleep(15000);
-#else
-  sleep(15);
+#if defined(_WIN32) || defined(__CYGWIN__)
+// Handle network paths
+# define KWSYS_GLOB_SUPPORT_NETWORK_PATHS
 #endif
-  fprintf(stdout, "Output after sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output after sleep on stderr from timeout test.\n");
-  return 0;
+
+//----------------------------------------------------------------------------
+class GlobInternals
+{
+public:
+  kwsys_stl::vector<kwsys_stl::string> Files;
+  kwsys_stl::vector<kwsys::RegularExpression> Expressions;
+};
+
+//----------------------------------------------------------------------------
+Glob::Glob()
+{
+  this->Internals = new GlobInternals;
+  this->Recurse = false;
+  this->Relative = "";
 }
 
-int test4(int argc, const char* argv[])
+//----------------------------------------------------------------------------
+Glob::~Glob()
 {
-#if defined(_WIN32)
-  /* Avoid error diagnostic popups since we are crashing on purpose.  */
-  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
-#endif
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before crash on stdout from crash test.\n");
-  fprintf(stderr, "Output before crash on stderr from crash test.\n");  
-  fflush(stdout);
-  fflush(stderr);
-  *(int*)0 = 0;
-  fprintf(stdout, "Output after crash on stdout from crash test.\n");
-  fprintf(stderr, "Output after crash on stderr from crash test.\n");
-  return 0;
+  delete this->Internals;
 }
 
-int test5(int argc, const char* argv[])
+//----------------------------------------------------------------------------
+kwsys_stl::vector<kwsys_stl::string>& Glob::GetFiles()
 {
-  int r;
-  const char* cmd[4];
-  (void)argc;
-  cmd[0] = argv[0];
-  cmd[1] = "run";
-  cmd[2] = "4";
-  cmd[3] = 0;
-  fprintf(stdout, "Output on stdout before recursive test.\n");
-  fprintf(stderr, "Output on stderr before recursive test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Exception,
-               kwsysProcess_Exception_Fault, 1, 1, 1, 0, 15, 0, 1);
-  fprintf(stdout, "Output on stdout after recursive test.\n");
-  fprintf(stderr, "Output on stderr after recursive test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
+  return this->Internals->Files;
 }
 
-#define TEST6_SIZE (4096*2)
-void test6(int argc, const char* argv[])
+//----------------------------------------------------------------------------
+kwsys_stl::string Glob::PatternToRegex(const kwsys_stl::string& pattern,
+                                       bool require_whole_string)
 {
-  int i;
-  char runaway[TEST6_SIZE+1];
-  (void)argc; (void)argv;
-  for(i=0;i < TEST6_SIZE;++i)
+  // Incrementally build the regular expression from the pattern.
+  kwsys_stl::string regex = require_whole_string? "^" : "";
+  kwsys_stl::string::const_iterator pattern_first = pattern.begin();
+  kwsys_stl::string::const_iterator pattern_last = pattern.end();
+  for(kwsys_stl::string::const_iterator i = pattern_first;
+      i != pattern_last; ++i)
     {
-    runaway[i] = '.';
-    }
-  runaway[TEST6_SIZE] = '\n';
-
-  /* Generate huge amounts of output to test killing.  */
-  for(;;)
-    {
-    fwrite(runaway, 1, TEST6_SIZE+1, stdout);
-    fflush(stdout);
-    }
-}
-
-/* Define MINPOLL to be one more than the number of times output is
-   written.  Define MAXPOLL to be the largest number of times a loop
-   delaying 1/10th of a second should ever have to poll.  */
-#define MINPOLL 5
-#define MAXPOLL 20
-int test7(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout before sleep.\n");
-  fprintf(stderr, "Output on stderr before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 1 second.  */
-#if defined(_WIN32)
-  Sleep(1000);
-#else
-  sleep(1);
-#endif
-  fprintf(stdout, "Output on stdout after sleep.\n");
-  fprintf(stderr, "Output on stderr after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return 0;
-}
-
-int runChild2(kwsysProcess* kp,
-              const char* cmd[], int state, int exception, int value,
-              int share, int output, int delay, double timeout,
-              int poll)
-{
-  int result = 0;
-  char* data = 0;
-  int length = 0;
-  double userTimeout = 0;
-  double* pUserTimeout = 0;
-  kwsysProcess_SetCommand(kp, cmd);
-  if(timeout >= 0)
-    {
-    kwsysProcess_SetTimeout(kp, timeout);
-    }
-  if(share)
-    {
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
-    }
-  kwsysProcess_Execute(kp);
-
-  if(poll)
-    {
-    pUserTimeout = &userTimeout;
-    }
-
-  if(!share)
-    {
-    int p;
-    while((p = kwsysProcess_WaitForData(kp, &data, &length, pUserTimeout)))
+    int c = *i;
+    if(c == '*')
       {
-      if(output)
-        {
-        if(poll && p == kwsysProcess_Pipe_Timeout)
-          {
-          fprintf(stdout, "WaitForData timeout reached.\n");
-          fflush(stdout);
+      // A '*' (not between brackets) matches any string.
+      regex += ".*";
+      }
+    else if(c == '?')
+      {
+      // A '?' (not between brackets) matches any single character.
+      regex += ".";
+      }
+    else if(c == '[')
+      {
+      // Parse out the bracket expression.  It begins just after the
+      // opening character.
+      kwsys_stl::string::const_iterator bracket_first = i+1;
+      kwsys_stl::string::const_iterator bracket_last = bracket_first;
 
-          /* Count the number of times we polled without getting data.
-             If it is excessive then kill the child and fail.  */
-          if(++poll >= MAXPOLL)
+      // The first character may be complementation '!' or '^'.
+      if(bracket_last != pattern_last &&
+         (*bracket_last == '!' || *bracket_last == '^'))
+        {
+        ++bracket_last;
+        }
+
+      // If the next character is a ']' it is included in the brackets
+      // because the bracket string may not be empty.
+      if(bracket_last != pattern_last && *bracket_last == ']')
+        {
+        ++bracket_last;
+        }
+
+      // Search for the closing ']'.
+      while(bracket_last != pattern_last && *bracket_last != ']')
+        {
+        ++bracket_last;
+        }
+
+      // Check whether we have a complete bracket string.
+      if(bracket_last == pattern_last)
+        {
+        // The bracket string did not end, so it was opened simply by
+        // a '[' that is supposed to be matched literally.
+        regex += "\\[";
+        }
+      else
+        {
+        // Convert the bracket string to its regex equivalent.
+        kwsys_stl::string::const_iterator k = bracket_first;
+
+        // Open the regex block.
+        regex += "[";
+
+        // A regex range complement uses '^' instead of '!'.
+        if(k != bracket_last && *k == '!')
+          {
+          regex += "^";
+          ++k;
+          }
+
+        // Convert the remaining characters.
+        for(; k != bracket_last; ++k)
+          {
+          // Backslashes must be escaped.
+          if(*k == '\\')
             {
-            fprintf(stdout, "Poll count reached limit %d.\n",
-                    MAXPOLL);
-            kwsysProcess_Kill(kp);
+            regex += "\\";
             }
+
+          // Store this character.
+          regex += *k;
           }
-        else
-          {
-          fwrite(data, 1, length, stdout);
-          fflush(stdout);
-          }
+
+        // Close the regex block.
+        regex += "]";
+
+        // Jump to the end of the bracket string.
+        i = bracket_last;
         }
-      if(poll)
-        {
-        /* Delay to avoid busy loop during polling.  */
-#if defined(_WIN32)
-        Sleep(100);
-#else
-        usleep(100000);
-#endif
-        }
-      if(delay)
-        {
-        /* Purposely sleeping only on Win32 to let pipe fill up.  */
-#if defined(_WIN32)
-        Sleep(100);
-#endif
-        }
-      }
-    }
-  
-  kwsysProcess_WaitForExit(kp, 0);
-
-  switch (kwsysProcess_GetState(kp))
-    {
-    case kwsysProcess_State_Starting:
-      printf("No process has been executed.\n"); break;
-    case kwsysProcess_State_Executing:
-      printf("The process is still executing.\n"); break;
-    case kwsysProcess_State_Expired:
-      printf("Child was killed when timeout expired.\n"); break;
-    case kwsysProcess_State_Exited:
-      printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Killed:
-      printf("Child was killed by parent.\n"); break;
-    case kwsysProcess_State_Exception:
-      printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Error:
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
-  
-  if(result)
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
-      {
-      fprintf(stderr, "Mismatch in exit exception.  "
-              "Should have been %d, was %d.\n",
-              exception, kwsysProcess_GetExitException(kp));
-      }
-    if(value != kwsysProcess_GetExitValue(kp))
-      {
-      fprintf(stderr, "Mismatch in exit value.  "
-              "Should have been %d, was %d.\n",
-              value, kwsysProcess_GetExitValue(kp));
-      }
-    }
-  
-  if(kwsysProcess_GetState(kp) != state)
-    {
-    fprintf(stderr, "Mismatch in state.  "
-            "Should have been %d, was %d.\n",
-            state, kwsysProcess_GetState(kp));
-    result = 1;
-    }
-
-  /* We should have polled more times than there were data if polling
-     was enabled.  */
-  if(poll && poll < MINPOLL)
-    {
-    fprintf(stderr, "Poll count is %d, which is less than %d.\n",
-            poll, MINPOLL);
-    result = 1;
-    }
-
-  return result;
-}
-
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int output, int delay, double timeout,
-             int poll, int repeat)
-{
-  int result = 1;
-  kwsysProcess* kp = kwsysProcess_New();
-  if(!kp)
-    {
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
-    }
-  while(repeat-- > 0)
-    {
-    result = runChild2(kp, cmd, state, exception, value, share,
-                       output, delay, timeout, poll);
-    }
-  kwsysProcess_Delete(kp);
-  return result;
-}
-
-int main(int argc, const char* argv[])
-{
-  int n = 0;
-#if 0
-    {
-    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-    DuplicateHandle(GetCurrentProcess(), out,
-                    GetCurrentProcess(), &out, 0, FALSE,
-                    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
-    SetStdHandle(STD_OUTPUT_HANDLE, out);
-    }
-    {
-    HANDLE out = GetStdHandle(STD_ERROR_HANDLE);
-    DuplicateHandle(GetCurrentProcess(), out,
-                    GetCurrentProcess(), &out, 0, FALSE,
-                    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
-    SetStdHandle(STD_ERROR_HANDLE, out);
-    }
-#endif
-  if(argc == 2)
-    {
-    n = atoi(argv[1]);
-    }
-  else if(argc == 3 && strcmp(argv[1], "run") == 0)
-    {
-    n = atoi(argv[2]);
-    }
-  /* Check arguments.  */
-  if(n >= 1 && n <= 7 && argc == 3)
-    {
-    /* This is the child process for a requested test number.  */
-    switch (n)
-      {
-      case 1: return test1(argc, argv);
-      case 2: return test2(argc, argv);
-      case 3: return test3(argc, argv);
-      case 4: return test4(argc, argv);
-      case 5: return test5(argc, argv);
-      case 6: test6(argc, argv); return 0;
-      case 7: return test7(argc, argv);
-      }
-    fprintf(stderr, "Invalid test number %d.\n", n);
-    return 1;
-    }
-  else if(n >= 1 && n <= 7)
-    {
-    /* This is the parent process for a requested test number.  */
-    int states[7] =
-    {
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Expired,
-      kwsysProcess_State_Exception,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Expired,
-      kwsysProcess_State_Exited
-    };
-    int exceptions[7] =
-    {
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_Fault,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None
-    };
-    int values[7] = {0, 123, 1, 1, 0, 0, 0};
-    int outputs[7] = {1, 1, 1, 1, 1, 0, 1};
-    int delays[7] = {0, 0, 0, 0, 0, 1, 0};
-    double timeouts[7] = {10, 10, 10, 10, 30, 10, -1};
-    int polls[7] = {0, 0, 0, 0, 0, 0, 1};
-    int repeat[7] = {2, 1, 1, 1, 1, 1, 1};
-    int r;
-    const char* cmd[4];
-#ifdef _WIN32
-    char* argv0 = 0;
-    if(n == 0 && (argv0 = strdup(argv[0])))
-      {
-      /* Try converting to forward slashes to see if it works.  */
-      char* c;
-      for(c=argv0; *c; ++c)
-        {
-        if(*c == '\\')
-          {
-          *c = '/';
-          }
-        }
-      cmd[0] = argv0;
       }
     else
       {
-      cmd[0] = argv[0];
+      // A single character matches itself.
+      int ch = c;
+      if(!(('a' <= ch && ch <= 'z') ||
+           ('A' <= ch && ch <= 'Z') ||
+           ('0' <= ch && ch <= '9')))
+        {
+        // Escape the non-alphanumeric character.
+        regex += "\\";
+        }
+#if defined(KWSYS_GLOB_CASE_INDEPENDENT)
+      else
+        {
+        // On case-insensitive systems file names are converted to lower
+        // case before matching.
+        ch = tolower(ch);
+        }
+#endif
+
+      // Store the character.
+      regex.append(1, static_cast<char>(ch));
       }
-#else
-    cmd[0] = argv[0];
-#endif
-    cmd[1] = "run";
-    cmd[2] = argv[1];
-    cmd[3] = 0;
-    fprintf(stdout, "Output on stdout before test %d.\n", n);
-    fprintf(stderr, "Output on stderr before test %d.\n", n);
-    fflush(stdout);
-    fflush(stderr);
-    r = runChild(cmd, states[n-1], exceptions[n-1], values[n-1], 0,
-                 outputs[n-1], delays[n-1], timeouts[n-1],
-                 polls[n-1], repeat[n-1]);
-    fprintf(stdout, "Output on stdout after test %d.\n", n);
-    fprintf(stderr, "Output on stderr after test %d.\n", n);
-    fflush(stdout);
-    fflush(stderr);
-#if _WIN32
-    if(argv0) { free(argv0); }
-#endif
-    return r;
     }
-  else if(argc > 2 && strcmp(argv[1], "0") == 0)
+
+  if(require_whole_string)
     {
-    /* This is the special debugging test to run a given command
-       line.  */
-    const char** cmd = argv+2;
-    int state = kwsysProcess_State_Exited;
-    int exception = kwsysProcess_Exception_None;
-    int value = 0;
-    double timeout = 0;
-    int r = runChild(cmd, state, exception, value, 0, 1, 0, timeout, 0, 1);
-    return r;
+    regex += "$";
+    }
+  return regex;
+}
+
+//----------------------------------------------------------------------------
+void Glob::RecurseDirectory(kwsys_stl::string::size_type start,
+  const kwsys_stl::string& dir, bool dir_only)
+{
+  kwsys::Directory d;
+  if ( !d.Load(dir.c_str()) )
+    {
+    return;
+    }
+  unsigned long cc;
+  kwsys_stl::string fullname;
+  kwsys_stl::string realname;
+  kwsys_stl::string fname;
+  for ( cc = 0; cc < d.GetNumberOfFiles(); cc ++ )
+    {
+    fname = d.GetFile(cc);
+    if ( strcmp(fname.c_str(), ".") == 0 ||
+      strcmp(fname.c_str(), "..") == 0  )
+      {
+      continue;
+      }
+
+    if ( start == 0 )
+      {
+      realname = dir + fname;
+      }
+    else
+      {
+      realname = dir + "/" + fname;
+      }
+
+#if defined( KWSYS_GLOB_CASE_INDEPENDENT )
+    // On Windows and apple, no difference between lower and upper case
+    fname = kwsys::SystemTools::LowerCase(fname);
+#endif
+
+    if ( start == 0 )
+      {
+      fullname = dir + fname;
+      }
+    else
+      {
+      fullname = dir + "/" + fname;
+      }
+
+    if ( !dir_only || !kwsys::SystemTools::FileIsDirectory(realname.c_str()) )
+      {
+      if ( this->Internals->Expressions[
+        this->Internals->Expressions.size()-1].find(fname.c_str()) )
+        {
+        this->AddFile(this->Internals->Files, realname.c_str());
+        }
+      }
+    if ( kwsys::SystemTools::FileIsDirectory(realname.c_str()) )
+      {
+      this->RecurseDirectory(start+1, realname, dir_only);
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+void Glob::ProcessDirectory(kwsys_stl::string::size_type start,
+  const kwsys_stl::string& dir, bool dir_only)
+{
+  //kwsys_ios::cout << "ProcessDirectory: " << dir << kwsys_ios::endl;
+  bool last = ( start == this->Internals->Expressions.size()-1 );
+  if ( last && this->Recurse )
+    {
+    this->RecurseDirectory(start, dir, dir_only);
+    return;
+    }
+  kwsys::Directory d;
+  if ( !d.Load(dir.c_str()) )
+    {
+    return;
+    }
+  unsigned long cc;
+  kwsys_stl::string fullname;
+  kwsys_stl::string realname;
+  kwsys_stl::string fname;
+  for ( cc = 0; cc < d.GetNumberOfFiles(); cc ++ )
+    {
+    fname = d.GetFile(cc);
+    if ( strcmp(fname.c_str(), ".") == 0 ||
+      strcmp(fname.c_str(), "..") == 0  )
+      {
+      continue;
+      }
+
+    if ( start == 0 )
+      {
+      realname = dir + fname;
+      }
+    else
+      {
+      realname = dir + "/" + fname;
+      }
+
+#if defined(KWSYS_GLOB_CASE_INDEPENDENT)
+    // On case-insensitive file systems convert to lower case for matching.
+    fname = kwsys::SystemTools::LowerCase(fname);
+#endif
+
+    if ( start == 0 )
+      {
+      fullname = dir + fname;
+      }
+    else
+      {
+      fullname = dir + "/" + fname;
+      }
+
+    //kwsys_ios::cout << "Look at file: " << fname << kwsys_ios::endl;
+    //kwsys_ios::cout << "Match: "
+    // << this->Internals->TextExpressions[start].c_str() << kwsys_ios::endl;
+    //kwsys_ios::cout << "Full name: " << fullname << kwsys_ios::endl;
+
+    if ( (!dir_only || !last) &&
+      !kwsys::SystemTools::FileIsDirectory(realname.c_str()) )
+      {
+      continue;
+      }
+
+    if ( this->Internals->Expressions[start].find(fname.c_str()) )
+      {
+      if ( last )
+        {
+        this->AddFile(this->Internals->Files, realname.c_str());
+        }
+      else
+        {
+        this->ProcessDirectory(start+1, realname + "/", dir_only);
+        }
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+bool Glob::FindFiles(const kwsys_stl::string& inexpr)
+{
+  kwsys_stl::string cexpr;
+  kwsys_stl::string::size_type cc;
+  kwsys_stl::string expr = inexpr;
+
+  this->Internals->Expressions.clear();
+  this->Internals->Files.clear();
+
+  if ( !kwsys::SystemTools::FileIsFullPath(expr.c_str()) )
+    {
+    expr = kwsys::SystemTools::GetCurrentWorkingDirectory();
+    expr += "/" + inexpr;
+    }
+  kwsys_stl::string fexpr = expr;
+
+  int skip = 0;
+  int last_slash = 0;
+  for ( cc = 0; cc < expr.size(); cc ++ )
+    {
+    if ( cc > 0 && expr[cc] == '/' && expr[cc-1] != '\\' )
+      {
+      last_slash = static_cast<int>(cc);
+      }
+    if ( cc > 0 &&
+      (expr[cc] == '[' || expr[cc] == '?' || expr[cc] == '*') &&
+      expr[cc-1] != '\\' )
+      {
+      break;
+      }
+    }
+  if ( last_slash > 0 )
+    {
+    //kwsys_ios::cout << "I can skip: " << fexpr.substr(0, last_slash)
+    //<< kwsys_ios::endl;
+    skip = last_slash;
+    }
+  if ( skip == 0 )
+    {
+#if defined( KWSYS_GLOB_SUPPORT_NETWORK_PATHS )
+    // Handle network paths
+    if ( expr[0] == '/' && expr[1] == '/' )
+      {
+      int cnt = 0;
+      for ( cc = 2; cc < expr.size(); cc ++ )
+        {
+        if ( expr[cc] == '/' )
+          {
+          cnt ++;
+          if ( cnt == 2 )
+            {
+            break;
+            }
+          }
+        }
+      skip = int(cc + 1);
+      }
+    else
+#endif
+      // Handle drive letters on Windows
+      if ( expr[1] == ':' && expr[0] != '/' )
+        {
+        skip = 2;
+        }
+    }
+
+  if ( skip > 0 )
+    {
+    expr = expr.substr(skip);
+    }
+
+  cexpr = "";
+  for ( cc = 0; cc < expr.size(); cc ++ )
+    {
+    int ch = expr[cc];
+    if ( ch == '/' )
+      {
+      if ( cexpr.size() > 0 )
+        {
+        this->AddExpression(cexpr.c_str());
+        }
+      cexpr = "";
+      }
+    else
+      {
+      cexpr.append(1, static_cast<char>(ch));
+      }
+    }
+  if ( cexpr.size() > 0 )
+    {
+    this->AddExpression(cexpr.c_str());
+    }
+
+  // Handle network paths
+  if ( skip > 0 )
+    {
+    this->ProcessDirectory(0, fexpr.substr(0, skip) + "/",
+      true);
     }
   else
     {
-    /* Improper usage.  */
-    fprintf(stdout, "Usage: %s <test number>\n", argv[0]);
-    return 1;
+    this->ProcessDirectory(0, "/", true);
+    }
+  return true;
+}
+
+//----------------------------------------------------------------------------
+void Glob::AddExpression(const char* expr)
+{
+  this->Internals->Expressions.push_back(
+    kwsys::RegularExpression(
+      this->PatternToRegex(expr).c_str()));
+}
+
+//----------------------------------------------------------------------------
+void Glob::SetRelative(const char* dir)
+{
+  if ( !dir )
+    {
+    this->Relative = "";
+    return;
+    }
+  this->Relative = dir;
+}
+
+//----------------------------------------------------------------------------
+const char* Glob::GetRelative()
+{
+  if ( this->Relative.empty() )
+    {
+    return 0;
+    }
+  return this->Relative.c_str();
+}
+
+//----------------------------------------------------------------------------
+void Glob::AddFile(kwsys_stl::vector<kwsys_stl::string>& files, const char* file)
+{
+  if ( !this->Relative.empty() )
+    {
+    files.push_back(kwsys::SystemTools::RelativePath(this->Relative.c_str(), file));
+    }
+  else
+    {
+    files.push_back(file);
     }
 }
+
+} // namespace KWSYS_NAMESPACE
+

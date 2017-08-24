@@ -1,11 +1,7 @@
-    this->SetError(err.c_str());
-    return false;
+    n = atoi(argv[2]);
     }
-  std::string configFile = 
-    m_Makefile->GetDefinition("CMAKE_ROOT");
-  configFile += "/Templates/TestDriver.cxx.in";
-  // Create the test driver file
-  
-  std::vector<std::string>::const_iterator testsBegin = i;
-  std::vector<std::string> tests_func_name;
-
+  /* Check arguments.  */
+  if(n < 1 || n > 7 || (argc == 3 && strcmp(argv[1], "run") != 0))
+    {
+    fprintf(stdout, "Usage: %s <test number>\n", argv[0]);
+    return 1;

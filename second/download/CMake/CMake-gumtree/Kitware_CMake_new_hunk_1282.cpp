@@ -1,12 +1,10 @@
-      cmSystemTools::ChangeDirectory(it->m_Directory.c_str());
-      }
-    cres.m_Name = testname;
-    if(m_TestsToRun.size() && 
-       std::find(m_TestsToRun.begin(), m_TestsToRun.end(), cnt) == m_TestsToRun.end())
-      {
-      continue;
-      }
-
-    if ( m_ShowOnly )
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s\n", cnt, (int)tmsize, testname.c_str());
+void cmCommandArgumentParserHelper::Error(const char* str)
+{
+  unsigned long pos = static_cast<unsigned long>(this->InputBufferPos);
+  //fprintf(stderr, "Argument Parser Error: %s (%lu / Line: %d)\n", str, pos, this->CurrentLine);
+  cmOStringStream ostr;
+  ostr << str << " (" << pos << ")";
+  /*
+  int cc;
+  std::cerr << "String: [";
+  for ( cc = 0; cc < 30 && *(this->InputBuffer.c_str() + this->InputBufferPos + cc);

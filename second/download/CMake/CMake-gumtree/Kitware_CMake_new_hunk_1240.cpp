@@ -1,13 +1,16 @@
-}
-
-//----------------------------------------------------------------------
-bool cmCTestCoverageHandler::StartLogFile(cmGeneratedFileStream& covLogFile, int logFileCount)
-{
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-  std::cout << "Open file: " << covLogFilename << std::endl;
-  if (!m_CTest->OpenOutputFile(m_CTest->GetCurrentTag(), 
-      covLogFilename, covLogFile, true))
-    {
-    std::cerr << "Cannot open log file: " << covLogFilename << std::endl;
-    return false;
+    cmTargets::iterator tit;
+    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
+      {
+      const char* realTargetName = tit->first.c_str();
+      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
+        {
+        // Skip ignored targets
+        continue;
+        }
+      //std::cout << "Found target: " << tit->first.c_str() << std::endl;
+      sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
+      targetNamesNodes[realTargetName] = tgtName;
+      targetPtrs[realTargetName] = &tit->second;
+      //str << "    \"" << tgtName << "\" [ label=\"" << tit->first.c_str() <<  "\" shape=\"box\"];" << std::endl;
+      }
+    }

@@ -1,7 +1,7 @@
-    CommandLineArguments::Internal::SetOfStrings::iterator sit;
-    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
-      {
-      str << endl;
-      char argument[100];
-      sprintf(argument, sit->c_str());
-      switch ( this->Internals->Callbacks[*sit].ArgumentType )
+        {
+        std::string tmp = (*d)->m_FullPath;
+        std::string::size_type pos = tmp.rfind('.');
+        if(pos != std::string::npos && tmp.substr(pos) == ".cxx")
+          {
+          tmp = tmp.substr(0, pos);
+          fprintf(fout,"%s\n",(*d)->m_FullPath.c_str());

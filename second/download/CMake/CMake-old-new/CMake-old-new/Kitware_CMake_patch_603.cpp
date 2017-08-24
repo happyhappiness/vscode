@@ -1,1543 +1,967 @@
-@@ -1,16 +1,16 @@
- /***************************************************************************
-- *                                  _   _ ____  _     
-- *  Project                     ___| | | |  _ \| |    
-- *                             / __| | | | |_) | |    
-- *                            | (__| |_| |  _ <| |___ 
-+ *                                  _   _ ____  _
-+ *  Project                     ___| | | |  _ \| |
-+ *                             / __| | | | |_) | |
-+ *                            | (__| |_| |  _ <| |___
-  *                             \___|\___/|_| \_\_____|
-  *
-- * Copyright (C) 1998 - 2002, Daniel Stenberg, <daniel@haxx.se>, et al.
-+ * Copyright (C) 1998 - 2004, Daniel Stenberg, <daniel@haxx.se>, et al.
-  *
-  * This software is licensed as described in the file COPYING, which
-  * you should have received as part of this distribution. The terms
-  * are also available at http://curl.haxx.se/docs/copyright.html.
-- * 
-+ *
-  * You may opt to use, copy, modify, merge, publish, distribute and/or sell
-  * copies of the Software, and permit persons to whom the Software is
-  * furnished to do so, under the terms of the COPYING file.
-@@ -97,313 +97,53 @@ Content-Type: text/plain
- Content-Disposition: form-data; name="FILECONTENT"
- ...
+@@ -9,8 +9,8 @@
+   Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
+   See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
  
--  For the old FormParse used by curl_formparse use:
--
--  gcc -DHAVE_CONFIG_H -I../ -g -D_OLD_FORM_DEBUG -o formdata -I../include formdata.c strequal.c
--
--  run the 'formdata' executable and make sure the output is ok!
--
--  try './formdata "name=Daniel" "poo=noo" "foo=bar"' and similarly
--
-  */
+-     This software is distributed WITHOUT ANY WARRANTY; without even 
+-     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
++     This software is distributed WITHOUT ANY WARRANTY; without even
++     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+      PURPOSE.  See the above copyright notices for more information.
  
- #include "setup.h"
-+#include <curl/curl.h>
-+
-+/* Length of the random boundary string. */
-+#define BOUNDARY_LENGTH 40
+ =========================================================================*/
+@@ -29,7 +29,7 @@
+ #include "cmCommand.h"
+ #include "cmSystemTools.h"
  
- #ifndef CURL_DISABLE_HTTP
+-#include <stdlib.h> 
++#include <stdlib.h>
+ #include <math.h>
+ #include <float.h>
  
- #include <stdio.h>
- #include <stdlib.h>
- #include <string.h>
- #include <stdarg.h>
--
- #include <time.h>
--
--#include <curl/curl.h>
-+#include <sys/stat.h>
- #include "formdata.h"
--
- #include "strequal.h"
-+#include "memory.h"
-+
-+#define _MPRINTF_REPLACE /* use our functions only */
-+#include <curl/mprintf.h>
- 
- /* The last #include file should be: */
--#ifdef MALLOCDEBUG
- #include "memdebug.h"
--#endif
--
--/* Length of the random boundary string. The risk of this being used
--   in binary data is very close to zero, 64^32 makes
--   6277101735386680763835789423207666416102355444464034512896
--   combinations... */
--#define BOUNDARY_LENGTH 32
- 
- /* What kind of Content-Type to use on un-specified files with unrecognized
-    extensions. */
--#define HTTPPOST_CONTENTTYPE_DEFAULT "text/plain"
--
--/* This is a silly duplicate of the function in main.c to enable this source
--   to compile stand-alone for better debugging */
--static void GetStr(char **string,
--                   const char *value)
--{
--  if(*string)
--    free(*string);
--  *string = strdup(value);
--}
--
--/***************************************************************************
-- *
-- * FormParse()
-- *      
-- * Reads a 'name=value' paramter and builds the appropriate linked list.
-- *
-- * Specify files to upload with 'name=@filename'. Supports specified
-- * given Content-Type of the files. Such as ';type=<content-type>'.
-- *
-- * You may specify more than one file for a single name (field). Specify
-- * multiple files by writing it like:
-- *
-- * 'name=@filename,filename2,filename3'
-- *
-- * If you want content-types specified for each too, write them like:
-- *
-- * 'name=@filename;type=image/gif,filename2,filename3'
-- *
-- ***************************************************************************/
-+#define HTTPPOST_CONTENTTYPE_DEFAULT "application/octet-stream"
- 
- #define FORM_FILE_SEPARATOR ','
- #define FORM_TYPE_SEPARATOR ';'
- 
--static
--int FormParse(char *input,
--              struct curl_httppost **httppost,
--              struct curl_httppost **last_post)
--{
--  /* nextarg MUST be a string in the format 'name=contents' and we'll
--     build a linked list with the info */
--  char name[256];
--  char *contents;
--  char major[128];
--  char minor[128];
--  long flags = 0;
--  char *contp;
--  const char *type = NULL;
--  char *prevtype = NULL;
--  char *sep;
--  char *sep2;
--  struct curl_httppost *post;
--  struct curl_httppost *subpost; /* a sub-node */
--  unsigned int i;
--
--  /* Preallocate contents to the length of input to make sure we don't
--     overwrite anything. */
--  contents = malloc(strlen(input));
--  contents[0] = '\000';
+@@ -42,7 +42,7 @@ class cmCTestSubdirCommand : public cmCommand
+   /**
+    * This is a virtual constructor for the command.
+    */
+-  virtual cmCommand* Clone() 
++  virtual cmCommand* Clone()
+     {
+     cmCTestSubdirCommand* c = new cmCTestSubdirCommand;
+     c->m_TestHandler = m_TestHandler;
+@@ -78,14 +78,14 @@ bool cmCTestSubdirCommand::InitialPass(std::vector<std::string> const& args)
+     return false;
+     }
+   std::vector<std::string>::const_iterator it;
+-  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory(); 
++  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
+   for ( it = args.begin(); it != args.end(); ++ it )
+     {
+     cmSystemTools::ChangeDirectory(cwd.c_str());
+     std::string fname = cwd;
+     fname += "/";
+     fname += *it;
 - 
--  if(1 <= sscanf(input, "%255[^=]=%[^\n]", name, contents)) {
--    /* the input was using the correct format */
--    contp = contents;
--
--    if('@' == contp[0]) {
--      /* we use the @-letter to indicate file name(s) */
--      
--      flags = HTTPPOST_FILENAME;
--      contp++;
--
--      post=NULL;
--
--      do {
--        /* since this was a file, it may have a content-type specifier
--           at the end too */
--
--        sep=strchr(contp, FORM_TYPE_SEPARATOR);
--        sep2=strchr(contp, FORM_FILE_SEPARATOR);
--
--        /* pick the closest */
--        if(sep2 && (sep2 < sep)) {
--          sep = sep2;
--
--          /* no type was specified! */
--        }
--        if(sep) {
--
--          /* if we got here on a comma, don't do much */
--          if(FORM_FILE_SEPARATOR != *sep)
--            type = strstr(sep+1, "type=");
--          else
--            type=NULL;
--
--          *sep=0; /* terminate file name at separator */
--
--          if(type) {
--            type += strlen("type=");
--            
--            if(2 != sscanf(type, "%127[^/]/%127[^,\n]",
--                           major, minor)) {
--              free(contents);
--              return 2; /* illegal content-type syntax! */
--            }
--            /* now point beyond the content-type specifier */
--            sep = (char *)type + strlen(major)+strlen(minor)+1;
--
--            /* find the following comma */
--            sep=strchr(sep, FORM_FILE_SEPARATOR);
--          }
--        }
--        else {
--          type=NULL;
--          sep=strchr(contp, FORM_FILE_SEPARATOR);
--        }
--        if(sep) {
--          /* the next file name starts here */
--          *sep =0;
--          sep++;
--        }
--        if(!type) {
--          /*
--           * No type was specified, we scan through a few well-known
--           * extensions and pick the first we match!
--           */
--          struct ContentType {
--            const char *extension;
--            const char *type;
--          };
--          static struct ContentType ctts[]={
--            {".gif",  "image/gif"},
--            {".jpg",  "image/jpeg"},
--            {".jpeg", "image/jpeg"},
--            {".txt",  "text/plain"},
--            {".html", "text/plain"}
--          };
--
--          if(prevtype)
--            /* default to the previously set/used! */
--            type = prevtype;
--          else
--            /* It seems RFC1867 defines no Content-Type to default to
--               text/plain so we don't actually need to set this: */
--            type = HTTPPOST_CONTENTTYPE_DEFAULT;
--
--          for(i=0; i<sizeof(ctts)/sizeof(ctts[0]); i++) {
--            if(strlen(contp) >= strlen(ctts[i].extension)) {
--              if(strequal(contp +
--                          strlen(contp) - strlen(ctts[i].extension),
--                          ctts[i].extension)) {
--                type = ctts[i].type;
--                break;
--              }       
--            }
--          }
--          /* we have a type by now */
--        }
--
--        if(NULL == post) {
--          /* For the first file name, we allocate and initiate the main list
--             node */
--
--          post = (struct curl_httppost *)malloc(sizeof(struct curl_httppost));
--          if(post) {
--            memset(post, 0, sizeof(struct curl_httppost));
--            GetStr(&post->name, name);      /* get the name */
--            GetStr(&post->contents, contp); /* get the contents */
--            post->contentslength = 0;
--            post->flags = flags;
--            if(type) {
--              GetStr(&post->contenttype, (char *)type); /* get type */
--              prevtype=post->contenttype; /* point to the allocated string! */
--            }
--            /* make the previous point to this */
--            if(*last_post)
--              (*last_post)->next = post;
--            else
--              (*httppost) = post;
--
--            (*last_post) = post;          
--          }
--
--        }
--        else {
--          /* we add a file name to the previously allocated node, known as
--             'post' now */
--          subpost =(struct curl_httppost *)
--            malloc(sizeof(struct curl_httppost));
--          if(subpost) {
--             memset(subpost, 0, sizeof(struct curl_httppost));
--             GetStr(&subpost->name, name);      /* get the name */
--             GetStr(&subpost->contents, contp); /* get the contents */
--             subpost->contentslength = 0;
--             subpost->flags = flags;
--             if(type) {
--               GetStr(&subpost->contenttype, (char *)type); /* get type */
--               prevtype=subpost->contenttype; /* point to allocated string! */
--             }
--             /* now, point our 'more' to the original 'more' */
--             subpost->more = post->more;
--
--             /* then move the original 'more' to point to ourselves */
--             post->more = subpost;           
--          }
--        }
--        contp = sep; /* move the contents pointer to after the separator */
--      } while(sep && *sep); /* loop if there's another file name */
--    }
--    else {
--      post = (struct curl_httppost *)malloc(sizeof(struct curl_httppost));
--      if(post) {
--        memset(post, 0, sizeof(struct curl_httppost));
--        GetStr(&post->name, name);      /* get the name */
--        if( contp[0]=='<' ) {
--          GetStr(&post->contents, contp+1); /* get the contents */
--          post->contentslength = 0;
--          post->flags = HTTPPOST_READFILE;
--        }
--        else {
--          GetStr(&post->contents, contp); /* get the contents */
--          post->contentslength = 0;
--          post->flags = 0;
--        }
--
--        /* make the previous point to this */
--        if(*last_post)
--          (*last_post)->next = post;
--        else
--          (*httppost) = post;
--
--        (*last_post) = post;      
--      }
--
--    }
--
--  }
--  else {
--    free(contents);
--    return 1;
--  }
--  free(contents);
--  return 0;
--}
--
--int curl_formparse(char *input,
--                   struct curl_httppost **httppost,
--                   struct curl_httppost **last_post)
--{
--  return FormParse(input, httppost, last_post);
--}
--
- /***************************************************************************
-  *
-  * AddHttpPost()
-- *      
-+ *
-  * Adds a HttpPost structure to the list, if parent_post is given becomes
-  * a subpost of parent_post instead of a direct list element.
-  *
-  * Returns newly allocated HttpPost on success and NULL if malloc failed.
-  *
-  ***************************************************************************/
- static struct curl_httppost *
--AddHttpPost(char * name, long namelength,
--            char * value, long contentslength,
--
--            /* CMC: Added support for buffer uploads */
--            char * buffer, long bufferlength,
--
-+AddHttpPost(char * name, size_t namelength,
-+            char * value, size_t contentslength,
-+            char * buffer, size_t bufferlength,
-             char *contenttype,
-             long flags,
-             struct curl_slist* contentHeader,
-@@ -413,49 +153,45 @@ AddHttpPost(char * name, long namelength,
-             struct curl_httppost **last_post)
++
+     if ( !cmSystemTools::FileExists(fname.c_str()) )
+       {
+       // No subdirectory? So what...
+@@ -111,7 +111,8 @@ bool cmCTestSubdirCommand::InitialPass(std::vector<std::string> const& args)
+       }
+     fname += "/";
+     fname += testFilename;
+-    bool readit = m_Makefile->ReadListFile( m_Makefile->GetCurrentListFile(), fname.c_str());
++    bool readit = m_Makefile->ReadListFile( m_Makefile->GetCurrentListFile(),
++      fname.c_str());
+     cmSystemTools::ChangeDirectory(cwd.c_str());
+     if(!readit)
+       {
+@@ -131,7 +132,7 @@ class cmCTestAddTestCommand : public cmCommand
+   /**
+    * This is a virtual constructor for the command.
+    */
+-  virtual cmCommand* Clone() 
++  virtual cmCommand* Clone()
+     {
+     cmCTestAddTestCommand* c = new cmCTestAddTestCommand;
+     c->m_TestHandler = m_TestHandler;
+@@ -176,9 +177,10 @@ class cmCTestSetTestsPropertiesCommand : public cmCommand
+   /**
+    * This is a virtual constructor for the command.
+    */
+-  virtual cmCommand* Clone() 
++  virtual cmCommand* Clone()
+     {
+-    cmCTestSetTestsPropertiesCommand* c = new cmCTestSetTestsPropertiesCommand;
++    cmCTestSetTestsPropertiesCommand* c
++      = new cmCTestSetTestsPropertiesCommand;
+     c->m_TestHandler = m_TestHandler;
+     return c;
+     }
+@@ -204,7 +206,8 @@ class cmCTestSetTestsPropertiesCommand : public cmCommand
+ };
+ 
+ //----------------------------------------------------------------------
+-bool cmCTestSetTestsPropertiesCommand::InitialPass(std::vector<std::string> const& args)
++bool cmCTestSetTestsPropertiesCommand::InitialPass(
++  std::vector<std::string> const& args)
  {
-   struct curl_httppost *post;
--  post = (struct curl_httppost *)malloc(sizeof(struct curl_httppost));
-+  post = (struct curl_httppost *)calloc(sizeof(struct curl_httppost), 1);
-   if(post) {
--    memset(post, 0, sizeof(struct curl_httppost));
-     post->name = name;
--    post->namelength = name?(namelength?namelength:(long)strlen(name)):0;
-+    post->namelength = (long)(name?(namelength?namelength:strlen(name)):0);
-     post->contents = value;
--    post->contentslength = contentslength;
--
--    /* CMC: Added support for buffer uploads */
-+    post->contentslength = (long)contentslength;
-     post->buffer = buffer;
--    post->bufferlength = bufferlength;
--
-+    post->bufferlength = (long)bufferlength;
-     post->contenttype = contenttype;
-     post->contentheader = contentHeader;
-     post->showfilename = showfilename;
-     post->flags = flags;
-   }
-   else
-     return NULL;
+   return m_TestHandler->SetTestsProperties(args);
+ }
+@@ -224,15 +227,15 @@ bool TryExecutable(const char *dir, const char *file,
+     tryPath = dir;
+     tryPath += "/";
+     }
 -  
 +
-   if (parent_post) {
-     /* now, point our 'more' to the original 'more' */
-     post->more = parent_post->more;
+   if (subdir && strcmp(subdir,""))
+     {
+     tryPath += subdir;
+     tryPath += "/";
+     }
+-  
++
+   tryPath += file;
+-  
++
+   // find the file without an executable extension
+   if(cmSystemTools::FileExists(tryPath.c_str()))
+     {
+@@ -247,17 +250,17 @@ bool TryExecutable(const char *dir, const char *file,
+     *fullPath = cmSystemTools::CollapseFullPath(tryPath.c_str());
+     return true;
+     }
+-  
++
+   // not found at all, return false
+   return false;
+ }
+ 
+ //----------------------------------------------------------------------
+ // get the next number in a string with numbers separated by ,
+ // pos is the start of the search and pos2 is the end of the search
+-// pos becomes pos2 after a call to GetNextNumber.   
++// pos becomes pos2 after a call to GetNextNumber.
+ // -1 is returned at the end of the list.
+-inline int GetNextNumber(std::string const& in, 
++inline int GetNextNumber(std::string const& in,
+                          int& val,
+                          std::string::size_type& pos,
+                          std::string::size_type& pos2)
+@@ -293,9 +296,9 @@ inline int GetNextNumber(std::string const& in,
+ //----------------------------------------------------------------------
+ // get the next number in a string with numbers separated by ,
+ // pos is the start of the search and pos2 is the end of the search
+-// pos becomes pos2 after a call to GetNextNumber.   
++// pos becomes pos2 after a call to GetNextNumber.
+ // -1 is returned at the end of the list.
+-inline int GetNextRealNumber(std::string const& in, 
++inline int GetNextRealNumber(std::string const& in,
+                              double& val,
+                              std::string::size_type& pos,
+                              std::string::size_type& pos2)
+@@ -328,19 +331,19 @@ inline int GetNextRealNumber(std::string const& in,
+     }
+ }
+ 
+-                         
++
+ //----------------------------------------------------------------------
+ cmCTestTestHandler::cmCTestTestHandler()
+ {
+   m_UseUnion = false;
+-  
++
+   m_UseIncludeRegExp       = false;
+   m_UseExcludeRegExp       = false;
+   m_UseExcludeRegExpFirst  = false;
+ 
+   m_CustomMaximumPassedTestOutputSize = 1 * 1024;
+   m_CustomMaximumFailedTestOutputSize = 300 * 1024;
+-  
++
+   m_MemCheck = false;
+ 
+   m_LogFile = 0;
+@@ -382,18 +385,18 @@ void cmCTestTestHandler::Initialize()
+ //----------------------------------------------------------------------
+ void cmCTestTestHandler::PopulateCustomVectors(cmMakefile *mf)
+ {
+-  cmCTest::PopulateCustomVector(mf, "CTEST_CUSTOM_PRE_TEST", 
++  cmCTest::PopulateCustomVector(mf, "CTEST_CUSTOM_PRE_TEST",
+                                 m_CustomPreTest);
+-  cmCTest::PopulateCustomVector(mf, "CTEST_CUSTOM_POST_TEST", 
++  cmCTest::PopulateCustomVector(mf, "CTEST_CUSTOM_POST_TEST",
+                                 m_CustomPostTest);
+   cmCTest::PopulateCustomVector(mf,
+-                             "CTEST_CUSTOM_TESTS_IGNORE", 
++                             "CTEST_CUSTOM_TESTS_IGNORE",
+                              m_CustomTestsIgnore);
+-  cmCTest::PopulateCustomInteger(mf, 
+-                             "CTEST_CUSTOM_MAXIMUM_PASSED_TEST_OUTPUT_SIZE", 
++  cmCTest::PopulateCustomInteger(mf,
++                             "CTEST_CUSTOM_MAXIMUM_PASSED_TEST_OUTPUT_SIZE",
+                              m_CustomMaximumPassedTestOutputSize);
+-  cmCTest::PopulateCustomInteger(mf, 
+-                             "CTEST_CUSTOM_MAXIMUM_FAILED_TEST_OUTPUT_SIZE", 
++  cmCTest::PopulateCustomInteger(mf,
++                             "CTEST_CUSTOM_MAXIMUM_FAILED_TEST_OUTPUT_SIZE",
+                              m_CustomMaximumFailedTestOutputSize);
+ }
+ 
+@@ -402,7 +405,8 @@ int cmCTestTestHandler::PreProcessHandler()
+ {
+   if ( !this->ExecuteCommands(m_CustomPreTest) )
+     {
+-    cmCTestLog(m_CTest, ERROR_MESSAGE, "Problem executing pre-test command(s)." << std::endl);
++    cmCTestLog(m_CTest, ERROR_MESSAGE,
++      "Problem executing pre-test command(s)." << std::endl);
+     return 0;
+     }
+   return 1;
+@@ -413,7 +417,8 @@ int cmCTestTestHandler::PostProcessHandler()
+ {
+   if ( !this->ExecuteCommands(m_CustomPostTest) )
+     {
+-    cmCTestLog(m_CTest, ERROR_MESSAGE, "Problem executing post-test command(s)." << std::endl);
++    cmCTestLog(m_CTest, ERROR_MESSAGE,
++      "Problem executing post-test command(s)." << std::endl);
+     return 0;
+     }
+   return 1;
+@@ -443,7 +448,8 @@ int cmCTestTestHandler::ProcessHandler()
+ 
+   m_TestResults.clear();
+ 
+-  cmCTestLog(m_CTest, HANDLER_OUTPUT, (m_MemCheck ? "Memory check" : "Test") << " project" << std::endl);
++  cmCTestLog(m_CTest, HANDLER_OUTPUT, (m_MemCheck ? "Memory check" : "Test")
++    << " project" << std::endl);
+   if ( ! this->PreProcessHandler() )
+     {
+     return -1;
+@@ -465,18 +471,20 @@ int cmCTestTestHandler::ProcessHandler()
+     {
+     if ( !m_CTest->GetShowOnly() )
+       {
+-      cmCTestLog(m_CTest, ERROR_MESSAGE, "No tests were found!!!" << std::endl);
++      cmCTestLog(m_CTest, ERROR_MESSAGE, "No tests were found!!!"
++        << std::endl);
+       }
+     }
+   else
+     {
+-    if (m_HandlerVerbose && passed.size() && 
+-      (m_UseIncludeRegExp || m_UseExcludeRegExp)) 
++    if (m_HandlerVerbose && passed.size() &&
++      (m_UseIncludeRegExp || m_UseExcludeRegExp))
+       {
+-      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, std::endl << "The following tests passed:" << std::endl);
++      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, std::endl
++        << "The following tests passed:" << std::endl);
+       for(std::vector<cmStdString>::iterator j = passed.begin();
+           j != passed.end(); ++j)
+-        {   
++        {
+         cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "\t" << *j << std::endl);
+         }
+       }
+@@ -486,16 +494,18 @@ int cmCTestTestHandler::ProcessHandler()
+       {
+       percent = 99;
+       }
+-    cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl << static_cast<int>(percent + .5) << "% tests passed, "
++    cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl
++      << static_cast<int>(percent + .5) << "% tests passed, "
+       << failed.size() << " tests failed out of " << total << std::endl);
+     //fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
+     //  percent, int(failed.size()), total);
+ 
+-    if (failed.size()) 
++    if (failed.size())
+       {
+       cmGeneratedFileStream ofs;
+ 
+-      cmCTestLog(m_CTest, ERROR_MESSAGE, std::endl << "The following tests FAILED:" << std::endl);
++      cmCTestLog(m_CTest, ERROR_MESSAGE, std::endl
++        << "The following tests FAILED:" << std::endl);
+       this->StartLogFile("TestsFailed", ofs);
+ 
+       std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;
+@@ -505,9 +515,9 @@ int cmCTestTestHandler::ProcessHandler()
+         if ( ftit->m_Status != cmCTestTestHandler::COMPLETED )
+           {
+           ofs << ftit->m_TestCount << ":" << ftit->m_Name << std::endl;
+-          cmCTestLog(m_CTest, HANDLER_OUTPUT, "\t" << std::setw(3) << ftit->m_TestCount << " - " << ftit->m_Name.c_str() << " (" << this->GetTestStatus(ftit->m_Status) << ")" << std::endl);
+-          //fprintf(stderr, "\t%3d - %s (%s)\n", ftit->m_TestCount, ftit->m_Name.c_str(),
+-          //  this->GetTestStatus(ftit->m_Status));
++          cmCTestLog(m_CTest, HANDLER_OUTPUT, "\t" << std::setw(3)
++            << ftit->m_TestCount << " - " << ftit->m_Name.c_str() << " ("
++            << this->GetTestStatus(ftit->m_Status) << ")" << std::endl);
+           }
+         }
+ 
+@@ -517,9 +527,11 @@ int cmCTestTestHandler::ProcessHandler()
+   if ( m_CTest->GetProduceXML() )
+     {
+     cmGeneratedFileStream xmlfile;
+-    if( !this->StartResultingXML((m_MemCheck ? "DynamicAnalysis" : "Test"), xmlfile) )
++    if( !this->StartResultingXML((m_MemCheck ? "DynamicAnalysis" : "Test"),
++        xmlfile) )
+       {
+-      cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot create " << (m_MemCheck ? "memory check" : "testing")
++      cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot create "
++        << (m_MemCheck ? "memory check" : "testing")
+         << " XML file" << std::endl);
+       m_LogFile = 0;
+       return 1;
+@@ -543,7 +555,7 @@ int cmCTestTestHandler::ProcessHandler()
+ }
+ 
+ //----------------------------------------------------------------------
+-void cmCTestTestHandler::ProcessDirectory(std::vector<cmStdString> &passed, 
++void cmCTestTestHandler::ProcessDirectory(std::vector<cmStdString> &passed,
+                                           std::vector<cmStdString> &failed)
+ {
+   std::string current_dir = cmSystemTools::GetCurrentWorkingDirectory();
+@@ -578,7 +590,7 @@ void cmCTestTestHandler::ProcessDirectory(std::vector<cmStdString> &passed,
+     {
+     this->ExpandTestsToRunInformation(inREcnt);
+     }
+-  
++
+   int cnt = 0;
+   inREcnt = 0;
+   std::string last_directory = "";
+@@ -599,7 +611,7 @@ void cmCTestTestHandler::ProcessDirectory(std::vector<cmStdString> &passed,
+ 
+     if (!(last_directory == it->m_Directory))
+       {
+-      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Changing directory into " 
++      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Changing directory into "
+         << it->m_Directory.c_str() << "\n");
+       *m_LogFile << "Changing directory into: " << it->m_Directory.c_str()
+         << std::endl;
+@@ -608,12 +620,12 @@ void cmCTestTestHandler::ProcessDirectory(std::vector<cmStdString> &passed,
+       }
+     cres.m_Name = testname;
+     cres.m_Path = it->m_Directory.c_str();
 -    
 +
-     /* then move the original 'more' to point to ourselves */
--    parent_post->more = post;            
-+    parent_post->more = post;
-   }
-   else {
-     /* make the previous point to this */
-     if(*last_post)
-       (*last_post)->next = post;
+     if (m_UseUnion)
+       {
+       // if it is not in the list and not in the regexp then skip
+-      if ((m_TestsToRun.size() && 
+-           std::find(m_TestsToRun.begin(), m_TestsToRun.end(), cnt) 
++      if ((m_TestsToRun.size() &&
++           std::find(m_TestsToRun.begin(), m_TestsToRun.end(), cnt)
+            == m_TestsToRun.end()) && !it->m_IsInBasedOnREOptions)
+         {
+         continue;
+@@ -622,8 +634,8 @@ void cmCTestTestHandler::ProcessDirectory(std::vector<cmStdString> &passed,
      else
-       (*httppost) = post;
+       {
+       // is this test in the list of tests to run? If not then skip it
+-      if ((m_TestsToRun.size() && 
+-           std::find(m_TestsToRun.begin(), m_TestsToRun.end(), inREcnt) 
++      if ((m_TestsToRun.size() &&
++           std::find(m_TestsToRun.begin(), m_TestsToRun.end(), inREcnt)
+            == m_TestsToRun.end()) || !it->m_IsInBasedOnREOptions)
+         {
+         continue;
+@@ -654,11 +666,12 @@ void cmCTestTestHandler::ProcessDirectory(std::vector<cmStdString> &passed,
+       {
+       cmCTestLog(m_CTest, HANDLER_OUTPUT, outname.c_str());
+       }
 -    
--    (*last_post) = post;  
 +
-+    (*last_post) = post;
-   }
-   return post;
+     cmCTestLog(m_CTest, DEBUG, "Testing " << args[0].c_str() << " ... ");
+     // find the test executable
+     std::string actualCommand = this->FindTheExecutable(args[1].c_str());
+-    std::string testCommand = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
++    std::string testCommand
++      = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
+ 
+     // continue if we did not find the executable
+     if (testCommand == "")
+@@ -670,7 +683,7 @@ void cmCTestTestHandler::ProcessDirectory(std::vector<cmStdString> &passed,
+       if ( !m_CTest->GetShowOnly() )
+         {
+         cres.m_FullCommandLine = actualCommand;
+-        m_TestResults.push_back( cres ); 
++        m_TestResults.push_back( cres );
+         failed.push_back(testname);
+         continue;
+         }
+@@ -698,21 +711,23 @@ void cmCTestTestHandler::ProcessDirectory(std::vector<cmStdString> &passed,
+     int retVal = 0;
+ 
+ 
+-    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, std::endl << (m_MemCheck?"MemCheck":"Test") << " command: " << testCommand << std::endl);
+-    *m_LogFile << cnt << "/" << tmsize 
++    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, std::endl
++      << (m_MemCheck?"MemCheck":"Test") << " command: " << testCommand
++      << std::endl);
++    *m_LogFile << cnt << "/" << tmsize
+       << " Test: " << testname.c_str() << std::endl;
+     *m_LogFile << "Command: ";
+     std::vector<cmStdString>::size_type ll;
+     for ( ll = 0; ll < arguments.size()-1; ll ++ )
+       {
+       *m_LogFile << "\"" << arguments[ll] << "\" ";
+       }
+-    *m_LogFile 
+-      << std::endl 
+-      << "Directory: " << it->m_Directory << std::endl 
+-      << "\"" << testname.c_str() << "\" start time: " 
++    *m_LogFile
++      << std::endl
++      << "Directory: " << it->m_Directory << std::endl
++      << "\"" << testname.c_str() << "\" start time: "
+       << m_CTest->CurrentTime() << std::endl
+-      << "Output:" << std::endl 
++      << "Output:" << std::endl
+       << "----------------------------------------------------------"
+       << std::endl;
+     int res = 0;
+@@ -734,12 +749,12 @@ void cmCTestTestHandler::ProcessDirectory(std::vector<cmStdString> &passed,
+       int seconds = static_cast<int>(ttime) % 60;
+       char buffer[100];
+       sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+-      *m_LogFile 
++      *m_LogFile
+         << "----------------------------------------------------------"
+         << std::endl
+-        << "\"" << testname.c_str() << "\" end time: " 
++        << "\"" << testname.c_str() << "\" end time: "
+         << m_CTest->CurrentTime() << std::endl
+-        << "\"" << testname.c_str() << "\" time elapsed: " 
++        << "\"" << testname.c_str() << "\" time elapsed: "
+         << buffer << std::endl
+         << "----------------------------------------------------------"
+         << std::endl << std::endl;
+@@ -783,8 +798,8 @@ void cmCTestTestHandler::ProcessDirectory(std::vector<cmStdString> &passed,
+           }
+         }
+ 
+-      if (res == cmsysProcess_State_Exited && 
+-          (retVal == 0 || it->m_RequiredRegularExpressions.size()) && 
++      if (res == cmsysProcess_State_Exited &&
++          (retVal == 0 || it->m_RequiredRegularExpressions.size()) &&
+           !forceFail)
+         {
+         cmCTestLog(m_CTest, HANDLER_OUTPUT,   "   Passed");
+@@ -839,7 +854,8 @@ void cmCTestTestHandler::ProcessDirectory(std::vector<cmStdString> &passed,
+           }
+         else if ( res == cmsysProcess_State_Error )
+           {
+-          cmCTestLog(m_CTest, HANDLER_OUTPUT, "***Bad command " << res << std::endl);
++          cmCTestLog(m_CTest, HANDLER_OUTPUT, "***Bad command " << res
++            << std::endl);
+           cres.m_Status = cmCTestTestHandler::BAD_COMMAND;
+           }
+         else
+@@ -869,18 +885,21 @@ void cmCTestTestHandler::ProcessDirectory(std::vector<cmStdString> &passed,
+           {
+           std::string dartString = m_DartStuff.match(1);
+           cmSystemTools::ReplaceString(output, dartString.c_str(),"");
+-          cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
++          cres.m_RegressionImages
++            = this->GenerateRegressionImages(dartString);
+           }
+         }
+       }
+ 
+     if ( cres.m_Status == cmCTestTestHandler::COMPLETED )
+       {
+-      this->CleanTestOutput(output, static_cast<size_t>(m_CustomMaximumPassedTestOutputSize));
++      this->CleanTestOutput(output, static_cast<size_t>(
++          m_CustomMaximumPassedTestOutputSize));
+       }
+     else
+       {
+-      this->CleanTestOutput(output, static_cast<size_t>(m_CustomMaximumFailedTestOutputSize));
++      this->CleanTestOutput(output, static_cast<size_t>(
++          m_CustomMaximumFailedTestOutputSize));
+       }
+ 
+     cres.m_Output = output;
+@@ -948,29 +967,34 @@ void cmCTestTestHandler::GenerateDartOutput(std::ostream& os)
+         m_CTest->GetShortPathToFile(result->m_Path.c_str())) << "</Path>\n"
+       << "\t\t<FullName>" << cmCTest::MakeXMLSafe(
+         m_CTest->GetShortPathToFile(testPath.c_str())) << "</FullName>\n"
+-      << "\t\t<FullCommandLine>" 
+-      << cmCTest::MakeXMLSafe(result->m_FullCommandLine) 
++      << "\t\t<FullCommandLine>"
++      << cmCTest::MakeXMLSafe(result->m_FullCommandLine)
+       << "</FullCommandLine>\n"
+       << "\t\t<Results>" << std::endl;
+     if ( result->m_Status != cmCTestTestHandler::NOT_RUN )
+       {
+-      if ( result->m_Status != cmCTestTestHandler::COMPLETED || result->m_ReturnValue )
++      if ( result->m_Status != cmCTestTestHandler::COMPLETED ||
++        result->m_ReturnValue )
+         {
+-        os << "\t\t\t<NamedMeasurement type=\"text/string\" name=\"Exit Code\"><Value>"
+-          << this->GetTestStatus(result->m_Status) << "</Value></NamedMeasurement>\n"
+-          << "\t\t\t<NamedMeasurement type=\"text/string\" name=\"Exit Value\"><Value>"
+-          << result->m_ReturnValue << "</Value></NamedMeasurement>" << std::endl;
++        os << "\t\t\t<NamedMeasurement type=\"text/string\" "
++          "name=\"Exit Code\"><Value>"
++          << this->GetTestStatus(result->m_Status) << "</Value>"
++          "</NamedMeasurement>\n"
++          << "\t\t\t<NamedMeasurement type=\"text/string\" "
++          "name=\"Exit Value\"><Value>"
++          << result->m_ReturnValue << "</Value></NamedMeasurement>"
++          << std::endl;
+         }
+       os << result->m_RegressionImages;
+       os << "\t\t\t<NamedMeasurement type=\"numeric/double\" "
+         << "name=\"Execution Time\"><Value>"
+         << result->m_ExecutionTime << "</Value></NamedMeasurement>\n";
+-      os 
++      os
+         << "\t\t\t<NamedMeasurement type=\"text/string\" "
+         << "name=\"Completion Status\"><Value>"
+         << result->m_CompletionStatus << "</Value></NamedMeasurement>\n";
+       }
+-    os 
++    os
+       << "\t\t\t<Measurement>\n"
+       << "\t\t\t\t<Value>";
+     os << cmCTest::MakeXMLSafe(result->m_Output);
+@@ -982,7 +1006,7 @@ void cmCTestTestHandler::GenerateDartOutput(std::ostream& os)
+     }
+ 
+   os << "\t<EndDateTime>" << m_EndTest << "</EndDateTime>\n"
+-     << "<ElapsedMinutes>" 
++     << "<ElapsedMinutes>"
+      << static_cast<int>(m_ElapsedTestingTime/6)/10.0
+      << "</ElapsedMinutes>"
+     << "</Testing>" << std::endl;
+@@ -996,11 +1020,13 @@ int cmCTestTestHandler::ExecuteCommands(std::vector<cmStdString>& vec)
+   for ( it = vec.begin(); it != vec.end(); ++it )
+     {
+     int retVal = 0;
+-    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Run command: " << *it << std::endl);
+-    if ( !cmSystemTools::RunSingleCommand(it->c_str(), 0, &retVal, 0, true /*m_Verbose*/) || 
+-      retVal != 0 )
++    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Run command: " << *it
++      << std::endl);
++    if ( !cmSystemTools::RunSingleCommand(it->c_str(), 0, &retVal, 0, true
++        /*m_Verbose*/) || retVal != 0 )
+       {
+-      cmCTestLog(m_CTest, ERROR_MESSAGE, "Problem running command: " << *it << std::endl);
++      cmCTestLog(m_CTest, ERROR_MESSAGE, "Problem running command: " << *it
++        << std::endl);
+       return 0;
+       }
+     }
+@@ -1017,9 +1043,10 @@ std::string cmCTestTestHandler::FindTheExecutable(const char *exe)
+   std::string file;
+ 
+   cmSystemTools::SplitProgramPath(exe, dir, file);
+-  // first try to find the executable given a config type subdir if there is one
+-  if(m_CTest->GetConfigType() != "" && 
+-    ::TryExecutable(dir.c_str(), file.c_str(), &fullPath, 
++  // first try to find the executable given a config type subdir if there is
++  // one
++  if(m_CTest->GetConfigType() != "" &&
++    ::TryExecutable(dir.c_str(), file.c_str(), &fullPath,
+       m_CTest->GetConfigType().c_str()))
+     {
+     return fullPath;
+@@ -1088,7 +1115,8 @@ std::string cmCTestTestHandler::FindTheExecutable(const char *exe)
+     dir += m_CTest->GetConfigType();
+     dir += "/";
+     dir += file;
+-    cmSystemTools::Error("config type specified on the command line, but test executable not found.",
++    cmSystemTools::Error("config type specified on the command line, but "
++      "test executable not found.",
+       dir.c_str());
+     return "";
+     }
+@@ -1107,27 +1135,30 @@ void cmCTestTestHandler::GetListOfTests()
+     {
+     m_ExcludeTestsRegularExpression.compile(m_ExcludeRegExp.c_str());
+     }
+-  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Constructing a list of tests" << std::endl);
++  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Constructing a list of tests"
++    << std::endl);
+   cmake cm;
+   cmGlobalGenerator gg;
+   gg.SetCMakeInstance(&cm);
+   std::auto_ptr<cmLocalGenerator> lg(gg.CreateLocalGenerator());
+   lg->SetGlobalGenerator(&gg);
+   cmMakefile *mf = lg->GetMakefile();
+-  mf->AddDefinition("CTEST_CONFIGURATION_TYPE", m_CTest->GetConfigType().c_str());
++  mf->AddDefinition("CTEST_CONFIGURATION_TYPE",
++    m_CTest->GetConfigType().c_str());
+ 
+   // Add handler for ADD_TEST
+   cmCTestAddTestCommand* newCom1 = new cmCTestAddTestCommand;
+   newCom1->m_TestHandler = this;
+   cm.AddCommand(newCom1);
+ 
+-  // Add handler for SUBDIR 
++  // Add handler for SUBDIR
+   cmCTestSubdirCommand* newCom2 = new cmCTestSubdirCommand;
+   newCom2->m_TestHandler = this;
+   cm.AddCommand(newCom2);
+ 
+   // Add handler for SET_SOURCE_FILES_PROPERTIES
+-  cmCTestSetTestsPropertiesCommand* newCom3 = new cmCTestSetTestsPropertiesCommand;
++  cmCTestSetTestsPropertiesCommand* newCom3
++    = new cmCTestSetTestsPropertiesCommand;
+   newCom3->m_TestHandler = this;
+   cm.AddCommand(newCom3);
+ 
+@@ -1155,13 +1186,14 @@ void cmCTestTestHandler::GetListOfTests()
+     {
+     return;
+     }
+-  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Done constructing a list of tests" << std::endl);
++  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT,
++    "Done constructing a list of tests" << std::endl);
  }
  
- /***************************************************************************
-  *
-  * AddFormInfo()
-- *      
-+ *
-  * Adds a FormInfo structure to the list presented by parent_form_info.
-  *
-  * Returns newly allocated FormInfo on success and NULL if malloc failed/
-@@ -478,11 +214,11 @@ static FormInfo * AddFormInfo(char *value,
-   }
-   else
-     return NULL;
+ //----------------------------------------------------------------------
+ void cmCTestTestHandler::UseIncludeRegExp()
+ {
+-  this->m_UseIncludeRegExp = true;  
++  this->m_UseIncludeRegExp = true;
+ }
+ 
+ //----------------------------------------------------------------------
+@@ -1170,7 +1202,7 @@ void cmCTestTestHandler::UseExcludeRegExp()
+   this->m_UseExcludeRegExp = true;
+   this->m_UseExcludeRegExpFirst = this->m_UseIncludeRegExp ? false : true;
+ }
 -  
 +
-   if (parent_form_info) {
-     /* now, point our 'more' to the original 'more' */
-     form_info->more = parent_form_info->more;
--    
-+
-     /* then move the original 'more' to point to ourselves */
-     parent_form_info->more = form_info;
-   }
-@@ -495,7 +231,7 @@ static FormInfo * AddFormInfo(char *value,
- /***************************************************************************
-  *
-  * ContentTypeForFilename()
-- *      
-+ *
-  * Provides content type for filename if one of the known types (else
-  * (either the prevtype or the default is returned).
-  *
-@@ -520,25 +256,25 @@ static const char * ContentTypeForFilename (const char *filename,
-     {".jpg",  "image/jpeg"},
-     {".jpeg", "image/jpeg"},
-     {".txt",  "text/plain"},
--    {".html", "text/plain"}
-+    {".html", "text/html"}
+ //----------------------------------------------------------------------
+ const char* cmCTestTestHandler::GetTestStatus(int status)
+ {
+@@ -1187,7 +1219,7 @@ const char* cmCTestTestHandler::GetTestStatus(int status)
+     "Completed"
    };
--  
-+
-   if(prevtype)
-     /* default to the previously set/used! */
-     contenttype = prevtype;
-   else
-     /* It seems RFC1867 defines no Content-Type to default to
-        text/plain so we don't actually need to set this: */
-     contenttype = HTTPPOST_CONTENTTYPE_DEFAULT;
--  
-+
-   for(i=0; i<sizeof(ctts)/sizeof(ctts[0]); i++) {
-     if(strlen(filename) >= strlen(ctts[i].extension)) {
-       if(strequal(filename +
-                   strlen(filename) - strlen(ctts[i].extension),
-                   ctts[i].extension)) {
-         contenttype = ctts[i].type;
-         break;
--      }       
-+      }
+ 
+-  if ( status < cmCTestTestHandler::NOT_RUN || 
++  if ( status < cmCTestTestHandler::NOT_RUN ||
+        status > cmCTestTestHandler::COMPLETED )
+     {
+     return "No Status";
+@@ -1202,7 +1234,7 @@ void cmCTestTestHandler::ExpandTestsToRunInformation(int numTests)
+     {
+     return;
      }
-   }
-   /* we have a contenttype by now */
-@@ -547,41 +283,45 @@ static const char * ContentTypeForFilename (const char *filename,
- 
- /***************************************************************************
-  *
-- * AllocAndCopy()
-- *      
-- * Copies the data currently available under *buffer using newly allocated
-- * buffer (that becomes *buffer). Uses buffer_length if not null, else
-- * uses strlen to determine the length of the buffer to be copied
-+ * memdup()
-+ *
-+ * Copies the 'source' data to a newly allocated buffer buffer (that is
-+ * returned). Uses buffer_length if not null, else uses strlen to determine
-+ * the length of the buffer to be copied
-  *
-- * Returns 0 on success and 1 if the malloc failed.
-+ * Returns the new pointer or NULL on failure.
-  *
-  ***************************************************************************/
--static int AllocAndCopy (char **buffer, int buffer_length)
-+static char *memdup(const char *src, size_t buffer_length)
- {
--  const char *src = *buffer;
--  int length, add = 0;
-+  size_t length;
-+  bool add = FALSE;
-+  char *buffer;
+-  
 +
-   if (buffer_length)
-     length = buffer_length;
-   else {
--    length = (int)strlen(*buffer);
--    add = 1;
-+    length = strlen(src);
-+    add = TRUE;
-   }
--  *buffer = (char*)malloc(length+add);
--  if (!*buffer)
--    return 1;
--  memcpy(*buffer, src, length);
-+  buffer = (char*)malloc(length+add);
-+  if (!buffer)
-+    return NULL; /* fail */
+   int start;
+   int end = -1;
+   double stride = -1;
+@@ -1239,7 +1271,7 @@ void cmCTestTestHandler::ExpandTestsToRunInformation(int numTests)
+     {
+     end = numTests;
+     }
+-  
 +
-+  memcpy(buffer, src, length);
-+
-   /* if length unknown do null termination */
-   if (add)
--    (*buffer)[length] = '\0';
--  return 0;
-+    buffer[length] = '\0';
-+
-+  return buffer;
+   // if the stride wasn't specified then it defaults to 1
+   if(stride == -1)
+     {
+@@ -1260,7 +1292,7 @@ void cmCTestTestHandler::ExpandTestsToRunInformation(int numTests)
+   // sort the array
+   std::sort(m_TestsToRun.begin(), m_TestsToRun.end(), std::less<int>());
+   // remove duplicates
+-  std::vector<int>::iterator new_end = 
++  std::vector<int>::iterator new_end =
+     std::unique(m_TestsToRun.begin(), m_TestsToRun.end());
+   m_TestsToRun.erase(new_end, m_TestsToRun.end());
  }
- 
- /***************************************************************************
-  *
-  * FormAdd()
-- *      
-- * Stores a 'name=value' formpost parameter and builds the appropriate
-- * linked list.
-+ *
-+ * Stores a formpost parameter and builds the appropriate linked list.
-  *
-  * Has two principal functionalities: using files and byte arrays as
-  * post parts. Byte arrays are either copied or just the pointer is stored
-@@ -631,7 +371,7 @@ CURLFORMcode FormAdd(struct curl_httppost **httppost,
-                      struct curl_httppost **last_post,
-                      va_list params)
+@@ -1273,27 +1305,27 @@ std::string cmCTestTestHandler::GenerateRegressionImages(
+   const std::string& xml)
  {
--  FormInfo *first_form, *current_form, *form;
-+  FormInfo *first_form, *current_form, *form = NULL;
-   CURLFORMcode return_value = CURL_FORMADD_OK;
-   const char *prevtype = NULL;
-   struct curl_httppost *post = NULL;
-@@ -647,22 +387,16 @@ CURLFORMcode FormAdd(struct curl_httppost **httppost,
-   /*
-    * We need to allocate the first struct to fill in.
-    */
--  first_form = (FormInfo *)malloc(sizeof(struct FormInfo));
--  if(first_form) {
--    memset(first_form, 0, sizeof(FormInfo));
--    current_form = first_form;
--  }
--  else
-+  first_form = (FormInfo *)calloc(sizeof(struct FormInfo), 1);
-+  if(!first_form)
-     return CURL_FORMADD_MEMORY;
+   cmsys::RegularExpression twoattributes(
+-    "<DartMeasurement" 
+-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\"" 
+-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\"" 
++    "<DartMeasurement"
++    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
++    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
+     SPACE_REGEX "*>([^<]*)</DartMeasurement>");
+   cmsys::RegularExpression threeattributes(
+-    "<DartMeasurement" 
+-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\"" 
+-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\"" 
+-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\"" 
++    "<DartMeasurement"
++    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
++    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
++    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
+     SPACE_REGEX "*>([^<]*)</DartMeasurement>");
+   cmsys::RegularExpression fourattributes(
+-    "<DartMeasurement" 
+-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\"" 
+-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\"" 
+-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\"" 
+-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\"" 
++    "<DartMeasurement"
++    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
++    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
++    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
++    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
+     SPACE_REGEX "*>([^<]*)</DartMeasurement>");
+   cmsys::RegularExpression measurementfile(
+-    "<DartMeasurementFile" 
+-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\"" 
+-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\"" 
++    "<DartMeasurementFile"
++    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
++    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
+     SPACE_REGEX "*>([^<]*)</DartMeasurementFile>");
  
-+  current_form = first_form;
-+
-   /*
--   * Loop through all the options set.
-+   * Loop through all the options set. Break if we have an error to report.
-    */
--  while (1) {
--
--    /* break if we have an error to report */
--    if (return_value != CURL_FORMADD_OK)
--      break;
-+  while (return_value == CURL_FORMADD_OK) {
- 
-     /* first see if we have more parts of the array param */
-     if ( array_state ) {
-@@ -757,7 +491,12 @@ CURLFORMcode FormAdd(struct curl_httppost **httppost,
-           array_value:va_arg(params, char *);
-         if (filename) {
-           current_form->value = strdup(filename);
--          current_form->flags |= HTTPPOST_READFILE;
-+          if(!current_form->value)
-+            return_value = CURL_FORMADD_MEMORY;
-+          else {
-+            current_form->flags |= HTTPPOST_READFILE;
-+            current_form->value_alloc = TRUE;
-+          }
-         }
-         else
-           return_value = CURL_FORMADD_NULL;
-@@ -784,16 +523,21 @@ CURLFORMcode FormAdd(struct curl_httppost **httppost,
-             return_value = CURL_FORMADD_OPTION_TWICE;
-         }
-         else {
--          if (filename)
-+          if (filename) {
-             current_form->value = strdup(filename);
-+            if(!current_form->value)
-+              return_value = CURL_FORMADD_MEMORY;
-+            else {
-+              current_form->flags |= HTTPPOST_FILENAME;
-+              current_form->value_alloc = TRUE;
-+            }
-+          }
-           else
-             return_value = CURL_FORMADD_NULL;
--          current_form->flags |= HTTPPOST_FILENAME;
-         }
-         break;
-       }
- 
--    /* CMC: Added support for buffer uploads */
-     case CURLFORM_BUFFER:
+   cmOStringStream ostr;
+@@ -1304,42 +1336,54 @@ std::string cmCTestTestHandler::GenerateRegressionImages(
+     if ( twoattributes.find(cxml) )
        {
-         char *filename = array_state?array_value:
-@@ -813,16 +557,18 @@ CURLFORMcode FormAdd(struct curl_httppost **httppost,
-             return_value = CURL_FORMADD_OPTION_TWICE;
-         }
-         else {
--          if (filename)
-+          if (filename) {
-             current_form->value = strdup(filename);
-+            if(!current_form->value)
-+              return_value = CURL_FORMADD_MEMORY;
-+          }
-           else
-             return_value = CURL_FORMADD_NULL;
-           current_form->flags |= HTTPPOST_BUFFER;
-         }
-         break;
+       ostr
+-        << "\t\t\t<NamedMeasurement" 
+-        << " " << twoattributes.match(1) << "=\"" << twoattributes.match(2) << "\""
+-        << " " << twoattributes.match(3) << "=\"" << twoattributes.match(4) << "\""
+-        << "><Value>" << twoattributes.match(5) 
+-        << "</Value></NamedMeasurement>" 
++        << "\t\t\t<NamedMeasurement"
++        << " " << twoattributes.match(1) << "=\""
++        << twoattributes.match(2) << "\""
++        << " " << twoattributes.match(3) << "=\""
++        << twoattributes.match(4) << "\""
++        << "><Value>" << twoattributes.match(5)
++        << "</Value></NamedMeasurement>"
+         << std::endl;
+-      cxml.erase(twoattributes.start(), twoattributes.end() - twoattributes.start());
++      cxml.erase(twoattributes.start(),
++        twoattributes.end() - twoattributes.start());
        }
--      
--    /* CMC: Added support for buffer uploads */
-+
-     case CURLFORM_BUFFERPTR:
-         current_form->flags |= HTTPPOST_PTRBUFFER;
-       if (current_form->buffer)
-@@ -837,7 +583,6 @@ CURLFORMcode FormAdd(struct curl_httppost **httppost,
-       }
-       break;
- 
--    /* CMC: Added support for buffer uploads */
-     case CURLFORM_BUFFERLENGTH:
-       if (current_form->bufferlength)
-         return_value = CURL_FORMADD_OPTION_TWICE;
-@@ -865,8 +610,13 @@ CURLFORMcode FormAdd(struct curl_httppost **httppost,
-             return_value = CURL_FORMADD_OPTION_TWICE;
-         }
-         else {
--          if (contenttype)
-+          if (contenttype) {
-             current_form->contenttype = strdup(contenttype);
-+            if(!current_form->contenttype)
-+              return_value = CURL_FORMADD_MEMORY;
-+            else
-+              current_form->contenttype_alloc = TRUE;
-+          }
-           else
-             return_value = CURL_FORMADD_NULL;
-         }
-@@ -876,20 +626,15 @@ CURLFORMcode FormAdd(struct curl_httppost **httppost,
+     else if ( threeattributes.find(cxml) )
        {
-         /* this "cast increases required alignment of target type" but
-            we consider it OK anyway */
--        struct curl_slist* list=0;
--        if ( array_state )
--          {
--          memcpy(&list, &array_value, sizeof(struct curl_slist*));
--          }
--        else
--          {
--          list = va_arg(params, struct curl_slist*);
--          }
-+        struct curl_slist* list = array_state?
-+          (struct curl_slist*)array_value:
-+          va_arg(params, struct curl_slist*);
-+
-         if( current_form->contentheader )
-           return_value = CURL_FORMADD_OPTION_TWICE;
-         else
-           current_form->contentheader = list;
--        
-+
-         break;
+       ostr
+-        << "\t\t\t<NamedMeasurement" 
+-        << " " << threeattributes.match(1) << "=\"" << threeattributes.match(2) << "\""
+-        << " " << threeattributes.match(3) << "=\"" << threeattributes.match(4) << "\""
+-        << " " << threeattributes.match(5) << "=\"" << threeattributes.match(6) << "\""
+-        << "><Value>" << threeattributes.match(7) 
+-        << "</Value></NamedMeasurement>" 
++        << "\t\t\t<NamedMeasurement"
++        << " " << threeattributes.match(1) << "=\""
++        << threeattributes.match(2) << "\""
++        << " " << threeattributes.match(3) << "=\""
++        << threeattributes.match(4) << "\""
++        << " " << threeattributes.match(5) << "=\""
++        << threeattributes.match(6) << "\""
++        << "><Value>" << threeattributes.match(7)
++        << "</Value></NamedMeasurement>"
+         << std::endl;
+-      cxml.erase(threeattributes.start(), threeattributes.end() - threeattributes.start());
++      cxml.erase(threeattributes.start(),
++        threeattributes.end() - threeattributes.start());
        }
-     case CURLFORM_FILENAME:
-@@ -898,8 +643,13 @@ CURLFORMcode FormAdd(struct curl_httppost **httppost,
-           va_arg(params, char *);
-         if( current_form->showfilename )
-           return_value = CURL_FORMADD_OPTION_TWICE;
--        else
-+        else {
-           current_form->showfilename = strdup(filename);
-+          if(!current_form->showfilename)
-+            return_value = CURL_FORMADD_MEMORY;
-+          else
-+            current_form->showfilename_alloc = TRUE;
-+        }
-         break;
+     else if ( fourattributes.find(cxml) )
+       {
+       ostr
+-        << "\t\t\t<NamedMeasurement" 
+-        << " " << fourattributes.match(1) << "=\"" << fourattributes.match(2) << "\""
+-        << " " << fourattributes.match(3) << "=\"" << fourattributes.match(4) << "\""
+-        << " " << fourattributes.match(5) << "=\"" << fourattributes.match(6) << "\""
+-        << " " << fourattributes.match(7) << "=\"" << fourattributes.match(8) << "\""
+-        << "><Value>" << fourattributes.match(9) 
+-        << "</Value></NamedMeasurement>" 
++        << "\t\t\t<NamedMeasurement"
++        << " " << fourattributes.match(1) << "=\""
++        << fourattributes.match(2) << "\""
++        << " " << fourattributes.match(3) << "=\""
++        << fourattributes.match(4) << "\""
++        << " " << fourattributes.match(5) << "=\""
++        << fourattributes.match(6) << "\""
++        << " " << fourattributes.match(7) << "=\""
++        << fourattributes.match(8) << "\""
++        << "><Value>" << fourattributes.match(9)
++        << "</Value></NamedMeasurement>"
+         << std::endl;
+-      cxml.erase(fourattributes.start(), fourattributes.end() - fourattributes.start());
++      cxml.erase(fourattributes.start(),
++        fourattributes.end() - fourattributes.start());
        }
-     default:
-@@ -910,7 +660,7 @@ CURLFORMcode FormAdd(struct curl_httppost **httppost,
-   if(CURL_FORMADD_OK == return_value) {
-     /* go through the list, check for copleteness and if everything is
-      * alright add the HttpPost item otherwise set return_value accordingly */
--    
-+
-     post = NULL;
-     for(form = first_form;
-         form != NULL;
-@@ -921,7 +671,6 @@ CURLFORMcode FormAdd(struct curl_httppost **httppost,
-            ( (form->flags & HTTPPOST_FILENAME) &&
-              (form->flags & HTTPPOST_PTRCONTENTS) ) ||
- 
--           /* CMC: Added support for buffer uploads */
-            ( (!form->buffer) &&
-              (form->flags & HTTPPOST_BUFFER) &&
-              (form->flags & HTTPPOST_PTRBUFFER) ) ||
-@@ -939,53 +688,74 @@ CURLFORMcode FormAdd(struct curl_httppost **httppost,
-           /* our contenttype is missing */
-           form->contenttype
-             = strdup(ContentTypeForFilename(form->value, prevtype));
-+          if(!form->contenttype) {
-+            return_value = CURL_FORMADD_MEMORY;
-+            break;
-+          }
-+          form->contenttype_alloc = TRUE;
-         }
-         if ( !(form->flags & HTTPPOST_PTRNAME) &&
-              (form == first_form) ) {
-           /* copy name (without strdup; possibly contains null characters) */
--          if (AllocAndCopy(&form->name, form->namelength)) {
-+          form->name = memdup(form->name, form->namelength);
-+          if (!form->name) {
-             return_value = CURL_FORMADD_MEMORY;
-             break;
-           }
-+          form->name_alloc = TRUE;
-         }
-         if ( !(form->flags & HTTPPOST_FILENAME) &&
--             !(form->flags & HTTPPOST_READFILE) && 
-+             !(form->flags & HTTPPOST_READFILE) &&
-              !(form->flags & HTTPPOST_PTRCONTENTS) &&
--
--             /* CMC: Added support for buffer uploads */
-              !(form->flags & HTTPPOST_PTRBUFFER) ) {
--
-           /* copy value (without strdup; possibly contains null characters) */
--          if (AllocAndCopy(&form->value, form->contentslength)) {
-+          form->value = memdup(form->value, form->contentslength);
-+          if (!form->value) {
-             return_value = CURL_FORMADD_MEMORY;
-             break;
-           }
-+          form->value_alloc = TRUE;
-         }
-         post = AddHttpPost(form->name, form->namelength,
-                            form->value, form->contentslength,
--
--                           /* CMC: Added support for buffer uploads */
-                            form->buffer, form->bufferlength,
--
-                            form->contenttype, form->flags,
-                            form->contentheader, form->showfilename,
-                            post, httppost,
-                            last_post);
--        
--        if(!post)
-+
-+        if(!post) {
-           return_value = CURL_FORMADD_MEMORY;
-+          break;
-+        }
- 
-         if (form->contenttype)
-           prevtype = form->contenttype;
-       }
-     }
-   }
- 
-+  if(return_value) {
-+    /* we return on error, free possibly allocated fields */
-+    if(!form)
-+      form = current_form;
-+    if(form) {
-+      if(form->name_alloc)
-+        free(form->name);
-+      if(form->value_alloc)
-+        free(form->value);
-+      if(form->contenttype_alloc)
-+        free(form->contenttype);
-+      if(form->showfilename_alloc)
-+        free(form->showfilename);
-+    }
-+  }
-+
-   /* always delete the allocated memory before returning */
-   form = first_form;
-   while (form != NULL) {
-     FormInfo *delete_form;
--    
-+
-     delete_form = form;
-     form = form->more;
-     free (delete_form);
-@@ -994,9 +764,13 @@ CURLFORMcode FormAdd(struct curl_httppost **httppost,
-   return return_value;
- }
- 
-+/*
-+ * curl_formadd() is a public API to add a section to the multipart formpost.
-+ */
-+
- CURLFORMcode curl_formadd(struct curl_httppost **httppost,
--                 struct curl_httppost **last_post,
--                 ...)
-+                          struct curl_httppost **last_post,
-+                          ...)
- {
-   va_list arg;
-   CURLFORMcode result;
-@@ -1006,88 +780,101 @@ CURLFORMcode curl_formadd(struct curl_httppost **httppost,
-   return result;
- }
- 
--static int AddFormData(struct FormData **formp,
--                       const void *line,
--                       long length)
-+/*
-+ * AddFormData() adds a chunk of data to the FormData linked list.
-+ *
-+ * size is incremented by the chunk length, unless it is NULL
-+ */
-+static CURLcode AddFormData(struct FormData **formp,
-+                            enum formtype type,
-+                            const void *line,
-+                            size_t length,
-+                            curl_off_t *size)
- {
-   struct FormData *newform = (struct FormData *)
-     malloc(sizeof(struct FormData));
-+  if (!newform)
-+    return CURLE_OUT_OF_MEMORY;
-   newform->next = NULL;
- 
-   /* we make it easier for plain strings: */
-   if(!length)
--    length = (long)strlen((char *)line);
-+    length = strlen((char *)line);
- 
-   newform->line = (char *)malloc(length+1);
-+  if (!newform->line) {
-+    free(newform);
-+    return CURLE_OUT_OF_MEMORY;
-+  }
-   memcpy(newform->line, line, length);
-   newform->length = length;
-   newform->line[length]=0; /* zero terminate for easier debugging */
--  
-+  newform->type = type;
-+
-   if(*formp) {
-     (*formp)->next = newform;
-     *formp = newform;
-   }
-   else
-     *formp = newform;
- 
--  return length;
-+  if (size) {
-+    if(type == FORM_DATA)
-+      *size += length;
-+    else {
-+      /* Since this is a file to be uploaded here, add the size of the actual
-+         file */
-+      if(!strequal("-", newform->line)) {
-+        struct stat file;
-+        if(!stat(newform->line, &file)) {
-+          *size += file.st_size;
-+        }
-+      }
-+    }
-+  }
-+  return CURLE_OK;
- }
- 
-+/*
-+ * AddFormDataf() adds printf()-style formatted data to the formdata chain.
-+ */
- 
--static int AddFormDataf(struct FormData **formp,
--                        const char *fmt, ...)
-+static CURLcode AddFormDataf(struct FormData **formp,
-+                             curl_off_t *size,
-+                             const char *fmt, ...)
- {
-   char s[4096];
-   va_list ap;
-   va_start(ap, fmt);
--  vsprintf(s, fmt, ap);
-+  vsnprintf(s, sizeof(s), fmt, ap);
-   va_end(ap);
- 
--  return AddFormData(formp, s, 0);
-+  return AddFormData(formp, FORM_DATA, s, 0, size);
- }
- 
--
--char *Curl_FormBoundary(void)
--{
--  char *retstring;
--  static int randomizer=0; /* this is just so that two boundaries within
--                              the same form won't be identical */
--  int i;
--
--  static char table62[]=
--    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
--
--  retstring = (char *)malloc(BOUNDARY_LENGTH);
--
--  if(!retstring)
--    return NULL; /* failed */
--
--  srand((unsigned int)(time(NULL)+randomizer++)); /* seed */
--
--  strcpy(retstring, "curl"); /* bonus commercials 8*) */
--
--  for(i=4; i<(BOUNDARY_LENGTH-1); i++) {
--    retstring[i] = table62[rand()%62];
--  }
--  retstring[BOUNDARY_LENGTH-1]=0; /* zero terminate */
--
--  return retstring;
--}
--
--/* Used from http.c, this cleans a built FormData linked list */ 
-+/*
-+ * Curl_formclean() is used from http.c, this cleans a built FormData linked
-+ * list
-+ */
- void Curl_formclean(struct FormData *form)
- {
-   struct FormData *next;
- 
-+  if(!form)
-+    return;
-+
-   do {
-     next=form->next;  /* the following form line */
-     free(form->line); /* free the line */
-     free(form);       /* free the struct */
--  
-+
-   } while((form=next)); /* continue */
- }
- 
--/* external function to free up a whole form post chain */
-+/*
-+ * curl_formfree() is an external function to free up a whole form post
-+ * chain
-+ */
- void curl_formfree(struct curl_httppost *form)
- {
-   struct curl_httppost *next;
-@@ -1116,16 +903,23 @@ void curl_formfree(struct curl_httppost *form)
-   } while((form=next)); /* continue */
- }
- 
-+/*
-+ * Curl_getFormData() converts a linked list of "meta data" into a complete
-+ * (possibly huge) multipart formdata. The input list is in 'post', while the
-+ * output resulting linked lists gets stored in '*finalform'. *sizep will get
-+ * the total size of the whole POST.
-+ */
-+
- CURLcode Curl_getFormData(struct FormData **finalform,
-                           struct curl_httppost *post,
--                          int *sizep)
-+                          curl_off_t *sizep)
- {
-   struct FormData *form = NULL;
-   struct FormData *firstform;
-   struct curl_httppost *file;
-   CURLcode result = CURLE_OK;
- 
--  int size =0;
-+  curl_off_t size=0; /* support potentially ENORMOUS formposts */
-   char *boundary;
-   char *fileboundary=NULL;
-   struct curl_slist* curList;
-@@ -1136,41 +930,62 @@ CURLcode Curl_getFormData(struct FormData **finalform,
-     return result; /* no input => no output! */
- 
-   boundary = Curl_FormBoundary();
--  
-+  if(!boundary)
-+    return CURLE_OUT_OF_MEMORY;
-+
-   /* Make the first line of the output */
--  AddFormDataf(&form,
--               "Content-Type: multipart/form-data;"
--               " boundary=%s\r\n",
--               boundary);
--  /* we DO NOT count that line since that'll be part of the header! */
-+  result = AddFormDataf(&form, NULL,
-+                        "Content-Type: multipart/form-data;"
-+                        " boundary=%s\r\n",
-+                        boundary);
-+  if (result) {
-+    free(boundary);
-+    return result;
-+  }
-+  /* we DO NOT include that line in the total size of the POST, since it'll be
-+     part of the header! */
- 
-   firstform = form;
--  
-+
-   do {
- 
--    if(size)
--      size += AddFormDataf(&form, "\r\n");
-+    if(size) {
-+      result = AddFormDataf(&form, &size, "\r\n");
-+      if (result)
-+        break;
-+    }
- 
-     /* boundary */
--    size += AddFormDataf(&form, "--%s\r\n", boundary);
-+    result = AddFormDataf(&form, &size, "--%s\r\n", boundary);
-+    if (result)
-+      break;
- 
--    size += AddFormData(&form,
--                        "Content-Disposition: form-data; name=\"", 0);
-+    result = AddFormDataf(&form, &size,
-+                          "Content-Disposition: form-data; name=\"");
-+    if (result)
-+      break;
- 
--    size += AddFormData(&form, post->name, post->namelength);
-+    result = AddFormData(&form, FORM_DATA, post->name, post->namelength,
-+                         &size);
-+    if (result)
-+      break;
- 
--    size += AddFormData(&form, "\"", 0);
-+    result = AddFormDataf(&form, &size, "\"");
-+    if (result)
-+      break;
- 
-     if(post->more) {
-       /* If used, this is a link to more file names, we must then do
-          the magic to include several files with the same field name */
- 
-       fileboundary = Curl_FormBoundary();
- 
--      size += AddFormDataf(&form,
--                           "\r\nContent-Type: multipart/mixed,"
--                           " boundary=%s\r\n",
--                           fileboundary);
-+      result = AddFormDataf(&form, &size,
-+                            "\r\nContent-Type: multipart/mixed,"
-+                            " boundary=%s\r\n",
-+                            fileboundary);
-+      if (result)
-+        break;
-     }
- 
-     file = post;
-@@ -1183,111 +998,167 @@ CURLcode Curl_getFormData(struct FormData **finalform,
- 
-       if(post->more) {
-         /* if multiple-file */
--        size += AddFormDataf(&form,
--                             "\r\n--%s\r\nContent-Disposition: "
--                             "attachment; filename=\"%s\"",
--                             fileboundary,
--                             (file->showfilename?file->showfilename:
--                              file->contents));
-+        result = AddFormDataf(&form, &size,
-+                              "\r\n--%s\r\nContent-Disposition: "
-+                              "attachment; filename=\"%s\"",
-+                              fileboundary,
-+                              (file->showfilename?file->showfilename:
-+                               file->contents));
-+        if (result)
-+          break;
-       }
-       else if((post->flags & HTTPPOST_FILENAME) ||
--
--              /* CMC: Added support for buffer uploads */
-               (post->flags & HTTPPOST_BUFFER)) {
- 
--        size += AddFormDataf(&form,
--                             "; filename=\"%s\"",
--                             (post->showfilename?post->showfilename:
--                              post->contents));
-+        result = AddFormDataf(&form, &size,
-+                              "; filename=\"%s\"",
-+                              (post->showfilename?post->showfilename:
-+                               post->contents));
-+        if (result)
-+          break;
-       }
--      
-+
-       if(file->contenttype) {
-         /* we have a specified type */
--        size += AddFormDataf(&form,
--                             "\r\nContent-Type: %s",
--                             file->contenttype);
-+        result = AddFormDataf(&form, &size,
-+                              "\r\nContent-Type: %s",
-+                              file->contenttype);
-+        if (result)
-+          break;
-       }
- 
-       curList = file->contentheader;
-       while( curList ) {
-         /* Process the additional headers specified for this form */
--        size += AddFormDataf( &form, "\r\n%s", curList->data );
-+        result = AddFormDataf( &form, &size, "\r\n%s", curList->data );
-+        if (result)
-+          break;
-         curList = curList->next;
-       }
-+      if (result) {
-+        Curl_formclean(firstform);
-+        free(boundary);
-+        return result;
-+      }
- 
- #if 0
-       /* The header Content-Transfer-Encoding: seems to confuse some receivers
-        * (like the built-in PHP engine). While I can't see any reason why it
-        * should, I can just as well skip this to the benefit of the users who
-        * are using such confused receivers.
-        */
--      
-+
-       if(file->contenttype &&
-          !checkprefix("text/", file->contenttype)) {
-         /* this is not a text content, mention our binary encoding */
-         size += AddFormData(&form, "\r\nContent-Transfer-Encoding: binary", 0);
-       }
- #endif
- 
--      size += AddFormData(&form, "\r\n\r\n", 0);
-+      result = AddFormDataf(&form, &size, "\r\n\r\n");
-+      if (result)
-+        break;
- 
-       if((post->flags & HTTPPOST_FILENAME) ||
-          (post->flags & HTTPPOST_READFILE)) {
-         /* we should include the contents from the specified file */
-         FILE *fileread;
--        char buffer[1024];
--        int nread;
--
--        fileread = strequal("-", file->contents)?stdin:
--          /* binary read for win32 crap */
--          /*VMS??*/ fopen(file->contents, "rb");  /* ONLY ALLOWS FOR STREAM FILES ON VMS */
--        /*VMS?? Stream files are OK, as are FIXED & VAR files WITHOUT implied CC */
--        /*VMS?? For implied CC, every record needs to have a \n appended & 1 added to SIZE */
--        if(fileread) {
--          while((nread = (int)fread(buffer, 1, 1024, fileread)))
--            size += AddFormData(&form, buffer, nread);
- 
--          if(fileread != stdin)
-+        fileread = strequal("-", file->contents)?
-+          stdin:fopen(file->contents, "rb"); /* binary read for win32  */
-+
-+        /*
-+         * VMS: This only allows for stream files on VMS.  Stream files are
-+         * OK, as are FIXED & VAR files WITHOUT implied CC For implied CC,
-+         * every record needs to have a \n appended & 1 added to SIZE
-+         */
-+
-+        if(fileread) {
-+          if(fileread != stdin) {
-+            /* close the file again */
-             fclose(fileread);
-+            /* add the file name only - for later reading from this */
-+            result = AddFormData(&form, FORM_FILE, file->contents, 0, &size);
-+          }
-+          else {
-+            /* When uploading from stdin, we can't know the size of the file,
-+             * thus must read the full file as before. We *could* use chunked
-+             * transfer-encoding, but that only works for HTTP 1.1 and we
-+             * can't be sure we work with such a server.
-+             */
-+            size_t nread;
-+            char buffer[512];
-+            while((nread = fread(buffer, 1, sizeof(buffer), fileread))) {
-+              result = AddFormData(&form, FORM_DATA, buffer, nread, &size);
-+              if (result)
-+                break;
+     else if ( measurementfile.find(cxml) )
+       {
+-      const std::string& filename = 
++      const std::string& filename =
+         cmCTest::CleanString(measurementfile.match(5));
+       if ( cmSystemTools::FileExists(filename.c_str()) )
+         {
+@@ -1357,34 +1401,38 @@ std::string cmCTestTestHandler::GenerateRegressionImages(
+           if ( cmSystemTools::LowerCase(k2) == "type" )
+             {
+             v2 = "text/string";
+-            }          
+-          
 +            }
-+          }
 +
-+          if (result) {
-+            Curl_formclean(firstform);
-+            free(boundary);
-+            return result;
-+          }
-+
-         }
-         else {
--#if 0
--          /* File wasn't found, add a nothing field! */
--          size += AddFormData(&form, "", 0);
--#endif
-           Curl_formclean(firstform);
-           free(boundary);
-           *finalform = NULL;
-           return CURLE_READ_ERROR;
-         }
- 
--        /* CMC: Added support for buffer uploads */
--      } else if (post->flags & HTTPPOST_BUFFER) {
--          /* include contents of buffer */
--          size += AddFormData(&form, post->buffer, post->bufferlength);
-+      }
-+      else if (post->flags & HTTPPOST_BUFFER) {
-+        /* include contents of buffer */
-+        result = AddFormData(&form, FORM_DATA, post->buffer,
-+                             post->bufferlength, &size);
-+          if (result)
-+            break;
-       }
- 
-       else {
-         /* include the contents we got */
--        size += AddFormData(&form, post->contents, post->contentslength);
-+        result = AddFormData(&form, FORM_DATA, post->contents,
-+                             post->contentslength, &size);
-+        if (result)
-+          break;
-       }
-     } while((file = file->more)); /* for each specified file for this field */
-+    if (result) {
-+      Curl_formclean(firstform);
-+      free(boundary);
-+      return result;
-+    }
- 
-     if(post->more) {
-       /* this was a multiple-file inclusion, make a termination file
-          boundary: */
--      size += AddFormDataf(&form,
-+      result = AddFormDataf(&form, &size,
-                            "\r\n--%s--",
--                           fileboundary);     
-+                           fileboundary);
-       free(fileboundary);
-+      if (result)
-+        break;
-     }
- 
-   } while((post=post->next)); /* for each field */
-+  if (result) {
-+    Curl_formclean(firstform);
-+    free(boundary);
-+    return result;
-+  }
- 
-   /* end-boundary for everything */
--  size += AddFormDataf(&form,
-+  result = AddFormDataf(&form, &size,
-                        "\r\n--%s--\r\n",
-                        boundary);
-+  if (result) {
-+    Curl_formclean(firstform);
-+    free(boundary);
-+    return result;
-+  }
- 
-   *sizep = size;
- 
-@@ -1298,36 +1169,68 @@ CURLcode Curl_getFormData(struct FormData **finalform,
-   return result;
- }
- 
-+/*
-+ * Curl_FormInit() inits the struct 'form' points to with the 'formdata'
-+ * and resets the 'sent' counter.
-+ */
- int Curl_FormInit(struct Form *form, struct FormData *formdata )
- {
-   if(!formdata)
-     return 1; /* error */
- 
-   form->data = formdata;
-   form->sent = 0;
-+  form->fp = NULL;
- 
-   return 0;
- }
- 
--/* fread() emulation */
--int Curl_FormReader(char *buffer,
--                    size_t size,
--                    size_t nitems,
--                    FILE *mydata)
-+static size_t readfromfile(struct Form *form, char *buffer, size_t size)
-+{
-+  size_t nread;
-+  if(!form->fp) {
-+    /* this file hasn't yet been opened */
-+    form->fp = fopen(form->data->line, "rb"); /* b is for binary */
-+    if(!form->fp)
-+      return -1; /* failure */
-+  }
-+  nread = fread(buffer, 1, size, form->fp);
-+
-+  if(nread != size) {
-+    /* this is the last chunk form the file, move on */
-+    fclose(form->fp);
-+    form->fp = NULL;
-+    form->data = form->data->next;
-+  }
-+
-+  return nread;
-+}
-+
-+/*
-+ * Curl_FormReader() is the fread() emulation function that will be used to
-+ * deliver the formdata to the transfer loop and then sent away to the peer.
-+ */
-+size_t Curl_FormReader(char *buffer,
-+                       size_t size,
-+                       size_t nitems,
-+                       FILE *mydata)
- {
-   struct Form *form;
--  int wantedsize;
--  int gotsize = 0;
-+  size_t wantedsize;
-+  size_t gotsize = 0;
- 
-   form=(struct Form *)mydata;
- 
--  wantedsize = (int)(size * nitems);
-+  wantedsize = size * nitems;
- 
-   if(!form->data)
-     return 0; /* nothing, error, empty */
- 
-+  if(form->data->type == FORM_FILE)
-+    return readfromfile(form, buffer, wantedsize);
-+
-   do {
--  
-+
-     if( (form->data->length - form->sent ) > wantedsize - gotsize) {
- 
-       memcpy(buffer + gotsize , form->data->line + form->sent,
-@@ -1342,61 +1245,38 @@ int Curl_FormReader(char *buffer,
-            form->data->line + form->sent,
-            (form->data->length - form->sent) );
-     gotsize += form->data->length - form->sent;
--    
-+
-     form->sent = 0;
- 
-     form->data = form->data->next; /* advance */
- 
--  } while(form->data);
-+  } while(form->data && (form->data->type == FORM_DATA));
-   /* If we got an empty line and we have more data, we proceed to the next
-      line immediately to avoid returning zero before we've reached the end.
-      This is the bug reported November 22 1999 on curl 6.3. (Daniel) */
- 
-   return gotsize;
- }
- 
--/* possible (old) fread() emulation that copies at most one line */
--int Curl_FormReadOneLine(char *buffer,
--                         size_t size,
--                         size_t nitems,
--                         FILE *mydata)
-+/*
-+ * Curl_formpostheader() returns the first line of the formpost, the
-+ * request-header part (which is not part of the request-body like the rest of
-+ * the post).
-+ */
-+char *Curl_formpostheader(void *formp, size_t *len)
- {
--  struct Form *form;
--  int wantedsize;
--  int gotsize;
--
--  form=(struct Form *)mydata;
--
--  wantedsize = (int)(size * nitems);
-+  char *header;
-+  struct Form *form=(struct Form *)formp;
- 
-   if(!form->data)
--    return -1; /* nothing, error, empty */
--
--  do {
--  
--    if( (form->data->length - form->sent ) > wantedsize ) {
-+    return 0; /* nothing, ERROR! */
- 
--      memcpy(buffer, form->data->line + form->sent, wantedsize);
-+  header = form->data->line;
-+  *len = form->data->length;
- 
--      form->sent += wantedsize;
-+  form->data = form->data->next; /* advance */
- 
--      return wantedsize;
--    }
--
--    memcpy(buffer,
--           form->data->line + form->sent,
--           gotsize = (form->data->length - form->sent) );
--
--    form->sent = 0;
--
--    form->data = form->data->next; /* advance */
--
--  } while(!gotsize && form->data);
--  /* If we got an empty line and we have more data, we proceed to the next
--     line immediately to avoid returning zero before we've reached the end.
--     This is the bug reported November 22 1999 on curl 6.3. (Daniel) */
--
--  return gotsize;
-+  return header;
- }
- 
- 
-@@ -1447,7 +1327,7 @@ int main()
-   int value6length = strlen(value5);
-   int errors = 0;
-   int size;
--  int nread;
-+  size_t nread;
-   char buffer[4096];
-   struct curl_httppost *httppost=NULL;
-   struct curl_httppost *last_post=NULL;
-@@ -1546,66 +1426,53 @@ int main()
- 
+           ostr
+-            << "\t\t\t<NamedMeasurement" 
++            << "\t\t\t<NamedMeasurement"
+             << " " << k1 << "=\"" << v1 << "\""
+             << " " << k2 << "=\"" << v2 << "\""
+             << " encoding=\"none\""
+-            << "><Value>Image " << filename.c_str() 
++            << "><Value>Image " << filename.c_str()
+             << " is empty</Value></NamedMeasurement>";
+           }
+         else
+           {
+-          std::ifstream ifs(filename.c_str(), std::ios::in 
++          std::ifstream ifs(filename.c_str(), std::ios::in
+ #ifdef _WIN32
+                             | std::ios::binary
  #endif
+             );
+           unsigned char *file_buffer = new unsigned char [ len + 1 ];
+           ifs.read(reinterpret_cast<char*>(file_buffer), len);
+-          unsigned char *encoded_buffer = new unsigned char [ static_cast<int>(len * 1.5 + 5) ];
+-          
+-          unsigned long rlen = cmsysBase64_Encode(file_buffer, len, encoded_buffer, 1);
++          unsigned char *encoded_buffer
++            = new unsigned char [ static_cast<int>(len * 1.5 + 5) ];
++
++          unsigned long rlen
++            = cmsysBase64_Encode(file_buffer, len, encoded_buffer, 1);
+           unsigned long cc;
+-          
++
+           ostr
+-            << "\t\t\t<NamedMeasurement" 
+-          << " " << measurementfile.match(1) << "=\"" << measurementfile.match(2) << "\""
+-            << " " << measurementfile.match(3) << "=\"" << measurementfile.match(4) << "\""
++            << "\t\t\t<NamedMeasurement"
++            << " " << measurementfile.match(1) << "=\""
++            << measurementfile.match(2) << "\""
++            << " " << measurementfile.match(3) << "=\""
++            << measurementfile.match(4) << "\""
+             << " encoding=\"base64\""
+             << ">" << std::endl << "\t\t\t\t<Value>";
+           for ( cc = 0; cc < rlen; cc ++ )
+@@ -1396,7 +1444,7 @@ std::string cmCTestTestHandler::GenerateRegressionImages(
+               }
+             }
+           ostr
+-            << "</Value>" << std::endl << "\t\t\t</NamedMeasurement>" 
++            << "</Value>" << std::endl << "\t\t\t</NamedMeasurement>"
+             << std::endl;
+           delete [] file_buffer;
+           delete [] encoded_buffer;
+@@ -1410,14 +1458,17 @@ std::string cmCTestTestHandler::GenerateRegressionImages(
+           idx = 2;
+           }
+         ostr
+-          << "\t\t\t<NamedMeasurement" 
++          << "\t\t\t<NamedMeasurement"
+           << " name=\"" << measurementfile.match(idx) << "\""
+           << " text=\"text/string\""
+-          << "><Value>File " << filename.c_str() << " not found</Value></NamedMeasurement>" 
++          << "><Value>File " << filename.c_str()
++          << " not found</Value></NamedMeasurement>"
+           << std::endl;
+-        cmCTestLog(m_CTest, HANDLER_OUTPUT, "File \"" << filename.c_str() << "\" not found." << std::endl);
++        cmCTestLog(m_CTest, HANDLER_OUTPUT, "File \"" << filename.c_str()
++          << "\" not found." << std::endl);
+         }
+-      cxml.erase(measurementfile.start(), measurementfile.end() - measurementfile.start());
++      cxml.erase(measurementfile.start(),
++        measurementfile.end() - measurementfile.start());
+       }
+     else
+       {
+@@ -1447,7 +1498,8 @@ void cmCTestTestHandler::SetTestsToRunInformation(const char* in)
+     return;
+     }
+   this->TestsToRunString = in;
+-  // if the argument is a file, then read it and use the contents as the string
++  // if the argument is a file, then read it and use the contents as the
++  // string
+   if(cmSystemTools::FileExists(in))
+     {
+     std::ifstream fin(in);
+@@ -1460,7 +1512,8 @@ void cmCTestTestHandler::SetTestsToRunInformation(const char* in)
+ }
  
--#ifdef _OLD_FORM_DEBUG
--
--int main(int argc, char **argv)
-+#else  /* CURL_DISABLE_HTTP */
-+CURLFORMcode curl_formadd(struct curl_httppost **httppost,
-+                          struct curl_httppost **last_post,
-+                          ...)
+ //----------------------------------------------------------------------
+-bool cmCTestTestHandler::CleanTestOutput(std::string& output, size_t remove_threshold)
++bool cmCTestTestHandler::CleanTestOutput(std::string& output,
++  size_t remove_threshold)
  {
--#if 0
--  char *testargs[]={
--    "name1 = data in number one",
--    "name2 = number two data",
--    "test = @upload"
--  };
--#endif
--  int i;
--  char *nextarg;
--  struct curl_httppost *httppost=NULL;
--  struct curl_httppost *last_post=NULL;
--  struct curl_httppost *post;
--  int size;
--  int nread;
--  char buffer[4096];
--
--  struct FormData *form;
--  struct Form formread;
-+  (void)httppost;
-+  (void)last_post;
-+  return CURL_FORMADD_DISABLED;
-+}
+   if ( remove_threshold == 0 )
+     {
+@@ -1512,15 +1565,17 @@ bool cmCTestTestHandler::CleanTestOutput(std::string& output, size_t remove_thre
+     }
+   if ( skipped )
+     {
+-    ostr << "..." << std::endl << "The rest of the test output was removed since it exceeds the threshold of "
++    ostr << "..." << std::endl << "The rest of the test output was removed "
++      "since it exceeds the threshold of "
+       << remove_threshold << " characters." << std::endl;
+     }
+   output = ostr.str();
+   return true;
+ }
  
--  for(i=1; i<argc; i++) {
-+void curl_formfree(struct curl_httppost *form)
-+{
-+  (void)form;
-+  /* does nothing HTTP is disabled */
-+}
- 
--    if( FormParse( argv[i],
--                   &httppost,
--                   &last_post)) {
--      fprintf(stderr, "Illegally formatted input field: '%s'!\n",
--              argv[i]);
--      return 1;
--    }
--  }
-+#endif  /* CURL_DISABLE_HTTP */
- 
--  form=Curl_getFormData(httppost, &size);
-+/*
-+ * Curl_FormBoundary() creates a suitable boundary string and returns an
-+ * allocated one. This is also used by SSL-code so it must be present even
-+ * if HTTP is disabled!
-+ */
-+char *Curl_FormBoundary(void)
-+{
-+  char *retstring;
-+  static int randomizer=0; /* this is just so that two boundaries within
-+                              the same form won't be identical */
-+  size_t i;
- 
--  Curl_FormInit(&formread, form);
-+  static char table16[]="abcdef0123456789";
- 
--  do {
--    nread = Curl_FormReader(buffer, 1, sizeof(buffer),
--                            (FILE *)&formread);
-+  retstring = (char *)malloc(BOUNDARY_LENGTH+1);
- 
--    if(-1 == nread)
--      break;
--    fwrite(buffer, nread, 1, stderr);
--  } while(1);
-+  if(!retstring)
-+    return NULL; /* failed */
- 
--  fprintf(stderr, "size: %d\n", size);
-+  srand(time(NULL)+randomizer++); /* seed */
- 
--  return 0;
--}
-+  strcpy(retstring, "----------------------------");
- 
--#endif
-+  for(i=strlen(retstring); i<BOUNDARY_LENGTH; i++)
-+    retstring[i] = table16[rand()%16];
- 
--#endif /* CURL_DISABLE_HTTP */
-+  /* 28 dashes and 12 hexadecimal digits makes 12^16 (184884258895036416)
-+     combinations */
-+  retstring[BOUNDARY_LENGTH]=0; /* zero terminate */
- 
--/*
-- * local variables:
-- * eval: (load-file "../curl-mode.el")
-- * end:
-- * vim600: fdm=marker
-- * vim: et sw=2 ts=2 sts=2 tw=78
-- */
-+  return retstring;
-+}
+ //----------------------------------------------------------------------
+-bool cmCTestTestHandler::SetTestsProperties(const std::vector<std::string>& args)
++bool cmCTestTestHandler::SetTestsProperties(
++  const std::vector<std::string>& args)
+ {
+   std::vector<std::string>::const_iterator it;
+   std::vector<cmStdString> tests;
+@@ -1567,7 +1622,8 @@ bool cmCTestTestHandler::SetTestsProperties(const std::vector<std::string>& args
+             std::vector<std::string>::iterator crit;
+             for ( crit = lval.begin(); crit != lval.end(); ++ crit )
+               {
+-              rtit->m_ErrorRegularExpressions.push_back(cmsys::RegularExpression(crit->c_str()));
++              rtit->m_ErrorRegularExpressions.push_back(
++                cmsys::RegularExpression(crit->c_str()));
+               }
+             }
+           if ( key == "PASS_REGULAR_EXPRESSION" )
+@@ -1577,7 +1633,8 @@ bool cmCTestTestHandler::SetTestsProperties(const std::vector<std::string>& args
+             std::vector<std::string>::iterator crit;
+             for ( crit = lval.begin(); crit != lval.end(); ++ crit )
+               {
+-              rtit->m_RequiredRegularExpressions.push_back(cmsys::RegularExpression(crit->c_str()));
++              rtit->m_RequiredRegularExpressions.push_back(
++                cmsys::RegularExpression(crit->c_str()));
+               }
+             }
+           }
+@@ -1601,7 +1658,7 @@ bool cmCTestTestHandler::AddTest(const std::vector<std::string>& args)
+     {
+     std::vector<cmStdString>::iterator it;
+     bool found = false;
+-    for ( it = m_CustomTestsIgnore.begin(); 
++    for ( it = m_CustomTestsIgnore.begin();
+       it != m_CustomTestsIgnore.end(); ++ it )
+       {
+       if ( *it == testname )
+@@ -1612,15 +1669,16 @@ bool cmCTestTestHandler::AddTest(const std::vector<std::string>& args)
+       }
+     if ( found )
+       {
+-      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Ignore memcheck: " << *it << std::endl);
++      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Ignore memcheck: "
++        << *it << std::endl);
+       return true;
+       }
+     }
+   else
+     {
+     std::vector<cmStdString>::iterator it;
+     bool found = false;
+-    for ( it = m_CustomTestsIgnore.begin(); 
++    for ( it = m_CustomTestsIgnore.begin();
+       it != m_CustomTestsIgnore.end(); ++ it )
+       {
+       if ( *it == testname )
+@@ -1631,7 +1689,8 @@ bool cmCTestTestHandler::AddTest(const std::vector<std::string>& args)
+       }
+     if ( found )
+       {
+-      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Ignore test: " << *it << std::endl);
++      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Ignore test: "
++        << *it << std::endl);
+       return true;
+       }
+     }
+@@ -1642,7 +1701,8 @@ bool cmCTestTestHandler::AddTest(const std::vector<std::string>& args)
+   test.m_Directory = cmSystemTools::GetCurrentWorkingDirectory();
+   test.m_IsInBasedOnREOptions = true;
+   test.m_WillFail = false;
+-  if (this->m_UseIncludeRegExp && !m_IncludeTestsRegularExpression.find(testname.c_str()))
++  if (this->m_UseIncludeRegExp &&
++    !m_IncludeTestsRegularExpression.find(testname.c_str()))
+     {
+     test.m_IsInBasedOnREOptions = false;
+     }

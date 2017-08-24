@@ -1,8 +1,13 @@
-  return 0;
-}
-
-int test4()
-{
-  fprintf(stdout, "Output before crash on stdout from crash test.\n");
-  fprintf(stderr, "Output before crash on stderr from crash test.\n");  
-  fflush(stdout);
+      }
+    if ( tag.size() == 0 || new_tag || m_Tests[cmCTest::START_TEST] || m_Tests[ALL_TEST])
+      {
+      //std::cout << "TestModel: " << this->GetTestModelString() << std::endl;
+      //std::cout << "TestModel: " << m_TestModel << std::endl;
+      if ( m_TestModel == cmCTest::NIGHTLY )
+        {
+        lctime = cmCTest::GetNightlyTime(m_CTestConfiguration["NightlyStartTime"],
+          m_ExtraVerbose,
+          m_TomorrowTag);
+        }
+      char datestring[100];
+      sprintf(datestring, "%04d%02d%02d-%02d%02d",

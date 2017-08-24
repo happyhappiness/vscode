@@ -1,93 +1,41 @@
-@@ -21,6 +21,7 @@
- #include <cmsys/SystemTools.hxx>
+@@ -491,6 +491,12 @@ void cmGlobalGenerator::ClearEnabledLanguages()
  
- #include <stdio.h>
-+#include <ctype.h>
- 
- class cmGlobInternal
+ void cmGlobalGenerator::Configure()
  {
-@@ -51,7 +52,12 @@ void cmGlob::Escape(int ch, char* buffer)
-     }
-   else
-     {
-+#if defined( _WIN32 ) || defined(APPLE)
-+    // On Windows and apple, no difference between lower and upper case
-+    sprintf(buffer, "%c", tolower(ch));
-+#else
-     sprintf(buffer, "%c", ch);
-+#endif
-     }
++  // Setup the current output directory components for use by
++  // ConvertToRelativePath.
++  std::string outdir =
++    cmSystemTools::CollapseFullPath(m_CMakeInstance->GetHomeOutputDirectory());
++  cmSystemTools::SplitPath(outdir.c_str(), m_HomeOutputDirectoryComponents);
++
+   // Delete any existing cmLocalGenerators
+   unsigned int i;
+   for (i = 0; i < m_LocalGenerators.size(); ++i)
+@@ -522,8 +528,7 @@ void cmGlobalGenerator::Configure()
+   sprintf(num,"%d",static_cast<int>(m_LocalGenerators.size()));
+   this->GetCMakeInstance()->AddCacheEntry
+     ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
+-     "number of local generators",
+-                                          cmCacheManager::INTERNAL);
++     "number of local generators", cmCacheManager::INTERNAL);
+   
+   std::set<cmStdString> notFoundMap;
+   // after it is all done do a ConfigureFinalPass
+@@ -1091,3 +1096,17 @@ void cmGlobalGenerator::SetupTests()
  }
  
-@@ -147,17 +153,25 @@ void cmGlob::RecurseDirectory(const std::string& dir, bool dir_only)
-     }
-   unsigned long cc;
-   std::string fullname;
-+  std::string fname;
-   for ( cc = 0; cc < d.GetNumberOfFiles(); cc ++ )
-     {
--    if ( strcmp(d.GetFile(cc), ".") == 0 ||
--      strcmp(d.GetFile(cc), "..") == 0  )
-+    fname = d.GetFile(cc);
-+    if ( strcmp(fname.c_str(), ".") == 0 ||
-+      strcmp(fname.c_str(), "..") == 0  )
-       {
-       continue;
-       }
--    fullname = dir + "/" + d.GetFile(cc);
-+
-+#if defined( _WIN32 ) || defined( APPLE )
-+    // On Windows and apple, no difference between lower and upper case
-+    fname = cmsys::SystemTools::LowerCase(fname);
-+#endif
-+
-+    fullname = dir + "/" + fname;
-     if ( !dir_only || !cmsys::SystemTools::FileIsDirectory(fullname.c_str()) )
-       {
--      if ( m_Internals->Expressions[m_Internals->Expressions.size()-1].find(d.GetFile(cc)) )
-+      if ( m_Internals->Expressions[m_Internals->Expressions.size()-1].find(fname.c_str()) )
-         {
-         m_Internals->Files.push_back(fullname);
-         }
-@@ -185,28 +199,36 @@ void cmGlob::ProcessDirectory(std::string::size_type start,
-     }
-   unsigned long cc;
-   std::string fullname;
-+  std::string fname;
-   for ( cc = 0; cc < d.GetNumberOfFiles(); cc ++ )
-     {
--    if ( strcmp(d.GetFile(cc), ".") == 0 ||
--     strcmp(d.GetFile(cc), "..") == 0  )
-+    fname = d.GetFile(cc);
-+    if ( strcmp(fname.c_str(), ".") == 0 ||
-+      strcmp(fname.c_str(), "..") == 0  )
-       {
-       continue;
-       }
-+
-+#if defined( _WIN32 ) || defined( APPLE )
-+    // On Windows and apple, no difference between lower and upper case
-+    fname = cmsys::SystemTools::LowerCase(fname);
-+#endif
-+
-     if ( start == 0 )
-       {
--      fullname = dir + d.GetFile(cc);
-+      fullname = dir + fname;
-       }
-     else
-       {
--      fullname = dir + "/" + d.GetFile(cc);
-+      fullname = dir + "/" + fname;
-       }
  
-     if ( (!dir_only || !last) && !cmsys::SystemTools::FileIsDirectory(fullname.c_str()) )
-       {
-       continue;
-       }
- 
--    if ( m_Internals->Expressions[start].find(d.GetFile(cc)) )
-+    if ( m_Internals->Expressions[start].find(fname.c_str()) )
-       {
-       if ( last )
-         {
++//----------------------------------------------------------------------------
++std::string cmGlobalGenerator::ConvertToHomeRelativePath(const char* remote)
++{
++  return (this->ConvertToRelativePath(m_HomeOutputDirectoryComponents,remote));
++}
++
++//----------------------------------------------------------------------------
++std::string
++cmGlobalGenerator::ConvertToHomeRelativeOutputPath(const char* remote)
++{
++  return cmSystemTools::ConvertToOutputPath
++    (this->ConvertToRelativePath(m_HomeOutputDirectoryComponents,remote).c_str());
++}
++

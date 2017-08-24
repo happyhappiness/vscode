@@ -1,9 +1,12 @@
 
-  // capitalized commands just once
-  std::vector<std::string> capcommands;
-  for (i = 0; i < m_Commands.size(); i++)
+static int SystemToolsDebugReport(int, char* message, int*)
+{
+  fprintf(stderr, message);
+  exit(1);
+}
+void SystemTools::EnableMSVCDebugHook()
+{
+  if(getenv("DART_TEST_FROM_DART"))
     {
-    capcommands.push_back(cmSystemTools::Capitalized(m_Commands[i]));
+    _CrtSetReportHook(SystemToolsDebugReport);
     }
-  
-  fprintf(fout,"#include \"vtkTclUtil.h\"\n");

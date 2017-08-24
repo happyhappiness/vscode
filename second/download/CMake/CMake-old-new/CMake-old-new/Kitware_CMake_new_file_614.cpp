@@ -1,326 +1,294 @@
-/*=========================================================================
+/*
+**  Copyright 1998-2003 University of Illinois Board of Trustees
+**  Copyright 1998-2003 Mark D. Roth
+**  All rights reserved.
+**
+**  append.c - libtar code to append files to a tar archive
+**
+**  Mark D. Roth <roth@uiuc.edu>
+**  Campus Information Technologies and Educational Services
+**  University of Illinois at Urbana-Champaign
+*/
 
-  Program:   CMake - Cross-Platform Makefile Generator
-  Module:    $RCSfile$
-  Language:  C++
-  Date:      $Date$
-  Version:   $Revision$
+#include <libtarint/internal.h>
 
-  Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
-  See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
+#include <stdio.h>
+#include <errno.h>
+#include <fcntl.h>
+#if defined(_WIN32) && !defined(__CYGWIN__)
+# include <libtar/compat.h>
+#else
+# include <sys/param.h>
+#endif
+#include <libtar/compat.h>
+#include <sys/types.h>
 
-     This software is distributed WITHOUT ANY WARRANTY; without even 
-     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
-     PURPOSE.  See the above copyright notices for more information.
+#ifdef STDC_HEADERS
+# include <stdlib.h>
+# include <string.h>
+#endif
 
-=========================================================================*/
-#include "cmTryCompileCommand.h"
-#include "cmake.h"
-#include "cmCacheManager.h"
-#include "cmListFileCache.h"
-#include <cmsys/Directory.hxx>
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
+#ifdef _MSC_VER
+#include <io.h>
+#endif
 
-int cmTryCompileCommand::CoreTryCompileCode(
-  cmMakefile *mf, std::vector<std::string> const& argv, bool clean)
+struct tar_dev
 {
-  // which signature were we called with ?
-  bool srcFileSignature = false;
-  unsigned int i;
-  
-  // where will the binaries be stored
-  const char* binaryDirectory = argv[1].c_str();
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  const char* targetName = 0;
-  std::string tmpString;
-  int extraArgs = 0;
-  
-  // look for CMAKE_FLAGS and store them
-  std::vector<std::string> cmakeFlags;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "CMAKE_FLAGS")
-      {
-     // CMAKE_FLAGS is the first argument because we need an argv[0] that
-     // is not used, so it matches regular command line parsing which has
-     // the program name as arg 0
-      for (; i < argv.size() && argv[i] != "COMPILE_DEFINITIONS" && 
-             argv[i] != "OUTPUT_VARIABLE"; 
-           ++i)
-        {
-        extraArgs++;
-        cmakeFlags.push_back(argv[i]);
-        }
-      break;
-      }
-    }
+  dev_t td_dev;
+  libtar_hash_t *td_h;
+};
+typedef struct tar_dev tar_dev_t;
 
-  // look for OUTPUT_VARIABLE and store them
-  std::string outputVariable;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "OUTPUT_VARIABLE")
-      {
-      if ( argv.size() <= (i+1) )
-        {
-        cmSystemTools::Error(
-          "OUTPUT_VARIABLE specified but there is no variable");
-        return -1;
-        }
-      extraArgs += 2;
-      outputVariable = argv[i+1];
-      break;
-      }
-    }
+struct tar_ino
+{
+  ino_t ti_ino;
+  char ti_name[TAR_MAXPATHLEN];
+};
+typedef struct tar_ino tar_ino_t;
 
-  // look for COMPILE_DEFINITIONS and store them
-  std::vector<std::string> compileFlags;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "COMPILE_DEFINITIONS")
-      {
-      extraArgs++;
-      for (i = i + 1; i < argv.size() && argv[i] != "CMAKE_FLAGS" && 
-             argv[i] != "OUTPUT_VARIABLE"; 
-           ++i)
-        {
-        extraArgs++;
-        compileFlags.push_back(argv[i]);
-        }
-      break;
-      }
-    }
 
-  // do we have a srcfile signature
-  if (argv.size() - extraArgs == 3)
-    {
-    srcFileSignature = true;
-    }
+/* free memory associated with a tar_dev_t */
+void
+tar_dev_free(tar_dev_t *tdp)
+{
+  libtar_hash_free(tdp->td_h, free);
+  free(tdp);
+}
 
-  // only valid for srcfile signatures
-  if (!srcFileSignature && compileFlags.size())
+
+/* appends a file to the tar archive */
+int
+tar_append_file(TAR *t, char *realname, char *savename)
+{
+  struct stat s;
+  libtar_hashptr_t hp;
+  tar_dev_t *td = NULL;
+  tar_ino_t *ti = NULL;
+#if !defined(_WIN32) || defined(__CYGWIN__)
+  int i;
+#else
+  size_t plen;
+#endif
+  char path[TAR_MAXPATHLEN];
+
+#ifdef DEBUG
+  printf("==> tar_append_file(TAR=0x%lx (\"%s\"), realname=\"%s\", "
+         "savename=\"%s\")\n", t, t->pathname, realname,
+         (savename ? savename : "[NULL]"));
+#endif
+
+#if defined(_WIN32) && !defined(__CYGWIN__)
+  strncpy(path, realname, sizeof(path)-1);
+  path[sizeof(path)-1] = 0;
+  plen = strlen(path);
+  if (path[plen-1] == '/' )
     {
-    cmSystemTools::Error(
-      "COMPILE_FLAGS specified on a srcdir type TRY_COMPILE");
+    path[plen-1] = 0;
+    }
+  if (stat(path, &s) != 0)
+#else
+  if (lstat(realname, &s) != 0)
+#endif
+  {
+#ifdef DEBUG
+    perror("lstat()");
+#endif
     return -1;
-    }
+  }
 
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (srcFileSignature)
-    {
-    tmpString = argv[1] + "/CMakeTmp";
-    binaryDirectory = tmpString.c_str();
-    }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(binaryDirectory);
-  
-  // do not allow recursive try Compiles
-  if (!strcmp(binaryDirectory,mf->GetHomeOutputDirectory()))
-    {
-    cmSystemTools::Error("Attempt at a recursive or nested TRY_COMPILE in directory ",
-                         binaryDirectory);
-    return -1;
-    }
-  
-  std::string outFileName = tmpString + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (srcFileSignature)
-    {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = tmpString + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile.c_str());
-    
-    // we need to create a directory and CMakeList file etc...
-    // first create the directories
-    sourceDirectory = binaryDirectory;
+  /* set header block */
+#ifdef DEBUG
+  puts("    tar_append_file(): setting header block...");
+#endif
+  memset(&(t->th_buf), 0, sizeof(struct tar_header));
+  th_set_from_stat(t, &s);
 
-    // now create a CMakeList.txt file in that directory
-    FILE *fout = fopen(outFileName.c_str(),"w");
-    if (!fout)
-      {
-      cmSystemTools::Error("Failed to create CMakeList file for ", 
-                           outFileName.c_str());
-      return -1;
-      }
-    
-    std::string source = argv[2];
-    cmSystemTools::FileFormat format = 
-      cmSystemTools::GetFileFormat( 
-        cmSystemTools::GetFilenameExtension(source).c_str());
-    if ( format == cmSystemTools::C_FILE_FORMAT )
-      {
-      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE C)\n");      
-      }
-    else if ( format == cmSystemTools::CXX_FILE_FORMAT )
-      {
-      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE CXX)\n");      
-      }
-    else if ( format == cmSystemTools::FORTRAN_FILE_FORMAT )
-      {
-      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE Fortran)\n");      
-      }
-    else
-      {
-      cmSystemTools::Error("Unknown file format for file: ", source.c_str(), 
-                           "; TRY_COMPILE only works for C, CXX, and FORTRAN files");
-      return -1;
-      }
-    const char* cflags = mf->GetDefinition("CMAKE_C_FLAGS"); 
-    fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");
-    fprintf(fout, "SET(CMAKE_C_FLAGS \"${CMAKE_C_FLAGS}");
-    if(cflags)
-      {
-      fprintf(fout, " %s ", cflags);
-      }
-    fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
-    // CXX specific flags
-    if(format == cmSystemTools::CXX_FILE_FORMAT )
-      {
-      const char* cxxflags = mf->GetDefinition("CMAKE_CXX_FLAGS");
-      fprintf(fout, "SET(CMAKE_CXX_FLAGS \"${CMAKE_CXX_FLAGS} ");
-      if(cxxflags)
-        {
-        fprintf(fout, " %s ", cxxflags);
-        }
-      fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
-      }
-    if(format == cmSystemTools::FORTRAN_FILE_FORMAT )
-      {
-      const char* fflags = mf->GetDefinition("CMAKE_Fortran_FLAGS");
-      fprintf(fout, "SET(CMAKE_Fortran_FLAGS \"${CMAKE_Fortran_FLAGS} ");
-      if(fflags)
-        {
-        fprintf(fout, " %s ", fflags);
-        }
-      fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
-      }
-    fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (compileFlags.size())
-      {
-      fprintf(fout, "ADD_DEFINITIONS( ");
-      for (i = 0; i < compileFlags.size(); ++i)
-        {
-        fprintf(fout,"%s ",compileFlags[i].c_str());
-        }
-      fprintf(fout, ")\n");
-      }
-    
-    fprintf(fout, "ADD_EXECUTABLE(cmTryCompileExec \"%s\")\n",source.c_str());
-    fprintf(fout, "TARGET_LINK_LIBRARIES(cmTryCompileExec ${LINK_LIBRARIES})\n");
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
-    targetName = "cmTryCompileExec";
-    // if the source is not in CMakeTmp 
-    if(source.find(argv[1] + "/CMakeTmp") == source.npos)
-      {
-      mf->AddCMakeDependFile(source.c_str());
-      }
-    
-    }
-  // else the srcdir bindir project target signature
+  /* set the header path */
+#ifdef DEBUG
+  puts("    tar_append_file(): setting header path...");
+#endif
+  th_set_path(t, (savename ? savename : realname));
+
+  /* check if it's a hardlink */
+#ifdef DEBUG
+  puts("    tar_append_file(): checking inode cache for hardlink...");
+#endif
+  libtar_hashptr_reset(&hp);
+  if (libtar_hash_getkey(t->h, &hp, &(s.st_dev),
+             (libtar_matchfunc_t)dev_match) != 0)
+    td = (tar_dev_t *)libtar_hashptr_data(&hp);
   else
-    {
-    projectName = argv[3].c_str();
-    
-    if (argv.size() - extraArgs == 5)
-      {
-      targetName = argv[4].c_str();
-      }
-    }
-  
-  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
-  cmSystemTools::ResetErrorOccuredFlag();
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = mf->TryCompile(sourceDirectory, binaryDirectory,
-                           projectName, targetName, &cmakeFlags, &output);
-  
-  if ( erroroc )
-    {
-    cmSystemTools::SetErrorOccured();
-    }
-  
-  // set the result var to the return value to indicate success or failure
-  mf->AddCacheDefinition(argv[0].c_str(), (res == 0 ? "TRUE" : "FALSE"),
-                         "Result of TRY_COMPILE",
-                         cmCacheManager::INTERNAL);
+  {
+#ifdef DEBUG
+    printf("+++ adding hash for device (0x%lx, 0x%lx)...\n",
+           major(s.st_dev), minor(s.st_dev));
+#endif
+    td = (tar_dev_t *)calloc(1, sizeof(tar_dev_t));
+    td->td_dev = s.st_dev;
+    td->td_h = libtar_hash_new(256, (libtar_hashfunc_t)ino_hash);
+    if (td->td_h == NULL)
+      return -1;
+    if (libtar_hash_add(t->h, td) == -1)
+      return -1;
+  }
+  libtar_hashptr_reset(&hp);
+#if !defined(_WIN32) || defined(__CYGWIN__)
+  if (libtar_hash_getkey(td->td_h, &hp, &(s.st_ino),
+             (libtar_matchfunc_t)ino_match) != 0)
+  {
+    ti = (tar_ino_t *)libtar_hashptr_data(&hp);
+#ifdef DEBUG
+    printf("    tar_append_file(): encoding hard link \"%s\" "
+           "to \"%s\"...\n", realname, ti->ti_name);
+#endif
+    t->th_buf.typeflag = LNKTYPE;
+    th_set_link(t, ti->ti_name);
+  }
+  else
+#endif
+  {
+#ifdef DEBUG
+    printf("+++ adding entry: device (0x%lx,0x%lx), inode %ld "
+           "(\"%s\")...\n", major(s.st_dev), minor(s.st_dev),
+           s.st_ino, realname);
+#endif
+    ti = (tar_ino_t *)calloc(1, sizeof(tar_ino_t));
+    if (ti == NULL)
+      return -1;
+    ti->ti_ino = s.st_ino;
+    snprintf(ti->ti_name, sizeof(ti->ti_name), "%s",
+       savename ? savename : realname);
+    libtar_hash_add(td->td_h, ti);
+  }
 
-  if ( outputVariable.size() > 0 )
-    {
-    mf->AddDefinition(outputVariable.c_str(), output.c_str());
-    }
-  
-  // if They specified clean then we clean up what we can
-  if (srcFileSignature && clean)
-    {    
-    cmListFileCache::GetInstance()->FlushCache(outFileName.c_str());
-    if(!mf->GetCMakeInstance()->GetDebugTryCompile())
-      {
-      cmTryCompileCommand::CleanupFiles(binaryDirectory);
-      }
-    }
-  return res;
+#if !defined(_WIN32) || defined(__CYGWIN__)
+  /* check if it's a symlink */
+  if (TH_ISSYM(t))
+  {
+#if defined(_WIN32) && !defined(__CYGWIN__)
+    i = -1;
+#else
+    i = readlink(realname, path, sizeof(path));
+#endif
+    if (i == -1)
+      return -1;
+    if (i >= TAR_MAXPATHLEN)
+      i = TAR_MAXPATHLEN - 1;
+    path[i] = '\0';
+#ifdef DEBUG
+    printf("    tar_append_file(): encoding symlink \"%s\" -> "
+           "\"%s\"...\n", realname, path);
+#endif
+    th_set_link(t, path);
+  }
+#endif
+
+  /* print file info */
+  if (t->options & TAR_VERBOSE)
+    th_print_long_ls(t);
+
+#ifdef DEBUG
+  puts("    tar_append_file(): writing header");
+#endif
+  /* write header */
+  if (th_write(t) != 0)
+  {
+#ifdef DEBUG
+    printf("t->fd = %d\n", t->fd);
+#endif
+    return -1;
+  }
+#ifdef DEBUG
+  puts("    tar_append_file(): back from th_write()");
+#endif
+
+  /* if it's a regular file, write the contents as well */
+  if (TH_ISREG(t) && tar_append_regfile(t, realname) != 0)
+    return -1;
+
+  return 0;
 }
 
-// cmExecutableCommand
-bool cmTryCompileCommand::InitialPass(std::vector<std::string> const& argv)
+
+/* write EOF indicator */
+int
+tar_append_eof(TAR *t)
 {
-  if(argv.size() < 3)
-    {
-    return false;
-    }
+  int i, j;
+  char block[T_BLOCKSIZE];
 
-  if ( m_Makefile->GetLocal() )
+  memset(&block, 0, T_BLOCKSIZE);
+  for (j = 0; j < 2; j++)
+  {
+    i = tar_block_write(t, &block);
+    if (i != T_BLOCKSIZE)
     {
-    return true;
+      if (i != -1)
+        errno = EINVAL;
+      return -1;
     }
+  }
 
-  cmTryCompileCommand::CoreTryCompileCode(m_Makefile,argv,true);
-  
-  return true;
+  return 0;
 }
 
-void cmTryCompileCommand::CleanupFiles(const char* binDir)
+
+/* add file contents to a tarchive */
+int
+tar_append_regfile(TAR *t, char *realname)
 {
-  if ( !binDir )
+  char block[T_BLOCKSIZE];
+  int filefd;
+  int i, j;
+  size_t size;
+
+#if defined( _WIN32 ) || defined(__CYGWIN__)
+  filefd = open(realname, O_RDONLY | O_BINARY);
+#else
+  filefd = open(realname, O_RDONLY);
+#endif
+  if (filefd == -1)
+  {
+#ifdef DEBUG
+    perror("open()");
+#endif
+    return -1;
+  }
+
+  size = th_get_size(t);
+  for (i = size; i > T_BLOCKSIZE; i -= T_BLOCKSIZE)
+  {
+    j = read(filefd, &block, T_BLOCKSIZE);
+    if (j != T_BLOCKSIZE)
     {
-    return;
-    }
-  
-  std::string bdir = binDir;
-  if(bdir.find("CMakeTmp") == std::string::npos)
-    {
-    cmSystemTools::Error("TRY_COMPILE attempt to remove -rf directory that does not contain CMakeTmp:", binDir);
-    return;
-    }
-  
-  cmsys::Directory dir;
-  dir.Load(binDir);
-  size_t fileNum;
-  for (fileNum = 0; fileNum <  dir.GetNumberOfFiles(); ++fileNum)
-    {
-    if (strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".") &&
-        strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".."))
-      {
-      std::string fullPath = binDir;
-      fullPath += "/";
-      fullPath += dir.GetFile(static_cast<unsigned long>(fileNum));
-      if(cmSystemTools::FileIsDirectory(fullPath.c_str()))
+      if (j != -1)
         {
-        cmTryCompileCommand::CleanupFiles(fullPath.c_str());
+        fprintf(stderr, "Unexpected size of read data: %d <> %d for file: %s\n",
+          j, T_BLOCKSIZE, realname);
+        errno = EINVAL;
         }
-      else
-        {
-        if(!cmSystemTools::RemoveFile(fullPath.c_str()))
-          {
-          std::string m = "Remove failed on file: ";
-          m += fullPath;
-          cmSystemTools::ReportLastSystemError(m.c_str());
-          }
-        }
-      }
+      return -1;
     }
+    if (tar_block_write(t, &block) == -1)
+      return -1;
+  }
+
+  if (i > 0)
+  {
+    j = read(filefd, &block, i);
+    if (j == -1)
+      return -1;
+    memset(&(block[i]), 0, T_BLOCKSIZE - i);
+    if (tar_block_write(t, &block) == -1)
+      return -1;
+  }
+
+  close(filefd);
+
+  return 0;
 }
+
+

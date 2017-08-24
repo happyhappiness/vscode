@@ -1,144 +1,858 @@
-/*
-**  Copyright 1998-2003 University of Illinois Board of Trustees
-**  Copyright 1998-2003 Mark D. Roth
-**  All rights reserved.
-**
-**  output.c - libtar code to print out tar header blocks
-**
-**  Mark D. Roth <roth@uiuc.edu>
-**  Campus Information Technologies and Educational Services
-**  University of Illinois at Urbana-Champaign
-*/
+/*=========================================================================
 
-#include <libtarint/internal.h>
+  Program:   KWSys - Kitware System Library
+  Module:    $RCSfile$
+
+  Copyright (c) Kitware, Inc., Insight Consortium.  All rights reserved.
+  See Copyright.txt or http://www.kitware.com/Copyright.htm for details.
+
+     This software is distributed WITHOUT ANY WARRANTY; without even
+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+     PURPOSE.  See the above copyright notices for more information.
+
+=========================================================================*/
+#include "kwsysPrivate.h"
+#include KWSYS_HEADER(CommandLineArguments.hxx)
+
+#include KWSYS_HEADER(Configure.hxx)
+
+#include KWSYS_HEADER(stl/vector)
+#include KWSYS_HEADER(stl/map)
+#include KWSYS_HEADER(stl/set)
+#include KWSYS_HEADER(ios/sstream)
+#include KWSYS_HEADER(ios/iostream)
+
+// Work-around CMake dependency scanning limitation.  This must
+// duplicate the above list of headers.
+#if 0
+# include "CommandLineArguments.hxx.in"
+# include "Configure.hxx.in"
+# include "kwsys_stl.hxx.in"
+# include "kwsys_ios_sstream.h.in"
+# include "kwsys_ios_iostream.h.in"
+#endif
 
 #include <stdio.h>
-#ifndef WIN32
-#include <pwd.h>
-#include <grp.h>
-#endif
-#include <time.h>
-#include <limits.h>
+#include <stdlib.h>
+#include <string.h>
 
-#ifdef STDC_HEADERS
-# include <string.h>
+#ifdef _MSC_VER
+# pragma warning (disable: 4786)
 #endif
 
-
-#ifndef _POSIX_LOGIN_NAME_MAX
-# define _POSIX_LOGIN_NAME_MAX  9
+#if defined(__sgi) && !defined(__GNUC__)
+# pragma set woff 1375 /* base class destructor not virtual */
 #endif
 
-
-void
-th_print(TAR *t)
+namespace KWSYS_NAMESPACE
 {
-  puts("\nPrinting tar header:");
-  printf("  name     = \"%.100s\"\n", t->th_buf.name);
-  printf("  mode     = \"%.8s\"\n", t->th_buf.mode);
-  printf("  uid      = \"%.8s\"\n", t->th_buf.uid);
-  printf("  gid      = \"%.8s\"\n", t->th_buf.gid);
-  printf("  size     = \"%.12s\"\n", t->th_buf.size);
-  printf("  mtime    = \"%.12s\"\n", t->th_buf.mtime);
-  printf("  chksum   = \"%.8s\"\n", t->th_buf.chksum);
-  printf("  typeflag = \'%c\'\n", t->th_buf.typeflag);
-  printf("  linkname = \"%.100s\"\n", t->th_buf.linkname);
-  printf("  magic    = \"%.6s\"\n", t->th_buf.magic);
-  /*printf("  version  = \"%.2s\"\n", t->th_buf.version); */
-  printf("  version[0] = \'%c\',version[1] = \'%c\'\n",
-         t->th_buf.version[0], t->th_buf.version[1]);
-  printf("  uname    = \"%.32s\"\n", t->th_buf.uname);
-  printf("  gname    = \"%.32s\"\n", t->th_buf.gname);
-  printf("  devmajor = \"%.8s\"\n", t->th_buf.devmajor);
-  printf("  devminor = \"%.8s\"\n", t->th_buf.devminor);
-  printf("  prefix   = \"%.155s\"\n", t->th_buf.prefix);
-  printf("  padding  = \"%.12s\"\n", t->th_buf.padding);
-  printf("  gnu_longname = \"%s\"\n",
-         (t->th_buf.gnu_longname ? t->th_buf.gnu_longname : "[NULL]"));
-  printf("  gnu_longlink = \"%s\"\n",
-         (t->th_buf.gnu_longlink ? t->th_buf.gnu_longlink : "[NULL]"));
+
+//----------------------------------------------------------------------------
+//============================================================================
+class CommandLineArgumentsString : public kwsys_stl::string 
+{
+public:
+  typedef kwsys_stl::string StdString;
+  CommandLineArgumentsString(): StdString() {}
+  CommandLineArgumentsString(const value_type* s): StdString(s) {}
+  CommandLineArgumentsString(const value_type* s, size_type n): StdString(s, n) {}
+  CommandLineArgumentsString(const StdString& s, size_type pos=0, size_type n=npos):
+    StdString(s, pos, n) {}
+};
+
+struct CommandLineArgumentsCallbackStructure
+{
+  const char* Argument;
+  int ArgumentType;
+  CommandLineArguments::CallbackType Callback;
+  void* CallData;
+  void* Variable;
+  int VariableType;
+  const char* Help;
+};
+ 
+class CommandLineArgumentsVectorOfStrings : 
+  public kwsys_stl::vector<CommandLineArgumentsString> {};
+class CommandLineArgumentsSetOfStrings :
+  public kwsys_stl::set<CommandLineArgumentsString> {};
+class CommandLineArgumentsMapOfStrucs : 
+  public kwsys_stl::map<CommandLineArgumentsString,
+    CommandLineArgumentsCallbackStructure> {};
+
+class CommandLineArgumentsInternal
+{
+public:
+  CommandLineArgumentsInternal()
+    {
+    this->UnknownArgumentCallback = 0;
+    this->ClientData = 0;
+    this->LastArgument = 0;
+    }
+
+  typedef CommandLineArgumentsVectorOfStrings VectorOfStrings;
+  typedef CommandLineArgumentsMapOfStrucs CallbacksMap;
+  typedef CommandLineArgumentsString String;
+  typedef CommandLineArgumentsSetOfStrings SetOfStrings;
+
+  VectorOfStrings Argv;
+  String Argv0;
+  CallbacksMap Callbacks;
+
+  CommandLineArguments::ErrorCallbackType UnknownArgumentCallback;
+  void*             ClientData;
+
+  VectorOfStrings::size_type LastArgument;
+};
+//============================================================================
+//----------------------------------------------------------------------------
+
+//----------------------------------------------------------------------------
+CommandLineArguments::CommandLineArguments()
+{
+  this->Internals = new CommandLineArguments::Internal;
+  this->Help = "";
+  this->LineLength = 80;
+}
+
+//----------------------------------------------------------------------------
+CommandLineArguments::~CommandLineArguments()
+{
+  delete this->Internals;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::Initialize(int argc, const char* const argv[])
+{
+  int cc;
+
+  this->Initialize();
+  this->Internals->Argv0 = argv[0];
+  for ( cc = 1; cc < argc; cc ++ )
+    {
+    this->ProcessArgument(argv[cc]);
+    }
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::Initialize(int argc, char* argv[])
+{
+  this->Initialize(argc, static_cast<const char* const*>(argv));
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::Initialize()
+{
+  this->Internals->Argv.clear();
+  this->Internals->LastArgument = 0;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::ProcessArgument(const char* arg)
+{
+  this->Internals->Argv.push_back(arg);
+}
+
+//----------------------------------------------------------------------------
+int CommandLineArguments::Parse()
+{
+  CommandLineArguments::Internal::VectorOfStrings::size_type cc;
+  CommandLineArguments::Internal::VectorOfStrings matches;
+  for ( cc = 0; cc < this->Internals->Argv.size(); cc ++ )
+    {
+    this->Internals->LastArgument = cc;
+    matches.clear();
+    CommandLineArguments::Internal::String& arg = this->Internals->Argv[cc];
+    CommandLineArguments::Internal::CallbacksMap::iterator it;
+
+    // Does the argument match to any we know about?
+    for ( it = this->Internals->Callbacks.begin();
+      it != this->Internals->Callbacks.end();
+      it ++ )
+      {
+      const CommandLineArguments::Internal::String& parg = it->first;
+      CommandLineArgumentsCallbackStructure *cs = &it->second;
+      if (cs->ArgumentType == CommandLineArguments::NO_ARGUMENT ||
+        cs->ArgumentType == CommandLineArguments::SPACE_ARGUMENT) 
+        {
+        if ( arg == parg )
+          {
+          matches.push_back(parg);
+          }
+        }
+      else if ( arg.find( parg ) == 0 )
+        {
+        matches.push_back(parg);
+        }
+      }
+    if ( matches.size() > 0 )
+      {
+      // Ok, we found one or more arguments that match what user specified.
+      // Let's find the longest one.
+      CommandLineArguments::Internal::VectorOfStrings::size_type kk;
+      CommandLineArguments::Internal::VectorOfStrings::size_type maxidx = 0;
+      CommandLineArguments::Internal::String::size_type maxlen = 0;
+      for ( kk = 0; kk < matches.size(); kk ++ )
+        {
+        if ( matches[kk].size() > maxlen )
+          {
+          maxlen = matches[kk].size();
+          maxidx = kk;
+          }
+        }
+      // So, the longest one is probably the right one. Now see if it has any
+      // additional value
+      const char* value = 0;
+      CommandLineArgumentsCallbackStructure *cs 
+        = &this->Internals->Callbacks[matches[maxidx]];
+      const CommandLineArguments::Internal::String& sarg = matches[maxidx];
+      if ( cs->ArgumentType == NO_ARGUMENT )
+        {
+        // No value
+        }
+      else if ( cs->ArgumentType == SPACE_ARGUMENT )
+        {
+        if ( cc == this->Internals->Argv.size()-1 )
+          {
+          this->Internals->LastArgument --;
+          return 0;
+          }
+        // Value is the next argument
+        value = this->Internals->Argv[cc+1].c_str();
+        cc ++;
+        }
+      else if ( cs->ArgumentType == EQUAL_ARGUMENT )
+        {
+        if ( arg.size() == sarg.size() || *(arg.c_str() + sarg.size()) != '=' )
+          {
+          this->Internals->LastArgument --;
+          return 0;
+          }
+        // Value is everythng followed the '=' sign
+        value = arg.c_str() + sarg.size()+1;
+        }
+      else if ( cs->ArgumentType == CONCAT_ARGUMENT )
+        {
+        // Value is whatever follows the argument
+        value = arg.c_str() + sarg.size();
+        }
+
+      // Call the callback
+      if ( cs->Callback )
+        {
+        if ( !cs->Callback(sarg.c_str(), value, cs->CallData) )
+          {
+          this->Internals->LastArgument --;
+          return 0;
+          }
+        }
+      if ( cs->Variable )
+        {
+        kwsys_stl::string var = "1";
+        if ( value )
+          {
+          var = value;
+          }
+        if ( cs->VariableType == CommandLineArguments::INT_TYPE )
+          {
+          int* variable = static_cast<int*>(cs->Variable);
+          char* res = 0;
+          *variable = strtol(var.c_str(), &res, 10);
+          //if ( res && *res )
+          //  {
+          //  Can handle non-int
+          //  }
+          }
+        else if ( cs->VariableType == CommandLineArguments::DOUBLE_TYPE )
+          {
+          double* variable = static_cast<double*>(cs->Variable);
+          char* res = 0;
+          *variable = strtod(var.c_str(), &res);
+          //if ( res && *res )
+          //  {
+          //  Can handle non-int
+          //  }
+          }
+        else if ( cs->VariableType == CommandLineArguments::STRING_TYPE )
+          {
+          char** variable = static_cast<char**>(cs->Variable);
+          if ( *variable )
+            {
+            delete [] *variable;
+            *variable = 0;
+            }
+          *variable = new char[ strlen(var.c_str()) + 1 ];
+          strcpy(*variable, var.c_str());
+          }
+        else if ( cs->VariableType == CommandLineArguments::STL_STRING_TYPE )
+          {
+          kwsys_stl::string* variable = static_cast<kwsys_stl::string*>(cs->Variable);
+          *variable = var;
+          }
+        else if ( cs->VariableType == CommandLineArguments::BOOL_TYPE )
+          {
+          bool* variable = static_cast<bool*>(cs->Variable);
+          if ( var == "1" || var == "ON" || var == "TRUE" || var == "true" || var == "on" ||
+            var == "True" || var == "yes" || var == "Yes" || var == "YES" )
+            {
+            *variable = true;
+            }
+          else
+            {
+            *variable = false;
+            }
+          }
+        else
+          {
+          kwsys_ios::cerr << "Got unknown argument type: \"" << cs->VariableType << "\"" << kwsys_ios::endl;
+          this->Internals->LastArgument --;
+          return 0;
+          }
+        }
+      }
+    else
+      {
+      // Handle unknown arguments
+      if ( this->Internals->UnknownArgumentCallback )
+        {
+        if ( !this->Internals->UnknownArgumentCallback(arg.c_str(), 
+            this->Internals->ClientData) )
+          {
+          this->Internals->LastArgument --;
+          return 0;
+          }
+        return 1;
+        }
+      else
+        {
+        kwsys_ios::cerr << "Got unknown argument: \"" << arg.c_str() << "\"" << kwsys_ios::endl;
+        this->Internals->LastArgument --;
+        return 0;
+        }
+      }
+    }
+  return 1;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::GetRemainingArguments(int* argc, char*** argv)
+{
+  CommandLineArguments::Internal::VectorOfStrings::size_type size 
+    = this->Internals->Argv.size() - this->Internals->LastArgument + 1;
+  CommandLineArguments::Internal::VectorOfStrings::size_type cc;
+
+  // Copy Argv0 as the first argument
+  char** args = new char*[ size ];
+  args[0] = new char[ this->Internals->Argv0.size() + 1 ];
+  strcpy(args[0], this->Internals->Argv0.c_str());
+  int cnt = 1;
+
+  // Copy everything after the LastArgument, since that was not parsed.
+  for ( cc = this->Internals->LastArgument+1; 
+    cc < this->Internals->Argv.size(); cc ++ )
+    {
+    args[cnt] = new char[ this->Internals->Argv[cc].size() + 1];
+    strcpy(args[cnt], this->Internals->Argv[cc].c_str());
+    cnt ++;
+    }
+  *argc = cnt;
+  *argv = args;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::DeleteRemainingArguments(int argc, char*** argv)
+{
+  int cc;
+  for ( cc = 0; cc < argc; ++ cc )
+    {
+    delete [] (*argv)[cc];
+    }
+  delete [] *argv;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::AddCallback(const char* argument, ArgumentTypeEnum type, 
+  CallbackType callback, void* call_data, const char* help)
+{
+  CommandLineArgumentsCallbackStructure s;
+  s.Argument     = argument;
+  s.ArgumentType = type;
+  s.Callback     = callback;
+  s.CallData     = call_data;
+  s.VariableType = CommandLineArguments::NO_VARIABLE_TYPE;
+  s.Variable     = 0;
+  s.Help         = help;
+
+  this->Internals->Callbacks[argument] = s;
+  this->GenerateHelp();
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::AddArgument(const char* argument, ArgumentTypeEnum type,
+  VariableTypeEnum vtype, void* variable, const char* help)
+{
+  CommandLineArgumentsCallbackStructure s;
+  s.Argument     = argument;
+  s.ArgumentType = type;
+  s.Callback     = 0;
+  s.CallData     = 0;
+  s.VariableType = vtype;
+  s.Variable     = variable;
+  s.Help         = help;
+
+  this->Internals->Callbacks[argument] = s;
+  this->GenerateHelp();
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::AddArgument(const char* argument, ArgumentTypeEnum type,
+  int* variable, const char* help)
+{
+  this->AddArgument(argument, type, CommandLineArguments::INT_TYPE, variable, help);
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::AddArgument(const char* argument, ArgumentTypeEnum type,
+  double* variable, const char* help)
+{
+  this->AddArgument(argument, type, CommandLineArguments::DOUBLE_TYPE, variable, help);
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::AddArgument(const char* argument, ArgumentTypeEnum type,
+  char** variable, const char* help)
+{
+  this->AddArgument(argument, type, CommandLineArguments::STRING_TYPE, variable, help);
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::AddArgument(const char* argument, ArgumentTypeEnum type,
+  kwsys_stl::string* variable, const char* help)
+{
+  this->AddArgument(argument, type, CommandLineArguments::STL_STRING_TYPE, variable, help);
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::AddArgument(const char* argument, ArgumentTypeEnum type,
+  bool* variable, const char* help)
+{
+  this->AddArgument(argument, type, CommandLineArguments::BOOL_TYPE, variable, help);
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::AddBooleanArgument(const char* argument, bool*
+  variable, const char* help)
+{
+  this->AddArgument(argument, CommandLineArguments::NO_ARGUMENT,
+    CommandLineArguments::BOOL_TYPE, variable, help);
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::AddBooleanArgument(const char* argument, int*
+  variable, const char* help)
+{
+  this->AddArgument(argument, CommandLineArguments::NO_ARGUMENT,
+    CommandLineArguments::INT_TYPE, variable, help);
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::SetClientData(void* client_data)
+{
+  this->Internals->ClientData = client_data;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::SetUnknownArgumentCallback(
+  CommandLineArguments::ErrorCallbackType callback)
+{
+  this->Internals->UnknownArgumentCallback = callback;
+}
+
+//----------------------------------------------------------------------------
+const char* CommandLineArguments::GetHelp(const char* arg)
+{
+  CommandLineArguments::Internal::CallbacksMap::iterator it 
+    = this->Internals->Callbacks.find(arg);
+  if ( it == this->Internals->Callbacks.end() )
+    {
+    return 0;
+    }
+
+  // Since several arguments may point to the same argument, find the one this
+  // one point to if this one is pointing to another argument.
+  CommandLineArgumentsCallbackStructure *cs = &(it->second);
+  for(;;)
+    {
+    CommandLineArguments::Internal::CallbacksMap::iterator hit 
+      = this->Internals->Callbacks.find(cs->Help);
+    if ( hit == this->Internals->Callbacks.end() )
+      {
+      break;
+      }
+    cs = &(hit->second);
+    }
+  return cs->Help;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::SetLineLength(unsigned int ll)
+{
+  if ( ll < 9 || ll > 1000 )
+    {
+    return;
+    }
+  this->LineLength = ll;
+  this->GenerateHelp();
+}
+
+//----------------------------------------------------------------------------
+const char* CommandLineArguments::GetArgv0()
+{
+  return this->Internals->Argv0.c_str();
+}
+
+//----------------------------------------------------------------------------
+unsigned int CommandLineArguments::GetLastArgument()
+{
+  return static_cast<unsigned int>(this->Internals->LastArgument + 1);
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::GenerateHelp()
+{
+  kwsys_ios::ostringstream str;
+
+  // Collapse all arguments into the map of vectors of all arguments that do
+  // the same thing.
+  CommandLineArguments::Internal::CallbacksMap::iterator it;
+  typedef kwsys_stl::map<CommandLineArguments::Internal::String, 
+     CommandLineArguments::Internal::SetOfStrings > MapArgs;
+  MapArgs mp;
+  MapArgs::iterator mpit, smpit;
+  for ( it = this->Internals->Callbacks.begin();
+    it != this->Internals->Callbacks.end();
+    it ++ )
+    {
+    CommandLineArgumentsCallbackStructure *cs = &(it->second);
+    mpit = mp.find(cs->Help);
+    if ( mpit != mp.end() )
+      {
+      mpit->second.insert(it->first);
+      mp[it->first].insert(it->first);
+      }
+    else
+      {
+      mp[it->first].insert(it->first);
+      }
+    }
+  for ( it = this->Internals->Callbacks.begin();
+    it != this->Internals->Callbacks.end();
+    it ++ )
+    {
+    CommandLineArgumentsCallbackStructure *cs = &(it->second);
+    mpit = mp.find(cs->Help);
+    if ( mpit != mp.end() )
+      {
+      mpit->second.insert(it->first);
+      smpit = mp.find(it->first);
+      CommandLineArguments::Internal::SetOfStrings::iterator sit;
+      for ( sit = smpit->second.begin(); sit != smpit->second.end(); sit++ )
+        {
+        mpit->second.insert(*sit);
+        }
+      mp.erase(smpit);
+      }
+    else
+      {
+      mp[it->first].insert(it->first);
+      }
+    }
+ 
+  // Find the length of the longest string
+  CommandLineArguments::Internal::String::size_type maxlen = 0;
+  for ( mpit = mp.begin();
+    mpit != mp.end();
+    mpit ++ )
+    {
+    CommandLineArguments::Internal::SetOfStrings::iterator sit;
+    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
+      {
+      CommandLineArguments::Internal::String::size_type clen = sit->size();
+      switch ( this->Internals->Callbacks[*sit].ArgumentType )
+        {
+        case CommandLineArguments::NO_ARGUMENT:     clen += 0; break;
+        case CommandLineArguments::CONCAT_ARGUMENT: clen += 3; break;
+        case CommandLineArguments::SPACE_ARGUMENT:  clen += 4; break;
+        case CommandLineArguments::EQUAL_ARGUMENT:  clen += 4; break;
+        }
+      if ( clen > maxlen )
+        {
+        maxlen = clen;
+        }
+      }
+    }
+
+  // Create format for that string
+  char format[80];
+  sprintf(format, "  %%-%ds  ", static_cast<unsigned int>(maxlen));
+
+  maxlen += 4; // For the space before and after the option
+
+  // Print help for each option
+  for ( mpit = mp.begin();
+    mpit != mp.end();
+    mpit ++ )
+    {
+    CommandLineArguments::Internal::SetOfStrings::iterator sit;
+    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
+      {
+      str << kwsys_ios::endl;
+      char argument[100];
+      sprintf(argument, sit->c_str());
+      switch ( this->Internals->Callbacks[*sit].ArgumentType )
+        {
+        case CommandLineArguments::NO_ARGUMENT: break;
+        case CommandLineArguments::CONCAT_ARGUMENT: strcat(argument, "opt"); break;
+        case CommandLineArguments::SPACE_ARGUMENT:  strcat(argument, " opt"); break;
+        case CommandLineArguments::EQUAL_ARGUMENT:  strcat(argument, "=opt"); break;
+        }
+      char buffer[80];
+      sprintf(buffer, format, argument);
+      str << buffer;
+      }
+    const char* ptr = this->Internals->Callbacks[mpit->first].Help;
+    size_t len = strlen(ptr);
+    int cnt = 0;
+    while ( len > 0)
+      {
+      // If argument with help is longer than line length, split it on previous
+      // space (or tab) and continue on the next line
+      CommandLineArguments::Internal::String::size_type cc;
+      for ( cc = 0; ptr[cc]; cc ++ )
+        {
+        if ( *ptr == ' ' || *ptr == '\t' )
+          {
+          ptr ++;
+          len --;
+          }
+        }
+      if ( cnt > 0 )
+        {
+        for ( cc = 0; cc < maxlen; cc ++ )
+          {
+          str << " ";
+          }
+        }
+      CommandLineArguments::Internal::String::size_type skip = len;
+      if ( skip > this->LineLength - maxlen )
+        {
+        skip = this->LineLength - maxlen;
+        for ( cc = skip-1; cc > 0; cc -- )
+          {
+          if ( ptr[cc] == ' ' || ptr[cc] == '\t' )
+            {
+            break;
+            }
+          }
+        if ( cc != 0 )
+          {
+          skip = cc;
+          }
+        }
+      str.write(ptr, skip);
+      str << kwsys_ios::endl;
+      ptr += skip;
+      len -= skip;
+      cnt ++;
+      }
+    }
+  /*
+  // This can help debugging help string
+  str << endl;
+  unsigned int cc;
+  for ( cc = 0; cc < this->LineLength; cc ++ )
+    {
+    str << cc % 10;
+    }
+  str << endl;
+  */
+  this->Help = str.str();
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  bool* variable, const kwsys_stl::string& value)
+{
+  if ( value == "1" || value == "ON" || value == "on" || value == "On" ||
+    value == "TRUE" || value == "true" || value == "True" ||
+    value == "yes" || value == "Yes" || value == "YES" )
+    {
+    *variable = true;
+    }
+  else
+    {
+    *variable = false;
+    }
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  int* variable, const kwsys_stl::string& value)
+{
+  char* res = 0;
+  *variable = strtol(value.c_str(), &res, 10);
+  //if ( res && *res )
+  //  {
+  //  Can handle non-int
+  //  }
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  double* variable, const kwsys_stl::string& value)
+{
+  char* res = 0;
+  *variable = strtod(value.c_str(), &res);
+  //if ( res && *res )
+  //  {
+  //  Can handle non-double
+  //  }
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  char** variable, const kwsys_stl::string& value)
+{
+  if ( *variable )
+    {
+    delete [] *variable;
+    *variable = 0;
+    }
+  *variable = new char[ value.size() + 1 ];
+  strcpy(*variable, value.c_str());
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  kwsys_stl::string* variable, const kwsys_stl::string& value)
+{
+  *variable = value;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  kwsys_stl::vector<bool>* variable, const kwsys_stl::string& value)
+{
+  bool val = false;
+  if ( value == "1" || value == "ON" || value == "on" || value == "On" ||
+    value == "TRUE" || value == "true" || value == "True" ||
+    value == "yes" || value == "Yes" || value == "YES" )
+    {
+    val = true;
+    }
+  variable->push_back(val);
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  kwsys_stl::vector<int>* variable, const kwsys_stl::string& value)
+{
+  char* res = 0;
+  variable->push_back(strtol(value.c_str(), &res, 10));
+  //if ( res && *res )
+  //  {
+  //  Can handle non-int
+  //  }
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  kwsys_stl::vector<double>* variable, const kwsys_stl::string& value)
+{
+  char* res = 0;
+  variable->push_back(strtod(value.c_str(), &res));
+  //if ( res && *res )
+  //  {
+  //  Can handle non-int
+  //  }
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  kwsys_stl::vector<char*>* variable, const kwsys_stl::string& value)
+{
+  char* var = new char[ value.size() + 1 ];
+  strcpy(var, value.c_str());
+  variable->push_back(var);
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  kwsys_stl::vector<kwsys_stl::string>* variable,
+  const kwsys_stl::string& value)
+{
+  variable->push_back(value);
+}
+
+//----------------------------------------------------------------------------
+bool CommandLineArguments::PopulateVariable(CommandLineArgumentsCallbackStructure* cs,
+  const char* value)
+{
+  // Call the callback
+  if ( cs->Callback )
+    {
+    if ( !cs->Callback(cs->Argument, value, cs->CallData) )
+      {
+      this->Internals->LastArgument --;
+      return 0;
+      }
+    }
+  if ( cs->Variable )
+    {
+    kwsys_stl::string var = "1";
+    if ( value )
+      {
+      var = value;
+      }
+    switch ( cs->VariableType )
+      {
+    case CommandLineArguments::INT_TYPE:
+      this->PopulateVariable(static_cast<int*>(cs->Variable), var);
+      break;
+    case CommandLineArguments::DOUBLE_TYPE:
+      this->PopulateVariable(static_cast<double*>(cs->Variable), var);
+      break;
+    case CommandLineArguments::STRING_TYPE:
+      this->PopulateVariable(static_cast<char**>(cs->Variable), var);
+      break;
+    case CommandLineArguments::STL_STRING_TYPE:
+      this->PopulateVariable(static_cast<kwsys_stl::string*>(cs->Variable), var);
+      break;
+    case CommandLineArguments::BOOL_TYPE:
+      this->PopulateVariable(static_cast<bool*>(cs->Variable), var);
+      break;
+    case CommandLineArguments::VECTOR_BOOL_TYPE:
+      this->PopulateVariable(static_cast<kwsys_stl::vector<bool>*>(cs->Variable), var);
+      break;
+    case CommandLineArguments::VECTOR_INT_TYPE:
+      this->PopulateVariable(static_cast<kwsys_stl::vector<int>*>(cs->Variable), var);
+      break;
+    case CommandLineArguments::VECTOR_DOUBLE_TYPE:
+      this->PopulateVariable(static_cast<kwsys_stl::vector<double>*>(cs->Variable), var);
+      break;
+    case CommandLineArguments::VECTOR_STRING_TYPE:
+      this->PopulateVariable(static_cast<kwsys_stl::vector<char*>*>(cs->Variable), var);
+      break;
+    case CommandLineArguments::VECTOR_STL_STRING_TYPE:
+      this->PopulateVariable(static_cast<kwsys_stl::vector<kwsys_stl::string>*>(cs->Variable), var);
+      break;
+    default:
+      kwsys_ios::cerr << "Got unknown variable type: \"" << cs->VariableType << "\"" << kwsys_ios::endl;
+      this->Internals->LastArgument --;
+      return 0;
+      }
+    }
+  return 1;
 }
 
 
-void
-th_print_long_ls(TAR *t)
-{
-  char modestring[12];
-#ifndef WIN32
-  struct passwd *pw;
-  struct group *gr;
-#endif
-  uid_t uid;
-  gid_t gid;
-  char username[_POSIX_LOGIN_NAME_MAX];
-  char groupname[_POSIX_LOGIN_NAME_MAX];
-  time_t mtime;
-  struct tm *mtm;
-
-#ifdef HAVE_STRFTIME
-  char timebuf[18];
-#else
-  const char *months[] = {
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-  };
-#endif
-
-  uid = th_get_uid(t);
-#ifndef WIN32
-  pw = getpwuid(uid);
-  if (pw != NULL)
-    strlcpy(username, pw->pw_name, sizeof(username));
-  else
-#endif
-    snprintf(username, sizeof(username), "%d", uid);
-  gid = th_get_gid(t);
-#ifndef WIN32
-  gr = getgrgid(gid);
-  if (gr != NULL)
-    strlcpy(groupname, gr->gr_name, sizeof(groupname));
-  else
-#endif
-    snprintf(groupname, sizeof(groupname), "%d", gid);
-    
-  strmode(th_get_mode(t), modestring);
-  printf("%.10s %-8.8s %-8.8s ", modestring, username, groupname);
-
-#ifndef WIN32
-  if (TH_ISCHR(t) || TH_ISBLK(t))
-    printf(" %3d, %3d ", th_get_devmajor(t), th_get_devminor(t));
-  else
-    printf("%9ld ", (long)th_get_size(t));
-#endif
-
-  mtime = th_get_mtime(t);
-  mtm = localtime(&mtime);
-#ifdef HAVE_STRFTIME
-  strftime(timebuf, sizeof(timebuf), "%h %e %H:%M %Y", mtm);
-  printf("%s", timebuf);
-#else
-  printf("%.3s %2d %2d:%02d %4d",
-         months[mtm->tm_mon],
-         mtm->tm_mday, mtm->tm_hour, mtm->tm_min, mtm->tm_year + 1900);
-#endif
-
-  printf(" %s", th_get_pathname(t));
-
-#ifndef _WIN32
-  if (TH_ISSYM(t) || TH_ISLNK(t))
-  {
-    if (TH_ISSYM(t))
-      printf(" -> ");
-    else
-      printf(" link to ");
-    if ((t->options & TAR_GNU) && t->th_buf.gnu_longlink != NULL)
-      printf("%s", t->th_buf.gnu_longlink);
-    else
-      printf("%.100s", t->th_buf.linkname);
-  }
-#endif
-
-  putchar('\n');
-}
-
-
+} // namespace KWSYS_NAMESPACE
