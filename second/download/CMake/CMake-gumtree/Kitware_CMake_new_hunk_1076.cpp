@@ -1,23 +1,17 @@
-    return -1;
-    }
+  this->Makefile->AddDefinition("PACKAGE_FIND_NAME", this->Name.c_str());
+  this->Makefile->AddDefinition("PACKAGE_FIND_VERSION",
+                                this->Version.c_str());
+  char buf[64];
+  sprintf(buf, "%u", this->VersionMajor);
+  this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_MAJOR", buf);
+  sprintf(buf, "%u", this->VersionMinor);
+  this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_MINOR", buf);
+  sprintf(buf, "%u", this->VersionPatch);
+  this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_PATCH", buf);
+  sprintf(buf, "%u", this->VersionTweak);
+  this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_TWEAK", buf);
+  sprintf(buf, "%u", this->VersionCount);
+  this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_COUNT", buf);
 
-    /* Strip trailing '/'...it confuses some Unixes (and BeOS)... */
-    strncpy(buf, filename, sizeof(buf)-1);
-    buf[sizeof(buf)-1] = 0;
-    len = strlen(buf);
-    if ((len > 0) && (buf[len-1] == '/'))
-      {
-      buf[len-1] = '\0';
-      }
-
-#ifdef DEBUG
-  printf("  ==> extracting: %s (mode %04o, directory)\n", filename,
-         mode);
-#endif
-#ifdef WIN32
-  if (mkdir(buf) == -1)
-#else
-  if (mkdir(buf, mode & 07777) == -1)
-#endif
-  {
-#ifdef __BORLANDC__
+  // Load the version check file.
+  bool found = false;

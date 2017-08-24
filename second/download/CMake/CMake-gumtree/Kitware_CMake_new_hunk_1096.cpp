@@ -1,10 +1,9 @@
-        char *buf;
-        yy_size_t n;
-        int i;
+    m_cmGeneratorChoice->SetStringSelection(generator);
+    
+    wxString str;
+    str.Printf("CMake %d.%d - %s", cmVersion::GetMajorVersion(),
+               cmVersion::GetMinorVersion(), 
+               cmVersion::GetReleaseVersion().c_str());
+    str.Printf("CMakeSetup v%i.%i%s", CMAKEGUI_MAJORVER, CMAKEGUI_MINORVER, CMAKEGUI_ADDVER);
 
-        /* Get memory for full buffer, including space for trailing EOB's. */
-        n = len + 2;
-        buf = (char *) cmDependsFortran_yyalloc(n ,yyscanner );
-        if ( ! buf )
-                YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yy_scan_bytes()" );
-
+    SetTitle(str);

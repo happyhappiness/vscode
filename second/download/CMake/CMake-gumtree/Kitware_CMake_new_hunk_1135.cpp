@@ -1,18 +1,18 @@
+  }
 
-  FORM* form = fm->GetForm();
-  // 10 == enter
-  if (!this->InEdit && ( key != 10 && key != KEY_ENTER ) )
-    {
-    return false;
-    }
+  p += 2;
+  tmp = Curl_base64_decode(p, &ptr);
+  if(tmp >= sizeof(tkt.dat)) {
+    free(ptr);
+    tmp=0;
+  }
+  if(!tmp || !ptr) {
+    Curl_failf(conn->data, "Failed to decode base64 in reply.\n");
+    Curl_set_command_prot(conn, save);
+    return CURLE_FTP_WEIRD_SERVER_REPLY;
+  }
+  memcpy((char *)tkt.dat, ptr, tmp);
+  free(ptr);
+  tkt.length = tmp;
+  tktcopy.length = tkt.length;
 
-  this->OriginalString=0;
-  this->Done = false;
-
-  char debugMessage[128];
-
-  // <Enter> is used to change edit mode (like <Esc> in vi).
-  while(!this->Done)
-    {
-    sprintf(debugMessage, "String widget handling input, key: %d", key);
-    cmCursesForm::LogMessage(debugMessage);

@@ -1,8 +1,14 @@
-  const char *terse;
-  const char *full;
-  char tmp[1024];
-  sprintf(tmp,"Version %d.%d (%s)", cmake::GetMajorVersion(),
-          cmake::GetMinorVersion(), cmVersion::GetReleaseVersion().c_str());
-  f << "<html>\n";
-  f << "<h1>Documentation for commands of CMake " << tmp << "</h1>\n";
-  f << "<ul>\n";
+      fprintf(stderr, "  item %d [%s]\n", i,
+              this->EntryList[i].Item.c_str());
+      }
+    }
+  fprintf(stderr, "\n");
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeLinkDepends::VisitComponent(cmComputeComponentGraph const& ccg,
+                                     unsigned int c)
+{
+  // Check if the node has already been visited.
+  if(this->ComponentVisited[c])

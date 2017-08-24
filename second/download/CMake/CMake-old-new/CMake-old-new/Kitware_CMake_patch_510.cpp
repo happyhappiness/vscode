@@ -1,43 +1,28 @@
-@@ -29,9 +29,10 @@
- # include "cmVariableWatch.h"
- # include "cmVersion.h"
- # include <cmsys/Terminal.h>
--# include <cmsys/Directory.hxx>
- #endif
+@@ -162,7 +162,8 @@ bool cmCTestCoverageHandler::StartCoverageLogFile(
+   sprintf(covLogFilename, "CoverageLog-%d", logFileCount);
+   cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Open file: "
+     << covLogFilename << std::endl);
+-  if (!this->StartResultingXML(covLogFilename, covLogFile) )
++  if(!this->StartResultingXML(cmCTest::PartCoverage,
++                              covLogFilename, covLogFile))
+     {
+     cmCTestLog(this->CTest, ERROR_MESSAGE, "Cannot open log file: "
+       << covLogFilename << std::endl);
+@@ -381,7 +382,7 @@ int cmCTestCoverageHandler::ProcessHandler()
+   cmGeneratedFileStream covSumFile;
+   cmGeneratedFileStream covLogFile;
  
-+# include <cmsys/Directory.hxx>
-+
- // only build kdevelop generator on non-windows platforms
- // when not bootstrapping cmake
- #if !defined(_WIN32)
-@@ -977,7 +978,6 @@ int cmake::ExecuteCMakeCommand(std::vector<std::string>& args)
-     // Command to start progress for a build
-     else if (args[1] == "cmake_progress_start" && args.size() == 4)
-       {
--#if defined(CMAKE_BUILD_WITH_CMAKE)
-       // bascially remove the directory
-       std::string dirName = args[2];
-       dirName += "/Progress";
-@@ -993,14 +993,12 @@ int cmake::ExecuteCMakeCommand(std::vector<std::string>& args)
-         fprintf(progFile,"%i\n",count);
-         fclose(progFile);
-         }
--#endif
-       return 0;
-       }
- 
-     // Command to report progress for a build
-     else if (args[1] == "cmake_progress_report" && args.size() >= 4)
-       {
--#if defined(CMAKE_BUILD_WITH_CMAKE)
-       std::string dirName = args[2];
-       dirName += "/Progress";
-       std::string fName;
-@@ -1036,7 +1034,6 @@ int cmake::ExecuteCMakeCommand(std::vector<std::string>& args)
-           }
-         fclose(progFile);
-         }
--#endif
-       return 0;
-       }
-     
+-  if (!this->StartResultingXML("Coverage", covSumFile))
++  if(!this->StartResultingXML(cmCTest::PartCoverage, "Coverage", covSumFile))
+     {
+     cmCTestLog(this->CTest, ERROR_MESSAGE,
+       "Cannot open coverage summary file." << std::endl);
+@@ -1434,7 +1435,7 @@ int cmCTestCoverageHandler::RunBullseyeSourceSummary(
+   std::ostream& tmpLog = *cont->OFS;
+   // copen the Coverage.xml file in the Testing directory
+   cmGeneratedFileStream covSumFile; 
+-  if (!this->StartResultingXML("Coverage", covSumFile))
++  if(!this->StartResultingXML(cmCTest::PartCoverage, "Coverage", covSumFile))
+     {
+     cmCTestLog(this->CTest, ERROR_MESSAGE,
+       "Cannot open coverage summary file." << std::endl);

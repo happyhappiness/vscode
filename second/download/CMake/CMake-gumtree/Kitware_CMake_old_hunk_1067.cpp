@@ -1,8 +1,7 @@
-    32    start of data block
-
-    */
-
-    snprintf((char *)ntlmbuf, sizeof(ntlmbuf), "NTLMSSP%c"
-             "\x01%c%c%c" /* 32-bit type = 1 */
-             "%c%c%c%c"   /* 32-bit NTLM flag field */
-             "%c%c"  /* domain length */
+int check_defines_C(void)
+{
+  int result = 1;
+#ifndef PREPROCESS_VS6
+  if(strcmp(FILE_STRING, STRING_VALUE) != 0)
+    {
+    fprintf(stderr,

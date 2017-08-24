@@ -1,1282 +1,851 @@
-/*=========================================================================
+/* gzio.c -- IO on .gz files
+ * Copyright (C) 1995-2002 Jean-loup Gailly.
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ *
+ * Compile this file with -DNO_DEFLATE to avoid the compression code.
+ */
 
-  Program:   CMake - Cross-Platform Makefile Generator
-  Module:    $RCSfile$
-  Language:  C++
-  Date:      $Date$
-  Version:   $Revision$
+/* @(#) $Id$ */
 
-  Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
-  See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
+#include <stdio.h>
 
-     This software is distributed WITHOUT ANY WARRANTY; without even 
-     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
-     PURPOSE.  See the above copyright notices for more information.
+#include "zutil.h"
 
-=========================================================================*/
-#include "cmGlobalGenerator.h"
-#include "cmLocalVisualStudio6Generator.h"
-#include "cmMakefile.h"
-#include "cmSystemTools.h"
-#include "cmSourceFile.h"
-#include "cmCacheManager.h"
-#include "cmake.h"
+struct internal_state {int dummy;}; /* for buggy compilers */
 
-#include <cmsys/RegularExpression.hxx>
-
-cmLocalVisualStudio6Generator::cmLocalVisualStudio6Generator()
-{
-}
-
-cmLocalVisualStudio6Generator::~cmLocalVisualStudio6Generator()
-{
-}
-
-
-void cmLocalVisualStudio6Generator::Generate()
-{ 
-  std::set<cmStdString> lang;
-  lang.insert("C");
-  lang.insert("CXX");
-  this->CreateCustomTargetsAndCommands(lang);
-  this->OutputDSPFile();
-}
-
-void cmLocalVisualStudio6Generator::OutputDSPFile()
-{ 
-  // If not an in source build, then create the output directory
-  if(strcmp(m_Makefile->GetStartOutputDirectory(),
-            m_Makefile->GetHomeDirectory()) != 0)
-    {
-    if(!cmSystemTools::MakeDirectory(m_Makefile->GetStartOutputDirectory()))
-      {
-      cmSystemTools::Error("Error creating directory ",
-                           m_Makefile->GetStartOutputDirectory());
-      }
-    }
-
-  // Setup /I and /LIBPATH options for the resulting DSP file.  VS 6
-  // truncates long include paths so make it as short as possible if
-  // the length threatents this problem.
-  unsigned int maxIncludeLength = 3000;
-  bool useShortPath = false;
-  for(int j=0; j < 2; ++j)
-    {
-    std::vector<std::string> includes;
-    this->GetIncludeDirectories(includes);
-    std::vector<std::string>::iterator i;
-    for(i = includes.begin(); i != includes.end(); ++i)
-      {
-      std::string tmp = this->ConvertToOptionallyRelativeOutputPath(i->c_str());
-      if(useShortPath)
-        {
-        cmSystemTools::GetShortPath(tmp.c_str(), tmp);
-        }
-      m_IncludeOptions +=  " /I ";
-
-      // quote if not already quoted
-      if (tmp[0] != '"')
-        {
-        m_IncludeOptions += "\"";
-        m_IncludeOptions += tmp;
-        m_IncludeOptions += "\"";
-        }
-      else
-        {
-        m_IncludeOptions += tmp;
-        }
-      }
-    if(j == 0 && m_IncludeOptions.size() > maxIncludeLength)
-      {
-      m_IncludeOptions = "";
-      useShortPath = true;
-      }
-    else
-      {
-      break;
-      }
-    }
-  
-  // Create the DSP or set of DSP's for libraries and executables
-
-  // clear project names
-  m_CreatedProjectNames.clear();
-  // Call TraceVSDependencies on all targets
-  cmTargets &tgts = m_Makefile->GetTargets(); 
-  for(cmTargets::iterator l = tgts.begin(); 
-      l != tgts.end(); l++)
-    {
-    // Add a rule to regenerate the build system when the target
-    // specification source changes.
-    const char* suppRegenRule =
-      m_Makefile->GetDefinition("CMAKE_SUPPRESS_REGENERATION");
-    if (!cmSystemTools::IsOn(suppRegenRule))
-      {
-      this->AddDSPBuildRule(l->second);
-      }
-
-    // INCLUDE_EXTERNAL_MSPROJECT command only affects the workspace
-    // so don't build a projectfile for it
-    if ((l->second.GetType() != cmTarget::INSTALL_FILES)
-        && (l->second.GetType() != cmTarget::INSTALL_PROGRAMS)
-        && (strncmp(l->first.c_str(), "INCLUDE_EXTERNAL_MSPROJECT", 26) != 0))
-      {
-      cmTarget& target = l->second;
-      target.TraceVSDependencies(target.GetName(), m_Makefile);
-      }
-    }
-  // now for all custom commands that are not used directly in a 
-  // target, add them to all targets in the current directory or
-  // makefile
-  std::vector<cmSourceFile*> & classesmf = m_Makefile->GetSourceFiles();
-  for(std::vector<cmSourceFile*>::const_iterator i = classesmf.begin(); 
-      i != classesmf.end(); i++)
-    {
-    if(cmCustomCommand* cc = (*i)->GetCustomCommand())
-      {
-      if(!cc->IsUsed())
-        {
-        for(cmTargets::iterator l = tgts.begin(); 
-            l != tgts.end(); l++)
-          {
-          if ((l->second.GetType() != cmTarget::INSTALL_FILES)
-              && (l->second.GetType() != cmTarget::INSTALL_PROGRAMS)
-              && (strncmp(l->first.c_str(), "INCLUDE_EXTERNAL_MSPROJECT", 26) != 0)
-              && (strcmp(l->first.c_str(), "ALL_BUILD") != 0)
-              && (strcmp(l->first.c_str(), "RUN_TESTS") != 0)
-              && (strcmp(l->first.c_str(), "INSTALL") != 0))
-            {
-            cmTarget& target = l->second;
-            bool sameAsTarget = false;
-            // make sure we don't add a custom command that depends on
-            // this target
-            for(unsigned int k =0; k < cc->GetDepends().size(); k++)
-              {
-              if(cmSystemTools::GetFilenameName(cc->GetDepends()[k]) == target.GetFullName())
-                {
-                sameAsTarget = true;
-                }
-              }
-            if(!sameAsTarget)
-              {
-              target.GetSourceFiles().push_back(*i);
-              }
-            }
-          }
-        }
-      }
-    }
-  // build any targets
-  for(cmTargets::iterator l = tgts.begin(); 
-      l != tgts.end(); l++)
-    {
-    switch(l->second.GetType())
-      {
-      case cmTarget::STATIC_LIBRARY:
-        this->SetBuildType(STATIC_LIBRARY, l->first.c_str(), l->second);
-        break;
-      case cmTarget::SHARED_LIBRARY:
-      case cmTarget::MODULE_LIBRARY:
-        this->SetBuildType(DLL, l->first.c_str(), l->second);
-        break;
-      case cmTarget::EXECUTABLE:
-        this->SetBuildType(EXECUTABLE,l->first.c_str(), l->second);
-        break;
-      case cmTarget::UTILITY:
-      case cmTarget::GLOBAL_TARGET:
-        this->SetBuildType(UTILITY, l->first.c_str(), l->second);
-        break;
-      case cmTarget::INSTALL_FILES:
-        break;
-      case cmTarget::INSTALL_PROGRAMS:
-        break;
-      default:
-        cmSystemTools::Error("Bad target type", l->first.c_str());
-        break;
-      }
-    // INCLUDE_EXTERNAL_MSPROJECT command only affects the workspace
-    // so don't build a projectfile for it
-    if ((l->second.GetType() != cmTarget::INSTALL_FILES)
-        && (l->second.GetType() != cmTarget::INSTALL_PROGRAMS)
-        && (strncmp(l->first.c_str(), "INCLUDE_EXTERNAL_MSPROJECT", 26) != 0))
-      {
-      // check to see if the dsp is going into a sub-directory
-      std::string::size_type pos = l->first.rfind('/');
-      if(pos != std::string::npos)
-        {
-        std::string dir = m_Makefile->GetStartOutputDirectory();
-        dir += "/";
-        dir += l->first.substr(0, pos);
-        if(!cmSystemTools::MakeDirectory(dir.c_str()))
-          {
-          cmSystemTools::Error("Error creating directory ", dir.c_str());
-          }
-        }
-      this->CreateSingleDSP(l->first.c_str(),l->second);
-      }
-    }
-}
-
-void cmLocalVisualStudio6Generator::CreateSingleDSP(const char *lname, cmTarget &target)
-{
-  // add to the list of projects
-  std::string pname = lname;
-  m_CreatedProjectNames.push_back(pname);
-  // create the dsp.cmake file
-  std::string fname;
-  fname = m_Makefile->GetStartOutputDirectory();
-  fname += "/";
-  fname += lname;
-  fname += ".dsp";
-  // save the name of the real dsp file
-  std::string realDSP = fname;
-  fname += ".cmake";
-  std::ofstream fout(fname.c_str());
-  if(!fout)
-    {
-    cmSystemTools::Error("Error Writing ", fname.c_str());
-    cmSystemTools::ReportLastSystemError("");
-    }
-  this->WriteDSPFile(fout,lname,target);
-  fout.close();
-  // if the dsp file has changed, then write it.
-  cmSystemTools::CopyFileIfDifferent(fname.c_str(), realDSP.c_str());
-}
-
-
-void cmLocalVisualStudio6Generator::AddDSPBuildRule(cmTarget& tgt)
-{
-  std::string dspname = tgt.GetName();
-  dspname += ".dsp.cmake";
-  const char* dsprule = m_Makefile->GetRequiredDefinition("CMAKE_COMMAND");
-  cmCustomCommandLine commandLine;
-  commandLine.push_back(dsprule);
-  std::string makefileIn = m_Makefile->GetStartDirectory();
-  makefileIn += "/";
-  makefileIn += "CMakeLists.txt";
-  std::string args;
-  args = "-H";
-  args +=
-    this->Convert(m_Makefile->GetHomeDirectory(),START_OUTPUT, SHELL, true);
-  commandLine.push_back(args);
-  args = "-B";
-  args += 
-    this->Convert(m_Makefile->GetHomeOutputDirectory(), 
-                  START_OUTPUT, SHELL, true);
-  commandLine.push_back(args);
-
-  std::string configFile = 
-    m_Makefile->GetRequiredDefinition("CMAKE_ROOT");
-  configFile += "/Templates/CMakeWindowsSystemConfig.cmake";
-  std::vector<std::string> listFiles = m_Makefile->GetListFiles();
-  bool found = false;
-  for(std::vector<std::string>::iterator i = listFiles.begin();
-      i != listFiles.end(); ++i)
-    {
-    if(*i == configFile)
-      {
-      found  = true;
-      }
-    }
-  if(!found)
-    {
-    listFiles.push_back(configFile);
-    }
-
-  cmCustomCommandLines commandLines;
-  commandLines.push_back(commandLine);
-  const char* no_comment = 0;
-  const char* no_working_directory = 0;
-  m_Makefile->AddCustomCommandToOutput(dspname.c_str(), listFiles, makefileIn.c_str(),
-                                       commandLines, no_comment, no_working_directory, true);
-  if(cmSourceFile* file = m_Makefile->GetSource(makefileIn.c_str()))
-    {
-    tgt.GetSourceFiles().push_back(file);
-    }
-  else
-    {
-    cmSystemTools::Error("Error adding rule for ", makefileIn.c_str());
-    }
-}
-
-
-void cmLocalVisualStudio6Generator::WriteDSPFile(std::ostream& fout, 
-                                                 const char *libName,
-                                                 cmTarget &target)
-{
-  // For utility targets need custom command since pre- and post-
-  // build does not do anything in Visual Studio 6.  In order for the
-  // rules to run in the correct order as custom commands, we need
-  // special care for dependencies.  The first rule must depend on all
-  // the dependencies of all the rules.  The later rules must each
-  // depend only on the previous rule.
-  if ((target.GetType() == cmTarget::UTILITY ||
-      target.GetType() == cmTarget::GLOBAL_TARGET) &&
-      (!target.GetPreBuildCommands().empty() ||
-       !target.GetPostBuildCommands().empty()))
-    {
-    // Accumulate the dependencies of all the commands.
-    std::vector<std::string> depends;
-    for (std::vector<cmCustomCommand>::const_iterator cr =
-           target.GetPreBuildCommands().begin();
-         cr != target.GetPreBuildCommands().end(); ++cr)
-      {
-      depends.insert(depends.end(),
-                     cr->GetDepends().begin(), cr->GetDepends().end());
-      }
-    for (std::vector<cmCustomCommand>::const_iterator cr =
-           target.GetPostBuildCommands().begin();
-         cr != target.GetPostBuildCommands().end(); ++cr)
-      {
-      depends.insert(depends.end(),
-                     cr->GetDepends().begin(), cr->GetDepends().end());
-      }
-
-    // Add the pre- and post-build commands in order.
-    int count = 1;
-    for (std::vector<cmCustomCommand>::const_iterator cr =
-           target.GetPreBuildCommands().begin();
-         cr != target.GetPreBuildCommands().end(); ++cr)
-      {
-      this->AddUtilityCommandHack(target, count++, depends, *cr);
-      }
-    for (std::vector<cmCustomCommand>::const_iterator cr =
-           target.GetPostBuildCommands().begin();
-         cr != target.GetPostBuildCommands().end(); ++cr)
-      {
-      this->AddUtilityCommandHack(target, count++, depends, *cr);
-      }
-    }
-  
-  // trace the visual studio dependencies
-  std::string name = libName;
-  name += ".dsp.cmake";
-
-  // We may be modifying the source groups temporarily, so make a copy.
-  std::vector<cmSourceGroup> sourceGroups = m_Makefile->GetSourceGroups();
-  
-  // get the classes from the source lists then add them to the groups
-  std::vector<cmSourceFile*> & classes = target.GetSourceFiles();
-
-  // now all of the source files have been properly assigned to the target
-  // now stick them into source groups using the reg expressions
-  for(std::vector<cmSourceFile*>::iterator i = classes.begin(); 
-      i != classes.end(); i++)
-    {
-    // Add the file to the list of sources.
-    std::string source = (*i)->GetFullPath();
-    cmSourceGroup& sourceGroup = m_Makefile->FindSourceGroup(source.c_str(),
-                                                             sourceGroups);
-    sourceGroup.AssignSource(*i);
-    // while we are at it, if it is a .rule file then for visual studio 6 we
-    // must generate it
-    if ((*i)->GetSourceExtension() == "rule")
-      {
-      if(!cmSystemTools::FileExists(source.c_str()))
-        {
-        cmSystemTools::ReplaceString(source, "$(IntDir)/", "");
-#if defined(_WIN32) || defined(__CYGWIN__)
-        std::ofstream fout(source.c_str(), 
-                           std::ios::binary | std::ios::out | std::ios::trunc);
-#else
-        std::ofstream fout(source.c_str(), 
-                           std::ios::out | std::ios::trunc);
+#ifndef Z_BUFSIZE
+#  ifdef MAXSEG_64K
+#    define Z_BUFSIZE 4096 /* minimize memory usage for 16-bit DOS */
+#  else
+#    define Z_BUFSIZE 16384
+#  endif
 #endif
-        if(fout)
-          {
-          fout.write("# generated from CMake",22);
-          fout.flush();
-          fout.close();
-          }
-        }
-      }
+#ifndef Z_PRINTF_BUFSIZE
+#  define Z_PRINTF_BUFSIZE 4096
+#endif
+
+#define ALLOC(size) malloc(size)
+#define TRYFREE(p) {if (p) free(p);}
+
+static int gz_magic[2] = {0x1f, 0x8b}; /* gzip magic header */
+
+/* gzip flag byte */
+#define ASCII_FLAG   0x01 /* bit 0 set: file probably ascii text */
+#define HEAD_CRC     0x02 /* bit 1 set: header CRC present */
+#define EXTRA_FIELD  0x04 /* bit 2 set: extra field present */
+#define ORIG_NAME    0x08 /* bit 3 set: original file name present */
+#define COMMENT      0x10 /* bit 4 set: file comment present */
+#define RESERVED     0xE0 /* bits 5..7: reserved */
+
+typedef struct gz_stream {
+    z_stream stream;
+    int      z_err;   /* error code for last stream operation */
+    int      z_eof;   /* set if end of input file */
+    FILE     *file;   /* .gz file */
+    Byte     *inbuf;  /* input buffer */
+    Byte     *outbuf; /* output buffer */
+    uLong    crc;     /* crc32 of uncompressed data */
+    char     *msg;    /* error message */
+    char     *path;   /* path name for debugging only */
+    int      transparent; /* 1 if input file is not a .gz file */
+    char     mode;    /* 'w' or 'r' */
+    long     startpos; /* start of compressed data in file (header skipped) */
+} gz_stream;
+
+
+local gzFile gz_open      OF((const char *path, const char *mode, int  fd));
+local int do_flush        OF((gzFile file, int flush));
+local int    get_byte     OF((gz_stream *s));
+local void   check_header OF((gz_stream *s));
+local int    destroy      OF((gz_stream *s));
+local void   putLong      OF((FILE *file, uLong x));
+local uLong  getLong      OF((gz_stream *s));
+
+/* ===========================================================================
+     Opens a gzip (.gz) file for reading or writing. The mode parameter
+   is as in fopen ("rb" or "wb"). The file is given either by file descriptor
+   or path name (if fd == -1).
+     gz_open return NULL if the file could not be opened or if there was
+   insufficient memory to allocate the (de)compression state; errno
+   can be checked to distinguish the two cases (if errno is zero, the
+   zlib error is Z_MEM_ERROR).
+*/
+local gzFile gz_open (path, mode, fd)
+    const char *path;
+    const char *mode;
+    int  fd;
+{
+    int err;
+    int level = Z_DEFAULT_COMPRESSION; /* compression level */
+    int strategy = Z_DEFAULT_STRATEGY; /* compression strategy */
+    char *p = (char*)mode;
+    gz_stream *s;
+    char fmode[80]; /* copy of mode, without the compression level */
+    char *m = fmode;
+
+    if (!path || !mode) return Z_NULL;
+
+    s = (gz_stream *)ALLOC(sizeof(gz_stream));
+    if (!s) return Z_NULL;
+
+    s->stream.zalloc = (alloc_func)0;
+    s->stream.zfree = (free_func)0;
+    s->stream.opaque = (voidpf)0;
+    s->stream.next_in = s->inbuf = Z_NULL;
+    s->stream.next_out = s->outbuf = Z_NULL;
+    s->stream.avail_in = s->stream.avail_out = 0;
+    s->file = NULL;
+    s->z_err = Z_OK;
+    s->z_eof = 0;
+    s->crc = crc32(0L, Z_NULL, 0);
+    s->msg = NULL;
+    s->transparent = 0;
+
+    s->path = (char*)ALLOC(strlen(path)+1);
+    if (s->path == NULL) {
+        return destroy(s), (gzFile)Z_NULL;
     }
-  
-  // Write the DSP file's header.
-  this->WriteDSPHeader(fout, libName, target, sourceGroups);
-  
+    strcpy(s->path, path); /* do this early for debugging */
 
-  // Loop through every source group.
-  for(std::vector<cmSourceGroup>::const_iterator sg = sourceGroups.begin();
-      sg != sourceGroups.end(); ++sg)
-    {
-    this->WriteGroup(&(*sg), target, fout, libName);
-    }  
+    s->mode = '\0';
+    do {
+        if (*p == 'r') s->mode = 'r';
+        if (*p == 'w' || *p == 'a') s->mode = 'w';
+        if (*p >= '0' && *p <= '9') {
+            level = *p - '0';
+        } else if (*p == 'f') {
+          strategy = Z_FILTERED;
+        } else if (*p == 'h') {
+          strategy = Z_HUFFMAN_ONLY;
+        } else {
+            *m++ = *p; /* copy the mode */
+        }
+    } while (*p++ && m != fmode + sizeof(fmode));
+    if (s->mode == '\0') return destroy(s), (gzFile)Z_NULL;
+    
+    if (s->mode == 'w') {
+#ifdef NO_DEFLATE
+        err = Z_STREAM_ERROR;
+#else
+        err = deflateInit2(&(s->stream), level,
+                           Z_DEFLATED, -MAX_WBITS, DEF_MEM_LEVEL, strategy);
+        /* windowBits is passed < 0 to suppress zlib header */
 
-  // Write the DSP file's footer.
-  this->WriteDSPFooter(fout);
+        s->stream.next_out = s->outbuf = (Byte*)ALLOC(Z_BUFSIZE);
+#endif
+        if (err != Z_OK || s->outbuf == Z_NULL) {
+            return destroy(s), (gzFile)Z_NULL;
+        }
+    } else {
+        s->stream.next_in  = s->inbuf = (Byte*)ALLOC(Z_BUFSIZE);
+
+        err = inflateInit2(&(s->stream), -MAX_WBITS);
+        /* windowBits is passed < 0 to tell that there is no zlib header.
+         * Note that in this case inflate *requires* an extra "dummy" byte
+         * after the compressed stream in order to complete decompression and
+         * return Z_STREAM_END. Here the gzip CRC32 ensures that 4 bytes are
+         * present after the compressed stream.
+         */
+        if (err != Z_OK || s->inbuf == Z_NULL) {
+            return destroy(s), (gzFile)Z_NULL;
+        }
+    }
+    s->stream.avail_out = Z_BUFSIZE;
+
+    errno = 0;
+    s->file = fd < 0 ? F_OPEN(path, fmode) : (FILE*)fdopen(fd, fmode);
+
+    if (s->file == NULL) {
+        return destroy(s), (gzFile)Z_NULL;
+    }
+    if (s->mode == 'w') {
+        /* Write a very simple .gz header:
+         */
+        fprintf(s->file, "%c%c%c%c%c%c%c%c%c%c", gz_magic[0], gz_magic[1],
+             Z_DEFLATED, 0 /*flags*/, 0,0,0,0 /*time*/, 0 /*xflags*/, OS_CODE);
+        s->startpos = 10L;
+        /* We use 10L instead of ftell(s->file) to because ftell causes an
+         * fflush on some systems. This version of the library doesn't use
+         * startpos anyway in write mode, so this initialization is not
+         * necessary.
+         */
+    } else {
+        check_header(s); /* skip the .gz header */
+        s->startpos = (ftell(s->file) - s->stream.avail_in);
+    }
+    
+    return (gzFile)s;
 }
 
-void cmLocalVisualStudio6Generator::WriteGroup(const cmSourceGroup *sg, cmTarget target, std::ostream &fout, const char *libName)
+/* ===========================================================================
+     Opens a gzip (.gz) file for reading or writing.
+*/
+gzFile ZEXPORT gzopen (path, mode)
+    const char *path;
+    const char *mode;
 {
-  const std::vector<const cmSourceFile *> &sourceFiles = 
-    sg->GetSourceFiles();
-  // If the group is empty, don't write it at all.
-        
-  if(sourceFiles.empty())
-    { 
-    return; 
-    }
-    
-  // If the group has a name, write the header.
-  std::string name = sg->GetName();
-  if(name != "")
-    {
-    this->WriteDSPBeginGroup(fout, name.c_str(), "");
-    }
-    
-  // Loop through each source in the source group.
-  for(std::vector<const cmSourceFile *>::const_iterator sf =
-        sourceFiles.begin(); sf != sourceFiles.end(); ++sf)
-    {
-    std::string source = (*sf)->GetFullPath();
-    const cmCustomCommand *command = 
-      (*sf)->GetCustomCommand();
-    std::string compileFlags;
-    std::vector<std::string> depends;
+    return gz_open (path, mode, -1);
+}
 
-    // Add per-source file flags.
-    if(const char* cflags = (*sf)->GetProperty("COMPILE_FLAGS"))
-      {
-      compileFlags += cflags;
-      }
+/* ===========================================================================
+     Associate a gzFile with the file descriptor fd. fd is not dup'ed here
+   to mimic the behavio(u)r of fdopen.
+*/
+gzFile ZEXPORT gzdopen (fd, mode)
+    int fd;
+    const char *mode;
+{
+    char name[20];
 
-    const char* lang = 
-      m_GlobalGenerator->GetLanguageFromExtension((*sf)->GetSourceExtension().c_str());
-    if(lang && strcmp(lang, "CXX") == 0)
-      {
-      // force a C++ file type
-      compileFlags += " /TP ";
-      }
-      
-    // Check for extra object-file dependencies.
-    const char* dependsValue = (*sf)->GetProperty("OBJECT_DEPENDS");
-    if(dependsValue)
-      {
-      cmSystemTools::ExpandListArgument(dependsValue, depends);
-      }
-    if (source != libName || target.GetType() == cmTarget::UTILITY ||
-      target.GetType() == cmTarget::GLOBAL_TARGET)
-      {
-      fout << "# Begin Source File\n\n";
-        
-      // Tell MS-Dev what the source is.  If the compiler knows how to
-      // build it, then it will.
-      fout << "SOURCE=" << 
-        this->ConvertToOptionallyRelativeOutputPath(source.c_str()) << "\n\n";
-      if(!depends.empty())
-        {
-        // Write out the dependencies for the rule.
-        fout << "USERDEP__HACK=";
-        for(std::vector<std::string>::const_iterator d = depends.begin();
-            d != depends.end(); ++d)
-          { 
-          fout << "\\\n\t" << 
-            this->ConvertToOptionallyRelativeOutputPath(d->c_str());
-          }
-        fout << "\n";
+    if (fd < 0) return (gzFile)Z_NULL;
+    sprintf(name, "<fd:%d>", fd); /* for debugging */
+
+    return gz_open (name, mode, fd);
+}
+
+/* ===========================================================================
+ * Update the compression level and strategy
+ */
+int ZEXPORT gzsetparams (file, level, strategy)
+    gzFile file;
+    int level;
+    int strategy;
+{
+    gz_stream *s = (gz_stream*)file;
+
+    if (s == NULL || s->mode != 'w') return Z_STREAM_ERROR;
+
+    /* Make room to allow flushing */
+    if (s->stream.avail_out == 0) {
+
+        s->stream.next_out = s->outbuf;
+        if (fwrite(s->outbuf, 1, Z_BUFSIZE, s->file) != Z_BUFSIZE) {
+            s->z_err = Z_ERRNO;
         }
-      if (command)
-        {
-        std::string script =
-          this->ConstructScript(command->GetCommandLines(), 
-                                command->GetWorkingDirectory(),
-                                "\\\n\t");
-        const char* comment = command->GetComment();
-        const char* flags = compileFlags.size() ? compileFlags.c_str(): 0;
-        this->WriteCustomRule(fout, source.c_str(), script.c_str(), 
-                              (*comment?comment:"Custom Rule"),
-                              command->GetDepends(), 
-                              command->GetOutput(), flags);
+        s->stream.avail_out = Z_BUFSIZE;
+    }
+
+    return deflateParams (&(s->stream), level, strategy);
+}
+
+/* ===========================================================================
+     Read a byte from a gz_stream; update next_in and avail_in. Return EOF
+   for end of file.
+   IN assertion: the stream s has been sucessfully opened for reading.
+*/
+local int get_byte(s)
+    gz_stream *s;
+{
+    if (s->z_eof) return EOF;
+    if (s->stream.avail_in == 0) {
+        errno = 0;
+        s->stream.avail_in = fread(s->inbuf, 1, Z_BUFSIZE, s->file);
+        if (s->stream.avail_in == 0) {
+            s->z_eof = 1;
+            if (ferror(s->file)) s->z_err = Z_ERRNO;
+            return EOF;
         }
-      else if(compileFlags.size())
-        {
-        for(std::vector<std::string>::iterator i
-              = m_Configurations.begin(); i != m_Configurations.end(); ++i)
-          { 
-          if (i == m_Configurations.begin())
-            {
-            fout << "!IF  \"$(CFG)\" == " << i->c_str() << std::endl;
+        s->stream.next_in = s->inbuf;
+    }
+    s->stream.avail_in--;
+    return *(s->stream.next_in)++;
+}
+
+/* ===========================================================================
+      Check the gzip header of a gz_stream opened for reading. Set the stream
+    mode to transparent if the gzip magic header is not present; set s->err
+    to Z_DATA_ERROR if the magic header is present but the rest of the header
+    is incorrect.
+    IN assertion: the stream s has already been created sucessfully;
+       s->stream.avail_in is zero for the first time, but may be non-zero
+       for concatenated .gz files.
+*/
+local void check_header(s)
+    gz_stream *s;
+{
+    int method; /* method byte */
+    int flags;  /* flags byte */
+    uInt len;
+    int c;
+
+    /* Check the gzip magic header */
+    for (len = 0; len < 2; len++) {
+        c = get_byte(s);
+        if (c != gz_magic[len]) {
+            if (len != 0) s->stream.avail_in++, s->stream.next_in--;
+            if (c != EOF) {
+                s->stream.avail_in++, s->stream.next_in--;
+                s->transparent = 1;
             }
-          else 
-            {
-            fout << "!ELSEIF  \"$(CFG)\" == " << i->c_str() << std::endl;
-            }
-          fout << "\n# ADD CPP " << compileFlags << "\n\n";
-          } 
-        fout << "!ENDIF\n\n";
+            s->z_err = s->stream.avail_in != 0 ? Z_OK : Z_STREAM_END;
+            return;
         }
-      fout << "# End Source File\n";
-      }
     }
-
-  std::vector<cmSourceGroup> children  = sg->GetGroupChildren();
-
-  for(unsigned int i=0;i<children.size();++i)
-    {
-    this->WriteGroup(&children[i], target, fout, libName);
-    }
-
-
-
-    
-  // If the group has a name, write the footer.
-  if(name != "")
-    {
-    this->WriteDSPEndGroup(fout);
-    }
-
-}
-
-
-void
-cmLocalVisualStudio6Generator
-::AddUtilityCommandHack(cmTarget& target, int count,
-                        std::vector<std::string>& depends,
-                        const cmCustomCommand& origCommand)
-{
-  // Create a fake output that forces the rule to run.
-  char* output = new char[(strlen(m_Makefile->GetStartOutputDirectory()) +
-                           strlen(target.GetName()) + 30)];
-  sprintf(output,"%s/%s_force_%i", m_Makefile->GetStartOutputDirectory(),
-          target.GetName(), count);
-
-  // Add the rule with the given dependencies and commands.
-  const char* no_main_dependency = 0;
-  m_Makefile->AddCustomCommandToOutput(output,
-                                       depends,
-                                       no_main_dependency,
-                                       origCommand.GetCommandLines(),
-                                       origCommand.GetComment(),
-                                       origCommand.GetWorkingDirectory());
-
-  // Replace the dependencies with the output of this rule so that the
-  // next rule added will run after this one.
-  depends.clear();
-  depends.push_back(output);
-
-  // Add a source file representing this output to the project.
-  cmSourceFile* outsf = m_Makefile->GetSourceFileWithOutput(output);
-  target.GetSourceFiles().push_back(outsf);
-
-  // Free the fake output name.
-  delete [] output;
-}
-
-void cmLocalVisualStudio6Generator::WriteCustomRule(std::ostream& fout,
-                                                    const char* source,
-                                                    const char* command,
-                                                    const char* comment,
-                                                    const std::vector<std::string>& depends,
-                                                    const char *output,
-                                                    const char* flags
-  )
-{
-  std::vector<std::string>::iterator i;
-  for(i = m_Configurations.begin(); i != m_Configurations.end(); ++i)
-    {
-    if (i == m_Configurations.begin())
-      {
-      fout << "!IF  \"$(CFG)\" == " << i->c_str() << std::endl;
-      }
-    else 
-      {
-      fout << "!ELSEIF  \"$(CFG)\" == " << i->c_str() << std::endl;
-      }
-    if(flags)
-      {
-      fout << "\n# ADD CPP " << flags << "\n\n";
-      }
-    // Write out the dependencies for the rule.
-    fout << "USERDEP__HACK=";
-    for(std::vector<std::string>::const_iterator d = depends.begin();
-        d != depends.end(); ++d)
-      {
-      // Lookup the real name of the dependency in case it is a CMake target.
-      std::string dep = this->GetRealDependency(d->c_str(), i->c_str());
-      fout << "\\\n\t" <<
-        this->ConvertToOptionallyRelativeOutputPath(dep.c_str());
-      }
-    fout << "\n";
-
-    fout << "# PROP Ignore_Default_Tool 1\n";
-    fout << "# Begin Custom Build - Building " << comment 
-         << " $(InputPath)\n\n";
-    if(output == 0)
-      {
-      fout << source << "_force :  \"$(SOURCE)\" \"$(INTDIR)\" \"$(OUTDIR)\"\n\t";
-      fout << command << "\n\n";
-      }
-    
-    // Write a rule for every output generated by this command.
-    fout << this->ConvertToOptionallyRelativeOutputPath(output)
-         << " :  \"$(SOURCE)\" \"$(INTDIR)\" \"$(OUTDIR)\"\n\t";
-    fout << command << "\n\n";
-    fout << "# End Custom Build\n\n";
-    }
-  
-  fout << "!ENDIF\n\n";
-}
-
-
-void cmLocalVisualStudio6Generator::WriteDSPBeginGroup(std::ostream& fout, 
-                                                       const char* group,
-                                                       const char* filter)
-{
-  fout << "# Begin Group \"" << group << "\"\n"
-    "# PROP Default_Filter \"" << filter << "\"\n";
-}
-
-
-void cmLocalVisualStudio6Generator::WriteDSPEndGroup(std::ostream& fout)
-{
-  fout << "# End Group\n";
-}
-
-
-
-
-void cmLocalVisualStudio6Generator::SetBuildType(BuildType b,
-                                                 const char* libName,
-                                                 cmTarget& target)
-{
-  std::string root= m_Makefile->GetRequiredDefinition("CMAKE_ROOT");
-  const char *def= m_Makefile->GetDefinition( "MSPROJECT_TEMPLATE_DIRECTORY");
-
-  if( def)
-    {
-    root = def;
-    }
-  else
-    {
-    root += "/Templates";
-    }
-  
-  switch(b)
-    {
-    case STATIC_LIBRARY:
-      m_DSPHeaderTemplate = root;
-      m_DSPHeaderTemplate += "/staticLibHeader.dsptemplate";
-      m_DSPFooterTemplate = root;
-      m_DSPFooterTemplate += "/staticLibFooter.dsptemplate";
-      break;
-    case DLL:
-      m_DSPHeaderTemplate =  root;
-      m_DSPHeaderTemplate += "/DLLHeader.dsptemplate";
-      m_DSPFooterTemplate =  root;
-      m_DSPFooterTemplate += "/DLLFooter.dsptemplate";
-      break;
-    case EXECUTABLE:
-      if ( target.GetPropertyAsBool("WIN32_EXECUTABLE") )
-        {
-        m_DSPHeaderTemplate = root;
-        m_DSPHeaderTemplate += "/EXEWinHeader.dsptemplate";
-        m_DSPFooterTemplate = root;
-        m_DSPFooterTemplate += "/EXEFooter.dsptemplate";
-        }
-      else
-        {
-        m_DSPHeaderTemplate = root;
-        m_DSPHeaderTemplate += "/EXEHeader.dsptemplate";
-        m_DSPFooterTemplate = root;
-        m_DSPFooterTemplate += "/EXEFooter.dsptemplate";
-        }
-      break;
-    case UTILITY:
-      m_DSPHeaderTemplate = root;
-      m_DSPHeaderTemplate += "/UtilityHeader.dsptemplate";
-      m_DSPFooterTemplate = root;
-      m_DSPFooterTemplate += "/UtilityFooter.dsptemplate";
-      break;
-    }
-
-  // once the build type is set, determine what configurations are
-  // possible
-  std::ifstream fin(m_DSPHeaderTemplate.c_str());
-
-  cmsys::RegularExpression reg("# Name ");
-  if(!fin)
-    {
-    cmSystemTools::Error("Error Reading ", m_DSPHeaderTemplate.c_str());
-    }
-
-  // reset m_Configurations
-  m_Configurations.erase(m_Configurations.begin(), m_Configurations.end());
-  // now add all the configurations possible
-  std::string line;
-  while(cmSystemTools::GetLineFromStream(fin, line))
-    {
-    cmSystemTools::ReplaceString(line, "OUTPUT_LIBNAME",libName);
-    if (reg.find(line))
-      {
-      m_Configurations.push_back(line.substr(reg.end()));
-      }
-    }
-}
-
-// look for custom rules on a target and collect them together
-std::string 
-cmLocalVisualStudio6Generator::CreateTargetRules(cmTarget &target, 
-                                                 const char * /* libName */)
-{
-  std::string customRuleCode = "";
-
-  if (target.GetType() >= cmTarget::UTILITY )
-    {
-    return customRuleCode;
-    }
-
-  // are there any rules?
-  if (target.GetPreBuildCommands().size() + 
-      target.GetPreLinkCommands().size() + 
-      target.GetPostBuildCommands().size() == 0)
-    {
-    return customRuleCode;
-    }
-    
-  customRuleCode = "# Begin Special Build Tool\n";
-
-  // Write the pre-build and pre-link together (VS6 does not support
-  // both).  Make sure no continuation character is put on the last
-  // line.
-  int prelink_total = (static_cast<int>(target.GetPreBuildCommands().size())+
-                       static_cast<int>(target.GetPreLinkCommands().size()));
-  int prelink_count = 0;
-  if(prelink_total > 0)
-    {
-    // header stuff
-    customRuleCode += "PreLink_Cmds=";
-    }
-  const char* prelink_newline = "\\\n\t";
-  for (std::vector<cmCustomCommand>::const_iterator cr =
-         target.GetPreBuildCommands().begin();
-       cr != target.GetPreBuildCommands().end(); ++cr)
-    {
-    if(++prelink_count == prelink_total)
-      {
-      prelink_newline = "";
-      }
-    customRuleCode += this->ConstructScript(cr->GetCommandLines(),
-                                            cr->GetWorkingDirectory(),
-                                            prelink_newline);
-    }
-  for (std::vector<cmCustomCommand>::const_iterator cr =
-         target.GetPreLinkCommands().begin();
-       cr != target.GetPreLinkCommands().end(); ++cr)
-    {
-    if(++prelink_count == prelink_total)
-      {
-      prelink_newline = "";
-      }
-    customRuleCode += this->ConstructScript(cr->GetCommandLines(),
-                                            cr->GetWorkingDirectory(),
-                                            prelink_newline);
-    }
-  if(prelink_total > 0)
-    {
-    customRuleCode += "\n";
-    }
-
-  // Write the post-build rules.  Make sure no continuation character
-  // is put on the last line.
-  int postbuild_total = static_cast<int>(target.GetPostBuildCommands().size());
-  int postbuild_count = 0;
-  const char* postbuild_newline = "\\\n\t";
-  if(postbuild_total > 0)
-    {
-    customRuleCode += "PostBuild_Cmds=";
-    }
-  for (std::vector<cmCustomCommand>::const_iterator cr =
-         target.GetPostBuildCommands().begin();
-       cr != target.GetPostBuildCommands().end(); ++cr)
-    {
-    if(++postbuild_count == postbuild_total)
-      {
-      postbuild_newline = "";
-      }
-    customRuleCode += this->ConstructScript(cr->GetCommandLines(),
-                                            cr->GetWorkingDirectory(),
-                                            postbuild_newline);
-    }
-  if(postbuild_total > 0)
-    {
-    customRuleCode += "\n";
-    }
-
-  customRuleCode += "# End Special Build Tool\n";
-  return customRuleCode;
-}
-
-
-inline std::string removeQuotes(const std::string& s)
-{
-  if(s[0] == '\"' && s[s.size()-1] == '\"')
-    {
-    return s.substr(1, s.size()-2);
-    }
-  return s;
-}
-
-  
-void cmLocalVisualStudio6Generator
-::WriteDSPHeader(std::ostream& fout, 
-                 const char *libName, cmTarget &target, 
-                 std::vector<cmSourceGroup> &)
-{
-  std::set<std::string> pathEmitted;
-  
-  // determine the link directories
-  std::string libOptions;
-  std::string libDebugOptions;
-  std::string libOptimizedOptions;
-
-  std::string libMultiLineOptions;
-  std::string libMultiLineOptionsForDebug;
-  std::string libMultiLineDebugOptions;
-  std::string libMultiLineOptimizedOptions;
-
-  // suppoirt override in output directory
-  std::string libPath = "";
-  if (m_Makefile->GetDefinition("LIBRARY_OUTPUT_PATH"))
-    {
-    libPath = m_Makefile->GetDefinition("LIBRARY_OUTPUT_PATH");
-    }
-  std::string exePath = "";
-  if (m_Makefile->GetDefinition("EXECUTABLE_OUTPUT_PATH"))
-    {
-    exePath = m_Makefile->GetDefinition("EXECUTABLE_OUTPUT_PATH");
-    
-    }
-  if(libPath.size())
-    {
-    // make sure there is a trailing slash
-    if(libPath[libPath.size()-1] != '/')
-      {
-      libPath += "/";
-      }
-    std::string lpath = 
-      this->ConvertToOptionallyRelativeOutputPath(libPath.c_str());
-    if(lpath.size() == 0)
-      {
-      lpath = ".";
-      }
-    std::string lpathIntDir = libPath + "$(INTDIR)";
-    lpathIntDir =  this->ConvertToOptionallyRelativeOutputPath(lpathIntDir.c_str());
-    if(pathEmitted.insert(lpath).second)
-      {
-      libOptions += " /LIBPATH:";
-      libOptions += lpathIntDir;
-      libOptions += " ";
-      libOptions += " /LIBPATH:";
-      libOptions += lpath;
-      libOptions += " ";
-      libMultiLineOptions += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptions += lpathIntDir;
-      libMultiLineOptions += " ";
-      libMultiLineOptions += " /LIBPATH:";
-      libMultiLineOptions += lpath;
-      libMultiLineOptions += " \n";
-      libMultiLineOptionsForDebug += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptionsForDebug += lpathIntDir;
-      libMultiLineOptionsForDebug += " ";
-      libMultiLineOptionsForDebug += " /LIBPATH:";
-      libMultiLineOptionsForDebug += lpath;
-      libMultiLineOptionsForDebug += " \n";
-      }
-    }
-  if(exePath.size())
-    {
-    // make sure there is a trailing slash
-    if(exePath[exePath.size()-1] != '/')
-      {
-      exePath += "/";
-      }
-    std::string lpath = 
-      this->ConvertToOptionallyRelativeOutputPath(exePath.c_str());
-    if(lpath.size() == 0)
-      {
-      lpath = ".";
-      }
-    std::string lpathIntDir = exePath + "$(INTDIR)";
-    lpathIntDir =  this->ConvertToOptionallyRelativeOutputPath(lpathIntDir.c_str());
-    
-    if(pathEmitted.insert(lpath).second)
-      {
-      libOptions += " /LIBPATH:";
-      libOptions += lpathIntDir;
-      libOptions += " ";
-      libOptions += " /LIBPATH:";
-      libOptions += lpath;
-      libOptions += " ";
-      libMultiLineOptions += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptions += lpathIntDir;
-      libMultiLineOptions += " ";
-      libMultiLineOptions += " /LIBPATH:";
-      libMultiLineOptions += lpath;
-      libMultiLineOptions += " \n";
-      libMultiLineOptionsForDebug += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptionsForDebug += lpathIntDir;
-      libMultiLineOptionsForDebug += " ";
-      libMultiLineOptionsForDebug += " /LIBPATH:";
-      libMultiLineOptionsForDebug += lpath;
-      libMultiLineOptionsForDebug += " \n";
-      }
-    }
-  std::vector<std::string>::const_iterator i;
-  const std::vector<std::string>& libdirs = target.GetLinkDirectories();
-  for(i = libdirs.begin(); i != libdirs.end(); ++i)
-    {
-    std::string path = *i;
-    if(path[path.size()-1] != '/')
-      {
-      path += "/";
-      }
-    std::string lpath = 
-      this->ConvertToOptionallyRelativeOutputPath(path.c_str());
-    if(lpath.size() == 0)
-      {
-      lpath = ".";
-      }
-    std::string lpathIntDir = path + "$(INTDIR)";
-    lpathIntDir =  this->ConvertToOptionallyRelativeOutputPath(lpathIntDir.c_str());
-    if(pathEmitted.insert(lpath).second)
-      {
-      libOptions += " /LIBPATH:";
-      libOptions += lpathIntDir;
-      libOptions += " ";
-      libOptions += " /LIBPATH:";
-      libOptions += lpath;
-      libOptions += " ";
-      
-      libMultiLineOptions += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptions += lpathIntDir;
-      libMultiLineOptions += " ";
-      libMultiLineOptions += " /LIBPATH:";
-      libMultiLineOptions += lpath;
-      libMultiLineOptions += " \n";
-      libMultiLineOptionsForDebug += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptionsForDebug += lpathIntDir;
-      libMultiLineOptionsForDebug += " ";
-      libMultiLineOptionsForDebug += " /LIBPATH:";
-      libMultiLineOptionsForDebug += lpath;
-      libMultiLineOptionsForDebug += " \n";
-      }
-    }
-  // find link libraries
-  const cmTarget::LinkLibraries& libs = target.GetLinkLibraries();
-  cmTarget::LinkLibraries::const_iterator j;
-  for(j = libs.begin(); j != libs.end(); ++j)
-    {
-    // add libraries to executables and dlls (but never include
-    // a library in a library, bad recursion)
-    // NEVER LINK STATIC LIBRARIES TO OTHER STATIC LIBRARIES
-    if ((target.GetType() != cmTarget::SHARED_LIBRARY
-         && target.GetType() != cmTarget::STATIC_LIBRARY 
-         && target.GetType() != cmTarget::MODULE_LIBRARY) || 
-        (target.GetType()==cmTarget::SHARED_LIBRARY && libName != j->first) ||
-        (target.GetType()==cmTarget::MODULE_LIBRARY && libName != j->first))
-      {
-      // Compute the proper name to use to link this library.
-      std::string lib;
-      std::string libDebug;
-      cmTarget* tgt = m_GlobalGenerator->FindTarget(0, j->first.c_str());
-      if(tgt)
-        {
-        lib = cmSystemTools::GetFilenameWithoutExtension(tgt->GetFullName().c_str());
-        libDebug = cmSystemTools::GetFilenameWithoutExtension(tgt->GetFullName("Debug").c_str());
-        lib += ".lib";
-        libDebug += ".lib";
-        }
-      else
-        {
-        lib = j->first.c_str();
-        libDebug = j->first.c_str();
-        if(j->first.find(".lib") == std::string::npos)
-          {
-          lib += ".lib";
-          libDebug += ".lib";
-          }
-        }
-      lib = this->ConvertToOptionallyRelativeOutputPath(lib.c_str());
-      libDebug = this->ConvertToOptionallyRelativeOutputPath(libDebug.c_str());
-
-      if (j->second == cmTarget::GENERAL)
-        {
-        libOptions += " ";
-        libOptions += lib;
-        libMultiLineOptions += "# ADD LINK32 ";
-        libMultiLineOptions +=  lib;
-        libMultiLineOptions += "\n";
-        libMultiLineOptionsForDebug += "# ADD LINK32 ";
-        libMultiLineOptionsForDebug +=  libDebug;
-        libMultiLineOptionsForDebug += "\n";
-        }
-      if (j->second == cmTarget::DEBUG)
-        {
-        libDebugOptions += " ";
-        libDebugOptions += lib;
-
-        libMultiLineDebugOptions += "# ADD LINK32 ";
-        libMultiLineDebugOptions += libDebug;
-        libMultiLineDebugOptions += "\n";
-        }
-      if (j->second == cmTarget::OPTIMIZED)
-        {
-        libOptimizedOptions += " ";
-        libOptimizedOptions += lib;
-
-        libMultiLineOptimizedOptions += "# ADD LINK32 ";
-        libMultiLineOptimizedOptions += lib;
-        libMultiLineOptimizedOptions += "\n";
-        }      
-      }
-    }
-  std::string outputName = "(OUTPUT_NAME is for executables only)";
-  std::string extraLinkOptions;
-  // TODO: Fix construction of library/executable name through
-  // cmTarget.  OUTPUT_LIBNAMEDEBUG_POSTFIX should be replaced by the
-  // library's debug configuration name.  OUTPUT_LIBNAME should be
-  // replaced by the non-debug configuration name.  This generator
-  // should just be re-written to not use template files and just
-  // generate the code.  Setting up these substitutions is a pain.
-  if(target.GetType() == cmTarget::EXECUTABLE)
-    {
-    extraLinkOptions = 
-      m_Makefile->GetRequiredDefinition("CMAKE_EXE_LINKER_FLAGS");
-
-    // Use the OUTPUT_NAME property if it was set.  This is supported
-    // only for executables.
-    if(const char* outName = target.GetProperty("OUTPUT_NAME"))
-      {
-      outputName = outName;
-      }
-    else
-      {
-      outputName = target.GetName();
-      }
-    outputName += ".exe";
-    }
-  if(target.GetType() == cmTarget::SHARED_LIBRARY)
-    {
-    extraLinkOptions = m_Makefile->GetRequiredDefinition("CMAKE_SHARED_LINKER_FLAGS");
-    }
-  if(target.GetType() == cmTarget::MODULE_LIBRARY)
-    {
-    extraLinkOptions = m_Makefile->GetRequiredDefinition("CMAKE_MODULE_LINKER_FLAGS");
-    }
-
-  if(extraLinkOptions.size())
-    {
-    libOptions += " ";
-    libOptions += extraLinkOptions;
-    libOptions += " ";
-    libMultiLineOptions += "# ADD LINK32 ";
-    libMultiLineOptions +=  extraLinkOptions;
-    libMultiLineOptions += " \n";
-    libMultiLineOptionsForDebug += "# ADD LINK32 ";
-    libMultiLineOptionsForDebug +=  extraLinkOptions;
-    libMultiLineOptionsForDebug += " \n";
-    }
-  if(const char* stdLibs =  m_Makefile->GetDefinition("CMAKE_STANDARD_LIBRARIES"))
-    {
-    libOptions += " ";
-    libOptions += stdLibs;
-    libOptions += " ";
-    libMultiLineOptions += "# ADD LINK32 ";
-    libMultiLineOptions +=  stdLibs;
-    libMultiLineOptions += " \n";
-    libMultiLineOptionsForDebug += "# ADD LINK32 ";
-    libMultiLineOptionsForDebug +=  stdLibs;
-    libMultiLineOptionsForDebug += " \n";
-    }
-  if(const char* targetLinkFlags = target.GetProperty("LINK_FLAGS"))
-    {
-    libOptions += " ";
-    libOptions += targetLinkFlags;
-    libOptions += " ";
-    libMultiLineOptions += "# ADD LINK32 ";
-    libMultiLineOptions +=  targetLinkFlags;
-    libMultiLineOptions += " \n";
-    libMultiLineOptionsForDebug += "# ADD LINK32 ";
-    libMultiLineOptionsForDebug +=  targetLinkFlags;
-    libMultiLineOptionsForDebug += " \n";
-    }
-
-  
-  // are there any custom rules on the target itself
-  // only if the target is a lib or exe
-  std::string customRuleCode = this->CreateTargetRules(target, libName);
-
-  std::ifstream fin(m_DSPHeaderTemplate.c_str());
-  if(!fin)
-    {
-    cmSystemTools::Error("Error Reading ", m_DSPHeaderTemplate.c_str());
-    }
-  std::string staticLibOptions;
-  if(target.GetType() == cmTarget::STATIC_LIBRARY )
-    { 
-    if(const char* libflags = target.GetProperty("STATIC_LIBRARY_FLAGS"))
-      {
-      staticLibOptions = libflags;
-      }
-    }
-  std::string exportSymbol;
-  if (const char* custom_export_name = target.GetProperty("DEFINE_SYMBOL"))
-    {
-    exportSymbol = custom_export_name;
-    }
-  else
-    {
-    std::string in = libName;
-    in += "_EXPORTS";
-    exportSymbol = cmSystemTools::MakeCindentifier(in.c_str());
-    }
-
-
-  std::string line;
-  while(cmSystemTools::GetLineFromStream(fin, line))
-    {
-    const char* mfcFlag = m_Makefile->GetDefinition("CMAKE_MFC_FLAG");
-    if(!mfcFlag)
-      {
-      mfcFlag = "0";
-      }
-    cmSystemTools::ReplaceString(line, "OUTPUT_LIBNAME_EXPORTS",
-                                 exportSymbol.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CUSTOM_RULE_CODE",
-                                 customRuleCode.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_MFC_FLAG",
-                                 mfcFlag);
-    if(target.GetType() == cmTarget::STATIC_LIBRARY )
-      {
-      cmSystemTools::ReplaceString(line, "CM_STATIC_LIB_ARGS",
-                                   staticLibOptions.c_str());
-      } 
-    if(m_Makefile->IsOn("CMAKE_VERBOSE_MAKEFILE"))
-      {
-      cmSystemTools::ReplaceString(line, "/nologo", "");
-      }
-    
-    cmSystemTools::ReplaceString(line, "CM_LIBRARIES",
-                                 libOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_DEBUG_LIBRARIES",
-                                 libDebugOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_OPTIMIZED_LIBRARIES",
-                                 libOptimizedOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_LIBRARIES_FOR_DEBUG",
-                                 libMultiLineOptionsForDebug.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_LIBRARIES",
-                                 libMultiLineOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_DEBUG_LIBRARIES",
-                                 libMultiLineDebugOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_OPTIMIZED_LIBRARIES",
-                                 libMultiLineOptimizedOptions.c_str());
-
-    // Replace the template file text OUTPUT_NAME with the real output
-    // name that will be used.  Only the executable template should
-    // have this text.
-    cmSystemTools::ReplaceString(line, "OUTPUT_NAME", outputName.c_str());
-
-    cmSystemTools::ReplaceString(line, "BUILD_INCLUDES",
-                                 m_IncludeOptions.c_str());
-    cmSystemTools::ReplaceString(line, "OUTPUT_LIBNAME",libName);
-    // because LIBRARY_OUTPUT_PATH and EXECUTABLE_OUTPUT_PATH 
-    // are already quoted in the template file,
-    // we need to remove the quotes here, we still need
-    // to convert to output path for unix to win32 conversion 
-    cmSystemTools::ReplaceString(line, "LIBRARY_OUTPUT_PATH",
-                                 removeQuotes(
-                                   this->ConvertToOptionallyRelativeOutputPath(libPath.c_str())).c_str());
-    cmSystemTools::ReplaceString(line, "EXECUTABLE_OUTPUT_PATH",
-                                 removeQuotes(
-                                   this->ConvertToOptionallyRelativeOutputPath(exePath.c_str())).c_str());
-
-
-    cmSystemTools::ReplaceString(line, 
-                                 "EXTRA_DEFINES", 
-                                 m_Makefile->GetDefineFlags());
-    const char* debugPostfix
-      = m_Makefile->GetDefinition("CMAKE_DEBUG_POSTFIX");
-    cmSystemTools::ReplaceString(line, "DEBUG_POSTFIX", 
-                                 debugPostfix?debugPostfix:"");
-    // store flags for each configuration
-    std::string flags = " ";
-    std::string flagsRelease = " ";
-    std::string flagsMinSize = " ";
-    std::string flagsDebug = " ";
-    std::string flagsDebugRel = " ";
-    if(target.GetType() >= cmTarget::EXECUTABLE && 
-       target.GetType() <= cmTarget::MODULE_LIBRARY)
-      {
-      const char* linkLanguage = target.GetLinkerLanguage(this->GetGlobalGenerator());
-      if(!linkLanguage)
-        {
-        cmSystemTools::Error("CMake can not determine linker language for target:",
-                             target.GetName());
+    method = get_byte(s);
+    flags = get_byte(s);
+    if (method != Z_DEFLATED || (flags & RESERVED) != 0) {
+        s->z_err = Z_DATA_ERROR;
         return;
+    }
+
+    /* Discard time, xflags and OS code: */
+    for (len = 0; len < 6; len++) (void)get_byte(s);
+
+    if ((flags & EXTRA_FIELD) != 0) { /* skip the extra field */
+        len  =  (uInt)get_byte(s);
+        len += ((uInt)get_byte(s))<<8;
+        /* len is garbage if EOF but the loop below will quit anyway */
+        while (len-- != 0 && get_byte(s) != EOF) ;
+    }
+    if ((flags & ORIG_NAME) != 0) { /* skip the original file name */
+        while ((c = get_byte(s)) != 0 && c != EOF) ;
+    }
+    if ((flags & COMMENT) != 0) {   /* skip the .gz file comment */
+        while ((c = get_byte(s)) != 0 && c != EOF) ;
+    }
+    if ((flags & HEAD_CRC) != 0) {  /* skip the header crc */
+        for (len = 0; len < 2; len++) (void)get_byte(s);
+    }
+    s->z_err = s->z_eof ? Z_DATA_ERROR : Z_OK;
+}
+
+ /* ===========================================================================
+ * Cleanup then free the given gz_stream. Return a zlib error code.
+   Try freeing in the reverse order of allocations.
+ */
+local int destroy (s)
+    gz_stream *s;
+{
+    int err = Z_OK;
+
+    if (!s) return Z_STREAM_ERROR;
+
+    TRYFREE(s->msg);
+
+    if (s->stream.state != NULL) {
+        if (s->mode == 'w') {
+#ifdef NO_DEFLATE
+            err = Z_STREAM_ERROR;
+#else
+            err = deflateEnd(&(s->stream));
+#endif
+        } else if (s->mode == 'r') {
+            err = inflateEnd(&(s->stream));
         }
-      // if CXX is on and the target contains cxx code then add the cxx flags
-      std::string baseFlagVar = "CMAKE_";
-      baseFlagVar += linkLanguage;
-      baseFlagVar += "_FLAGS";
-      flags = m_Makefile->GetRequiredDefinition(baseFlagVar.c_str());
-      
-      std::string flagVar = baseFlagVar + "_RELEASE";
-      flagsRelease = m_Makefile->GetRequiredDefinition(flagVar.c_str());
-      flagsRelease += " -DCMAKE_INTDIR=\\\"Release\\\" ";
-      
-      flagVar = baseFlagVar + "_MINSIZEREL";
-      flagsMinSize = m_Makefile->GetRequiredDefinition(flagVar.c_str());
-      flagsMinSize += " -DCMAKE_INTDIR=\\\"MinSizeRel\\\" ";
-      
-      flagVar = baseFlagVar + "_DEBUG";
-      flagsDebug = m_Makefile->GetRequiredDefinition(flagVar.c_str());
-      flagsDebug += " -DCMAKE_INTDIR=\\\"Debug\\\" ";
-      
-      flagVar = baseFlagVar + "_RELWITHDEBINFO";
-      flagsDebugRel = m_Makefile->GetRequiredDefinition(flagVar.c_str());
-      flagsDebugRel += " -DCMAKE_INTDIR=\\\"RelWithDebInfo\\\" ";
-      }
+    }
+    if (s->file != NULL && fclose(s->file)) {
+#ifdef ESPIPE
+        if (errno != ESPIPE) /* fclose is broken for pipes in HP/UX */
+#endif
+            err = Z_ERRNO;
+    }
+    if (s->z_err < 0) err = s->z_err;
+
+    TRYFREE(s->inbuf);
+    TRYFREE(s->outbuf);
+    TRYFREE(s->path);
+    TRYFREE(s);
+    return err;
+}
+
+/* ===========================================================================
+     Reads the given number of uncompressed bytes from the compressed file.
+   gzread returns the number of bytes actually read (0 for end of file).
+*/
+int ZEXPORT gzread (file, buf, len)
+    gzFile file;
+    voidp buf;
+    unsigned len;
+{
+    gz_stream *s = (gz_stream*)file;
+    Bytef *start = (Bytef*)buf; /* starting point for crc computation */
+    Byte  *next_out; /* == stream.next_out but not forced far (for MSDOS) */
+
+    if (s == NULL || s->mode != 'r') return Z_STREAM_ERROR;
+
+    if (s->z_err == Z_DATA_ERROR || s->z_err == Z_ERRNO) return -1;
+    if (s->z_err == Z_STREAM_END) return 0;  /* EOF */
+
+    next_out = (Byte*)buf;
+    s->stream.next_out = (Bytef*)buf;
+    s->stream.avail_out = len;
+
+    while (s->stream.avail_out != 0) {
+
+        if (s->transparent) {
+            /* Copy first the lookahead bytes: */
+            uInt n = s->stream.avail_in;
+            if (n > s->stream.avail_out) n = s->stream.avail_out;
+            if (n > 0) {
+                zmemcpy(s->stream.next_out, s->stream.next_in, n);
+                next_out += n;
+                s->stream.next_out = next_out;
+                s->stream.next_in   += n;
+                s->stream.avail_out -= n;
+                s->stream.avail_in  -= n;
+            }
+            if (s->stream.avail_out > 0) {
+                s->stream.avail_out -= fread(next_out, 1, s->stream.avail_out,
+                                             s->file);
+            }
+            len -= s->stream.avail_out;
+            s->stream.total_in  += (uLong)len;
+            s->stream.total_out += (uLong)len;
+            if (len == 0) s->z_eof = 1;
+            return (int)len;
+        }
+        if (s->stream.avail_in == 0 && !s->z_eof) {
+
+            errno = 0;
+            s->stream.avail_in = fread(s->inbuf, 1, Z_BUFSIZE, s->file);
+            if (s->stream.avail_in == 0) {
+                s->z_eof = 1;
+                if (ferror(s->file)) {
+                    s->z_err = Z_ERRNO;
+                    break;
+                }
+            }
+            s->stream.next_in = s->inbuf;
+        }
+        s->z_err = inflate(&(s->stream), Z_NO_FLUSH);
+
+        if (s->z_err == Z_STREAM_END) {
+            /* Check CRC and original size */
+            s->crc = crc32(s->crc, start, (uInt)(s->stream.next_out - start));
+            start = s->stream.next_out;
+
+            if (getLong(s) != s->crc) {
+                s->z_err = Z_DATA_ERROR;
+            } else {
+                (void)getLong(s);
+                /* The uncompressed length returned by above getlong() may
+                 * be different from s->stream.total_out) in case of
+                 * concatenated .gz files. Check for such files:
+                 */
+                check_header(s);
+                if (s->z_err == Z_OK) {
+                    uLong total_in = s->stream.total_in;
+                    uLong total_out = s->stream.total_out;
+
+                    inflateReset(&(s->stream));
+                    s->stream.total_in = total_in;
+                    s->stream.total_out = total_out;
+                    s->crc = crc32(0L, Z_NULL, 0);
+                }
+            }
+        }
+        if (s->z_err != Z_OK || s->z_eof) break;
+    }
+    s->crc = crc32(s->crc, start, (uInt)(s->stream.next_out - start));
+
+    return (int)(len - s->stream.avail_out);
+}
+
+
+/* ===========================================================================
+      Reads one byte from the compressed file. gzgetc returns this byte
+   or -1 in case of end of file or error.
+*/
+int ZEXPORT gzgetc(file)
+    gzFile file;
+{
+    unsigned char c;
+
+    return gzread(file, &c, 1) == 1 ? c : -1;
+}
+
+
+/* ===========================================================================
+      Reads bytes from the compressed file until len-1 characters are
+   read, or a newline character is read and transferred to buf, or an
+   end-of-file condition is encountered.  The string is then terminated
+   with a null character.
+      gzgets returns buf, or Z_NULL in case of error.
+
+      The current implementation is not optimized at all.
+*/
+char * ZEXPORT gzgets(file, buf, len)
+    gzFile file;
+    char *buf;
+    int len;
+{
+    char *b = buf;
+    if (buf == Z_NULL || len <= 0) return Z_NULL;
+
+    while (--len > 0 && gzread(file, buf, 1) == 1 && *buf++ != '\n') ;
+    *buf = '\0';
+    return b == buf && len > 0 ? Z_NULL : b;
+}
+
+
+#ifndef NO_DEFLATE
+/* ===========================================================================
+     Writes the given number of uncompressed bytes into the compressed file.
+   gzwrite returns the number of bytes actually written (0 in case of error).
+*/
+int ZEXPORT gzwrite (file, buf, len)
+    gzFile file;
+    const voidp buf;
+    unsigned len;
+{
+    gz_stream *s = (gz_stream*)file;
+
+    if (s == NULL || s->mode != 'w') return Z_STREAM_ERROR;
+
+    s->stream.next_in = (Bytef*)buf;
+    s->stream.avail_in = len;
+
+    while (s->stream.avail_in != 0) {
+
+        if (s->stream.avail_out == 0) {
+
+            s->stream.next_out = s->outbuf;
+            if (fwrite(s->outbuf, 1, Z_BUFSIZE, s->file) != Z_BUFSIZE) {
+                s->z_err = Z_ERRNO;
+                break;
+            }
+            s->stream.avail_out = Z_BUFSIZE;
+        }
+        s->z_err = deflate(&(s->stream), Z_NO_FLUSH);
+        if (s->z_err != Z_OK) break;
+    }
+    s->crc = crc32(s->crc, (const Bytef *)buf, len);
+
+    return (int)(len - s->stream.avail_in);
+}
+
+/* ===========================================================================
+     Converts, formats, and writes the args to the compressed file under
+   control of the format string, as in fprintf. gzprintf returns the number of
+   uncompressed bytes actually written (0 in case of error).
+*/
+#ifdef STDC
+#include <stdarg.h>
+
+int ZEXPORTVA gzprintf (gzFile file, const char *format, /* args */ ...)
+{
+    char buf[Z_PRINTF_BUFSIZE];
+    va_list va;
+    int len;
+
+    va_start(va, format);
+#ifdef HAS_vsnprintf
+    (void)vsnprintf(buf, sizeof(buf), format, va);
+#else
+    (void)vsprintf(buf, format, va);
+#endif
+    va_end(va);
+    len = strlen(buf); /* some *sprintf don't return the nb of bytes written */
+    if (len <= 0) return 0;
+
+    return gzwrite(file, buf, (unsigned)len);
+}
+#else /* not ANSI C */
+
+int ZEXPORTVA gzprintf (file, format, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10,
+                       a11, a12, a13, a14, a15, a16, a17, a18, a19, a20)
+    gzFile file;
+    const char *format;
+    int a1, a2, a3, a4, a5, a6, a7, a8, a9, a10,
+        a11, a12, a13, a14, a15, a16, a17, a18, a19, a20;
+{
+    char buf[Z_PRINTF_BUFSIZE];
+    int len;
+
+#ifdef HAS_snprintf
+    snprintf(buf, sizeof(buf), format, a1, a2, a3, a4, a5, a6, a7, a8,
+             a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20);
+#else
+    sprintf(buf, format, a1, a2, a3, a4, a5, a6, a7, a8,
+            a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20);
+#endif
+    len = strlen(buf); /* old sprintf doesn't return the nb of bytes written */
+    if (len <= 0) return 0;
+
+    return gzwrite(file, buf, len);
+}
+#endif
+
+/* ===========================================================================
+      Writes c, converted to an unsigned char, into the compressed file.
+   gzputc returns the value that was written, or -1 in case of error.
+*/
+int ZEXPORT gzputc(file, c)
+    gzFile file;
+    int c;
+{
+    unsigned char cc = (unsigned char) c; /* required for big endian systems */
+
+    return gzwrite(file, &cc, 1) == 1 ? (int)cc : -1;
+}
+
+
+/* ===========================================================================
+      Writes the given null-terminated string to the compressed file, excluding
+   the terminating null character.
+      gzputs returns the number of characters written, or -1 in case of error.
+*/
+int ZEXPORT gzputs(file, s)
+    gzFile file;
+    const char *s;
+{
+    return gzwrite(file, (char*)s, (unsigned)strlen(s));
+}
+
+
+/* ===========================================================================
+     Flushes all pending output into the compressed file. The parameter
+   flush is as in the deflate() function.
+*/
+local int do_flush (file, flush)
+    gzFile file;
+    int flush;
+{
+    uInt len;
+    int done = 0;
+    gz_stream *s = (gz_stream*)file;
+
+    if (s == NULL || s->mode != 'w') return Z_STREAM_ERROR;
+
+    s->stream.avail_in = 0; /* should be zero already anyway */
+
+    for (;;) {
+        len = Z_BUFSIZE - s->stream.avail_out;
+
+        if (len != 0) {
+            if ((uInt)fwrite(s->outbuf, 1, len, s->file) != len) {
+                s->z_err = Z_ERRNO;
+                return Z_ERRNO;
+            }
+            s->stream.next_out = s->outbuf;
+            s->stream.avail_out = Z_BUFSIZE;
+        }
+        if (done) break;
+        s->z_err = deflate(&(s->stream), flush);
+
+        /* Ignore the second of two consecutive flushes: */
+        if (len == 0 && s->z_err == Z_BUF_ERROR) s->z_err = Z_OK;
+
+        /* deflate has finished flushing only when it hasn't used up
+         * all the available space in the output buffer: 
+         */
+        done = (s->stream.avail_out != 0 || s->z_err == Z_STREAM_END);
+ 
+        if (s->z_err != Z_OK && s->z_err != Z_STREAM_END) break;
+    }
+    return  s->z_err == Z_STREAM_END ? Z_OK : s->z_err;
+}
+
+int ZEXPORT gzflush (file, flush)
+     gzFile file;
+     int flush;
+{
+    gz_stream *s = (gz_stream*)file;
+    int err = do_flush (file, flush);
+
+    if (err) return err;
+    fflush(s->file);
+    return  s->z_err == Z_STREAM_END ? Z_OK : s->z_err;
+}
+#endif /* NO_DEFLATE */
+
+/* ===========================================================================
+      Sets the starting position for the next gzread or gzwrite on the given
+   compressed file. The offset represents a number of bytes in the
+      gzseek returns the resulting offset location as measured in bytes from
+   the beginning of the uncompressed stream, or -1 in case of error.
+      SEEK_END is not implemented, returns error.
+      In this version of the library, gzseek can be extremely slow.
+*/
+z_off_t ZEXPORT gzseek (file, offset, whence)
+    gzFile file;
+    z_off_t offset;
+    int whence;
+{
+    gz_stream *s = (gz_stream*)file;
+
+    if (s == NULL || whence == SEEK_END ||
+        s->z_err == Z_ERRNO || s->z_err == Z_DATA_ERROR) {
+        return -1L;
+    }
     
-    // if unicode is not found, then add -D_MBCS
-    std::string defs = m_Makefile->GetDefineFlags();
-    if(flags.find("D_UNICODE") == flags.npos &&
-       defs.find("D_UNICODE") == flags.npos) 
-      {
-      flags += " /D \"_MBCS\"";
-      }
+    if (s->mode == 'w') {
+#ifdef NO_DEFLATE
+        return -1L;
+#else
+        if (whence == SEEK_SET) {
+            offset -= s->stream.total_in;
+        }
+        if (offset < 0) return -1L;
 
-    // Add per-target flags.
-    if(const char* targetFlags = target.GetProperty("COMPILE_FLAGS"))
-      {
-      flags += " ";
-      flags += targetFlags;
-      }
+        /* At this point, offset is the number of zero bytes to write. */
+        if (s->inbuf == Z_NULL) {
+            s->inbuf = (Byte*)ALLOC(Z_BUFSIZE); /* for seeking */
+            zmemzero(s->inbuf, Z_BUFSIZE);
+        }
+        while (offset > 0)  {
+            uInt size = Z_BUFSIZE;
+            if (offset < Z_BUFSIZE) size = (uInt)offset;
 
-    // The template files have CXX FLAGS in them, that need to be replaced.
-    // There are not separate CXX and C template files, so we use the same
-    // variable names.   The previous code sets up flags* variables to contain
-    // the correct C or CXX flags
-    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_MINSIZEREL", flagsMinSize.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_DEBUG", flagsDebug.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_RELWITHDEBINFO", flagsDebugRel.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_RELEASE", flagsRelease.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS", flags.c_str());
-    fout << line.c_str() << std::endl;
+            size = gzwrite(file, s->inbuf, size);
+            if (size == 0) return -1L;
+
+            offset -= size;
+        }
+        return (z_off_t)s->stream.total_in;
+#endif
+    }
+    /* Rest of function is for reading only */
+
+    /* compute absolute position */
+    if (whence == SEEK_CUR) {
+        offset += s->stream.total_out;
+    }
+    if (offset < 0) return -1L;
+
+    if (s->transparent) {
+        /* map to fseek */
+        s->stream.avail_in = 0;
+        s->stream.next_in = s->inbuf;
+        if (fseek(s->file, offset, SEEK_SET) < 0) return -1L;
+
+        s->stream.total_in = s->stream.total_out = (uLong)offset;
+        return offset;
+    }
+
+    /* For a negative seek, rewind and use positive seek */
+    if ((uLong)offset >= s->stream.total_out) {
+        offset -= s->stream.total_out;
+    } else if (gzrewind(file) < 0) {
+        return -1L;
+    }
+    /* offset is now the number of bytes to skip. */
+
+    if (offset != 0 && s->outbuf == Z_NULL) {
+        s->outbuf = (Byte*)ALLOC(Z_BUFSIZE);
+    }
+    while (offset > 0)  {
+        int size = Z_BUFSIZE;
+        if (offset < Z_BUFSIZE) size = (int)offset;
+
+        size = gzread(file, s->outbuf, (uInt)size);
+        if (size <= 0) return -1L;
+        offset -= size;
+    }
+    return (z_off_t)s->stream.total_out;
+}
+
+/* ===========================================================================
+     Rewinds input file. 
+*/
+int ZEXPORT gzrewind (file)
+    gzFile file;
+{
+    gz_stream *s = (gz_stream*)file;
+    
+    if (s == NULL || s->mode != 'r') return -1;
+
+    s->z_err = Z_OK;
+    s->z_eof = 0;
+    s->stream.avail_in = 0;
+    s->stream.next_in = s->inbuf;
+    s->crc = crc32(0L, Z_NULL, 0);
+        
+    if (s->startpos == 0) { /* not a compressed file */
+        rewind(s->file);
+        return 0;
+    }
+
+    (void) inflateReset(&s->stream);
+    return fseek(s->file, s->startpos, SEEK_SET);
+}
+
+/* ===========================================================================
+     Returns the starting position for the next gzread or gzwrite on the
+   given compressed file. This position represents a number of bytes in the
+   uncompressed data stream.
+*/
+z_off_t ZEXPORT gztell (file)
+    gzFile file;
+{
+    return gzseek(file, 0L, SEEK_CUR);
+}
+
+/* ===========================================================================
+     Returns 1 when EOF has previously been detected reading the given
+   input stream, otherwise zero.
+*/
+int ZEXPORT gzeof (file)
+    gzFile file;
+{
+    gz_stream *s = (gz_stream*)file;
+    
+    return (s == NULL || s->mode != 'r') ? 0 : s->z_eof;
+}
+
+/* ===========================================================================
+   Outputs a long in LSB order to the given file
+*/
+local void putLong (file, x)
+    FILE *file;
+    uLong x;
+{
+    int n;
+    for (n = 0; n < 4; n++) {
+        fputc((int)(x & 0xff), file);
+        x >>= 8;
     }
 }
 
-void cmLocalVisualStudio6Generator::WriteDSPFooter(std::ostream& fout)
-{  
-  std::ifstream fin(m_DSPFooterTemplate.c_str());
-  if(!fin)
-    {
-    cmSystemTools::Error("Error Reading ",
-                         m_DSPFooterTemplate.c_str());
-    }
-  std::string line;
-  while(cmSystemTools::GetLineFromStream(fin, line))
-    {
-    fout << line << std::endl;
-    }
+/* ===========================================================================
+   Reads a long in LSB order from the given gz_stream. Sets z_err in case
+   of error.
+*/
+local uLong getLong (s)
+    gz_stream *s;
+{
+    uLong x = (uLong)get_byte(s);
+    int c;
+
+    x += ((uLong)get_byte(s))<<8;
+    x += ((uLong)get_byte(s))<<16;
+    c = get_byte(s);
+    if (c == EOF) s->z_err = Z_DATA_ERROR;
+    x += ((uLong)c)<<24;
+    return x;
 }
+
+/* ===========================================================================
+     Flushes all pending output if necessary, closes the compressed file
+   and deallocates all the (de)compression state.
+*/
+int ZEXPORT gzclose (file)
+    gzFile file;
+{
+    int err;
+    gz_stream *s = (gz_stream*)file;
+
+    if (s == NULL) return Z_STREAM_ERROR;
+
+    if (s->mode == 'w') {
+#ifdef NO_DEFLATE
+        return Z_STREAM_ERROR;
+#else
+        err = do_flush (file, Z_FINISH);
+        if (err != Z_OK) return destroy((gz_stream*)file);
+
+        putLong (s->file, s->crc);
+        putLong (s->file, s->stream.total_in);
+#endif
+    }
+    return destroy((gz_stream*)file);
+}
+
+/* ===========================================================================
+     Returns the error message for the last error which occured on the
+   given compressed file. errnum is set to zlib error number. If an
+   error occured in the file system and not in the compression library,
+   errnum is set to Z_ERRNO and the application may consult errno
+   to get the exact error code.
+*/
+const char*  ZEXPORT gzerror (file, errnum)

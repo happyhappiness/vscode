@@ -1,1718 +1,788 @@
-/*=========================================================================
-
-  Program:   CMake - Cross-Platform Makefile Generator
-  Module:    $RCSfile$
-  Language:  C++
-  Date:      $Date$
-  Version:   $Revision$
-
-  Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
-  See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
-
-     This software is distributed WITHOUT ANY WARRANTY; without even
-     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-     PURPOSE.  See the above copyright notices for more information.
-
-=========================================================================*/
-
-#include "cmCTestTestHandler.h"
-
-#include "cmCTest.h"
-#include "cmake.h"
-#include "cmGeneratedFileStream.h"
-#include <cmsys/Process.h>
-#include <cmsys/RegularExpression.hxx>
-#include <cmsys/Base64.h>
-#include "cmMakefile.h"
-#include "cmGlobalGenerator.h"
-#include "cmLocalGenerator.h"
-#include "cmCommand.h"
-#include "cmSystemTools.h"
-
-#include <stdlib.h>
-#include <math.h>
-#include <float.h>
-
-#include <memory> // auto_ptr
-
-//----------------------------------------------------------------------
-class cmCTestSubdirCommand : public cmCommand
-{
-public:
-  /**
-   * This is a virtual constructor for the command.
-   */
-  virtual cmCommand* Clone()
-    {
-    cmCTestSubdirCommand* c = new cmCTestSubdirCommand;
-    c->m_TestHandler = m_TestHandler;
-    return c;
-    }
-
-  /**
-   * This is called when the command is first encountered in
-   * the CMakeLists.txt file.
-   */
-  virtual bool InitialPass(std::vector<std::string> const& args);
-
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  virtual const char* GetName() { return "SUBDIRS";}
-
-  // Unused methods
-  virtual const char* GetTerseDocumentation() { return ""; }
-  virtual const char* GetFullDocumentation() { return ""; }
-
-  cmTypeMacro(cmCTestSubdirCommand, cmCommand);
-
-  cmCTestTestHandler* m_TestHandler;
-};
-
-//----------------------------------------------------------------------
-bool cmCTestSubdirCommand::InitialPass(std::vector<std::string> const& args)
-{
-  if(args.size() < 1 )
-    {
-    this->SetError("called with incorrect number of arguments");
-    return false;
-    }
-  std::vector<std::string>::const_iterator it;
-  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-  for ( it = args.begin(); it != args.end(); ++ it )
-    {
-    cmSystemTools::ChangeDirectory(cwd.c_str());
-    std::string fname = cwd;
-    fname += "/";
-    fname += *it;
-
-    if ( !cmSystemTools::FileExists(fname.c_str()) )
-      {
-      // No subdirectory? So what...
-      continue;
-      }
-    cmSystemTools::ChangeDirectory(fname.c_str());
-    const char* testFilename;
-    if( cmSystemTools::FileExists("CTestTestfile.cmake") )
-      {
-      // does the CTestTestfile.cmake exist ?
-      testFilename = "CTestTestfile.cmake";
-      }
-    else if( cmSystemTools::FileExists("DartTestfile.txt") )
-      {
-      // does the DartTestfile.txt exist ?
-      testFilename = "DartTestfile.txt";
-      }
-    else
-      {
-      // No DartTestfile.txt? Who cares...
-      cmSystemTools::ChangeDirectory(cwd.c_str());
-      continue;
-      }
-    fname += "/";
-    fname += testFilename;
-    bool readit = m_Makefile->ReadListFile( m_Makefile->GetCurrentListFile(),
-      fname.c_str());
-    cmSystemTools::ChangeDirectory(cwd.c_str());
-    if(!readit)
-      {
-      std::string m = "Could not find include file: ";
-      m += fname;
-      this->SetError(m.c_str());
-      return false;
-      }
-    }
-  return true;
-}
-
-//----------------------------------------------------------------------
-class cmCTestAddTestCommand : public cmCommand
-{
-public:
-  /**
-   * This is a virtual constructor for the command.
-   */
-  virtual cmCommand* Clone()
-    {
-    cmCTestAddTestCommand* c = new cmCTestAddTestCommand;
-    c->m_TestHandler = m_TestHandler;
-    return c;
-    }
-
-  /**
-   * This is called when the command is first encountered in
-   * the CMakeLists.txt file.
-   */
-  virtual bool InitialPass(std::vector<std::string> const&);
-
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  virtual const char* GetName() { return "ADD_TEST";}
-
-  // Unused methods
-  virtual const char* GetTerseDocumentation() { return ""; }
-  virtual const char* GetFullDocumentation() { return ""; }
-
-  cmTypeMacro(cmCTestAddTestCommand, cmCommand);
-
-  cmCTestTestHandler* m_TestHandler;
-};
-
-//----------------------------------------------------------------------
-bool cmCTestAddTestCommand::InitialPass(std::vector<std::string> const& args)
-{
-  if ( args.size() < 2 )
-    {
-    this->SetError("called with incorrect number of arguments");
-    return false;
-    }
-  return m_TestHandler->AddTest(args);
-}
-
-//----------------------------------------------------------------------
-class cmCTestSetTestsPropertiesCommand : public cmCommand
-{
-public:
-  /**
-   * This is a virtual constructor for the command.
-   */
-  virtual cmCommand* Clone()
-    {
-    cmCTestSetTestsPropertiesCommand* c
-      = new cmCTestSetTestsPropertiesCommand;
-    c->m_TestHandler = m_TestHandler;
-    return c;
-    }
-
-  /**
-   * This is called when the command is first encountered in
-   * the CMakeLists.txt file.
-   */
-  virtual bool InitialPass(std::vector<std::string> const&);
-
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  virtual const char* GetName() { return "SET_TESTS_PROPERTIES";}
-
-  // Unused methods
-  virtual const char* GetTerseDocumentation() { return ""; }
-  virtual const char* GetFullDocumentation() { return ""; }
-
-  cmTypeMacro(cmCTestSetTestsPropertiesCommand, cmCommand);
-
-  cmCTestTestHandler* m_TestHandler;
-};
-
-//----------------------------------------------------------------------
-bool cmCTestSetTestsPropertiesCommand::InitialPass(
-  std::vector<std::string> const& args)
-{
-  return m_TestHandler->SetTestsProperties(args);
-}
-
-//----------------------------------------------------------------------
-// Try to find an executable, if found fullPath will be set to the full path
-// of where it was found. The directory and filename to search for are passed
-// in as well an a subdir (typically used for configuraitons such as
-// Release/Debug/etc)
-bool TryExecutable(const char *dir, const char *file,
-                   std::string *fullPath, const char *subdir)
-{
-  // try current directory
-  std::string tryPath;
-  if (dir && strcmp(dir,""))
-    {
-    tryPath = dir;
-    tryPath += "/";
-    }
-
-  if (subdir && strcmp(subdir,""))
-    {
-    tryPath += subdir;
-    tryPath += "/";
-    }
-
-  tryPath += file;
-
-  // find the file without an executable extension
-  if(cmSystemTools::FileExists(tryPath.c_str()))
-    {
-    *fullPath = cmSystemTools::CollapseFullPath(tryPath.c_str());
-    return true;
-    }
-
-  // if not found try it with the executable extension
-  tryPath += cmSystemTools::GetExecutableExtension();
-  if(cmSystemTools::FileExists(tryPath.c_str()))
-    {
-    *fullPath = cmSystemTools::CollapseFullPath(tryPath.c_str());
-    return true;
-    }
-
-  // not found at all, return false
-  return false;
-}
-
-//----------------------------------------------------------------------
-// get the next number in a string with numbers separated by ,
-// pos is the start of the search and pos2 is the end of the search
-// pos becomes pos2 after a call to GetNextNumber.
-// -1 is returned at the end of the list.
-inline int GetNextNumber(std::string const& in,
-                         int& val,
-                         std::string::size_type& pos,
-                         std::string::size_type& pos2)
-{
-  pos2 = in.find(',', pos);
-  if(pos2 != in.npos)
-    {
-    if(pos2-pos == 0)
-      {
-      val = -1;
-      }
-    else
-      {
-      val = atoi(in.substr(pos, pos2-pos).c_str());
-      }
-    pos = pos2+1;
-    return 1;
-    }
-  else
-    {
-    if(in.size()-pos == 0)
-      {
-       val = -1;
-      }
-    else
-      {
-      val = atoi(in.substr(pos, in.size()-pos).c_str());
-      }
-    return 0;
-    }
-}
-
-//----------------------------------------------------------------------
-// get the next number in a string with numbers separated by ,
-// pos is the start of the search and pos2 is the end of the search
-// pos becomes pos2 after a call to GetNextNumber.
-// -1 is returned at the end of the list.
-inline int GetNextRealNumber(std::string const& in,
-                             double& val,
-                             std::string::size_type& pos,
-                             std::string::size_type& pos2)
-{
-  pos2 = in.find(',', pos);
-  if(pos2 != in.npos)
-    {
-    if(pos2-pos == 0)
-      {
-      val = -1;
-      }
-    else
-      {
-      val = atof(in.substr(pos, pos2-pos).c_str());
-      }
-    pos = pos2+1;
-    return 1;
-    }
-  else
-    {
-    if(in.size()-pos == 0)
-      {
-       val = -1;
-      }
-    else
-      {
-      val = atof(in.substr(pos, in.size()-pos).c_str());
-      }
-    return 0;
-    }
-}
-
-
-//----------------------------------------------------------------------
-cmCTestTestHandler::cmCTestTestHandler()
-{
-  m_UseUnion = false;
-
-  m_UseIncludeRegExp       = false;
-  m_UseExcludeRegExp       = false;
-  m_UseExcludeRegExpFirst  = false;
-
-  m_CustomMaximumPassedTestOutputSize = 1 * 1024;
-  m_CustomMaximumFailedTestOutputSize = 300 * 1024;
-
-  m_MemCheck = false;
-
-  m_LogFile = 0;
-
-  m_DartStuff.compile("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::Initialize()
-{
-  this->Superclass::Initialize();
-
-  m_ElapsedTestingTime = -1;
-
-  m_TestResults.clear();
-
-  m_CustomTestsIgnore.clear();
-  m_StartTest = "";
-  m_EndTest = "";
-
-  m_CustomPreTest.clear();
-  m_CustomPostTest.clear();
-  m_CustomMaximumPassedTestOutputSize = 1 * 1024;
-  m_CustomMaximumFailedTestOutputSize = 300 * 1024;
-
-  m_TestsToRun.clear();
-
-  m_UseIncludeRegExp = false;
-  m_UseExcludeRegExp = false;
-  m_UseExcludeRegExpFirst = false;
-  m_IncludeRegExp = "";
-  m_ExcludeRegExp = "";
-
-  TestsToRunString = "";
-  m_UseUnion = false;
-  m_TestList.clear();
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::PopulateCustomVectors(cmMakefile *mf)
-{
-  cmCTest::PopulateCustomVector(mf, "CTEST_CUSTOM_PRE_TEST",
-                                m_CustomPreTest);
-  cmCTest::PopulateCustomVector(mf, "CTEST_CUSTOM_POST_TEST",
-                                m_CustomPostTest);
-  cmCTest::PopulateCustomVector(mf,
-                             "CTEST_CUSTOM_TESTS_IGNORE",
-                             m_CustomTestsIgnore);
-  cmCTest::PopulateCustomInteger(mf,
-                             "CTEST_CUSTOM_MAXIMUM_PASSED_TEST_OUTPUT_SIZE",
-                             m_CustomMaximumPassedTestOutputSize);
-  cmCTest::PopulateCustomInteger(mf,
-                             "CTEST_CUSTOM_MAXIMUM_FAILED_TEST_OUTPUT_SIZE",
-                             m_CustomMaximumFailedTestOutputSize);
-}
-
-//----------------------------------------------------------------------
-int cmCTestTestHandler::PreProcessHandler()
-{
-  if ( !this->ExecuteCommands(m_CustomPreTest) )
-    {
-    cmCTestLog(m_CTest, ERROR_MESSAGE,
-      "Problem executing pre-test command(s)." << std::endl);
-    return 0;
-    }
-  return 1;
-}
-
-//----------------------------------------------------------------------
-int cmCTestTestHandler::PostProcessHandler()
-{
-  if ( !this->ExecuteCommands(m_CustomPostTest) )
-    {
-    cmCTestLog(m_CTest, ERROR_MESSAGE,
-      "Problem executing post-test command(s)." << std::endl);
-    return 0;
-    }
-  return 1;
-}
-
-//----------------------------------------------------------------------
-//clearly it would be nice if this were broken up into a few smaller
-//functions and commented...
-int cmCTestTestHandler::ProcessHandler()
-{
-  // Update internal data structure from generic one
-  this->SetTestsToRunInformation(this->GetOption("TestsToRunInformation"));
-  this->SetUseUnion(cmSystemTools::IsOn(this->GetOption("UseUnion")));
-  const char* val;
-  val = this->GetOption("IncludeRegularExpression");
-  if ( val )
-    {
-    this->UseIncludeRegExp();
-    this->SetIncludeRegExp(val);
-    }
-  val = this->GetOption("ExcludeRegularExpression");
-  if ( val )
-    {
-    this->UseExcludeRegExp();
-    this->SetExcludeRegExp(val);
-    }
-
-  m_TestResults.clear();
-
-  cmCTestLog(m_CTest, HANDLER_OUTPUT, (m_MemCheck ? "Memory check" : "Test")
-    << " project" << std::endl);
-  if ( ! this->PreProcessHandler() )
-    {
-    return -1;
-    }
-
-  cmGeneratedFileStream mLogFile;
-  this->StartLogFile("Tests", mLogFile);
-  m_LogFile = &mLogFile;
-
-  std::vector<cmStdString> passed;
-  std::vector<cmStdString> failed;
-  int total;
-
-  this->ProcessDirectory(passed, failed);
-
-  total = int(passed.size()) + int(failed.size());
-
-  if (total == 0)
-    {
-    if ( !m_CTest->GetShowOnly() )
-      {
-      cmCTestLog(m_CTest, ERROR_MESSAGE, "No tests were found!!!"
-        << std::endl);
-      }
-    }
-  else
-    {
-    if (m_HandlerVerbose && passed.size() &&
-      (m_UseIncludeRegExp || m_UseExcludeRegExp))
-      {
-      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, std::endl
-        << "The following tests passed:" << std::endl);
-      for(std::vector<cmStdString>::iterator j = passed.begin();
-          j != passed.end(); ++j)
-        {
-        cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "\t" << *j << std::endl);
-        }
-      }
-
-    float percent = float(passed.size()) * 100.0f / total;
-    if ( failed.size() > 0 &&  percent > 99)
-      {
-      percent = 99;
-      }
-    cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl
-      << static_cast<int>(percent + .5) << "% tests passed, "
-      << failed.size() << " tests failed out of " << total << std::endl);
-    //fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
-    //  percent, int(failed.size()), total);
-
-    if (failed.size())
-      {
-      cmGeneratedFileStream ofs;
-
-      cmCTestLog(m_CTest, ERROR_MESSAGE, std::endl
-        << "The following tests FAILED:" << std::endl);
-      this->StartLogFile("TestsFailed", ofs);
-
-      std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;
-      for(ftit = m_TestResults.begin();
-        ftit != m_TestResults.end(); ++ftit)
-        {
-        if ( ftit->m_Status != cmCTestTestHandler::COMPLETED )
-          {
-          ofs << ftit->m_TestCount << ":" << ftit->m_Name << std::endl;
-          cmCTestLog(m_CTest, HANDLER_OUTPUT, "\t" << std::setw(3)
-            << ftit->m_TestCount << " - " << ftit->m_Name.c_str() << " ("
-            << this->GetTestStatus(ftit->m_Status) << ")" << std::endl);
-          }
-        }
-
-      }
-    }
-
-  if ( m_CTest->GetProduceXML() )
-    {
-    cmGeneratedFileStream xmlfile;
-    if( !this->StartResultingXML((m_MemCheck ? "DynamicAnalysis" : "Test"),
-        xmlfile) )
-      {
-      cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot create "
-        << (m_MemCheck ? "memory check" : "testing")
-        << " XML file" << std::endl);
-      m_LogFile = 0;
-      return 1;
-      }
-    this->GenerateDartOutput(xmlfile);
-    }
-
-  if ( ! this->PostProcessHandler() )
-    {
-    m_LogFile = 0;
-    return -1;
-    }
-
-  if ( !failed.empty() )
-    {
-    m_LogFile = 0;
-    return -1;
-    }
-  m_LogFile = 0;
-  return 0;
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::ProcessDirectory(std::vector<cmStdString> &passed,
-                                          std::vector<cmStdString> &failed)
-{
-  std::string current_dir = cmSystemTools::GetCurrentWorkingDirectory();
-  m_TestList.clear();
-
-  this->GetListOfTests();
-  tm_ListOfTests::size_type tmsize = m_TestList.size();
-
-  m_StartTest = m_CTest->CurrentTime();
-  double elapsed_time_start = cmSystemTools::GetTime();
-
-  *m_LogFile << "Start testing: " << m_StartTest << std::endl
-    << "----------------------------------------------------------"
-    << std::endl;
-
-  // how many tests are in based on RegExp?
-  int inREcnt = 0;
-  tm_ListOfTests::iterator it;
-  for ( it = m_TestList.begin(); it != m_TestList.end(); it ++ )
-    {
-    if (it->m_IsInBasedOnREOptions)
-      {
-      inREcnt ++;
-      }
-    }
-  // expand the test list based on the union flag
-  if (m_UseUnion)
-    {
-    this->ExpandTestsToRunInformation((int)tmsize);
-    }
-  else
-    {
-    this->ExpandTestsToRunInformation(inREcnt);
-    }
-
-  int cnt = 0;
-  inREcnt = 0;
-  std::string last_directory = "";
-  for ( it = m_TestList.begin(); it != m_TestList.end(); it ++ )
-    {
-    cnt ++;
-    if (it->m_IsInBasedOnREOptions)
-      {
-      inREcnt++;
-      }
-    const std::string& testname = it->m_Name;
-    std::vector<std::string>& args = it->m_Args;
-    cmCTestTestResult cres;
-    cres.m_ExecutionTime = 0;
-    cres.m_ReturnValue = -1;
-    cres.m_Status = cmCTestTestHandler::NOT_RUN;
-    cres.m_TestCount = cnt;
-
-    if (!(last_directory == it->m_Directory))
-      {
-      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Changing directory into "
-        << it->m_Directory.c_str() << "\n");
-      *m_LogFile << "Changing directory into: " << it->m_Directory.c_str()
-        << std::endl;
-      last_directory = it->m_Directory;
-      cmSystemTools::ChangeDirectory(it->m_Directory.c_str());
-      }
-    cres.m_Name = testname;
-    cres.m_Path = it->m_Directory.c_str();
-
-    if (m_UseUnion)
-      {
-      // if it is not in the list and not in the regexp then skip
-      if ((m_TestsToRun.size() &&
-           std::find(m_TestsToRun.begin(), m_TestsToRun.end(), cnt)
-           == m_TestsToRun.end()) && !it->m_IsInBasedOnREOptions)
-        {
-        continue;
-        }
-      }
-    else
-      {
-      // is this test in the list of tests to run? If not then skip it
-      if ((m_TestsToRun.size() &&
-           std::find(m_TestsToRun.begin(), m_TestsToRun.end(), inREcnt)
-           == m_TestsToRun.end()) || !it->m_IsInBasedOnREOptions)
-        {
-        continue;
-        }
-      }
-
-    cmCTestLog(m_CTest, HANDLER_OUTPUT, std::setw(3) << cnt << "/");
-    cmCTestLog(m_CTest, HANDLER_OUTPUT, std::setw(3) << tmsize << " ");
-    if ( m_MemCheck )
-      {
-      cmCTestLog(m_CTest, HANDLER_OUTPUT, "Memory Check");
-      }
-    else
-      {
-      cmCTestLog(m_CTest, HANDLER_OUTPUT, "Testing");
-      }
-    cmCTestLog(m_CTest, HANDLER_OUTPUT, " ");
-    std::string outname = testname;
-    outname.resize(30, ' ');
-    *m_LogFile << cnt << "/" << tmsize << " Testing: " << testname
-      << std::endl;
-
-    if ( m_CTest->GetShowOnly() )
-      {
-      cmCTestLog(m_CTest, HANDLER_OUTPUT, outname.c_str() << std::endl);
-      }
-    else
-      {
-      cmCTestLog(m_CTest, HANDLER_OUTPUT, outname.c_str());
-      }
-
-    cmCTestLog(m_CTest, DEBUG, "Testing " << args[0].c_str() << " ... ");
-    // find the test executable
-    std::string actualCommand = this->FindTheExecutable(args[1].c_str());
-    std::string testCommand
-      = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
-
-    // continue if we did not find the executable
-    if (testCommand == "")
-      {
-      *m_LogFile << "Unable to find executable: " << args[1].c_str()
-        << std::endl;
-      cmCTestLog(m_CTest, ERROR_MESSAGE, "Unable to find executable: "
-        << args[1].c_str() << std::endl);
-      if ( !m_CTest->GetShowOnly() )
-        {
-        cres.m_FullCommandLine = actualCommand;
-        m_TestResults.push_back( cres );
-        failed.push_back(testname);
-        continue;
-        }
-      }
-
-    // add the arguments
-    std::vector<std::string>::const_iterator j = args.begin();
-    ++j;
-    ++j;
-    std::vector<const char*> arguments;
-    this->GenerateTestCommand(arguments);
-    arguments.push_back(actualCommand.c_str());
-    for(;j != args.end(); ++j)
-      {
-      testCommand += " ";
-      testCommand += cmSystemTools::EscapeSpaces(j->c_str());
-      arguments.push_back(j->c_str());
-      }
-    arguments.push_back(0);
-
-    /**
-     * Run an executable command and put the stdout in output.
-     */
-    std::string output;
-    int retVal = 0;
-
-
-    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, std::endl
-      << (m_MemCheck?"MemCheck":"Test") << " command: " << testCommand
-      << std::endl);
-    *m_LogFile << cnt << "/" << tmsize
-      << " Test: " << testname.c_str() << std::endl;
-    *m_LogFile << "Command: ";
-    std::vector<cmStdString>::size_type ll;
-    for ( ll = 0; ll < arguments.size()-1; ll ++ )
-      {
-      *m_LogFile << "\"" << arguments[ll] << "\" ";
-      }
-    *m_LogFile
-      << std::endl
-      << "Directory: " << it->m_Directory << std::endl
-      << "\"" << testname.c_str() << "\" start time: "
-      << m_CTest->CurrentTime() << std::endl
-      << "Output:" << std::endl
-      << "----------------------------------------------------------"
-      << std::endl;
-    int res = 0;
-    double clock_start, clock_finish;
-    clock_start = cmSystemTools::GetTime();
-
-    if ( !m_CTest->GetShowOnly() )
-      {
-      res = m_CTest->RunTest(arguments, &output, &retVal, m_LogFile);
-      }
-
-    clock_finish = cmSystemTools::GetTime();
-
-    if ( m_LogFile )
-      {
-      double ttime = clock_finish - clock_start;
-      int hours = static_cast<int>(ttime / (60 * 60));
-      int minutes = static_cast<int>(ttime / 60) % 60;
-      int seconds = static_cast<int>(ttime) % 60;
-      char buffer[100];
-      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
-      *m_LogFile
-        << "----------------------------------------------------------"
-        << std::endl
-        << "\"" << testname.c_str() << "\" end time: "
-        << m_CTest->CurrentTime() << std::endl
-        << "\"" << testname.c_str() << "\" time elapsed: "
-        << buffer << std::endl
-        << "----------------------------------------------------------"
-        << std::endl << std::endl;
-      }
-
-    cres.m_ExecutionTime = (double)(clock_finish - clock_start);
-    cres.m_FullCommandLine = testCommand;
-
-    if ( !m_CTest->GetShowOnly() )
-      {
-      bool testFailed = false;
-      std::vector<cmsys::RegularExpression>::iterator passIt;
-      bool forceFail = false;
-      if ( it->m_RequiredRegularExpressions.size() > 0 )
-        {
-        bool found = false;
-        for ( passIt = it->m_RequiredRegularExpressions.begin();
-          passIt != it->m_RequiredRegularExpressions.end();
-          ++ passIt )
-          {
-          if ( passIt->find(output.c_str()) )
-            {
-            found = true;
-            }
-          }
-        if ( !found )
-          {
-          forceFail = true;
-          }
-        }
-      if ( it->m_ErrorRegularExpressions.size() > 0 )
-        {
-        for ( passIt = it->m_ErrorRegularExpressions.begin();
-          passIt != it->m_ErrorRegularExpressions.end();
-          ++ passIt )
-          {
-          if ( passIt->find(output.c_str()) )
-            {
-            forceFail = true;
-            }
-          }
-        }
-
-      if (res == cmsysProcess_State_Exited &&
-          (retVal == 0 || it->m_RequiredRegularExpressions.size()) &&
-          !forceFail)
-        {
-        cmCTestLog(m_CTest, HANDLER_OUTPUT,   "   Passed");
-        if ( it->m_WillFail )
-          {
-          cmCTestLog(m_CTest, HANDLER_OUTPUT,   " - But it should fail!");
-          cres.m_Status = cmCTestTestHandler::FAILED;
-          testFailed = true;
-          }
-        else
-          {
-          cres.m_Status = cmCTestTestHandler::COMPLETED;
-          }
-        cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl);
-        }
-      else
-        {
-        testFailed = true;
-
-        cres.m_Status = cmCTestTestHandler::FAILED;
-        if ( res == cmsysProcess_State_Expired )
-          {
-          cmCTestLog(m_CTest, HANDLER_OUTPUT, "***Timeout" << std::endl);
-          cres.m_Status = cmCTestTestHandler::TIMEOUT;
-          }
-        else if ( res == cmsysProcess_State_Exception )
-          {
-          cmCTestLog(m_CTest, HANDLER_OUTPUT, "***Exception: ");
-          switch ( retVal )
-            {
-          case cmsysProcess_Exception_Fault:
-            cmCTestLog(m_CTest, HANDLER_OUTPUT, "SegFault");
-            cres.m_Status = cmCTestTestHandler::SEGFAULT;
-            break;
-          case cmsysProcess_Exception_Illegal:
-            cmCTestLog(m_CTest, HANDLER_OUTPUT, "Illegal");
-            cres.m_Status = cmCTestTestHandler::ILLEGAL;
-            break;
-          case cmsysProcess_Exception_Interrupt:
-            cmCTestLog(m_CTest, HANDLER_OUTPUT, "Interrupt");
-            cres.m_Status = cmCTestTestHandler::INTERRUPT;
-            break;
-          case cmsysProcess_Exception_Numerical:
-            cmCTestLog(m_CTest, HANDLER_OUTPUT, "Numerical");
-            cres.m_Status = cmCTestTestHandler::NUMERICAL;
-            break;
-          default:
-            cmCTestLog(m_CTest, HANDLER_OUTPUT, "Other");
-            cres.m_Status = cmCTestTestHandler::OTHER_FAULT;
-            }
-           cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl);
-          }
-        else if ( res == cmsysProcess_State_Error )
-          {
-          cmCTestLog(m_CTest, HANDLER_OUTPUT, "***Bad command " << res
-            << std::endl);
-          cres.m_Status = cmCTestTestHandler::BAD_COMMAND;
-          }
-        else
-          {
-          // Force fail will also be here?
-          cmCTestLog(m_CTest, HANDLER_OUTPUT, "***Failed");
-          if ( it->m_WillFail )
-            {
-            cres.m_Status = cmCTestTestHandler::COMPLETED;
-            cmCTestLog(m_CTest, HANDLER_OUTPUT, " - supposed to fail");
-            testFailed = false;
-            }
-          cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl);
-          }
-        }
-      if ( testFailed )
-        {
-        failed.push_back(testname);
-        }
-      else
-        {
-        passed.push_back(testname);
-        }
-      if (!output.empty() && output.find("<DartMeasurement") != output.npos)
-        {
-        if (m_DartStuff.find(output.c_str()))
-          {
-          std::string dartString = m_DartStuff.match(1);
-          cmSystemTools::ReplaceString(output, dartString.c_str(),"");
-          cres.m_RegressionImages
-            = this->GenerateRegressionImages(dartString);
-          }
-        }
-      }
-
-    if ( cres.m_Status == cmCTestTestHandler::COMPLETED )
-      {
-      this->CleanTestOutput(output, static_cast<size_t>(
-          m_CustomMaximumPassedTestOutputSize));
-      }
-    else
-      {
-      this->CleanTestOutput(output, static_cast<size_t>(
-          m_CustomMaximumFailedTestOutputSize));
-      }
-
-    cres.m_Output = output;
-    cres.m_ReturnValue = retVal;
-    cres.m_CompletionStatus = "Completed";
-    m_TestResults.push_back( cres );
-    }
-
-  m_EndTest = m_CTest->CurrentTime();
-  m_ElapsedTestingTime = cmSystemTools::GetTime() - elapsed_time_start;
-  if ( m_LogFile )
-    {
-    *m_LogFile << "End testing: " << m_EndTest << std::endl;
-    }
-  cmSystemTools::ChangeDirectory(current_dir.c_str());
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::GenerateTestCommand(std::vector<const char*>&)
-{
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::GenerateDartOutput(std::ostream& os)
-{
-  if ( !m_CTest->GetProduceXML() )
-    {
-    return;
-    }
-
-  m_CTest->StartXML(os);
-  os << "<Testing>\n"
-    << "\t<StartDateTime>" << m_StartTest << "</StartDateTime>\n"
-    << "\t<TestList>\n";
-  tm_TestResultsVector::size_type cc;
-  for ( cc = 0; cc < m_TestResults.size(); cc ++ )
-    {
-    cmCTestTestResult *result = &m_TestResults[cc];
-    std::string testPath = result->m_Path + "/" + result->m_Name;
-    os << "\t\t<Test>" << cmCTest::MakeXMLSafe(
-      m_CTest->GetShortPathToFile(testPath.c_str()))
-      << "</Test>" << std::endl;
-    }
-  os << "\t</TestList>\n";
-  for ( cc = 0; cc < m_TestResults.size(); cc ++ )
-    {
-    cmCTestTestResult *result = &m_TestResults[cc];
-    os << "\t<Test Status=\"";
-    if ( result->m_Status == cmCTestTestHandler::COMPLETED )
-      {
-      os << "passed";
-      }
-    else if ( result->m_Status == cmCTestTestHandler::NOT_RUN )
-      {
-      os << "notrun";
-      }
-    else
-      {
-      os << "failed";
-      }
-    std::string testPath = result->m_Path + "/" + result->m_Name;
-    os << "\">\n"
-      << "\t\t<Name>" << cmCTest::MakeXMLSafe(result->m_Name) << "</Name>\n"
-      << "\t\t<Path>" << cmCTest::MakeXMLSafe(
-        m_CTest->GetShortPathToFile(result->m_Path.c_str())) << "</Path>\n"
-      << "\t\t<FullName>" << cmCTest::MakeXMLSafe(
-        m_CTest->GetShortPathToFile(testPath.c_str())) << "</FullName>\n"
-      << "\t\t<FullCommandLine>"
-      << cmCTest::MakeXMLSafe(result->m_FullCommandLine)
-      << "</FullCommandLine>\n"
-      << "\t\t<Results>" << std::endl;
-    if ( result->m_Status != cmCTestTestHandler::NOT_RUN )
-      {
-      if ( result->m_Status != cmCTestTestHandler::COMPLETED ||
-        result->m_ReturnValue )
-        {
-        os << "\t\t\t<NamedMeasurement type=\"text/string\" "
-          "name=\"Exit Code\"><Value>"
-          << this->GetTestStatus(result->m_Status) << "</Value>"
-          "</NamedMeasurement>\n"
-          << "\t\t\t<NamedMeasurement type=\"text/string\" "
-          "name=\"Exit Value\"><Value>"
-          << result->m_ReturnValue << "</Value></NamedMeasurement>"
-          << std::endl;
-        }
-      os << result->m_RegressionImages;
-      os << "\t\t\t<NamedMeasurement type=\"numeric/double\" "
-        << "name=\"Execution Time\"><Value>"
-        << result->m_ExecutionTime << "</Value></NamedMeasurement>\n";
-      os
-        << "\t\t\t<NamedMeasurement type=\"text/string\" "
-        << "name=\"Completion Status\"><Value>"
-        << result->m_CompletionStatus << "</Value></NamedMeasurement>\n";
-      }
-    os
-      << "\t\t\t<Measurement>\n"
-      << "\t\t\t\t<Value>";
-    os << cmCTest::MakeXMLSafe(result->m_Output);
-    os
-      << "</Value>\n"
-      << "\t\t\t</Measurement>\n"
-      << "\t\t</Results>\n"
-      << "\t</Test>" << std::endl;
-    }
-
-  os << "\t<EndDateTime>" << m_EndTest << "</EndDateTime>\n"
-     << "<ElapsedMinutes>"
-     << static_cast<int>(m_ElapsedTestingTime/6)/10.0
-     << "</ElapsedMinutes>"
-    << "</Testing>" << std::endl;
-  m_CTest->EndXML(os);
-}
-
-//----------------------------------------------------------------------
-int cmCTestTestHandler::ExecuteCommands(std::vector<cmStdString>& vec)
-{
-  std::vector<cmStdString>::iterator it;
-  for ( it = vec.begin(); it != vec.end(); ++it )
-    {
-    int retVal = 0;
-    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Run command: " << *it
-      << std::endl);
-    if ( !cmSystemTools::RunSingleCommand(it->c_str(), 0, &retVal, 0, true
-        /*m_Verbose*/) || retVal != 0 )
-      {
-      cmCTestLog(m_CTest, ERROR_MESSAGE, "Problem running command: " << *it
-        << std::endl);
-      return 0;
-      }
-    }
-  return 1;
-}
-
-
-//----------------------------------------------------------------------
-// Find the appropriate executable to run for a test
-std::string cmCTestTestHandler::FindTheExecutable(const char *exe)
-{
-  std::string fullPath = "";
-  std::string dir;
-  std::string file;
-
-  cmSystemTools::SplitProgramPath(exe, dir, file);
-  // first try to find the executable given a config type subdir if there is
-  // one
-  if(m_CTest->GetConfigType() != "" &&
-    ::TryExecutable(dir.c_str(), file.c_str(), &fullPath,
-      m_CTest->GetConfigType().c_str()))
-    {
-    return fullPath;
-    }
-
-  // next try the current directory as the subdir
-  if (::TryExecutable(dir.c_str(),file.c_str(),&fullPath,"."))
-    {
-    return fullPath;
-    }
-
-  // try without the config subdir
-  if (::TryExecutable(dir.c_str(),file.c_str(),&fullPath,""))
-    {
-    return fullPath;
-    }
-
-  if ( m_CTest->GetConfigType() == "" )
-    {
-    // No config type, so try to guess it
-    if (::TryExecutable(dir.c_str(),file.c_str(),&fullPath,"Deployment"))
-      {
-      return fullPath;
-      }
-
-    if (::TryExecutable(dir.c_str(),file.c_str(),&fullPath,"Development"))
-      {
-      return fullPath;
-      }
-
-    if (::TryExecutable(dir.c_str(),file.c_str(),&fullPath,"Release"))
-      {
-      return fullPath;
-      }
-
-    if (::TryExecutable(dir.c_str(),file.c_str(),&fullPath,"Debug"))
-      {
-      return fullPath;
-      }
-
-    if (::TryExecutable(dir.c_str(),file.c_str(),&fullPath,"MinSizeRel"))
-      {
-      return fullPath;
-      }
-
-    if (::TryExecutable(dir.c_str(),file.c_str(),&fullPath,"RelWithDebInfo"))
-      {
-      return fullPath;
-      }
-    }
-
-  // if everything else failed, check the users path, but only if a full path
-  // wasn;t specified
-  if (dir.size() == 0)
-    {
-    std::string path = cmSystemTools::FindProgram(file.c_str());
-    if (path != "")
-      {
-      return path;
-      }
-    }
-
-  if ( m_CTest->GetConfigType() != "" )
-    {
-    dir += "/";
-    dir += m_CTest->GetConfigType();
-    dir += "/";
-    dir += file;
-    cmSystemTools::Error("config type specified on the command line, but "
-      "test executable not found.",
-      dir.c_str());
-    return "";
-    }
-  return fullPath;
-}
-
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::GetListOfTests()
-{
-  if ( !m_IncludeRegExp.empty() )
-    {
-    m_IncludeTestsRegularExpression.compile(m_IncludeRegExp.c_str());
-    }
-  if ( !m_ExcludeRegExp.empty() )
-    {
-    m_ExcludeTestsRegularExpression.compile(m_ExcludeRegExp.c_str());
-    }
-  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Constructing a list of tests"
-    << std::endl);
-  cmake cm;
-  cmGlobalGenerator gg;
-  gg.SetCMakeInstance(&cm);
-  std::auto_ptr<cmLocalGenerator> lg(gg.CreateLocalGenerator());
-  lg->SetGlobalGenerator(&gg);
-  cmMakefile *mf = lg->GetMakefile();
-  mf->AddDefinition("CTEST_CONFIGURATION_TYPE",
-    m_CTest->GetConfigType().c_str());
-
-  // Add handler for ADD_TEST
-  cmCTestAddTestCommand* newCom1 = new cmCTestAddTestCommand;
-  newCom1->m_TestHandler = this;
-  cm.AddCommand(newCom1);
-
-  // Add handler for SUBDIR
-  cmCTestSubdirCommand* newCom2 = new cmCTestSubdirCommand;
-  newCom2->m_TestHandler = this;
-  cm.AddCommand(newCom2);
-
-  // Add handler for SET_SOURCE_FILES_PROPERTIES
-  cmCTestSetTestsPropertiesCommand* newCom3
-    = new cmCTestSetTestsPropertiesCommand;
-  newCom3->m_TestHandler = this;
-  cm.AddCommand(newCom3);
-
-  const char* testFilename;
-  if( cmSystemTools::FileExists("CTestTestfile.cmake") )
-    {
-    // does the CTestTestfile.cmake exist ?
-    testFilename = "CTestTestfile.cmake";
-    }
-  else if( cmSystemTools::FileExists("DartTestfile.txt") )
-    {
-    // does the DartTestfile.txt exist ?
-    testFilename = "DartTestfile.txt";
-    }
-  else
-    {
-    return;
-    }
-
-  if ( !mf->ReadListFile(0, testFilename) )
-    {
-    return;
-    }
-  if ( cmSystemTools::GetErrorOccuredFlag() )
-    {
-    return;
-    }
-  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT,
-    "Done constructing a list of tests" << std::endl);
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::UseIncludeRegExp()
-{
-  this->m_UseIncludeRegExp = true;
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::UseExcludeRegExp()
-{
-  this->m_UseExcludeRegExp = true;
-  this->m_UseExcludeRegExpFirst = this->m_UseIncludeRegExp ? false : true;
-}
-
-//----------------------------------------------------------------------
-const char* cmCTestTestHandler::GetTestStatus(int status)
-{
-  static const char statuses[][100] = {
-    "Not Run",
-    "Timeout",
-    "SEGFAULT",
-    "ILLEGAL",
-    "INTERRUPT",
-    "NUMERICAL",
-    "OTHER_FAULT",
-    "Failed",
-    "BAD_COMMAND",
-    "Completed"
-  };
-
-  if ( status < cmCTestTestHandler::NOT_RUN ||
-       status > cmCTestTestHandler::COMPLETED )
-    {
-    return "No Status";
-    }
-  return statuses[status];
-}
-
-//----------------------------------------------------------------------
-void cmCTestTestHandler::ExpandTestsToRunInformation(int numTests)
-{
-  if (this->TestsToRunString.empty())
-    {
-    return;
-    }
-
-  int start;
-  int end = -1;
-  double stride = -1;
-  std::string::size_type pos = 0;
-  std::string::size_type pos2;
-  // read start
-  if(GetNextNumber(this->TestsToRunString, start, pos, pos2))
-    {
-    // read end
-    if(GetNextNumber(this->TestsToRunString, end, pos, pos2))
-      {
-      // read stride
-      if(GetNextRealNumber(this->TestsToRunString, stride, pos, pos2))
-        {
-        int val =0;
-        // now read specific numbers
-        while(GetNextNumber(this->TestsToRunString, val, pos, pos2))
-          {
-          m_TestsToRun.push_back(val);
-          }
-        m_TestsToRun.push_back(val);
-        }
-      }
-    }
-
-  // if start is not specified then we assume we start at 1
-  if(start == -1)
-    {
-    start = 1;
-    }
-
-  // if end isnot specified then we assume we end with the last test
-  if(end == -1)
-    {
-    end = numTests;
-    }
-
-  // if the stride wasn't specified then it defaults to 1
-  if(stride == -1)
-    {
-    stride = 1;
-    }
-
-  // if we have a range then add it
-  if(end != -1 && start != -1 && stride > 0)
-    {
-    int i = 0;
-    while (i*stride + start <= end)
-      {
-      m_TestsToRun.push_back(static_cast<int>(i*stride+start));
-      ++i;
-      }
-    }
-
-  // sort the array
-  std::sort(m_TestsToRun.begin(), m_TestsToRun.end(), std::less<int>());
-  // remove duplicates
-  std::vector<int>::iterator new_end =
-    std::unique(m_TestsToRun.begin(), m_TestsToRun.end());
-  m_TestsToRun.erase(new_end, m_TestsToRun.end());
-}
-
-//----------------------------------------------------------------------
-// Just for convenience
-#define SPACE_REGEX "[ \t\r\n]"
-//----------------------------------------------------------------------
-std::string cmCTestTestHandler::GenerateRegressionImages(
-  const std::string& xml)
-{
-  cmsys::RegularExpression twoattributes(
-    "<DartMeasurement"
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*>([^<]*)</DartMeasurement>");
-  cmsys::RegularExpression threeattributes(
-    "<DartMeasurement"
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*>([^<]*)</DartMeasurement>");
-  cmsys::RegularExpression fourattributes(
-    "<DartMeasurement"
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*>([^<]*)</DartMeasurement>");
-  cmsys::RegularExpression measurementfile(
-    "<DartMeasurementFile"
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*(name|type|encoding|compression)=\"([^\"]*)\""
-    SPACE_REGEX "*>([^<]*)</DartMeasurementFile>");
-
-  cmOStringStream ostr;
-  bool done = false;
-  std::string cxml = xml;
-  while ( ! done )
-    {
-    if ( twoattributes.find(cxml) )
-      {
-      ostr
-        << "\t\t\t<NamedMeasurement"
-        << " " << twoattributes.match(1) << "=\""
-        << twoattributes.match(2) << "\""
-        << " " << twoattributes.match(3) << "=\""
-        << twoattributes.match(4) << "\""
-        << "><Value>" << twoattributes.match(5)
-        << "</Value></NamedMeasurement>"
-        << std::endl;
-      cxml.erase(twoattributes.start(),
-        twoattributes.end() - twoattributes.start());
-      }
-    else if ( threeattributes.find(cxml) )
-      {
-      ostr
-        << "\t\t\t<NamedMeasurement"
-        << " " << threeattributes.match(1) << "=\""
-        << threeattributes.match(2) << "\""
-        << " " << threeattributes.match(3) << "=\""
-        << threeattributes.match(4) << "\""
-        << " " << threeattributes.match(5) << "=\""
-        << threeattributes.match(6) << "\""
-        << "><Value>" << threeattributes.match(7)
-        << "</Value></NamedMeasurement>"
-        << std::endl;
-      cxml.erase(threeattributes.start(),
-        threeattributes.end() - threeattributes.start());
-      }
-    else if ( fourattributes.find(cxml) )
-      {
-      ostr
-        << "\t\t\t<NamedMeasurement"
-        << " " << fourattributes.match(1) << "=\""
-        << fourattributes.match(2) << "\""
-        << " " << fourattributes.match(3) << "=\""
-        << fourattributes.match(4) << "\""
-        << " " << fourattributes.match(5) << "=\""
-        << fourattributes.match(6) << "\""
-        << " " << fourattributes.match(7) << "=\""
-        << fourattributes.match(8) << "\""
-        << "><Value>" << fourattributes.match(9)
-        << "</Value></NamedMeasurement>"
-        << std::endl;
-      cxml.erase(fourattributes.start(),
-        fourattributes.end() - fourattributes.start());
-      }
-    else if ( measurementfile.find(cxml) )
-      {
-      const std::string& filename =
-        cmCTest::CleanString(measurementfile.match(5));
-      if ( cmSystemTools::FileExists(filename.c_str()) )
-        {
-        long len = cmSystemTools::FileLength(filename.c_str());
-        if ( len == 0 )
-          {
-          std::string k1 = measurementfile.match(1);
-          std::string v1 = measurementfile.match(2);
-          std::string k2 = measurementfile.match(3);
-          std::string v2 = measurementfile.match(4);
-          if ( cmSystemTools::LowerCase(k1) == "type" )
-            {
-            v1 = "text/string";
-            }
-          if ( cmSystemTools::LowerCase(k2) == "type" )
-            {
-            v2 = "text/string";
-            }
-
-          ostr
-            << "\t\t\t<NamedMeasurement"
-            << " " << k1 << "=\"" << v1 << "\""
-            << " " << k2 << "=\"" << v2 << "\""
-            << " encoding=\"none\""
-            << "><Value>Image " << filename.c_str()
-            << " is empty</Value></NamedMeasurement>";
-          }
-        else
-          {
-          std::ifstream ifs(filename.c_str(), std::ios::in
-#ifdef _WIN32
-                            | std::ios::binary
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
+ *
+ * Copyright (C) 1998 - 2004, Daniel Stenberg, <daniel@haxx.se>, et al.
+ *
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at http://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ * $Id$
+ ***************************************************************************/
+
+#include "setup.h"
+
+#ifndef WIN32
+/* headers for non-win32 */
+#include <sys/time.h>
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
 #endif
-            );
-          unsigned char *file_buffer = new unsigned char [ len + 1 ];
-          ifs.read(reinterpret_cast<char*>(file_buffer), len);
-          unsigned char *encoded_buffer
-            = new unsigned char [ static_cast<int>(len * 1.5 + 5) ];
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h> /* <netinet/tcp.h> may need it */
+#endif
+#ifdef HAVE_NETINET_TCP_H
+#include <netinet/tcp.h> /* for TCP_NODELAY */
+#endif
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
+#endif
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h> /* required for free() prototype, without it, this crashes
+                       on macos 68K */
+#endif
+#if (defined(HAVE_FIONBIO) && defined(__NOVELL_LIBC__))
+#include <sys/filio.h>
+#endif
+#if (defined(NETWARE) && defined(__NOVELL_LIBC__))
+#undef in_addr_t
+#define in_addr_t unsigned long
+#endif
+#ifdef  VMS
+#include <in.h>
+#include <inet.h>
+#endif
 
-          unsigned long rlen
-            = cmsysBase64_Encode(file_buffer, len, encoded_buffer, 1);
-          unsigned long cc;
+#endif
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
 
-          ostr
-            << "\t\t\t<NamedMeasurement"
-            << " " << measurementfile.match(1) << "=\""
-            << measurementfile.match(2) << "\""
-            << " " << measurementfile.match(3) << "=\""
-            << measurementfile.match(4) << "\""
-            << " encoding=\"base64\""
-            << ">" << std::endl << "\t\t\t\t<Value>";
-          for ( cc = 0; cc < rlen; cc ++ )
-            {
-            ostr << encoded_buffer[cc];
-            if ( cc % 60 == 0 && cc )
-              {
-              ostr << std::endl;
-              }
-            }
-          ostr
-            << "</Value>" << std::endl << "\t\t\t</NamedMeasurement>"
-            << std::endl;
-          delete [] file_buffer;
-          delete [] encoded_buffer;
-          }
-        }
-      else
-        {
-        int idx = 4;
-        if ( measurementfile.match(1) == "name" )
-          {
-          idx = 2;
-          }
-        ostr
-          << "\t\t\t<NamedMeasurement"
-          << " name=\"" << measurementfile.match(idx) << "\""
-          << " text=\"text/string\""
-          << "><Value>File " << filename.c_str()
-          << " not found</Value></NamedMeasurement>"
-          << std::endl;
-        cmCTestLog(m_CTest, HANDLER_OUTPUT, "File \"" << filename.c_str()
-          << "\" not found." << std::endl);
-        }
-      cxml.erase(measurementfile.start(),
-        measurementfile.end() - measurementfile.start());
-      }
+#ifndef TRUE
+#define TRUE 1
+#define FALSE 0
+#endif
+
+#ifdef WIN32
+#include <windows.h>
+#define EINPROGRESS WSAEINPROGRESS
+#define EWOULDBLOCK WSAEWOULDBLOCK
+#define EISCONN     WSAEISCONN
+#define ENOTSOCK    WSAENOTSOCK
+#define ECONNREFUSED WSAECONNREFUSED
+#endif
+
+#include "urldata.h"
+#include "sendf.h"
+#include "if2ip.h"
+#include "strerror.h"
+#include "connect.h"
+#include "curl_memory.h"
+
+/* The last #include file should be: */
+#include "memdebug.h"
+
+static bool verifyconnect(curl_socket_t sockfd, int *error);
+
+static curl_socket_t
+singleipconnect(struct connectdata *conn,
+                Curl_addrinfo *ai, /* start connecting to this */
+                long timeout_ms,
+                bool *connected);
+
+/*
+ * Curl_ourerrno() returns the errno (or equivalent) on this platform to
+ * hide platform specific for the function that calls this.
+ */
+int Curl_ourerrno(void)
+{
+#ifdef WIN32
+  return (int)GetLastError();
+#else
+  return errno;
+#endif
+}
+
+/*
+ * Curl_nonblock() set the given socket to either blocking or non-blocking
+ * mode based on the 'nonblock' boolean argument. This function is highly
+ * portable.
+ */
+int Curl_nonblock(curl_socket_t sockfd,    /* operate on this */
+                  int nonblock   /* TRUE or FALSE */)
+{
+#undef SETBLOCK
+#ifdef HAVE_O_NONBLOCK
+    {
+    /* most recent unix versions */
+    int flags;
+
+    flags = fcntl(sockfd, F_GETFL, 0);
+    if (TRUE == nonblock)
+      return fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
     else
-      {
-      done = true;
-      }
+      return fcntl(sockfd, F_SETFL, flags & (~O_NONBLOCK));
     }
-  return ostr.str();
+#define SETBLOCK 1
+#endif
+
+#ifdef HAVE_FIONBIO
+    {
+    /* older unix versions */
+    int flags;
+
+    flags = nonblock;
+    return ioctl(sockfd, FIONBIO, &flags);
+    }
+#ifdef SETBLOCK
+# undef SETBLOCK
+#endif
+#define SETBLOCK 2
+#endif
+
+#ifdef HAVE_IOCTLSOCKET
+  /* Windows? */
+  unsigned long flags;
+  flags = nonblock;
+  return ioctlsocket(sockfd, FIONBIO, &flags);
+#define SETBLOCK 3
+#endif
+
+#ifdef HAVE_IOCTLSOCKET_CASE
+  /* presumably for Amiga */
+  return IoctlSocket(sockfd, FIONBIO, (long)nonblock);
+#ifdef SETBLOCK
+# undef SETBLOCK
+#endif
+#define SETBLOCK 4
+#endif
+
+#ifdef HAVE_SO_NONBLOCK
+  /* BeOS */
+  long b = nonblock ? 1 : 0;
+  return setsockopt(sockfd, SOL_SOCKET, SO_NONBLOCK, &b, sizeof(b));
+#ifdef SETBLOCK
+# undef SETBLOCK
+#endif
+#define SETBLOCK 5
+#endif
+
+#ifdef HAVE_DISABLED_NONBLOCKING
+  (void)nonblock;
+  (void)sockfd;
+  return 0; /* returns success */
+#ifdef SETBLOCK
+# undef SETBLOCK
+#endif
+#define SETBLOCK 6
+#endif
+
+#ifndef SETBLOCK
+#error "no non-blocking method was found/used/set"
+#endif
 }
 
-//----------------------------------------------------------------------
-void cmCTestTestHandler::SetIncludeRegExp(const char *arg)
+/*
+ * waitconnect() waits for a TCP connect on the given socket for the specified
+ * number if milliseconds. It returns:
+ * 0    fine connect
+ * -1   select() error
+ * 1    select() timeout
+ * 2    select() returned with an error condition fd_set
+ */
+
+#define WAITCONN_CONNECTED     0
+#define WAITCONN_SELECT_ERROR -1
+#define WAITCONN_TIMEOUT       1
+#define WAITCONN_FDSET_ERROR   2
+
+static
+int waitconnect(curl_socket_t sockfd, /* socket */
+                long timeout_msec)
 {
-  m_IncludeRegExp = arg;
+  fd_set fd;
+  fd_set errfd;
+  struct timeval interval;
+  int rc;
+#ifdef mpeix
+  /* Call this function once now, and ignore the results. We do this to
+     "clear" the error state on the socket so that we can later read it
+     reliably. This is reported necessary on the MPE/iX operating system. */
+  verifyconnect(sockfd, NULL);
+#endif
+
+  /* now select() until we get connect or timeout */
+  FD_ZERO(&fd);
+  FD_SET(sockfd, &fd);
+
+  FD_ZERO(&errfd);
+  FD_SET(sockfd, &errfd);
+
+  interval.tv_sec = (int)(timeout_msec/1000);
+  timeout_msec -= interval.tv_sec*1000;
+
+  interval.tv_usec = timeout_msec*1000;
+
+  rc = select(sockfd+1, NULL, &fd, &errfd, &interval);
+  if(-1 == rc)
+    /* error, no connect here, try next */
+    return WAITCONN_SELECT_ERROR;
+
+  else if(0 == rc)
+    /* timeout, no connect today */
+    return WAITCONN_TIMEOUT;
+
+  if(FD_ISSET(sockfd, &errfd))
+    /* error condition caught */
+    return WAITCONN_FDSET_ERROR;
+
+  /* we have a connect! */
+  return WAITCONN_CONNECTED;
 }
 
-//----------------------------------------------------------------------
-void cmCTestTestHandler::SetExcludeRegExp(const char *arg)
+static CURLcode bindlocal(struct connectdata *conn,
+                          curl_socket_t sockfd)
 {
-  m_ExcludeRegExp = arg;
-}
+#ifdef HAVE_INET_NTOA
+  bool bindworked = FALSE;
+  struct SessionHandle *data = conn->data;
 
-//----------------------------------------------------------------------
-void cmCTestTestHandler::SetTestsToRunInformation(const char* in)
-{
-  if ( !in )
-    {
-    return;
-    }
-  this->TestsToRunString = in;
-  // if the argument is a file, then read it and use the contents as the
-  // string
-  if(cmSystemTools::FileExists(in))
-    {
-    std::ifstream fin(in);
-    unsigned long filelen = cmSystemTools::FileLength(in);
-    char* buff = new char[filelen+1];
-    fin.getline(buff, filelen);
-    buff[fin.gcount()] = 0;
-    this->TestsToRunString = buff;
-    }
-}
+  /*************************************************************
+   * Select device to bind socket to
+   *************************************************************/
+  if (strlen(data->set.device)<255) {
+    struct Curl_dns_entry *h=NULL;
+    char myhost[256] = "";
+    in_addr_t in;
+    int rc;
+    bool was_iface = FALSE;
 
-//----------------------------------------------------------------------
-bool cmCTestTestHandler::CleanTestOutput(std::string& output,
-  size_t remove_threshold)
-{
-  if ( remove_threshold == 0 )
-    {
-    return true;
-    }
-  if ( output.find("CTEST_FULL_OUTPUT") != output.npos )
-    {
-    return true;
-    }
-  cmOStringStream ostr;
-  std::string::size_type cc;
-  std::string::size_type skipsize = 0;
-  int inTag = 0;
-  int skipped = 0;
-  for ( cc = 0; cc < output.size(); cc ++ )
-    {
-    int ch = output[cc];
-    if ( ch < 0 || ch > 255 )
-      {
-      break;
-      }
-    if ( ch == '<' )
-      {
-      inTag = 1;
-      }
-    if ( !inTag )
-      {
-      int notskip = 0;
-      // Skip
-      if ( skipsize < remove_threshold )
-        {
-        ostr << static_cast<char>(ch);
-        notskip = 1;
-        }
-      skipsize ++;
-      if ( notskip && skipsize >= remove_threshold )
-        {
-        skipped = 1;
-        }
-      }
-    else
-      {
-      ostr << static_cast<char>(ch);
-      }
-    if ( ch == '>' )
-      {
-      inTag = 0;
-      }
-    }
-  if ( skipped )
-    {
-    ostr << "..." << std::endl << "The rest of the test output was removed "
-      "since it exceeds the threshold of "
-      << remove_threshold << " characters." << std::endl;
-    }
-  output = ostr.str();
-  return true;
-}
+    /* First check if the given name is an IP address */
+    in=inet_addr(data->set.device);
 
-//----------------------------------------------------------------------
-bool cmCTestTestHandler::SetTestsProperties(
-  const std::vector<std::string>& args)
-{
-  std::vector<std::string>::const_iterator it;
-  std::vector<cmStdString> tests;
-  bool found = false;
-  for ( it = args.begin(); it != args.end(); ++ it )
-    {
-    if ( *it == "PROPERTIES" )
-      {
-      found = true;
-      break;
-      }
-    tests.push_back(*it);
+    if((in == CURL_INADDR_NONE) &&
+       Curl_if2ip(data->set.device, myhost, sizeof(myhost))) {
+      /*
+       * We now have the numerical IPv4-style x.y.z.w in the 'myhost' buffer
+       */
+      rc = Curl_resolv(conn, myhost, 0, &h);
+      if(rc == CURLRESOLV_PENDING)
+        (void)Curl_wait_for_resolv(conn, &h);
+
+      if(h)
+        was_iface = TRUE;
     }
-  if ( !found )
-    {
-    return false;
+
+    if(!was_iface) {
+      /*
+       * This was not an interface, resolve the name as a host name
+       * or IP number
+       */
+      rc = Curl_resolv(conn, data->set.device, 0, &h);
+      if(rc == CURLRESOLV_PENDING)
+        (void)Curl_wait_for_resolv(conn, &h);
+
+      if(h)
+        /* we know data->set.device is shorter than the myhost array */
+        strcpy(myhost, data->set.device);
     }
-  ++ it; // skip PROPERTIES
-  for ( ; it != args.end(); ++ it )
-    {
-    std::string key = *it;
-    ++ it;
-    if ( it == args.end() )
-      {
-      break;
+
+    if(! *myhost) {
+      /* need to fix this
+         h=Curl_gethost(data,
+         getmyhost(*myhost,sizeof(myhost)),
+         hostent_buf,
+         sizeof(hostent_buf));
+      */
+      failf(data, "Couldn't bind to '%s'", data->set.device);
+      return CURLE_HTTP_PORT_FAILED;
+    }
+
+    infof(data, "We bind local end to %s\n", myhost);
+
+#ifdef SO_BINDTODEVICE
+    /* I am not sure any other OSs than Linux that provide this feature, and
+     * at the least I cannot test. --Ben
+     *
+     * This feature allows one to tightly bind the local socket to a
+     * particular interface.  This will force even requests to other local
+     * interfaces to go out the external interface.
+     *
+     */
+    if (was_iface) {
+      /* Only bind to the interface when specified as interface, not just as a
+       * hostname or ip address.
+       */
+      if (setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE,
+                     data->set.device, strlen(data->set.device)+1) != 0) {
+        /* printf("Failed to BINDTODEVICE, socket: %d  device: %s error: %s\n",
+           sockfd, data->set.device, Curl_strerror(Curl_ourerrno())); */
+        infof(data, "SO_BINDTODEVICE %s failed\n",
+              data->set.device);
+        /* This is typically "errno 1, error: Operation not permitted" if
+           you're not running as root or another suitable privileged user */
       }
-    std::string val = *it;
-    std::vector<cmStdString>::const_iterator tit;
-    for ( tit = tests.begin(); tit != tests.end(); ++ tit )
-      {
-      tm_ListOfTests::iterator rtit;
-      for ( rtit = m_TestList.begin(); rtit != m_TestList.end(); ++ rtit )
-        {
-        if ( *tit == rtit->m_Name )
-          {
-          if ( key == "WILL_FAIL" )
-            {
-            rtit->m_WillFail = cmSystemTools::IsOn(val.c_str());
-            }
-          if ( key == "FAIL_REGULAR_EXPRESSION" )
-            {
-            std::vector<std::string> lval;
-            cmSystemTools::ExpandListArgument(val.c_str(), lval);
-            std::vector<std::string>::iterator crit;
-            for ( crit = lval.begin(); crit != lval.end(); ++ crit )
-              {
-              rtit->m_ErrorRegularExpressions.push_back(
-                cmsys::RegularExpression(crit->c_str()));
-              }
-            }
-          if ( key == "PASS_REGULAR_EXPRESSION" )
-            {
-            std::vector<std::string> lval;
-            cmSystemTools::ExpandListArgument(val.c_str(), lval);
-            std::vector<std::string>::iterator crit;
-            for ( crit = lval.begin(); crit != lval.end(); ++ crit )
-              {
-              rtit->m_RequiredRegularExpressions.push_back(
-                cmsys::RegularExpression(crit->c_str()));
-              }
-            }
+    }
+#endif
+
+    in=inet_addr(myhost);
+    if (CURL_INADDR_NONE != in) {
+
+      if ( h ) {
+        Curl_addrinfo *addr = h->addr;
+
+        Curl_resolv_unlock(data, h);
+        /* we don't need it anymore after this function has returned */
+
+        if( bind(sockfd, addr->ai_addr, (socklen_t)addr->ai_addrlen) >= 0) {
+          /* we succeeded to bind */
+#ifdef ENABLE_IPV6
+          struct sockaddr_in6 add;
+#else
+          struct sockaddr_in add;
+#endif
+
+#ifdef __hpux
+          int gsize = sizeof(add);
+#else
+          socklen_t gsize = sizeof(add);
+#endif
+          bindworked = TRUE;
+
+          if(getsockname(sockfd, (struct sockaddr *) &add,
+                         &gsize)<0) {
+            failf(data, "getsockname() failed");
+            return CURLE_HTTP_PORT_FAILED;
           }
         }
+
+        if(!bindworked) {
+          failf(data, "%s", Curl_strerror(conn, Curl_ourerrno()));
+          return CURLE_HTTP_PORT_FAILED;
+        }
+
+      } /* end of if  h */
+      else {
+        failf(data,"could't find my own IP address (%s)", myhost);
+        return CURLE_HTTP_PORT_FAILED;
       }
+    } /* end of inet_addr */
+
+    else {
+      failf(data, "could't find my own IP address (%s)", myhost);
+      return CURLE_HTTP_PORT_FAILED;
     }
-  return true;
+
+    return CURLE_OK;
+
+  } /* end of device selection support */
+#endif /* end of HAVE_INET_NTOA */
+
+  return CURLE_HTTP_PORT_FAILED;
 }
 
-//----------------------------------------------------------------------
-bool cmCTestTestHandler::AddTest(const std::vector<std::string>& args)
+/*
+ * verifyconnect() returns TRUE if the connect really has happened.
+ */
+static bool verifyconnect(curl_socket_t sockfd, int *error)
 {
-  const std::string& testname = args[0];
-  if (this->m_UseExcludeRegExp &&
-    this->m_UseExcludeRegExpFirst &&
-    m_ExcludeTestsRegularExpression.find(testname.c_str()))
-    {
-    return true;
-    }
-  if ( m_MemCheck )
-    {
-    std::vector<cmStdString>::iterator it;
-    bool found = false;
-    for ( it = m_CustomTestsIgnore.begin();
-      it != m_CustomTestsIgnore.end(); ++ it )
-      {
-      if ( *it == testname )
-        {
-        found = true;
-        break;
-        }
-      }
-    if ( found )
-      {
-      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Ignore memcheck: "
-        << *it << std::endl);
-      return true;
-      }
-    }
+  bool rc;
+#ifdef SO_ERROR
+  int err = 0;
+#ifdef __hpux
+  int errSize = sizeof(err);
+#else
+  socklen_t errSize = sizeof(err);
+#endif
+
+
+#ifdef WIN32
+  /*
+   * In October 2003 we effectively nullified this function on Windows due to
+   * problems with it using all CPU in multi-threaded cases.
+   *
+   * In May 2004, we bring it back to offer more info back on connect failures.
+   * Gisle Vanem could reproduce the former problems with this function, but
+   * could avoid them by adding this SleepEx() call below:
+   *
+   *    "I don't have Rational Quantify, but the hint from his post was
+   *    ntdll::NtRemoveIoCompletion(). So I'd assume the SleepEx (or maybe
+   *    just Sleep(0) would be enough?) would release whatever
+   *    mutex/critical-section the ntdll call is waiting on.
+   *
+   *    Someone got to verify this on Win-NT 4.0, 2000."
+   */
+  SleepEx(0, FALSE);
+#endif
+
+  if( -1 == getsockopt(sockfd, SOL_SOCKET, SO_ERROR,
+                       (void *)&err, &errSize))
+    err = Curl_ourerrno();
+
+  if ((0 == err) || (EISCONN == err))
+    /* we are connected, awesome! */
+    rc = TRUE;
   else
-    {
-    std::vector<cmStdString>::iterator it;
-    bool found = false;
-    for ( it = m_CustomTestsIgnore.begin();
-      it != m_CustomTestsIgnore.end(); ++ it )
-      {
-      if ( *it == testname )
-        {
-        found = true;
-        break;
-        }
-      }
-    if ( found )
-      {
-      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Ignore test: "
-        << *it << std::endl);
-      return true;
-      }
-    }
-
-  cmCTestTestProperties test;
-  test.m_Name = testname;
-  test.m_Args = args;
-  test.m_Directory = cmSystemTools::GetCurrentWorkingDirectory();
-  test.m_IsInBasedOnREOptions = true;
-  test.m_WillFail = false;
-  if (this->m_UseIncludeRegExp &&
-    !m_IncludeTestsRegularExpression.find(testname.c_str()))
-    {
-    test.m_IsInBasedOnREOptions = false;
-    }
-  else if (this->m_UseExcludeRegExp &&
-    !this->m_UseExcludeRegExpFirst &&
-    m_ExcludeTestsRegularExpression.find(testname.c_str()))
-    {
-    test.m_IsInBasedOnREOptions = false;
-    }
-  m_TestList.push_back(test);
-  return true;
+    /* This wasn't a successful connect */
+    rc = FALSE;
+  if (error)
+    *error = err;
+#else
+  (void)sockfd;
+  if (error)
+    *error = Curl_ourerrno();
+#endif
+  return rc;
 }
 
+/* Used within the multi interface. Try next IP address, return TRUE if no
+   more address exists */
+static bool trynextip(struct connectdata *conn,
+                      int sockindex,
+                      bool *connected)
+{
+  curl_socket_t sockfd;
+  Curl_addrinfo *ai;
+
+  if(sockindex != FIRSTSOCKET)
+    return TRUE; /* no next */
+
+  /* try the next address */
+  ai = conn->ip_addr->ai_next;
+
+  while (ai) {
+    sockfd = singleipconnect(conn, ai, 0L, connected);
+    if(sockfd != CURL_SOCKET_BAD) {
+      /* store the new socket descriptor */
+      conn->sock[sockindex] = sockfd;
+      conn->ip_addr = ai;
+      return FALSE;
+    }
+    ai = ai->ai_next;
+  }
+  return TRUE;
+}
+
+/*
+ * Curl_is_connected() is used from the multi interface to check if the
+ * firstsocket has connected.
+ */
+
+CURLcode Curl_is_connected(struct connectdata *conn,
+                           int sockindex,
+                           bool *connected)
+{
+  int rc;
+  struct SessionHandle *data = conn->data;
+  CURLcode code = CURLE_OK;
+  curl_socket_t sockfd = conn->sock[sockindex];
+  long allow = DEFAULT_CONNECT_TIMEOUT;
+  long has_passed;
+
+  curlassert(sockindex >= FIRSTSOCKET && sockindex <= SECONDARYSOCKET);
+
+  *connected = FALSE; /* a very negative world view is best */
+
+  /* Evaluate in milliseconds how much time that has passed */
+  has_passed = Curl_tvdiff(Curl_tvnow(), data->progress.start);
+
+  /* subtract the most strict timeout of the ones */
+  if(data->set.timeout && data->set.connecttimeout) {
+    if (data->set.timeout < data->set.connecttimeout)
+      allow = data->set.timeout*1000;
+    else
+      allow = data->set.connecttimeout*1000;
+  }
+  else if(data->set.timeout) {
+    allow = data->set.timeout*1000;
+  }
+  else if(data->set.connecttimeout) {
+    allow = data->set.connecttimeout*1000;
+  }
+
+  if(has_passed > allow ) {
+    /* time-out, bail out, go home */
+    failf(data, "Connection time-out after %ld ms", has_passed);
+    return CURLE_OPERATION_TIMEOUTED;
+  }
+  if(conn->bits.tcpconnect) {
+    /* we are connected already! */
+    *connected = TRUE;
+    return CURLE_OK;
+  }
+
+  /* check for connect without timeout as we want to return immediately */
+  rc = waitconnect(sockfd, 0);
+
+  if(WAITCONN_CONNECTED == rc) {
+    if (verifyconnect(sockfd, NULL)) {
+      /* we are connected, awesome! */
+      *connected = TRUE;
+      return CURLE_OK;
+    }
+    /* nope, not connected for real */
+    infof(data, "Connection failed\n");
+    if(trynextip(conn, sockindex, connected)) {
+      code = CURLE_COULDNT_CONNECT;
+    }
+  }
+  else if(WAITCONN_TIMEOUT != rc) {
+    /* nope, not connected  */
+    infof(data, "Connection failed\n");
+    if(trynextip(conn, sockindex, connected)) {
+      int error = Curl_ourerrno();
+      failf(data, "Failed connect to %s:%d; %s",
+            conn->host.name, conn->port, Curl_strerror(conn,error));
+      code = CURLE_COULDNT_CONNECT;
+    }
+  }
+  /*
+   * If the connection failed here, we should attempt to connect to the "next
+   * address" for the given host.
+   */
+
+  return code;
+}
+
+static void tcpnodelay(struct connectdata *conn,
+                       curl_socket_t sockfd)
+{
+#ifdef TCP_NODELAY
+  struct SessionHandle *data= conn->data;
+  socklen_t onoff = (socklen_t) data->set.tcp_nodelay;
+  if(setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&onoff,
+                sizeof(onoff)) < 0)
+    infof(data, "Could not set TCP_NODELAY: %s\n",
+          Curl_strerror(conn, Curl_ourerrno()));
+  else
+    infof(data,"TCP_NODELAY set\n");
+#else
+  (void)conn;
+  (void)sockfd;
+#endif
+}
+
+/* singleipconnect() connects to the given IP only, and it may return without
+   having connected if used from the multi interface. */
+static curl_socket_t
+singleipconnect(struct connectdata *conn,
+                Curl_addrinfo *ai,
+                long timeout_ms,
+                bool *connected)
+{
+  char addr_buf[128];
+  int rc;
+  int error;
+  bool conected;
+  struct SessionHandle *data = conn->data;
+  curl_socket_t sockfd = socket(ai->ai_family, ai->ai_socktype,
+                                ai->ai_protocol);
+  if (sockfd == CURL_SOCKET_BAD)
+    return CURL_SOCKET_BAD;
+
+  *connected = FALSE; /* default is not connected */
+
+  Curl_printable_address(ai, addr_buf, sizeof(addr_buf));
+  infof(data, "  Trying %s... ", addr_buf);
+
+  if(data->set.tcp_nodelay)
+    tcpnodelay(conn, sockfd);
+
+  if(conn->data->set.device) {
+    /* user selected to bind the outgoing socket to a specified "device"
+       before doing connect */
+    CURLcode res = bindlocal(conn, sockfd);
+    if(res)
+      return res;
+  }
+
+  /* set socket non-blocking */
+  Curl_nonblock(sockfd, TRUE);
+
+  rc = connect(sockfd, ai->ai_addr, ai->ai_addrlen);
+
+  if(-1 == rc) {
+    error = Curl_ourerrno();
+
+    switch (error) {
+    case EINPROGRESS:
+    case EWOULDBLOCK:
+#if defined(EAGAIN) && EAGAIN != EWOULDBLOCK
+      /* On some platforms EAGAIN and EWOULDBLOCK are the
+       * same value, and on others they are different, hence
+       * the odd #if
+       */
+    case EAGAIN:
+#endif
+      rc = waitconnect(sockfd, timeout_ms);
+      break;
+    default:
+      /* unknown error, fallthrough and try another address! */
+      failf(data, "Failed to connect to %s: %s",
+            addr_buf, Curl_strerror(conn,error));
+      break;
+    }
+  }
+
+  /* The 'WAITCONN_TIMEOUT == rc' comes from the waitconnect(), and not from
+     connect(). We can be sure of this since connect() cannot return 1. */
+  if((WAITCONN_TIMEOUT == rc) &&
+     (data->state.used_interface == Curl_if_multi)) {
+    /* Timeout when running the multi interface */
+    return sockfd;
+  }
+
+  conected = verifyconnect(sockfd, &error);
+
+  if(!rc && conected) {
+    /* we are connected, awesome! */
+    *connected = TRUE; /* this is a true connect */
+    infof(data, "connected\n");
+    return sockfd;
+  }
+  else if(WAITCONN_TIMEOUT == rc)
+    infof(data, "Timeout\n");
+  else
+    infof(data, "%s\n", Curl_strerror(conn, error));
+
+  /* connect failed or timed out */
+  sclose(sockfd);
+
+  return CURL_SOCKET_BAD;
+}
+
+/*
+ * TCP connect to the given host with timeout, proxy or remote doesn't matter.
+ * There might be more than one IP address to try out. Fill in the passed
+ * pointer with the connected socket.
+ */
+
+CURLcode Curl_connecthost(struct connectdata *conn,  /* context */
+                          struct Curl_dns_entry *remotehost, /* use this one */
+                          curl_socket_t *sockconn,   /* the connected socket */
+                          Curl_addrinfo **addr,      /* the one we used */
+                          bool *connected)           /* really connected? */
+{
+  struct SessionHandle *data = conn->data;
+  curl_socket_t sockfd = CURL_SOCKET_BAD;
+  int aliasindex;
+  int num_addr;
+  Curl_addrinfo *ai;
+  Curl_addrinfo *curr_addr;
+
+  struct timeval after;
+  struct timeval before = Curl_tvnow();
+
+  /*************************************************************
+   * Figure out what maximum time we have left
+   *************************************************************/
+  long timeout_ms= DEFAULT_CONNECT_TIMEOUT;
+  long timeout_per_addr;
+
+  *connected = FALSE; /* default to not connected */
+
+  if(data->set.timeout || data->set.connecttimeout) {
+    long has_passed;
+
+    /* Evaluate in milliseconds how much time that has passed */
+    has_passed = Curl_tvdiff(Curl_tvnow(), data->progress.start);
+
+#ifndef min
+#define min(a, b)   ((a) < (b) ? (a) : (b))
+#endif
+
+    /* get the most strict timeout of the ones converted to milliseconds */
+    if(data->set.timeout && data->set.connecttimeout) {
+      if (data->set.timeout < data->set.connecttimeout)
+        timeout_ms = data->set.timeout*1000;
+      else
+        timeout_ms = data->set.connecttimeout*1000;
+    }
+    else if(data->set.timeout)
+      timeout_ms = data->set.timeout*1000;
+    else
+      timeout_ms = data->set.connecttimeout*1000;
+
+    /* subtract the passed time */
+    timeout_ms -= has_passed;
+
+    if(timeout_ms < 0) {
+      /* a precaution, no need to continue if time already is up */
+      failf(data, "Connection time-out");
+      return CURLE_OPERATION_TIMEOUTED;
+    }
+  }
+
+  /* Max time for each address */
+  num_addr = Curl_num_addresses(remotehost->addr);
+  timeout_per_addr = timeout_ms / num_addr;
+
+  ai = remotehost->addr;
+
+  /* Below is the loop that attempts to connect to all IP-addresses we
+   * know for the given host. One by one until one IP succeeds.
+   */
+
+  if(data->state.used_interface == Curl_if_multi)
+    /* don't hang when doing multi */
+    timeout_per_addr = timeout_ms = 0;
+
+  /*
+   * Connecting with a Curl_addrinfo chain
+   */
+  for (curr_addr = ai, aliasindex=0; curr_addr;
+       curr_addr = curr_addr->ai_next, aliasindex++) {
+
+    /* start connecting to the IP curr_addr points to */
+    sockfd = singleipconnect(conn, curr_addr, timeout_per_addr, connected);
+
+    if(sockfd != CURL_SOCKET_BAD)
+      break;
+
+    /* get a new timeout for next attempt */
+    after = Curl_tvnow();
+    timeout_ms -= Curl_tvdiff(after, before);
+    if(timeout_ms < 0) {
+      failf(data, "connect() timed out!");
+      return CURLE_OPERATION_TIMEOUTED;
+    }
+    before = after;
+  }  /* end of connect-to-each-address loop */
+
+  if (sockfd == CURL_SOCKET_BAD) {
+    /* no good connect was made */
+    *sockconn = CURL_SOCKET_BAD;
+    return CURLE_COULDNT_CONNECT;
+  }
+
+  /* leave the socket in non-blocking mode */
+
+  /* store the address we use */
+  if(addr)
+    *addr = curr_addr;
+
+  /* allow NULL-pointers to get passed in */
+  if(sockconn)
+    *sockconn = sockfd;    /* the socket descriptor we've connected */
+
+  return CURLE_OK;
+}

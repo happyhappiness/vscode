@@ -1,7 +1,8 @@
 
-/* Report a fatal error. */
-#ifndef YY_FATAL_ERROR
-#define YY_FATAL_ERROR(msg) yy_fatal_error( msg )
-#endif
+        /* column is only valid if an input buffer exists. */
+        if (! YY_CURRENT_BUFFER )
+           yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" , yyscanner); 
+    
+    yycolumn = column_no;
+}
 
-/* end tables serialization structures and prototypes */

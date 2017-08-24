@@ -1,19 +1,7 @@
-      std::string dirName = args[2];
-      dirName += "/Progress";
-      cmSystemTools::RemoveADirectory(dirName.c_str());
-      int count = atoi(args[3].c_str());
-      if (count)
-        {
-        cmSystemTools::MakeDirectory(dirName.c_str());
-        // write the count into the directory
-        std::string fName = dirName;
-        fName += "/count.txt";
-        FILE *progFile = fopen(fName.c_str(),"w");
-        if (progFile)
+        if (lRet == ERROR_SUCCESS)
           {
-          fprintf(progFile,"%i\n",count);
-          fclose(progFile);
+          res += " Service Pack 6a (Build ";
+          sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF);
+          res += buffer;
+          res += ")";
           }
-        }
-      return 0;
-      }

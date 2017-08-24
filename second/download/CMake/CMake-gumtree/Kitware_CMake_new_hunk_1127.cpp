@@ -1,23 +1,8 @@
-//----------------------------------------------------------------------------
-Glob::Glob()
-{
-  this->Internals = new GlobInternals;
-  this->Recurse = false;
-  this->Relative = "";
-}
+    aprintf("%s:%s:%s", userp, d->realm, passwdp);
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
 
-//----------------------------------------------------------------------------
-Glob::~Glob()
-{
-  delete this->Internals;
-}
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this); /* free this again */
 
-//----------------------------------------------------------------------------
-void Glob::Escape(int ch, char* buffer)
-{
-  if (! (
-      'a' <= ch && ch <= 'z' ||
-      'A' <= ch && ch <= 'Z' ||
-      '0' <= ch && ch <= '9') )
-    {
-    sprintf(buffer, "\\%c", ch);

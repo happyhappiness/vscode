@@ -1,7 +1,17 @@
-    fflush(stderr);
-    r = runChild(cmd, states[n-1], exceptions[n-1], values[n-1], 0,
-                 outputs[n-1], delays[n-1], timeouts[n-1],
-                 polls[n-1], repeat[n-1], 0);
-    fprintf(stdout, "Output on stdout after test %d.\n", n);
-    fprintf(stderr, "Output on stderr after test %d.\n", n);
-    fflush(stdout);
+          ns = testing_ptr;
+        }
+      }
+
+#ifdef CURL_DOES_CONVERSIONS
+/* escape sequences are always in ASCII so convert them on non-ASCII hosts */
+      if (!handle ||
+          (Curl_convert_to_network(handle, &in, 1) != CURLE_OK)) {
+        /* Curl_convert_to_network calls failf if unsuccessful */
+        free(ns);
+        return NULL;
+      }
+#endif /* CURL_DOES_CONVERSIONS */
+
+      snprintf(&ns[strindex], 4, "%%%02X", in);
+
+      strindex+=3;

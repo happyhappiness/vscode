@@ -1,1491 +1,2726 @@
-// pcbuilderdialogDlg.cpp : implementation file
-//
+/*=========================================================================
 
-#include "stdafx.h"
-#include "shellapi.h"
-// a fun undef for DOT NET
-#undef DEBUG
-#include "CMakeSetup.h"
-#include "MakeHelp.h"
-#include "PathDialog.h"
-#include "CMakeSetupDialog.h"
-#include "CMakeCommandLineInfo.h"
-#include "../cmListFileCache.h"
-#include "../cmCacheManager.h"
-#include "../cmake.h"
-#include "../cmGlobalGenerator.h"
-#include "../cmDynamicLoader.h"
-#ifdef _DEBUG
-#define new DEBUG_NEW
-#undef THIS_FILE
-static char THIS_FILE[] = __FILE__;
+  Program:   CMake - Cross-Platform Makefile Generator
+  Module:    $RCSfile$
+  Language:  C++
+  Date:      $Date$
+  Version:   $Revision$
+
+  Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
+  See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
+
+     This software is distributed WITHOUT ANY WARRANTY; without even
+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+     PURPOSE.  See the above copyright notices for more information.
+
+=========================================================================*/
+#include "cm_curl.h"
+
+#include "cmCTest.h"
+#include "cmake.h"
+#include "cmMakefile.h"
+#include "cmLocalGenerator.h"
+#include "cmGlobalGenerator.h"
+#include <cmsys/Directory.hxx>
+#include <cmsys/SystemInformation.hxx>
+#include "cmDynamicLoader.h"
+#include "cmGeneratedFileStream.h"
+#include "cmXMLSafe.h"
+#include "cmCTestCommand.h"
+
+#include "cmCTestBuildHandler.h"
+#include "cmCTestBuildAndTestHandler.h"
+#include "cmCTestConfigureHandler.h"
+#include "cmCTestCoverageHandler.h"
+#include "cmCTestMemCheckHandler.h"
+#include "cmCTestScriptHandler.h"
+#include "cmCTestTestHandler.h"
+#include "cmCTestUpdateHandler.h"
+#include "cmCTestSubmitHandler.h"
+
+#include "cmVersion.h"
+
+#include <cmsys/RegularExpression.hxx>
+#include <cmsys/Process.h>
+#include <cmsys/Glob.hxx>
+
+#include <stdlib.h>
+#include <math.h>
+#include <float.h>
+
+#include <memory> // auto_ptr
+
+#if defined(__BEOS__) && !defined(__HAIKU__)
+#include <be/kernel/OS.h>   /* disable_debugger() API. */
+#endif
+
+#if defined(__HAIKU__)
+#include <os/kernel/OS.h>   /* disable_debugger() API. */
 #endif
 
 
-/////////////////////////////////////////////////////////////////////////////
-// CAboutDlg dialog used for App About
+#define DEBUGOUT std::cout << __LINE__ << " "; std::cout
+#define DEBUGERR std::cerr << __LINE__ << " "; std::cerr
 
-class CAboutDlg : public CDialog
+//----------------------------------------------------------------------
+struct tm* cmCTest::GetNightlyTime(std::string str,
+                                   bool tomorrowtag)
 {
-public:
-  CAboutDlg();
+  struct tm* lctime;
+  time_t tctime = time(0);
+  lctime = gmtime(&tctime);
+  char buf[1024];
+  // add todays year day and month to the time in str because
+  // curl_getdate no longer assumes the day is today
+  sprintf(buf, "%d%02d%02d %s", lctime->tm_year+1900, lctime->tm_mday,
+          lctime->tm_mon, str.c_str());
+  cmCTestLog(this, OUTPUT, "Determine Nightly Start Time" << std::endl
+    << "   Specified time: " << str.c_str() << std::endl);
+  //Convert the nightly start time to seconds. Since we are
+  //providing only a time and a timezone, the current date of
+  //the local machine is assumed. Consequently, nightlySeconds
+  //is the time at which the nightly dashboard was opened or
+  //will be opened on the date of the current client machine.
+  //As such, this time may be in the past or in the future.
+  time_t ntime = curl_getdate(buf, &tctime);
+  cmCTestLog(this, DEBUG, "   Get curl time: " << ntime << std::endl);
+  tctime = time(0);
+  cmCTestLog(this, DEBUG, "   Get the current time: " << tctime << std::endl);
 
-  // Dialog Data
-  //{{AFX_DATA(CAboutDlg)
-  enum { IDD = IDD_ABOUTBOX };
-  //}}AFX_DATA
-
-  // ClassWizard generated virtual function overrides
-  //{{AFX_VIRTUAL(CAboutDlg)
-protected:
-  virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
-  //}}AFX_VIRTUAL
-
-// Implementation
-protected:
-  //{{AFX_MSG(CAboutDlg)
-  //}}AFX_MSG
-  DECLARE_MESSAGE_MAP()
-    };
-
-CAboutDlg::CAboutDlg() : CDialog(CAboutDlg::IDD)
-{
-  //{{AFX_DATA_INIT(CAboutDlg)
-  //}}AFX_DATA_INIT
-}
-
-void CAboutDlg::DoDataExchange(CDataExchange* pDX)
-{
-  CDialog::DoDataExchange(pDX);
-  //{{AFX_DATA_MAP(CAboutDlg)
-  //}}AFX_DATA_MAP
-}
-
-BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)
-  //{{AFX_MSG_MAP(CAboutDlg)
-  // No message handlers
-  //}}AFX_MSG_MAP
-  END_MESSAGE_MAP();
-
-
-void MFCMessageCallback(const char* m, const char* title, bool& nomore, void*)
-{ 
-  std::string message = m;
-  message += "\n\n(Press  Cancel to suppress any further messages.)";
-  if(::MessageBox(0, message.c_str(), title, 
-                  MB_OKCANCEL|MB_TASKMODAL) == IDCANCEL)
+  const int dayLength = 24 * 60 * 60;
+  cmCTestLog(this, DEBUG, "Seconds: " << tctime << std::endl);
+  while ( ntime > tctime )
     {
-    nomore = true;
+    // If nightlySeconds is in the past, this is the current
+    // open dashboard, then return nightlySeconds.  If
+    // nightlySeconds is in the future, this is the next
+    // dashboard to be opened, so subtract 24 hours to get the
+    // time of the current open dashboard
+    ntime -= dayLength;
+    cmCTestLog(this, DEBUG, "Pick yesterday" << std::endl);
+    cmCTestLog(this, DEBUG, "   Future time, subtract day: " << ntime
+      << std::endl);
     }
+  while ( tctime > (ntime + dayLength) )
+    {
+    ntime += dayLength;
+    cmCTestLog(this, DEBUG, "   Past time, add day: " << ntime << std::endl);
+    }
+  cmCTestLog(this, DEBUG, "nightlySeconds: " << ntime << std::endl);
+  cmCTestLog(this, DEBUG, "   Current time: " << tctime
+    << " Nightly time: " << ntime << std::endl);
+  if ( tomorrowtag )
+    {
+    cmCTestLog(this, OUTPUT, "   Use future tag, Add a day" << std::endl);
+    ntime += dayLength;
+    }
+  lctime = gmtime(&ntime);
+  return lctime;
 }
 
-/////////////////////////////////////////////////////////////////////////////
-// CMakeSetupDialog dialog
-void updateProgress(const char *msg, float prog, void *cd)
+//----------------------------------------------------------------------
+std::string cmCTest::CleanString(const std::string& str)
 {
-  char* tmp = new char[strlen(msg) + 40];
-  if (prog >= 0)
+  std::string::size_type spos = str.find_first_not_of(" \n\t\r\f\v");
+  std::string::size_type epos = str.find_last_not_of(" \n\t\r\f\v");
+  if ( spos == str.npos )
     {
-    sprintf(tmp,"%s %i%%",msg,(int)(100*prog));
+    return std::string();
+    }
+  if ( epos != str.npos )
+    {
+    epos = epos - spos + 1;
+    }
+  return str.substr(spos, epos);
+}
+
+//----------------------------------------------------------------------
+std::string cmCTest::CurrentTime()
+{
+  time_t currenttime = time(0);
+  struct tm* t = localtime(&currenttime);
+  //return ::CleanString(ctime(&currenttime));
+  char current_time[1024];
+  if ( this->ShortDateFormat )
+    {
+    strftime(current_time, 1000, "%b %d %H:%M %Z", t);
     }
   else
     {
-    sprintf(tmp,"%s",msg);    
+    strftime(current_time, 1000, "%a %b %d %H:%M:%S %Z %Y", t);
     }
-  CMakeSetupDialog *self = (CMakeSetupDialog *)cd;
-  self->SetDlgItemText(IDC_PROGRESS, tmp); 
-  CWnd* cancel = self->GetDlgItem(IDCANCEL);
-  //
-  // Retrieve and dispatch any waiting messages.
-  //
-  MSG wmsg;
-  while (::PeekMessage (&wmsg, NULL, 0, 0, PM_REMOVE))
+  cmCTestLog(this, DEBUG, "   Current_Time: " << current_time << std::endl);
+  return cmXMLSafe(cmCTest::CleanString(current_time)).str();
+}
+
+//----------------------------------------------------------------------
+std::string cmCTest::MakeURLSafe(const std::string& str)
+{
+  cmOStringStream ost;
+  char buffer[10];
+  for ( std::string::size_type pos = 0; pos < str.size(); pos ++ )
     {
-    switch(wmsg.message)
+    unsigned char ch = str[pos];
+    if ( ( ch > 126 || ch < 32 ||
+           ch == '&' ||
+           ch == '%' ||
+           ch == '+' ||
+           ch == '=' ||
+           ch == '@'
+          ) && ch != 9 )
       {
-      case WM_LBUTTONDOWN:
-      case WM_LBUTTONUP:
-      case WM_LBUTTONDBLCLK:
+      sprintf(buffer, "%02x;", (unsigned int)ch);
+      ost << buffer;
+      }
+    else
       {
-      if(wmsg.hwnd == cancel->m_hWnd)
+      ost << ch;
+      }
+    }
+  return ost.str();
+}
+
+//----------------------------------------------------------------------
+cmCTest::cmCTest()
+{
+  this->ParallelSubprocess     = false;
+  this->ParallelLevel          = 0;
+  this->SubmitIndex            = 0;
+  this->ForceNewCTestProcess   = false;
+  this->TomorrowTag            = false;
+  this->Verbose                = false;
+  
+  this->Debug                  = false;
+  this->ShowLineNumbers        = false;
+  this->Quiet                  = false;
+  this->ExtraVerbose           = false;
+  this->ProduceXML             = false;
+  this->ShowOnly               = false;
+  this->RunConfigurationScript = false;
+  this->TestModel              = cmCTest::EXPERIMENTAL;
+  this->MaxTestNameWidth       = 30;
+  this->InteractiveDebugMode   = true;
+  this->TimeOut                = 0;
+  this->CompressXMLFiles       = false;
+  this->CTestConfigFile        = "";
+  this->OutputLogFile          = 0;
+  this->OutputLogFileLastTag   = -1;
+  this->SuppressUpdatingCTestConfiguration = false;
+  this->DartVersion            = 1;
+  this->OutputTestOutputOnTestFailure = false;
+  if(cmSystemTools::GetEnv("CTEST_OUTPUT_ON_FAILURE"))
+    {
+    this->OutputTestOutputOnTestFailure = true;
+    }
+  this->InitStreams();
+
+  this->Parts[PartStart].SetName("Start");
+  this->Parts[PartUpdate].SetName("Update");
+  this->Parts[PartConfigure].SetName("Configure");
+  this->Parts[PartBuild].SetName("Build");
+  this->Parts[PartTest].SetName("Test");
+  this->Parts[PartCoverage].SetName("Coverage");
+  this->Parts[PartMemCheck].SetName("MemCheck");
+  this->Parts[PartSubmit].SetName("Submit");
+  this->Parts[PartNotes].SetName("Notes");
+  this->Parts[PartExtraFiles].SetName("ExtraFiles");
+
+  // Fill the part name-to-id map.
+  for(Part p = PartStart; p != PartCount; p = Part(p+1))
+    {
+    this->PartMap[cmSystemTools::LowerCase(this->Parts[p].GetName())] = p;
+    }
+
+  this->ShortDateFormat        = true;
+
+  this->TestingHandlers["build"]     = new cmCTestBuildHandler;
+  this->TestingHandlers["buildtest"] = new cmCTestBuildAndTestHandler;
+  this->TestingHandlers["coverage"]  = new cmCTestCoverageHandler;
+  this->TestingHandlers["script"]    = new cmCTestScriptHandler;
+  this->TestingHandlers["test"]      = new cmCTestTestHandler;
+  this->TestingHandlers["update"]    = new cmCTestUpdateHandler;
+  this->TestingHandlers["configure"] = new cmCTestConfigureHandler;
+  this->TestingHandlers["memcheck"]  = new cmCTestMemCheckHandler;
+  this->TestingHandlers["submit"]    = new cmCTestSubmitHandler;
+
+  cmCTest::t_TestingHandlers::iterator it;
+  for ( it = this->TestingHandlers.begin();
+    it != this->TestingHandlers.end(); ++ it )
+    {
+    it->second->SetCTestInstance(this);
+    }
+
+  // Make sure we can capture the build tool output.
+  cmSystemTools::EnableVSConsoleOutput();
+}
+
+//----------------------------------------------------------------------
+cmCTest::~cmCTest()
+{
+  cmCTest::t_TestingHandlers::iterator it;
+  for ( it = this->TestingHandlers.begin();
+    it != this->TestingHandlers.end(); ++ it )
+    {
+    delete it->second;
+    it->second = 0;
+    }
+  this->SetOutputLogFileName(0);
+}
+
+//----------------------------------------------------------------------------
+cmCTest::Part cmCTest::GetPartFromName(const char* name)
+{
+  // Look up by lower-case to make names case-insensitive.
+  std::string lower_name = cmSystemTools::LowerCase(name);
+  PartMapType::const_iterator i = this->PartMap.find(lower_name);
+  if(i != this->PartMap.end())
+    {
+    return i->second;
+    }
+
+  // The string does not name a valid part.
+  return PartCount;
+}
+
+//----------------------------------------------------------------------
+int cmCTest::Initialize(const char* binary_dir, bool new_tag,
+  bool verbose_tag)
+{
+  cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
+  if(!this->InteractiveDebugMode)
+    {
+    this->BlockTestErrorDiagnostics();
+    }
+  else
+    {
+    cmSystemTools::PutEnv("CTEST_INTERACTIVE_DEBUG_MODE=1");
+    }
+
+  this->BinaryDir = binary_dir;
+  cmSystemTools::ConvertToUnixSlashes(this->BinaryDir);
+
+  this->UpdateCTestConfiguration();
+
+  cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
+  if ( this->ProduceXML )
+    {
+    cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
+    cmCTestLog(this, OUTPUT,
+      "   Site: " << this->GetCTestConfiguration("Site") << std::endl
+      << "   Build name: " << this->GetCTestConfiguration("BuildName")
+      << std::endl);
+    cmCTestLog(this, DEBUG, "Produce XML is on" << std::endl);
+    if ( this->TestModel == cmCTest::NIGHTLY &&
+         this->GetCTestConfiguration("NightlyStartTime").empty() )
+      {
+      cmCTestLog(this, WARNING,
+                 "WARNING: No nightly start time found please set in"
+                 " CTestConfig.cmake or DartConfig.cmake" << std::endl);
+      cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
+      return 0;
+      }
+    }
+
+  cmake cm;
+  cmGlobalGenerator gg;
+  gg.SetCMakeInstance(&cm);
+  std::auto_ptr<cmLocalGenerator> lg(gg.CreateLocalGenerator());
+  lg->SetGlobalGenerator(&gg);
+  cmMakefile *mf = lg->GetMakefile();
+  if ( !this->ReadCustomConfigurationFileTree(this->BinaryDir.c_str(), mf) )
+    {
+    cmCTestLog(this, DEBUG, "Cannot find custom configuration file tree"
+      << std::endl);
+    return 0;
+    }
+
+  if ( this->ProduceXML )
+    {
+    std::string testingDir = this->BinaryDir + "/Testing";
+    if ( cmSystemTools::FileExists(testingDir.c_str()) )
+      {
+      if ( !cmSystemTools::FileIsDirectory(testingDir.c_str()) )
         {
-        ::DispatchMessage(&wmsg);
+        cmCTestLog(this, ERROR_MESSAGE, "File " << testingDir
+          << " is in the place of the testing directory" << std::endl);
+        return 0;
         }
       }
-      break;
-      case WM_COMMAND:
-      case WM_SETCURSOR:
-      case WM_PAINT:
-        ::DispatchMessage(&wmsg);
-      break;
+    else
+      {
+      if ( !cmSystemTools::MakeDirectory(testingDir.c_str()) )
+        {
+        cmCTestLog(this, ERROR_MESSAGE, "Cannot create directory "
+          << testingDir << std::endl);
+        return 0;
+        }
       }
+    std::string tagfile = testingDir + "/TAG";
+    std::ifstream tfin(tagfile.c_str());
+    std::string tag;
+    time_t tctime = time(0);
+    if ( this->TomorrowTag )
+      {
+      tctime += ( 24 * 60 * 60 );
+      }
+    struct tm *lctime = gmtime(&tctime);
+    if ( tfin && cmSystemTools::GetLineFromStream(tfin, tag) )
+      {
+      int year = 0;
+      int mon = 0;
+      int day = 0;
+      int hour = 0;
+      int min = 0;
+      sscanf(tag.c_str(), "%04d%02d%02d-%02d%02d",
+             &year, &mon, &day, &hour, &min);
+      if ( year != lctime->tm_year + 1900 ||
+           mon != lctime->tm_mon+1 ||
+           day != lctime->tm_mday )
+        {
+        tag = "";
+        }
+      std::string tagmode;
+      if ( cmSystemTools::GetLineFromStream(tfin, tagmode) )
+        {
+        if (tagmode.size() > 4 && !this->Parts[PartStart])
+          {
+          this->TestModel = cmCTest::GetTestModelFromString(tagmode.c_str());
+          }
+        }
+      tfin.close();
+      }
+    if (tag.size() == 0 || new_tag || this->Parts[PartStart])
+      {
+      cmCTestLog(this, DEBUG, "TestModel: " << this->GetTestModelString()
+        << std::endl);
+      cmCTestLog(this, DEBUG, "TestModel: " << this->TestModel << std::endl);
+      if ( this->TestModel == cmCTest::NIGHTLY )
+        {
+        lctime = this->GetNightlyTime(
+          this->GetCTestConfiguration("NightlyStartTime"), this->TomorrowTag);
+        }
+      char datestring[100];
+      sprintf(datestring, "%04d%02d%02d-%02d%02d",
+              lctime->tm_year + 1900,
+              lctime->tm_mon+1,
+              lctime->tm_mday,
+              lctime->tm_hour,
+              lctime->tm_min);
+      tag = datestring;
+      std::ofstream ofs(tagfile.c_str());
+      if ( ofs )
+        {
+        ofs << tag << std::endl;
+        ofs << this->GetTestModelString() << std::endl;
+        }
+      ofs.close();
+      if ( verbose_tag )
+        {
+        cmCTestLog(this, OUTPUT, "Create new tag: " << tag << " - "
+          << this->GetTestModelString() << std::endl);
+        }
+      }
+    this->CurrentTag = tag;
     }
-  delete [] tmp;
+  return 1;
 }
 
-// Convert to Win32 path (slashes). This calls the system tools one and then
-// removes the spaces. It is not in system tools because we don't want any
-// generators accidentally use it
-std::string ConvertToWindowsPath(const char* path)
+//----------------------------------------------------------------------
+bool cmCTest::InitializeFromCommand(cmCTestCommand* command, bool first)
 {
-  // Convert to output path.
-  // Remove the "" around it (if any) since it's an output path for
-  // the shell. If another shell-oriented feature is not designed 
-  // for a GUI use, then we are in trouble.
-  // save the value of the force to unix path option
-  bool saveForce = cmSystemTools::GetForceUnixPaths();
-  // make sure we get windows paths no matter what for the GUI
-  cmSystemTools::SetForceUnixPaths(false);
-  std::string s = cmSystemTools::ConvertToOutputPath(path);
-  // now restore the force unix path to its previous value
-  cmSystemTools::SetForceUnixPaths(saveForce);
-  if (s.size())
+  if ( !first && !this->CurrentTag.empty() )
     {
-    std::string::iterator i = s.begin();
-    if (*i == '\"')
+    return true;
+    }
+
+  std::string src_dir
+    = this->GetCTestConfiguration("SourceDirectory").c_str();
+  std::string bld_dir = this->GetCTestConfiguration("BuildDirectory").c_str();
+  this->DartVersion = 1;
+  for(Part p = PartStart; p != PartCount; p = Part(p+1))
+    {
+    this->Parts[p].SubmitFiles.clear();
+    }
+
+  cmMakefile* mf = command->GetMakefile();
+  std::string fname = src_dir;
+  fname += "/CTestConfig.cmake";
+  cmSystemTools::ConvertToUnixSlashes(fname);
+  if ( cmSystemTools::FileExists(fname.c_str()) )
+    {
+    cmCTestLog(this, OUTPUT, "   Reading ctest configuration file: "
+      << fname.c_str() << std::endl);
+    bool readit = mf->ReadListFile(mf->GetCurrentListFile(),
+      fname.c_str() );
+    if(!readit)
       {
-      s.erase(i, i + 1);
-      }
-    i = s.begin() + s.length() - 1;
-    if (*i == '\"')
-      {
-      s.erase(i, i + 1);
+      std::string m = "Could not find include file: ";
+      m += fname;
+      command->SetError(m.c_str());
+      return false;
       }
     }
-  return s;
-}
-
-CMakeSetupDialog::CMakeSetupDialog(const CMakeCommandLineInfo& cmdInfo,
-                                   CWnd* pParent /*=NULL*/)
-  : CDialog(CMakeSetupDialog::IDD, pParent)
-{ 
-  m_GeneratorPicked = false;
-  m_Cursor = LoadCursor(NULL, IDC_ARROW);
-  m_RunningConfigure = false;
-  cmSystemTools::SetRunCommandHideConsole(true);
-  cmSystemTools::SetErrorCallback(MFCMessageCallback);
-  m_RegistryKey  = "Software\\Kitware\\CMakeSetup\\Settings\\StartPath";
-  m_CacheEntriesList.m_CMakeSetupDialog = this;
-
-  m_CMakeInstance = new cmake;
-  m_CMakeInstance->SetProgressCallback(updateProgress, (void *)this);
-
-  //{{AFX_DATA_INIT(CMakeSetupDialog)
-        //}}AFX_DATA_INIT
-
-  // Get the parameters from the command line info
-  // If an unknown parameter is found, try to interpret it too, since it
-  // is likely to be a file dropped on the shortcut :)
-  if (cmdInfo.m_LastUnknownParameter.IsEmpty())
+  else if ( !first )
     {
-    this->m_WhereSource = cmdInfo.m_WhereSource;
-    this->m_WhereBuild = cmdInfo.m_WhereBuild;
-    this->m_GeneratorDialog.m_GeneratorChoiceString = 
-      cmdInfo.m_GeneratorChoiceString;
-    this->m_AdvancedValues = cmdInfo.m_AdvancedValues;
+    cmCTestLog(this, WARNING, "Cannot locate CTest configuration: "
+      << fname.c_str() << std::endl);
     }
   else
     {
-    this->m_WhereSource = _T("");
-    this->m_WhereBuild = _T("");
-    this->m_AdvancedValues = FALSE;
-    this->m_GeneratorDialog.m_GeneratorChoiceString = 
-      cmdInfo.m_GeneratorChoiceString;
-    this->ChangeDirectoriesFromFile((LPCTSTR)cmdInfo.m_LastUnknownParameter);
+    cmCTestLog(this, HANDLER_OUTPUT, "   Cannot locate CTest configuration: "
+      << fname.c_str() << std::endl
+      << "   Delay the initialization of CTest" << std::endl);
     }
 
-  // Note that LoadIcon does not require a subsequent DestroyIcon in Win32
-  m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
-  m_BuildPathChanged = false;
-  // Find the path to the cmake.exe executable
-  char fname[1024];
-  ::GetModuleFileName(NULL,fname,1023);
-  // extract just the path part
-  m_PathToExecutable = cmSystemTools::GetProgramPath(fname).c_str();
-  // add the cmake.exe to the path
-  m_PathToExecutable += "/cmake.exe";
-
-  m_oldCX = -1;
-  m_deltaXRemainder = 0;
-}
-
-CMakeSetupDialog::~CMakeSetupDialog()
-{
-  delete m_CMakeInstance;
-  // clean up globals 
-  cmDynamicLoader::FlushCache();
-}
-
-void CMakeSetupDialog::DoDataExchange(CDataExchange* pDX)
-{
-  CDialog::DoDataExchange(pDX);
-  //{{AFX_DATA_MAP(CMakeSetupDialog)
-        DDX_Control(pDX, IDC_AdvancedValues, m_AdvancedValuesControl);
-        DDX_Control(pDX, IDC_BROWSE_SOURCE, m_BrowseSource);
-        DDX_Control(pDX, IDC_BROWSE_BUILD, m_BrowseBuild);
-        DDX_Control(pDX, IDC_DELETE_BUTTON, m_DeleteButton);
-        DDX_Control(pDX, IDC_HELP_BUTTON, m_HelpButton);
-        DDX_Control(pDX, IDC_OK, m_OKButton);
-        DDX_Control(pDX, IDCANCEL, m_CancelButton);
-        DDX_CBStringExact(pDX, IDC_WhereSource, m_WhereSource);
-        DDX_CBStringExact(pDX, IDC_WhereBuild, m_WhereBuild);
-        DDX_Control(pDX, IDC_FRAME, m_ListFrame);
-        DDX_Control(pDX, IDC_WhereSource, m_WhereSourceControl);
-        DDX_Control(pDX, IDC_WhereBuild, m_WhereBuildControl);
-        DDX_Control(pDX, IDC_LIST2, m_CacheEntriesList);
-        DDX_Control(pDX, IDC_MouseHelpCaption, m_MouseHelp);
-        DDX_Control(pDX, IDC_PROGRESS, m_StatusDisplay);
-        DDX_Control(pDX, IDC_BuildProjects, m_Configure);
-        DDX_Check(pDX, IDC_AdvancedValues, m_AdvancedValues);
-        //}}AFX_DATA_MAP
-}
-
-BEGIN_MESSAGE_MAP(CMakeSetupDialog, CDialog)
-  //{{AFX_MSG_MAP(CMakeSetupDialog)
-  ON_WM_SYSCOMMAND()
-  ON_WM_PAINT()
-  ON_WM_QUERYDRAGICON()
-  ON_BN_CLICKED(IDC_BUTTON2, OnBrowseWhereSource)
-  ON_BN_CLICKED(IDC_BuildProjects, OnConfigure)
-  ON_BN_CLICKED(IDC_BUTTON3, OnBrowseWhereBuild)
-  ON_CBN_EDITCHANGE(IDC_WhereBuild, OnChangeWhereBuild)
-  ON_CBN_SELCHANGE(IDC_WhereBuild, OnSelendokWhereBuild)
-  ON_CBN_EDITCHANGE(IDC_WhereSource, OnChangeWhereSource)
-  ON_CBN_SELENDOK(IDC_WhereSource, OnSelendokWhereSource)
-  ON_WM_SIZE()
-  ON_WM_GETMINMAXINFO()
-  ON_BN_CLICKED(IDC_OK, OnOk)
-  ON_BN_CLICKED(IDC_DELETE_BUTTON, OnDeleteButton)
-  ON_BN_CLICKED(IDC_HELP_BUTTON, OnHelpButton)
-  ON_BN_CLICKED(IDC_AdvancedValues, OnAdvancedValues)
-  ON_BN_DOUBLECLICKED(IDC_AdvancedValues, OnDoubleclickedAdvancedValues)
-  ON_WM_DROPFILES()
-  ON_BN_CLICKED(IDCANCEL, OnCancel)
-        ON_WM_SETCURSOR()
-        //}}AFX_MSG_MAP
-END_MESSAGE_MAP()
-
-/////////////////////////////////////////////////////////////////////////////
-// CMakeSetupDialog message handlers
-
-BOOL CMakeSetupDialog::OnInitDialog()
-{
-  CDialog::OnInitDialog();
-  this->DragAcceptFiles(true);
-
-  // Add "Create shortcut" menu item to system menu.
-
-  // IDM_CREATESHORTCUT must be in the system command range.
-  ASSERT((IDM_CREATESHORTCUT & 0xFFF0) == IDM_CREATESHORTCUT);
-  ASSERT(IDM_CREATESHORTCUT < 0xF000);
-
-  // Add "About..." menu item to system menu.
-
-  // IDM_ABOUTBOX must be in the system command range.
-  ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
-  ASSERT(IDM_ABOUTBOX < 0xF000);
-
-  CMenu* pSysMenu = GetSystemMenu(FALSE);
-  if (pSysMenu != NULL)
+  this->SetCTestConfigurationFromCMakeVariable(mf, "NightlyStartTime",
+    "CTEST_NIGHTLY_START_TIME");
+  this->SetCTestConfigurationFromCMakeVariable(mf, "Site", "CTEST_SITE");
+  this->SetCTestConfigurationFromCMakeVariable(mf, "BuildName",
+    "CTEST_BUILD_NAME");
+  const char* dartVersion = mf->GetDefinition("CTEST_DART_SERVER_VERSION");
+  if ( dartVersion )
     {
-    CString strCreateShortcutMenu;
-    strCreateShortcutMenu.LoadString(IDS_CREATESHORTCUT);
-    if (!strCreateShortcutMenu.IsEmpty())
+    this->DartVersion = atoi(dartVersion);
+    if ( this->DartVersion < 0 )
       {
-      pSysMenu->AppendMenu(MF_SEPARATOR);
-      pSysMenu->AppendMenu(MF_STRING, 
-                           IDM_CREATESHORTCUT, 
-                           strCreateShortcutMenu);
-      }
-
-    CString strAboutMenu;
-    strAboutMenu.LoadString(IDS_ABOUTBOX);
-    if (!strAboutMenu.IsEmpty())
-      {
-      pSysMenu->AppendMenu(MF_SEPARATOR);
-      pSysMenu->AppendMenu(MF_STRING, 
-                           IDM_ABOUTBOX, 
-                           strAboutMenu);
+      cmCTestLog(this, ERROR_MESSAGE, "Invalid Dart server version: "
+        << dartVersion << ". Please specify the version number."
+        << std::endl);
+      return false;
       }
     }
 
-  // Set the icon for this dialog.  The framework does this automatically
-  //  when the application's main window is not a dialog
-  SetIcon(m_hIcon, TRUE);                        // Set big icon
-  SetIcon(m_hIcon, FALSE);                // Set small icon
-  // Load source and build dirs from registry
-  this->LoadFromRegistry();
-
-  // try to load the cmake cache from disk
-  this->LoadCacheFromDiskToGUI();
-  m_WhereBuildControl.LimitText(2048);
-  m_WhereSourceControl.LimitText(2048);
-    
-  // Set the version number
-  char tmp[1024];
-  sprintf(tmp,"CMake %d.%d - %s", cmake::GetMajorVersion(),
-          cmake::GetMinorVersion(), cmake::GetReleaseVersion());
-  SetDlgItemText(IDC_PROGRESS, "");
-  this->SetWindowText(tmp);
-  this->UpdateData(FALSE);
-  return TRUE;  // return TRUE  unless you set the focus to a control
+  if ( !this->Initialize(bld_dir.c_str(), true, false) )
+    {
+    if ( this->GetCTestConfiguration("NightlyStartTime").empty() && first)
+      {
+      return true;
+      }
+    return false;
+    }
+  cmCTestLog(this, OUTPUT, "   Use " << this->GetTestModelString()
+    << " tag: " << this->GetCurrentTag() << std::endl);
+  return true;
 }
 
 
-// About dialog invoke
-void CMakeSetupDialog::OnSysCommand(UINT nID, LPARAM lParam)
+//----------------------------------------------------------------------
+bool cmCTest::UpdateCTestConfiguration()
 {
-  if ((nID & 0xFFF0) == IDM_ABOUTBOX)
+  if ( this->SuppressUpdatingCTestConfiguration )
     {
-    CAboutDlg dlgAbout;
-    dlgAbout.DoModal();
+    return true;
     }
-  else if ((nID & 0xFFF0) == IDM_CREATESHORTCUT)
+  std::string fileName = this->CTestConfigFile;
+  if ( fileName.empty() )
     {
-    CreateShortcut();
+    fileName = this->BinaryDir + "/CTestConfiguration.ini";
+    if ( !cmSystemTools::FileExists(fileName.c_str()) )
+      {
+      fileName = this->BinaryDir + "/DartConfiguration.tcl";
+      }
+    }
+  cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "UpdateCTestConfiguration  from :"
+             << fileName.c_str() << "\n");
+  if ( !cmSystemTools::FileExists(fileName.c_str()) )
+    {
+    // No need to exit if we are not producing XML
+    if ( this->ProduceXML )
+      {
+      cmCTestLog(this, ERROR_MESSAGE, "Cannot find file: " << fileName.c_str()
+        << std::endl);
+      return false;
+      }
     }
   else
     {
-    CDialog::OnSysCommand(nID, lParam);
+    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "Parse Config file:" 
+               << fileName.c_str() << "\n");
+    // parse the dart test file
+    std::ifstream fin(fileName.c_str());
+    if(!fin)
+      {
+      return false;
+      }
+
+    char buffer[1024];
+    while ( fin )
+      {
+      buffer[0] = 0;
+      fin.getline(buffer, 1023);
+      buffer[1023] = 0;
+      std::string line = cmCTest::CleanString(buffer);
+      if(line.size() == 0)
+        {
+        continue;
+        }
+      while ( fin && (line[line.size()-1] == '\\') )
+        {
+        line = line.substr(0, line.size()-1);
+        buffer[0] = 0;
+        fin.getline(buffer, 1023);
+        buffer[1023] = 0;
+        line += cmCTest::CleanString(buffer);
+        }
+      if ( line[0] == '#' )
+        {
+        continue;
+        }
+      std::string::size_type cpos = line.find_first_of(":");
+      if ( cpos == line.npos )
+        {
+        continue;
+        }
+      std::string key = line.substr(0, cpos);
+      std::string value
+        = cmCTest::CleanString(line.substr(cpos+1, line.npos));
+      this->CTestConfiguration[key] = value;
+      }
+    fin.close();
     }
+  if ( !this->GetCTestConfiguration("BuildDirectory").empty() )
+    {
+    this->BinaryDir = this->GetCTestConfiguration("BuildDirectory");
+    cmSystemTools::ChangeDirectory(this->BinaryDir.c_str());
+    }
+  this->TimeOut = atoi(this->GetCTestConfiguration("TimeOut").c_str());
+  if ( this->ProduceXML )
+    {
+    this->CompressXMLFiles = cmSystemTools::IsOn(
+      this->GetCTestConfiguration("CompressSubmission").c_str());
+    }
+  return true;
 }
 
-// If you add a minimize button to your dialog, you will need the code below
-//  to draw the icon.  For MFC applications using the document/view model,
-//  this is automatically done for you by the framework.
-
-void CMakeSetupDialog::OnPaint() 
+//----------------------------------------------------------------------
+void cmCTest::BlockTestErrorDiagnostics()
 {
-  if (IsIconic())
-    {
-    CPaintDC dc(this); // device context for painting
-
-    SendMessage(WM_ICONERASEBKGND, (WPARAM) dc.GetSafeHdc(), 0);
-
-    // Center icon in client rectangle
-    int cxIcon = GetSystemMetrics(SM_CXICON);
-    int cyIcon = GetSystemMetrics(SM_CYICON);
-    CRect rect;
-    GetClientRect(&rect);
-    int x = (rect.Width() - cxIcon + 1) / 2;
-    int y = (rect.Height() - cyIcon + 1) / 2;
-
-    // Draw the icon
-    dc.DrawIcon(x, y, m_hIcon);
-    }
-  else
-    {
-    CDialog::OnPaint();
-    }
+  cmSystemTools::PutEnv("DART_TEST_FROM_DART=1");
+  cmSystemTools::PutEnv("DASHBOARD_TEST_FROM_CTEST=" CMake_VERSION);
+#if defined(_WIN32)
+  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+#elif defined(__BEOS__) || defined(__HAIKU__)
+  disable_debugger(1);
+#endif
 }
 
-// The system calls this to obtain the cursor to display while the user drags
-//  the minimized window.
-HCURSOR CMakeSetupDialog::OnQueryDragIcon()
+//----------------------------------------------------------------------
+void cmCTest::SetTestModel(int mode)
 {
-  return (HCURSOR) m_hIcon;
+  this->InteractiveDebugMode = false;
+  this->TestModel = mode;
 }
 
-
-
-// Browse button
-bool CMakeSetupDialog::Browse(CString &result, const char *title)
+//----------------------------------------------------------------------
+bool cmCTest::SetTest(const char* ttype, bool report)
 {
-  CString initialDir = result;
-  initialDir.Replace("/", "\\");
-  CPathDialog dlg("Select Path", title, initialDir); 
-  if(dlg.DoModal()==IDOK)
+  if ( cmSystemTools::LowerCase(ttype) == "all" )
     {
-    result =  dlg.GetPathName();
+    for(Part p = PartStart; p != PartCount; p = Part(p+1))
+      {
+      this->Parts[p].Enable();
+      }
+    return true;
+    }
+  Part p = this->GetPartFromName(ttype);
+  if(p != PartCount)
+    {
+    this->Parts[p].Enable();
     return true;
     }
   else
     {
+    if ( report )
+      {
+      cmCTestLog(this, ERROR_MESSAGE, "Don't know about test \"" << ttype
+        << "\" yet..." << std::endl);
+      }
     return false;
     }
 }
 
+//----------------------------------------------------------------------
+void cmCTest::Finalize()
+{
+}
 
-
-
-void CMakeSetupDialog::SaveToRegistry()
-{ 
-  HKEY hKey;
-  DWORD dwDummy;
-
-  if(RegCreateKeyEx(HKEY_CURRENT_USER, 
-                    m_RegistryKey,
-                    0, "", REG_OPTION_NON_VOLATILE, KEY_READ|KEY_WRITE, 
-                    NULL, &hKey, &dwDummy) != ERROR_SUCCESS) 
+//----------------------------------------------------------------------
+bool cmCTest::OpenOutputFile(const std::string& path,
+                     const std::string& name, cmGeneratedFileStream& stream,
+                     bool compress)
+{
+  std::string testingDir = this->BinaryDir + "/Testing";
+  if ( path.size() > 0 )
     {
-    return;
+    testingDir += "/" + path;
+    }
+  if ( cmSystemTools::FileExists(testingDir.c_str()) )
+    {
+    if ( !cmSystemTools::FileIsDirectory(testingDir.c_str()) )
+      {
+      cmCTestLog(this, ERROR_MESSAGE, "File " << testingDir
+                << " is in the place of the testing directory"
+                << std::endl);
+      return false;
+      }
     }
   else
     {
-    // save some values
-    CString regvalue;
-    this->ReadRegistryValue(hKey, &(regvalue),"WhereSource1","C:\\");
-    int shiftEnd = 9;
-    if(m_WhereSource != regvalue)
+    if ( !cmSystemTools::MakeDirectory(testingDir.c_str()) )
       {
-      char keyName[1024];
-      char keyName2[1024];
-      int i;
-      for (i = 2; i < 10; ++i)
-        {
-        regvalue = "";
-        sprintf(keyName,"WhereSource%i",i);
-        this->ReadRegistryValue(hKey, &(regvalue),keyName,"");
-        // check for short circuit, if the new value is already in
-        // the list then we stop
-        if (m_WhereSource == regvalue)
-          {
-          shiftEnd = i - 1;
-          }
-        }
-      
-      for (i = shiftEnd; i; --i)
-        {
-        regvalue = "";
-        sprintf(keyName,"WhereSource%i",i);
-        sprintf(keyName2,"WhereSource%i",i+1);
-        
-        this->ReadRegistryValue(hKey, &(regvalue),keyName,"");
-        if (strlen(regvalue))
-          {
-          RegSetValueEx(hKey, _T(keyName2), 0, REG_SZ, 
-                        (CONST BYTE *)(const char *)regvalue, 
-                        regvalue.GetLength());
-          }
-        }
-      RegSetValueEx(hKey, _T("WhereSource1"), 0, REG_SZ, 
-                    (CONST BYTE *)(const char *)m_WhereSource, 
-                    m_WhereSource.GetLength());
-      }
-    
-    this->ReadRegistryValue(hKey, &(regvalue),"WhereBuild1","C:\\");
-    if(m_WhereBuild != regvalue)
-      {
-      int i;
-      char keyName[1024];
-      char keyName2[1024];
-      for (i = 2; i < 10; ++i)
-        {
-        regvalue = "";
-        sprintf(keyName,"WhereBuild%i",i);
-        this->ReadRegistryValue(hKey, &(regvalue),keyName,"");
-        // check for short circuit, if the new value is already in
-        // the list then we stop
-        if (m_WhereBuild == regvalue)
-          {
-          shiftEnd = i - 1;
-          }
-        }
-      for (i = shiftEnd; i; --i)
-        {
-        regvalue = "";
-        sprintf(keyName,"WhereBuild%i",i);
-        sprintf(keyName2,"WhereBuild%i",i+1);
-        
-        this->ReadRegistryValue(hKey, &(regvalue),keyName,"");
-        if (strlen(regvalue))
-          {
-          RegSetValueEx(hKey, _T(keyName2), 0, REG_SZ, 
-                        (CONST BYTE *)(const char *)regvalue, 
-                        regvalue.GetLength());
-          }
-        }
-      RegSetValueEx(hKey, _T("WhereBuild1"), 0, REG_SZ, 
-                    (CONST BYTE *)(const char *)m_WhereBuild, 
-                    m_WhereBuild.GetLength());
+      cmCTestLog(this, ERROR_MESSAGE, "Cannot create directory " << testingDir
+                << std::endl);
+      return false;
       }
     }
-  RegCloseKey(hKey);
+  std::string filename = testingDir + "/" + name;
+  stream.Open(filename.c_str());
+  if( !stream )
+    {
+    cmCTestLog(this, ERROR_MESSAGE, "Problem opening file: " << filename
+      << std::endl);
+    return false;
+    }
+  if ( compress )
+    {
+    if ( this->CompressXMLFiles )
+      {
+      stream.SetCompression(true);
+      }
+    }
+  return true;
 }
 
-
-void CMakeSetupDialog::ReadRegistryValue(HKEY hKey,
-                                         CString *val,
-                                         const char *key,
-                                         const char *adefault)
+//----------------------------------------------------------------------
+bool cmCTest::AddIfExists(Part part, const char* file)
 {
-  DWORD dwType, dwSize;
-  char *pb;
-
-  dwType = REG_SZ;
-  pb = val->GetBuffer(MAX_PATH);
-  dwSize = MAX_PATH;
-  if(RegQueryValueEx(hKey,_T(key), NULL, &dwType, 
-                     (BYTE *)pb, &dwSize) != ERROR_SUCCESS)
+  if ( this->CTestFileExists(file) )
     {
-    val->ReleaseBuffer();
-    *val = _T(adefault);
+    this->AddSubmitFile(part, file);
     }
   else
     {
-    val->ReleaseBuffer();
-    }
-}
-
-
-void CMakeSetupDialog::LoadFromRegistry()
-{ 
-  HKEY hKey;
-  if(RegOpenKeyEx(HKEY_CURRENT_USER, 
-                  m_RegistryKey, 
-                  0, KEY_READ, &hKey) != ERROR_SUCCESS)
-    {
-    return;
-    }
-  else
-    {
-    // load some values
-    if (m_WhereSource.IsEmpty()) 
+    std::string name = file;
+    name += ".gz";
+    if ( this->CTestFileExists(name.c_str()) )
       {
-      this->ReadRegistryValue(hKey, &(m_WhereSource),"WhereSource1","C:\\");
-      }
-    if (m_WhereBuild.IsEmpty()) 
-      {
-      this->ReadRegistryValue(hKey, &(m_WhereBuild),"WhereBuild1","C:\\");
-      }
-    m_WhereSourceControl.AddString(m_WhereSource);
-    m_WhereBuildControl.AddString(m_WhereBuild);
-
-    char keyname[1024];
-    CString regvalue;
-    int i;
-    for (i = 2; i <= 10; ++i)
-      {
-      sprintf(keyname,"WhereSource%i",i);
-      regvalue = "";
-      this->ReadRegistryValue(hKey, &(regvalue),keyname,"C:\\");
-      if (strcmp("C:\\",regvalue))
-        {
-        m_WhereSourceControl.AddString(regvalue);
-        }
-      sprintf(keyname,"WhereBuild%i",i);
-      regvalue = "";
-      this->ReadRegistryValue(hKey, &(regvalue),keyname,"C:\\");
-      if (strcmp("C:\\",regvalue))
-        {
-        m_WhereBuildControl.AddString(regvalue);
-        }
-      }
-    }
-  RegCloseKey(hKey);
-}
-
-
-
-// Callback for browse source button
-void CMakeSetupDialog::OnBrowseWhereSource() 
-{
-  this->UpdateData();
-  Browse(m_WhereSource, "Enter Path to Source");
-  this->UpdateData(false);
-  this->OnChangeWhereSource();
-}
-
-// Callback for browser build button
-void CMakeSetupDialog::OnBrowseWhereBuild() 
-{
-  this->UpdateData();
-  Browse(m_WhereBuild, "Enter Path to Build");
-  this->UpdateData(false);
-  this->OnChangeWhereBuild();
-}
-
-void CMakeSetupDialog::RunCMake(bool generateProjectFiles)
-{
-  if(!cmSystemTools::FileExists(m_WhereBuild))
-    {
-    std::string message =
-      "Build directory does not exist, should I create it?\n\n"
-      "Directory: ";
-    message += (const char*)m_WhereBuild;
-    if(MessageBox(message.c_str(), "Create Directory", MB_OKCANCEL) == IDOK)
-      {
-      cmSystemTools::MakeDirectory(m_WhereBuild);
+      this->AddSubmitFile(part, file);
       }
     else
       {
-      MessageBox("Build Project aborted, nothing done.");
-      return;
+      return false;
       }
     }
-  // set the wait cursor
-  m_Cursor = LoadCursor(NULL, IDC_WAIT);
-  ::SetCursor(m_Cursor);
-  m_RunningConfigure = true;
-  
-  // get all the info from the dialog
-  this->UpdateData();
-  // always save the current gui values to disk
-  this->SaveCacheFromGUI();
-  // Make sure we are working from the cache on disk
-  this->LoadCacheFromDiskToGUI(); 
-  m_OKButton.EnableWindow(false);
+  return true;
+}
 
-  // setup the cmake instance
-  if (generateProjectFiles)
+//----------------------------------------------------------------------
+bool cmCTest::CTestFileExists(const std::string& filename)
+{
+  std::string testingDir = this->BinaryDir + "/Testing/" + 
+    this->CurrentTag + "/" + filename;
+  return cmSystemTools::FileExists(testingDir.c_str());
+}
+
+//----------------------------------------------------------------------
+cmCTestGenericHandler* cmCTest::GetInitializedHandler(const char* handler)
+{
+  cmCTest::t_TestingHandlers::iterator it = 
+    this->TestingHandlers.find(handler);
+  if ( it == this->TestingHandlers.end() )
     {
-    if(m_CMakeInstance->Generate() != 0)
+    return 0;
+    }
+  it->second->Initialize();
+  return it->second;
+}
+
+//----------------------------------------------------------------------
+cmCTestGenericHandler* cmCTest::GetHandler(const char* handler)
+{
+  cmCTest::t_TestingHandlers::iterator it = 
+    this->TestingHandlers.find(handler);
+  if ( it == this->TestingHandlers.end() )
+    {
+    return 0;
+    }
+  return it->second;
+}
+
+//----------------------------------------------------------------------
+int cmCTest::ExecuteHandler(const char* shandler)
+{
+  cmCTestGenericHandler* handler = this->GetHandler(shandler);
+  if ( !handler )
+    {
+    return -1;
+    }
+  handler->Initialize();
+  return handler->ProcessHandler();
+}
+
+//----------------------------------------------------------------------
+int cmCTest::ProcessTests()
+{
+  int res = 0;
+  bool notest = true;
+  int update_count = 0;
+
+  // do not output startup if this is a sub-process for parallel tests
+  if(!this->GetParallelSubprocess())
+    {
+    cmCTestLog(this, OUTPUT, "Start processing tests" << std::endl);
+    }
+
+  for(Part p = PartStart; notest && p != PartCount; p = Part(p+1))
+    {
+    notest = !this->Parts[p];
+    }
+  if (this->Parts[PartUpdate] &&
+      (this->GetRemainingTimeAllowed() - 120 > 0))
+    {
+    cmCTestGenericHandler* uphandler = this->GetHandler("update");
+    uphandler->SetPersistentOption("SourceDirectory",
+      this->GetCTestConfiguration("SourceDirectory").c_str());
+    update_count = uphandler->ProcessHandler();
+    if ( update_count < 0 )
       {
-      cmSystemTools::Error(
-        "Error in generation process, project files may be invalid");
+      res |= cmCTest::UPDATE_ERRORS;
       }
     }
-  else
+  if ( this->TestModel == cmCTest::CONTINUOUS && !update_count )
     {
-    m_CMakeInstance->SetHomeDirectory(m_WhereSource);
-    m_CMakeInstance->SetStartDirectory(m_WhereSource);
-    m_CMakeInstance->SetHomeOutputDirectory(m_WhereBuild);
-    m_CMakeInstance->SetStartOutputDirectory(m_WhereBuild);
-    m_CMakeInstance->SetGlobalGenerator(
-      m_CMakeInstance->CreateGlobalGenerator(m_GeneratorDialog.m_GeneratorChoiceString));
-    m_CMakeInstance->SetCMakeCommand(m_PathToExecutable);
-    m_CMakeInstance->LoadCache();
-    if(m_CMakeInstance->Configure() != 0)
-      {
-      cmSystemTools::Error(
-        "Error in configuration process, project files may be invalid");
-      }
-    // update the GUI with any new values in the caused by the
-    // generation process
-    this->LoadCacheFromDiskToGUI();
+    return 0;
     }
-
-  // save source and build paths to registry
-  this->SaveToRegistry();
-  // path is up-to-date now
-  m_BuildPathChanged = false;
-  // put the cursor back 
-  m_Cursor = LoadCursor(NULL, IDC_ARROW);
-  ::SetCursor(m_Cursor);
-  m_RunningConfigure = false;
-  cmSystemTools::ResetErrorOccuredFlag();
-}
-
-
-// Callback for build projects button
-void CMakeSetupDialog::OnConfigure() 
-{
-  if(!m_GeneratorPicked)
+  if (this->Parts[PartConfigure] &&
+      (this->GetRemainingTimeAllowed() - 120 > 0))
     {
-    m_GeneratorDialog.m_CMakeInstance = this->m_CMakeInstance;
-    if(m_GeneratorDialog.DoModal() != IDOK)
+    if (this->GetHandler("configure")->ProcessHandler() < 0)
       {
-      return;
-      }
-    // save the generator choice in the registry
-    HKEY hKey;
-    DWORD dwDummy;
-    
-    if(RegCreateKeyEx(HKEY_CURRENT_USER, 
-                      m_RegistryKey,
-                      0, "", REG_OPTION_NON_VOLATILE, KEY_READ|KEY_WRITE, 
-                      NULL, &hKey, &dwDummy) == ERROR_SUCCESS) 
-      {
-      // save some values
-      RegSetValueEx(hKey, _T("LastGenerator"), 0, REG_SZ, 
-                    (CONST BYTE *)(const char *)m_GeneratorDialog.m_GeneratorChoiceString, 
-                    m_GeneratorDialog.m_GeneratorChoiceString.GetLength());
+      res |= cmCTest::CONFIGURE_ERRORS;
       }
     }
-  
-  // enable error messages each time configure is pressed
-  cmSystemTools::EnableMessages();
-  this->RunCMake(false);
-}
-
-
-
-
-// callback for combo box menu where build selection
-void CMakeSetupDialog::OnSelendokWhereBuild() 
-{
-  m_WhereBuildControl.GetLBText(m_WhereBuildControl.GetCurSel(), 
-                                m_WhereBuild);
-  m_WhereBuildControl.SetWindowText( m_WhereBuild);
-  this->UpdateData(FALSE);
-  this->OnChangeWhereBuild();
-}
-
-// callback for combo box menu where source selection
-void CMakeSetupDialog::OnSelendokWhereSource() 
-{
-  m_WhereSourceControl.GetLBText(m_WhereSourceControl.GetCurSel(), 
-                                 m_WhereSource);
-  this->UpdateData(FALSE);
-  this->OnChangeWhereSource();
-}
-
-// callback for chaing source directory
-void CMakeSetupDialog::OnChangeWhereSource() 
-{
-}
-
-// callback for changing the build directory
-void CMakeSetupDialog::OnChangeWhereBuild() 
-{
-  this->UpdateData();
-
-  // The build dir has changed, check if there is a cache, and 
-  // grab the source dir from it
-
-  std::string path = this->m_WhereBuild;
-  cmSystemTools::ConvertToUnixSlashes(path);
-
-  // adjust the cmake instance
-  m_CMakeInstance->SetHomeOutputDirectory(m_WhereBuild);
-  m_CMakeInstance->SetStartOutputDirectory(m_WhereBuild);
-
-  std::string cache_file = path;
-  cache_file += "/CMakeCache.txt";
-
-  cmCacheManager *cachem = this->m_CMakeInstance->GetCacheManager();
-  cmCacheManager::CacheIterator it = cachem->NewIterator();
-
-  m_GeneratorPicked = false;
-
-  // make sure we have a normal cache file, specifically if one exists make
-  // sure it can be read
-  if (cmSystemTools::FileExists(cache_file.c_str()))
+  if (this->Parts[PartBuild] &&
+      (this->GetRemainingTimeAllowed() - 120 > 0))
     {
-    if (cachem->LoadCache(path.c_str()))
+    this->UpdateCTestConfiguration();
+    if (this->GetHandler("build")->ProcessHandler() < 0)
       {
-      if (it.Find("CMAKE_HOME_DIRECTORY"))
+      res |= cmCTest::BUILD_ERRORS;
+      }
+    }
+  if ((this->Parts[PartTest] || notest) &&
+      (this->GetRemainingTimeAllowed() - 120 > 0))
+    {
+    this->UpdateCTestConfiguration();
+    if (this->GetHandler("test")->ProcessHandler() < 0)
+      {
+      res |= cmCTest::TEST_ERRORS;
+      }
+    }
+  if (this->Parts[PartCoverage] &&
+      (this->GetRemainingTimeAllowed() - 120 > 0))
+    {
+    this->UpdateCTestConfiguration();
+    if (this->GetHandler("coverage")->ProcessHandler() < 0)
+      {
+      res |= cmCTest::COVERAGE_ERRORS;
+      }
+    }
+  if (this->Parts[PartMemCheck] &&
+      (this->GetRemainingTimeAllowed() - 120 > 0))
+    {
+    this->UpdateCTestConfiguration();
+    if (this->GetHandler("memcheck")->ProcessHandler() < 0)
+      {
+      res |= cmCTest::MEMORY_ERRORS;
+      }
+    }
+  if ( !notest )
+    {
+    std::string notes_dir = this->BinaryDir + "/Testing/Notes";
+    if ( cmSystemTools::FileIsDirectory(notes_dir.c_str()) )
+      {
+      cmsys::Directory d;
+      d.Load(notes_dir.c_str());
+      unsigned long kk;
+      for ( kk = 0; kk < d.GetNumberOfFiles(); kk ++ )
         {
-        path = ConvertToWindowsPath(it.GetValue());
-        this->m_WhereSource = path.c_str();
-        this->m_WhereSourceControl.SetWindowText(this->m_WhereSource);
-        this->OnChangeWhereSource();
-        m_GeneratorPicked = true;
-        }
-      }
-    else
-      {
-      //file exists but cqnnot be read
-      cmSystemTools::Error("There is a CMakeCache.txt file for the current binary tree but cmake does not have permission to read it. Please check the permissions of the directory you are trying to run CMake on.");
-      return;
-      }
-    }
-  
-  m_CacheEntriesList.RemoveAll();
-  m_CacheEntriesList.ShowWindow(SW_SHOW);
-  this->LoadCacheFromDiskToGUI();
-  m_BuildPathChanged = true;
-}
-
-
-// copy from the cache manager to the cache edit list box
-void CMakeSetupDialog::FillCacheGUIFromCacheManager()
-{ 
-  cmCacheManager *cachem = this->m_CMakeInstance->GetCacheManager();
-  cmCacheManager::CacheIterator it = cachem->NewIterator();
-  size_t size = m_CacheEntriesList.GetItems().size();
-  // if there are already entries in the cache, then
-  // put the new ones in the top, so they show up first
-  bool reverseOrder = false;
-  // all the current values are not new any more
-  std::set<CPropertyItem*> items = m_CacheEntriesList.GetItems();
-  for(std::set<CPropertyItem*>::iterator i = items.begin();
-      i != items.end(); ++i)
-    {
-    // first check to see if it is still in the cache
-    CPropertyItem* item = *i;
-    if ( !it.Find((const char*)item->m_propName) )
-      {
-      m_CacheEntriesList.RemoveProperty((const char*)item->m_propName);
-      }
-    else
-      {
-      // if it is still in the cache then it is no longer new
-      item->m_NewValue = false;
-      }
-    }
-  for(cmCacheManager::CacheIterator i = cachem->NewIterator();
-      !i.IsAtEnd(); i.Next())
-    {
-    const char* key = i.GetName();
-
-    // if value has trailing space or tab, enclose it in single quotes
-    // to enforce the fact that it has 'invisible' trailing stuff
-    std::string value = i.GetValue();
-    if (value.size() && 
-        (value[value.size() - 1] == ' ' || 
-         value[value.size() - 1] == '\t'))
-      {
-      value = '\'' + value +  '\'';
-      }
-    bool advanced = i.GetPropertyAsBool("ADVANCED");
-    switch(i.GetType() )
-      {
-      case cmCacheManager::BOOL:
-        if(cmSystemTools::IsOn(value.c_str()))
+        const char* file = d.GetFile(kk);
+        std::string fullname = notes_dir + "/" + file;
+        if ( cmSystemTools::FileExists(fullname.c_str()) &&
+          !cmSystemTools::FileIsDirectory(fullname.c_str()) )
           {
-          m_CacheEntriesList.AddProperty(key,
-                                         "ON",
-                                         i.GetProperty("HELPSTRING"),
-                                         CPropertyList::COMBO,"ON|OFF",
-                                         reverseOrder,
-                                         advanced
-            );
-          }
-        else
-          {
-          m_CacheEntriesList.AddProperty(key,
-                                         "OFF",
-                                         i.GetProperty("HELPSTRING"),
-                                         CPropertyList::COMBO,"ON|OFF",
-                                         reverseOrder, advanced
-            );
-          }
-        break;
-      case cmCacheManager::PATH:
-        m_CacheEntriesList.AddProperty(key, 
-                                       value.c_str(),
-                                       i.GetProperty("HELPSTRING"),
-                                       CPropertyList::PATH,"",
-                                       reverseOrder, advanced
-          );
-        break;
-      case cmCacheManager::FILEPATH:
-        m_CacheEntriesList.AddProperty(key, 
-                                       value.c_str(),
-                                       i.GetProperty("HELPSTRING"),
-                                       CPropertyList::FILE,"",
-                                       reverseOrder, advanced
-          );
-        break;
-      case cmCacheManager::STRING:
-        m_CacheEntriesList.AddProperty(key,
-                                       value.c_str(),
-                                       i.GetProperty("HELPSTRING"),
-                                       CPropertyList::EDIT,"",
-                                       reverseOrder, advanced
-          );
-        break;
-      case cmCacheManager::INTERNAL:
-        m_CacheEntriesList.RemoveProperty(key);
-        break;
-      }
-    }
-  if(m_CacheEntriesList.GetShowAdvanced())
-    {
-    m_CacheEntriesList.ShowAdvanced();
-    }
-  else
-    {
-    m_CacheEntriesList.HideAdvanced();
-    }
-  
-  m_OKButton.EnableWindow(false);
-  if(cachem->GetSize() > 0 && !cmSystemTools::GetErrorOccuredFlag())
-    {
-    bool enable = true;
-    items = m_CacheEntriesList.GetItems();
-    for(std::set<CPropertyItem*>::iterator i = items.begin();
-        i != items.end(); ++i)
-      {
-      CPropertyItem* item = *i;
-      if(item->m_Advanced )
-        {
-        if(item->m_NewValue && m_CacheEntriesList.GetShowAdvanced())
-          {
-          enable = false;
-          break;
-          }
-        }
-      else
-        {
-        if(item->m_NewValue)
-          {
-          // if one new value then disable to OK button
-          enable = false;
-          break;
+          if ( this->NotesFiles.size() > 0 )
+            {
+            this->NotesFiles += ";";
+            }
+          this->NotesFiles += fullname;
+          this->Parts[PartNotes].Enable();
           }
         }
       }
-    if(enable)
-      {
-      m_OKButton.EnableWindow(true);
-      }
     }
-
-  // redraw the list
-  m_CacheEntriesList.SetTopIndex(0);
-  m_CacheEntriesList.Invalidate();
-}
-
-// copy from the list box to the cache manager
-void CMakeSetupDialog::FillCacheManagerFromCacheGUI()
-{ 
-  cmCacheManager *cachem = this->m_CMakeInstance->GetCacheManager();
-  std::set<CPropertyItem*> items = m_CacheEntriesList.GetItems();
-  cmCacheManager::CacheIterator it = cachem->NewIterator();
-  for(std::set<CPropertyItem*>::iterator i = items.begin();
-      i != items.end(); ++i)
+  if (this->Parts[PartNotes])
     {
-    CPropertyItem* item = *i; 
-    if ( it.Find((const char*)item->m_propName) )
+    this->UpdateCTestConfiguration();
+    if ( this->NotesFiles.size() )
       {
-      // if value is enclosed in single quotes ('foo') then remove them
-      // they were used to enforce the fact that it had 'invisible' 
-      // trailing stuff
-      if (item->m_curValue.GetLength() >= 2 &&
-          item->m_curValue[0] == '\'' && 
-          item->m_curValue[item->m_curValue.GetLength() - 1] == '\'') 
-        {
-        it.SetValue(item->m_curValue.Mid(
-          1, item->m_curValue.GetLength() - 2));
-        }
-      else
-        {
-        it.SetValue(item->m_curValue);
-        }
+      this->GenerateNotesFile(this->NotesFiles.c_str());
       }
     }
+  if (this->Parts[PartSubmit])
+    {
+    this->UpdateCTestConfiguration();
+    if (this->GetHandler("submit")->ProcessHandler() < 0)
+      {
+      res |= cmCTest::SUBMIT_ERRORS;
+      }
+    }
+  if ( res != 0 )
+    {
+    if(!this->GetParallelSubprocess())
+      {
+      cmCTestLog(this, ERROR_MESSAGE, "Errors while running CTest"
+                 << std::endl);
+      }
+    }
+  return res;
 }
 
-  
-
-//! Load cache file from m_WhereBuild and display in GUI editor
-void CMakeSetupDialog::LoadCacheFromDiskToGUI()
+//----------------------------------------------------------------------
+std::string cmCTest::GetTestModelString()
 {
-  cmCacheManager *cachem = this->m_CMakeInstance->GetCacheManager();
-  if(m_WhereBuild != "")
+  if ( !this->SpecificTrack.empty() )
     {
-    if (!cachem->LoadCache(m_WhereBuild))
-      {
-      // if it does exist, but isn;t readable then warn the user
-      std::string cacheFile = m_WhereBuild;
-      cacheFile += "/CMakeCache.txt";
-      if(cmSystemTools::FileExists(cacheFile.c_str()))
-        {
-        cmSystemTools::Error("There is a CMakeCache.txt file for the current binary tree but cmake does not have permission to read it. Please check the permissions of the directory you are trying to run CMake on.");
-        return;
-        }
-      }
-    cmCacheManager::CacheIterator itm = cachem->NewIterator();
-    if ( itm.Find("CMAKE_HOME_DIRECTORY"))
-      {
-      std::string path = ConvertToWindowsPath(itm.GetValue());
-      this->m_WhereSource = path.c_str();
-      this->m_WhereSourceControl.SetWindowText(this->m_WhereSource);
-      this->OnChangeWhereSource();
-      }
-    m_CMakeInstance->SetHomeDirectory(m_WhereSource);
-    m_CMakeInstance->SetStartDirectory(m_WhereSource);
-    m_CMakeInstance->SetHomeOutputDirectory(m_WhereBuild);
-    m_CMakeInstance->SetStartOutputDirectory(m_WhereBuild);
-    m_CMakeInstance->PreLoadCMakeFiles();
-    this->FillCacheGUIFromCacheManager();
-    cmCacheManager::CacheIterator it = 
-      cachem->GetCacheIterator("CMAKE_GENERATOR");
-    if(!it.IsAtEnd())
-      {
-      m_GeneratorPicked = true;
-      std::string curGen = it.GetValue();
-      if(m_GeneratorDialog.m_GeneratorChoiceString != curGen.c_str())
-        {
-        m_GeneratorDialog.m_GeneratorChoiceString = curGen.c_str();
-        this->UpdateData(FALSE);
-        }
-      }
+    return this->SpecificTrack;
     }
+  switch ( this->TestModel )
+    {
+  case cmCTest::NIGHTLY:
+    return "Nightly";
+  case cmCTest::CONTINUOUS:
+    return "Continuous";
+    }
+  return "Experimental";
 }
 
-//! Save GUI values to cmCacheManager and then save to disk.
-void CMakeSetupDialog::SaveCacheFromGUI()
+//----------------------------------------------------------------------
+int cmCTest::GetTestModelFromString(const char* str)
 {
-  cmCacheManager *cachem = this->m_CMakeInstance->GetCacheManager();
-  this->FillCacheManagerFromCacheGUI();
-  if(m_WhereBuild != "")
+  if ( !str )
     {
-    cachem->SaveCache(m_WhereBuild);
+    return cmCTest::EXPERIMENTAL;
     }
+  std::string rstr = cmSystemTools::LowerCase(str);
+  if ( strncmp(rstr.c_str(), "cont", 4) == 0 )
+    {
+    return cmCTest::CONTINUOUS;
+    }
+  if ( strncmp(rstr.c_str(), "nigh", 4) == 0 )
+    {
+    return cmCTest::NIGHTLY;
+    }
+  return cmCTest::EXPERIMENTAL;
 }
 
+//######################################################################
+//######################################################################
+//######################################################################
+//######################################################################
 
-void CMakeSetupDialog::OnSize(UINT nType, int cx, int cy) 
+//----------------------------------------------------------------------
+int cmCTest::RunMakeCommand(const char* command, std::string* output,
+  int* retVal, const char* dir, int timeout, std::ofstream& ofs)
 {
-  if (nType == SIZE_MINIMIZED)
+  // First generate the command and arguments
+  std::vector<cmStdString> args = cmSystemTools::ParseArguments(command);
+
+  if(args.size() < 1)
     {
-    CDialog::OnSize(nType, cx, cy);
+    return false;
+    }
+
+  std::vector<const char*> argv;
+  for(std::vector<cmStdString>::const_iterator a = args.begin();
+    a != args.end(); ++a)
+    {
+    argv.push_back(a->c_str());
+    }
+  argv.push_back(0);
+
+  if ( output )
+    {
+    *output = "";
+    }
+
+  cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "Run command:");
+  std::vector<const char*>::iterator ait;
+  for ( ait = argv.begin(); ait != argv.end() && *ait; ++ ait )
+    {
+    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, " \"" << *ait << "\"");
+    }
+  cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, std::endl);
+
+  // Now create process object
+  cmsysProcess* cp = cmsysProcess_New();
+  cmsysProcess_SetCommand(cp, &*argv.begin());
+  cmsysProcess_SetWorkingDirectory(cp, dir);
+  cmsysProcess_SetOption(cp, cmsysProcess_Option_HideWindow, 1);
+  cmsysProcess_SetTimeout(cp, timeout);
+  cmsysProcess_Execute(cp);
+
+  // Initialize tick's
+  std::string::size_type tick = 0;
+  std::string::size_type tick_len = 1024;
+  std::string::size_type tick_line_len = 50;
+
+  char* data;
+  int length;
+  cmCTestLog(this, HANDLER_OUTPUT,
+    "   Each . represents " << tick_len << " bytes of output" << std::endl
+    << "    " << std::flush);
+  while(cmsysProcess_WaitForData(cp, &data, &length, 0))
+    {
+    if ( output )
+      {
+      for(int cc =0; cc < length; ++cc)
+        {
+        if(data[cc] == 0)
+          {
+          data[cc] = '\n';
+          }
+        }
+
+      output->append(data, length);
+      while ( output->size() > (tick * tick_len) )
+        {
+        tick ++;
+        cmCTestLog(this, HANDLER_OUTPUT, "." << std::flush);
+        if ( tick % tick_line_len == 0 && tick > 0 )
+          {
+          cmCTestLog(this, HANDLER_OUTPUT, "  Size: "
+            << int((output->size() / 1024.0) + 1) << "K" << std::endl
+            << "    " << std::flush);
+          }
+        }
+      }
+    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, cmCTestLogWrite(data, length));
+    if ( ofs )
+      {
+      ofs << cmCTestLogWrite(data, length);
+      }
+    }
+  cmCTestLog(this, OUTPUT, " Size of output: "
+    << int(output->size() / 1024.0) << "K" << std::endl);
+
+  cmsysProcess_WaitForExit(cp, 0);
+
+  int result = cmsysProcess_GetState(cp);
+
+  if(result == cmsysProcess_State_Exited)
+    {
+    *retVal = cmsysProcess_GetExitValue(cp);
+    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "Command exited with the value: "
+      << *retVal << std::endl);
+    }
+  else if(result == cmsysProcess_State_Exception)
+    {
+    *retVal = cmsysProcess_GetExitException(cp);
+    cmCTestLog(this, WARNING, "There was an exception: " << *retVal
+      << std::endl);
+    }
+  else if(result == cmsysProcess_State_Expired)
+    {
+    cmCTestLog(this, WARNING, "There was a timeout" << std::endl);
+    }
+  else if(result == cmsysProcess_State_Error)
+    {
+    *output += "\n*** ERROR executing: ";
+    *output += cmsysProcess_GetErrorString(cp);
+    *output += "\n***The build process failed.";
+    cmCTestLog(this, ERROR_MESSAGE, "There was an error: "
+      << cmsysProcess_GetErrorString(cp) << std::endl);
+    }
+
+  cmsysProcess_Delete(cp);
+
+  return result;
+}
+
+//######################################################################
+//######################################################################
+//######################################################################
+//######################################################################
+
+//----------------------------------------------------------------------
+int cmCTest::RunTest(std::vector<const char*> argv,
+                     std::string* output, int *retVal,
+                     std::ostream* log, double testTimeOut,
+                     std::vector<std::string>* environment)
+{
+  std::vector<std::string> origEnv;
+  bool modifyEnv = (environment && environment->size()>0);
+
+  // determine how much time we have
+  double timeout = this->GetRemainingTimeAllowed() - 120;
+  if (this->TimeOut && this->TimeOut < timeout)
+    {
+    timeout = this->TimeOut;
+    }
+  if (testTimeOut 
+      && testTimeOut < this->GetRemainingTimeAllowed())
+    {
+    timeout = testTimeOut;
+    }
+
+  // always have at least 1 second if we got to here
+  if (timeout <= 0)
+    {
+    timeout = 1;
+    }
+  cmCTestLog(this, HANDLER_VERBOSE_OUTPUT,
+             "Test timeout computed to be: " << timeout << "\n");
+  if(cmSystemTools::SameFile(argv[0], this->CTestSelf.c_str()) &&
+     !this->ForceNewCTestProcess)
+    {
+    cmCTest inst;
+    inst.ConfigType = this->ConfigType;
+    inst.TimeOut = timeout;
+
+    // Capture output of the child ctest.
+    cmOStringStream oss;
+    inst.SetStreams(&oss, &oss);
+
+    std::vector<std::string> args;
+    for(unsigned int i =0; i < argv.size(); ++i)
+      {
+      if(argv[i])
+        {
+        // make sure we pass the timeout in for any build and test 
+        // invocations. Since --build-generator is required this is a 
+        // good place to check for it, and to add the arguments in
+        if (strcmp(argv[i],"--build-generator") == 0 && timeout)
+          {
+          args.push_back("--test-timeout");
+          cmOStringStream msg;
+          msg << timeout;
+          args.push_back(msg.str());
+          }
+        args.push_back(argv[i]);
+        }
+      }
+    if ( log )
+      {
+      *log << "* Run internal CTest" << std::endl;
+      }
+    std::string oldpath = cmSystemTools::GetCurrentWorkingDirectory();
+
+    if (modifyEnv)
+      {
+      origEnv = cmSystemTools::AppendEnv(environment);
+      }
+
+    *retVal = inst.Run(args, output);
+    *output += oss.str();
+    if ( log )
+      {
+      *log << output->c_str();
+      }
+    cmSystemTools::ChangeDirectory(oldpath.c_str());
+
+    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT,
+      "Internal cmCTest object used to run test." << std::endl
+      <<  *output << std::endl);
+
+    if (modifyEnv)
+      {
+      cmSystemTools::RestoreEnv(origEnv);
+      }
+
+    return cmsysProcess_State_Exited;
+    }
+  std::vector<char> tempOutput;
+  if ( output )
+    {
+    *output = "";
+    }
+
+  if (modifyEnv)
+    {
+    origEnv = cmSystemTools::AppendEnv(environment);
+    }
+
+  cmsysProcess* cp = cmsysProcess_New();
+  cmsysProcess_SetCommand(cp, &*argv.begin());
+  cmCTestLog(this, DEBUG, "Command is: " << argv[0] << std::endl);
+  if(cmSystemTools::GetRunCommandHideConsole())
+    {
+    cmsysProcess_SetOption(cp, cmsysProcess_Option_HideWindow, 1);
+    }
+
+  cmsysProcess_SetTimeout(cp, timeout);
+  cmsysProcess_Execute(cp);
+
+  char* data;
+  int length;
+  while(cmsysProcess_WaitForData(cp, &data, &length, 0))
+    {
+    if ( output )
+      {
+      tempOutput.insert(tempOutput.end(), data, data+length);
+      }
+    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, cmCTestLogWrite(data, length));
+    if ( log )
+      {
+      log->write(data, length);
+      }
+    }
+
+  cmsysProcess_WaitForExit(cp, 0);
+  if(output && tempOutput.begin() != tempOutput.end())
+    {
+    output->append(&*tempOutput.begin(), tempOutput.size());
+    }
+  cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "-- Process completed"
+    << std::endl);
+
+  int result = cmsysProcess_GetState(cp);
+
+  if(result == cmsysProcess_State_Exited)
+    {
+    *retVal = cmsysProcess_GetExitValue(cp);
+    if(*retVal != 0 && this->OutputTestOutputOnTestFailure)
+      {
+        OutputTestErrors(tempOutput);
+      }
+    }
+  else if(result == cmsysProcess_State_Exception)
+    {
+    if(this->OutputTestOutputOnTestFailure)
+      {
+        OutputTestErrors(tempOutput);
+      }
+    *retVal = cmsysProcess_GetExitException(cp);
+    std::string outerr = "\n*** Exception executing: ";
+    outerr += cmsysProcess_GetExceptionString(cp);
+    *output += outerr;
+    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, outerr.c_str() << std::endl
+      << std::flush);
+    }
+  else if(result == cmsysProcess_State_Error)
+    {
+    std::string outerr = "\n*** ERROR executing: ";
+    outerr += cmsysProcess_GetErrorString(cp);
+    *output += outerr;
+    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, outerr.c_str() << std::endl
+      << std::flush);
+    }
+  cmsysProcess_Delete(cp);
+
+  if (modifyEnv)
+    {
+    cmSystemTools::RestoreEnv(origEnv);
+    }
+
+  return result;
+}
+
+//----------------------------------------------------------------------
+void cmCTest::StartXML(std::ostream& ostr, bool append)
+{
+  if(this->CurrentTag.empty())
+    {
+    cmCTestLog(this, ERROR_MESSAGE,
+               "Current Tag empty, this may mean"
+               " NightlStartTime was not set correctly." << std::endl);
+    cmSystemTools::SetFatalErrorOccured();
+    }
+  // find out about the system
+  cmsys::SystemInformation info;
+  info.RunCPUCheck();
+  info.RunOSCheck();
+  info.RunMemoryCheck();
+  ostr << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+       << "<Site BuildName=\"" << this->GetCTestConfiguration("BuildName")
+       << "\"\n\tBuildStamp=\"" << this->CurrentTag << "-"
+       << this->GetTestModelString() << "\"\n\tName=\""
+       << this->GetCTestConfiguration("Site") << "\"\n\tGenerator=\"ctest"
+       << cmVersion::GetCMakeVersion()  << "\"\n"
+       << (append? "\tAppend=\"true\"\n":"")
+       << "\tOSName=\"" << info.GetOSName() << "\"\n"
+       << "\tHostname=\"" << info.GetHostname() << "\"\n"
+       << "\tOSRelease=\"" << info.GetOSRelease() << "\"\n"
+       << "\tOSVersion=\"" << info.GetOSVersion() << "\"\n"
+       << "\tOSPlatform=\"" << info.GetOSPlatform() << "\"\n"
+       << "\tIs64Bits=\"" << info.Is64Bits() << "\"\n"
+       << "\tVendorString=\"" << info.GetVendorString() << "\"\n"
+       << "\tVendorID=\"" << info.GetVendorID() << "\"\n"
+       << "\tFamilyID=\"" << info.GetFamilyID() << "\"\n"
+       << "\tModelID=\"" << info.GetModelID() << "\"\n"
+       << "\tProcessorCacheSize=\"" << info.GetProcessorCacheSize() << "\"\n"
+       << "\tNumberOfLogicalCPU=\"" << info.GetNumberOfLogicalCPU() << "\"\n"
+       << "\tNumberOfPhysicalCPU=\""<< info.GetNumberOfPhysicalCPU() << "\"\n"
+       << "\tTotalVirtualMemory=\"" << info.GetTotalVirtualMemory() << "\"\n"
+       << "\tTotalPhysicalMemory=\""<< info.GetTotalPhysicalMemory() << "\"\n"
+       << "\tLogicalProcessorsPerPhysical=\"" 
+       << info.GetLogicalProcessorsPerPhysical() << "\"\n"
+       << "\tProcessorClockFrequency=\"" 
+       << info.GetProcessorClockFrequency() << "\"\n" 
+       << ">" << std::endl;
+  this->AddSiteProperties(ostr); 
+}
+
+//----------------------------------------------------------------------
+void cmCTest::AddSiteProperties(std::ostream& ostr)
+{
+  cmCTestScriptHandler* ch = 
+    static_cast<cmCTestScriptHandler*>(this->GetHandler("script"));
+  cmake* cm =  ch->GetCMake();
+  // if no CMake then this is the old style script and props like
+  // this will not work anyway.
+  if(!cm)
+    {
     return;
-    }  
-  if (m_oldCX == -1)
-    {
-    m_oldCX = cx;
-    m_oldCY = cy;
     }
-  int deltax = cx - m_oldCX;
-  int deltay = cy - m_oldCY;
-
-  m_oldCX = cx;
-  m_oldCY = cy;
-
-  CDialog::OnSize(nType, cx, cy);
-
-  if (deltax == 0 && deltay == 0)
-    {
-    return;
-    }
-  
-  if(m_CacheEntriesList.m_hWnd)
-    {
-    // get the original sizes/positions
-    CRect cRect;
-    m_AdvancedValuesControl.GetWindowRect(&cRect);
-    this->ScreenToClient(&cRect);
-    m_AdvancedValuesControl.SetWindowPos(&wndTop, cRect.left + deltax, 
-                                         cRect.top, 
-                                         0, 0,
-                                         SWP_NOCOPYBITS | 
-                                         SWP_NOSIZE | SWP_NOZORDER);
-    m_BrowseSource.GetWindowRect(&cRect);
-    this->ScreenToClient(&cRect);
-    m_BrowseSource.SetWindowPos(&wndTop, cRect.left + deltax, 
-                                cRect.top, 
-                                0, 0,
-                                SWP_NOCOPYBITS | SWP_NOSIZE | SWP_NOZORDER);
-    m_BrowseBuild.GetWindowRect(&cRect);
-    this->ScreenToClient(&cRect);
-    m_BrowseBuild.SetWindowPos(&wndTop, cRect.left + deltax, 
-                               cRect.top, 
-                               0, 0,
-                               SWP_NOCOPYBITS | SWP_NOSIZE | SWP_NOZORDER);
-    
-    m_WhereSourceControl.GetWindowRect(&cRect);
-    m_WhereSourceControl.SetWindowPos(&wndTop, cRect.left, cRect.top, 
-                                      cRect.Width() + deltax, 
-                                      cRect.Height(), 
-                                      SWP_NOCOPYBITS | 
-                                      SWP_NOMOVE | SWP_NOZORDER);
-    m_WhereBuildControl.GetWindowRect(&cRect);
-    m_WhereBuildControl.SetWindowPos(&wndTop, cRect.left, cRect.top, 
-                                     cRect.Width() + deltax, 
-                                     cRect.Height(), 
-                                     SWP_NOCOPYBITS | 
-                                     SWP_NOMOVE | SWP_NOZORDER);
-    m_ListFrame.GetWindowRect(&cRect);
-    m_ListFrame.SetWindowPos(&wndTop, cRect.left, cRect.top, 
-                             cRect.Width() + deltax, 
-                             cRect.Height() + deltay, 
-                             SWP_NOCOPYBITS | SWP_NOMOVE | SWP_NOZORDER);
-    m_CacheEntriesList.GetWindowRect(&cRect);
-    m_CacheEntriesList.SetWindowPos(&wndTop, cRect.left, cRect.top, 
-                                    cRect.Width() + deltax, 
-                                    cRect.Height() + deltay, 
-                                    SWP_NOCOPYBITS | SWP_NOMOVE | SWP_NOZORDER);
-
-    m_StatusDisplay.GetWindowRect(&cRect);
-    this->ScreenToClient(&cRect);
-    m_StatusDisplay.SetWindowPos(&wndBottom, cRect.left, 
-                                 cRect.top + deltay, 
-                                 cRect.Width() + deltax,  cRect.Height(),
-                                 SWP_NOCOPYBITS);
-
-    m_MouseHelp.GetWindowRect(&cRect);
-    this->ScreenToClient(&cRect);
-    m_MouseHelp.SetWindowPos(&wndTop, cRect.left , 
-                             cRect.top + deltay, 
-                             cRect.Width() +  deltax, cRect.Height(),
-                             SWP_NOCOPYBITS | SWP_NOZORDER);
-    
-    deltax = int(deltax + m_deltaXRemainder);
-    m_deltaXRemainder = float(deltax%2);
-
-
-    m_Configure.GetWindowRect(&cRect);
-    this->ScreenToClient(&cRect);
-    m_Configure.SetWindowPos(&wndTop, cRect.left + deltax/2, 
-                                 cRect.top + deltay, 
-                                 0, 0,
-                                 SWP_NOCOPYBITS | SWP_NOSIZE);
-    m_CancelButton.GetWindowRect(&cRect);
-    this->ScreenToClient(&cRect);
-    m_CancelButton.SetWindowPos(&wndTop, cRect.left + deltax/2, 
-                                cRect.top + deltay, 
-                                0, 0,
-                                SWP_NOCOPYBITS | SWP_NOSIZE);
-    m_OKButton.GetWindowRect(&cRect);
-    this->ScreenToClient(&cRect);
-    m_OKButton.SetWindowPos(&wndTop, cRect.left + deltax/2, 
-                            cRect.top + deltay, 
-                            0, 0,
-                            SWP_NOCOPYBITS | SWP_NOSIZE);
-    m_DeleteButton.GetWindowRect(&cRect);
-    this->ScreenToClient(&cRect);
-    m_DeleteButton.SetWindowPos(&wndTop, cRect.left + deltax/2, 
-                                cRect.top + deltay, 
-                                0, 0,
-                                SWP_NOCOPYBITS | SWP_NOSIZE);
-    m_HelpButton.GetWindowRect(&cRect);
-    this->ScreenToClient(&cRect);
-    m_HelpButton.SetWindowPos(&wndTop, cRect.left + deltax/2, 
-                              cRect.top + deltay, 
-                              0, 0,
-                              SWP_NOCOPYBITS | SWP_NOSIZE);
-    }
-  
-}
-
-
-void CMakeSetupDialog::OnGetMinMaxInfo( MINMAXINFO FAR* lpMMI )
-{
-  lpMMI->ptMinTrackSize.x = 550;
-  lpMMI->ptMinTrackSize.y = 272;
-}
-
-void CMakeSetupDialog::OnCancel()
-{
-  if(m_RunningConfigure)
-    {
-     if(MessageBox("You are in the middle of a Configure.\n"
-                   "If you Cancel now the configure information will be lost.\n"
-                   "Are you sure you want to Cancel?", "Confirm Exit",
-                   MB_YESNO) == IDYES)
-       {
-       cmSystemTools::SetFatalErrorOccured();
-       }
-     return;
-    }
-  if(m_CacheEntriesList.IsDirty())
-    {
-    if(MessageBox("You have changed options but not rebuilt, "
-                  "are you sure you want to exit?", "Confirm Exit",
-                  MB_YESNO) == IDYES)
-      {
-      CDialog::OnOK();
-      }
-    }
-  else
-    {
-    CDialog::OnOK();
-    }
-}
-
-void CMakeSetupDialog::OnOk() 
-{
-  // enable error messages each time configure is pressed
-  cmSystemTools::EnableMessages();
-  m_CacheEntriesList.ClearDirty();
-  this->RunCMake(true);
-  if (!(::GetKeyState(VK_SHIFT) & 0x1000))
-    {
-    CDialog::OnOK();
-    }
-}
-
-// Create a shortcut on the desktop with the current Source/Build dir.
-int CMakeSetupDialog::CreateShortcut() 
-{
-  // Find the desktop folder and create the link name
-
-  HKEY hKey;
-  if(RegOpenKeyEx(HKEY_CURRENT_USER, 
-      "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders", 
-                  0, KEY_READ, &hKey) != ERROR_SUCCESS)
-    {
-    AfxMessageBox ("Create shortcut: unable to find 'Shell Folders' key in registry!");
-    return 1;
-    }
-  
-  DWORD dwType, dwSize;
-#define MAXPATH 1024
-  char link_name[MAXPATH];
-  dwSize = MAXPATH;
-  if(RegQueryValueEx(hKey, 
-                     (LPCTSTR)"Desktop", 
-                     NULL, 
-                     &dwType, 
-                     (BYTE *)link_name, 
-                     &dwSize) != ERROR_SUCCESS)
-    {
-    AfxMessageBox ("Create shortcut: unable to find 'Desktop' registry value in 'Shell Folders' key!");
-    return 1;
-    }
-  
-  if(dwType != REG_SZ)
-    {
-    AfxMessageBox ("Create shortcut: 'Desktop' registry value in 'Shell Folders' key has wrong type!");
-    return 1;
-    }
-
-  strcat(link_name, "\\CMake - ");
-  std::string current_dir = cmSystemTools::GetFilenameName((LPCTSTR)m_WhereSource);
-  strcat(link_name, current_dir.c_str());
-  strcat(link_name, ".lnk");
-  
-  // Find the path to the current executable
-
-  char path_to_current_exe[MAXPATH];
-  ::GetModuleFileName(NULL, path_to_current_exe, MAXPATH);
-
-  // Create the shortcut
-
-  HRESULT hres;
-  IShellLink *psl;
-
-  // Initialize the COM library
-
-  hres = CoInitialize(NULL);
-
-  if (! SUCCEEDED (hres))
-    {
-    AfxMessageBox ("Create shortcut: unable to initialize the COM library!");
-    return 1;
-    }
-
-  // Create an IShellLink object and get a pointer to the IShellLink 
-  // interface (returned from CoCreateInstance).
-
-  hres = CoCreateInstance(CLSID_ShellLink, 
-                          NULL, 
-                          CLSCTX_INPROC_SERVER,
-                          IID_IShellLink, 
-                          (void **)&psl);
-
-  if (! SUCCEEDED (hres))
-    {
-    AfxMessageBox ("Create shortcut: unable to create IShellLink instance!");
-    return 1;
-    }
-
-  IPersistFile *ppf;
-
-  // Query IShellLink for the IPersistFile interface for 
-  // saving the shortcut in persistent storage.
-
-  hres = psl->QueryInterface(IID_IPersistFile, (void **)&ppf);
-
-  if (SUCCEEDED (hres))
+  const char* subproject = cm->GetProperty("SubProject", cmProperty::GLOBAL);
+  if(subproject)
     { 
-    // Set the path to the shortcut target.
-    hres = psl->SetPath(path_to_current_exe);
-
-    if (! SUCCEEDED (hres))
+    ostr << "<Subproject name=\"" << subproject << "\">\n";
+    const char* labels = 
+      ch->GetCMake()->GetProperty("SubProjectLabels", cmProperty::GLOBAL);
+    if(labels)
       {
-      AfxMessageBox ("Create shortcut: SetPath failed!");
+      ostr << "  <Labels>\n";
+      std::string l = labels;
+      std::vector<std::string> args;
+      cmSystemTools::ExpandListArgument(l, args);
+      for(std::vector<std::string>::iterator i = args.begin();
+          i != args.end(); ++i)
+        {
+        ostr << "    <Label>" << i->c_str() << "</Label>\n";
+        }
+      ostr << "  </Labels>\n";
       }
-    
-    // Set the arguments of the shortcut.
-    CString args = " /H=\"" + m_WhereSource + "\" /B=\"" + m_WhereBuild + "\" /G=\"" + m_GeneratorDialog.m_GeneratorChoiceString + "\" /A=\"" + (m_AdvancedValues ? "TRUE" : "FALSE") + "\"";
-    
-    hres = psl->SetArguments(args);
-
-    if (! SUCCEEDED (hres))
-      {
-      AfxMessageBox ("Create shortcut: SetArguments failed!");
-      }
-    
-    // Set the description of the shortcut.
-    hres = psl->SetDescription("Shortcut to CMakeSetup");
-    
-    if (! SUCCEEDED (hres))
-      {
-      AfxMessageBox ("Create shortcut: SetDescription failed!");
-      }
-    
-    // Ensure that the string consists of ANSI characters.
-    WORD wszAr[MAX_PATH]; 
-    LPWSTR wsz = (LPWSTR)wszAr;
-    MultiByteToWideChar(CP_ACP, 0, link_name, -1, (LPWSTR)(wsz), MAX_PATH);
-
-    // Save the shortcut via the IPersistFile::Save member function.
-    hres = ppf->Save(wsz, TRUE);
-
-    if (! SUCCEEDED (hres))
-      {
-      AfxMessageBox ("Create shortcut: Save failed!");
-      }
-    
-    // Release the pointer to IPersistFile.
-    ppf->Release ();
+    ostr << "</Subproject>\n";
     }
-  // Release the pointer to IShellLink.
-  psl->Release ();
+}
 
+
+//----------------------------------------------------------------------
+void cmCTest::EndXML(std::ostream& ostr)
+{
+  ostr << "</Site>" << std::endl;
+}
+
+//----------------------------------------------------------------------
+int cmCTest::GenerateCTestNotesOutput(std::ostream& os,
+  const cmCTest::VectorOfStrings& files)
+{
+  cmCTest::VectorOfStrings::const_iterator it;
+  os << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+     << "<?xml-stylesheet type=\"text/xsl\" "
+    "href=\"Dart/Source/Server/XSL/Build.xsl "
+    "<file:///Dart/Source/Server/XSL/Build.xsl> \"?>\n"
+     << "<Site BuildName=\"" << this->GetCTestConfiguration("BuildName")
+     << "\" BuildStamp=\""
+     << this->CurrentTag << "-" << this->GetTestModelString() << "\" Name=\""
+     << this->GetCTestConfiguration("Site") << "\" Generator=\"ctest"
+     << cmVersion::GetCMakeVersion()
+     << "\">\n";
+  this->AddSiteProperties(os);
+  os << "<Notes>" << std::endl;
+
+  for ( it = files.begin(); it != files.end(); it ++ )
+    {
+    cmCTestLog(this, OUTPUT, "\tAdd file: " << it->c_str() << std::endl);
+    std::string note_time = this->CurrentTime();
+    os << "<Note Name=\"" << cmXMLSafe(*it) << "\">\n"
+      << "<Time>" << cmSystemTools::GetTime() << "</Time>\n"
+      << "<DateTime>" << note_time << "</DateTime>\n"
+      << "<Text>" << std::endl;
+    std::ifstream ifs(it->c_str());
+    if ( ifs )
+      {
+      std::string line;
+      while ( cmSystemTools::GetLineFromStream(ifs, line) )
+        {
+        os << cmXMLSafe(line) << std::endl;
+        }
+      ifs.close();
+      }
+    else
+      {
+      os << "Problem reading file: " << it->c_str() << std::endl;
+      cmCTestLog(this, ERROR_MESSAGE, "Problem reading file: " << it->c_str()
+        << " while creating notes" << std::endl);
+      }
+    os << "</Text>\n"
+      << "</Note>" << std::endl;
+    }
+  os << "</Notes>\n"
+    << "</Site>" << std::endl;
+  return 1;
+}
+
+//----------------------------------------------------------------------
+int cmCTest::GenerateNotesFile(const std::vector<cmStdString> &files)
+{
+  cmGeneratedFileStream ofs;
+  if ( !this->OpenOutputFile(this->CurrentTag, "Notes.xml", ofs) )
+    {
+    cmCTestLog(this, ERROR_MESSAGE, "Cannot open notes file" << std::endl);
+    return 1;
+    }
+
+  this->GenerateCTestNotesOutput(ofs, files);
   return 0;
 }
 
-void CMakeSetupDialog::OnHelpButton() 
+//----------------------------------------------------------------------
+int cmCTest::GenerateNotesFile(const char* cfiles)
 {
-  CMakeHelp dialog;
-  dialog.DoModal();
-}
-
-void CMakeSetupDialog::OnDeleteButton() 
-{
-  std::string message = "Are you sure you want to delete the CMakeCache.txt file for:\n";
-  message += m_WhereBuild;
-  if(::MessageBox(0, message.c_str(), "Delete Cache?", 
-                  MB_YESNO|MB_TASKMODAL) == IDNO)
+  if ( !cfiles )
     {
-    return;
+    return 1;
     }
-  m_GeneratorPicked = false;
 
-  if(m_WhereBuild != "" && this->m_CMakeInstance)
+  std::vector<cmStdString> files;
+
+  cmCTestLog(this, OUTPUT, "Create notes file" << std::endl);
+
+  files = cmSystemTools::SplitString(cfiles, ';');
+  if ( files.size() == 0 )
     {
-    this->m_CMakeInstance->GetCacheManager()->DeleteCache(m_WhereBuild);
+    return 1;
     }
-  
-  // Make sure we are working from the cache on disk
-  this->LoadCacheFromDiskToGUI(); 
-  
-  m_OKButton.EnableWindow(false);
+
+  return this->GenerateNotesFile(files);
 }
 
-void CMakeSetupDialog::ShowAdvancedValues()
+//----------------------------------------------------------------------
+bool cmCTest::SubmitExtraFiles(const std::vector<cmStdString> &files)
 {
-  m_CacheEntriesList.ShowAdvanced();
-}
-
-void CMakeSetupDialog::RemoveAdvancedValues()
-{
-  m_CacheEntriesList.HideAdvanced();
-}
-
-
-void CMakeSetupDialog::OnAdvancedValues() 
-{
-  this->UpdateData();
-  if(m_AdvancedValues)
+  std::vector<cmStdString>::const_iterator it;
+  for ( it = files.begin();
+    it != files.end();
+    ++ it )
     {
-    this->ShowAdvancedValues();
+    if ( !cmSystemTools::FileExists(it->c_str()) )
+      {
+      cmCTestLog(this, ERROR_MESSAGE, "Cannot find extra file: "
+        << it->c_str() << " to submit."
+        << std::endl;);
+      return false;
+      }
+    this->AddSubmitFile(PartExtraFiles, it->c_str());
+    }
+  return true;
+}
+
+//----------------------------------------------------------------------
+bool cmCTest::SubmitExtraFiles(const char* cfiles)
+{
+  if ( !cfiles )
+    {
+    return 1;
+    }
+
+  std::vector<cmStdString> files;
+
+  cmCTestLog(this, OUTPUT, "Submit extra files" << std::endl);
+
+  files = cmSystemTools::SplitString(cfiles, ';');
+  if ( files.size() == 0 )
+    {
+    return 1;
+    }
+
+  return this->SubmitExtraFiles(files);
+}
+
+
+//-------------------------------------------------------
+// for a -D argument convert the next argument into 
+// the proper list of dashboard steps via SetTest
+bool cmCTest::AddTestsForDashboardType(std::string &targ)
+{
+  if ( targ == "Experimental" )
+    {
+    this->SetTestModel(cmCTest::EXPERIMENTAL);
+    this->SetTest("Start");
+    this->SetTest("Configure");
+    this->SetTest("Build");
+    this->SetTest("Test");
+    this->SetTest("Coverage");
+    this->SetTest("Submit");
+    }
+  else if ( targ == "ExperimentalStart" )
+    {
+    this->SetTestModel(cmCTest::EXPERIMENTAL);
+    this->SetTest("Start");
+    }
+  else if ( targ == "ExperimentalUpdate" )
+    {
+    this->SetTestModel(cmCTest::EXPERIMENTAL);
+    this->SetTest("Update");
+    }
+  else if ( targ == "ExperimentalConfigure" )
+    {
+    this->SetTestModel(cmCTest::EXPERIMENTAL);
+    this->SetTest("Configure");
+    }
+  else if ( targ == "ExperimentalBuild" )
+    {
+    this->SetTestModel(cmCTest::EXPERIMENTAL);
+    this->SetTest("Build");
+    }
+  else if ( targ == "ExperimentalTest" )
+    {
+    this->SetTestModel(cmCTest::EXPERIMENTAL);
+    this->SetTest("Test");
+    }
+  else if ( targ == "ExperimentalMemCheck"
+            || targ == "ExperimentalPurify" )
+    {
+    this->SetTestModel(cmCTest::EXPERIMENTAL);
+    this->SetTest("MemCheck");
+    }
+  else if ( targ == "ExperimentalCoverage" )
+    {
+    this->SetTestModel(cmCTest::EXPERIMENTAL);
+    this->SetTest("Coverage");
+    }
+  else if ( targ == "ExperimentalSubmit" )
+    {
+    this->SetTestModel(cmCTest::EXPERIMENTAL);
+    this->SetTest("Submit");
+    }
+  else if ( targ == "Continuous" )
+    {
+    this->SetTestModel(cmCTest::CONTINUOUS);
+    this->SetTest("Start");
+    this->SetTest("Update");
+    this->SetTest("Configure");
+    this->SetTest("Build");
+    this->SetTest("Test");
+    this->SetTest("Coverage");
+    this->SetTest("Submit");
+    }
+  else if ( targ == "ContinuousStart" )
+    {
+    this->SetTestModel(cmCTest::CONTINUOUS);
+    this->SetTest("Start");
+    }
+  else if ( targ == "ContinuousUpdate" )
+    {
+    this->SetTestModel(cmCTest::CONTINUOUS);
+    this->SetTest("Update");
+    }
+  else if ( targ == "ContinuousConfigure" )
+    {
+    this->SetTestModel(cmCTest::CONTINUOUS);
+    this->SetTest("Configure");
+    }
+  else if ( targ == "ContinuousBuild" )
+    {
+    this->SetTestModel(cmCTest::CONTINUOUS);
+    this->SetTest("Build");
+    }
+  else if ( targ == "ContinuousTest" )
+    {
+    this->SetTestModel(cmCTest::CONTINUOUS);
+    this->SetTest("Test");
+    }
+  else if ( targ == "ContinuousMemCheck"
+        || targ == "ContinuousPurify" )
+    {
+    this->SetTestModel(cmCTest::CONTINUOUS);
+    this->SetTest("MemCheck");
+    }
+  else if ( targ == "ContinuousCoverage" )
+    {
+    this->SetTestModel(cmCTest::CONTINUOUS);
+    this->SetTest("Coverage");
+    }
+  else if ( targ == "ContinuousSubmit" )
+    {
+    this->SetTestModel(cmCTest::CONTINUOUS);
+    this->SetTest("Submit");
+    }
+  else if ( targ == "Nightly" )
+    {
+    this->SetTestModel(cmCTest::NIGHTLY);
+    this->SetTest("Start");
+    this->SetTest("Update");
+    this->SetTest("Configure");
+    this->SetTest("Build");
+    this->SetTest("Test");
+    this->SetTest("Coverage");
+    this->SetTest("Submit");
+    }
+  else if ( targ == "NightlyStart" )
+    {
+    this->SetTestModel(cmCTest::NIGHTLY);
+    this->SetTest("Start");
+    }
+  else if ( targ == "NightlyUpdate" )
+    {
+    this->SetTestModel(cmCTest::NIGHTLY);
+    this->SetTest("Update");
+    }
+  else if ( targ == "NightlyConfigure" )
+    {
+    this->SetTestModel(cmCTest::NIGHTLY);
+    this->SetTest("Configure");
+    }
+  else if ( targ == "NightlyBuild" )
+    {
+    this->SetTestModel(cmCTest::NIGHTLY);
+    this->SetTest("Build");
+    }
+  else if ( targ == "NightlyTest" )
+    {
+    this->SetTestModel(cmCTest::NIGHTLY);
+    this->SetTest("Test");
+    }
+  else if ( targ == "NightlyMemCheck"
+            || targ == "NightlyPurify" )
+    {
+    this->SetTestModel(cmCTest::NIGHTLY);
+    this->SetTest("MemCheck");
+    }
+  else if ( targ == "NightlyCoverage" )
+    {
+    this->SetTestModel(cmCTest::NIGHTLY);
+    this->SetTest("Coverage");
+    }
+  else if ( targ == "NightlySubmit" )
+    {
+    this->SetTestModel(cmCTest::NIGHTLY);
+    this->SetTest("Submit");
+    }
+  else if ( targ == "MemoryCheck" )
+    {
+    this->SetTestModel(cmCTest::EXPERIMENTAL);
+    this->SetTest("Start");
+    this->SetTest("Configure");
+    this->SetTest("Build");
+    this->SetTest("MemCheck");
+    this->SetTest("Coverage");
+    this->SetTest("Submit");
+    }
+  else if ( targ == "NightlyMemoryCheck" )
+    {
+    this->SetTestModel(cmCTest::NIGHTLY);
+    this->SetTest("Start");
+    this->SetTest("Update");
+    this->SetTest("Configure");
+    this->SetTest("Build");
+    this->SetTest("MemCheck");
+    this->SetTest("Coverage");
+    this->SetTest("Submit");
     }
   else
     {
-    this->RemoveAdvancedValues();
+    cmCTestLog(this, ERROR_MESSAGE,
+               "CTest -D called with incorrect option: "
+               << targ << std::endl);
+    cmCTestLog(this, ERROR_MESSAGE, "Available options are:" << std::endl
+               << "  " << "ctest" << " -D Continuous" << std::endl
+               << "  " << "ctest"
+               << " -D Continuous(Start|Update|Configure|Build)" << std::endl
+               << "  " << "ctest"
+               << " -D Continuous(Test|Coverage|MemCheck|Submit)"
+               << std::endl
+               << "  " << "ctest" << " -D Experimental" << std::endl
+               << "  " << "ctest"
+               << " -D Experimental(Start|Update|Configure|Build)"
+               << std::endl
+               << "  " << "ctest"
+               << " -D Experimental(Test|Coverage|MemCheck|Submit)"
+               << std::endl
+               << "  " << "ctest" << " -D Nightly" << std::endl
+               << "  " << "ctest"
+               << " -D Nightly(Start|Update|Configure|Build)" << std::endl
+               << "  " << "ctest"
+               << " -D Nightly(Test|Coverage|MemCheck|Submit)" << std::endl
+               << "  " << "ctest" << " -D NightlyMemoryCheck" << std::endl);
+    return false;
     }
+  return true;
 }
 
-void CMakeSetupDialog::OnDoubleclickedAdvancedValues() 
+
+//----------------------------------------------------------------------
+bool cmCTest::CheckArgument(const std::string& arg, const char* varg1,
+  const char* varg2)
 {
-  this->OnAdvancedValues();
+  if ( varg1 && arg == varg1 || varg2 && arg == varg2 )
+    {
+    return true;
+    }
+  return false;
 }
 
-// Handle param or single dropped file.
-void CMakeSetupDialog::ChangeDirectoriesFromFile(const char* arg)
+
+//----------------------------------------------------------------------
+// Processes one command line argument (and its arguments if any) 
+// for many simple options and then returns
+void cmCTest::HandleCommandLineArguments(size_t &i, 
+                                         std::vector<std::string> &args)
 {
-  // Check if the argument refers to a CMakeCache.txt or
-  // CMakeLists.txt file.
-  std::string listPath;
-  std::string cachePath;
-  bool argIsFile = false;
-  if(cmSystemTools::FileIsDirectory(arg))
+  std::string arg = args[i];
+
+  if(this->CheckArgument(arg, "-j", "--parallel") && i < args.size() - 1)
     {
-    std::string path = cmSystemTools::CollapseFullPath(arg);
-    cmSystemTools::ConvertToUnixSlashes(path);
-    std::string cacheFile = path;
-    cacheFile += "/CMakeCache.txt";
-    std::string listFile = path;
-    listFile += "/CMakeLists.txt";
-    if(cmSystemTools::FileExists(cacheFile.c_str()))
-      {
-      cachePath = path;
-      }
-    if(cmSystemTools::FileExists(listFile.c_str()))
-      {
-      listPath = path;
-      }
+    i++;
+    int plevel = atoi(args[i].c_str());
+    this->SetParallelLevel(plevel);
     }
-  else if(cmSystemTools::FileExists(arg))
+  else if(arg.find("-j") == 0)
     {
-    argIsFile = true;
-    std::string fullPath = cmSystemTools::CollapseFullPath(arg);
-    std::string name = cmSystemTools::GetFilenameName(fullPath.c_str());
-    name = cmSystemTools::LowerCase(name);
-    if(name == "cmakecache.txt")
+    int plevel = atoi(arg.substr(2).c_str());
+    this->SetParallelLevel(plevel);
+    }
+  if(this->CheckArgument(arg, "--internal-ctest-parallel") 
+     && i < args.size() - 1)
+    {
+    i++;
+    int pid = atoi(args[i].c_str());
+    this->SetParallelSubprocessId(pid);
+    this->SetParallelSubprocess();
+    }
+  
+  if(this->CheckArgument(arg, "--parallel-cache") && i < args.size() - 1)
+    {
+    i++;
+    this->SetParallelCacheFile(args[i].c_str());
+    }
+  
+  if(this->CheckArgument(arg, "-C", "--build-config") &&
+     i < args.size() - 1)
+    {
+    i++;
+    this->SetConfigType(args[i].c_str());
+    }
+  
+  if(this->CheckArgument(arg, "--debug"))
+    {
+    this->Debug = true;
+    this->ShowLineNumbers = true;
+    }
+  if(this->CheckArgument(arg, "--track") && i < args.size() - 1)
+    {
+    i++;
+    this->SpecificTrack = args[i];
+    }
+  if(this->CheckArgument(arg, "--show-line-numbers"))
+    {
+    this->ShowLineNumbers = true;
+    }
+  if(this->CheckArgument(arg, "-Q", "--quiet"))
+    {
+    this->Quiet = true;
+    }
+  if(this->CheckArgument(arg, "-V", "--verbose"))
+    {
+    this->Verbose = true;
+    }
+  if(this->CheckArgument(arg, "-VV", "--extra-verbose"))
+    {
+    this->ExtraVerbose = true;
+    this->Verbose = true;
+    }
+  if(this->CheckArgument(arg, "--output-on-failure"))
+    {
+    this->OutputTestOutputOnTestFailure = true;
+    }
+  
+  if(this->CheckArgument(arg, "-N", "--show-only"))
+    {
+    this->ShowOnly = true;
+    }
+
+  if(this->CheckArgument(arg, "-O", "--output-log") && i < args.size() - 1 )
+    {
+    i++;
+    this->SetOutputLogFileName(args[i].c_str());
+    }
+
+  if(this->CheckArgument(arg, "--tomorrow-tag"))
+    {
+    this->TomorrowTag = true;
+    }
+  if(this->CheckArgument(arg, "--force-new-ctest-process"))
+    {
+    this->ForceNewCTestProcess = true;
+    }
+  if(this->CheckArgument(arg, "-W", "--max-width") && i < args.size() - 1)
+    {
+    i++;
+    this->MaxTestNameWidth = atoi(args[i].c_str());
+    }
+  if(this->CheckArgument(arg, "--interactive-debug-mode") &&
+     i < args.size() - 1 )
+    {
+    i++;
+    this->InteractiveDebugMode = cmSystemTools::IsOn(args[i].c_str());
+    }
+  if(this->CheckArgument(arg, "--submit-index") && i < args.size() - 1 )
+    {
+    i++;
+    this->SubmitIndex = atoi(args[i].c_str());
+    if ( this->SubmitIndex < 0 )
       {
-      cachePath = cmSystemTools::GetFilenamePath(fullPath.c_str());
-      }
-    else if(name == "cmakelists.txt")
-      {
-      listPath = cmSystemTools::GetFilenamePath(fullPath.c_str());
+      this->SubmitIndex = 0;
       }
     }
   
-  // If there is a CMakeCache.txt file, use its settings.
-  if(cachePath.length() > 0)
+  if(this->CheckArgument(arg, "--overwrite") && i < args.size() - 1)
     {
-    cmCacheManager* cachem = m_CMakeInstance->GetCacheManager();
-    cmCacheManager::CacheIterator it = cachem->NewIterator();
-    if(cachem->LoadCache(cachePath.c_str()) && it.Find("CMAKE_HOME_DIRECTORY"))
+    i++;
+    this->AddCTestConfigurationOverwrite(args[i].c_str());
+    }
+  if(this->CheckArgument(arg, "-A", "--add-notes") && i < args.size() - 1)
+    {
+    this->ProduceXML = true;
+    this->SetTest("Notes");
+    i++;
+    this->SetNotesFiles(args[i].c_str());
+    }
+
+  // options that control what tests are run
+  if(this->CheckArgument(arg, "-I", "--tests-information") &&
+     i < args.size() - 1)
+    {
+    i++;
+    this->GetHandler("test")->SetPersistentOption("TestsToRunInformation",
+                                                  args[i].c_str());
+    this->GetHandler("memcheck")->
+      SetPersistentOption("TestsToRunInformation",args[i].c_str());
+    }
+  if(this->CheckArgument(arg, "-U", "--union"))
+    {
+    this->GetHandler("test")->SetPersistentOption("UseUnion", "true");
+    this->GetHandler("memcheck")->SetPersistentOption("UseUnion", "true");
+    }
+  if(this->CheckArgument(arg, "-R", "--tests-regex") && i < args.size() - 1)
+    {
+    i++;
+    this->GetHandler("test")->
+      SetPersistentOption("IncludeRegularExpression", args[i].c_str());
+    this->GetHandler("memcheck")->
+      SetPersistentOption("IncludeRegularExpression", args[i].c_str());
+    }
+  
+  if(this->CheckArgument(arg, "-E", "--exclude-regex") &&
+     i < args.size() - 1)
+    {
+    i++;
+    this->GetHandler("test")->
+      SetPersistentOption("ExcludeRegularExpression", args[i].c_str());
+    this->GetHandler("memcheck")->
+      SetPersistentOption("ExcludeRegularExpression", args[i].c_str());
+    }  
+}
+
+//----------------------------------------------------------------------
+// handle the -S -SR and -SP arguments
+void cmCTest::HandleScriptArguments(size_t &i, 
+                                    std::vector<std::string> &args,
+                                    bool &SRArgumentSpecified)
+{
+  std::string arg = args[i];
+  if(this->CheckArgument(arg, "-SP", "--script-new-process") && 
+     i < args.size() - 1 )
+    {
+    this->RunConfigurationScript = true;
+    i++;
+    cmCTestScriptHandler* ch
+      = static_cast<cmCTestScriptHandler*>(this->GetHandler("script"));
+    // -SR is an internal argument, -SP should be ignored when it is passed
+    if (!SRArgumentSpecified)
       {
-      std::string path = ConvertToWindowsPath(cachePath.c_str());
-      m_WhereBuild = path.c_str();
-      
-      path = ConvertToWindowsPath(it.GetValue());
-      m_WhereSource = path.c_str();
-      
-      m_GeneratorDialog.m_GeneratorChoiceString = _T("");
-      return;
+      ch->AddConfigurationScript(args[i].c_str(),false);
       }
     }
   
-  // If there is a CMakeLists.txt file, use it as the source tree.
-  if(listPath.length() > 0)
+  if(this->CheckArgument(arg, "-SR", "--script-run") && 
+     i < args.size() - 1 )
     {
-    std::string path = ConvertToWindowsPath(listPath.c_str());
-    m_WhereSource = path.c_str();
-    
-    if(argIsFile)
+    SRArgumentSpecified = true;
+    this->RunConfigurationScript = true;
+    i++;
+    cmCTestScriptHandler* ch
+      = static_cast<cmCTestScriptHandler*>(this->GetHandler("script"));
+    ch->AddConfigurationScript(args[i].c_str(),true);
+    }
+  
+  if(this->CheckArgument(arg, "-S", "--script") && i < args.size() - 1 )
+    {
+    this->RunConfigurationScript = true;
+    i++;
+    cmCTestScriptHandler* ch
+      = static_cast<cmCTestScriptHandler*>(this->GetHandler("script"));
+    // -SR is an internal argument, -S should be ignored when it is passed
+    if (!SRArgumentSpecified)
       {
-      // Source CMakeLists.txt file given.  It was probably dropped
-      // onto the window or executable.  Default to an in-source
-      // build.
-      m_WhereBuild = path.c_str();
+      ch->AddConfigurationScript(args[i].c_str(),true);
+      }
+    }
+}
+
+//----------------------------------------------------------------------
+// the main entry point of ctest, called from main
+int cmCTest::Run(std::vector<std::string> &args, std::string* output)
+{
+  this->FindRunningCMake();
+  const char* ctestExec = "ctest";
+  bool cmakeAndTest = false;
+  bool performSomeTest = true;
+  bool SRArgumentSpecified = false;
+
+  // copy the command line
+  for(size_t i=0; i < args.size(); ++i)
+    {
+    this->InitialCommandLineArguments.push_back(args[i]);
+    }
+
+  // process the command line arguments
+  for(size_t i=1; i < args.size(); ++i)
+    {
+    // handle the simple commandline arguments
+    this->HandleCommandLineArguments(i,args);
+
+    // handle the script arguments -S -SR -SP
+    this->HandleScriptArguments(i,args,SRArgumentSpecified);
+
+    // handle a request for a dashboard
+    std::string arg = args[i];
+    if(this->CheckArgument(arg, "-D", "--dashboard") && i < args.size() - 1 )
+      {
+      this->ProduceXML = true;
+      i++;
+      std::string targ = args[i];
+      // AddTestsForDashboard parses the dashborad type and converts it
+      // into the seperate stages
+      if (!this->AddTestsForDashboardType(targ))
+        {
+        performSomeTest = false;
+        }
+      }
+
+    if(this->CheckArgument(arg, "-T", "--test-action") &&
+      (i < args.size() -1) )
+      {
+      this->ProduceXML = true;
+      i++;
+      if ( !this->SetTest(args[i].c_str(), false) )
+        {
+        performSomeTest = false;
+        cmCTestLog(this, ERROR_MESSAGE,
+          "CTest -T called with incorrect option: "
+          << args[i].c_str() << std::endl);
+        cmCTestLog(this, ERROR_MESSAGE, "Available options are:" << std::endl
+          << "  " << ctestExec << " -T all" << std::endl
+          << "  " << ctestExec << " -T start" << std::endl
+          << "  " << ctestExec << " -T update" << std::endl
+          << "  " << ctestExec << " -T configure" << std::endl
+          << "  " << ctestExec << " -T build" << std::endl
+          << "  " << ctestExec << " -T test" << std::endl
+          << "  " << ctestExec << " -T coverage" << std::endl
+          << "  " << ctestExec << " -T memcheck" << std::endl
+          << "  " << ctestExec << " -T notes" << std::endl
+          << "  " << ctestExec << " -T submit" << std::endl);
+        }
+      }
+
+    // what type of test model
+    if(this->CheckArgument(arg, "-M", "--test-model") &&
+      (i < args.size() -1) )
+      {
+      i++;
+      std::string const& str = args[i];
+      if ( cmSystemTools::LowerCase(str) == "nightly" )
+        {
+        this->SetTestModel(cmCTest::NIGHTLY);
+        }
+      else if ( cmSystemTools::LowerCase(str) == "continuous" )
+        {
+        this->SetTestModel(cmCTest::CONTINUOUS);
+        }
+      else if ( cmSystemTools::LowerCase(str) == "experimental" )
+        {
+        this->SetTestModel(cmCTest::EXPERIMENTAL);
+        }
+      else
+        {
+        performSomeTest = false;
+        cmCTestLog(this, ERROR_MESSAGE,
+          "CTest -M called with incorrect option: " << str.c_str()
+          << std::endl);
+        cmCTestLog(this, ERROR_MESSAGE, "Available options are:" << std::endl
+          << "  " << ctestExec << " -M Continuous" << std::endl
+          << "  " << ctestExec << " -M Experimental" << std::endl
+                   << "  " << ctestExec << " -M Nightly" << std::endl);
+        }
+      }
+
+    if(this->CheckArgument(arg, "--extra-submit") && i < args.size() - 1)
+      {
+      this->ProduceXML = true;
+      this->SetTest("Submit");
+      i++;
+      if ( !this->SubmitExtraFiles(args[i].c_str()) )
+        {
+        return 0;
+        }
+      }
+
+    // --build-and-test options
+    if(this->CheckArgument(arg, "--build-and-test") && i < args.size() - 1)
+      {
+      cmakeAndTest = true;
+      }
+
+    // pass the argument to all the handlers as well, but i may no longer be
+    // set to what it was originally so I'm not sure this is working as
+    // intended
+    cmCTest::t_TestingHandlers::iterator it;
+    for ( it = this->TestingHandlers.begin();
+      it != this->TestingHandlers.end();
+      ++ it )
+      {
+      if ( !it->second->ProcessCommandLineArguments(arg, i, args) )
+        {
+        cmCTestLog(this, ERROR_MESSAGE,
+          "Problem parsing command line arguments within a handler");
+        return 0;
+        }
+      }
+    } // the close of the for argument loop
+
+
+  // now what sould cmake do? if --build-and-test was specified then 
+  // we run the build and test handler and return
+  if(cmakeAndTest)
+    {
+    this->Verbose = true;
+    cmCTestBuildAndTestHandler* handler =
+      static_cast<cmCTestBuildAndTestHandler*>(this->GetHandler("buildtest"));
+    int retv = handler->ProcessHandler();
+    *output = handler->GetOutput();
+#ifdef CMAKE_BUILD_WITH_CMAKE
+    cmDynamicLoader::FlushCache();
+#endif
+    if(retv != 0)
+      {
+      cmCTestLog(this, DEBUG, "build and test failing returing: " << retv 
+                 << std::endl);
+      }
+    return retv;
+    }
+
+  // if some tests must be run 
+  if(performSomeTest)
+    {
+    int res;
+    // call process directory
+    if (this->RunConfigurationScript)
+      {
+      if ( this->ExtraVerbose )
+        {
+        cmCTestLog(this, OUTPUT, "* Extra verbosity turned on" << std::endl);
+        }
+      cmCTest::t_TestingHandlers::iterator it;
+      for ( it = this->TestingHandlers.begin();
+        it != this->TestingHandlers.end();
+        ++ it )
+        {
+        it->second->SetVerbose(this->ExtraVerbose);
+        it->second->SetSubmitIndex(this->SubmitIndex);
+        }
+      this->GetHandler("script")->SetVerbose(this->Verbose);
+      res = this->GetHandler("script")->ProcessHandler();
+      if(res != 0)
+        {
+        cmCTestLog(this, DEBUG, "running script failing returing: " << res 
+                   << std::endl);
+        }
+
       }
     else
       {
-      // Source directory given on command line.  Use current working
-      // directory as build tree.
-      std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-      path = ConvertToWindowsPath(cwd.c_str());
-      m_WhereBuild = path.c_str();
+      // What is this?  -V seems to be the same as -VV, 
+      // and Verbose is always on in this case
+      this->ExtraVerbose = this->Verbose;
+      this->Verbose = true;
+      cmCTest::t_TestingHandlers::iterator it;
+      for ( it = this->TestingHandlers.begin();
+        it != this->TestingHandlers.end();
+        ++ it )
+        {
+        it->second->SetVerbose(this->Verbose);
+        it->second->SetSubmitIndex(this->SubmitIndex);
+        }
+      if ( !this->Initialize(
+          cmSystemTools::GetCurrentWorkingDirectory().c_str()) )
+        {
+        res = 12;
+        cmCTestLog(this, ERROR_MESSAGE, "Problem initializing the dashboard."
+          << std::endl);
+        }
+      else
+        {
+        res = this->ProcessTests();
+        }
+      this->Finalize();
+      }
+    if(res != 0)
+      {
+      cmCTestLog(this, DEBUG, "Running a test(s) failed returning : " << res 
+                 << std::endl);
+      }
+    return res;
+    }
+
+  return 1;
+}
+
+//----------------------------------------------------------------------
+void cmCTest::FindRunningCMake()
+{
+  // Find our own executable.
+  this->CTestSelf = cmSystemTools::GetExecutableDirectory();
+  this->CTestSelf += "/ctest";
+  this->CTestSelf += cmSystemTools::GetExecutableExtension();
+  if(!cmSystemTools::FileExists(this->CTestSelf.c_str()))
+    {
+    cmSystemTools::Error("CTest executable cannot be found at ",
+                         this->CTestSelf.c_str());
+    }
+
+  this->CMakeSelf = cmSystemTools::GetExecutableDirectory();
+  this->CMakeSelf += "/cmake";
+  this->CMakeSelf += cmSystemTools::GetExecutableExtension();
+  if(!cmSystemTools::FileExists(this->CMakeSelf.c_str()))
+    {
+    cmSystemTools::Error("CMake executable cannot be found at ",
+                         this->CMakeSelf.c_str());
+    }
+}
+
+//----------------------------------------------------------------------
+void cmCTest::SetNotesFiles(const char* notes)
+{
+  if ( !notes )
+    {
+    return;
+    }
+  this->NotesFiles = notes;
+}
+
+//----------------------------------------------------------------------
+int cmCTest::ReadCustomConfigurationFileTree(const char* dir, cmMakefile* mf)
+{
+  bool found = false;
+  VectorOfStrings dirs;
+  VectorOfStrings ndirs;
+  cmCTestLog(this, DEBUG, "* Read custom CTest configuration directory: "
+    << dir << std::endl);
+
+  std::string fname = dir;
+  fname += "/CTestCustom.cmake";
+  cmCTestLog(this, DEBUG, "* Check for file: "
+    << fname.c_str() << std::endl);
+  if ( cmSystemTools::FileExists(fname.c_str()) )
+    {
+    cmCTestLog(this, DEBUG, "* Read custom CTest configuration file: "
+      << fname.c_str() << std::endl);
+    bool erroroc = cmSystemTools::GetErrorOccuredFlag();
+    cmSystemTools::ResetErrorOccuredFlag();
+
+    if ( !mf->ReadListFile(0, fname.c_str()) ||
+      cmSystemTools::GetErrorOccuredFlag() )
+      {
+      cmCTestLog(this, ERROR_MESSAGE,
+        "Problem reading custom configuration: "
+        << fname.c_str() << std::endl);
+      }
+    found = true;
+    if ( erroroc )
+      {
+      cmSystemTools::SetErrorOccured();
+      }
+    }
+
+  std::string rexpr = dir;
+  rexpr += "/CTestCustom.ctest";
+  cmCTestLog(this, DEBUG, "* Check for file: "
+    << rexpr.c_str() << std::endl);
+  if ( !found && cmSystemTools::FileExists(rexpr.c_str()) )
+    {
+    cmsys::Glob gl;
+    gl.RecurseOn();
+    gl.FindFiles(rexpr);
+    std::vector<std::string>& files = gl.GetFiles();
+    std::vector<std::string>::iterator fileIt;
+    for ( fileIt = files.begin(); fileIt != files.end();
+      ++ fileIt )
+      {
+      cmCTestLog(this, DEBUG, "* Read custom CTest configuration file: "
+        << fileIt->c_str() << std::endl);
+      if ( !mf->ReadListFile(0, fileIt->c_str()) ||
+        cmSystemTools::GetErrorOccuredFlag() )
+        {
+        cmCTestLog(this, ERROR_MESSAGE,
+          "Problem reading custom configuration: "
+          << fileIt->c_str() << std::endl);
+        }
+      }
+    found = true;
+    }
+
+  if ( found )
+    {
+    cmCTest::t_TestingHandlers::iterator it;
+    for ( it = this->TestingHandlers.begin();
+      it != this->TestingHandlers.end(); ++ it )
+      {
+      cmCTestLog(this, DEBUG,
+        "* Read custom CTest configuration vectors for handler: "
+        << it->first.c_str() << " (" << it->second << ")" << std::endl);
+      it->second->PopulateCustomVectors(mf);
+      }
+    }
+
+  return 1;
+}
+
+//----------------------------------------------------------------------
+void cmCTest::PopulateCustomVector(cmMakefile* mf, const char* def,
+  VectorOfStrings& vec)
+{
+  if ( !def)
+    {
+    return;
+    }
+  const char* dval = mf->GetDefinition(def);
+  if ( !dval )
+    {
+    return;
+    }
+  cmCTestLog(this, DEBUG, "PopulateCustomVector: " << def << std::endl);
+  std::vector<std::string> slist;
+  cmSystemTools::ExpandListArgument(dval, slist);
+  std::vector<std::string>::iterator it;
+
+  for ( it = slist.begin(); it != slist.end(); ++it )
+    {
+    cmCTestLog(this, DEBUG, "  -- " << it->c_str() << std::endl);
+    vec.push_back(it->c_str());
+    }
+}
+
+//----------------------------------------------------------------------
+void cmCTest::PopulateCustomInteger(cmMakefile* mf, const char* def, int& val)
+{
+  if ( !def)
+    {
+    return;
+    }
+  const char* dval = mf->GetDefinition(def);
+  if ( !dval )
+    {
+    return;
+    }
+  val = atoi(dval);
+}
+
+//----------------------------------------------------------------------
+std::string cmCTest::GetShortPathToFile(const char* cfname)
+{
+  const std::string& sourceDir
+    = cmSystemTools::CollapseFullPath(
+        this->GetCTestConfiguration("SourceDirectory").c_str());
+  const std::string& buildDir
+    = cmSystemTools::CollapseFullPath(
+        this->GetCTestConfiguration("BuildDirectory").c_str());
+  std::string fname = cmSystemTools::CollapseFullPath(cfname);
+
+  // Find relative paths to both directories
+  std::string srcRelpath
+    = cmSystemTools::RelativePath(sourceDir.c_str(), fname.c_str());
+  std::string bldRelpath
+    = cmSystemTools::RelativePath(buildDir.c_str(), fname.c_str());
+
+  // If any contains "." it is not parent directory
+  bool inSrc = srcRelpath.find("..") == srcRelpath.npos;
+  bool inBld = bldRelpath.find("..") == bldRelpath.npos;
+  // TODO: Handle files with .. in their name
+
+  std::string* res = 0;
+
+  if ( inSrc && inBld )
+    {
+    // If both have relative path with no dots, pick the shorter one
+    if ( srcRelpath.size() < bldRelpath.size() )
+      {
+      res = &srcRelpath;
+      }
+    else
+      {
+      res = &bldRelpath;
+      }
+    }
+  else if ( inSrc )
+    {
+    res = &srcRelpath;
+    }
+  else if ( inBld )
+    {
+    res = &bldRelpath;
+    }
+
+  std::string path;
+
+  if ( !res )
+    {
+    path = fname;
+    }
+  else
+    {
+    cmSystemTools::ConvertToUnixSlashes(*res);
+
+    path = "./" + *res;
+    if ( path[path.size()-1] == '/' )
+      {
+      path = path.substr(0, path.size()-1);
+      }
+    }
+
+  cmsys::SystemTools::ReplaceString(path, ":", "_");
+  cmsys::SystemTools::ReplaceString(path, " ", "_");
+  return path;
+}
+
+//----------------------------------------------------------------------
+std::string cmCTest::GetCTestConfiguration(const char *name)
+{
+  if ( this->CTestConfigurationOverwrites.find(name) !=
+    this->CTestConfigurationOverwrites.end() )
+    {
+    return this->CTestConfigurationOverwrites[name];
+    }
+  return this->CTestConfiguration[name];
+}
+
+//----------------------------------------------------------------------
+void cmCTest::EmptyCTestConfiguration()
+{
+  this->CTestConfiguration.clear();
+}
+
+//----------------------------------------------------------------------
+void cmCTest::SetCTestConfiguration(const char *name, const char* value)
+{
+  cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "SetCTestConfiguration:"
+             << name << ":" << value << "\n");
+
+  if ( !name )
+    {
+    return;
+    }
+  if ( !value )
+    {
+    this->CTestConfiguration.erase(name);
+    return;
+    }
+  this->CTestConfiguration[name] = value;
+}
+
+
+//----------------------------------------------------------------------
+std::string cmCTest::GetCurrentTag()
+{
+  return this->CurrentTag;
+}
+
+//----------------------------------------------------------------------
+std::string cmCTest::GetBinaryDir()
+{
+  return this->BinaryDir;
+}
+
+//----------------------------------------------------------------------
+std::string const& cmCTest::GetConfigType()
+{
+  return this->ConfigType;
+}
+
+//----------------------------------------------------------------------
+bool cmCTest::GetShowOnly()
+{
+  return this->ShowOnly;
+}
+
+//----------------------------------------------------------------------
+int cmCTest::GetMaxTestNameWidth() const
+{
+  return this->MaxTestNameWidth;
+}
+
+//----------------------------------------------------------------------
+void cmCTest::SetProduceXML(bool v)
+{
+  this->ProduceXML = v;
+}
+
+//----------------------------------------------------------------------
+bool cmCTest::GetProduceXML()
+{
+  return this->ProduceXML;
+}
+
+//----------------------------------------------------------------------
+const char* cmCTest::GetSpecificTrack()
+{
+  if ( this->SpecificTrack.empty() )
+    {
+    return 0;
+    }
+  return this->SpecificTrack.c_str();
+}
+
+//----------------------------------------------------------------------
+void cmCTest::SetSpecificTrack(const char* track)
+{
+  if ( !track )
+    {
+    this->SpecificTrack = "";
+    return;
+    }
+  this->SpecificTrack = track;
+}
+
+//----------------------------------------------------------------------
+void cmCTest::AddSubmitFile(Part part, const char* name)
+{
+  this->Parts[part].SubmitFiles.push_back(name);
+}
+
+//----------------------------------------------------------------------
+void cmCTest::AddCTestConfigurationOverwrite(const char* encstr)
+{
+  std::string overStr = encstr;
+  size_t epos = overStr.find("=");
+  if ( epos == overStr.npos )
+    {
+    cmCTestLog(this, ERROR_MESSAGE,
+      "CTest configuration overwrite specified in the wrong format."
+      << std::endl
+      << "Valid format is: --overwrite key=value" << std::endl
+      << "The specified was: --overwrite " << overStr.c_str() << std::endl);
+    return;
+    }
+  std::string key = overStr.substr(0, epos);
+  std::string value = overStr.substr(epos+1, overStr.npos);
+  this->CTestConfigurationOverwrites[key] = value;
+}
+
+//----------------------------------------------------------------------
+void cmCTest::SetConfigType(const char* ct)
+{
+  this->ConfigType = ct?ct:"";
+  cmSystemTools::ReplaceString(this->ConfigType, ".\\", "");
+  std::string confTypeEnv
+    = "CMAKE_CONFIG_TYPE=" + this->ConfigType;
+  cmSystemTools::PutEnv(confTypeEnv.c_str());
+}
+
+//----------------------------------------------------------------------
+bool cmCTest::SetCTestConfigurationFromCMakeVariable(cmMakefile* mf,
+  const char* dconfig, const char* cmake_var)
+{
+  const char* ctvar;
+  ctvar = mf->GetDefinition(cmake_var);
+  if ( !ctvar )
+    {
+    return false;
+    }
+  cmCTestLog(this, HANDLER_VERBOSE_OUTPUT,
+             "SetCTestConfigurationFromCMakeVariable:"
+             << dconfig << ":" << cmake_var);
+  this->SetCTestConfiguration(dconfig, ctvar);
+  return true;
+}
+
+bool cmCTest::RunCommand(
+  const char* command,
+  std::string* stdOut,
+  std::string* stdErr,
+  int *retVal,
+  const char* dir,
+  double timeout)
+{
+  std::vector<cmStdString> args = cmSystemTools::ParseArguments(command);
+
+  if(args.size() < 1)
+    {
+    return false;
+    }
+
+  std::vector<const char*> argv;
+  for(std::vector<cmStdString>::const_iterator a = args.begin();
+      a != args.end(); ++a)
+    {
+    argv.push_back(a->c_str());
+    }
+  argv.push_back(0);
+
+  *stdOut = "";
+  *stdErr = "";
+
+  cmsysProcess* cp = cmsysProcess_New();
+  cmsysProcess_SetCommand(cp, &*argv.begin());
+  cmsysProcess_SetWorkingDirectory(cp, dir);
+  if(cmSystemTools::GetRunCommandHideConsole())
+    {
+    cmsysProcess_SetOption(cp, cmsysProcess_Option_HideWindow, 1);
+    }
+  cmsysProcess_SetTimeout(cp, timeout);
+  cmsysProcess_Execute(cp);
+
+  std::vector<char> tempOutput;
+  std::vector<char> tempError;
+  char* data;
+  int length;
+  int res;
+  bool done = false;
+  while(!done)
+    {
+    res = cmsysProcess_WaitForData(cp, &data, &length, 0);
+    switch ( res )
+      {
+    case cmsysProcess_Pipe_STDOUT:
+      tempOutput.insert(tempOutput.end(), data, data+length);
+      break;
+    case cmsysProcess_Pipe_STDERR:
+      tempError.insert(tempError.end(), data, data+length);
+      break;
+    default:
+      done = true;
+      }
+    if ( (res == cmsysProcess_Pipe_STDOUT ||
+        res == cmsysProcess_Pipe_STDERR) && this->ExtraVerbose )
+      {
+      cmSystemTools::Stdout(data, length);
+      }
+    }
+
+  cmsysProcess_WaitForExit(cp, 0);
+  if ( tempOutput.size() > 0 )
+    {
+    stdOut->append(&*tempOutput.begin(), tempOutput.size());
+    }
+  if ( tempError.size() > 0 )
+    {
+    stdErr->append(&*tempError.begin(), tempError.size());
+    }
+
+  bool result = true;
+  if(cmsysProcess_GetState(cp) == cmsysProcess_State_Exited)
+    {
+    if ( retVal )
+      {
+      *retVal = cmsysProcess_GetExitValue(cp);
+      }
+    else
+      {
+      if ( cmsysProcess_GetExitValue(cp) !=  0 )
+        {
+        result = false;
+        }
+      }
+    }
+  else if(cmsysProcess_GetState(cp) == cmsysProcess_State_Exception)
+    {
+    const char* exception_str = cmsysProcess_GetExceptionString(cp);
+    cmCTestLog(this, ERROR_MESSAGE, exception_str << std::endl);
+    stdErr->append(exception_str, strlen(exception_str));
+    result = false;
+    }
+  else if(cmsysProcess_GetState(cp) == cmsysProcess_State_Error)
+    {
+    const char* error_str = cmsysProcess_GetErrorString(cp);
+    cmCTestLog(this, ERROR_MESSAGE, error_str << std::endl);
+    stdErr->append(error_str, strlen(error_str));
+    result = false;
+    }
+  else if(cmsysProcess_GetState(cp) == cmsysProcess_State_Expired)
+    {
+    const char* error_str = "Process terminated due to timeout\n";
+    cmCTestLog(this, ERROR_MESSAGE, error_str << std::endl);
+    stdErr->append(error_str, strlen(error_str));
+    result = false;
+    }
+
+  cmsysProcess_Delete(cp);
+  return result;
+}
+
+//----------------------------------------------------------------------
+void cmCTest::SetOutputLogFileName(const char* name)
+{
+  if ( this->OutputLogFile)
+    {
+    delete this->OutputLogFile;
+    this->OutputLogFile= 0;
+    }
+  if ( name )
+    {
+    this->OutputLogFile = new cmGeneratedFileStream(name);
+    }
+}
+
+//----------------------------------------------------------------------
+static const char* cmCTestStringLogType[] =
+{
+  "DEBUG",
+  "OUTPUT",
+  "HANDLER_OUTPUT",
+  "HANDLER_VERBOSE_OUTPUT",
+  "WARNING",
+  "ERROR_MESSAGE",
+  0
+};
+
+//----------------------------------------------------------------------
+#ifdef cerr
+#  undef cerr
+#endif
+#ifdef cout
+#  undef cout
+#endif
+
+#define cmCTestLogOutputFileLine(stream) \
+  if ( this->ShowLineNumbers ) \
+    { \
+    (stream) << std::endl << file << ":" << line << " "; \
+    }
+
+void cmCTest::InitStreams()
+{
+  // By default we write output to the process output streams.
+  this->StreamOut = &std::cout;
+  this->StreamErr = &std::cerr;
+}
+
+void cmCTest::Log(int logType, const char* file, int line, const char* msg)
+{
+  if ( !msg || !*msg )
+    {
+    return;
+    }
+  if ( this->OutputLogFile )
+    {
+    bool display = true;
+    if ( logType == cmCTest::DEBUG && !this->Debug ) { display = false; }
+    if ( logType == cmCTest::HANDLER_VERBOSE_OUTPUT && !this->Debug &&
+      !this->ExtraVerbose ) { display = false; }
+    if ( display )
+      {
+      cmCTestLogOutputFileLine(*this->OutputLogFile);
+      if ( logType != this->OutputLogFileLastTag )
+        {
+        *this->OutputLogFile << "[";
+        if ( logType >= OTHER || logType < 0 )
+          {
+          *this->OutputLogFile << "OTHER";
+          }
+        else
+          {
+          *this->OutputLogFile << cmCTestStringLogType[logType];
+          }
+        *this->OutputLogFile << "] " << std::endl << std::flush;
+        }
+      *this->OutputLogFile << msg << std::flush;
+      if ( logType != this->OutputLogFileLastTag )
+        {
+        *this->OutputLogFile << std::endl << std::flush;
+        this->OutputLogFileLastTag = logType;
+        }
+      }
+    }
+  if ( !this->Quiet )
+    {
+    std::ostream& out = *this->StreamOut;
+    std::ostream& err = *this->StreamErr;
+    switch ( logType )
+      {
+    case DEBUG:
+      if ( this->Debug )
+        {
+        cmCTestLogOutputFileLine(out);
+        out << msg;
+        out.flush();
+        }
+      break;
+    case OUTPUT: case HANDLER_OUTPUT:
+      if ( this->Debug || this->Verbose )
+        {
+        cmCTestLogOutputFileLine(out);
+        out << msg;
+        out.flush();
+        }
+      break;
+    case HANDLER_VERBOSE_OUTPUT:
+      if ( this->Debug || this->ExtraVerbose )
+        {
+        cmCTestLogOutputFileLine(out);
+        out << msg;
+        out.flush();
+        }
+      break;
+    case WARNING:
+      cmCTestLogOutputFileLine(err);
+      err << msg;
+      err.flush();
+      break;
+    case ERROR_MESSAGE:
+      cmCTestLogOutputFileLine(err);
+      err << msg;
+      err.flush();
+      cmSystemTools::SetErrorOccured();
+      break;
+    default:
+      cmCTestLogOutputFileLine(out);
+      out << msg;
+      out.flush();
       }
     }
 }
 
-
-// The framework calls this member function when the user releases the
-// left mouse button over a window that has registered itself as the 
-// recipient of dropped files. 
-
-void CMakeSetupDialog::OnDropFiles(HDROP hDropInfo)
+//-------------------------------------------------------------------------
+double cmCTest::GetRemainingTimeAllowed()
 {
-  UINT nb_files = DragQueryFile(hDropInfo, 0xFFFFFFFF, NULL, 0);
-  if (nb_files > 0)
+  if (!this->GetHandler("script"))
     {
-    UINT buffer_size = DragQueryFile(hDropInfo, 0, NULL, 0);
-    char *buffer = new char [buffer_size + 1];
-    DragQueryFile(hDropInfo, 0, buffer, buffer_size + 1);
-
-    this->ChangeDirectoriesFromFile(buffer);
-    delete [] buffer;
-
-    this->m_WhereSourceControl.SetWindowText(this->m_WhereSource);
-    this->m_WhereBuildControl.SetWindowText(this->m_WhereBuild);
-
-    this->UpdateData(FALSE);
-
-    this->OnChangeWhereSource();
-    this->OnChangeWhereBuild();
+    return 1.0e7;
     }
 
-  DragFinish(hDropInfo);
+  cmCTestScriptHandler* ch
+    = static_cast<cmCTestScriptHandler*>(this->GetHandler("script"));
+
+  return ch->GetRemainingTimeAllowed();
 }
 
-BOOL CMakeSetupDialog::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message) 
+//----------------------------------------------------------------------
+void cmCTest::OutputTestErrors(std::vector<char> const &process_output)
 {
-  CDialog::OnSetCursor(pWnd, nHitTest, message);
-  if(m_Cursor == LoadCursor(NULL, IDC_WAIT))
-    {
-    ::SetCursor(m_Cursor);
-    }
-   return true;
+  std::string test_outputs("\n*** Test Failed:\n");
+  test_outputs.append(&*process_output.begin(), process_output.size());
+  cmCTestLog(this, HANDLER_OUTPUT, test_outputs << std::endl << std::flush);
 }
+

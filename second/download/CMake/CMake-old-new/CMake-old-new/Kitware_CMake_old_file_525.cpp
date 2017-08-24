@@ -14,2324 +14,2034 @@
      PURPOSE.  See the above copyright notices for more information.
 
 =========================================================================*/
-#include "cmcurl/curl/curl.h"
+#include "cmLocalUnixMakefileGenerator3.h"
 
-#include "cmCTest.h"
-#include "cmake.h"
-#include "cmMakefile.h"
-#include "cmLocalGenerator.h"
-#include "cmGlobalGenerator.h"
-#include <cmsys/Directory.hxx>
-#include "cmGlob.h"
-#include "cmDynamicLoader.h"
+#include "cmDepends.h"
 #include "cmGeneratedFileStream.h"
-#include "cmCTestCommand.h"
-
-#include "cmCTestBuildHandler.h"
-#include "cmCTestBuildAndTestHandler.h"
-#include "cmCTestConfigureHandler.h"
-#include "cmCTestCoverageHandler.h"
-#include "cmCTestMemCheckHandler.h"
-#include "cmCTestScriptHandler.h"
-#include "cmCTestTestHandler.h"
-#include "cmCTestUpdateHandler.h"
-#include "cmCTestSubmitHandler.h"
-
+#include "cmGlobalUnixMakefileGenerator3.h"
+#include "cmMakefile.h"
+#include "cmMakefileTargetGenerator.h"
+#include "cmSourceFile.h"
+#include "cmake.h"
 #include "cmVersion.h"
 
-#include <cmsys/RegularExpression.hxx>
-#include <cmsys/Process.h>
-
-#include <stdlib.h>
-#include <math.h>
-#include <float.h>
+// Include dependency scanners for supported languages.  Only the
+// C/C++ scanner is needed for bootstrapping CMake.
+#include "cmDependsC.h"
+#ifdef CMAKE_BUILD_WITH_CMAKE
+# include "cmDependsFortran.h"
+# include "cmDependsJava.h"
+# include <cmsys/Terminal.h>
+#endif
 
 #include <memory> // auto_ptr
+#include <queue>
 
-#define DEBUGOUT std::cout << __LINE__ << " "; std::cout
-#define DEBUGERR std::cerr << __LINE__ << " "; std::cerr
-
-//----------------------------------------------------------------------
-struct tm* cmCTest::GetNightlyTime(std::string str,
-                                   bool tomorrowtag)
+//----------------------------------------------------------------------------
+cmLocalUnixMakefileGenerator3::cmLocalUnixMakefileGenerator3()
 {
-  struct tm* lctime;
-  time_t tctime = time(0);
-  cmCTestLog(this, OUTPUT, "Determine Nightly Start Time" << std::endl
-    << "   Specified time: " << str.c_str() << std::endl);
-  //Convert the nightly start time to seconds. Since we are
-  //providing only a time and a timezone, the current date of
-  //the local machine is assumed. Consequently, nightlySeconds
-  //is the time at which the nightly dashboard was opened or
-  //will be opened on the date of the current client machine.
-  //As such, this time may be in the past or in the future.
-  time_t ntime = curl_getdate(str.c_str(), &tctime);
-  cmCTestLog(this, DEBUG, "   Get curl time: " << ntime << std::endl);
-  tctime = time(0);
-  cmCTestLog(this, DEBUG, "   Get the current time: " << tctime << std::endl);
-
-  const int dayLength = 24 * 60 * 60;
-  cmCTestLog(this, DEBUG, "Seconds: " << tctime << std::endl);
-  while ( ntime > tctime )
-    {
-    // If nightlySeconds is in the past, this is the current
-    // open dashboard, then return nightlySeconds.  If
-    // nightlySeconds is in the future, this is the next
-    // dashboard to be opened, so subtract 24 hours to get the
-    // time of the current open dashboard
-    ntime -= dayLength;
-    cmCTestLog(this, DEBUG, "Pick yesterday" << std::endl);
-    cmCTestLog(this, DEBUG, "   Future time, subtract day: " << ntime
-      << std::endl);
-    }
-  while ( tctime > (ntime + dayLength) )
-    {
-    ntime += dayLength;
-    cmCTestLog(this, DEBUG, "   Past time, add day: " << ntime << std::endl);
-    }
-  cmCTestLog(this, DEBUG, "nightlySeconds: " << ntime << std::endl);
-  cmCTestLog(this, DEBUG, "   Current time: " << tctime
-    << " Nightly time: " << ntime << std::endl);
-  if ( tomorrowtag )
-    {
-    cmCTestLog(this, OUTPUT, "   Use future tag, Add a day" << std::endl);
-    ntime += dayLength;
-    }
-  lctime = gmtime(&ntime);
-  return lctime;
+  this->SilentNoColon = false;
+  this->WindowsShell = false;
+  this->IncludeDirective = "include";
+  this->MakefileVariableSize = 0;
+  this->IgnoreLibPrefix = false;
+  this->PassMakeflags = false;
+  this->DefineWindowsNULL = false;
+  this->UnixCD = true;
+  this->ColorMakefile = false;
+  this->SkipPreprocessedSourceRules = false;
+  this->SkipAssemblySourceRules = false;
+  this->NativeEchoCommand = "@echo ";
+  this->NativeEchoWindows = true;
+  this->MakeCommandEscapeTargetTwice = false;
+  this->IsMakefileGenerator = true;
+  this->BorlandMakeCurlyHack = false;
 }
 
-//----------------------------------------------------------------------
-std::string cmCTest::CleanString(const std::string& str)
+//----------------------------------------------------------------------------
+cmLocalUnixMakefileGenerator3::~cmLocalUnixMakefileGenerator3()
 {
-  std::string::size_type spos = str.find_first_not_of(" \n\t\r\f\v");
-  std::string::size_type epos = str.find_last_not_of(" \n\t\r\f\v");
-  if ( spos == str.npos )
-    {
-    return std::string();
-    }
-  if ( epos != str.npos )
-    {
-    epos = epos - spos + 1;
-    }
-  return str.substr(spos, epos);
 }
 
-//----------------------------------------------------------------------
-std::string cmCTest::CurrentTime()
+//----------------------------------------------------------------------------
+void cmLocalUnixMakefileGenerator3::Configure()
 {
-  time_t currenttime = time(0);
-  struct tm* t = localtime(&currenttime);
-  //return ::CleanString(ctime(&currenttime));
-  char current_time[1024];
-  if ( m_ShortDateFormat )
+  // Compute the path to use when referencing the current output
+  // directory from the top output directory.
+  this->HomeRelativeOutputPath =
+    this->Convert(this->Makefile->GetStartOutputDirectory(), HOME_OUTPUT);
+  if(this->HomeRelativeOutputPath == ".")
     {
-    strftime(current_time, 1000, "%b %d %H:%M %Z", t);
+    this->HomeRelativeOutputPath = "";
+    }
+  if(!this->HomeRelativeOutputPath.empty())
+    {
+    this->HomeRelativeOutputPath += "/";
+    }
+  this->cmLocalGenerator::Configure();
+}
+
+//----------------------------------------------------------------------------
+void cmLocalUnixMakefileGenerator3::Generate()
+{
+  // Store the configuration name that will be generated.
+  if(const char* config = this->Makefile->GetDefinition("CMAKE_BUILD_TYPE"))
+    {
+    // Use the build type given by the user.
+    this->ConfigurationName = config;
     }
   else
     {
-    strftime(current_time, 1000, "%a %b %d %H:%M:%S %Z %Y", t);
+    // No configuration type given.
+    this->ConfigurationName = "";
     }
-  cmCTestLog(this, DEBUG, "   Current_Time: " << current_time << std::endl);
-  return cmCTest::MakeXMLSafe(cmCTest::CleanString(current_time));
+
+  // Record whether some options are enabled to avoid checking many
+  // times later.
+  this->ColorMakefile = this->Makefile->IsOn("CMAKE_COLOR_MAKEFILE");
+  this->SkipPreprocessedSourceRules =
+    this->Makefile->IsOn("CMAKE_SKIP_PREPROCESSED_SOURCE_RULES");
+  this->SkipAssemblySourceRules =
+    this->Makefile->IsOn("CMAKE_SKIP_ASSEMBLY_SOURCE_RULES");
+
+  // Generate the rule files for each target.
+  cmTargets& targets = this->Makefile->GetTargets();
+  std::string empty;
+  for(cmTargets::iterator t = targets.begin(); t != targets.end(); ++t)
+    {
+    cmMakefileTargetGenerator *tg = 
+      cmMakefileTargetGenerator::New(this, t->first, &(t->second));
+    if (tg)
+      {
+      this->TargetGenerators.push_back(tg);
+      tg->WriteRuleFiles();
+      }
+    }
+
+  // write the local Makefile
+  this->WriteLocalMakefile();
+  
+  // Write the cmake file with information for this directory.
+  this->WriteDirectoryInformationFile();
 }
 
-
-//----------------------------------------------------------------------
-std::string cmCTest::MakeXMLSafe(const std::string& str)
+//----------------------------------------------------------------------------
+// return info about progress actions
+unsigned long cmLocalUnixMakefileGenerator3::GetNumberOfProgressActions()
 {
-  std::vector<char> result;
-  result.reserve(500);
-  const char* pos = str.c_str();
-  for ( ;*pos; ++pos)
-    {
-    char ch = *pos;
-    if ( (ch > 126 || ch < 32) && ch != 9  &&
-      ch != 10 && ch != 13 && ch != '\r' )
-      {
-      char buffer[33];
-      sprintf(buffer, "&lt;%d&gt;", (int)ch);
-      //sprintf(buffer, "&#x%0x;", (unsigned int)ch);
-      result.insert(result.end(), buffer, buffer+strlen(buffer));
-      }
-    else
-      {
-      const char* const encodedChars[] = {
-        "&amp;",
-        "&lt;",
-        "&gt;"
-      };
-      switch ( ch )
-        {
-        case '&':
-          result.insert(result.end(), encodedChars[0], encodedChars[0]+5);
-          break;
-        case '<':
-          result.insert(result.end(), encodedChars[1], encodedChars[1]+4);
-          break;
-        case '>':
-          result.insert(result.end(), encodedChars[2], encodedChars[2]+4);
-          break;
-        case '\n':
-          result.push_back('\n');
-          break;
-        case '\r': break; // Ignore \r
-        default:
-          result.push_back(ch);
-        }
-      }
-    }
-  if ( result.size() == 0 )
-    {
-    return "";
-    }
-  return std::string(&*result.begin(), result.size());
-}
+  unsigned long result = 0;
 
-//----------------------------------------------------------------------
-std::string cmCTest::MakeURLSafe(const std::string& str)
-{
-  cmOStringStream ost;
-  char buffer[10];
-  for ( std::string::size_type pos = 0; pos < str.size(); pos ++ )
-    {
-    unsigned char ch = str[pos];
-    if ( ( ch > 126 || ch < 32 ||
-           ch == '&' ||
-           ch == '%' ||
-           ch == '+' ||
-           ch == '=' ||
-           ch == '@'
-          ) && ch != 9 )
-      {
-      sprintf(buffer, "%02x;", (unsigned int)ch);
-      ost << buffer;
-      }
-    else
-      {
-      ost << ch;
-      }
-    }
-  return ost.str();
-}
-
-//----------------------------------------------------------------------
-cmCTest::cmCTest()
-{
-  m_SubmitIndex            = 0;
-  m_ForceNewCTestProcess   = false;
-  m_TomorrowTag            = false;
-  m_Verbose                = false;
-  m_Debug                  = false;
-  m_ShowLineNumbers        = false;
-  m_Quiet                  = false;
-  m_ExtraVerbose           = false;
-  m_ProduceXML             = false;
-  m_ShowOnly               = false;
-  m_RunConfigurationScript = false;
-  m_TestModel              = cmCTest::EXPERIMENTAL;
-  m_InteractiveDebugMode   = true;
-  m_TimeOut                = 0;
-  m_CompressXMLFiles       = false;
-  m_CTestConfigFile        = "";
-  m_OutputLogFile          = 0;
-  m_OutputLogFileLastTag   = -1;
-  m_SuppressUpdatingCTestConfiguration = false;
-  m_DartVersion            = 1;
-
-  int cc;
-  for ( cc=0; cc < cmCTest::LAST_TEST; cc ++ )
-    {
-    m_Tests[cc] = 0;
-    }
-  m_ShortDateFormat        = true;
-
-  m_TestingHandlers["build"]     = new cmCTestBuildHandler;
-  m_TestingHandlers["buildtest"] = new cmCTestBuildAndTestHandler;
-  m_TestingHandlers["coverage"]  = new cmCTestCoverageHandler;
-  m_TestingHandlers["script"]    = new cmCTestScriptHandler;
-  m_TestingHandlers["test"]      = new cmCTestTestHandler;
-  m_TestingHandlers["update"]    = new cmCTestUpdateHandler;
-  m_TestingHandlers["configure"] = new cmCTestConfigureHandler;
-  m_TestingHandlers["memcheck"]  = new cmCTestMemCheckHandler;
-  m_TestingHandlers["submit"]    = new cmCTestSubmitHandler;
-
-  cmCTest::t_TestingHandlers::iterator it;
-  for ( it = m_TestingHandlers.begin(); it != m_TestingHandlers.end(); ++ it )
-    {
-    it->second->SetCTestInstance(this);
-    }
-
-  // Make sure we can capture the build tool output.
-  cmSystemTools::EnableVSConsoleOutput();
-}
-
-//----------------------------------------------------------------------
-cmCTest::~cmCTest()
-{
-  cmCTest::t_TestingHandlers::iterator it;
-  for ( it = m_TestingHandlers.begin(); it != m_TestingHandlers.end(); ++ it )
-    {
-    delete it->second;
-    it->second = 0;
-    }
-  this->SetOutputLogFileName(0);
-}
-
-//----------------------------------------------------------------------
-int cmCTest::Initialize(const char* binary_dir, bool new_tag,
-  bool verbose_tag)
-{
-  cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
-  if(!m_InteractiveDebugMode)
-    {
-    this->BlockTestErrorDiagnostics();
-    }
-
-  m_BinaryDir = binary_dir;
-  cmSystemTools::ConvertToUnixSlashes(m_BinaryDir);
-
-  this->UpdateCTestConfiguration();
-
-  cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
-  if ( m_ProduceXML )
-    {
-  cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
-    cmCTestLog(this, OUTPUT,
-      "   Site: " << this->GetCTestConfiguration("Site") << std::endl
-      << "   Build name: " << this->GetCTestConfiguration("BuildName")
-      << std::endl);
-    cmCTestLog(this, DEBUG, "Produce XML is on" << std::endl);
-    if ( this->GetCTestConfiguration("NightlyStartTime").empty() )
-      {
-      cmCTestLog(this, DEBUG, "No nightly start time" << std::endl);
-  cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
-      return 0;
-      }
-    }
-
-  if ( !this->ReadCustomConfigurationFileTree(m_BinaryDir.c_str()) )
-    {
-    cmCTestLog(this, DEBUG, "Cannot find custom configuration file tree"
-      << std::endl);
-    return 0;
-    }
-
-  if ( m_ProduceXML )
-    {
-    std::string testingDir = m_BinaryDir + "/Testing";
-    if ( cmSystemTools::FileExists(testingDir.c_str()) )
-      {
-      if ( !cmSystemTools::FileIsDirectory(testingDir.c_str()) )
-        {
-        cmCTestLog(this, ERROR_MESSAGE, "File " << testingDir
-          << " is in the place of the testing directory" << std::endl);
-        return 0;
-        }
-      }
-    else
-      {
-      if ( !cmSystemTools::MakeDirectory(testingDir.c_str()) )
-        {
-        cmCTestLog(this, ERROR_MESSAGE, "Cannot create directory "
-          << testingDir << std::endl);
-        return 0;
-        }
-      }
-    std::string tagfile = testingDir + "/TAG";
-    std::ifstream tfin(tagfile.c_str());
-    std::string tag;
-    time_t tctime = time(0);
-    if ( m_TomorrowTag )
-      {
-      tctime += ( 24 * 60 * 60 );
-      }
-    struct tm *lctime = gmtime(&tctime);
-    if ( tfin && cmSystemTools::GetLineFromStream(tfin, tag) )
-      {
-      int year = 0;
-      int mon = 0;
-      int day = 0;
-      int hour = 0;
-      int min = 0;
-      sscanf(tag.c_str(), "%04d%02d%02d-%02d%02d",
-             &year, &mon, &day, &hour, &min);
-      if ( year != lctime->tm_year + 1900 ||
-           mon != lctime->tm_mon+1 ||
-           day != lctime->tm_mday )
-        {
-        tag = "";
-        }
-      std::string tagmode;
-      if ( cmSystemTools::GetLineFromStream(tfin, tagmode) )
-        {
-        if ( tagmode.size() > 4 && !( m_Tests[cmCTest::START_TEST] ||
-            m_Tests[ALL_TEST] ))
-          {
-          m_TestModel = cmCTest::GetTestModelFromString(tagmode.c_str());
-          }
-        }
-      tfin.close();
-      }
-    if ( tag.size() == 0 || new_tag || m_Tests[cmCTest::START_TEST] ||
-      m_Tests[ALL_TEST])
-      {
-      cmCTestLog(this, DEBUG, "TestModel: " << this->GetTestModelString()
-        << std::endl);
-      cmCTestLog(this, DEBUG, "TestModel: " << m_TestModel << std::endl);
-      if ( m_TestModel == cmCTest::NIGHTLY )
-        {
-        lctime = this->GetNightlyTime(
-          this->GetCTestConfiguration("NightlyStartTime"), m_TomorrowTag);
-        }
-      char datestring[100];
-      sprintf(datestring, "%04d%02d%02d-%02d%02d",
-              lctime->tm_year + 1900,
-              lctime->tm_mon+1,
-              lctime->tm_mday,
-              lctime->tm_hour,
-              lctime->tm_min);
-      tag = datestring;
-      std::ofstream ofs(tagfile.c_str());
-      if ( ofs )
-        {
-        ofs << tag << std::endl;
-        ofs << this->GetTestModelString() << std::endl;
-        }
-      ofs.close();
-      if ( verbose_tag )
-        {
-        cmCTestLog(this, OUTPUT, "Create new tag: " << tag << " - "
-          << this->GetTestModelString() << std::endl);
-        }
-      }
-    m_CurrentTag = tag;
-    }
-  return 1;
-}
-
-//----------------------------------------------------------------------
-bool cmCTest::InitializeFromCommand(cmCTestCommand* command, bool first)
-{
-  if ( !first && !m_CurrentTag.empty() )
-    {
-    return true;
-    }
-
-  std::string src_dir
-    = this->GetCTestConfiguration("SourceDirectory").c_str();
-  std::string bld_dir = this->GetCTestConfiguration("BuildDirectory").c_str();
-  m_DartVersion = 1;
-  m_SubmitFiles.clear();
-
-  cmMakefile* mf = command->GetMakefile();
-  std::string fname = src_dir;
-  fname += "/CTestConfig.cmake";
-  cmSystemTools::ConvertToUnixSlashes(fname);
-  if ( cmSystemTools::FileExists(fname.c_str()) )
-    {
-    cmCTestLog(this, OUTPUT, "   Reading ctest configuration file: "
-      << fname.c_str() << std::endl);
-    bool readit = mf->ReadListFile(mf->GetCurrentListFile(),
-      fname.c_str() );
-    if(!readit)
-      {
-      std::string m = "Could not find include file: ";
-      m += fname;
-      command->SetError(m.c_str());
-      return false;
-      }
-    }
-  else if ( !first )
-    {
-    cmCTestLog(this, WARNING, "Cannot locate CTest configuration: "
-      << fname.c_str() << std::endl);
-    }
-  else
-    {
-    cmCTestLog(this, HANDLER_OUTPUT, "   Cannot locate CTest configuration: "
-      << fname.c_str() << std::endl
-      << "   Delay the initialization of CTest" << std::endl);
-    }
-
-  this->SetCTestConfigurationFromCMakeVariable(mf, "NightlyStartTime",
-    "CTEST_NIGHTLY_START_TIME");
-  this->SetCTestConfigurationFromCMakeVariable(mf, "Site", "CTEST_SITE");
-  this->SetCTestConfigurationFromCMakeVariable(mf, "BuildName",
-    "CTEST_BUILD_NAME");
-  const char* dartVersion = mf->GetDefinition("CTEST_DART_SERVER_VERSION");
-  if ( dartVersion )
-    {
-    m_DartVersion = atoi(dartVersion);
-    if ( m_DartVersion < 0 )
-      {
-      cmCTestLog(this, ERROR_MESSAGE, "Invalid Dart server version: "
-        << dartVersion << ". Please specify the version number."
-        << std::endl);
-      return false;
-      }
-    }
-
-  if ( !this->Initialize(bld_dir.c_str(), true, false) )
-    {
-    if ( this->GetCTestConfiguration("NightlyStartTime").empty() && first)
-      {
-      return true;
-      }
-    return false;
-    }
-  cmCTestLog(this, OUTPUT, "   Use " << this->GetTestModelString()
-    << " tag: " << this->GetCurrentTag() << std::endl);
-  return true;
-}
-
-
-//----------------------------------------------------------------------
-bool cmCTest::UpdateCTestConfiguration()
-{
-  if ( m_SuppressUpdatingCTestConfiguration )
-    {
-    return true;
-    }
-  std::string fileName = m_CTestConfigFile;
-  if ( fileName.empty() )
-    {
-    fileName = m_BinaryDir + "/DartConfiguration.tcl";
-    if ( !cmSystemTools::FileExists(fileName.c_str()) )
-      {
-      fileName = m_BinaryDir + "/CTestConfiguration.ini";
-      }
-    }
-  if ( !cmSystemTools::FileExists(fileName.c_str()) )
-    {
-    // No need to exit if we are not producing XML
-    if ( m_ProduceXML )
-      {
-      cmCTestLog(this, ERROR_MESSAGE, "Cannot find file: " << fileName.c_str()
-        << std::endl);
-      return false;
-      }
-    }
-  else
-    {
-    // parse the dart test file
-    std::ifstream fin(fileName.c_str());
-    if(!fin)
-      {
-      return false;
-      }
-
-    char buffer[1024];
-    while ( fin )
-      {
-      buffer[0] = 0;
-      fin.getline(buffer, 1023);
-      buffer[1023] = 0;
-      std::string line = cmCTest::CleanString(buffer);
-      if(line.size() == 0)
-        {
-        continue;
-        }
-      while ( fin && (line[line.size()-1] == '\\') )
-        {
-        line = line.substr(0, line.size()-1);
-        buffer[0] = 0;
-        fin.getline(buffer, 1023);
-        buffer[1023] = 0;
-        line += cmCTest::CleanString(buffer);
-        }
-      if ( line[0] == '#' )
-        {
-        continue;
-        }
-      std::string::size_type cpos = line.find_first_of(":");
-      if ( cpos == line.npos )
-        {
-        continue;
-        }
-      std::string key = line.substr(0, cpos);
-      std::string value
-        = cmCTest::CleanString(line.substr(cpos+1, line.npos));
-      m_CTestConfiguration[key] = value;
-      }
-    fin.close();
-    }
-  m_TimeOut = atoi(this->GetCTestConfiguration("TimeOut").c_str());
-  if ( m_ProduceXML )
-    {
-    m_CompressXMLFiles = cmSystemTools::IsOn(
-      this->GetCTestConfiguration("CompressSubmission").c_str());
-    }
-  return true;
-}
-
-//----------------------------------------------------------------------
-void cmCTest::BlockTestErrorDiagnostics()
-{
-  cmSystemTools::PutEnv("DART_TEST_FROM_DART=1");
-  cmSystemTools::PutEnv("DASHBOARD_TEST_FROM_CTEST=" CMake_VERSION);
-#if defined(_WIN32)
-  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
-#endif
-}
-
-//----------------------------------------------------------------------
-void cmCTest::SetTestModel(int mode)
-{
-  m_InteractiveDebugMode = false;
-  m_TestModel = mode;
-}
-
-//----------------------------------------------------------------------
-bool cmCTest::SetTest(const char* ttype, bool report)
-{
-  if ( cmSystemTools::LowerCase(ttype) == "all" )
-    {
-    m_Tests[cmCTest::ALL_TEST] = 1;
-    }
-  else if ( cmSystemTools::LowerCase(ttype) == "start" )
-    {
-    m_Tests[cmCTest::START_TEST] = 1;
-    }
-  else if ( cmSystemTools::LowerCase(ttype) == "update" )
-    {
-    m_Tests[cmCTest::UPDATE_TEST] = 1;
-    }
-  else if ( cmSystemTools::LowerCase(ttype) == "configure" )
-    {
-    m_Tests[cmCTest::CONFIGURE_TEST] = 1;
-    }
-  else if ( cmSystemTools::LowerCase(ttype) == "build" )
-    {
-    m_Tests[cmCTest::BUILD_TEST] = 1;
-    }
-  else if ( cmSystemTools::LowerCase(ttype) == "test" )
-    {
-    m_Tests[cmCTest::TEST_TEST] = 1;
-    }
-  else if ( cmSystemTools::LowerCase(ttype) == "coverage" )
-    {
-    m_Tests[cmCTest::COVERAGE_TEST] = 1;
-    }
-  else if ( cmSystemTools::LowerCase(ttype) == "memcheck" )
-    {
-    m_Tests[cmCTest::MEMCHECK_TEST] = 1;
-    }
-  else if ( cmSystemTools::LowerCase(ttype) == "notes" )
-    {
-    m_Tests[cmCTest::NOTES_TEST] = 1;
-    }
-  else if ( cmSystemTools::LowerCase(ttype) == "submit" )
-    {
-    m_Tests[cmCTest::SUBMIT_TEST] = 1;
-    }
-  else
-    {
-    if ( report )
-      {
-      cmCTestLog(this, ERROR_MESSAGE, "Don't know about test \"" << ttype
-        << "\" yet..." << std::endl);
-      }
-    return false;
-    }
-  return true;
-}
-
-//----------------------------------------------------------------------
-void cmCTest::Finalize()
-{
-}
-
-//----------------------------------------------------------------------
-bool cmCTest::OpenOutputFile(const std::string& path,
-                     const std::string& name, cmGeneratedFileStream& stream,
-                     bool compress)
-{
-  std::string testingDir = m_BinaryDir + "/Testing";
-  if ( path.size() > 0 )
-    {
-    testingDir += "/" + path;
-    }
-  if ( cmSystemTools::FileExists(testingDir.c_str()) )
-    {
-    if ( !cmSystemTools::FileIsDirectory(testingDir.c_str()) )
-      {
-      cmCTestLog(this, ERROR_MESSAGE, "File " << testingDir
-                << " is in the place of the testing directory"
-                << std::endl);
-      return false;
-      }
-    }
-  else
-    {
-    if ( !cmSystemTools::MakeDirectory(testingDir.c_str()) )
-      {
-      cmCTestLog(this, ERROR_MESSAGE, "Cannot create directory " << testingDir
-                << std::endl);
-      return false;
-      }
-    }
-  std::string filename = testingDir + "/" + name;
-  stream.Open(filename.c_str());
-  if( !stream )
-    {
-    cmCTestLog(this, ERROR_MESSAGE, "Problem opening file: " << filename
-      << std::endl);
-    return false;
-    }
-  if ( compress )
-    {
-    if ( m_CompressXMLFiles )
-      {
-      stream.SetCompression(true);
-      }
-    }
-  return true;
-}
-
-//----------------------------------------------------------------------
-bool cmCTest::AddIfExists(SetOfStrings& files, const char* file)
-{
-  if ( this->CTestFileExists(file) )
-    {
-    files.insert(file);
-    }
-  else
-    {
-    std::string name = file;
-    name += ".gz";
-    if ( this->CTestFileExists(name.c_str()) )
-      {
-      files.insert(name.c_str());
-      }
-    else
-      {
-      return false;
-      }
-    }
-  return true;
-}
-
-//----------------------------------------------------------------------
-bool cmCTest::CTestFileExists(const std::string& filename)
-{
-  std::string testingDir = m_BinaryDir + "/Testing/" + m_CurrentTag + "/" +
-    filename;
-  return cmSystemTools::FileExists(testingDir.c_str());
-}
-
-//----------------------------------------------------------------------
-cmCTestGenericHandler* cmCTest::GetInitializedHandler(const char* handler)
-{
-  cmCTest::t_TestingHandlers::iterator it = m_TestingHandlers.find(handler);
-  if ( it == m_TestingHandlers.end() )
-    {
-    return 0;
-    }
-  it->second->Initialize();
-  return it->second;
-}
-
-//----------------------------------------------------------------------
-cmCTestGenericHandler* cmCTest::GetHandler(const char* handler)
-{
-  cmCTest::t_TestingHandlers::iterator it = m_TestingHandlers.find(handler);
-  if ( it == m_TestingHandlers.end() )
-    {
-    return 0;
-    }
-  return it->second;
-}
-
-//----------------------------------------------------------------------
-int cmCTest::ExecuteHandler(const char* shandler)
-{
-  cmCTestGenericHandler* handler = this->GetHandler(shandler);
-  if ( !handler )
-    {
-    return -1;
-    }
-  handler->Initialize();
-  return handler->ProcessHandler();
-}
-
-//----------------------------------------------------------------------
-int cmCTest::ProcessTests()
-{
-  int res = 0;
-  bool notest = true;
-  int cc;
-  int update_count = 0;
-
-  cmCTestLog(this, OUTPUT, "Start processing tests" << std::endl);
-
-  for ( cc = 0; cc < LAST_TEST; cc ++ )
-    {
-    if ( m_Tests[cc] )
-      {
-      notest = false;
-      break;
-      }
-    }
-  if ( m_Tests[UPDATE_TEST] || m_Tests[ALL_TEST] )
-    {
-    cmCTestGenericHandler* uphandler = this->GetHandler("update");
-    uphandler->SetOption("SourceDirectory",
-      this->GetCTestConfiguration("SourceDirectory").c_str());
-    update_count = uphandler->ProcessHandler();
-    if ( update_count < 0 )
-      {
-      res |= cmCTest::UPDATE_ERRORS;
-      }
-    }
-  if ( m_TestModel == cmCTest::CONTINUOUS && !update_count )
-    {
-    return 0;
-    }
-  if ( m_Tests[CONFIGURE_TEST] || m_Tests[ALL_TEST] )
-    {
-    if (this->GetHandler("configure")->ProcessHandler() < 0)
-      {
-      res |= cmCTest::CONFIGURE_ERRORS;
-      }
-    }
-  if ( m_Tests[BUILD_TEST] || m_Tests[ALL_TEST] )
-    {
-    this->UpdateCTestConfiguration();
-    if (this->GetHandler("build")->ProcessHandler() < 0)
-      {
-      res |= cmCTest::BUILD_ERRORS;
-      }
-    }
-  if ( m_Tests[TEST_TEST] || m_Tests[ALL_TEST] || notest )
-    {
-    this->UpdateCTestConfiguration();
-    if (this->GetHandler("test")->ProcessHandler() < 0)
-      {
-      res |= cmCTest::TEST_ERRORS;
-      }
-    }
-  if ( m_Tests[COVERAGE_TEST] || m_Tests[ALL_TEST] )
-    {
-    this->UpdateCTestConfiguration();
-    if (this->GetHandler("coverage")->ProcessHandler() < 0)
-      {
-      res |= cmCTest::COVERAGE_ERRORS;
-      }
-    }
-  if ( m_Tests[MEMCHECK_TEST] || m_Tests[ALL_TEST] )
-    {
-    this->UpdateCTestConfiguration();
-    if (this->GetHandler("memcheck")->ProcessHandler() < 0)
-      {
-      res |= cmCTest::MEMORY_ERRORS;
-      }
-    }
-  if ( !notest )
-    {
-    std::string notes_dir = m_BinaryDir + "/Testing/Notes";
-    if ( cmSystemTools::FileIsDirectory(notes_dir.c_str()) )
-      {
-      cmsys::Directory d;
-      d.Load(notes_dir.c_str());
-      unsigned long kk;
-      for ( kk = 0; kk < d.GetNumberOfFiles(); kk ++ )
-        {
-        const char* file = d.GetFile(kk);
-        std::string fullname = notes_dir + "/" + file;
-        if ( cmSystemTools::FileExists(fullname.c_str()) &&
-          !cmSystemTools::FileIsDirectory(fullname.c_str()) )
-          {
-          if ( m_NotesFiles.size() > 0 )
-            {
-            m_NotesFiles += ";";
-            }
-          m_NotesFiles += fullname;
-          m_Tests[NOTES_TEST] = 1;
-          }
-        }
-      }
-    }
-  if ( m_Tests[NOTES_TEST] || m_Tests[ALL_TEST] )
-    {
-    this->UpdateCTestConfiguration();
-    if ( m_NotesFiles.size() )
-      {
-      this->GenerateNotesFile(m_NotesFiles.c_str());
-      }
-    }
-  if ( m_Tests[SUBMIT_TEST] || m_Tests[ALL_TEST] )
-    {
-    this->UpdateCTestConfiguration();
-    if (this->GetHandler("submit")->ProcessHandler() < 0)
-      {
-      res |= cmCTest::SUBMIT_ERRORS;
-      }
-    }
-  if ( res != 0 )
-    {
-    cmCTestLog(this, ERROR_MESSAGE, "Errors while running CTest"
-      << std::endl);
-    }
-  return res;
-}
-
-//----------------------------------------------------------------------
-std::string cmCTest::GetTestModelString()
-{
-  switch ( m_TestModel )
-    {
-  case cmCTest::NIGHTLY:
-    return "Nightly";
-  case cmCTest::CONTINUOUS:
-    return "Continuous";
-    }
-  return "Experimental";
-}
-
-//----------------------------------------------------------------------
-int cmCTest::GetTestModelFromString(const char* str)
-{
-  if ( !str )
-    {
-    return cmCTest::EXPERIMENTAL;
-    }
-  std::string rstr = cmSystemTools::LowerCase(str);
-  if ( strncmp(rstr.c_str(), "cont", 4) == 0 )
-    {
-    return cmCTest::CONTINUOUS;
-    }
-  if ( strncmp(rstr.c_str(), "nigh", 4) == 0 )
-    {
-    return cmCTest::NIGHTLY;
-    }
-  return cmCTest::EXPERIMENTAL;
-}
-
-//######################################################################
-//######################################################################
-//######################################################################
-//######################################################################
-
-//----------------------------------------------------------------------
-int cmCTest::RunMakeCommand(const char* command, std::string* output,
-  int* retVal, const char* dir, int timeout, std::ofstream& ofs)
-{
-  // First generate the command and arguments
-  std::vector<cmStdString> args = cmSystemTools::ParseArguments(command);
-
-  if(args.size() < 1)
-    {
-    return false;
-    }
-
-  std::vector<const char*> argv;
-  for(std::vector<cmStdString>::const_iterator a = args.begin();
-    a != args.end(); ++a)
-    {
-    argv.push_back(a->c_str());
-    }
-  argv.push_back(0);
-
-  if ( output )
-    {
-    *output = "";
-    }
-
-  cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "Run command:");
-  std::vector<const char*>::iterator ait;
-  for ( ait = argv.begin(); ait != argv.end() && *ait; ++ ait )
-    {
-    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, " \"" << *ait << "\"");
-    }
-  cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, std::endl);
-
-  // Now create process object
-  cmsysProcess* cp = cmsysProcess_New();
-  cmsysProcess_SetCommand(cp, &*argv.begin());
-  cmsysProcess_SetWorkingDirectory(cp, dir);
-  cmsysProcess_SetOption(cp, cmsysProcess_Option_HideWindow, 1);
-  cmsysProcess_SetTimeout(cp, timeout);
-  cmsysProcess_Execute(cp);
-
-  // Initialize tick's
-  std::string::size_type tick = 0;
-  std::string::size_type tick_len = 1024;
-  std::string::size_type tick_line_len = 50;
-
-  char* data;
-  int length;
-  cmCTestLog(this, HANDLER_OUTPUT,
-    "   Each . represents " << tick_len << " bytes of output" << std::endl
-    << "    " << std::flush);
-  while(cmsysProcess_WaitForData(cp, &data, &length, 0))
-    {
-    if ( output )
-      {
-      for(int cc =0; cc < length; ++cc)
-        {
-        if(data[cc] == 0)
-          {
-          data[cc] = '\n';
-          }
-        }
-
-      output->append(data, length);
-      while ( output->size() > (tick * tick_len) )
-        {
-        tick ++;
-        cmCTestLog(this, HANDLER_OUTPUT, "." << std::flush);
-        if ( tick % tick_line_len == 0 && tick > 0 )
-          {
-          cmCTestLog(this, HANDLER_OUTPUT, "  Size: "
-            << int((output->size() / 1024.0) + 1) << "K" << std::endl
-            << "    " << std::flush);
-          }
-        }
-      }
-    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, cmCTestLogWrite(data, length));
-    if ( ofs )
-      {
-      ofs << cmCTestLogWrite(data, length);
-      }
-    }
-  cmCTestLog(this, OUTPUT, " Size of output: "
-    << int(output->size() / 1024.0) << "K" << std::endl);
-
-  cmsysProcess_WaitForExit(cp, 0);
-
-  int result = cmsysProcess_GetState(cp);
-
-  if(result == cmsysProcess_State_Exited)
-    {
-    *retVal = cmsysProcess_GetExitValue(cp);
-    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "Command exited with the value: "
-      << *retVal << std::endl);
-    }
-  else if(result == cmsysProcess_State_Exception)
-    {
-    *retVal = cmsysProcess_GetExitException(cp);
-    cmCTestLog(this, WARNING, "There was an exception: " << *retVal
-      << std::endl);
-    }
-  else if(result == cmsysProcess_State_Expired)
-    {
-    cmCTestLog(this, WARNING, "There was a timeout" << std::endl);
-    }
-  else if(result == cmsysProcess_State_Error)
-    {
-    *output += "\n*** ERROR executing: ";
-    *output += cmsysProcess_GetErrorString(cp);
-    cmCTestLog(this, ERROR_MESSAGE, "There was an error: "
-      << cmsysProcess_GetErrorString(cp) << std::endl);
-    }
-
-  cmsysProcess_Delete(cp);
-
+  for (std::vector<cmMakefileTargetGenerator *>::iterator mtgIter = 
+         this->TargetGenerators.begin();
+       mtgIter != this->TargetGenerators.end(); ++mtgIter)
+    {
+    result += (*mtgIter)->GetNumberOfProgressActions();
+    }  
   return result;
 }
 
-//######################################################################
-//######################################################################
-//######################################################################
-//######################################################################
-
-//----------------------------------------------------------------------
-int cmCTest::RunTest(std::vector<const char*> argv,
-                     std::string* output, int *retVal,
-                     std::ostream* log)
+//----------------------------------------------------------------------------
+// return info about progress actions
+unsigned long cmLocalUnixMakefileGenerator3
+::GetNumberOfProgressActionsForTarget(const char *name)
 {
-  if(cmSystemTools::SameFile(argv[0], m_CTestSelf.c_str()) &&
-     !m_ForceNewCTestProcess)
+  for (std::vector<cmMakefileTargetGenerator *>::iterator mtgIter = 
+         this->TargetGenerators.begin();
+       mtgIter != this->TargetGenerators.end(); ++mtgIter)
     {
-    cmCTest inst;
-    inst.m_ConfigType = m_ConfigType;
-    inst.m_TimeOut = m_TimeOut;
-    std::vector<std::string> args;
-    for(unsigned int i =0; i < argv.size(); ++i)
+    if (!strcmp(name,(*mtgIter)->GetTargetName()))
       {
-      if(argv[i])
-        {
-        args.push_back(argv[i]);
-        }
+      return (*mtgIter)->GetNumberOfProgressActions();
       }
-    if ( *log )
-      {
-      *log << "* Run internal CTest" << std::endl;
-      }
-    std::string oldpath = cmSystemTools::GetCurrentWorkingDirectory();
-
-    *retVal = inst.Run(args, output);
-    if ( *log )
-      {
-      *log << output->c_str();
-      }
-    cmSystemTools::ChangeDirectory(oldpath.c_str());
-
-    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT,
-      "Internal cmCTest object used to run test." << std::endl
-      <<  *output << std::endl);
-    return cmsysProcess_State_Exited;
-    }
-  std::vector<char> tempOutput;
-  if ( output )
-    {
-    *output = "";
-    }
-
-  cmsysProcess* cp = cmsysProcess_New();
-  cmsysProcess_SetCommand(cp, &*argv.begin());
-  cmCTestLog(this, DEBUG, "Command is: " << argv[0] << std::endl);
-  if(cmSystemTools::GetRunCommandHideConsole())
-    {
-    cmsysProcess_SetOption(cp, cmsysProcess_Option_HideWindow, 1);
-    }
-  cmsysProcess_SetTimeout(cp, m_TimeOut);
-  cmsysProcess_Execute(cp);
-
-  char* data;
-  int length;
-  while(cmsysProcess_WaitForData(cp, &data, &length, 0))
-    {
-    if ( output )
-      {
-      tempOutput.insert(tempOutput.end(), data, data+length);
-      }
-    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, cmCTestLogWrite(data, length));
-    if ( log )
-      {
-      log->write(data, length);
-      }
-    }
-
-  cmsysProcess_WaitForExit(cp, 0);
-  if(output && tempOutput.begin() != tempOutput.end())
-    {
-    output->append(&*tempOutput.begin(), tempOutput.size());
-    }
-  cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "-- Process completed"
-    << std::endl);
-
-  int result = cmsysProcess_GetState(cp);
-
-  if(result == cmsysProcess_State_Exited)
-    {
-    *retVal = cmsysProcess_GetExitValue(cp);
-    }
-  else if(result == cmsysProcess_State_Exception)
-    {
-    *retVal = cmsysProcess_GetExitException(cp);
-    std::string outerr = "\n*** Exception executing: ";
-    outerr += cmsysProcess_GetExceptionString(cp);
-    *output += outerr;
-    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, outerr.c_str() << std::endl
-      << std::flush);
-    }
-  else if(result == cmsysProcess_State_Error)
-    {
-    std::string outerr = "\n*** ERROR executing: ";
-    outerr += cmsysProcess_GetErrorString(cp);
-    *output += outerr;
-    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, outerr.c_str() << std::endl
-      << std::flush);
-    }
-  cmsysProcess_Delete(cp);
-
-  return result;
-}
-
-//----------------------------------------------------------------------
-void cmCTest::StartXML(std::ostream& ostr)
-{
-  ostr << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-    << "<Site BuildName=\"" << this->GetCTestConfiguration("BuildName")
-    << "\" BuildStamp=\"" << m_CurrentTag << "-"
-    << this->GetTestModelString() << "\" Name=\""
-    << this->GetCTestConfiguration("Site") << "\" Generator=\"ctest"
-    << cmVersion::GetCMakeVersion()
-    << "\">" << std::endl;
-}
-
-//----------------------------------------------------------------------
-void cmCTest::EndXML(std::ostream& ostr)
-{
-  ostr << "</Site>" << std::endl;
-}
-
-//----------------------------------------------------------------------
-int cmCTest::GenerateCTestNotesOutput(std::ostream& os,
-  const cmCTest::VectorOfStrings& files)
-{
-  cmCTest::VectorOfStrings::const_iterator it;
-  os << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-    << "<?xml-stylesheet type=\"text/xsl\" "
-    "href=\"Dart/Source/Server/XSL/Build.xsl "
-    "<file:///Dart/Source/Server/XSL/Build.xsl> \"?>\n"
-    << "<Site BuildName=\"" << this->GetCTestConfiguration("BuildName")
-    << "\" BuildStamp=\""
-    << m_CurrentTag << "-" << this->GetTestModelString() << "\" Name=\""
-    << this->GetCTestConfiguration("Site") << "\" Generator=\"ctest"
-    << cmVersion::GetCMakeVersion()
-    << "\">\n"
-    << "<Notes>" << std::endl;
-
-  for ( it = files.begin(); it != files.end(); it ++ )
-    {
-    cmCTestLog(this, OUTPUT, "\tAdd file: " << it->c_str() << std::endl);
-    std::string note_time = this->CurrentTime();
-    os << "<Note Name=\"" << this->MakeXMLSafe(it->c_str()) << "\">\n"
-      << "<DateTime>" << note_time << "</DateTime>\n"
-      << "<Text>" << std::endl;
-    std::ifstream ifs(it->c_str());
-    if ( ifs )
-      {
-      std::string line;
-      while ( cmSystemTools::GetLineFromStream(ifs, line) )
-        {
-        os << this->MakeXMLSafe(line) << std::endl;
-        }
-      ifs.close();
-      }
-    else
-      {
-      os << "Problem reading file: " << it->c_str() << std::endl;
-      cmCTestLog(this, ERROR_MESSAGE, "Problem reading file: " << it->c_str()
-        << " while creating notes" << std::endl);
-      }
-    os << "</Text>\n"
-      << "</Note>" << std::endl;
-    }
-  os << "</Notes>\n"
-    << "</Site>" << std::endl;
-  return 1;
-}
-
-//----------------------------------------------------------------------
-int cmCTest::GenerateNotesFile(const std::vector<cmStdString> &files)
-{
-  cmGeneratedFileStream ofs;
-  if ( !this->OpenOutputFile(m_CurrentTag, "Notes.xml", ofs) )
-    {
-    cmCTestLog(this, ERROR_MESSAGE, "Cannot open notes file" << std::endl);
-    return 1;
-    }
-
-  this->GenerateCTestNotesOutput(ofs, files);
+    }  
   return 0;
 }
 
-//----------------------------------------------------------------------
-int cmCTest::GenerateNotesFile(const char* cfiles)
+
+//----------------------------------------------------------------------------
+// writes the progreess variables and also closes out the targets
+void cmLocalUnixMakefileGenerator3
+::WriteProgressVariables(unsigned long total,
+                         unsigned long &current)
 {
-  if ( !cfiles )
+  // delete the makefile target generator objects
+  for (std::vector<cmMakefileTargetGenerator *>::iterator mtgIter = 
+         this->TargetGenerators.begin();
+       mtgIter != this->TargetGenerators.end(); ++mtgIter)
     {
-    return 1;
-    }
-
-  std::vector<cmStdString> files;
-
-  cmCTestLog(this, OUTPUT, "Create notes file" << std::endl);
-
-  files = cmSystemTools::SplitString(cfiles, ';');
-  if ( files.size() == 0 )
-    {
-    return 1;
-    }
-
-  return this->GenerateNotesFile(files);
+    (*mtgIter)->WriteProgressVariables(total,current);
+    delete *mtgIter;
+    }  
+  this->TargetGenerators.clear();
 }
 
-//----------------------------------------------------------------------
-bool cmCTest::SubmitExtraFiles(const std::vector<cmStdString> &files)
+void cmLocalUnixMakefileGenerator3::WriteAllProgressVariable()
 {
-  std::vector<cmStdString>::const_iterator it;
-  for ( it = files.begin();
-    it != files.end();
-    ++ it )
+  // write the top level progress for the all target
+  std::string progressFile = cmake::GetCMakeFilesDirectory();
+  progressFile += "/progress.make";
+  std::string progressFileNameFull = 
+    this->ConvertToFullPath(progressFile.c_str());
+  cmGeneratedFileStream ruleFileStream(progressFileNameFull.c_str());
+  if(!ruleFileStream)
     {
-    if ( !cmSystemTools::FileExists(it->c_str()) )
-      {
-      cmCTestLog(this, ERROR_MESSAGE, "Cannot find extra file: "
-        << it->c_str() << " to submit."
-        << std::endl;);
-      return false;
-      }
-    this->AddSubmitFile(it->c_str());
+    return;
     }
-  return true;
+
+  cmGlobalUnixMakefileGenerator3 *gg = 
+    static_cast<cmGlobalUnixMakefileGenerator3*>(this->GlobalGenerator);
+
+  ruleFileStream << "CMAKE_ALL_PROGRESS = " 
+                 << gg->GetNumberOfProgressActionsInAll(this) << "\n";
 }
 
-//----------------------------------------------------------------------
-bool cmCTest::SubmitExtraFiles(const char* cfiles)
+//----------------------------------------------------------------------------
+void cmLocalUnixMakefileGenerator3::WriteLocalMakefile()
 {
-  if ( !cfiles )
+  // generate the includes
+  std::string ruleFileName = "Makefile";
+
+  // Open the rule file.  This should be copy-if-different because the
+  // rules may depend on this file itself.
+  std::string ruleFileNameFull = this->ConvertToFullPath(ruleFileName);
+  cmGeneratedFileStream ruleFileStream(ruleFileNameFull.c_str());
+  if(!ruleFileStream)
     {
-    return 1;
+    return;
+    }
+  // always write the top makefile
+  if (this->Parent)
+    {
+    ruleFileStream.SetCopyIfDifferent(true);
+    }
+  
+  // write the all rules
+  this->WriteLocalAllRules(ruleFileStream);
+  
+  // only write local targets unless at the top Keep track of targets already
+  // listed.
+  std::set<cmStdString> emittedTargets;
+  if (this->Parent)
+    {
+    // write our targets, and while doing it collect up the object
+    // file rules
+    this->WriteLocalMakefileTargets(ruleFileStream,emittedTargets);
+    }
+  else
+    {
+    cmGlobalUnixMakefileGenerator3 *gg = 
+      static_cast<cmGlobalUnixMakefileGenerator3*>(this->GlobalGenerator);
+    gg->WriteConvenienceRules(ruleFileStream,emittedTargets);
     }
 
-  std::vector<cmStdString> files;
+  bool do_preprocess_rules =
+    this->GetCreatePreprocessedSourceRules();
+  bool do_assembly_rules =
+    this->GetCreateAssemblySourceRules();
 
-  cmCTestLog(this, OUTPUT, "Submit extra files" << std::endl);
-
-  files = cmSystemTools::SplitString(cfiles, ';');
-  if ( files.size() == 0 )
+  // now write out the object rules
+  // for each object file name
+  for (std::map<cmStdString, LocalObjectInfo>::iterator lo = 
+         this->LocalObjectFiles.begin();
+       lo != this->LocalObjectFiles.end(); ++lo)
     {
-    return 1;
+    // Add a convenience rule for building the object file.
+    this->WriteObjectConvenienceRule(ruleFileStream,
+                                     "target to build an object file",
+                                     lo->first.c_str(), lo->second);
+
+    // Check whether preprocessing and assembly rules make sense.
+    // They make sense only for C and C++ sources.
+    bool lang_is_c_or_cxx = false;
+    for(std::vector<LocalObjectEntry>::const_iterator ei =
+          lo->second.begin(); ei != lo->second.end(); ++ei)
+      {
+      if(ei->Language == "C" || ei->Language == "CXX")
+        {
+        lang_is_c_or_cxx = true;
+        }
+      }
+
+    // Add convenience rules for preprocessed and assembly files.
+    if(lang_is_c_or_cxx && (do_preprocess_rules || do_assembly_rules))
+      {
+      std::string::size_type dot_pos = lo->first.rfind(".");
+      std::string base = lo->first.substr(0, dot_pos);
+      if(do_preprocess_rules)
+        {
+        this->WriteObjectConvenienceRule(
+          ruleFileStream, "target to preprocess a source file",
+          (base + ".i").c_str(), lo->second);
+        }
+      if(do_assembly_rules)
+        {
+        this->WriteObjectConvenienceRule(
+          ruleFileStream, "target to generate assembly for a file",
+          (base + ".s").c_str(), lo->second);
+        }
+      }
     }
 
-  return this->SubmitExtraFiles(files);
+  // add a help target as long as there isn;t a real target named help
+  if(emittedTargets.insert("help").second)
+    {
+    cmGlobalUnixMakefileGenerator3 *gg = 
+      static_cast<cmGlobalUnixMakefileGenerator3*>(this->GlobalGenerator);
+    gg->WriteHelpRule(ruleFileStream,this);
+    }
+
+  this->WriteSpecialTargetsBottom(ruleFileStream);
 }
 
-//----------------------------------------------------------------------
-bool cmCTest::CheckArgument(const std::string& arg, const char* varg1,
-  const char* varg2)
+//----------------------------------------------------------------------------
+void
+cmLocalUnixMakefileGenerator3
+::WriteObjectConvenienceRule(std::ostream& ruleFileStream,
+                             const char* comment, const char* output,
+                             LocalObjectInfo const& targets)
 {
-  if ( varg1 && arg == varg1 || varg2 && arg == varg2 )
+  // Recursively make the rule for each target using the object file.
+  std::vector<std::string> commands;
+  for(std::vector<LocalObjectEntry>::const_iterator t = targets.begin();
+      t != targets.end(); ++t)
     {
-    return true;
+    std::string tgtMakefileName =
+      this->GetRelativeTargetDirectory(*(t->Target));
+    std::string targetName = tgtMakefileName;
+    tgtMakefileName += "/build.make";
+    targetName += "/";
+    targetName += output;
+    commands.push_back(
+      this->GetRecursiveMakeCall(tgtMakefileName.c_str(), targetName.c_str())
+      );
+    this->CreateCDCommand(commands,
+                          this->Makefile->GetHomeOutputDirectory(),
+                          this->Makefile->GetStartOutputDirectory());
     }
-  return false;
+
+  // Write the rule to the makefile.
+  std::vector<std::string> no_depends;
+  this->WriteMakeRule(ruleFileStream, comment,
+                      output, no_depends, commands, true, true);
 }
 
-//----------------------------------------------------------------------
-int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
+//----------------------------------------------------------------------------
+void cmLocalUnixMakefileGenerator3
+::WriteLocalMakefileTargets(std::ostream& ruleFileStream,
+                            std::set<cmStdString> &emitted)
 {
-  this->FindRunningCMake(args[0].c_str());
-  const char* ctestExec = "ctest";
-  bool cmakeAndTest = false;
-  bool performSomeTest = true;
-  for(size_t i=1; i < args.size(); ++i)
+  std::vector<std::string> depends;
+  std::vector<std::string> commands;
+
+  // for each target we just provide a rule to cd up to the top and do a make
+  // on the target
+  cmTargets& targets = this->Makefile->GetTargets();
+  std::string localName;
+  for(cmTargets::iterator t = targets.begin(); t != targets.end(); ++t)
     {
-    std::string arg = args[i];
-    if(this->CheckArgument(arg, "--ctest-config") && i < args.size() - 1)
+    if((t->second.GetType() == cmTarget::EXECUTABLE) ||
+       (t->second.GetType() == cmTarget::STATIC_LIBRARY) ||
+       (t->second.GetType() == cmTarget::SHARED_LIBRARY) ||
+       (t->second.GetType() == cmTarget::MODULE_LIBRARY) ||
+       (t->second.GetType() == cmTarget::UTILITY))
       {
-      i++;
-      this->m_CTestConfigFile= args[i];
-      }
+      emitted.insert(t->second.GetName());
 
-    if(this->CheckArgument(arg, "-C", "--build-config") &&
-      i < args.size() - 1)
-      {
-      i++;
-      this->m_ConfigType = args[i];
-      cmSystemTools::ReplaceString(this->m_ConfigType, ".\\", "");
-      }
+      // for subdirs add a rule to build this specific target by name.
+      localName = this->GetRelativeTargetDirectory(t->second);
+      localName += "/rule";
+      commands.clear();
+      depends.clear();
+      
+      // Build the target for this pass.
+      std::string makefile2 = cmake::GetCMakeFilesDirectoryPostSlash();
+      makefile2 += "Makefile2";
+      commands.push_back(this->GetRecursiveMakeCall
+                         (makefile2.c_str(),localName.c_str()));
+      this->CreateCDCommand(commands,
+                            this->Makefile->GetHomeOutputDirectory(),
+                            this->Makefile->GetStartOutputDirectory());
+      this->WriteMakeRule(ruleFileStream, "Convenience name for target.",
+                          localName.c_str(), depends, commands, true);
+      
+      // Add a target with the canonical name (no prefix, suffix or path).
+      if(localName != t->second.GetName())
+        {
+        commands.clear();
+        depends.push_back(localName);
+        this->WriteMakeRule(ruleFileStream, "Convenience name for target.",
+                            t->second.GetName(), depends, commands, true);
+        }
 
-    if(this->CheckArgument(arg, "--debug"))
-      {
-      this->m_Debug = true;
-      }
-    if(this->CheckArgument(arg, "--show-line-numbers"))
-      {
-      this->m_ShowLineNumbers = true;
-      }
-    if(this->CheckArgument(arg, "-Q", "--quiet"))
-      {
-      this->m_Quiet = true;
-      }
-    if(this->CheckArgument(arg, "-V", "--verbose"))
-      {
-      this->m_Verbose = true;
-      }
-    if(this->CheckArgument(arg, "-VV", "--extra-verbose"))
-      {
-      this->m_ExtraVerbose = true;
-      this->m_Verbose = true;
-      }
+      // Add a fast rule to build the target
+      std::string makefileName = this->GetRelativeTargetDirectory(t->second);
+      makefileName += "/build.make";
+      // make sure the makefile name is suitable for a makefile
+      std::string makeTargetName = 
+        this->GetRelativeTargetDirectory(t->second);
+      makeTargetName += "/build";
+      localName = t->second.GetName();
+      localName += "/fast";
+      depends.clear();
+      commands.clear();
+      commands.push_back(this->GetRecursiveMakeCall
+                         (makefileName.c_str(), makeTargetName.c_str()));
+      this->CreateCDCommand(commands,
+                            this->Makefile->GetHomeOutputDirectory(),
+                            this->Makefile->GetStartOutputDirectory());
+      this->WriteMakeRule(ruleFileStream, "fast build rule for target.",
+                          localName.c_str(), depends, commands, true);
 
-    if(this->CheckArgument(arg, "-N", "--show-only"))
-      {
-      this->m_ShowOnly = true;
-      }
-
-    if(this->CheckArgument(arg, "-S", "--script") && i < args.size() - 1 )
-      {
-      this->m_RunConfigurationScript = true;
-      i++;
-      cmCTestScriptHandler* ch
-        = static_cast<cmCTestScriptHandler*>(this->GetHandler("script"));
-      ch->AddConfigurationScript(args[i].c_str());
-      }
-
-    if(this->CheckArgument(arg, "-O", "--output-log") && i < args.size() - 1 )
-      {
-      i++;
-      this->SetOutputLogFileName(args[i].c_str());
-      }
-
-    if(this->CheckArgument(arg, "--tomorrow-tag"))
-      {
-      m_TomorrowTag = true;
-      }
-    if(this->CheckArgument(arg, "--force-new-ctest-process"))
-      {
-      m_ForceNewCTestProcess = true;
-      }
-    if(this->CheckArgument(arg, "--interactive-debug-mode") &&
-      i < args.size() - 1 )
-      {
-      i++;
-      m_InteractiveDebugMode = cmSystemTools::IsOn(args[i].c_str());
-      }
-    if(this->CheckArgument(arg, "--submit-index") && i < args.size() - 1 )
-      {
-      i++;
-      m_SubmitIndex = atoi(args[i].c_str());
-      if ( m_SubmitIndex < 0 )
+      // Add a local name for the rule to relink the target before
+      // installation.
+      if(t->second.NeedRelinkBeforeInstall())
         {
-        m_SubmitIndex = 0;
-        }
-      }
-    if(this->CheckArgument(arg, "-D", "--dashboard") && i < args.size() - 1 )
-      {
-      this->m_ProduceXML = true;
-      i++;
-      std::string targ = args[i];
-      if ( targ == "Experimental" )
-        {
-        this->SetTestModel(cmCTest::EXPERIMENTAL);
-        this->SetTest("Start");
-        this->SetTest("Configure");
-        this->SetTest("Build");
-        this->SetTest("Test");
-        this->SetTest("Coverage");
-        this->SetTest("Submit");
-        }
-      else if ( targ == "ExperimentalStart" )
-        {
-        this->SetTestModel(cmCTest::EXPERIMENTAL);
-        this->SetTest("Start");
-        }
-      else if ( targ == "ExperimentalUpdate" )
-        {
-        this->SetTestModel(cmCTest::EXPERIMENTAL);
-        this->SetTest("Update");
-        }
-      else if ( targ == "ExperimentalConfigure" )
-        {
-        this->SetTestModel(cmCTest::EXPERIMENTAL);
-        this->SetTest("Configure");
-        }
-      else if ( targ == "ExperimentalBuild" )
-        {
-        this->SetTestModel(cmCTest::EXPERIMENTAL);
-        this->SetTest("Build");
-        }
-      else if ( targ == "ExperimentalTest" )
-        {
-        this->SetTestModel(cmCTest::EXPERIMENTAL);
-        this->SetTest("Test");
-        }
-      else if ( targ == "ExperimentalMemCheck"
-        || targ == "ExperimentalPurify" )
-        {
-        this->SetTestModel(cmCTest::EXPERIMENTAL);
-        this->SetTest("MemCheck");
-        }
-      else if ( targ == "ExperimentalCoverage" )
-        {
-        this->SetTestModel(cmCTest::EXPERIMENTAL);
-        this->SetTest("Coverage");
-        }
-      else if ( targ == "ExperimentalSubmit" )
-        {
-        this->SetTestModel(cmCTest::EXPERIMENTAL);
-        this->SetTest("Submit");
-        }
-      else if ( targ == "Continuous" )
-        {
-        this->SetTestModel(cmCTest::CONTINUOUS);
-        this->SetTest("Start");
-        this->SetTest("Update");
-        this->SetTest("Configure");
-        this->SetTest("Build");
-        this->SetTest("Test");
-        this->SetTest("Coverage");
-        this->SetTest("Submit");
-        }
-      else if ( targ == "ContinuousStart" )
-        {
-        this->SetTestModel(cmCTest::CONTINUOUS);
-        this->SetTest("Start");
-        }
-      else if ( targ == "ContinuousUpdate" )
-        {
-        this->SetTestModel(cmCTest::CONTINUOUS);
-        this->SetTest("Update");
-        }
-      else if ( targ == "ContinuousConfigure" )
-        {
-        this->SetTestModel(cmCTest::CONTINUOUS);
-        this->SetTest("Configure");
-        }
-      else if ( targ == "ContinuousBuild" )
-        {
-        this->SetTestModel(cmCTest::CONTINUOUS);
-        this->SetTest("Build");
-        }
-      else if ( targ == "ContinuousTest" )
-        {
-        this->SetTestModel(cmCTest::CONTINUOUS);
-        this->SetTest("Test");
-        }
-      else if ( targ == "ContinuousMemCheck"
-        || targ == "ContinuousPurify" )
-        {
-        this->SetTestModel(cmCTest::CONTINUOUS);
-        this->SetTest("MemCheck");
-        }
-      else if ( targ == "ContinuousCoverage" )
-        {
-        this->SetTestModel(cmCTest::CONTINUOUS);
-        this->SetTest("Coverage");
-        }
-      else if ( targ == "ContinuousSubmit" )
-        {
-        this->SetTestModel(cmCTest::CONTINUOUS);
-        this->SetTest("Submit");
-        }
-      else if ( targ == "Nightly" )
-        {
-        this->SetTestModel(cmCTest::NIGHTLY);
-        this->SetTest("Start");
-        this->SetTest("Update");
-        this->SetTest("Configure");
-        this->SetTest("Build");
-        this->SetTest("Test");
-        this->SetTest("Coverage");
-        this->SetTest("Submit");
-        }
-      else if ( targ == "NightlyStart" )
-        {
-        this->SetTestModel(cmCTest::NIGHTLY);
-        this->SetTest("Start");
-        }
-      else if ( targ == "NightlyUpdate" )
-        {
-        this->SetTestModel(cmCTest::NIGHTLY);
-        this->SetTest("Update");
-        }
-      else if ( targ == "NightlyConfigure" )
-        {
-        this->SetTestModel(cmCTest::NIGHTLY);
-        this->SetTest("Configure");
-        }
-      else if ( targ == "NightlyBuild" )
-        {
-        this->SetTestModel(cmCTest::NIGHTLY);
-        this->SetTest("Build");
-        }
-      else if ( targ == "NightlyTest" )
-        {
-        this->SetTestModel(cmCTest::NIGHTLY);
-        this->SetTest("Test");
-        }
-      else if ( targ == "NightlyMemCheck"
-        || targ == "NightlyPurify" )
-        {
-        this->SetTestModel(cmCTest::NIGHTLY);
-        this->SetTest("MemCheck");
-        }
-      else if ( targ == "NightlyCoverage" )
-        {
-        this->SetTestModel(cmCTest::NIGHTLY);
-        this->SetTest("Coverage");
-        }
-      else if ( targ == "NightlySubmit" )
-        {
-        this->SetTestModel(cmCTest::NIGHTLY);
-        this->SetTest("Submit");
-        }
-      else if ( targ == "MemoryCheck" )
-        {
-        this->SetTestModel(cmCTest::EXPERIMENTAL);
-        this->SetTest("Start");
-        this->SetTest("Configure");
-        this->SetTest("Build");
-        this->SetTest("MemCheck");
-        this->SetTest("Coverage");
-        this->SetTest("Submit");
-        }
-      else if ( targ == "NightlyMemoryCheck" )
-        {
-        this->SetTestModel(cmCTest::NIGHTLY);
-        this->SetTest("Start");
-        this->SetTest("Update");
-        this->SetTest("Configure");
-        this->SetTest("Build");
-        this->SetTest("MemCheck");
-        this->SetTest("Coverage");
-        this->SetTest("Submit");
-        }
-      else
-        {
-        performSomeTest = false;
-        cmCTestLog(this, ERROR_MESSAGE,
-          "CTest -D called with incorrect option: " << targ << std::endl);
-        cmCTestLog(this, ERROR_MESSAGE, "Available options are:" << std::endl
-          << "  " << ctestExec << " -D Continuous" << std::endl
-          << "  " << ctestExec
-          << " -D Continuous(Start|Update|Configure|Build)" << std::endl
-          << "  " << ctestExec
-          << " -D Continuous(Test|Coverage|MemCheck|Submit)" << std::endl
-          << "  " << ctestExec << " -D Experimental" << std::endl
-          << "  " << ctestExec
-          << " -D Experimental(Start|Update|Configure|Build)" << std::endl
-          << "  " << ctestExec
-          << " -D Experimental(Test|Coverage|MemCheck|Submit)" << std::endl
-          << "  " << ctestExec << " -D Nightly" << std::endl
-          << "  " << ctestExec
-          << " -D Nightly(Start|Update|Configure|Build)" << std::endl
-          << "  " << ctestExec
-          << " -D Nightly(Test|Coverage|MemCheck|Submit)" << std::endl
-          << "  " << ctestExec << " -D NightlyMemoryCheck" << std::endl);
-        }
-      }
-
-    if(this->CheckArgument(arg, "-T", "--test-action") &&
-      (i < args.size() -1) )
-      {
-      this->m_ProduceXML = true;
-      i++;
-      if ( !this->SetTest(args[i].c_str(), false) )
-        {
-        performSomeTest = false;
-        cmCTestLog(this, ERROR_MESSAGE,
-          "CTest -T called with incorrect option: "
-          << args[i].c_str() << std::endl);
-        cmCTestLog(this, ERROR_MESSAGE, "Available options are:" << std::endl
-          << "  " << ctestExec << " -T all" << std::endl
-          << "  " << ctestExec << " -T start" << std::endl
-          << "  " << ctestExec << " -T update" << std::endl
-          << "  " << ctestExec << " -T configure" << std::endl
-          << "  " << ctestExec << " -T build" << std::endl
-          << "  " << ctestExec << " -T test" << std::endl
-          << "  " << ctestExec << " -T coverage" << std::endl
-          << "  " << ctestExec << " -T memcheck" << std::endl
-          << "  " << ctestExec << " -T notes" << std::endl
-          << "  " << ctestExec << " -T submit" << std::endl);
-        }
-      }
-
-    if(this->CheckArgument(arg, "-M", "--test-model") &&
-      (i < args.size() -1) )
-      {
-      i++;
-      std::string const& str = args[i];
-      if ( cmSystemTools::LowerCase(str) == "nightly" )
-        {
-        this->SetTestModel(cmCTest::NIGHTLY);
-        }
-      else if ( cmSystemTools::LowerCase(str) == "continuous" )
-        {
-        this->SetTestModel(cmCTest::CONTINUOUS);
-        }
-      else if ( cmSystemTools::LowerCase(str) == "experimental" )
-        {
-        this->SetTestModel(cmCTest::EXPERIMENTAL);
-        }
-      else
-        {
-        performSomeTest = false;
-        cmCTestLog(this, ERROR_MESSAGE,
-          "CTest -M called with incorrect option: " << str.c_str()
-          << std::endl);
-        cmCTestLog(this, ERROR_MESSAGE, "Available options are:" << std::endl
-          << "  " << ctestExec << " -M Continuous" << std::endl
-          << "  " << ctestExec << " -M Experimental" << std::endl
-          << "  " << ctestExec << " -M Nightly" << std::endl);
-        }
-      }
-
-    if(this->CheckArgument(arg, "-I", "--tests-information") &&
-      i < args.size() - 1)
-      {
-      i++;
-      this->GetHandler("test")->SetOption("TestsToRunInformation",
-        args[i].c_str());
-      }
-    if(this->CheckArgument(arg, "-U", "--union"))
-      {
-      this->GetHandler("test")->SetOption("UseUnion", "true");
-      }
-    if(this->CheckArgument(arg, "-R", "--tests-regex") && i < args.size() - 1)
-      {
-      i++;
-      this->GetHandler("test")->SetOption("IncludeRegularExpression",
-        args[i].c_str());
-      }
-
-    if(this->CheckArgument(arg, "-E", "--exclude-regex") &&
-      i < args.size() - 1)
-      {
-      i++;
-      this->GetHandler("test")->SetOption("ExcludeRegularExpression",
-        args[i].c_str());
-      }
-
-    if(this->CheckArgument(arg, "--overwrite") && i < args.size() - 1)
-      {
-      i++;
-      this->AddCTestConfigurationOverwrite(args[i].c_str());
-      }
-    if(this->CheckArgument(arg, "-A", "--add-notes") && i < args.size() - 1)
-      {
-      this->m_ProduceXML = true;
-      this->SetTest("Notes");
-      i++;
-      this->SetNotesFiles(args[i].c_str());
-      }
-    if(this->CheckArgument(arg, "--extra-submit") && i < args.size() - 1)
-      {
-      this->m_ProduceXML = true;
-      this->SetTest("Submit");
-      i++;
-      if ( !this->SubmitExtraFiles(args[i].c_str()) )
-        {
-        return 0;
-        }
-      }
-    // --build-and-test options
-    if(this->CheckArgument(arg, "--build-and-test") && i < args.size() - 1)
-      {
-      cmakeAndTest = true;
-      }
-    cmCTest::t_TestingHandlers::iterator it;
-    for ( it = m_TestingHandlers.begin();
-      it != m_TestingHandlers.end();
-      ++ it )
-      {
-      if ( !it->second->ProcessCommandLineArguments(arg, i, args) )
-        {
-        cmCTestLog(this, ERROR_MESSAGE,
-          "Problem parsing command line arguments within a handler");
-        return 0;
+        makeTargetName = this->GetRelativeTargetDirectory(t->second);
+        makeTargetName += "/preinstall";
+        localName = t->second.GetName();
+        localName += "/preinstall";
+        depends.clear();
+        commands.clear();
+        commands.push_back(this->GetRecursiveMakeCall
+                           (makefile2.c_str(), makeTargetName.c_str()));
+        this->CreateCDCommand(commands,
+                              this->Makefile->GetHomeOutputDirectory(),
+                              this->Makefile->GetStartOutputDirectory());
+        this->WriteMakeRule(ruleFileStream,
+                            "Manual pre-install relink rule for target.",
+                            localName.c_str(), depends, commands, true);
         }
       }
     }
-
-  // default to the build type of ctest itself
-  if(m_ConfigType.size() == 0)
-    {
-#ifdef  CMAKE_INTDIR
-    m_ConfigType = CMAKE_INTDIR;
-#endif
-    }
-
-  if(cmakeAndTest)
-    {
-    m_Verbose = true;
-    cmCTestBuildAndTestHandler* handler =
-      static_cast<cmCTestBuildAndTestHandler*>(this->GetHandler("buildtest"));
-    int retv = handler->ProcessHandler();
-    *output = handler->GetOutput();
-#ifdef CMAKE_BUILD_WITH_CMAKE
-    cmDynamicLoader::FlushCache();
-#endif
-    return retv;
-    }
-
-  if(performSomeTest )
-    {
-    int res;
-    // call process directory
-    if (this->m_RunConfigurationScript)
-      {
-      if ( m_ExtraVerbose )
-        {
-        cmCTestLog(this, OUTPUT, "* Extra verbosity turned on" << std::endl);
-        }
-      cmCTest::t_TestingHandlers::iterator it;
-      for ( it = m_TestingHandlers.begin();
-        it != m_TestingHandlers.end();
-        ++ it )
-        {
-        it->second->SetVerbose(this->m_ExtraVerbose);
-        it->second->SetSubmitIndex(m_SubmitIndex);
-        }
-      this->GetHandler("script")->SetVerbose(m_Verbose);
-      res = this->GetHandler("script")->ProcessHandler();
-      }
-    else
-      {
-      m_ExtraVerbose = m_Verbose;
-      m_Verbose = true;
-      cmCTest::t_TestingHandlers::iterator it;
-      for ( it = m_TestingHandlers.begin();
-        it != m_TestingHandlers.end();
-        ++ it )
-        {
-        it->second->SetVerbose(this->m_Verbose);
-        it->second->SetSubmitIndex(m_SubmitIndex);
-        }
-      cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
-      if ( !this->Initialize(
-          cmSystemTools::GetCurrentWorkingDirectory().c_str()) )
-        {
-        cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
-        res = 12;
-        cmCTestLog(this, ERROR_MESSAGE, "Problem initializing the dashboard."
-          << std::endl);
-        }
-      else
-        {
-        res = this->ProcessTests();
-        }
-      this->Finalize();
-      }
-    return res;
-    }
-  return 1;
 }
 
-//----------------------------------------------------------------------
-void cmCTest::FindRunningCMake(const char* arg0)
+//----------------------------------------------------------------------------
+void cmLocalUnixMakefileGenerator3::WriteDirectoryInformationFile()
 {
-  // Find our own executable.
-  std::vector<cmStdString> failures;
-  m_CTestSelf = arg0;
-  cmSystemTools::ConvertToUnixSlashes(m_CTestSelf);
-  failures.push_back(m_CTestSelf);
-  m_CTestSelf = cmSystemTools::FindProgram(m_CTestSelf.c_str());
-  if(!cmSystemTools::FileExists(m_CTestSelf.c_str()))
+  std::string infoFileName = this->Makefile->GetStartOutputDirectory();
+  infoFileName += cmake::GetCMakeFilesDirectory();
+  infoFileName += "/CMakeDirectoryInformation.cmake";
+
+  // Open the output file.
+  cmGeneratedFileStream infoFileStream(infoFileName.c_str());
+  if(!infoFileStream)
     {
-    failures.push_back(m_CTestSelf);
-    m_CTestSelf =  "/usr/local/bin/ctest";
+    return;
     }
-  if(!cmSystemTools::FileExists(m_CTestSelf.c_str()))
+
+  // Write the do not edit header.
+  this->WriteDisclaimer(infoFileStream);
+
+  // Setup relative path conversion tops.
+  infoFileStream
+    << "# Relative path conversion top directories.\n"
+    << "SET(CMAKE_RELATIVE_PATH_TOP_SOURCE \"" << this->RelativePathTopSource
+    << "\")\n"
+    << "SET(CMAKE_RELATIVE_PATH_TOP_BINARY \"" << this->RelativePathTopBinary
+    << "\")\n"
+    << "\n";
+
+  // Tell the dependency scanner to use unix paths if necessary.
+  if(cmSystemTools::GetForceUnixPaths())
     {
-    failures.push_back(m_CTestSelf);
-    cmOStringStream msg;
-    msg << "CTEST can not find the command line program ctest.\n";
-    msg << "  argv[0] = \"" << arg0 << "\"\n";
-    msg << "  Attempted paths:\n";
-    std::vector<cmStdString>::iterator i;
-    for(i=failures.begin(); i != failures.end(); ++i)
+    infoFileStream
+      << "# Force unix paths in dependencies.\n"
+      << "SET(CMAKE_FORCE_UNIX_PATHS 1)\n"
+      << "\n";
+    }
+
+  // Store the include search path for this directory.
+  infoFileStream
+    << "# The C and CXX include file search paths:\n";
+  infoFileStream
+    << "SET(CMAKE_C_INCLUDE_PATH\n";
+  std::vector<std::string> includeDirs;
+  this->GetIncludeDirectories(includeDirs, false);
+  for(std::vector<std::string>::iterator i = includeDirs.begin();
+      i != includeDirs.end(); ++i)
+    {
+    infoFileStream
+      << "  \"" << this->Convert(i->c_str(),HOME_OUTPUT).c_str() << "\"\n";
+    }
+  infoFileStream
+    << "  )\n";
+  infoFileStream
+    << "SET(CMAKE_CXX_INCLUDE_PATH ${CMAKE_C_INCLUDE_PATH})\n";
+  infoFileStream
+    << "SET(CMAKE_Fortran_INCLUDE_PATH ${CMAKE_C_INCLUDE_PATH})\n";
+
+  // Store the include regular expressions for this directory.
+  infoFileStream
+    << "\n"
+    << "# The C and CXX include file regular expressions for "
+    << "this directory.\n";
+  infoFileStream
+    << "SET(CMAKE_C_INCLUDE_REGEX_SCAN ";
+  this->WriteCMakeArgument(infoFileStream,
+                           this->Makefile->GetIncludeRegularExpression());
+  infoFileStream
+    << ")\n";
+  infoFileStream
+    << "SET(CMAKE_C_INCLUDE_REGEX_COMPLAIN ";
+  this->WriteCMakeArgument(infoFileStream,
+                           this->Makefile->GetComplainRegularExpression());
+  infoFileStream
+    << ")\n";
+  infoFileStream
+    << "SET(CMAKE_CXX_INCLUDE_REGEX_SCAN ${CMAKE_C_INCLUDE_REGEX_SCAN})\n";
+  infoFileStream
+    << "SET(CMAKE_CXX_INCLUDE_REGEX_COMPLAIN "
+    "${CMAKE_C_INCLUDE_REGEX_COMPLAIN})\n";
+}
+
+//----------------------------------------------------------------------------
+std::string
+cmLocalUnixMakefileGenerator3
+::ConvertToFullPath(const std::string& localPath)
+{
+  std::string dir = this->Makefile->GetStartOutputDirectory();
+  dir += "/";
+  dir += localPath;
+  return dir;
+}
+
+
+const std::string &cmLocalUnixMakefileGenerator3::GetHomeRelativeOutputPath()
+{
+  return this->HomeRelativeOutputPath;
+}
+
+
+//----------------------------------------------------------------------------
+void
+cmLocalUnixMakefileGenerator3
+::WriteMakeRule(std::ostream& os,
+                const char* comment,
+                const char* target,
+                const std::vector<std::string>& depends,
+                const std::vector<std::string>& commands,
+                bool symbolic,
+                bool in_help)
+{
+  // Make sure there is a target.
+  if(!target || !*target)
+    {
+    cmSystemTools::Error("No target for WriteMakeRule! called with comment: ",
+                         comment);
+    return;
+    }
+
+  std::string replace;
+
+  // Write the comment describing the rule in the makefile.
+  if(comment)
+    {
+    replace = comment;
+    std::string::size_type lpos = 0;
+    std::string::size_type rpos;
+    while((rpos = replace.find('\n', lpos)) != std::string::npos)
       {
-      msg << "    \"" << i->c_str() << "\"\n";
+      os << "# " << replace.substr(lpos, rpos-lpos) << "\n";
+      lpos = rpos+1;
       }
-    cmSystemTools::Error(msg.str().c_str());
+    os << "# " << replace.substr(lpos) << "\n";
     }
-  std::string dir;
-  std::string file;
-  if(cmSystemTools::SplitProgramPath(m_CTestSelf.c_str(),
-                                     dir, file, true))
+
+  // Construct the left hand side of the rule.
+  replace = target;
+  std::string tgt = this->Convert(replace.c_str(),HOME_OUTPUT,MAKEFILE);
+  const char* space = "";
+  if(tgt.size() == 1)
     {
-    m_CMakeSelf = dir += "/cmake";
-    m_CMakeSelf += cmSystemTools::GetExecutableExtension();
-    if(cmSystemTools::FileExists(m_CMakeSelf.c_str()))
+    // Add a space before the ":" to avoid drive letter confusion on
+    // Windows.
+    space = " ";
+    }
+
+  // Mark the rule as symbolic if requested.
+  if(symbolic)
+    {
+    if(const char* sym =
+       this->Makefile->GetDefinition("CMAKE_MAKE_SYMBOLIC_RULE"))
       {
+      os << tgt.c_str() << space << ": " << sym << "\n";
+      }
+    }
+
+  // Write the rule.
+  if(depends.empty())
+    {
+    // No dependencies.  The commands will always run.
+    os << tgt.c_str() << space << ":\n";
+    }
+  else
+    {
+    // Split dependencies into multiple rule lines.  This allows for
+    // very long dependency lists even on older make implementations.
+    for(std::vector<std::string>::const_iterator dep = depends.begin();
+        dep != depends.end(); ++dep)
+      {
+      replace = *dep;
+      replace = this->Convert(replace.c_str(),HOME_OUTPUT,MAKEFILE);
+      os << tgt.c_str() << space << ": " << replace.c_str() << "\n";
+      }
+    }
+
+  // Write the list of commands.
+  for(std::vector<std::string>::const_iterator i = commands.begin();
+      i != commands.end(); ++i)
+    {
+    replace = *i;
+    os << "\t" << replace.c_str() << "\n";
+    }
+  os << "\n";
+
+  // Add the output to the local help if requested.
+  if(in_help)
+    {
+    this->LocalHelp.push_back(target);
+    }
+}
+
+//----------------------------------------------------------------------------
+void
+cmLocalUnixMakefileGenerator3
+::WriteMakeVariables(std::ostream& makefileStream)
+{
+  this->WriteDivider(makefileStream);
+  makefileStream
+    << "# Set environment variables for the build.\n"
+    << "\n";
+  if(this->DefineWindowsNULL)
+    {
+    makefileStream
+      << "!IF \"$(OS)\" == \"Windows_NT\"\n"
+      << "NULL=\n"
+      << "!ELSE\n"
+      << "NULL=nul\n"
+      << "!ENDIF\n";
+    }
+  if(this->WindowsShell)
+    {
+     makefileStream
+       << "SHELL = cmd.exe\n"
+       << "\n";
+    }
+  else
+    {
+      makefileStream
+        << "# The shell in which to execute make rules.\n"
+        << "SHELL = /bin/sh\n"
+        << "\n";
+    }
+
+  std::string cmakecommand =
+      this->Makefile->GetRequiredDefinition("CMAKE_COMMAND");
+  makefileStream
+    << "# The CMake executable.\n"
+    << "CMAKE_COMMAND = "
+    << this->Convert(cmakecommand.c_str(), FULL, SHELL).c_str() 
+    << "\n"
+    << "\n";
+  makefileStream
+    << "# The command to remove a file.\n"
+    << "RM = "
+    << this->Convert(cmakecommand.c_str(),FULL,SHELL).c_str()
+    << " -E remove -f\n"
+    << "\n";
+  
+  if(this->Makefile->GetDefinition("CMAKE_EDIT_COMMAND"))
+    {
+    makefileStream
+      << "# The program to use to edit the cache.\n"
+      << "CMAKE_EDIT_COMMAND = "
+      << (this->ConvertToOutputForExisting(
+            this->Makefile->GetDefinition("CMAKE_EDIT_COMMAND"))) << "\n"
+      << "\n";
+    }
+
+  makefileStream
+    << "# The top-level source directory on which CMake was run.\n"
+    << "CMAKE_SOURCE_DIR = "
+    << this->Convert(this->Makefile->GetHomeDirectory(), FULL, SHELL)
+    << "\n"
+    << "\n";
+  makefileStream
+    << "# The top-level build directory on which CMake was run.\n"
+    << "CMAKE_BINARY_DIR = "
+    << this->Convert(this->Makefile->GetHomeOutputDirectory(), FULL, SHELL)
+    << "\n"
+    << "\n";
+}
+
+//----------------------------------------------------------------------------
+void
+cmLocalUnixMakefileGenerator3
+::WriteSpecialTargetsTop(std::ostream& makefileStream)
+{
+  this->WriteDivider(makefileStream);
+  makefileStream
+    << "# Special targets provided by cmake.\n"
+    << "\n";
+
+  std::vector<std::string> no_commands;
+  std::vector<std::string> no_depends;
+
+  // Special target to cleanup operation of make tool.
+  // This should be the first target except for the default_target in
+  // the interface Makefile.
+  this->WriteMakeRule(
+    makefileStream, "Disable implicit rules so canoncical targets will work.",
+    ".SUFFIXES", no_depends, no_commands, false);
+
+  // Add a fake suffix to keep HP happy.  Must be max 32 chars for SGI make.
+  std::vector<std::string> depends;
+  depends.push_back(".hpux_make_needs_suffix_list");
+  this->WriteMakeRule(makefileStream, 0,
+                      ".SUFFIXES", depends, no_commands, false);
+
+  cmGlobalUnixMakefileGenerator3* gg =
+    static_cast<cmGlobalUnixMakefileGenerator3*>(this->GlobalGenerator);
+  // Write special target to silence make output.  This must be after
+  // the default target in case VERBOSE is set (which changes the
+  // name).  The setting of CMAKE_VERBOSE_MAKEFILE to ON will cause a
+  // "VERBOSE=1" to be added as a make variable which will change the
+  // name of this special target.  This gives a make-time choice to
+  // the user.
+  if((this->Makefile->IsOn("CMAKE_VERBOSE_MAKEFILE")) 
+     || (gg->GetForceVerboseMakefiles()))
+    {
+    makefileStream
+      << "# Produce verbose output by default.\n"
+      << "VERBOSE = 1\n"
+      << "\n";
+    }
+  if(this->SilentNoColon)
+    {
+    makefileStream << "$(VERBOSE).SILENT\n";
+    }
+  else
+    {
+    this->WriteMakeRule(makefileStream,
+                        "Suppress display of executed commands.",
+                        "$(VERBOSE).SILENT",
+                        no_depends,
+                        no_commands, false);
+    }
+
+  // Work-around for makes that drop rules that have no dependencies
+  // or commands.
+  std::string hack = gg->GetEmptyRuleHackDepends();
+  if(!hack.empty())
+    {
+    no_depends.push_back(hack);
+    }
+  std::string hack_cmd = gg->GetEmptyRuleHackCommand();
+  if(!hack_cmd.empty())
+    {
+    no_commands.push_back(hack_cmd);
+    }
+
+  // Special symbolic target that never exists to force dependers to
+  // run their rules.
+  this->WriteMakeRule
+    (makefileStream,
+     "A target that is always out of date.",
+     "cmake_force", no_depends, no_commands, true);
+
+  // Variables for reference by other rules.
+  this->WriteMakeVariables(makefileStream);
+}
+
+//----------------------------------------------------------------------------
+void cmLocalUnixMakefileGenerator3
+::WriteSpecialTargetsBottom(std::ostream& makefileStream)
+{
+  this->WriteDivider(makefileStream);
+  makefileStream
+    << "# Special targets to cleanup operation of make.\n"
+    << "\n";
+
+  // Write special "cmake_check_build_system" target to run cmake with
+  // the --check-build-system flag.
+  {
+  // Build command to run CMake to check if anything needs regenerating.
+  std::string cmakefileName = cmake::GetCMakeFilesDirectoryPostSlash();
+  cmakefileName += "Makefile.cmake";
+  std::string runRule =
+    "$(CMAKE_COMMAND) -H$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)";
+  runRule += " --check-build-system ";
+  runRule += this->Convert(cmakefileName.c_str(),NONE,SHELL);
+  runRule += " 0";
+
+  std::vector<std::string> no_depends;
+  std::vector<std::string> commands;
+  commands.push_back(runRule);
+  if(this->Parent)
+    {
+    this->CreateCDCommand(commands,
+                          this->Makefile->GetHomeOutputDirectory(),
+                          this->Makefile->GetStartOutputDirectory());
+    }
+  this->WriteMakeRule(makefileStream,
+                      "Special rule to run CMake to check the build system "
+                      "integrity.\n"
+                      "No rule that depends on this can have "
+                      "commands that come from listfiles\n"
+                      "because they might be regenerated.",
+                      "cmake_check_build_system",
+                      no_depends,
+                      commands, true);
+  }
+}
+
+
+
+//----------------------------------------------------------------------------
+void
+cmLocalUnixMakefileGenerator3
+::WriteConvenienceRule(std::ostream& ruleFileStream,
+                       const char* realTarget,
+                       const char* helpTarget)
+{
+  // A rule is only needed if the names are different.
+  if(strcmp(realTarget, helpTarget) != 0)
+    {
+    // The helper target depends on the real target.
+    std::vector<std::string> depends;
+    depends.push_back(realTarget);
+
+    // There are no commands.
+    std::vector<std::string> no_commands;
+
+    // Write the rule.
+    this->WriteMakeRule(ruleFileStream, "Convenience name for target.",
+                        helpTarget, depends, no_commands, true);
+    }
+}
+
+
+//----------------------------------------------------------------------------
+std::string
+cmLocalUnixMakefileGenerator3::GetRelativeTargetDirectory(cmTarget& target)
+{
+  std::string dir = this->HomeRelativeOutputPath;
+  dir += this->GetTargetDirectory(target);
+  return this->Convert(dir.c_str(),NONE,UNCHANGED);
+}
+
+
+
+//----------------------------------------------------------------------------
+void cmLocalUnixMakefileGenerator3::AppendFlags(std::string& flags,
+                                                const char* newFlags)
+{
+  if(this->WatcomWMake && newFlags && *newFlags)
+    {
+    std::string newf = newFlags;
+    if(newf.find("\\\"") != newf.npos)
+      {
+      cmSystemTools::ReplaceString(newf, "\\\"", "\"");
+      this->cmLocalGenerator::AppendFlags(flags, newf.c_str());
       return;
       }
     }
-  failures.push_back(m_CMakeSelf);
-#ifdef CMAKE_BUILD_DIR
-  std::string intdir = ".";
-#ifdef  CMAKE_INTDIR
-  intdir = CMAKE_INTDIR;
-#endif
-  m_CMakeSelf = CMAKE_BUILD_DIR;
-  m_CMakeSelf += "/bin/";
-  m_CMakeSelf += intdir;
-  m_CMakeSelf += "/cmake";
-  m_CMakeSelf += cmSystemTools::GetExecutableExtension();
-#endif
-  if(!cmSystemTools::FileExists(m_CMakeSelf.c_str()))
+  this->cmLocalGenerator::AppendFlags(flags, newFlags);
+}
+
+//----------------------------------------------------------------------------
+void
+cmLocalUnixMakefileGenerator3
+::AppendRuleDepend(std::vector<std::string>& depends,
+                   const char* ruleFileName)
+{
+  // Add a dependency on the rule file itself unless an option to skip
+  // it is specifically enabled by the user or project.
+  const char* nodep = 
+    this->Makefile->GetDefinition("CMAKE_SKIP_RULE_DEPENDENCY");
+  if(!nodep || cmSystemTools::IsOff(nodep))
     {
-    failures.push_back(m_CMakeSelf);
-    cmOStringStream msg;
-    msg << "CTEST can not find the command line program cmake.\n";
-    msg << "  argv[0] = \"" << arg0 << "\"\n";
-    msg << "  Attempted paths:\n";
-    std::vector<cmStdString>::iterator i;
-    for(i=failures.begin(); i != failures.end(); ++i)
+    depends.push_back(ruleFileName);
+    }
+}
+
+//----------------------------------------------------------------------------
+void
+cmLocalUnixMakefileGenerator3
+::AppendCustomDepends(std::vector<std::string>& depends,
+                      const std::vector<cmCustomCommand>& ccs)
+{
+  for(std::vector<cmCustomCommand>::const_iterator i = ccs.begin();
+      i != ccs.end(); ++i)
+    {
+    this->AppendCustomDepend(depends, *i);
+    }
+}
+
+//----------------------------------------------------------------------------
+void
+cmLocalUnixMakefileGenerator3
+::AppendCustomDepend(std::vector<std::string>& depends,
+                     const cmCustomCommand& cc)
+{
+  for(std::vector<std::string>::const_iterator d = cc.GetDepends().begin();
+      d != cc.GetDepends().end(); ++d)
+    {
+    // Lookup the real name of the dependency in case it is a CMake target.
+    std::string dep = this->GetRealDependency
+      (d->c_str(), this->ConfigurationName.c_str());
+    depends.push_back(dep);
+    }
+}
+
+//----------------------------------------------------------------------------
+void
+cmLocalUnixMakefileGenerator3
+::AppendCustomCommands(std::vector<std::string>& commands,
+                       const std::vector<cmCustomCommand>& ccs)
+{
+  for(std::vector<cmCustomCommand>::const_iterator i = ccs.begin();
+      i != ccs.end(); ++i)
+    {
+    this->AppendCustomCommand(commands, *i, true);
+    }
+}
+
+//----------------------------------------------------------------------------
+void
+cmLocalUnixMakefileGenerator3
+::AppendCustomCommand(std::vector<std::string>& commands,
+                      const cmCustomCommand& cc, bool echo_comment)
+{
+  // Optionally create a command to display the custom command's
+  // comment text.  This is used for pre-build, pre-link, and
+  // post-build command comments.  Custom build step commands have
+  // their comments generated elsewhere.
+  if(echo_comment)
+    {
+    const char* comment = cc.GetComment();
+    if(comment && *comment)
       {
-      msg << "    \"" << i->c_str() << "\"\n";
-      }
-    cmSystemTools::Error(msg.str().c_str());
-    }
-}
-
-//----------------------------------------------------------------------
-void cmCTest::SetNotesFiles(const char* notes)
-{
-  if ( !notes )
-    {
-    return;
-    }
-  m_NotesFiles = notes;
-}
-
-//----------------------------------------------------------------------
-int cmCTest::ReadCustomConfigurationFileTree(const char* dir)
-{
-  VectorOfStrings dirs;
-  VectorOfStrings ndirs;
-  cmake cm;
-  cmGlobalGenerator gg;
-  gg.SetCMakeInstance(&cm);
-  std::auto_ptr<cmLocalGenerator> lg(gg.CreateLocalGenerator());
-  lg->SetGlobalGenerator(&gg);
-  cmMakefile *mf = lg->GetMakefile();
-
-  std::string rexpr = dir;
-  rexpr += "/CTestCustom.ctest";
-  cmGlob gl;
-  gl.RecurseOn();
-  gl.FindFiles(rexpr);
-  std::vector<std::string>& files = gl.GetFiles();
-  std::vector<std::string>::iterator fileIt;
-  for ( fileIt = files.begin(); fileIt != files.end();
-    ++ fileIt )
-    {
-    cmCTestLog(this, DEBUG, "* Read custom CTest configuration file: "
-      << fileIt->c_str() << std::endl);
-    if ( !lg->GetMakefile()->ReadListFile(0, fileIt->c_str()) ||
-      cmSystemTools::GetErrorOccuredFlag() )
-      {
-      cmCTestLog(this, ERROR_MESSAGE, "Problem reading custom configuration: "
-        << fileIt->c_str() << std::endl);
-      }
-    }
-
-  cmCTest::t_TestingHandlers::iterator it;
-  for ( it = m_TestingHandlers.begin(); it != m_TestingHandlers.end(); ++ it )
-    {
-    it->second->PopulateCustomVectors(mf);
-    }
-
-  return 1;
-}
-
-//----------------------------------------------------------------------
-void cmCTest::PopulateCustomVector(cmMakefile* mf, const char* def,
-  VectorOfStrings& vec)
-{
-  if ( !def)
-    {
-    return;
-    }
-  const char* dval = mf->GetDefinition(def);
-  if ( !dval )
-    {
-    return;
-    }
-  std::vector<std::string> slist;
-  cmSystemTools::ExpandListArgument(dval, slist);
-  std::vector<std::string>::iterator it;
-
-  for ( it = slist.begin(); it != slist.end(); ++it )
-    {
-    vec.push_back(it->c_str());
-    }
-}
-
-//----------------------------------------------------------------------
-void cmCTest::PopulateCustomInteger(cmMakefile* mf, const char* def, int& val)
-{
-  if ( !def)
-    {
-    return;
-    }
-  const char* dval = mf->GetDefinition(def);
-  if ( !dval )
-    {
-    return;
-    }
-  val = atoi(dval);
-}
-
-//----------------------------------------------------------------------
-std::string cmCTest::GetShortPathToFile(const char* cfname)
-{
-  const std::string& sourceDir
-    = this->GetCTestConfiguration("SourceDirectory");
-  const std::string& buildDir = this->GetCTestConfiguration("BuildDirectory");
-  std::string fname = cmSystemTools::CollapseFullPath(cfname);
-
-  // Find relative paths to both directories
-  std::string srcRelpath
-    = cmSystemTools::RelativePath(sourceDir.c_str(), fname.c_str());
-  std::string bldRelpath
-    = cmSystemTools::RelativePath(buildDir.c_str(), fname.c_str());
-
-  // If any contains "." it is not parent directory
-  bool inSrc = srcRelpath.find("..") == srcRelpath.npos;
-  bool inBld = bldRelpath.find("..") == bldRelpath.npos;
-  // TODO: Handle files with .. in their name
-
-  std::string* res = 0;
-
-  if ( inSrc && inBld )
-    {
-    // If both have relative path with no dots, pick the shorter one
-    if ( srcRelpath.size() < bldRelpath.size() )
-      {
-      res = &srcRelpath;
-      }
-    else
-      {
-      res = &bldRelpath;
-      }
-    }
-  else if ( inSrc )
-    {
-    res = &srcRelpath;
-    }
-  else if ( inBld )
-    {
-    res = &bldRelpath;
-    }
-  if ( !res )
-    {
-    return fname;
-    }
-  cmSystemTools::ConvertToUnixSlashes(*res);
-
-  std::string path = "./" + *res;
-  if ( path[path.size()-1] == '/' )
-    {
-    path = path.substr(0, path.size()-1);
-    }
-  return path;
-}
-
-//----------------------------------------------------------------------
-std::string cmCTest::GetCTestConfiguration(const char *name)
-{
-  if ( m_CTestConfigurationOverwrites.find(name) !=
-    m_CTestConfigurationOverwrites.end() )
-    {
-    return m_CTestConfigurationOverwrites[name];
-    }
-  return m_CTestConfiguration[name];
-}
-
-//----------------------------------------------------------------------
-void cmCTest::EmptyCTestConfiguration()
-{
-  m_CTestConfiguration.clear();
-}
-
-//----------------------------------------------------------------------
-void cmCTest::SetCTestConfiguration(const char *name, const char* value)
-{
-  if ( !name )
-    {
-    return;
-    }
-  if ( !value )
-    {
-    m_CTestConfiguration.erase(name);
-    return;
-    }
-  m_CTestConfiguration[name] = value;
-}
-
-
-//----------------------------------------------------------------------
-std::string cmCTest::GetCurrentTag()
-{
-  return m_CurrentTag;
-}
-
-//----------------------------------------------------------------------
-std::string cmCTest::GetBinaryDir()
-{
-  return m_BinaryDir;
-}
-
-//----------------------------------------------------------------------
-std::string cmCTest::GetConfigType()
-{
-  return m_ConfigType;
-}
-
-//----------------------------------------------------------------------
-bool cmCTest::GetShowOnly()
-{
-  return m_ShowOnly;
-}
-
-//----------------------------------------------------------------------
-void cmCTest::SetProduceXML(bool v)
-{
-  m_ProduceXML = v;
-}
-
-//----------------------------------------------------------------------
-bool cmCTest::GetProduceXML()
-{
-  return m_ProduceXML;
-}
-
-//----------------------------------------------------------------------
-void cmCTest::AddSubmitFile(const char* name)
-{
-  m_SubmitFiles.insert(name);
-}
-
-//----------------------------------------------------------------------
-void cmCTest::AddCTestConfigurationOverwrite(const char* encstr)
-{
-  std::string overStr = encstr;
-  size_t epos = overStr.find("=");
-  if ( epos == overStr.npos )
-    {
-    cmCTestLog(this, ERROR_MESSAGE,
-      "CTest configuration overwrite specified in the wrong format."
-      << std::endl
-      << "Valid format is: --overwrite key=value" << std::endl
-      << "The specified was: --overwrite " << overStr.c_str() << std::endl);
-    return;
-    }
-  std::string key = overStr.substr(0, epos);
-  std::string value = overStr.substr(epos+1, overStr.npos);
-  m_CTestConfigurationOverwrites[key] = value;
-}
-
-//----------------------------------------------------------------------
-bool cmCTest::SetCTestConfigurationFromCMakeVariable(cmMakefile* mf,
-  const char* dconfig, const char* cmake_var)
-{
-  const char* ctvar;
-  ctvar = mf->GetDefinition(cmake_var);
-  if ( !ctvar )
-    {
-    return false;
-    }
-  this->SetCTestConfiguration(dconfig, ctvar);
-  return true;
-}
-
-bool cmCTest::RunCommand(
-  const char* command,
-  std::string* stdOut,
-  std::string* stdErr,
-  int *retVal,
-  const char* dir,
-  double timeout)
-{
-  std::vector<cmStdString> args = cmSystemTools::ParseArguments(command);
-
-  if(args.size() < 1)
-    {
-    return false;
-    }
-
-  std::vector<const char*> argv;
-  for(std::vector<cmStdString>::const_iterator a = args.begin();
-      a != args.end(); ++a)
-    {
-    argv.push_back(a->c_str());
-    }
-  argv.push_back(0);
-
-  *stdOut = "";
-  *stdErr = "";
-
-  cmsysProcess* cp = cmsysProcess_New();
-  cmsysProcess_SetCommand(cp, &*argv.begin());
-  cmsysProcess_SetWorkingDirectory(cp, dir);
-  if(cmSystemTools::GetRunCommandHideConsole())
-    {
-    cmsysProcess_SetOption(cp, cmsysProcess_Option_HideWindow, 1);
-    }
-  cmsysProcess_SetTimeout(cp, timeout);
-  cmsysProcess_Execute(cp);
-
-  std::vector<char> tempOutput;
-  std::vector<char> tempError;
-  char* data;
-  int length;
-  int res;
-  bool done = false;
-  while(!done)
-    {
-    res = cmsysProcess_WaitForData(cp, &data, &length, 0);
-    switch ( res )
-      {
-    case cmsysProcess_Pipe_STDOUT:
-      tempOutput.insert(tempOutput.end(), data, data+length);
-      break;
-    case cmsysProcess_Pipe_STDERR:
-      tempError.insert(tempError.end(), data, data+length);
-      break;
-    default:
-      done = true;
-      }
-    if ( (res == cmsysProcess_Pipe_STDOUT ||
-        res == cmsysProcess_Pipe_STDERR) && m_ExtraVerbose )
-      {
-      cmSystemTools::Stdout(data, length);
+      this->AppendEcho(commands, comment,
+                       cmLocalUnixMakefileGenerator3::EchoGenerate);
       }
     }
 
-  cmsysProcess_WaitForExit(cp, 0);
-  stdOut->append(&*tempOutput.begin(), tempOutput.size());
-  stdErr->append(&*tempError.begin(), tempError.size());
-
-  bool result = true;
-  if(cmsysProcess_GetState(cp) == cmsysProcess_State_Exited)
+  // if the command specified a working directory use it.
+  const char* dir  = this->Makefile->GetStartOutputDirectory();
+  const char* workingDir = cc.GetWorkingDirectory();
+  if(workingDir)
     {
-    if ( retVal )
+    dir = workingDir;
+    }
+  bool escapeOldStyle = cc.GetEscapeOldStyle();
+  bool escapeAllowMakeVars = cc.GetEscapeAllowMakeVars();
+
+  // Add each command line to the set of commands.
+  std::vector<std::string> commands1;
+  for(cmCustomCommandLines::const_iterator cl = cc.GetCommandLines().begin();
+      cl != cc.GetCommandLines().end(); ++cl)
+    {
+    // Build the command line in a single string.
+    const cmCustomCommandLine& commandLine = *cl;
+    std::string cmd = GetRealLocation(commandLine[0].c_str(), 
+                                      this->ConfigurationName.c_str());
+    if (cmd.size())
       {
-      *retVal = cmsysProcess_GetExitValue(cp);
-      }
-    else
-      {
-      if ( cmsysProcess_GetExitValue(cp) !=  0 )
+      cmSystemTools::ReplaceString(cmd, "/./", "/");
+      // Convert the command to a relative path only if the current
+      // working directory will be the start-output directory.
+      bool had_slash = cmd.find("/") != cmd.npos;
+      if(!workingDir)
         {
-        result = false;
+        cmd = this->Convert(cmd.c_str(),START_OUTPUT);
         }
-      }
-    }
-  else if(cmsysProcess_GetState(cp) == cmsysProcess_State_Exception)
-    {
-    const char* exception_str = cmsysProcess_GetExceptionString(cp);
-    cmCTestLog(this, ERROR_MESSAGE, exception_str << std::endl);
-    stdErr->append(exception_str, strlen(exception_str));
-    result = false;
-    }
-  else if(cmsysProcess_GetState(cp) == cmsysProcess_State_Error)
-    {
-    const char* error_str = cmsysProcess_GetErrorString(cp);
-    cmCTestLog(this, ERROR_MESSAGE, error_str << std::endl);
-    stdErr->append(error_str, strlen(error_str));
-    result = false;
-    }
-  else if(cmsysProcess_GetState(cp) == cmsysProcess_State_Expired)
-    {
-    const char* error_str = "Process terminated due to timeout\n";
-    cmCTestLog(this, ERROR_MESSAGE, error_str << std::endl);
-    stdErr->append(error_str, strlen(error_str));
-    result = false;
-    }
-
-  cmsysProcess_Delete(cp);
-  return result;
-}
-
-//----------------------------------------------------------------------
-void cmCTest::SetOutputLogFileName(const char* name)
-{
-  if ( m_OutputLogFile)
-    {
-    delete m_OutputLogFile;
-    m_OutputLogFile= 0;
-    }
-  if ( name )
-    {
-    m_OutputLogFile = new cmGeneratedFileStream(name);
-    }
-}
-
-//----------------------------------------------------------------------
-static const char* cmCTestStringLogType[] =
-{
-  "DEBUG",
-  "OUTPUT",
-  "HANDLER_OUTPUT",
-  "HANDLER_VERBOSE_OUTPUT",
-  "WARNING",
-  "ERROR_MESSAGE",
-  0
-};
-
-//----------------------------------------------------------------------
-#ifdef cerr
-#  undef cerr
-#endif
-#ifdef cout
-#  undef cout
-#endif
-
-#define cmCTestLogOutputFileLine(stream) \
-  if ( m_ShowLineNumbers ) \
-    { \
-    (stream) << std::endl << file << ":" << line << " "; \
-    }
-
-void cmCTest::Log(int logType, const char* file, int line, const char* msg)
-{
-  if ( !msg || !*msg )
-    {
-    return;
-    }
-  if ( m_OutputLogFile )
-    {
-    bool display = true;
-    if ( logType == cmCTest::DEBUG && !m_Debug ) { display = false; }
-    if ( logType == cmCTest::HANDLER_VERBOSE_OUTPUT && !m_Debug &&
-      !m_ExtraVerbose ) { display = false; }
-    if ( display )
-      {
-      cmCTestLogOutputFileLine(*m_OutputLogFile);
-      if ( logType != m_OutputLogFileLastTag )
+      bool has_slash = cmd.find("/") != cmd.npos;
+      if(had_slash && !has_slash)
         {
-        *m_OutputLogFile << "[";
-        if ( logType >= OTHER || logType < 0 )
+        // This command was specified as a path to a file in the
+        // current directory.  Add a leading "./" so it can run
+        // without the current directory being in the search path.
+        cmd = "./" + cmd;
+        }
+      cmd = this->Convert(cmd.c_str(),NONE,SHELL);
+      for(unsigned int j=1; j < commandLine.size(); ++j)
+        {
+        cmd += " ";
+        if(escapeOldStyle)
           {
-          *m_OutputLogFile << "OTHER";
+          cmd += this->EscapeForShellOldStyle(commandLine[j].c_str());
           }
         else
           {
-          *m_OutputLogFile << cmCTestStringLogType[logType];
+          cmd += this->EscapeForShell(commandLine[j].c_str(),
+                                      escapeAllowMakeVars);
           }
-        *m_OutputLogFile << "] " << std::endl << std::flush;
         }
-      *m_OutputLogFile << msg << std::flush;
-      if ( logType != m_OutputLogFileLastTag )
+      if(this->BorlandMakeCurlyHack)
         {
-        *m_OutputLogFile << std::endl << std::flush;
-        m_OutputLogFileLastTag = logType;
+        // Borland Make has a very strange bug.  If the first curly
+        // brace anywhere in the command string is a left curly, it
+        // must be written {{} instead of just {.  Otherwise some
+        // curly braces are removed.  The hack can be skipped if the
+        // first curly brace is the last character.
+        std::string::size_type lcurly = cmd.find("{");
+        if(lcurly != cmd.npos && lcurly < (cmd.size()-1))
+          {
+          std::string::size_type rcurly = cmd.find("}");
+          if(rcurly == cmd.npos || rcurly > lcurly)
+            {
+            // The first curly is a left curly.  Use the hack.
+            std::string hack_cmd = cmd.substr(0, lcurly);
+            hack_cmd += "{{}";
+            hack_cmd += cmd.substr(lcurly+1);
+            cmd = hack_cmd;
+            }
+          }
         }
+      commands1.push_back(cmd);
       }
     }
-  if ( !m_Quiet )
+
+  // Setup the proper working directory for the commands.
+  this->CreateCDCommand(commands1, dir,
+                        this->Makefile->GetHomeOutputDirectory());
+
+  // push back the custom commands
+  commands.insert(commands.end(), commands1.begin(), commands1.end());
+}
+
+//----------------------------------------------------------------------------
+void
+cmLocalUnixMakefileGenerator3
+::AppendCleanCommand(std::vector<std::string>& commands,
+                     const std::vector<std::string>& files,
+                     cmTarget& target, const char* filename)
+{
+  if(!files.empty())
     {
-    switch ( logType )
+    std::string cleanfile = this->Makefile->GetCurrentOutputDirectory();
+    cleanfile += "/";
+    cleanfile += this->GetTargetDirectory(target);
+    cleanfile += "/cmake_clean";
+    if(filename)
       {
-    case DEBUG:
-      if ( m_Debug )
+      cleanfile += "_";
+      cleanfile += filename;
+      }
+    cleanfile += ".cmake";
+    std::string cleanfilePath = this->Convert(cleanfile.c_str(), FULL);
+    std::ofstream fout(cleanfilePath.c_str());
+    if(!fout)
+      {
+      cmSystemTools::Error("Could not create ", cleanfilePath.c_str());
+      }
+    fout << "FILE(REMOVE\n";
+    std::string remove = "$(CMAKE_COMMAND) -P ";
+    remove += this->Convert(cleanfile.c_str(), START_OUTPUT, SHELL);
+    for(std::vector<std::string>::const_iterator f = files.begin();
+        f != files.end(); ++f)
+      {
+      fout << "\"" << this->Convert(f->c_str(),START_OUTPUT,UNCHANGED) 
+           << "\"\n";
+      }
+    fout << ")\n";
+    commands.push_back(remove);
+    }
+}
+
+//----------------------------------------------------------------------------
+void
+cmLocalUnixMakefileGenerator3::AppendEcho(std::vector<std::string>& commands,
+                                          const char* text,
+                                          EchoColor color)
+{
+  // Choose the color for the text.
+  std::string color_name;
+#ifdef CMAKE_BUILD_WITH_CMAKE
+  if(this->GlobalGenerator->GetToolSupportsColor() && this->ColorMakefile)
+    {
+    // See cmake::ExecuteEchoColor in cmake.cxx for these options.
+    // This color set is readable on both black and white backgrounds.
+    switch(color)
+      {
+      case EchoNormal:
+        break;
+      case EchoDepend:
+        color_name = "--magenta --bold ";
+        break;
+      case EchoBuild:
+        color_name = "--green ";
+        break;
+      case EchoLink:
+        color_name = "--red --bold ";
+        break;
+      case EchoGenerate:
+        color_name = "--blue --bold ";
+        break;
+      case EchoGlobal:
+        color_name = "--cyan ";
+        break;
+      }
+    }
+#else
+  (void)color;
+#endif
+
+  // Echo one line at a time.
+  std::string line;
+  line.reserve(200);
+  for(const char* c = text;; ++c)
+    {
+    if(*c == '\n' || *c == '\0')
+      {
+      // Avoid writing a blank last line on end-of-string.
+      if(*c != '\0' || !line.empty())
         {
-        cmCTestLogOutputFileLine(std::cout);
-        std::cout << msg;
-        std::cout.flush();
+        // Add a command to echo this line.
+        std::string cmd;
+        if(color_name.empty())
+          {
+          // Use the native echo command.
+          cmd = this->NativeEchoCommand;
+          cmd += this->EscapeForShell(line.c_str(), false,
+                                      this->NativeEchoWindows);
+          }
+        else
+          {
+          // Use cmake to echo the text in color.
+          cmd = "@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) ";
+          cmd += color_name;
+          cmd += this->EscapeForShell(line.c_str());
+          }
+        commands.push_back(cmd);
         }
-      break;
-    case OUTPUT: case HANDLER_OUTPUT:
-      if ( m_Debug || m_Verbose )
+
+      // Reset the line to emtpy.
+      line = "";
+
+      // Terminate on end-of-string.
+      if(*c == '\0')
         {
-        cmCTestLogOutputFileLine(std::cout);
-        std::cout << msg;
-        std::cout.flush();
+        return;
         }
-      break;
-    case HANDLER_VERBOSE_OUTPUT:
-      if ( m_Debug || m_ExtraVerbose )
-        {
-        cmCTestLogOutputFileLine(std::cout);
-        std::cout << msg;
-        std::cout.flush();
-        }
-      break;
-    case WARNING:
-      cmCTestLogOutputFileLine(std::cerr);
-      std::cerr << msg;
-      std::cerr.flush();
-      break;
-    case ERROR_MESSAGE:
-      cmCTestLogOutputFileLine(std::cerr);
-      std::cerr << msg;
-      std::cerr.flush();
-      cmSystemTools::SetErrorOccured();
-      break;
-    default:
-      cmCTestLogOutputFileLine(std::cout);
-      std::cout << msg;
-      std::cout.flush();
+      }
+    else if(*c != '\r')
+      {
+      // Append this character to the current line.
+      line += *c;
       }
     }
 }
 
+//----------------------------------------------------------------------------
+std::string
+cmLocalUnixMakefileGenerator3
+::CreateMakeVariable(const char* sin, const char* s2in)
+{
+  std::string s = sin;
+  std::string s2 = s2in;
+  std::string unmodified = s;
+  unmodified += s2;
+  // if there is no restriction on the length of make variables
+  // and there are no "." charactors in the string, then return the
+  // unmodified combination.
+  if((!this->MakefileVariableSize && unmodified.find('.') == s.npos)
+     && (!this->MakefileVariableSize && unmodified.find('-') == s.npos))
+    {
+    return unmodified;
+    }
+
+  // see if the variable has been defined before and return
+  // the modified version of the variable
+  std::map<cmStdString, cmStdString>::iterator i = 
+    this->MakeVariableMap.find(unmodified);
+  if(i != this->MakeVariableMap.end())
+    {
+    return i->second;
+    }
+  // start with the unmodified variable
+  std::string ret = unmodified;
+  // if this there is no value for this->MakefileVariableSize then
+  // the string must have bad characters in it
+  if(!this->MakefileVariableSize)
+    {
+    cmSystemTools::ReplaceString(ret, ".", "_");
+    cmSystemTools::ReplaceString(ret, "-", "__");
+    int ni = 0;
+    char buffer[5];
+    // make sure the _ version is not already used, if
+    // it is used then add number to the end of the variable
+    while(this->ShortMakeVariableMap.count(ret) && ni < 1000)
+      {
+      ++ni;
+      sprintf(buffer, "%04d", ni);
+      ret = unmodified + buffer;
+      }
+    this->ShortMakeVariableMap[ret] = "1";
+    this->MakeVariableMap[unmodified] = ret;
+    return ret;
+    }
+
+  // if the string is greater the 32 chars it is an invalid vairable name
+  // for borland make
+  if(static_cast<int>(ret.size()) > this->MakefileVariableSize)
+    {
+    int keep = this->MakefileVariableSize - 8;
+    int size = keep + 3;
+    std::string str1 = s;
+    std::string str2 = s2;
+    // we must shorten the combined string by 4 charactors
+    // keep no more than 24 charactors from the second string
+    if(static_cast<int>(str2.size()) > keep)
+      {
+      str2 = str2.substr(0, keep);
+      }
+    if(static_cast<int>(str1.size()) + static_cast<int>(str2.size()) > size)
+      {
+      str1 = str1.substr(0, size - str2.size());
+      }
+    char buffer[5];
+    int ni = 0;
+    sprintf(buffer, "%04d", ni);
+    ret = str1 + str2 + buffer;
+    while(this->ShortMakeVariableMap.count(ret) && ni < 1000)
+      {
+      ++ni;
+      sprintf(buffer, "%04d", ni);
+      ret = str1 + str2 + buffer;
+      }
+    if(ni == 1000)
+      {
+      cmSystemTools::Error("Borland makefile variable length too long");
+      return unmodified;
+      }
+    // once an unused variable is found
+    this->ShortMakeVariableMap[ret] = "1";
+    }
+  // always make an entry into the unmodified to variable map
+  this->MakeVariableMap[unmodified] = ret;
+  return ret;
+}
+
+//----------------------------------------------------------------------------
+bool cmLocalUnixMakefileGenerator3::UpdateDependencies(const char* tgtInfo,
+                                                       bool verbose,
+                                                       bool color)
+{
+  std::string dir = cmSystemTools::GetFilenamePath(tgtInfo);
+  std::string internalDependFile = dir + "/depend.internal";
+  std::string dependFile = dir + "/depend.make";
+
+  // Check the implicit dependencies to see if they are up to date.
+  // The build.make file may have explicit dependencies for the object
+  // files but these will not affect the scanning process so they need
+  // not be considered.
+  cmDependsC checker;
+  checker.SetVerbose(verbose);
+  checker.SetFileComparison
+    (this->GlobalGenerator->GetCMakeInstance()->GetFileComparison());
+  if(!checker.Check(dependFile.c_str(), internalDependFile.c_str()))
+    {
+    // The dependencies must be regenerated.
+    std::string targetName = cmSystemTools::GetFilenameName(dir);
+    targetName = targetName.substr(0, targetName.length()-4);
+    std::string message = "Scanning dependencies of target ";
+    message += targetName;
+#ifdef CMAKE_BUILD_WITH_CMAKE
+    cmSystemTools::MakefileColorEcho(
+      cmsysTerminal_Color_ForegroundMagenta |
+      cmsysTerminal_Color_ForegroundBold,
+      message.c_str(), true, color);
+#else
+    fprintf(stdout, "%s\n", message.c_str());
+#endif
+
+    return this->ScanDependencies(tgtInfo);
+    }
+  else
+    {
+    // The dependencies are already up-to-date.
+    return true;
+    }
+}
+
+//----------------------------------------------------------------------------
+bool cmLocalUnixMakefileGenerator3::ScanDependencies(const char* tgtInfo)
+{
+  // The info file for this target
+  std::string infoFile = tgtInfo;
+
+  // Read the directory information file.
+  cmMakefile* mf = this->Makefile;
+  bool haveDirectoryInfo = false;
+  std::string dirInfoFile = this->Makefile->GetStartOutputDirectory();
+  dirInfoFile += cmake::GetCMakeFilesDirectory();
+  dirInfoFile += "/CMakeDirectoryInformation.cmake";
+  if(mf->ReadListFile(0, dirInfoFile.c_str()) &&
+     !cmSystemTools::GetErrorOccuredFlag())
+    {
+    haveDirectoryInfo = true;
+    }
+  
+  // read in the target info file
+  if(!mf->ReadListFile(0, infoFile.c_str()) ||
+     cmSystemTools::GetErrorOccuredFlag())
+    {
+    cmSystemTools::Error("Target DependInfo.cmake file not found");    
+    }
+
+  // Lookup useful directory information.
+  if(haveDirectoryInfo)
+    {
+    // Test whether we need to force Unix paths.
+    if(const char* force = mf->GetDefinition("CMAKE_FORCE_UNIX_PATHS"))
+      {
+      if(!cmSystemTools::IsOff(force))
+        {
+        cmSystemTools::SetForceUnixPaths(true);
+        }
+      }
+
+    // Setup relative path top directories.
+    this->RelativePathsConfigured = true;
+    if(const char* relativePathTopSource =
+       mf->GetDefinition("CMAKE_RELATIVE_PATH_TOP_SOURCE"))
+      {
+      this->RelativePathTopSource = relativePathTopSource;
+      }
+    if(const char* relativePathTopBinary =
+       mf->GetDefinition("CMAKE_RELATIVE_PATH_TOP_BINARY"))
+      {
+      this->RelativePathTopBinary = relativePathTopBinary;
+      }
+    }
+  else
+    {
+    cmSystemTools::Error("Directory Information file not found");
+    }
+
+  // create the file stream for the depends file
+  std::string dir = cmSystemTools::GetFilenamePath(infoFile);
+  
+  // Open the rule file.  This should be copy-if-different because the
+  // rules may depend on this file itself.
+  std::string ruleFileNameFull = dir;
+  ruleFileNameFull += "/depend.make";
+  cmGeneratedFileStream ruleFileStream(ruleFileNameFull.c_str());
+  ruleFileStream.SetCopyIfDifferent(true);
+  if(!ruleFileStream)
+    {
+    return false;
+    }
+  std::string internalRuleFileNameFull = dir;
+  internalRuleFileNameFull += "/depend.internal";
+  cmGeneratedFileStream 
+    internalRuleFileStream(internalRuleFileNameFull.c_str());
+  internalRuleFileStream.SetCopyIfDifferent(true);
+  if(!internalRuleFileStream)
+    {
+    return false;
+    }
+
+  this->WriteDisclaimer(ruleFileStream);
+  this->WriteDisclaimer(internalRuleFileStream);
+
+  // for each language we need to scan, scan it 
+  const char *langStr = mf->GetSafeDefinition("CMAKE_DEPENDS_LANGUAGES");
+  std::vector<std::string> langs;
+  cmSystemTools::ExpandListArgument(langStr, langs);
+  for (std::vector<std::string>::iterator li = 
+         langs.begin(); li != langs.end(); ++li)
+    {
+    // construct the checker
+    std::string lang = li->c_str();
+    
+    // Get the set of include directories.
+    std::vector<std::string> includes;
+    if(haveDirectoryInfo)
+      {
+      std::string includePathVar = "CMAKE_";
+      includePathVar += lang;
+      includePathVar += "_INCLUDE_PATH";
+      if(const char* includePath = mf->GetDefinition(includePathVar.c_str()))
+        {
+        cmSystemTools::ExpandListArgument(includePath, includes);
+        }
+      }
+    
+    // Get the include file regular expression.
+    std::string includeRegexScan = "^.*$";
+    std::string includeRegexComplain = "^$";
+    if(haveDirectoryInfo)
+      {
+      std::string scanRegexVar = "CMAKE_";
+      scanRegexVar += lang;
+      scanRegexVar += "_INCLUDE_REGEX_SCAN";
+      if(const char* scanRegex = mf->GetDefinition(scanRegexVar.c_str()))
+        {
+        includeRegexScan = scanRegex;
+        }
+      std::string complainRegexVar = "CMAKE_";
+      complainRegexVar += lang;
+      complainRegexVar += "_INCLUDE_REGEX_COMPLAIN";
+      if(const char* complainRegex = 
+         mf->GetDefinition(complainRegexVar.c_str()))
+        {
+        includeRegexComplain = complainRegex;
+        }
+      }
+
+    // Create the scanner for this language
+    cmDepends *scanner = 0;
+    if(lang == "C" || lang == "CXX" || lang == "RC")
+      {
+      std::string includeCacheFileName = dir;
+      includeCacheFileName += "/";
+      includeCacheFileName += lang;
+      includeCacheFileName += ".includecache";
+      
+      // TODO: Handle RC (resource files) dependencies correctly.
+      scanner = new cmDependsC(includes,
+                               includeRegexScan.c_str(),
+                               includeRegexComplain.c_str(),
+                               includeCacheFileName);
+      }
+#ifdef CMAKE_BUILD_WITH_CMAKE
+    else if(lang == "Fortran")
+      {
+      scanner = new cmDependsFortran(includes, dir);
+      }
+    else if(lang == "Java")
+      {
+      scanner = new cmDependsJava();
+      }
+#endif
+    
+    if (scanner)
+      {
+      scanner->SetLocalGenerator(this);
+      scanner->SetFileComparison
+        (this->GlobalGenerator->GetCMakeInstance()->GetFileComparison());
+      // for each file we need to scan
+      std::string srcLang = "CMAKE_DEPENDS_CHECK_";
+      srcLang += lang;
+      const char *srcStr = mf->GetSafeDefinition(srcLang.c_str());
+      std::vector<std::string> srcs;
+      cmSystemTools::ExpandListArgument(srcStr, srcs);
+      for (std::vector<std::string>::iterator si = 
+        srcs.begin(); si != srcs.end(); ++si)
+        {
+        std::string &src = *si;
+        ++si;
+        // make sure the object file is relative to home output
+        std::string obj = *si;
+        obj = this->Convert(obj.c_str(),HOME_OUTPUT,MAKEFILE);
+        scanner->Write(src.c_str(),obj.c_str(),
+                       ruleFileStream, internalRuleFileStream);
+        }
+
+      // free the scanner for this language
+      delete scanner;
+      }
+    }
+
+  return true;
+}
+
+//----------------------------------------------------------------------------
+void cmLocalUnixMakefileGenerator3
+::WriteLocalAllRules(std::ostream& ruleFileStream)
+{
+  this->WriteDisclaimer(ruleFileStream);
+
+  // Write the main entry point target.  This must be the VERY first
+  // target so that make with no arguments will run it.
+  {
+  // Just depend on the all target to drive the build.
+  std::vector<std::string> depends;
+  std::vector<std::string> no_commands;
+  depends.push_back("all");
+
+  // Write the rule.
+  this->WriteMakeRule(ruleFileStream,
+                      "Default target executed when no arguments are "
+                      "given to make.",
+                      "default_target",
+                      depends,
+                      no_commands, true);
+  }
+
+  this->WriteSpecialTargetsTop(ruleFileStream);
+
+  // Include the progress variables for the target.
+  std::string progressFile = cmake::GetCMakeFilesDirectory();
+  progressFile += "/progress.make";
+  std::string progressFileNameFull =
+    this->ConvertToFullPath(progressFile.c_str());
+  ruleFileStream
+    << "# Include the progress variables for this target.\n"
+    << this->IncludeDirective << " "
+    << this->Convert(progressFileNameFull.c_str(),
+                     cmLocalGenerator::START_OUTPUT,
+                     cmLocalGenerator::MAKEFILE) << "\n\n";
+  
+  // Write all global targets
+  this->WriteDivider(ruleFileStream);
+  ruleFileStream
+    << "# Targets provided globally by CMake.\n"
+    << "\n";
+  cmTargets* targets = &(this->Makefile->GetTargets());
+  cmTargets::iterator glIt;
+  for ( glIt = targets->begin(); glIt != targets->end(); ++ glIt )
+    {
+    if ( glIt->second.GetType() == cmTarget::GLOBAL_TARGET )
+      {
+      std::string targetString = "Special rule for the target " + glIt->first;
+      std::vector<std::string> commands;
+      std::vector<std::string> depends;
+
+      const char* text = glIt->second.GetProperty("EchoString");
+      if ( !text )
+        {
+        text = "Running external command ...";
+        }
+      std::set<cmStdString>::const_iterator dit;
+      for ( dit = glIt->second.GetUtilities().begin();
+         dit != glIt->second.GetUtilities().end();
+        ++ dit )
+        {
+        depends.push_back(dit->c_str());
+        }
+      this->AppendEcho(commands, text,
+                       cmLocalUnixMakefileGenerator3::EchoGlobal);
+
+      // Global targets store their rules in pre- and post-build commands.
+      this->AppendCustomDepends(depends,   
+                                glIt->second.GetPreBuildCommands());
+      this->AppendCustomDepends(depends,   
+                                glIt->second.GetPostBuildCommands());
+      this->AppendCustomCommands(commands, 
+                                 glIt->second.GetPreBuildCommands());
+      this->AppendCustomCommands(commands, 
+                                 glIt->second.GetPostBuildCommands());
+      std::string targetName = glIt->second.GetName();
+      this->WriteMakeRule(ruleFileStream, targetString.c_str(), 
+                          targetName.c_str(), depends, commands, true);
+
+      // Provide a "/fast" version of the target.
+      depends.clear();
+      if((targetName == "install") 
+          || (targetName == "install_local")
+          || (targetName == "install_strip"))
+        {
+        // Provide a fast install target that does not depend on all
+        // but has the same command.
+        depends.push_back("preinstall/fast");
+        }
+      else
+        {
+        // Just forward to the real target so at least it will work.
+        depends.push_back(targetName);
+        commands.clear();
+        }
+      targetName += "/fast";
+      this->WriteMakeRule(ruleFileStream, targetString.c_str(),
+                          targetName.c_str(), depends, commands, true);
+      }
+    }
+
+  std::vector<std::string> depends;
+  std::vector<std::string> commands;
+
+  // Write the all rule.
+  std::string dir;
+  std::string recursiveTarget = this->Makefile->GetStartOutputDirectory();
+  recursiveTarget += "/all";
+
+  depends.push_back("cmake_check_build_system");
+
+  std::string progressDir = this->Makefile->GetHomeOutputDirectory();
+  progressDir += cmake::GetCMakeFilesDirectory();
+    {
+    cmOStringStream progCmd;
+    progCmd << 
+      "$(CMAKE_COMMAND) -E cmake_progress_start ";
+    progCmd << this->Convert(progressDir.c_str(),
+                             cmLocalGenerator::FULL,
+                             cmLocalGenerator::SHELL);
+    progCmd << " $(CMAKE_ALL_PROGRESS)";
+    commands.push_back(progCmd.str());
+    }
+  std::string mf2Dir = cmake::GetCMakeFilesDirectoryPostSlash();
+  mf2Dir += "Makefile2";
+  commands.push_back(this->GetRecursiveMakeCall(mf2Dir.c_str(),
+                                                recursiveTarget.c_str()));
+  this->CreateCDCommand(commands,
+                        this->Makefile->GetHomeOutputDirectory(),
+                        this->Makefile->GetStartOutputDirectory());
+    {
+    cmOStringStream progCmd;
+    progCmd << "$(CMAKE_COMMAND) -E cmake_progress_start "; // # 0
+    progCmd << this->Convert(progressDir.c_str(),
+                             cmLocalGenerator::FULL,
+                             cmLocalGenerator::SHELL);
+    progCmd << " 0";
+    commands.push_back(progCmd.str());
+    }
+  this->WriteMakeRule(ruleFileStream, "The main all target", "all",
+                      depends, commands, true);
+
+  // Write the clean rule.
+  recursiveTarget = this->Makefile->GetStartOutputDirectory();
+  recursiveTarget += "/clean";
+  commands.clear();
+  depends.clear();
+  commands.push_back(this->GetRecursiveMakeCall(mf2Dir.c_str(),
+                                                recursiveTarget.c_str()));
+  this->CreateCDCommand(commands,
+                                this->Makefile->GetHomeOutputDirectory(),
+                                this->Makefile->GetStartOutputDirectory());
+  this->WriteMakeRule(ruleFileStream, "The main clean target", "clean",
+                      depends, commands, true);
+  commands.clear();
+  depends.clear();
+  depends.push_back("clean");
+  this->WriteMakeRule(ruleFileStream, "The main clean target", "clean/fast",
+                      depends, commands, true);
+
+  // Write the preinstall rule.
+  recursiveTarget = this->Makefile->GetStartOutputDirectory();
+  recursiveTarget += "/preinstall";
+  commands.clear();
+  depends.clear();
+  const char* noall =
+    this->Makefile->GetDefinition("CMAKE_SKIP_INSTALL_ALL_DEPENDENCY");
+  if(!noall || cmSystemTools::IsOff(noall))
+    {
+    // Drive the build before installing.
+    depends.push_back("all");
+    }
+  else
+    {
+    // At least make sure the build system is up to date.
+    depends.push_back("cmake_check_build_system");
+    }
+  commands.push_back
+    (this->GetRecursiveMakeCall(mf2Dir.c_str(), recursiveTarget.c_str()));
+  this->CreateCDCommand(commands,
+                        this->Makefile->GetHomeOutputDirectory(),
+                        this->Makefile->GetStartOutputDirectory());
+  this->WriteMakeRule(ruleFileStream, "Prepare targets for installation.",
+                      "preinstall", depends, commands, true);
+  depends.clear();
+  this->WriteMakeRule(ruleFileStream, "Prepare targets for installation.",
+                      "preinstall/fast", depends, commands, true);
+
+  // write the depend rule, really a recompute depends rule
+  depends.clear();
+  commands.clear();
+  std::string cmakefileName = cmake::GetCMakeFilesDirectoryPostSlash();
+  cmakefileName += "Makefile.cmake";
+  std::string runRule =
+    "$(CMAKE_COMMAND) -H$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)";
+  runRule += " --check-build-system ";
+  runRule += this->Convert(cmakefileName.c_str(),cmLocalGenerator::NONE,
+                           cmLocalGenerator::SHELL);
+  runRule += " 1";
+  commands.push_back(runRule);
+  this->CreateCDCommand(commands,
+                        this->Makefile->GetHomeOutputDirectory(),
+                        this->Makefile->GetStartOutputDirectory());
+  this->WriteMakeRule(ruleFileStream, "clear depends", 
+                      "depend", 
+                      depends, commands, true);
+}
+
+
+//----------------------------------------------------------------------------
+void cmLocalUnixMakefileGenerator3::ClearDependencies(cmMakefile* mf,
+                                                      bool verbose)
+{
+  // Get the list of target files to check
+  const char* infoDef = mf->GetDefinition("CMAKE_DEPEND_INFO_FILES");
+  if(!infoDef)
+    {
+    return;
+    }
+  std::vector<std::string> files;
+  cmSystemTools::ExpandListArgument(infoDef, files);
+
+  // Each depend information file corresponds to a target.  Clear the
+  // dependencies for that target.
+  cmDepends clearer;
+  clearer.SetVerbose(verbose);
+  for(std::vector<std::string>::iterator l = files.begin();
+      l != files.end(); ++l)
+    {
+    std::string dir = cmSystemTools::GetFilenamePath(l->c_str());
+
+    // Clear the implicit dependency makefile.
+    std::string dependFile = dir + "/depend.make";
+    clearer.Clear(dependFile.c_str());
+
+    // Remove the internal dependency check file to force
+    // regeneration.
+    std::string internalDependFile = dir + "/depend.internal";
+    cmSystemTools::RemoveFile(internalDependFile.c_str());
+    }
+}
+
+
+void cmLocalUnixMakefileGenerator3
+::WriteDependLanguageInfo(std::ostream& cmakefileStream, cmTarget &target)
+{
+  ImplicitDependLanguageMap const& implicitLangs =
+    this->GetImplicitDepends(target);
+
+  // list the languages
+  cmakefileStream
+    << "# The set of languages for which implicit dependencies are needed:\n";
+  cmakefileStream
+    << "SET(CMAKE_DEPENDS_LANGUAGES\n";
+  for(ImplicitDependLanguageMap::const_iterator
+        l = implicitLangs.begin(); l != implicitLangs.end(); ++l)
+    {
+    cmakefileStream << "  \"" << l->first.c_str() << "\"\n";
+    }
+  cmakefileStream << "  )\n";
+
+  // now list the files for each language
+  cmakefileStream
+    << "# The set of files for implicit dependencies of each language:\n";
+  for(ImplicitDependLanguageMap::const_iterator
+        l = implicitLangs.begin(); l != implicitLangs.end(); ++l)
+    {
+    cmakefileStream
+      << "SET(CMAKE_DEPENDS_CHECK_" << l->first.c_str() << "\n";
+    ImplicitDependFileMap const& implicitPairs = l->second;
+
+    // for each file pair
+    for(ImplicitDependFileMap::const_iterator pi = implicitPairs.begin();
+        pi != implicitPairs.end(); ++pi)
+      {
+      cmakefileStream << "  \"" << pi->second << "\" ";
+      cmakefileStream << "\"" << pi->first << "\"\n";
+      }
+    cmakefileStream << "  )\n";
+    }
+}
+
+//----------------------------------------------------------------------------
+std::string
+cmLocalUnixMakefileGenerator3
+::GetObjectFileName(cmTarget& target,
+                    const cmSourceFile& source,
+                    std::string* nameWithoutTargetDir)
+{
+  if(const char* fileTargetDirectory =
+     source.GetProperty("MACOSX_PACKAGE_LOCATION"))
+    {
+    // Special handling for OSX package files.
+    std::string objectName = this->GetObjectFileNameWithoutTarget(source, 0);
+    if(nameWithoutTargetDir)
+      {
+      *nameWithoutTargetDir = objectName;
+      }
+    objectName = cmSystemTools::GetFilenameName(objectName.c_str());
+    std::string targetName;
+    std::string targetNameReal;
+    std::string targetNameImport;
+    std::string targetNamePDB;
+    target.GetExecutableNames(targetName, targetNameReal, targetNameImport,
+                              targetNamePDB, this->ConfigurationName.c_str());
+    std::string obj;
+
+    // Construct the full path version of the names.
+    //
+    // If target is a MACOSX_BUNDLE target, then the package location is
+    // relative to "${targetDir}/${targetName}.app/Contents"... else it is
+    // relative to "${targetDir}"...
+    //
+    obj = target.GetDirectory();
+    obj += "/";
+    if ( target.GetPropertyAsBool("MACOSX_BUNDLE") )
+      {
+      obj += targetName + ".app/Contents/";
+      }
+    else
+      {
+      // Emit warning here...? MACOSX_PACKAGE_LOCATION is "most useful" in a
+      // MACOSX_BUNDLE...
+      }
+    obj += fileTargetDirectory;
+
+    // Object names are specified relative to the current build dir.
+    obj = this->Convert(obj.c_str(), START_OUTPUT);
+    obj += "/";
+    obj += objectName;
+    return obj;
+    }
+  else
+    {
+    // Start with the target directory.
+    std::string obj = this->GetTargetDirectory(target);
+    obj += "/";
+
+    // Get the object file name without the target directory.
+    std::string::size_type dir_len = 0;
+    dir_len += strlen(this->Makefile->GetCurrentOutputDirectory());
+    dir_len += 1;
+    dir_len += obj.size();
+    std::string objectName =
+      this->GetObjectFileNameWithoutTarget(source, dir_len);
+    if(nameWithoutTargetDir)
+      {
+      *nameWithoutTargetDir = objectName;
+      }
+
+    // Append the object name to the target directory.
+    obj += objectName;
+    return obj;
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmLocalUnixMakefileGenerator3::WriteDisclaimer(std::ostream& os)
+{
+  os
+    << "# CMAKE generated file: DO NOT EDIT!\n"
+    << "# Generated by \"" << this->GlobalGenerator->GetName() << "\""
+    << " Generator, CMake Version "
+    << cmVersion::GetMajorVersion() << "."
+    << cmVersion::GetMinorVersion() << "\n\n";
+}
+
+//----------------------------------------------------------------------------
+std::string
+cmLocalUnixMakefileGenerator3
+::GetRecursiveMakeCall(const char *makefile, const char* tgt)
+{
+  // Call make on the given file.
+  std::string cmd;
+  cmd += "$(MAKE) -f ";
+  cmd += this->Convert(makefile,NONE,SHELL);
+  cmd += " ";
+  
+  // Passg down verbosity level.
+  if(this->GetMakeSilentFlag().size())
+    {
+    cmd += this->GetMakeSilentFlag();
+    cmd += " ";
+    }
+
+  // Most unix makes will pass the command line flags to make down to
+  // sub-invoked makes via an environment variable.  However, some
+  // makes do not support that, so you have to pass the flags
+  // explicitly.
+  if(this->GetPassMakeflags())
+    {
+    cmd += "-$(MAKEFLAGS) ";
+    }
+
+  // Add the target.
+  if (tgt && tgt[0] != '\0')
+    {
+    // The make target is always relative to the top of the build tree.
+    std::string tgt2 = this->Convert(tgt, HOME_OUTPUT);
+
+    // The target may have been written with windows paths.
+    cmSystemTools::ConvertToOutputSlashes(tgt2);
+
+    // Escape one extra time if the make tool requires it.
+    if(this->MakeCommandEscapeTargetTwice)
+      {
+      tgt2 = this->EscapeForShell(tgt2.c_str(), true, false);
+      }
+
+    // The target name is now a string that should be passed verbatim
+    // on the command line.
+    cmd += this->EscapeForShell(tgt2.c_str(), true, false);
+    }
+  return cmd;
+}
+
+//----------------------------------------------------------------------------
+void cmLocalUnixMakefileGenerator3::WriteDivider(std::ostream& os)
+{
+  os
+    << "#======================================"
+    << "=======================================\n";
+}
+
+//----------------------------------------------------------------------------
+void
+cmLocalUnixMakefileGenerator3
+::WriteCMakeArgument(std::ostream& os, const char* s)
+{
+  // Write the given string to the stream with escaping to get it back
+  // into CMake through the lexical scanner.
+  os << "\"";
+  for(const char* c = s; *c; ++c)
+    {
+    if(*c == '\\')
+      {
+      os << "\\\\";
+      }
+    else if(*c == '"')
+      {
+      os << "\\\"";
+      }
+    else
+      {
+      os << *c;
+      }
+    }
+  os << "\"";
+}
+
+//----------------------------------------------------------------------------
+std::string
+cmLocalUnixMakefileGenerator3::ConvertToQuotedOutputPath(const char* p)
+{
+  
+  // Split the path into its components.
+  std::vector<std::string> components;
+  cmSystemTools::SplitPath(p, components);
+
+  // Return an empty path if there are no components.
+  if(components.empty())
+    {
+    return "\"\"";
+    }
+
+  // Choose a slash direction and fix root component.
+  const char* slash = "/";
+#if defined(_WIN32) && !defined(__CYGWIN__)
+   if(!cmSystemTools::GetForceUnixPaths())
+     {
+     slash = "\\";
+     for(std::string::iterator i = components[0].begin();
+       i != components[0].end(); ++i)
+       {
+       if(*i == '/')
+         {
+         *i = '\\';
+         }
+       }
+     }
+#endif
+
+  // Begin the quoted result with the root component.
+  std::string result = "\"";
+  result += components[0];
+
+  // Now add the rest of the components separated by the proper slash
+  // direction for this platform.
+  bool first = true;
+  for(unsigned int i=1; i < components.size(); ++i)
+    {
+    // Only the last component can be empty to avoid double slashes.
+    if(components[i].length() > 0 || (i == (components.size()-1)))
+      {
+      if(!first)
+        {
+        result += slash;
+        }
+      result += components[i];
+      first = false;
+      }
+    }
+
+  // Close the quoted result.
+  result += "\"";
+
+  return result;
+}
+
+//----------------------------------------------------------------------------
+std::string
+cmLocalUnixMakefileGenerator3
+::GetTargetDirectory(cmTarget const& target) const
+{
+  std::string dir = cmake::GetCMakeFilesDirectoryPostSlash();
+  dir += target.GetName();
+  dir += ".dir";
+  return dir;
+}
+
+//----------------------------------------------------------------------------
+cmLocalUnixMakefileGenerator3::ImplicitDependLanguageMap const&
+cmLocalUnixMakefileGenerator3::GetImplicitDepends(cmTarget const& tgt)
+{
+  return this->ImplicitDepends[tgt.GetName()];
+}
+
+//----------------------------------------------------------------------------
+void
+cmLocalUnixMakefileGenerator3::AddImplicitDepends(cmTarget const& tgt,
+                                                  const char* lang,
+                                                  const char* obj,
+                                                  const char* src)
+{
+  this->ImplicitDepends[tgt.GetName()][lang][obj] = src;
+}
+
+//----------------------------------------------------------------------------
+void cmLocalUnixMakefileGenerator3
+::CreateCDCommand(std::vector<std::string>& commands, const char *tgtDir,
+                  const char *retDir)
+{
+  // do we need to cd?
+  if (!strcmp(tgtDir,retDir))
+    {
+    return;
+    }
+  
+  if(!this->UnixCD)
+    {
+    // On Windows we must perform each step separately and then change
+    // back because the shell keeps the working directory between
+    // commands.
+    std::string cmd = "cd ";
+    cmd += this->ConvertToOutputForExisting(tgtDir);
+    commands.insert(commands.begin(),cmd);
+    
+    // Change back to the starting directory.  Any trailing slash must be
+    // removed to avoid problems with Borland Make.
+    std::string back = retDir;
+    if(back.size() && back[back.size()-1] == '/')
+      {
+      back = back.substr(0, back.size()-1);
+      }
+    cmd = "cd ";
+    cmd += this->ConvertToOutputForExisting(back.c_str());
+    commands.push_back(cmd);
+    }
+  else
+    {
+    // On UNIX we must construct a single shell command to change
+    // directory and build because make resets the directory between
+    // each command.
+    std::vector<std::string>::iterator i = commands.begin();
+    for (; i != commands.end(); ++i)
+      {
+      std::string cmd = "cd ";
+      cmd += this->ConvertToOutputForExisting(tgtDir);
+      cmd += " && ";
+      cmd += *i;
+      *i = cmd;
+      }
+    }
+}
+
+
+void cmLocalUnixMakefileGenerator3
+::GetTargetObjectFileDirectories(cmTarget* target,
+                                 std::vector<std::string>& dirs)
+{
+  std::string dir = this->Makefile->GetCurrentOutputDirectory();
+  dir += "/";
+  dir += this->GetTargetDirectory(*target);
+  dirs.push_back(dir);
+}

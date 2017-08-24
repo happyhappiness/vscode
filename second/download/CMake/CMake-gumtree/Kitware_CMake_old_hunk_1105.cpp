@@ -1,7 +1,16 @@
-#define YY_EXIT_FAILURE 2
-#endif
+    va_list va;
+    int len;
 
-static void yy_fatal_error (yyconst char* msg , yyscan_t)
-{
-        (void) fprintf( stderr, "%s\n", msg );
-        exit( YY_EXIT_FAILURE );
+    va_start(va, format);
+#ifdef HAS_vsnprintf
+    (void)vsnprintf(buf, sizeof(buf), format, va);
+#else
+    (void)vsprintf(buf, format, va);
+#endif
+    va_end(va);
+    len = strlen(buf); /* some *sprintf don't return the nb of bytes written */
+    if (len <= 0) return 0;
+
+    return gzwrite(file, buf, (unsigned)len);
+}
+#else /* not ANSI C */

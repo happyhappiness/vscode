@@ -1,6 +1,11 @@
+    fprintf(stderr, "No current working directory.\n");
+    abort();
+    }
+  // make sure the drive letter is capital
+  if(strlen(buf) > 1 && buf[1] == ':')
+    {
+    buf[0] = toupper(buf[0]);
+    }
+  return ret;
 }
-
-//----------------------------------------------------------------------------
-std::string
-cmLocalUnixMakefileGenerator3
-::CreateMakeVariable(const char* sin, const char* s2in)
+inline int Chdir(const char* dir)

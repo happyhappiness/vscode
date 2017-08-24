@@ -9,359 +9,849 @@
   Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
   See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
 
-     This software is distributed WITHOUT ANY WARRANTY; without even 
-     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
+     This software is distributed WITHOUT ANY WARRANTY; without even
+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
      PURPOSE.  See the above copyright notices for more information.
 
 =========================================================================*/
-#include "cmVTKWrapTclCommand.h"
+#include "cmComputeLinkDepends.h"
 
-// cmVTKWrapTclCommand
-bool cmVTKWrapTclCommand::InitialPass(std::vector<std::string> const& argsIn)
+#include "cmComputeComponentGraph.h"
+#include "cmGlobalGenerator.h"
+#include "cmLocalGenerator.h"
+#include "cmMakefile.h"
+#include "cmTarget.h"
+#include "cmake.h"
+
+#include <cmsys/stl/algorithm>
+
+#include <assert.h>
+
+/*
+
+This file computes an ordered list of link items to use when linking a
+single target in one configuration.  Each link item is identified by
+the string naming it.  A graph of dependencies is created in which
+each node corresponds to one item and directed eges lead from nodes to
+those which must *precede* them on the link line.  For example, the
+graph
+
+  C -> B -> A
+
+will lead to the link line order
+
+  A B C
+
+The set of items placed in the graph is formed with a breadth-first
+search of the link dependencies starting from the main target.
+
+There are two types of items: those with known direct dependencies and
+those without known dependencies.  We will call the two types "known
+items" and "unknown items", respecitvely.  Known items are those whose
+names correspond to targets (built or imported) and those for which an
+old-style <item>_LIB_DEPENDS variable is defined.  All other items are
+unknown and we must infer dependencies for them.  For items that look
+like flags (beginning with '-') we trivially infer no dependencies,
+and do not include them in the dependencies of other items.
+
+Known items have dependency lists ordered based on how the user
+specified them.  We can use this order to infer potential dependencies
+of unknown items.  For example, if link items A and B are unknown and
+items X and Y are known, then we might have the following dependency
+lists:
+
+  X: Y A B
+  Y: A B
+
+The explicitly known dependencies form graph edges
+
+  X <- Y  ,  X <- A  ,  X <- B  ,  Y <- A  ,  Y <- B
+
+We can also infer the edge
+
+  A <- B
+
+because *every* time A appears B is seen on its right.  We do not know
+whether A really needs symbols from B to link, but it *might* so we
+must preserve their order.  This is the case also for the following
+explict lists:
+
+  X: A B Y
+  Y: A B
+
+Here, A is followed by the set {B,Y} in one list, and {B} in the other
+list.  The intersection of these sets is {B}, so we can infer that A
+depends on at most B.  Meanwhile B is followed by the set {Y} in one
+list and {} in the other.  The intersection is {} so we can infer that
+B has no dependencies.
+
+Let's make a more complex example by adding unknown item C and
+considering these dependency lists:
+
+  X: A B Y C
+  Y: A C B
+
+The explicit edges are
+
+  X <- Y  ,  X <- A  ,  X <- B  ,  X <- C  ,  Y <- A  ,  Y <- B  ,  Y <- C
+
+For the unknown items, we infer dependencies by looking at the
+"follow" sets:
+
+  A: intersect( {B,Y,C} , {C,B} ) = {B,C} ; infer edges  A <- B  ,  A <- C
+  B: intersect( {Y,C}   , {}    ) = {}    ; infer no edges
+  C: intersect( {}      , {B}   ) = {}    ; infer no edges
+
+Note that targets are never inferred as dependees because outside
+libraries should not depend on them.
+
+------------------------------------------------------------------------------
+
+Once the complete graph is formed from all known and inferred
+dependencies we must use it to produce a valid link line.  If the
+dependency graph were known to be acyclic a simple depth-first-search
+would produce a correct link line.  Unfortunately we cannot make this
+assumption so the following technique is used.
+
+The original graph is converted to a directed acyclic graph in which
+each node corresponds to a strongly connected component of the
+original graph.  For example, the dependency graph
+
+  X <- A <- B <- C <- A <- Y
+
+contains strongly connected components {X}, {A,B,C}, and {Y}.  The
+implied directed acyclic graph (DAG) is
+
+  {X} <- {A,B,C} <- {Y}
+
+The final list of link items is constructed by a series of
+depth-first-searches through this DAG of components.  When visiting a
+component all outgoing edges are followed first because the neighbors
+must precede it.  Once neighbors across all edges have been emitted it
+is safe to emit the current component.
+
+Trivial components (those with one item) are handled simply by
+emitting the item.  Non-trivial components (those with more than one
+item) are assumed to consist only of static libraries that may be
+safely repeated on the link line.  We emit members of the component
+multiple times (see code below for details).  The final link line for
+the example graph might be
+
+  X A B C A B C Y
+
+------------------------------------------------------------------------------
+
+The initial exploration of dependencies using a BFS associates an
+integer index with each link item.  When the graph is built outgoing
+edges are sorted by this index.
+
+This preserves the original link order as much as possible subject to
+the dependencies.  We then further preserve the original link line by
+appending items to make sure all those that might be static libraries
+appear in the order and multiplicity that they do in the original
+line.
+
+After the initial exploration of the link interface tree, any
+transitive (dependent) shared libraries that were encountered and not
+included in the interface are processed in their own BFS.  This BFS
+follows only the dependent library lists and not the link interfaces.
+They are added to the link items with a mark indicating that the are
+transitive dependencies.  Then cmComputeLinkInformation deals with
+them on a per-platform basis.
+
+*/
+
+//----------------------------------------------------------------------------
+cmComputeLinkDepends
+::cmComputeLinkDepends(cmTarget* target, const char* config)
 {
-  if(argsIn.size() < 3 )
-    {
-    this->SetError("called with incorrect number of arguments");
-    return false;
-    }
-  std::vector<std::string> args;
-  
-  // keep the library name
-  this->LibraryName = argsIn[0];
+  // Store context information.
+  this->Target = target;
+  this->Makefile = this->Target->GetMakefile();
+  this->LocalGenerator = this->Makefile->GetLocalGenerator();
+  this->GlobalGenerator = this->LocalGenerator->GetGlobalGenerator();
+  this->CMakeInstance = this->GlobalGenerator->GetCMakeInstance();
 
-  if (argsIn[1] == std::string("SOURCES"))
+  // The configuration being linked.
+  this->Config = (config && *config)? config : 0;
+
+  // Enable debug mode if requested.
+  this->DebugMode = this->Makefile->IsOn("CMAKE_LINK_DEPENDS_DEBUG_MODE");
+
+  // Assume no compatibility until set.
+  this->OldLinkDirMode = false;
+}
+
+//----------------------------------------------------------------------------
+cmComputeLinkDepends::~cmComputeLinkDepends()
+{
+  for(std::vector<DependSetList*>::iterator
+        i = this->InferredDependSets.begin();
+      i != this->InferredDependSets.end(); ++i)
     {
-    this->Makefile->ExpandSourceListArguments(argsIn, args, 3);
+    delete *i;
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::SetOldLinkDirMode(bool b)
+{
+  this->OldLinkDirMode = b;
+}
+
+//----------------------------------------------------------------------------
+std::vector<cmComputeLinkDepends::LinkEntry> const&
+cmComputeLinkDepends::Compute()
+{
+  // Follow the link dependencies of the target to be linked.
+  this->AddTargetLinkEntries(-1, this->Target->GetOriginalLinkLibraries());
+
+  // Complete the breadth-first search of dependencies.
+  while(!this->BFSQueue.empty())
+    {
+    // Get the next entry.
+    BFSEntry qe = this->BFSQueue.front();
+    this->BFSQueue.pop();
+
+    // Follow the entry's dependencies.
+    this->FollowLinkEntry(qe);
+    }
+
+  // Complete the search of shared library dependencies.
+  while(!this->SharedDepQueue.empty())
+    {
+    // Handle the next entry.
+    this->HandleSharedDependency(this->SharedDepQueue.front());
+    this->SharedDepQueue.pop();
+    }
+
+  // Infer dependencies of targets for which they were not known.
+  this->InferDependencies();
+
+  // Cleanup the constraint graph.
+  this->CleanConstraintGraph();
+
+  // Display the constraint graph.
+  if(this->DebugMode)
+    {
+    fprintf(stderr,
+            "---------------------------------------"
+            "---------------------------------------\n");
+    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
+            this->Target->GetName(), this->Config?this->Config:"noconfig");
+    this->DisplayConstraintGraph();
+    }
+
+  // Compute the final ordering.
+  this->OrderLinkEntires();
+  this->PreserveOriginalEntries();
+
+  // Compute the final set of link entries.
+  for(std::vector<int>::const_iterator li = this->FinalLinkOrder.begin();
+      li != this->FinalLinkOrder.end(); ++li)
+    {
+    this->FinalLinkEntries.push_back(this->EntryList[*li]);
+    }
+
+  // Display the final set.
+  if(this->DebugMode)
+    {
+    this->DisplayFinalEntries();
+    }
+
+  return this->FinalLinkEntries;
+}
+
+//----------------------------------------------------------------------------
+std::map<cmStdString, int>::iterator
+cmComputeLinkDepends::AllocateLinkEntry(std::string const& item)
+{
+  std::map<cmStdString, int>::value_type
+    index_entry(item, static_cast<int>(this->EntryList.size()));
+  std::map<cmStdString, int>::iterator
+    lei = this->LinkEntryIndex.insert(index_entry).first;
+  this->EntryList.push_back(LinkEntry());
+  this->InferredDependSets.push_back(0);
+  this->EntryConstraintGraph.push_back(NodeList());
+  return lei;
+}
+
+//----------------------------------------------------------------------------
+int cmComputeLinkDepends::AddLinkEntry(std::string const& item)
+{
+  // Check if the item entry has already been added.
+  std::map<cmStdString, int>::iterator lei = this->LinkEntryIndex.find(item);
+  if(lei != this->LinkEntryIndex.end())
+    {
+    // Yes.  We do not need to follow the item's dependencies again.
+    return lei->second;
+    }
+
+  // Allocate a spot for the item entry.
+  lei = this->AllocateLinkEntry(item);
+
+  // Initialize the item entry.
+  int index = lei->second;
+  LinkEntry& entry = this->EntryList[index];
+  entry.Item = item;
+  entry.Target = this->FindTargetToLink(entry.Item.c_str());
+  entry.IsFlag = !entry.Target && item[0] == '-';
+
+  // If the item has dependencies queue it to follow them.
+  if(entry.Target)
+    {
+    // Target dependencies are always known.  Follow them.
+    BFSEntry qe = {index, 0};
+    this->BFSQueue.push(qe);
     }
   else
     {
-    this->Makefile->ExpandSourceListArguments(argsIn, args, 2);
-    }
-  
-  // Now check and see if the value has been stored in the cache
-  // already, if so use that value and don't look for the program
-  if(!this->Makefile->IsOn("VTK_WRAP_TCL"))
-    {
-    return true;
+    // Look for an old-style <item>_LIB_DEPENDS variable.
+    std::string var = entry.Item;
+    var += "_LIB_DEPENDS";
+    if(const char* val = this->Makefile->GetDefinition(var.c_str()))
+      {
+      // The item dependencies are known.  Follow them.
+      BFSEntry qe = {index, val};
+      this->BFSQueue.push(qe);
+      }
+    else if(!entry.IsFlag)
+      {
+      // The item dependencies are not known.  We need to infer them.
+      this->InferredDependSets[index] = new DependSetList;
+      }
     }
 
-  // extract the sources and commands parameters
-  std::vector<std::string> sources;
-  bool doing_sources = true;
-  
-  for(std::vector<std::string>::const_iterator j = (args.begin() + 1);
-      j != args.end(); ++j)
-    {   
-    if(*j == "SOURCES")
+  return index;
+}
+
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::FollowLinkEntry(BFSEntry const& qe)
+{
+  // Get this entry representation.
+  int depender_index = qe.Index;
+  LinkEntry const& entry = this->EntryList[depender_index];
+
+  // Follow the item's dependencies.
+  if(entry.Target)
+    {
+    // Follow the target dependencies.
+    if(cmTargetLinkInterface const* iface =
+       entry.Target->GetLinkInterface(this->Config))
       {
-      doing_sources = true;
+      // This target provides its own link interface information.
+      this->AddLinkEntries(depender_index, iface->Libraries);
+
+      // Handle dependent shared libraries.
+      this->QueueSharedDependencies(depender_index, iface->SharedDeps);
       }
-    else if (*j == "COMMANDS")
+    else if(!entry.Target->IsImported() &&
+            entry.Target->GetType() != cmTarget::EXECUTABLE)
       {
-      doing_sources = false;
+      // Use the target's link implementation as the interface.
+      this->AddTargetLinkEntries(depender_index,
+                                 entry.Target->GetOriginalLinkLibraries());
+      }
+    }
+  else
+    {
+    // Follow the old-style dependency list.
+    this->AddVarLinkEntries(depender_index, qe.LibDepends);
+    }
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeLinkDepends
+::QueueSharedDependencies(int depender_index,
+                          std::vector<std::string> const& deps)
+{
+  for(std::vector<std::string>::const_iterator li = deps.begin();
+      li != deps.end(); ++li)
+    {
+    SharedDepEntry qe;
+    qe.Item = *li;
+    qe.DependerIndex = depender_index;
+    this->SharedDepQueue.push(qe);
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::HandleSharedDependency(SharedDepEntry const& dep)
+{
+  // Check if the target already has an entry.
+  std::map<cmStdString, int>::iterator lei =
+    this->LinkEntryIndex.find(dep.Item);
+  if(lei == this->LinkEntryIndex.end())
+    {
+    // Allocate a spot for the item entry.
+    lei = this->AllocateLinkEntry(dep.Item);
+
+    // Initialize the item entry.
+    LinkEntry& entry = this->EntryList[lei->second];
+    entry.Item = dep.Item;
+    entry.Target = this->FindTargetToLink(dep.Item.c_str());
+
+    // This item was added specifically because it is a dependent
+    // shared library.  It may get special treatment
+    // in cmComputeLinkInformation.
+    entry.IsSharedDep = true;
+    }
+
+  // Get the link entry for this target.
+  int index = lei->second;
+  LinkEntry& entry = this->EntryList[index];
+
+  // This shared library dependency must be preceded by the item that
+  // listed it.
+  this->EntryConstraintGraph[index].push_back(dep.DependerIndex);
+
+  // Target items may have their own dependencies.
+  if(entry.Target)
+    {
+    if(cmTargetLinkInterface const* iface =
+       entry.Target->GetLinkInterface(this->Config))
+      {
+      // We use just the shared dependencies, not the interface.
+      this->QueueSharedDependencies(index, iface->SharedDeps);
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::AddVarLinkEntries(int depender_index,
+                                             const char* value)
+{
+  // This is called to add the dependencies named by
+  // <item>_LIB_DEPENDS.  The variable contains a semicolon-separated
+  // list.  The list contains link-type;item pairs and just items.
+  std::vector<std::string> deplist;
+  cmSystemTools::ExpandListArgument(value, deplist);
+
+  // Compute which library configuration to link.
+  cmTarget::LinkLibraryType linkType = cmTarget::OPTIMIZED;
+  if(this->Config && cmSystemTools::UpperCase(this->Config) == "DEBUG")
+    {
+    linkType = cmTarget::DEBUG;
+    }
+
+  // Look for entries meant for this configuration.
+  std::vector<std::string> actual_libs;
+  cmTarget::LinkLibraryType llt = cmTarget::GENERAL;
+  bool haveLLT = false;
+  for(std::vector<std::string>::const_iterator di = deplist.begin();
+      di != deplist.end(); ++di)
+    {
+    if(*di == "debug")
+      {
+      llt = cmTarget::DEBUG;
+      haveLLT = true;
+      }
+    else if(*di == "optimized")
+      {
+      llt = cmTarget::OPTIMIZED;
+      haveLLT = true;
+      }
+    else if(*di == "general")
+      {
+      llt = cmTarget::GENERAL;
+      haveLLT = true;
+      }
+    else if(!di->empty())
+      {
+      // If no explicit link type was given prior to this entry then
+      // check if the entry has its own link type variable.  This is
+      // needed for compatibility with dependency files generated by
+      // the export_library_dependencies command from CMake 2.4 and
+      // lower.
+      if(!haveLLT)
+        {
+        std::string var = *di;
+        var += "_LINK_TYPE";
+        if(const char* val = this->Makefile->GetDefinition(var.c_str()))
+          {
+          if(strcmp(val, "debug") == 0)
+            {
+            llt = cmTarget::DEBUG;
+            }
+          else if(strcmp(val, "optimized") == 0)
+            {
+            llt = cmTarget::OPTIMIZED;
+            }
+          }
+        }
+
+      // If the library is meant for this link type then use it.
+      if(llt == cmTarget::GENERAL || llt == linkType)
+        {
+        actual_libs.push_back(*di);
+        }
+      else if(this->OldLinkDirMode)
+        {
+        this->CheckWrongConfigItem(*di);
+        }
+
+      // Reset the link type until another explicit type is given.
+      llt = cmTarget::GENERAL;
+      haveLLT = false;
+      }
+    }
+
+  // Add the entries from this list.
+  this->AddLinkEntries(depender_index, actual_libs);
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeLinkDepends::AddTargetLinkEntries(int depender_index,
+                                           LinkLibraryVectorType const& libs)
+{
+  // Compute which library configuration to link.
+  cmTarget::LinkLibraryType linkType = cmTarget::OPTIMIZED;
+  if(this->Config && cmSystemTools::UpperCase(this->Config) == "DEBUG")
+    {
+    linkType = cmTarget::DEBUG;
+    }
+
+  // Look for entries meant for this configuration.
+  std::vector<std::string> actual_libs;
+  for(cmTarget::LinkLibraryVectorType::const_iterator li = libs.begin();
+      li != libs.end(); ++li)
+    {
+    if(li->second == cmTarget::GENERAL || li->second == linkType)
+      {
+      actual_libs.push_back(li->first);
+      }
+    else if(this->OldLinkDirMode)
+      {
+      this->CheckWrongConfigItem(li->first);
+      }
+    }
+
+  // Add these entries.
+  this->AddLinkEntries(depender_index, actual_libs);
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeLinkDepends::AddLinkEntries(int depender_index,
+                                     std::vector<std::string> const& libs)
+{
+  // Track inferred dependency sets implied by this list.
+  std::map<int, DependSet> dependSets;
+
+  // Loop over the libraries linked directly by the depender.
+  for(std::vector<std::string>::const_iterator li = libs.begin();
+      li != libs.end(); ++li)
+    {
+    // Skip entries that will resolve to the target getting linked or
+    // are empty.
+    std::string item = this->CleanItemName(*li);
+    if(item == this->Target->GetName() || item.empty())
+      {
+      continue;
+      }
+
+    // Add a link entry for this item.
+    int dependee_index = this->AddLinkEntry(item);
+
+    // The depender must come before the dependee.
+    if(depender_index >= 0)
+      {
+      if(!this->EntryList[dependee_index].IsFlag)
+        {
+        this->EntryConstraintGraph[dependee_index].push_back(depender_index);
+        }
       }
     else
-      { 
-      if(doing_sources)
-        {
-        sources.push_back(*j);
-        }
-      else
-        {
-        this->Commands.push_back(*j);
-        }
-      }
-    }
-
-  // get the list of classes for this library
-  if (sources.size())
-    {
-    // what is the current source dir
-    std::string cdir = this->Makefile->GetCurrentDirectory();
-
-    // get the resulting source list name
-    this->SourceList = sources[0];
-    std::string sourceListValue;
-    
-    // was the list already populated
-    const char *def = this->Makefile->GetDefinition(this->SourceList.c_str());  
-    if (def)
       {
-      sourceListValue = def;
-      sourceListValue += ";";
+      // This is a direct dependency of the target being linked.
+      this->OriginalEntries.push_back(dependee_index);
       }
-    
-    // Create the init file 
-    std::string res = this->LibraryName;
-    res += "Init.cxx";
-    sourceListValue += res;
-    
-    for(std::vector<std::string>::iterator j = (sources.begin() + 1);
-        j != sources.end(); ++j)
-      {   
-      cmSourceFile *curr = this->Makefile->GetSource(j->c_str());
-      
-      // if we should wrap the class
-      if (!curr || !curr->GetPropertyAsBool("WRAP_EXCLUDE"))
+
+    // Update the inferred dependencies for earlier items.
+    for(std::map<int, DependSet>::iterator dsi = dependSets.begin();
+        dsi != dependSets.end(); ++dsi)
+      {
+      // Add this item to the inferred dependencies of other items.
+      // Target items are never inferred dependees because unknown
+      // items are outside libraries that should not be depending on
+      // targets.
+      if(!this->EntryList[dependee_index].Target &&
+         !this->EntryList[dependee_index].IsFlag &&
+         dependee_index != dsi->first)
         {
-        cmSourceFile file;
-        std::string srcDir = cdir;
-        if (curr)
-          {
-          file.SetProperty("ABSTRACT",curr->GetProperty("ABSTRACT"));
-          srcDir  = cmSystemTools::GetFilenamePath(curr->GetFullPath());
-          }
-        std::string srcName = cmSystemTools::GetFilenameWithoutExtension(*j);
-        std::string newName = srcName + "Tcl";
-        std::string hname = srcDir + "/" + srcName + ".h";
-        file.SetName(newName.c_str(), this->Makefile->GetCurrentOutputDirectory(),
-                     "cxx",false);
-        this->WrapHeaders.push_back(hname);
-        // add starting depends
-        file.GetDepends().push_back(hname);
-        this->WrapClasses.push_back(file);
-        sourceListValue += ";";
-        sourceListValue += newName + ".cxx";
+        dsi->second.insert(dependee_index);
         }
       }
-    // add the init file
-    cmSourceFile cfile;
-    cfile.SetProperty("ABSTRACT","0");
-    std::string newName = this->LibraryName;
-    newName += "Init";
-    this->CreateInitFile(res);
-    cfile.SetName(newName.c_str(), this->Makefile->GetCurrentOutputDirectory(),
-                  "cxx",false);
-    this->Makefile->AddSource(cfile);
-    this->Makefile->AddDefinition(this->SourceList.c_str(), sourceListValue.c_str());  
-    }
-  
-  return true;
-}
 
-void cmVTKWrapTclCommand::FinalPass() 
-{
-  // first we add the rules for all the .h to Tcl.cxx files
-  size_t lastClass = this->WrapClasses.size();
-  std::vector<std::string> depends;
-  const char* wtcl = this->Makefile->GetRequiredDefinition("VTK_WRAP_TCL_EXE");
-  const char* hints = this->Makefile->GetDefinition("VTK_WRAP_HINTS");
-
-  // wrap all the .h files
-  depends.push_back(wtcl);
-  if(hints)
-    {
-    depends.push_back(hints);
-    }
-  for(size_t classNum = 0; classNum < lastClass; classNum++)
-    {
-    this->Makefile->AddSource(this->WrapClasses[classNum]);
-    cmCustomCommandLine commandLine;
-    commandLine.push_back(wtcl);
-    commandLine.push_back(this->WrapHeaders[classNum]);
-    if(hints)
+    // If this item needs to have dependencies inferred, do so.
+    if(this->InferredDependSets[dependee_index])
       {
-      commandLine.push_back(hints);
+      // Make sure an entry exists to hold the set for the item.
+      dependSets[dependee_index];
       }
-    commandLine.push_back((this->WrapClasses[classNum].
-                           GetPropertyAsBool("ABSTRACT") ? "0" : "1"));
-    std::string res = this->Makefile->GetCurrentOutputDirectory();
-    res += "/";
-    res += this->WrapClasses[classNum].GetSourceName() + ".cxx";
-    commandLine.push_back(res);
+    }
 
-    cmCustomCommandLines commandLines;
-    commandLines.push_back(commandLine);
-    std::vector<std::string> outputs;
-    outputs.push_back(res);
-    const char* no_comment = 0;
-    this->Makefile->AddCustomCommandOldStyle(this->LibraryName.c_str(),
-                                         outputs,
-                                         depends,
-                                         this->WrapHeaders[classNum].c_str(),
-                                         commandLines,
-                                         no_comment);
+  // Store the inferred dependency sets discovered for this list.
+  for(std::map<int, DependSet>::iterator dsi = dependSets.begin();
+      dsi != dependSets.end(); ++dsi)
+    {
+    this->InferredDependSets[dsi->first]->push_back(dsi->second);
     }
 }
 
-bool cmVTKWrapTclCommand::CreateInitFile(std::string& res) 
+//----------------------------------------------------------------------------
+std::string cmComputeLinkDepends::CleanItemName(std::string const& item)
 {
-  /* we have to make sure that the name is the correct case */
-  std::string kitName = cmSystemTools::Capitalized(this->LibraryName);
-  
-  std::vector<std::string> classes;
-  size_t lastClass = this->WrapHeaders.size();
-  size_t classNum;
-  for(classNum = 0; classNum < lastClass; classNum++)
+  // Strip whitespace off the library names because we used to do this
+  // in case variables were expanded at generate time.  We no longer
+  // do the expansion but users link to libraries like " ${VAR} ".
+  std::string lib = item;
+  std::string::size_type pos = lib.find_first_not_of(" \t\r\n");
+  if(pos != lib.npos)
     {
-    if (!this->WrapClasses[classNum].GetPropertyAsBool("ABSTRACT"))
+    lib = lib.substr(pos, lib.npos);
+    }
+  pos = lib.find_last_not_of(" \t\r\n");
+  if(pos != lib.npos)
+    {
+    lib = lib.substr(0, pos+1);
+    }
+  if(lib != item)
+    {
+    switch(this->Target->GetPolicyStatusCMP0004())
       {
-      std::string cls = this->WrapHeaders[classNum];
-      cls = cls.substr(0,cls.size()-2);
-      std::string::size_type pos = cls.rfind('/');    
-      if(pos != std::string::npos)
+      case cmPolicies::WARN:
         {
-        cls = cls.substr(pos+1);
+        cmOStringStream w;
+        w << (this->Makefile->GetPolicies()
+              ->GetPolicyWarning(cmPolicies::CMP0004)) << "\n"
+          << "Target \"" << this->Target->GetName() << "\" links to item \""
+          << item << "\" which has leading or trailing whitespace.";
+        this->CMakeInstance->IssueMessage(cmake::AUTHOR_WARNING, w.str(),
+                                          this->Target->GetBacktrace());
         }
-      classes.push_back(cls);
+      case cmPolicies::OLD:
+        break;
+      case cmPolicies::NEW:
+        {
+        cmOStringStream e;
+        e << "Target \"" << this->Target->GetName() << "\" links to item \""
+          << item << "\" which has leading or trailing whitespace.  "
+          << "This is now an error according to policy CMP0004.";
+        this->CMakeInstance->IssueMessage(cmake::FATAL_ERROR, e.str(),
+                                          this->Target->GetBacktrace());
+        }
+        break;
+      case cmPolicies::REQUIRED_IF_USED:
+      case cmPolicies::REQUIRED_ALWAYS:
+        {
+        cmOStringStream e;
+        e << (this->Makefile->GetPolicies()
+              ->GetRequiredPolicyError(cmPolicies::CMP0004)) << "\n"
+          << "Target \"" << this->Target->GetName() << "\" links to item \""
+          << item << "\" which has leading or trailing whitespace.";
+        this->CMakeInstance->IssueMessage(cmake::FATAL_ERROR, e.str(),
+                                          this->Target->GetBacktrace());
+        }
+        break;
       }
     }
-  
-  // open the init file
-  std::string outFileName = 
-    this->Makefile->GetCurrentOutputDirectory();
-  outFileName += "/" + res;
-  
-  return this->WriteInit(kitName.c_str(), outFileName, classes);
+  return lib;
 }
 
-
-/* warning this code is also in getclasses.cxx under pcmaker */
-bool cmVTKWrapTclCommand::WriteInit(const char *kitName, 
-                                    std::string& outFileName,
-                                    std::vector<std::string>& classes)
+//----------------------------------------------------------------------------
+cmTarget* cmComputeLinkDepends::FindTargetToLink(const char* name)
 {
-  unsigned int i;
-  std::string tempOutputFile = outFileName + ".tmp";
-  FILE *fout = fopen(tempOutputFile.c_str(),"w");
-  if (!fout)
+  // Look for a target.
+  cmTarget* tgt = this->Makefile->FindTargetToUse(name);
+
+  // Skip targets that will not really be linked.  This is probably a
+  // name conflict between an external library and an executable
+  // within the project.
+  if(tgt && tgt->GetType() == cmTarget::EXECUTABLE &&
+     !tgt->IsExecutableWithExports())
     {
-    cmSystemTools::Error("Failed to open TclInit file for ",
-                         tempOutputFile.c_str());
-    cmSystemTools::ReportLastSystemError("");
-    return false;
+    tgt = 0;
     }
 
-  // capitalized commands just once
-  std::vector<std::string> capcommands;
-  for (i = 0; i < this->Commands.size(); i++)
-    {
-    capcommands.push_back(cmSystemTools::Capitalized(this->Commands[i]));
-    }
-  
-  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
-  fprintf(fout,"#include \"vtkVersion.h\"\n");
-  fprintf(fout,"#define VTK_TCL_TO_STRING(x) VTK_TCL_TO_STRING0(x)\n");
-  fprintf(fout,"#define VTK_TCL_TO_STRING0(x) #x\n");
-  
-  fprintf(fout,
-          "extern \"C\"\n"
-          "{\n"
-          "#if (TCL_MAJOR_VERSION == 8) && (TCL_MINOR_VERSION >= 4) && (TCL_RELEASE_LEVEL >= TCL_FINAL_RELEASE)\n"
-          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, CONST84 char *[]);\n"
-          "#else\n"
-          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, char *[]);\n"
-          "#endif\n"
-          "}\n"
-          "\n");
-
-  for (i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
-    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
-    }
-  
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,"int vtkCommand(ClientData cd, Tcl_Interp *interp,\n"
-                 "               int argc, char *argv[]);\n");
-    fprintf(fout,"\nTcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkCommandLookup;\n");
-    fprintf(fout,"int vtkCommandForward(ClientData cd, Tcl_Interp *interp,\n"
-                 "                      int argc, char *argv[]){\n"
-                 "  return vtkCommand(cd, interp, argc, argv);\n"
-                 "}\n");
-    }
-  else
-    {
-    fprintf(fout,"\nextern Tcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkCommandLookup;\n");
-    }
-  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
-  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
-
-  for (i = 0; i < this->Commands.size(); i++)
-    {
-    fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-            capcommands[i].c_str());
-    }
-  
-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n",
-          kitName);
-  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-          kitName);
-  
-  /* create an extern ref to the generic delete function */
-  fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
-
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,"extern \"C\"\n{\nvoid vtkCommonDeleteAssocData(ClientData cd)\n");
-    fprintf(fout,"  {\n");
-    fprintf(fout,"  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n");
-    fprintf(fout,"  delete tis;\n  }\n}\n");
-    }
-    
-  /* the main declaration */
-  fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
-  fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
-  
-  fprintf(fout,"\n\nint VTK_EXPORT %s_Init(Tcl_Interp *interp)\n{\n",
-          kitName);
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,
-            "  vtkTclInterpStruct *info = new vtkTclInterpStruct;\n");
-    fprintf(fout,
-            "  info->Number = 0; info->InDelete = 0; info->DebugOn = 0;\n");
-    fprintf(fout,"\n");
-    fprintf(fout,"\n");
-    fprintf(fout,
-            "  Tcl_InitHashTable(&info->InstanceLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_InitHashTable(&info->PointerLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_InitHashTable(&info->CommandLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");
-    fprintf(fout,
-            "  Tcl_CreateExitHandler(vtkCommonDeleteAssocData,(ClientData *)info);\n");
-
-    /* create special vtkCommand command */
-    fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",\n"
-                 "                    reinterpret_cast<vtkTclCommandType>(vtkCommandForward),\n"
-                 "                    (ClientData *)NULL, NULL);\n\n");
-    }
-  
-  for (i = 0; i < this->Commands.size(); i++)
-    {
-    fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
-    }
-  fprintf(fout,"\n");
-
-  for (i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"  vtkTclCreateNew(interp,(char *) \"%s\", %sNewCommand,\n",
-            classes[i].c_str(), classes[i].c_str());
-    fprintf(fout,"                  %sCommand);\n",classes[i].c_str());
-    }
-  
-  fprintf(fout,"  char pkgName[]=\"%s\";\n", this->LibraryName.c_str());
-  fprintf(fout,"  char pkgVers[]=VTK_TCL_TO_STRING(VTK_MAJOR_VERSION)"
-               " \".\" "
-               "VTK_TCL_TO_STRING(VTK_MINOR_VERSION);\n");
-  fprintf(fout,"  Tcl_PkgProvide(interp, pkgName, pkgVers);\n");
-  fprintf(fout,"  return TCL_OK;\n}\n");
-  fclose(fout);
-
-  // copy the file if different
-  cmSystemTools::CopyFileIfDifferent(tempOutputFile.c_str(),
-                                     outFileName.c_str());
-  cmSystemTools::RemoveFile(tempOutputFile.c_str());
-
-  return true;
+  // Return the target found, if any.
+  return tgt;
 }
 
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::InferDependencies()
+{
+  // The inferred dependency sets for each item list the possible
+  // dependencies.  The intersection of the sets for one item form its
+  // inferred dependencies.
+  for(unsigned int depender_index=0;
+      depender_index < this->InferredDependSets.size(); ++depender_index)
+    {
+    // Skip items for which dependencies do not need to be inferred or
+    // for which the inferred dependency sets are empty.
+    DependSetList* sets = this->InferredDependSets[depender_index];
+    if(!sets || sets->empty())
+      {
+      continue;
+      }
 
+    // Intersect the sets for this item.
+    DependSetList::const_iterator i = sets->begin();
+    DependSet common = *i;
+    for(++i; i != sets->end(); ++i)
+      {
+      DependSet intersection;
+      cmsys_stl::set_intersection
+        (common.begin(), common.end(), i->begin(), i->end(),
+         std::inserter(intersection, intersection.begin()));
+      common = intersection;
+      }
+
+    // Add the inferred dependencies to the graph.
+    for(DependSet::const_iterator j = common.begin(); j != common.end(); ++j)
+      {
+      int dependee_index = *j;
+      this->EntryConstraintGraph[dependee_index].push_back(depender_index);
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::CleanConstraintGraph()
+{
+  for(Graph::iterator i = this->EntryConstraintGraph.begin();
+      i != this->EntryConstraintGraph.end(); ++i)
+    {
+    // Sort the outgoing edges for each graph node so that the
+    // original order will be preserved as much as possible.
+    cmsys_stl::sort(i->begin(), i->end());
+
+    // Make the edge list unique.
+    NodeList::iterator last = cmsys_stl::unique(i->begin(), i->end());
+    i->erase(last, i->end());
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::DisplayConstraintGraph()
+{
+  // Display the graph nodes and their edges.
+  cmOStringStream e;
+  for(unsigned int i=0; i < this->EntryConstraintGraph.size(); ++i)
+    {
+    NodeList const& nl = this->EntryConstraintGraph[i];
+    e << "item " << i << " is [" << this->EntryList[i].Item << "]\n";
+    for(NodeList::const_iterator j = nl.begin(); j != nl.end(); ++j)
+      {
+      e << "  item " << *j << " must precede it\n";
+      }
+    }
+  fprintf(stderr, "%s\n", e.str().c_str());
+}
+
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::OrderLinkEntires()
+{
+  // Compute the DAG of strongly connected components.  The algorithm
+  // used by cmComputeComponentGraph should identify the components in
+  // the same order in which the items were originally discovered in
+  // the BFS.  This should preserve the original order when no
+  // constraints disallow it.
+  cmComputeComponentGraph ccg(this->EntryConstraintGraph);
+  Graph const& cgraph = ccg.GetComponentGraph();
+  if(this->DebugMode)
+    {
+    this->DisplayComponents(ccg);
+    }
+
+  // Setup visit tracking.
+  this->ComponentVisited.resize(cgraph.size(), 0);
+
+  // The component graph is guaranteed to be acyclic.  Start a DFS
+  // from every entry.
+  for(unsigned int c=0; c < cgraph.size(); ++c)
+    {
+    this->VisitComponent(ccg, c);
+    }
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeLinkDepends::DisplayComponents(cmComputeComponentGraph const& ccg)
+{
+  fprintf(stderr, "The strongly connected components are:\n");
+  std::vector<NodeList> const& components = ccg.GetComponents();
+  for(unsigned int c=0; c < components.size(); ++c)
+    {
+    fprintf(stderr, "Component (%u):\n", c);
+    NodeList const& nl = components[c];
+    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int i = *ni;
+      fprintf(stderr, "  item %d [%s]\n", i,
+              this->EntryList[i].Item.c_str());
+      }
+    }
+  fprintf(stderr, "\n");
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeLinkDepends::VisitComponent(cmComputeComponentGraph const& ccg,
+                                     unsigned int c)
+{
+  // Check if the node has already been visited.
+  if(this->ComponentVisited[c])
+    {
+    return;
+    }
+
+  // We are now visiting this component so mark it.
+  this->ComponentVisited[c] = 1;
+
+  // Visit the neighbors of the component first.
+  NodeList const& nl = ccg.GetComponentGraphEdges(c);
+  for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+    {
+    this->VisitComponent(ccg, *ni);
+    }
+
+  // Now that all items required to come before this one have been
+  // emmitted, emit this component's items.
+  this->EmitComponent(ccg.GetComponent(c));
+}
+
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::EmitComponent(NodeList const& nl)
+{
+  assert(!nl.empty());
+
+  // Handle trivial components.
+  if(nl.size() == 1)
+    {
+    this->FinalLinkOrder.push_back(nl[0]);
+    return;
+    }
+
+  // This is a non-trivial strongly connected component of the
+  // original graph.  It consists of two or more libraries (archives)
+  // that mutually require objects from one another.  In the worst
+  // case we may have to repeat the list of libraries as many times as
+  // there are object files in the biggest archive.  For now we just
+  // list them twice.
+  //
+  // The list of items in the component has been sorted by the order
+  // of discovery in the original BFS of dependencies.  This has the
+  // advantage that the item directly linked by a target requiring
+  // this component will come first which minimizes the number of
+  // repeats needed.
+  for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+    {
+    this->FinalLinkOrder.push_back(*ni);
+    }
+  for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+    {
+    this->FinalLinkOrder.push_back(*ni);
+    }

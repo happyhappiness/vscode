@@ -1,7 +1,6 @@
-
-/* Report a fatal error. */
-#ifndef YY_FATAL_ERROR
-#define YY_FATAL_ERROR(msg) yy_fatal_error( msg )
-#endif
-
-/* end tables serialization structures and prototypes */
+  result = 0;
+  }
+# endif
+# ifdef FILE_DEF_RELEASE
+  {
+  fprintf(stderr, "FILE_DEF_RELEASE should not be defined in C\n");

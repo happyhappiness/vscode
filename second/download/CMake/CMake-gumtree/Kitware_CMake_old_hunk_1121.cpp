@@ -1,8 +1,8 @@
-    {
-    return 0;
-    }
-  //printf("Do some parsing: %s\n", str);
+    fprintf(logfile, "ADDR %s:%d freeaddrinfo(%p)\n",
+            source, line, (void *)freethis);
+}
 
-  this->Verbose = verb;
-  this->InputBuffer = str;
-  this->InputBufferPos = 0;
+#endif
+
+/*
+ * Curl_ipvalid() checks what CURL_IPRESOLVE_* requirements that might've

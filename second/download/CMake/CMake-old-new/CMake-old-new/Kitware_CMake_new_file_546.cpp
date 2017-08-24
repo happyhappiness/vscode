@@ -1,842 +1,425 @@
-/*=========================================================================
+/* This source code was modified by Martin Hedenfalk <mhe@stacken.kth.se> for
+ * use in Curl. Martin's latest changes were done 2000-09-18.
+ *
+ * It has since been patched away like a madman by Daniel Stenberg to make it
+ * better applied to curl conditions, and to make it not use globals, pollute
+ * name space and more.
+ *
+ * Copyright (c) 1995, 1996, 1997, 1998, 1999 Kungliga Tekniska Högskolan
+ * (Royal Institute of Technology, Stockholm, Sweden).
+ * Copyright (c) 2004 - 2007 Daniel Stenberg
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the Institute nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE INSTITUTE AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE INSTITUTE OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ * $Id$
+ */
 
-  Program:   CMake - Cross-Platform Makefile Generator
-  Module:    $RCSfile$
-  Language:  C++
-  Date:      $Date$
-  Version:   $Revision$
+#include "setup.h"
 
-  Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
-  See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
-
-     This software is distributed WITHOUT ANY WARRANTY; without even
-     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-     PURPOSE.  See the above copyright notices for more information.
-
-=========================================================================*/
-
-#include "cmCTestCoverageHandler.h"
-
-#include "cmCTest.h"
-#include "cmake.h"
-#include "cmSystemTools.h"
-#include "cmGeneratedFileStream.h"
-#include "cmGlob.h"
-#include <cmsys/Process.h>
-#include <cmsys/RegularExpression.hxx>
+#ifndef CURL_DISABLE_FTP
+#ifdef HAVE_KRB4
 
 #include <stdlib.h>
-#include <math.h>
-#include <float.h>
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
+#endif
+#include <string.h>
+#include <krb.h>
+#include <des.h>
 
-#define SAFEDIV(x,y) (((y)!=0)?((x)/(y)):(0))
+#ifdef HAVE_UNISTD_H
+#include <unistd.h> /* for getpid() */
+#endif
 
-//----------------------------------------------------------------------
-cmCTestCoverageHandler::cmCTestCoverageHandler()
+#include "urldata.h"
+#include "base64.h"
+#include "ftp.h"
+#include "sendf.h"
+#include "krb4.h"
+#include "memory.h"
+
+#if defined(HAVE_INET_NTOA_R) && !defined(HAVE_INET_NTOA_R_DECL)
+#include "inet_ntoa_r.h"
+#endif
+
+/* The last #include file should be: */
+#include "memdebug.h"
+
+#define LOCAL_ADDR (&conn->local_addr)
+#define REMOTE_ADDR conn->ip_addr->ai_addr
+#define myctladdr LOCAL_ADDR
+#define hisctladdr REMOTE_ADDR
+
+struct krb4_data {
+  des_cblock key;
+  des_key_schedule schedule;
+  char name[ANAME_SZ];
+  char instance[INST_SZ];
+  char realm[REALM_SZ];
+};
+
+#ifndef HAVE_STRLCPY
+/* if it ever goes non-static, make it Curl_ prefixed! */
+static size_t
+strlcpy (char *dst, const char *src, size_t dst_sz)
 {
-}
+  size_t n;
+  char *p;
 
-//----------------------------------------------------------------------
-void cmCTestCoverageHandler::Initialize()
-{
-  this->Superclass::Initialize();
-  m_CustomCoverageExclude.empty();
-}
-
-//----------------------------------------------------------------------
-bool cmCTestCoverageHandler::StartCoverageLogFile(
-  cmGeneratedFileStream& covLogFile, int logFileCount)
-{
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d", logFileCount);
-  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Open file: " << covLogFilename
-    << std::endl);
-  if (!this->StartResultingXML(covLogFilename, covLogFile) )
-    {
-    cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot open log file: "
-      << covLogFilename << std::endl);
-    return false;
-    }
-  std::string local_start_time = m_CTest->CurrentTime();
-  m_CTest->StartXML(covLogFile);
-  covLogFile << "<CoverageLog>" << std::endl
-    << "\t<StartDateTime>" << local_start_time << "</StartDateTime>"
-    << std::endl;
-  return true;
-}
-
-//----------------------------------------------------------------------
-void cmCTestCoverageHandler::EndCoverageLogFile(cmGeneratedFileStream& ostr,
-  int logFileCount)
-{
-  std::string local_end_time = m_CTest->CurrentTime();
-  ostr << "\t<EndDateTime>" << local_end_time << "</EndDateTime>" << std::endl
-    << "</CoverageLog>" << std::endl;
-  m_CTest->EndXML(ostr);
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Close file: "
-    << covLogFilename << std::endl);
-  ostr.Close();
-}
-
-//----------------------------------------------------------------------
-bool cmCTestCoverageHandler::ShouldIDoCoverage(const char* file,
-  const char* srcDir,
-  const char* binDir)
-{
-  std::vector<cmsys::RegularExpression>::iterator sit;
-  for ( sit = m_CustomCoverageExcludeRegex.begin();
-    sit != m_CustomCoverageExcludeRegex.end(); ++ sit )
-    {
-    if ( sit->find(file) )
-      {
-      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "  File " << file
-        << " is excluded in CTestCustom.ctest" << std::endl;);
-      return false;
-      }
-    }
-
-  std::string fSrcDir = cmSystemTools::CollapseFullPath(srcDir);
-  std::string fBinDir = cmSystemTools::CollapseFullPath(binDir);
-  std::string fFile = cmSystemTools::CollapseFullPath(file);
-  bool sourceSubDir = cmSystemTools::IsSubDirectory(fFile.c_str(),
-    fSrcDir.c_str());
-  bool buildSubDir = cmSystemTools::IsSubDirectory(fFile.c_str(),
-    fBinDir.c_str());
-  // Always check parent directory of the file.
-  std::string fileDir = cmSystemTools::GetFilenamePath(fFile.c_str());
-  std::string checkDir;
-
-  // We also need to check the binary/source directory pair.
-  if ( sourceSubDir && buildSubDir )
-    {
-    if ( fSrcDir.size() > fBinDir.size() )
-      {
-      checkDir = fSrcDir;
-      }
-    else
-      {
-      checkDir = fBinDir;
-      }
-    }
-  else if ( sourceSubDir )
-    {
-    checkDir = fSrcDir;
-    }
-  else if ( buildSubDir )
-    {
-    checkDir = fBinDir;
-    }
-  std::string ndc
-    = cmSystemTools::FileExistsInParentDirectories(".NoDartCoverage",
-      fFile.c_str(), checkDir.c_str());
-  if ( ndc.size() )
-    {
-    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Found: " << ndc.c_str()
-      << " so skip coverage of " << file << std::endl);
-    return false;
-    }
-
-  // By now checkDir should be set to parent directory of the file.
-  // Get the relative path to the file an apply it to the opposite directory.
-  // If it is the same as fileDir, then ignore, otherwise check.
-  std::string relPath = cmSystemTools::RelativePath(checkDir.c_str(),
-    fFile.c_str());
-  if ( checkDir == fSrcDir )
-    {
-    checkDir = fBinDir;
-    }
+  for (p = dst, n = 0;
+       n + 1 < dst_sz && *src != '\0';
+       ++p, ++src, ++n)
+    *p = *src;
+  *p = '\0';
+  if (*src == '\0')
+    return n;
   else
-    {
-    checkDir = fSrcDir;
-    }
-  fFile = checkDir + "/" + relPath;
-  fFile = cmSystemTools::GetFilenamePath(fFile.c_str());
-
-  if ( fileDir == fFile )
-    {
-    // This is in-source build, so we trust the previous check.
-    return true;
-    }
-
-  ndc = cmSystemTools::FileExistsInParentDirectories(".NoDartCoverage",
-    fFile.c_str(), checkDir.c_str());
-  if ( ndc.size() )
-    {
-    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Found: " << ndc.c_str()
-      << " so skip coverage of: " << file << std::endl);
-    return false;
-    }
-  // Ok, nothing in source tree, nothing in binary tree
-  return true;
+    return n + strlen (src);
 }
+#else
+size_t strlcpy (char *dst, const char *src, size_t dst_sz);
+#endif
 
-//----------------------------------------------------------------------
-//clearly it would be nice if this were broken up into a few smaller
-//functions and commented...
-int cmCTestCoverageHandler::ProcessHandler()
+static int
+krb4_check_prot(void *app_data, int level)
 {
-  int error = 0;
-
-  std::string sourceDir = m_CTest->GetCTestConfiguration("SourceDirectory");
-  std::string binaryDir = m_CTest->GetCTestConfiguration("BuildDirectory");
-  std::string gcovCommand = m_CTest->GetCTestConfiguration("CoverageCommand");
-
-  cmGeneratedFileStream ofs;
-  double elapsed_time_start = cmSystemTools::GetTime();
-  if ( !this->StartLogFile("Coverage", ofs) )
-    {
-    cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot create LastCoverage.log file"
-      << std::endl);
-    }
-
-  ofs << "Performing coverage: " << elapsed_time_start << std::endl;
-
-  cmSystemTools::ConvertToUnixSlashes(sourceDir);
-  cmSystemTools::ConvertToUnixSlashes(binaryDir);
-
-  std::string asfGlob = sourceDir + "/*";
-  std::string abfGlob = binaryDir + "/*";
-
-
-  // Style 1
-  std::string st1gcovOutputRex1
-    = "[0-9]+\\.[0-9]+% of [0-9]+ (source |)lines executed in file (.*)$";
-  std::string st1gcovOutputRex2 = "^Creating (.*\\.gcov)\\.";
-  cmsys::RegularExpression st1re1(st1gcovOutputRex1.c_str());
-  cmsys::RegularExpression st1re2(st1gcovOutputRex2.c_str());
-
-
-  // Style 2
-  std::string st2gcovOutputRex1 = "^File *[`'](.*)'$";
-  std::string st2gcovOutputRex2
-    = "Lines executed: *[0-9]+\\.[0-9]+% of [0-9]+$";
-  std::string st2gcovOutputRex3 = "^(.*):creating [`'](.*\\.gcov)'";
-  std::string st2gcovOutputRex4 = "^(.*):unexpected EOF *$";
-  std::string st2gcovOutputRex5 = "^(.*):cannot open source file*$";
-  std::string st2gcovOutputRex6
-    = "^(.*):source file is newer than graph file `(.*)'$";
-  cmsys::RegularExpression st2re1(st2gcovOutputRex1.c_str());
-  cmsys::RegularExpression st2re2(st2gcovOutputRex2.c_str());
-  cmsys::RegularExpression st2re3(st2gcovOutputRex3.c_str());
-  cmsys::RegularExpression st2re4(st2gcovOutputRex4.c_str());
-  cmsys::RegularExpression st2re5(st2gcovOutputRex5.c_str());
-  cmsys::RegularExpression st2re6(st2gcovOutputRex6.c_str());
-
-  cmCTestLog(m_CTest, HANDLER_OUTPUT, "Performing coverage" << std::endl);
-
-  std::string coverage_start_time = m_CTest->CurrentTime();
-
-  std::string testingDir = m_CTest->GetBinaryDir() + "/Testing";
-  std::string tempDir = testingDir + "/CoverageInfo";
-  std::string currentDirectory = cmSystemTools::GetCurrentWorkingDirectory();
-  cmSystemTools::MakeDirectory(tempDir.c_str());
-  cmSystemTools::ChangeDirectory(tempDir.c_str());
-
-  cmGlob gl;
-  gl.RecurseOn();
-  std::string daGlob = binaryDir + "/*.da";
-  gl.FindFiles(daGlob);
-  std::vector<std::string> files = gl.GetFiles();
-  daGlob = binaryDir + "/*.gcda";
-  gl.FindFiles(daGlob);
-  std::vector<std::string>& moreFiles = gl.GetFiles();
-  files.insert(files.end(), moreFiles.begin(), moreFiles.end());
-  std::vector<std::string>::iterator it;
-
-  if ( files.size() == 0 )
-    {
-    cmCTestLog(m_CTest, ERROR_MESSAGE, " Cannot find any coverage files."
-      << std::endl);
-    // No coverage files is a valid thing, so the exit code is 0
-    return 0;
-    }
-
-  m_CustomCoverageExcludeRegex.empty();
-  std::vector<cmStdString>::iterator rexIt;
-  for ( rexIt = m_CustomCoverageExclude.begin();
-    rexIt != m_CustomCoverageExclude.end();
-    ++ rexIt )
-    {
-    m_CustomCoverageExcludeRegex.push_back(
-      cmsys::RegularExpression(rexIt->c_str()));
-    }
-
-  typedef std::vector<int> singleFileCoverageVector;
-  typedef std::map<std::string, singleFileCoverageVector> totalCoverageMap;
-
-  totalCoverageMap totalCoverage;
-
-  int gcovStyle = 0;
-
-  std::set<std::string> missingFiles;
-
-  std::string actualSourceFile = "";
-  cmCTestLog(m_CTest, HANDLER_OUTPUT,
-    "   Processing coverage (each . represents one file):" << std::endl);
-  cmCTestLog(m_CTest, HANDLER_OUTPUT, "    ");
-  int file_count = 0;
-  for ( it = files.begin(); it != files.end(); ++ it )
-    {
-    cmCTestLog(m_CTest, HANDLER_OUTPUT, "." << std::flush);
-    std::string fileDir = cmSystemTools::GetFilenamePath(it->c_str());
-    std::string command = "\"" + gcovCommand + "\" -l -o \"" + fileDir
-      + "\" \"" + *it + "\"";
-    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, command.c_str() << std::endl);
-    std::string output = "";
-    std::string errors = "";
-    int retVal = 0;
-    ofs << "* Run coverage for: " << fileDir.c_str() << std::endl;
-    ofs << "  Command: " << command.c_str() << std::endl;
-    int res = m_CTest->RunCommand(command.c_str(), &output, &errors,
-      &retVal, tempDir.c_str(), 0 /*m_TimeOut*/);
-
-    ofs << "  Output: " << output.c_str() << std::endl;
-    ofs << "  Errors: " << errors.c_str() << std::endl;
-    if ( ! res )
-      {
-      cmCTestLog(m_CTest, ERROR_MESSAGE, "Problem running coverage on file: "
-        << it->c_str() << std::endl);
-      cmCTestLog(m_CTest, ERROR_MESSAGE, "Command produced error: " << errors
-        << std::endl);
-      error ++;
-      continue;
-      }
-    if ( retVal != 0 )
-      {
-      cmCTestLog(m_CTest, ERROR_MESSAGE, "Coverage command returned: "
-        << retVal << " while processing: " << it->c_str() << std::endl);
-      cmCTestLog(m_CTest, ERROR_MESSAGE, "Command produced error: " << error
-        << std::endl);
-      }
-    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT,
-      "--------------------------------------------------------------"
-      << std::endl
-      << output << std::endl
-      << "--------------------------------------------------------------"
-      << std::endl);
-    std::vector<cmStdString> lines;
-    std::vector<cmStdString>::iterator line;
-
-
-    // Globals for storing current source file and current gcov file;
-    cmSystemTools::Split(output.c_str(), lines);
-    for ( line = lines.begin(); line != lines.end(); ++line)
-      {
-      std::string sourceFile;
-      std::string gcovFile;
-      cmCTestLog(m_CTest, DEBUG, "Line: [" << line->c_str() << "]"
-        << std::endl);
-      if ( line->size() == 0 )
-        {
-        // Ignore empty line; probably style 2
-        }
-      else if ( st1re1.find(line->c_str()) )
-        {
-        if ( gcovStyle != 0 )
-          {
-          if ( gcovStyle != 1 )
-            {
-            cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown gcov output style"
-              << std::endl);
-            error ++;
-            break;
-            }
-          gcovStyle = 1;
-          }
-
-        actualSourceFile = "";
-        sourceFile = st1re1.match(2);
-        }
-      else if ( st1re2.find(line->c_str() ) )
-        {
-        if ( gcovStyle != 0 )
-          {
-          if ( gcovStyle != 1 )
-            {
-            cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown gcov output style"
-              << std::endl);
-            error ++;
-            break;
-            }
-          gcovStyle = 1;
-          }
-
-        gcovFile = st1re2.match(1);
-        }
-      else if ( st2re1.find(line->c_str() ) )
-        {
-        if ( gcovStyle != 0 )
-          {
-          if ( gcovStyle != 2 )
-            {
-            cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown gcov output style"
-              << std::endl);
-            error ++;
-            break;
-            }
-          gcovStyle = 2;
-          }
-
-        actualSourceFile = "";
-        sourceFile = st2re1.match(1);
-        }
-      else if ( st2re2.find(line->c_str() ) )
-        {
-        if ( gcovStyle != 0 )
-          {
-          if ( gcovStyle != 2 )
-            {
-            cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown gcov output style"
-              << std::endl);
-            error ++;
-            break;
-            }
-          gcovStyle = 2;
-          }
-        }
-      else if ( st2re3.find(line->c_str() ) )
-        {
-        if ( gcovStyle != 0 )
-          {
-          if ( gcovStyle != 2 )
-            {
-            cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown gcov output style"
-              << std::endl);
-            error ++;
-            break;
-            }
-          gcovStyle = 2;
-          }
-
-        gcovFile = st2re3.match(2);
-        }
-      else if ( st2re4.find(line->c_str() ) )
-        {
-        if ( gcovStyle != 0 )
-          {
-          if ( gcovStyle != 2 )
-            {
-            cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown gcov output style"
-              << std::endl);
-            error ++;
-            break;
-            }
-          gcovStyle = 2;
-          }
-
-        cmCTestLog(m_CTest, WARNING, "Warning: " << st2re4.match(1)
-          << " had unexpected EOF" << std::endl);
-        }
-      else if ( st2re5.find(line->c_str() ) )
-        {
-        if ( gcovStyle != 0 )
-          {
-          if ( gcovStyle != 2 )
-            {
-            cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown gcov output style"
-              << std::endl);
-            error ++;
-            break;
-            }
-          gcovStyle = 2;
-          }
-
-        cmCTestLog(m_CTest, WARNING, "Warning: Cannot open file: "
-          << st2re5.match(1) << std::endl);
-        }
-      else if ( st2re6.find(line->c_str() ) )
-        {
-        if ( gcovStyle != 0 )
-          {
-          if ( gcovStyle != 2 )
-            {
-            cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown gcov output style"
-              << std::endl);
-            error ++;
-            break;
-            }
-          gcovStyle = 2;
-          }
-
-        cmCTestLog(m_CTest, WARNING, "Warning: File: " << st2re6.match(1)
-          << " is newer than " << st2re6.match(2) << std::endl);
-        }
-      else
-        {
-        cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown line: [" << line->c_str()
-          << "]" << std::endl);
-        error ++;
-        //abort();
-        }
-      if ( !gcovFile.empty() && actualSourceFile.size() )
-        {
-        singleFileCoverageVector* vec = &totalCoverage[actualSourceFile];
-        cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "   in file: "
-          << gcovFile << std::endl);
-        std::ifstream ifile(gcovFile.c_str());
-        if ( ! ifile )
-          {
-          cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot open file: "
-            << gcovFile << std::endl);
-          }
-        else
-          {
-          long cnt = -1;
-          std::string nl;
-          while ( cmSystemTools::GetLineFromStream(ifile, nl) )
-            {
-            cnt ++;
-
-            //TODO: Handle gcov 3.0 non-coverage lines
-
-            // Skip empty lines
-            if ( !nl.size() )
-              {
-              continue;
-              }
-
-            // Skip unused lines
-            if ( nl.size() < 12 )
-              {
-              continue;
-              }
-
-            // Read the coverage count from the beginning of the gcov output
-            // line
-            std::string prefix = nl.substr(0, 12);
-            int cov = atoi(prefix.c_str());
-            // Read the line number starting at the 10th character of the gcov
-            // output line
-            std::string lineNumber = nl.substr(10, 5);
-            int lineIdx = atoi(lineNumber.c_str())-1;
-            if ( lineIdx >= 0 )
-              {
-              while ( vec->size() <=
-                static_cast<singleFileCoverageVector::size_type>(lineIdx) )
-                {
-                vec->push_back(-1);
-                }
-              // Initially all entries are -1 (not used). If we get coverage
-              // information, increment it to 0 first.
-              if ( (*vec)[lineIdx] < 0 )
-                {
-                if ( cov > 0 || prefix.find("#") != prefix.npos )
-                  {
-                  (*vec)[lineIdx] = 0;
-                  }
-                }
-              (*vec)[lineIdx] += cov;
-              }
-            }
-          }
-        actualSourceFile = "";
-        }
-      if ( !sourceFile.empty() && actualSourceFile.empty() )
-        {
-        gcovFile = "";
-        // Is it in the source dir?
-        if ( sourceFile.size() > sourceDir.size() &&
-          sourceFile.substr(0, sourceDir.size()) == sourceDir &&
-          sourceFile[sourceDir.size()] == '/' )
-          {
-          cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "   produced s: "
-            << sourceFile.c_str() << std::endl);
-          ofs << "  produced in source dir: " << sourceFile.c_str()
-            << std::endl;
-          actualSourceFile
-            = cmSystemTools::CollapseFullPath(sourceFile.c_str());
-          }
-        // Binary dir?
-        if ( sourceFile.size() > binaryDir.size() &&
-          sourceFile.substr(0, binaryDir.size()) == binaryDir &&
-          sourceFile[binaryDir.size()] == '/' )
-          {
-          cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "   produced b: "
-            << sourceFile.c_str() << std::endl);
-          ofs << "  produced in binary dir: " << sourceFile.c_str()
-            << std::endl;
-          actualSourceFile
-            = cmSystemTools::CollapseFullPath(sourceFile.c_str());
-          }
-        if ( actualSourceFile.empty() )
-          {
-          if ( missingFiles.find(actualSourceFile) == missingFiles.end() )
-            {
-            cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Something went wrong"
-              << std::endl);
-            cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "File: ["
-              << sourceFile.c_str() << "]" << std::endl);
-            cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "s: ["
-              << sourceFile.substr(0, sourceDir.size()) << "]" << std::endl);
-            cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "b: ["
-              << sourceFile.substr(0, binaryDir.size()) << "]" << std::endl);
-            ofs << "  Something went wrong. Cannot find: "
-              << sourceFile.c_str()
-              << " in source dir: " << sourceDir.c_str()
-              << " or binary dir: " << binaryDir.c_str() << std::endl;
-            missingFiles.insert(actualSourceFile);
-            }
-          }
-        }
-      }
-    file_count ++;
-    if ( file_count % 50 == 0 )
-      {
-      cmCTestLog(m_CTest, HANDLER_OUTPUT, " processed: " << file_count
-        << " out of " << files.size() << std::endl);
-      cmCTestLog(m_CTest, HANDLER_OUTPUT, "    ");
-      }
-    }
-
-  cmGeneratedFileStream covSumFile;
-  cmGeneratedFileStream covLogFile;
-
-  if (!this->StartResultingXML("Coverage", covSumFile))
-    {
-    cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot open coverage summary file."
-      << std::endl);
-
+  app_data = NULL; /* prevent compiler warning */
+  if(level == prot_confidential)
     return -1;
-    }
-
-  m_CTest->StartXML(covSumFile);
-  // Produce output xml files
-
-  covSumFile << "<Coverage>" << std::endl
-    << "\t<StartDateTime>" << coverage_start_time << "</StartDateTime>"
-    << std::endl;
-  int logFileCount = 0;
-  if ( !this->StartCoverageLogFile(covLogFile, logFileCount) )
-    {
-    return -1;
-    }
-  totalCoverageMap::iterator fileIterator;
-  int cnt = 0;
-  long total_tested = 0;
-  long total_untested = 0;
-  //std::string fullSourceDir = sourceDir + "/";
-  //std::string fullBinaryDir = binaryDir + "/";
-  cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl);
-  cmCTestLog(m_CTest, HANDLER_OUTPUT,
-    "   Acumulating results (each . represents one file):" << std::endl);
-  cmCTestLog(m_CTest, HANDLER_OUTPUT, "    ");
-
-  std::vector<std::string> errorsWhileAccumulating;
-
-  file_count = 0;
-  for ( fileIterator = totalCoverage.begin();
-    fileIterator != totalCoverage.end();
-    ++fileIterator )
-    {
-    cmCTestLog(m_CTest, HANDLER_OUTPUT, "." << std::flush);
-    file_count ++;
-    if ( file_count % 50 == 0 )
-      {
-      cmCTestLog(m_CTest, HANDLER_OUTPUT, " processed: " << file_count
-        << " out of "
-        << totalCoverage.size() << std::endl);
-      cmCTestLog(m_CTest, HANDLER_OUTPUT, "    ");
-      }
-    if ( cnt % 100 == 0 )
-      {
-      this->EndCoverageLogFile(covLogFile, logFileCount);
-      logFileCount ++;
-      if ( !this->StartCoverageLogFile(covLogFile, logFileCount) )
-        {
-        return -1;
-        }
-      }
-    const std::string fullFileName = fileIterator->first;
-    const std::string fileName
-      = cmSystemTools::GetFilenameName(fullFileName.c_str());
-    std::string fullFilePath
-      = cmSystemTools::GetFilenamePath(fullFileName.c_str());
-    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Process file: "
-      << fullFileName << std::endl);
-
-    cmSystemTools::ConvertToUnixSlashes(fullFilePath);
-
-    if ( !cmSystemTools::FileExists(fullFileName.c_str()) )
-      {
-      cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot find file: "
-        << fullFileName.c_str() << std::endl);
-      continue;
-      }
-
-    bool shouldIDoCoverage
-      = this->ShouldIDoCoverage(fullFileName.c_str(),
-        sourceDir.c_str(), binaryDir.c_str());
-    if ( !shouldIDoCoverage )
-      {
-      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT,
-        ".NoDartCoverage found, so skip coverage check for: "
-        << fullFileName.c_str()
-        << std::endl);
-      continue;
-      }
-
-    const singleFileCoverageVector& fcov = fileIterator->second;
-    covLogFile << "\t<File Name=\""
-      << m_CTest->MakeXMLSafe(fileName.c_str())
-      << "\" FullPath=\"" << m_CTest->MakeXMLSafe(m_CTest->GetShortPathToFile(
-          fileIterator->first.c_str())) << "\">" << std::endl
-      << "\t\t<Report>" << std::endl;
-
-    std::ifstream ifs(fullFileName.c_str());
-    if ( !ifs)
-      {
-      cmOStringStream ostr;
-      ostr <<  "Cannot open source file: " << fullFileName.c_str();
-      errorsWhileAccumulating.push_back(ostr.str());
-      error ++;
-      continue;
-      }
-
-    int tested = 0;
-    int untested = 0;
-
-    singleFileCoverageVector::size_type cc;
-    std::string line;
-    for ( cc= 0; cc < fcov.size(); cc ++ )
-      {
-      if ( !cmSystemTools::GetLineFromStream(ifs, line) )
-        {
-        cmOStringStream ostr;
-        ostr << "Problem reading source file: " << fullFileName.c_str()
-          << " line:" << cc;
-        errorsWhileAccumulating.push_back(ostr.str());
-        error ++;
-        break;
-        }
-      covLogFile << "\t\t<Line Number=\"" << cc << "\" Count=\"" << fcov[cc]
-        << "\">"
-        << m_CTest->MakeXMLSafe(line.c_str()) << "</Line>" << std::endl;
-      if ( fcov[cc] == 0 )
-        {
-        untested ++;
-        }
-      else if ( fcov[cc] > 0 )
-        {
-        tested ++;
-        }
-      }
-    if ( cmSystemTools::GetLineFromStream(ifs, line) )
-      {
-      cmOStringStream ostr;
-      ostr <<  "Looks like there are more lines in the file: " << line;
-      errorsWhileAccumulating.push_back(ostr.str());
-      }
-    float cper = 0;
-    float cmet = 0;
-    if ( tested + untested > 0 )
-      {
-      cper = (100 * SAFEDIV(static_cast<float>(tested),
-          static_cast<float>(tested + untested)));
-      cmet = ( SAFEDIV(static_cast<float>(tested + 10),
-          static_cast<float>(tested + untested + 10)));
-      }
-    total_tested += tested;
-    total_untested += untested;
-    covLogFile << "\t\t</Report>" << std::endl
-      << "\t</File>" << std::endl;
-    covSumFile << "\t<File Name=\"" << m_CTest->MakeXMLSafe(fileName)
-      << "\" FullPath=\"" << m_CTest->MakeXMLSafe(
-        m_CTest->GetShortPathToFile(fullFileName.c_str()))
-      << "\" Covered=\"" << (cmet>0?"true":"false") << "\">\n"
-      << "\t\t<LOCTested>" << tested << "</LOCTested>\n"
-      << "\t\t<LOCUnTested>" << untested << "</LOCUnTested>\n"
-      << "\t\t<PercentCoverage>";
-    covSumFile.setf(std::ios::fixed, std::ios::floatfield);
-    covSumFile.precision(2);
-    covSumFile << (cper) << "</PercentCoverage>\n"
-      << "\t\t<CoverageMetric>";
-    covSumFile.setf(std::ios::fixed, std::ios::floatfield);
-    covSumFile.precision(2);
-    covSumFile << (cmet) << "</CoverageMetric>\n"
-      << "\t</File>" << std::endl;
-    cnt ++;
-    }
-  this->EndCoverageLogFile(covLogFile, logFileCount);
-
-  if ( errorsWhileAccumulating.size() > 0 )
-    {
-    cmCTestLog(m_CTest, ERROR_MESSAGE, std::endl);
-    cmCTestLog(m_CTest, ERROR_MESSAGE, "Error(s) while acumulating results:"
-      << std::endl);
-    std::vector<std::string>::iterator erIt;
-    for ( erIt = errorsWhileAccumulating.begin();
-      erIt != errorsWhileAccumulating.end();
-      ++ erIt )
-      {
-      cmCTestLog(m_CTest, ERROR_MESSAGE, "  " << erIt->c_str() << std::endl);
-      }
-    }
-
-  int total_lines = total_tested + total_untested;
-  float percent_coverage = 100 * SAFEDIV(static_cast<float>(total_tested),
-    static_cast<float>(total_lines));
-  if ( total_lines == 0 )
-    {
-    percent_coverage = 0;
-    }
-
-  std::string end_time = m_CTest->CurrentTime();
-
-  covSumFile << "\t<LOCTested>" << total_tested << "</LOCTested>\n"
-    << "\t<LOCUntested>" << total_untested << "</LOCUntested>\n"
-    << "\t<LOC>" << total_lines << "</LOC>\n"
-    << "\t<PercentCoverage>";
-  covSumFile.setf(std::ios::fixed, std::ios::floatfield);
-  covSumFile.precision(2);
-  covSumFile << (percent_coverage)<< "</PercentCoverage>\n"
-    << "\t<EndDateTime>" << end_time << "</EndDateTime>\n";
-  covSumFile << "<ElapsedMinutes>" <<
-    static_cast<int>((cmSystemTools::GetTime() - elapsed_time_start)/6)/10.0
-    << "</ElapsedMinutes>"
-    << "</Coverage>" << std::endl;
-  m_CTest->EndXML(covSumFile);
-
-  cmCTestLog(m_CTest, HANDLER_OUTPUT, "\tCovered LOC:         "
-    << total_tested << std::endl
-    << "\tNot covered LOC:     " << total_untested << std::endl
-    << "\tTotal LOC:           " << total_lines << std::endl
-    << "\tPercentage Coverage: "
-    << std::setiosflags(std::ios::fixed)
-    << std::setprecision(2)
-    << (percent_coverage) << "%" << std::endl);
-
-  ofs << "\tCovered LOC:         " << total_tested << std::endl
-    << "\tNot covered LOC:     " << total_untested << std::endl
-    << "\tTotal LOC:           " << total_lines << std::endl
-    << "\tPercentage Coverage: "
-    << std::setiosflags(std::ios::fixed)
-    << std::setprecision(2)
-    << (percent_coverage) << "%" << std::endl;
-
-  cmSystemTools::ChangeDirectory(currentDirectory.c_str());
-
-  if ( error )
-    {
-    return -1;
-    }
   return 0;
 }
 
-//----------------------------------------------------------------------
-void cmCTestCoverageHandler::PopulateCustomVectors(cmMakefile *mf)
+static int
+krb4_decode(void *app_data, void *buf, int len, int level,
+            struct connectdata *conn)
 {
-  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT,
-    " Add coverage exclude regular expressions." << std::endl);
-  cmCTest::PopulateCustomVector(mf, "CTEST_CUSTOM_COVERAGE_EXCLUDE",
-                                m_CustomCoverageExclude);
-  std::vector<cmStdString>::iterator it;
-  for ( it = m_CustomCoverageExclude.begin();
-    it != m_CustomCoverageExclude.end();
-    ++ it )
-    {
-    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, " Add coverage exclude: "
-      << it->c_str() << std::endl);
-    }
+  MSG_DAT m;
+  int e;
+  struct krb4_data *d = app_data;
+
+  if(level == prot_safe)
+    e = krb_rd_safe(buf, len, &d->key,
+                    (struct sockaddr_in *)REMOTE_ADDR,
+                    (struct sockaddr_in *)LOCAL_ADDR, &m);
+  else
+    e = krb_rd_priv(buf, len, d->schedule, &d->key,
+                    (struct sockaddr_in *)REMOTE_ADDR,
+                    (struct sockaddr_in *)LOCAL_ADDR, &m);
+  if(e) {
+    struct SessionHandle *data = conn->data;
+    infof(data, "krb4_decode: %s\n", krb_get_err_text(e));
+    return -1;
+  }
+  memmove(buf, m.app_data, m.app_length);
+  return m.app_length;
 }
+
+static int
+krb4_overhead(void *app_data, int level, int len)
+{
+  /* no arguments are used, just init them to prevent compiler warnings */
+  app_data = NULL;
+  level = 0;
+  len = 0;
+  return 31;
+}
+
+static int
+krb4_encode(void *app_data, void *from, int length, int level, void **to,
+            struct connectdata *conn)
+{
+  struct krb4_data *d = app_data;
+  *to = malloc(length + 31);
+  if(level == prot_safe)
+    return krb_mk_safe(from, *to, length, &d->key,
+                       (struct sockaddr_in *)LOCAL_ADDR,
+                       (struct sockaddr_in *)REMOTE_ADDR);
+  else if(level == prot_private)
+    return krb_mk_priv(from, *to, length, d->schedule, &d->key,
+                       (struct sockaddr_in *)LOCAL_ADDR,
+                       (struct sockaddr_in *)REMOTE_ADDR);
+  else
+    return -1;
+}
+
+static int
+mk_auth(struct krb4_data *d, KTEXT adat,
+        const char *service, char *host, int checksum)
+{
+  int ret;
+  CREDENTIALS cred;
+  char sname[SNAME_SZ], inst[INST_SZ], realm[REALM_SZ];
+
+  strlcpy(sname, service, sizeof(sname));
+  strlcpy(inst, krb_get_phost(host), sizeof(inst));
+  strlcpy(realm, krb_realmofhost(host), sizeof(realm));
+  ret = krb_mk_req(adat, sname, inst, realm, checksum);
+  if(ret)
+    return ret;
+  strlcpy(sname, service, sizeof(sname));
+  strlcpy(inst, krb_get_phost(host), sizeof(inst));
+  strlcpy(realm, krb_realmofhost(host), sizeof(realm));
+  ret = krb_get_cred(sname, inst, realm, &cred);
+  memmove(&d->key, &cred.session, sizeof(des_cblock));
+  des_key_sched(&d->key, d->schedule);
+  memset(&cred, 0, sizeof(cred));
+  return ret;
+}
+
+#ifdef HAVE_KRB_GET_OUR_IP_FOR_REALM
+int krb_get_our_ip_for_realm(char *, struct in_addr *);
+#endif
+
+static int
+krb4_auth(void *app_data, struct connectdata *conn)
+{
+  int ret;
+  char *p;
+  unsigned char *ptr;
+  size_t len;
+  KTEXT_ST adat;
+  MSG_DAT msg_data;
+  int checksum;
+  u_int32_t cs;
+  struct krb4_data *d = app_data;
+  char *host = conn->host.name;
+  ssize_t nread;
+  int l = sizeof(conn->local_addr);
+  struct SessionHandle *data = conn->data;
+  CURLcode result;
+
+  if(getsockname(conn->sock[FIRSTSOCKET],
+                 (struct sockaddr *)LOCAL_ADDR, &l) < 0)
+    perror("getsockname()");
+
+  checksum = getpid();
+  ret = mk_auth(d, &adat, "ftp", host, checksum);
+  if(ret == KDC_PR_UNKNOWN)
+    ret = mk_auth(d, &adat, "rcmd", host, checksum);
+  if(ret) {
+    infof(data, "%s\n", krb_get_err_text(ret));
+    return AUTH_CONTINUE;
+  }
+
+#ifdef HAVE_KRB_GET_OUR_IP_FOR_REALM
+  if (krb_get_config_bool("nat_in_use")) {
+    struct sockaddr_in *localaddr  = (struct sockaddr_in *)LOCAL_ADDR;
+    struct in_addr natAddr;
+
+    if (krb_get_our_ip_for_realm(krb_realmofhost(host),
+                                 &natAddr) != KSUCCESS
+        && krb_get_our_ip_for_realm(NULL, &natAddr) != KSUCCESS)
+      infof(data, "Can't get address for realm %s\n",
+                 krb_realmofhost(host));
+    else {
+      if (natAddr.s_addr != localaddr->sin_addr.s_addr) {
+#ifdef HAVE_INET_NTOA_R
+        char ntoa_buf[64];
+        char *ip = (char *)inet_ntoa_r(natAddr, ntoa_buf, sizeof(ntoa_buf));
+#else
+        char *ip = (char *)inet_ntoa(natAddr);
+#endif
+        infof(data, "Using NAT IP address (%s) for kerberos 4\n", ip);
+        localaddr->sin_addr = natAddr;
+      }
+    }
+  }
+#endif
+
+  if(Curl_base64_encode(conn->data, (char *)adat.dat, adat.length, &p) < 1) {
+    Curl_failf(data, "Out of memory base64-encoding");
+    return AUTH_CONTINUE;
+  }
+
+  result = Curl_ftpsendf(conn, "ADAT %s", p);
+
+  free(p);
+
+  if(result)
+    return -2;
+
+  if(Curl_GetFTPResponse(&nread, conn, NULL))
+    return -1;
+
+  if(data->state.buffer[0] != '2'){
+    Curl_failf(data, "Server didn't accept auth data");
+    return AUTH_ERROR;
+  }
+
+  p = strstr(data->state.buffer, "ADAT=");
+  if(!p) {
+    Curl_failf(data, "Remote host didn't send adat reply");
+    return AUTH_ERROR;
+  }
+  p += 5;
+  len = Curl_base64_decode(p, &ptr);
+  if(len > sizeof(adat.dat)-1) {
+    free(ptr);
+    len=0;
+  }
+  if(!len || !ptr) {
+    Curl_failf(data, "Failed to decode base64 from server");
+    return AUTH_ERROR;
+  }
+  memcpy((char *)adat.dat, ptr, len);
+  free(ptr);
+  adat.length = len;
+  ret = krb_rd_safe(adat.dat, adat.length, &d->key,
+                    (struct sockaddr_in *)hisctladdr,
+                    (struct sockaddr_in *)myctladdr, &msg_data);
+  if(ret) {
+    Curl_failf(data, "Error reading reply from server: %s",
+               krb_get_err_text(ret));
+    return AUTH_ERROR;
+  }
+  krb_get_int(msg_data.app_data, &cs, 4, 0);
+  if(cs - checksum != 1) {
+    Curl_failf(data, "Bad checksum returned from server");
+    return AUTH_ERROR;
+  }
+  return AUTH_OK;
+}
+
+struct Curl_sec_client_mech Curl_krb4_client_mech = {
+    "KERBEROS_V4",
+    sizeof(struct krb4_data),
+    NULL, /* init */
+    krb4_auth,
+    NULL, /* end */
+    krb4_check_prot,
+    krb4_overhead,
+    krb4_encode,
+    krb4_decode
+};
+
+CURLcode Curl_krb_kauth(struct connectdata *conn)
+{
+  des_cblock key;
+  des_key_schedule schedule;
+  KTEXT_ST tkt, tktcopy;
+  char *name;
+  char *p;
+  char passwd[100];
+  size_t tmp;
+  ssize_t nread;
+  int save;
+  CURLcode result;
+  unsigned char *ptr;
+
+  save = Curl_set_command_prot(conn, prot_private);
+
+  result = Curl_ftpsendf(conn, "SITE KAUTH %s", conn->user);
+
+  if(result)
+    return result;
+
+  result = Curl_GetFTPResponse(&nread, conn, NULL);
+  if(result)
+    return result;
+
+  if(conn->data->state.buffer[0] != '3'){
+    Curl_set_command_prot(conn, save);
+    return CURLE_FTP_WEIRD_SERVER_REPLY;
+  }
+
+  p = strstr(conn->data->state.buffer, "T=");
+  if(!p) {
+    Curl_failf(conn->data, "Bad reply from server");
+    Curl_set_command_prot(conn, save);
+    return CURLE_FTP_WEIRD_SERVER_REPLY;
+  }
+
+  p += 2;
+  tmp = Curl_base64_decode(p, &ptr);
+  if(tmp >= sizeof(tkt.dat)) {
+    free(ptr);
+    tmp=0;
+  }
+  if(!tmp || !ptr) {
+    Curl_failf(conn->data, "Failed to decode base64 in reply.\n");
+    Curl_set_command_prot(conn, save);
+    return CURLE_FTP_WEIRD_SERVER_REPLY;
+  }
+  memcpy((char *)tkt.dat, ptr, tmp);
+  free(ptr);
+  tkt.length = tmp;
+  tktcopy.length = tkt.length;
+
+  p = strstr(conn->data->state.buffer, "P=");
+  if(!p) {
+    Curl_failf(conn->data, "Bad reply from server");
+    Curl_set_command_prot(conn, save);
+    return CURLE_FTP_WEIRD_SERVER_REPLY;
+  }
+  name = p + 2;
+  for(; *p && *p != ' ' && *p != '\r' && *p != '\n'; p++);
+  *p = 0;
+
+  des_string_to_key (conn->passwd, &key);
+  des_key_sched(&key, schedule);
+
+  des_pcbc_encrypt((void *)tkt.dat, (void *)tktcopy.dat,
+                   tkt.length,
+                   schedule, &key, DES_DECRYPT);
+  if (strcmp ((char*)tktcopy.dat + 8,
+              KRB_TICKET_GRANTING_TICKET) != 0) {
+    afs_string_to_key(passwd,
+                      krb_realmofhost(conn->host.name),
+                      &key);
+    des_key_sched(&key, schedule);
+    des_pcbc_encrypt((void *)tkt.dat, (void *)tktcopy.dat,
+                     tkt.length,
+                     schedule, &key, DES_DECRYPT);
+  }
+  memset(key, 0, sizeof(key));
+  memset(schedule, 0, sizeof(schedule));
+  memset(passwd, 0, sizeof(passwd));
+  if(Curl_base64_encode(conn->data, (char *)tktcopy.dat, tktcopy.length, &p)
+     < 1) {
+    failf(conn->data, "Out of memory base64-encoding.");
+    Curl_set_command_prot(conn, save);
+    return CURLE_OUT_OF_MEMORY;
+  }
+  memset (tktcopy.dat, 0, tktcopy.length);
+
+  result = Curl_ftpsendf(conn, "SITE KAUTH %s %s", name, p);
+  free(p);
+  if(result)
+    return result;
+
+  result = Curl_GetFTPResponse(&nread, conn, NULL);
+  if(result)
+    return result;
+  Curl_set_command_prot(conn, save);
+
+  return CURLE_OK;
+}
+
+#endif /* HAVE_KRB4 */
+#endif /* CURL_DISABLE_FTP */

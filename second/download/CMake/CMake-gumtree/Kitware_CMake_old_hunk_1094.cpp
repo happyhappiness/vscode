@@ -1,7 +1,35 @@
-        /* yy_ch_buf has to be 2 characters longer than the size given because
-         * we need to put in 2 end-of-buffer characters.
-         */
-        b->yy_ch_buf = (char *) cmDependsFortran_yyalloc(b->yy_buf_size + 2  );
-        if ( ! b->yy_ch_buf )
-                YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yy_create_buffer()" );
+}
 
+/** Return the type ID of the CPU */
+const char * SystemInformation::GetTypeID()
+{
+  char * temp = new char[32];
+  sprintf(temp,"%d",this->ChipID.Type);
+  return temp;
+}
+
+/** Return the family of the CPU present */
+const char * SystemInformation::GetFamilyID()
+{
+  char * temp = new char[32];
+  sprintf(temp,"%d",this->ChipID.Family);
+  return temp;
+}
+
+// Return the model of CPU present */
+const char * SystemInformation::GetModelID()
+{
+  char * temp = new char[32];
+  sprintf(temp,"%d",this->ChipID.Model);
+  return temp;
+}
+
+/** Return the stepping code of the CPU present. */
+const char * SystemInformation::GetSteppingCode()
+{
+  char * temp = new char[32];
+  sprintf(temp,"%d",this->ChipID.Revision);
+  return temp;
+}
+
+/** Return the stepping code of the CPU present. */

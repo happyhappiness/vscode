@@ -1,14 +1,10 @@
+          }
 
-static int SystemToolsDebugReport(int, char* message, int*)
-{
-  fprintf(stderr, "%s", message);
-  fflush(stderr);
-  return 1; // no further reporting required
-}
+        res += " ";
+        sprintf(buffer, "%ld", osvi.dwMajorVersion);
+        res += buffer;
+        res += ".";
+        sprintf(buffer, "%ld", osvi.dwMinorVersion);
+        res += buffer;
+        }
 
-void SystemTools::EnableMSVCDebugHook()
-{
-  if (getenv("DART_TEST_FROM_DART"))
-    {
-    _CrtSetReportHook(SystemToolsDebugReport);
-    }

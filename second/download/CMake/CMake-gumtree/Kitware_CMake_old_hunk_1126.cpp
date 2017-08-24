@@ -1,15 +1,7 @@
-#ifdef DEBUG
-  printf("<== th_read_internal(): returning %d\n", i);
-#endif
-  return i;
-}
-
-
-/* wrapper function for th_read_internal() to handle GNU extensions */
-int
-th_read(TAR *t)
-{
-  int i, j;
-  size_t sz;
-  char *ptr;
-
+    /* Generate a cnonce */
+    now = Curl_tvnow();
+    snprintf(cnoncebuf, sizeof(cnoncebuf), "%06ld", now.tv_sec);
+    if(Curl_base64_encode(cnoncebuf, strlen(cnoncebuf), &cnonce))
+      d->cnonce = cnonce;
+    else
+      return CURLE_OUT_OF_MEMORY;

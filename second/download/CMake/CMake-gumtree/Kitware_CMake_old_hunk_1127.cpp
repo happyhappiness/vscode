@@ -1,22 +1,6 @@
-//----------------------------------------------------------------------------
-Glob::Glob()
-{
-  m_Internals = new GlobInternals;
-  m_Recurse = false;
-}
+    aprintf("%s:%s:%s", userp, d->realm, passwdp);
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+  Curl_md5it(md5buf, md5this);
+  free(md5this); /* free this again */
 
-//----------------------------------------------------------------------------
-Glob::~Glob()
-{
-  delete m_Internals;
-}
-
-//----------------------------------------------------------------------------
-void Glob::Escape(int ch, char* buffer)
-{
-  if (! (
-      'a' <= ch && ch <= 'z' || 
-      'A' <= ch && ch <= 'Z' || 
-      '0' <= ch && ch <= '9') )
-    {
-    sprintf(buffer, "\\%c", ch);

@@ -1,180 +1,134 @@
-@@ -290,7 +290,8 @@ void cmSystemTools::Message(const char* m1, const char *title)
-     }
-   if(s_ErrorCallback)
-     {
--    (*s_ErrorCallback)(m1, title, s_DisableMessages, s_ErrorCallbackClientData);
-+    (*s_ErrorCallback)(m1, title, s_DisableMessages, 
-+                       s_ErrorCallbackClientData);
-     return;
-     }
-   else
-@@ -368,8 +369,10 @@ std::vector<cmStdString> cmSystemTools::ParseArguments(const char* command)
-   bool win_path = false;
+@@ -5,7 +5,7 @@
+  *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
+  *
+- * Copyright (C) 1998 - 2004, Daniel Stenberg, <daniel@haxx.se>, et al.
++ * Copyright (C) 1998 - 2006, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+@@ -31,24 +31,43 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+-#include "curl_memory.h"
++#include "memory.h"
++/* urldata.h and easyif.h are included for Curl_convert_... prototypes */
++#include "urldata.h"
++#include "easyif.h"
  
-   if ( command[0] != '/' && command[1] == ':' && command[2] == '\\' ||
--       command[0] == '\"' && command[1] != '/' && command[2] == ':' && command[3] == '\\' || 
--       command[0] == '\'' && command[1] != '/' && command[2] == ':' && command[3] == '\\' || 
-+       command[0] == '\"' && command[1] != '/' && command[2] == ':' 
-+       && command[3] == '\\' || 
-+       command[0] == '\'' && command[1] != '/' && command[2] == ':' 
-+       && command[3] == '\\' || 
-        command[0] == '\\' && command[1] == '\\')
-     {
-     win_path = true;
-@@ -599,10 +602,12 @@ bool RunCommandViaWin32(const char* command,
-                         int timeout)
+ #define _MPRINTF_REPLACE /* use our functions only */
+ #include <curl/mprintf.h>
+ 
+ /* The last #include file should be: */
+ #include "memdebug.h"
+ 
++/* for ABI-compatibility with previous versions */
+ char *curl_escape(const char *string, int inlength)
  {
- #if defined(__BORLANDC__)
--  return cmWin32ProcessExecution::BorlandRunCommand(command, dir, output, 
--                                                    retVal, 
--                                                    verbose, timeout, 
--                                                    cmSystemTools::GetRunCommandHideConsole());
-+  return 
-+    cmWin32ProcessExecution::
-+    BorlandRunCommand(command, dir, output, 
-+                      retVal, 
-+                      verbose, timeout, 
-+                      cmSystemTools::GetRunCommandHideConsole());
- #else // Visual studio
-   ::SetLastError(ERROR_SUCCESS);
-   if ( ! command )
-@@ -1137,7 +1142,8 @@ cmSystemTools::FileFormat cmSystemTools::GetFileFormat(const char* cext)
-     ext == "for" || ext == ".for" ||
-     ext == "f95" || ext == ".f95" 
-     ) { return cmSystemTools::FORTRAN_FILE_FORMAT; }
--  if ( ext == "java" || ext == ".java" ) { return cmSystemTools::JAVA_FILE_FORMAT; }
-+  if ( ext == "java" || ext == ".java" )
-+    { return cmSystemTools::JAVA_FILE_FORMAT; }
-   if ( 
-     ext == "H" || ext == ".H" || 
-     ext == "h" || ext == ".h" || 
-@@ -1148,12 +1154,16 @@ cmSystemTools::FileFormat cmSystemTools::GetFileFormat(const char* cext)
-     ext == "in" || ext == ".in" ||
-     ext == "txx" || ext == ".txx"
-     ) { return cmSystemTools::HEADER_FILE_FORMAT; }
--  if ( ext == "rc" || ext == ".rc" ) { return cmSystemTools::RESOURCE_FILE_FORMAT; }
--  if ( ext == "def" || ext == ".def" ) { return cmSystemTools::DEFINITION_FILE_FORMAT; }
-+  if ( ext == "rc" || ext == ".rc" )
-+    { return cmSystemTools::RESOURCE_FILE_FORMAT; }
-+  if ( ext == "def" || ext == ".def" )
-+    { return cmSystemTools::DEFINITION_FILE_FORMAT; }
-   if ( ext == "lib" || ext == ".lib" ||
--       ext == "a" || ext == ".a") { return cmSystemTools::STATIC_LIBRARY_FILE_FORMAT; }
-+       ext == "a" || ext == ".a")
-+    { return cmSystemTools::STATIC_LIBRARY_FILE_FORMAT; }
-   if ( ext == "o" || ext == ".o" ||
--       ext == "obj" || ext == ".obj") { return cmSystemTools::OBJECT_FILE_FORMAT; }
-+       ext == "obj" || ext == ".obj") 
-+    { return cmSystemTools::OBJECT_FILE_FORMAT; }
- #ifdef __APPLE__
-   if ( ext == "dylib" || ext == ".dylib" ) 
-     { return cmSystemTools::SHARED_LIBRARY_FILE_FORMAT; }
-@@ -1231,11 +1241,13 @@ std::string cmSystemTools::RelativePath(const char* local, const char* remote)
- {
-   if(!cmSystemTools::FileIsFullPath(local))
-     {
--    cmSystemTools::Error("RelativePath must be passed a full path to local: ", local);
-+    cmSystemTools::Error("RelativePath must be passed a full path to local: ",
-+                         local);
-     }
-   if(!cmSystemTools::FileIsFullPath(remote))
-     {
--    cmSystemTools::Error("RelativePath must be passed a full path to remote: ", remote);
-+    cmSystemTools::Error("RelativePath must be passed a full path to remote: ",
-+                         remote);
-     }
-   return cmsys::SystemTools::RelativePath(local, remote);
- }
-@@ -1288,7 +1300,8 @@ std::string cmSystemTools::MakeXMLSafe(const char* str)
-   for ( ;*pos; ++pos)
-     {
-     char ch = *pos;
--    if ( (ch > 126 || ch < 32) && ch != 9  && ch != 10 && ch != 13 && ch != '\r' )
-+    if ( (ch > 126 || ch < 32) && ch != 9  && ch != 10 && ch != 13 
-+         && ch != '\r' )
-       {
-       char buffer[33];
-       sprintf(buffer, "&lt;%d&gt;", (int)ch);
-@@ -1349,13 +1362,16 @@ struct cmSystemToolsGZStruct
- };
++  return curl_easy_escape(NULL, string, inlength);
++}
++
++/* for ABI-compatibility with previous versions */
++char *curl_unescape(const char *string, int length)
++{
++  return curl_easy_unescape(NULL, string, length, NULL);
++}
++
++char *curl_easy_escape(CURL *handle, const char *string, int inlength)
++{
+   size_t alloc = (inlength?(size_t)inlength:strlen(string))+1;
+   char *ns;
+-  char *testing_ptr;
++  char *testing_ptr = NULL;
+   unsigned char in;
+   size_t newlen = alloc;
+   int strindex=0;
+   size_t length;
  
- extern "C" {
--  int cmSystemToolsGZStructOpen(void* call_data, const char *pathname, int oflags, mode_t mode);
-+  int cmSystemToolsGZStructOpen(void* call_data, const char *pathname, 
-+                                int oflags, mode_t mode);
-   int cmSystemToolsGZStructClose(void* call_data);
-   ssize_t cmSystemToolsGZStructRead(void* call_data, void* buf, size_t count);
--  ssize_t cmSystemToolsGZStructWrite(void* call_data, const void* buf, size_t count);
-+  ssize_t cmSystemToolsGZStructWrite(void* call_data, const void* buf, 
-+                                     size_t count);
- }
- 
--int cmSystemToolsGZStructOpen(void* call_data, const char *pathname, int oflags, mode_t mode)
-+int cmSystemToolsGZStructOpen(void* call_data, const char *pathname, 
-+                              int oflags, mode_t mode)
- {
-   const char *gzoflags;
-   int fd;
-@@ -1411,15 +1427,18 @@ ssize_t cmSystemToolsGZStructRead(void* call_data, void* buf, size_t count)
-   return cm_zlib_gzread(gzf->GZFile, buf, count);
- }
- 
--ssize_t cmSystemToolsGZStructWrite(void* call_data, const void* buf, size_t count)
-+ssize_t cmSystemToolsGZStructWrite(void* call_data, const void* buf,
-+                                   size_t count)
- {
-   cmSystemToolsGZStruct* gzf = static_cast<cmSystemToolsGZStruct*>(call_data);
-   return cm_zlib_gzwrite(gzf->GZFile, (void*)buf, count);
- }
- 
- #endif
- 
--bool cmSystemTools::CreateTar(const char* outFileName, const std::vector<cmStdString>& files, bool gzip, bool verbose)
-+bool cmSystemTools::CreateTar(const char* outFileName, 
-+                              const std::vector<cmStdString>& files,
-+                              bool gzip, bool verbose)
- {
- #if defined(CMAKE_BUILD_WITH_CMAKE)
-   TAR *t;
-@@ -1459,7 +1478,8 @@ bool cmSystemTools::CreateTar(const char* outFileName, const std::vector<cmStdSt
-     if (tar_append_tree(t, buf, pathname) != 0)
-       {
-       cmOStringStream ostr;
--      ostr << "Problem with tar_append_tree(\"" << buf << "\", \"" << pathname << "\"): "
-+      ostr << "Problem with tar_append_tree(\"" << buf << "\", \"" 
-+           << pathname << "\"): "
-         << strerror(errno);
-       cmSystemTools::Error(ostr.str().c_str());
-       tar_close(t);
-@@ -1485,7 +1505,9 @@ bool cmSystemTools::CreateTar(const char* outFileName, const std::vector<cmStdSt
- #endif
- }
- 
--bool cmSystemTools::ExtractTar(const char* outFileName, const std::vector<cmStdString>& files, bool gzip, bool verbose)
-+bool cmSystemTools::ExtractTar(const char* outFileName, 
-+                               const std::vector<cmStdString>& files, 
-+                               bool gzip, bool verbose)
- {
-   (void)files;
- #if defined(CMAKE_BUILD_WITH_CMAKE)
-@@ -1535,7 +1557,9 @@ bool cmSystemTools::ExtractTar(const char* outFileName, const std::vector<cmStdS
- #endif
- }
- 
--bool cmSystemTools::ListTar(const char* outFileName, std::vector<cmStdString>& files, bool gzip, bool verbose)
-+bool cmSystemTools::ListTar(const char* outFileName, 
-+                            std::vector<cmStdString>& files, bool gzip,
-+                            bool verbose)
- {
- #if defined(CMAKE_BUILD_WITH_CMAKE)
-   TAR *t;
-@@ -1586,7 +1610,8 @@ bool cmSystemTools::ListTar(const char* outFileName, std::vector<cmStdString>& f
- #endif
-     if (TH_ISREG(t) && tar_skip_regfile(t) != 0)
-       {
--      cmSystemTools::Error("Problem with tar_skip_regfile(): ", strerror(errno));
-+      cmSystemTools::Error("Problem with tar_skip_regfile(): ", 
-+                           strerror(errno));
-       return false;
++#ifndef CURL_DOES_CONVERSIONS
++  /* avoid compiler warnings */
++  (void)handle;
++#endif
+   ns = malloc(alloc);
+   if(!ns)
+     return NULL;
+@@ -72,6 +91,17 @@ char *curl_escape(const char *string, int inlength)
+           ns = testing_ptr;
+         }
        }
++
++#ifdef CURL_DOES_CONVERSIONS
++/* escape sequences are always in ASCII so convert them on non-ASCII hosts */
++      if (!handle ||
++          (Curl_convert_to_network(handle, &in, 1) != CURLE_OK)) {
++        /* Curl_convert_to_network calls failf if unsuccessful */
++        free(ns);
++        return NULL;
++      }
++#endif /* CURL_DOES_CONVERSIONS */
++
+       snprintf(&ns[strindex], 4, "%%%02X", in);
+ 
+       strindex+=3;
+@@ -86,24 +116,25 @@ char *curl_escape(const char *string, int inlength)
+   return ns;
+ }
+ 
+-#define ishex(in) ((in >= 'a' && in <= 'f') || \
+-                   (in >= 'A' && in <= 'F') || \
+-                   (in >= '0' && in <= '9'))
+-
+-char *curl_unescape(const char *string, int length)
++char *curl_easy_unescape(CURL *handle, const char *string, int length,
++                         int *olen)
+ {
+   int alloc = (length?length:(int)strlen(string))+1;
+   char *ns = malloc(alloc);
+   unsigned char in;
+   int strindex=0;
+   long hex;
+ 
++#ifndef CURL_DOES_CONVERSIONS
++  /* avoid compiler warnings */
++  (void)handle;
++#endif
+   if( !ns )
+     return NULL;
+ 
+   while(--alloc > 0) {
+     in = *string;
+-    if(('%' == in) && ishex(string[1]) && ishex(string[2])) {
++    if(('%' == in) && ISXDIGIT(string[1]) && ISXDIGIT(string[2])) {
+       /* this is two hexadecimal digits following a '%' */
+       char hexstr[3];
+       char *ptr;
+@@ -114,6 +145,17 @@ char *curl_unescape(const char *string, int length)
+       hex = strtol(hexstr, &ptr, 16);
+ 
+       in = (unsigned char)hex; /* this long is never bigger than 255 anyway */
++
++#ifdef CURL_DOES_CONVERSIONS
++/* escape sequences are always in ASCII so convert them on non-ASCII hosts */
++      if (!handle ||
++          (Curl_convert_from_network(handle, &in, 1) != CURLE_OK)) {
++        /* Curl_convert_from_network calls failf if unsuccessful */
++        free(ns);
++        return NULL;
++      }
++#endif /* CURL_DOES_CONVERSIONS */
++
+       string+=2;
+       alloc-=2;
+     }
+@@ -122,6 +164,10 @@ char *curl_unescape(const char *string, int length)
+     string++;
    }
+   ns[strindex]=0; /* terminate it */
++
++  if(olen)
++    /* store output size */
++    *olen = strindex;
+   return ns;
+ }
+ 
