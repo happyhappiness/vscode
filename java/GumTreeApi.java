@@ -249,10 +249,13 @@ public class GumTreeApi {
 		while(actionIter.hasNext())
 		{
 			currAction = actionIter.next();
-			oldNode = currAction.getName().equals("INS") ? ((Insert)currAction).getParent() : currAction.getNode();
-			if(this.isChildrenOf(oldNode, this.oldLogNode))
+			if(!this.isActionOfComment(currAction))
 			{
-				return this.IS_LOG;
+				oldNode = currAction.getName().equals("INS") ? ((Insert)currAction).getParent() : currAction.getNode();
+				if(this.isChildrenOf(oldNode, this.oldLogNode))
+				{
+					return this.IS_LOG;
+				}
 			}
 		}
 		
