@@ -1,1 +1,1 @@
-sprintf(firstLine,  "Press [e] to exit help");
+f("### done extracting %s\n", filename);

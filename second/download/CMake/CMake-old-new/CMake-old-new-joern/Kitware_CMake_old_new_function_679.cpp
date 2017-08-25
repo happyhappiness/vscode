@@ -1,122 +1,195 @@
-static void
-ftp_pasv_verbose(struct connectdata *conn,
-                 Curl_ipconnect *addr,
-                 char *newhost, /* ascii version */
-                 int port)
+bool cmCTestRunTest::EndTest()
 {
-#ifndef ENABLE_IPV6
-  /*****************************************************************
-   *
-   * IPv4-only code section
-   */
+  //restore the old environment
+  if (this->ModifyEnv)
+    {
+    cmSystemTools::RestoreEnv(this->OrigEnv);
+    }
+  this->WriteLogOutputTop();
+  std::string reason;
+  bool passed = true;
+  int res = this->TestProcess->GetProcessStatus();
+  int retVal = this->TestProcess->GetExitValue();
+  if ( !this->CTest->GetShowOnly() )
+    {
+    std::vector<std::pair<cmsys::RegularExpression,
+      std::string> >::iterator passIt;
+    bool forceFail = false;
+    if ( this->TestProperties->RequiredRegularExpressions.size() > 0 )
+      {
+      bool found = false;
+      for ( passIt = this->TestProperties->RequiredRegularExpressions.begin();
+            passIt != this->TestProperties->RequiredRegularExpressions.end();
+            ++ passIt )
+        {
+        if ( passIt->first.find(this->ProcessOutput.c_str()) )
+          {
+          found = true;
+          reason = "Required regular expression found.";
+          }
+        }
+      if ( !found )
+        { 
+        reason = "Required regular expression not found.";
+        forceFail = true;
+        }
+      reason +=  "Regex=["; 
+      for ( passIt = this->TestProperties->RequiredRegularExpressions.begin();
+            passIt != this->TestProperties->RequiredRegularExpressions.end();
+            ++ passIt )
+        {
+        reason += passIt->second;
+        reason += "\n";
+        }
+      reason += "]";
+      }
+    if ( this->TestProperties->ErrorRegularExpressions.size() > 0 )
+      {
+      for ( passIt = this->TestProperties->ErrorRegularExpressions.begin();
+            passIt != this->TestProperties->ErrorRegularExpressions.end();
+            ++ passIt )
+        {
+        if ( passIt->first.find(this->ProcessOutput.c_str()) )
+          {
+          reason = "Error regular expression found in output.";
+          reason += " Regex=[";
+          reason += passIt->second;
+          reason += "]";
+          forceFail = true;
+          }
+        }
+      }
+    if (res == cmsysProcess_State_Exited)
+      {
+      bool success = 
+        !forceFail &&  (retVal == 0 || 
+        this->TestProperties->RequiredRegularExpressions.size());
+      if((success && !this->TestProperties->WillFail) 
+        || (!success && this->TestProperties->WillFail))
+        {
+        this->TestResult.Status = cmCTestTestHandler::COMPLETED;
+        cmCTestLog(this->CTest, HANDLER_OUTPUT, "   Passed  " );
+        }
+      else
+        {
+        this->TestResult.Status = cmCTestTestHandler::FAILED;
+        cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Failed  " << reason );
+        }
+      }
+    else if ( res == cmsysProcess_State_Expired )
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Timeout");
+      this->TestResult.Status = cmCTestTestHandler::TIMEOUT;
+      }
+    else if ( res == cmsysProcess_State_Exception )
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Exception: ");
+      switch ( retVal )
+        {
+        case cmsysProcess_Exception_Fault:
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "SegFault");
+          this->TestResult.Status = cmCTestTestHandler::SEGFAULT;
+          break;
+        case cmsysProcess_Exception_Illegal:
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "Illegal");
+          this->TestResult.Status = cmCTestTestHandler::ILLEGAL;
+          break;
+        case cmsysProcess_Exception_Interrupt:
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "Interrupt");
+          this->TestResult.Status = cmCTestTestHandler::INTERRUPT;
+          break;
+        case cmsysProcess_Exception_Numerical:
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "Numerical");
+          this->TestResult.Status = cmCTestTestHandler::NUMERICAL;
+          break;
+        default:
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "Other");
+          this->TestResult.Status = cmCTestTestHandler::OTHER_FAULT;
+        }
+      }
+    else // if ( res == cmsysProcess_State_Error )
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Bad command " << res );
+      this->TestResult.Status = cmCTestTestHandler::BAD_COMMAND;
+      }
 
-  struct in_addr in;
-  struct hostent * answer;
+    passed = this->TestResult.Status == cmCTestTestHandler::COMPLETED;
 
-#ifdef HAVE_INET_NTOA_R
-  char ntoa_buf[64];
-#endif
-  /* The array size trick below is to make this a large chunk of memory
-     suitably 8-byte aligned on 64-bit platforms. This was thoughtfully
-     suggested by Philip Gladstone. */
-  long bigbuf[9000 / sizeof(long)];
+    char buf[1024];
+    sprintf(buf, "%6.2f sec", this->TestProcess->GetTotalTime());
+    cmCTestLog(this->CTest, HANDLER_OUTPUT, buf << "\n" );
+    if ( this->TestHandler->LogFile )
+      {
+      *this->TestHandler->LogFile << "Test time = " << buf << std::endl;
+      }
+    this->DartProcessing();
+    } 
+  // if this is doing MemCheck then all the output needs to be put into
+  // Output since that is what is parsed by cmCTestMemCheckHandler
+  if(!this->TestHandler->MemCheck)
+    {
+    if ( this->TestResult.Status == cmCTestTestHandler::COMPLETED )
+      {
+      this->TestHandler->CleanTestOutput(this->ProcessOutput, 
+          static_cast<size_t>
+          (this->TestHandler->CustomMaximumPassedTestOutputSize));
+      }
+    else
+      {
+      this->TestHandler->CleanTestOutput(this->ProcessOutput,
+          static_cast<size_t>
+          (this->TestHandler->CustomMaximumFailedTestOutputSize));
+      }
+    }
+  this->TestResult.Reason = reason;
+  if ( this->TestHandler->LogFile )
+    {
+    bool pass = true;
+    const char* reasonType = "Test Pass Reason";
+    if(this->TestResult.Status != cmCTestTestHandler::COMPLETED &&
+       this->TestResult.Status != cmCTestTestHandler::NOT_RUN)
+      {
+      reasonType = "Test Fail Reason";
+      pass = false;
+      }
+    double ttime = this->TestProcess->GetTotalTime();
+    int hours = static_cast<int>(ttime / (60 * 60));
+    int minutes = static_cast<int>(ttime / 60) % 60;
+    int seconds = static_cast<int>(ttime) % 60;
+    char buffer[100];
+    sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+    *this->TestHandler->LogFile
+      << "----------------------------------------------------------"
+      << std::endl;
+    if(this->TestResult.Reason.size())
+      {
+      *this->TestHandler->LogFile << reasonType << ":\n" 
+        << this->TestResult.Reason << "\n";
+      }
+    else 
+      {
+      if(pass)
+        {
+        *this->TestHandler->LogFile << "Test Passed.\n";
+        }
+      else
+        {
+        *this->TestHandler->LogFile << "Test Failed.\n";
+        }
+      }
+    *this->TestHandler->LogFile << "\"" << this->TestProperties->Name.c_str()
+      << "\" end time: " << this->CTest->CurrentTime() << std::endl
+      << "\"" << this->TestProperties->Name.c_str() << "\" time elapsed: "
+      << buffer << std::endl
+      << "----------------------------------------------------------"
+      << std::endl << std::endl;
+    }
+  this->TestResult.Output = this->ProcessOutput;
+  this->TestResult.ReturnValue = this->TestProcess->GetExitValue();
+  this->TestResult.CompletionStatus = "Completed";
+  this->TestResult.ExecutionTime = this->TestProcess->GetTotalTime();
+  this->TestHandler->TestResults.push_back( this->TestResult );
 
-#if defined(HAVE_INET_ADDR)
-  in_addr_t address;
-# if defined(HAVE_GETHOSTBYADDR_R)
-  int h_errnop;
-# endif
-  char *hostent_buf = (char *)bigbuf; /* get a char * to the buffer */
-  (void)hostent_buf;
-  address = inet_addr(newhost);
-# ifdef HAVE_GETHOSTBYADDR_R
-
-#  ifdef HAVE_GETHOSTBYADDR_R_5
-  /* AIX, Digital Unix (OSF1, Tru64) style:
-     extern int gethostbyaddr_r(char *addr, size_t len, int type,
-     struct hostent *htent, struct hostent_data *ht_data); */
-
-  /* Fred Noz helped me try this out, now it at least compiles! */
-
-  /* Bjorn Reese (November 28 2001):
-     The Tru64 man page on gethostbyaddr_r() says that
-     the hostent struct must be filled with zeroes before the call to
-     gethostbyaddr_r(). 
-
-     ... as must be struct hostent_data Craig Markwardt 19 Sep 2002. */
-
-  memset(hostent_buf, 0, sizeof(struct hostent)+sizeof(struct hostent_data));
-
-  if(gethostbyaddr_r((char *) &address,
-                     sizeof(address), AF_INET,
-                     (struct hostent *)hostent_buf,
-                     (struct hostent_data *)(hostent_buf + sizeof(*answer))))
-    answer=NULL;
-  else
-    answer=(struct hostent *)hostent_buf;
-                           
-#  endif
-#  ifdef HAVE_GETHOSTBYADDR_R_7
-  /* Solaris and IRIX */
-  answer = gethostbyaddr_r((char *) &address, sizeof(address), AF_INET,
-                           (struct hostent *)bigbuf,
-                           hostent_buf + sizeof(*answer),
-                           sizeof(bigbuf) - sizeof(*answer),
-                           &h_errnop);
-#  endif
-#  ifdef HAVE_GETHOSTBYADDR_R_8
-  /* Linux style */
-  if(gethostbyaddr_r((char *) &address, sizeof(address), AF_INET,
-                     (struct hostent *)hostent_buf,
-                     hostent_buf + sizeof(*answer),
-                     sizeof(bigbuf) - sizeof(*answer),
-                     &answer,
-                     &h_errnop))
-    answer=NULL; /* error */
-#  endif
-        
-# else
-  answer = gethostbyaddr((char *) &address, sizeof(address), AF_INET);
-# endif
-#else
-  answer = NULL;
-#endif
-  (void) memcpy(&in.s_addr, addr, sizeof (Curl_ipconnect));
-  infof(conn->data, "Connecting to %s (%s) port %u\n",
-        answer?answer->h_name:newhost,
-#if defined(HAVE_INET_NTOA_R)
-        inet_ntoa_r(in, ntoa_buf, sizeof(ntoa_buf)),
-#else
-        inet_ntoa(in),
-#endif
-        port);
-
-#else
-  /*****************************************************************
-   *
-   * IPv6-only code section
-   */
-  char hbuf[NI_MAXHOST]; /* ~1KB */
-  char nbuf[NI_MAXHOST]; /* ~1KB */
-  char sbuf[NI_MAXSERV]; /* around 32 */
-#ifdef NI_WITHSCOPEID
-  const int niflags = NI_NUMERICHOST | NI_NUMERICSERV | NI_WITHSCOPEID;
-#else
-  const int niflags = NI_NUMERICHOST | NI_NUMERICSERV;
-#endif
-  port = 0; /* unused, prevent warning */
-  if (getnameinfo(addr->ai_addr, addr->ai_addrlen,
-                  nbuf, sizeof(nbuf), sbuf, sizeof(sbuf), niflags)) {
-    snprintf(nbuf, sizeof(nbuf), "?");
-    snprintf(sbuf, sizeof(sbuf), "?");
-  }
-        
-  if (getnameinfo(addr->ai_addr, addr->ai_addrlen,
-                  hbuf, sizeof(hbuf), NULL, 0, 0)) {
-    infof(conn->data, "Connecting to %s (%s) port %s\n", nbuf, newhost, sbuf);
-  }
-  else {
-    infof(conn->data, "Connecting to %s (%s) port %s\n", hbuf, nbuf, sbuf);
-  }
-#endif
+  delete this->TestProcess;
+  return passed;
 }

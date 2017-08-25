@@ -1,81 +1,101 @@
 {
-  static char version[200];
-  char *ptr;
-  strcpy(version, LIBCURL_NAME " " LIBCURL_VERSION );
-  ptr=strchr(version, '\0');
+  mode_t mode;
+  char *filename;
+  char buf[T_BLOCKSIZE];
+  char *pathname = 0;
 
-#ifdef USE_SSLEAY
-
-#if (SSLEAY_VERSION_NUMBER >= 0x905000)
+  if (!TH_ISDIR(t))
   {
-    char sub[2];
-    unsigned long ssleay_value;
-    sub[1]='\0';
-    ssleay_value=SSLeay();
-    if(ssleay_value < 0x906000) {
-      ssleay_value=SSLEAY_VERSION_NUMBER;
-      sub[0]='\0';
+    errno = EINVAL;
+    return -1;
+  }
+
+  if (realname)
+    {
+    filename = realname;
     }
-    else {
-      if(ssleay_value&0xff0) {
-        sub[0]=((ssleay_value>>4)&0xff) + 'a' -1;
+  else
+    {
+    pathname = th_get_pathname(t);
+    filename = pathname;
+    }
+  mode = th_get_mode(t);
+
+  /* Make a copy of the string because dirname and mkdirhier may modify the
+   * string */
+  strncpy(buf, filename, sizeof(buf)-1);
+  buf[sizeof(buf)-1] = 0;
+
+  if (mkdirhier(dirname(buf)) == -1)
+    {
+    if (pathname)
+      {
+      free(pathname);
+      }
+    return -1;
+    }
+
+#ifdef DEBUG
+  printf("  ==> extracting: %s (mode %04o, directory)\n", filename,
+         mode);
+#endif
+#ifdef WIN32
+  if (mkdir(filename) == -1)
+#else
+  if (mkdir(filename, mode) == -1)
+#endif
+  {
+#ifdef __BORLANDC__
+  /* There is a bug in the Borland Run time library which makes MKDIR
+     return EACCES when it should return EEXIST
+     if it is some other error besides directory exists
+     then return false */
+    if ( errno == EACCES) 
+    {
+      errno = EEXIST;
+    }
+#endif      
+    if (errno == EEXIST)
+    {
+      if (chmod(filename, mode) == -1)
+      {
+#ifdef DEBUG
+        perror("chmod()");
+#endif
+        if (pathname)
+          {
+          free(pathname);
+          }
+        return -1;
       }
       else
-        sub[0]='\0';
-    }
-
-    sprintf(ptr, " (OpenSSL %lx.%lx.%lx%s)",
-            (ssleay_value>>28)&0xf,
-            (ssleay_value>>20)&0xff,
-            (ssleay_value>>12)&0xff,
-            sub);
-  }
-
-#else
-#if (SSLEAY_VERSION_NUMBER >= 0x900000)
-  sprintf(ptr, " (SSL %lx.%lx.%lx)",
-          (SSLEAY_VERSION_NUMBER>>28)&0xff,
-          (SSLEAY_VERSION_NUMBER>>20)&0xff,
-          (SSLEAY_VERSION_NUMBER>>12)&0xf);
-#else
-  {
-    char sub[2];
-    sub[1]='\0';
-    if(SSLEAY_VERSION_NUMBER&0x0f) {
-      sub[0]=(SSLEAY_VERSION_NUMBER&0x0f) + 'a' -1;
+      {
+#ifdef DEBUG
+        puts("  *** using existing directory");
+#endif
+        if (pathname)
+          {
+          free(pathname);
+          }
+        return 1;
+      }
     }
     else
-      sub[0]='\0';
-
-    sprintf(ptr, " (SSL %x.%x.%x%s)",
-            (SSLEAY_VERSION_NUMBER>>12)&0xff,
-            (SSLEAY_VERSION_NUMBER>>8)&0xf,
-            (SSLEAY_VERSION_NUMBER>>4)&0xf, sub);
+    {
+#ifdef DEBUG
+      perror("mkdir()");
+#endif
+      if (pathname)
+        {
+        free(pathname);
+        }
+      return -1;
+    }
   }
-#endif
-#endif
-  ptr=strchr(ptr, '\0');
-#endif
 
-#if defined(KRB4) || defined(ENABLE_IPV6)
-  strcat(ptr, " (");
-  ptr+=2;
-#ifdef KRB4
-  sprintf(ptr, "krb4 ");
-  ptr += strlen(ptr);
-#endif
-#ifdef ENABLE_IPV6
-  sprintf(ptr, "ipv6 ");
-  ptr += strlen(ptr);
-#endif
-  sprintf(ptr, "enabled)");
-  ptr += strlen(ptr);
-#endif
-
-#ifdef USE_ZLIB
-  sprintf(ptr, " (zlib %s)", zlibVersion());
-  ptr += strlen(ptr);
-#endif
-
-  return version;
+  if (pathname)
+    {
+    free(pathname);
+    }
+  return 0;
 }

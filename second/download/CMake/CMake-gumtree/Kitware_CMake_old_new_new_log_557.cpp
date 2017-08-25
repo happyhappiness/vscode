@@ -1,1 +1,2 @@
-std::cerr << "No current working directory." << std::endl;
+archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));

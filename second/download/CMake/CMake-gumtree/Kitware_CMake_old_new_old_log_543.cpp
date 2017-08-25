@@ -1,2 +1,2 @@
-sprintf(firstLine,
-              "Press [c] to configure     Press [g] to generate and exit");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Can't initialize ZIP decompression.");

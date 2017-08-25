@@ -1,1 +1,4 @@
-yy_fatal_error( "cmListFileLexer_yyset_lineno called with no buffer" , yyscanner);
+the project that
+ * took on from here is named 'Trio' and you find more details on the trio web
+ * page at http://daniel.haxx.se/trio/
+ */;

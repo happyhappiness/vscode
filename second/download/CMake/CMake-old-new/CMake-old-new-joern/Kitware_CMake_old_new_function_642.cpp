@@ -1,63 +1,107 @@
-void
-th_print_long_ls(TAR *t)
+static ssize_t
+decode_header_image(struct archive_read *a, struct _7zip *zip,
+    struct _7z_stream_info *si, const unsigned char *p, uint64_t len,
+    const void **image)
 {
-  char modestring[12];
-#if !defined(_WIN32) || defined(__CYGWIN__)
-  struct passwd *pw;
-  struct group *gr;
-#endif
-  uid_t uid;
-  gid_t gid;
-  char username[_POSIX_LOGIN_NAME_MAX];
-  char groupname[_POSIX_LOGIN_NAME_MAX];
-  time_t mtime;
-  struct tm *mtm;
+	const unsigned char *v;
+	size_t vsize;
+	int r;
 
-#ifdef HAVE_STRFTIME
-  char timebuf[18];
-#else
-  const char *months[] = {
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-  };
-#endif
+	errno = 0;
+	r = read_StreamsInfo(zip, si, p, len);
+	if (r < 0) {
+		if (errno == ENOMEM)
+			archive_set_error(&a->archive, -1,
+			    "Couldn't allocate memory");
+		else
+			archive_set_error(&a->archive, -1,
+			    "Malformed 7-Zip archive");
+		return (ARCHIVE_FATAL);
+	}
 
-  uid = th_get_uid(t);
-#if !defined(_WIN32) || defined(__CYGWIN__)
-  pw = getpwuid(uid);
-  if (pw != NULL)
-    strlcpy(username, pw->pw_name, sizeof(username));
-  else
-#endif
-    snprintf(username, sizeof(username), "%d", (int)uid);
-  gid = th_get_gid(t);
-#if !defined(_WIN32) || defined(__CYGWIN__)
-  gr = getgrgid(gid);
-  if (gr != NULL)
-    strlcpy(groupname, gr->gr_name, sizeof(groupname));
-  else
-#endif
-    snprintf(groupname, sizeof(groupname), "%d", (int)gid);
-    
-  strmode(th_get_mode(t), modestring);
-  printf("%.10s %-8.8s %-8.8s ", modestring, username, groupname);
+	if (si->pi.numPackStreams == 0 || si->ci.numFolders == 0) {
+		archive_set_error(&a->archive, -1, "Malformed 7-Zip archive");
+		return (ARCHIVE_FATAL);
+	}
 
-#if !defined(_WIN32) || defined(__CYGWIN__)
-  if (TH_ISCHR(t) || TH_ISBLK(t))
-    printf(" %3d, %3d ", th_get_devmajor(t), th_get_devminor(t));
-  else
-#endif
-    printf("%9ld ", (long)th_get_size(t));
+	if (zip->header_offset < si->pi.pos + si->pi.sizes[0] ||
+	    (int64_t)(si->pi.pos + si->pi.sizes[0]) < 0 ||
+	    si->pi.sizes[0] == 0 || (int64_t)si->pi.pos < 0) {
+		archive_set_error(&a->archive, -1, "Malformed Header offset");
+		return (ARCHIVE_FATAL);
+	}
 
-  mtime = th_get_mtime(t);
-  mtm = localtime(&mtime);
-#ifdef HAVE_STRFTIME
-  strftime(timebuf, sizeof(timebuf), "%h %e %H:%M %Y", mtm);
-  printf("%s", timebuf);
-#else
-  printf("%.3s %2d %2d:%02d %4d",
-         months[mtm->tm_mon],
-         mtm->tm_mday, mtm->tm_hour, mtm->tm_min, mtm->tm_year + 1900);
-#endif
+	r = setup_decode_folder(a, si->ci.folders, 1);
+	if (r != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
 
-  printf(" %s", th_get_pathname(t))
+	/* Get an uncompressed header size. */
+	vsize = (size_t)zip->folder_outbytes_remaining;
+
+	/*
+	 * Allocate an uncompressed buffer for the header image.
+	 */
+	zip->uncompressed_buffer_size = 64 * 1024;
+	if (vsize > zip->uncompressed_buffer_size)
+		zip->uncompressed_buffer_size = vsize;
+	zip->uncompressed_buffer = malloc(zip->uncompressed_buffer_size);
+	if (zip->uncompressed_buffer == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "No memory for 7-Zip decompression");
+		return (ARCHIVE_FATAL);
+	}
+
+	/* Get the bytes we can read to decode the header. */
+	zip->pack_stream_inbytes_remaining = si->pi.sizes[0];
+
+	/* Seek the read point. */
+	if (__archive_read_seek(a, si->pi.pos + zip->seek_base, SEEK_SET) < 0)
+		return (ARCHIVE_FATAL);
+	zip->header_offset = si->pi.pos;
+
+	/* Extract a pack stream. */
+	r = extract_pack_stream(a);
+	if (r < 0)
+		return (r);
+	for (;;) {
+		ssize_t bytes;
+		
+		bytes = get_uncompressed_data(a, image, vsize);
+		if (bytes < 0)
+			return (r);
+		if (bytes != vsize) {
+			if (*image != zip->uncompressed_buffer) {
+				/* This might happen if the coder was COPY.
+				 * We have to make sure we read a full plain
+				 * header image. */
+				if (NULL==__archive_read_ahead(a, vsize, NULL))
+					return (ARCHIVE_FATAL);
+				continue;
+			} else {
+				archive_set_error(&a->archive, -1,
+				    "Malformed 7-Zip archive file");
+				return (ARCHIVE_FATAL);
+			}
+		}
+		break;
+	}
+	v = *image;
+
+	/* Clean up variables which will not be used for decoding the
+	 * archive header */
+	zip->pack_stream_remaining = 0;
+	zip->pack_stream_index = 0;
+	zip->folder_outbytes_remaining = 0;
+	zip->uncompressed_buffer_bytes_remaining = 0;
+	zip->pack_stream_bytes_unconsumed = 0;
+
+	/* Check the header CRC. */
+	if (si->ci.folders[0].digest_defined){
+		uint32_t c = crc32(0, v, vsize);
+		if (c != si->ci.folders[0].digest) {
+			archive_set_error(&a->archive, -1, "Header CRC error");
+			return (ARCHIVE_FATAL);
+		}
+	}
+	return ((ssize_t)vsize);
+}

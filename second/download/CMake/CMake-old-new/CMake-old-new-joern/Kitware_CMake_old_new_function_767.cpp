@@ -1,17 +1,19 @@
-static void ErrorMessage(int line, char *str)  //display detailed error info
+static void prratio(FILE *stream, long int num, long int den)
 {
-  DWORD lastmsg = GetLastError();
-  LPVOID msg;
-  FormatMessage(
-    FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
-    NULL,
-    lastmsg,
-    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
-    (LPTSTR) &msg,
-    0,
-    NULL
-  );
-  printf("%d - %s: %s (%d)\n",line,str,msg, lastmsg);
-  LocalFree(msg);
-  ::SetLastError(ERROR_SUCCESS);
+  register int q;      /* Doesn't need to be long */
+
+  if(num > 214748L)
+    {    /* 2147483647/10000 */
+    q = num / (den / 10000L);
+    }
+  else
+    {
+    q = 10000L * num / den;    /* Long calculations, though */
+    }
+  if (q < 0)
+    {
+    putc('-', stream);
+    q = -q;
+    }
+  fprintf(stream, "%d.%02d%%", q / 100, q % 100);
 }

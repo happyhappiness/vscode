@@ -1,3 +1,2 @@
-str.Printf("CMake %d.%d - %s", cmVersion::GetMajorVersion(),
-               cmVersion::GetMinorVersion(), 
-               cmVersion::GetReleaseVersion().c_str());
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external bunzip2 program");

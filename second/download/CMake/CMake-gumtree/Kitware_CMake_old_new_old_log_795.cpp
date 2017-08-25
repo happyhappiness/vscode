@@ -1,1 +1,1 @@
-sprintf(secondLine, "Q)uit Without Generating   T)oggle Advanced Mode (On)");
+fprintf(stdout, "Usage: %s <test number>\n", argv[0]);

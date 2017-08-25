@@ -1,1 +1,3 @@
-fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
+fprintf(fout, "target_link_libraries(%s %s)\n",
+              targetName,
+              libsToLink.c_str());

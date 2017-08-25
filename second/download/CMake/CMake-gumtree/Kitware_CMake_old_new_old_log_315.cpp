@@ -1,3 +1,1 @@
-snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
+fprintf(this->FileOut, "\t%s\n", symbol.c_str());

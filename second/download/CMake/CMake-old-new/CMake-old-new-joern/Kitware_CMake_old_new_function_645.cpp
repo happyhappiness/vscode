@@ -1,80 +1,104 @@
-void
-th_print_long_ls(TAR *t)
+static ssize_t
+extract_pack_stream(struct archive_read *a)
 {
-  char modestring[12];
-#ifndef WIN32
-  struct passwd *pw;
-  struct group *gr;
-#endif
-  uid_t uid;
-  gid_t gid;
-  char username[_POSIX_LOGIN_NAME_MAX];
-  char groupname[_POSIX_LOGIN_NAME_MAX];
-  time_t mtime;
-  struct tm *mtm;
+	struct _7zip *zip = (struct _7zip *)a->format->data;
+	ssize_t bytes_avail;
+	int r;
 
-#ifdef HAVE_STRFTIME
-  char timebuf[18];
-#else
-  const char *months[] = {
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-  };
-#endif
+	if (zip->codec == _7Z_COPY && zip->codec2 == -1) {
+		if (__archive_read_ahead(a, 1, &bytes_avail) == NULL
+		    || bytes_avail <= 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated 7-Zip file body");
+			return (ARCHIVE_FATAL);
+		}
+		if (bytes_avail > zip->pack_stream_inbytes_remaining)
+			bytes_avail = zip->pack_stream_inbytes_remaining;
+		zip->pack_stream_inbytes_remaining -= bytes_avail;
+		if (bytes_avail > zip->folder_outbytes_remaining)
+			bytes_avail = zip->folder_outbytes_remaining;
+		zip->folder_outbytes_remaining -= bytes_avail;
+		zip->uncompressed_buffer_bytes_remaining = bytes_avail;
+		return (ARCHIVE_OK);
+	}
 
-  uid = th_get_uid(t);
-#ifndef WIN32
-  pw = getpwuid(uid);
-  if (pw != NULL)
-    strlcpy(username, pw->pw_name, sizeof(username));
-  else
-#endif
-    snprintf(username, sizeof(username), "%d", uid);
-  gid = th_get_gid(t);
-#ifndef WIN32
-  gr = getgrgid(gid);
-  if (gr != NULL)
-    strlcpy(groupname, gr->gr_name, sizeof(groupname));
-  else
-#endif
-    snprintf(groupname, sizeof(groupname), "%d", gid);
-    
-  strmode(th_get_mode(t), modestring);
-  printf("%.10s %-8.8s %-8.8s ", modestring, username, groupname);
+	/* If the buffer hasn't been allocated, allocate it now. */
+	if (zip->uncompressed_buffer == NULL) {
+		zip->uncompressed_buffer_size = 64 * 1024;
+		zip->uncompressed_buffer =
+		    malloc(zip->uncompressed_buffer_size);
+		if (zip->uncompressed_buffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for 7-Zip decompression");
+			return (ARCHIVE_FATAL);
+		}
+	}
+	zip->uncompressed_buffer_bytes_remaining = 0;
+	zip->uncompressed_buffer_pointer = NULL;
+	for (;;) {
+		size_t bytes_in, bytes_out;
+		const void *buff_in;
+		unsigned char *buff_out;
+		int eof;
 
-#ifndef WIN32
-  if (TH_ISCHR(t) || TH_ISBLK(t))
-    printf(" %3d, %3d ", th_get_devmajor(t), th_get_devminor(t));
-  else
-    printf("%9ld ", (long)th_get_size(t));
-#endif
+		/*
+		 * Note: '1' here is a performance optimization.
+		 * Recall that the decompression layer returns a count of
+		 * available bytes; asking for more than that forces the
+		 * decompressor to combine reads by copying data.
+		 */
+		buff_in = __archive_read_ahead(a, 1, &bytes_avail);
+		if (bytes_avail <= 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated 7-Zip file body");
+			return (ARCHIVE_FATAL);
+		}
 
-  mtime = th_get_mtime(t);
-  mtm = localtime(&mtime);
-#ifdef HAVE_STRFTIME
-  strftime(timebuf, sizeof(timebuf), "%h %e %H:%M %Y", mtm);
-  printf("%s", timebuf);
-#else
-  printf("%.3s %2d %2d:%02d %4d",
-         months[mtm->tm_mon],
-         mtm->tm_mday, mtm->tm_hour, mtm->tm_min, mtm->tm_year + 1900);
-#endif
+		buff_out = zip->uncompressed_buffer
+			+ zip->uncompressed_buffer_bytes_remaining;
+		bytes_out = zip->uncompressed_buffer_size
+			- zip->uncompressed_buffer_bytes_remaining;
+		bytes_in = bytes_avail;
+		if (bytes_in > zip->pack_stream_inbytes_remaining)
+			bytes_in = zip->pack_stream_inbytes_remaining;
+		/* Drive decompression. */
+		r = decompress(a, zip, buff_out, &bytes_out,
+			buff_in, &bytes_in);
+		switch (r) {
+		case ARCHIVE_OK:
+			eof = 0;
+			break;
+		case ARCHIVE_EOF:
+			eof = 1;
+			break;
+		default:
+			return (ARCHIVE_FATAL);
+		}
+		zip->pack_stream_inbytes_remaining -= bytes_in;
+		if (bytes_out > zip->folder_outbytes_remaining)
+			bytes_out = zip->folder_outbytes_remaining;
+		zip->folder_outbytes_remaining -= bytes_out;
+		zip->uncompressed_buffer_bytes_remaining += bytes_out;
+		zip->pack_stream_bytes_unconsumed = bytes_in;
 
-  printf(" %s", th_get_pathname(t));
-
-#ifndef _WIN32
-  if (TH_ISSYM(t) || TH_ISLNK(t))
-  {
-    if (TH_ISSYM(t))
-      printf(" -> ");
-    else
-      printf(" link to ");
-    if ((t->options & TAR_GNU) && t->th_buf.gnu_longlink != NULL)
-      printf("%s", t->th_buf.gnu_longlink);
-    else
-      printf("%.100s", t->th_buf.linkname);
-  }
-#endif
-
-  putchar('\n');
+		/*
+		 * Continue decompression until uncompressed_buffer is full.
+		 */
+		if (zip->uncompressed_buffer_bytes_remaining ==
+		    zip->uncompressed_buffer_size)
+			break;
+		if (zip->pack_stream_inbytes_remaining == 0 &&
+		    zip->folder_outbytes_remaining == 0)
+			break;
+		if (eof || (bytes_in == 0 && bytes_out == 0)) {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC, "Damaged 7-Zip archive");
+			return (ARCHIVE_FATAL);
+		}
+		read_consume(a);
+	}
+	zip->uncompressed_buffer_pointer = zip->uncompressed_buffer;
+	return (ARCHIVE_OK);
 }

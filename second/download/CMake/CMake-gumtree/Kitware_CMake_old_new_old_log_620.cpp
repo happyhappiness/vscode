@@ -1,1 +1,1 @@
-yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" );
+sprintf(win9x, "%s%s", tempDir, fwdName);

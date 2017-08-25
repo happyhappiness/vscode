@@ -1,1 +1,1 @@
-buf = aprintf(fmt, ap);
+fprintf(ofp, "#define _unlink unlink\n");

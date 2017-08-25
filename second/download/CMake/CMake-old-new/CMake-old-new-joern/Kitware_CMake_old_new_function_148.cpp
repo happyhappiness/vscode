@@ -1,98 +1,96 @@
 static int
-check_symlinks(struct archive_write_disk *a)
+header_Solaris_ACL(struct archive_read *a, struct tar *tar,
+    struct archive_entry *entry, const void *h, size_t *unconsumed)
 {
-#if !defined(HAVE_LSTAT)
-	/* Platform doesn't have lstat, so we can't look for symlinks. */
-	(void)a; /* UNUSED */
-	return (ARCHIVE_OK);
-#else
-	char *pn;
-	char c;
-	int r;
-	struct stat st;
+	const struct archive_entry_header_ustar *header;
+	size_t size;
+	int err;
+	int64_t type;
+	char *acl, *p;
 
 	/*
-	 * Guard against symlink tricks.  Reject any archive entry whose
-	 * destination would be altered by a symlink.
+	 * read_body_to_string adds a NUL terminator, but we need a little
+	 * more to make sure that we don't overrun acl_text later.
 	 */
-	/* Whatever we checked last time doesn't need to be re-checked. */
-	pn = a->name;
-	if (archive_strlen(&(a->path_safe)) > 0) {
-		char *p = a->path_safe.s;
-		while ((*pn != '\0') && (*p == *pn))
-			++p, ++pn;
-	}
-	/* Skip the root directory if the path is absolute. */
-	if(pn == a->name && pn[0] == '/')
-		++pn;
-	c = pn[0];
-	/* Keep going until we've checked the entire name. */
-	while (pn[0] != '\0' && (pn[0] != '/' || pn[1] != '\0')) {
-		/* Skip the next path element. */
-		while (*pn != '\0' && *pn != '/')
-			++pn;
-		c = pn[0];
-		pn[0] = '\0';
-		/* Check that we haven't hit a symlink. */
-		r = lstat(a->name, &st);
-		if (r != 0) {
-			/* We've hit a dir that doesn't exist; stop now. */
-			if (errno == ENOENT)
-				break;
-		} else if (S_ISLNK(st.st_mode)) {
-			if (c == '\0') {
-				/*
-				 * Last element is symlink; remove it
-				 * so we can overwrite it with the
-				 * item being extracted.
-				 */
-				if (unlink(a->name)) {
-					archive_set_error(&a->archive, errno,
-					    "Could not remove symlink %s",
-					    a->name);
-					pn[0] = c;
-					return (ARCHIVE_FAILED);
-				}
-				a->pst = NULL;
-				/*
-				 * Even if we did remove it, a warning
-				 * is in order.  The warning is silly,
-				 * though, if we're just replacing one
-				 * symlink with another symlink.
-				 */
-				if (!S_ISLNK(a->mode)) {
-					archive_set_error(&a->archive, 0,
-					    "Removing symlink %s",
-					    a->name);
-				}
-				/* Symlink gone.  No more problem! */
-				pn[0] = c;
-				return (0);
-			} else if (a->flags & ARCHIVE_EXTRACT_UNLINK) {
-				/* User asked us to remove problems. */
-				if (unlink(a->name) != 0) {
-					archive_set_error(&a->archive, 0,
-					    "Cannot remove intervening symlink %s",
-					    a->name);
-					pn[0] = c;
-					return (ARCHIVE_FAILED);
-				}
-				a->pst = NULL;
-			} else {
-				archive_set_error(&a->archive, 0,
-				    "Cannot extract through symlink %s",
-				    a->name);
-				pn[0] = c;
-				return (ARCHIVE_FAILED);
-			}
+	header = (const struct archive_entry_header_ustar *)h;
+	size = (size_t)tar_atol(header->size, sizeof(header->size));
+	err = read_body_to_string(a, tar, &(tar->acl_text), h, unconsumed);
+	if (err != ARCHIVE_OK)
+		return (err);
+
+	/* Recursively read next header */
+	err = tar_read_header(a, tar, entry, unconsumed);
+	if ((err != ARCHIVE_OK) && (err != ARCHIVE_WARN))
+		return (err);
+
+	/* TODO: Examine the first characters to see if this
+	 * is an AIX ACL descriptor.  We'll likely never support
+	 * them, but it would be polite to recognize and warn when
+	 * we do see them. */
+
+	/* Leading octal number indicates ACL type and number of entries. */
+	p = acl = tar->acl_text.s;
+	type = 0;
+	while (*p != '\0' && p < acl + size) {
+		if (*p < '0' || *p > '7') {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Malformed Solaris ACL attribute (invalid digit)");
+			return(ARCHIVE_WARN);
 		}
-		pn[0] = c;
-		if (pn[0] != '\0')
-			pn++; /* Advance to the next segment. */
+		type <<= 3;
+		type += *p - '0';
+		if (type > 077777777) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Malformed Solaris ACL attribute (count too large)");
+			return (ARCHIVE_WARN);
+		}
+		p++;
 	}
-	pn[0] = c;
-	/* We've checked and/or cleaned the whole path, so remember it. */
-	archive_strcpy(&a->path_safe, a->name);
-	return (ARCHIVE_OK);
-#endif
+	switch ((int)type & ~0777777) {
+	case 01000000:
+		/* POSIX.1e ACL */
+		break;
+	case 03000000:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Solaris NFSv4 ACLs not supported");
+		return (ARCHIVE_WARN);
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Malformed Solaris ACL attribute (unsupported type %o)",
+		    (int)type);
+		return (ARCHIVE_WARN);
+	}
+	p++;
+
+	if (p >= acl + size) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Malformed Solaris ACL attribute (body overflow)");
+		return(ARCHIVE_WARN);
+	}
+
+	/* ACL text is null-terminated; find the end. */
+	size -= (p - acl);
+	acl = p;
+
+	while (*p != '\0' && p < acl + size)
+		p++;
+
+	if (tar->sconv_acl == NULL) {
+		tar->sconv_acl = archive_string_conversion_from_charset(
+		    &(a->archive), "UTF-8", 1);
+		if (tar->sconv_acl == NULL)
+			return (ARCHIVE_FATAL);
+	}
+	archive_strncpy(&(tar->localname), acl, p - acl);
+	err = archive_acl_parse_l(archive_entry_acl(entry),
+	    tar->localname.s, ARCHIVE_ENTRY_ACL_TYPE_ACCESS, tar->sconv_acl);
+	if (err != ARCHIVE_OK) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for ACL");
+		} else
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Malformed Solaris ACL attribute (unparsable)");
+	}
+	return (err);
 }

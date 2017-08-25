@@ -1,5 +1,7 @@
 {
-				archive_set_error(&a->archive, -1,
-				    "Malformed 7-Zip archive file");
-				return (ARCHIVE_FATAL);
-			}
+			/* NOTE: If the last argument is NULL, this will
+			 * fail only by memeory allocation failure. */
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Symlink");
+			return (ARCHIVE_FATAL);
+		}

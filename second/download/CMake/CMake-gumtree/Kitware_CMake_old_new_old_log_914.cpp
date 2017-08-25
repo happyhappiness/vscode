@@ -1,0 +1,1 @@
+buf = aprintf(fmt, ap);

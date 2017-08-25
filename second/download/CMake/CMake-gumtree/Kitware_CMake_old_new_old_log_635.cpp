@@ -1,1 +1,2 @@
-sprintf(num,"%d",static_cast<int>(m_LocalGenerators.size()));
+sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%ld_%p.exe",
+            GetCurrentProcessId(), cp);

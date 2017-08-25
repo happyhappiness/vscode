@@ -1,71 +1,39 @@
-void ctest::GenerateDartOutput(std::ostream& os)
+int cmcompress_compress_start(struct cmcompress_stream* cdata)
 {
-  if ( !m_DartMode )
+#ifndef COMPATIBLE
+  if (cdata->nomagic == 0)
     {
-    return;
-    }
-
-  if ( m_TestResults.size() == 0 )
-    {
-    return;
-    }
-
-  time_t tctime = time(0);
-  struct tm *lctime = gmtime(&tctime);
-  char datestring[100];
-  sprintf(datestring, "%4d%02d%02d-%d%d",
-          lctime->tm_year + 1900,
-          lctime->tm_mon,
-          lctime->tm_mday,
-          lctime->tm_hour,
-          lctime->tm_min);
-
-  os << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-     << "<Site BuildName=\"" << m_DartConfiguration["BuildName"]
-     << "\" BuildStamp=\"" << datestring << "-Experimental\" Name=\""
-     << m_DartConfiguration["Site"] << "\">\n"
-     << "<Testing>\n"
-     << "  <StartDateTime>" << ::CurrentTime() << "</StartDateTime>\n"
-     << "  <TestList>\n";
-  tm_TestResultsVector::size_type cc;
-  for ( cc = 0; cc < m_TestResults.size(); cc ++ )
-    {
-    cmCTestTestResult *result = &m_TestResults[cc];
-    os << "    <Test>" << result->m_Path << "/" << result->m_Name 
-       << "</Test>" << std::endl;
-    }
-  os << "  </TestList>\n";
-  for ( cc = 0; cc < m_TestResults.size(); cc ++ )
-    {
-    cmCTestTestResult *result = &m_TestResults[cc];
-    os << "  <Test Status=\"" << (result->m_ReturnValue?"failed":"passed") 
-       << "\">\n"
-       << "    <Name>" << result->m_Name << "</Name>\n"
-       << "    <Path>" << result->m_Path << "</Path>\n"
-       << "    <FullName>" << result->m_Path << "/" << result->m_Name << "</FullName>\n"
-       << "    <FullCommandLine>" << result->m_FullCommandLine << "</FullCommandLine>\n"
-       << "    <Results>" << std::endl;
-    if ( result->m_ReturnValue )
+    char headLast = (char)(cdata->maxbits | cdata->block_compress);
+    cdata->output_stream(cdata, (const char*)magic_header, 2);
+    cdata->output_stream(cdata, &headLast, 1);
+    if(ferror(stdout))
       {
-      os << "      <NamedMeasurement type=\"text/string\" name=\"Exit Code\"><Value>"
-         << "CHILDSTATUS" << "</Value></NamedMeasurement>\n"
-         << "      <NamedMeasurement type=\"text/string\" name=\"Exit Value\"><Value>"
-         << result->m_ReturnValue << "</Value></NamedMeasurement>" << std::endl;
+      printf("Error...\n");
       }
-    os << "      <NamedMeasurement type=\"numeric/double\" "
-       << "name=\"Execution Time\"><Value>"
-       << result->m_ExecutionTime << "</Value></NamedMeasurement>\n"
-       << "      <NamedMeasurement type=\"text/string\" "
-       << "name=\"Completion Status\"><Value>"
-       << result->m_CompletionStatus << "</Value></NamedMeasurement>\n"
-       << "      <Measurement>\n"
-       << "        <Value>" << result->m_Output << "</value>\n"
-       << "      </Measurement>\n"
-       << "    </Results>\n"
-       << "  </Test>" << std::endl;
     }
-  
-  os << "<EndDateTime>" << ::CurrentTime() << "</EndDateTime>\n"
-     << "</Testing>\n"
-     << "</Site>" << std::endl;
+#endif /* COMPATIBLE */
+
+  cdata->offset = 0;
+  cdata->bytes_out = 3;    /* includes 3-byte header mojo */
+  cdata->out_count = 0;
+  cdata->clear_flg = 0;
+  cdata->ratio = 0;
+  cdata->in_count = 1;
+  cdata->checkpoint = CHECK_GAP;
+  cdata->maxcode = MAXCODE(cdata->n_bits = INIT_BITS);
+  cdata->free_ent = ((cdata->block_compress) ? FIRST : 256 );
+
+  cdata->first_pass = 1;
+
+  cdata->hshift = 0;
+  for ( cdata->fcode = (long) cdata->hsize;  cdata->fcode < 65536L; cdata->fcode *= 2L )
+    {
+    cdata->hshift++;
+    }
+  cdata->hshift = 8 - cdata->hshift;    /* set hash code range bound */
+
+  cdata->hsize_reg = cdata->hsize;
+  cl_hash(cdata, (count_int) cdata->hsize_reg);    /* clear hash table */
+
+  return 1;
 }

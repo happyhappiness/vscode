@@ -1,1 +1,2 @@
-fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());
+sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
+            cmVersion::GetMinorVersion());

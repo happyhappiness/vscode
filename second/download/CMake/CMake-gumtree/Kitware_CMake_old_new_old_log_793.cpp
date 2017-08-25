@@ -1,1 +1,1 @@
-sprintf(firstLine,  "C)onfigure                 G)enerate and Exit            H)elp");
+printf(" %s", th_get_pathname(t));

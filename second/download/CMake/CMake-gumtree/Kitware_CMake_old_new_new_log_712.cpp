@@ -1,1 +1,1 @@
-argcDefStream << expandedArguments.size();
+str << this->ChipID.Model;

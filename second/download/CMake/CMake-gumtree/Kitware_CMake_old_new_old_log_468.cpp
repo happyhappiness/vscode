@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "%ls: Couldn't visit directory",
-			    tree_current_path(t));
+fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());

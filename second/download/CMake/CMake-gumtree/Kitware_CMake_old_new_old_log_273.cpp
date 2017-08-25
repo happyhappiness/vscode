@@ -1,1 +1,4 @@
-fprintf(this->FileOut, "\t%s \t DATA\n", symbol.c_str());
+md5this = (unsigned char *)aprintf("%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       ha2);

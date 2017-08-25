@@ -1,60 +1,53 @@
-std::vector<cmComputeLinkDepends::LinkEntry> const&
-cmComputeLinkDepends::Compute()
+void
+DumpSymbolTable(PIMAGE_SYMBOL pSymbolTable, PIMAGE_SECTION_HEADER pSectionHeaders, FILE *fout, unsigned cSymbols)
 {
-  // Follow the link dependencies of the target to be linked.
-  this->AddDirectLinkEntries();
+   unsigned i;
+   PSTR stringTable;
+   std::string sectionName;
+   std::string sectionCharacter;
+   int iSectNum;
 
-  // Complete the breadth-first search of dependencies.
-  while(!this->BFSQueue.empty())
-    {
-    // Get the next entry.
-    BFSEntry qe = this->BFSQueue.front();
-    this->BFSQueue.pop();
+   fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
+      cSymbols);
 
-    // Follow the entry's dependencies.
-    this->FollowLinkEntry(qe);
-    }
+   fprintf(fout,
+      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
+      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");
 
-  // Complete the search of shared library dependencies.
-  while(!this->SharedDepQueue.empty())
-    {
-    // Handle the next entry.
-    this->HandleSharedDependency(this->SharedDepQueue.front());
-    this->SharedDepQueue.pop();
-    }
+   /*
+   * The string table apparently starts right after the symbol table
+   */
+   stringTable = (PSTR)&pSymbolTable[cSymbols];
 
-  // Infer dependencies of targets for which they were not known.
-  this->InferDependencies();
+   for ( i=0; i < cSymbols; i++ ) {
+      fprintf(fout, "%04X ", i);
+      if ( pSymbolTable->N.Name.Short != 0 )
+         fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
+      else
+         fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);
 
-  // Cleanup the constraint graph.
-  this->CleanConstraintGraph();
+      fprintf(fout, " %08X", pSymbolTable->Value);
 
-  // Display the constraint graph.
-  if(this->DebugMode)
-    {
-    fprintf(stderr,
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName(), this->Config?this->Config:"noconfig");
-    this->DisplayConstraintGraph();
-    }
+      iSectNum = pSymbolTable->SectionNumber;
+      GetSectionName(pSymbolTable, sectionName);
+      fprintf(fout, " sect:%s aux:%X type:%02X st:%s",
+         sectionName.c_str(),
+         pSymbolTable->NumberOfAuxSymbols,
+         pSymbolTable->Type,
+         GetSZStorageClass(pSymbolTable->StorageClass) );
 
-  // Compute the final ordering.
-  this->OrderLinkEntires();
+      GetSectionCharacteristics(pSectionHeaders,iSectNum,sectionCharacter);
+      fprintf(fout," hc: %s \n",sectionCharacter.c_str());
+#if 0
+      if ( pSymbolTable->NumberOfAuxSymbols )
+         DumpAuxSymbols(pSymbolTable);
+#endif
 
-  // Compute the final set of link entries.
-  for(std::vector<int>::const_iterator li = this->FinalLinkOrder.begin();
-      li != this->FinalLinkOrder.end(); ++li)
-    {
-    this->FinalLinkEntries.push_back(this->EntryList[*li]);
-    }
-
-  // Display the final set.
-  if(this->DebugMode)
-    {
-    this->DisplayFinalEntries();
-    }
-
-  return this->FinalLinkEntries;
+      /*
+      * Take into account any aux symbols
+      */
+      i += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable++;
+   }
 }

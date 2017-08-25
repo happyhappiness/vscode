@@ -1,1 +1,1 @@
-fprintf(stderr, "Reading a token: ");
+sprintf(buffer, "&lt;%d&gt;", (int)ch);

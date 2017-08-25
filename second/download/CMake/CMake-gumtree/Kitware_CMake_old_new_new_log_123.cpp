@@ -1,2 +1,2 @@
-archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
+fsobj_error(a_eno, a_estr, errno,
+					    "Could not chdir %s", path);

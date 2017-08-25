@@ -1,1 +1,2 @@
-yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" , yyscanner);
+sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%ld_%p.exe",
+            GetCurrentProcessId(), cp);

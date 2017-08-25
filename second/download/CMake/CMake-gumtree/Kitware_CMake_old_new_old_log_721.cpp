@@ -1,1 +1,1 @@
-fprintf(stderr,"   Passed\n");
+fprintf(stderr, "********* NewGen %s\n", name);

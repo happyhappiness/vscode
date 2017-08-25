@@ -1,1 +1,1 @@
-f(tgtName, "%s%d", graphNodePrefix, cnt++);
+sprintf(win9x, "%s%s", tempDir, fwdName);

@@ -1,81 +1,98 @@
-int
-setup_xattrs(struct archive_read_disk *a,
-    struct archive_entry *entry, int *fd)
+static int
+check_symlinks(struct archive_write_disk *a)
 {
-	char buff[512];
-	char *list, *p;
-	ssize_t list_size;
-	const char *path;
-	int namespace = EXTATTR_NAMESPACE_USER;
+#if !defined(HAVE_LSTAT)
+	/* Platform doesn't have lstat, so we can't look for symlinks. */
+	(void)a; /* UNUSED */
+	return (ARCHIVE_OK);
+#else
+	char *pn;
+	char c;
+	int r;
+	struct stat st;
 
-	path = archive_entry_sourcepath(entry);
-	if (path == NULL)
-		path = archive_entry_pathname(entry);
-
-	if (*fd < 0 && a->tree != NULL) {
-		if (a->follow_symlinks ||
-		    archive_entry_filetype(entry) != AE_IFLNK)
-			*fd = a->open_on_current_dir(a->tree, path,
-				O_RDONLY | O_NONBLOCK);
-		if (*fd < 0) {
-			if (a->tree_enter_working_dir(a->tree) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Couldn't access %s", path);
+	/*
+	 * Guard against symlink tricks.  Reject any archive entry whose
+	 * destination would be altered by a symlink.
+	 */
+	/* Whatever we checked last time doesn't need to be re-checked. */
+	pn = a->name;
+	if (archive_strlen(&(a->path_safe)) > 0) {
+		char *p = a->path_safe.s;
+		while ((*pn != '\0') && (*p == *pn))
+			++p, ++pn;
+	}
+	/* Skip the root directory if the path is absolute. */
+	if(pn == a->name && pn[0] == '/')
+		++pn;
+	c = pn[0];
+	/* Keep going until we've checked the entire name. */
+	while (pn[0] != '\0' && (pn[0] != '/' || pn[1] != '\0')) {
+		/* Skip the next path element. */
+		while (*pn != '\0' && *pn != '/')
+			++pn;
+		c = pn[0];
+		pn[0] = '\0';
+		/* Check that we haven't hit a symlink. */
+		r = lstat(a->name, &st);
+		if (r != 0) {
+			/* We've hit a dir that doesn't exist; stop now. */
+			if (errno == ENOENT)
+				break;
+		} else if (S_ISLNK(st.st_mode)) {
+			if (c == '\0') {
+				/*
+				 * Last element is symlink; remove it
+				 * so we can overwrite it with the
+				 * item being extracted.
+				 */
+				if (unlink(a->name)) {
+					archive_set_error(&a->archive, errno,
+					    "Could not remove symlink %s",
+					    a->name);
+					pn[0] = c;
+					return (ARCHIVE_FAILED);
+				}
+				a->pst = NULL;
+				/*
+				 * Even if we did remove it, a warning
+				 * is in order.  The warning is silly,
+				 * though, if we're just replacing one
+				 * symlink with another symlink.
+				 */
+				if (!S_ISLNK(a->mode)) {
+					archive_set_error(&a->archive, 0,
+					    "Removing symlink %s",
+					    a->name);
+				}
+				/* Symlink gone.  No more problem! */
+				pn[0] = c;
+				return (0);
+			} else if (a->flags & ARCHIVE_EXTRACT_UNLINK) {
+				/* User asked us to remove problems. */
+				if (unlink(a->name) != 0) {
+					archive_set_error(&a->archive, 0,
+					    "Cannot remove intervening symlink %s",
+					    a->name);
+					pn[0] = c;
+					return (ARCHIVE_FAILED);
+				}
+				a->pst = NULL;
+			} else {
+				archive_set_error(&a->archive, 0,
+				    "Cannot extract through symlink %s",
+				    a->name);
+				pn[0] = c;
 				return (ARCHIVE_FAILED);
 			}
 		}
+		pn[0] = c;
+		if (pn[0] != '\0')
+			pn++; /* Advance to the next segment. */
 	}
-
-	if (*fd >= 0)
-		list_size = extattr_list_fd(*fd, namespace, NULL, 0);
-	else if (!a->follow_symlinks)
-		list_size = extattr_list_link(path, namespace, NULL, 0);
-	else
-		list_size = extattr_list_file(path, namespace, NULL, 0);
-
-	if (list_size == -1 && errno == EOPNOTSUPP)
-		return (ARCHIVE_OK);
-	if (list_size == -1) {
-		archive_set_error(&a->archive, errno,
-			"Couldn't list extended attributes");
-		return (ARCHIVE_WARN);
-	}
-
-	if (list_size == 0)
-		return (ARCHIVE_OK);
-
-	if ((list = malloc(list_size)) == NULL) {
-		archive_set_error(&a->archive, errno, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
-
-	if (*fd >= 0)
-		list_size = extattr_list_fd(*fd, namespace, list, list_size);
-	else if (!a->follow_symlinks)
-		list_size = extattr_list_link(path, namespace, list, list_size);
-	else
-		list_size = extattr_list_file(path, namespace, list, list_size);
-
-	if (list_size == -1) {
-		archive_set_error(&a->archive, errno,
-			"Couldn't retrieve extended attributes");
-		free(list);
-		return (ARCHIVE_WARN);
-	}
-
-	p = list;
-	while ((p - list) < list_size) {
-		size_t len = 255 & (int)*p;
-		char *name;
-
-		strcpy(buff, "user.");
-		name = buff + strlen(buff);
-		memcpy(name, p + 1, len);
-		name[len] = '\0';
-		setup_xattr(a, entry, namespace, name, buff, *fd);
-		p += 1 + len;
-	}
-
-	free(list);
+	pn[0] = c;
+	/* We've checked and/or cleaned the whole path, so remember it. */
+	archive_strcpy(&a->path_safe, a->name);
 	return (ARCHIVE_OK);
+#endif
 }

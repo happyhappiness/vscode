@@ -1,1 +1,2 @@
-fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());
+snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+                 conn->ip_addr_str);

@@ -1,1 +1,1 @@
-snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
+aprintf("%s/%s", service, host);

@@ -1,1 +1,1 @@
-fprintf(fout, "add_executable(%s", targetName);
+("%s:%s:%s";

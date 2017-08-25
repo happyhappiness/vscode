@@ -1,142 +1,123 @@
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int output, int delay, double timeout,
-             int poll)
+static int
+slurp_central_directory(struct archive_read *a, struct _7zip *zip,
+    struct _7z_header_info *header)
 {
-  int result = 0;
-  char* data = 0;
-  int length = 0;
-  double userTimeout = 0;
-  double* pUserTimeout = 0;
-  kwsysProcess* kp = kwsysProcess_New();
-  if(!kp)
-    {
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
-    }
-  
-  kwsysProcess_SetCommand(kp, cmd);
-  if(timeout >= 0)
-    {
-    kwsysProcess_SetTimeout(kp, timeout);
-    }
-  if(share)
-    {
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
-    }
-  kwsysProcess_Execute(kp);
+	const unsigned char *p;
+	const void *image;
+	uint64_t len;
+	uint64_t next_header_offset;
+	uint64_t next_header_size;
+	uint32_t next_header_crc;
+	ssize_t bytes_avail, image_bytes;
+	int r;
 
-  if(poll)
-    {
-    pUserTimeout = &userTimeout;
-    }
+	if ((p = __archive_read_ahead(a, 32, &bytes_avail)) == NULL)
+		return (ARCHIVE_FATAL);
 
-  if(!share)
-    {
-    int p;
-    while((p = kwsysProcess_WaitForData(kp, &data, &length, pUserTimeout)))
-      {
-      if(output)
-        {
-        if(poll && p == kwsysProcess_Pipe_Timeout)
-          {
-          fprintf(stdout, "WaitForData timeout reached.\n");
-          fflush(stdout);
+	if ((p[0] == 'M' && p[1] == 'Z') || memcmp(p, "\x7F\x45LF", 4) == 0) {
+		/* This is an executable ? Must be self-extracting... */
+		r = skip_sfx(a, bytes_avail);
+		if (r < ARCHIVE_WARN)
+			return (r);
+		if ((p = __archive_read_ahead(a, 32, NULL)) == NULL)
+			return (ARCHIVE_FATAL);
+	}
+	zip->seek_base += 32;
 
-          /* Count the number of times we polled without getting data.
-             If it is excessive then kill the child and fail.  */
-          if(++poll >= MAXPOLL)
-            {
-            fprintf(stdout, "Poll count reached limit %d.\n",
-                    MAXPOLL);
-            kwsysProcess_Kill(kp);
-            }
-          }
-        else
-          {
-          fwrite(data, 1, length, stdout);
-          fflush(stdout);
-          }
-        }
-      if(poll)
-        {
-        /* Delay to avoid busy loop during polling.  */
-#if defined(_WIN32)
-        Sleep(100);
-#else
-        usleep(100000);
-#endif
-        }
-      if(delay)
-        {
-        /* Purposely sleeping only on Win32 to let pipe fill up.  */
-#if defined(_WIN32)
-        Sleep(100);
-#endif
-        }
-      }
-    }
-  
-  kwsysProcess_WaitForExit(kp, 0);
+	if (memcmp(p, _7ZIP_SIGNATURE, 6) != 0) {
+		archive_set_error(&a->archive, -1, "Not 7-Zip archive file");
+		return (ARCHIVE_FATAL);
+	}
 
-  switch (kwsysProcess_GetState(kp))
-    {
-    case kwsysProcess_State_Starting:
-      printf("No process has been executed.\n"); break;
-    case kwsysProcess_State_Executing:
-      printf("The process is still executing.\n"); break;
-    case kwsysProcess_State_Expired:
-      printf("Child was killed when timeout expired.\n"); break;
-    case kwsysProcess_State_Exited:
-      printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Killed:
-      printf("Child was killed by parent.\n"); break;
-    case kwsysProcess_State_Exception:
-      printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Error:
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
-  
-  if(result)
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
-      {
-      fprintf(stderr, "Mismatch in exit exception.  "
-              "Should have been %d, was %d.\n",
-              exception, kwsysProcess_GetExitException(kp));
-      }
-    if(value != kwsysProcess_GetExitValue(kp))
-      {
-      fprintf(stderr, "Mismatch in exit value.  "
-              "Should have been %d, was %d.\n",
-              value, kwsysProcess_GetExitValue(kp));
-      }
-    }
-  
-  if(kwsysProcess_GetState(kp) != state)
-    {
-    fprintf(stderr, "Mismatch in state.  "
-            "Should have been %d, was %d.\n",
-            state, kwsysProcess_GetState(kp));
-    result = 1;
-    }
+	/* CRC check. */
+	if (crc32(0, (unsigned char *)p + 12, 20) != archive_le32dec(p + 8)) {
+		archive_set_error(&a->archive, -1, "Header CRC error");
+		return (ARCHIVE_FATAL);
+	}
 
-  /* We should have polled more times than there were data if polling
-     was enabled.  */
-  if(poll && poll < MINPOLL)
-    {
-    fprintf(stderr, "Poll count is %d, which is less than %d.\n",
-            poll, MINPOLL);
-    result = 1;
-    }
-  
-  kwsysProcess_Delete(kp);
-  return result;
+	next_header_offset = archive_le64dec(p + 12);
+	next_header_size = archive_le64dec(p + 20);
+	next_header_crc = archive_le32dec(p + 28);
+
+	if (next_header_size == 0)
+		/* There is no entry in an archive file. */
+		return (ARCHIVE_EOF);
+
+	if (((int64_t)next_header_offset) < 0) {
+		archive_set_error(&a->archive, -1, "Malformed 7-Zip archive");
+		return (ARCHIVE_FATAL);
+	}
+	if (__archive_read_seek(a, next_header_offset + zip->seek_base,
+	    SEEK_SET) < 0)
+		return (ARCHIVE_FATAL);
+	zip->header_offset = next_header_offset;
+
+	if ((p = __archive_read_ahead(a, next_header_size, NULL)) == NULL)
+		return (ARCHIVE_FATAL);
+
+	if (crc32(0, p, next_header_size) != next_header_crc) {
+		archive_set_error(&a->archive, -1, "Damaged 7-Zip archive");
+		return (ARCHIVE_FATAL);
+	}
+
+	len = next_header_size;
+	/* Parse ArchiveProperties. */
+	switch (p[0]) {
+	case kEncodedHeader:
+		p++;
+		len--;
+
+		/*
+		 * The archive has an encoded header and we have to decode it
+		 * in order to parse the header correctly.
+		 */
+		image_bytes =
+		    decode_header_image(a, zip, &(zip->si), p, len, &image);
+		free_StreamsInfo(&(zip->si));
+		memset(&(zip->si), 0, sizeof(zip->si));
+		if (image_bytes < 0)
+			return (ARCHIVE_FATAL);
+		p = image;
+		len = image_bytes;
+		/* FALL THROUGH */
+	case kHeader:
+		/*
+		 * Parse the header.
+		 */
+		errno = 0;
+		r = read_Header(zip, header, p, len);
+		if (r < 0) {
+			if (errno == ENOMEM)
+				archive_set_error(&a->archive, -1,
+				    "Couldn't allocate memory");
+			else
+				archive_set_error(&a->archive, -1,
+				    "Damaged 7-Zip archive");
+			return (ARCHIVE_FATAL);
+		}
+		if (len - r == 0 || p[r] != kEnd) {
+			archive_set_error(&a->archive, -1,
+			    "Malformed 7-Zip archive");
+			return (ARCHIVE_FATAL);
+		}
+		break;
+	default:
+		archive_set_error(&a->archive, -1,
+		    "Unexpected Property ID = %X", p[0]);
+		return (ARCHIVE_FATAL);
+	}
+	zip->stream_offset = -1;
+
+	/*
+	 * If the uncompressed buffer was allocated more than 64K for
+	 * the header image, release it.
+	 */
+	if (zip->uncompressed_buffer != NULL &&
+	    zip->uncompressed_buffer_size != 64 * 1024) {
+		free(zip->uncompressed_buffer);
+		zip->uncompressed_buffer = NULL;
+		zip->uncompressed_buffer_size = 0;
+	}
+
+	return (ARCHIVE_OK);
 }

@@ -1,23 +1,17 @@
 {
-    char sub[2];
-    unsigned long ssleay_value;
-    sub[1]='\0';
-    ssleay_value=SSLeay();
-    if(ssleay_value < 0x906000) {
-      ssleay_value=SSLEAY_VERSION_NUMBER;
-      sub[0]='\0';
-    }
-    else {
-      if(ssleay_value&0xff0) {
-        sub[0]=((ssleay_value>>4)&0xff) + 'a' -1;
+      double ttime = clock_finish - clock_start;
+      int hours = static_cast<int>(ttime / (60 * 60));
+      int minutes = static_cast<int>(ttime / 60) % 60;
+      int seconds = static_cast<int>(ttime) % 60;
+      char buffer[100];
+      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+      *this->LogFile
+        << "----------------------------------------------------------"
+        << std::endl
+        << "\"" << testname.c_str() << "\" end time: "
+        << this->CTest->CurrentTime() << std::endl
+        << "\"" << testname.c_str() << "\" time elapsed: "
+        << buffer << std::endl
+        << "----------------------------------------------------------"
+        << std::endl << std::endl;
       }
-      else
-        sub[0]='\0';
-    }
-
-    sprintf(ptr, " (OpenSSL %lx.%lx.%lx%s)",
-            (ssleay_value>>28)&0xf,
-            (ssleay_value>>20)&0xff,
-            (ssleay_value>>12)&0xff,
-            sub);
-  }

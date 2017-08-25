@@ -1,2 +1,1 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external gunzip program");
+f(fout, "PROJECT(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());

@@ -1,1 +1,1 @@
-sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+fprintf(fout, "SET(CMAKE_%s_FLAGS \"", lang);

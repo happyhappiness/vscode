@@ -1,1 +1,1 @@
-std::cerr << "***Exception: ";
+sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF);

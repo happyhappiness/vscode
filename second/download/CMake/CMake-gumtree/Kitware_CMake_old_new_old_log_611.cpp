@@ -1,2 +1,1 @@
-sprintf(tmp,"Version %d.%d (%s)", cmake::GetMajorVersion(),
-          cmake::GetMinorVersion(), cmVersion::GetReleaseVersion().c_str());
+fprintf(fout, "ADD_EXECUTABLE(%s \"%s\")\n", targetName, source.c_str());

@@ -1,5 +1,4 @@
 {
-				archive_set_error(&a->archive, GetLastError(),
-				    "Can't CreateFileW");
-				return (ARCHIVE_FAILED);
-			}
+          fprintf(progFile,"%i\n",count);
+          fclose(progFile);
+          }

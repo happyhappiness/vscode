@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, errno,
-			    "CreateEvent failed");
+archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino);

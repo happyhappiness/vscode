@@ -1,5 +1,7 @@
 {
-          ReadFile(read_stdout,buf,1023,&bread,NULL); //read the stdout pipe
-          printf("%s",buf);
-          memset(buf, 0, sizeof(buf));
-          }
+      //std::cout << "Found target: " << tit->first.c_str() << std::endl;
+      sprintf(tgtName, "node%d", cnt++);
+      targetNamesNodes[tit->first.c_str()] = tgtName;
+      targetPtrs[tit->first.c_str()] = &tit->second;
+      //str << "    \"" << tgtName << "\" [ label=\"" << tit->first.c_str() <<  "\" shape=\"box\"];" << std::endl;
+      }

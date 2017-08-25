@@ -1,1 +1,0 @@
-pathname = th_get_pathname(t);

@@ -1,1 +1,1 @@
-sprintf(secondLine, "Q)uit                  H)elp");
+fprintf(stderr, "tar_open(): %s\n", strerror(errno));

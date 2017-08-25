@@ -1,6 +1,5 @@
 {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Couldn't determine file path to read "
-			    "extended attributes");
+			archive_set_error(&a->archive, errno,
+			    "Failed to get next ACL entry");
 			return (ARCHIVE_WARN);
 		}

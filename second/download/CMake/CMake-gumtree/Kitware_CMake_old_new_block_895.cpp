@@ -1,0 +1,3 @@
+{
+    sprintf(buffer, "%c", ch);
+    }

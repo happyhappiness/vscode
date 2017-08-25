@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "cmListFileLexer_yyset_column called with no buffer" );
+snprintf(buf, sizeof(buf), "%d", state->requested_blksize);

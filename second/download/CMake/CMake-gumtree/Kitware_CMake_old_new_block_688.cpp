@@ -1,1 +1,4 @@
-fprintf(stderr, "Discarding token %d (%s).\n", yychar, yytname[yychar1])
+{
+        sprintf(buf, "%u", this->VersionMinor);
+        this->Makefile->AddDefinition((ver+"_MINOR").c_str(), buf);
+        }

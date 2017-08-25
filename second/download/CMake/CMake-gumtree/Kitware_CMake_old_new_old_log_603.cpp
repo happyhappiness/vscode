@@ -1,1 +1,1 @@
-snprintf((char*)(h->h_name), 16, "%s", hostname);
+fprintf(fout, "ADD_EXECUTABLE(%s \"%s\")\n", targetName, source.c_str());

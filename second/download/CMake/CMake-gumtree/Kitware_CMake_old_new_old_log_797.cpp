@@ -1,1 +1,1 @@
-sprintf(firstLine,  "C)onfigure             G)enerate and Exit");
+snprintf(groupname, sizeof(groupname), "%d", gid);

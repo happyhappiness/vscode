@@ -1,1 +1,1 @@
-free(conn->allocptr.accept_encoding);
+DEBUG_OUT(fprintf(stderr, "**** %s\n ", *allocuserpwd));

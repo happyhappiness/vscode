@@ -1,1 +1,2 @@
-sprintf(hexCh, "%%%02X", (int)c);
+sprintf(firstLine,
+              "Press [c] to configure       Press [g] to generate and exit");

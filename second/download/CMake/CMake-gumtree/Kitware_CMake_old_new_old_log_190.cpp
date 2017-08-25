@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap);

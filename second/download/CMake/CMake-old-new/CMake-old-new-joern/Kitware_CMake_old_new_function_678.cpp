@@ -1,122 +1,170 @@
-static void
-ftp_pasv_verbose(struct connectdata *conn,
-                 Curl_ipconnect *addr,
-                 char *newhost, /* ascii version */
-                 int port)
+int cmCTestTestHandler::ProcessHandler()
 {
-#ifndef ENABLE_IPV6
-  /*****************************************************************
-   *
-   * IPv4-only code section
-   */
+  // Update internal data structure from generic one
+  this->SetTestsToRunInformation(this->GetOption("TestsToRunInformation"));
+  this->SetUseUnion(cmSystemTools::IsOn(this->GetOption("UseUnion"))); 
+  if(this->GetOption("ParallelLevel"))
+    {
+    this->CTest->SetParallelLevel(atoi(this->GetOption("ParallelLevel")));
+    }
+  const char* val;
+  val = this->GetOption("LabelRegularExpression");
+  if ( val )
+    {
+    this->UseIncludeLabelRegExpFlag = true;
+    this->IncludeLabelRegExp = val;
+    }
+  val = this->GetOption("ExcludeLabelRegularExpression");
+  if ( val )
+    {
+    this->UseExcludeLabelRegExpFlag = true;
+    this->ExcludeLabelRegularExpression = val;
+    }
+  val = this->GetOption("IncludeRegularExpression");
+  if ( val )
+    {
+    this->UseIncludeRegExp();
+    this->SetIncludeRegExp(val);
+    }
+  val = this->GetOption("ExcludeRegularExpression");
+  if ( val )
+    {
+    this->UseExcludeRegExp();
+    this->SetExcludeRegExp(val);
+    }
+  
+  this->TestResults.clear();
 
-  struct in_addr in;
-  struct hostent * answer;
+  cmCTestLog(this->CTest, HANDLER_OUTPUT,
+             (this->MemCheck ? "Memory check" : "Test")
+             << " project " << cmSystemTools::GetCurrentWorkingDirectory()
+             << std::endl);
+  if ( ! this->PreProcessHandler() )
+    {
+    return -1;
+    }
 
-#ifdef HAVE_INET_NTOA_R
-  char ntoa_buf[64];
-#endif
-  /* The array size trick below is to make this a large chunk of memory
-     suitably 8-byte aligned on 64-bit platforms. This was thoughtfully
-     suggested by Philip Gladstone. */
-  long bigbuf[9000 / sizeof(long)];
+  cmGeneratedFileStream mLogFile;
+  this->StartLogFile((this->MemCheck ? "DynamicAnalysis" : "Test"), mLogFile);
+  this->LogFile = &mLogFile;
 
-#if defined(HAVE_INET_ADDR)
-  in_addr_t address;
-# if defined(HAVE_GETHOSTBYADDR_R)
-  int h_errnop;
-# endif
-  char *hostent_buf = (char *)bigbuf; /* get a char * to the buffer */
-  (void)hostent_buf;
-  address = inet_addr(newhost);
-# ifdef HAVE_GETHOSTBYADDR_R
+  std::vector<cmStdString> passed;
+  std::vector<cmStdString> failed;
+  int total;
 
-#  ifdef HAVE_GETHOSTBYADDR_R_5
-  /* AIX, Digital Unix (OSF1, Tru64) style:
-     extern int gethostbyaddr_r(char *addr, size_t len, int type,
-     struct hostent *htent, struct hostent_data *ht_data); */
+  //start the real time clock
+  double clock_start, clock_finish;
+  clock_start = cmSystemTools::GetTime();
 
-  /* Fred Noz helped me try this out, now it at least compiles! */
+  this->ProcessDirectory(passed, failed);
 
-  /* Bjorn Reese (November 28 2001):
-     The Tru64 man page on gethostbyaddr_r() says that
-     the hostent struct must be filled with zeroes before the call to
-     gethostbyaddr_r(). 
+  clock_finish = cmSystemTools::GetTime();
 
-     ... as must be struct hostent_data Craig Markwardt 19 Sep 2002. */
+  total = int(passed.size()) + int(failed.size());
 
-  memset(hostent_buf, 0, sizeof(struct hostent)+sizeof(struct hostent_data));
-
-  if(gethostbyaddr_r((char *) &address,
-                     sizeof(address), AF_INET,
-                     (struct hostent *)hostent_buf,
-                     (struct hostent_data *)(hostent_buf + sizeof(*answer))))
-    answer=NULL;
+  if (total == 0)
+    {
+    if ( !this->CTest->GetShowOnly() )
+      {
+      cmCTestLog(this->CTest, ERROR_MESSAGE, "No tests were found!!!"
+        << std::endl);
+      }
+    }
   else
-    answer=(struct hostent *)hostent_buf;
-                           
-#  endif
-#  ifdef HAVE_GETHOSTBYADDR_R_7
-  /* Solaris and IRIX */
-  answer = gethostbyaddr_r((char *) &address, sizeof(address), AF_INET,
-                           (struct hostent *)bigbuf,
-                           hostent_buf + sizeof(*answer),
-                           sizeof(bigbuf) - sizeof(*answer),
-                           &h_errnop);
-#  endif
-#  ifdef HAVE_GETHOSTBYADDR_R_8
-  /* Linux style */
-  if(gethostbyaddr_r((char *) &address, sizeof(address), AF_INET,
-                     (struct hostent *)hostent_buf,
-                     hostent_buf + sizeof(*answer),
-                     sizeof(bigbuf) - sizeof(*answer),
-                     &answer,
-                     &h_errnop))
-    answer=NULL; /* error */
-#  endif
-        
-# else
-  answer = gethostbyaddr((char *) &address, sizeof(address), AF_INET);
-# endif
-#else
-  answer = NULL;
-#endif
-  (void) memcpy(&in.s_addr, addr, sizeof (Curl_ipconnect));
-  infof(conn->data, "Connecting to %s (%s) port %u\n",
-        answer?answer->h_name:newhost,
-#if defined(HAVE_INET_NTOA_R)
-        inet_ntoa_r(in, ntoa_buf, sizeof(ntoa_buf)),
-#else
-        inet_ntoa(in),
-#endif
-        port);
+    {
+    if (this->HandlerVerbose && passed.size() &&
+      (this->UseIncludeRegExpFlag || this->UseExcludeRegExpFlag))
+      {
+      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
+        << "The following tests passed:" << std::endl);
+      for(std::vector<cmStdString>::iterator j = passed.begin();
+          j != passed.end(); ++j)
+        {
+        cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "\t" << *j
+          << std::endl);
+        }
+      }
 
-#else
-  /*****************************************************************
-   *
-   * IPv6-only code section
-   */
-  char hbuf[NI_MAXHOST]; /* ~1KB */
-  char nbuf[NI_MAXHOST]; /* ~1KB */
-  char sbuf[NI_MAXSERV]; /* around 32 */
-#ifdef NI_WITHSCOPEID
-  const int niflags = NI_NUMERICHOST | NI_NUMERICSERV | NI_WITHSCOPEID;
-#else
-  const int niflags = NI_NUMERICHOST | NI_NUMERICSERV;
-#endif
-  port = 0; /* unused, prevent warning */
-  if (getnameinfo(addr->ai_addr, addr->ai_addrlen,
-                  nbuf, sizeof(nbuf), sbuf, sizeof(sbuf), niflags)) {
-    snprintf(nbuf, sizeof(nbuf), "?");
-    snprintf(sbuf, sizeof(sbuf), "?");
-  }
-        
-  if (getnameinfo(addr->ai_addr, addr->ai_addrlen,
-                  hbuf, sizeof(hbuf), NULL, 0, 0)) {
-    infof(conn->data, "Connecting to %s (%s) port %s\n", nbuf, newhost, sbuf);
-  }
-  else {
-    infof(conn->data, "Connecting to %s (%s) port %s\n", hbuf, nbuf, sbuf);
-  }
-#endif
+    float percent = float(passed.size()) * 100.0f / total;
+    if ( failed.size() > 0 &&  percent > 99)
+      {
+      percent = 99;
+      }
+    
+    cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl
+               << static_cast<int>(percent + .5) << "% tests passed, "
+               << failed.size() << " tests failed out of " 
+               << total << std::endl); 
+    double totalTestTime = 0;
+
+    for(cmCTestTestHandler::TestResultsVector::size_type cc = 0;
+        cc < this->TestResults.size(); cc ++ )
+      {
+      cmCTestTestResult *result = &this->TestResults[cc];
+      totalTestTime += result->ExecutionTime;
+      }
+    
+    char realBuf[1024];
+    sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
+    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (real) = "
+               << realBuf << "\n" );
+
+    char totalBuf[1024];
+    sprintf(totalBuf, "%6.2f sec", totalTestTime); 
+    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (parallel) = "
+               <<  totalBuf << "\n" );
+
+    if (failed.size())
+      {
+      cmGeneratedFileStream ofs;
+      cmCTestLog(this->CTest, ERROR_MESSAGE, std::endl
+                 << "The following tests FAILED:" << std::endl);
+      this->StartLogFile("TestsFailed", ofs);
+      
+      std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;
+      for(ftit = this->TestResults.begin();
+          ftit != this->TestResults.end(); ++ftit)
+        {
+        if ( ftit->Status != cmCTestTestHandler::COMPLETED )
+          {
+          ofs << ftit->TestCount << ":" << ftit->Name << std::endl;
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "\t" << std::setw(3)
+                     << ftit->TestCount << " - " 
+                     << ftit->Name.c_str() << " ("
+                     << this->GetTestStatus(ftit->Status) << ")" 
+                     << std::endl);
+          }
+        }
+      }
+    }
+
+  if ( this->CTest->GetProduceXML() )
+    {
+    cmGeneratedFileStream xmlfile;
+    if( !this->StartResultingXML(
+          (this->MemCheck ? cmCTest::PartMemCheck : cmCTest::PartTest),
+        (this->MemCheck ? "DynamicAnalysis" : "Test"), xmlfile) )
+      {
+      cmCTestLog(this->CTest, ERROR_MESSAGE, "Cannot create "
+        << (this->MemCheck ? "memory check" : "testing")
+        << " XML file" << std::endl);
+      this->LogFile = 0;
+      return 1;
+      }
+    this->GenerateDartOutput(xmlfile);
+    }
+
+  if ( ! this->PostProcessHandler() )
+    {
+    this->LogFile = 0;
+    return -1;
+    }
+
+  if ( !failed.empty() )
+    {
+    this->LogFile = 0;
+    return -1;
+    }
+  this->LogFile = 0;
+  return 0;
 }

@@ -1,3 +1,1 @@
-{
-      fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
-      }
+fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long)

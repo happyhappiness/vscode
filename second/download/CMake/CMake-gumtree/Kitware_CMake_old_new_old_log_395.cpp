@@ -1,1 +1,1 @@
-fprintf(stderr, "The %s target dependency graph is:\n", name);
+fprintf(fout, " %08X", pSymbolTable->Value);

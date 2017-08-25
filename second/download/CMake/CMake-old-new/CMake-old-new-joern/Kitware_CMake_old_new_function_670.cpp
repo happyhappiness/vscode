@@ -1,10 +1,38 @@
-void yyset_lineno (int  line_number , yyscan_t yyscanner)
+void cmGraphVizWriter::WritePerTargetFiles(const char* fileName)
 {
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+  for(std::map<cmStdString, const cmTarget*>::const_iterator ptrIt =
+                                                      this->TargetPtrs.begin();
+      ptrIt != this->TargetPtrs.end();
+      ++ptrIt)
+    {
+    if (ptrIt->second == NULL)
+      {
+      continue;
+      }
 
-        /* lineno is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           yy_fatal_error( "yyset_lineno called with no buffer" , yyscanner); 
-    
-    yylineno = line_number;
+    if (this->GenerateForTargetType(ptrIt->second->GetType()) == false)
+      {
+      continue;
+      }
+
+    std::set<std::string> insertedConnections;
+    std::set<std::string> insertedNodes;
+
+    std::string currentFilename = fileName;
+    currentFilename += ".";
+    currentFilename += ptrIt->first;
+    cmGeneratedFileStream str(currentFilename.c_str());
+    if ( !str )
+      {
+      return;
+      }
+
+    fprintf(stderr, "Writing %s...\n", currentFilename.c_str());
+    this->WriteHeader(str);
+
+    this->WriteConnections(ptrIt->first.c_str(),
+                              insertedNodes, insertedConnections, str);
+    this->WriteFooter(str);
+    }
+
 }

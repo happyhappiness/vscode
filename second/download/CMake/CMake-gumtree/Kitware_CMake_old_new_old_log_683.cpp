@@ -1,1 +1,3 @@
-fprintf(stderr, "Stack size increased to %d\n", yystacksize);
+str.Printf("CMake %d.%d - %s", cmVersion::GetMajorVersion(),
+               cmVersion::GetMinorVersion(), 
+               cmVersion::GetReleaseVersion().c_str());

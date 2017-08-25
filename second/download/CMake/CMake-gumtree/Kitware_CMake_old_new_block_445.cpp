@@ -1,10 +1,5 @@
-{
-	(void)_a; /* UNUSED */
-	(void)cmd; /* UNUSED */
-	(void)signature; /* UNUSED */
-	(void)signature_len; /* UNUSED */
-
-	archive_set_error(_a, -1,
-	    "External compression programs not supported on this platform");
-	return (ARCHIVE_FATAL);
-}
+(zip->opt_sconv == NULL && !zip->init_default_conversion) {
+		zip->sconv_default =
+		    archive_string_default_conversion_for_write(&(a->archive));
+		zip->init_default_conversion = 1;
+	}

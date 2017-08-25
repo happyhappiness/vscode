@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate zip header data");
+snprintf(buf + len, sizeof(buf) - len,
+                 ": %s", (char*) status_string.value);

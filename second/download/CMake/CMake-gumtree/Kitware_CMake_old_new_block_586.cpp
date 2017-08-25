@@ -1,6 +1,2 @@
-{
-          res += " Service Pack 6a (Build ";
-          sprintf(buffer, "%d", osvi.dwBuildNumber & 0xFFFF);
-          res += buffer;
-          res += ")";
-          }
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+        "rar: unknown keyword ``%s''", key)

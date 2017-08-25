@@ -1,1 +1,0 @@
-ret = fprintf(f, "ENC %s", buf);

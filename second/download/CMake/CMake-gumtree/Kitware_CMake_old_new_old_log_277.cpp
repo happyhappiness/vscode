@@ -1,1 +1,1 @@
-yy_fatal_error( "cmFortran_yyset_lineno called with no buffer" , yyscanner);
+tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);

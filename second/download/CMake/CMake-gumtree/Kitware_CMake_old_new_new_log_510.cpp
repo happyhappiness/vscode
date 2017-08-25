@@ -1,1 +1,2 @@
-fprintf(fout, "SET(CMAKE_%s_FLAGS \"", li->c_str());
+archive_set_error(&a->archive, errno,
+				    "Can't CreateFileW");

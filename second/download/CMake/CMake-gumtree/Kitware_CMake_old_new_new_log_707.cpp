@@ -1,1 +1,1 @@
-std::cerr << "Numerical";
+fprintf(stderr, "The strongly connected components are:\n");

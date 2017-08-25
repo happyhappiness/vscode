@@ -80,7 +80,7 @@ def deal_hunk( hunk_record, writer, gumtree, total_log):
             # old log is None
             old_log = None
 
-            writer.writerow(hunk_info + [old_loc, new_loc, old_log, new_log, action_type])
+            writer.writerow(hunk_info + [old_loc, new_loc, old_log, new_log, curr_action_type])
             total_log += 1
 
     return total_log

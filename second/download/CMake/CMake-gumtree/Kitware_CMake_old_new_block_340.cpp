@@ -1,4 +1,5 @@
 {
-               fImportFlag = 1;
-               fprintf(fout,"IMPORTS \n");
-            }
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for lzh decompression");
+			return (ARCHIVE_FATAL);
+		}

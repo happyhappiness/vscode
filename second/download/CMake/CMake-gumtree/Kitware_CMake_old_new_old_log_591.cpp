@@ -1,1 +1,2 @@
-sprintf(temp,"%d",this->ChipID.Type);
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Symlink");

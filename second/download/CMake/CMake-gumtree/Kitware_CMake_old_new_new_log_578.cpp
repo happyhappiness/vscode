@@ -1,1 +1,1 @@
-sprintf(buf, "%u", this->VersionMinor);
+uudecode->state = ST_IGNORE;

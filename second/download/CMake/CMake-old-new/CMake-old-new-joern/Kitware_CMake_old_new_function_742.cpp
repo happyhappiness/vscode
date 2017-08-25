@@ -1,33 +1,35 @@
-int
-Curl_sec_vfprintf(struct connectdata *conn, FILE *f, const char *fmt, va_list ap)
+int main(int argc, char **argv, char **envp)
 {
-    int ret = 0;
-    char *buf;
-    void *enc;
-    int len;
-    if(!conn->sec_complete)
-        return vfprintf(f, fmt, ap);
-    
-    buf = aprintf(fmt, ap);
-    len = (conn->mech->encode)(conn->app_data, buf, strlen(buf),
-                               conn->command_prot, &enc,
-                               conn);
-    free(buf);
-    if(len < 0) {
-        failf(conn->data, "Failed to encode command.");
-        return -1;
-    }
-    if(Curl_base64_encode(enc, len, &buf) < 0){
-      failf(conn->data, "Out of memory base64-encoding.");
-      return -1;
-    }
-    if(conn->command_prot == prot_safe)
-        ret = fprintf(f, "MIC %s", buf);
-    else if(conn->command_prot == prot_private)
-        ret = fprintf(f, "ENC %s", buf);
-    else if(conn->command_prot == prot_confidential)
-        ret = fprintf(f, "CONF %s", buf);
+  char *base64;
+  int base64Len;
+  unsigned char *data;
+  int dataLen;
+  int i, j;
 
-    free(buf);
-    return ret;
+  base64 = (char *)suck(&base64Len);
+  data = (unsigned char *)malloc(base64Len * 3/4 + 8);
+  dataLen = Curl_base64_decode(base64, data);
+
+  fprintf(stderr, "%d\n", dataLen);
+
+  for(i=0; i < dataLen; i+=0x10) {
+    printf("0x%02x: ", i);
+    for(j=0; j < 0x10; j++)
+      if((j+i) < dataLen)
+        printf("%02x ", data[i+j]);
+      else
+        printf("   ");
+
+    printf(" | ");
+
+    for(j=0; j < 0x10; j++)
+      if((j+i) < dataLen)
+        printf("%c", isgraph(data[i+j])?data[i+j]:'.');
+      else
+        break;
+    puts("");
+  }
+
+  free(base64); free(data);
+  return 0;
 }

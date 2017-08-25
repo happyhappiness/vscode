@@ -1,4 +1,5 @@
 {
-          fprintf(stderr,"***Bad command %d\n", res);
-          cres.m_Status = cmCTest::BAD_COMMAND;
-          }
+  char * temp = new char[32];
+  sprintf(temp,"%d",this->ChipID.Type);
+  return temp;
+}

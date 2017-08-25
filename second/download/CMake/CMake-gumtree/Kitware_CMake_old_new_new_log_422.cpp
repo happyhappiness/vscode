@@ -1,1 +1,3 @@
-fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");
+fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
+              targetName.c_str());

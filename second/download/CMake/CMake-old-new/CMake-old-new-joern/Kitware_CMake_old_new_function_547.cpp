@@ -1,37 +1,76 @@
-void DoHeaderLine()
-    {
-    // Look for header fields that we need.
-    if(strncmp(this->Line.c_str(), "commit ", 7) == 0)
-      {
-      this->Rev.Rev = this->Line.c_str()+7;
-      }
-    else if(strncmp(this->Line.c_str(), "author ", 7) == 0)
-      {
-      Person author;
-      this->ParsePerson(this->Line.c_str()+7, author);
-      this->Rev.Author = author.Name;
-      this->Rev.EMail = author.EMail;
+static int
+setup_sparse(struct archive_read_disk *a,
+    struct archive_entry *entry, int fd)
+{
+	int64_t size;
+	int initial_fd = fd;
+	off_t initial_off; /* FreeBSD/Solaris only, so off_t okay here */
+	off_t off_s, off_e; /* FreeBSD/Solaris only, so off_t okay here */
+	int exit_sts = ARCHIVE_OK;
 
-      // Convert the time to a human-readable format that is also easy
-      // to machine-parse: "CCYY-MM-DD hh:mm:ss".
-      time_t seconds = static_cast<time_t>(author.Time);
-      struct tm* t = gmtime(&seconds);
-      char dt[1024];
-      sprintf(dt, "%04d-%02d-%02d %02d:%02d:%02d",
-              t->tm_year+1900, t->tm_mon+1, t->tm_mday,
-              t->tm_hour, t->tm_min, t->tm_sec);
-      this->Rev.Date = dt;
+	if (archive_entry_filetype(entry) != AE_IFREG
+	    || archive_entry_size(entry) <= 0
+	    || archive_entry_hardlink(entry) != NULL)
+		return (ARCHIVE_OK);
 
-      // Add the time-zone field "+zone" or "-zone".
-      char tz[32];
-      if(author.TimeZone >= 0)
-        {
-        sprintf(tz, " +%04ld", author.TimeZone);
-        }
-      else
-        {
-        sprintf(tz, " -%04ld", -author.TimeZone);
-        }
-      this->Rev.Date += tz;
-      }
-    }
+	/* Does filesystem support the reporting of hole ? */
+	if (fd >= 0) {
+		if (fpathconf(fd, _PC_MIN_HOLE_SIZE) <= 0)
+			return (ARCHIVE_OK);
+		initial_off = lseek(fd, 0, SEEK_CUR);
+		if (initial_off != 0)
+			lseek(fd, 0, SEEK_SET);
+	} else {
+		const char *path;
+
+		path = archive_entry_sourcepath(entry);
+		if (path == NULL)
+			path = archive_entry_pathname(entry);
+		if (pathconf(path, _PC_MIN_HOLE_SIZE) <= 0)
+			return (ARCHIVE_OK);
+		fd = open(path, O_RDONLY | O_NONBLOCK);
+		if (fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't open `%s'", path);
+			return (ARCHIVE_FAILED);
+		}
+		initial_off = 0;
+	}
+
+	off_s = 0;
+	size = archive_entry_size(entry);
+	while (off_s < size) {
+		off_s = lseek(fd, off_s, SEEK_DATA);
+		if (off_s == (off_t)-1) {
+			if (errno == ENXIO)
+				break;/* no more hole */
+			archive_set_error(&a->archive, errno,
+			    "lseek(SEEK_HOLE) failed");
+			exit_sts = ARCHIVE_FAILED;
+			goto exit_setup_sparse;
+		}
+		off_e = lseek(fd, off_s, SEEK_HOLE);
+		if (off_s == (off_t)-1) {
+			if (errno == ENXIO) {
+				off_e = lseek(fd, 0, SEEK_END);
+				if (off_e != (off_t)-1)
+					break;/* no more data */
+			}
+			archive_set_error(&a->archive, errno,
+			    "lseek(SEEK_DATA) failed");
+			exit_sts = ARCHIVE_FAILED;
+			goto exit_setup_sparse;
+		}
+		if (off_s == 0 && off_e == size)
+			break;/* This is not spase. */
+		archive_entry_sparse_add_entry(entry, off_s,
+			off_e - off_s);
+		off_s = off_e;
+	}
+exit_setup_sparse:
+	if (initial_fd != fd)
+		close(fd);
+	else
+		lseek(fd, initial_off, SEEK_SET);
+	return (exit_sts);
+}

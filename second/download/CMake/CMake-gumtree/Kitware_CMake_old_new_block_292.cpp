@@ -1,5 +1,1 @@
-{
-		archive_set_error(&a->archive, 0,
-		    "Write request too large");
-		return (ARCHIVE_WARN);
-	}
+yy_fatal_error( "cmListFileLexer_yyset_column called with no buffer" , yyscanner)

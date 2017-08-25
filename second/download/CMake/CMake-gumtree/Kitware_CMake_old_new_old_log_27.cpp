@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, errno,
-			    "Can't open `%s'", path);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Couldn't determine file path to read "
+			    "extended attributes");

@@ -1,5 +1,2 @@
-archive_set_error(
-						    &filter->archive->archive,
-						    ENOMEM,
-						    "Unable to allocate copy"
-						    " buffer");
+archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Too many arguments");

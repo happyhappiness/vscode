@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, GetLastError(),
-			    "Can't GetFileInformationByHandle");
+fprintf(progFile,"empty");

@@ -1,2 +1,1 @@
-fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n\n",
-	  kitName);
+sprintf(hex, "%%%02X", (int)c);

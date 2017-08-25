@@ -1,421 +1,262 @@
-CURLcode Curl_SOCKS5_gssapi_negotiate(int sockindex,
-                                      struct connectdata *conn)
+static int
+pax_attribute(struct archive_read *a, struct tar *tar,
+    struct archive_entry *entry, const char *key, const char *value)
 {
-  struct Curl_easy *data = conn->data;
-  curl_socket_t sock = conn->sock[sockindex];
-  CURLcode code;
-  ssize_t actualread;
-  ssize_t written;
-  int result;
-  OM_uint32 gss_major_status, gss_minor_status, gss_status;
-  OM_uint32 gss_ret_flags;
-  int gss_conf_state, gss_enc;
-  gss_buffer_desc  service = GSS_C_EMPTY_BUFFER;
-  gss_buffer_desc  gss_send_token = GSS_C_EMPTY_BUFFER;
-  gss_buffer_desc  gss_recv_token = GSS_C_EMPTY_BUFFER;
-  gss_buffer_desc  gss_w_token = GSS_C_EMPTY_BUFFER;
-  gss_buffer_desc* gss_token = GSS_C_NO_BUFFER;
-  gss_name_t       server = GSS_C_NO_NAME;
-  gss_name_t       gss_client_name = GSS_C_NO_NAME;
-  unsigned short   us_length;
-  char             *user=NULL;
-  unsigned char socksreq[4]; /* room for GSS-API exchange header only */
-  const char *serviceptr = data->set.str[STRING_PROXY_SERVICE_NAME] ?
-                           data->set.str[STRING_PROXY_SERVICE_NAME] : "rcmd";
+	int64_t s;
+	long n;
+	int err = ARCHIVE_OK, r;
 
-  /*   GSS-API request looks like
-   * +----+------+-----+----------------+
-   * |VER | MTYP | LEN |     TOKEN      |
-   * +----+------+----------------------+
-   * | 1  |  1   |  2  | up to 2^16 - 1 |
-   * +----+------+-----+----------------+
-   */
+	if (value == NULL)
+		value = "";	/* Disable compiler warning; do not pass
+				 * NULL pointer to strlen().  */
+	switch (key[0]) {
+	case 'G':
+		/* GNU "0.0" sparse pax format. */
+		if (strcmp(key, "GNU.sparse.numblocks") == 0) {
+			tar->sparse_offset = -1;
+			tar->sparse_numbytes = -1;
+			tar->sparse_gnu_major = 0;
+			tar->sparse_gnu_minor = 0;
+		}
+		if (strcmp(key, "GNU.sparse.offset") == 0) {
+			tar->sparse_offset = tar_atol10(value, strlen(value));
+			if (tar->sparse_numbytes != -1) {
+				if (gnu_add_sparse_entry(a, tar,
+				    tar->sparse_offset, tar->sparse_numbytes)
+				    != ARCHIVE_OK)
+					return (ARCHIVE_FATAL);
+				tar->sparse_offset = -1;
+				tar->sparse_numbytes = -1;
+			}
+		}
+		if (strcmp(key, "GNU.sparse.numbytes") == 0) {
+			tar->sparse_numbytes = tar_atol10(value, strlen(value));
+			if (tar->sparse_numbytes != -1) {
+				if (gnu_add_sparse_entry(a, tar,
+				    tar->sparse_offset, tar->sparse_numbytes)
+				    != ARCHIVE_OK)
+					return (ARCHIVE_FATAL);
+				tar->sparse_offset = -1;
+				tar->sparse_numbytes = -1;
+			}
+		}
+		if (strcmp(key, "GNU.sparse.size") == 0) {
+			tar->realsize = tar_atol10(value, strlen(value));
+			archive_entry_set_size(entry, tar->realsize);
+		}
 
-  /* prepare service name */
-  if(strchr(serviceptr, '/')) {
-    service.value = malloc(strlen(serviceptr));
-    if(!service.value)
-      return CURLE_OUT_OF_MEMORY;
-    service.length = strlen(serviceptr);
-    memcpy(service.value, serviceptr, service.length);
+		/* GNU "0.1" sparse pax format. */
+		if (strcmp(key, "GNU.sparse.map") == 0) {
+			tar->sparse_gnu_major = 0;
+			tar->sparse_gnu_minor = 1;
+			if (gnu_sparse_01_parse(a, tar, value) != ARCHIVE_OK)
+				return (ARCHIVE_WARN);
+		}
 
-    gss_major_status = gss_import_name(&gss_minor_status, &service,
-                                       (gss_OID) GSS_C_NULL_OID, &server);
-  }
-  else {
-    service.value = malloc(strlen(serviceptr) +strlen(conn->proxy.name)+2);
-    if(!service.value)
-      return CURLE_OUT_OF_MEMORY;
-    service.length = strlen(serviceptr) +strlen(conn->proxy.name)+1;
-    snprintf(service.value, service.length+1, "%s@%s",
-             serviceptr, conn->proxy.name);
+		/* GNU "1.0" sparse pax format */
+		if (strcmp(key, "GNU.sparse.major") == 0) {
+			tar->sparse_gnu_major = (int)tar_atol10(value, strlen(value));
+			tar->sparse_gnu_pending = 1;
+		}
+		if (strcmp(key, "GNU.sparse.minor") == 0) {
+			tar->sparse_gnu_minor = (int)tar_atol10(value, strlen(value));
+			tar->sparse_gnu_pending = 1;
+		}
+		if (strcmp(key, "GNU.sparse.name") == 0) {
+			/*
+			 * The real filename; when storing sparse
+			 * files, GNU tar puts a synthesized name into
+			 * the regular 'path' attribute in an attempt
+			 * to limit confusion. ;-)
+			 */
+			archive_strcpy(&(tar->entry_pathname_override), value);
+		}
+		if (strcmp(key, "GNU.sparse.realsize") == 0) {
+			tar->realsize = tar_atol10(value, strlen(value));
+			archive_entry_set_size(entry, tar->realsize);
+		}
+		break;
+	case 'L':
+		/* Our extensions */
+/* TODO: Handle arbitrary extended attributes... */
+/*
+		if (strcmp(key, "LIBARCHIVE.xxxxxxx") == 0)
+			archive_entry_set_xxxxxx(entry, value);
+*/
+		if (strcmp(key, "LIBARCHIVE.creationtime") == 0) {
+			pax_time(value, &s, &n);
+			archive_entry_set_birthtime(entry, s, n);
+		}
+		if (memcmp(key, "LIBARCHIVE.xattr.", 17) == 0)
+			pax_attribute_xattr(entry, key, value);
+		break;
+	case 'S':
+		/* We support some keys used by the "star" archiver */
+		if (strcmp(key, "SCHILY.acl.access") == 0) {
+			if (tar->sconv_acl == NULL) {
+				tar->sconv_acl =
+				    archive_string_conversion_from_charset(
+					&(a->archive), "UTF-8", 1);
+				if (tar->sconv_acl == NULL)
+					return (ARCHIVE_FATAL);
+			}
 
-    gss_major_status = gss_import_name(&gss_minor_status, &service,
-                                       GSS_C_NT_HOSTBASED_SERVICE, &server);
-  }
+			r = archive_acl_parse_l(archive_entry_acl(entry),
+			    value, ARCHIVE_ENTRY_ACL_TYPE_ACCESS,
+			    tar->sconv_acl);
+			if (r != ARCHIVE_OK) {
+				err = r;
+				if (err == ARCHIVE_FATAL) {
+					archive_set_error(&a->archive, ENOMEM,
+					    "Can't allocate memory for "
+					    "SCHILY.acl.access");
+					return (err);
+				}
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Parse error: SCHILY.acl.access");
+			}
+		} else if (strcmp(key, "SCHILY.acl.default") == 0) {
+			if (tar->sconv_acl == NULL) {
+				tar->sconv_acl =
+				    archive_string_conversion_from_charset(
+					&(a->archive), "UTF-8", 1);
+				if (tar->sconv_acl == NULL)
+					return (ARCHIVE_FATAL);
+			}
 
-  gss_release_buffer(&gss_status, &service); /* clear allocated memory */
-
-  if(check_gss_err(data, gss_major_status,
-                   gss_minor_status, "gss_import_name()")) {
-    failf(data, "Failed to create service name.");
-    gss_release_name(&gss_status, &server);
-    return CURLE_COULDNT_CONNECT;
-  }
-
-  /* As long as we need to keep sending some context info, and there's no  */
-  /* errors, keep sending it...                                            */
-  for(;;) {
-    gss_major_status = Curl_gss_init_sec_context(data,
-                                                 &gss_minor_status,
-                                                 &gss_context,
-                                                 server,
-                                                 &Curl_krb5_mech_oid,
-                                                 NULL,
-                                                 gss_token,
-                                                 &gss_send_token,
-                                                 TRUE,
-                                                 &gss_ret_flags);
-
-    if(gss_token != GSS_C_NO_BUFFER)
-      gss_release_buffer(&gss_status, &gss_recv_token);
-    if(check_gss_err(data, gss_major_status,
-                     gss_minor_status, "gss_init_sec_context")) {
-      gss_release_name(&gss_status, &server);
-      gss_release_buffer(&gss_status, &gss_recv_token);
-      gss_release_buffer(&gss_status, &gss_send_token);
-      gss_delete_sec_context(&gss_status, &gss_context, NULL);
-      failf(data, "Failed to initial GSS-API token.");
-      return CURLE_COULDNT_CONNECT;
-    }
-
-    if(gss_send_token.length != 0) {
-      socksreq[0] = 1;    /* GSS-API subnegotiation version */
-      socksreq[1] = 1;    /* authentication message type */
-      us_length = htons((short)gss_send_token.length);
-      memcpy(socksreq+2, &us_length, sizeof(short));
-
-      code = Curl_write_plain(conn, sock, (char *)socksreq, 4, &written);
-      if(code || (4 != written)) {
-        failf(data, "Failed to send GSS-API authentication request.");
-        gss_release_name(&gss_status, &server);
-        gss_release_buffer(&gss_status, &gss_recv_token);
-        gss_release_buffer(&gss_status, &gss_send_token);
-        gss_delete_sec_context(&gss_status, &gss_context, NULL);
-        return CURLE_COULDNT_CONNECT;
-      }
-
-      code = Curl_write_plain(conn, sock, (char *)gss_send_token.value,
-                              gss_send_token.length, &written);
-
-      if(code || ((ssize_t)gss_send_token.length != written)) {
-        failf(data, "Failed to send GSS-API authentication token.");
-        gss_release_name(&gss_status, &server);
-        gss_release_buffer(&gss_status, &gss_recv_token);
-        gss_release_buffer(&gss_status, &gss_send_token);
-        gss_delete_sec_context(&gss_status, &gss_context, NULL);
-        return CURLE_COULDNT_CONNECT;
-      }
-
-    }
-
-    gss_release_buffer(&gss_status, &gss_send_token);
-    gss_release_buffer(&gss_status, &gss_recv_token);
-    if(gss_major_status != GSS_S_CONTINUE_NEEDED) break;
-
-    /* analyse response */
-
-    /*   GSS-API response looks like
-     * +----+------+-----+----------------+
-     * |VER | MTYP | LEN |     TOKEN      |
-     * +----+------+----------------------+
-     * | 1  |  1   |  2  | up to 2^16 - 1 |
-     * +----+------+-----+----------------+
-     */
-
-    result=Curl_blockread_all(conn, sock, (char *)socksreq, 4, &actualread);
-    if(result || (actualread != 4)) {
-      failf(data, "Failed to receive GSS-API authentication response.");
-      gss_release_name(&gss_status, &server);
-      gss_delete_sec_context(&gss_status, &gss_context, NULL);
-      return CURLE_COULDNT_CONNECT;
-    }
-
-    /* ignore the first (VER) byte */
-    if(socksreq[1] == 255) { /* status / message type */
-      failf(data, "User was rejected by the SOCKS5 server (%d %d).",
-            socksreq[0], socksreq[1]);
-      gss_release_name(&gss_status, &server);
-      gss_delete_sec_context(&gss_status, &gss_context, NULL);
-      return CURLE_COULDNT_CONNECT;
-    }
-
-    if(socksreq[1] != 1) { /* status / messgae type */
-      failf(data, "Invalid GSS-API authentication response type (%d %d).",
-            socksreq[0], socksreq[1]);
-      gss_release_name(&gss_status, &server);
-      gss_delete_sec_context(&gss_status, &gss_context, NULL);
-      return CURLE_COULDNT_CONNECT;
-    }
-
-    memcpy(&us_length, socksreq+2, sizeof(short));
-    us_length = ntohs(us_length);
-
-    gss_recv_token.length=us_length;
-    gss_recv_token.value=malloc(us_length);
-    if(!gss_recv_token.value) {
-      failf(data,
-            "Could not allocate memory for GSS-API authentication "
-            "response token.");
-      gss_release_name(&gss_status, &server);
-      gss_delete_sec_context(&gss_status, &gss_context, NULL);
-      return CURLE_OUT_OF_MEMORY;
-    }
-
-    result=Curl_blockread_all(conn, sock, (char *)gss_recv_token.value,
-                              gss_recv_token.length, &actualread);
-
-    if(result || (actualread != us_length)) {
-      failf(data, "Failed to receive GSS-API authentication token.");
-      gss_release_name(&gss_status, &server);
-      gss_release_buffer(&gss_status, &gss_recv_token);
-      gss_delete_sec_context(&gss_status, &gss_context, NULL);
-      return CURLE_COULDNT_CONNECT;
-    }
-
-    gss_token = &gss_recv_token;
-  }
-
-  gss_release_name(&gss_status, &server);
-
-  /* Everything is good so far, user was authenticated! */
-  gss_major_status = gss_inquire_context (&gss_minor_status, gss_context,
-                                          &gss_client_name, NULL, NULL, NULL,
-                                          NULL, NULL, NULL);
-  if(check_gss_err(data, gss_major_status,
-                   gss_minor_status, "gss_inquire_context")) {
-    gss_delete_sec_context(&gss_status, &gss_context, NULL);
-    gss_release_name(&gss_status, &gss_client_name);
-    failf(data, "Failed to determine user name.");
-    return CURLE_COULDNT_CONNECT;
-  }
-  gss_major_status = gss_display_name(&gss_minor_status, gss_client_name,
-                                      &gss_send_token, NULL);
-  if(check_gss_err(data, gss_major_status,
-                   gss_minor_status, "gss_display_name")) {
-    gss_delete_sec_context(&gss_status, &gss_context, NULL);
-    gss_release_name(&gss_status, &gss_client_name);
-    gss_release_buffer(&gss_status, &gss_send_token);
-    failf(data, "Failed to determine user name.");
-    return CURLE_COULDNT_CONNECT;
-  }
-  user=malloc(gss_send_token.length+1);
-  if(!user) {
-    gss_delete_sec_context(&gss_status, &gss_context, NULL);
-    gss_release_name(&gss_status, &gss_client_name);
-    gss_release_buffer(&gss_status, &gss_send_token);
-    return CURLE_OUT_OF_MEMORY;
-  }
-
-  memcpy(user, gss_send_token.value, gss_send_token.length);
-  user[gss_send_token.length] = '\0';
-  gss_release_name(&gss_status, &gss_client_name);
-  gss_release_buffer(&gss_status, &gss_send_token);
-  infof(data, "SOCKS5 server authencticated user %s with GSS-API.\n",user);
-  free(user);
-  user=NULL;
-
-  /* Do encryption */
-  socksreq[0] = 1;    /* GSS-API subnegotiation version */
-  socksreq[1] = 2;    /* encryption message type */
-
-  gss_enc = 0; /* no data protection */
-  /* do confidentiality protection if supported */
-  if(gss_ret_flags & GSS_C_CONF_FLAG)
-    gss_enc = 2;
-  /* else do integrity protection */
-  else if(gss_ret_flags & GSS_C_INTEG_FLAG)
-    gss_enc = 1;
-
-  infof(data, "SOCKS5 server supports GSS-API %s data protection.\n",
-        (gss_enc==0)?"no":((gss_enc==1)?"integrity":"confidentiality"));
-  /* force for the moment to no data protection */
-  gss_enc = 0;
-  /*
-   * Sending the encryption type in clear seems wrong. It should be
-   * protected with gss_seal()/gss_wrap(). See RFC1961 extract below
-   * The NEC reference implementations on which this is based is
-   * therefore at fault
-   *
-   *  +------+------+------+.......................+
-   *  + ver  | mtyp | len  |   token               |
-   *  +------+------+------+.......................+
-   *  + 0x01 | 0x02 | 0x02 | up to 2^16 - 1 octets |
-   *  +------+------+------+.......................+
-   *
-   *   Where:
-   *
-   *  - "ver" is the protocol version number, here 1 to represent the
-   *    first version of the SOCKS/GSS-API protocol
-   *
-   *  - "mtyp" is the message type, here 2 to represent a protection
-   *    -level negotiation message
-   *
-   *  - "len" is the length of the "token" field in octets
-   *
-   *  - "token" is the GSS-API encapsulated protection level
-   *
-   * The token is produced by encapsulating an octet containing the
-   * required protection level using gss_seal()/gss_wrap() with conf_req
-   * set to FALSE.  The token is verified using gss_unseal()/
-   * gss_unwrap().
-   *
-   */
-  if(data->set.socks5_gssapi_nec) {
-    us_length = htons((short)1);
-    memcpy(socksreq+2, &us_length, sizeof(short));
-  }
-  else {
-    gss_send_token.length = 1;
-    gss_send_token.value = malloc(1);
-    if(!gss_send_token.value) {
-      gss_delete_sec_context(&gss_status, &gss_context, NULL);
-      return CURLE_OUT_OF_MEMORY;
-    }
-    memcpy(gss_send_token.value, &gss_enc, 1);
-
-    gss_major_status = gss_wrap(&gss_minor_status, gss_context, 0,
-                                GSS_C_QOP_DEFAULT, &gss_send_token,
-                                &gss_conf_state, &gss_w_token);
-
-    if(check_gss_err(data, gss_major_status, gss_minor_status, "gss_wrap")) {
-      gss_release_buffer(&gss_status, &gss_send_token);
-      gss_release_buffer(&gss_status, &gss_w_token);
-      gss_delete_sec_context(&gss_status, &gss_context, NULL);
-      failf(data, "Failed to wrap GSS-API encryption value into token.");
-      return CURLE_COULDNT_CONNECT;
-    }
-    gss_release_buffer(&gss_status, &gss_send_token);
-
-    us_length = htons((short)gss_w_token.length);
-    memcpy(socksreq+2, &us_length, sizeof(short));
-  }
-
-  code = Curl_write_plain(conn, sock, (char *)socksreq, 4, &written);
-  if(code  || (4 != written)) {
-    failf(data, "Failed to send GSS-API encryption request.");
-    gss_release_buffer(&gss_status, &gss_w_token);
-    gss_delete_sec_context(&gss_status, &gss_context, NULL);
-    return CURLE_COULDNT_CONNECT;
-  }
-
-  if(data->set.socks5_gssapi_nec) {
-    memcpy(socksreq, &gss_enc, 1);
-    code = Curl_write_plain(conn, sock, socksreq, 1, &written);
-    if(code || ( 1 != written)) {
-      failf(data, "Failed to send GSS-API encryption type.");
-      gss_delete_sec_context(&gss_status, &gss_context, NULL);
-      return CURLE_COULDNT_CONNECT;
-    }
-  }
-  else {
-    code = Curl_write_plain(conn, sock, (char *)gss_w_token.value,
-                            gss_w_token.length, &written);
-    if(code || ((ssize_t)gss_w_token.length != written)) {
-      failf(data, "Failed to send GSS-API encryption type.");
-      gss_release_buffer(&gss_status, &gss_w_token);
-      gss_delete_sec_context(&gss_status, &gss_context, NULL);
-      return CURLE_COULDNT_CONNECT;
-    }
-    gss_release_buffer(&gss_status, &gss_w_token);
-  }
-
-  result=Curl_blockread_all(conn, sock, (char *)socksreq, 4, &actualread);
-  if(result || (actualread != 4)) {
-    failf(data, "Failed to receive GSS-API encryption response.");
-    gss_delete_sec_context(&gss_status, &gss_context, NULL);
-    return CURLE_COULDNT_CONNECT;
-  }
-
-  /* ignore the first (VER) byte */
-  if(socksreq[1] == 255) { /* status / message type */
-    failf(data, "User was rejected by the SOCKS5 server (%d %d).",
-          socksreq[0], socksreq[1]);
-    gss_delete_sec_context(&gss_status, &gss_context, NULL);
-    return CURLE_COULDNT_CONNECT;
-  }
-
-  if(socksreq[1] != 2) { /* status / messgae type */
-    failf(data, "Invalid GSS-API encryption response type (%d %d).",
-          socksreq[0], socksreq[1]);
-    gss_delete_sec_context(&gss_status, &gss_context, NULL);
-    return CURLE_COULDNT_CONNECT;
-  }
-
-  memcpy(&us_length, socksreq+2, sizeof(short));
-  us_length = ntohs(us_length);
-
-  gss_recv_token.length= us_length;
-  gss_recv_token.value=malloc(gss_recv_token.length);
-  if(!gss_recv_token.value) {
-    gss_delete_sec_context(&gss_status, &gss_context, NULL);
-    return CURLE_OUT_OF_MEMORY;
-  }
-  result=Curl_blockread_all(conn, sock, (char *)gss_recv_token.value,
-                            gss_recv_token.length, &actualread);
-
-  if(result || (actualread != us_length)) {
-    failf(data, "Failed to receive GSS-API encryptrion type.");
-    gss_release_buffer(&gss_status, &gss_recv_token);
-    gss_delete_sec_context(&gss_status, &gss_context, NULL);
-    return CURLE_COULDNT_CONNECT;
-  }
-
-  if(!data->set.socks5_gssapi_nec) {
-    gss_major_status = gss_unwrap(&gss_minor_status, gss_context,
-                                  &gss_recv_token, &gss_w_token,
-                                  0, GSS_C_QOP_DEFAULT);
-
-    if(check_gss_err(data, gss_major_status, gss_minor_status, "gss_unwrap")) {
-      gss_release_buffer(&gss_status, &gss_recv_token);
-      gss_release_buffer(&gss_status, &gss_w_token);
-      gss_delete_sec_context(&gss_status, &gss_context, NULL);
-      failf(data, "Failed to unwrap GSS-API encryption value into token.");
-      return CURLE_COULDNT_CONNECT;
-    }
-    gss_release_buffer(&gss_status, &gss_recv_token);
-
-    if(gss_w_token.length != 1) {
-      failf(data, "Invalid GSS-API encryption response length (%d).",
-            gss_w_token.length);
-      gss_release_buffer(&gss_status, &gss_w_token);
-      gss_delete_sec_context(&gss_status, &gss_context, NULL);
-      return CURLE_COULDNT_CONNECT;
-    }
-
-    memcpy(socksreq, gss_w_token.value, gss_w_token.length);
-    gss_release_buffer(&gss_status, &gss_w_token);
-  }
-  else {
-    if(gss_recv_token.length != 1) {
-      failf(data, "Invalid GSS-API encryption response length (%d).",
-            gss_recv_token.length);
-      gss_release_buffer(&gss_status, &gss_recv_token);
-      gss_delete_sec_context(&gss_status, &gss_context, NULL);
-      return CURLE_COULDNT_CONNECT;
-    }
-
-    memcpy(socksreq, gss_recv_token.value, gss_recv_token.length);
-    gss_release_buffer(&gss_status, &gss_recv_token);
-  }
-
-  infof(data, "SOCKS5 access with%s protection granted.\n",
-        (socksreq[0]==0)?"out GSS-API data":
-        ((socksreq[0]==1)?" GSS-API integrity":" GSS-API confidentiality"));
-
-  conn->socks5_gssapi_enctype = socksreq[0];
-  if(socksreq[0] == 0)
-    gss_delete_sec_context(&gss_status, &gss_context, NULL);
-
-  return CURLE_OK;
+			r = archive_acl_parse_l(archive_entry_acl(entry),
+			    value, ARCHIVE_ENTRY_ACL_TYPE_DEFAULT,
+			    tar->sconv_acl);
+			if (r != ARCHIVE_OK) {
+				err = r;
+				if (err == ARCHIVE_FATAL) {
+					archive_set_error(&a->archive, ENOMEM,
+					    "Can't allocate memory for "
+					    "SCHILY.acl.default");
+					return (err);
+				}
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Parse error: SCHILY.acl.default");
+			}
+		} else if (strcmp(key, "SCHILY.devmajor") == 0) {
+			archive_entry_set_rdevmajor(entry,
+			    (dev_t)tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "SCHILY.devminor") == 0) {
+			archive_entry_set_rdevminor(entry,
+			    (dev_t)tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "SCHILY.fflags") == 0) {
+			archive_entry_copy_fflags_text(entry, value);
+		} else if (strcmp(key, "SCHILY.dev") == 0) {
+			archive_entry_set_dev(entry,
+			    (dev_t)tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "SCHILY.ino") == 0) {
+			archive_entry_set_ino(entry,
+			    tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "SCHILY.nlink") == 0) {
+			archive_entry_set_nlink(entry, (unsigned)
+			    tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "SCHILY.realsize") == 0) {
+			tar->realsize = tar_atol10(value, strlen(value));
+			archive_entry_set_size(entry, tar->realsize);
+		} else if (strcmp(key, "SUN.holesdata") == 0) {
+			/* A Solaris extension for sparse. */
+			r = solaris_sparse_parse(a, tar, entry, value);
+			if (r < err) {
+				if (r == ARCHIVE_FATAL)
+					return (r);
+				err = r;
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Parse error: SUN.holesdata");
+			}
+		}
+		break;
+	case 'a':
+		if (strcmp(key, "atime") == 0) {
+			pax_time(value, &s, &n);
+			archive_entry_set_atime(entry, s, n);
+		}
+		break;
+	case 'c':
+		if (strcmp(key, "ctime") == 0) {
+			pax_time(value, &s, &n);
+			archive_entry_set_ctime(entry, s, n);
+		} else if (strcmp(key, "charset") == 0) {
+			/* TODO: Publish charset information in entry. */
+		} else if (strcmp(key, "comment") == 0) {
+			/* TODO: Publish comment in entry. */
+		}
+		break;
+	case 'g':
+		if (strcmp(key, "gid") == 0) {
+			archive_entry_set_gid(entry,
+			    tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "gname") == 0) {
+			archive_strcpy(&(tar->entry_gname), value);
+		}
+		break;
+	case 'h':
+		if (strcmp(key, "hdrcharset") == 0) {
+			if (strcmp(value, "BINARY") == 0)
+				/* Binary  mode. */
+				tar->pax_hdrcharset_binary = 1;
+			else if (strcmp(value, "ISO-IR 10646 2000 UTF-8") == 0)
+				tar->pax_hdrcharset_binary = 0;
+		}
+		break;
+	case 'l':
+		/* pax interchange doesn't distinguish hardlink vs. symlink. */
+		if (strcmp(key, "linkpath") == 0) {
+			archive_strcpy(&(tar->entry_linkpath), value);
+		}
+		break;
+	case 'm':
+		if (strcmp(key, "mtime") == 0) {
+			pax_time(value, &s, &n);
+			archive_entry_set_mtime(entry, s, n);
+		}
+		break;
+	case 'p':
+		if (strcmp(key, "path") == 0) {
+			archive_strcpy(&(tar->entry_pathname), value);
+		}
+		break;
+	case 'r':
+		/* POSIX has reserved 'realtime.*' */
+		break;
+	case 's':
+		/* POSIX has reserved 'security.*' */
+		/* Someday: if (strcmp(key, "security.acl") == 0) { ... } */
+		if (strcmp(key, "size") == 0) {
+			/* "size" is the size of the data in the entry. */
+			tar->entry_bytes_remaining
+			    = tar_atol10(value, strlen(value));
+			/*
+			 * But, "size" is not necessarily the size of
+			 * the file on disk; if this is a sparse file,
+			 * the disk size may have already been set from
+			 * GNU.sparse.realsize or GNU.sparse.size or
+			 * an old GNU header field or SCHILY.realsize
+			 * or ....
+			 */
+			if (tar->realsize < 0) {
+				archive_entry_set_size(entry,
+				    tar->entry_bytes_remaining);
+				tar->realsize
+				    = tar->entry_bytes_remaining;
+			}
+		}
+		break;
+	case 'u':
+		if (strcmp(key, "uid") == 0) {
+			archive_entry_set_uid(entry,
+			    tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "uname") == 0) {
+			archive_strcpy(&(tar->entry_uname), value);
+		}
+		break;
+	}
+	return (err);
 }

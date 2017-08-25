@@ -1,1 +1,1 @@
-fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
+fprintf(fout, "add_executable(%s", targetName);

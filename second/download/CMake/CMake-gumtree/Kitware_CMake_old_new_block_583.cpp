@@ -1,16 +1,11 @@
 {
-  fprintf(stderr, "The strongly connected components are:\n");
-  std::vector<NodeList> const& components = ccg.GetComponents();
-  for(unsigned int c=0; c < components.size(); ++c)
-    {
-    fprintf(stderr, "Component (%u):\n", c);
-    NodeList const& nl = components[c];
-    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int i = *ni;
-      fprintf(stderr, "  item %d [%s]\n", i,
-              this->EntryList[i].Item.c_str());
-      }
-    }
-  fprintf(stderr, "\n");
-}
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Ignoring out-of-order file @%jx (%s) %jd < %jd",
+		    (intmax_t)file->number,
+		    iso9660->pathname.s,
+		    (intmax_t)file->offset,
+		    (intmax_t)iso9660->current_position);
+		iso9660->entry_bytes_remaining = 0;
+		iso9660->entry_sparse_offset = 0;
+		return (ARCHIVE_WARN);
+	}

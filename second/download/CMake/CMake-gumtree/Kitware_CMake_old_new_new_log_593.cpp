@@ -1,1 +1,0 @@
-str << this->ChipID.Model;

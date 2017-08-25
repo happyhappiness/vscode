@@ -1,0 +1,1 @@
+fprintf(fout, "ADD_DEFINITIONS(${COMPILE_DEFINITIONS})\n");

@@ -1,1 +1,1 @@
-fprintf(fout, "\t%s\n", symbol.c_str()+1);
+sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));

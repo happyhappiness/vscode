@@ -1,0 +1,1 @@
+printf("#CMake System Variables are:");

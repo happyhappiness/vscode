@@ -1,1 +1,1 @@
-fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());
+fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);

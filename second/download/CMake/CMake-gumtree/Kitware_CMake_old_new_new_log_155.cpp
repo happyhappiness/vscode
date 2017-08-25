@@ -1,1 +1,3 @@
-YY_FATAL_ERROR( "cmCommandArgument_yyset_column called with no buffer" );
+archive_set_error(
+			&a->archive, ARCHIVE_ERRNO_MISC,
+			"Invalid record version");

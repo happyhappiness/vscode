@@ -1,1 +1,1 @@
-snprintf(nbuf, sizeof(nbuf), "?");
+sprintf(totalBuf, "%6.2f sec", totalTestTime);

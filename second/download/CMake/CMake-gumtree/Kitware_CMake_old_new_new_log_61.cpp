@@ -1,1 +1,2 @@
-vsnprintf(error, CURL_ERROR_SIZE, fmt, ap);
+snprintf(clbuf, sizeof(clbuf),
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);

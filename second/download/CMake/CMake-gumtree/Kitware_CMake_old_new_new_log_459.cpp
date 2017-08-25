@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate memory for Symlink");
+fprintf(stderr, "  target [%s]\n", lei->Target->GetName().c_str());

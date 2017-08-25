@@ -1,1 +1,1 @@
-fprintf(stderr, "Now at end of input.\n");
+YY_FATAL_ERROR( "flex scanner push-back overflow" );

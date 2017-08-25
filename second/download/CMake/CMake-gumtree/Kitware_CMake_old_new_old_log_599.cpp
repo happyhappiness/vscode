@@ -1,1 +1,1 @@
-fprintf(ofp, "#define _unlink unlink\n");
+fprintf(fout, "SET(CMAKE_%s_FLAGS \"", lang);

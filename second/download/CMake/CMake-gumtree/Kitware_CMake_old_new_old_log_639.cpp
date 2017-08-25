@@ -1,1 +1,1 @@
-sprintf(tgtName, "node%d", cnt++);
+fprintf(out, "%s: \\\n", objfile.c_str());

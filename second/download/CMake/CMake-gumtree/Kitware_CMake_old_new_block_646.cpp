@@ -1,4 +1,5 @@
 {
-    fprintf(stderr, "tar_open(): %s\n", strerror(errno));
-    return false;
-    }
+		archive_set_error(&a->archive, ENOMEM,
+		    "No memory for 7-Zip decompression");
+		return (ARCHIVE_FATAL);
+	}

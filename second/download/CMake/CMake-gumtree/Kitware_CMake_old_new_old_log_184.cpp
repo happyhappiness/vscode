@@ -1,4 +1,1 @@
-md5this = (unsigned char *)aprintf("%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       ha2);
+yy_fatal_error( "cmExpr_yyset_lineno called with no buffer" , yyscanner);

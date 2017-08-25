@@ -1,6 +1,10 @@
 {
-      int dependee_index = *ni;
-      cmTarget const* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
-      }
+            symbol = stringTable + pSymbolTable->N.Name.Long;
+            while (isspace(symbol[0]))  symbol.erase(0,1);
+            if (symbol[0] == '_') symbol.erase(0,1);
+            if (!fImportFlag) {
+               fImportFlag = 1;
+               fprintf(fout,"IMPORTS \n");
+            }
+            fprintf(fout, "\t%s DATA \n", symbol.c_str()+1);
+         }

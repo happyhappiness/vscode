@@ -1,1 +1,1 @@
-sprintf(buf, "Content-Length: %d\r\n", filesize);
+sprintf(buf, "%6.2f sec", totalTestTime);

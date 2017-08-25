@@ -1,5 +1,2 @@
-{
-		archive_set_error(&a->archive, ENOMEM,
-		    "No memory for 7-Zip decompression");
-		return (ARCHIVE_FATAL);
-	}
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "tar: unknown keyword ``%s''", key)

@@ -1,4 +1,4 @@
 {
-        // print the progress
-        fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
-        }
+    buf = new char[n + 2 + 1];
+    sprintf(buf, "%s/*", name);
+    }

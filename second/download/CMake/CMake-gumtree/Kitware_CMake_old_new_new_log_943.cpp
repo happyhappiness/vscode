@@ -1,0 +1,2 @@
+sprintf(firstLine, 
+            "                                                               ");

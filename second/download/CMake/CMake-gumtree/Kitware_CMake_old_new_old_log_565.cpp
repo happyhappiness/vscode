@@ -1,1 +1,2 @@
-sprintf(tmp,"Version %s", cmVersion::GetCMakeVersion());
+archive_set_error(&a->archive, GetLastError(),
+				    "Can't CreateFileW");

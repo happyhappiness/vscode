@@ -1,2 +1,1 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external unlzma program for lzma decompression");
+fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());

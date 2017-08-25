@@ -1,115 +1,28 @@
-{
-    std::vector<std::pair<cmsys::RegularExpression,
-      std::string> >::iterator passIt;
-    bool forceFail = false;
-    if ( this->TestProperties->RequiredRegularExpressions.size() > 0 )
-      {
-      bool found = false;
-      for ( passIt = this->TestProperties->RequiredRegularExpressions.begin();
-            passIt != this->TestProperties->RequiredRegularExpressions.end();
-            ++ passIt )
-        {
-        if ( passIt->first.find(output.c_str()) )
-          {
-          found = true;
-          reason = "Required regular expression found.";
-          }
-        }
-      if ( !found )
-        { 
-        reason = "Required regular expression not found.";
-        forceFail = true;
-        }
-      reason +=  "Regex=["; 
-      for ( passIt = this->TestProperties->RequiredRegularExpressions.begin();
-            passIt != this->TestProperties->RequiredRegularExpressions.end();
-            ++ passIt )
-        {
-        reason += passIt->second;
-        reason += "\n";
-        }
-      reason += "]";
-      }
-    if ( this->TestProperties->ErrorRegularExpressions.size() > 0 )
-      {
-      for ( passIt = this->TestProperties->ErrorRegularExpressions.begin();
-            passIt != this->TestProperties->ErrorRegularExpressions.end();
-            ++ passIt )
-        {
-        if ( passIt->first.find(output.c_str()) )
-          {
-          reason = "Error regular expression found in output.";
-          reason += " Regex=[";
-          reason += passIt->second;
-          reason += "]";
-          forceFail = true;
-          }
-        }
-      }
+(wfilename == NULL || wfilename[0] == L'\0') {
+		filename_type = FNT_STDIN;
+	} else {
+#if defined(_WIN32) && !defined(__CYGWIN__)
+		filename_type = FNT_WCS;
+#else
+		/*
+		 * POSIX system does not support a wchar_t interface for
+		 * open() system call, so we have to translate a whcar_t
+		 * filename to multi-byte one and use it.
+		 */
+		struct archive_string fn;
+		int r;
 
-    if (res == cmsysProcess_State_Exited)
-      {
-      bool success = 
-        !forceFail &&  (retVal == 0 || 
-        this->TestProperties->RequiredRegularExpressions.size());
-      if((success && !this->TestProperties->WillFail) 
-        || (!success && this->TestProperties->WillFail))
-        {
-        this->TestResult.Status = cmCTestTestHandler::COMPLETED;
-        cmCTestLog(this->CTest, HANDLER_OUTPUT,   "   Passed  " );
-        }
-      else
-        {
-        this->TestResult.Status = cmCTestTestHandler::FAILED;
-        cmCTestLog(this->CTest, HANDLER_OUTPUT,
-                   "***Failed  " << reason );
-        }
-      }
-    else if ( res == cmsysProcess_State_Expired )
-      {
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Timeout");
-      this->TestResult.Status = cmCTestTestHandler::TIMEOUT;
-      }
-    else if ( res == cmsysProcess_State_Exception )
-      {
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Exception: ");
-      switch ( retVal )
-        {
-        case cmsysProcess_Exception_Fault:
-          cmCTestLog(this->CTest, HANDLER_OUTPUT, "SegFault");
-          this->TestResult.Status = cmCTestTestHandler::SEGFAULT;
-          break;
-        case cmsysProcess_Exception_Illegal:
-          cmCTestLog(this->CTest, HANDLER_OUTPUT, "Illegal");
-          this->TestResult.Status = cmCTestTestHandler::ILLEGAL;
-          break;
-        case cmsysProcess_Exception_Interrupt:
-          cmCTestLog(this->CTest, HANDLER_OUTPUT, "Interrupt");
-          this->TestResult.Status = cmCTestTestHandler::INTERRUPT;
-          break;
-        case cmsysProcess_Exception_Numerical:
-          cmCTestLog(this->CTest, HANDLER_OUTPUT, "Numerical");
-          this->TestResult.Status = cmCTestTestHandler::NUMERICAL;
-          break;
-        default:
-          cmCTestLog(this->CTest, HANDLER_OUTPUT, "Other");
-          this->TestResult.Status = cmCTestTestHandler::OTHER_FAULT;
-        }
-      }
-    else // if ( res == cmsysProcess_State_Error )
-      {
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Bad command " << res );
-      this->TestResult.Status = cmCTestTestHandler::BAD_COMMAND;
-      }
-
-    passed = this->TestResult.Status == cmCTestTestHandler::COMPLETED;
-
-    char buf[1024];
-    sprintf(buf, "%6.2f sec", this->TestResult.ExecutionTime);
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, buf << "\n" );
-    if ( this->TestHandler->LogFile )
-      {
-      *this->TestHandler->LogFile << "\nTest time = " << buf << std::endl;
-      }
-    this->DartProcessing(output);
-    }
+		archive_string_init(&fn);
+		if (archive_string_append_from_wcs(&fn, wfilename,
+		    wcslen(wfilename)) != 0) {
+			archive_set_error(a, EINVAL,
+			    "Failed to convert a wide-character filename to"
+			    " a multi-byte filename");
+			archive_string_free(&fn);
+			return (ARCHIVE_FATAL);
+		}
+		r = file_open_filename(a, FNT_MBS, fn.s, block_size);
+		archive_string_free(&fn);
+		return (r);
+#endif
+	}

@@ -1,19 +1,31 @@
 {
-  fprintf(stderr, "The %s target dependency graph is:\n", name);
-  int n = static_cast<int>(graph.size());
-  for(int depender_index = 0; depender_index < n; ++depender_index)
-    {
-    EdgeList const& nl = graph[depender_index];
-    cmTarget const* depender = this->Targets[depender_index];
-    fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
-    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int dependee_index = *ni;
-      cmTarget const* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
-      }
-    }
-  fprintf(stderr, "\n");
-}
+      fprintf(fout, "%04X ", i);
+      if ( pSymbolTable->N.Name.Short != 0 )
+         fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
+      else
+         fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);
+
+      fprintf(fout, " %08X", pSymbolTable->Value);
+
+      iSectNum = pSymbolTable->SectionNumber;
+      GetSectionName(pSymbolTable, sectionName);
+      fprintf(fout, " sect:%s aux:%X type:%02X st:%s",
+         sectionName.c_str(),
+         pSymbolTable->NumberOfAuxSymbols,
+         pSymbolTable->Type,
+         GetSZStorageClass(pSymbolTable->StorageClass) );
+
+      GetSectionCharacteristics(pSectionHeaders,iSectNum,sectionCharacter);
+      fprintf(fout," hc: %s \n",sectionCharacter.c_str());
+#if 0
+      if ( pSymbolTable->NumberOfAuxSymbols )
+         DumpAuxSymbols(pSymbolTable);
+#endif
+
+      /*
+      * Take into account any aux symbols
+      */
+      i += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable++;
+   }

@@ -1,65 +1,82 @@
-void cmCursesMainForm::UpdateStatusBar()
+int
+tar_append_tree(TAR *t, char *realdir, char *savedir)
 {
-  int x,y;
-  getmaxyx(m_Window, y, x);
-  if ( x < cmCursesMainForm::MIN_WIDTH  || 
-       y < cmCursesMainForm::MIN_HEIGHT )
+  char realpath[MAXPATHLEN];
+  char savepath[MAXPATHLEN];
+#ifndef _MSC_VER
+  struct dirent *dent;
+  DIR *dp;
+#else  
+  kwDirEntry * dent;
+  kwDirectory *dp;
+#endif  
+  struct stat s;
+
+#ifdef DEBUG
+  printf("==> tar_append_tree(0x%lx, \"%s\", \"%s\")\n",
+         t, realdir, (savedir ? savedir : "[NULL]"));
+#endif
+
+  if (tar_append_file(t, realdir, savedir) != 0)
+    return -1;
+
+#ifdef DEBUG
+  puts("    tar_append_tree(): done with tar_append_file()...");
+#endif
+
+#ifdef _MSC_VER
+  dp = kwOpenDir(realdir);
+#else
+  dp = opendir(realdir);
+#endif
+
+  if (dp == NULL)
+  {
+    if (errno == ENOTDIR)
+      return 0;
+    return -1;
+  }
+#ifdef _MSC_VER
+  while ((dent = kwReadDir(dp)) != NULL)
+#else
+  while ((dent = readdir(dp)) != NULL)
+#endif
+  {
+    if (strcmp(dent->d_name, ".") == 0 ||
+        strcmp(dent->d_name, "..") == 0)
+      continue;
+
+    snprintf(realpath, MAXPATHLEN, "%s/%s", realdir,
+       dent->d_name);
+    if (savedir)
+      snprintf(savepath, MAXPATHLEN, "%s/%s", savedir,
+         dent->d_name);
+
+#ifndef WIN32
+    if (lstat(realpath, &s) != 0)
+      return -1;
+#else
+    if (stat(realpath, &s) != 0)
+      return -1;
+#endif
+    if (S_ISDIR(s.st_mode))
     {
-    curses_move(0,0);
-    printw("Window is too small. A size of at least %dx%d is required.",
-	   cmCursesMainForm::MIN_WIDTH, cmCursesMainForm::MIN_HEIGHT);
-    touchwin(m_Window); 
-    wrefresh(m_Window); 
-    return;
+      if (tar_append_tree(t, realpath,
+              (savedir ? savepath : NULL)) != 0)
+        return -1;
+      continue;
     }
 
-  FIELD* cur = current_field(m_Form);
-  int index = field_index(cur);
-  char* curField = field_buffer(m_Fields[index-2], 0);
+    if (tar_append_file(t, realpath,
+            (savedir ? savepath : NULL)) != 0)
+      return -1;
+  }
 
-  char version[128];
-  sprintf(version,"(CMake Version %d.%d)", cmMakefile::GetMajorVersion(),
-	  cmMakefile::GetMinorVersion());
+#ifdef _MSC_VER
+  kwCloseDir(dp);
+#else
+  closedir(dp);
+#endif
 
-  char bar[cmCursesMainForm::MAX_WIDTH];
-  int i, curFieldLen = strlen(curField);
-  int versionLen = strlen(version);
-  int leftLen = cmCursesMainForm::IDEAL_WIDTH - versionLen;
-  if (curFieldLen >= leftLen)
-    {
-    strncpy(bar, curField, leftLen);
-    }
-  else
-    {
-    strcpy(bar, curField);
-    for(i=curFieldLen; i < leftLen; ++i) { bar[i] = ' '; }
-    }
-  strcpy(bar+leftLen, version);
-
-  if ( x < cmCursesMainForm::MAX_WIDTH )
-    {
-    if (x > cmCursesMainForm::IDEAL_WIDTH )
-      {
-      for(i=cmCursesMainForm::IDEAL_WIDTH; i < x; i++)
-	{
-	bar[i] = ' ';
-	}
-      }
-    bar[x] = '\0';
-    }
-  else
-    {
-    for(i=cmCursesMainForm::IDEAL_WIDTH; 
-	i < cmCursesMainForm::MAX_WIDTH-1; i++)
-      {
-      bar[i] = ' ';
-      }
-    bar[cmCursesMainForm::MAX_WIDTH-1] = '\0';
-    }
-
-  curses_move(y-3,0);
-  attron(A_STANDOUT);
-  printw(bar);
-  attroff(A_STANDOUT);  
-  pos_form_cursor(m_Form);
+  return 0;
 }

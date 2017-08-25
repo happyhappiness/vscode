@@ -1,1 +1,1 @@
-aprintf("%s:%d", hostname, conn->port);
+sprintf(cp->ExitExceptionString, "Signal %d", sig);

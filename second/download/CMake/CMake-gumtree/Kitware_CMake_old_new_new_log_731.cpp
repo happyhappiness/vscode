@@ -1,1 +1,1 @@
-sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);
+fprintf(ofp, "  unlink(fname);\n");

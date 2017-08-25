@@ -1,0 +1,1 @@
+fprintf(fout, "ENDIF (CMAKE_ANSI_CXXFLAGS)\n");

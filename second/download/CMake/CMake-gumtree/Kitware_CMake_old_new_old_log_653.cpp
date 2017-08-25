@@ -1,1 +1,1 @@
-sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
+printf("Checking -%s-\n", absFilename.c_str());

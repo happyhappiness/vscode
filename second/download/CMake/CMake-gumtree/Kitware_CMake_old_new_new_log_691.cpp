@@ -1,1 +1,1 @@
-sprintf(format, "%%%ds  ", static_cast<unsigned int>(maxlen-2));
+sprintf(buf, "%u", this->VersionCount);

@@ -1,42 +1,15 @@
-static CURLcode http_output_basic(struct connectdata *conn, bool proxy)
+static char *hashkey(struct connectdata *conn)
 {
-  size_t size = 0;
-  char *authorization = NULL;
-  struct Curl_easy *data = conn->data;
-  char **userp;
-  const char *user;
-  const char *pwd;
-  CURLcode result;
+  const char *hostname;
 
-  if(proxy) {
-    userp = &conn->allocptr.proxyuserpwd;
-    user = conn->http_proxy.user;
-    pwd = conn->http_proxy.passwd;
-  }
-  else {
-    userp = &conn->allocptr.userpwd;
-    user = conn->user;
-    pwd = conn->passwd;
-  }
+  if(conn->bits.socksproxy)
+    hostname = conn->socks_proxy.host.name;
+  else if(conn->bits.httpproxy)
+    hostname = conn->http_proxy.host.name;
+  else if(conn->bits.conn_to_host)
+    hostname = conn->conn_to_host.name;
+  else
+    hostname = conn->host.name;
 
-  snprintf(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
-
-  result = Curl_base64_encode(data,
-                              data->state.buffer, strlen(data->state.buffer),
-                              &authorization, &size);
-  if(result)
-    return result;
-
-  if(!authorization)
-    return CURLE_REMOTE_ACCESS_DENIED;
-
-  free(*userp);
-  *userp = aprintf("%sAuthorization: Basic %s\r\n",
-                   proxy ? "Proxy-" : "",
-                   authorization);
-  free(authorization);
-  if(!*userp)
-    return CURLE_OUT_OF_MEMORY;
-
-  return CURLE_OK;
+  return aprintf("%s:%d", hostname, conn->port);
 }

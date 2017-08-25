@@ -1,1 +1,2 @@
-std::cout << "AUTOMOC: Checking " << absFilename << std::endl;
+archive_set_error(&a->archive, errno,
+				    "Couldn't read link data");

@@ -1,1 +1,1 @@
-vsnprintf(print_buffer, 1024, fmt, ap);
+conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n", data->reqdata.range);

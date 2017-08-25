@@ -1,5 +1,3 @@
-archive_set_error(
-						    &filter->archive->archive,
-						    ENOMEM,
-						    "Unable to allocate copy"
-						    " buffer");
+fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
+              targetName.c_str());

@@ -1,2 +1,1 @@
-fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName().c_str(), ni->IsStrong()? "strong" : "weak");
+fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);

@@ -1,37 +1,26 @@
-void DoHeaderLine()
-    {
-    // Look for header fields that we need.
-    if(strncmp(this->Line.c_str(), "commit ", 7) == 0)
-      {
-      this->Rev.Rev = this->Line.c_str()+7;
-      }
-    else if(strncmp(this->Line.c_str(), "author ", 7) == 0)
-      {
-      Person author;
-      this->ParsePerson(this->Line.c_str()+7, author);
-      this->Rev.Author = author.Name;
-      this->Rev.EMail = author.EMail;
+int
+archive_read_disk_open_w(struct archive *_a, const wchar_t *pathname)
+{
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	struct archive_string path;
+	int ret;
 
-      // Convert the time to a human-readable format that is also easy
-      // to machine-parse: "CCYY-MM-DD hh:mm:ss".
-      time_t seconds = static_cast<time_t>(author.Time);
-      struct tm* t = gmtime(&seconds);
-      char dt[1024];
-      sprintf(dt, "%04d-%02d-%02d %02d:%02d:%02d",
-              t->tm_year+1900, t->tm_mon+1, t->tm_mday,
-              t->tm_hour, t->tm_min, t->tm_sec);
-      this->Rev.Date = dt;
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_NEW | ARCHIVE_STATE_CLOSED,
+	    "archive_read_disk_open_w");
+	archive_clear_error(&a->archive);
 
-      // Add the time-zone field "+zone" or "-zone".
-      char tz[32];
-      if(author.TimeZone >= 0)
-        {
-        sprintf(tz, " +%04ld", author.TimeZone);
-        }
-      else
-        {
-        sprintf(tz, " -%04ld", -author.TimeZone);
-        }
-      this->Rev.Date += tz;
-      }
-    }
+	/* Make a char string from a wchar_t string. */
+	archive_string_init(&path);
+	if (archive_string_append_from_wcs(&path, pathname,
+	    wcslen(pathname)) != 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Can't convert a path to a char string");
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		ret = ARCHIVE_FATAL;
+	} else
+		ret = _archive_read_disk_open(_a, path.s);
+
+	archive_string_free(&path);
+	return (ret);
+}

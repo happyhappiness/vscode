@@ -1,233 +1,119 @@
-static int
-parse_keyword(struct archive_read *a, struct mtree *mtree,
-    struct archive_entry *entry, struct mtree_option *opt, int *parsed_kws)
+static CURLcode tftp_send_first(tftp_state_data_t *state, tftp_event_t event)
 {
-	char *val, *key;
+  size_t sbytes;
+  ssize_t senddata;
+  const char *mode = "octet";
+  char *filename;
+  char buf[64];
+  struct SessionHandle *data = state->conn->data;
+  CURLcode result = CURLE_OK;
 
-	key = opt->value;
+  /* Set ascii mode if -B flag was used */
+  if(data->set.prefer_ascii)
+    mode = "netascii";
 
-	if (*key == '\0')
-		return (ARCHIVE_OK);
+  switch(event) {
 
-	if (strcmp(key, "nochange") == 0) {
-		*parsed_kws |= MTREE_HAS_NOCHANGE;
-		return (ARCHIVE_OK);
-	}
-	if (strcmp(key, "optional") == 0) {
-		*parsed_kws |= MTREE_HAS_OPTIONAL;
-		return (ARCHIVE_OK);
-	}
-	if (strcmp(key, "ignore") == 0) {
-		/*
-		 * The mtree processing is not recursive, so
-		 * recursion will only happen for explicitly listed
-		 * entries.
-		 */
-		return (ARCHIVE_OK);
-	}
+  case TFTP_EVENT_INIT:    /* Send the first packet out */
+  case TFTP_EVENT_TIMEOUT: /* Resend the first packet out */
+    /* Increment the retry counter, quit if over the limit */
+    state->retries++;
+    if(state->retries>state->retry_max) {
+      state->error = TFTP_ERR_NORESPONSE;
+      state->state = TFTP_STATE_FIN;
+      return result;
+    }
 
-	val = strchr(key, '=');
-	if (val == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Malformed attribute \"%s\" (%d)", key, key[0]);
-		return (ARCHIVE_WARN);
-	}
+    if(data->set.upload) {
+      /* If we are uploading, send an WRQ */
+      setpacketevent(&state->spacket, TFTP_EVENT_WRQ);
+      state->conn->data->req.upload_fromhere =
+        (char *)state->spacket.data+4;
+      if(data->state.infilesize != -1)
+        Curl_pgrsSetUploadSize(data, data->state.infilesize);
+    }
+    else {
+      /* If we are downloading, send an RRQ */
+      setpacketevent(&state->spacket, TFTP_EVENT_RRQ);
+    }
+    /* As RFC3617 describes the separator slash is not actually part of the
+       file name so we skip the always-present first letter of the path
+       string. */
+    filename = curl_easy_unescape(data, &state->conn->data->state.path[1], 0,
+                                  NULL);
+    if(!filename)
+      return CURLE_OUT_OF_MEMORY;
 
-	*val = '\0';
-	++val;
+    snprintf((char *)state->spacket.data+2,
+             state->blksize,
+             "%s%c%s%c", filename, '\0',  mode, '\0');
+    sbytes = 4 + strlen(filename) + strlen(mode);
 
-	switch (key[0]) {
-	case 'c':
-		if (strcmp(key, "content") == 0
-		    || strcmp(key, "contents") == 0) {
-			parse_escapes(val, NULL);
-			archive_strcpy(&mtree->contents_name, val);
-			break;
-		}
-		if (strcmp(key, "cksum") == 0)
-			break;
-	case 'd':
-		if (strcmp(key, "device") == 0) {
-			/* stat(2) st_rdev field, e.g. the major/minor IDs
-			 * of a char/block special file */
-			int r;
-			dev_t dev;
+    /* add tsize option */
+    if(data->set.upload && (data->state.infilesize != -1))
+      snprintf(buf, sizeof(buf), "%" CURL_FORMAT_CURL_OFF_T,
+               data->state.infilesize);
+    else
+      strcpy(buf, "0"); /* the destination is large enough */
 
-			*parsed_kws |= MTREE_HAS_DEVICE;
-			r = parse_device(&dev, &a->archive, val);
-			if (r == ARCHIVE_OK)
-				archive_entry_set_rdev(entry, dev);
-			return r;
-		}
-	case 'f':
-		if (strcmp(key, "flags") == 0) {
-			*parsed_kws |= MTREE_HAS_FFLAGS;
-			archive_entry_copy_fflags_text(entry, val);
-			break;
-		}
-	case 'g':
-		if (strcmp(key, "gid") == 0) {
-			*parsed_kws |= MTREE_HAS_GID;
-			archive_entry_set_gid(entry, mtree_atol10(&val));
-			break;
-		}
-		if (strcmp(key, "gname") == 0) {
-			*parsed_kws |= MTREE_HAS_GNAME;
-			archive_entry_copy_gname(entry, val);
-			break;
-		}
-	case 'i':
-		if (strcmp(key, "inode") == 0) {
-			archive_entry_set_ino(entry, mtree_atol10(&val));
-			break;
-		}
-	case 'l':
-		if (strcmp(key, "link") == 0) {
-			archive_entry_copy_symlink(entry, val);
-			break;
-		}
-	case 'm':
-		if (strcmp(key, "md5") == 0 || strcmp(key, "md5digest") == 0)
-			break;
-		if (strcmp(key, "mode") == 0) {
-			if (val[0] >= '0' && val[0] <= '9') {
-				*parsed_kws |= MTREE_HAS_PERM;
-				archive_entry_set_perm(entry,
-				    (mode_t)mtree_atol8(&val));
-			} else {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Symbolic mode \"%s\" unsupported", val);
-				return ARCHIVE_WARN;
-			}
-			break;
-		}
-	case 'n':
-		if (strcmp(key, "nlink") == 0) {
-			*parsed_kws |= MTREE_HAS_NLINK;
-			archive_entry_set_nlink(entry,
-				(unsigned int)mtree_atol10(&val));
-			break;
-		}
-	case 'r':
-		if (strcmp(key, "resdevice") == 0) {
-			/* stat(2) st_dev field, e.g. the device ID where the
-			 * inode resides */
-			int r;
-			dev_t dev;
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes,
+                              TFTP_OPTION_TSIZE);
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes, buf);
+    /* add blksize option */
+    snprintf( buf, sizeof(buf), "%d", state->requested_blksize );
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes,
+                              TFTP_OPTION_BLKSIZE);
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes, buf );
 
-			r = parse_device(&dev, &a->archive, val);
-			if (r == ARCHIVE_OK)
-				archive_entry_set_dev(entry, dev);
-			return r;
-		}
-		if (strcmp(key, "rmd160") == 0 ||
-		    strcmp(key, "rmd160digest") == 0)
-			break;
-	case 's':
-		if (strcmp(key, "sha1") == 0 || strcmp(key, "sha1digest") == 0)
-			break;
-		if (strcmp(key, "sha256") == 0 ||
-		    strcmp(key, "sha256digest") == 0)
-			break;
-		if (strcmp(key, "sha384") == 0 ||
-		    strcmp(key, "sha384digest") == 0)
-			break;
-		if (strcmp(key, "sha512") == 0 ||
-		    strcmp(key, "sha512digest") == 0)
-			break;
-		if (strcmp(key, "size") == 0) {
-			archive_entry_set_size(entry, mtree_atol10(&val));
-			break;
-		}
-	case 't':
-		if (strcmp(key, "tags") == 0) {
-			/*
-			 * Comma delimited list of tags.
-			 * Ignore the tags for now, but the interface
-			 * should be extended to allow inclusion/exclusion.
-			 */
-			break;
-		}
-		if (strcmp(key, "time") == 0) {
-			int64_t m;
-			int64_t my_time_t_max = get_time_t_max();
-			int64_t my_time_t_min = get_time_t_min();
-			long ns;
+    /* add timeout option */
+    snprintf( buf, sizeof(buf), "%d", state->retry_time);
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes,
+                              TFTP_OPTION_INTERVAL);
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes, buf );
 
-			*parsed_kws |= MTREE_HAS_MTIME;
-			m = mtree_atol10(&val);
-			/* Replicate an old mtree bug:
-			 * 123456789.1 represents 123456789
-			 * seconds and 1 nanosecond. */
-			if (*val == '.') {
-				++val;
-				ns = (long)mtree_atol10(&val);
-			} else
-				ns = 0;
-			if (m > my_time_t_max)
-				m = my_time_t_max;
-			else if (m < my_time_t_min)
-				m = my_time_t_min;
-			archive_entry_set_mtime(entry, (time_t)m, ns);
-			break;
-		}
-		if (strcmp(key, "type") == 0) {
-			switch (val[0]) {
-			case 'b':
-				if (strcmp(val, "block") == 0) {
-					archive_entry_set_filetype(entry, AE_IFBLK);
-					break;
-				}
-			case 'c':
-				if (strcmp(val, "char") == 0) {
-					archive_entry_set_filetype(entry, AE_IFCHR);
-					break;
-				}
-			case 'd':
-				if (strcmp(val, "dir") == 0) {
-					archive_entry_set_filetype(entry, AE_IFDIR);
-					break;
-				}
-			case 'f':
-				if (strcmp(val, "fifo") == 0) {
-					archive_entry_set_filetype(entry, AE_IFIFO);
-					break;
-				}
-				if (strcmp(val, "file") == 0) {
-					archive_entry_set_filetype(entry, AE_IFREG);
-					break;
-				}
-			case 'l':
-				if (strcmp(val, "link") == 0) {
-					archive_entry_set_filetype(entry, AE_IFLNK);
-					break;
-				}
-			default:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Unrecognized file type \"%s\"; assuming \"file\"", val);
-				archive_entry_set_filetype(entry, AE_IFREG);
-				return (ARCHIVE_WARN);
-			}
-			*parsed_kws |= MTREE_HAS_TYPE;
-			break;
-		}
-	case 'u':
-		if (strcmp(key, "uid") == 0) {
-			*parsed_kws |= MTREE_HAS_UID;
-			archive_entry_set_uid(entry, mtree_atol10(&val));
-			break;
-		}
-		if (strcmp(key, "uname") == 0) {
-			*parsed_kws |= MTREE_HAS_UNAME;
-			archive_entry_copy_uname(entry, val);
-			break;
-		}
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unrecognized key %s=%s", key, val);
-		return (ARCHIVE_WARN);
-	}
-	return (ARCHIVE_OK);
+    /* the typecase for the 3rd argument is mostly for systems that do
+       not have a size_t argument, like older unixes that want an 'int' */
+    senddata = sendto(state->sockfd, (void *)state->spacket.data,
+                      (SEND_TYPE_ARG3)sbytes, 0,
+                      state->conn->ip_addr->ai_addr,
+                      state->conn->ip_addr->ai_addrlen);
+    if(senddata != (ssize_t)sbytes) {
+      failf(data, "%s", Curl_strerror(state->conn, SOCKERRNO));
+    }
+    free(filename);
+    break;
+
+  case TFTP_EVENT_OACK:
+    if(data->set.upload) {
+      result = tftp_connect_for_tx(state, event);
+    }
+    else {
+      result = tftp_connect_for_rx(state, event);
+    }
+    break;
+
+  case TFTP_EVENT_ACK: /* Connected for transmit */
+    result = tftp_connect_for_tx(state, event);
+    break;
+
+  case TFTP_EVENT_DATA: /* Connected for receive */
+    result = tftp_connect_for_rx(state, event);
+    break;
+
+  case TFTP_EVENT_ERROR:
+    state->state = TFTP_STATE_FIN;
+    break;
+
+  default:
+    failf(state->conn->data, "tftp_send_first: internal error");
+    break;
+  }
+
+  return result;
 }

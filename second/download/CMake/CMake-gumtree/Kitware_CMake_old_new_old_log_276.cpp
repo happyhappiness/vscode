@@ -1,1 +1,1 @@
-fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);
+tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);

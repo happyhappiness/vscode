@@ -1,3 +1,1 @@
-*userp = aprintf( "%sAuthorization: Basic %s\r\n",
-                      proxy?"Proxy-":"",
-                      authorization);
+fprintf(fout, " \"%s\"", si->c_str());

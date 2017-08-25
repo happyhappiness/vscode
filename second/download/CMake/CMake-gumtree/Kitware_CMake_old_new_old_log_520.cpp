@@ -1,1 +1,2 @@
-sprintf(win9x, "%s%s", tempDir, fwdName);
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external bunzip2 program");

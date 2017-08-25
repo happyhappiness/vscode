@@ -1,0 +1,1 @@
+sprintf(covLogFilename, "CoverageLog-%d", logFileCount);

@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_create_buffer()" );
+std::cerr << "No current working directory." << std::endl;

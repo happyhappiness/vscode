@@ -1,3 +1,2 @@
-msg << "FilesDiffer failed to read files (allocated: " 
-        << statSource.st_size << ", read source: " <<  finSource.gcount() 
-        << ", read dest: " << finDestination.gcount() << std::ends;
+fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp,"
+          "ClientData arg);\n");

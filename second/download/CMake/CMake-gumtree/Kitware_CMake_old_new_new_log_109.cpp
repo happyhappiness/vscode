@@ -1,3 +1,4 @@
-fsobj_error(a_eno, a_estr, 0,
-					    "Cannot remove intervening "
-					    "symlink %s", path);
+archive_set_error(
+			&a->archive, ARCHIVE_ERRNO_MISC,
+			"Unsupported record version: %u.%u",
+			ver / 10000, (ver % 10000) / 100);

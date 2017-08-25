@@ -1,1 +1,1 @@
-snprintf( buf, sizeof(buf), "%d", state->requested_blksize );
+DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));

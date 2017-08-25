@@ -1,2 +1,1 @@
-snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
-                     conn->host.name);
+fprintf(fout, "add_executable(%s", targetName.c_str());

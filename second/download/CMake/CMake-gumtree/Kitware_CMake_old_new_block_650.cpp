@@ -1,4 +1,5 @@
-{
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
-    }
+(len - r == 0 || p[r] != kEnd) {
+			archive_set_error(&a->archive, -1,
+			    "Malformed 7-Zip archive");
+			return (ARCHIVE_FATAL);
+		}

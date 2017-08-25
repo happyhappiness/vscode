@@ -1,2 +1,1 @@
-fprintf(fout,
-              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);
+fprintf(fout, "\t%s\n", symbol.c_str()+1);

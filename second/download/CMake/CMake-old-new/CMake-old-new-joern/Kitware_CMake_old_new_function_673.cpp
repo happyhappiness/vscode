@@ -1,64 +1,93 @@
-int Curl_base64_encode(const void *inp, int insize, char **outptr)
+int GetWebFile(void)
 {
-  unsigned char ibuf[3];
-  unsigned char obuf[4];
-  int i;
-  int inputparts;
-  char *output;
-  char *base64data;
+  int retVal = 0;
+  CURL *curl;
+  CURLcode res;
 
-  char *indata = (char *)inp;
+  char proxy[1024];
+  int proxy_type = 0;
 
-  if(0 == insize)
-    insize = (int)strlen(indata);
-
-  base64data = output = (char*)malloc(insize*4/3+4);
-  if(NULL == output)
-    return -1;
-
-  while(insize > 0) {
-    for (i = inputparts = 0; i < 3; i++) { 
-      if(*indata) {
-        inputparts++;
-        ibuf[i] = *indata;
-        indata++;
-        insize--;
+  if ( getenv("HTTP_PROXY") )
+    {
+    proxy_type = 1;
+    if (getenv("HTTP_PROXY_PORT") )
+      {
+      sprintf(proxy, "%s:%s", getenv("HTTP_PROXY"), getenv("HTTP_PROXY_PORT"));
       }
-      else
-        ibuf[i] = 0;
+    else
+      {
+      sprintf(proxy, "%s", getenv("HTTP_PROXY"));
+      }
+    if ( getenv("HTTP_PROXY_TYPE") )
+      {
+      /* HTTP/SOCKS4/SOCKS5 */
+      if ( strcmp(getenv("HTTP_PROXY_TYPE"), "HTTP") == 0 )
+        {
+        proxy_type = 1;
+        }
+      else if ( strcmp(getenv("HTTP_PROXY_TYPE"), "SOCKS4") == 0 )
+        {
+        proxy_type = 2;
+        }
+      else if ( strcmp(getenv("HTTP_PROXY_TYPE"), "SOCKS5") == 0 )
+        {
+        proxy_type = 3;
+        }
+      }
     }
-                       
-    obuf [0] = (unsigned char)((ibuf [0] & 0xFC) >> 2);
-    obuf [1] = (unsigned char)(((ibuf [0] & 0x03) << 4) | 
-                               ((ibuf [1] & 0xF0) >> 4));
-    obuf [2] = (unsigned char)(((ibuf [1] & 0x0F) << 2) | 
-                               ((ibuf [2] & 0xC0) >> 6));
-    obuf [3] = (unsigned char)(ibuf [2] & 0x3F);
 
-    switch(inputparts) {
-    case 1: /* only one byte read */
-      sprintf(output, "%c%c==", 
-              table64[obuf[0]],
-              table64[obuf[1]]);
-      break;
-    case 2: /* two bytes read */
-      sprintf(output, "%c%c%c=", 
-              table64[obuf[0]],
-              table64[obuf[1]],
-              table64[obuf[2]]);
-      break;
-    default:
-      sprintf(output, "%c%c%c%c", 
-              table64[obuf[0]],
-              table64[obuf[1]],
-              table64[obuf[2]],
-              table64[obuf[3]] );
-      break;
+  curl = curl_easy_init();
+  if(curl) 
+    {
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+    curl_easy_setopt(curl, CURLOPT_HEADER, 1);
+
+    /* Using proxy */
+    if ( proxy_type > 0 )
+      {
+      curl_easy_setopt(curl, CURLOPT_PROXY, proxy); 
+      switch (proxy_type)
+        {
+        case 2:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS4);
+          break;
+        case 3:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5);
+          break;
+        default:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);           
+        }
+      }
+
+    /* get the first document */
+    curl_easy_setopt(curl, CURLOPT_URL, "http://www.cmake.org/page1.html");
+    res = curl_easy_perform(curl);
+    if ( res != 0 )
+      {
+      printf("Error fetching: http://www.cmake.org/page1.html\n");
+      retVal = 1;
+      }
+
+    /* get another document from the same server using the same
+       connection */
+    /*
+      curl_easy_setopt(curl, CURLOPT_URL, "http://www.cmake.org/page2.html");
+      res = curl_easy_perform(curl);
+      if ( res != 0 )
+      {
+      printf("Error fetching: http://www.cmake.org/page2.html\n");
+      retVal = 1;
+      }
+    */
+
+    /* always cleanup */
+    curl_easy_cleanup(curl);
     }
-    output += 4;
-  }
-  *output=0;
-  *outptr = base64data; /* make it return the actual data memory */
+  else
+    {
+    printf("Cannot create curl object\n");
+    retVal = 1;
+    }
 
-  return (int)strlen(base64data); /* return the length of the new data */
+  return retVal;
 }

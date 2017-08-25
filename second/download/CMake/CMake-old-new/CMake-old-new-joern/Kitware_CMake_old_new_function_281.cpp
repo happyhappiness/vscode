@@ -1,17 +1,30 @@
-static int
-_archive_read_data_block(struct archive *_a,
-    const void **buff, size_t *size, int64_t *offset)
+CURLcode Curl_output_negotiate(struct connectdata *conn, bool proxy)
 {
-	struct archive_read *a = (struct archive_read *)_a;
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC, ARCHIVE_STATE_DATA,
-	    "archive_read_data_block");
+  struct negotiatedata *neg_ctx = proxy?&conn->data->state.proxyneg:
+    &conn->data->state.negotiate;
+  char *encoded = NULL;
+  size_t len = 0;
+  char *userp;
+  CURLcode result;
+  OM_uint32 discard_st;
 
-	if (a->format->read_data == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
-		    "Internal error: "
-		    "No format_read_data_block function registered");
-		return (ARCHIVE_FATAL);
-	}
+  result = Curl_base64_encode(conn->data,
+                              neg_ctx->output_token.value,
+                              neg_ctx->output_token.length,
+                              &encoded, &len);
+  if(result) {
+    gss_release_buffer(&discard_st, &neg_ctx->output_token);
+    neg_ctx->output_token.value = NULL;
+    neg_ctx->output_token.length = 0;
+    return result;
+  }
 
-	return (a->format->read_data)(a, buff, size, offset);
-}
+  if(!encoded || !len) {
+    gss_release_buffer(&discard_st, &neg_ctx->output_token);
+    neg_ctx->output_token.value = NULL;
+    neg_ctx->output_token.length = 0;
+    return CURLE_REMOTE_ACCESS_DENIED;
+  }
+
+  userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
+                  encoded)

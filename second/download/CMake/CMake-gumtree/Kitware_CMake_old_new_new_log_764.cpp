@@ -1,1 +1,1 @@
-sprintf(s2, "%s", cmdstring);
+ch = tolower(ch);

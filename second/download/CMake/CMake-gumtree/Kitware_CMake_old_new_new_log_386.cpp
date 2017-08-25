@@ -1,1 +1,1 @@
-fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());
+fprintf(this->FileOut, "\t%s\n", symbol.c_str());

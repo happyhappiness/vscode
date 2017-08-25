@@ -1,1 +1,1 @@
-printf("Error, could not open file %s\n", filename);
+fprintf(ofp, "#else\n");

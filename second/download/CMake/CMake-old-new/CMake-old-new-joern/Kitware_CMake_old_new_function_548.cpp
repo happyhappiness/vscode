@@ -1,37 +1,27 @@
-void DoHeaderLine()
-    {
-    // Look for header fields that we need.
-    if(strncmp(this->Line.c_str(), "commit ", 7) == 0)
-      {
-      this->Rev.Rev = this->Line.c_str()+7;
-      }
-    else if(strncmp(this->Line.c_str(), "author ", 7) == 0)
-      {
-      Person author;
-      this->ParsePerson(this->Line.c_str()+7, author);
-      this->Rev.Author = author.Name;
-      this->Rev.EMail = author.EMail;
+int
+archive_read_disk_descend(struct archive *_a)
+{
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	struct tree *t = a->tree;
 
-      // Convert the time to a human-readable format that is also easy
-      // to machine-parse: "CCYY-MM-DD hh:mm:ss".
-      time_t seconds = static_cast<time_t>(author.Time);
-      struct tm* t = gmtime(&seconds);
-      char dt[1024];
-      sprintf(dt, "%04d-%02d-%02d %02d:%02d:%02d",
-              t->tm_year+1900, t->tm_mon+1, t->tm_mday,
-              t->tm_hour, t->tm_min, t->tm_sec);
-      this->Rev.Date = dt;
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
+	    "archive_read_disk_descend");
 
-      // Add the time-zone field "+zone" or "-zone".
-      char tz[32];
-      if(author.TimeZone >= 0)
-        {
-        sprintf(tz, " +%04ld", author.TimeZone);
-        }
-      else
-        {
-        sprintf(tz, " -%04ld", -author.TimeZone);
-        }
-      this->Rev.Date += tz;
-      }
-    }
+	if (t->visit_type != TREE_REGULAR || !t->descend) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Ignored the request descending the current object");
+		return (ARCHIVE_WARN);
+	}
+
+	if (tree_current_is_physical_dir(t)) {
+		tree_push(t, t->basename, t->current_filesystem_id,
+		    t->lst.st_dev, t->lst.st_ino, &t->restore_time);
+		t->stack->flags |= isDir;
+	} else if (tree_current_is_dir(t)) {
+		tree_push(t, t->basename, t->current_filesystem_id,
+		    t->st.st_dev, t->st.st_ino, &t->restore_time);
+		t->stack->flags |= isDirLink;
+	}
+	t->descend = 0;
+	return (ARCHIVE_OK);
+}

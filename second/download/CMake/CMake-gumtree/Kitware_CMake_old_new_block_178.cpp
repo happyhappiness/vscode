@@ -1,12 +1,11 @@
 {
-    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
+    service.value = malloc(strlen(serviceptr) +strlen(conn->proxy.name)+2);
+    if(!service.value)
+      return CURLE_OUT_OF_MEMORY;
+    service.length = strlen(serviceptr) +strlen(conn->proxy.name)+1;
+    snprintf(service.value, service.length+1, "%s@%s",
+             serviceptr, conn->proxy.name);
 
-    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
-                                &cnonce, &cnonce_sz);
-    if(result)
-      return result;
-
-    digest->cnonce = cnonce;
+    gss_major_status = gss_import_name(&gss_minor_status, &service,
+                                       GSS_C_NT_HOSTBASED_SERVICE, &server);
   }

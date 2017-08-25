@@ -1,1 +1,1 @@
-fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
+fprintf(fout, "\t%s \t DATA\n", symbol.c_str());

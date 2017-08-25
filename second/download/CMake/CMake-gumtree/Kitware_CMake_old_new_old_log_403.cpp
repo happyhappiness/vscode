@@ -1,2 +1,1 @@
-fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
+fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);

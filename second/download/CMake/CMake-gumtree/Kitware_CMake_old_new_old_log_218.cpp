@@ -1,2 +1,1 @@
-userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
-                  encoded);
+tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);

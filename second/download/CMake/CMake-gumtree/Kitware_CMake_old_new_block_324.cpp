@@ -1,2 +1,6 @@
-snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
-                 conn->ip_addr_str)
+{
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "LHa data CRC error");
+				return (ARCHIVE_WARN);
+			}

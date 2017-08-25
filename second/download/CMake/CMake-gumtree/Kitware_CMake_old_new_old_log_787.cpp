@@ -1,1 +1,2 @@
-fout << "    printf(\"%d. %s\\n\", i, cmakeGeneratedFunctionMapEntries[i].name);\n";
+sprintf(output,"%s/%s_force_%i", m_Makefile->GetStartOutputDirectory(),
+          target.GetName(), count);

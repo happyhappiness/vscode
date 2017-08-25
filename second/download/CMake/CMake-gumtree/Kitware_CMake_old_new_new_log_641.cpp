@@ -1,1 +1,1 @@
-f("### done extracting %s\n", filename);
+zip->header_bytes_remaining -= bytes;

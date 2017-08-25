@@ -1,1 +1,4 @@
-snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i])
+{
+  /* Generate and return our SPN */
+  return aprintf("%s/%s", service, host);
+}

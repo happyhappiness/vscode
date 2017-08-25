@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, GetLastError(),
-				    "Can't GetFileInformationByHandle");
+fprintf(fout, "target_link_libraries(%s %s)\n",
+              targetName,
+              libsToLink.c_str());

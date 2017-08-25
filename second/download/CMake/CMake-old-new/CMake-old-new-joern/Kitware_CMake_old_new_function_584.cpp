@@ -1,265 +1,208 @@
-kwsys_stl::string SystemTools::GetOperatingSystemNameAndVersion()
+static int
+next_cache_entry(struct archive_read *a, struct iso9660 *iso9660,
+    struct file_info **pfile)
 {
-  kwsys_stl::string res;
+	struct file_info *file;
+	struct {
+		struct file_info	*first;
+		struct file_info	**last;
+	}	empty_files;
+	int64_t number;
+	int count;
 
-#ifdef _WIN32
-  char buffer[256];
+	file = cache_get_entry(iso9660);
+	if (file != NULL) {
+		*pfile = file;
+		return (ARCHIVE_OK);
+	}
 
-  OSVERSIONINFOEX osvi;
-  BOOL bOsVersionInfoEx;
+	for (;;) {
+		struct file_info *re, *d;
 
-  // Try calling GetVersionEx using the OSVERSIONINFOEX structure.
-  // If that fails, try using the OSVERSIONINFO structure.
+		*pfile = file = next_entry(iso9660);
+		if (file == NULL) {
+			/*
+			 * If directory entries all which are descendant of
+			 * rr_moved are stil remaning, expose their. 
+			 */
+			if (iso9660->re_files.first != NULL && 
+			    iso9660->rr_moved != NULL &&
+			    iso9660->rr_moved->rr_moved_has_re_only)
+				/* Expose "rr_moved" entry. */
+				cache_add_entry(iso9660, iso9660->rr_moved);
+			while ((re = re_get_entry(iso9660)) != NULL) {
+				/* Expose its descendant dirs. */
+				while ((d = rede_get_entry(re)) != NULL)
+					cache_add_entry(iso9660, d);
+			}
+			if (iso9660->cache_files.first != NULL)
+				return (next_cache_entry(a, iso9660, pfile));
+			return (ARCHIVE_EOF);
+		}
 
-  ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
-  osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+		if (file->cl_offset) {
+			struct file_info *first_re = NULL;
+			int nexted_re = 0;
 
-  bOsVersionInfoEx = GetVersionEx((OSVERSIONINFO *)&osvi);
-  if (!bOsVersionInfoEx)
-    {
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    if (!GetVersionEx((OSVERSIONINFO *)&osvi)) 
-      {
-      return 0;
-      }
-    }
-  
-  switch (osvi.dwPlatformId)
-    {
-    // Test for the Windows NT product family.
+			/*
+			 * Find "RE" dir for the current file, which
+			 * has "CL" flag.
+			 */
+			while ((re = re_get_entry(iso9660))
+			    != first_re) {
+				if (first_re == NULL)
+					first_re = re;
+				if (re->offset == file->cl_offset) {
+					re->parent->subdirs--;
+					re->parent = file->parent;
+					re->re = 0;
+					if (re->parent->re_descendant) {
+						nexted_re = 1;
+						re->re_descendant = 1;
+						if (rede_add_entry(re) < 0)
+							goto fatal_rr;
+						/* Move a list of descendants
+						 * to a new ancestor. */
+						while ((d = rede_get_entry(
+						    re)) != NULL)
+							if (rede_add_entry(d)
+							    < 0)
+								goto fatal_rr;
+						break;
+					}
+					/* Replace the current file
+					 * with "RE" dir */
+					*pfile = file = re;
+					/* Expose its descendant */
+					while ((d = rede_get_entry(
+					    file)) != NULL)
+						cache_add_entry(
+						    iso9660, d);
+					break;
+				} else
+					re_add_entry(iso9660, re);
+			}
+			if (nexted_re) {
+				/*
+				 * Do not expose this at this time
+				 * because we have not gotten its full-path
+				 * name yet.
+				 */
+				continue;
+			}
+		} else if ((file->mode & AE_IFMT) == AE_IFDIR) {
+			int r;
 
-    case VER_PLATFORM_WIN32_NT:
-      
-      // Test for the specific product family.
+			/* Read file entries in this dir. */
+			r = read_children(a, file);
+			if (r != ARCHIVE_OK)
+				return (r);
 
-      if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 2)
-        {
-        res += "Microsoft Windows Server 2003 family";
-        }
+			/*
+			 * Handle a special dir of Rockridge extensions,
+			 * "rr_moved".
+			 */
+			if (file->rr_moved) {
+				/*
+				 * If this has only the subdirectories which
+				 * have "RE" flags, do not expose at this time.
+				 */
+				if (file->rr_moved_has_re_only)
+					continue;
+				/* Otherwise expose "rr_moved" entry. */
+			} else if (file->re) {
+				/*
+				 * Do not expose this at this time
+				 * because we have not gotten its full-path
+				 * name yet.
+				 */
+				re_add_entry(iso9660, file);
+				continue;
+			} else if (file->re_descendant) {
+				/*
+				 * If the top level "RE" entry of this entry
+				 * is not exposed, we, accordingly, should not
+				 * expose this entry at this time because
+				 * we cannot make its proper full-path name.
+				 */
+				if (rede_add_entry(file) == 0)
+					continue;
+				/* Otherwise we can expose this entry because
+				 * it seems its top level "RE" has already been
+				 * exposed. */
+			}
+		}
+		break;
+	}
 
-      if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 1)
-        {
-        res += "Microsoft Windows XP";
-        }
+	if ((file->mode & AE_IFMT) != AE_IFREG || file->number == -1)
+		return (ARCHIVE_OK);
 
-      if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 0)
-        {
-        res += "Microsoft Windows 2000";
-        }
+	count = 0;
+	number = file->number;
+	iso9660->cache_files.first = NULL;
+	iso9660->cache_files.last = &(iso9660->cache_files.first);
+	empty_files.first = NULL;
+	empty_files.last = &empty_files.first;
+	/* Collect files which has the same file serial number.
+	 * Peek pending_files so that file which number is different
+	 * is not put bak. */
+	while (iso9660->pending_files.used > 0 &&
+	    (iso9660->pending_files.files[0]->number == -1 ||
+	     iso9660->pending_files.files[0]->number == number)) {
+		if (file->number == -1) {
+			/* This file has the same offset
+			 * but it's wrong offset which empty files
+			 * and symlink files have.
+			 * NOTE: This wrong offse was recorded by
+			 * old mkisofs utility. If ISO images is
+			 * created by latest mkisofs, this does not
+			 * happen.
+			 */
+			file->next = NULL;
+			*empty_files.last = file;
+			empty_files.last = &(file->next);
+		} else {
+			count++;
+			cache_add_entry(iso9660, file);
+		}
+		file = next_entry(iso9660);
+	}
 
-      if (osvi.dwMajorVersion <= 4)
-        {
-        res += "Microsoft Windows NT";
-        }
+	if (count == 0) {
+		*pfile = file;
+		return ((file == NULL)?ARCHIVE_EOF:ARCHIVE_OK);
+	}
+	if (file->number == -1) {
+		file->next = NULL;
+		*empty_files.last = file;
+		empty_files.last = &(file->next);
+	} else {
+		count++;
+		cache_add_entry(iso9660, file);
+	}
 
-      // Test for specific product on Windows NT 4.0 SP6 and later.
+	if (count > 1) {
+		/* The count is the same as number of hardlink,
+		 * so much so that each nlinks of files in cache_file
+		 * is overwritten by value of the count.
+		 */
+		for (file = iso9660->cache_files.first;
+		    file != NULL; file = file->next)
+			file->nlinks = count;
+	}
+	/* If there are empty files, that files are added
+	 * to the tail of the cache_files. */
+	if (empty_files.first != NULL) {
+		*iso9660->cache_files.last = empty_files.first;
+		iso9660->cache_files.last = empty_files.last;
+	}
+	*pfile = cache_get_entry(iso9660);
+	return ((*pfile == NULL)?ARCHIVE_EOF:ARCHIVE_OK);
 
-      if (bOsVersionInfoEx)
-        {
-        // Test for the workstation type.
-
-#if (_MSC_VER >= 1300) 
-        if (osvi.wProductType == VER_NT_WORKSTATION)
-          {
-          if (osvi.dwMajorVersion == 4)
-            {
-            res += " Workstation 4.0";
-            }
-          else if (osvi.wSuiteMask & VER_SUITE_PERSONAL)
-            {
-            res += " Home Edition";
-            }
-          else
-            {
-            res += " Professional";
-            }
-          }
-            
-        // Test for the server type.
-
-        else if (osvi.wProductType == VER_NT_SERVER)
-          {
-          if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 2)
-            {
-            if (osvi.wSuiteMask & VER_SUITE_DATACENTER)
-              {
-              res += " Datacenter Edition";
-              }
-            else if (osvi.wSuiteMask & VER_SUITE_ENTERPRISE)
-              {
-              res += " Enterprise Edition";
-              }
-            else if (osvi.wSuiteMask == VER_SUITE_BLADE)
-              {
-              res += " Web Edition";
-              }
-            else
-              {
-              res += " Standard Edition";
-              }
-            }
-          
-          else if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 0)
-            {
-            if (osvi.wSuiteMask & VER_SUITE_DATACENTER)
-              {
-              res += " Datacenter Server";
-              }
-            else if (osvi.wSuiteMask & VER_SUITE_ENTERPRISE)
-              {
-              res += " Advanced Server";
-              }
-            else
-              {
-              res += " Server";
-              }
-            }
-
-          else  // Windows NT 4.0 
-            {
-            if (osvi.wSuiteMask & VER_SUITE_ENTERPRISE)
-              {
-              res += " Server 4.0, Enterprise Edition";
-              }
-            else
-              {
-              res += " Server 4.0";
-              }
-            }
-          }
-#endif // Visual Studio 7 and up
-        }
-
-      // Test for specific product on Windows NT 4.0 SP5 and earlier
-
-      else  
-        {
-        HKEY hKey;
-        #define BUFSIZE 80
-        char szProductType[BUFSIZE];
-        DWORD dwBufLen=BUFSIZE;
-        LONG lRet;
-
-        lRet = RegOpenKeyEx(
-          HKEY_LOCAL_MACHINE,
-          "SYSTEM\\CurrentControlSet\\Control\\ProductOptions",
-          0, KEY_QUERY_VALUE, &hKey);
-        if (lRet != ERROR_SUCCESS)
-          {
-          return 0;
-          }
-
-        lRet = RegQueryValueEx(hKey, "ProductType", NULL, NULL,
-                               (LPBYTE) szProductType, &dwBufLen);
-
-        if ((lRet != ERROR_SUCCESS) || (dwBufLen > BUFSIZE))
-          {
-          return 0;
-          }
-
-        RegCloseKey(hKey);
-
-        if (lstrcmpi("WINNT", szProductType) == 0)
-          {
-          res += " Workstation";
-          }
-        if (lstrcmpi("LANMANNT", szProductType) == 0)
-          {
-          res += " Server";
-          }
-        if (lstrcmpi("SERVERNT", szProductType) == 0)
-          {
-          res += " Advanced Server";
-          }
-
-        res += " ";
-        sprintf(buffer, "%d", osvi.dwMajorVersion);
-        res += buffer;
-        res += ".";
-        sprintf(buffer, "%d", osvi.dwMinorVersion);
-        res += buffer;
-        }
-
-      // Display service pack (if any) and build number.
-
-      if (osvi.dwMajorVersion == 4 && 
-          lstrcmpi(osvi.szCSDVersion, "Service Pack 6") == 0)
-        {
-        HKEY hKey;
-        LONG lRet;
-
-        // Test for SP6 versus SP6a.
-
-        lRet = RegOpenKeyEx(
-          HKEY_LOCAL_MACHINE,
-          "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Hotfix\\Q246009",
-          0, KEY_QUERY_VALUE, &hKey);
-
-        if (lRet == ERROR_SUCCESS)
-          {
-          res += " Service Pack 6a (Build ";
-          sprintf(buffer, "%d", osvi.dwBuildNumber & 0xFFFF);
-          res += buffer;
-          res += ")";
-          }
-        else // Windows NT 4.0 prior to SP6a
-          {
-          res += " ";
-          res += osvi.szCSDVersion;
-          res += " (Build ";
-          sprintf(buffer, "%d", osvi.dwBuildNumber & 0xFFFF);
-          res += buffer;
-          res += ")";
-          }
-        
-        RegCloseKey(hKey);
-        }
-      else // Windows NT 3.51 and earlier or Windows 2000 and later
-        {
-        res += " ";
-        res += osvi.szCSDVersion;
-        res += " (Build ";
-        sprintf(buffer, "%d", osvi.dwBuildNumber & 0xFFFF);
-        res += buffer;
-        res += ")";
-        }
-
-      break;
-
-      // Test for the Windows 95 product family.
-
-    case VER_PLATFORM_WIN32_WINDOWS:
-
-      if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 0)
-        {
-        res += "Microsoft Windows 95";
-        if (osvi.szCSDVersion[1] == 'C' || osvi.szCSDVersion[1] == 'B')
-          {
-          res += " OSR2";
-          }
-        }
-
-      if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 10)
-        {
-        res += "Microsoft Windows 98";
-        if (osvi.szCSDVersion[1] == 'A')
-          {
-          res += " SE";
-          }
-        }
-
-      if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 90)
-        {
-        res += "Microsoft Windows Millennium Edition";
-        } 
-      break;
-
-    case VER_PLATFORM_WIN32s:
-      
-      res +=  "Microsoft Win32s";
-      break;
-    }
-#endif
-
-  return res;
+fatal_rr:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    "Failed to connect 'CL' pointer to 'RE' rr_moved pointer of"
+	    "Rockridge extensions");
+	return (ARCHIVE_FATAL);
 }

@@ -1,49 +1,24 @@
-bool Directory::Load(const char* name)
+static int
+get_gss_name(struct connectdata *conn, bool proxy, gss_name_t *server)
 {
-  this->Clear();
-#if _MSC_VER < 1300
-  long srchHandle;
-#else
-  intptr_t srchHandle;
-#endif
-  char* buf;
-  size_t n = strlen(name);
-  if ( name[n - 1] == '/' || name[n - 1] == '\\' )
-    {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name);
-    }
-  else
-    {
-    // Make sure the slashes in the wildcard suffix are consistent with the
-    // rest of the path
-    buf = new char[n + 2 + 1];
-    if ( strchr(name, '\\') )
-      {
-      sprintf(buf, "%s\\*", name);
-      }
-    else
-      {
-      sprintf(buf, "%s/*", name);
-      }
-    }
-  struct _wfinddata_t data;      // data of current file
+  OM_uint32 major_status, minor_status;
+  gss_buffer_desc token = GSS_C_EMPTY_BUFFER;
+  char name[2048];
+  const char* service = "HTTP";
 
-  // Now put them into the file array
-  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
-  delete [] buf;
+  token.length = strlen(service) + 1 + strlen(proxy ? conn->proxy.name :
+                                              conn->host.name) + 1;
+  if(token.length + 1 > sizeof(name))
+    return EMSGSIZE;
 
-  if ( srchHandle == -1 )
-    {
-    return 0;
-    }
+  snprintf(name, sizeof(name), "%s@%s", service, proxy ? conn->proxy.name :
+           conn->host.name);
 
-  // Loop through names
-  do
-    {
-    this->Internal->Files.push_back(Encoding::ToNarrow(data.name));
-    }
-  while ( _wfindnext(srchHandle, &data) != -1 );
-  this->Internal->Path = name;
-  return _findclose(srchHandle) != -1;
+  token.value = (void *) name;
+  major_status = gss_import_name(&minor_status,
+                                 &token,
+                                 GSS_C_NT_HOSTBASED_SERVICE,
+                                 server);
+
+  return GSS_ERROR(major_status) ? -1 : 0;
 }

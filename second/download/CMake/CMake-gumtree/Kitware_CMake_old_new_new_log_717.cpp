@@ -1,1 +1,1 @@
-fprintf(stderr,"Illegal");
+len = vsnprintf(buf, sizeof(buf), format, va);

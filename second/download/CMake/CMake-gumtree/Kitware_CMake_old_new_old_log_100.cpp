@@ -1,3 +1,4 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.default");
+archive_set_error(&(self->archive->archive),
+		    ARCHIVE_ERRNO_MISC,
+		    "Failed to clean up %s compressor",
+		    self->archive->archive.compression_name);

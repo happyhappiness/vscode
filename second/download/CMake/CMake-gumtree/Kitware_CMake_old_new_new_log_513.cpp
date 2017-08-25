@@ -1,1 +1,2 @@
-fprintf(fout,"%s ",compileDefs[i].c_str());
+archive_set_error(&a->archive, errno,
+			    "Can't GetFileInformationByHandle");

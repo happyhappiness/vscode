@@ -1,1 +1,2 @@
-sprintf(totalBuf, "%6.2f sec", totalTestTime);
+archive_set_error(a, errno,
+				    "Can't allocate memory");

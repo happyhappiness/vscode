@@ -1,1 +1,1 @@
-fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");
+fprintf(stderr, "The %s target dependency graph is:\n", name);

@@ -1,2 +1,1 @@
-fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideBase.c_str(), rulesOverridePath2);
+fprintf(stderr, "target [%s] links to:\n", this->Target->GetName().c_str());

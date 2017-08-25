@@ -1,108 +1,159 @@
-bool WindowsRunCommand(const char* command,
-                       const char* dir,
-                       std::string& output,
-                       int& retVal,
-                       bool verbose)
+void cmake::GenerateGraphViz(const char* fileName)
 {
-  const int BUFFER_SIZE = 4096;
-  char buf[BUFFER_SIZE];                //i/o buffer
-  
-  STARTUPINFO si;
-  SECURITY_ATTRIBUTES sa;
-  SECURITY_DESCRIPTOR sd;        //security information for pipes
-  PROCESS_INFORMATION pi;
-  HANDLE newstdin,newstdout,read_stdout,write_stdin; //pipe handles
-
-  if (IsWinNT())                 //initialize security descriptor (Windows NT)
+  cmGeneratedFileStream str(fileName);
+  if ( !str )
     {
-    InitializeSecurityDescriptor(&sd,SECURITY_DESCRIPTOR_REVISION);
-    SetSecurityDescriptorDacl(&sd, true, NULL, false);
-    sa.lpSecurityDescriptor = &sd;
+    return;
     }
-  else sa.lpSecurityDescriptor = NULL;
-  sa.nLength = sizeof(SECURITY_ATTRIBUTES);
-  sa.bInheritHandle = true;      //allow inheritable handles
+  str << "digraph G {" << std::endl;
+  str << "node [" << std::endl;
+  str << "  fontsize = \"12\"" << std::endl;
+  str << "];" << std::endl;
 
-  if (!CreatePipe(&newstdin,&write_stdin,&sa,0)) //create stdin pipe
+  cmGlobalGenerator* gg = this->GetGlobalGenerator();
+  std::vector<cmLocalGenerator*> localGenerators;
+  gg->GetLocalGenerators(localGenerators);
+  std::vector<cmLocalGenerator*>::iterator lit;
+  // for target deps
+  // 1 - cmake target
+  // 2 - external target
+  // 0 - no deps
+  std::map<cmStdString, int> targetDeps;
+  std::map<cmStdString, cmTarget*> targetPtrs;
+  std::map<cmStdString, cmStdString> targetNamesNodes;
+  char tgtName[100];
+  int cnt = 0;
+  // First pass get the list of all cmake targets
+  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
     {
-    cmSystemTools::Error("CreatePipe");
-    return false;
-    }
-  if (!CreatePipe(&read_stdout,&newstdout,&sa,0)) //create stdout pipe
-    {
-    cmSystemTools::Error("CreatePipe");
-    CloseHandle(newstdin);
-    CloseHandle(write_stdin);
-    return false;
-    }
-
-  GetStartupInfo(&si);           //set startupinfo for the spawned process
-                                /*
-                                  The dwFlags member tells CreateProcess how to make the process.
-                                  STARTF_USESTDHANDLES validates the hStd* members. STARTF_USESHOWWINDOW
-                                  validates the wShowWindow member.
-                                */
-  si.dwFlags = STARTF_USESTDHANDLES|STARTF_USESHOWWINDOW;
-  si.wShowWindow = SW_HIDE;
-  si.hStdOutput = newstdout;
-  si.hStdError = newstdout;      //set the new handles for the child process
-  si.hStdInput = newstdin;
-  char* commandAndArgs = strcpy(new char[strlen(command)+1], command);
-  if (!CreateProcess(NULL,commandAndArgs,NULL,NULL,TRUE,CREATE_NEW_CONSOLE,
-                     NULL,dir,&si,&pi))
-    {
-    cmSystemTools::Error("CreateProcess failed", commandAndArgs);
-    CloseHandle(newstdin);
-    CloseHandle(newstdout);
-    CloseHandle(read_stdout);
-    CloseHandle(write_stdin);
-    delete [] commandAndArgs;
-    return false;
-    }
-  delete [] commandAndArgs;
-
-  unsigned long exit=0;          //process exit code
-  unsigned long bread;           //bytes read
-  unsigned long avail;           //bytes available
-
-  memset(buf, 0, sizeof(buf));
-  for(;;)                        //main program loop
-    {
-    GetExitCodeProcess(pi.hProcess,&exit); //while the process is running
-    if (exit != STILL_ACTIVE)
-      break;
-    //check to see if there is any data to read from stdout
-    PeekNamedPipe(read_stdout,buf,1023,&bread,&avail,NULL);
-    if (bread != 0)
+    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
+    cmTargets::iterator tit;
+    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
       {
-      memset(buf, 0, sizeof(buf));
-      if (avail > 1023)
+      //std::cout << "Found target: " << tit->first.c_str() << std::endl;
+      sprintf(tgtName, "node%d", cnt++);
+      targetNamesNodes[tit->first.c_str()] = tgtName;
+      targetPtrs[tit->first.c_str()] = &tit->second;
+      //str << "    \"" << tgtName << "\" [ label=\"" << tit->first.c_str() <<  "\" shape=\"box\"];" << std::endl;
+      }
+    }
+  // Ok, now find all the stuff we link to that is not in cmake
+  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
+    {
+    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
+    cmTargets::iterator tit;
+    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
+      {
+      const cmTarget::LinkLibraries* ll = &(tit->second.GetOriginalLinkLibraries());
+      cmTarget::LinkLibraries::const_iterator llit;
+      if ( ll->size() > 0 )
         {
-        while (bread >= 1023)
-          {
-          ReadFile(read_stdout,buf,1023,&bread,NULL); //read the stdout pipe
-          printf("%s",buf);
-          memset(buf, 0, sizeof(buf));
-          }
+        targetDeps[tit->first.c_str()] = 1;
         }
-      else
+      for ( llit = ll->begin(); llit != ll->end(); ++ llit )
         {
-        ReadFile(read_stdout,buf,1023,&bread,NULL);
-        output += buf;
-        output += "\n";
-        if(verbose)
+        const char* libName = llit->first.c_str();
+        std::map<cmStdString, cmStdString>::iterator tarIt = targetNamesNodes.find(libName);
+        if ( tarIt == targetNamesNodes.end() )
           {
-          std::cout << buf << "\n" << std::flush;
+          sprintf(tgtName, "node%d", cnt++);
+          targetDeps[libName] = 2;
+          targetNamesNodes[libName] = tgtName;
+          //str << "    \"" << tgtName << "\" [ label=\"" << libName <<  "\" shape=\"ellipse\"];" << std::endl;
+          }
+        else
+          {
+          std::map<cmStdString, int>::iterator depIt = targetDeps.find(libName);
+          if ( depIt == targetDeps.end() )
+            {
+            targetDeps[libName] = 1;
+            }
           }
         }
       }
     }
-  CloseHandle(pi.hThread);
-  CloseHandle(pi.hProcess);
-  CloseHandle(newstdin);         //clean stuff up
-  CloseHandle(newstdout);
-  CloseHandle(read_stdout);
-  CloseHandle(write_stdin);
-  retVal = exit;
-  return true;
+
+  // Write out nodes
+  std::map<cmStdString, int>::iterator depIt;
+  for ( depIt = targetDeps.begin(); depIt != targetDeps.end(); ++ depIt )
+    {
+    const char* newTargetName = depIt->first.c_str();
+    std::map<cmStdString, cmStdString>::iterator tarIt = targetNamesNodes.find(newTargetName);
+    if ( tarIt == targetNamesNodes.end() )
+      {
+      // We should not be here.
+      std::cout << "Cannot find library: " << newTargetName << " even though it was added in the previous pass" << std::endl;
+      abort();
+      }
+
+    str << "    \"" << tarIt->second.c_str() << "\" [ label=\"" << newTargetName <<  "\" shape=\"";
+    if ( depIt->second == 1 )
+      {
+      std::map<cmStdString, cmTarget*>::iterator tarTypeIt= targetPtrs.find(newTargetName);
+      if ( tarTypeIt == targetPtrs.end() )
+        {
+        // We should not be here.
+        std::cout << "Cannot find library: " << newTargetName << " even though it was added in the previous pass" << std::endl;
+        abort();
+        }
+      cmTarget* tg = tarTypeIt->second;
+      switch ( tg->GetType() )
+        {
+      case cmTarget::EXECUTABLE:
+        str << "house";
+        break;
+      case cmTarget::STATIC_LIBRARY:
+        str << "diamond";
+        break;
+      case cmTarget::SHARED_LIBRARY:
+        str << "polygon";
+        break;
+      case cmTarget::MODULE_LIBRARY:
+        str << "octagon";
+        break;
+      default:
+        str << "box";
+        }
+      }
+    else
+      {
+      str << "ellipse";
+      }
+    str << "\"];" << std::endl;
+    }
+
+  // Now generate the connectivity
+  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
+    {
+    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
+    cmTargets::iterator tit;
+    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
+      {
+      std::map<cmStdString, int>::iterator dependIt = targetDeps.find(tit->first.c_str());
+      if ( dependIt == targetDeps.end() )
+        {
+        continue;
+        }
+      std::map<cmStdString, cmStdString>::iterator cmakeTarIt = targetNamesNodes.find(tit->first.c_str());
+      const cmTarget::LinkLibraries* ll = &(tit->second.GetOriginalLinkLibraries());
+      cmTarget::LinkLibraries::const_iterator llit;
+      for ( llit = ll->begin(); llit != ll->end(); ++ llit )
+        {
+        const char* libName = llit->first.c_str();
+        std::map<cmStdString, cmStdString>::iterator tarIt = targetNamesNodes.find(libName);
+        if ( tarIt == targetNamesNodes.end() )
+          {
+          // We should not be here.
+          std::cout << "Cannot find library: " << libName << " even though it was added in the previous pass" << std::endl;
+          abort();
+          }
+        str << "    \"" << cmakeTarIt->second.c_str() << "\" -> \"" << tarIt->second.c_str() << "\"" << std::endl;
+        }
+      }
+    }
+
+  // TODO: Use dotted or something for external libraries
+  //str << "    \"node0\":f4 -> \"node12\"[color=\"#0000ff\" style=dotted]" << std::endl;
+  //
+  str << "}" << std::endl;
 }

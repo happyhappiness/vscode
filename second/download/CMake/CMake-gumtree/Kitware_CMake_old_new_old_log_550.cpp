@@ -1,1 +1,1 @@
-sprintf(this->ChipID.ProcessorName,"%s",this->ParseValueFromKStat("-s cpu_type").c_str());
+archive_set_error(&a->archive, errno, "Seek error");

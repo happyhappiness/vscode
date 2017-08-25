@@ -1,1 +1,1 @@
-sprintf(firstLine,  "O)k");
+printf("### done extracting %s\n", filename);

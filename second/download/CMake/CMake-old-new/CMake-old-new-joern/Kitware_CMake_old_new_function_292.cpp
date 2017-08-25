@@ -1,24 +1,10 @@
-static ssize_t
-_archive_write_disk_data_block(struct archive *_a,
-    const void *buff, size_t size, int64_t offset)
+void cmListFileLexer_yyset_column (int  column_no , yyscan_t yyscanner)
 {
-	struct archive_write_disk *a = (struct archive_write_disk *)_a;
-	ssize_t r;
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
 
-	archive_check_magic(&a->archive, ARCHIVE_WRITE_DISK_MAGIC,
-	    ARCHIVE_STATE_DATA, "archive_write_data_block");
+        /* column is only valid if an input buffer exists. */
+        if (! YY_CURRENT_BUFFER )
+           yy_fatal_error( "cmListFileLexer_yyset_column called with no buffer" , yyscanner);
 
-	a->offset = offset;
-	if (a->todo & TODO_HFS_COMPRESSION)
-		r = hfs_write_data_block(a, buff, size);
-	else
-		r = write_data_block(a, buff, size);
-	if (r < ARCHIVE_OK)
-		return (r);
-	if ((size_t)r < size) {
-		archive_set_error(&a->archive, 0,
-		    "Write request too large");
-		return (ARCHIVE_WARN);
-	}
-	return (ARCHIVE_OK);
+    yycolumn = column_no;
 }

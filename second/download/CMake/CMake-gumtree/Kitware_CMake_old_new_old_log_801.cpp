@@ -1,1 +1,1 @@
-fprintf(stderr,"Testing %-30s ",args[0].c_str());
+::sprintf(newkey, "%s\\%s", this->m_SubKey.c_str(), key);

@@ -1,10 +1,7 @@
 {
-            symbol = stringTable + pSymbolTable->N.Name.Long;
-            while (isspace(symbol[0]))  symbol.erase(0,1);
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (!fImportFlag) {
-               fImportFlag = 1;
-               fprintf(fout,"IMPORTS \n");
-            }
-            fprintf(fout, "\t%s DATA \n", symbol.c_str()+1);
-         }
+							archive_set_error(&a->archive,
+									ARCHIVE_ERRNO_MISC,
+									"mtree specification has different type for %s",
+									archive_entry_pathname(entry));
+							r = ARCHIVE_WARN;
+						}

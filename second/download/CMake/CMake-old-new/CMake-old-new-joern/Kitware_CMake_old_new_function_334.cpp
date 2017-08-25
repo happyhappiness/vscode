@@ -1,84 +1,68 @@
-void cmGlobalGenerator::Configure()
+static int
+archive_compressor_xz_init_stream(struct archive_write_filter *f,
+    struct private_data *data)
 {
-  this->FirstTimeProgress = 0.0f;
-  this->ClearGeneratorMembers();
+	static const lzma_stream lzma_stream_init_data = LZMA_STREAM_INIT;
+	int ret;
 
-  // start with this directory
-  cmLocalGenerator *lg = this->MakeLocalGenerator();
-  this->Makefiles.push_back(lg->GetMakefile());
-  this->LocalGenerators.push_back(lg);
+	data->stream = lzma_stream_init_data;
+	data->stream.next_out = data->compressed;
+	data->stream.avail_out = data->compressed_buffer_size;
+	if (f->code == ARCHIVE_FILTER_XZ)
+		ret = lzma_stream_encoder(&(data->stream),
+		    data->lzmafilters, LZMA_CHECK_CRC64);
+	else if (f->code == ARCHIVE_FILTER_LZMA)
+		ret = lzma_alone_encoder(&(data->stream), &data->lzma_opt);
+	else {	/* ARCHIVE_FILTER_LZIP */
+		int dict_size = data->lzma_opt.dict_size;
+		int ds, log2dic, wedges;
 
-  // set the Start directories
-  lg->GetMakefile()->SetCurrentSourceDirectory
-    (this->CMakeInstance->GetHomeDirectory());
-  lg->GetMakefile()->SetCurrentBinaryDirectory
-    (this->CMakeInstance->GetHomeOutputDirectory());
+		/* Calculate a coded dictionary size */
+		if (dict_size < (1 << 12) || dict_size > (1 << 27)) {
+			archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    "Unacceptable dictionary dize for lzip: %d",
+			    dict_size);
+			return (ARCHIVE_FATAL);
+		}
+		for (log2dic = 27; log2dic >= 12; log2dic--) {
+			if (dict_size & (1 << log2dic))
+				break;
+		}
+		if (dict_size > (1 << log2dic)) {
+			log2dic++;
+			wedges =
+			    ((1 << log2dic) - dict_size) / (1 << (log2dic - 4));
+		} else
+			wedges = 0;
+		ds = ((wedges << 5) & 0xe0) | (log2dic & 0x1f);
 
-  this->BinaryDirectories.insert(
-      this->CMakeInstance->GetHomeOutputDirectory());
+		data->crc32 = 0;
+		/* Make a header */
+		data->compressed[0] = 0x4C;
+		data->compressed[1] = 0x5A;
+		data->compressed[2] = 0x49;
+		data->compressed[3] = 0x50;
+		data->compressed[4] = 1;/* Version */
+		data->compressed[5] = (unsigned char)ds;
+		data->stream.next_out += 6;
+		data->stream.avail_out -= 6;
 
-  // now do it
-  lg->GetMakefile()->Configure();
-  lg->GetMakefile()->EnforceDirectoryLevelRules();
+		ret = lzma_raw_encoder(&(data->stream), data->lzmafilters);
+	}
+	if (ret == LZMA_OK)
+		return (ARCHIVE_OK);
 
-  // update the cache entry for the number of local generators, this is used
-  // for progress
-  char num[100];
-  sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
-  this->GetCMakeInstance()->AddCacheEntry
-    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
-     "number of local generators", cmState::INTERNAL);
-
-  // check for link libraries and include directories containing "NOTFOUND"
-  // and for infinite loops
-  this->CheckLocalGenerators();
-
-  // at this point this->LocalGenerators has been filled,
-  // so create the map from project name to vector of local generators
-  this->FillProjectMap();
-
-  if ( this->CMakeInstance->GetWorkingMode() == cmake::NORMAL_MODE)
-    {
-    std::ostringstream msg;
-    if(cmSystemTools::GetErrorOccuredFlag())
-      {
-      msg << "Configuring incomplete, errors occurred!";
-      const char* logs[] = {"CMakeOutput.log", "CMakeError.log", 0};
-      for(const char** log = logs; *log; ++log)
-        {
-        std::string f = this->CMakeInstance->GetHomeOutputDirectory();
-        f += this->CMakeInstance->GetCMakeFilesDirectory();
-        f += "/";
-        f += *log;
-        if(cmSystemTools::FileExists(f.c_str()))
-          {
-          msg << "\nSee also \"" << f << "\".";
-          }
-        }
-      }
-    else
-      {
-      msg << "Configuring done";
-      }
-    this->CMakeInstance->UpdateProgress(msg.str().c_str(), -1);
-    }
-
-  unsigned int i;
-
-  // Put a copy of each global target in every directory.
-  cmTargets globalTargets;
-  this->CreateDefaultGlobalTargets(&globalTargets);
-
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    cmMakefile* mf = this->LocalGenerators[i]->GetMakefile();
-    cmTargets* targets = &(mf->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = globalTargets.begin(); tit != globalTargets.end(); ++ tit )
-      {
-      (*targets)[tit->first] = tit->second;
-      (*targets)[tit->first].SetMakefile(mf);
-      }
-    }
-
+	switch (ret) {
+	case LZMA_MEM_ERROR:
+		archive_set_error(f->archive, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "Cannot allocate memory");
+		break;
+	default:
+		archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library: "
+		    "It's a bug in liblzma");
+		break;
+	}
+	return (ARCHIVE_FATAL);
 }

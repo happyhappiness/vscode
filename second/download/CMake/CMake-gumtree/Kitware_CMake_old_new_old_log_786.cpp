@@ -1,1 +1,1 @@
-fout << "  printf(\"Available tests:\\n\");\n";
+sprintf(num,"%d",static_cast<int>(m_LocalGenerators.size()));

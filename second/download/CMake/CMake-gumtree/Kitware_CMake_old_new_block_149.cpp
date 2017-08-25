@@ -1,5 +1,6 @@
 {
+		tar->entry_bytes_remaining = 0;
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Invalid empty pathname");
-		return (ARCHIVE_FAILED);
+		    "Tar entry has negative size?");
+		err = ARCHIVE_WARN;
 	}

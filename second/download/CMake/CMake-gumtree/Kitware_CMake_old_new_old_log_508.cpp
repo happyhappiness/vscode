@@ -1,2 +1,2 @@
-fprintf(fout, "SET(%s \"%s\")\n",
-              rulesOverrideBase, rulesOverridePath2);
+archive_set_error(&a->archive, GetLastError(),
+				    "Can't GetFileInformationByHandle");

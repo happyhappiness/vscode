@@ -1,3 +1,1 @@
-archive_set_error(&a->archive,
-					    ARCHIVE_ERRNO_MISC,
-					    "Couldn't allocate memory");
+fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);

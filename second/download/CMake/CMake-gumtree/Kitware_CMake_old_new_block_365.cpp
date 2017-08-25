@@ -1,4 +1,5 @@
 {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name);
+        snprintf(buf + len, sizeof(buf) - len,
+                 ": %s", (char*) status_string.value);
+      len += status_string.length;
     }

@@ -1,2 +1,4 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "lha: unknown keyword ``%s''", key);
+archive_set_error(
+							&filter->archive->archive,
+							ENOMEM,
+						    "Unable to allocate copy buffer");

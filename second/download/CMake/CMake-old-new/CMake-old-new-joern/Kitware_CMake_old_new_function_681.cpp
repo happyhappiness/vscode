@@ -1,113 +1,165 @@
-static
-CURLcode ftp_perform(struct connectdata *conn,
-                     bool *connected)  /* for the TCP connect status after
-                                          PASV / PORT */
+int cmCTestTestHandler::ProcessHandler()
 {
-  /* this is FTP and no proxy */
-  CURLcode result=CURLE_OK;
-  struct SessionHandle *data=conn->data;
-  char *buf = data->state.buffer; /* this is our buffer */
-
-  /* the ftp struct is already inited in Curl_ftp_connect() */
-  struct FTP *ftp = conn->proto.ftp;
-
-  /* Send any QUOTE strings? */
-  if(data->set.quote) {
-    if ((result = ftp_sendquote(conn, data->set.quote)) != CURLE_OK)
-      return result;
-  }
-    
-  /* This is a re-used connection. Since we change directory to where the
-     transfer is taking place, we must now get back to the original dir
-     where we ended up after login: */
-  if (conn->bits.reuse && ftp->entrypath) {
-    if ((result = ftp_cwd(conn, ftp->entrypath)) != CURLE_OK)
-      return result;
-  }
-
-  /* change directory first! */
-  if(ftp->dir && ftp->dir[0]) {
-    if ((result = ftp_cwd(conn, ftp->dir)) != CURLE_OK)
-        return result;
-  }
-
-  /* Requested time of file? */
-  if(data->set.get_filetime && ftp->file) {
-    result = ftp_getfiletime(conn, ftp->file);
-    if(result)
-      return result;
-  }
-
-  /* If we have selected NOBODY and HEADER, it means that we only want file
-     information. Which in FTP can't be much more than the file size and
-     date. */
-  if(data->set.no_body && data->set.include_header && ftp->file) {
-    /* The SIZE command is _not_ RFC 959 specified, and therefor many servers
-       may not support it! It is however the only way we have to get a file's
-       size! */
-    ssize_t filesize;
-
-    ftp->no_transfer = TRUE; /* this means no actual transfer is made */
-    
-    /* Some servers return different sizes for different modes, and thus we
-       must set the proper type before we check the size */
-    result = ftp_transfertype(conn, data->set.ftp_ascii);
-    if(result)
-      return result;
-
-    /* failing to get size is not a serious error */
-    result = ftp_getsize(conn, ftp->file, &filesize);
-
-    if(CURLE_OK == result) {
-      sprintf(buf, "Content-Length: %d\r\n", filesize);
-      result = Curl_client_write(data, CLIENTWRITE_BOTH, buf, 0);
-      if(result)
-        return result;
+  // Update internal data structure from generic one
+  this->SetTestsToRunInformation(this->GetOption("TestsToRunInformation"));
+  this->SetUseUnion(cmSystemTools::IsOn(this->GetOption("UseUnion")));
+  const char* val;
+  val = this->GetOption("LabelRegularExpression");
+  if ( val )
+    {
+    this->UseIncludeLabelRegExpFlag = true;
+    this->IncludeLabelRegExp = val;
     }
-
-    /* If we asked for a time of the file and we actually got one as
-       well, we "emulate" a HTTP-style header in our output. */
-
-#ifdef HAVE_STRFTIME
-    if(data->set.get_filetime && (data->info.filetime>=0) ) {
-      struct tm *tm;
-#ifdef HAVE_LOCALTIME_R
-      struct tm buffer;
-      tm = (struct tm *)localtime_r((time_t*)&data->info.filetime, &buffer);
-#else
-      tm = localtime((time_t *)&data->info.filetime);
-#endif
-      /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-      strftime(buf, BUFSIZE-1, "Last-Modified: %a, %d %b %Y %H:%M:%S %Z\r\n",
-               tm);
-      result = Curl_client_write(data, CLIENTWRITE_BOTH, buf, 0);
-      if(result)
-        return result;
+  val = this->GetOption("ExcludeLabelRegularExpression");
+  if ( val )
+    {
+    this->UseExcludeLabelRegExpFlag = true;
+    this->ExcludeLabelRegularExpression = val;
     }
-#endif
-
-    return CURLE_OK;
-  }
-
-  if(data->set.no_body)
-    /* doesn't really transfer any data */
-    ftp->no_transfer = TRUE;
-  /* Get us a second connection up and connected */
-  else if(data->set.ftp_use_port) {
-    /* We have chosen to use the PORT command */
-    result = ftp_use_port(conn);
-    if(CURLE_OK == result) {
-      /* we have the data connection ready */
-      infof(data, "Ordered connect of the data stream with PORT!\n");
-      *connected = TRUE; /* mark us "still connected" */
+  val = this->GetOption("IncludeRegularExpression");
+  if ( val )
+    {
+    this->UseIncludeRegExp();
+    this->SetIncludeRegExp(val);
     }
-  }
-  else {
-    /* We have chosen (this is default) to use the PASV command */
-    result = ftp_use_pasv(conn, connected);
-    if(connected)
-      infof(data, "Connected the data stream with PASV!\n");
-  }
+  val = this->GetOption("ExcludeRegularExpression");
+  if ( val )
+    {
+    this->UseExcludeRegExp();
+    this->SetExcludeRegExp(val);
+    }
   
-  return result;
+  this->TestResults.clear();
+ // do not output startup if this is a sub-process for parallel tests
+  if(!this->CTest->GetParallelSubprocess())
+    {
+    cmCTestLog(this->CTest, HANDLER_OUTPUT,
+               (this->MemCheck ? "Memory check" : "Test")
+               << " project " << cmSystemTools::GetCurrentWorkingDirectory()
+               << std::endl);
+    }
+  if ( ! this->PreProcessHandler() )
+    {
+    return -1;
+    }
+
+  cmGeneratedFileStream mLogFile;
+  this->StartLogFile((this->MemCheck ? "DynamicAnalysis" : "Test"), mLogFile);
+  this->LogFile = &mLogFile;
+
+  std::vector<cmStdString> passed;
+  std::vector<cmStdString> failed;
+  int total;
+  this->ProcessDirectory(passed, failed);
+
+  total = int(passed.size()) + int(failed.size());
+
+  if (total == 0)
+    {
+    if ( !this->CTest->GetShowOnly() )
+      {
+      cmCTestLog(this->CTest, ERROR_MESSAGE, "No tests were found!!!"
+        << std::endl);
+      }
+    }
+  else
+    {
+    if (this->HandlerVerbose && passed.size() &&
+      (this->UseIncludeRegExpFlag || this->UseExcludeRegExpFlag))
+      {
+      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
+        << "The following tests passed:" << std::endl);
+      for(std::vector<cmStdString>::iterator j = passed.begin();
+          j != passed.end(); ++j)
+        {
+        cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "\t" << *j
+          << std::endl);
+        }
+      }
+
+    float percent = float(passed.size()) * 100.0f / total;
+    if ( failed.size() > 0 &&  percent > 99)
+      {
+      percent = 99;
+      }
+    
+    if(!this->CTest->GetParallelSubprocess())
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl
+                 << static_cast<int>(percent + .5) << "% tests passed, "
+                 << failed.size() << " tests failed out of " 
+                 << total << std::endl); 
+      double totalTestTime = 0;
+
+      for(cmCTestTestHandler::TestResultsVector::size_type cc = 0;
+          cc < this->TestResults.size(); cc ++ )
+        {
+        cmCTestTestResult *result = &this->TestResults[cc];
+        totalTestTime += result->ExecutionTime;
+        }
+      
+      char buf[1024];
+      sprintf(buf, "%6.2f sec", totalTestTime); 
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time = " 
+                 <<  buf << "\n" );
+      
+      }
+
+    if (failed.size())
+      {
+      cmGeneratedFileStream ofs;
+      if(!this->CTest->GetParallelSubprocess())
+        {
+        cmCTestLog(this->CTest, ERROR_MESSAGE, std::endl
+                   << "The following tests FAILED:" << std::endl);
+        this->StartLogFile("TestsFailed", ofs);
+        
+        std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;
+        for(ftit = this->TestResults.begin();
+            ftit != this->TestResults.end(); ++ftit)
+          {
+          if ( ftit->Status != cmCTestTestHandler::COMPLETED )
+            {
+            ofs << ftit->TestCount << ":" << ftit->Name << std::endl;
+            cmCTestLog(this->CTest, HANDLER_OUTPUT, "\t" << std::setw(3)
+                       << ftit->TestCount << " - " 
+                       << ftit->Name.c_str() << " ("
+                       << this->GetTestStatus(ftit->Status) << ")" 
+                       << std::endl);
+            }
+          }
+        
+        }
+      }
+    }
+
+  if ( this->CTest->GetProduceXML() )
+    {
+    cmGeneratedFileStream xmlfile;
+    if( !this->StartResultingXML(
+          (this->MemCheck ? cmCTest::PartMemCheck : cmCTest::PartTest),
+        (this->MemCheck ? "DynamicAnalysis" : "Test"), xmlfile) )
+      {
+      cmCTestLog(this->CTest, ERROR_MESSAGE, "Cannot create "
+        << (this->MemCheck ? "memory check" : "testing")
+        << " XML file" << std::endl);
+      this->LogFile = 0;
+      return 1;
+      }
+    this->GenerateDartOutput(xmlfile);
+    }
+
+  if ( ! this->PostProcessHandler() )
+    {
+    this->LogFile = 0;
+    return -1;
+    }
+
+  if ( !failed.empty() )
+    {
+    this->LogFile = 0;
+    return -1;
+    }
+  this->LogFile = 0;
+  return 0;
 }

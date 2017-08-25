@@ -1,1 +1,1 @@
-fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
+fprintf(out, "%s", archive_entry_pathname(entry));

@@ -1,1 +1,1 @@
-sprintf(firstLine,  "Press [c] to configure");
+pathname = th_get_pathname(t);

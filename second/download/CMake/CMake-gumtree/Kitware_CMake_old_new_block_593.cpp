@@ -1,5 +1,2 @@
-{
-  char * temp = new char[32];
-  sprintf(temp,"%d",this->ChipID.Model);
-  return temp;
-}
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "zip: unknown keyword ``%s''", key)

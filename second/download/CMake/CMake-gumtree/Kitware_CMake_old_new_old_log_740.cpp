@@ -1,1 +1,1 @@
-buf = aprintf(fmt, ap);
+fprintf(stdout, "%s",   base64);

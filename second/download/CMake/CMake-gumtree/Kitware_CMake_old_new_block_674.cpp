@@ -1,20 +1,26 @@
 {
-    case 1: /* only one byte read */
-      sprintf(output, "%c%c==", 
-              table64[obuf[0]],
-              table64[obuf[1]]);
-      break;
-    case 2: /* two bytes read */
-      sprintf(output, "%c%c%c=", 
-              table64[obuf[0]],
-              table64[obuf[1]],
-              table64[obuf[2]]);
-      break;
-    default:
-      sprintf(output, "%c%c%c%c", 
-              table64[obuf[0]],
-              table64[obuf[1]],
-              table64[obuf[2]],
-              table64[obuf[3]] );
-      break;
+#ifdef CMAKE_BUILD_WITH_CMAKE
+  // Loop over all registered commands and print out documentation
+  const char *name;
+  const char *terse;
+  const char *full;
+  char tmp[1024];
+  sprintf(tmp,"Version %s", cmVersion::GetCMakeVersion());
+  f << "<html>\n";
+  f << "<h1>Documentation for commands of CMake " << tmp << "</h1>\n";
+  f << "<ul>\n";
+  for(RegisteredCommandsMap::iterator j = this->Commands.begin();
+      j != this->Commands.end(); ++j)
+    {
+    name = (*j).second->GetName();
+    terse = (*j).second->GetTerseDocumentation();
+    full = (*j).second->GetFullDocumentation();
+    f << "<li><b>" << name << "</b> - " << terse << std::endl
+      << "<br><i>Usage:</i> " << full << "</li>" << std::endl << std::endl;
     }
+  f << "</ul></html>\n";
+#else
+  (void)f;
+#endif
+  return 1;
+}

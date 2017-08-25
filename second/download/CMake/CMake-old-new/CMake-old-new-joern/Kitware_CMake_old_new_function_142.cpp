@@ -1,162 +1,68 @@
 static int
-decompress(struct archive_read *a, const void **buff, size_t *outbytes,
-    const void *b, size_t *used)
+lzma_bidder_init(struct archive_read_filter *self)
 {
-	struct xar *xar;
-	void *outbuff;
-	size_t avail_in, avail_out;
-	int r;
+	static const size_t out_block_size = 64 * 1024;
+	void *out_block;
+	struct private_data *state;
+	ssize_t ret, avail_in;
 
-	xar = (struct xar *)(a->format->data);
-	avail_in = *used;
-	outbuff = (void *)(uintptr_t)*buff;
-	if (outbuff == NULL) {
-		if (xar->outbuff == NULL) {
-			xar->outbuff = malloc(OUTBUFF_SIZE);
-			if (xar->outbuff == NULL) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "Couldn't allocate memory for out buffer");
-				return (ARCHIVE_FATAL);
-			}
-		}
-		outbuff = xar->outbuff;
-		*buff = outbuff;
-		avail_out = OUTBUFF_SIZE;
-	} else
-		avail_out = *outbytes;
-	switch (xar->rd_encoding) {
-	case GZIP:
-		xar->stream.next_in = (Bytef *)(uintptr_t)b;
-		xar->stream.avail_in = avail_in;
-		xar->stream.next_out = (unsigned char *)outbuff;
-		xar->stream.avail_out = avail_out;
-		r = inflate(&(xar->stream), 0);
-		switch (r) {
-		case Z_OK: /* Decompressor made some progress.*/
-		case Z_STREAM_END: /* Found end of stream. */
-			break;
-		default:
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "File decompression failed (%d)", r);
-			return (ARCHIVE_FATAL);
-		}
-		*used = avail_in - xar->stream.avail_in;
-		*outbytes = avail_out - xar->stream.avail_out;
+	self->code = ARCHIVE_FILTER_LZMA;
+	self->name = "lzma";
+
+	state = (struct private_data *)calloc(sizeof(*state), 1);
+	out_block = (unsigned char *)malloc(out_block_size);
+	if (state == NULL || out_block == NULL) {
+		archive_set_error(&self->archive->archive, ENOMEM,
+		    "Can't allocate data for lzma decompression");
+		free(out_block);
+		free(state);
+		return (ARCHIVE_FATAL);
+	}
+
+	self->data = state;
+	state->out_block_size = out_block_size;
+	state->out_block = out_block;
+	self->read = lzma_filter_read;
+	self->skip = NULL; /* not supported */
+	self->close = lzma_filter_close;
+
+	/* Prime the lzma library with 18 bytes of input. */
+	state->stream.next_in = (unsigned char *)(uintptr_t)
+	    __archive_read_filter_ahead(self->upstream, 18, &avail_in);
+	if (state->stream.next_in == NULL)
+		return (ARCHIVE_FATAL);
+	state->stream.avail_in = avail_in;
+	state->stream.next_out = state->out_block;
+	state->stream.avail_out = state->out_block_size;
+
+	/* Initialize compression library. */
+	ret = lzmadec_init(&(state->stream));
+	__archive_read_filter_consume(self->upstream,
+	    avail_in - state->stream.avail_in);
+	if (ret == LZMADEC_OK)
+		return (ARCHIVE_OK);
+
+	/* Library setup failed: Clean up. */
+	archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+	    "Internal error initializing lzma library");
+
+	/* Override the error message if we know what really went wrong. */
+	switch (ret) {
+	case LZMADEC_HEADER_ERROR:
+		archive_set_error(&self->archive->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library: "
+		    "invalid header");
 		break;
-#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-		xar->bzstream.next_in = (char *)(uintptr_t)b;
-		xar->bzstream.avail_in = avail_in;
-		xar->bzstream.next_out = (char *)outbuff;
-		xar->bzstream.avail_out = avail_out;
-		r = BZ2_bzDecompress(&(xar->bzstream));
-		switch (r) {
-		case BZ_STREAM_END: /* Found end of stream. */
-			switch (BZ2_bzDecompressEnd(&(xar->bzstream))) {
-			case BZ_OK:
-				break;
-			default:
-				archive_set_error(&(a->archive),
-				    ARCHIVE_ERRNO_MISC,
-				    "Failed to clean up decompressor");
-				return (ARCHIVE_FATAL);
-			}
-			xar->bzstream_valid = 0;
-			/* FALLTHROUGH */
-		case BZ_OK: /* Decompressor made some progress. */
-			break;
-		default:
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "bzip decompression failed");
-			return (ARCHIVE_FATAL);
-		}
-		*used = avail_in - xar->bzstream.avail_in;
-		*outbytes = avail_out - xar->bzstream.avail_out;
-		break;
-#endif
-#if defined(HAVE_LZMA_H) && defined(HAVE_LIBLZMA)
-	case LZMA:
-	case XZ:
-		xar->lzstream.next_in = b;
-		xar->lzstream.avail_in = avail_in;
-		xar->lzstream.next_out = (unsigned char *)outbuff;
-		xar->lzstream.avail_out = avail_out;
-		r = lzma_code(&(xar->lzstream), LZMA_RUN);
-		switch (r) {
-		case LZMA_STREAM_END: /* Found end of stream. */
-			lzma_end(&(xar->lzstream));
-			xar->lzstream_valid = 0;
-			/* FALLTHROUGH */
-		case LZMA_OK: /* Decompressor made some progress. */
-			break;
-		default:
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "%s decompression failed(%d)",
-			    (xar->entry_encoding == XZ)?"xz":"lzma",
-			    r);
-			return (ARCHIVE_FATAL);
-		}
-		*used = avail_in - xar->lzstream.avail_in;
-		*outbytes = avail_out - xar->lzstream.avail_out;
-		break;
-#elif defined(HAVE_LZMADEC_H) && defined(HAVE_LIBLZMADEC)
-	case LZMA:
-		xar->lzstream.next_in = (unsigned char *)(uintptr_t)b;
-		xar->lzstream.avail_in = avail_in;
-		xar->lzstream.next_out = (unsigned char *)outbuff;
-		xar->lzstream.avail_out = avail_out;
-		r = lzmadec_decode(&(xar->lzstream), 0);
-		switch (r) {
-		case LZMADEC_STREAM_END: /* Found end of stream. */
-			switch (lzmadec_end(&(xar->lzstream))) {
-			case LZMADEC_OK:
-				break;
-			default:
-				archive_set_error(&(a->archive),
-				    ARCHIVE_ERRNO_MISC,
-				    "Failed to clean up lzmadec decompressor");
-				return (ARCHIVE_FATAL);
-			}
-			xar->lzstream_valid = 0;
-			/* FALLTHROUGH */
-		case LZMADEC_OK: /* Decompressor made some progress. */
-			break;
-		default:
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "lzmadec decompression failed(%d)",
-			    r);
-			return (ARCHIVE_FATAL);
-		}
-		*used = avail_in - xar->lzstream.avail_in;
-		*outbytes = avail_out - xar->lzstream.avail_out;
-		break;
-#endif
-#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-#endif
-#if !defined(HAVE_LZMA_H) || !defined(HAVE_LIBLZMA)
-#if !defined(HAVE_LZMADEC_H) || !defined(HAVE_LIBLZMADEC)
-	case LZMA:
-#endif
-	case XZ:
-#endif
-	case NONE:
-	default:
-		if (outbuff == xar->outbuff) {
-			*buff = b;
-			*used = avail_in;
-			*outbytes = avail_in;
-		} else {
-			if (avail_out > avail_in)
-				avail_out = avail_in;
-			memcpy(outbuff, b, avail_out);
-			*used = avail_out;
-			*outbytes = avail_out;
-		}
+	case LZMADEC_MEM_ERROR:
+		archive_set_error(&self->archive->archive, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "out of memory");
 		break;
 	}
-	return (ARCHIVE_OK);
+
+	free(state->out_block);
+	free(state);
+	self->data = NULL;
+	return (ARCHIVE_FATAL);
 }

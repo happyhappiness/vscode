@@ -1,0 +1,1 @@
+vsprintf(s, fmt, ap);

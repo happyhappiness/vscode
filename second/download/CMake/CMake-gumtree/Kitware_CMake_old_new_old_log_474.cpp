@@ -1,3 +1,1 @@
-archive_set_error(&a->archive,
-				    GetLastError(),
-				    "Can't CreateFileW");
+sprintf(cp->ExitExceptionString, "Exit code 0x%x\n", code);

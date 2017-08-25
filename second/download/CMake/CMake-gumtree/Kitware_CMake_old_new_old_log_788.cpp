@@ -1,1 +1,1 @@
-fout << "  printf(\"Failed: %s is an invalid test name.\\n\", av[1]);\n";
+fprintf(fout,"%s\n",(*d)->m_FullPath.c_str());

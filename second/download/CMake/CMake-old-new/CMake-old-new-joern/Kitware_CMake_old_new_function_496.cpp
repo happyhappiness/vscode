@@ -1,32 +1,27 @@
-static int
-archive_read_format_tar_options(struct archive_read *a,
-    const char *key, const char *val)
+int
+archive_read_disk_descend(struct archive *_a)
 {
-	struct tar *tar;
-	int ret = ARCHIVE_FAILED;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	struct tree *t = a->tree;
 
-	tar = (struct tar *)(a->format->data);
-	if (strcmp(key, "compat-2x")  == 0) {
-		/* Handle UTF-8 filnames as libarchive 2.x */
-		tar->compat_2x = (val != NULL)?1:0;
-		tar->init_default_conversion = tar->compat_2x;
-		ret = ARCHIVE_OK;
-	} else if (strcmp(key, "hdrcharset")  == 0) {
-		if (val == NULL || val[0] == 0)
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "tar: hdrcharset option needs a character-set name");
-		else {
-			tar->opt_sconv =
-			    archive_string_conversion_from_charset(
-				&a->archive, val, 0);
-			if (tar->opt_sconv != NULL)
-				ret = ARCHIVE_OK;
-			else
-				ret = ARCHIVE_FATAL;
-		}
-	} else
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
+	    "archive_read_disk_descend");
+
+	if (t->visit_type != TREE_REGULAR || !t->descend) {
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "tar: unknown keyword ``%s''", key);
+		    "Ignored the request descending the current object");
+		return (ARCHIVE_WARN);
+	}
 
-	return (ret);
+	if (tree_current_is_physical_dir(t)) {
+		tree_push(t, t->basename, t->current_filesystem_id,
+		    t->lst.st_dev, t->lst.st_ino, &t->restore_time);
+		t->stack->flags |= isDir;
+	} else if (tree_current_is_dir(t)) {
+		tree_push(t, t->basename, t->current_filesystem_id,
+		    t->st.st_dev, t->st.st_ino, &t->restore_time);
+		t->stack->flags |= isDirLink;
+	}
+	t->descend = 0;
+	return (ARCHIVE_OK);
 }

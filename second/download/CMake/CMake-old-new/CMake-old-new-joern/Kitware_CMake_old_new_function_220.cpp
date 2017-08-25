@@ -1,19 +1,20 @@
-static void
-unknowntag_end(struct xar *xar, const char *name)
+static CURLcode sasl_create_xoauth2_message(struct SessionHandle *data,
+                                            const char *user,
+                                            const char *bearer,
+                                            char **outptr, size_t *outlen)
 {
-	struct unknown_tag *tag;
+  CURLcode result = CURLE_OK;
+  char *xoauth = NULL;
 
-#if DEBUG
-	fprintf(stderr, "unknowntag_end:%s\n", name);
-#endif
-	tag = xar->unknowntags;
-	if (tag == NULL || name == NULL)
-		return;
-	if (strcmp(tag->name.s, name) == 0) {
-		xar->unknowntags = tag->next;
-		archive_string_free(&(tag->name));
-		free(tag);
-		if (xar->unknowntags == NULL)
-			xar->xmlsts = xar->xmlsts_unknown;
-	}
+  /* Generate the message */
+  xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer);
+  if(!xoauth)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Base64 encode the reply */
+  result = Curl_base64_encode(data, xoauth, strlen(xoauth), outptr, outlen);
+
+  free(xoauth);
+
+  return result;
 }

@@ -1,95 +1,162 @@
 static int
-cleanup_pathname(struct archive_write_disk *a)
+decompress(struct archive_read *a, const void **buff, size_t *outbytes,
+    const void *b, size_t *used)
 {
-	char *dest, *src;
-	char separator = '\0';
+	struct xar *xar;
+	void *outbuff;
+	size_t avail_in, avail_out;
+	int r;
 
-	dest = src = a->name;
-	if (*src == '\0') {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Invalid empty pathname");
-		return (ARCHIVE_FAILED);
-	}
-
-#if defined(__CYGWIN__)
-	cleanup_pathname_win(a);
-#endif
-	/* Skip leading '/'. */
-	if (*src == '/') {
-		if (a->flags & ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			                  "Path is absolute");
-			return (ARCHIVE_FAILED);
-		}
-
-		separator = *src++;
-	}
-
-	/* Scan the pathname one element at a time. */
-	for (;;) {
-		/* src points to first char after '/' */
-		if (src[0] == '\0') {
-			break;
-		} else if (src[0] == '/') {
-			/* Found '//', ignore second one. */
-			src++;
-			continue;
-		} else if (src[0] == '.') {
-			if (src[1] == '\0') {
-				/* Ignore trailing '.' */
-				break;
-			} else if (src[1] == '/') {
-				/* Skip './'. */
-				src += 2;
-				continue;
-			} else if (src[1] == '.') {
-				if (src[2] == '/' || src[2] == '\0') {
-					/* Conditionally warn about '..' */
-					if (a->flags & ARCHIVE_EXTRACT_SECURE_NODOTDOT) {
-						archive_set_error(&a->archive,
-						    ARCHIVE_ERRNO_MISC,
-						    "Path contains '..'");
-						return (ARCHIVE_FAILED);
-					}
-				}
-				/*
-				 * Note: Under no circumstances do we
-				 * remove '..' elements.  In
-				 * particular, restoring
-				 * '/foo/../bar/' should create the
-				 * 'foo' dir as a side-effect.
-				 */
+	xar = (struct xar *)(a->format->data);
+	avail_in = *used;
+	outbuff = (void *)(uintptr_t)*buff;
+	if (outbuff == NULL) {
+		if (xar->outbuff == NULL) {
+			xar->outbuff = malloc(OUTBUFF_SIZE);
+			if (xar->outbuff == NULL) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Couldn't allocate memory for out buffer");
+				return (ARCHIVE_FATAL);
 			}
 		}
-
-		/* Copy current element, including leading '/'. */
-		if (separator)
-			*dest++ = '/';
-		while (*src != '\0' && *src != '/') {
-			*dest++ = *src++;
-		}
-
-		if (*src == '\0')
+		outbuff = xar->outbuff;
+		*buff = outbuff;
+		avail_out = OUTBUFF_SIZE;
+	} else
+		avail_out = *outbytes;
+	switch (xar->rd_encoding) {
+	case GZIP:
+		xar->stream.next_in = (Bytef *)(uintptr_t)b;
+		xar->stream.avail_in = avail_in;
+		xar->stream.next_out = (unsigned char *)outbuff;
+		xar->stream.avail_out = avail_out;
+		r = inflate(&(xar->stream), 0);
+		switch (r) {
+		case Z_OK: /* Decompressor made some progress.*/
+		case Z_STREAM_END: /* Found end of stream. */
 			break;
-
-		/* Skip '/' separator. */
-		separator = *src++;
+		default:
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "File decompression failed (%d)", r);
+			return (ARCHIVE_FATAL);
+		}
+		*used = avail_in - xar->stream.avail_in;
+		*outbytes = avail_out - xar->stream.avail_out;
+		break;
+#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
+	case BZIP2:
+		xar->bzstream.next_in = (char *)(uintptr_t)b;
+		xar->bzstream.avail_in = avail_in;
+		xar->bzstream.next_out = (char *)outbuff;
+		xar->bzstream.avail_out = avail_out;
+		r = BZ2_bzDecompress(&(xar->bzstream));
+		switch (r) {
+		case BZ_STREAM_END: /* Found end of stream. */
+			switch (BZ2_bzDecompressEnd(&(xar->bzstream))) {
+			case BZ_OK:
+				break;
+			default:
+				archive_set_error(&(a->archive),
+				    ARCHIVE_ERRNO_MISC,
+				    "Failed to clean up decompressor");
+				return (ARCHIVE_FATAL);
+			}
+			xar->bzstream_valid = 0;
+			/* FALLTHROUGH */
+		case BZ_OK: /* Decompressor made some progress. */
+			break;
+		default:
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "bzip decompression failed");
+			return (ARCHIVE_FATAL);
+		}
+		*used = avail_in - xar->bzstream.avail_in;
+		*outbytes = avail_out - xar->bzstream.avail_out;
+		break;
+#endif
+#if defined(HAVE_LZMA_H) && defined(HAVE_LIBLZMA)
+	case LZMA:
+	case XZ:
+		xar->lzstream.next_in = b;
+		xar->lzstream.avail_in = avail_in;
+		xar->lzstream.next_out = (unsigned char *)outbuff;
+		xar->lzstream.avail_out = avail_out;
+		r = lzma_code(&(xar->lzstream), LZMA_RUN);
+		switch (r) {
+		case LZMA_STREAM_END: /* Found end of stream. */
+			lzma_end(&(xar->lzstream));
+			xar->lzstream_valid = 0;
+			/* FALLTHROUGH */
+		case LZMA_OK: /* Decompressor made some progress. */
+			break;
+		default:
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "%s decompression failed(%d)",
+			    (xar->entry_encoding == XZ)?"xz":"lzma",
+			    r);
+			return (ARCHIVE_FATAL);
+		}
+		*used = avail_in - xar->lzstream.avail_in;
+		*outbytes = avail_out - xar->lzstream.avail_out;
+		break;
+#elif defined(HAVE_LZMADEC_H) && defined(HAVE_LIBLZMADEC)
+	case LZMA:
+		xar->lzstream.next_in = (unsigned char *)(uintptr_t)b;
+		xar->lzstream.avail_in = avail_in;
+		xar->lzstream.next_out = (unsigned char *)outbuff;
+		xar->lzstream.avail_out = avail_out;
+		r = lzmadec_decode(&(xar->lzstream), 0);
+		switch (r) {
+		case LZMADEC_STREAM_END: /* Found end of stream. */
+			switch (lzmadec_end(&(xar->lzstream))) {
+			case LZMADEC_OK:
+				break;
+			default:
+				archive_set_error(&(a->archive),
+				    ARCHIVE_ERRNO_MISC,
+				    "Failed to clean up lzmadec decompressor");
+				return (ARCHIVE_FATAL);
+			}
+			xar->lzstream_valid = 0;
+			/* FALLTHROUGH */
+		case LZMADEC_OK: /* Decompressor made some progress. */
+			break;
+		default:
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "lzmadec decompression failed(%d)",
+			    r);
+			return (ARCHIVE_FATAL);
+		}
+		*used = avail_in - xar->lzstream.avail_in;
+		*outbytes = avail_out - xar->lzstream.avail_out;
+		break;
+#endif
+#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR)
+	case BZIP2:
+#endif
+#if !defined(HAVE_LZMA_H) || !defined(HAVE_LIBLZMA)
+#if !defined(HAVE_LZMADEC_H) || !defined(HAVE_LIBLZMADEC)
+	case LZMA:
+#endif
+	case XZ:
+#endif
+	case NONE:
+	default:
+		if (outbuff == xar->outbuff) {
+			*buff = b;
+			*used = avail_in;
+			*outbytes = avail_in;
+		} else {
+			if (avail_out > avail_in)
+				avail_out = avail_in;
+			memcpy(outbuff, b, avail_out);
+			*used = avail_out;
+			*outbytes = avail_out;
+		}
+		break;
 	}
-	/*
-	 * We've just copied zero or more path elements, not including the
-	 * final '/'.
-	 */
-	if (dest == a->name) {
-		/*
-		 * Nothing got copied.  The path must have been something
-		 * like '.' or '/' or './' or '/././././/./'.
-		 */
-		if (separator)
-			*dest++ = '/';
-		else
-			*dest++ = '.';
-	}
-	/* Terminate the result. */
-	*dest = '\0';
 	return (ARCHIVE_OK);
 }
