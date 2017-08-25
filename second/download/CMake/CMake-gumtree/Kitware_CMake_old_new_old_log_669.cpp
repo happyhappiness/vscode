@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "bad buffer in yy_scan_bytes()" );
+fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
+              dependee->GetName());

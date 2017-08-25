@@ -1,1 +1,0 @@
-cmSystemTools::Error("Problem with tar_open(): ", strerror(errno));

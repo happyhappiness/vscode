@@ -1,146 +1,234 @@
-bool cmVTKWrapTclCommand::WriteInit(const char *kitName, 
-                                    std::string& outFileName,
-                                    std::vector<std::string>& classes)
+int kwsysProcessCreate(kwsysProcess* cp, int index,
+                       kwsysProcessCreateInformation* si,
+                       PHANDLE readEnd)
 {
-  unsigned int i;
-  std::string tempOutputFile = outFileName + ".tmp";
-  FILE *fout = fopen(tempOutputFile.c_str(),"w");
-  if (!fout)
+  /* Setup the process's stdin.  */
+  if(*readEnd)
     {
-    cmSystemTools::Error("Failed to open TclInit file for ",
-                         tempOutputFile.c_str());
-    cmSystemTools::ReportLastSystemError("");
-    return false;
-    }
+    /* Create an inherited duplicate of the read end from the output
+       pipe of the previous process.  This also closes the
+       non-inherited version. */
+    if(!DuplicateHandle(GetCurrentProcess(), *readEnd,
+                        GetCurrentProcess(), readEnd,
+                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
+                                  DUPLICATE_SAME_ACCESS)))
+      {
+      return 0;
+      }
+    si->StartupInfo.hStdInput = *readEnd;
 
-  // capitalized commands just once
-  std::vector<std::string> capcommands;
-  for (i = 0; i < this->Commands.size(); i++)
-    {
-    capcommands.push_back(cmSystemTools::Capitalized(this->Commands[i]));
+    /* This function is done with this handle.  */
+    *readEnd = 0;
     }
-  
-  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
-  fprintf(fout,"#include \"vtkVersion.h\"\n");
-  fprintf(fout,"#define VTK_TCL_TO_STRING(x) VTK_TCL_TO_STRING0(x)\n");
-  fprintf(fout,"#define VTK_TCL_TO_STRING0(x) #x\n");
-  
-  fprintf(fout,
-          "extern \"C\"\n"
-          "{\n"
-          "#if (TCL_MAJOR_VERSION == 8) && (TCL_MINOR_VERSION >= 4) && (TCL_RELEASE_LEVEL >= TCL_FINAL_RELEASE)\n"
-          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, CONST84 char *[]);\n"
-          "#else\n"
-          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, char *[]);\n"
-          "#endif\n"
-          "}\n"
-          "\n");
-
-  for (i = 0; i < classes.size(); i++)
+  else if(cp->PipeFileSTDIN)
     {
-    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
-    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
+    /* Create a handle to read a file for stdin.  */
+    HANDLE fin = CreateFile(cp->PipeFileSTDIN, GENERIC_READ|GENERIC_WRITE,
+                            FILE_SHARE_READ|FILE_SHARE_WRITE,
+                            0, OPEN_EXISTING, 0, 0);
+    if(fin == INVALID_HANDLE_VALUE)
+      {
+      return 0;
+      }
+    /* Create an inherited duplicate of the handle.  This also closes
+       the non-inherited version.  */
+    if(!DuplicateHandle(GetCurrentProcess(), fin,
+                        GetCurrentProcess(), &fin,
+                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
+                                  DUPLICATE_SAME_ACCESS)))
+      {
+      return 0;
+      }
+    si->StartupInfo.hStdInput = fin;
     }
-  
-  if (!strcmp(kitName,"Vtkcommontcl"))
+  else if(cp->PipeSharedSTDIN)
     {
-    fprintf(fout,"int vtkCommand(ClientData cd, Tcl_Interp *interp,\n"
-                 "               int argc, char *argv[]);\n");
-    fprintf(fout,"\nTcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkCommandLookup;\n");
-    fprintf(fout,"int vtkCommandForward(ClientData cd, Tcl_Interp *interp,\n"
-                 "                      int argc, char *argv[]){\n"
-                 "  return vtkCommand(cd, interp, argc, argv);\n"
-                 "}\n");
+    /* Share this process's stdin with the child.  */
+    if(!kwsysProcessSetupSharedPipe(STD_INPUT_HANDLE,
+                                    &si->StartupInfo.hStdInput))
+      {
+      return 0;
+      }
+    }
+  else if(cp->PipeNativeSTDIN[0])
+    {
+    /* Use the provided native pipe.  */
+    if(!kwsysProcessSetupPipeNative(&si->StartupInfo.hStdInput,
+                                    cp->PipeNativeSTDIN, 0))
+      {
+      return 0;
+      }
     }
   else
     {
-    fprintf(fout,"\nextern Tcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkCommandLookup;\n");
+    /* Explicitly give the child no stdin.  */
+    si->StartupInfo.hStdInput = INVALID_HANDLE_VALUE;
     }
-  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
-  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
 
-  for (i = 0; i < this->Commands.size(); i++)
+  /* Setup the process's stdout.  */
+  {
+  DWORD maybeClose = DUPLICATE_CLOSE_SOURCE;
+  HANDLE writeEnd;
+
+  /* Create the output pipe for this process.  Neither end is directly
+     inherited.  */
+  if(!CreatePipe(readEnd, &writeEnd, 0, 0))
     {
-    fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-            capcommands[i].c_str());
+    return 0;
     }
-  
-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n",
-          kitName);
-  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-          kitName);
-  
-  /* create an extern ref to the generic delete function */
-  fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
 
-  if (!strcmp(kitName,"Vtkcommontcl"))
+  /* Create an inherited duplicate of the write end.  Close the
+     non-inherited version unless this is the last process.  Save the
+     non-inherited write end of the last process.  */
+  if(index == cp->NumberOfCommands-1)
     {
-    fprintf(fout,"extern \"C\"\n{\nvoid vtkCommonDeleteAssocData(ClientData cd)\n");
-    fprintf(fout,"  {\n");
-    fprintf(fout,"  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n");
-    fprintf(fout,"  delete tis;\n  }\n}\n");
+    cp->Pipe[KWSYSPE_PIPE_STDOUT].Write = writeEnd;
+    maybeClose = 0;
     }
-    
-  /* the main declaration */
-  fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
-  fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
-  
-  fprintf(fout,"\n\nint VTK_EXPORT %s_Init(Tcl_Interp *interp)\n{\n",
-          kitName);
-  if (!strcmp(kitName,"Vtkcommontcl"))
+  if(!DuplicateHandle(GetCurrentProcess(), writeEnd,
+                      GetCurrentProcess(), &writeEnd,
+                      0, TRUE, (maybeClose | DUPLICATE_SAME_ACCESS)))
     {
-    fprintf(fout,
-            "  vtkTclInterpStruct *info = new vtkTclInterpStruct;\n");
-    fprintf(fout,
-            "  info->Number = 0; info->InDelete = 0; info->DebugOn = 0;\n");
-    fprintf(fout,"\n");
-    fprintf(fout,"\n");
-    fprintf(fout,
-            "  Tcl_InitHashTable(&info->InstanceLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_InitHashTable(&info->PointerLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_InitHashTable(&info->CommandLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");
-    fprintf(fout,
-            "  Tcl_CreateExitHandler(vtkCommonDeleteAssocData,(ClientData *)info);\n");
-
-    /* create special vtkCommand command */
-    fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",\n"
-                 "                    reinterpret_cast<vtkTclCommandType>(vtkCommandForward),\n"
-                 "                    (ClientData *)NULL, NULL);\n\n");
+    return 0;
     }
-  
-  for (i = 0; i < this->Commands.size(); i++)
+  si->StartupInfo.hStdOutput = writeEnd;
+  }
+
+  /* Replace the stdout pipe with a file if requested.  In this case
+     the pipe thread will still run but never report data.  */
+  if(index == cp->NumberOfCommands-1 && cp->PipeFileSTDOUT)
     {
-    fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
+    if(!kwsysProcessSetupOutputPipeFile(&si->StartupInfo.hStdOutput,
+                                        cp->PipeFileSTDOUT))
+      {
+      return 0;
+      }
     }
-  fprintf(fout,"\n");
 
-  for (i = 0; i < classes.size(); i++)
+  /* Replace the stdout pipe of the last child with the parent
+     process's if requested.  In this case the pipe thread will still
+     run but never report data.  */
+  if(index == cp->NumberOfCommands-1 && cp->PipeSharedSTDOUT)
     {
-    fprintf(fout,"  vtkTclCreateNew(interp,(char *) \"%s\", %sNewCommand,\n",
-            classes[i].c_str(), classes[i].c_str());
-    fprintf(fout,"                  %sCommand);\n",classes[i].c_str());
+    if(!kwsysProcessSetupSharedPipe(STD_OUTPUT_HANDLE,
+                                    &si->StartupInfo.hStdOutput))
+      {
+      return 0;
+      }
     }
-  
-  fprintf(fout,"  char pkgName[]=\"%s\";\n", this->LibraryName.c_str());
-  fprintf(fout,"  char pkgVers[]=VTK_TCL_TO_STRING(VTK_MAJOR_VERSION)"
-               " \".\" "
-               "VTK_TCL_TO_STRING(VTK_MINOR_VERSION);\n");
-  fprintf(fout,"  Tcl_PkgProvide(interp, pkgName, pkgVers);\n");
-  fprintf(fout,"  return TCL_OK;\n}\n");
-  fclose(fout);
 
-  // copy the file if different
-  cmSystemTools::CopyFileIfDifferent(tempOutputFile.c_str(),
-                                     outFileName.c_str());
-  cmSystemTools::RemoveFile(tempOutputFile.c_str());
+  /* Replace the stdout pipe with the native pipe provided if any.  In
+     this case the pipe thread will still run but never report
+     data.  */
+  if(index == cp->NumberOfCommands-1 && cp->PipeNativeSTDOUT[1])
+    {
+    if(!kwsysProcessSetupPipeNative(&si->StartupInfo.hStdOutput,
+                                    cp->PipeNativeSTDOUT, 1))
+      {
+      return 0;
+      }
+    }
 
-  return true;
+  /* Create the child process.  */
+  {
+  BOOL r;
+  char* realCommand;
+  if(cp->Win9x)
+    {
+    /* Create an error reporting pipe for the forwarding executable.
+       Neither end is directly inherited.  */
+    if(!CreatePipe(&si->ErrorPipeRead, &si->ErrorPipeWrite, 0, 0))
+      {
+      return 0;
+      }
+
+    /* Create an inherited duplicate of the write end.  This also closes
+       the non-inherited version. */
+    if(!DuplicateHandle(GetCurrentProcess(), si->ErrorPipeWrite,
+                        GetCurrentProcess(), &si->ErrorPipeWrite,
+                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
+                                  DUPLICATE_SAME_ACCESS)))
+      {
+      return 0;
+      }
+
+    /* The forwarding executable is given a handle to the error pipe
+       and resume and kill events.  */
+    realCommand = (char*)malloc(strlen(cp->Win9x)+strlen(cp->Commands[index])+100);
+    if(!realCommand)
+      {
+      return 0;
+      }
+    sprintf(realCommand, "%s %p %p %p %d %s", cp->Win9x,
+            si->ErrorPipeWrite, cp->Win9xResumeEvent, cp->Win9xKillEvent,
+            cp->HideWindow, cp->Commands[index]);
+    }
+  else
+    {
+    realCommand = cp->Commands[index];
+    }
+
+  /* Create the child in a suspended state so we can wait until all
+     children have been created before running any one.  */
+  r = CreateProcess(0, realCommand, 0, 0, TRUE,
+                    cp->Win9x? 0 : CREATE_SUSPENDED, 0, 0,
+                    &si->StartupInfo, &cp->ProcessInformation[index]);
+  if(cp->Win9x)
+    {
+    /* Free memory.  */
+    free(realCommand);
+
+    /* Close the error pipe write end so we can detect when the
+       forwarding executable closes it.  */
+    kwsysProcessCleanupHandle(&si->ErrorPipeWrite);
+    if(r)
+      {
+      /* Wait for the forwarding executable to report an error or
+         close the error pipe to report success.  */
+      DWORD total = 0;
+      DWORD n = 1;
+      while(total < KWSYSPE_PIPE_BUFFER_SIZE && n > 0)
+        {
+        if(ReadFile(si->ErrorPipeRead, cp->ErrorMessage+total,
+                    KWSYSPE_PIPE_BUFFER_SIZE-total, &n, 0))
+          {
+          total += n;
+          }
+        else
+          {
+          n = 0;
+          }
+        }
+      if(total > 0 || GetLastError() != ERROR_BROKEN_PIPE)
+        {
+        /* The forwarding executable could not run the process, or
+           there was an error reading from its error pipe.  Preserve
+           the last error while cleaning up the forwarding executable
+           so the cleanup our caller does reports the proper error.  */
+        DWORD error = GetLastError();
+        kwsysProcessCleanupHandle(&cp->ProcessInformation[index].hThread);
+        kwsysProcessCleanupHandle(&cp->ProcessInformation[index].hProcess);
+        SetLastError(error);
+        return 0;
+        }
+      }
+    kwsysProcessCleanupHandle(&si->ErrorPipeRead);
+    }
+
+  if(!r)
+    {
+    return 0;
+    }
+  }
+
+  /* Successfully created this child process.  Close the current
+     process's copies of the inherited stdout and stdin handles.  The
+     stderr handle is shared among all children and is closed by
+     kwsysProcess_Execute after all children have been created.  */
+  kwsysProcessCleanupHandleSafe(&si->StartupInfo.hStdInput,
+                                STD_INPUT_HANDLE);
+  kwsysProcessCleanupHandleSafe(&si->StartupInfo.hStdOutput,
+                                STD_OUTPUT_HANDLE);
+
+  return 1;
 }

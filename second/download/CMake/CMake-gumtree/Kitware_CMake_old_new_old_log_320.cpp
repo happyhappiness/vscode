@@ -1,2 +1,2 @@
-snprintf(buf + len, sizeof(buf) - len,
-                 ": %s", (char*) status_string.value);
+sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
+          target.GetName().c_str(), count);

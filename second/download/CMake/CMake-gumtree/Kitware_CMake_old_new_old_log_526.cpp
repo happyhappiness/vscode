@@ -1,2 +1,2 @@
-sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%ld_%p.exe",
-            GetCurrentProcessId(), cp);
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external unxz program for xz decompression");

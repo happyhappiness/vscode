@@ -1,1 +1,2 @@
-f(stderr, "Writing %s...\n", currentFilename.c_str());
+archive_set_error(&a->archive, GetLastError(),
+				    "Can't GetFileInformationByHandle");

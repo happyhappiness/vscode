@@ -1,1 +1,1 @@
-fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE Fortran)\n");
+fprintf(stderr, "  followed by Component (%d)\n", *oi);

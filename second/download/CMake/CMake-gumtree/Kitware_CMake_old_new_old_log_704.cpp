@@ -1,1 +1,2 @@
-fprintf(stderr,"SegFault");
+sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
+            cmVersion::GetMinorVersion());

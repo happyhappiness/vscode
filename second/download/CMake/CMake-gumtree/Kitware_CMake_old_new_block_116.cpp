@@ -1,5 +1,4 @@
 {
-				archive_set_error(&a->archive, errno,
-				    "Couldn't access %s", path);
-				return (ARCHIVE_FAILED);
-			}
+		fprintf(stderr,
+		    "Extra data field contents do not match reported size!\n");
+	}

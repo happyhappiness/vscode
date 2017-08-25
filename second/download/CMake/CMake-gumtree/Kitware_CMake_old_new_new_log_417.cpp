@@ -1,1 +1,1 @@
-f(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
+fprintf(stderr, "  target [%s]\n", lei->Target->GetName().c_str());

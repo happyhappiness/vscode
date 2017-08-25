@@ -1,1 +1,1 @@
-tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
+yy_fatal_error( "cmCommandArgument_yyset_lineno called with no buffer" , yyscanner);

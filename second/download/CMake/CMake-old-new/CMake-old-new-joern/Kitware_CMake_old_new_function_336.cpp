@@ -1,47 +1,75 @@
-void kwsysProcessCleanup(kwsysProcess* cp, int error)
+ssize_t
+archive_read_data(struct archive *_a, void *buff, size_t s)
 {
-  int i;
-  /* If this is an error case, report the error.  */
-  if(error)
-    {
-    /* Construct an error message if one has not been provided already.  */
-    if(cp->ErrorMessage[0] == 0)
-      {
-      /* Format the error message.  */
-      DWORD original = GetLastError();
-      wchar_t err_msg[KWSYSPE_PIPE_BUFFER_SIZE];
-      DWORD length = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
-                                   FORMAT_MESSAGE_IGNORE_INSERTS, 0, original,
-                                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                                   err_msg, KWSYSPE_PIPE_BUFFER_SIZE, 0);
-      WideCharToMultiByte(CP_UTF8, 0, err_msg, -1, cp->ErrorMessage,
-                          KWSYSPE_PIPE_BUFFER_SIZE, NULL, NULL);
-      if(length < 1)
-        {
-        /* FormatMessage failed.  Use a default message.  */
-        _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
-                  "Process execution failed with error 0x%X.  "
-                  "FormatMessage failed with error 0x%X",
-                  original, GetLastError());
-        }
-      }
+	struct archive_read *a = (struct archive_read *)_a;
+	char	*dest;
+	const void *read_buf;
+	size_t	 bytes_read;
+	size_t	 len;
+	int	 r;
 
-    /* Remove trailing period and newline, if any.  */
-    kwsysProcessCleanErrorMessage(cp);
+	bytes_read = 0;
+	dest = (char *)buff;
 
-    /* Set the error state.  */
-    cp->State = kwsysProcess_State_Error;
+	while (s > 0) {
+		if (a->read_data_remaining == 0) {
+			read_buf = a->read_data_block;
+			a->read_data_is_posix_read = 1;
+			a->read_data_requested = s;
+			r = _archive_read_data_block(&a->archive, &read_buf,
+			    &a->read_data_remaining, &a->read_data_offset);
+			a->read_data_block = read_buf;
+			if (r == ARCHIVE_EOF)
+				return (bytes_read);
+			/*
+			 * Error codes are all negative, so the status
+			 * return here cannot be confused with a valid
+			 * byte count.  (ARCHIVE_OK is zero.)
+			 */
+			if (r < ARCHIVE_OK)
+				return (r);
+		}
 
-    /* Cleanup any processes already started in a suspended state.  */
-    if(cp->ProcessInformation)
-      {
-      for(i=0; i < cp->NumberOfCommands; ++i)
-        {
-        if(cp->ProcessInformation[i].hProcess)
-          {
-          TerminateProcess(cp->ProcessInformation[i].hProcess, 255);
-          WaitForSingleObject(cp->ProcessInformation[i].hProcess, INFINITE);
-          }
-        }
-      for(i=0; i < cp->NumberOfCommands; ++i)
-        {
+		if (a->read_data_offset < a->read_data_output_offset) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Encountered out-of-order sparse blocks");
+			return (ARCHIVE_RETRY);
+		}
+
+		/* Compute the amount of zero padding needed. */
+		if (a->read_data_output_offset + (int64_t)s <
+		    a->read_data_offset) {
+			len = s;
+		} else if (a->read_data_output_offset <
+		    a->read_data_offset) {
+			len = (size_t)(a->read_data_offset -
+			    a->read_data_output_offset);
+		} else
+			len = 0;
+
+		/* Add zeroes. */
+		memset(dest, 0, len);
+		s -= len;
+		a->read_data_output_offset += len;
+		dest += len;
+		bytes_read += len;
+
+		/* Copy data if there is any space left. */
+		if (s > 0) {
+			len = a->read_data_remaining;
+			if (len > s)
+				len = s;
+			memcpy(dest, a->read_data_block, len);
+			s -= len;
+			a->read_data_block += len;
+			a->read_data_remaining -= len;
+			a->read_data_output_offset += len;
+			a->read_data_offset += len;
+			dest += len;
+			bytes_read += len;
+		}
+	}
+	a->read_data_is_posix_read = 0;
+	a->read_data_requested = 0;
+	return (bytes_read);
+}

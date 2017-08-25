@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, errno,
-			    "Failed to get ACL tag type");
+		    "Failed to get first ACL entry");

@@ -1,14 +1,18 @@
-{
-      local_end_time = ::CurrentTime();
-      cfileoutput << "\t<EndDateTime>" << local_end_time << "</EndDateTime>\n"
-                  << "</CoverageLog>\n"
-                  << "</Site>" << std::endl;
-      cfileoutput.close();
-      sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);
-      if (!this->OpenOutputFile(m_CurrentTag, cfileoutputname, cfileoutput))
+e((n = (int)fread(buffer, 1, 1024, ifp)) > 0)
+    {
+    fprintf(ofp, "static unsigned char kwsysEncodedArray%s_%d[%d] = {\n", 
+            argv[4], count++, n);
+    for(i=0; i < n-1; ++i)
+      {
+      fprintf(ofp, "0x%02X", buffer[i]);
+      if(i%10 == 9)
         {
-        std::cout << "Cannot open log file" << std::endl;
-        return 1;
+        fprintf(ofp, ",\n");
         }
-      ccount = 0;
+      else
+        {
+        fprintf(ofp, ", ");
+        }
       }
+    fprintf(ofp, "0x%02X};\n\n", buffer[n-1]);
+    }

@@ -1,107 +1,64 @@
 {
-  // Delete any existing cmLocalGenerators
-  unsigned int i;
-  for (i = 0; i < m_LocalGenerators.size(); ++i)
-    {
-    delete m_LocalGenerators[i];
-    }
-  m_LocalGenerators.clear();
+    /* This is Win9x.  We need the console forwarding executable to
+       work-around a Windows 9x bug.  */
+    char fwdName[_MAX_FNAME+1] = "";
+    char tempDir[_MAX_PATH+1] = "";
 
-  // Setup relative path generation.
-  this->ConfigureRelativePaths();
+    /* We will try putting the executable in the system temp
+       directory.  Note that the returned path already has a trailing
+       slash.  */
+    DWORD length = GetTempPath(_MAX_PATH+1, tempDir);
 
-  // start with this directory
-  cmLocalGenerator *lg = this->CreateLocalGenerator();
-  m_LocalGenerators.push_back(lg);
+    /* Construct the executable name from the process id and kwsysProcess
+       instance.  This should be unique.  */
+    sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%ld_%p.exe",
+            GetCurrentProcessId(), cp);
 
-  // set the Start directories
-  lg->GetMakefile()->SetStartDirectory
-    (m_CMakeInstance->GetStartDirectory());
-  lg->GetMakefile()->SetStartOutputDirectory
-    (m_CMakeInstance->GetStartOutputDirectory());
-  lg->GetMakefile()->MakeStartDirectoriesCurrent();
-  
-  // now do it
-  lg->Configure();
-  
-  // update the cache entry for the number of local generators, this is used
-  // for progress
-  char num[100];
-  sprintf(num,"%d",static_cast<int>(m_LocalGenerators.size()));
-  this->GetCMakeInstance()->AddCacheEntry
-    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
-     "number of local generators", cmCacheManager::INTERNAL);
-  
-  std::set<cmStdString> notFoundMap;
-  // after it is all done do a ConfigureFinalPass
-  cmCacheManager* manager = 0;
-  for (i = 0; i < m_LocalGenerators.size(); ++i)
-    {
-    manager = m_LocalGenerators[i]->GetMakefile()->GetCacheManager();
-    m_LocalGenerators[i]->ConfigureFinalPass();
-    cmTargets & targets = 
-      m_LocalGenerators[i]->GetMakefile()->GetTargets(); 
-    for (cmTargets::iterator l = targets.begin();
-         l != targets.end(); l++)
+    /* If we have a temp directory, use it.  */
+    if(length > 0 && length <= _MAX_PATH)
       {
-      cmTarget::LinkLibraries libs = l->second.GetLinkLibraries();
-      for(cmTarget::LinkLibraries::iterator lib = libs.begin();
-          lib != libs.end(); ++lib)
+      /* Allocate a buffer to hold the forwarding executable path.  */
+      size_t tdlen = strlen(tempDir);
+      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
+      if(!win9x)
         {
-        if(lib->first.size() > 9 && 
-           cmSystemTools::IsNOTFOUND(lib->first.c_str()))
-          {
-          std::string varName = lib->first.substr(0, lib->first.size()-9);
-          notFoundMap.insert(varName);
-          }
+        kwsysProcess_Delete(cp);
+        return 0;
         }
-      std::vector<std::string>& incs = 
-        m_LocalGenerators[i]->GetMakefile()->GetIncludeDirectories();
-      
-      for( std::vector<std::string>::iterator lib = incs.begin();
-           lib != incs.end(); ++lib)
-        {
-        if(lib->size() > 9 && 
-           cmSystemTools::IsNOTFOUND(lib->c_str()))
-          {
-          std::string varName = lib->substr(0, lib->size()-9); 
-          notFoundMap.insert(varName);
-          }
-        }
-      m_CMakeInstance->UpdateProgress("Configuring", 
-                                      0.9f+0.1f*(i+1.0f)/m_LocalGenerators.size());
-      m_LocalGenerators[i]->GetMakefile()->CheckInfiniteLoops();
-      }
-    }
 
-  if(notFoundMap.size())
-    {
-    std::string notFoundVars;
-    for(std::set<cmStdString>::iterator ii = notFoundMap.begin();
-        ii != notFoundMap.end(); ++ii)
-      { 
-      notFoundVars += *ii;
-      if(manager)
-        {
-        cmCacheManager::CacheIterator it = 
-          manager->GetCacheIterator(ii->c_str());
-        if(it.GetPropertyAsBool("ADVANCED"))
-          {
-          notFoundVars += " (ADVANCED)";
-          }
-        }
-      notFoundVars += "\n";
+      /* Construct the full path to the forwarding executable.  */
+      sprintf(win9x, "%s%s", tempDir, fwdName);
       }
-    cmSystemTools::Error("This project requires some variables to be set,\n"
-                         "and cmake can not find them.\n"
-                         "Please set the following variables:\n",
-                         notFoundVars.c_str());
+
+    /* If we found a place to put the forwarding executable, try to
+       write it. */
+    if(win9x)
+      {
+      if(!kwsysEncodedWriteArrayProcessFwd9x(win9x))
+        {
+        /* Failed to create forwarding executable.  Give up.  */
+        free(win9x);
+        kwsysProcess_Delete(cp);
+        return 0;
+        }
+
+      /* Get a handle to the file that will delete it when closed.  */
+      cp->Win9xHandle = CreateFile(win9x, GENERIC_READ, FILE_SHARE_READ, 0,
+                                   OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
+      if(cp->Win9xHandle == INVALID_HANDLE_VALUE)
+        {
+        /* We were not able to get a read handle for the forwarding
+           executable.  It will not be deleted properly.  Give up.  */
+        _unlink(win9x);
+        free(win9x);
+        kwsysProcess_Delete(cp);
+        return 0;
+        }
+      }
+    else
+      {
+      /* Failed to find a place to put forwarding executable.  */
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
     }
-  // at this point m_LocalGenerators has been filled,
-  // so create the map from project name to vector of local generators
-  this->FillProjectMap();
-  if ( !m_CMakeInstance->GetScriptMode() )
-    {
-    m_CMakeInstance->UpdateProgress("Configuring done", -1);
-    }
-}

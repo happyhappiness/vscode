@@ -1,1 +1,1 @@
-ftpc->newhost = aprintf("%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+fprintf(fout, "add_library(%s STATIC", targetName.c_str());

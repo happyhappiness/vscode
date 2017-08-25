@@ -1,3 +1,2 @@
-{
-        sprintf(tz, " -%04ld", -committer.TimeZone);
-        }
+(name != NULL)
+		archive_entry_copy_uname(entry, name)

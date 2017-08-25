@@ -1,1 +1,1 @@
-fprintf(progFile,"%i\n",count);
+sprintf(buf, "%s/*", name);

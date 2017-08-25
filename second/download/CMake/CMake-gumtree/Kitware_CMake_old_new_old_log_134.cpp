@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.access");
+archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));

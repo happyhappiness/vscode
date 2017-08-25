@@ -1,1 +1,1 @@
-conn->allocptr.host = aprintf("Host: %s\r\n", host);
+conn->allocptr.ref = aprintf("Referer: %s\015\012", data->change.referer);

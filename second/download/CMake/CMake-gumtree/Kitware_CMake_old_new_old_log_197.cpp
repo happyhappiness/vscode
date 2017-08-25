@@ -1,1 +1,1 @@
-aprintf("%s/%s", service, host);
+len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL));

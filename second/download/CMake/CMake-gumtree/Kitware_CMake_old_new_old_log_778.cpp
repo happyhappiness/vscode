@@ -1,2 +1,1 @@
-sprintf(vertmp,"CMake Version %d.%d - %s", cmMakefile::GetMajorVersion(),
-	  cmMakefile::GetMinorVersion(),cmMakefile::GetReleaseVersion());
+fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());

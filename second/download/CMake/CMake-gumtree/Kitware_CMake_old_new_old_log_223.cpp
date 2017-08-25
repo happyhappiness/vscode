@@ -1,3 +1,2 @@
-aprintf("%s:%d",
-                 conn->bits.proxy?conn->proxy.name:conn->host.name,
-                 conn->localport);
+userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
+                  encoded);

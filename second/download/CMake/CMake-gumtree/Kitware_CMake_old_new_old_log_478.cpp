@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			"Couldn't allocate memory");
+fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);

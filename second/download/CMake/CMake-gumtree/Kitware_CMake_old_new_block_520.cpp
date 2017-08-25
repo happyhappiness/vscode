@@ -1,13 +1,23 @@
 {
-      /* Allocate a buffer to hold the forwarding executable path.  */
-      size_t tdlen = strlen(tempDir);
-      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
-      if(!win9x)
-        {
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
+	struct archive_read *a = (struct archive_read *)_a;
+	struct archive_read_filter_bidder *reader;
 
-      /* Construct the full path to the forwarding executable.  */
-      sprintf(win9x, "%s%s", tempDir, fwdName);
-      }
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_filter_bzip2");
+
+	if (__archive_read_get_bidder(a, &reader) != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	reader->data = NULL;
+	reader->bid = bzip2_reader_bid;
+	reader->init = bzip2_reader_init;
+	reader->options = NULL;
+	reader->free = bzip2_reader_free;
+#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
+	return (ARCHIVE_OK);
+#else
+	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external bunzip2 program");
+	return (ARCHIVE_WARN);
+#endif
+}

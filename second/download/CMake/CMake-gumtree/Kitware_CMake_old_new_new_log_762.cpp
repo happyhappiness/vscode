@@ -1,1 +1,1 @@
-f(fout, "SET(CMAKE_C_FLAGS \"${CMAKE_C_FLAGS} ${COMPILE_DEFINITIONS}\"\")\n");
+YY_FATAL_ERROR( "flex scanner push-back overflow" );

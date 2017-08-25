@@ -1,3 +1,3 @@
-archive_set_error(&a->archive,
-						    ARCHIVE_ERRNO_MISC,
-						    "Path contains '..'");
+archive_set_error(&a->archive, ENOMEM,
+					    "Can't allocate memory for "
+					    "SCHILY.acl.access");

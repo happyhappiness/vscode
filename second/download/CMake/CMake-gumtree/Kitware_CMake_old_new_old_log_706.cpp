@@ -1,1 +1,1 @@
-fprintf(stderr,"Interrupt");
+fprintf(stderr, "The strongly connected components are:\n");

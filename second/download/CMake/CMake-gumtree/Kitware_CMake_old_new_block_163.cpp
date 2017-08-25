@@ -1,4 +1,4 @@
 {
-    snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);
-    putenv(buf);
-  }
+		fprintf(stderr,
+		    "Extra data field contents do not match reported size!\n");
+	}

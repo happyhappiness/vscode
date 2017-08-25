@@ -1,1 +1,1 @@
-std::cerr << "Other";
+fprintf(stderr, "DIRECTORY_DEF_DEBUG should be defined in C\n");

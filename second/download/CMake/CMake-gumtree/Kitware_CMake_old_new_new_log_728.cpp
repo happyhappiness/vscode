@@ -1,1 +1,1 @@
-sprintf(buffer, "&gt;%d&lt;", (int)ch);
+fprintf(ofp, "static void kwsys_unlink(const char* fname)\n");

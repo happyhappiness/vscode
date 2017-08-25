@@ -1,1 +1,1 @@
-std::cout << buf << std::flush;
+yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" , yyscanner);

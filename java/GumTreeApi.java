@@ -284,14 +284,19 @@ public class GumTreeApi {
 				}
 			}
 //			decide whether insertion of new logs
-			if(!isIdentified && isFeature == 0 && this.isInsertionOfLog(action))
+			if(!isIdentified && isFeature == 0)
 			{
-				isLogs = this.IS_LOGS;
-				isIdentified = true;
-				continue;
-			}
-//			then feature if neither edition on old logs nor insertion of new logs  
-			isFeature = this.IS_FEATURE;
+				if(this.isInsertionOfLog(action))
+				{
+					isLogs = this.IS_LOGS;
+					isIdentified = true;
+				}
+//				then feature if neither edition on old logs nor insertion of new logs 
+				else
+				{
+					isFeature = this.IS_FEATURE;
+				}
+			} 
 		}
 		
 		return (isLogs + isFeature);

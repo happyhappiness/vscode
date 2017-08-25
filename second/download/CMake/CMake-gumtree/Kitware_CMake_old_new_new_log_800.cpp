@@ -1,2 +1,2 @@
-sprintf(version,"(CMake Version %d.%d)", cmMakefile::GetMajorVersion(),
-	  cmMakefile::GetMinorVersion());
+snprintf(savepath, TAR_MAXPATHLEN, "%s/%s", savedir,
+         dent->d_name);

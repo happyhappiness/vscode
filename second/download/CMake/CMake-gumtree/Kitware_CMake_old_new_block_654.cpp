@@ -1,5 +1,3 @@
 {
-          sprintf(argvName,"${ARGV%i}",t);
-          cmSystemTools::ReplaceString(tmps, argvName,
-                                       expandedArgs[t].c_str());
-          }
+      printf("Checking -%s-\n", absFilename.c_str());
+      }

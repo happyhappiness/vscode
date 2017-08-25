@@ -1,20 +1,12 @@
-static CURLcode sasl_create_xoauth2_message(struct SessionHandle *data,
-                                            const char *user,
-                                            const char *bearer,
-                                            char **outptr, size_t *outlen)
+static CURLcode AddFormDataf(struct FormData **formp,
+                             curl_off_t *size,
+                             const char *fmt, ...)
 {
-  CURLcode result = CURLE_OK;
-  char *xoauth = NULL;
+  char s[4096];
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(s, sizeof(s), fmt, ap);
+  va_end(ap);
 
-  /* Generate the message */
-  xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer);
-  if(!xoauth)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Base64 encode the reply */
-  result = Curl_base64_encode(data, xoauth, strlen(xoauth), outptr, outlen);
-
-  free(xoauth);
-
-  return result;
+  return AddFormData(formp, FORM_DATA, s, 0, size);
 }

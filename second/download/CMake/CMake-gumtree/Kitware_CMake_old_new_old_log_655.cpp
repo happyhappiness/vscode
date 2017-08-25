@@ -1,1 +1,2 @@
-fprintf(stderr, "Argument Parser Error: %s (%lu / Line: %d)\n", str, pos, this->CurrentLine);
+fprintf(fout, "cmake_minimum_required(VERSION %u.%u)\n",
+            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion());

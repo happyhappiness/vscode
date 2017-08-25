@@ -1,1 +1,1 @@
-sprintf(cp->ProcessResults[idx].ExitExceptionString, "Signal %d", sig);
+strcpy(data->set.errorbuffer, error);

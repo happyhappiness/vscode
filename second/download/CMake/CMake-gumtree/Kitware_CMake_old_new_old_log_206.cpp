@@ -1,1 +1,1 @@
-tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
+snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);

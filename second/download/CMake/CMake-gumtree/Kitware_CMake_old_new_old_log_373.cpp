@@ -1,2 +1,3 @@
-fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
+snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+             Curl_rand(data), Curl_rand(data),
+             Curl_rand(data), Curl_rand(data));

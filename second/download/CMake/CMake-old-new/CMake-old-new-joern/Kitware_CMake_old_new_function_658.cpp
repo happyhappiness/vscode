@@ -1,109 +1,37 @@
-int cmCTestTestHandler::ProcessHandler()
-{
-  // Update internal data structure from generic one
-  this->SetTestsToRunInformation(this->GetOption("TestsToRunInformation"));
-  this->SetUseUnion(cmSystemTools::IsOn(this->GetOption("UseUnion")));
-  const char* val;
-  val = this->GetOption("IncludeRegularExpression");
-  if ( val )
+void DoHeaderLine()
     {
-    this->UseIncludeRegExp();
-    this->SetIncludeRegExp(val);
-    }
-  val = this->GetOption("ExcludeRegularExpression");
-  if ( val )
-    {
-    this->UseExcludeRegExp();
-    this->SetExcludeRegExp(val);
-    }
-
-  m_TestResults.clear();
-
-  std::cout << (m_MemCheck ? "Memory check" : "Test") << " project" << std::endl;
-  if ( ! this->PreProcessHandler() )
-    {
-    return -1;
-    }
-
-  std::vector<cmStdString> passed;
-  std::vector<cmStdString> failed;
-  int total;
-
-  this->ProcessDirectory(passed, failed);
-
-  total = int(passed.size()) + int(failed.size());
-
-  if (total == 0)
-    {
-    if ( !m_CTest->GetShowOnly() )
+    // Look for header fields that we need.
+    if(strncmp(this->Line.c_str(), "commit ", 7) == 0)
       {
-      std::cerr << "No tests were found!!!\n";
+      this->Rev.Rev = this->Line.c_str()+7;
       }
-    }
-  else
-    {
-    if (m_Verbose && passed.size() && 
-      (m_UseIncludeRegExp || m_UseExcludeRegExp)) 
+    else if(strncmp(this->Line.c_str(), "author ", 7) == 0)
       {
-      std::cerr << "\nThe following tests passed:\n";
-      for(std::vector<cmStdString>::iterator j = passed.begin();
-          j != passed.end(); ++j)
-        {   
-        std::cerr << "\t" << *j << "\n";
-        }
-      }
+      Person author;
+      this->ParsePerson(this->Line.c_str()+7, author);
+      this->Rev.Author = author.Name;
+      this->Rev.EMail = author.EMail;
 
-    float percent = float(passed.size()) * 100.0f / total;
-    if ( failed.size() > 0 &&  percent > 99)
-      {
-      percent = 99;
-      }
-    fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
-      percent, int(failed.size()), total);
+      // Convert the time to a human-readable format that is also easy
+      // to machine-parse: "CCYY-MM-DD hh:mm:ss".
+      time_t seconds = static_cast<time_t>(author.Time);
+      struct tm* t = gmtime(&seconds);
+      char dt[1024];
+      sprintf(dt, "%04d-%02d-%02d %02d:%02d:%02d",
+              t->tm_year+1900, t->tm_mon+1, t->tm_mday,
+              t->tm_hour, t->tm_min, t->tm_sec);
+      this->Rev.Date = dt;
 
-    if (failed.size()) 
-      {
-      cmGeneratedFileStream ofs;
-
-      std::cerr << "\nThe following tests FAILED:\n";
-      m_CTest->OpenOutputFile("Temporary", "LastTestsFailed.log", ofs);
-
-      std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;
-      for(ftit = m_TestResults.begin();
-        ftit != m_TestResults.end(); ++ftit)
+      // Add the time-zone field "+zone" or "-zone".
+      char tz[32];
+      if(author.TimeZone >= 0)
         {
-        if ( ftit->m_Status != cmCTestTestHandler::COMPLETED )
-          {
-          ofs << ftit->m_TestCount << ":" << ftit->m_Name << std::endl;
-          fprintf(stderr, "\t%3d - %s (%s)\n", ftit->m_TestCount, ftit->m_Name.c_str(),
-            this->GetTestStatus(ftit->m_Status));
-          }
+        sprintf(tz, " +%04ld", author.TimeZone);
         }
-
+      else
+        {
+        sprintf(tz, " -%04ld", -author.TimeZone);
+        }
+      this->Rev.Date += tz;
       }
     }
-
-  if ( m_CTest->GetProduceXML() )
-    {
-    cmGeneratedFileStream xmlfile;
-    if( !m_CTest->OpenOutputFile(m_CTest->GetCurrentTag(), 
-        (m_MemCheck ? "DynamicAnalysis.xml" : "Test.xml"), xmlfile, true) )
-      {
-      std::cerr << "Cannot create " << (m_MemCheck ? "memory check" : "testing")
-        << " XML file" << std::endl;
-      return 1;
-      }
-    this->GenerateDartOutput(xmlfile);
-    }
-
-  if ( ! this->PostProcessHandler() )
-    {
-    return -1;
-    }
-
-  if ( !failed.empty() )
-    {
-    return -1;
-    }
-  return 0;
-}

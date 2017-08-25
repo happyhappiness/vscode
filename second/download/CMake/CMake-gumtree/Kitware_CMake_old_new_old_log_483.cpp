@@ -1,2 +1,1 @@
-archive_set_error(_a, -1,
-	    "External compression programs not supported on this platform");
+fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");

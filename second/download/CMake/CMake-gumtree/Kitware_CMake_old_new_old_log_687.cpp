@@ -1,1 +1,1 @@
-fprintf(stderr, "Shifting token %d (%s), ", yychar, yytname[yychar1]);
+sprintf(buf, "%u", this->VersionPatch);

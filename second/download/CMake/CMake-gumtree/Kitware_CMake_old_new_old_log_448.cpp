@@ -1,2 +1,2 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external unxz program for xz decompression");
+fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
+            this->Target->GetName(), this->Config?this->Config:"noconfig");

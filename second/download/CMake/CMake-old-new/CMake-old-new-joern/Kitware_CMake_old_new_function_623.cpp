@@ -1,246 +1,218 @@
-void cmake::GenerateGraphViz(const char* fileName)
+kwsysProcess* kwsysProcess_New(void)
 {
-  cmGeneratedFileStream str(fileName);
-  if ( !str )
-    {
-    return;
-    }
-  cmake cm;
-  cmGlobalGenerator ggi;
-  ggi.SetCMakeInstance(&cm);
-  std::auto_ptr<cmLocalGenerator> lg(ggi.CreateLocalGenerator());
-  lg->SetGlobalGenerator(&ggi);
-  cmMakefile *mf = lg->GetMakefile();
+  int i;
 
-  std::string infile = this->GetHomeOutputDirectory();
-  infile += "/CMakeGraphVizOptions.cmake";
-  if ( !cmSystemTools::FileExists(infile.c_str()) )
+  /* Process control structure.  */
+  kwsysProcess* cp;
+
+  /* Path to Win9x forwarding executable.  */
+  char* win9x = 0;
+
+  /* Windows version number data.  */
+  OSVERSIONINFO osv;
+
+  /* Allocate a process control structure.  */
+  cp = (kwsysProcess*)malloc(sizeof(kwsysProcess));
+  if(!cp)
     {
-    infile = this->GetHomeDirectory();
-    infile += "/CMakeGraphVizOptions.cmake";
-    if ( !cmSystemTools::FileExists(infile.c_str()) )
+    /* Could not allocate memory for the control structure.  */
+    return 0;
+    }
+  ZeroMemory(cp, sizeof(*cp));
+
+  /* Share stdin with the parent process by default.  */
+  cp->PipeSharedSTDIN = 1;
+
+  /* Set initial status.  */
+  cp->State = kwsysProcess_State_Starting;
+
+  /* Choose a method of running the child based on version of
+     windows.  */
+  ZeroMemory(&osv, sizeof(osv));
+  osv.dwOSVersionInfoSize = sizeof(osv);
+  GetVersionEx(&osv);
+  if(osv.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS)
+    {
+    /* This is Win9x.  We need the console forwarding executable to
+       work-around a Windows 9x bug.  */
+    char fwdName[_MAX_FNAME+1] = "";
+    char tempDir[_MAX_PATH+1] = "";
+
+    /* We will try putting the executable in the system temp
+       directory.  Note that the returned path already has a trailing
+       slash.  */
+    DWORD length = GetTempPath(_MAX_PATH+1, tempDir);
+
+    /* Construct the executable name from the process id and kwsysProcess
+       instance.  This should be unique.  */
+    sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%ld_%p.exe",
+            GetCurrentProcessId(), cp);
+
+    /* If we have a temp directory, use it.  */
+    if(length > 0 && length <= _MAX_PATH)
       {
-      infile = "";
-      }
-    }
-
-  if ( !infile.empty() )
-    {
-    if ( !mf->ReadListFile(0, infile.c_str()) )
-      {
-      cmSystemTools::Error("Problem opening GraphViz options file: ",
-        infile.c_str());
-      return;
-      }
-    std::cout << "Read GraphViz options file: " << infile.c_str()
-      << std::endl;
-    }
-
-#define __set_if_not_set(var, value, cmakeDefinition) \
-  const char* var = mf->GetDefinition(cmakeDefinition); \
-  if ( !var ) \
-    { \
-    var = value; \
-    }
-  __set_if_not_set(graphType, "digraph", "GRAPHVIZ_GRAPH_TYPE");
-  __set_if_not_set(graphName, "GG", "GRAPHVIZ_GRAPH_NAME");
-  __set_if_not_set(graphHeader, "node [\n  fontsize = \"12\"\n];",
-    "GRAPHVIZ_GRAPH_HEADER");
-  __set_if_not_set(graphNodePrefix, "node", "GRAPHVIZ_NODE_PREFIX");
-  const char* ignoreTargets = mf->GetDefinition("GRAPHVIZ_IGNORE_TARGETS");
-  std::set<cmStdString> ignoreTargetsSet;
-  if ( ignoreTargets )
-    {
-    std::vector<std::string> ignoreTargetsVector;
-    cmSystemTools::ExpandListArgument(ignoreTargets,ignoreTargetsVector);
-    std::vector<std::string>::iterator itvIt;
-    for ( itvIt = ignoreTargetsVector.begin();
-      itvIt != ignoreTargetsVector.end();
-      ++ itvIt )
-      {
-      ignoreTargetsSet.insert(itvIt->c_str());
-      }
-    }
-
-  str << graphType << " " << graphName << " {" << std::endl;
-  str << graphHeader << std::endl;
-
-  cmGlobalGenerator* gg = this->GetGlobalGenerator();
-  std::vector<cmLocalGenerator*> localGenerators;
-  gg->GetLocalGenerators(localGenerators);
-  std::vector<cmLocalGenerator*>::iterator lit;
-  // for target deps
-  // 1 - cmake target
-  // 2 - external target
-  // 0 - no deps
-  std::map<cmStdString, int> targetDeps;
-  std::map<cmStdString, cmTarget*> targetPtrs;
-  std::map<cmStdString, cmStdString> targetNamesNodes;
-  char tgtName[2048];
-  int cnt = 0;
-  // First pass get the list of all cmake targets
-  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
-    {
-    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
-      {
-      const char* realTargetName = tit->first.c_str();
-      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
+      /* Allocate a buffer to hold the forwarding executable path.  */
+      size_t tdlen = strlen(tempDir);
+      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
+      if(!win9x)
         {
-        // Skip ignored targets
-        continue;
+        kwsysProcess_Delete(cp);
+        return 0;
         }
-      //std::cout << "Found target: " << tit->first.c_str() << std::endl;
-      sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
-      targetNamesNodes[realTargetName] = tgtName;
-      targetPtrs[realTargetName] = &tit->second;
-      }
-    }
-  // Ok, now find all the stuff we link to that is not in cmake
-  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
-    {
-    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
-      {
-      const cmTarget::LinkLibraryVectorType* ll
-        = &(tit->second.GetOriginalLinkLibraries());
-      cmTarget::LinkLibraryVectorType::const_iterator llit;
-      const char* realTargetName = tit->first.c_str();
-      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
-        {
-        // Skip ignored targets
-        continue;
-        }
-      if ( ll->size() > 0 )
-        {
-        targetDeps[realTargetName] = 1;
-        }
-      for ( llit = ll->begin(); llit != ll->end(); ++ llit )
-        {
-        const char* libName = llit->first.c_str();
-        std::map<cmStdString, cmStdString>::iterator tarIt
-          = targetNamesNodes.find(libName);
-        if ( ignoreTargetsSet.find(libName) != ignoreTargetsSet.end() )
-          {
-          // Skip ignored targets
-          continue;
-          }
-        if ( tarIt == targetNamesNodes.end() )
-          {
-          sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
-          targetDeps[libName] = 2;
-          targetNamesNodes[libName] = tgtName;
-          //str << "    \"" << tgtName << "\" [ label=\"" << libName
-          //<<  "\" shape=\"ellipse\"];" << std::endl;
-          }
-        else
-          {
-          std::map<cmStdString, int>::iterator depIt
-            = targetDeps.find(libName);
-          if ( depIt == targetDeps.end() )
-            {
-            targetDeps[libName] = 1;
-            }
-          }
-        }
-      }
-    }
 
-  // Write out nodes
-  std::map<cmStdString, int>::iterator depIt;
-  for ( depIt = targetDeps.begin(); depIt != targetDeps.end(); ++ depIt )
-    {
-    const char* newTargetName = depIt->first.c_str();
-    std::map<cmStdString, cmStdString>::iterator tarIt
-      = targetNamesNodes.find(newTargetName);
-    if ( tarIt == targetNamesNodes.end() )
-      {
-      // We should not be here.
-      std::cout << __LINE__ << " Cannot find library: " << newTargetName
-        << " even though it was added in the previous pass" << std::endl;
-      abort();
+      /* Construct the full path to the forwarding executable.  */
+      sprintf(win9x, "%s%s", tempDir, fwdName);
       }
 
-    str << "    \"" << tarIt->second.c_str() << "\" [ label=\""
-      << newTargetName <<  "\" shape=\"";
-    if ( depIt->second == 1 )
+    /* If we found a place to put the forwarding executable, try to
+       write it. */
+    if(win9x)
       {
-      std::map<cmStdString, cmTarget*>::iterator tarTypeIt= targetPtrs.find(
-        newTargetName);
-      if ( tarTypeIt == targetPtrs.end() )
+      if(!kwsysEncodedWriteArrayProcessFwd9x(win9x))
         {
-        // We should not be here.
-        std::cout << __LINE__ << " Cannot find library: " << newTargetName
-          << " even though it was added in the previous pass" << std::endl;
-        abort();
+        /* Failed to create forwarding executable.  Give up.  */
+        free(win9x);
+        kwsysProcess_Delete(cp);
+        return 0;
         }
-      cmTarget* tg = tarTypeIt->second;
-      switch ( tg->GetType() )
+
+      /* Get a handle to the file that will delete it when closed.  */
+      cp->Win9xHandle = CreateFile(win9x, GENERIC_READ, FILE_SHARE_READ, 0,
+                                   OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
+      if(cp->Win9xHandle == INVALID_HANDLE_VALUE)
         {
-      case cmTarget::EXECUTABLE:
-        str << "house";
-        break;
-      case cmTarget::STATIC_LIBRARY:
-        str << "diamond";
-        break;
-      case cmTarget::SHARED_LIBRARY:
-        str << "polygon";
-        break;
-      case cmTarget::MODULE_LIBRARY:
-        str << "octagon";
-        break;
-      default:
-        str << "box";
+        /* We were not able to get a read handle for the forwarding
+           executable.  It will not be deleted properly.  Give up.  */
+        _unlink(win9x);
+        free(win9x);
+        kwsysProcess_Delete(cp);
+        return 0;
         }
       }
     else
       {
-      str << "ellipse";
+      /* Failed to find a place to put forwarding executable.  */
+      kwsysProcess_Delete(cp);
+      return 0;
       }
-    str << "\"];" << std::endl;
     }
 
-  // Now generate the connectivity
-  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
+  /* Save the path to the forwarding executable.  */
+  cp->Win9x = win9x;
+
+  /* Initially no thread owns the mutex.  Initialize semaphore to 1.  */
+  if(!(cp->SharedIndexMutex = CreateSemaphore(0, 1, 1, 0)))
     {
-    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
+    kwsysProcess_Delete(cp);
+    return 0;
+    }
+
+  /* Initially no data are available.  Initialize semaphore to 0.  */
+  if(!(cp->Full = CreateSemaphore(0, 0, 1, 0)))
+    {
+    kwsysProcess_Delete(cp);
+    return 0;
+    }
+
+  if(cp->Win9x)
+    {
+    SECURITY_ATTRIBUTES sa;
+    ZeroMemory(&sa, sizeof(sa));
+    sa.nLength = sizeof(sa);
+    sa.bInheritHandle = TRUE;
+
+    /* Create an event to tell the forwarding executable to resume the
+       child.  */
+    if(!(cp->Win9xResumeEvent = CreateEvent(&sa, TRUE, 0, 0)))
       {
-      std::map<cmStdString, int>::iterator dependIt
-        = targetDeps.find(tit->first.c_str());
-      if ( dependIt == targetDeps.end() )
-        {
-        continue;
-        }
-      std::map<cmStdString, cmStdString>::iterator cmakeTarIt
-        = targetNamesNodes.find(tit->first.c_str());
-      const cmTarget::LinkLibraryVectorType* ll
-        = &(tit->second.GetOriginalLinkLibraries());
-      cmTarget::LinkLibraryVectorType::const_iterator llit;
-      for ( llit = ll->begin(); llit != ll->end(); ++ llit )
-        {
-        const char* libName = llit->first.c_str();
-        std::map<cmStdString, cmStdString>::iterator tarIt
-          = targetNamesNodes.find(libName);
-        if ( tarIt == targetNamesNodes.end() )
-          {
-          // We should not be here.
-          std::cout << __LINE__ << " Cannot find library: " << libName
-            << " even though it was added in the previous pass" << std::endl;
-          abort();
-          }
-        str << "    \"" << cmakeTarIt->second.c_str() << "\" -> \""
-          << tarIt->second.c_str() << "\"" << std::endl;
-        }
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* Create an event to tell the forwarding executable to kill the
+       child.  */
+    if(!(cp->Win9xKillEvent = CreateEvent(&sa, TRUE, 0, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
       }
     }
 
-  // TODO: Use dotted or something for external libraries
-  //str << "    \"node0\":f4 -> \"node12\"[color=\"#0000ff\" style=dotted]"
-  //<< std::endl;
-  //
-  str << "}" << std::endl;
+  /* Create the thread to read each pipe.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
+    {
+    DWORD dummy=0;
+
+    /* Assign the thread its index.  */
+    cp->Pipe[i].Index = i;
+
+    /* Give the thread a pointer back to the kwsysProcess instance.  */
+    cp->Pipe[i].Process = cp;
+
+    /* No process is yet running.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Reader.Ready = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* The pipe is not yet reset.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Reader.Reset = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* The thread's buffer is initially empty.  Initialize semaphore to 1.  */
+    if(!(cp->Pipe[i].Reader.Go = CreateSemaphore(0, 1, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* Create the reading thread.  It will block immediately.  The
+       thread will not make deeply nested calls, so we need only a
+       small stack.  */
+    if(!(cp->Pipe[i].Reader.Thread = CreateThread(0, 1024,
+                                                  kwsysProcessPipeThreadRead,
+                                                  &cp->Pipe[i], 0, &dummy)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* No process is yet running.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Waker.Ready = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* The pipe is not yet reset.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Waker.Reset = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* The waker should not wake immediately.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Waker.Go = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* Create the waking thread.  It will block immediately.  The
+       thread will not make deeply nested calls, so we need only a
+       small stack.  */
+    if(!(cp->Pipe[i].Waker.Thread = CreateThread(0, 1024,
+                                                 kwsysProcessPipeThreadWake,
+                                                 &cp->Pipe[i], 0, &dummy)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+    }
+
+  return cp;
 }

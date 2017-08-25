@@ -1,4 +1,6 @@
 {
-		fprintf(stderr,
-		    "Extra data field contents do not match reported size!\n");
-	}
+			archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "truncated lzma input");
+			return (ARCHIVE_FATAL);
+		}

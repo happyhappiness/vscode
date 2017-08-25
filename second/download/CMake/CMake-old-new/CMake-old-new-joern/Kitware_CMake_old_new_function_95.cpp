@@ -1,96 +1,68 @@
 static int
-header_Solaris_ACL(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const void *h, size_t *unconsumed)
+lzma_bidder_init(struct archive_read_filter *self)
 {
-	const struct archive_entry_header_ustar *header;
-	size_t size;
-	int err;
-	int64_t type;
-	char *acl, *p;
+	static const size_t out_block_size = 64 * 1024;
+	void *out_block;
+	struct private_data *state;
+	ssize_t ret, avail_in;
 
-	/*
-	 * read_body_to_string adds a NUL terminator, but we need a little
-	 * more to make sure that we don't overrun acl_text later.
-	 */
-	header = (const struct archive_entry_header_ustar *)h;
-	size = (size_t)tar_atol(header->size, sizeof(header->size));
-	err = read_body_to_string(a, tar, &(tar->acl_text), h, unconsumed);
-	if (err != ARCHIVE_OK)
-		return (err);
+	self->code = ARCHIVE_FILTER_LZMA;
+	self->name = "lzma";
 
-	/* Recursively read next header */
-	err = tar_read_header(a, tar, entry, unconsumed);
-	if ((err != ARCHIVE_OK) && (err != ARCHIVE_WARN))
-		return (err);
-
-	/* TODO: Examine the first characters to see if this
-	 * is an AIX ACL descriptor.  We'll likely never support
-	 * them, but it would be polite to recognize and warn when
-	 * we do see them. */
-
-	/* Leading octal number indicates ACL type and number of entries. */
-	p = acl = tar->acl_text.s;
-	type = 0;
-	while (*p != '\0' && p < acl + size) {
-		if (*p < '0' || *p > '7') {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Malformed Solaris ACL attribute (invalid digit)");
-			return(ARCHIVE_WARN);
-		}
-		type <<= 3;
-		type += *p - '0';
-		if (type > 077777777) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Malformed Solaris ACL attribute (count too large)");
-			return (ARCHIVE_WARN);
-		}
-		p++;
+	state = (struct private_data *)calloc(sizeof(*state), 1);
+	out_block = (unsigned char *)malloc(out_block_size);
+	if (state == NULL || out_block == NULL) {
+		archive_set_error(&self->archive->archive, ENOMEM,
+		    "Can't allocate data for lzma decompression");
+		free(out_block);
+		free(state);
+		return (ARCHIVE_FATAL);
 	}
-	switch ((int)type & ~0777777) {
-	case 01000000:
-		/* POSIX.1e ACL */
+
+	self->data = state;
+	state->out_block_size = out_block_size;
+	state->out_block = out_block;
+	self->read = lzma_filter_read;
+	self->skip = NULL; /* not supported */
+	self->close = lzma_filter_close;
+
+	/* Prime the lzma library with 18 bytes of input. */
+	state->stream.next_in = (unsigned char *)(uintptr_t)
+	    __archive_read_filter_ahead(self->upstream, 18, &avail_in);
+	if (state->stream.next_in == NULL)
+		return (ARCHIVE_FATAL);
+	state->stream.avail_in = avail_in;
+	state->stream.next_out = state->out_block;
+	state->stream.avail_out = state->out_block_size;
+
+	/* Initialize compression library. */
+	ret = lzmadec_init(&(state->stream));
+	__archive_read_filter_consume(self->upstream,
+	    avail_in - state->stream.avail_in);
+	if (ret == LZMADEC_OK)
+		return (ARCHIVE_OK);
+
+	/* Library setup failed: Clean up. */
+	archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+	    "Internal error initializing lzma library");
+
+	/* Override the error message if we know what really went wrong. */
+	switch (ret) {
+	case LZMADEC_HEADER_ERROR:
+		archive_set_error(&self->archive->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library: "
+		    "invalid header");
 		break;
-	case 03000000:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Solaris NFSv4 ACLs not supported");
-		return (ARCHIVE_WARN);
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Malformed Solaris ACL attribute (unsupported type %o)",
-		    (int)type);
-		return (ARCHIVE_WARN);
-	}
-	p++;
-
-	if (p >= acl + size) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Malformed Solaris ACL attribute (body overflow)");
-		return(ARCHIVE_WARN);
+	case LZMADEC_MEM_ERROR:
+		archive_set_error(&self->archive->archive, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "out of memory");
+		break;
 	}
 
-	/* ACL text is null-terminated; find the end. */
-	size -= (p - acl);
-	acl = p;
-
-	while (*p != '\0' && p < acl + size)
-		p++;
-
-	if (tar->sconv_acl == NULL) {
-		tar->sconv_acl = archive_string_conversion_from_charset(
-		    &(a->archive), "UTF-8", 1);
-		if (tar->sconv_acl == NULL)
-			return (ARCHIVE_FATAL);
-	}
-	archive_strncpy(&(tar->localname), acl, p - acl);
-	err = archive_acl_parse_l(archive_entry_acl(entry),
-	    tar->localname.s, ARCHIVE_ENTRY_ACL_TYPE_ACCESS, tar->sconv_acl);
-	if (err != ARCHIVE_OK) {
-		if (errno == ENOMEM) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for ACL");
-		} else
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Malformed Solaris ACL attribute (unparsable)");
-	}
-	return (err);
+	free(state->out_block);
+	free(state);
+	self->data = NULL;
+	return (ARCHIVE_FATAL);
 }

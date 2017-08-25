@@ -1,1 +1,2 @@
-fprintf(stderr, "The %s target dependency graph is:\n", name);
+conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
+                                         data->state.range);

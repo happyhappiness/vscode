@@ -1,6 +1,6 @@
 {
-    va_start(ap, fmt);
-    fputs("* ", data->set.err);
-    vfprintf(data->set.err, fmt, ap);
-    va_end(ap);
-  }
+      /* if a line like this was already allocated, free the previous one */
+      if(conn->allocptr.rangeline)
+        free(conn->allocptr.rangeline);
+      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n", conn->range);
+    }

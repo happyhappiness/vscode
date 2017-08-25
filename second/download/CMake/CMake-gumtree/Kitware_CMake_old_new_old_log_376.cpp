@@ -1,3 +1,2 @@
-fprintf(fout, "target_link_libraries(%s %s)\n",
-              targetName,
-              libsToLink.c_str());
+snprintf(name, sizeof(name), "%s@%s", service, proxy ? conn->proxy.name :
+           conn->host.name);

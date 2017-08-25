@@ -1,15 +1,4 @@
 {
-        case '+':
-        case '?':
-        case '/':
-        case '\\':
-        case '&':
-        case ' ':
-        case '=':
-        case '%':
-          sprintf(hex, "%%%02X", (int)c);
-          ofile.append(hex);
-          break;
-        default: 
-          ofile.append(hex);
-          }
+      sprintf(firstLine,
+              "Press [c] to configure     Press [g] to generate and exit");
+      }

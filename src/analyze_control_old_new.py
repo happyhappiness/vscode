@@ -110,7 +110,7 @@ def analyze_old_new_joern(is_rebuild = False):
     # build joern index and restart database
     if is_rebuild:
         fetch_old_new()
-        myUtil.rebuild_joern_index(my_constant.OLD_NEW_PARENT_DIR + '.joernIndex/', my_constant.OLD_NEW_JOERN_DIR)
+    myUtil.rebuild_joern_index(my_constant.OLD_NEW_PARENT_DIR + '.joernIndex/', my_constant.OLD_NEW_JOERN_DIR)
     joern = Joern_api()
     old_new_gumtree_file = file(my_constant.ANALYZE_OLD_NEW_GUMTREE_FILE_NAME, 'rb')
     old_new_gumtree_records = csv.reader(old_new_gumtree_file)
@@ -140,4 +140,4 @@ main function
 if __name__ == "__main__":
     analyze_old_new_joern(False)
 
-    # analyze_old_new_joern()
+    # analyze_old_new_joern(True)

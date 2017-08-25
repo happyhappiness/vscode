@@ -1,1 +1,1 @@
-fprintf(ofp, "#endif\n");
+fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");

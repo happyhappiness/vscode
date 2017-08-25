@@ -1,1 +1,1 @@
-sprintf(argcDef,"%i",expandedArguments.size());
+sprintf(temp,"%d",this->ChipID.Model);

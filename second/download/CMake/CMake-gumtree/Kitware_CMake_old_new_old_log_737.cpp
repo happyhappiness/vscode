@@ -1,1 +1,1 @@
-vfprintf(f, fmt, ap);
+fprintf(ofp, "#ifdef __WATCOMC__\n");

@@ -1,4 +1,3 @@
 {
-          fprintf(progFile,"%i\n",count);
-          fclose(progFile);
-          }
+      sprintf(buf, "%s/*", name);
+      }

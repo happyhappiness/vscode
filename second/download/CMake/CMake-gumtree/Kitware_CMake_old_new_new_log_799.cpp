@@ -1,2 +1,2 @@
-sprintf(vertmp,"CMake Version %d.%d", cmMakefile::GetMajorVersion(),
-	  cmMakefile::GetMinorVersion());
+snprintf(realpath, TAR_MAXPATHLEN, "%s/%s", realdir,
+       dent->d_name);

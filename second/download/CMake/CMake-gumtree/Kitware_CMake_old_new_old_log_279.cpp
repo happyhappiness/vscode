@@ -1,2 +1,1 @@
-sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
-          target.GetName().c_str(), count);
+DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));

@@ -1,1 +1,1 @@
-sprintf(buf, "%s*", name);
+tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);

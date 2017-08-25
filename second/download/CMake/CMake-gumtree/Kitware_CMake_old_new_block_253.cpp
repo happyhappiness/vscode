@@ -1,3 +1,4 @@
-{
-      fprintf(fout, "set(CMAKE_LINK_SEARCH_END_STATIC \"%s\")\n", lssDef);
-    }
+f(!hostheader) {
+          Curl_add_buffer_free(req_buffer);
+          return CURLE_OUT_OF_MEMORY;
+        }

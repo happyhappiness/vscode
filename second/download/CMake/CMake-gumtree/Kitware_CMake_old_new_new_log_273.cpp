@@ -1,1 +1,0 @@
-this->DataSymbols.insert(symbol);

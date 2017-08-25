@@ -1,1 +1,5 @@
-snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i])
+{
+  return aprintf("%s:%d",
+                 conn->bits.proxy?conn->proxy.name:conn->host.name,
+                 conn->localport);
+}

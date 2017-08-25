@@ -1,139 +1,123 @@
-int main(int argc, const char* argv[])
+static int
+slurp_central_directory(struct archive_read *a, struct _7zip *zip,
+    struct _7z_header_info *header)
 {
-  int n = 0;
-#if 0
-    {
-    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-    DuplicateHandle(GetCurrentProcess(), out,
-                    GetCurrentProcess(), &out, 0, FALSE,
-                    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
-    SetStdHandle(STD_OUTPUT_HANDLE, out);
-    }
-    {
-    HANDLE out = GetStdHandle(STD_ERROR_HANDLE);
-    DuplicateHandle(GetCurrentProcess(), out,
-                    GetCurrentProcess(), &out, 0, FALSE,
-                    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
-    SetStdHandle(STD_ERROR_HANDLE, out);
-    }
-#endif
-  if(argc == 2)
-    {
-    n = atoi(argv[1]);
-    }
-  else if(argc == 3)
-    {
-    n = atoi(argv[2]);
-    }
-  /* Check arguments.  */
-  if(n < 1 || n > 7 || (argc == 3 && strcmp(argv[1], "run") != 0))
-    {
-    fprintf(stdout, "Usage: %s <test number>\n", argv[0]);
-    return 1;
-    }
-  if(argc == 3)
-    {
-    switch (n)
-      {
-      case 1: return test1(argc, argv);
-      case 2: return test2(argc, argv);
-      case 3: return test3(argc, argv);
-      case 4: return test4(argc, argv);
-      case 5: return test5(argc, argv);
-      case 6: test6(argc, argv); return 0;
-      case 7: return test7(argc, argv);
-      }
-    fprintf(stderr, "Invalid test number %d.\n", n);
-    return 1;
-    }
-  
-  if(n >= 0 && n <= 7)
-    {
-    int states[7] =
-    {
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Expired,
-      kwsysProcess_State_Exception,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Expired,
-      kwsysProcess_State_Exited
-    };
-    int exceptions[7] =
-    {
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_Fault,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None
-    };
-    int values[7] = {0, 123, 1, 1, 0, 0, 0};
-    int outputs[7] = {1, 1, 1, 1, 1, 0, 1};
-    int delays[7] = {0, 0, 0, 0, 0, 1, 0};
-    double timeouts[7] = {10, 10, 10, 10, 30, 10, -1};
-    int polls[7] = {0, 0, 0, 0, 0, 0, 1};
-    int repeat[7] = {2, 1, 1, 1, 1, 1, 1};
-    int r;
-    const char* cmd[4];
-#ifdef _WIN32
-    char* argv0 = 0;
-    if(n == 0 && (argv0 = strdup(argv[0])))
-      {
-      /* Try converting to forward slashes to see if it works.  */
-      char* c;
-      for(c=argv0; *c; ++c)
-        {
-        if(*c == '\\')
-          {
-          *c = '/';
-          }
-        }
-      cmd[0] = argv0;
-      }
-    else
-      {
-      cmd[0] = argv[0];
-      }
-#else
-    cmd[0] = argv[0];
-#endif
-    cmd[1] = "run";
-    cmd[2] = argv[1];
-    cmd[3] = 0;
-    fprintf(stdout, "Output on stdout before test %d.\n", n);
-    fprintf(stderr, "Output on stderr before test %d.\n", n);
-    fflush(stdout);
-    fflush(stderr);
-    r = runChild(cmd, states[n-1], exceptions[n-1], values[n-1], 0,
-                 outputs[n-1], delays[n-1], timeouts[n-1],
-                 polls[n-1], repeat[n-1]);
-    fprintf(stdout, "Output on stdout after test %d.\n", n);
-    fprintf(stderr, "Output on stderr after test %d.\n", n);
-    fflush(stdout);
-    fflush(stderr);
-#if _WIN32
-    if(argv0) { free(argv0); }
-#endif
-    return r;
-    }
-  else if(argc > 2 && strcmp(argv[1], "0") == 0)
-    {
-    /* This is the special debugging test to run a given command
-       line.  */
-    const char** cmd = argv+2;
-    int state = kwsysProcess_State_Exited;
-    int exception = kwsysProcess_Exception_None;
-    int value = 0;
-    double timeout = 0;
-    int r = runChild(cmd, state, exception, value, 0, 1, 0, timeout, 0, 1);
-    return r;
-    }
-  else
-    {
-    /* Improper usage.  */
-    fprintf(stdout, "Usage: %s <test number>\n", argv[0]);
-    return 1;
-    }
+	const unsigned char *p;
+	const void *image;
+	uint64_t len;
+	uint64_t next_header_offset;
+	uint64_t next_header_size;
+	uint32_t next_header_crc;
+	ssize_t bytes_avail, image_bytes;
+	int r;
+
+	if ((p = __archive_read_ahead(a, 32, &bytes_avail)) == NULL)
+		return (ARCHIVE_FATAL);
+
+	if ((p[0] == 'M' && p[1] == 'Z') || memcmp(p, "\x7F\x45LF", 4) == 0) {
+		/* This is an executable ? Must be self-extracting... */
+		r = skip_sfx(a, bytes_avail);
+		if (r < ARCHIVE_WARN)
+			return (r);
+		if ((p = __archive_read_ahead(a, 32, NULL)) == NULL)
+			return (ARCHIVE_FATAL);
+	}
+	zip->seek_base += 32;
+
+	if (memcmp(p, _7ZIP_SIGNATURE, 6) != 0) {
+		archive_set_error(&a->archive, -1, "Not 7-Zip archive file");
+		return (ARCHIVE_FATAL);
+	}
+
+	/* CRC check. */
+	if (crc32(0, (unsigned char *)p + 12, 20) != archive_le32dec(p + 8)) {
+		archive_set_error(&a->archive, -1, "Header CRC error");
+		return (ARCHIVE_FATAL);
+	}
+
+	next_header_offset = archive_le64dec(p + 12);
+	next_header_size = archive_le64dec(p + 20);
+	next_header_crc = archive_le32dec(p + 28);
+
+	if (next_header_size == 0)
+		/* There is no entry in an archive file. */
+		return (ARCHIVE_EOF);
+
+	if (((int64_t)next_header_offset) < 0) {
+		archive_set_error(&a->archive, -1, "Malformed 7-Zip archive");
+		return (ARCHIVE_FATAL);
+	}
+	if (__archive_read_seek(a, next_header_offset + zip->seek_base,
+	    SEEK_SET) < 0)
+		return (ARCHIVE_FATAL);
+	zip->header_offset = next_header_offset;
+
+	if ((p = __archive_read_ahead(a, next_header_size, NULL)) == NULL)
+		return (ARCHIVE_FATAL);
+
+	if (crc32(0, p, next_header_size) != next_header_crc) {
+		archive_set_error(&a->archive, -1, "Damaged 7-Zip archive");
+		return (ARCHIVE_FATAL);
+	}
+
+	len = next_header_size;
+	/* Parse ArchiveProperties. */
+	switch (p[0]) {
+	case kEncodedHeader:
+		p++;
+		len--;
+
+		/*
+		 * The archive has an encoded header and we have to decode it
+		 * in order to parse the header correctly.
+		 */
+		image_bytes =
+		    decode_header_image(a, zip, &(zip->si), p, len, &image);
+		free_StreamsInfo(&(zip->si));
+		memset(&(zip->si), 0, sizeof(zip->si));
+		if (image_bytes < 0)
+			return (ARCHIVE_FATAL);
+		p = image;
+		len = image_bytes;
+		/* FALL THROUGH */
+	case kHeader:
+		/*
+		 * Parse the header.
+		 */
+		errno = 0;
+		r = read_Header(zip, header, p, len);
+		if (r < 0) {
+			if (errno == ENOMEM)
+				archive_set_error(&a->archive, -1,
+				    "Couldn't allocate memory");
+			else
+				archive_set_error(&a->archive, -1,
+				    "Damaged 7-Zip archive");
+			return (ARCHIVE_FATAL);
+		}
+		if (len - r == 0 || p[r] != kEnd) {
+			archive_set_error(&a->archive, -1,
+			    "Malformed 7-Zip archive");
+			return (ARCHIVE_FATAL);
+		}
+		break;
+	default:
+		archive_set_error(&a->archive, -1,
+		    "Unexpected Property ID = %X", p[0]);
+		return (ARCHIVE_FATAL);
+	}
+	zip->stream_offset = -1;
+
+	/*
+	 * If the uncompressed buffer was allocated more than 64K for
+	 * the header image, release it.
+	 */
+	if (zip->uncompressed_buffer != NULL &&
+	    zip->uncompressed_buffer_size != 64 * 1024) {
+		free(zip->uncompressed_buffer);
+		zip->uncompressed_buffer = NULL;
+		zip->uncompressed_buffer_size = 0;
+	}
+
+	return (ARCHIVE_OK);
 }

@@ -1,1 +1,1 @@
-sprintf(covLogFilename, "CoverageLog-%d", logFileCount);
+std::cout << "AUTOMOC: Checking " << absFilename << std::endl;

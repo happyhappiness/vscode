@@ -1,107 +1,57 @@
-static ssize_t
-decode_header_image(struct archive_read *a, struct _7zip *zip,
-    struct _7z_stream_info *si, const unsigned char *p, uint64_t len,
-    const void **image)
+static int
+archive_read_format_zip_seekable_read_header(struct archive_read *a,
+	struct archive_entry *entry)
 {
-	const unsigned char *v;
-	size_t vsize;
+	struct zip *zip = (struct zip *)a->format->data;
 	int r;
 
-	errno = 0;
-	r = read_StreamsInfo(zip, si, p, len);
-	if (r < 0) {
-		if (errno == ENOMEM)
-			archive_set_error(&a->archive, -1,
-			    "Couldn't allocate memory");
-		else
-			archive_set_error(&a->archive, -1,
-			    "Malformed 7-Zip archive");
-		return (ARCHIVE_FATAL);
+	a->archive.archive_format = ARCHIVE_FORMAT_ZIP;
+	if (a->archive.archive_format_name == NULL)
+		a->archive.archive_format_name = "ZIP";
+
+	if (zip->zip_entries == NULL) {
+		r = slurp_central_directory(a, zip);
+		zip->entries_remaining = zip->central_directory_entries;
+		if (r != ARCHIVE_OK)
+			return r;
+		zip->entry = zip->zip_entries;
+	} else {
+		++zip->entry;
 	}
 
-	if (si->pi.numPackStreams == 0 || si->ci.numFolders == 0) {
-		archive_set_error(&a->archive, -1, "Malformed 7-Zip archive");
-		return (ARCHIVE_FATAL);
-	}
+	if (zip->entries_remaining <= 0)
+		return ARCHIVE_EOF;
+	--zip->entries_remaining;
 
-	if (zip->header_offset < si->pi.pos + si->pi.sizes[0] ||
-	    (int64_t)(si->pi.pos + si->pi.sizes[0]) < 0 ||
-	    si->pi.sizes[0] == 0 || (int64_t)si->pi.pos < 0) {
-		archive_set_error(&a->archive, -1, "Malformed Header offset");
-		return (ARCHIVE_FATAL);
-	}
-
-	r = setup_decode_folder(a, si->ci.folders, 1);
+	/* TODO: If entries are sorted by offset within the file, we
+	   should be able to skip here instead of seeking.  Skipping is
+	   typically faster (easier for I/O layer to optimize). */
+	__archive_read_seek(a, zip->entry->local_header_offset, SEEK_SET);
+	zip->unconsumed = 0;
+	r = zip_read_local_file_header(a, entry, zip);
 	if (r != ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
+		return r;
+	if ((zip->entry->mode & AE_IFMT) == AE_IFLNK) {
+		const void *p;
+		size_t linkname_length = archive_entry_size(entry);
 
-	/* Get an uncompressed header size. */
-	vsize = (size_t)zip->folder_outbytes_remaining;
-
-	/*
-	 * Allocate an uncompressed buffer for the header image.
-	 */
-	zip->uncompressed_buffer_size = 64 * 1024;
-	if (vsize > zip->uncompressed_buffer_size)
-		zip->uncompressed_buffer_size = vsize;
-	zip->uncompressed_buffer = malloc(zip->uncompressed_buffer_size);
-	if (zip->uncompressed_buffer == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "No memory for 7-Zip decompression");
-		return (ARCHIVE_FATAL);
-	}
-
-	/* Get the bytes we can read to decode the header. */
-	zip->pack_stream_inbytes_remaining = si->pi.sizes[0];
-
-	/* Seek the read point. */
-	if (__archive_read_seek(a, si->pi.pos + zip->seek_base, SEEK_SET) < 0)
-		return (ARCHIVE_FATAL);
-	zip->header_offset = si->pi.pos;
-
-	/* Extract a pack stream. */
-	r = extract_pack_stream(a);
-	if (r < 0)
-		return (r);
-	for (;;) {
-		ssize_t bytes;
-		
-		bytes = get_uncompressed_data(a, image, vsize);
-		if (bytes < 0)
-			return (r);
-		if (bytes != vsize) {
-			if (*image != zip->uncompressed_buffer) {
-				/* This might happen if the coder was COPY.
-				 * We have to make sure we read a full plain
-				 * header image. */
-				if (NULL==__archive_read_ahead(a, vsize, NULL))
-					return (ARCHIVE_FATAL);
-				continue;
-			} else {
-				archive_set_error(&a->archive, -1,
-				    "Malformed 7-Zip archive file");
-				return (ARCHIVE_FATAL);
-			}
+		archive_entry_set_size(entry, 0);
+		p = __archive_read_ahead(a, linkname_length, NULL);
+		if (p == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated Zip file");
+			return ARCHIVE_FATAL;
 		}
-		break;
-	}
-	v = *image;
 
-	/* Clean up variables which will not be used for decoding the
-	 * archive header */
-	zip->pack_stream_remaining = 0;
-	zip->pack_stream_index = 0;
-	zip->folder_outbytes_remaining = 0;
-	zip->uncompressed_buffer_bytes_remaining = 0;
-	zip->pack_stream_bytes_unconsumed = 0;
-
-	/* Check the header CRC. */
-	if (si->ci.folders[0].digest_defined){
-		uint32_t c = crc32(0, v, vsize);
-		if (c != si->ci.folders[0].digest) {
-			archive_set_error(&a->archive, -1, "Header CRC error");
+		if (archive_entry_copy_symlink_l(entry, p, linkname_length,
+		    NULL) != 0) {
+			/* NOTE: If the last argument is NULL, this will
+			 * fail only by memeory allocation failure. */
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Symlink");
 			return (ARCHIVE_FATAL);
 		}
+		/* TODO: handle character-set issues? */
 	}
-	return ((ssize_t)vsize);
+	return ARCHIVE_OK;
 }

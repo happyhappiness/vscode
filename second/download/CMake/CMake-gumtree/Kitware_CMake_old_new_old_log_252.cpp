@@ -1,1 +1,3 @@
-fprintf(fout, "set(CMAKE_LINK_SEARCH_START_STATIC \"%s\")\n", lssDef);
+aprintf("%s%s%s:%hu", conn->bits.ipv6_ip?"[":"",
+                  hostname, conn->bits.ipv6_ip?"]":"",
+                  remote_port);

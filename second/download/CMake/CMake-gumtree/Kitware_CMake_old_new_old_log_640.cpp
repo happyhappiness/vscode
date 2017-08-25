@@ -1,2 +1,2 @@
-printf("tar_extract_file(): calling libtar_hash_add(): key=\"%s\", "
-         "value=\"%s\"\n", th_get_pathname(t), realname);
+archive_set_error(&a->archive, ENOMEM,
+		    "No memory for 7-Zip decompression");

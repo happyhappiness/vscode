@@ -1,2 +1,2 @@
-sprintf(vertmp,"CMake Version %d.%d - %s", cmake::GetMajorVersion(),
-	  cmake::GetMinorVersion(),cmake::GetReleaseVersion());
+fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n"
+            ,classes[i].c_str());

@@ -1,7 +1,5 @@
 {
-        /* FormatMessage failed.  Use a default message.  */
-        _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
-                  "Process execution failed with error 0x%X.  "
-                  "FormatMessage failed with error 0x%X",
-                  original, GetLastError());
-        }
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Encountered out-of-order sparse blocks");
+			return (ARCHIVE_RETRY);
+		}

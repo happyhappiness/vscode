@@ -1,8 +1,6 @@
 {
-        /* we have a time, reformat it */
-        time_t secs=time(NULL);
-        sprintf(buf, "%04d%02d%02d %02d:%02d:%02d",
-                year, month, day, hour, minute, second);
-        /* now, convert this into a time() value: */
-        conn->data->info.filetime = curl_getdate(buf, &secs);
-      }
+        archive_set_error(&a->archive, EILSEQ,
+            "Can't translate gname '%s' to UTF-8", gname);
+        ret = ARCHIVE_WARN;
+        hdrcharset = "BINARY";
+    }

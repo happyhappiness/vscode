@@ -1,1 +1,1 @@
-printf("%s",buf);
+sprintf(tgtName, "node%d", cnt++);

@@ -1,1 +1,2 @@
-fprintf(fout, "SET(CMAKE_%s_FLAGS \"", li->c_str());
+archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));

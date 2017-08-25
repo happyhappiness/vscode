@@ -1,2 +1,1 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external lzma program for lzma decompression");
+fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");

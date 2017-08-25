@@ -1,1 +1,1 @@
-YY_STACK_PRINT (yyss, yyssp);
+sprintf(buf, "%u", this->VersionMajor);

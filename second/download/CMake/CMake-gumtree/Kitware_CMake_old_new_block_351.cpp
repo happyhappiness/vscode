@@ -1,15 +1,32 @@
 {
-            if (pSymbolTable->N.Name.Short != 0) {
-               symbol = "";
-               symbol.insert(0, (const char *)(pSymbolTable->N.ShortName), 8);
-            } else {
-               symbol = stringTable + pSymbolTable->N.Name.Long;
-            }
-            std::string::size_type posAt = symbol.find('@');
-            if (posAt != std::string::npos) symbol.erase(posAt);
-#ifndef _MSC_VER
-            fprintf(fout, "\t%s\n", symbol.c_str());
-#else
-            fprintf(fout, "\t%s\n", symbol.c_str()+1);
-#endif
-         }
+  // Create a fake output that forces the rule to run.
+  char* output = new char[(strlen(this->Makefile->GetCurrentBinaryDirectory())
+                           + target.GetName().size() + 30)];
+  sprintf(output,"%s/%s_force_%i", this->Makefile->GetCurrentBinaryDirectory(),
+          target.GetName().c_str(), count);
+  const char* comment = origCommand.GetComment();
+  if(!comment && origCommand.GetOutputs().empty())
+    {
+    comment = "<hack>";
+    }
+
+  // Add the rule with the given dependencies and commands.
+  std::string no_main_dependency = "";
+  if(cmSourceFile* outsf =
+     this->Makefile->AddCustomCommandToOutput(
+       output, depends, no_main_dependency,
+       origCommand.GetCommandLines(), comment,
+       origCommand.GetWorkingDirectory().c_str()))
+    {
+    cmGeneratorTarget* gt = this->GlobalGenerator->GetGeneratorTarget(&target);
+    gt->AddSource(outsf->GetFullPath());
+    }
+
+  // Replace the dependencies with the output of this rule so that the
+  // next rule added will run after this one.
+  depends.clear();
+  depends.push_back(output);
+
+  // Free the fake output name.
+  delete [] output;
+}

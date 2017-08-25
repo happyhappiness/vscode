@@ -1,15 +1,36 @@
-static char *hashkey(struct connectdata *conn)
+static CURLcode ftp_state_size_resp(struct connectdata *conn,
+                                    int ftpcode,
+                                    ftpstate instate)
 {
-  const char *hostname;
+  CURLcode result = CURLE_OK;
+  struct Curl_easy *data=conn->data;
+  curl_off_t filesize;
+  char *buf = data->state.buffer;
 
-  if(conn->bits.socksproxy)
-    hostname = conn->socks_proxy.host.name;
-  else if(conn->bits.httpproxy)
-    hostname = conn->http_proxy.host.name;
-  else if(conn->bits.conn_to_host)
-    hostname = conn->conn_to_host.name;
-  else
-    hostname = conn->host.name;
+  /* get the size from the ascii string: */
+  filesize = (ftpcode == 213)?curlx_strtoofft(buf+4, NULL, 0):-1;
 
-  return aprintf("%s:%d", hostname, conn->port);
+  if(instate == FTP_SIZE) {
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
+    if(-1 != filesize) {
+      snprintf(buf, sizeof(data->state.buffer),
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);
+      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+      if(result)
+        return result;
+    }
+#endif
+    Curl_pgrsSetDownloadSize(data, filesize);
+    result = ftp_state_rest(conn);
+  }
+  else if(instate == FTP_RETR_SIZE) {
+    Curl_pgrsSetDownloadSize(data, filesize);
+    result = ftp_state_retr(conn, filesize);
+  }
+  else if(instate == FTP_STOR_SIZE) {
+    data->state.resume_from = filesize;
+    result = ftp_state_ul_setup(conn, TRUE);
+  }
+
+  return result;
 }

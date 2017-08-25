@@ -1,1 +1,4 @@
-write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap);
+archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "lzmadec decompression failed(%d)",
+			    r);

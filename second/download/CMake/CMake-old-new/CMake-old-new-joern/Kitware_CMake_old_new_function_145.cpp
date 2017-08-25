@@ -1,98 +1,57 @@
-static int
-check_symlinks(struct archive_write_disk *a)
+static ssize_t
+lzma_filter_read(struct archive_read_filter *self, const void **p)
 {
-#if !defined(HAVE_LSTAT)
-	/* Platform doesn't have lstat, so we can't look for symlinks. */
-	(void)a; /* UNUSED */
-	return (ARCHIVE_OK);
-#else
-	char *pn;
-	char c;
-	int r;
-	struct stat st;
+	struct private_data *state;
+	size_t decompressed;
+	ssize_t avail_in, ret;
 
-	/*
-	 * Guard against symlink tricks.  Reject any archive entry whose
-	 * destination would be altered by a symlink.
-	 */
-	/* Whatever we checked last time doesn't need to be re-checked. */
-	pn = a->name;
-	if (archive_strlen(&(a->path_safe)) > 0) {
-		char *p = a->path_safe.s;
-		while ((*pn != '\0') && (*p == *pn))
-			++p, ++pn;
-	}
-	/* Skip the root directory if the path is absolute. */
-	if(pn == a->name && pn[0] == '/')
-		++pn;
-	c = pn[0];
-	/* Keep going until we've checked the entire name. */
-	while (pn[0] != '\0' && (pn[0] != '/' || pn[1] != '\0')) {
-		/* Skip the next path element. */
-		while (*pn != '\0' && *pn != '/')
-			++pn;
-		c = pn[0];
-		pn[0] = '\0';
-		/* Check that we haven't hit a symlink. */
-		r = lstat(a->name, &st);
-		if (r != 0) {
-			/* We've hit a dir that doesn't exist; stop now. */
-			if (errno == ENOENT)
-				break;
-		} else if (S_ISLNK(st.st_mode)) {
-			if (c == '\0') {
-				/*
-				 * Last element is symlink; remove it
-				 * so we can overwrite it with the
-				 * item being extracted.
-				 */
-				if (unlink(a->name)) {
-					archive_set_error(&a->archive, errno,
-					    "Could not remove symlink %s",
-					    a->name);
-					pn[0] = c;
-					return (ARCHIVE_FAILED);
-				}
-				a->pst = NULL;
-				/*
-				 * Even if we did remove it, a warning
-				 * is in order.  The warning is silly,
-				 * though, if we're just replacing one
-				 * symlink with another symlink.
-				 */
-				if (!S_ISLNK(a->mode)) {
-					archive_set_error(&a->archive, 0,
-					    "Removing symlink %s",
-					    a->name);
-				}
-				/* Symlink gone.  No more problem! */
-				pn[0] = c;
-				return (0);
-			} else if (a->flags & ARCHIVE_EXTRACT_UNLINK) {
-				/* User asked us to remove problems. */
-				if (unlink(a->name) != 0) {
-					archive_set_error(&a->archive, 0,
-					    "Cannot remove intervening symlink %s",
-					    a->name);
-					pn[0] = c;
-					return (ARCHIVE_FAILED);
-				}
-				a->pst = NULL;
-			} else {
-				archive_set_error(&a->archive, 0,
-				    "Cannot extract through symlink %s",
-				    a->name);
-				pn[0] = c;
-				return (ARCHIVE_FAILED);
-			}
+	state = (struct private_data *)self->data;
+
+	/* Empty our output buffer. */
+	state->stream.next_out = state->out_block;
+	state->stream.avail_out = state->out_block_size;
+
+	/* Try to fill the output buffer. */
+	while (state->stream.avail_out > 0 && !state->eof) {
+		state->stream.next_in = (unsigned char *)(uintptr_t)
+		    __archive_read_filter_ahead(self->upstream, 1, &avail_in);
+		if (state->stream.next_in == NULL && avail_in < 0) {
+			archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "truncated lzma input");
+			return (ARCHIVE_FATAL);
 		}
-		pn[0] = c;
-		if (pn[0] != '\0')
-			pn++; /* Advance to the next segment. */
+		state->stream.avail_in = avail_in;
+
+		/* Decompress as much as we can in one pass. */
+		ret = lzmadec_decode(&(state->stream), avail_in == 0);
+		switch (ret) {
+		case LZMADEC_STREAM_END: /* Found end of stream. */
+			state->eof = 1;
+			/* FALL THROUGH */
+		case LZMADEC_OK: /* Decompressor made some progress. */
+			__archive_read_filter_consume(self->upstream,
+			    avail_in - state->stream.avail_in);
+			break;
+		case LZMADEC_BUF_ERROR: /* Insufficient input data? */
+			archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "Insufficient compressed data");
+			return (ARCHIVE_FATAL);
+		default:
+			/* Return an error. */
+			archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "Lzma decompression failed");
+			return (ARCHIVE_FATAL);
+		}
 	}
-	pn[0] = c;
-	/* We've checked and/or cleaned the whole path, so remember it. */
-	archive_strcpy(&a->path_safe, a->name);
-	return (ARCHIVE_OK);
-#endif
+
+	decompressed = state->stream.next_out - state->out_block;
+	state->total_out += decompressed;
+	if (decompressed == 0)
+		*p = NULL;
+	else
+		*p = state->out_block;
+	return (decompressed);
 }

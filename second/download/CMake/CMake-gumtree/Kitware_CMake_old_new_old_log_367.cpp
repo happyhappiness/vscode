@@ -1,1 +1,1 @@
-fprintf(out, "%s", archive_entry_pathname(entry));
+snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str);

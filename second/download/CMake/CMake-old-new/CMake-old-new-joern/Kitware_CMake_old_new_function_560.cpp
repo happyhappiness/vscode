@@ -1,21 +1,19 @@
-void
-cmComputeTargetDepends::DisplayGraph(Graph const& graph, const char* name)
+static int
+_archive_read_disk_open_w(struct archive *_a, const wchar_t *pathname)
 {
-  fprintf(stderr, "The %s target dependency graph is:\n", name);
-  int n = static_cast<int>(graph.size());
-  for(int depender_index = 0; depender_index < n; ++depender_index)
-    {
-    NodeList const& nl = graph[depender_index];
-    cmTarget* depender = this->Targets[depender_index];
-    fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
-    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int dependee_index = *ni;
-      cmTarget* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
-              dependee->GetName());
-      }
-    }
-  fprintf(stderr, "\n");
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+
+	if (a->tree != NULL)
+		a->tree = tree_reopen(a->tree, pathname, a->restore_time);
+	else
+		a->tree = tree_open(pathname, a->symlink_mode, a->restore_time);
+	if (a->tree == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate direcotry traversal data");
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		return (ARCHIVE_FATAL);
+	}
+	a->archive.state = ARCHIVE_STATE_HEADER;
+
+	return (ARCHIVE_OK);
 }

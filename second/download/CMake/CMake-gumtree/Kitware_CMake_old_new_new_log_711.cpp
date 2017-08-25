@@ -1,1 +1,1 @@
-std::cerr << "***Failed\n";
+str << this->ChipID.Family;

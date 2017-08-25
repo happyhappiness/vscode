@@ -1,124 +1,159 @@
-bool cmQtAutomoc::RunAutomocQt4()
+const void *
+__archive_read_filter_ahead(struct archive_read_filter *filter,
+    size_t min, ssize_t *avail)
 {
-  if (!cmsys::SystemTools::FileExists(this->OutMocCppFilename.c_str())
-    || (this->OldMocDefinitionsStr != this->Join(this->MocDefinitions, ' ')))
-    {
-    this->GenerateAll = true;
-    }
+	ssize_t bytes_read;
+	size_t tocopy;
 
-  // the program goes through all .cpp files to see which moc files are
-  // included. It is not really interesting how the moc file is named, but
-  // what file the moc is created from. Once a moc is included the same moc
-  // may not be included in the _automoc.cpp file anymore. OTOH if there's a
-  // header containing Q_OBJECT where no corresponding moc file is included
-  // anywhere a moc_<filename>.cpp file is created and included in
-  // the _automoc.cpp file.
+	if (filter->fatal) {
+		if (avail)
+			*avail = ARCHIVE_FATAL;
+		return (NULL);
+	}
 
-  // key = moc source filepath, value = moc output filepath
-  std::map<std::string, std::string> includedMocs;
-  // key = moc source filepath, value = moc output filename
-  std::map<std::string, std::string> notIncludedMocs;
+	/*
+	 * Keep pulling more data until we can satisfy the request.
+	 */
+	for (;;) {
 
+		/*
+		 * If we can satisfy from the copy buffer (and the
+		 * copy buffer isn't empty), we're done.  In particular,
+		 * note that min == 0 is a perfectly well-defined
+		 * request.
+		 */
+		if (filter->avail >= min && filter->avail > 0) {
+			if (avail != NULL)
+				*avail = filter->avail;
+			return (filter->next);
+		}
 
-  std::vector<std::string> sourceFiles;
-  cmSystemTools::ExpandListArgument(this->Sources, sourceFiles);
+		/*
+		 * We can satisfy directly from client buffer if everything
+		 * currently in the copy buffer is still in the client buffer.
+		 */
+		if (filter->client_total >= filter->client_avail + filter->avail
+		    && filter->client_avail + filter->avail >= min) {
+			/* "Roll back" to client buffer. */
+			filter->client_avail += filter->avail;
+			filter->client_next -= filter->avail;
+			/* Copy buffer is now empty. */
+			filter->avail = 0;
+			filter->next = filter->buffer;
+			/* Return data from client buffer. */
+			if (avail != NULL)
+				*avail = filter->client_avail;
+			return (filter->client_next);
+		}
 
-  for (std::vector<std::string>::const_iterator it = sourceFiles.begin();
-       it != sourceFiles.end();
-       ++it)
-    {
-    const std::string &absFilename = *it;
-    if (this->Verbose)
-      {
-      printf("Checking -%s-\n", absFilename.c_str());
-      }
-    this->ParseCppFile(absFilename, includedMocs, notIncludedMocs);
-    }
+		/* Move data forward in copy buffer if necessary. */
+		if (filter->next > filter->buffer &&
+		    filter->next + min > filter->buffer + filter->buffer_size) {
+			if (filter->avail > 0)
+				memmove(filter->buffer, filter->next, filter->avail);
+			filter->next = filter->buffer;
+		}
 
-  std::vector<std::string> headerFiles;
-  cmSystemTools::ExpandListArgument(this->Headers, headerFiles);
-  for (std::vector<std::string>::const_iterator it = headerFiles.begin();
-       it != headerFiles.end();
-       ++it)
-    {
-    const std::string &absFilename = *it;
-    if (this->Verbose)
-      {
-      printf("Checking -%s-\n", absFilename.c_str());
-      }
-    if (includedMocs.find(absFilename) == includedMocs.end()
-              && notIncludedMocs.find(absFilename) == notIncludedMocs.end())
-      {
-      // if this header is not getting processed yet and is explicitly
-      // mentioned for the automoc the moc is run unconditionally on the
-      // header and the resulting file is included in the _automoc.cpp file
-      // (unless there's a .cpp file later on that includes the moc from
-      // this header)
-      const std::string currentMoc = "moc_" + cmsys::SystemTools::
-                         GetFilenameWithoutLastExtension(absFilename) + ".cpp";
-      notIncludedMocs[absFilename] = currentMoc;
-      }
-    }
+		/* If we've used up the client data, get more. */
+		if (filter->client_avail <= 0) {
+			if (filter->end_of_file) {
+				if (avail != NULL)
+					*avail = 0;
+				return (NULL);
+			}
+			bytes_read = (filter->read)(filter,
+			    &filter->client_buff);
+			if (bytes_read < 0) {		/* Read error. */
+				filter->client_total = filter->client_avail = 0;
+				filter->client_next = filter->client_buff = NULL;
+				filter->fatal = 1;
+				if (avail != NULL)
+					*avail = ARCHIVE_FATAL;
+				return (NULL);
+			}
+			if (bytes_read == 0) {	/* Premature end-of-file. */
+				filter->client_total = filter->client_avail = 0;
+				filter->client_next = filter->client_buff = NULL;
+				filter->end_of_file = 1;
+				/* Return whatever we do have. */
+				if (avail != NULL)
+					*avail = filter->avail;
+				return (NULL);
+			}
+			filter->client_total = bytes_read;
+			filter->client_avail = filter->client_total;
+			filter->client_next = filter->client_buff;
+		}
+		else
+		{
+			/*
+			 * We can't satisfy the request from the copy
+			 * buffer or the existing client data, so we
+			 * need to copy more client data over to the
+			 * copy buffer.
+			 */
 
-  // run moc on all the moc's that are #included in source files
-  for(std::map<std::string, std::string>::const_iterator
-                                                     it = includedMocs.begin();
-      it != includedMocs.end();
-      ++it)
-    {
-    this->GenerateMoc(it->first, it->second);
-    }
+			/* Ensure the buffer is big enough. */
+			if (min > filter->buffer_size) {
+				size_t s, t;
+				char *p;
 
-  std::stringstream outStream(std::stringstream::out);
-  outStream << "/* This file is autogenerated, do not edit*/\n";
+				/* Double the buffer; watch for overflow. */
+				s = t = filter->buffer_size;
+				if (s == 0)
+					s = min;
+				while (s < min) {
+					t *= 2;
+					if (t <= s) { /* Integer overflow! */
+						archive_set_error(
+							&filter->archive->archive,
+							ENOMEM,
+						    "Unable to allocate copy buffer");
+						filter->fatal = 1;
+						if (avail != NULL)
+							*avail = ARCHIVE_FATAL;
+						return (NULL);
+					}
+					s = t;
+				}
+				/* Now s >= min, so allocate a new buffer. */
+				p = (char *)malloc(s);
+				if (p == NULL) {
+					archive_set_error(
+						&filter->archive->archive,
+						ENOMEM,
+					    "Unable to allocate copy buffer");
+					filter->fatal = 1;
+					if (avail != NULL)
+						*avail = ARCHIVE_FATAL;
+					return (NULL);
+				}
+				/* Move data into newly-enlarged buffer. */
+				if (filter->avail > 0)
+					memmove(p, filter->next, filter->avail);
+				free(filter->buffer);
+				filter->next = filter->buffer = p;
+				filter->buffer_size = s;
+			}
 
-  bool automocCppChanged = false;
-  if (notIncludedMocs.empty())
-    {
-    outStream << "enum some_compilers { need_more_than_nothing };\n";
-    }
-  else
-    {
-    // run moc on the remaining headers and include them in
-    // the _automoc.cpp file
-    for(std::map<std::string, std::string>::const_iterator
-                                                  it = notIncludedMocs.begin();
-        it != notIncludedMocs.end();
-        ++it)
-      {
-      bool mocSuccess = this->GenerateMoc(it->first, it->second);
-      if (mocSuccess)
-        {
-        automocCppChanged = true;
-        }
-      outStream << "#include \"" << it->second << "\"\n";
-      }
-    }
+			/* We can add client data to copy buffer. */
+			/* First estimate: copy to fill rest of buffer. */
+			tocopy = (filter->buffer + filter->buffer_size)
+			    - (filter->next + filter->avail);
+			/* Don't waste time buffering more than we need to. */
+			if (tocopy + filter->avail > min)
+				tocopy = min - filter->avail;
+			/* Don't copy more than is available. */
+			if (tocopy > filter->client_avail)
+				tocopy = filter->client_avail;
 
-  if (this->RunMocFailed)
-    {
-    std::cerr << "returning failed.."<< std::endl;
-    return false;
-    }
-  outStream.flush();
-  std::string automocSource = outStream.str();
-  if (!automocCppChanged)
-    {
-    // compare contents of the _automoc.cpp file
-    const std::string oldContents = this->ReadAll(this->OutMocCppFilename);
-    if (oldContents == automocSource)
-      {
-      // nothing changed: don't touch the _automoc.cpp file
-      return true;
-      }
-    }
-
-  // source file that includes all remaining moc files (_automoc.cpp file)
-  std::fstream outfile;
-  outfile.open(this->OutMocCppFilename.c_str(),
-               std::ios_base::out | std::ios_base::trunc);
-  outfile << automocSource;
-  outfile.close();
-
-  return true;
+			memcpy(filter->next + filter->avail, filter->client_next,
+			    tocopy);
+			/* Remove this data from client buffer. */
+			filter->client_next += tocopy;
+			filter->client_avail -= tocopy;
+			/* add it to copy buffer. */
+			filter->avail += tocopy;
+		}
+	}
 }

@@ -1,1 +1,5 @@
-snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Internal error initializing "
+				    "compression library: "
+				    "invalid header");

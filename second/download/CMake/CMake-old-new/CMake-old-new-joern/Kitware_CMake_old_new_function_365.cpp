@@ -1,40 +1,29 @@
-unsigned long Directory::GetNumberOfFilesInDirectory(const char* name)
+static void
+log_gss_error(struct connectdata *conn, OM_uint32 error_status,
+              const char *prefix)
 {
-#if _MSC_VER < 1300
-  long srchHandle;
-#else
-  intptr_t srchHandle;
-#endif
-  char* buf;
-  size_t n = strlen(name);
-  if ( name[n - 1] == '/' )
-    {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name);
-    }
-  else
-    {
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name);
-    }
-  struct _wfinddata_t data;      // data of current file
+  OM_uint32 maj_stat, min_stat;
+  OM_uint32 msg_ctx = 0;
+  gss_buffer_desc status_string;
+  char buf[1024];
+  size_t len;
 
-  // Now put them into the file array
-  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
-  delete [] buf;
-
-  if ( srchHandle == -1 )
-    {
-    return 0;
+  snprintf(buf, sizeof(buf), "%s", prefix);
+  len = strlen(buf);
+  do {
+    maj_stat = gss_display_status(&min_stat,
+                                  error_status,
+                                  GSS_C_MECH_CODE,
+                                  GSS_C_NO_OID,
+                                  &msg_ctx,
+                                  &status_string);
+      if(sizeof(buf) > len + status_string.length + 1) {
+        snprintf(buf + len, sizeof(buf) - len,
+                 ": %s", (char*) status_string.value);
+      len += status_string.length;
     }
+    gss_release_buffer(&min_stat, &status_string);
+  } while(!GSS_ERROR(maj_stat) && msg_ctx != 0);
 
-  // Loop through names
-  unsigned long count = 0;
-  do
-    {
-    count++;
-    }
-  while ( _wfindnext(srchHandle, &data) != -1 );
-  _findclose(srchHandle);
-  return count;
+  infof(conn->data, "%s\n", buf);
 }

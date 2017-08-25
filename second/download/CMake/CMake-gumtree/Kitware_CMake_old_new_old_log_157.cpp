@@ -1,1 +1,2 @@
-yy_fatal_error( "cmExpr_yyset_column called with no buffer" , yyscanner);
+archive_string_sprintf(&w->sver,
+			"WARC/%u.%u", ver / 10000, ver % 10000);

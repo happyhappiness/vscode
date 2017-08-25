@@ -1,3 +1,1 @@
-sprintf(output,"%s/%s_force_%i",
-              m_Makefile->GetStartOutputDirectory(),
-              libName, count);
+sprintf(this->ChipID.ProcessorName,"%s",this->ParseValueFromKStat("-s cpu_type").c_str());

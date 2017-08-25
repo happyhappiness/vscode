@@ -1,91 +1,103 @@
-static int
-setup_xattrs(struct archive_read_disk *a,
-    struct archive_entry *entry, int *fd)
+static CURLcode ftp_state_mdtm_resp(struct connectdata *conn,
+                                    int ftpcode)
 {
-	char *list, *p;
-	const char *path;
-	ssize_t list_size;
+  CURLcode result = CURLE_OK;
+  struct Curl_easy *data=conn->data;
+  struct FTP *ftp = data->req.protop;
+  struct ftp_conn *ftpc = &conn->proto.ftpc;
 
-	path = archive_entry_sourcepath(entry);
-	if (path == NULL)
-		path = archive_entry_pathname(entry);
+  switch(ftpcode) {
+  case 213:
+    {
+      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
+         last .sss part is optional and means fractions of a second */
+      int year, month, day, hour, minute, second;
+      char *buf = data->state.buffer;
+      if(6 == sscanf(buf+4, "%04d%02d%02d%02d%02d%02d",
+                     &year, &month, &day, &hour, &minute, &second)) {
+        /* we have a time, reformat it */
+        time_t secs=time(NULL);
+        /* using the good old yacc/bison yuck */
+        snprintf(buf, sizeof(conn->data->state.buffer),
+                 "%04d%02d%02d %02d:%02d:%02d GMT",
+                 year, month, day, hour, minute, second);
+        /* now, convert this into a time() value: */
+        data->info.filetime = (long)curl_getdate(buf, &secs);
+      }
 
-	if (*fd < 0 && a->tree != NULL) {
-		if (a->follow_symlinks ||
-		    archive_entry_filetype(entry) != AE_IFLNK)
-			*fd = a->open_on_current_dir(a->tree, path,
-				O_RDONLY | O_NONBLOCK);
-		if (*fd < 0) {
-			if (a->tree_enter_working_dir(a->tree) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Couldn't access %s", path);
-				return (ARCHIVE_FAILED);
-			}
-		}
-	}
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
+      /* If we asked for a time of the file and we actually got one as well,
+         we "emulate" a HTTP-style header in our output. */
 
-#if HAVE_FLISTXATTR
-	if (*fd >= 0)
-		list_size = flistxattr(*fd, NULL, 0);
-	else if (!a->follow_symlinks)
-		list_size = llistxattr(path, NULL, 0);
-	else
-		list_size = listxattr(path, NULL, 0);
-#elif HAVE_FLISTEA
-	if (*fd >= 0)
-		list_size = flistea(*fd, NULL, 0);
-	else if (!a->follow_symlinks)
-		list_size = llistea(path, NULL, 0);
-	else
-		list_size = listea(path, NULL, 0);
+      if(data->set.opt_no_body &&
+         ftpc->file &&
+         data->set.get_filetime &&
+         (data->info.filetime>=0) ) {
+        time_t filetime = (time_t)data->info.filetime;
+        struct tm buffer;
+        const struct tm *tm = &buffer;
+
+        result = Curl_gmtime(filetime, &buffer);
+        if(result)
+          return result;
+
+        /* format: "Tue, 15 Nov 1994 12:45:26" */
+        snprintf(buf, BUFSIZE-1,
+                 "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+                 Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+                 tm->tm_mday,
+                 Curl_month[tm->tm_mon],
+                 tm->tm_year + 1900,
+                 tm->tm_hour,
+                 tm->tm_min,
+                 tm->tm_sec);
+        result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+        if(result)
+          return result;
+      } /* end of a ridiculous amount of conditionals */
 #endif
+    }
+    break;
+  default:
+    infof(data, "unsupported MDTM reply format\n");
+    break;
+  case 550: /* "No such file or directory" */
+    failf(data, "Given file does not exist");
+    result = CURLE_FTP_COULDNT_RETR_FILE;
+    break;
+  }
 
-	if (list_size == -1) {
-		if (errno == ENOTSUP || errno == ENOSYS)
-			return (ARCHIVE_OK);
-		archive_set_error(&a->archive, errno,
-			"Couldn't list extended attributes");
-		return (ARCHIVE_WARN);
-	}
+  if(data->set.timecondition) {
+    if((data->info.filetime > 0) && (data->set.timevalue > 0)) {
+      switch(data->set.timecondition) {
+      case CURL_TIMECOND_IFMODSINCE:
+      default:
+        if(data->info.filetime <= data->set.timevalue) {
+          infof(data, "The requested document is not new enough\n");
+          ftp->transfer = FTPTRANSFER_NONE; /* mark to not transfer data */
+          data->info.timecond = TRUE;
+          state(conn, FTP_STOP);
+          return CURLE_OK;
+        }
+        break;
+      case CURL_TIMECOND_IFUNMODSINCE:
+        if(data->info.filetime > data->set.timevalue) {
+          infof(data, "The requested document is not old enough\n");
+          ftp->transfer = FTPTRANSFER_NONE; /* mark to not transfer data */
+          data->info.timecond = TRUE;
+          state(conn, FTP_STOP);
+          return CURLE_OK;
+        }
+        break;
+      } /* switch */
+    }
+    else {
+      infof(data, "Skipping time comparison\n");
+    }
+  }
 
-	if (list_size == 0)
-		return (ARCHIVE_OK);
+  if(!result)
+    result = ftp_state_type(conn);
 
-	if ((list = malloc(list_size)) == NULL) {
-		archive_set_error(&a->archive, errno, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
-
-#if HAVE_FLISTXATTR
-	if (*fd >= 0)
-		list_size = flistxattr(*fd, list, list_size);
-	else if (!a->follow_symlinks)
-		list_size = llistxattr(path, list, list_size);
-	else
-		list_size = listxattr(path, list, list_size);
-#elif HAVE_FLISTEA
-	if (*fd >= 0)
-		list_size = flistea(*fd, list, list_size);
-	else if (!a->follow_symlinks)
-		list_size = llistea(path, list, list_size);
-	else
-		list_size = listea(path, list, list_size);
-#endif
-
-	if (list_size == -1) {
-		archive_set_error(&a->archive, errno,
-			"Couldn't retrieve extended attributes");
-		free(list);
-		return (ARCHIVE_WARN);
-	}
-
-	for (p = list; (p - list) < list_size; p += strlen(p) + 1) {
-		if (strncmp(p, "system.", 7) == 0 ||
-				strncmp(p, "xfsroot.", 8) == 0)
-			continue;
-		setup_xattr(a, entry, p, *fd);
-	}
-
-	free(list);
-	return (ARCHIVE_OK);
+  return result;
 }

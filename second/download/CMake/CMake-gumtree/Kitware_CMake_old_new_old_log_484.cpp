@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive, -1,
-	    "External compression programs not supported on this platform");
+fprintf(fout, "SET(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              lg->EscapeForCMake(flags?flags:"").c_str());

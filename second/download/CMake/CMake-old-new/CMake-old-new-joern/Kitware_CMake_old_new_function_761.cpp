@@ -1,74 +1,53 @@
-BOOL CMakeSetupDialog::OnInitDialog()
+void cmOrderLinkDirectories::PrepareLinkTargets()
 {
-  CDialog::OnInitDialog();
-  this->DragAcceptFiles(true);
-
-  // Add "Create shortcut" menu item to system menu.
-
-  // IDM_CREATESHORTCUT must be in the system command range.
-  ASSERT((IDM_CREATESHORTCUT & 0xFFF0) == IDM_CREATESHORTCUT);
-  ASSERT(IDM_CREATESHORTCUT < 0xF000);
-
-  // Add "About..." menu item to system menu.
-
-  // IDM_ABOUTBOX must be in the system command range.
-  ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
-  ASSERT(IDM_ABOUTBOX < 0xF000);
-
-  CMenu* pSysMenu = GetSystemMenu(FALSE);
-  if (pSysMenu != NULL)
+  std::vector<cmStdString> originalLinkItems = this->LinkItems;
+  this->LinkItems.clear();
+  this->CurrentLinkType = this->StartLinkType;
+  for(std::vector<cmStdString>::iterator i = originalLinkItems.begin();
+      i != originalLinkItems.end(); ++i)
     {
-    CString strCreateShortcutMenu;
-    strCreateShortcutMenu.LoadString(IDS_CREATESHORTCUT);
-    if (!strCreateShortcutMenu.IsEmpty())
+    // separate the library name from libfoo.a or foo.a
+    if(this->ExtractStaticLibraryName.find(*i))
       {
-      pSysMenu->AppendMenu(MF_SEPARATOR);
-      pSysMenu->AppendMenu(MF_STRING, 
-                           IDM_CREATESHORTCUT, 
-                           strCreateShortcutMenu);
+#ifdef CM_ORDER_LINK_DIRECTORIES_DEBUG
+      fprintf(stderr, "static regex matched [%s] [%s] [%s]\n",
+              this->ExtractStaticLibraryName.match(1).c_str(),
+              this->ExtractStaticLibraryName.match(2).c_str(),
+              this->ExtractStaticLibraryName.match(3).c_str());
+#endif
+      this->SetCurrentLinkType(LinkStatic);
+      this->LinkItems.push_back(this->ExtractStaticLibraryName.match(2));
       }
-
-    CString strAboutMenu;
-    strAboutMenu.LoadString(IDS_ABOUTBOX);
-    if (!strAboutMenu.IsEmpty())
+    else if(this->ExtractSharedLibraryName.find(*i))
       {
-      pSysMenu->AppendMenu(MF_SEPARATOR);
-      pSysMenu->AppendMenu(MF_STRING, 
-                           IDM_ABOUTBOX, 
-                           strAboutMenu);
+#ifdef CM_ORDER_LINK_DIRECTORIES_DEBUG
+      fprintf(stderr, "shared regex matched [%s] [%s] [%s]\n",
+              this->ExtractSharedLibraryName.match(1).c_str(),
+              this->ExtractSharedLibraryName.match(2).c_str(),
+              this->ExtractSharedLibraryName.match(3).c_str());
+#endif
+      this->SetCurrentLinkType(LinkShared);
+      this->LinkItems.push_back(this->ExtractSharedLibraryName.match(2));
+      }
+    else if(this->ExtractAnyLibraryName.find(*i))
+      {
+#ifdef CM_ORDER_LINK_DIRECTORIES_DEBUG
+      fprintf(stderr, "any regex matched [%s] [%s] [%s]\n",
+              this->ExtractAnyLibraryName.match(1).c_str(),
+              this->ExtractAnyLibraryName.match(2).c_str(),
+              this->ExtractAnyLibraryName.match(3).c_str());
+#endif
+      this->SetCurrentLinkType(this->StartLinkType);
+      this->LinkItems.push_back(this->ExtractAnyLibraryName.match(2));
+      }
+    else
+      {
+      this->SetCurrentLinkType(this->StartLinkType);
+      this->LinkItems.push_back(*i);
       }
     }
 
-  // Set the icon for this dialog.  The framework does this automatically
-  //  when the application's main window is not a dialog
-  SetIcon(m_hIcon, TRUE);			// Set big icon
-  SetIcon(m_hIcon, FALSE);		// Set small icon
-  // Load source and build dirs from registry
-  this->LoadFromRegistry();
-  std::vector<std::string> names;
-  this->m_CMakeInstance->GetRegisteredGenerators(names);
-  for(std::vector<std::string>::iterator i = names.begin();
-      i != names.end(); ++i)
-    {
-    m_GeneratorChoice.AddString(i->c_str());
-    }
-  if (m_GeneratorChoiceString == _T("")) 
-    {
-    m_GeneratorChoiceString = "Visual Studio 6";
-    }
-
-  // try to load the cmake cache from disk
-  this->LoadCacheFromDiskToGUI();
-  m_WhereBuildControl.LimitText(2048);
-  m_WhereSourceControl.LimitText(2048);
-  m_GeneratorChoice.LimitText(2048);
-    
-  // Set the version number
-  char tmp[1024];
-  sprintf(tmp,"Version %d.%d - %s", cmake::GetMajorVersion(),
-          cmake::GetMinorVersion(), cmake::GetReleaseVersion());
-  SetDlgItemText(IDC_CMAKE_VERSION, tmp);
-  SetDlgItemText(IDC_PROGRESS, "");
-  this->UpdateData(FALSE);
-  return TRUE;  // return TRUE  unless you set the focus to a control
+  // Restore the original linking type so system runtime libraries are
+  // linked properly.
+  this->SetCurrentLinkType(this->StartLinkType);
 }

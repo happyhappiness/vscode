@@ -1,0 +1,1 @@
+sprintf(firstLine,  "C)onfigure                                               H)elp");

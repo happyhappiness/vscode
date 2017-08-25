@@ -1,2 +1,2 @@
-fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
-              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
+fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName().c_str(), ni->IsStrong()? "strong" : "weak");

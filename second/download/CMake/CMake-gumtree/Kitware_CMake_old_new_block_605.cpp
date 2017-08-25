@@ -1,1 +1,11 @@
-conn->allocptr.ref = aprintf("Referer: %s\015\012", data->change.referer)
+(useOldLinkLibs)
+      {
+      fprintf(fout,
+              "TARGET_LINK_LIBRARIES(%s ${LINK_LIBRARIES})\n",targetName);
+      }
+    else
+      {
+      fprintf(fout, "TARGET_LINK_LIBRARIES(%s %s)\n",
+              targetName,
+              libsToLink.c_str());
+      }

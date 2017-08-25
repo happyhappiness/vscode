@@ -1,10 +1,9 @@
 {
-            symbol = stringTable + pSymbolTable->N.Name.Long;
-            while (isspace(symbol[0]))  symbol.erase(0,1);
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (!this->ImportFlag) {
-               this->ImportFlag = true;
-               fprintf(this->FileOut,"IMPORTS \n");
-            }
-            fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);
-         }
+    /* Append the opaque */
+    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
+    free(response);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    response = tmp;
+  }

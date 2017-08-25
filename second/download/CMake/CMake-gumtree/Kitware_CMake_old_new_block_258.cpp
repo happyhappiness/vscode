@@ -1,5 +1,5 @@
 {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file header");
-		return (ARCHIVE_FATAL);
-	}
+  return aprintf("%s:%d",
+                 conn->bits.proxy?conn->proxy.name:conn->host.name,
+                 conn->localport);
+}

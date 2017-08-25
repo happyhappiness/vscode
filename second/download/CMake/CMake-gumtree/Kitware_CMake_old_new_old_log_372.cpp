@@ -1,2 +1,1 @@
-fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
+snprintf((char *)&dest[i*2], 3, "%02x", source[i]);

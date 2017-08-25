@@ -1,3 +1,4 @@
-fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName().c_str(),
-            this->HasConfig?this->Config.c_str():"noconfig");
+_snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  "Process execution failed with error 0x%X.  "
+                  "WideCharToMultiByte failed with error 0x%X",
+                  error, GetLastError());

@@ -1,143 +1,64 @@
 {
-  unsigned int i;
-  std::string tempOutputFile = outFileName + ".tmp";
-  FILE *fout = fopen(tempOutputFile.c_str(),"w");
-  if (!fout)
-    {
-    cmSystemTools::Error("Failed to open TclInit file for ",
-                         tempOutputFile.c_str());
-    cmSystemTools::ReportLastSystemError("");
-    return false;
-    }
+    /* This is Win9x.  We need the console forwarding executable to
+       work-around a Windows 9x bug.  */
+    char fwdName[_MAX_FNAME+1] = "";
+    char tempDir[_MAX_PATH+1] = "";
 
-  // capitalized commands just once
-  std::vector<std::string> capcommands;
-  for (i = 0; i < this->Commands.size(); i++)
-    {
-    capcommands.push_back(cmSystemTools::Capitalized(this->Commands[i]));
-    }
-  
-  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
-  fprintf(fout,"#include \"vtkVersion.h\"\n");
-  fprintf(fout,"#define VTK_TCL_TO_STRING(x) VTK_TCL_TO_STRING0(x)\n");
-  fprintf(fout,"#define VTK_TCL_TO_STRING0(x) #x\n");
-  
-  fprintf(fout,
-          "extern \"C\"\n"
-          "{\n"
-          "#if (TCL_MAJOR_VERSION == 8) && (TCL_MINOR_VERSION >= 4) && (TCL_RELEASE_LEVEL >= TCL_FINAL_RELEASE)\n"
-          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, CONST84 char *[]);\n"
-          "#else\n"
-          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, char *[]);\n"
-          "#endif\n"
-          "}\n"
-          "\n");
+    /* We will try putting the executable in the system temp
+       directory.  Note that the returned path already has a trailing
+       slash.  */
+    DWORD length = GetTempPath(_MAX_PATH+1, tempDir);
 
-  for (i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
-    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
-    }
-  
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,"int vtkCommand(ClientData cd, Tcl_Interp *interp,\n"
-                 "               int argc, char *argv[]);\n");
-    fprintf(fout,"\nTcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkCommandLookup;\n");
-    fprintf(fout,"int vtkCommandForward(ClientData cd, Tcl_Interp *interp,\n"
-                 "                      int argc, char *argv[]){\n"
-                 "  return vtkCommand(cd, interp, argc, argv);\n"
-                 "}\n");
-    }
-  else
-    {
-    fprintf(fout,"\nextern Tcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkCommandLookup;\n");
-    }
-  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
-  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
+    /* Construct the executable name from the process id and kwsysProcess
+       instance.  This should be unique.  */
+    sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%ld_%p.exe",
+            GetCurrentProcessId(), cp);
 
-  for (i = 0; i < this->Commands.size(); i++)
-    {
-    fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-            capcommands[i].c_str());
-    }
-  
-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n",
-          kitName);
-  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-          kitName);
-  
-  /* create an extern ref to the generic delete function */
-  fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
+    /* If we have a temp directory, use it.  */
+    if(length > 0 && length <= _MAX_PATH)
+      {
+      /* Allocate a buffer to hold the forwarding executable path.  */
+      size_t tdlen = strlen(tempDir);
+      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
+      if(!win9x)
+        {
+        kwsysProcess_Delete(cp);
+        return 0;
+        }
 
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,"extern \"C\"\n{\nvoid vtkCommonDeleteAssocData(ClientData cd)\n");
-    fprintf(fout,"  {\n");
-    fprintf(fout,"  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n");
-    fprintf(fout,"  delete tis;\n  }\n}\n");
-    }
-    
-  /* the main declaration */
-  fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
-  fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
-  
-  fprintf(fout,"\n\nint VTK_EXPORT %s_Init(Tcl_Interp *interp)\n{\n",
-          kitName);
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,
-            "  vtkTclInterpStruct *info = new vtkTclInterpStruct;\n");
-    fprintf(fout,
-            "  info->Number = 0; info->InDelete = 0; info->DebugOn = 0;\n");
-    fprintf(fout,"\n");
-    fprintf(fout,"\n");
-    fprintf(fout,
-            "  Tcl_InitHashTable(&info->InstanceLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_InitHashTable(&info->PointerLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_InitHashTable(&info->CommandLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");
-    fprintf(fout,
-            "  Tcl_CreateExitHandler(vtkCommonDeleteAssocData,(ClientData *)info);\n");
+      /* Construct the full path to the forwarding executable.  */
+      sprintf(win9x, "%s%s", tempDir, fwdName);
+      }
 
-    /* create special vtkCommand command */
-    fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",\n"
-                 "                    reinterpret_cast<vtkTclCommandType>(vtkCommandForward),\n"
-                 "                    (ClientData *)NULL, NULL);\n\n");
-    }
-  
-  for (i = 0; i < this->Commands.size(); i++)
-    {
-    fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
-    }
-  fprintf(fout,"\n");
+    /* If we found a place to put the forwarding executable, try to
+       write it. */
+    if(win9x)
+      {
+      if(!kwsysEncodedWriteArrayProcessFwd9x(win9x))
+        {
+        /* Failed to create forwarding executable.  Give up.  */
+        free(win9x);
+        kwsysProcess_Delete(cp);
+        return 0;
+        }
 
-  for (i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"  vtkTclCreateNew(interp,(char *) \"%s\", %sNewCommand,\n",
-            classes[i].c_str(), classes[i].c_str());
-    fprintf(fout,"                  %sCommand);\n",classes[i].c_str());
+      /* Get a handle to the file that will delete it when closed.  */
+      cp->Win9xHandle = CreateFile(win9x, GENERIC_READ, FILE_SHARE_READ, 0,
+                                   OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
+      if(cp->Win9xHandle == INVALID_HANDLE_VALUE)
+        {
+        /* We were not able to get a read handle for the forwarding
+           executable.  It will not be deleted properly.  Give up.  */
+        _unlink(win9x);
+        free(win9x);
+        kwsysProcess_Delete(cp);
+        return 0;
+        }
+      }
+    else
+      {
+      /* Failed to find a place to put forwarding executable.  */
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
     }
-  
-  fprintf(fout,"  char pkgName[]=\"%s\";\n", this->LibraryName.c_str());
-  fprintf(fout,"  char pkgVers[]=VTK_TCL_TO_STRING(VTK_MAJOR_VERSION)"
-               " \".\" "
-               "VTK_TCL_TO_STRING(VTK_MINOR_VERSION);\n");
-  fprintf(fout,"  Tcl_PkgProvide(interp, pkgName, pkgVers);\n");
-  fprintf(fout,"  return TCL_OK;\n}\n");
-  fclose(fout);
-
-  // copy the file if different
-  cmSystemTools::CopyFileIfDifferent(tempOutputFile.c_str(),
-                                     outFileName.c_str());
-  cmSystemTools::RemoveFile(tempOutputFile.c_str());
-
-  return true;
-}

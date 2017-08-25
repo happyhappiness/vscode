@@ -1,11 +1,13 @@
 {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Ignoring out-of-order file @%jx (%s) %jd < %jd",
-		    (intmax_t)file->number,
-		    iso9660->pathname.s,
-		    (intmax_t)file->offset,
-		    (intmax_t)iso9660->current_position);
-		iso9660->entry_bytes_remaining = 0;
-		iso9660->entry_sparse_offset = 0;
-		return (ARCHIVE_WARN);
-	}
+    EdgeList const& nl = graph[depender_index];
+    cmTarget const* depender = this->Targets[depender_index];
+    fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int dependee_index = *ni;
+      cmTarget const* dependee = this->Targets[dependee_index];
+      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
+      }
+    }

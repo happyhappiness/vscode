@@ -1,1 +1,0 @@
-fprintf(data->set.err, "> %s", s);

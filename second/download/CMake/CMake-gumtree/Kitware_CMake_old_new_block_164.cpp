@@ -1,4 +1,7 @@
 {
-    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
-    return CURLE_FAILED_INIT;
-  }
+					archive_set_error(&a->archive, errno,
+					    "Could not remove symlink %s",
+					    a->name);
+					pn[0] = c;
+					return (ARCHIVE_FAILED);
+				}

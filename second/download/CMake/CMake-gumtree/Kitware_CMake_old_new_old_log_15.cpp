@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Unknown ACL brand");
+			    "Invalid ACL entry type for NFSv4 ACL");

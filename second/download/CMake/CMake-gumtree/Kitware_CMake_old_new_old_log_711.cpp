@@ -1,1 +1,1 @@
-fprintf(stderr,"***Failed\n");
+sprintf(temp,"%d",this->ChipID.Family);

@@ -1,1 +1,1 @@
-sprintf(secondLine, "Press [h] for help         Press [q] to quit without generating");
+snprintf(username, sizeof(username), "%d", (int)uid);

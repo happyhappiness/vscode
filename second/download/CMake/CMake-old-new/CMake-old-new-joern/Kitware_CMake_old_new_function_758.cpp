@@ -1,170 +1,211 @@
-void ctest::ProcessDirectory(std::vector<std::string> &passed, 
-                             std::vector<std::string> &failed)
+int cmake::Configure()
 {
-  // does the DartTestfile.txt exist ?
-  if(!cmSystemTools::FileExists("DartTestfile.txt"))
+  // Construct right now our path conversion table before it's too late:
+  this->UpdateConversionPathTable();
+  this->CleanupCommandsAndMacros();
+
+  int res = 0;
+  if ( !this->ScriptMode )
     {
-    return;
+    res = this->DoPreConfigureChecks();
     }
-  
-  // parse the file
-  std::ifstream fin("DartTestfile.txt");
-  if(!fin)
+  if ( res < 0 )
     {
-    return;
+    return -2;
+    }
+  if ( !res )
+    {
+    this->CacheManager->AddCacheEntry
+      ("CMAKE_HOME_DIRECTORY", 
+       this->GetHomeDirectory(),
+       "Start directory with the top level CMakeLists.txt file for this "
+       "project",
+       cmCacheManager::INTERNAL);
     }
 
-  int firstTest = 1;
-  long line = 0;
-  
-  cmRegularExpression ireg(this->m_IncludeRegExp.c_str());
-  cmRegularExpression ereg(this->m_ExcludeRegExp.c_str());
-  cmRegularExpression dartStuff("([\t\n ]*<DartMeasurement.*/DartMeasurement[a-zA-Z]*>[\t ]*[\n]*)");
-
-  bool parseError;
-  while ( fin )
+  // set the default BACKWARDS compatibility to the current version
+  if(!this->CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
     {
-    cmListFileFunction lff;
-    if(cmListFileCache::ParseFunction(fin, lff, "DartTestfile.txt",
-                                      parseError, line))
+    char ver[256];
+    sprintf(ver,"%i.%i",cmMakefile::GetMajorVersion(),
+            cmMakefile::GetMinorVersion());
+    this->CacheManager->AddCacheEntry
+      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
+       "For backwards compatibility, what version of CMake commands and "
+       "syntax should this version of CMake allow.",
+       cmCacheManager::STRING);
+    }
+
+  // no generator specified on the command line
+  if(!this->GlobalGenerator)
+    {
+    const char* genName = 
+      this->CacheManager->GetCacheValue("CMAKE_GENERATOR");
+    if(genName)
       {
-      const std::string& name = lff.m_Name;
-      const std::vector<cmListFileArgument>& args = lff.m_Arguments;
-      if (name == "SUBDIRS")
+      this->GlobalGenerator = this->CreateGlobalGenerator(genName);
+      }
+    if(this->GlobalGenerator)
+      {
+      // set the global flag for unix style paths on cmSystemTools as
+      // soon as the generator is set.  This allows gmake to be used
+      // on windows.
+      cmSystemTools::SetForceUnixPaths
+        (this->GlobalGenerator->GetForceUnixPaths());
+      }
+    else
+      {
+#if defined(__BORLANDC__) && defined(_WIN32)
+      this->SetGlobalGenerator(new cmGlobalBorlandMakefileGenerator);
+#elif defined(_WIN32) && !defined(__CYGWIN__) && !defined(CMAKE_BOOT_MINGW)
+      std::string installedCompiler;
+      std::string mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft"
+        "\\VisualStudio\\8.0\\Setup;Dbghelp_path]";
+      cmSystemTools::ExpandRegistryValues(mp);
+      if (!(mp == "/registry"))
         {
-        std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-        for(std::vector<cmListFileArgument>::const_iterator j = args.begin();
-            j != args.end(); ++j)
-          {   
-          std::string nwd = cwd + "/";
-          nwd += j->Value;
-          if (cmSystemTools::FileIsDirectory(nwd.c_str()))
-            {
-            cmSystemTools::ChangeDirectory(nwd.c_str());
-            this->ProcessDirectory(passed, failed);
-            }
-          }
-        // return to the original directory
-        cmSystemTools::ChangeDirectory(cwd.c_str());
+        installedCompiler = "Visual Studio 8 2005";
         }
-      
-      if (name == "ADD_TEST")
+      else
         {
-        if (this->m_UseExcludeRegExp && 
-            this->m_UseExcludeRegExpFirst && 
-            ereg.find(args[0].Value.c_str()))
+        mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft"
+          "\\VisualStudio\\7.1;InstallDir]";
+        cmSystemTools::ExpandRegistryValues(mp);
+        if (!(mp == "/registry"))
           {
-          continue;
-          }
-        if (this->m_UseIncludeRegExp && !ireg.find(args[0].Value.c_str()))
-          {
-          continue;
-          }
-        if (this->m_UseExcludeRegExp && 
-            !this->m_UseExcludeRegExpFirst && 
-            ereg.find(args[0].Value.c_str()))
-          {
-          continue;
-          }
-
-        cmCTestTestResult cres;
-
-        if (firstTest)
-          {
-          std::string nwd = cmSystemTools::GetCurrentWorkingDirectory();
-          std::cerr << "Changing directory into " << nwd.c_str() << "\n";
-          firstTest = 0;
-          }
-        cres.m_Name = args[0].Value;
-        fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());
-        fflush(stderr);
-        //std::cerr << "Testing " << args[0] << " ... ";
-        // find the test executable
-        std::string testCommand = this->FindExecutable(args[1].Value.c_str());
-        testCommand = cmSystemTools::ConvertToOutputPath(testCommand.c_str());
-
-        // continue if we did not find the executable
-        if (testCommand == "")
-          {
-          std::cerr << "Unable to find executable: " << 
-            args[1].Value.c_str() << "\n";
-          continue;
-          }
-        
-        // add the arguments
-        std::vector<cmListFileArgument>::const_iterator j = args.begin();
-        ++j;
-        ++j;
-        for(;j != args.end(); ++j)
-          {   
-          testCommand += " ";
-          testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
-          }
-        /**
-         * Run an executable command and put the stdout in output.
-         */
-        std::string output;
-        int retVal;
-
-        double clock_start, clock_finish;
-        clock_start = cmSystemTools::GetTime();
-
-        if ( m_Verbose )
-          {
-          std::cout << std::endl << "Test command: " << testCommand << std::endl;
-          }
-        bool res = cmSystemTools::RunCommand(testCommand.c_str(), output, 
-                                             retVal, 0, false);
-        clock_finish = cmSystemTools::GetTime();
-
-        cres.m_ExecutionTime = (double)(clock_finish - clock_start);
-        cres.m_FullCommandLine = testCommand;
-
-        if (!res || retVal != 0)
-          {
-          fprintf(stderr,"***Failed\n");
-          if (output != "")
-            {
-            if (dartStuff.find(output.c_str()))
-              {
-              cmSystemTools::ReplaceString(output,
-                                           dartStuff.match(1).c_str(),"");
-              }
-            if (output != "" && m_Verbose)
-              {
-              std::cerr << output.c_str() << "\n";
-              }
-            }
-          failed.push_back(args[0].Value); 
+          installedCompiler = "Visual Studio 7 .NET 2003";
           }
         else
           {
-          fprintf(stderr,"   Passed\n");
-          if (output != "")
+          mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft"
+            "\\VisualStudio\\7.0;InstallDir]";
+          cmSystemTools::ExpandRegistryValues(mp);
+          if (!(mp == "/registry"))
             {
-            if (dartStuff.find(output.c_str()))
-              {
-              cmSystemTools::ReplaceString(output,
-                                           dartStuff.match(1).c_str(),"");
-              }
-            if (output != "" && m_Verbose)
-              {
-              std::cerr << output.c_str() << "\n";
-              }
+            installedCompiler = "Visual Studio 7";
             }
-          passed.push_back(args[0].Value); 
+          else
+            {
+            installedCompiler = "Visual Studio 6";
+            }
           }
-        cres.m_Output = output;
-        cres.m_ReturnValue = retVal;
-        std::string nwd = cmSystemTools::GetCurrentWorkingDirectory();
-        if ( nwd.size() > m_ToplevelPath.size() )
-          {
-          nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
-          }
-        cres.m_Path = nwd;
-        cres.m_CompletionStatus = "Completed";
-        m_TestResults.push_back( cres );
         }
+      cmGlobalGenerator* gen
+        = this->CreateGlobalGenerator(installedCompiler.c_str());
+      if(!gen)
+        {
+        gen = new cmGlobalNMakeMakefileGenerator;
+        }
+      this->SetGlobalGenerator(gen);
+#else
+      this->SetGlobalGenerator(new cmGlobalUnixMakefileGenerator3);
+#endif
+      }
+    if(!this->GlobalGenerator)
+      {
+      cmSystemTools::Error("Could not create generator");
+      return -1;
       }
     }
+
+  const char* genName = this->CacheManager->GetCacheValue("CMAKE_GENERATOR");
+  if(genName)
+    {
+    if(strcmp(this->GlobalGenerator->GetName(), genName) != 0)
+      {
+      std::string message = "Error: generator : ";
+      message += this->GlobalGenerator->GetName();
+      message += "\nDoes not match the generator used previously: ";
+      message += genName;
+      message +=
+        "\nEither remove the CMakeCache.txt file or choose a different"
+        " binary directory.";
+      cmSystemTools::Error(message.c_str());
+      return -2;
+      }
+    }
+  if(!this->CacheManager->GetCacheValue("CMAKE_GENERATOR"))
+    {
+    this->CacheManager->AddCacheEntry("CMAKE_GENERATOR", 
+                                      this->GlobalGenerator->GetName(),
+                                      "Name of generator.",
+                                      cmCacheManager::INTERNAL);
+    }
+
+  // reset any system configuration information, except for when we are
+  // InTryCompile. With TryCompile the system info is taken from the parent's
+  // info to save time
+  if (!this->InTryCompile)
+    {
+    this->GlobalGenerator->ClearEnabledLanguages();
+    }
+
+  this->CleanupWrittenFiles();
+
+  // Truncate log files
+  if (!this->InTryCompile)
+    {
+    this->TruncateOutputLog("CMakeOutput.log");
+    this->TruncateOutputLog("CMakeError.log");
+    }
+
+  // actually do the configure
+  this->GlobalGenerator->Configure();
+  
+  // Before saving the cache
+  // if the project did not define one of the entries below, add them now
+  // so users can edit the values in the cache:
+  // LIBRARY_OUTPUT_PATH
+  // EXECUTABLE_OUTPUT_PATH
+  if(!this->CacheManager->GetCacheValue("LIBRARY_OUTPUT_PATH"))
+    {
+    this->CacheManager->AddCacheEntry
+      ("LIBRARY_OUTPUT_PATH", "",
+       "Single output directory for building all libraries.",
+       cmCacheManager::PATH);
+    } 
+  if(!this->CacheManager->GetCacheValue("EXECUTABLE_OUTPUT_PATH"))
+    {
+    this->CacheManager->AddCacheEntry
+      ("EXECUTABLE_OUTPUT_PATH", "",
+       "Single output directory for building all executables.",
+       cmCacheManager::PATH);
+    }  
+  if(!this->CacheManager->GetCacheValue("CMAKE_USE_RELATIVE_PATHS"))
+    {
+    this->CacheManager->AddCacheEntry
+      ("CMAKE_USE_RELATIVE_PATHS", false,
+       "If true, cmake will use relative paths in makefiles and projects.");
+    cmCacheManager::CacheIterator it =
+      this->CacheManager->GetCacheIterator("CMAKE_USE_RELATIVE_PATHS");
+    if ( !it.PropertyExists("ADVANCED") )
+      {
+      it.SetProperty("ADVANCED", "1");
+      }
+    }
+
+  if(cmSystemTools::GetFatalErrorOccured() &&
+     (!this->CacheManager->GetCacheValue("CMAKE_MAKE_PROGRAM") ||
+      cmSystemTools::IsOff(this->CacheManager->
+                           GetCacheValue("CMAKE_MAKE_PROGRAM"))))
+    {
+    // We must have a bad generator selection.  Wipe the cache entry so the
+    // user can select another.
+    this->CacheManager->RemoveCacheEntry("CMAKE_GENERATOR");
+    }
+  // only save the cache if there were no fatal errors
+  if ( !this->ScriptMode )
+    {
+    this->CacheManager->SaveCache(this->GetHomeOutputDirectory());
+    }
+  if ( !this->GraphVizFile.empty() )
+    {
+    std::cout << "Generate graphviz: " << this->GraphVizFile << std::endl;
+    this->GenerateGraphViz(this->GraphVizFile.c_str());
+    }
+  if(cmSystemTools::GetErrorOccuredFlag())
+    {
+    return -1;
+    }
+  return 0;
 }

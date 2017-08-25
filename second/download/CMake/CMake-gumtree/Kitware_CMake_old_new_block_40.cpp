@@ -1,9 +1,6 @@
 {
-				/* Warn about other extended attributes. */
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Can't restore extended attribute ``%s''",
-				    name);
-				ret = ARCHIVE_WARN;
-				continue;
-			}
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Invalid extended attribute encountered");
+			ret = ARCHIVE_WARN;
+		}

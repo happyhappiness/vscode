@@ -1,1 +1,1 @@
-fprintf(fout, "IF (CMAKE_ANSI_CXXFLAGS)\n");
+yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" , yyscanner);

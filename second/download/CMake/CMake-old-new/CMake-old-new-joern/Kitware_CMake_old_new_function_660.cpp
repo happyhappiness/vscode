@@ -1,91 +1,66 @@
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int output, int delay, double timeout)
-{
-  int result = 0;
-  char* data = 0;
-  int length = 0;
-  kwsysProcess* kp = kwsysProcess_New();
-  if(!kp)
+void DoHeaderLine()
     {
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
-    }
-  
-  kwsysProcess_SetCommand(kp, cmd);
-  kwsysProcess_SetTimeout(kp, timeout);
-  if(share)
-    {
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
-    }
-  kwsysProcess_Execute(kp);
+    // Look for header fields that we need.
+    if(strncmp(this->Line.c_str(), "commit ", 7) == 0)
+      {
+      this->Rev.Rev = this->Line.c_str()+7;
+      }
+    else if(strncmp(this->Line.c_str(), "author ", 7) == 0)
+      {
+      Person author;
+      this->ParsePerson(this->Line.c_str()+7, author);
+      this->Rev.Author = author.Name;
+      this->Rev.EMail = author.EMail;
 
-  if(!share)
-    {
-    while(kwsysProcess_WaitForData(kp, &data, &length, 0))
-      {
-      if(output)
+      // Convert the time to a human-readable format that is also easy
+      // to machine-parse: "CCYY-MM-DD hh:mm:ss".
+      time_t seconds = static_cast<time_t>(author.Time);
+      struct tm* t = gmtime(&seconds);
+      char dt[1024];
+      sprintf(dt, "%04d-%02d-%02d %02d:%02d:%02d",
+              t->tm_year+1900, t->tm_mon+1, t->tm_mday,
+              t->tm_hour, t->tm_min, t->tm_sec);
+      this->Rev.Date = dt;
+
+      // Add the time-zone field "+zone" or "-zone".
+      char tz[32];
+      if(author.TimeZone >= 0)
         {
-        fwrite(data, 1, length, stdout);
-        fflush(stdout);
+        sprintf(tz, " +%04ld", author.TimeZone);
         }
-      if(delay)
+      else
         {
-        /* Purposely sleeping only on Win32 to let pipe fill up.  */
-#if defined(_WIN32)
-        Sleep(100);
-#endif
+        sprintf(tz, " -%04ld", -author.TimeZone);
         }
+      this->Rev.Date += tz;
       }
-    }
-  
-  kwsysProcess_WaitForExit(kp, 0);
-  
-  switch (kwsysProcess_GetState(kp))
-    {
-    case kwsysProcess_State_Starting:
-      printf("No process has been executed.\n"); break;
-    case kwsysProcess_State_Executing:
-      printf("The process is still executing.\n"); break;
-    case kwsysProcess_State_Expired:
-      printf("Child was killed when timeout expired.\n"); break;
-    case kwsysProcess_State_Exited:
-      printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Killed:
-      printf("Child was killed by parent.\n"); break;
-    case kwsysProcess_State_Exception:
-      printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Error:
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
-  
-  if(result)
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
+    else if(strncmp(this->Line.c_str(), "committer ", 10) == 0)
       {
-      fprintf(stderr, "Mismatch in exit exception.  Should have been %d.\n",
-              exception);
-      }
-    if(value != kwsysProcess_GetExitValue(kp))
-      {
-      fprintf(stderr, "Mismatch in exit value.  Should have been %d.\n",
-              value);
+      Person committer;
+      this->ParsePerson(this->Line.c_str()+10, committer);
+      this->Rev.Committer = committer.Name;
+      this->Rev.CommitterEMail = committer.EMail;
+
+      // Convert the time to a human-readable format that is also easy
+      // to machine-parse: "CCYY-MM-DD hh:mm:ss".
+      time_t seconds = static_cast<time_t>(committer.Time);
+      struct tm* t = gmtime(&seconds);
+      char dt[1024];
+      sprintf(dt, "%04d-%02d-%02d %02d:%02d:%02d",
+              t->tm_year+1900, t->tm_mon+1, t->tm_mday,
+              t->tm_hour, t->tm_min, t->tm_sec);
+      this->Rev.CommitDate = dt;
+
+      // Add the time-zone field "+zone" or "-zone".
+      char tz[32];
+      if(committer.TimeZone >= 0)
+        {
+        sprintf(tz, " +%04ld", committer.TimeZone);
+        }
+      else
+        {
+        sprintf(tz, " -%04ld", -committer.TimeZone);
+        }
+      this->Rev.CommitDate += tz;
       }
     }
-  
-  if(kwsysProcess_GetState(kp) != state)
-    {
-    fprintf(stderr, "Mismatch in state.  Should have been %d.\n", state);
-    result = 1;
-    }
-  
-  kwsysProcess_Delete(kp);
-  return result;
-}

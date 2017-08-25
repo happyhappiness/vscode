@@ -1,1 +1,0 @@
-fprintf(stderr,"***Bad command\n");

@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in yy_create_buffer()" );
+sprintf(tz, " -%04ld", -committer.TimeZone);

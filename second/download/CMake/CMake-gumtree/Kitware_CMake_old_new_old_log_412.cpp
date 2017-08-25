@@ -1,1 +1,1 @@
-fprintf(progFile,"empty");
+sprintf(buf, "%s*", name);

@@ -1,1 +1,4 @@
-xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer);
+md5this = (unsigned char *)aprintf("%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       ha2);

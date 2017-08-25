@@ -1,2 +1,1 @@
-fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
+fprintf(fout, "\t%s DATA \n", symbol.c_str()+1);

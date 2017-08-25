@@ -1,4 +1,3 @@
 {
-      fprintf(stderr, "Mismatch in exit value.  Should have been %d.\n",
-              value);
-      }
+        sprintf(tz, " +%04ld", author.TimeZone);
+        }

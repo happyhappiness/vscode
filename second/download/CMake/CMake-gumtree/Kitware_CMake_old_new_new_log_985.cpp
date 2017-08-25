@@ -1,0 +1,1 @@
+fprintf(fout,"void vtkCommonDeleteAssocData(ClientData cd)\n");

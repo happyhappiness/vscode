@@ -1,126 +1,85 @@
-int cmCTest::TestDirectory(bool memcheck)
+bool cmFindPackageCommand::CheckVersionFile(std::string const& version_file)
 {
-  m_TestResults.clear();
-  std::cout << (memcheck ? "Memory check" : "Test") << " project" << std::endl;
-  if ( memcheck )
+  // The version file will be loaded in an isolated scope.
+  this->Makefile->PushScope();
+
+  // Clear the output variables.
+  this->Makefile->RemoveDefinition("PACKAGE_VERSION");
+  this->Makefile->RemoveDefinition("PACKAGE_VERSION_COMPATIBLE");
+  this->Makefile->RemoveDefinition("PACKAGE_VERSION_EXACT");
+
+  // Set the input variables.
+  this->Makefile->AddDefinition("PACKAGE_FIND_NAME", this->Name.c_str());
+  this->Makefile->AddDefinition("PACKAGE_FIND_VERSION",
+                                this->Version.c_str());
+  if(this->VersionCount >= 3)
     {
-    if ( !this->InitializeMemoryChecking() )
-      {
-      return 1;
-      }
-    }
-
-  if ( memcheck )
-    {
-    if ( !this->ExecuteCommands(m_CustomPreMemCheck) )
-      {
-      std::cerr << "Problem executing pre-memcheck command(s)." << std::endl;
-      return 1;
-      }
-    }
-  else
-    {
-    if ( !this->ExecuteCommands(m_CustomPreTest) )
-      {
-      std::cerr << "Problem executing pre-test command(s)." << std::endl;
-      return 1;
-      }
-    }
-
-  cmCTest::tm_VectorOfStrings passed;
-  cmCTest::tm_VectorOfStrings failed;
-  int total;
-
-  this->ProcessDirectory(passed, failed, memcheck);
-
-  total = int(passed.size()) + int(failed.size());
-
-  if (total == 0)
-    {
-    if ( !m_ShowOnly )
-      {
-      std::cerr << "No tests were found!!!\n";
-      }
+    char buf[64];
+    sprintf(buf, "%u", this->VersionPatch);
+    this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_PATCH", buf);
     }
   else
     {
-    if (m_Verbose && passed.size() && 
-      (m_UseIncludeRegExp || m_UseExcludeRegExp)) 
+    this->Makefile->RemoveDefinition("PACKAGE_FIND_VERSION_PATCH");
+    }
+  if(this->VersionCount >= 2)
+    {
+    char buf[64];
+    sprintf(buf, "%u", this->VersionMinor);
+    this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_MINOR", buf);
+    }
+  else
+    {
+    this->Makefile->RemoveDefinition("PACKAGE_FIND_VERSION_MINOR");
+    }
+  if(this->VersionCount >= 1)
+    {
+    char buf[64];
+    sprintf(buf, "%u", this->VersionMajor);
+    this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_MAJOR", buf);
+    }
+  else
+    {
+    this->Makefile->RemoveDefinition("PACKAGE_FIND_VERSION_MAJOR");
+    }
+
+  // Load the version check file.
+  bool found = false;
+  if(this->ReadListFile(version_file.c_str()))
+    {
+    // Check the output variables.
+    found = this->Makefile->IsOn("PACKAGE_VERSION_EXACT");
+    if(!found && !this->VersionExact)
       {
-      std::cerr << "\nThe following tests passed:\n";
-      for(cmCTest::tm_VectorOfStrings::iterator j = passed.begin();
-        j != passed.end(); ++j)
-        {   
-        std::cerr << "\t" << *j << "\n";
-        }
+      found = this->Makefile->IsOn("PACKAGE_VERSION_COMPATIBLE");
       }
-
-    float percent = float(passed.size()) * 100.0f / total;
-    if ( failed.size() > 0 &&  percent > 99)
+    if(found || this->Version.empty())
       {
-      percent = 99;
-      }
-    fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
-      percent, int(failed.size()), total);
+      // Get the version found.
+      this->VersionFound =
+        this->Makefile->GetSafeDefinition("PACKAGE_VERSION");
 
-    if (failed.size()) 
-      {
-      std::ofstream ofs;
-
-      std::cerr << "\nThe following tests FAILED:\n";
-      this->OpenOutputFile("Temporary", "LastTestsFailed.log", ofs);
-
-      std::vector<cmCTest::cmCTestTestResult>::iterator ftit;
-      for(ftit = m_TestResults.begin();
-        ftit != m_TestResults.end(); ++ftit)
+      // Try to parse the version number and store the results that were
+      // successfully parsed.
+      unsigned int parsed_major;
+      unsigned int parsed_minor;
+      unsigned int parsed_patch;
+      this->VersionFoundCount =
+        sscanf(this->VersionFound.c_str(), "%u.%u.%u",
+               &parsed_major, &parsed_minor, &parsed_patch);
+      switch(this->VersionFoundCount)
         {
-        if ( ftit->m_Status != cmCTest::COMPLETED )
-          {
-          ofs << ftit->m_TestCount << ":" << ftit->m_Name << std::endl;
-          fprintf(stderr, "\t%3d - %s (%s)\n", ftit->m_TestCount, ftit->m_Name.c_str(),
-            this->GetTestStatus(ftit->m_Status));
-          }
+        case 3: this->VersionFoundPatch = parsed_patch; // no break!
+        case 2: this->VersionFoundMinor = parsed_minor; // no break!
+        case 1: this->VersionFoundMajor = parsed_major; // no break!
+        default: break;
         }
-
       }
     }
 
-  if ( m_DartMode )
-    {
-    std::ofstream xmlfile;
-    if( !this->OpenOutputFile(m_CurrentTag, 
-        (memcheck ? (m_CompatibilityMode?"Purify.xml":"DynamicAnalysis.xml") : "Test.xml"), xmlfile) )
-      {
-      std::cerr << "Cannot create " << (memcheck ? "memory check" : "testing")
-        << " XML file" << std::endl;
-      return 1;
-      }
-    if ( memcheck )
-      {
-      this->GenerateDartMemCheckOutput(xmlfile);
-      }
-    else
-      {
-      this->GenerateDartTestOutput(xmlfile);
-      }
-    }
+  // Restore the original scope.
+  this->Makefile->PopScope();
 
-  if ( memcheck )
-    {
-    if ( !this->ExecuteCommands(m_CustomPostMemCheck) )
-      {
-      std::cerr << "Problem executing post-memcheck command(s)." << std::endl;
-      return 1;
-      }
-    }
-  else
-    {
-    if ( !this->ExecuteCommands(m_CustomPostTest) )
-      {
-      std::cerr << "Problem executing post-test command(s)." << std::endl;
-      return 1;
-      }
-    }
-
-  return int(failed.size());
+  // Succeed if the version was found or no version was requested.
+  return found || this->Version.empty();
 }

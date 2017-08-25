@@ -1,1 +1,1 @@
-fprintf(stderr, "Discarding token %d (%s).\n", yychar, yytname[yychar1]);
+sprintf(buf, "%u", this->VersionMinor);

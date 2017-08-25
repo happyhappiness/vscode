@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, GetLastError(),
-				    "Can't FindFirstFileW");
+sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
+          target.GetName(), count);

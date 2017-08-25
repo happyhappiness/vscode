@@ -1,3 +1,1 @@
-sprintf(output, "%c%c==", 
-              table64[obuf[0]],
-              table64[obuf[1]]);
+printf("Error fetching: http://www.cmake.org/page1.html\n");

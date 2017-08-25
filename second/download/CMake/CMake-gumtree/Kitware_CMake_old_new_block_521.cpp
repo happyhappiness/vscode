@@ -1,29 +1,24 @@
 {
-    /* Create an error reporting pipe for the forwarding executable.
-       Neither end is directly inherited.  */
-    if(!CreatePipe(&si->ErrorPipeRead, &si->ErrorPipeWrite, 0, 0))
-      {
-      return 0;
-      }
+	struct archive_read *a = (struct archive_read *)_a;
+	struct archive_read_filter_bidder *bidder;
 
-    /* Create an inherited duplicate of the write end.  This also closes
-       the non-inherited version. */
-    if(!DuplicateHandle(GetCurrentProcess(), si->ErrorPipeWrite,
-                        GetCurrentProcess(), &si->ErrorPipeWrite,
-                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
-                                  DUPLICATE_SAME_ACCESS)))
-      {
-      return 0;
-      }
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_filter_gzip");
 
-    /* The forwarding executable is given a handle to the error pipe
-       and resume and kill events.  */
-    realCommand = (char*)malloc(strlen(cp->Win9x)+strlen(cp->Commands[index])+100);
-    if(!realCommand)
-      {
-      return 0;
-      }
-    sprintf(realCommand, "%s %p %p %p %d %s", cp->Win9x,
-            si->ErrorPipeWrite, cp->Win9xResumeEvent, cp->Win9xKillEvent,
-            cp->HideWindow, cp->Commands[index]);
-    }
+	if (__archive_read_get_bidder(a, &bidder) != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	bidder->data = NULL;
+	bidder->bid = gzip_bidder_bid;
+	bidder->init = gzip_bidder_init;
+	bidder->options = NULL;
+	bidder->free = NULL; /* No data, so no cleanup necessary. */
+	/* Signal the extent of gzip support with the return value here. */
+#if HAVE_ZLIB_H
+	return (ARCHIVE_OK);
+#else
+	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external gunzip program");
+	return (ARCHIVE_WARN);
+#endif
+}

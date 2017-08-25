@@ -1,1 +1,0 @@
-fprintf(out, "%s: \\\n", objfile.c_str());

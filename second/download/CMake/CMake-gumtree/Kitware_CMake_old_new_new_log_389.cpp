@@ -1,1 +1,1 @@
-fprintf(fout, "add_executable(%s", targetName.c_str());
+fprintf(stderr, "Couldn't open file '%s' with CreateFile()\n", filename);

@@ -97,24 +97,29 @@ def cluster_record(feature_lists, z3_api):
             break
         else:
             # combine the two clusters
-            mycluster1, mycluster2 = flag
+            mycluster1, mycluster2 = myclusters[flag[0]], myclusters[flag[1]]
             # create new bicluster(cluster id is minus number)
             new_mycluster = mycluster(children=[], id=currentclusted)
             # children is basic level
-            if myclusters[mycluster1].id >= 0:
-                new_mycluster.children.append(myclusters[mycluster1])
+            if mycluster1.id >= 0:
+                new_mycluster.children.append(mycluster1)
             else:
-                new_mycluster.children.extend(myclusters[mycluster1].children)
-
-            if  myclusters[mycluster2].id >= 0:
-                new_mycluster.children.append(myclusters[mycluster2])
+                new_mycluster.children.extend(mycluster1.children)
+            if  mycluster2.id >= 0:
+                new_mycluster.children.append(mycluster2)
             else:
-                new_mycluster.children.extend(myclusters[mycluster2].children)
+                new_mycluster.children.extend(mycluster2.children)
             currentclusted -= 1
+            # remove unused dict
+            for sub_cluster1 in mycluster1.children:
+                for sub_cluster2 in mycluster2.children:
+                    similarity_dic.pop(sub_cluster1.id, sub_cluster2.id)
+                    similarity_dic.pop(sub_cluster2.id, sub_cluster1.id)
+            similarity_dic.pop(mycluster1.id, mycluster2.id)
+            similarity_dic.pop(mycluster2.id, mycluster1.id)
             # remove old cluster from the clusters
-            # have not destroy it
-            del myclusters[mycluster2]
-            del myclusters[mycluster1]
+            del myclusters[flag[1]]
+            del myclusters[flag[0]]
             myclusters.append(new_mycluster)
             print len(myclusters)
 

@@ -1,8 +1,5 @@
 {
-          res += " ";
-          res += osvi.szCSDVersion;
-          res += " (Build ";
-          sprintf(buffer, "%d", osvi.dwBuildNumber & 0xFFFF);
-          res += buffer;
-          res += ")";
-          }
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "RAR volume support unavailable.");
+        return (ARCHIVE_FATAL);
+      }

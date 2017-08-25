@@ -1,1 +1,0 @@
-sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);

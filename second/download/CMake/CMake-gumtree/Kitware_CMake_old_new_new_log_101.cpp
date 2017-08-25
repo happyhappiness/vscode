@@ -1,3 +1,1 @@
-archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Invalid record version");
+acl_type = ARCHIVE_ENTRY_ACL_TYPE_ACCESS;

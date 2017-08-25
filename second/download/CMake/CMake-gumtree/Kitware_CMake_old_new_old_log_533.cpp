@@ -1,1 +1,2 @@
-sprintf(win9x, "%s%s", tempDir, fwdName);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+        "rar: unknown keyword ``%s''", key);

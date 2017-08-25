@@ -1,1 +1,1 @@
-snprintf(buf, len, "%ld%s", conn->port, hostname);
+sprintf(cp->ProcessResults[idx].ExitExceptionString, "Signal %d", sig);

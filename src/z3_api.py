@@ -151,6 +151,7 @@ class Z3_api:
     def __normalize_operand(self, operand):
         # p to p == null
         if isinstance(operand, unicode) or isinstance(operand, str):
+            operand = myUtil.remove_name_space_and_caller(operand)
             normalized_operand = Not(self.__get_infix_for_binary_operator('==', operand, my_constant.JOERN_NULL))
         else:
             normalized_operand = operand

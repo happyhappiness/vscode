@@ -1,1 +1,1 @@
-snprintf((char *)&dest[i*2], 3, "%02x", source[i]);
+write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap);

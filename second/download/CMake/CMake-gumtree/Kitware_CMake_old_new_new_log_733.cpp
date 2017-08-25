@@ -1,1 +1,1 @@
-printf("%s", comment);
+fprintf(ofp, "  _unlink(fname);\n");

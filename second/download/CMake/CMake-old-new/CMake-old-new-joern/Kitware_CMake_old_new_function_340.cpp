@@ -1,100 +1,101 @@
-void
-DumpExternalsObjects(PIMAGE_SYMBOL pSymbolTable,
-                     PIMAGE_SECTION_HEADER pSectionHeaders,
-                     FILE *fout, DWORD_PTR cSymbols)
+static int
+lha_read_data_lzh(struct archive_read *a, const void **buff,
+    size_t *size, int64_t *offset)
 {
-   unsigned i;
-   PSTR stringTable;
-   std::string symbol;
-   DWORD SectChar;
-   static int fImportFlag = -1;  /*  The status is nor defined yet */
+	struct lha *lha = (struct lha *)(a->format->data);
+	ssize_t bytes_avail;
+	int r;
 
-   /*
-   * The string table apparently starts right after the symbol table
-   */
-   stringTable = (PSTR)&pSymbolTable[cSymbols];
+	/* If the buffer hasn't been allocated, allocate it now. */
+	if (lha->uncompressed_buffer == NULL) {
+		lha->uncompressed_buffer_size = 64 * 1024;
+		lha->uncompressed_buffer
+		    = (unsigned char *)malloc(lha->uncompressed_buffer_size);
+		if (lha->uncompressed_buffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for lzh decompression");
+			return (ARCHIVE_FATAL);
+		}
+	}
 
-   for ( i=0; i < cSymbols; i++ ) {
-      if (pSymbolTable->SectionNumber > 0 &&
-          ( pSymbolTable->Type == 0x20 || pSymbolTable->Type == 0x0)) {
-         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
-            /*
-            *    The name of the Function entry points
-            */
-            if (pSymbolTable->N.Name.Short != 0) {
-               symbol = "";
-               symbol.insert(0, (const char *)pSymbolTable->N.ShortName, 8);
-            } else {
-               symbol = stringTable + pSymbolTable->N.Name.Long;
-            }
+	/* If we haven't yet read any data, initialize the decompressor. */
+	if (!lha->decompress_init) {
+		r = lzh_decode_init(&(lha->strm), lha->method);
+		switch (r) {
+		case ARCHIVE_OK:
+			break;
+		case ARCHIVE_FAILED:
+        		/* Unsupported compression. */
+			*buff = NULL;
+			*size = 0;
+			*offset = 0;
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Unsupported lzh compression method -%c%c%c-",
+			    lha->method[0], lha->method[1], lha->method[2]);
+			/* We know compressed size; just skip it. */
+			archive_read_format_lha_read_data_skip(a);
+			return (ARCHIVE_WARN);
+		default:
+			archive_set_error(&a->archive, ENOMEM,
+			    "Couldn't allocate memory "
+			    "for lzh decompression");
+			return (ARCHIVE_FATAL);
+		}
+		/* We've initialized decompression for this stream. */
+		lha->decompress_init = 1;
+		lha->strm.avail_out = 0;
+		lha->strm.total_out = 0;
+	}
 
-            // clear out any leading spaces
-            while (isspace(symbol[0])) symbol.erase(0,1);
-            // if it starts with _ and has an @ then it is a __cdecl
-            // so remove the @ stuff for the export
-            if(symbol[0] == '_') {
-               std::string::size_type posAt = symbol.find('@');
-               if (posAt != std::string::npos) {
-                  symbol.erase(posAt);
-               }
-            }
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (fImportFlag) {
-               fImportFlag = 0;
-               fprintf(fout,"EXPORTS \n");
-            }
-            /*
-            Check whether it is "Scalar deleting destructor" and
-            "Vector deleting destructor"
-            */
-            const char *scalarPrefix = "??_G";
-            const char *vectorPrefix = "??_E";
-            // original code had a check for
-            // symbol.find("real@") == std::string::npos)
-            // but if this disallows memmber functions with the name real
-            // if scalarPrefix and vectorPrefix are not found then print
-            // the symbol
-            if (symbol.compare(0, 4, scalarPrefix) &&
-                symbol.compare(0, 4, vectorPrefix) )
-            {
-               SectChar =
-                pSectionHeaders[pSymbolTable->SectionNumber-1].Characteristics;
-               if (!pSymbolTable->Type  && (SectChar & IMAGE_SCN_MEM_WRITE)) {
-                  // Read only (i.e. constants) must be excluded
-                  fprintf(fout, "\t%s \t DATA\n", symbol.c_str());
-               } else {
-                  if ( pSymbolTable->Type  ||
-                       !(SectChar & IMAGE_SCN_MEM_READ)) {
-                     fprintf(fout, "\t%s\n", symbol.c_str());
-                  } else {
-                     // printf(" strange symbol: %s \n",symbol.c_str());
-                  }
-               }
-            }
-         }
-      }
-      else if (pSymbolTable->SectionNumber == IMAGE_SYM_UNDEFINED &&
-               !pSymbolTable->Type && 0) {
-         /*
-         *    The IMPORT global variable entry points
-         */
-         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
-            symbol = stringTable + pSymbolTable->N.Name.Long;
-            while (isspace(symbol[0]))  symbol.erase(0,1);
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (!fImportFlag) {
-               fImportFlag = 1;
-               fprintf(fout,"IMPORTS \n");
-            }
-            fprintf(fout, "\t%s DATA \n", symbol.c_str()+1);
-         }
-      }
+	/*
+	 * Note: '1' here is a performance optimization.
+	 * Recall that the decompression layer returns a count of
+	 * available bytes; asking for more than that forces the
+	 * decompressor to combine reads by copying data.
+	 */
+	lha->strm.next_in = __archive_read_ahead(a, 1, &bytes_avail);
+	if (bytes_avail <= 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated LHa file body");
+		return (ARCHIVE_FATAL);
+	}
+	if (bytes_avail > lha->entry_bytes_remaining)
+		bytes_avail = (ssize_t)lha->entry_bytes_remaining;
 
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-   }
+	lha->strm.avail_in = bytes_avail;
+	lha->strm.total_in = 0;
+	if (lha->strm.avail_out == 0) {
+		lha->strm.next_out = lha->uncompressed_buffer;
+		lha->strm.avail_out = lha->uncompressed_buffer_size;
+	}
+
+	r = lzh_decode(&(lha->strm), bytes_avail == lha->entry_bytes_remaining);
+	switch (r) {
+	case ARCHIVE_OK:
+		break;
+	case ARCHIVE_EOF:
+		lha->end_of_entry = 1;
+		break;
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Bad lzh data");
+		return (ARCHIVE_FAILED);
+	}
+	lha->entry_unconsumed = lha->strm.total_in;
+	lha->entry_bytes_remaining -= lha->strm.total_in;
+
+	if (lha->strm.avail_out == 0 || lha->end_of_entry) {
+		*offset = lha->entry_offset;
+		*size = lha->strm.next_out - lha->uncompressed_buffer;
+		*buff = lha->uncompressed_buffer;
+		lha->entry_crc_calculated =
+		    lha_crc16(lha->entry_crc_calculated, *buff, *size);
+		lha->entry_offset += *size;
+	} else {
+		*offset = lha->entry_offset;
+		*size = 0;
+		*buff = NULL;
+	}
+	return (ARCHIVE_OK);
 }

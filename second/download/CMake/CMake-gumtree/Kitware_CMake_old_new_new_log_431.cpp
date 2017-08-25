@@ -1,3 +1,4 @@
-archive_set_error(&a->archive, t->tree_errno,
-			    "%ls: Couldn't visit directory",
-			    tree_current_path(t));
+archive_string_sprintf(str,
+		    " resdevice=native,%ju,%ju",
+		    (uintmax_t)me->devmajor,
+		    (uintmax_t)me->devminor);

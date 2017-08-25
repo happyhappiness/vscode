@@ -1,95 +1,168 @@
 static int
-cleanup_pathname(struct archive_write_disk *a)
+decompression_init(struct archive_read *a, enum enctype encoding)
 {
-	char *dest, *src;
-	char separator = '\0';
+	struct xar *xar;
+	const char *detail;
+	int r;
 
-	dest = src = a->name;
-	if (*src == '\0') {
+	xar = (struct xar *)(a->format->data);
+	xar->rd_encoding = encoding;
+	switch (encoding) {
+	case NONE:
+		break;
+	case GZIP:
+		if (xar->stream_valid)
+			r = inflateReset(&(xar->stream));
+		else
+			r = inflateInit(&(xar->stream));
+		if (r != Z_OK) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Couldn't initialize zlib stream.");
+			return (ARCHIVE_FATAL);
+		}
+		xar->stream_valid = 1;
+		xar->stream.total_in = 0;
+		xar->stream.total_out = 0;
+		break;
+#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
+	case BZIP2:
+		if (xar->bzstream_valid) {
+			BZ2_bzDecompressEnd(&(xar->bzstream));
+			xar->bzstream_valid = 0;
+		}
+		r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 0);
+		if (r == BZ_MEM_ERROR)
+			r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 1);
+		if (r != BZ_OK) {
+			int err = ARCHIVE_ERRNO_MISC;
+			detail = NULL;
+			switch (r) {
+			case BZ_PARAM_ERROR:
+				detail = "invalid setup parameter";
+				break;
+			case BZ_MEM_ERROR:
+				err = ENOMEM;
+				detail = "out of memory";
+				break;
+			case BZ_CONFIG_ERROR:
+				detail = "mis-compiled library";
+				break;
+			}
+			archive_set_error(&a->archive, err,
+			    "Internal error initializing decompressor: %s",
+			    detail == NULL ? "??" : detail);
+			xar->bzstream_valid = 0;
+			return (ARCHIVE_FATAL);
+		}
+		xar->bzstream_valid = 1;
+		xar->bzstream.total_in_lo32 = 0;
+		xar->bzstream.total_in_hi32 = 0;
+		xar->bzstream.total_out_lo32 = 0;
+		xar->bzstream.total_out_hi32 = 0;
+		break;
+#endif
+#if defined(HAVE_LZMA_H) && defined(HAVE_LIBLZMA)
+#if LZMA_VERSION_MAJOR >= 5
+/* Effectively disable the limiter. */
+#define LZMA_MEMLIMIT   UINT64_MAX
+#else
+/* NOTE: This needs to check memory size which running system has. */
+#define LZMA_MEMLIMIT   (1U << 30)
+#endif
+	case XZ:
+	case LZMA:
+		if (xar->lzstream_valid) {
+			lzma_end(&(xar->lzstream));
+			xar->lzstream_valid = 0;
+		}
+		if (xar->entry_encoding == XZ)
+			r = lzma_stream_decoder(&(xar->lzstream),
+			    LZMA_MEMLIMIT,/* memlimit */
+			    LZMA_CONCATENATED);
+		else
+			r = lzma_alone_decoder(&(xar->lzstream),
+			    LZMA_MEMLIMIT);/* memlimit */
+		if (r != LZMA_OK) {
+			switch (r) {
+			case LZMA_MEM_ERROR:
+				archive_set_error(&a->archive,
+				    ENOMEM,
+				    "Internal error initializing "
+				    "compression library: "
+				    "Cannot allocate memory");
+				break;
+			case LZMA_OPTIONS_ERROR:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Internal error initializing "
+				    "compression library: "
+				    "Invalid or unsupported options");
+				break;
+			default:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Internal error initializing "
+				    "lzma library");
+				break;
+			}
+			return (ARCHIVE_FATAL);
+		}
+		xar->lzstream_valid = 1;
+		xar->lzstream.total_in = 0;
+		xar->lzstream.total_out = 0;
+		break;
+#elif defined(HAVE_LZMADEC_H) && defined(HAVE_LIBLZMADEC)
+	case LZMA:
+		if (xar->lzstream_valid)
+			lzmadec_end(&(xar->lzstream));
+		r = lzmadec_init(&(xar->lzstream));
+		if (r != LZMADEC_OK) {
+			switch (r) {
+			case LZMADEC_HEADER_ERROR:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Internal error initializing "
+				    "compression library: "
+				    "invalid header");
+				break;
+			case LZMADEC_MEM_ERROR:
+				archive_set_error(&a->archive,
+				    ENOMEM,
+				    "Internal error initializing "
+				    "compression library: "
+				    "out of memory");
+				break;
+			}
+			return (ARCHIVE_FATAL);
+		}
+		xar->lzstream_valid = 1;
+		xar->lzstream.total_in = 0;
+		xar->lzstream.total_out = 0;
+		break;
+#endif
+	/*
+	 * Unsupported compression.
+	 */
+	default:
+#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR)
+	case BZIP2:
+#endif
+#if !defined(HAVE_LZMA_H) || !defined(HAVE_LIBLZMA)
+#if !defined(HAVE_LZMADEC_H) || !defined(HAVE_LIBLZMADEC)
+	case LZMA:
+#endif
+	case XZ:
+#endif
+		switch (xar->entry_encoding) {
+		case BZIP2: detail = "bzip2"; break;
+		case LZMA: detail = "lzma"; break;
+		case XZ: detail = "xz"; break;
+		default: detail = "??"; break;
+		}
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Invalid empty pathname");
+		    "%s compression not supported on this platform",
+		    detail);
 		return (ARCHIVE_FAILED);
 	}
-
-#if defined(__CYGWIN__)
-	cleanup_pathname_win(a);
-#endif
-	/* Skip leading '/'. */
-	if (*src == '/') {
-		if (a->flags & ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			                  "Path is absolute");
-			return (ARCHIVE_FAILED);
-		}
-
-		separator = *src++;
-	}
-
-	/* Scan the pathname one element at a time. */
-	for (;;) {
-		/* src points to first char after '/' */
-		if (src[0] == '\0') {
-			break;
-		} else if (src[0] == '/') {
-			/* Found '//', ignore second one. */
-			src++;
-			continue;
-		} else if (src[0] == '.') {
-			if (src[1] == '\0') {
-				/* Ignore trailing '.' */
-				break;
-			} else if (src[1] == '/') {
-				/* Skip './'. */
-				src += 2;
-				continue;
-			} else if (src[1] == '.') {
-				if (src[2] == '/' || src[2] == '\0') {
-					/* Conditionally warn about '..' */
-					if (a->flags & ARCHIVE_EXTRACT_SECURE_NODOTDOT) {
-						archive_set_error(&a->archive,
-						    ARCHIVE_ERRNO_MISC,
-						    "Path contains '..'");
-						return (ARCHIVE_FAILED);
-					}
-				}
-				/*
-				 * Note: Under no circumstances do we
-				 * remove '..' elements.  In
-				 * particular, restoring
-				 * '/foo/../bar/' should create the
-				 * 'foo' dir as a side-effect.
-				 */
-			}
-		}
-
-		/* Copy current element, including leading '/'. */
-		if (separator)
-			*dest++ = '/';
-		while (*src != '\0' && *src != '/') {
-			*dest++ = *src++;
-		}
-
-		if (*src == '\0')
-			break;
-
-		/* Skip '/' separator. */
-		separator = *src++;
-	}
-	/*
-	 * We've just copied zero or more path elements, not including the
-	 * final '/'.
-	 */
-	if (dest == a->name) {
-		/*
-		 * Nothing got copied.  The path must have been something
-		 * like '.' or '/' or './' or '/././././/./'.
-		 */
-		if (separator)
-			*dest++ = '/';
-		else
-			*dest++ = '.';
-	}
-	/* Terminate the result. */
-	*dest = '\0';
 	return (ARCHIVE_OK);
 }

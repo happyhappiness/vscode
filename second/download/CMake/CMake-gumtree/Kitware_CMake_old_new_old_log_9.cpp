@@ -1,6 +1,2 @@
-archive_set_error(&a->archive, errno,
-			    "Couldn't translate "
-#if !HAVE_SUN_ACL
-			    "NFSv4 "
-#endif
-			    "ACLs");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Couldn't determine file path to read ACLs");

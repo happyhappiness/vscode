@@ -1,1 +1,1 @@
-y(buf, filename, sizeof(buf)-1);
+fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");

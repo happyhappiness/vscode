@@ -1,3 +1,2 @@
-snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
+fprintf(stderr, "Header id 0x%x, length %d\n",
+		    headerid, datasize);

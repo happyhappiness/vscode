@@ -1,2 +1,1 @@
-fprintf(stderr, "Header id 0x%x, length %d\n",
-		    headerid, datasize);
+fprintf(stderr, "unknowntag_start:%s\n", name);

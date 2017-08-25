@@ -1,5 +1,9 @@
 {
-			archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
-			return (r);
-		}
+#ifdef WOLFSSL_VERSION
+  return snprintf(buffer, size, "wolfSSL/%s", WOLFSSL_VERSION);
+#elif defined(CYASSL_VERSION)
+  return snprintf(buffer, size, "CyaSSL/%s", CYASSL_VERSION);
+#else
+  return snprintf(buffer, size, "CyaSSL/%s", "<1.8.8");
+#endif
+}

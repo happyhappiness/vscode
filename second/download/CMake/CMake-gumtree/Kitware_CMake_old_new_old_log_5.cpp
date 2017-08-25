@@ -1,2 +1,5 @@
-archive_set_error(&a->archive, errno,
-					    "Failed to set extended attribute");
+archive_set_error(&a->archive,
+						    errno,
+						    "Cannot restore extended "
+						    "attributes on this file "
+						    "system");

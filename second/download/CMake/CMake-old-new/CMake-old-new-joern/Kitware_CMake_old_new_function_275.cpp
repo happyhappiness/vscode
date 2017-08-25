@@ -1,102 +1,209 @@
-void DumpExternalsObjects() {
-    unsigned i;
-    PSTR stringTable;
-    std::string symbol;
-    DWORD SectChar;
-    /*
-     * The string table apparently starts right after the symbol table
-     */
-    stringTable = (PSTR)&this->SymbolTable[this->SymbolCount];
-    SymbolTableType* pSymbolTable = this->SymbolTable;
-    for ( i=0; i < this->SymbolCount; i++ ) {
-      if (pSymbolTable->SectionNumber > 0 &&
-          ( pSymbolTable->Type == 0x20 || pSymbolTable->Type == 0x0)) {
-         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
-            /*
-            *    The name of the Function entry points
-            */
-            if (pSymbolTable->N.Name.Short != 0) {
-               symbol = "";
-               symbol.insert(0, (const char *)pSymbolTable->N.ShortName, 8);
-            } else {
-               symbol = stringTable + pSymbolTable->N.Name.Long;
-            }
+CURLcode Curl_sasl_create_digest_http_message(struct SessionHandle *data,
+                                              const char *userp,
+                                              const char *passwdp,
+                                              const unsigned char *request,
+                                              const unsigned char *uripath,
+                                              struct digestdata *digest,
+                                              char **outptr, size_t *outlen)
+{
+  CURLcode result;
+  unsigned char md5buf[16]; /* 16 bytes/128 bits */
+  unsigned char request_digest[33];
+  unsigned char *md5this;
+  unsigned char ha1[33];/* 32 digits and 1 zero byte */
+  unsigned char ha2[33];/* 32 digits and 1 zero byte */
+  char cnoncebuf[33];
+  char *cnonce = NULL;
+  size_t cnonce_sz = 0;
+  char *userp_quoted;
+  char *response = NULL;
+  char *tmp = NULL;
 
-            // clear out any leading spaces
-            while (isspace(symbol[0])) symbol.erase(0,1);
-            // if it starts with _ and has an @ then it is a __cdecl
-            // so remove the @ stuff for the export
-            if(symbol[0] == '_') {
-               std::string::size_type posAt = symbol.find('@');
-               if (posAt != std::string::npos) {
-                  symbol.erase(posAt);
-               }
-            }
-            // For 64 bit builds we don't need to remove _
-            if(!this->Is64Bit)
-              {
-              if (symbol[0] == '_')
-                {
-                symbol.erase(0,1);
-                }
-              }
-            if (this->ImportFlag) {
-               this->ImportFlag = false;
-               fprintf(this->FileOut,"EXPORTS \n");
-            }
-            /*
-            Check whether it is "Scalar deleting destructor" and
-            "Vector deleting destructor"
-            */
-            const char *scalarPrefix = "??_G";
-            const char *vectorPrefix = "??_E";
-            // original code had a check for
-            // symbol.find("real@") == std::string::npos)
-            // but if this disallows memmber functions with the name real
-            // if scalarPrefix and vectorPrefix are not found then print
-            // the symbol
-            if (symbol.compare(0, 4, scalarPrefix) &&
-                symbol.compare(0, 4, vectorPrefix) )
-            {
-               SectChar =
-                 this->
-                 SectionHeaders[pSymbolTable->SectionNumber-1].Characteristics;
-               if (!pSymbolTable->Type  && (SectChar & IMAGE_SCN_MEM_WRITE)) {
-                  // Read only (i.e. constants) must be excluded
-                  fprintf(this->FileOut, "\t%s \t DATA\n", symbol.c_str());
-               } else {
-                  if ( pSymbolTable->Type  ||
-                       !(SectChar & IMAGE_SCN_MEM_READ)) {
-                     fprintf(this->FileOut, "\t%s\n", symbol.c_str());
-                  } else {
-                     // printf(" strange symbol: %s \n",symbol.c_str());
-                  }
-               }
-            }
-         }
-      }
-      else if (pSymbolTable->SectionNumber == IMAGE_SYM_UNDEFINED &&
-               !pSymbolTable->Type && 0) {
-         /*
-         *    The IMPORT global variable entry points
-         */
-         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
-            symbol = stringTable + pSymbolTable->N.Name.Long;
-            while (isspace(symbol[0]))  symbol.erase(0,1);
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (!this->ImportFlag) {
-               this->ImportFlag = true;
-               fprintf(this->FileOut,"IMPORTS \n");
-            }
-            fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);
-         }
-      }
+  if(!digest->nc)
+    digest->nc = 1;
 
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-    }
+  if(!digest->cnonce) {
+    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+             Curl_rand(data), Curl_rand(data),
+             Curl_rand(data), Curl_rand(data));
+
+    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
+                                &cnonce, &cnonce_sz);
+    if(result)
+      return result;
+
+    digest->cnonce = cnonce;
   }
+
+  /*
+    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
+
+    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
+
+    if the algorithm is "MD5-sess" then:
+
+    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
+         ":" unq(nonce-value) ":" unq(cnonce-value)
+  */
+
+  md5this = (unsigned char *)
+    aprintf("%s:%s:%s", userp, digest->realm, passwdp);
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  sasl_digest_md5_to_ascii(md5buf, ha1);
+
+  if(digest->algo == CURLDIGESTALGO_MD5SESS) {
+    /* nonce and cnonce are OUTSIDE the hash */
+    tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
+    Curl_md5it(md5buf, (unsigned char *)tmp);
+    free(tmp);
+    sasl_digest_md5_to_ascii(md5buf, ha1);
+  }
+
+  /*
+    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
+
+      A2       = Method ":" digest-uri-value
+
+          If the "qop" value is "auth-int", then A2 is:
+
+      A2       = Method ":" digest-uri-value ":" H(entity-body)
+
+    (The "Method" value is the HTTP request method as specified in section
+    5.1.1 of RFC 2616)
+  */
+
+  md5this = (unsigned char *)aprintf("%s:%s", request, uripath);
+
+  if(digest->qop && Curl_raw_equal(digest->qop, "auth-int")) {
+    /* We don't support auth-int for PUT or POST at the moment.
+       TODO: replace md5 of empty string with entity-body for PUT/POST */
+    unsigned char *md5this2 = (unsigned char *)
+      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
+    free(md5this);
+    md5this = md5this2;
+  }
+
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  sasl_digest_md5_to_ascii(md5buf, ha2);
+
+  if(digest->qop) {
+    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       digest->nc,
+                                       digest->cnonce,
+                                       digest->qop,
+                                       ha2);
+  }
+  else {
+    md5this = (unsigned char *)aprintf("%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       ha2);
+  }
+
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  sasl_digest_md5_to_ascii(md5buf, request_digest);
+
+  /* for test case 64 (snooped from a Mozilla 1.3a request)
+
+    Authorization: Digest username="testuser", realm="testrealm", \
+    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
+
+    Digest parameters are all quoted strings.  Username which is provided by
+    the user will need double quotes and backslashes within it escaped.  For
+    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
+    are copied as is from the server, escapes and all.  cnonce is generated
+    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
+    characters.  algorithm and qop with standard values only contain web-safe
+    chracters.
+  */
+  userp_quoted = sasl_digest_string_quoted(userp);
+  if(!userp_quoted)
+    return CURLE_OUT_OF_MEMORY;
+
+  if(digest->qop) {
+    response = aprintf("username=\"%s\", "
+                       "realm=\"%s\", "
+                       "nonce=\"%s\", "
+                       "uri=\"%s\", "
+                       "cnonce=\"%s\", "
+                       "nc=%08x, "
+                       "qop=%s, "
+                       "response=\"%s\"",
+                       userp_quoted,
+                       digest->realm,
+                       digest->nonce,
+                       uripath,
+                       digest->cnonce,
+                       digest->nc,
+                       digest->qop,
+                       request_digest);
+
+    if(Curl_raw_equal(digest->qop, "auth"))
+      digest->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0
+                       padded which tells to the server how many times you are
+                       using the same nonce in the qop=auth mode */
+  }
+  else {
+    response = aprintf("username=\"%s\", "
+                       "realm=\"%s\", "
+                       "nonce=\"%s\", "
+                       "uri=\"%s\", "
+                       "response=\"%s\"",
+                       userp_quoted,
+                       digest->realm,
+                       digest->nonce,
+                       uripath,
+                       request_digest);
+  }
+  free(userp_quoted);
+  if(!response)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Add the optional fields */
+  if(digest->opaque) {
+    /* Append the opaque */
+    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
+    free(response);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    response = tmp;
+  }
+
+  if(digest->algorithm) {
+    /* Append the algorithm */
+    tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
+    free(response);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    response = tmp;
+  }
+
+  /* Return the output */
+  *outptr = response;
+  *outlen = strlen(response);
+
+  return CURLE_OK;
+}

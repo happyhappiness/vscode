@@ -1,1 +1,1 @@
-fprintf(ofp, "#ifdef __WATCOMC__\n");
+fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE %s)\n", lang);

@@ -1,209 +1,421 @@
-CURLcode Curl_sasl_create_digest_http_message(struct SessionHandle *data,
-                                              const char *userp,
-                                              const char *passwdp,
-                                              const unsigned char *request,
-                                              const unsigned char *uripath,
-                                              struct digestdata *digest,
-                                              char **outptr, size_t *outlen)
+CURLcode Curl_SOCKS5_gssapi_negotiate(int sockindex,
+                                      struct connectdata *conn)
 {
-  CURLcode result;
-  unsigned char md5buf[16]; /* 16 bytes/128 bits */
-  unsigned char request_digest[33];
-  unsigned char *md5this;
-  unsigned char ha1[33];/* 32 digits and 1 zero byte */
-  unsigned char ha2[33];/* 32 digits and 1 zero byte */
-  char cnoncebuf[33];
-  char *cnonce = NULL;
-  size_t cnonce_sz = 0;
-  char *userp_quoted;
-  char *response = NULL;
-  char *tmp = NULL;
+  struct Curl_easy *data = conn->data;
+  curl_socket_t sock = conn->sock[sockindex];
+  CURLcode code;
+  ssize_t actualread;
+  ssize_t written;
+  int result;
+  OM_uint32 gss_major_status, gss_minor_status, gss_status;
+  OM_uint32 gss_ret_flags;
+  int gss_conf_state, gss_enc;
+  gss_buffer_desc  service = GSS_C_EMPTY_BUFFER;
+  gss_buffer_desc  gss_send_token = GSS_C_EMPTY_BUFFER;
+  gss_buffer_desc  gss_recv_token = GSS_C_EMPTY_BUFFER;
+  gss_buffer_desc  gss_w_token = GSS_C_EMPTY_BUFFER;
+  gss_buffer_desc* gss_token = GSS_C_NO_BUFFER;
+  gss_name_t       server = GSS_C_NO_NAME;
+  gss_name_t       gss_client_name = GSS_C_NO_NAME;
+  unsigned short   us_length;
+  char             *user=NULL;
+  unsigned char socksreq[4]; /* room for GSS-API exchange header only */
+  const char *serviceptr = data->set.str[STRING_PROXY_SERVICE_NAME] ?
+                           data->set.str[STRING_PROXY_SERVICE_NAME] : "rcmd";
 
-  if(!digest->nc)
-    digest->nc = 1;
+  /*   GSS-API request looks like
+   * +----+------+-----+----------------+
+   * |VER | MTYP | LEN |     TOKEN      |
+   * +----+------+----------------------+
+   * | 1  |  1   |  2  | up to 2^16 - 1 |
+   * +----+------+-----+----------------+
+   */
 
-  if(!digest->cnonce) {
-    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
-
-    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
-                                &cnonce, &cnonce_sz);
-    if(result)
-      return result;
-
-    digest->cnonce = cnonce;
-  }
-
-  /*
-    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
-
-    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
-
-    if the algorithm is "MD5-sess" then:
-
-    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
-         ":" unq(nonce-value) ":" unq(cnonce-value)
-  */
-
-  md5this = (unsigned char *)
-    aprintf("%s:%s:%s", userp, digest->realm, passwdp);
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, ha1);
-
-  if(digest->algo == CURLDIGESTALGO_MD5SESS) {
-    /* nonce and cnonce are OUTSIDE the hash */
-    tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
-    if(!tmp)
+  /* prepare service name */
+  if(strchr(serviceptr, '/')) {
+    service.value = malloc(strlen(serviceptr));
+    if(!service.value)
       return CURLE_OUT_OF_MEMORY;
+    service.length = strlen(serviceptr);
+    memcpy(service.value, serviceptr, service.length);
 
-    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
-    Curl_md5it(md5buf, (unsigned char *)tmp);
-    free(tmp);
-    sasl_digest_md5_to_ascii(md5buf, ha1);
-  }
-
-  /*
-    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
-
-      A2       = Method ":" digest-uri-value
-
-          If the "qop" value is "auth-int", then A2 is:
-
-      A2       = Method ":" digest-uri-value ":" H(entity-body)
-
-    (The "Method" value is the HTTP request method as specified in section
-    5.1.1 of RFC 2616)
-  */
-
-  md5this = (unsigned char *)aprintf("%s:%s", request, uripath);
-
-  if(digest->qop && Curl_raw_equal(digest->qop, "auth-int")) {
-    /* We don't support auth-int for PUT or POST at the moment.
-       TODO: replace md5 of empty string with entity-body for PUT/POST */
-    unsigned char *md5this2 = (unsigned char *)
-      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
-    free(md5this);
-    md5this = md5this2;
-  }
-
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, ha2);
-
-  if(digest->qop) {
-    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       digest->nc,
-                                       digest->cnonce,
-                                       digest->qop,
-                                       ha2);
+    gss_major_status = gss_import_name(&gss_minor_status, &service,
+                                       (gss_OID) GSS_C_NULL_OID, &server);
   }
   else {
-    md5this = (unsigned char *)aprintf("%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       ha2);
+    service.value = malloc(strlen(serviceptr) +strlen(conn->proxy.name)+2);
+    if(!service.value)
+      return CURLE_OUT_OF_MEMORY;
+    service.length = strlen(serviceptr) +strlen(conn->proxy.name)+1;
+    snprintf(service.value, service.length+1, "%s@%s",
+             serviceptr, conn->proxy.name);
+
+    gss_major_status = gss_import_name(&gss_minor_status, &service,
+                                       GSS_C_NT_HOSTBASED_SERVICE, &server);
   }
 
-  if(!md5this)
+  gss_release_buffer(&gss_status, &service); /* clear allocated memory */
+
+  if(check_gss_err(data, gss_major_status,
+                   gss_minor_status, "gss_import_name()")) {
+    failf(data, "Failed to create service name.");
+    gss_release_name(&gss_status, &server);
+    return CURLE_COULDNT_CONNECT;
+  }
+
+  /* As long as we need to keep sending some context info, and there's no  */
+  /* errors, keep sending it...                                            */
+  for(;;) {
+    gss_major_status = Curl_gss_init_sec_context(data,
+                                                 &gss_minor_status,
+                                                 &gss_context,
+                                                 server,
+                                                 &Curl_krb5_mech_oid,
+                                                 NULL,
+                                                 gss_token,
+                                                 &gss_send_token,
+                                                 TRUE,
+                                                 &gss_ret_flags);
+
+    if(gss_token != GSS_C_NO_BUFFER)
+      gss_release_buffer(&gss_status, &gss_recv_token);
+    if(check_gss_err(data, gss_major_status,
+                     gss_minor_status, "gss_init_sec_context")) {
+      gss_release_name(&gss_status, &server);
+      gss_release_buffer(&gss_status, &gss_recv_token);
+      gss_release_buffer(&gss_status, &gss_send_token);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      failf(data, "Failed to initial GSS-API token.");
+      return CURLE_COULDNT_CONNECT;
+    }
+
+    if(gss_send_token.length != 0) {
+      socksreq[0] = 1;    /* GSS-API subnegotiation version */
+      socksreq[1] = 1;    /* authentication message type */
+      us_length = htons((short)gss_send_token.length);
+      memcpy(socksreq+2, &us_length, sizeof(short));
+
+      code = Curl_write_plain(conn, sock, (char *)socksreq, 4, &written);
+      if(code || (4 != written)) {
+        failf(data, "Failed to send GSS-API authentication request.");
+        gss_release_name(&gss_status, &server);
+        gss_release_buffer(&gss_status, &gss_recv_token);
+        gss_release_buffer(&gss_status, &gss_send_token);
+        gss_delete_sec_context(&gss_status, &gss_context, NULL);
+        return CURLE_COULDNT_CONNECT;
+      }
+
+      code = Curl_write_plain(conn, sock, (char *)gss_send_token.value,
+                              gss_send_token.length, &written);
+
+      if(code || ((ssize_t)gss_send_token.length != written)) {
+        failf(data, "Failed to send GSS-API authentication token.");
+        gss_release_name(&gss_status, &server);
+        gss_release_buffer(&gss_status, &gss_recv_token);
+        gss_release_buffer(&gss_status, &gss_send_token);
+        gss_delete_sec_context(&gss_status, &gss_context, NULL);
+        return CURLE_COULDNT_CONNECT;
+      }
+
+    }
+
+    gss_release_buffer(&gss_status, &gss_send_token);
+    gss_release_buffer(&gss_status, &gss_recv_token);
+    if(gss_major_status != GSS_S_CONTINUE_NEEDED) break;
+
+    /* analyse response */
+
+    /*   GSS-API response looks like
+     * +----+------+-----+----------------+
+     * |VER | MTYP | LEN |     TOKEN      |
+     * +----+------+----------------------+
+     * | 1  |  1   |  2  | up to 2^16 - 1 |
+     * +----+------+-----+----------------+
+     */
+
+    result=Curl_blockread_all(conn, sock, (char *)socksreq, 4, &actualread);
+    if(result || (actualread != 4)) {
+      failf(data, "Failed to receive GSS-API authentication response.");
+      gss_release_name(&gss_status, &server);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_COULDNT_CONNECT;
+    }
+
+    /* ignore the first (VER) byte */
+    if(socksreq[1] == 255) { /* status / message type */
+      failf(data, "User was rejected by the SOCKS5 server (%d %d).",
+            socksreq[0], socksreq[1]);
+      gss_release_name(&gss_status, &server);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_COULDNT_CONNECT;
+    }
+
+    if(socksreq[1] != 1) { /* status / messgae type */
+      failf(data, "Invalid GSS-API authentication response type (%d %d).",
+            socksreq[0], socksreq[1]);
+      gss_release_name(&gss_status, &server);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_COULDNT_CONNECT;
+    }
+
+    memcpy(&us_length, socksreq+2, sizeof(short));
+    us_length = ntohs(us_length);
+
+    gss_recv_token.length=us_length;
+    gss_recv_token.value=malloc(us_length);
+    if(!gss_recv_token.value) {
+      failf(data,
+            "Could not allocate memory for GSS-API authentication "
+            "response token.");
+      gss_release_name(&gss_status, &server);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_OUT_OF_MEMORY;
+    }
+
+    result=Curl_blockread_all(conn, sock, (char *)gss_recv_token.value,
+                              gss_recv_token.length, &actualread);
+
+    if(result || (actualread != us_length)) {
+      failf(data, "Failed to receive GSS-API authentication token.");
+      gss_release_name(&gss_status, &server);
+      gss_release_buffer(&gss_status, &gss_recv_token);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_COULDNT_CONNECT;
+    }
+
+    gss_token = &gss_recv_token;
+  }
+
+  gss_release_name(&gss_status, &server);
+
+  /* Everything is good so far, user was authenticated! */
+  gss_major_status = gss_inquire_context (&gss_minor_status, gss_context,
+                                          &gss_client_name, NULL, NULL, NULL,
+                                          NULL, NULL, NULL);
+  if(check_gss_err(data, gss_major_status,
+                   gss_minor_status, "gss_inquire_context")) {
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    gss_release_name(&gss_status, &gss_client_name);
+    failf(data, "Failed to determine user name.");
+    return CURLE_COULDNT_CONNECT;
+  }
+  gss_major_status = gss_display_name(&gss_minor_status, gss_client_name,
+                                      &gss_send_token, NULL);
+  if(check_gss_err(data, gss_major_status,
+                   gss_minor_status, "gss_display_name")) {
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    gss_release_name(&gss_status, &gss_client_name);
+    gss_release_buffer(&gss_status, &gss_send_token);
+    failf(data, "Failed to determine user name.");
+    return CURLE_COULDNT_CONNECT;
+  }
+  user=malloc(gss_send_token.length+1);
+  if(!user) {
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    gss_release_name(&gss_status, &gss_client_name);
+    gss_release_buffer(&gss_status, &gss_send_token);
     return CURLE_OUT_OF_MEMORY;
+  }
 
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, request_digest);
+  memcpy(user, gss_send_token.value, gss_send_token.length);
+  user[gss_send_token.length] = '\0';
+  gss_release_name(&gss_status, &gss_client_name);
+  gss_release_buffer(&gss_status, &gss_send_token);
+  infof(data, "SOCKS5 server authencticated user %s with GSS-API.\n",user);
+  free(user);
+  user=NULL;
 
-  /* for test case 64 (snooped from a Mozilla 1.3a request)
+  /* Do encryption */
+  socksreq[0] = 1;    /* GSS-API subnegotiation version */
+  socksreq[1] = 2;    /* encryption message type */
 
-    Authorization: Digest username="testuser", realm="testrealm", \
-    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
+  gss_enc = 0; /* no data protection */
+  /* do confidentiality protection if supported */
+  if(gss_ret_flags & GSS_C_CONF_FLAG)
+    gss_enc = 2;
+  /* else do integrity protection */
+  else if(gss_ret_flags & GSS_C_INTEG_FLAG)
+    gss_enc = 1;
 
-    Digest parameters are all quoted strings.  Username which is provided by
-    the user will need double quotes and backslashes within it escaped.  For
-    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
-    are copied as is from the server, escapes and all.  cnonce is generated
-    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
-    characters.  algorithm and qop with standard values only contain web-safe
-    chracters.
-  */
-  userp_quoted = sasl_digest_string_quoted(userp);
-  if(!userp_quoted)
-    return CURLE_OUT_OF_MEMORY;
-
-  if(digest->qop) {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "cnonce=\"%s\", "
-                       "nc=%08x, "
-                       "qop=%s, "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       digest->cnonce,
-                       digest->nc,
-                       digest->qop,
-                       request_digest);
-
-    if(Curl_raw_equal(digest->qop, "auth"))
-      digest->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0
-                       padded which tells to the server how many times you are
-                       using the same nonce in the qop=auth mode */
+  infof(data, "SOCKS5 server supports GSS-API %s data protection.\n",
+        (gss_enc==0)?"no":((gss_enc==1)?"integrity":"confidentiality"));
+  /* force for the moment to no data protection */
+  gss_enc = 0;
+  /*
+   * Sending the encryption type in clear seems wrong. It should be
+   * protected with gss_seal()/gss_wrap(). See RFC1961 extract below
+   * The NEC reference implementations on which this is based is
+   * therefore at fault
+   *
+   *  +------+------+------+.......................+
+   *  + ver  | mtyp | len  |   token               |
+   *  +------+------+------+.......................+
+   *  + 0x01 | 0x02 | 0x02 | up to 2^16 - 1 octets |
+   *  +------+------+------+.......................+
+   *
+   *   Where:
+   *
+   *  - "ver" is the protocol version number, here 1 to represent the
+   *    first version of the SOCKS/GSS-API protocol
+   *
+   *  - "mtyp" is the message type, here 2 to represent a protection
+   *    -level negotiation message
+   *
+   *  - "len" is the length of the "token" field in octets
+   *
+   *  - "token" is the GSS-API encapsulated protection level
+   *
+   * The token is produced by encapsulating an octet containing the
+   * required protection level using gss_seal()/gss_wrap() with conf_req
+   * set to FALSE.  The token is verified using gss_unseal()/
+   * gss_unwrap().
+   *
+   */
+  if(data->set.socks5_gssapi_nec) {
+    us_length = htons((short)1);
+    memcpy(socksreq+2, &us_length, sizeof(short));
   }
   else {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       request_digest);
+    gss_send_token.length = 1;
+    gss_send_token.value = malloc(1);
+    if(!gss_send_token.value) {
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_OUT_OF_MEMORY;
+    }
+    memcpy(gss_send_token.value, &gss_enc, 1);
+
+    gss_major_status = gss_wrap(&gss_minor_status, gss_context, 0,
+                                GSS_C_QOP_DEFAULT, &gss_send_token,
+                                &gss_conf_state, &gss_w_token);
+
+    if(check_gss_err(data, gss_major_status, gss_minor_status, "gss_wrap")) {
+      gss_release_buffer(&gss_status, &gss_send_token);
+      gss_release_buffer(&gss_status, &gss_w_token);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      failf(data, "Failed to wrap GSS-API encryption value into token.");
+      return CURLE_COULDNT_CONNECT;
+    }
+    gss_release_buffer(&gss_status, &gss_send_token);
+
+    us_length = htons((short)gss_w_token.length);
+    memcpy(socksreq+2, &us_length, sizeof(short));
   }
-  free(userp_quoted);
-  if(!response)
+
+  code = Curl_write_plain(conn, sock, (char *)socksreq, 4, &written);
+  if(code  || (4 != written)) {
+    failf(data, "Failed to send GSS-API encryption request.");
+    gss_release_buffer(&gss_status, &gss_w_token);
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    return CURLE_COULDNT_CONNECT;
+  }
+
+  if(data->set.socks5_gssapi_nec) {
+    memcpy(socksreq, &gss_enc, 1);
+    code = Curl_write_plain(conn, sock, socksreq, 1, &written);
+    if(code || ( 1 != written)) {
+      failf(data, "Failed to send GSS-API encryption type.");
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_COULDNT_CONNECT;
+    }
+  }
+  else {
+    code = Curl_write_plain(conn, sock, (char *)gss_w_token.value,
+                            gss_w_token.length, &written);
+    if(code || ((ssize_t)gss_w_token.length != written)) {
+      failf(data, "Failed to send GSS-API encryption type.");
+      gss_release_buffer(&gss_status, &gss_w_token);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_COULDNT_CONNECT;
+    }
+    gss_release_buffer(&gss_status, &gss_w_token);
+  }
+
+  result=Curl_blockread_all(conn, sock, (char *)socksreq, 4, &actualread);
+  if(result || (actualread != 4)) {
+    failf(data, "Failed to receive GSS-API encryption response.");
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    return CURLE_COULDNT_CONNECT;
+  }
+
+  /* ignore the first (VER) byte */
+  if(socksreq[1] == 255) { /* status / message type */
+    failf(data, "User was rejected by the SOCKS5 server (%d %d).",
+          socksreq[0], socksreq[1]);
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    return CURLE_COULDNT_CONNECT;
+  }
+
+  if(socksreq[1] != 2) { /* status / messgae type */
+    failf(data, "Invalid GSS-API encryption response type (%d %d).",
+          socksreq[0], socksreq[1]);
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    return CURLE_COULDNT_CONNECT;
+  }
+
+  memcpy(&us_length, socksreq+2, sizeof(short));
+  us_length = ntohs(us_length);
+
+  gss_recv_token.length= us_length;
+  gss_recv_token.value=malloc(gss_recv_token.length);
+  if(!gss_recv_token.value) {
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
     return CURLE_OUT_OF_MEMORY;
+  }
+  result=Curl_blockread_all(conn, sock, (char *)gss_recv_token.value,
+                            gss_recv_token.length, &actualread);
 
-  /* Add the optional fields */
-  if(digest->opaque) {
-    /* Append the opaque */
-    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    response = tmp;
+  if(result || (actualread != us_length)) {
+    failf(data, "Failed to receive GSS-API encryptrion type.");
+    gss_release_buffer(&gss_status, &gss_recv_token);
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    return CURLE_COULDNT_CONNECT;
   }
 
-  if(digest->algorithm) {
-    /* Append the algorithm */
-    tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
+  if(!data->set.socks5_gssapi_nec) {
+    gss_major_status = gss_unwrap(&gss_minor_status, gss_context,
+                                  &gss_recv_token, &gss_w_token,
+                                  0, GSS_C_QOP_DEFAULT);
 
-    response = tmp;
+    if(check_gss_err(data, gss_major_status, gss_minor_status, "gss_unwrap")) {
+      gss_release_buffer(&gss_status, &gss_recv_token);
+      gss_release_buffer(&gss_status, &gss_w_token);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      failf(data, "Failed to unwrap GSS-API encryption value into token.");
+      return CURLE_COULDNT_CONNECT;
+    }
+    gss_release_buffer(&gss_status, &gss_recv_token);
+
+    if(gss_w_token.length != 1) {
+      failf(data, "Invalid GSS-API encryption response length (%d).",
+            gss_w_token.length);
+      gss_release_buffer(&gss_status, &gss_w_token);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_COULDNT_CONNECT;
+    }
+
+    memcpy(socksreq, gss_w_token.value, gss_w_token.length);
+    gss_release_buffer(&gss_status, &gss_w_token);
+  }
+  else {
+    if(gss_recv_token.length != 1) {
+      failf(data, "Invalid GSS-API encryption response length (%d).",
+            gss_recv_token.length);
+      gss_release_buffer(&gss_status, &gss_recv_token);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_COULDNT_CONNECT;
+    }
+
+    memcpy(socksreq, gss_recv_token.value, gss_recv_token.length);
+    gss_release_buffer(&gss_status, &gss_recv_token);
   }
 
-  /* Return the output */
-  *outptr = response;
-  *outlen = strlen(response);
+  infof(data, "SOCKS5 access with%s protection granted.\n",
+        (socksreq[0]==0)?"out GSS-API data":
+        ((socksreq[0]==1)?" GSS-API integrity":" GSS-API confidentiality"));
+
+  conn->socks5_gssapi_enctype = socksreq[0];
+  if(socksreq[0] == 0)
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
 
   return CURLE_OK;
 }

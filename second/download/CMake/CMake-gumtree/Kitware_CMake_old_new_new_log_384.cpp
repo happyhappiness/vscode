@@ -1,1 +1,1 @@
-fprintf(stderr, "target [%s] links to:\n", this->Target->GetName().c_str());
+fprintf(this->FileOut,"EXPORTS \n");

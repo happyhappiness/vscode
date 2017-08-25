@@ -1,2 +1,1 @@
-snprintf(name, sizeof(name), "%s@%s", service, proxy ? conn->proxy.name :
-           conn->host.name);
+yy_fatal_error( "cmFortran_yyset_lineno called with no buffer" , yyscanner);

@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "lha: unknown keyword ``%s''", key);
+fprintf(fout, "add_executable(%s", targetName);

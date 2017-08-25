@@ -1,113 +1,140 @@
 static int
-_archive_read_data_block(struct archive *_a, const void **buff,
-    size_t *size, int64_t *offset)
+write_mtree_entry(struct archive_write *a, struct mtree_entry *me)
 {
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	struct tree *t = a->tree;
-	int r;
-	int64_t bytes;
-	size_t buffbytes;
+	struct mtree_writer *mtree = a->format_data;
+	struct archive_string *str;
+	int keys, ret;
 
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
-	    "archive_read_data_block");
-
-	if (t->entry_eof || t->entry_remaining_bytes <= 0) {
-		r = ARCHIVE_EOF;
-		goto abort_read_data;
-	}
-
-	/* Allocate read buffer. */
-	if (t->entry_buff == NULL) {
-		t->entry_buff = malloc(1024 * 64);
-		if (t->entry_buff == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Couldn't allocate memory");
-			r = ARCHIVE_FATAL;
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			goto abort_read_data;
-		}
-		t->entry_buff_size = 1024 * 64;
-	}
-
-	buffbytes = t->entry_buff_size;
-	if (buffbytes > t->current_sparse->length)
-		buffbytes = t->current_sparse->length;
-
-	/*
-	 * Skip hole.
-	 */
-	if (t->current_sparse->offset > t->entry_total) {
-		LARGE_INTEGER distance;
-		distance.QuadPart = t->current_sparse->offset;
-		if (!SetFilePointerEx_perso(t->entry_fh, distance, NULL, FILE_BEGIN)) {
-			DWORD lasterr;
-
-			lasterr = GetLastError();
-			if (lasterr == ERROR_ACCESS_DENIED)
-				errno = EBADF;
+	if (me->dir_info) {
+		if (mtree->classic) {
+			/*
+			 * Output a comment line to describe the full
+			 * pathname of the entry as mtree utility does
+			 * while generating classic format.
+			 */
+			if (!mtree->dironly)
+				archive_strappend_char(&mtree->buf, '\n');
+			if (me->parentdir.s)
+				archive_string_sprintf(&mtree->buf,
+				    "# %s/%s\n",
+				    me->parentdir.s, me->basename.s);
 			else
-				la_dosmaperr(lasterr);
-			archive_set_error(&a->archive, errno, "Seek error");
-			r = ARCHIVE_FATAL;
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			goto abort_read_data;
+				archive_string_sprintf(&mtree->buf,
+				    "# %s\n",
+				    me->basename.s);
 		}
-		bytes = t->current_sparse->offset - t->entry_total;
-		t->entry_remaining_bytes -= bytes;
-		t->entry_total += bytes;
+		if (mtree->output_global_set)
+			write_global(mtree);
 	}
-	if (buffbytes > 0) {
-		DWORD bytes_read;
-		if (!ReadFile(t->entry_fh, t->entry_buff,
-		    (uint32_t)buffbytes, &bytes_read, NULL)) {
-			DWORD lasterr;
+	archive_string_empty(&mtree->ebuf);
+	str = (mtree->indent || mtree->classic)? &mtree->ebuf : &mtree->buf;
 
-			lasterr = GetLastError();
-			if (lasterr == ERROR_NO_DATA)
-				errno = EAGAIN;
-			else if (lasterr == ERROR_ACCESS_DENIED)
-				errno = EBADF;
-			else
-				la_dosmaperr(lasterr);
-			archive_set_error(&a->archive, errno, "Read error");
-			r = ARCHIVE_FATAL;
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			goto abort_read_data;
+	if (!mtree->classic && me->parentdir.s) {
+		/*
+		 * If generating format is not classic one(v1), output
+		 * a full pathname.
+		 */
+		mtree_quote(str, me->parentdir.s);
+		archive_strappend_char(str, '/');
+	}
+	mtree_quote(str, me->basename.s);
+
+	keys = get_global_set_keys(mtree, me);
+	if ((keys & F_NLINK) != 0 &&
+	    me->nlink != 1 && me->filetype != AE_IFDIR)
+		archive_string_sprintf(str, " nlink=%u", me->nlink);
+
+	if ((keys & F_GNAME) != 0 && archive_strlen(&me->gname) > 0) {
+		archive_strcat(str, " gname=");
+		mtree_quote(str, me->gname.s);
+	}
+	if ((keys & F_UNAME) != 0 && archive_strlen(&me->uname) > 0) {
+		archive_strcat(str, " uname=");
+		mtree_quote(str, me->uname.s);
+	}
+	if ((keys & F_FLAGS) != 0) {
+		if (archive_strlen(&me->fflags_text) > 0) {
+			archive_strcat(str, " flags=");
+			mtree_quote(str, me->fflags_text.s);
+		} else if (mtree->set.processing &&
+		    (mtree->set.keys & F_FLAGS) != 0)
+			/* Overwrite the global parameter. */
+			archive_strcat(str, " flags=none");
+	}
+	if ((keys & F_TIME) != 0)
+		archive_string_sprintf(str, " time=%jd.%jd",
+		    (intmax_t)me->mtime, (intmax_t)me->mtime_nsec);
+	if ((keys & F_MODE) != 0)
+		archive_string_sprintf(str, " mode=%o", (unsigned int)me->mode);
+	if ((keys & F_GID) != 0)
+		archive_string_sprintf(str, " gid=%jd", (intmax_t)me->gid);
+	if ((keys & F_UID) != 0)
+		archive_string_sprintf(str, " uid=%jd", (intmax_t)me->uid);
+
+	switch (me->filetype) {
+	case AE_IFLNK:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=link");
+		if ((keys & F_SLINK) != 0) {
+			archive_strcat(str, " link=");
+			mtree_quote(str, me->symlink.s);
 		}
-		bytes = bytes_read;
+		break;
+	case AE_IFSOCK:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=socket");
+		break;
+	case AE_IFCHR:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=char");
+		if ((keys & F_DEV) != 0) {
+			archive_string_sprintf(str,
+			    " device=native,%ju,%ju",
+			    (uintmax_t)me->rdevmajor,
+			    (uintmax_t)me->rdevminor);
+		}
+		break;
+	case AE_IFBLK:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=block");
+		if ((keys & F_DEV) != 0) {
+			archive_string_sprintf(str,
+			    " device=native,%ju,%ju",
+			    (uintmax_t)me->rdevmajor,
+			    (uintmax_t)me->rdevminor);
+		}
+		break;
+	case AE_IFDIR:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=dir");
+		break;
+	case AE_IFIFO:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=fifo");
+		break;
+	case AE_IFREG:
+	default:	/* Handle unknown file types as regular files. */
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=file");
+		if ((keys & F_SIZE) != 0)
+			archive_string_sprintf(str, " size=%jd",
+			    (intmax_t)me->size);
+		break;
+	}
+
+	/* Write a bunch of sum. */
+	if (me->reg_info)
+		sum_write(str, me->reg_info);
+
+	archive_strappend_char(str, '\n');
+	if (mtree->indent || mtree->classic)
+		mtree_indent(mtree);
+
+	if (mtree->buf.length > 32768) {
+		ret = __archive_write_output(
+			a, mtree->buf.s, mtree->buf.length);
+		archive_string_empty(&mtree->buf);
 	} else
-		bytes = 0;
-	if (bytes == 0) {
-		/* Get EOF */
-		t->entry_eof = 1;
-		r = ARCHIVE_EOF;
-		goto abort_read_data;
-	}
-	*buff = t->entry_buff;
-	*size = bytes;
-	*offset = t->entry_total;
-	t->entry_total += bytes;
-	t->entry_remaining_bytes -= bytes;
-	if (t->entry_remaining_bytes == 0) {
-		/* Close the current file descriptor */
-		close_and_restore_time(t->entry_fh, t, &t->restore_time);
-		t->entry_fh = INVALID_HANDLE_VALUE;
-		t->entry_eof = 1;
-	}
-	t->current_sparse->offset += bytes;
-	t->current_sparse->length -= bytes;
-	if (t->current_sparse->length == 0 && !t->entry_eof)
-		t->current_sparse++;
-	return (ARCHIVE_OK);
-
-abort_read_data:
-	*buff = NULL;
-	*size = 0;
-	*offset = t->entry_total;
-	if (t->entry_fh != INVALID_HANDLE_VALUE) {
-		/* Close the current file descriptor */
-		close_and_restore_time(t->entry_fh, t, &t->restore_time);
-		t->entry_fh = INVALID_HANDLE_VALUE;
-	}
-	return (r);
+		ret = ARCHIVE_OK;
+	return (ret);
 }

@@ -1,4 +1,7 @@
 {
-      printf("Error fetching: http://www.cmake.org/page1.html\n");
-      retVal = 1;
-      }
+				archive_set_error(&a->archive,
+				    GetLastError(),
+				    "Can't GetFileInformationByHandle");
+				CloseHandle(h);
+				return (ARCHIVE_FAILED);
+			}

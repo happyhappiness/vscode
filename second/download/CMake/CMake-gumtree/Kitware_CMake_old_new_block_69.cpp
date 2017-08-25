@@ -1,36 +1,82 @@
 {
-    time_t filetime;
-    struct tm buffer;
-    const struct tm *tm = &buffer;
-    snprintf(buf, sizeof(data->state.buffer),
-             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-    if(result)
-      return result;
+    case STATUS_CONTROL_C_EXIT:
+      KWSYSPE_CASE(Interrupt, "User interrupt");
+      break;
 
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH,
-                               (char *)"Accept-ranges: bytes\r\n", 0);
-    if(result)
-      return result;
+    case STATUS_FLOAT_DENORMAL_OPERAND:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (denormal operand)");
+      break;
+    case STATUS_FLOAT_DIVIDE_BY_ZERO:
+      KWSYSPE_CASE(Numerical, "Divide-by-zero");
+      break;
+    case STATUS_FLOAT_INEXACT_RESULT:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (inexact result)");
+      break;
+    case STATUS_FLOAT_INVALID_OPERATION:
+      KWSYSPE_CASE(Numerical, "Invalid floating-point operation");
+      break;
+    case STATUS_FLOAT_OVERFLOW:
+      KWSYSPE_CASE(Numerical, "Floating-point overflow");
+      break;
+    case STATUS_FLOAT_STACK_CHECK:
+      KWSYSPE_CASE(Numerical, "Floating-point stack check failed");
+      break;
+    case STATUS_FLOAT_UNDERFLOW:
+      KWSYSPE_CASE(Numerical, "Floating-point underflow");
+      break;
+#ifdef STATUS_FLOAT_MULTIPLE_FAULTS
+    case STATUS_FLOAT_MULTIPLE_FAULTS:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (multiple faults)");
+      break;
+#endif
+#ifdef STATUS_FLOAT_MULTIPLE_TRAPS
+    case STATUS_FLOAT_MULTIPLE_TRAPS:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (multiple traps)");
+      break;
+#endif
+    case STATUS_INTEGER_DIVIDE_BY_ZERO:
+      KWSYSPE_CASE(Numerical, "Integer divide-by-zero");
+      break;
+    case STATUS_INTEGER_OVERFLOW:
+      KWSYSPE_CASE(Numerical, "Integer overflow");
+      break;
 
-    filetime = (time_t)statbuf.st_mtime;
-    result = Curl_gmtime(filetime, &buffer);
-    if(result)
-      return result;
+    case STATUS_DATATYPE_MISALIGNMENT:
+      KWSYSPE_CASE(Fault, "Datatype misalignment");
+      break;
+    case STATUS_ACCESS_VIOLATION:
+      KWSYSPE_CASE(Fault, "Access violation");
+      break;
+    case STATUS_IN_PAGE_ERROR:
+      KWSYSPE_CASE(Fault, "In-page error");
+      break;
+    case STATUS_INVALID_HANDLE:
+      KWSYSPE_CASE(Fault, "Invalid hanlde");
+      break;
+    case STATUS_NONCONTINUABLE_EXCEPTION:
+      KWSYSPE_CASE(Fault, "Noncontinuable exception");
+      break;
+    case STATUS_INVALID_DISPOSITION:
+      KWSYSPE_CASE(Fault, "Invalid disposition");
+      break;
+    case STATUS_ARRAY_BOUNDS_EXCEEDED:
+      KWSYSPE_CASE(Fault, "Array bounds exceeded");
+      break;
+    case STATUS_STACK_OVERFLOW:
+      KWSYSPE_CASE(Fault, "Stack overflow");
+      break;
 
-    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-    snprintf(buf, BUFSIZE-1,
-             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-             tm->tm_mday,
-             Curl_month[tm->tm_mon],
-             tm->tm_year + 1900,
-             tm->tm_hour,
-             tm->tm_min,
-             tm->tm_sec);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-    if(!result)
-      /* set the file size to make it available post transfer */
-      Curl_pgrsSetDownloadSize(data, expected_size);
-    return result;
+    case STATUS_ILLEGAL_INSTRUCTION:
+      KWSYSPE_CASE(Illegal, "Illegal instruction");
+      break;
+    case STATUS_PRIVILEGED_INSTRUCTION:
+      KWSYSPE_CASE(Illegal, "Privileged instruction");
+      break;
+
+    case STATUS_NO_MEMORY:
+    default:
+      cp->ExitException = kwsysProcess_Exception_Other;
+      _snprintf(cp->ExitExceptionString, KWSYSPE_PIPE_BUFFER_SIZE,
+                "Exit code 0x%x\n", code);
+      break;
   }

@@ -1,2 +1,1 @@
-fsobj_error(a_eno, a_estr, errno,
-					    "Could not chdir ", path);
+archive_string_sprintf(a_estr, "%s%s", errstr, path);

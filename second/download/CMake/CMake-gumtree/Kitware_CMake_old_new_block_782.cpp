@@ -1,145 +1,143 @@
 {
-  if (argsIn.size() < 3)
+  unsigned int i;
+  std::string tempOutputFile = outFileName + ".tmp";
+  FILE *fout = fopen(tempOutputFile.c_str(),"w");
+  if (!fout)
     {
-      this->SetError("called with wrong number of arguments.");
-      return false;
-    }
-
-  std::vector<std::string> args;
-  cmSystemTools::ExpandListArguments(argsIn, args, true);
-  
-  std::vector<std::string>::iterator i = args.begin();
-
-  // Name of the source list
-
-  const char* sourceList = i->c_str();
-  ++i;
-
-  // Name of the test driver
-
-  std::string driver = m_Makefile->GetCurrentOutputDirectory();
-  driver += "/";
-  driver += *i;
-  driver += ".cxx";
-  ++i;
-
-  std::ofstream fout(driver.c_str());
-  if(!fout)
-    {
-    std::string err = "Could not create file ";
-    err += driver;
-    err += " for cmCreateTestSourceList command.";
-    this->SetError(err.c_str());
+    cmSystemTools::Error("Failed to open TclInit file for ",
+                         tempOutputFile.c_str());
+    cmSystemTools::ReportLastSystemError("");
     return false;
     }
 
-  // Create the test driver file
-
-  fout << "#include <stdio.h>\n";
-  fout << "#include <string.h>\n";
-  fout << "// forward declare test functions\n";
-
-  std::vector<std::string>::iterator testsBegin = i;
-  std::vector<std::string> tests_filename;
-
-  // The rest of the arguments consist of a list of test source files.
-  // Sadly, they can be in directories. Let's modify each arg to get
-  // a unique function name for the corresponding test, and push the 
-  // real source filename to the tests_filename var (used at the end). 
-  // For the moment:
-  //   - replace spaces ' ', ':' and '/' with underscores '_'
-
-  for(i = testsBegin; i != args.end(); ++i)
+  // capitalized commands just once
+  std::vector<std::string> capcommands;
+  for (i = 0; i < this->Commands.size(); i++)
     {
-    tests_filename.push_back(*i);
-    cmSystemTools::ConvertToUnixSlashes(*i);
-    cmSystemTools::ReplaceString(*i, " ", "_");
-    cmSystemTools::ReplaceString(*i, "/", "_");
-    cmSystemTools::ReplaceString(*i, ":", "_");
-    fout << "int " << *i << "(int, char**);\n";
+    capcommands.push_back(cmSystemTools::Capitalized(this->Commands[i]));
     }
-
-  fout << "// Create map \n";
-  fout << "typedef int (*MainFuncPointer)(int , char**);\n";
-  fout << "struct functionMapEntry\n"
-       << "{\n"
-       << "const char* name;\n"
-       << "MainFuncPointer func;\n"
-       << "};\n\n";
-  fout << "functionMapEntry cmakeGeneratedFunctionMapEntries[] = {\n";
-
-  int numTests = 0;
-  for(i = testsBegin; i != args.end(); ++i)
-    {
-    fout << "{\"" << *i << "\", " << *i << "},\n";
-    numTests++;
-    }
-
-  fout << "};\n";
-  fout << "int main(int ac, char** av)\n"
-       << "{\n";
-  fout << "  int NumTests = " << numTests << ";\n";
-  fout << "  int i;\n";
-  fout << "  if(ac < 2)\n";
-  fout << "    {\n";
-  fout << "    // if there is only one test, then run it with the arguments\n";
-  fout << "    if(NumTests == 1)\n";
-  fout << "      { return (*cmakeGeneratedFunctionMapEntries[0].func)(ac, av); }\n";
-  fout << "    printf(\"Available tests:\\n\");\n";
-  fout << "    for(i =0; i < NumTests; ++i)\n";
-  fout << "      {\n";
-  fout << "      printf(\"%d. %s\\n\", i, cmakeGeneratedFunctionMapEntries[i].name);\n";
-  fout << "      }\n";
-  fout << "    printf(\"To run a test, enter the test number: \");\n";
-  fout << "    int testNum = 0;\n";
-  fout << "    scanf(\"%d\", &testNum);\n";
-  fout << "    if(testNum >= NumTests)\n";
-  fout << "    {\n";
-  fout << "    printf(\"%d is an invalid test number.\\n\", testNum);\n";
-  fout << "    return -1;\n";
-  fout << "    }\n";
-  fout << "    return (*cmakeGeneratedFunctionMapEntries[testNum].func)(ac-1, av+1);\n";
-  fout << "    }\n";
-  fout << "  for(i =0; i < NumTests; ++i)\n";
-  fout << "    {\n";
-  fout << "    if(strcmp(cmakeGeneratedFunctionMapEntries[i].name, av[1]) == 0)\n";
-  fout << "      {\n";
-  fout << "      return (*cmakeGeneratedFunctionMapEntries[i].func)(ac-1, av+1);\n";
-  fout << "      }\n";
-  fout << "    }\n";
-  fout << "  // if there is only one test, then run it with the arguments\n";
-  fout << "  if(NumTests == 1)\n";
-  fout << "    { return (*cmakeGeneratedFunctionMapEntries[0].func)(ac, av); }\n";
-  fout << "  printf(\"Available tests:\\n\");\n";
-  fout << "  for(i =0; i < NumTests; ++i)\n";
-  fout << "    {\n";
-  fout << "    printf(\"%d. %s\\n\", i, cmakeGeneratedFunctionMapEntries[i].name);\n";
-  fout << "    }\n";
-  fout << "  printf(\"Failed: %s is an invalid test name.\\n\", av[1]);\n";
-  fout << "  return -1;\n";
-  fout << "}\n";
-  fout.close();
-
-  // Create the source list
-
-  cmSourceFile cfile;
-  cfile.SetIsAnAbstractClass(false);
-  cfile.SetName(args[1].c_str(), 
-                m_Makefile->GetCurrentOutputDirectory(),
-                "cxx", 
-                false);
-  m_Makefile->AddSource(cfile, sourceList);
   
-  for(i = tests_filename.begin(); i != tests_filename.end(); ++i)
+  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
+  fprintf(fout,"#include \"vtkVersion.h\"\n");
+  fprintf(fout,"#define VTK_TCL_TO_STRING(x) VTK_TCL_TO_STRING0(x)\n");
+  fprintf(fout,"#define VTK_TCL_TO_STRING0(x) #x\n");
+  
+  fprintf(fout,
+          "extern \"C\"\n"
+          "{\n"
+          "#if (TCL_MAJOR_VERSION == 8) && (TCL_MINOR_VERSION >= 4) && (TCL_RELEASE_LEVEL >= TCL_FINAL_RELEASE)\n"
+          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, CONST84 char *[]);\n"
+          "#else\n"
+          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, char *[]);\n"
+          "#endif\n"
+          "}\n"
+          "\n");
+
+  for (i = 0; i < classes.size(); i++)
     {
-    cmSourceFile cfile;
-    cfile.SetIsAnAbstractClass(false);
-    cfile.SetName(i->c_str(), 
-                  m_Makefile->GetCurrentDirectory(),
-                  "cxx", 
-                  false);
-    m_Makefile->AddSource(cfile, sourceList);
+    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
+    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
     }
+  
+  if (!strcmp(kitName,"Vtkcommontcl"))
+    {
+    fprintf(fout,"int vtkCommand(ClientData cd, Tcl_Interp *interp,\n"
+                 "               int argc, char *argv[]);\n");
+    fprintf(fout,"\nTcl_HashTable vtkInstanceLookup;\n");
+    fprintf(fout,"Tcl_HashTable vtkPointerLookup;\n");
+    fprintf(fout,"Tcl_HashTable vtkCommandLookup;\n");
+    fprintf(fout,"int vtkCommandForward(ClientData cd, Tcl_Interp *interp,\n"
+                 "                      int argc, char *argv[]){\n"
+                 "  return vtkCommand(cd, interp, argc, argv);\n"
+                 "}\n");
+    }
+  else
+    {
+    fprintf(fout,"\nextern Tcl_HashTable vtkInstanceLookup;\n");
+    fprintf(fout,"extern Tcl_HashTable vtkPointerLookup;\n");
+    fprintf(fout,"extern Tcl_HashTable vtkCommandLookup;\n");
+    }
+  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
+  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
+
+  for (i = 0; i < this->Commands.size(); i++)
+    {
+    fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
+            capcommands[i].c_str());
+    }
+  
+  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n",
+          kitName);
+  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
+          kitName);
+  
+  /* create an extern ref to the generic delete function */
+  fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
+
+  if (!strcmp(kitName,"Vtkcommontcl"))
+    {
+    fprintf(fout,"extern \"C\"\n{\nvoid vtkCommonDeleteAssocData(ClientData cd)\n");
+    fprintf(fout,"  {\n");
+    fprintf(fout,"  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n");
+    fprintf(fout,"  delete tis;\n  }\n}\n");
+    }
+    
+  /* the main declaration */
+  fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
+  fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
+  
+  fprintf(fout,"\n\nint VTK_EXPORT %s_Init(Tcl_Interp *interp)\n{\n",
+          kitName);
+  if (!strcmp(kitName,"Vtkcommontcl"))
+    {
+    fprintf(fout,
+            "  vtkTclInterpStruct *info = new vtkTclInterpStruct;\n");
+    fprintf(fout,
+            "  info->Number = 0; info->InDelete = 0; info->DebugOn = 0;\n");
+    fprintf(fout,"\n");
+    fprintf(fout,"\n");
+    fprintf(fout,
+            "  Tcl_InitHashTable(&info->InstanceLookup, TCL_STRING_KEYS);\n");
+    fprintf(fout,
+            "  Tcl_InitHashTable(&info->PointerLookup, TCL_STRING_KEYS);\n");
+    fprintf(fout,
+            "  Tcl_InitHashTable(&info->CommandLookup, TCL_STRING_KEYS);\n");
+    fprintf(fout,
+            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");
+    fprintf(fout,
+            "  Tcl_CreateExitHandler(vtkCommonDeleteAssocData,(ClientData *)info);\n");
+
+    /* create special vtkCommand command */
+    fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",\n"
+                 "                    reinterpret_cast<vtkTclCommandType>(vtkCommandForward),\n"
+                 "                    (ClientData *)NULL, NULL);\n\n");
+    }
+  
+  for (i = 0; i < this->Commands.size(); i++)
+    {
+    fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
+    }
+  fprintf(fout,"\n");
+
+  for (i = 0; i < classes.size(); i++)
+    {
+    fprintf(fout,"  vtkTclCreateNew(interp,(char *) \"%s\", %sNewCommand,\n",
+            classes[i].c_str(), classes[i].c_str());
+    fprintf(fout,"                  %sCommand);\n",classes[i].c_str());
+    }
+  
+  fprintf(fout,"  char pkgName[]=\"%s\";\n", this->LibraryName.c_str());
+  fprintf(fout,"  char pkgVers[]=VTK_TCL_TO_STRING(VTK_MAJOR_VERSION)"
+               " \".\" "
+               "VTK_TCL_TO_STRING(VTK_MINOR_VERSION);\n");
+  fprintf(fout,"  Tcl_PkgProvide(interp, pkgName, pkgVers);\n");
+  fprintf(fout,"  return TCL_OK;\n}\n");
+  fclose(fout);
+
+  // copy the file if different
+  cmSystemTools::CopyFileIfDifferent(tempOutputFile.c_str(),
+                                     outFileName.c_str());
+  cmSystemTools::RemoveFile(tempOutputFile.c_str());
 
   return true;
 }

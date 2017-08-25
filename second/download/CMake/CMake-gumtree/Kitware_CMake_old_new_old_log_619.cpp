@@ -1,1 +1,2 @@
-yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" );
+sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%ld_%p.exe",
+            GetCurrentProcessId(), cp);

@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Couldn't determine file path to read ACLs");
+		    "Can't open file to read extended attributes: No name");

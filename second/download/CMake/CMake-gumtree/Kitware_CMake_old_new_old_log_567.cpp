@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, EILSEQ,
-            "Can't translate uname '%s' to UTF-8", uname);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			"Couldn't allocate memory");

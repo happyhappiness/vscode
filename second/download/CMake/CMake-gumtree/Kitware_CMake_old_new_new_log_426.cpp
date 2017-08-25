@@ -1,1 +1,2 @@
-fprintf(fout, "add_executable(%s", targetName);
+archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Missing number");

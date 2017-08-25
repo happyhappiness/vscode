@@ -1,22 +1,29 @@
-static int
-parse_device(struct archive *a, struct archive_entry *entry, char *val)
+static void
+log_gss_error(struct connectdata *conn, OM_uint32 error_status,
+              const char *prefix)
 {
-	char *comma1, *comma2;
+  OM_uint32 maj_stat, min_stat;
+  OM_uint32 msg_ctx = 0;
+  gss_buffer_desc status_string;
+  char buf[1024];
+  size_t len;
 
-	comma1 = strchr(val, ',');
-	if (comma1 == NULL) {
-		archive_entry_set_dev(entry, (dev_t)mtree_atol10(&val));
-		return (ARCHIVE_OK);
-	}
-	++comma1;
-	comma2 = strchr(comma1, ',');
-	if (comma2 == NULL) {
-		archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Malformed device attribute");
-		return (ARCHIVE_WARN);
-	}
-	++comma2;
-	archive_entry_set_rdevmajor(entry, (dev_t)mtree_atol(&comma1));
-	archive_entry_set_rdevminor(entry, (dev_t)mtree_atol(&comma2));
-	return (ARCHIVE_OK);
+  snprintf(buf, sizeof(buf), "%s", prefix);
+  len = strlen(buf);
+  do {
+    maj_stat = gss_display_status(&min_stat,
+                                  error_status,
+                                  GSS_C_MECH_CODE,
+                                  GSS_C_NO_OID,
+                                  &msg_ctx,
+                                  &status_string);
+      if(sizeof(buf) > len + status_string.length + 1) {
+        snprintf(buf + len, sizeof(buf) - len,
+                 ": %s", (char*) status_string.value);
+      len += status_string.length;
+    }
+    gss_release_buffer(&min_stat, &status_string);
+  } while(!GSS_ERROR(maj_stat) && msg_ctx != 0);
+
+  infof(conn->data, "%s\n", buf);
 }

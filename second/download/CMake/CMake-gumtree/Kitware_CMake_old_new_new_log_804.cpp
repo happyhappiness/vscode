@@ -1,1 +1,1 @@
-fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
+sprintf(hexCh, "%%%02X", (int)c);

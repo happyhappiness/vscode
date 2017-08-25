@@ -1,10 +1,10 @@
-inline const char* Getcwd(char* buf, unsigned int len)
+int
+__archive_read_program(struct archive_read_filter *self, const char *cmd)
 {
-  const char* ret = getcwd(buf, len);
-  if(!ret)
-    {
-    fprintf(stderr, "No current working directory\n");
-    abort();
-    }
-  return ret;
+	(void)self; /* UNUSED */
+	(void)cmd; /* UNUSED */
+
+	archive_set_error(&self->archive->archive, -1,
+	    "External compression programs not supported on this platform");
+	return (ARCHIVE_FATAL);
 }

@@ -1,0 +1,1 @@
+fprintf(ofp, "#endif\n");

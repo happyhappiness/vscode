@@ -1,6 +1,6 @@
 {
-      int dependee_index = *ni;
-      cmTarget* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
-              dependee->GetName());
-      }
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate direcotry traversal data");
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		return (ARCHIVE_FATAL);
+	}

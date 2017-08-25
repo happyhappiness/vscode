@@ -1,3 +1,2 @@
-snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
+snprintf(service.value, service.length+1, "%s@%s",
+             serviceptr, conn->proxy.name);

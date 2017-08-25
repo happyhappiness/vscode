@@ -1,8 +1,8 @@
-{
-    fprintf(stderr,
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName(), this->Config?this->Config:"noconfig");
-    this->DisplayConstraintGraph();
-    }
+f(length < 1)
+        {
+        /* FormatMessage failed.  Use a default message.  */
+        _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  "Process execution failed with error 0x%X.  "
+                  "FormatMessage failed with error 0x%X",
+                  original, GetLastError());
+        }

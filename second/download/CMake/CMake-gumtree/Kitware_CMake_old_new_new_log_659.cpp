@@ -1,2 +1,1 @@
-depends.insert(depends.end(),
-                     cr->GetDepends().begin(), cr->GetDepends().end());
+this->ChipID.ProcessorName = this->ParseValueFromKStat("-s cpu_type");

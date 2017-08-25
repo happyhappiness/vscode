@@ -1,1 +1,1 @@
-sprintf(argvName,"${ARGV%i}",t);
+printf("Checking -%s-\n", absFilename.c_str());

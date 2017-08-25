@@ -1,1 +1,1 @@
-fprintf(stderr, "Shifting error token, ");
+sprintf(buf, "%u", this->VersionMajor);

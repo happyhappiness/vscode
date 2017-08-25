@@ -1,1 +1,3 @@
-fprintf(conn->data->set.err, "> %s\n", s);
+*userp = aprintf( "%sAuthorization: Basic %s\015\012",
+                      proxy?"Proxy-":"",
+                      authorization);

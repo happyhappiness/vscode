@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, errno, "Seek error");
+fprintf(stderr, "The %s target dependency graph is:\n", name);

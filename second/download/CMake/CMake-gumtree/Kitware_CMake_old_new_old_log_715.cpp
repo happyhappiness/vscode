@@ -1,1 +1,1 @@
-sprintf(fwdName, "cmw9xfwd_%u_%p.exe", GetCurrentProcessId(), cp);
+(void)vsprintf(buf, format, va);

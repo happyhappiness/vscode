@@ -1,1 +1,1 @@
-fprintf(stderr,"***Bad command %d\n", res);
+sprintf(temp,"%d",this->ChipID.Type);

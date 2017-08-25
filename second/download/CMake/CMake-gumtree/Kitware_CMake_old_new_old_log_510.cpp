@@ -1,1 +1,3 @@
-fprintf(fout, "SET(CMAKE_%s_FLAGS \"", lang);
+archive_set_error(&a->archive,
+				    GetLastError(),
+				    "Can't CreateFileW");

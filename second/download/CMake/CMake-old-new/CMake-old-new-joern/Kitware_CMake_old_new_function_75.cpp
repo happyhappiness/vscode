@@ -1,103 +1,64 @@
-static CURLcode ftp_state_mdtm_resp(struct connectdata *conn,
-                                    int ftpcode)
+CURLcode Curl_open(struct Curl_easy **curl)
 {
-  CURLcode result = CURLE_OK;
-  struct Curl_easy *data=conn->data;
-  struct FTP *ftp = data->req.protop;
-  struct ftp_conn *ftpc = &conn->proto.ftpc;
+  CURLcode result;
+  struct Curl_easy *data;
 
-  switch(ftpcode) {
-  case 213:
-    {
-      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
-         last .sss part is optional and means fractions of a second */
-      int year, month, day, hour, minute, second;
-      char *buf = data->state.buffer;
-      if(6 == sscanf(buf+4, "%04d%02d%02d%02d%02d%02d",
-                     &year, &month, &day, &hour, &minute, &second)) {
-        /* we have a time, reformat it */
-        time_t secs=time(NULL);
-        /* using the good old yacc/bison yuck */
-        snprintf(buf, sizeof(conn->data->state.buffer),
-                 "%04d%02d%02d %02d:%02d:%02d GMT",
-                 year, month, day, hour, minute, second);
-        /* now, convert this into a time() value: */
-        data->info.filetime = (long)curl_getdate(buf, &secs);
-      }
-
-#ifdef CURL_FTP_HTTPSTYLE_HEAD
-      /* If we asked for a time of the file and we actually got one as well,
-         we "emulate" a HTTP-style header in our output. */
-
-      if(data->set.opt_no_body &&
-         ftpc->file &&
-         data->set.get_filetime &&
-         (data->info.filetime>=0) ) {
-        time_t filetime = (time_t)data->info.filetime;
-        struct tm buffer;
-        const struct tm *tm = &buffer;
-
-        result = Curl_gmtime(filetime, &buffer);
-        if(result)
-          return result;
-
-        /* format: "Tue, 15 Nov 1994 12:45:26" */
-        snprintf(buf, BUFSIZE-1,
-                 "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-                 Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-                 tm->tm_mday,
-                 Curl_month[tm->tm_mon],
-                 tm->tm_year + 1900,
-                 tm->tm_hour,
-                 tm->tm_min,
-                 tm->tm_sec);
-        result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-        if(result)
-          return result;
-      } /* end of a ridiculous amount of conditionals */
-#endif
-    }
-    break;
-  default:
-    infof(data, "unsupported MDTM reply format\n");
-    break;
-  case 550: /* "No such file or directory" */
-    failf(data, "Given file does not exist");
-    result = CURLE_FTP_COULDNT_RETR_FILE;
-    break;
+  /* Very simple start-up: alloc the struct, init it with zeroes and return */
+  data = calloc(1, sizeof(struct Curl_easy));
+  if(!data) {
+    /* this is a very serious error */
+    DEBUGF(fprintf(stderr, "Error: calloc of Curl_easy failed\n"));
+    return CURLE_OUT_OF_MEMORY;
   }
 
-  if(data->set.timecondition) {
-    if((data->info.filetime > 0) && (data->set.timevalue > 0)) {
-      switch(data->set.timecondition) {
-      case CURL_TIMECOND_IFMODSINCE:
-      default:
-        if(data->info.filetime <= data->set.timevalue) {
-          infof(data, "The requested document is not new enough\n");
-          ftp->transfer = FTPTRANSFER_NONE; /* mark to not transfer data */
-          data->info.timecond = TRUE;
-          state(conn, FTP_STOP);
-          return CURLE_OK;
-        }
-        break;
-      case CURL_TIMECOND_IFUNMODSINCE:
-        if(data->info.filetime > data->set.timevalue) {
-          infof(data, "The requested document is not old enough\n");
-          ftp->transfer = FTPTRANSFER_NONE; /* mark to not transfer data */
-          data->info.timecond = TRUE;
-          state(conn, FTP_STOP);
-          return CURLE_OK;
-        }
-        break;
-      } /* switch */
-    }
-    else {
-      infof(data, "Skipping time comparison\n");
-    }
+  data->magic = CURLEASY_MAGIC_NUMBER;
+
+  result = Curl_resolver_init(&data->state.resolver);
+  if(result) {
+    DEBUGF(fprintf(stderr, "Error: resolver_init failed\n"));
+    free(data);
+    return result;
   }
 
-  if(!result)
-    result = ftp_state_type(conn);
+  /* We do some initial setup here, all those fields that can't be just 0 */
+
+  data->state.headerbuff = malloc(HEADERSIZE);
+  if(!data->state.headerbuff) {
+    DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"));
+    result = CURLE_OUT_OF_MEMORY;
+  }
+  else {
+    result = Curl_init_userdefined(&data->set);
+
+    data->state.headersize=HEADERSIZE;
+
+    Curl_convert_init(data);
+
+    Curl_initinfo(data);
+
+    /* most recent connection is not yet defined */
+    data->state.lastconnect = NULL;
+
+    data->progress.flags |= PGRS_HIDE;
+    data->state.current_speed = -1; /* init to negative == impossible */
+
+    data->wildcard.state = CURLWC_INIT;
+    data->wildcard.filelist = NULL;
+    data->set.fnmatch = ZERO_NULL;
+    data->set.maxconnects = DEFAULT_CONNCACHE_SIZE; /* for easy handles */
+
+    Curl_http2_init_state(&data->state);
+  }
+
+  if(result) {
+    Curl_resolver_cleanup(data->state.resolver);
+    free(data->state.headerbuff);
+    Curl_freeset(data);
+    free(data);
+    data = NULL;
+  }
+  else
+    *curl = data;
 
   return result;
 }

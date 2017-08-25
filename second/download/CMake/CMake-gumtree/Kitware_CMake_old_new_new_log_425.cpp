@@ -1,1 +1,2 @@
-fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
+archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Unknown format `%s'", val);

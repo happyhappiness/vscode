@@ -1,4 +1,5 @@
 {
-        fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());
-        fflush(stderr);
-        }
+  char * temp = new char[32];
+  sprintf(temp,"%d",this->ChipID.Revision);
+  return temp;
+}

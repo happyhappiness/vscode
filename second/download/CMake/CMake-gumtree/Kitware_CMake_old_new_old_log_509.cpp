@@ -1,1 +1,2 @@
-fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE %s)\n", lang);
+archive_set_error(&a->archive, GetLastError(),
+				    "Can't FindFirstFileW");

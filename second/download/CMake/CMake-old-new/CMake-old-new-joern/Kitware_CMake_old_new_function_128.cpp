@@ -1,57 +1,95 @@
-static ssize_t
-lzma_filter_read(struct archive_read_filter *self, const void **p)
+static int
+cleanup_pathname(struct archive_write_disk *a)
 {
-	struct private_data *state;
-	size_t decompressed;
-	ssize_t avail_in, ret;
+	char *dest, *src;
+	char separator = '\0';
 
-	state = (struct private_data *)self->data;
-
-	/* Empty our output buffer. */
-	state->stream.next_out = state->out_block;
-	state->stream.avail_out = state->out_block_size;
-
-	/* Try to fill the output buffer. */
-	while (state->stream.avail_out > 0 && !state->eof) {
-		state->stream.next_in = (unsigned char *)(uintptr_t)
-		    __archive_read_filter_ahead(self->upstream, 1, &avail_in);
-		if (state->stream.next_in == NULL && avail_in < 0) {
-			archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "truncated lzma input");
-			return (ARCHIVE_FATAL);
-		}
-		state->stream.avail_in = avail_in;
-
-		/* Decompress as much as we can in one pass. */
-		ret = lzmadec_decode(&(state->stream), avail_in == 0);
-		switch (ret) {
-		case LZMADEC_STREAM_END: /* Found end of stream. */
-			state->eof = 1;
-			/* FALL THROUGH */
-		case LZMADEC_OK: /* Decompressor made some progress. */
-			__archive_read_filter_consume(self->upstream,
-			    avail_in - state->stream.avail_in);
-			break;
-		case LZMADEC_BUF_ERROR: /* Insufficient input data? */
-			archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Insufficient compressed data");
-			return (ARCHIVE_FATAL);
-		default:
-			/* Return an error. */
-			archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Lzma decompression failed");
-			return (ARCHIVE_FATAL);
-		}
+	dest = src = a->name;
+	if (*src == '\0') {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Invalid empty pathname");
+		return (ARCHIVE_FAILED);
 	}
 
-	decompressed = state->stream.next_out - state->out_block;
-	state->total_out += decompressed;
-	if (decompressed == 0)
-		*p = NULL;
-	else
-		*p = state->out_block;
-	return (decompressed);
+#if defined(__CYGWIN__)
+	cleanup_pathname_win(a);
+#endif
+	/* Skip leading '/'. */
+	if (*src == '/') {
+		if (a->flags & ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			                  "Path is absolute");
+			return (ARCHIVE_FAILED);
+		}
+
+		separator = *src++;
+	}
+
+	/* Scan the pathname one element at a time. */
+	for (;;) {
+		/* src points to first char after '/' */
+		if (src[0] == '\0') {
+			break;
+		} else if (src[0] == '/') {
+			/* Found '//', ignore second one. */
+			src++;
+			continue;
+		} else if (src[0] == '.') {
+			if (src[1] == '\0') {
+				/* Ignore trailing '.' */
+				break;
+			} else if (src[1] == '/') {
+				/* Skip './'. */
+				src += 2;
+				continue;
+			} else if (src[1] == '.') {
+				if (src[2] == '/' || src[2] == '\0') {
+					/* Conditionally warn about '..' */
+					if (a->flags & ARCHIVE_EXTRACT_SECURE_NODOTDOT) {
+						archive_set_error(&a->archive,
+						    ARCHIVE_ERRNO_MISC,
+						    "Path contains '..'");
+						return (ARCHIVE_FAILED);
+					}
+				}
+				/*
+				 * Note: Under no circumstances do we
+				 * remove '..' elements.  In
+				 * particular, restoring
+				 * '/foo/../bar/' should create the
+				 * 'foo' dir as a side-effect.
+				 */
+			}
+		}
+
+		/* Copy current element, including leading '/'. */
+		if (separator)
+			*dest++ = '/';
+		while (*src != '\0' && *src != '/') {
+			*dest++ = *src++;
+		}
+
+		if (*src == '\0')
+			break;
+
+		/* Skip '/' separator. */
+		separator = *src++;
+	}
+	/*
+	 * We've just copied zero or more path elements, not including the
+	 * final '/'.
+	 */
+	if (dest == a->name) {
+		/*
+		 * Nothing got copied.  The path must have been something
+		 * like '.' or '/' or './' or '/././././/./'.
+		 */
+		if (separator)
+			*dest++ = '/';
+		else
+			*dest++ = '.';
+	}
+	/* Terminate the result. */
+	*dest = '\0';
+	return (ARCHIVE_OK);
 }

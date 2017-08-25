@@ -1,1 +1,1 @@
-cmCursesForm::CurrentForm->AddError(message, title);
+sprintf(rpstr, "_p%d_", cc++);

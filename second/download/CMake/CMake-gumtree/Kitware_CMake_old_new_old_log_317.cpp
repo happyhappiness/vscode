@@ -1,1 +1,1 @@
-tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);
+fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);

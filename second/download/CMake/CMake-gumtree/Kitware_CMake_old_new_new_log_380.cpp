@@ -1,2 +1,4 @@
-archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Unknown format `%s'", val);
+_snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  "Process execution failed with error 0x%X.  "
+                  "FormatMessage failed with error 0x%X",
+                  error, GetLastError());

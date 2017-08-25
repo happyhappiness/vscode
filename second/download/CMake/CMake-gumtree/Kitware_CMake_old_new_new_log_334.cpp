@@ -1,1 +1,3 @@
-sprintf(num,"%d",static_cast<int>(this->Makefiles.size()));
+archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    "Unacceptable dictionary size for lzip: %d",
+			    dict_size);

@@ -1,1 +1,4 @@
-fprintf(stderr, "Shifting token %d (%s), ", yychar, yytname[yychar1])
+{
+        sprintf(buf, "%u", this->VersionPatch);
+        this->Makefile->AddDefinition((ver+"_PATCH").c_str(), buf);
+        }

@@ -1,1 +1,1 @@
-fprintf(stderr, "Mismatch in state.  Should have been %d.\n", state);
+sprintf(tz, " -%04ld", -author.TimeZone);

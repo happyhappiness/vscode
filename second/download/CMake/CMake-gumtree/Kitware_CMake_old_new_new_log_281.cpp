@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
-		    "Internal error: "
-		    "No format->read_data function registered");
+userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
+                  base64);

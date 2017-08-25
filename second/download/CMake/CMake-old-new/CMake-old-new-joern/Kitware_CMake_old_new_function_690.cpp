@@ -1,51 +1,59 @@
-int cmCTestScriptHandler::PerformExtraUpdates()
+void cmFindPackageCommand::SetModuleVariables(const std::string& components)
 {
-  std::string command;
-  std::string output;
-  int retVal;
-  bool res; 
-
-  // do an initial cvs update as required
-  command = m_CVSCmd;
-  char updateVar[40];
-  int i;
-  for (i = 1; i < 10; ++i)
+  // Store the list of components.
+  std::string components_var = this->Name + "_FIND_COMPONENTS";
+  this->Makefile->AddDefinition(components_var.c_str(), components.c_str());
+   
+  if(this->Quiet)
     {
-    sprintf(updateVar,"CTEST_EXTRA_UPDATES_%i",i);
-    const char *updateVal = m_Makefile->GetDefinition(updateVar);
-    if (updateVal)
-      {
-      if (m_CVSCmd.empty())
-        {
-        cmSystemTools::Error(updateVar, " specified without specifying CTEST_CVS_COMMAND.");
-        this->RestoreBackupDirectories();
-        return 12;
-        }
-      std::vector<std::string> cvsArgs;
-      cmSystemTools::ExpandListArgument(updateVal,cvsArgs);
-      if (cvsArgs.size() == 2)
-        {
-        std::string fullCommand = command;
-        fullCommand += " update ";
-        fullCommand += cvsArgs[1];
-        output = "";
-        retVal = 0;
-        if ( m_Verbose )
-          {
-          std::cerr << "Run CVS: " << fullCommand.c_str() << std::endl;
-          }
-        res = cmSystemTools::RunSingleCommand(fullCommand.c_str(), &output, 
-          &retVal, cvsArgs[0].c_str(),
-          m_Verbose, 0 /*m_TimeOut*/);
-        if (!res || retVal != 0)
-          {
-          cmSystemTools::Error("Unable to perform extra cvs updates:\n", 
-            output.c_str());
-          this->RestoreBackupDirectories();
-          return 8;
-          }
-        }
-      }
+    // Tell the module that is about to be read that it should find
+    // quietly.
+    std::string quietly = this->Name;
+    quietly += "_FIND_QUIETLY";
+    this->Makefile->AddDefinition(quietly.c_str(), "1");
     }
-  return 0;
+
+  if(this->Required)
+    {
+    // Tell the module that is about to be read that it should report
+    // a fatal error if the package is not found.
+    std::string req = this->Name;
+    req += "_FIND_REQUIRED";
+    this->Makefile->AddDefinition(req.c_str(), "1");
+    }
+
+  if(!this->Version.empty())
+    {
+    // Tell the module that is about to be read what version of the
+    // package has been requested.
+    std::string ver = this->Name;
+    ver += "_FIND_VERSION";
+    this->Makefile->AddDefinition(ver.c_str(), this->Version.c_str());
+    char buf[64];
+    switch(this->VersionCount)
+      {
+      case 3:
+        {
+        sprintf(buf, "%u", this->VersionPatch);
+        this->Makefile->AddDefinition((ver+"_PATCH").c_str(), buf);
+        } // no break
+      case 2:
+        {
+        sprintf(buf, "%u", this->VersionMinor);
+        this->Makefile->AddDefinition((ver+"_MINOR").c_str(), buf);
+        } // no break
+      case 1:
+        {
+        sprintf(buf, "%u", this->VersionMajor);
+        this->Makefile->AddDefinition((ver+"_MAJOR").c_str(), buf);
+        } // no break
+      default: break;
+      }
+
+    // Tell the module whether an exact version has been requested.
+    std::string exact = this->Name;
+    exact += "_FIND_VERSION_EXACT";
+    this->Makefile->AddDefinition(exact.c_str(),
+                                  this->VersionExact? "1":"0");
+   }
 }

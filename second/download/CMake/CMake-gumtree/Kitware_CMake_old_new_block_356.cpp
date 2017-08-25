@@ -1,4 +1,2 @@
-{
-        // print the progress
-        fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
-        }
+snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+                 conn->ip_addr_str)

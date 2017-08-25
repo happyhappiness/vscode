@@ -1,116 +1,190 @@
-void
-    list_item_verbose(FILE *out, struct archive_entry *entry)
+static CURLcode ftp_state_pasv_resp(struct connectdata *conn,
+                                    int ftpcode)
 {
-  char                   tmp[100];
-  size_t                         w;
-  const char            *p;
-  const char            *fmt;
-  time_t                         tim;
-  static time_t          now;
-  size_t u_width = 6;
-  size_t gs_width = 13;
+  struct ftp_conn *ftpc = &conn->proto.ftpc;
+  CURLcode result;
+  struct SessionHandle *data=conn->data;
+  struct Curl_dns_entry *addr=NULL;
+  int rc;
+  unsigned short connectport; /* the local port connect() should use! */
+  char *str=&data->state.buffer[4];  /* start on the first letter */
 
-  /*
-   * We avoid collecting the entire list in memory at once by
-   * listing things as we see them.  However, that also means we can't
-   * just pre-compute the field widths.  Instead, we start with guesses
-   * and just widen them as necessary.  These numbers are completely
-   * arbitrary.
-   */
-  if (!now)
-    {
-    time(&now);
-    }
-  fprintf(out, "%s %d ",
-          archive_entry_strmode(entry),
-          archive_entry_nlink(entry));
+  if((ftpc->count1 == 0) &&
+     (ftpcode == 229)) {
+    /* positive EPSV response */
+    char *ptr = strchr(str, '(');
+    if(ptr) {
+      unsigned int num;
+      char separator[4];
+      ptr++;
+      if(5  == sscanf(ptr, "%c%c%c%u%c",
+                      &separator[0],
+                      &separator[1],
+                      &separator[2],
+                      &num,
+                      &separator[3])) {
+        const char sep1 = separator[0];
+        int i;
 
-  /* Use uname if it's present, else uid. */
-  p = archive_entry_uname(entry);
-  if ((p == NULL) || (*p == '\0'))
-    {
-    sprintf(tmp, "%lu ",
-            (unsigned long)archive_entry_uid(entry));
-    p = tmp;
-    }
-  w = strlen(p);
-  if (w > u_width)
-    {
-    u_width = w;
-    }
-  fprintf(out, "%-*s ", (int)u_width, p);
-  /* Use gname if it's present, else gid. */
-  p = archive_entry_gname(entry);
-  if (p != NULL && p[0] != '\0')
-    {
-    fprintf(out, "%s", p);
-    w = strlen(p);
-    }
-  else
-    {
-    sprintf(tmp, "%lu",
-            (unsigned long)archive_entry_gid(entry));
-    w = strlen(tmp);
-    fprintf(out, "%s", tmp);
-    }
+        /* The four separators should be identical, or else this is an oddly
+           formatted reply and we bail out immediately. */
+        for(i=1; i<4; i++) {
+          if(separator[i] != sep1) {
+            ptr=NULL; /* set to NULL to signal error */
+            break;
+          }
+        }
+        if(num > 0xffff) {
+          failf(data, "Illegal port number in EPSV reply");
+          return CURLE_FTP_WEIRD_PASV_REPLY;
+        }
+        if(ptr) {
+          ftpc->newport = (unsigned short)(num & 0xffff);
 
-  /*
-   * Print device number or file size, right-aligned so as to make
-   * total width of group and devnum/filesize fields be gs_width.
-   * If gs_width is too small, grow it.
-   */
-  if (archive_entry_filetype(entry) == AE_IFCHR
-      || archive_entry_filetype(entry) == AE_IFBLK)
-    {
-    sprintf(tmp, "%lu,%lu",
-            (unsigned long)archive_entry_rdevmajor(entry),
-            (unsigned long)archive_entry_rdevminor(entry));
+          if(conn->bits.tunnel_proxy ||
+             conn->proxytype == CURLPROXY_SOCKS5 ||
+             conn->proxytype == CURLPROXY_SOCKS5_HOSTNAME ||
+             conn->proxytype == CURLPROXY_SOCKS4 ||
+             conn->proxytype == CURLPROXY_SOCKS4A)
+            /* proxy tunnel -> use other host info because ip_addr_str is the
+               proxy address not the ftp host */
+            snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+                     conn->host.name);
+          else
+            /* use the same IP we are already connected to */
+            snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str);
+        }
+      }
+      else
+        ptr=NULL;
     }
-  else
-    {
+    if(!ptr) {
+      failf(data, "Weirdly formatted EPSV reply");
+      return CURLE_FTP_WEIRD_PASV_REPLY;
+    }
+  }
+  else if((ftpc->count1 == 1) &&
+          (ftpcode == 227)) {
+    /* positive PASV response */
+    int ip[4];
+    int port[2];
+
     /*
-     * Note the use of platform-dependent macros to format
-     * the filesize here.  We need the format string and the
-     * corresponding type for the cast.
+     * Scan for a sequence of six comma-separated numbers and use them as
+     * IP+port indicators.
+     *
+     * Found reply-strings include:
+     * "227 Entering Passive Mode (127,0,0,1,4,51)"
+     * "227 Data transfer will passively listen to 127,0,0,1,4,51"
+     * "227 Entering passive mode. 127,0,0,1,4,51"
      */
-    sprintf(tmp, BSDTAR_FILESIZE_PRINTF,
-            (BSDTAR_FILESIZE_TYPE)archive_entry_size(entry));
+    while(*str) {
+      if(6 == sscanf(str, "%d,%d,%d,%d,%d,%d",
+                      &ip[0], &ip[1], &ip[2], &ip[3],
+                      &port[0], &port[1]))
+        break;
+      str++;
     }
-  if (w + strlen(tmp) >= gs_width)
-    {
-    gs_width = w+strlen(tmp)+1;
-    }
-  fprintf(out, "%*s", (int)(gs_width - w), tmp);
 
-  /* Format the time using 'ls -l' conventions. */
-  tim = archive_entry_mtime(entry);
-#define HALF_YEAR (time_t)365 * 86400 / 2
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  /* Windows' strftime function does not support %e format. */
-#define DAY_FMT  "%d"
-#else
-#define DAY_FMT  "%e"  /* Day number without leading zeros */
-#endif
-  if (tim < now - HALF_YEAR || tim > now + HALF_YEAR)
-    {
-    fmt = DAY_FMT " %b  %Y";
+    if(!*str) {
+      failf(data, "Couldn't interpret the 227-response");
+      return CURLE_FTP_WEIRD_227_FORMAT;
     }
-  else
-    {
-    fmt = DAY_FMT " %b %H:%M";
-    }
-  strftime(tmp, sizeof(tmp), fmt, localtime(&tim));
-  fprintf(out, " %s ", tmp);
-  fprintf(out, "%s", archive_entry_pathname(entry));
 
-  /* Extra information for links. */
-  if (archive_entry_hardlink(entry)) /* Hard link */
-    {
-    fprintf(out, " link to %s",
-            archive_entry_hardlink(entry));
+    /* we got OK from server */
+    if(data->set.ftp_skip_ip) {
+      /* told to ignore the remotely given IP but instead use the one we used
+         for the control connection */
+      infof(data, "Skips %d.%d.%d.%d for data connection, uses %s instead\n",
+            ip[0], ip[1], ip[2], ip[3],
+            conn->ip_addr_str);
+      if(conn->bits.tunnel_proxy ||
+         conn->proxytype == CURLPROXY_SOCKS5 ||
+         conn->proxytype == CURLPROXY_SOCKS5_HOSTNAME ||
+         conn->proxytype == CURLPROXY_SOCKS4 ||
+         conn->proxytype == CURLPROXY_SOCKS4A)
+        /* proxy tunnel -> use other host info because ip_addr_str is the
+           proxy address not the ftp host */
+        snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s", conn->host.name);
+      else
+        snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+                 conn->ip_addr_str);
     }
-  else if (archive_entry_symlink(entry)) /* Symbolic link */
-    {
-    fprintf(out, " -> %s", archive_entry_symlink(entry));
+    else
+      snprintf(ftpc->newhost, sizeof(ftpc->newhost),
+               "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+    ftpc->newport = (unsigned short)(((port[0]<<8) + port[1]) & 0xffff);
+  }
+  else if(ftpc->count1 == 0) {
+    /* EPSV failed, move on to PASV */
+    return ftp_epsv_disable(conn);
+  }
+  else {
+    failf(data, "Bad PASV/EPSV response: %03d", ftpcode);
+    return CURLE_FTP_WEIRD_PASV_REPLY;
+  }
+
+  if(conn->bits.proxy) {
+    /*
+     * This connection uses a proxy and we need to connect to the proxy again
+     * here. We don't want to rely on a former host lookup that might've
+     * expired now, instead we remake the lookup here and now!
+     */
+    rc = Curl_resolv(conn, conn->proxy.name, (int)conn->port, &addr);
+    if(rc == CURLRESOLV_PENDING)
+      /* BLOCKING, ignores the return code but 'addr' will be NULL in
+         case of failure */
+      (void)Curl_resolver_wait_resolv(conn, &addr);
+
+    connectport =
+      (unsigned short)conn->port; /* we connect to the proxy's port */
+
+    if(!addr) {
+      failf(data, "Can't resolve proxy host %s:%hu",
+            conn->proxy.name, connectport);
+      return CURLE_FTP_CANT_GET_HOST;
     }
+  }
+  else {
+    /* normal, direct, ftp connection */
+    rc = Curl_resolv(conn, ftpc->newhost, ftpc->newport, &addr);
+    if(rc == CURLRESOLV_PENDING)
+      /* BLOCKING */
+      (void)Curl_resolver_wait_resolv(conn, &addr);
+
+    connectport = ftpc->newport; /* we connect to the remote port */
+
+    if(!addr) {
+      failf(data, "Can't resolve new host %s:%hu", ftpc->newhost, connectport);
+      return CURLE_FTP_CANT_GET_HOST;
+    }
+  }
+
+  conn->bits.tcpconnect[SECONDARYSOCKET] = FALSE;
+  result = Curl_connecthost(conn, addr);
+
+  Curl_resolv_unlock(data, addr); /* we're done using this address */
+
+  if(result) {
+    if(ftpc->count1 == 0 && ftpcode == 229)
+      return ftp_epsv_disable(conn);
+
+    return result;
+  }
+
+
+  /*
+   * When this is used from the multi interface, this might've returned with
+   * the 'connected' set to FALSE and thus we are now awaiting a non-blocking
+   * connect to connect.
+   */
+
+  if(data->set.verbose)
+    /* this just dumps information about this second connection */
+    ftp_pasv_verbose(conn, conn->ip_addr, ftpc->newhost, connectport);
+
+  conn->bits.do_more = TRUE;
+  state(conn, FTP_STOP); /* this phase is completed */
+
+  return result;
 }

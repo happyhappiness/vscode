@@ -1,12 +1,10 @@
 {
-				err = r;
-				if (err == ARCHIVE_FATAL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.default");
-					return (err);
-				}
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.default");
-			}
+	case LZMADEC_OK:
+		break;
+	default:
+		archive_set_error(&(self->archive->archive),
+		    ARCHIVE_ERRNO_MISC,
+		    "Failed to clean up %s compressor",
+		    self->archive->archive.compression_name);
+		ret = ARCHIVE_FATAL;
+	}

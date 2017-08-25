@@ -1,1 +1,1 @@
-fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
+sprintf(buf, "%s/*", name);

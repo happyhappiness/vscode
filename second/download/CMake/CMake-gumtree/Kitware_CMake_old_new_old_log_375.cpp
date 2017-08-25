@@ -1,2 +1,1 @@
-fprintf(fout,
-              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);
+tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);

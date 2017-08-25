@@ -1,2 +1,1 @@
-archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
+archive_string_sprintf(a_estr, errstr, path);

@@ -1,1 +1,3 @@
-snprintf((char *)&dest[i*2], 3, "%02x", source[i]);
+aprintf("%s%s%s:%hu", conn->bits.ipv6_ip?"[":"",
+                  hostname, conn->bits.ipv6_ip?"]":"",
+                  remote_port);

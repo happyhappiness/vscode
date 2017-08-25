@@ -1,1 +1,2 @@
-fprintf(fout, "SET(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
+archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Malformed device attribute");

@@ -1,1 +1,1 @@
-yy_fatal_error( "yyset_lineno called with no buffer" , yyscanner);
+f(stderr, "Writing %s...\n", currentFilename.c_str());

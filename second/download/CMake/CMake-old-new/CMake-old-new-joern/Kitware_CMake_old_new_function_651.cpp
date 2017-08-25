@@ -1,150 +1,104 @@
-bool cmCTestSubmitHandler::SubmitUsingHTTP(const cmStdString& localprefix, 
-  const std::set<cmStdString>& files,
-  const cmStdString& remoteprefix, 
-  const cmStdString& url)
+static ssize_t
+extract_pack_stream(struct archive_read *a)
 {
-  CURL *curl;
-  CURLcode res;
-  FILE* ftpfile;
-  char error_buffer[1024];
+	struct _7zip *zip = (struct _7zip *)a->format->data;
+	ssize_t bytes_avail;
+	int r;
 
-  /* In windows, this will init the winsock stuff */
-  ::curl_global_init(CURL_GLOBAL_ALL);
+	if (zip->codec == _7Z_COPY && zip->codec2 == -1) {
+		if (__archive_read_ahead(a, 1, &bytes_avail) == NULL
+		    || bytes_avail <= 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated 7-Zip file body");
+			return (ARCHIVE_FATAL);
+		}
+		if (bytes_avail > zip->pack_stream_inbytes_remaining)
+			bytes_avail = zip->pack_stream_inbytes_remaining;
+		zip->pack_stream_inbytes_remaining -= bytes_avail;
+		if (bytes_avail > zip->folder_outbytes_remaining)
+			bytes_avail = zip->folder_outbytes_remaining;
+		zip->folder_outbytes_remaining -= bytes_avail;
+		zip->uncompressed_buffer_bytes_remaining = bytes_avail;
+		return (ARCHIVE_OK);
+	}
 
-  cmStdString::size_type kk;
-  cmCTest::tm_SetOfStrings::const_iterator file;
-  for ( file = files.begin(); file != files.end(); ++file )
-    {
-    /* get a curl handle */
-    curl = curl_easy_init();
-    if(curl) 
-      {
+	/* If the buffer hasn't been allocated, allocate it now. */
+	if (zip->uncompressed_buffer == NULL) {
+		zip->uncompressed_buffer_size = 64 * 1024;
+		zip->uncompressed_buffer =
+		    malloc(zip->uncompressed_buffer_size);
+		if (zip->uncompressed_buffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for 7-Zip decompression");
+			return (ARCHIVE_FATAL);
+		}
+	}
+	zip->uncompressed_buffer_bytes_remaining = 0;
+	zip->uncompressed_buffer_pointer = NULL;
+	for (;;) {
+		size_t bytes_in, bytes_out;
+		const void *buff_in;
+		unsigned char *buff_out;
+		int eof;
 
-      // Using proxy
-      if ( m_HTTPProxyType > 0 )
-        {
-        curl_easy_setopt(curl, CURLOPT_PROXY, m_HTTPProxy.c_str()); 
-        switch (m_HTTPProxyType)
-          {
-        case 2:
-          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS4);
-          break;
-        case 3:
-          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5);
-          break;
-        default:
-          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
-          if (m_HTTPProxyAuth.size() > 0)
-            {
-            curl_easy_setopt(curl, CURLOPT_PROXYUSERPWD,
-              m_HTTPProxyAuth.c_str());
-            }
-          }
-        }
+		/*
+		 * Note: '1' here is a performance optimization.
+		 * Recall that the decompression layer returns a count of
+		 * available bytes; asking for more than that forces the
+		 * decompressor to combine reads by copying data.
+		 */
+		buff_in = __archive_read_ahead(a, 1, &bytes_avail);
+		if (bytes_avail <= 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated 7-Zip file body");
+			return (ARCHIVE_FATAL);
+		}
 
-      /* enable uploading */
-      curl_easy_setopt(curl, CURLOPT_UPLOAD, 1) ;
+		buff_out = zip->uncompressed_buffer
+			+ zip->uncompressed_buffer_bytes_remaining;
+		bytes_out = zip->uncompressed_buffer_size
+			- zip->uncompressed_buffer_bytes_remaining;
+		bytes_in = bytes_avail;
+		if (bytes_in > zip->pack_stream_inbytes_remaining)
+			bytes_in = zip->pack_stream_inbytes_remaining;
+		/* Drive decompression. */
+		r = decompress(a, zip, buff_out, &bytes_out,
+			buff_in, &bytes_in);
+		switch (r) {
+		case ARCHIVE_OK:
+			eof = 0;
+			break;
+		case ARCHIVE_EOF:
+			eof = 1;
+			break;
+		default:
+			return (ARCHIVE_FATAL);
+		}
+		zip->pack_stream_inbytes_remaining -= bytes_in;
+		if (bytes_out > zip->folder_outbytes_remaining)
+			bytes_out = zip->folder_outbytes_remaining;
+		zip->folder_outbytes_remaining -= bytes_out;
+		zip->uncompressed_buffer_bytes_remaining += bytes_out;
+		zip->pack_stream_bytes_unconsumed = bytes_in;
 
-      /* HTTP PUT please */
-      ::curl_easy_setopt(curl, CURLOPT_PUT, 1);
-      ::curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-
-      cmStdString local_file = localprefix + "/" + *file;
-      cmStdString remote_file = remoteprefix + *file;
-
-      *m_LogFile << "\tUpload file: " << local_file.c_str() << " to "
-          << remote_file.c_str() << std::endl;
-
-      cmStdString ofile = "";
-      for ( kk = 0; kk < remote_file.size(); kk ++ )
-        {
-        char c = remote_file[kk];
-        char hex[4] = { 0, 0, 0, 0 };
-        hex[0] = c;
-        switch ( c )
-          {
-        case '+':
-        case '?':
-        case '/':
-        case '\\':
-        case '&':
-        case ' ':
-        case '=':
-        case '%':
-          sprintf(hex, "%%%02X", (int)c);
-          ofile.append(hex);
-          break;
-        default: 
-          ofile.append(hex);
-          }
-        }
-      cmStdString upload_as 
-        = url + ((url.find("?",0) == cmStdString::npos) ? "?" : "&") 
-        + "FileName=" + ofile;
-
-      struct stat st;
-      if ( ::stat(local_file.c_str(), &st) )
-        {
-        cmCTestLog(m_CTest, ERROR_MESSAGE, "   Cannot find file: " << local_file.c_str() << std::endl);
-        ::curl_easy_cleanup(curl);
-        ::curl_global_cleanup(); 
-        return false;
-        }
-
-      ftpfile = ::fopen(local_file.c_str(), "rb");
-      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "   Upload file: " << local_file.c_str() << " to " 
-        << upload_as.c_str() << " Size: " << st.st_size << std::endl);
-
-
-      // specify target
-      ::curl_easy_setopt(curl,CURLOPT_URL, upload_as.c_str());
-
-      // now specify which file to upload
-      ::curl_easy_setopt(curl, CURLOPT_INFILE, ftpfile);
-
-      // and give the size of the upload (optional)
-      ::curl_easy_setopt(curl, CURLOPT_INFILESIZE, static_cast<long>(st.st_size));
-
-      // and give curl the buffer for errors
-      ::curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, &error_buffer);
-
-      // specify handler for output
-      ::curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cmCTestSubmitHandlerWriteMemoryCallback);
-      ::curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, cmCTestSubmitHandlerCurlDebugCallback);
-
-      /* we pass our 'chunk' struct to the callback function */
-      cmCTestSubmitHandlerVectorOfChar chunk;
-      cmCTestSubmitHandlerVectorOfChar chunkDebug;
-      ::curl_easy_setopt(curl, CURLOPT_FILE, (void *)&chunk);
-      ::curl_easy_setopt(curl, CURLOPT_DEBUGDATA, (void *)&chunkDebug);
-
-      // Now run off and do what you've been told!
-      res = ::curl_easy_perform(curl);
-
-      cmCTestLog(m_CTest, DEBUG, "CURL output: ["
-        << cmCTestLogWrite(&*chunk.begin(), chunk.size()) << "]" << std::endl);
-      cmCTestLog(m_CTest, DEBUG, "CURL debug output: ["
-        << cmCTestLogWrite(&*chunkDebug.begin(), chunkDebug.size()) << "]" << std::endl);
-
-      fclose(ftpfile);
-      if ( res )
-        {
-        cmCTestLog(m_CTest, ERROR_MESSAGE, "   Error when uploading file: " << local_file.c_str() << std::endl);
-        cmCTestLog(m_CTest, ERROR_MESSAGE, "   Error message was: " << error_buffer << std::endl);
-        *m_LogFile << "   Error when uploading file: " << local_file.c_str() << std::endl
-          << "   Error message was: " << error_buffer << std::endl
-          << "   Curl output was: " << cmCTestLogWrite(&*chunk.begin(), chunk.size()) << std::endl;
-        cmCTestLog(m_CTest, ERROR_MESSAGE, "CURL output: ["
-          << cmCTestLogWrite(&*chunk.begin(), chunk.size()) << "]" << std::endl);
-        ::curl_easy_cleanup(curl);
-        ::curl_global_cleanup(); 
-        return false;
-        }
-      // always cleanup
-      ::curl_easy_cleanup(curl);
-      cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Uploaded: " + local_file << std::endl);
-      }
-    }
-  ::curl_global_cleanup(); 
-  return true;
+		/*
+		 * Continue decompression until uncompressed_buffer is full.
+		 */
+		if (zip->uncompressed_buffer_bytes_remaining ==
+		    zip->uncompressed_buffer_size)
+			break;
+		if (zip->pack_stream_inbytes_remaining == 0 &&
+		    zip->folder_outbytes_remaining == 0)
+			break;
+		if (eof || (bytes_in == 0 && bytes_out == 0)) {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC, "Damaged 7-Zip archive");
+			return (ARCHIVE_FATAL);
+		}
+		read_consume(a);
+	}
+	zip->uncompressed_buffer_pointer = zip->uncompressed_buffer;
+	return (ARCHIVE_OK);
 }

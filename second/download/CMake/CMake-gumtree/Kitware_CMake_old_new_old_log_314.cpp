@@ -1,1 +1,1 @@
-snprintf((char *)&dest[i*2], 3, "%02x", source[i]);
+fprintf(this->FileOut, "\t%s \t DATA\n", symbol.c_str());

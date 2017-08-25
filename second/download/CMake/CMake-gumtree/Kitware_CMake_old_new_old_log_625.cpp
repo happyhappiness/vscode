@@ -1,1 +1,1 @@
-sprintf(rpstr, "_p%d_", cc++);
+fprintf(stderr, "No current working directory.\n");

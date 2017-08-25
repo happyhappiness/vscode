@@ -1,6 +1,4 @@
 {
-    md5this = (unsigned char *)aprintf("%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       ha2);
+    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+    return CURLE_FAILED_INIT;
   }

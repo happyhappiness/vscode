@@ -1,168 +1,170 @@
 static int
-decompression_init(struct archive_read *a, enum enctype encoding)
+header_common(struct archive_read *a, struct tar *tar,
+    struct archive_entry *entry, const void *h)
 {
-	struct xar *xar;
-	const char *detail;
-	int r;
+	const struct archive_entry_header_ustar	*header;
+	char	tartype;
+	int     err = ARCHIVE_OK;
 
-	xar = (struct xar *)(a->format->data);
-	xar->rd_encoding = encoding;
-	switch (encoding) {
-	case NONE:
-		break;
-	case GZIP:
-		if (xar->stream_valid)
-			r = inflateReset(&(xar->stream));
-		else
-			r = inflateInit(&(xar->stream));
-		if (r != Z_OK) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Couldn't initialize zlib stream.");
-			return (ARCHIVE_FATAL);
-		}
-		xar->stream_valid = 1;
-		xar->stream.total_in = 0;
-		xar->stream.total_out = 0;
-		break;
-#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-		if (xar->bzstream_valid) {
-			BZ2_bzDecompressEnd(&(xar->bzstream));
-			xar->bzstream_valid = 0;
-		}
-		r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 0);
-		if (r == BZ_MEM_ERROR)
-			r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 1);
-		if (r != BZ_OK) {
-			int err = ARCHIVE_ERRNO_MISC;
-			detail = NULL;
-			switch (r) {
-			case BZ_PARAM_ERROR:
-				detail = "invalid setup parameter";
-				break;
-			case BZ_MEM_ERROR:
-				err = ENOMEM;
-				detail = "out of memory";
-				break;
-			case BZ_CONFIG_ERROR:
-				detail = "mis-compiled library";
-				break;
-			}
-			archive_set_error(&a->archive, err,
-			    "Internal error initializing decompressor: %s",
-			    detail == NULL ? "??" : detail);
-			xar->bzstream_valid = 0;
-			return (ARCHIVE_FATAL);
-		}
-		xar->bzstream_valid = 1;
-		xar->bzstream.total_in_lo32 = 0;
-		xar->bzstream.total_in_hi32 = 0;
-		xar->bzstream.total_out_lo32 = 0;
-		xar->bzstream.total_out_hi32 = 0;
-		break;
-#endif
-#if defined(HAVE_LZMA_H) && defined(HAVE_LIBLZMA)
-#if LZMA_VERSION_MAJOR >= 5
-/* Effectively disable the limiter. */
-#define LZMA_MEMLIMIT   UINT64_MAX
-#else
-/* NOTE: This needs to check memory size which running system has. */
-#define LZMA_MEMLIMIT   (1U << 30)
-#endif
-	case XZ:
-	case LZMA:
-		if (xar->lzstream_valid) {
-			lzma_end(&(xar->lzstream));
-			xar->lzstream_valid = 0;
-		}
-		if (xar->entry_encoding == XZ)
-			r = lzma_stream_decoder(&(xar->lzstream),
-			    LZMA_MEMLIMIT,/* memlimit */
-			    LZMA_CONCATENATED);
-		else
-			r = lzma_alone_decoder(&(xar->lzstream),
-			    LZMA_MEMLIMIT);/* memlimit */
-		if (r != LZMA_OK) {
-			switch (r) {
-			case LZMA_MEM_ERROR:
-				archive_set_error(&a->archive,
-				    ENOMEM,
-				    "Internal error initializing "
-				    "compression library: "
-				    "Cannot allocate memory");
-				break;
-			case LZMA_OPTIONS_ERROR:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "compression library: "
-				    "Invalid or unsupported options");
-				break;
-			default:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "lzma library");
-				break;
-			}
-			return (ARCHIVE_FATAL);
-		}
-		xar->lzstream_valid = 1;
-		xar->lzstream.total_in = 0;
-		xar->lzstream.total_out = 0;
-		break;
-#elif defined(HAVE_LZMADEC_H) && defined(HAVE_LIBLZMADEC)
-	case LZMA:
-		if (xar->lzstream_valid)
-			lzmadec_end(&(xar->lzstream));
-		r = lzmadec_init(&(xar->lzstream));
-		if (r != LZMADEC_OK) {
-			switch (r) {
-			case LZMADEC_HEADER_ERROR:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "compression library: "
-				    "invalid header");
-				break;
-			case LZMADEC_MEM_ERROR:
-				archive_set_error(&a->archive,
-				    ENOMEM,
-				    "Internal error initializing "
-				    "compression library: "
-				    "out of memory");
-				break;
-			}
-			return (ARCHIVE_FATAL);
-		}
-		xar->lzstream_valid = 1;
-		xar->lzstream.total_in = 0;
-		xar->lzstream.total_out = 0;
-		break;
-#endif
-	/*
-	 * Unsupported compression.
-	 */
-	default:
-#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-#endif
-#if !defined(HAVE_LZMA_H) || !defined(HAVE_LIBLZMA)
-#if !defined(HAVE_LZMADEC_H) || !defined(HAVE_LIBLZMADEC)
-	case LZMA:
-#endif
-	case XZ:
-#endif
-		switch (xar->entry_encoding) {
-		case BZIP2: detail = "bzip2"; break;
-		case LZMA: detail = "lzma"; break;
-		case XZ: detail = "xz"; break;
-		default: detail = "??"; break;
-		}
+	header = (const struct archive_entry_header_ustar *)h;
+	if (header->linkname[0])
+		archive_strncpy(&(tar->entry_linkpath),
+		    header->linkname, sizeof(header->linkname));
+	else
+		archive_string_empty(&(tar->entry_linkpath));
+
+	/* Parse out the numeric fields (all are octal) */
+	archive_entry_set_mode(entry,
+		(mode_t)tar_atol(header->mode, sizeof(header->mode)));
+	archive_entry_set_uid(entry, tar_atol(header->uid, sizeof(header->uid)));
+	archive_entry_set_gid(entry, tar_atol(header->gid, sizeof(header->gid)));
+	tar->entry_bytes_remaining = tar_atol(header->size, sizeof(header->size));
+	if (tar->entry_bytes_remaining < 0) {
+		tar->entry_bytes_remaining = 0;
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "%s compression not supported on this platform",
-		    detail);
-		return (ARCHIVE_FAILED);
+		    "Tar entry has negative size?");
+		err = ARCHIVE_WARN;
 	}
-	return (ARCHIVE_OK);
+	tar->realsize = tar->entry_bytes_remaining;
+	archive_entry_set_size(entry, tar->entry_bytes_remaining);
+	archive_entry_set_mtime(entry, tar_atol(header->mtime, sizeof(header->mtime)), 0);
+
+	/* Handle the tar type flag appropriately. */
+	tartype = header->typeflag[0];
+
+	switch (tartype) {
+	case '1': /* Hard link */
+		if (archive_entry_copy_hardlink_l(entry, tar->entry_linkpath.s,
+		    archive_strlen(&(tar->entry_linkpath)), tar->sconv) != 0) {
+			err = set_conversion_failed_error(a, tar->sconv,
+			    "Linkname");
+			if (err == ARCHIVE_FATAL)
+				return (err);
+		}
+		/*
+		 * The following may seem odd, but: Technically, tar
+		 * does not store the file type for a "hard link"
+		 * entry, only the fact that it is a hard link.  So, I
+		 * leave the type zero normally.  But, pax interchange
+		 * format allows hard links to have data, which
+		 * implies that the underlying entry is a regular
+		 * file.
+		 */
+		if (archive_entry_size(entry) > 0)
+			archive_entry_set_filetype(entry, AE_IFREG);
+
+		/*
+		 * A tricky point: Traditionally, tar readers have
+		 * ignored the size field when reading hardlink
+		 * entries, and some writers put non-zero sizes even
+		 * though the body is empty.  POSIX blessed this
+		 * convention in the 1988 standard, but broke with
+		 * this tradition in 2001 by permitting hardlink
+		 * entries to store valid bodies in pax interchange
+		 * format, but not in ustar format.  Since there is no
+		 * hard and fast way to distinguish pax interchange
+		 * from earlier archives (the 'x' and 'g' entries are
+		 * optional, after all), we need a heuristic.
+		 */
+		if (archive_entry_size(entry) == 0) {
+			/* If the size is already zero, we're done. */
+		}  else if (a->archive.archive_format
+		    == ARCHIVE_FORMAT_TAR_PAX_INTERCHANGE) {
+			/* Definitely pax extended; must obey hardlink size. */
+		} else if (a->archive.archive_format == ARCHIVE_FORMAT_TAR
+		    || a->archive.archive_format == ARCHIVE_FORMAT_TAR_GNUTAR)
+		{
+			/* Old-style or GNU tar: we must ignore the size. */
+			archive_entry_set_size(entry, 0);
+			tar->entry_bytes_remaining = 0;
+		} else if (archive_read_format_tar_bid(a, 50) > 50) {
+			/*
+			 * We don't know if it's pax: If the bid
+			 * function sees a valid ustar header
+			 * immediately following, then let's ignore
+			 * the hardlink size.
+			 */
+			archive_entry_set_size(entry, 0);
+			tar->entry_bytes_remaining = 0;
+		}
+		/*
+		 * TODO: There are still two cases I'd like to handle:
+		 *   = a ustar non-pax archive with a hardlink entry at
+		 *     end-of-archive.  (Look for block of nulls following?)
+		 *   = a pax archive that has not seen any pax headers
+		 *     and has an entry which is a hardlink entry storing
+		 *     a body containing an uncompressed tar archive.
+		 * The first is worth addressing; I don't see any reliable
+		 * way to deal with the second possibility.
+		 */
+		break;
+	case '2': /* Symlink */
+		archive_entry_set_filetype(entry, AE_IFLNK);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		if (archive_entry_copy_symlink_l(entry, tar->entry_linkpath.s,
+		    archive_strlen(&(tar->entry_linkpath)), tar->sconv) != 0) {
+			err = set_conversion_failed_error(a, tar->sconv,
+			    "Linkname");
+			if (err == ARCHIVE_FATAL)
+				return (err);
+		}
+		break;
+	case '3': /* Character device */
+		archive_entry_set_filetype(entry, AE_IFCHR);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		break;
+	case '4': /* Block device */
+		archive_entry_set_filetype(entry, AE_IFBLK);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		break;
+	case '5': /* Dir */
+		archive_entry_set_filetype(entry, AE_IFDIR);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		break;
+	case '6': /* FIFO device */
+		archive_entry_set_filetype(entry, AE_IFIFO);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		break;
+	case 'D': /* GNU incremental directory type */
+		/*
+		 * No special handling is actually required here.
+		 * It might be nice someday to preprocess the file list and
+		 * provide it to the client, though.
+		 */
+		archive_entry_set_filetype(entry, AE_IFDIR);
+		break;
+	case 'M': /* GNU "Multi-volume" (remainder of file from last archive)*/
+		/*
+		 * As far as I can tell, this is just like a regular file
+		 * entry, except that the contents should be _appended_ to
+		 * the indicated file at the indicated offset.  This may
+		 * require some API work to fully support.
+		 */
+		break;
+	case 'N': /* Old GNU "long filename" entry. */
+		/* The body of this entry is a script for renaming
+		 * previously-extracted entries.  Ugh.  It will never
+		 * be supported by libarchive. */
+		archive_entry_set_filetype(entry, AE_IFREG);
+		break;
+	case 'S': /* GNU sparse files */
+		/*
+		 * Sparse files are really just regular files with
+		 * sparse information in the extended area.
+		 */
+		/* FALLTHROUGH */
+	default: /* Regular file  and non-standard types */
+		/*
+		 * Per POSIX: non-recognized types should always be
+		 * treated as regular files.
+		 */
+		archive_entry_set_filetype(entry, AE_IFREG);
+		break;
+	}
+	return (err);
 }

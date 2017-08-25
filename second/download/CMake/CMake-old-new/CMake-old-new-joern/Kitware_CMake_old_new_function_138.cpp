@@ -1,152 +1,196 @@
 static int
-_warc_rdhdr(struct archive_read *a, struct archive_entry *entry)
+next_entry(struct archive_read_disk *a, struct tree *t,
+    struct archive_entry *entry)
 {
-#define HDR_PROBE_LEN		(12U)
-	struct warc_s *w = a->format->data;
-	unsigned int ver;
-	const char *buf;
-	ssize_t nrd;
-	const char *eoh;
-	/* for the file name, saves some strndup()'ing */
-	warc_string_t fnam;
-	/* warc record type, not that we really use it a lot */
-	warc_type_t ftyp;
-	/* content-length+error monad */
-	ssize_t cntlen;
-	/* record time is the WARC-Date time we reinterpret it as ctime */
-	time_t rtime;
-	/* mtime is the Last-Modified time which will be the entry's mtime */
-	time_t mtime;
+	const BY_HANDLE_FILE_INFORMATION *st;
+	const BY_HANDLE_FILE_INFORMATION *lst;
+	const char*name;
+	int descend, r;
 
-start_over:
-	/* just use read_ahead() they keep track of unconsumed
-	 * bits and bobs for us; no need to put an extra shift in
-	 * and reproduce that functionality here */
-	buf = __archive_read_ahead(a, HDR_PROBE_LEN, &nrd);
-
-	if (nrd < 0) {
-		/* no good */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Bad record header");
-		return (ARCHIVE_FATAL);
-	} else if (buf == NULL) {
-		/* there should be room for at least WARC/bla\r\n
-		 * must be EOF therefore */
-		return (ARCHIVE_EOF);
-	}
- 	/* looks good so far, try and find the end of the header now */
-	eoh = _warc_find_eoh(buf, nrd);
-	if (eoh == NULL) {
-		/* still no good, the header end might be beyond the
-		 * probe we've requested, but then again who'd cram
-		 * so much stuff into the header *and* be 28500-compliant */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Bad record header");
-		return (ARCHIVE_FATAL);
-	} else if ((ver = _warc_rdver(buf, eoh - buf)) > 10000U) {
-		/* nawww, I wish they promised backward compatibility
-		 * anyhoo, in their infinite wisdom the 28500 guys might
-		 * come up with something we can't possibly handle so
-		 * best end things here */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Unsupported record version");
-		return (ARCHIVE_FATAL);
-	} else if ((cntlen = _warc_rdlen(buf, eoh - buf)) < 0) {
-		/* nightmare!  the specs say content-length is mandatory
-		 * so I don't feel overly bad stopping the reader here */
-		archive_set_error(
-			&a->archive, EINVAL,
-			"Bad content length");
-		return (ARCHIVE_FATAL);
-	} else if ((rtime = _warc_rdrtm(buf, eoh - buf)) == (time_t)-1) {
-		/* record time is mandatory as per WARC/1.0,
-		 * so just barf here, fast and loud */
-		archive_set_error(
-			&a->archive, EINVAL,
-			"Bad record time");
-		return (ARCHIVE_FATAL);
-	}
-
-	/* let the world know we're a WARC archive */
-	a->archive.archive_format = ARCHIVE_FORMAT_WARC;
-	if (ver != w->pver) {
-		/* stringify this entry's version */
-		archive_string_sprintf(&w->sver,
-			"WARC/%u.%u", ver / 10000, ver % 10000);
-		/* remember the version */
-		w->pver = ver;
-	}
-	/* start off with the type */
-	ftyp = _warc_rdtyp(buf, eoh - buf);
-	/* and let future calls know about the content */
-	w->cntlen = cntlen;
-	w->cntoff = 0U;
-	mtime = 0;/* Avoid compiling error on some platform. */
-
-	switch (ftyp) {
-	case WT_RSRC:
-	case WT_RSP:
-		/* only try and read the filename in the cases that are
-		 * guaranteed to have one */
-		fnam = _warc_rduri(buf, eoh - buf);
-		/* check the last character in the URI to avoid creating
-		 * directory endpoints as files, see Todo above */
-		if (fnam.len == 0 || fnam.str[fnam.len - 1] == '/') {
-			/* break here for now */
-			fnam.len = 0U;
-			fnam.str = NULL;
+	st = NULL;
+	lst = NULL;
+	t->descend = 0;
+	do {
+		switch (tree_next(t)) {
+		case TREE_ERROR_FATAL:
+			archive_set_error(&a->archive, t->tree_errno,
+			    "%ls: Unable to continue traversing directory tree",
+			    tree_current_path(t));
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			return (ARCHIVE_FATAL);
+		case TREE_ERROR_DIR:
+			archive_set_error(&a->archive, t->tree_errno,
+			    "%ls: Couldn't visit directory",
+			    tree_current_path(t));
+			return (ARCHIVE_FAILED);
+		case 0:
+			return (ARCHIVE_EOF);
+		case TREE_POSTDESCENT:
+		case TREE_POSTASCENT:
 			break;
-		}
-		/* bang to our string pool, so we save a
-		 * malloc()+free() roundtrip */
-		if (fnam.len + 1U > w->pool.len) {
-			w->pool.len = ((fnam.len + 64U) / 64U) * 64U;
-			w->pool.str = realloc(w->pool.str, w->pool.len);
-		}
-		memcpy(w->pool.str, fnam.str, fnam.len);
-		w->pool.str[fnam.len] = '\0';
-		/* let noone else know about the pool, it's a secret, shhh */
-		fnam.str = w->pool.str;
+		case TREE_REGULAR:
+			lst = tree_current_lstat(t);
+			if (lst == NULL) {
+				archive_set_error(&a->archive, t->tree_errno,
+				    "%ls: Cannot stat",
+				    tree_current_path(t));
+				return (ARCHIVE_FAILED);
+			}
+			break;
+		}	
+	} while (lst == NULL);
 
-		/* snarf mtime or deduce from rtime
-		 * this is a custom header added by our writer, it's quite
-		 * hard to believe anyone else would go through with it
-		 * (apart from being part of some http responses of course) */
-		if ((mtime = _warc_rdmtm(buf, eoh - buf)) == (time_t)-1) {
-			mtime = rtime;
+	archive_entry_copy_pathname_w(entry, tree_current_path(t));
+
+	/*
+	 * Perform path matching.
+	 */
+	if (a->matching) {
+		r = archive_match_path_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
 		}
-		break;
-	default:
-		fnam.len = 0U;
-		fnam.str = NULL;
-		break;
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
 	}
 
-	/* now eat some of those delicious buffer bits */
-	__archive_read_consume(a, eoh - buf);
-
-	switch (ftyp) {
-	case WT_RSRC:
-	case WT_RSP:
-		if (fnam.len > 0U) {
-			/* populate entry object */
-			archive_entry_set_filetype(entry, AE_IFREG);
-			archive_entry_copy_pathname(entry, fnam.str);
-			archive_entry_set_size(entry, cntlen);
-			archive_entry_set_perm(entry, 0644);
-			/* rtime is the new ctime, mtime stays mtime */
-			archive_entry_set_ctime(entry, rtime, 0L);
-			archive_entry_set_mtime(entry, mtime, 0L);
+	/*
+	 * Distinguish 'L'/'P'/'H' symlink following.
+	 */
+	switch(t->symlink_mode) {
+	case 'H':
+		/* 'H': After the first item, rest like 'P'. */
+		t->symlink_mode = 'P';
+		/* 'H': First item (from command line) like 'L'. */
+		/* FALLTHROUGH */
+	case 'L':
+		/* 'L': Do descend through a symlink to dir. */
+		descend = tree_current_is_dir(t);
+		/* 'L': Follow symlinks to files. */
+		a->symlink_mode = 'L';
+		a->follow_symlinks = 1;
+		/* 'L': Archive symlinks as targets, if we can. */
+		st = tree_current_stat(t);
+		if (st != NULL && !tree_target_is_same_as_parent(t, st))
 			break;
-		}
+		/* If stat fails, we have a broken symlink;
+		 * in that case, don't follow the link. */
 		/* FALLTHROUGH */
 	default:
-		/* consume the content and start over */
-		_warc_skip(a);
-		goto start_over;
+		/* 'P': Don't descend through a symlink to dir. */
+		descend = tree_current_is_physical_dir(t);
+		/* 'P': Don't follow symlinks to files. */
+		a->symlink_mode = 'P';
+		a->follow_symlinks = 0;
+		/* 'P': Archive symlinks as symlinks. */
+		st = lst;
+		break;
 	}
-	return (ARCHIVE_OK);
+
+	if (update_current_filesystem(a, bhfi_dev(st)) != ARCHIVE_OK) {
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		return (ARCHIVE_FATAL);
+	}
+	if (t->initial_filesystem_id == -1)
+		t->initial_filesystem_id = t->current_filesystem_id;
+	if (!a->traverse_mount_points) {
+		if (t->initial_filesystem_id != t->current_filesystem_id)
+			return (ARCHIVE_RETRY);
+	}
+	t->descend = descend;
+
+	tree_archive_entry_copy_bhfi(entry, t, st);
+
+	/* Save the times to be restored. This must be in before
+	 * calling archive_read_disk_descend() or any chance of it,
+	 * especially, invokng a callback. */
+	t->restore_time.lastWriteTime = st->ftLastWriteTime;
+	t->restore_time.lastAccessTime = st->ftLastAccessTime;
+	t->restore_time.filetype = archive_entry_filetype(entry);
+
+	/*
+	 * Perform time matching.
+	 */
+	if (a->matching) {
+		r = archive_match_time_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
+	}
+
+	/* Lookup uname/gname */
+	name = archive_read_disk_uname(&(a->archive), archive_entry_uid(entry));
+	if (name != NULL)
+		archive_entry_copy_uname(entry, name);
+	name = archive_read_disk_gname(&(a->archive), archive_entry_gid(entry));
+	if (name != NULL)
+		archive_entry_copy_gname(entry, name);
+
+	/*
+	 * Perform owner matching.
+	 */
+	if (a->matching) {
+		r = archive_match_owner_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
+	}
+
+	/*
+	 * Invoke a meta data filter callback.
+	 */
+	if (a->metadata_filter_func) {
+		if (!a->metadata_filter_func(&(a->archive),
+		    a->metadata_filter_data, entry))
+			return (ARCHIVE_RETRY);
+	}
+
+	archive_entry_copy_sourcepath_w(entry, tree_current_access_path(t));
+
+	r = ARCHIVE_OK;
+	if (archive_entry_filetype(entry) == AE_IFREG &&
+	    archive_entry_size(entry) > 0) {
+		DWORD flags = FILE_FLAG_BACKUP_SEMANTICS;
+		if (t->async_io)
+			flags |= FILE_FLAG_OVERLAPPED;
+		if (t->direct_io)
+			flags |= FILE_FLAG_NO_BUFFERING;
+		else
+			flags |= FILE_FLAG_SEQUENTIAL_SCAN;
+		t->entry_fh = CreateFileW(tree_current_access_path(t),
+		    GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, flags, NULL);
+		if (t->entry_fh == INVALID_HANDLE_VALUE) {
+			archive_set_error(&a->archive, errno,
+			    "Couldn't open %ls", tree_current_path(a->tree));
+			return (ARCHIVE_FAILED);
+		}
+
+		/* Find sparse data from the disk. */
+		if (archive_entry_hardlink(entry) == NULL &&
+		    (st->dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0)
+			r = setup_sparse_from_disk(a, entry, t->entry_fh);
+	}
+	return (r);
 }

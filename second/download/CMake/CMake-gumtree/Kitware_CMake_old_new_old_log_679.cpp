@@ -1,1 +1,1 @@
-snprintf(sbuf, sizeof(sbuf), "?");
+sprintf(buf, "%6.2f sec", this->TestProcess->GetTotalTime());

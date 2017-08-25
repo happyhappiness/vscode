@@ -1,1 +1,2 @@
-sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
+f(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+            this->BinaryDirectory.c_str());

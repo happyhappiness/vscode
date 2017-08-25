@@ -1,1 +1,1 @@
-printf("%d - %s: %s (%d)\n",line,str,msg, lastmsg);
+fprintf(stream, "%d.%02d%%", q / 100, q % 100);

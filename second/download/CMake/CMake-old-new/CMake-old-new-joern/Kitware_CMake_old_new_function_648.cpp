@@ -1,82 +1,107 @@
-int
-tar_append_tree(TAR *t, char *realdir, char *savedir)
+static ssize_t
+decode_header_image(struct archive_read *a, struct _7zip *zip,
+    struct _7z_stream_info *si, const unsigned char *p, uint64_t len,
+    const void **image)
 {
-  char realpath[MAXPATHLEN];
-  char savepath[MAXPATHLEN];
-#ifndef _MSC_VER
-  struct dirent *dent;
-  DIR *dp;
-#else  
-  kwDirEntry * dent;
-  kwDirectory *dp;
-#endif  
-  struct stat s;
+	const unsigned char *v;
+	size_t vsize;
+	int r;
 
-#ifdef DEBUG
-  printf("==> tar_append_tree(0x%lx, \"%s\", \"%s\")\n",
-         t, realdir, (savedir ? savedir : "[NULL]"));
-#endif
+	errno = 0;
+	r = read_StreamsInfo(zip, si, p, len);
+	if (r < 0) {
+		if (errno == ENOMEM)
+			archive_set_error(&a->archive, -1,
+			    "Couldn't allocate memory");
+		else
+			archive_set_error(&a->archive, -1,
+			    "Malformed 7-Zip archive");
+		return (ARCHIVE_FATAL);
+	}
 
-  if (tar_append_file(t, realdir, savedir) != 0)
-    return -1;
+	if (si->pi.numPackStreams == 0 || si->ci.numFolders == 0) {
+		archive_set_error(&a->archive, -1, "Malformed 7-Zip archive");
+		return (ARCHIVE_FATAL);
+	}
 
-#ifdef DEBUG
-  puts("    tar_append_tree(): done with tar_append_file()...");
-#endif
+	if (zip->header_offset < si->pi.pos + si->pi.sizes[0] ||
+	    (int64_t)(si->pi.pos + si->pi.sizes[0]) < 0 ||
+	    si->pi.sizes[0] == 0 || (int64_t)si->pi.pos < 0) {
+		archive_set_error(&a->archive, -1, "Malformed Header offset");
+		return (ARCHIVE_FATAL);
+	}
 
-#ifdef _MSC_VER
-  dp = kwOpenDir(realdir);
-#else
-  dp = opendir(realdir);
-#endif
+	r = setup_decode_folder(a, si->ci.folders, 1);
+	if (r != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
 
-  if (dp == NULL)
-  {
-    if (errno == ENOTDIR)
-      return 0;
-    return -1;
-  }
-#ifdef _MSC_VER
-  while ((dent = kwReadDir(dp)) != NULL)
-#else
-  while ((dent = readdir(dp)) != NULL)
-#endif
-  {
-    if (strcmp(dent->d_name, ".") == 0 ||
-        strcmp(dent->d_name, "..") == 0)
-      continue;
+	/* Get an uncompressed header size. */
+	vsize = (size_t)zip->folder_outbytes_remaining;
 
-    snprintf(realpath, MAXPATHLEN, "%s/%s", realdir,
-       dent->d_name);
-    if (savedir)
-      snprintf(savepath, MAXPATHLEN, "%s/%s", savedir,
-         dent->d_name);
+	/*
+	 * Allocate an uncompressed buffer for the header image.
+	 */
+	zip->uncompressed_buffer_size = 64 * 1024;
+	if (vsize > zip->uncompressed_buffer_size)
+		zip->uncompressed_buffer_size = vsize;
+	zip->uncompressed_buffer = malloc(zip->uncompressed_buffer_size);
+	if (zip->uncompressed_buffer == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "No memory for 7-Zip decompression");
+		return (ARCHIVE_FATAL);
+	}
 
-#ifndef WIN32
-    if (lstat(realpath, &s) != 0)
-      return -1;
-#else
-    if (stat(realpath, &s) != 0)
-      return -1;
-#endif
-    if (S_ISDIR(s.st_mode))
-    {
-      if (tar_append_tree(t, realpath,
-              (savedir ? savepath : NULL)) != 0)
-        return -1;
-      continue;
-    }
+	/* Get the bytes we can read to decode the header. */
+	zip->pack_stream_inbytes_remaining = si->pi.sizes[0];
 
-    if (tar_append_file(t, realpath,
-            (savedir ? savepath : NULL)) != 0)
-      return -1;
-  }
+	/* Seek the read point. */
+	if (__archive_read_seek(a, si->pi.pos + zip->seek_base, SEEK_SET) < 0)
+		return (ARCHIVE_FATAL);
+	zip->header_offset = si->pi.pos;
 
-#ifdef _MSC_VER
-  kwCloseDir(dp);
-#else
-  closedir(dp);
-#endif
+	/* Extract a pack stream. */
+	r = extract_pack_stream(a);
+	if (r < 0)
+		return (r);
+	for (;;) {
+		ssize_t bytes;
+		
+		bytes = get_uncompressed_data(a, image, vsize);
+		if (bytes < 0)
+			return (r);
+		if (bytes != vsize) {
+			if (*image != zip->uncompressed_buffer) {
+				/* This might happen if the coder was COPY.
+				 * We have to make sure we read a full plain
+				 * header image. */
+				if (NULL==__archive_read_ahead(a, vsize, NULL))
+					return (ARCHIVE_FATAL);
+				continue;
+			} else {
+				archive_set_error(&a->archive, -1,
+				    "Malformed 7-Zip archive file");
+				return (ARCHIVE_FATAL);
+			}
+		}
+		break;
+	}
+	v = *image;
 
-  return 0;
+	/* Clean up variables which will not be used for decoding the
+	 * archive header */
+	zip->pack_stream_remaining = 0;
+	zip->pack_stream_index = 0;
+	zip->folder_outbytes_remaining = 0;
+	zip->uncompressed_buffer_bytes_remaining = 0;
+	zip->pack_stream_bytes_unconsumed = 0;
+
+	/* Check the header CRC. */
+	if (si->ci.folders[0].digest_defined){
+		uint32_t c = crc32(0, v, vsize);
+		if (c != si->ci.folders[0].digest) {
+			archive_set_error(&a->archive, -1, "Header CRC error");
+			return (ARCHIVE_FATAL);
+		}
+	}
+	return ((ssize_t)vsize);
 }

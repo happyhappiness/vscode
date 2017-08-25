@@ -1,2 +1,2 @@
-fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
-      cSymbols);
+fprintf(stderr, "Header id 0x%x, length %d\n",
+		    headerid, datasize);

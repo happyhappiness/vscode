@@ -1,15 +1,13 @@
-inline const char* Getcwd(char* buf, unsigned int len)
+int
+archive_read_support_filter_program_signature(struct archive *_a,
+    const char *cmd, const void *signature, size_t signature_len)
 {
-  const char* ret = _getcwd(buf, len);
-  if(!ret)
-    {
-    fprintf(stderr, "No current working directory.\n");
-    abort();
-    }
-  // make sure the drive letter is capital
-  if(strlen(buf) > 1 && buf[1] == ':')
-    {
-    buf[0] = toupper(buf[0]);
-    }
-  return ret;
+	(void)_a; /* UNUSED */
+	(void)cmd; /* UNUSED */
+	(void)signature; /* UNUSED */
+	(void)signature_len; /* UNUSED */
+
+	archive_set_error(_a, -1,
+	    "External compression programs not supported on this platform");
+	return (ARCHIVE_FATAL);
 }

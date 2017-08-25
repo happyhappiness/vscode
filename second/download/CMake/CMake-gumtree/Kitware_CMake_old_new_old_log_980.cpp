@@ -1,0 +1,1 @@
+fout << "  printf(\"Available tests:\\n\");\n";

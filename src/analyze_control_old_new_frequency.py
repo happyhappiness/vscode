@@ -8,6 +8,7 @@ import analyze_control_clone
 from itertools import islice
 from pygithub3 import Github
 from gumtree_api import Gumtree
+from z3_api import Z3_api
 import block
 import myUtil
 import my_constant
@@ -34,7 +35,7 @@ class mycluster:
 @ return similarity value
 @ involve compute similarity between clusters (the least similar cond_list pairs)
 """
-def compute_sim_cluster(cluster_a, cluster_b, similarity_dic):
+def compute_sim_cluster(cluster_a, cluster_b, z3_api, similarity_dic):
 
     #  if has record in dictory, then use dictory
     if similarity_dic.get((cluster_b.id, cluster_a.id)) is not None:
@@ -42,18 +43,21 @@ def compute_sim_cluster(cluster_a, cluster_b, similarity_dic):
 
     # compare cdg_list of entity
     if cluster_a.id >= 0 and cluster_b.id >= 0:
-       return myUtil.compute_similarity(cluster_a.vec, cluster_b.vec)
+        if z3_api is not None:
+            return z3_api.judge_equality_for_statments(cluster_a.vec, cluster_b.vec)
+        else:
+            return myUtil.compute_similarity(cluster_a.vec, cluster_b.vec)
 
     # first cluster (children)
     if cluster_a.id < 0:
         # translation
-        similarity = compute_sim_cluster(cluster_a.children[0], cluster_b, similarity_dic)
+        similarity = compute_sim_cluster(cluster_a.children[0], cluster_b, z3_api, similarity_dic)
         return similarity
 
     # second cluster (children)
     if cluster_b.id < 0:
         # translation
-        similarity = compute_sim_cluster(cluster_a, cluster_b.children[0], similarity_dic)
+        similarity = compute_sim_cluster(cluster_a, cluster_b.children[0], z3_api, similarity_dic)
         return similarity
 
 """
@@ -61,7 +65,7 @@ def compute_sim_cluster(cluster_a, cluster_b, similarity_dic):
 @return cluster index for each entity
 @involve: cluster entities based on similarity
 """
-def cluster_record(feature_lists, cluster_similarity = 0.95):
+def cluster_record(feature_lists, z3_api):
     # initialize the custers to consist of each entity
     myclusters = [mycluster(children=[], vec=feature_lists[i], id=i) for i in range(len(feature_lists))]
     currentclusted = -1
@@ -81,7 +85,7 @@ def cluster_record(feature_lists, cluster_similarity = 0.95):
 
                     # compute similaritys by calling computeSim on (vector a, vector b)
                     similarity_dic[(myclusters[i].id, myclusters[j].id)] =\
-                        compute_sim_cluster(myclusters[i], myclusters[j], similarity_dic)
+                        compute_sim_cluster(myclusters[i], myclusters[j], z3_api, similarity_dic)
                     # record symmetrical record
                     similarity_dic[(myclusters[j].id, myclusters[i].id)] =\
                                 similarity_dic[(myclusters[i].id, myclusters[j].id)]
@@ -147,7 +151,7 @@ def get_time_for_sha(sha, gh):
 @ return nothing
 @ involve read from and write back to files
 """
-def cluster():
+def cluster(z3_api):
 
     # initialize read file
     analyze_control = file(my_constant.ANALYZE_OLD_NEW_JOERN_FILE_NAME, 'rb')
@@ -174,13 +178,18 @@ def cluster():
         new_log_file = record[my_constant.ANALYZE_OLD_NEW_NEW_LOG_FILE]
         gumtree.set_file(new_log_file)
         new_log_feature = gumtree.get_block_feature()
-
-        feature_lists.append(old_log_feature + new_log_feature)
+        # old cdg feature
+        old_cdg_feature = record[my_constant.ANALYZE_OLD_NEW_OLD_CDG_FEATURE]
+        old_cdg_z3_feature = z3_api.get_infix_for_postfix(old_cdg_feature)
+        if z3_api is not None:
+            feature_lists.append(old_cdg_z3_feature)
+        else:
+            feature_lists.append(old_log_feature + new_log_feature)
         print 'now processing %d file' %(index)
         index += 1
     
     # cluster log statement based on cdg_list and ddg_list
-    cluster_lists = cluster_record(feature_lists)
+    cluster_lists = cluster_record(feature_lists, z3_api)
     # record cluster index of each log statement
     analyze_control.close()
     analyze_control = file(my_constant.ANALYZE_OLD_NEW_JOERN_FILE_NAME, 'rb')
@@ -202,4 +211,6 @@ main function
 """
 if __name__ == "__main__":
 
-    cluster()
+    z3_api = Z3_api()
+    # cluster(None)
+    cluster(z3_api)

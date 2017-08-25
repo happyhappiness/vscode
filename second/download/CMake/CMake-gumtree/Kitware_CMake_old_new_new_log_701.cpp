@@ -1,1 +1,1 @@
-std::cerr <<   "   Passed\n";
+sprintf(buffer, "%ld", osvi.dwMinorVersion);

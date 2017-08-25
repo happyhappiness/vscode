@@ -1,1 +1,1 @@
-fprintf(fout, "ENDIF (CMAKE_ANSI_CXXFLAGS)\n");
+sprintf(rpstr, "_p_");

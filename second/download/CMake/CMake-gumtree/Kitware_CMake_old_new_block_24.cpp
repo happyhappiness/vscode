@@ -1,5 +1,5 @@
 {
-			archive_set_error(&a->archive, errno,
-			    "Failed to get next ACL entry");
-			return (ARCHIVE_WARN);
-		}
+				archive_set_error(&a->archive, errno,
+				    "Failed to check permission in an ACL permission set");
+				return (ARCHIVE_WARN);
+			}

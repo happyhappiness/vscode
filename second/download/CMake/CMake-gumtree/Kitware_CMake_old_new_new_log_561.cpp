@@ -1,1 +1,2 @@
-d::cout << "Writing " << currentFilename << "..." << std::endl;
+archive_set_error(&a->archive, errno,
+				    "Can't GetFileInformationByHandle");

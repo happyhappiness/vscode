@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, 0,
-		    "Too much data: Truncating file at %ju bytes", (uintmax_t)a->filesize);
+YY_FATAL_ERROR( "cmListFileLexer_yyset_column called with no buffer" );

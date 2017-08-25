@@ -1,2 +1,2 @@
-sprintf(tmp,"Version %d.%d - %s", cmake::GetMajorVersion(),
-          cmake::GetMinorVersion(), cmake::GetReleaseVersion());
+fprintf(fout, "extern  \"C\" {__declspec( dllexport) "
+            "PyObject *PyVTKClass_%sNew(char *); }\n", classes[i].c_str());

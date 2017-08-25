@@ -1,1 +1,1 @@
-archive_wstrcat(&s, wp);
+aprintf("%s:%d", hostname, conn->port);

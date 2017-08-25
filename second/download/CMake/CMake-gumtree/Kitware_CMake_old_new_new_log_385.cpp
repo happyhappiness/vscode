@@ -1,1 +1,1 @@
-fprintf(stderr, "  target [%s]\n", lei->Target->GetName().c_str());
+fprintf(this->FileOut, "\t%s \t DATA\n", symbol.c_str());

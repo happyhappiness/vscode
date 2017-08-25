@@ -1,171 +1,246 @@
-int cmTryCompileCommand::CoreTryCompileCode(
-  cmMakefile *mf, std::vector<std::string> const& argv, bool clean)
+void cmake::GenerateGraphViz(const char* fileName)
 {
-  // which signature were we called with ?
-  bool srcFileSignature = false;
-  unsigned int i;
-  
-  // where will the binaries be stored
-  const char* binaryDirectory = argv[1].c_str();
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  const char* targetName = 0;
-  std::string tmpString;
-
-  // do we have a srcfile signature
-  if (argv.size() == 3 || argv[3] == "CMAKE_FLAGS" || argv[3] == "COMPILE_DEFINITIONS" ||
-      argv[3] == "OUTPUT_VARIABLE")
+  cmGeneratedFileStream str(fileName);
+  if ( !str )
     {
-    srcFileSignature = true;
+    return;
+    }
+  cmake cm;
+  cmGlobalGenerator ggi;
+  ggi.SetCMakeInstance(&cm);
+  std::auto_ptr<cmLocalGenerator> lg(ggi.CreateLocalGenerator());
+  lg->SetGlobalGenerator(&ggi);
+  cmMakefile *mf = lg->GetMakefile();
+
+  std::string infile = this->GetHomeOutputDirectory();
+  infile += "/CMakeGraphVizOptions.cmake";
+  if ( !cmSystemTools::FileExists(infile.c_str()) )
+    {
+    infile = this->GetHomeDirectory();
+    infile += "/CMakeGraphVizOptions.cmake";
+    if ( !cmSystemTools::FileExists(infile.c_str()) )
+      {
+      infile = "";
+      }
     }
 
-  // look for CMAKE_FLAGS and store them
-  std::vector<std::string> cmakeFlags;
-  for (i = 3; i < argv.size(); ++i)
+  if ( !infile.empty() )
     {
-    if (argv[i] == "CMAKE_FLAGS")
+    if ( !mf->ReadListFile(0, infile.c_str()) )
       {
-      for (; i < argv.size() && argv[i] != "COMPILE_DEFINITIONS" && 
-             argv[i] != "OUTPUT_VARIABLE"; 
-           ++i)
+      cmSystemTools::Error("Problem opening GraphViz options file: ",
+        infile.c_str());
+      return;
+      }
+    std::cout << "Read GraphViz options file: " << infile.c_str()
+      << std::endl;
+    }
+
+#define __set_if_not_set(var, value, cmakeDefinition) \
+  const char* var = mf->GetDefinition(cmakeDefinition); \
+  if ( !var ) \
+    { \
+    var = value; \
+    }
+  __set_if_not_set(graphType, "digraph", "GRAPHVIZ_GRAPH_TYPE");
+  __set_if_not_set(graphName, "GG", "GRAPHVIZ_GRAPH_NAME");
+  __set_if_not_set(graphHeader, "node [\n  fontsize = \"12\"\n];",
+    "GRAPHVIZ_GRAPH_HEADER");
+  __set_if_not_set(graphNodePrefix, "node", "GRAPHVIZ_NODE_PREFIX");
+  const char* ignoreTargets = mf->GetDefinition("GRAPHVIZ_IGNORE_TARGETS");
+  std::set<cmStdString> ignoreTargetsSet;
+  if ( ignoreTargets )
+    {
+    std::vector<std::string> ignoreTargetsVector;
+    cmSystemTools::ExpandListArgument(ignoreTargets,ignoreTargetsVector);
+    std::vector<std::string>::iterator itvIt;
+    for ( itvIt = ignoreTargetsVector.begin();
+      itvIt != ignoreTargetsVector.end();
+      ++ itvIt )
+      {
+      ignoreTargetsSet.insert(itvIt->c_str());
+      }
+    }
+
+  str << graphType << " " << graphName << " {" << std::endl;
+  str << graphHeader << std::endl;
+
+  cmGlobalGenerator* gg = this->GetGlobalGenerator();
+  std::vector<cmLocalGenerator*> localGenerators;
+  gg->GetLocalGenerators(localGenerators);
+  std::vector<cmLocalGenerator*>::iterator lit;
+  // for target deps
+  // 1 - cmake target
+  // 2 - external target
+  // 0 - no deps
+  std::map<cmStdString, int> targetDeps;
+  std::map<cmStdString, cmTarget*> targetPtrs;
+  std::map<cmStdString, cmStdString> targetNamesNodes;
+  char tgtName[2048];
+  int cnt = 0;
+  // First pass get the list of all cmake targets
+  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
+    {
+    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
+    cmTargets::iterator tit;
+    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
+      {
+      const char* realTargetName = tit->first.c_str();
+      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
         {
-        cmakeFlags.push_back(argv[i]);
+        // Skip ignored targets
+        continue;
         }
-      break;
+      //std::cout << "Found target: " << tit->first.c_str() << std::endl;
+      sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
+      targetNamesNodes[realTargetName] = tgtName;
+      targetPtrs[realTargetName] = &tit->second;
       }
     }
-
-  // look for OUTPUT_VARIABLE and store them
-  std::string outputVariable;
-  for (i = 3; i < argv.size(); ++i)
+  // Ok, now find all the stuff we link to that is not in cmake
+  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
     {
-    if (argv[i] == "OUTPUT_VARIABLE")
+    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
+    cmTargets::iterator tit;
+    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
       {
-      if ( argv.size() <= (i+1) )
+      const cmTarget::LinkLibraryVectorType* ll
+        = &(tit->second.GetOriginalLinkLibraries());
+      cmTarget::LinkLibraryVectorType::const_iterator llit;
+      const char* realTargetName = tit->first.c_str();
+      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
         {
-        cmSystemTools::Error(
-          "OUTPUT_VARIABLE specified but there is no variable");
-        return -1;
+        // Skip ignored targets
+        continue;
         }
-      outputVariable = argv[i+1];
-      break;
-      }
-    }
-
-  // look for COMPILE_DEFINITIONS and store them
-  std::vector<std::string> compileFlags;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "COMPILE_DEFINITIONS")
-      {
-      // only valid for srcfile signatures
-      if (!srcFileSignature)
+      if ( ll->size() > 0 )
         {
-        cmSystemTools::Error(
-          "COMPILE_FLAGS specified on a srcdir type TRY_COMPILE");
-        return -1;
+        targetDeps[realTargetName] = 1;
         }
-      for (i = i + 1; i < argv.size() && argv[i] != "CMAKE_FLAGS" && 
-             argv[i] != "OUTPUT_VARIABLE"; 
-           ++i)
+      for ( llit = ll->begin(); llit != ll->end(); ++ llit )
         {
-        compileFlags.push_back(argv[i]);
+        const char* libName = llit->first.c_str();
+        std::map<cmStdString, cmStdString>::iterator tarIt
+          = targetNamesNodes.find(libName);
+        if ( ignoreTargetsSet.find(libName) != ignoreTargetsSet.end() )
+          {
+          // Skip ignored targets
+          continue;
+          }
+        if ( tarIt == targetNamesNodes.end() )
+          {
+          sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
+          targetDeps[libName] = 2;
+          targetNamesNodes[libName] = tgtName;
+          //str << "    \"" << tgtName << "\" [ label=\"" << libName
+          //<<  "\" shape=\"ellipse\"];" << std::endl;
+          }
+        else
+          {
+          std::map<cmStdString, int>::iterator depIt
+            = targetDeps.find(libName);
+          if ( depIt == targetDeps.end() )
+            {
+            targetDeps[libName] = 1;
+            }
+          }
         }
-      break;
       }
     }
 
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (srcFileSignature)
+  // Write out nodes
+  std::map<cmStdString, int>::iterator depIt;
+  for ( depIt = targetDeps.begin(); depIt != targetDeps.end(); ++ depIt )
     {
-    tmpString = argv[1] + "/CMakeTmp";
-    binaryDirectory = tmpString.c_str();
-    }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(binaryDirectory);
-  
-  // do not allow recursive try Compiles
-  if (!strcmp(binaryDirectory,mf->GetHomeOutputDirectory()))
-    {
-    cmSystemTools::Error("Attempt at a recursive or nested TRY_COMPILE", 
-                         binaryDirectory);
-    return -1;
-    }
-  
-  std::string outFileName = tmpString + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (srcFileSignature)
-    {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = tmpString + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile.c_str());
-    
-    // we need to create a directory and CMakeList file etc...
-    // first create the directories
-    sourceDirectory = binaryDirectory;
-
-    // now create a CMakeList.txt file in that directory
-    FILE *fout = fopen(outFileName.c_str(),"w");
-    if (!fout)
+    const char* newTargetName = depIt->first.c_str();
+    std::map<cmStdString, cmStdString>::iterator tarIt
+      = targetNamesNodes.find(newTargetName);
+    if ( tarIt == targetNamesNodes.end() )
       {
-      cmSystemTools::Error("Failed to create CMakeList file for ", 
-                           outFileName.c_str());
-      return -1;
+      // We should not be here.
+      std::cout << __LINE__ << " Cannot find library: " << newTargetName
+        << " even though it was added in the previous pass" << std::endl;
+      abort();
       }
-    fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE)\n");
-    fprintf(fout, "IF (CMAKE_ANSI_CXXFLAGS)\n");
-    fprintf(fout, "  SET(CMAKE_CXX_FLAGS \"${CMAKE_CXX_FLAGS} ${CMAKE_ANSI_CXXFLAGS}\")\n");
-    fprintf(fout, "  SET(CMAKE_C_FLAGS \"${CMAKE_C_FLAGS} ${CMAKE_ANSI_CFLAGS}\")\n");
-    fprintf(fout, "ENDIF (CMAKE_ANSI_CXXFLAGS)\n");
-    // handle any compile flags we need to pass on
-    if (compileFlags.size())
+
+    str << "    \"" << tarIt->second.c_str() << "\" [ label=\""
+      << newTargetName <<  "\" shape=\"";
+    if ( depIt->second == 1 )
       {
-      fprintf(fout, "ADD_DEFINITIONS( ");
-      for (i = 0; i < compileFlags.size(); ++i)
+      std::map<cmStdString, cmTarget*>::iterator tarTypeIt= targetPtrs.find(
+        newTargetName);
+      if ( tarTypeIt == targetPtrs.end() )
         {
-        fprintf(fout,"%s ",compileFlags[i].c_str());
+        // We should not be here.
+        std::cout << __LINE__ << " Cannot find library: " << newTargetName
+          << " even though it was added in the previous pass" << std::endl;
+        abort();
         }
-      fprintf(fout, ")\n");
+      cmTarget* tg = tarTypeIt->second;
+      switch ( tg->GetType() )
+        {
+      case cmTarget::EXECUTABLE:
+        str << "house";
+        break;
+      case cmTarget::STATIC_LIBRARY:
+        str << "diamond";
+        break;
+      case cmTarget::SHARED_LIBRARY:
+        str << "polygon";
+        break;
+      case cmTarget::MODULE_LIBRARY:
+        str << "octagon";
+        break;
+      default:
+        str << "box";
+        }
       }
-    
-    fprintf(fout, "ADD_EXECUTABLE(cmTryCompileExec \"%s\")\n",argv[2].c_str());
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
-    targetName = "cmTryCompileExec";
-    }
-  // else the srcdir bindir project target signature
-  else
-    {
-    projectName = argv[3].c_str();
-    
-    if (argv.size() == 5)
+    else
       {
-      targetName = argv[4].c_str();
+      str << "ellipse";
+      }
+    str << "\"];" << std::endl;
+    }
+
+  // Now generate the connectivity
+  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
+    {
+    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
+    cmTargets::iterator tit;
+    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
+      {
+      std::map<cmStdString, int>::iterator dependIt
+        = targetDeps.find(tit->first.c_str());
+      if ( dependIt == targetDeps.end() )
+        {
+        continue;
+        }
+      std::map<cmStdString, cmStdString>::iterator cmakeTarIt
+        = targetNamesNodes.find(tit->first.c_str());
+      const cmTarget::LinkLibraryVectorType* ll
+        = &(tit->second.GetOriginalLinkLibraries());
+      cmTarget::LinkLibraryVectorType::const_iterator llit;
+      for ( llit = ll->begin(); llit != ll->end(); ++ llit )
+        {
+        const char* libName = llit->first.c_str();
+        std::map<cmStdString, cmStdString>::iterator tarIt
+          = targetNamesNodes.find(libName);
+        if ( tarIt == targetNamesNodes.end() )
+          {
+          // We should not be here.
+          std::cout << __LINE__ << " Cannot find library: " << libName
+            << " even though it was added in the previous pass" << std::endl;
+          abort();
+          }
+        str << "    \"" << cmakeTarIt->second.c_str() << "\" -> \""
+          << tarIt->second.c_str() << "\"" << std::endl;
+        }
       }
     }
-  
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = mf->TryCompile(sourceDirectory, binaryDirectory,
-                           projectName, targetName, &cmakeFlags, &output);
-  
-  // set the result var to the return value to indicate success or failure
-  mf->AddCacheDefinition(argv[0].c_str(), (res == 0 ? "TRUE" : "FALSE"),
-                         "Result of TRY_COMPILE",
-                         cmCacheManager::INTERNAL);
 
-  if ( outputVariable.size() > 0 )
-    {
-    mf->AddDefinition(outputVariable.c_str(), output.c_str());
-    }
-  
-  // if They specified clean then we clean up what we can
-  if (srcFileSignature && clean)
-    {    
-    cmListFileCache::GetInstance()->FlushCache(outFileName.c_str());
-    cmTryCompileCommand::CleanupFiles(binaryDirectory);
-    }
-  
-  return res;
+  // TODO: Use dotted or something for external libraries
+  //str << "    \"node0\":f4 -> \"node12\"[color=\"#0000ff\" style=dotted]"
+  //<< std::endl;
+  //
+  str << "}" << std::endl;
 }

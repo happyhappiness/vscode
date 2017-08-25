@@ -1,6 +1,4 @@
 {
-      /* if a line like this was already allocated, free the previous one */
-      if(conn->allocptr.rangeline)
-        free(conn->allocptr.rangeline);
-      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n", conn->range);
-    }
+      fprintf(fout, "SET(%s \"%s\")\n",
+              rulesOverrideBase, rulesOverridePath2);
+      }

@@ -1,3 +1,2 @@
-archive_set_error(a, EINVAL,
-				    "Failed to convert a wide-character"
-				    " filename to a multi-byte filename");
+fprintf(fout, "set(%s \"%s\")\n",
+                rulesOverrideLang.c_str(), rulesOverridePath);

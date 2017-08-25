@@ -1,1 +1,1 @@
-sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
+fprintf(out, "%s: \\\n", tmp.c_str());

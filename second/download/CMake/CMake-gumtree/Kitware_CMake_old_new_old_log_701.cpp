@@ -1,1 +1,1 @@
-fprintf(stderr,"   Passed\n");
+sprintf(buffer, "%d", osvi.dwMinorVersion);

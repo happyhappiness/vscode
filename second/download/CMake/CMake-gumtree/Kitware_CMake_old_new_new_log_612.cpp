@@ -1,1 +1,1 @@
-fprintf(stderr, "%s", message);
+fprintf(fout, " \"%s\"", si->c_str());

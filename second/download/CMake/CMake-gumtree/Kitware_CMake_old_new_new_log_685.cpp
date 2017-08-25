@@ -1,1 +1,0 @@
-YYDPRINTF ((stderr, "Reading a token: "));

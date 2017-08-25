@@ -1,13 +1,11 @@
 {
-      /* Allocate a buffer to hold the forwarding executable path.  */
-      size_t tdlen = strlen(tempDir);
-      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
-      if(!win9x)
-        {
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
-
-      /* Construct the full path to the forwarding executable.  */
-      sprintf(win9x, "%s%s", tempDir, fwdName);
-      }
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Ignoring out-of-order file @%jx (%s) %jd < %jd",
+		    (intmax_t)file->number,
+		    iso9660->pathname.s,
+		    (intmax_t)file->offset,
+		    (intmax_t)iso9660->current_position);
+		iso9660->entry_bytes_remaining = 0;
+		iso9660->entry_sparse_offset = 0;
+		return (ARCHIVE_WARN);
+	}

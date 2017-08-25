@@ -1,1 +1,1 @@
-std::cerr << "***Bad command " << res << "\n";
+str << this->ChipID.Type;

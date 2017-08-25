@@ -1,1 +1,1 @@
-snprintf(buf, sizeof(buf), "%s", prefix);
+yy_fatal_error( "cmFortran_yyset_column called with no buffer" , yyscanner);
