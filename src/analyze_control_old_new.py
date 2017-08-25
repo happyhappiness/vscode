@@ -110,7 +110,7 @@ def analyze_old_new_joern(is_rebuild = False):
     # build joern index and restart database
     if is_rebuild:
         fetch_old_new()
-    myUtil.rebuild_joern_index(my_constant.OLD_NEW_PARENT_DIR + '.joernIndex/', my_constant.OLD_NEW_JOERN_DIR)
+        myUtil.rebuild_joern_index(my_constant.OLD_NEW_PARENT_DIR + '.joernIndex/', my_constant.OLD_NEW_JOERN_DIR)
     joern = Joern_api()
     old_new_gumtree_file = file(my_constant.ANALYZE_OLD_NEW_GUMTREE_FILE_NAME, 'rb')
     old_new_gumtree_records = csv.reader(old_new_gumtree_file)
@@ -124,7 +124,7 @@ def analyze_old_new_joern(is_rebuild = False):
     for record in islice(old_new_gumtree_records, 1, None):
         if joern.set_log(record[my_constant.ANALYZE_OLD_NEW_OLD_FUNCTION_FILE], int(record[my_constant.ANALYZE_OLD_NEW_OLD_FUNCTION_LOC])):
             ddg = json.dumps(joern.get_argument_type())
-            cdg = json.dumps(joern.get_control_dependence())
+            cdg = json.dumps(joern.get_control_dependence_for_patch())
             old_new_joern_writer.writerow(record + [ddg, cdg])
             total_log += 1
         print 'have dealed with %d record; %d log' %(total_record, total_log)

@@ -178,10 +178,10 @@ def cluster(z3_api):
         new_log_file = record[my_constant.ANALYZE_OLD_NEW_NEW_LOG_FILE]
         gumtree.set_file(new_log_file)
         new_log_feature = gumtree.get_block_feature()
-        # old cdg feature
-        old_cdg_feature = record[my_constant.ANALYZE_OLD_NEW_OLD_CDG_FEATURE]
-        old_cdg_z3_feature = z3_api.get_infix_for_postfix(old_cdg_feature)
         if z3_api is not None:
+            # old cdg feature
+            old_cdg_feature = record[my_constant.ANALYZE_OLD_NEW_OLD_CDG_FEATURE]
+            old_cdg_z3_feature = z3_api.get_infix_for_postfix(old_cdg_feature)
             feature_lists.append(old_cdg_z3_feature)
         else:
             feature_lists.append(old_log_feature + new_log_feature)
@@ -212,5 +212,5 @@ main function
 if __name__ == "__main__":
 
     z3_api = Z3_api()
-    # cluster(None)
-    cluster(z3_api)
+    cluster(None)
+    # cluster(z3_api)
