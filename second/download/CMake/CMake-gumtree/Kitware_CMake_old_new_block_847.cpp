@@ -1,1 +1,1 @@
-fprintf(stderr, "Now at end of input.\n")
+fprintf(stderr, "Shifting token %d (%s), ", yychar, yytname[yychar1])

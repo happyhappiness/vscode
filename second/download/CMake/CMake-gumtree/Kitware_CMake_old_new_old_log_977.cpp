@@ -1,1 +1,1 @@
-fout << "      printf(\"%d. %s\\n\", i, cmakeGeneratedFunctionMapEntries[i].name);\n";
+fout << "    printf(\"To run a test, enter the test number: \");\n";

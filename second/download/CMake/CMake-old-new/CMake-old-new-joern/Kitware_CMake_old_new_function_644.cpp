@@ -1,123 +1,104 @@
-static int
-slurp_central_directory(struct archive_read *a, struct _7zip *zip,
-    struct _7z_header_info *header)
+static ssize_t
+extract_pack_stream(struct archive_read *a)
 {
-	const unsigned char *p;
-	const void *image;
-	uint64_t len;
-	uint64_t next_header_offset;
-	uint64_t next_header_size;
-	uint32_t next_header_crc;
-	ssize_t bytes_avail, image_bytes;
+	struct _7zip *zip = (struct _7zip *)a->format->data;
+	ssize_t bytes_avail;
 	int r;
 
-	if ((p = __archive_read_ahead(a, 32, &bytes_avail)) == NULL)
-		return (ARCHIVE_FATAL);
-
-	if ((p[0] == 'M' && p[1] == 'Z') || memcmp(p, "\x7F\x45LF", 4) == 0) {
-		/* This is an executable ? Must be self-extracting... */
-		r = skip_sfx(a, bytes_avail);
-		if (r < ARCHIVE_WARN)
-			return (r);
-		if ((p = __archive_read_ahead(a, 32, NULL)) == NULL)
-			return (ARCHIVE_FATAL);
-	}
-	zip->seek_base += 32;
-
-	if (memcmp(p, _7ZIP_SIGNATURE, 6) != 0) {
-		archive_set_error(&a->archive, -1, "Not 7-Zip archive file");
-		return (ARCHIVE_FATAL);
-	}
-
-	/* CRC check. */
-	if (crc32(0, (unsigned char *)p + 12, 20) != archive_le32dec(p + 8)) {
-		archive_set_error(&a->archive, -1, "Header CRC error");
-		return (ARCHIVE_FATAL);
-	}
-
-	next_header_offset = archive_le64dec(p + 12);
-	next_header_size = archive_le64dec(p + 20);
-	next_header_crc = archive_le32dec(p + 28);
-
-	if (next_header_size == 0)
-		/* There is no entry in an archive file. */
-		return (ARCHIVE_EOF);
-
-	if (((int64_t)next_header_offset) < 0) {
-		archive_set_error(&a->archive, -1, "Malformed 7-Zip archive");
-		return (ARCHIVE_FATAL);
-	}
-	if (__archive_read_seek(a, next_header_offset + zip->seek_base,
-	    SEEK_SET) < 0)
-		return (ARCHIVE_FATAL);
-	zip->header_offset = next_header_offset;
-
-	if ((p = __archive_read_ahead(a, next_header_size, NULL)) == NULL)
-		return (ARCHIVE_FATAL);
-
-	if (crc32(0, p, next_header_size) != next_header_crc) {
-		archive_set_error(&a->archive, -1, "Damaged 7-Zip archive");
-		return (ARCHIVE_FATAL);
-	}
-
-	len = next_header_size;
-	/* Parse ArchiveProperties. */
-	switch (p[0]) {
-	case kEncodedHeader:
-		p++;
-		len--;
-
-		/*
-		 * The archive has an encoded header and we have to decode it
-		 * in order to parse the header correctly.
-		 */
-		image_bytes =
-		    decode_header_image(a, zip, &(zip->si), p, len, &image);
-		free_StreamsInfo(&(zip->si));
-		memset(&(zip->si), 0, sizeof(zip->si));
-		if (image_bytes < 0)
-			return (ARCHIVE_FATAL);
-		p = image;
-		len = image_bytes;
-		/* FALL THROUGH */
-	case kHeader:
-		/*
-		 * Parse the header.
-		 */
-		errno = 0;
-		r = read_Header(zip, header, p, len);
-		if (r < 0) {
-			if (errno == ENOMEM)
-				archive_set_error(&a->archive, -1,
-				    "Couldn't allocate memory");
-			else
-				archive_set_error(&a->archive, -1,
-				    "Damaged 7-Zip archive");
+	if (zip->codec == _7Z_COPY && zip->codec2 == -1) {
+		if (__archive_read_ahead(a, 1, &bytes_avail) == NULL
+		    || bytes_avail <= 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated 7-Zip file body");
 			return (ARCHIVE_FATAL);
 		}
-		if (len - r == 0 || p[r] != kEnd) {
-			archive_set_error(&a->archive, -1,
-			    "Malformed 7-Zip archive");
+		if (bytes_avail > zip->pack_stream_inbytes_remaining)
+			bytes_avail = zip->pack_stream_inbytes_remaining;
+		zip->pack_stream_inbytes_remaining -= bytes_avail;
+		if (bytes_avail > zip->folder_outbytes_remaining)
+			bytes_avail = zip->folder_outbytes_remaining;
+		zip->folder_outbytes_remaining -= bytes_avail;
+		zip->uncompressed_buffer_bytes_remaining = bytes_avail;
+		return (ARCHIVE_OK);
+	}
+
+	/* If the buffer hasn't been allocated, allocate it now. */
+	if (zip->uncompressed_buffer == NULL) {
+		zip->uncompressed_buffer_size = 64 * 1024;
+		zip->uncompressed_buffer =
+		    malloc(zip->uncompressed_buffer_size);
+		if (zip->uncompressed_buffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for 7-Zip decompression");
 			return (ARCHIVE_FATAL);
 		}
-		break;
-	default:
-		archive_set_error(&a->archive, -1,
-		    "Unexpected Property ID = %X", p[0]);
-		return (ARCHIVE_FATAL);
 	}
-	zip->stream_offset = -1;
+	zip->uncompressed_buffer_bytes_remaining = 0;
+	zip->uncompressed_buffer_pointer = NULL;
+	for (;;) {
+		size_t bytes_in, bytes_out;
+		const void *buff_in;
+		unsigned char *buff_out;
+		int eof;
 
-	/*
-	 * If the uncompressed buffer was allocated more than 64K for
-	 * the header image, release it.
-	 */
-	if (zip->uncompressed_buffer != NULL &&
-	    zip->uncompressed_buffer_size != 64 * 1024) {
-		free(zip->uncompressed_buffer);
-		zip->uncompressed_buffer = NULL;
-		zip->uncompressed_buffer_size = 0;
+		/*
+		 * Note: '1' here is a performance optimization.
+		 * Recall that the decompression layer returns a count of
+		 * available bytes; asking for more than that forces the
+		 * decompressor to combine reads by copying data.
+		 */
+		buff_in = __archive_read_ahead(a, 1, &bytes_avail);
+		if (bytes_avail <= 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated 7-Zip file body");
+			return (ARCHIVE_FATAL);
+		}
+
+		buff_out = zip->uncompressed_buffer
+			+ zip->uncompressed_buffer_bytes_remaining;
+		bytes_out = zip->uncompressed_buffer_size
+			- zip->uncompressed_buffer_bytes_remaining;
+		bytes_in = bytes_avail;
+		if (bytes_in > zip->pack_stream_inbytes_remaining)
+			bytes_in = zip->pack_stream_inbytes_remaining;
+		/* Drive decompression. */
+		r = decompress(a, zip, buff_out, &bytes_out,
+			buff_in, &bytes_in);
+		switch (r) {
+		case ARCHIVE_OK:
+			eof = 0;
+			break;
+		case ARCHIVE_EOF:
+			eof = 1;
+			break;
+		default:
+			return (ARCHIVE_FATAL);
+		}
+		zip->pack_stream_inbytes_remaining -= bytes_in;
+		if (bytes_out > zip->folder_outbytes_remaining)
+			bytes_out = zip->folder_outbytes_remaining;
+		zip->folder_outbytes_remaining -= bytes_out;
+		zip->uncompressed_buffer_bytes_remaining += bytes_out;
+		zip->pack_stream_bytes_unconsumed = bytes_in;
+
+		/*
+		 * Continue decompression until uncompressed_buffer is full.
+		 */
+		if (zip->uncompressed_buffer_bytes_remaining ==
+		    zip->uncompressed_buffer_size)
+			break;
+		if (zip->pack_stream_inbytes_remaining == 0 &&
+		    zip->folder_outbytes_remaining == 0)
+			break;
+		if (eof || (bytes_in == 0 && bytes_out == 0)) {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC, "Damaged 7-Zip archive");
+			return (ARCHIVE_FATAL);
+		}
+		read_consume(a);
 	}
-
+	zip->uncompressed_buffer_pointer = zip->uncompressed_buffer;
 	return (ARCHIVE_OK);
 }

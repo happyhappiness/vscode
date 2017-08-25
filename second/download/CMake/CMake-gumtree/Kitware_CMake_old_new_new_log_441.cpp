@@ -1,2 +1,1 @@
-archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "%s", error);
+archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino);

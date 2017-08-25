@@ -1,1 +1,2 @@
-fprintf(stderr, "Couldn't open file with CreateFile()\n");
+fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
+      cSymbols);

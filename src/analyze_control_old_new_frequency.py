@@ -212,5 +212,5 @@ main function
 if __name__ == "__main__":
 
     z3_api = Z3_api()
-    # cluster(None)
-    cluster(z3_api)
+    cluster(None)
+    # cluster(z3_api)

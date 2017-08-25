@@ -1,1 +1,1 @@
-pathname = th_get_pathname(t);
+printf(" %s", pathname);

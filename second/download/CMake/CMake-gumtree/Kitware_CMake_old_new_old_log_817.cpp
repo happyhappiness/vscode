@@ -1,7 +1,2 @@
-sprintf(current_time, "%04d-%02d-%02d %02d:%02d:%02d UTC",
-      t->tm_year + 1900,
-      t->tm_mon + 1,
-      t->tm_mday,
-      t->tm_hour,
-      t->tm_min,
-      t->tm_sec);
+fprintf(stderr, "cwd=[%s]\npwd=[%s]\npwd_path=[%s]\n",
+                cwd, pwd, pwd_path.c_str());

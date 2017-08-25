@@ -1,126 +1,305 @@
-bool cmMacroFunctionBlocker::
-IsFunctionBlocked(const cmListFileFunction& lff, cmMakefile &mf) 
+void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed, 
+                             cmCTest::tm_VectorOfStrings &failed,
+                             bool memcheck, std::ostream* logfile)
 {
-  // record commands until we hit the ENDMACRO
-  if (!m_Executing)
+  // does the DartTestfile.txt exist ?
+  if(!cmSystemTools::FileExists("DartTestfile.txt"))
     {
-    // at the ENDMACRO call we shift gears and start looking for invocations
-    if(lff.m_Name == "ENDMACRO")
-      {
-      std::vector<std::string> expandedArguments;
-      mf.ExpandArguments(lff.m_Arguments, expandedArguments);
-      if(!expandedArguments.empty() && (expandedArguments[0] == m_Args[0]))
-        {
-        m_Executing = true;
-        std::string name = m_Args[0];
-        std::vector<std::string>::size_type cc;
-        name += "(";
-        for ( cc = 0; cc < m_Args.size(); cc ++ )
-          {
-          name += " " + m_Args[cc];
-          }
-        name += " )";
-        mf.AddMacro(m_Args[0].c_str(), name.c_str());
-        return true;
-        }
-      }
-    // if it wasn't an endmacro and we are not executing then we must be
-    // recording
-    m_Functions.push_back(lff);
-    return true;
+    return;
     }
   
-  // otherwise the macro has been recorded and we are executing
-  // so we look for macro invocations
-  if(lff.m_Name == m_Args[0])
+  // parse the file
+  std::ifstream fin("DartTestfile.txt");
+  if(!fin)
     {
-    std::string tmps;
-    cmListFileArgument arg;
-    std::string variable;
-    // Expand the argument list to the macro.
-    std::vector<std::string> expandedArguments;
-    mf.ExpandArguments(lff.m_Arguments, expandedArguments);
-
-    // make sure the number of arguments passed is at least the number
-    // required by the signature
-    if (expandedArguments.size() < m_Args.size() - 1)
-      {
-      cmOStringStream error;
-      error << "Error in cmake code at\n"
-            << lff.m_FilePath << ":" << lff.m_Line << ":\n"
-            << "Invocation of macro \""
-            << lff.m_Name.c_str() << "\" with incorrect number of arguments.";
-      cmSystemTools::Error(error.str().c_str());
-      return true;
-      }
-    
-    // now set the new argcDef
-    char argcDef[64];
-    sprintf(argcDef,"%i",expandedArguments.size());    
-    
-    // Invoke all the functions that were collected in the block.
-    cmListFileFunction newLFF;
-    for(unsigned int c = 0; c < m_Functions.size(); ++c)
-      {
-      // Replace the formal arguments and then invoke the command.
-      newLFF.m_Arguments.clear();
-      newLFF.m_Arguments.reserve(m_Functions[c].m_Arguments.size());
-      newLFF.m_Name = m_Functions[c].m_Name;
-      newLFF.m_FilePath = m_Functions[c].m_FilePath;
-      newLFF.m_Line = m_Functions[c].m_Line;
-      for (std::vector<cmListFileArgument>::const_iterator k = 
-             m_Functions[c].m_Arguments.begin();
-           k != m_Functions[c].m_Arguments.end(); ++k)
-        {
-        tmps = k->Value;
-        // replace formal arguments
-        for (unsigned int j = 1; j < m_Args.size(); ++j)
-          {
-          variable = "${";
-          variable += m_Args[j];
-          variable += "}"; 
-          cmSystemTools::ReplaceString(tmps, variable.c_str(),
-                                       expandedArguments[j-1].c_str());
-          }
-        // replace argc, argv arguments
-        for (unsigned int j = 1; j < m_Args.size(); ++j)
-          {
-          variable = "${ARGC}";
-          cmSystemTools::ReplaceString(tmps, variable.c_str(),argcDef);
-          }
-        for (unsigned int j = 1; j < m_Args.size(); ++j)
-          {
-          // since this could be slow, first check if there is an ARGV
-          // only then do the inner loop. PS std::string sucks
-          char argvName[60];
-          if (tmps.find("${ARGV") != std::string::npos)
-            {
-            for (unsigned int t = 0; t < expandedArguments.size(); ++t)
-              {
-              sprintf(argvName,"${ARGV%i}",t);
-              cmSystemTools::ReplaceString(tmps, argvName,
-                                           expandedArguments[t].c_str());
-              }
-            }
-          }
-        
-        arg.Value = tmps;
-        arg.Quoted = k->Quoted;
-        newLFF.m_Arguments.push_back(arg);
-        }
-      if(!mf.ExecuteCommand(newLFF))
-        {
-        cmOStringStream error;
-        error << "Error in cmake code at\n"
-              << lff.m_FilePath << ":" << lff.m_Line << ":\n"
-              << "A command failed during the invocation of macro \""
-              << lff.m_Name.c_str() << "\".";
-        cmSystemTools::Error(error.str().c_str());
-        }
-      }
-    return true;
+    return;
     }
 
-  // if not an invocation then it is just an ordinary line
-  return false;
+  int firstTest = 1;
+
+  cmsys::RegularExpression ireg(this->m_IncludeRegExp.c_str());
+  cmsys::RegularExpression ereg(this->m_ExcludeRegExp.c_str());
+  cmsys::RegularExpression dartStuff("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
+
+  cmListFileCache cache;
+  cmListFile* listFile = cache.GetFileCache("DartTestfile.txt", false);
+  for(std::vector<cmListFileFunction>::const_iterator f =
+        listFile->m_Functions.begin(); f != listFile->m_Functions.end(); ++f)
+    {
+    const cmListFileFunction& lff = *f;
+    const std::string& name = lff.m_Name;
+    const std::vector<cmListFileArgument>& args = lff.m_Arguments;
+    if (name == "SUBDIRS")
+      {
+      std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
+      for(std::vector<cmListFileArgument>::const_iterator j = args.begin();
+          j != args.end(); ++j)
+        {
+        std::string nwd = cwd + "/";
+        nwd += j->Value;
+        if (cmSystemTools::FileIsDirectory(nwd.c_str()))
+          {
+          cmSystemTools::ChangeDirectory(nwd.c_str());
+          this->ProcessDirectory(passed, failed, memcheck, logfile);
+          }
+        }
+      // return to the original directory
+      cmSystemTools::ChangeDirectory(cwd.c_str());
+      }
+
+    if (name == "ADD_TEST")
+      {
+      if (this->m_UseExcludeRegExp &&
+          this->m_UseExcludeRegExpFirst &&
+          ereg.find(args[0].Value.c_str()))
+        {
+        continue;
+        }
+      if ( memcheck )
+        {
+        tm_VectorOfStrings::iterator it;
+        bool found = false;
+        for ( it = m_CustomMemCheckIgnore.begin(); 
+          it != m_CustomMemCheckIgnore.end(); ++ it )
+          {
+          if ( *it == args[0].Value )
+            {
+            found = true;
+            break;
+            }
+          }
+        if ( found )
+          {
+          if ( m_Verbose )
+            {
+            std::cout << "Ignore memcheck: " << *it << std::endl;
+            }
+          continue;
+          }
+        }
+      else
+        {
+        tm_VectorOfStrings::iterator it;
+        bool found = false;
+        for ( it = m_CustomTestsIgnore.begin(); 
+          it != m_CustomTestsIgnore.end(); ++ it )
+          {
+          if ( *it == args[0].Value )
+            {
+            found = true;
+            break;
+            }
+          }
+        if ( found )
+          {
+          if ( m_Verbose )
+            {
+            std::cout << "Ignore test: " << *it << std::endl;
+            }
+          continue;
+          }
+        }
+
+
+      if (this->m_UseIncludeRegExp && !ireg.find(args[0].Value.c_str()))
+        {
+        continue;
+        }
+      if (this->m_UseExcludeRegExp &&
+        !this->m_UseExcludeRegExpFirst &&
+        ereg.find(args[0].Value.c_str()))
+        {
+        continue;
+        }
+
+      cmCTestTestResult cres;
+      cres.m_Status = cmCTest::NOT_RUN;
+
+      if (firstTest)
+        {
+        std::string nwd = cmSystemTools::GetCurrentWorkingDirectory();
+        if ( m_Verbose )
+          {
+          std::cerr << "Changing directory into " << nwd.c_str() << "\n";
+          }
+        firstTest = 0;
+        }
+      cres.m_Name = args[0].Value;
+      if ( m_ShowOnly )
+        {
+        std::cout << args[0].Value << std::endl;
+        }
+      else
+        {
+        fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());
+        fflush(stderr);
+        }
+      //std::cerr << "Testing " << args[0] << " ... ";
+      // find the test executable
+      std::string actualCommand = this->FindTheExecutable(args[1].Value.c_str());
+      std::string testCommand = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
+      std::string memcheckcommand = "";
+
+      // continue if we did not find the executable
+      if (testCommand == "")
+        {
+        std::cerr << "Unable to find executable: " <<
+          args[1].Value.c_str() << "\n";
+        m_TestResults.push_back( cres ); 
+        failed.push_back(args[0].Value);
+        continue;
+        }
+
+      // add the arguments
+      std::vector<cmListFileArgument>::const_iterator j = args.begin();
+      ++j;
+      ++j;
+      std::vector<const char*> arguments;
+      if ( memcheck )
+        {
+        cmCTest::tm_VectorOfStrings::size_type pp;
+        arguments.push_back(m_MemoryTester.c_str());
+        memcheckcommand = m_MemoryTester;
+        for ( pp = 0; pp < m_MemoryTesterOptionsParsed.size(); pp ++ )
+          {
+          arguments.push_back(m_MemoryTesterOptionsParsed[pp].c_str());
+          memcheckcommand += " ";
+          memcheckcommand += cmSystemTools::EscapeSpaces(m_MemoryTesterOptionsParsed[pp].c_str());
+          }
+        }
+      arguments.push_back(actualCommand.c_str());
+      for(;j != args.end(); ++j)
+        {
+        testCommand += " ";
+        testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
+        arguments.push_back(j->Value.c_str());
+        }
+      arguments.push_back(0);
+
+      /**
+       * Run an executable command and put the stdout in output.
+       */
+      std::string output;
+      int retVal = 0;
+
+      double clock_start, clock_finish;
+      clock_start = cmSystemTools::GetTime();
+
+      if ( m_Verbose )
+        {
+        std::cout << std::endl << (memcheck?"MemCheck":"Test") << " command: " << testCommand << std::endl;
+        if ( memcheck )
+          {
+          std::cout << "Memory check command: " << memcheckcommand << std::endl;
+          }
+        }
+      if ( logfile )
+        {
+        *logfile << "Command: ";
+        tm_VectorOfStrings::size_type ll;
+        for ( ll = 0; ll < arguments.size()-1; ll ++ )
+          {
+          *logfile << "\"" << arguments[ll] << "\" ";
+          }
+        *logfile 
+          << std::endl 
+          << "Directory: " << cmSystemTools::GetCurrentWorkingDirectory() << std::endl 
+          << "Output:" << std::endl 
+          << "----------------------------------------------------------"
+          << std::endl;
+        }
+      int res = 0;
+      if ( !m_ShowOnly )
+        {
+        res = this->RunTest(arguments, &output, &retVal, logfile);
+        }
+      if ( logfile )
+        {
+        *logfile 
+          << "----------------------------------------------------------"
+          << std::endl << std::endl;
+        }
+      
+      clock_finish = cmSystemTools::GetTime();
+
+      cres.m_ExecutionTime = (double)(clock_finish - clock_start);
+      cres.m_FullCommandLine = testCommand;
+
+      if ( !m_ShowOnly )
+        {
+        if (res == cmsysProcess_State_Exited && retVal == 0)
+          {
+          fprintf(stderr,"   Passed\n");
+          passed.push_back(args[0].Value);
+          cres.m_Status = cmCTest::COMPLETED;
+          }
+        else
+          {
+          cres.m_Status = cmCTest::FAILED;
+          if ( res == cmsysProcess_State_Expired )
+            {
+            fprintf(stderr,"***Timeout\n");
+            cres.m_Status = cmCTest::TIMEOUT;
+            }
+          else if ( res == cmsysProcess_State_Exception )
+            {
+            fprintf(stderr,"***Exception: ");
+            switch ( retVal )
+              {
+            case cmsysProcess_Exception_Fault:
+              fprintf(stderr,"SegFault");
+              cres.m_Status = cmCTest::SEGFAULT;
+              break;
+            case cmsysProcess_Exception_Illegal:
+              fprintf(stderr,"Illegal");
+              cres.m_Status = cmCTest::ILLEGAL;
+              break;
+            case cmsysProcess_Exception_Interrupt:
+              fprintf(stderr,"Interrupt");
+              cres.m_Status = cmCTest::INTERRUPT;
+              break;
+            case cmsysProcess_Exception_Numerical:
+              fprintf(stderr,"Numerical");
+              cres.m_Status = cmCTest::NUMERICAL;
+              break;
+            default:
+              fprintf(stderr,"Other");
+              cres.m_Status = cmCTest::OTHER_FAULT;
+              }
+            fprintf(stderr,"\n");
+            }
+          else if ( res == cmsysProcess_State_Error )
+            {
+            fprintf(stderr,"***Bad command %d\n", res);
+            cres.m_Status = cmCTest::BAD_COMMAND;
+            }
+          else
+            {
+            fprintf(stderr,"***Failed\n");
+            }
+          failed.push_back(args[0].Value);
+          }
+        if (output != "")
+          {
+          if (dartStuff.find(output.c_str()))
+            {
+            std::string dartString = dartStuff.match(1);
+            cmSystemTools::ReplaceString(output, dartString.c_str(),"");
+            cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
+            }
+          }
+        }
+      cres.m_Output = output;
+      cres.m_ReturnValue = retVal;
+      std::string nwd = cmSystemTools::GetCurrentWorkingDirectory();
+      if ( nwd.size() > m_ToplevelPath.size() )
+        {
+        nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
+        }
+      cmSystemTools::ReplaceString(nwd, "\\", "/");
+      cres.m_Path = nwd;
+      cres.m_CompletionStatus = "Completed";
+      m_TestResults.push_back( cres );
+      }
+    }
 }

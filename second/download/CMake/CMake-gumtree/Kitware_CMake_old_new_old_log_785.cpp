@@ -1,1 +1,1 @@
-sprintf(firstLine, "Page %d of %d", cw->GetPage(), m_NumberOfPages);
+sprintf(num,"%d",static_cast<int>(m_LocalGenerators.size()));

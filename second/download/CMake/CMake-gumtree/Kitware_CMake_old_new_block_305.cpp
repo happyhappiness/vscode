@@ -1,5 +1,6 @@
 {
-			archive_set_error(f->archive, EIO,
-			    "Can't write to filter");
-			return (ARCHIVE_FATAL);
+			archive_set_error(f->archive, errno,
+			    "Read from filter failed unexpectedly.");
+			ret = ARCHIVE_FATAL;
+			goto cleanup;
 		}

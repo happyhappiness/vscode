@@ -1,7 +1,5 @@
-static void sasl_digest_md5_to_ascii(unsigned char *source, /* 16 bytes */
-                                     unsigned char *dest) /* 33 bytes */
+char *Curl_sasl_build_spn(const char *service, const char *host)
 {
-  int i;
-  for(i = 0; i < 16; i++)
-    snprintf((char *)&dest[i*2], 3, "%02x", source[i]);
+  /* Generate and return our SPN */
+  return aprintf("%s/%s", service, host);
 }

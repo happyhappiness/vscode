@@ -1,1 +1,1 @@
-YYDPRINTF ((stderr, "Reading a token: "));
+YYDPRINTF ((stderr, "Now at end of input.\n"));

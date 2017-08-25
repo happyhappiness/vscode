@@ -1,6 +1,6 @@
-const char * SystemInformation::GetModelID()
+const char * SystemInformation::GetSteppingCode()
 {
   char * temp = new char[32];
-  sprintf(temp,"%d",this->ChipID.Model);
+  sprintf(temp,"%d",this->ChipID.Revision);
   return temp;
 }

@@ -1,1 +1,1 @@
-fprintf(stderr, "DIRECTORY_DEF_DEBUG should be defined in CXX\n");
+str << this->ChipID.Type;

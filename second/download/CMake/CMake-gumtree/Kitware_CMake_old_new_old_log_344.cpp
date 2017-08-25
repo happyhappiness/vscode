@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Read error skipping symlink target name");
+snprintf(zip->format_name, sizeof(zip->format_name), "ZIP %d.%d (%s)",
+	    version / 10, version % 10,
+	    compression_name(zip->entry->compression));

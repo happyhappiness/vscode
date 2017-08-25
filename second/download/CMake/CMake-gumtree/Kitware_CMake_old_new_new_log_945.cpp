@@ -1,2 +1,1 @@
-sprintf(thirdLine, 
-            "                                                               ");
+sprintf(s2, "%s", cmdstring);

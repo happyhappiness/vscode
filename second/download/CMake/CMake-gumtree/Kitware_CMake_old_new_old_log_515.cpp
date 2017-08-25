@@ -1,3 +1,3 @@
-archive_set_error(&a->archive,
-					    ARCHIVE_ERRNO_MISC,
-					    "Couldn't allocate memory");
+archive_set_error(a, EINVAL,
+			    "Failed to convert a wide-character filename to"
+			    " a multi-byte filename");

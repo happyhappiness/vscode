@@ -1,1 +1,1 @@
-printf("#CMake System Variables are:");
+sprintf("%s:%s", getenv("HTTP_PROXY"), getenv("HTTP_PROXY_PORT"));

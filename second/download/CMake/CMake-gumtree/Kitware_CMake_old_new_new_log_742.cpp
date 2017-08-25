@@ -1,1 +1,0 @@
-fprintf(stderr, "Error: curl_easy_init failed\n");

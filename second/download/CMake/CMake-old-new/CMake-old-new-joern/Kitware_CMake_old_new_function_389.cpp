@@ -1,58 +1,53 @@
 void
-DumpFile(const char* filename, FILE *fout)
+DumpSymbolTable(PIMAGE_SYMBOL pSymbolTable, PIMAGE_SECTION_HEADER pSectionHeaders, FILE *fout, unsigned cSymbols)
 {
-   HANDLE hFile;
-   HANDLE hFileMapping;
-   LPVOID lpFileBase;
-   PIMAGE_DOS_HEADER dosHeader;
+   unsigned i;
+   PSTR stringTable;
+   std::string sectionName;
+   std::string sectionCharacter;
+   int iSectNum;
 
-   hFile = CreateFileW(cmsys::Encoding::ToWide(filename).c_str(),
-                       GENERIC_READ, FILE_SHARE_READ, NULL,
-      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+   fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
+      cSymbols);
 
-   if (hFile == INVALID_HANDLE_VALUE) {
-      fprintf(stderr, "Couldn't open file with CreateFile()\n");
-      return;
-   }
+   fprintf(fout,
+      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
+      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");
 
-   hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
-   if (hFileMapping == 0) {
-      CloseHandle(hFile);
-      fprintf(stderr, "Couldn't open file mapping with CreateFileMapping()\n");
-      return;
-   }
+   /*
+   * The string table apparently starts right after the symbol table
+   */
+   stringTable = (PSTR)&pSymbolTable[cSymbols];
 
-   lpFileBase = MapViewOfFile(hFileMapping, FILE_MAP_READ, 0, 0, 0);
-   if (lpFileBase == 0) {
-      CloseHandle(hFileMapping);
-      CloseHandle(hFile);
-      fprintf(stderr, "Couldn't map view of file with MapViewOfFile()\n");
-      return;
-   }
+   for ( i=0; i < cSymbols; i++ ) {
+      fprintf(fout, "%04X ", i);
+      if ( pSymbolTable->N.Name.Short != 0 )
+         fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
+      else
+         fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);
 
-   dosHeader = (PIMAGE_DOS_HEADER)lpFileBase;
-   if (dosHeader->e_magic == IMAGE_DOS_SIGNATURE) {
-      fprintf(stderr, "File is an executable.  I don't dump those.\n");
-      return;
-   }
-   /* Does it look like a i386 COFF OBJ file??? */
-   else if (
-           ((dosHeader->e_magic == IMAGE_FILE_MACHINE_I386) ||
-            (dosHeader->e_magic == IMAGE_FILE_MACHINE_AMD64))
-           && (dosHeader->e_sp == 0)
-           ) {
+      fprintf(fout, " %08X", pSymbolTable->Value);
+
+      iSectNum = pSymbolTable->SectionNumber;
+      GetSectionName(pSymbolTable, sectionName);
+      fprintf(fout, " sect:%s aux:%X type:%02X st:%s",
+         sectionName.c_str(),
+         pSymbolTable->NumberOfAuxSymbols,
+         pSymbolTable->Type,
+         GetSZStorageClass(pSymbolTable->StorageClass) );
+
+      GetSectionCharacteristics(pSectionHeaders,iSectNum,sectionCharacter);
+      fprintf(fout," hc: %s \n",sectionCharacter.c_str());
+#if 0
+      if ( pSymbolTable->NumberOfAuxSymbols )
+         DumpAuxSymbols(pSymbolTable);
+#endif
+
       /*
-      * The two tests above aren't what they look like.  They're
-      * really checking for IMAGE_FILE_HEADER.Machine == i386 (0x14C)
-      * and IMAGE_FILE_HEADER.SizeOfOptionalHeader == 0;
+      * Take into account any aux symbols
       */
-      DumpObjFile((PIMAGE_FILE_HEADER) lpFileBase, fout);
-   } else {
-      printf("unrecognized file format in '%s'\n", filename);
-      return false;
+      i += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable++;
    }
-   UnmapViewOfFile(lpFileBase);
-   CloseHandle(hFileMapping);
-   CloseHandle(hFile);
-   return true;
 }

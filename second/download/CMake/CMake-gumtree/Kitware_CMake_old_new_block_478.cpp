@@ -1,4 +1,3 @@
 {
-        // print the progress
-        fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
-        }
+      fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
+      }

@@ -1,1 +1,1 @@
-std::cerr << "No current working directory" << std::endl;
+fprintf(stderr, "  followed by Component (%d)\n", i);

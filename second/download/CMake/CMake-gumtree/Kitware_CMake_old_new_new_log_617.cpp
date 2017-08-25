@@ -1,2 +1,3 @@
-f(targetNameBuf, "cmTryCompileExec%u",
-            cmSystemTools::RandomSeed());
+fprintf(fout,
+              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
+              fname.c_str());

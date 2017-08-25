@@ -1,74 +1,66 @@
-BOOL CMakeSetupDialog::OnInitDialog()
+void cmCursesMainForm::PrintKeys()
 {
-  CDialog::OnInitDialog();
-  this->DragAcceptFiles(true);
-
-  // Add "Create shortcut" menu item to system menu.
-
-  // IDM_CREATESHORTCUT must be in the system command range.
-  ASSERT((IDM_CREATESHORTCUT & 0xFFF0) == IDM_CREATESHORTCUT);
-  ASSERT(IDM_CREATESHORTCUT < 0xF000);
-
-  // Add "About..." menu item to system menu.
-
-  // IDM_ABOUTBOX must be in the system command range.
-  ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
-  ASSERT(IDM_ABOUTBOX < 0xF000);
-
-  CMenu* pSysMenu = GetSystemMenu(FALSE);
-  if (pSysMenu != NULL)
+  int x,y;
+  getmaxyx(stdscr, y, x);
+  if ( x < cmCursesMainForm::MIN_WIDTH  || 
+       x < m_InitialWidth               ||
+       y < cmCursesMainForm::MIN_HEIGHT )
     {
-    CString strCreateShortcutMenu;
-    strCreateShortcutMenu.LoadString(IDS_CREATESHORTCUT);
-    if (!strCreateShortcutMenu.IsEmpty())
+    return;
+    }
+
+  // Give the current widget (if it exists), a chance to print keys
+  cmCursesWidget* cw = 0;
+  if (m_Form)
+    {
+    FIELD* currentField = current_field(m_Form);
+    cw = reinterpret_cast<cmCursesWidget*>(field_userptr(currentField));
+    }
+
+  if (cw && cw->PrintKeys())
+    {
+    }
+  else
+    {
+    char firstLine[512], secondLine[512], thirdLine[512];
+    if (m_OkToGenerate)
       {
-      pSysMenu->AppendMenu(MF_SEPARATOR);
-      pSysMenu->AppendMenu(MF_STRING, 
-                           IDM_CREATESHORTCUT, 
-                           strCreateShortcutMenu);
+      sprintf(firstLine,  "Press [c] to configure     Press [g] to generate and exit");
       }
-
-    CString strAboutMenu;
-    strAboutMenu.LoadString(IDS_ABOUTBOX);
-    if (!strAboutMenu.IsEmpty())
+    else
       {
-      pSysMenu->AppendMenu(MF_SEPARATOR);
-      pSysMenu->AppendMenu(MF_STRING, 
-                           IDM_ABOUTBOX, 
-                           strAboutMenu);
+      sprintf(firstLine,  "Press [c] to configure");
       }
-    }
-
-  // Set the icon for this dialog.  The framework does this automatically
-  //  when the application's main window is not a dialog
-  SetIcon(m_hIcon, TRUE);			// Set big icon
-  SetIcon(m_hIcon, FALSE);		// Set small icon
-  // Load source and build dirs from registry
-  this->LoadFromRegistry();
-  this->m_CMakeInstance = new cmake;
-  std::vector<std::string> names;
-  this->m_CMakeInstance->GetRegisteredGenerators(names);
-  for(std::vector<std::string>::iterator i = names.begin();
-      i != names.end(); ++i)
-    {
-    m_GeneratorChoice.AddString(i->c_str());
-    }
-  if (m_GeneratorChoiceString == _T("")) 
-    {
-    m_GeneratorChoiceString = "Visual Studio 6";
-    }
-
-  // try to load the cmake cache from disk
-  this->LoadCacheFromDiskToGUI();
-  m_WhereBuildControl.LimitText(2048);
-  m_WhereSourceControl.LimitText(2048);
-  m_GeneratorChoice.LimitText(2048);
+    if (m_AdvancedMode)
+      {
+      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently On)");
+      }
+    else
+      {
+      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently Off)");
+      }
     
-  // Set the version number
-  char tmp[1024];
-  sprintf(tmp,"Version %d.%d - %s", cmMakefile::GetMajorVersion(),
-          cmMakefile::GetMinorVersion(), cmMakefile::GetReleaseVersion());
-  SetDlgItemText(IDC_CMAKE_VERSION, tmp);
-  this->UpdateData(FALSE);
-  return TRUE;  // return TRUE  unless you set the focus to a control
+    sprintf(secondLine, "Press [h] for help         Press [q] to quit without generating");
+
+
+    curses_move(y-4,0);
+    char fmt[] = "Press [enter] to edit option";
+    printw(fmt);
+    curses_move(y-3,0);
+    printw(firstLine);
+    curses_move(y-2,0);
+    printw(secondLine);
+    curses_move(y-1,0);
+    printw(thirdLine);
+
+    if (cw)
+      {
+      sprintf(firstLine, "Page %d of %d", cw->GetPage(), m_NumberOfPages);
+      curses_move(0,65-strlen(firstLine)-1);
+      printw(firstLine);
+      }
+    }
+
+  pos_form_cursor(m_Form);
+  
 }

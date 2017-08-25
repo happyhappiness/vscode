@@ -1,3 +1,3 @@
-fprintf(stderr, "Mismatch in exit value.  "
-              "Should have been %d, was %d.\n",
-              value, kwsysProcess_GetExitValue(kp));
+fprintf(stderr, "Mismatch in state.  "
+            "Should have been %d, was %d.\n",
+            state, kwsysProcess_GetState(kp));

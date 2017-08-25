@@ -1,3 +1,4 @@
 {
-                     fprintf(this->FileOut, "\t%s\n", symbol.c_str());
-                  }
+               this->ImportFlag = true;
+               fprintf(this->FileOut,"IMPORTS \n");
+            }

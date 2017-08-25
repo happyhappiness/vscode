@@ -1,1 +1,1 @@
-fprintf(stderr,"   Passed\n");
+fprintf(stderr,"***Timeout\n");

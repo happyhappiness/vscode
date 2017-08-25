@@ -1,4 +1,3 @@
 {
-    fprintf(stderr, "No current working directory\n");
-    abort();
-    }
+      fprintf(stderr, "  followed by Component (%d)\n", *oi);
+      }

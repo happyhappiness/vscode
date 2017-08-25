@@ -1,2 +1,1 @@
-sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
-          target.GetName(), count);
+sprintf(cp->ExitExceptionString, "Exit code 0x%x\n", code);

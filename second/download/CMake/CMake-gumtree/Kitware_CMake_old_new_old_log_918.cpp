@@ -1,1 +1,1 @@
-ret = Curl_sec_vfprintf(conn, f, fmt, ap);
+printf("Error fetching: http://www.cmake.org/\n");

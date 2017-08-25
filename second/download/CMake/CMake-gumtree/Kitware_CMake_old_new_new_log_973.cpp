@@ -1,6 +1,3 @@
-fprintf(fout,
-          "extern \"C\"\n"
-          "{\n"
-          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, char *[]);\n"
-          "}\n"
-          "\n");
+msg << "FilesDiffer failed to read files (allocated: " 
+        << statSource.st_size << ", read source: " <<  finSource.gcount() 
+        << ", read dest: " << finDestination.gcount() << std::ends;

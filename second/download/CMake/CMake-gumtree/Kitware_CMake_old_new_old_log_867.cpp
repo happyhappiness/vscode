@@ -1,1 +1,1 @@
-fprintf(stderr,"Interrupt");
+fprintf(stderr,"Numerical");

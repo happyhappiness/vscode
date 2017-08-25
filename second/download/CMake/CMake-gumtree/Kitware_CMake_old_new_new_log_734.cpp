@@ -1,1 +1,1 @@
-fprintf(ofp, "#endif\n");
+fprintf(ofp, "}\n");

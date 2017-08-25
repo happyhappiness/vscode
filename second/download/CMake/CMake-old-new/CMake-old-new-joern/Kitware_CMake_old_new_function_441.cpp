@@ -1,84 +1,140 @@
 static int
-setup_sparse_from_disk(struct archive_read_disk *a,
-    struct archive_entry *entry, HANDLE handle)
+write_mtree_entry(struct archive_write *a, struct mtree_entry *me)
 {
-	FILE_ALLOCATED_RANGE_BUFFER range, *outranges = NULL;
-	size_t outranges_size;
-	int64_t entry_size = archive_entry_size(entry);
-	int exit_sts = ARCHIVE_OK;
+	struct mtree_writer *mtree = a->format_data;
+	struct archive_string *str;
+	int keys, ret;
 
-	range.FileOffset.QuadPart = 0;
-	range.Length.QuadPart = entry_size;
-	outranges_size = 2048;
-	outranges = (FILE_ALLOCATED_RANGE_BUFFER *)malloc(outranges_size);
-	if (outranges == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			"Couldn't allocate memory");
-		exit_sts = ARCHIVE_FATAL;
-		goto exit_setup_sparse;
+	if (me->dir_info) {
+		if (mtree->classic) {
+			/*
+			 * Output a comment line to describe the full
+			 * pathname of the entry as mtree utility does
+			 * while generating classic format.
+			 */
+			if (!mtree->dironly)
+				archive_strappend_char(&mtree->buf, '\n');
+			if (me->parentdir.s)
+				archive_string_sprintf(&mtree->buf,
+				    "# %s/%s\n",
+				    me->parentdir.s, me->basename.s);
+			else
+				archive_string_sprintf(&mtree->buf,
+				    "# %s\n",
+				    me->basename.s);
+		}
+		if (mtree->output_global_set)
+			write_global(mtree);
+	}
+	archive_string_empty(&mtree->ebuf);
+	str = (mtree->indent || mtree->classic)? &mtree->ebuf : &mtree->buf;
+
+	if (!mtree->classic && me->parentdir.s) {
+		/*
+		 * If generating format is not classic one(v1), output
+		 * a full pathname.
+		 */
+		mtree_quote(str, me->parentdir.s);
+		archive_strappend_char(str, '/');
+	}
+	mtree_quote(str, me->basename.s);
+
+	keys = get_global_set_keys(mtree, me);
+	if ((keys & F_NLINK) != 0 &&
+	    me->nlink != 1 && me->filetype != AE_IFDIR)
+		archive_string_sprintf(str, " nlink=%u", me->nlink);
+
+	if ((keys & F_GNAME) != 0 && archive_strlen(&me->gname) > 0) {
+		archive_strcat(str, " gname=");
+		mtree_quote(str, me->gname.s);
+	}
+	if ((keys & F_UNAME) != 0 && archive_strlen(&me->uname) > 0) {
+		archive_strcat(str, " uname=");
+		mtree_quote(str, me->uname.s);
+	}
+	if ((keys & F_FLAGS) != 0) {
+		if (archive_strlen(&me->fflags_text) > 0) {
+			archive_strcat(str, " flags=");
+			mtree_quote(str, me->fflags_text.s);
+		} else if (mtree->set.processing &&
+		    (mtree->set.keys & F_FLAGS) != 0)
+			/* Overwrite the global parameter. */
+			archive_strcat(str, " flags=none");
+	}
+	if ((keys & F_TIME) != 0)
+		archive_string_sprintf(str, " time=%jd.%jd",
+		    (intmax_t)me->mtime, (intmax_t)me->mtime_nsec);
+	if ((keys & F_MODE) != 0)
+		archive_string_sprintf(str, " mode=%o", (unsigned int)me->mode);
+	if ((keys & F_GID) != 0)
+		archive_string_sprintf(str, " gid=%jd", (intmax_t)me->gid);
+	if ((keys & F_UID) != 0)
+		archive_string_sprintf(str, " uid=%jd", (intmax_t)me->uid);
+
+	switch (me->filetype) {
+	case AE_IFLNK:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=link");
+		if ((keys & F_SLINK) != 0) {
+			archive_strcat(str, " link=");
+			mtree_quote(str, me->symlink.s);
+		}
+		break;
+	case AE_IFSOCK:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=socket");
+		break;
+	case AE_IFCHR:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=char");
+		if ((keys & F_DEV) != 0) {
+			archive_string_sprintf(str,
+			    " device=native,%ju,%ju",
+			    (uintmax_t)me->rdevmajor,
+			    (uintmax_t)me->rdevminor);
+		}
+		break;
+	case AE_IFBLK:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=block");
+		if ((keys & F_DEV) != 0) {
+			archive_string_sprintf(str,
+			    " device=native,%ju,%ju",
+			    (uintmax_t)me->rdevmajor,
+			    (uintmax_t)me->rdevminor);
+		}
+		break;
+	case AE_IFDIR:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=dir");
+		break;
+	case AE_IFIFO:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=fifo");
+		break;
+	case AE_IFREG:
+	default:	/* Handle unknown file types as regular files. */
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=file");
+		if ((keys & F_SIZE) != 0)
+			archive_string_sprintf(str, " size=%jd",
+			    (intmax_t)me->size);
+		break;
 	}
 
-	for (;;) {
-		DWORD retbytes;
-		BOOL ret;
+	/* Write a bunch of sum. */
+	if (me->reg_info)
+		sum_write(str, me->reg_info);
 
-		for (;;) {
-			ret = DeviceIoControl(handle,
-			    FSCTL_QUERY_ALLOCATED_RANGES,
-			    &range, sizeof(range), outranges,
-			    outranges_size, &retbytes, NULL);
-			if (ret == 0 && GetLastError() == ERROR_MORE_DATA) {
-				free(outranges);
-				outranges_size *= 2;
-				outranges = (FILE_ALLOCATED_RANGE_BUFFER *)
-				    malloc(outranges_size);
-				if (outranges == NULL) {
-					archive_set_error(&a->archive,
-					    ARCHIVE_ERRNO_MISC,
-					    "Couldn't allocate memory");
-					exit_sts = ARCHIVE_FATAL;
-					goto exit_setup_sparse;
-				}
-				continue;
-			} else
-				break;
-		}
-		if (ret != 0) {
-			if (retbytes > 0) {
-				DWORD i, n;
+	archive_strappend_char(str, '\n');
+	if (mtree->indent || mtree->classic)
+		mtree_indent(mtree);
 
-				n = retbytes / sizeof(outranges[0]);
-				if (n == 1 &&
-				    outranges[0].FileOffset.QuadPart == 0 &&
-				    outranges[0].Length.QuadPart == entry_size)
-					break;/* This is not sparse. */
-				for (i = 0; i < n; i++)
-					archive_entry_sparse_add_entry(entry,
-					    outranges[i].FileOffset.QuadPart,
-						outranges[i].Length.QuadPart);
-				range.FileOffset.QuadPart =
-				    outranges[n-1].FileOffset.QuadPart
-				    + outranges[n-1].Length.QuadPart;
-				range.Length.QuadPart =
-				    entry_size - range.FileOffset.QuadPart;
-				if (range.Length.QuadPart > 0)
-					continue;
-			} else {
-				/* The remaining data is hole. */
-				archive_entry_sparse_add_entry(entry,
-				    range.FileOffset.QuadPart,
-				    range.Length.QuadPart);
-			}
-			break;
-		} else {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "DeviceIoControl Failed: %lu", GetLastError());
-			exit_sts = ARCHIVE_FAILED;
-			goto exit_setup_sparse;
-		}
-	}
-exit_setup_sparse:
-	free(outranges);
-
-	return (exit_sts);
+	if (mtree->buf.length > 32768) {
+		ret = __archive_write_output(
+			a, mtree->buf.s, mtree->buf.length);
+		archive_string_empty(&mtree->buf);
+	} else
+		ret = ARCHIVE_OK;
+	return (ret);
 }

@@ -1,10 +1,21 @@
 {
-    /* Windows 9x */
-    
-    /* The forwarding executable is given a handle to the error pipe
-       and a handle to the kill event.  */
-    cp->RealCommand = malloc(strlen(cp->Win9x)+strlen(cp->Command)+100);
-    sprintf(cp->RealCommand, "%s %p %p %d %s", cp->Win9x,
-            cp->Pipe[CMPE_PIPE_ERROR].Write, cp->Win9xKillEvent,
-            cp->HideWindow, cp->Command);
-    }
+              case cmsysProcess_Exception_Fault:
+                fprintf(stderr,"SegFault");
+                cres.m_Status = cmCTest::SEGFAULT;
+                break;
+              case cmsysProcess_Exception_Illegal:
+                fprintf(stderr,"SegFault");
+                cres.m_Status = cmCTest::ILLEGAL;
+                break;
+              case cmsysProcess_Exception_Interrupt:
+                fprintf(stderr,"SegFault");
+                cres.m_Status = cmCTest::INTERRUPT;
+                break;
+              case cmsysProcess_Exception_Numerical:
+                fprintf(stderr,"SegFault");
+                cres.m_Status = cmCTest::NUMERICAL;
+                break;
+              default:
+                fprintf(stderr,"Other");
+                cres.m_Status = cmCTest::OTHER_FAULT;
+                }

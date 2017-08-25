@@ -1,1 +1,1 @@
-fprintf(stderr,"SegFault");
+fprintf(stderr,"Illegal");

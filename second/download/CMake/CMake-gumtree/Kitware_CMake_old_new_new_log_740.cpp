@@ -1,1 +1,1 @@
-fprintf(stdout, "%s\n", base64);
+fprintf(stderr, "Error: curl_easy_init failed\n");

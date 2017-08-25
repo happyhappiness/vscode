@@ -1,6 +1,5 @@
 {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate direcotry traversal data");
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		return (ARCHIVE_FATAL);
-	}
+				archive_set_error(&a->archive, GetLastError(),
+				    "Can't GetFileInformationByHandle");
+				return (ARCHIVE_FAILED);
+			}

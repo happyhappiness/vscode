@@ -1,4 +1,4 @@
 {
-        sprintf(buf, "%u", this->VersionPatch);
-        this->Makefile->AddDefinition((ver+"_PATCH").c_str(), buf);
+        sprintf(buf, "%u", this->VersionMinor);
+        this->Makefile->AddDefinition((ver+"_MINOR").c_str(), buf);
         }

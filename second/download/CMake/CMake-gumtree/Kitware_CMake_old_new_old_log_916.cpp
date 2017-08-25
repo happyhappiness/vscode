@@ -1,1 +1,1 @@
-ret = fprintf(f, "ENC %s", buf);
+ret = fprintf(f, "CONF %s", buf);

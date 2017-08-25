@@ -1,1 +1,1 @@
-fprintf(stderr, "The strongly connected components are:\n");
+fprintf(stderr, "DIRECTORY_DEF_DEBUG should be defined in C\n");

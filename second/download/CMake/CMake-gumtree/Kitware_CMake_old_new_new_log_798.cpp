@@ -1,1 +1,2 @@
-cmSystemTools::Error("Problem with tar_open(): ", strerror(errno));
+snprintf(realpath, TAR_MAXPATHLEN, "%s/%s", realdir,
+       dent->d_name);

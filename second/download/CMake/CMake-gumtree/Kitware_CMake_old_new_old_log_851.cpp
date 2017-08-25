@@ -1,1 +1,1 @@
-sprintf(updateVar,"CTEST_EXTRA_UPDATES_%i",i);
+sprintf(format, "%%%ds", static_cast<unsigned int>(maxlen));

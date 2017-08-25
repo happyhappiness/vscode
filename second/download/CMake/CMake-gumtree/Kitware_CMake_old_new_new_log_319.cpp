@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "cmFortran_yyset_column called with no buffer" );
+sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
+          target->GetName().c_str(), count);

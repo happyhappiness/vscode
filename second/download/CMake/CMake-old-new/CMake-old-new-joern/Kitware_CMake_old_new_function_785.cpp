@@ -1,89 +1,108 @@
-void cmCursesMainForm::PrintKeys(int process /* = 0 */)
+void cmGlobalGenerator::Configure()
 {
-  int x,y;
-  getmaxyx(stdscr, y, x);
-  if ( x < cmCursesMainForm::MIN_WIDTH  || 
-       x < m_InitialWidth               ||
-       y < cmCursesMainForm::MIN_HEIGHT )
+  // Delete any existing cmLocalGenerators
+  unsigned int i;
+  for (i = 0; i < m_LocalGenerators.size(); ++i)
     {
-    return;
+    delete m_LocalGenerators[i];
     }
+  m_LocalGenerators.clear();
 
-  // Give the current widget (if it exists), a chance to print keys
-  cmCursesWidget* cw = 0;
-  if (m_Form)
-    {
-    FIELD* currentField = current_field(m_Form);
-    cw = reinterpret_cast<cmCursesWidget*>(field_userptr(currentField));
-    }
+  // Setup relative path generation.
+  this->ConfigureRelativePaths();
 
-  if (cw)
-    {
-    cw->PrintKeys();
-    }
+  // start with this directory
+  cmLocalGenerator *lg = this->CreateLocalGenerator();
+  m_LocalGenerators.push_back(lg);
+
+  // set the Start directories
+  lg->GetMakefile()->SetStartDirectory
+    (m_CMakeInstance->GetStartDirectory());
+  lg->GetMakefile()->SetStartOutputDirectory
+    (m_CMakeInstance->GetStartOutputDirectory());
+  lg->GetMakefile()->MakeStartDirectoriesCurrent();
   
-//    {
-//    }
-//  else
-//    {
-  char firstLine[512]="";
-  char secondLine[512]="";
-  char thirdLine[512]="";
-  if (process)
-    {
-    sprintf(firstLine, 
-            "                                                               ");  
-    sprintf(secondLine, 
-            "                                                               ");  
-    sprintf(thirdLine, 
-            "                                                               ");  
-    }
-  else
-    {
-    if (m_OkToGenerate)
-      {
-      sprintf(firstLine,  
-              "Press [c] to configure     Press [g] to generate and exit");
-      }
-    else
-      {
-      sprintf(firstLine,  "Press [c] to configure                                   ");
-      }
-    if (m_AdvancedMode)
-      {
-      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently On)");
-      }
-    else
-      {
-      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently Off)");
-      }
-    
-    sprintf(secondLine, 
-            "Press [h] for help         Press [q] to quit without generating");
-    }
-
-  curses_move(y-4,0);
-  char fmt[512] = "Press [enter] to edit option";
-  if ( process )
-    {
-    strcpy(fmt, "                           ");
-    }
-  printw(fmt);
-  curses_move(y-3,0);
-  printw(firstLine);
-  curses_move(y-2,0);
-  printw(secondLine);
-  curses_move(y-1,0);
-  printw(thirdLine);
-
-  if (cw)
-    {
-    sprintf(firstLine, "Page %d of %d", cw->GetPage(), m_NumberOfPages);
-    curses_move(0,65-strlen(firstLine)-1);
-    printw(firstLine);
-    }
-//    }
-
-  pos_form_cursor(m_Form);
+  // now do it
+  lg->Configure();
   
+  // update the cache entry for the number of local generators, this is used
+  // for progress
+  char num[100];
+  sprintf(num,"%d",static_cast<int>(m_LocalGenerators.size()));
+  this->GetCMakeInstance()->AddCacheEntry
+    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
+     "number of local generators", cmCacheManager::INTERNAL);
+  
+  std::set<cmStdString> notFoundMap;
+  // after it is all done do a ConfigureFinalPass
+  cmCacheManager* manager = 0;
+  for (i = 0; i < m_LocalGenerators.size(); ++i)
+    {
+    manager = m_LocalGenerators[i]->GetMakefile()->GetCacheManager();
+    m_LocalGenerators[i]->ConfigureFinalPass();
+    cmTargets & targets = 
+      m_LocalGenerators[i]->GetMakefile()->GetTargets(); 
+    for (cmTargets::iterator l = targets.begin();
+         l != targets.end(); l++)
+      {
+      cmTarget::LinkLibraries libs = l->second.GetLinkLibraries();
+      for(cmTarget::LinkLibraries::iterator lib = libs.begin();
+          lib != libs.end(); ++lib)
+        {
+        if(lib->first.size() > 9 && 
+           cmSystemTools::IsNOTFOUND(lib->first.c_str()))
+          {
+          std::string varName = lib->first.substr(0, lib->first.size()-9);
+          notFoundMap.insert(varName);
+          }
+        }
+      std::vector<std::string>& incs = 
+        m_LocalGenerators[i]->GetMakefile()->GetIncludeDirectories();
+      
+      for( std::vector<std::string>::iterator lib = incs.begin();
+           lib != incs.end(); ++lib)
+        {
+        if(lib->size() > 9 && 
+           cmSystemTools::IsNOTFOUND(lib->c_str()))
+          {
+          std::string varName = lib->substr(0, lib->size()-9); 
+          notFoundMap.insert(varName);
+          }
+        }
+      m_CMakeInstance->UpdateProgress("Configuring", 
+                                      0.9f+0.1f*(i+1.0f)/m_LocalGenerators.size());
+      m_LocalGenerators[i]->GetMakefile()->CheckInfiniteLoops();
+      }
+    }
+
+  if(notFoundMap.size())
+    {
+    std::string notFoundVars;
+    for(std::set<cmStdString>::iterator ii = notFoundMap.begin();
+        ii != notFoundMap.end(); ++ii)
+      { 
+      notFoundVars += *ii;
+      if(manager)
+        {
+        cmCacheManager::CacheIterator it = 
+          manager->GetCacheIterator(ii->c_str());
+        if(it.GetPropertyAsBool("ADVANCED"))
+          {
+          notFoundVars += " (ADVANCED)";
+          }
+        }
+      notFoundVars += "\n";
+      }
+    cmSystemTools::Error("This project requires some variables to be set,\n"
+                         "and cmake can not find them.\n"
+                         "Please set the following variables:\n",
+                         notFoundVars.c_str());
+    }
+  // at this point m_LocalGenerators has been filled,
+  // so create the map from project name to vector of local generators
+  this->FillProjectMap();
+  if ( !m_CMakeInstance->GetScriptMode() )
+    {
+    m_CMakeInstance->UpdateProgress("Configuring done", -1);
+    }
 }

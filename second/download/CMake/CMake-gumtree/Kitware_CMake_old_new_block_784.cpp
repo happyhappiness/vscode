@@ -1,6 +1,5 @@
 {
-    fprintf(fout,"extern \"C\"\n{\nvoid vtkCommonDeleteAssocData(ClientData cd)\n");
-    fprintf(fout,"  {\n");
-    fprintf(fout,"  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n");
-    fprintf(fout,"  delete tis;\n  }\n}\n");
+    sprintf(firstLine, "Page %d of %d", cw->GetPage(), m_NumberOfPages);
+    curses_move(0,65-strlen(firstLine)-1);
+    printw(firstLine);
     }

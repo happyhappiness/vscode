@@ -1,1 +1,1 @@
-snprintf(username, sizeof(username), "%d", uid);
+snprintf(groupname, sizeof(groupname), "%d", gid);

@@ -1,1 +1,1 @@
-tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
+tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);

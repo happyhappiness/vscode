@@ -1,2 +1,2 @@
-archive_set_error(f->archive, errno,
-			    "Read from filter failed unexpectedly.");
+f(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+            this->BinaryDirectory.c_str());

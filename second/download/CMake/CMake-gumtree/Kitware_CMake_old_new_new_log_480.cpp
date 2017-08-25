@@ -1,2 +1,2 @@
 fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideLang.c_str(), rulesOverridePath);
+                rulesOverrideBase.c_str(), rulesOverridePath2);

@@ -1,1 +1,1 @@
-sprintf(updateVar,"CTEST_EXTRA_UPDATES_%i",i);
+fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE FORTRAN)\n");

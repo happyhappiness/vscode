@@ -1,1 +1,0 @@
-this->ChipID.ProcessorName = this->ParseValueFromKStat("-s cpu_type");

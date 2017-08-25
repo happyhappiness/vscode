@@ -1,1 +1,1 @@
-fprintf(fout, "ENDIF (CMAKE_ANSI_CXXFLAGS)\n");
+fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE CXX)\n");

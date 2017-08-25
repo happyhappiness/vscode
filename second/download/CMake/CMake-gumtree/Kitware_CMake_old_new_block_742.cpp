@@ -1,34 +1,19 @@
-{
-  char *base64;
-  int base64Len;
-  unsigned char *data;
-  int dataLen;
-  int i, j;
+fprintf(out,
+              "%s%s\t" /* domain */
+              "%s\t" /* tailmatch */
+              "%s\t" /* path */
+              "%s\t" /* secure */
+              "%u\t" /* expires */
+              "%s\t" /* name */
+              "%s\n", /* value */
 
-  base64 = (char *)suck(&base64Len);
-  data = (unsigned char *)malloc(base64Len * 3/4 + 8);
-  dataLen = Curl_base64_decode(base64, data);
-
-  fprintf(stderr, "%d\n", dataLen);
-
-  for(i=0; i < dataLen; i+=0x10) {
-    printf("0x%02x: ", i);
-    for(j=0; j < 0x10; j++)
-      if((j+i) < dataLen)
-        printf("%02x ", data[i+j]);
-      else
-        printf("   ");
-
-    printf(" | ");
-
-    for(j=0; j < 0x10; j++)
-      if((j+i) < dataLen)
-        printf("%c", isgraph(data[i+j])?data[i+j]:'.');
-      else
-        break;
-    puts("");
-  }
-
-  free(base64); free(data);
-  return 0;
-}
+              /* Make sure all domains are prefixed with a dot if they allow
+                 tailmatching. This is Mozilla-style. */
+              (co->tailmatch && co->domain && co->domain[0] != '.')? ".":"",
+              co->domain?co->domain:"unknown",
+              co->tailmatch?"TRUE":"FALSE",
+              co->path?co->path:"/",
+              co->secure?"TRUE":"FALSE",
+              (unsigned int)co->expires,
+              co->name,
+              co->value?co->value:"")

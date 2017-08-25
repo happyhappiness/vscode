@@ -1,168 +1,74 @@
-void ctest::ProcessDirectory(std::vector<std::string> &passed, 
-                             std::vector<std::string> &failed)
+BOOL CMakeSetupDialog::OnInitDialog()
 {
-  // does the DartTestfile.txt exist ?
-  if(!cmSystemTools::FileExists("DartTestfile.txt"))
-    {
-    return;
-    }
-  
-  // parse the file
-  std::ifstream fin("DartTestfile.txt");
-  if(!fin)
-    {
-    return;
-    }
+  CDialog::OnInitDialog();
+  this->DragAcceptFiles(true);
 
-  int firstTest = 1;
-  
-  std::string name;
-  std::vector<std::string> args;
-  cmRegularExpression ireg(this->m_IncludeRegExp.c_str());
-  cmRegularExpression ereg(this->m_ExcludeRegExp.c_str());
-  cmRegularExpression dartStuff("([\t\n ]*<DartMeasurement.*/DartMeasurement[a-zA-Z]*>[\t ]*[\n]*)");
+  // Add "Create shortcut" menu item to system menu.
 
-  bool parseError;
-  while ( fin )
+  // IDM_CREATESHORTCUT must be in the system command range.
+  ASSERT((IDM_CREATESHORTCUT & 0xFFF0) == IDM_CREATESHORTCUT);
+  ASSERT(IDM_CREATESHORTCUT < 0xF000);
+
+  // Add "About..." menu item to system menu.
+
+  // IDM_ABOUTBOX must be in the system command range.
+  ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
+  ASSERT(IDM_ABOUTBOX < 0xF000);
+
+  CMenu* pSysMenu = GetSystemMenu(FALSE);
+  if (pSysMenu != NULL)
     {
-    if(cmSystemTools::ParseFunction(fin, name, args, "DartTestfile.txt",
-                                    parseError))
+    CString strCreateShortcutMenu;
+    strCreateShortcutMenu.LoadString(IDS_CREATESHORTCUT);
+    if (!strCreateShortcutMenu.IsEmpty())
       {
-      if (name == "SUBDIRS")
-        {
-        std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-        for(std::vector<std::string>::iterator j = args.begin();
-            j != args.end(); ++j)
-          {   
-          std::string nwd = cwd + "/";
-          nwd += *j;
-          if (cmSystemTools::FileIsDirectory(nwd.c_str()))
-            {
-            cmSystemTools::ChangeDirectory(nwd.c_str());
-            this->ProcessDirectory(passed, failed);
-            }
-          }
-        // return to the original directory
-        cmSystemTools::ChangeDirectory(cwd.c_str());
-        }
-      
-      if (name == "ADD_TEST")
-        {
-        if (this->m_UseExcludeRegExp && 
-            this->m_UseExcludeRegExpFirst && 
-            ereg.find(args[0].c_str()))
-          {
-          continue;
-          }
-        if (this->m_UseIncludeRegExp && !ireg.find(args[0].c_str()))
-          {
-          continue;
-          }
-        if (this->m_UseExcludeRegExp && 
-            !this->m_UseExcludeRegExpFirst && 
-            ereg.find(args[0].c_str()))
-          {
-          continue;
-          }
+      pSysMenu->AppendMenu(MF_SEPARATOR);
+      pSysMenu->AppendMenu(MF_STRING, 
+                           IDM_CREATESHORTCUT, 
+                           strCreateShortcutMenu);
+      }
 
-        cmCTestTestResult cres;
-
-        if (firstTest)
-          {
-          std::string nwd = cmSystemTools::GetCurrentWorkingDirectory();
-          std::cerr << "Changing directory into " << nwd.c_str() << "\n";
-          firstTest = 0;
-          }
-        cres.m_Name = args[0];
-        fprintf(stderr,"Testing %-30s ",args[0].c_str());
-        fflush(stderr);
-        //std::cerr << "Testing " << args[0] << " ... ";
-        // find the test executable
-        std::string testCommand = this->FindExecutable(args[1].c_str());
-        testCommand = cmSystemTools::ConvertToOutputPath(testCommand.c_str());
-
-        // continue if we did not find the executable
-        if (testCommand == "")
-          {
-          std::cerr << "Unable to find executable: " << 
-            args[1].c_str() << "\n";
-          continue;
-          }
-        
-        // add the arguments
-        std::vector<std::string>::iterator j = args.begin();
-        ++j;
-        ++j;
-        for(;j != args.end(); ++j)
-          {   
-          testCommand += " ";
-          testCommand += cmSystemTools::EscapeSpaces(j->c_str());
-          }
-        /**
-         * Run an executable command and put the stdout in output.
-         */
-        std::string output;
-        int retVal;
-
-        double clock_start, clock_finish;
-        clock_start = cmSystemTools::GetTime();
-
-        if ( m_Verbose )
-          {
-          std::cout << std::endl << "Test command: " << testCommand << std::endl;
-          }
-        bool res = cmSystemTools::RunCommand(testCommand.c_str(), output, 
-                                             retVal, 0, false);
-        clock_finish = cmSystemTools::GetTime();
-
-        cres.m_ExecutionTime = (double)(clock_finish - clock_start);
-        cres.m_FullCommandLine = testCommand;
-
-        if (!res || retVal != 0)
-          {
-          fprintf(stderr,"***Failed\n");
-          if (output != "")
-            {
-            if (dartStuff.find(output.c_str()))
-              {
-              cmSystemTools::ReplaceString(output,
-                                           dartStuff.match(1).c_str(),"");
-              }
-            if (output != "" && m_Verbose)
-              {
-              std::cerr << output.c_str() << "\n";
-              }
-            }
-          failed.push_back(args[0]); 
-          }
-        else
-          {
-          fprintf(stderr,"   Passed\n");
-          if (output != "")
-            {
-            if (dartStuff.find(output.c_str()))
-              {
-              cmSystemTools::ReplaceString(output,
-                                           dartStuff.match(1).c_str(),"");
-              }
-            if (output != "" && m_Verbose)
-              {
-              std::cerr << output.c_str() << "\n";
-              }
-            }
-          passed.push_back(args[0]); 
-          }
-        cres.m_Output = output;
-        cres.m_ReturnValue = retVal;
-        std::string nwd = cmSystemTools::GetCurrentWorkingDirectory();
-        if ( nwd.size() > m_ToplevelPath.size() )
-          {
-          nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
-          }
-        cres.m_Path = nwd;
-        cres.m_CompletionStatus = "Completed";
-        m_TestResults.push_back( cres );
-        }
+    CString strAboutMenu;
+    strAboutMenu.LoadString(IDS_ABOUTBOX);
+    if (!strAboutMenu.IsEmpty())
+      {
+      pSysMenu->AppendMenu(MF_SEPARATOR);
+      pSysMenu->AppendMenu(MF_STRING, 
+                           IDM_ABOUTBOX, 
+                           strAboutMenu);
       }
     }
+
+  // Set the icon for this dialog.  The framework does this automatically
+  //  when the application's main window is not a dialog
+  SetIcon(m_hIcon, TRUE);			// Set big icon
+  SetIcon(m_hIcon, FALSE);		// Set small icon
+  // Load source and build dirs from registry
+  this->LoadFromRegistry();
+  std::vector<std::string> names;
+  this->m_CMakeInstance->GetRegisteredGenerators(names);
+  for(std::vector<std::string>::iterator i = names.begin();
+      i != names.end(); ++i)
+    {
+    m_GeneratorChoice.AddString(i->c_str());
+    }
+  if (m_GeneratorChoiceString == _T("")) 
+    {
+    m_GeneratorChoiceString = "Visual Studio 6";
+    }
+
+  // try to load the cmake cache from disk
+  this->LoadCacheFromDiskToGUI();
+  m_WhereBuildControl.LimitText(2048);
+  m_WhereSourceControl.LimitText(2048);
+  m_GeneratorChoice.LimitText(2048);
+    
+  // Set the version number
+  char tmp[1024];
+  sprintf(tmp,"Version %d.%d - %s", cmake::GetMajorVersion(),
+          cmake::GetMinorVersion(), cmake::GetReleaseVersion());
+  SetDlgItemText(IDC_CMAKE_VERSION, tmp);
+  SetDlgItemText(IDC_PROGRESS, "");
+  this->UpdateData(FALSE);
+  return TRUE;  // return TRUE  unless you set the focus to a control
 }

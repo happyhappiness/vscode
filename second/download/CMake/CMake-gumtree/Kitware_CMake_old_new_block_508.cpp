@@ -1,5 +1,5 @@
 {
 				archive_set_error(&a->archive, GetLastError(),
-				    "Can't GetFileInformationByHandle");
+				    "Can't FindFirstFileW");
 				return (ARCHIVE_FAILED);
 			}

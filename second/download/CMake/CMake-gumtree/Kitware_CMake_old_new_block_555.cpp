@@ -1,6 +1,2 @@
-{
-				archive_set_error(&a->archive, errno,
-				    "%ls: Cannot stat",
-				    tree_current_path(t));
-				return (ARCHIVE_FAILED);
-			}
+(name != NULL)
+		archive_entry_copy_uname(entry, name)

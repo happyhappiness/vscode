@@ -1,159 +1,63 @@
-void cmake::GenerateGraphViz(const char* fileName)
+int
+tar_extract_file(TAR *t, char *realname)
 {
-  cmGeneratedFileStream str(fileName);
-  if ( !str )
-    {
-    return;
-    }
-  str << "digraph G {" << std::endl;
-  str << "node [" << std::endl;
-  str << "  fontsize = \"12\"" << std::endl;
-  str << "];" << std::endl;
+  int i;
+  linkname_t *lnp;
 
-  cmGlobalGenerator* gg = this->GetGlobalGenerator();
-  std::vector<cmLocalGenerator*> localGenerators;
-  gg->GetLocalGenerators(localGenerators);
-  std::vector<cmLocalGenerator*>::iterator lit;
-  // for target deps
-  // 1 - cmake target
-  // 2 - external target
-  // 0 - no deps
-  std::map<cmStdString, int> targetDeps;
-  std::map<cmStdString, cmTarget*> targetPtrs;
-  std::map<cmStdString, cmStdString> targetNamesNodes;
-  char tgtName[100];
-  int cnt = 0;
-  // First pass get the list of all cmake targets
-  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
-    {
-    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
-      {
-      //std::cout << "Found target: " << tit->first.c_str() << std::endl;
-      sprintf(tgtName, "node%d", cnt++);
-      targetNamesNodes[tit->first.c_str()] = tgtName;
-      targetPtrs[tit->first.c_str()] = &tit->second;
-      //str << "    \"" << tgtName << "\" [ label=\"" << tit->first.c_str() <<  "\" shape=\"box\"];" << std::endl;
-      }
-    }
-  // Ok, now find all the stuff we link to that is not in cmake
-  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
-    {
-    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
-      {
-      const cmTarget::LinkLibraries* ll = &(tit->second.GetOriginalLinkLibraries());
-      cmTarget::LinkLibraries::const_iterator llit;
-      if ( ll->size() > 0 )
-        {
-        targetDeps[tit->first.c_str()] = 1;
-        }
-      for ( llit = ll->begin(); llit != ll->end(); ++ llit )
-        {
-        const char* libName = llit->first.c_str();
-        std::map<cmStdString, cmStdString>::iterator tarIt = targetNamesNodes.find(libName);
-        if ( tarIt == targetNamesNodes.end() )
-          {
-          sprintf(tgtName, "node%d", cnt++);
-          targetDeps[libName] = 2;
-          targetNamesNodes[libName] = tgtName;
-          //str << "    \"" << tgtName << "\" [ label=\"" << libName <<  "\" shape=\"ellipse\"];" << std::endl;
-          }
-        else
-          {
-          std::map<cmStdString, int>::iterator depIt = targetDeps.find(libName);
-          if ( depIt == targetDeps.end() )
-            {
-            targetDeps[libName] = 1;
-            }
-          }
-        }
-      }
-    }
+  if (t->options & TAR_NOOVERWRITE)
+  {
+    struct stat s;
 
-  // Write out nodes
-  std::map<cmStdString, int>::iterator depIt;
-  for ( depIt = targetDeps.begin(); depIt != targetDeps.end(); ++ depIt )
+#ifdef WIN32
+    if (stat(realname, &s) == 0 || errno != ENOENT)
+#else
+    if (lstat(realname, &s) == 0 || errno != ENOENT)
+#endif
     {
-    const char* newTargetName = depIt->first.c_str();
-    std::map<cmStdString, cmStdString>::iterator tarIt = targetNamesNodes.find(newTargetName);
-    if ( tarIt == targetNamesNodes.end() )
-      {
-      // We should not be here.
-      std::cout << "Cannot find library: " << newTargetName << " even though it was added in the previous pass" << std::endl;
-      abort();
-      }
-
-    str << "    \"" << tarIt->second.c_str() << "\" [ label=\"" << newTargetName <<  "\" shape=\"";
-    if ( depIt->second == 1 )
-      {
-      std::map<cmStdString, cmTarget*>::iterator tarTypeIt= targetPtrs.find(newTargetName);
-      if ( tarTypeIt == targetPtrs.end() )
-        {
-        // We should not be here.
-        std::cout << "Cannot find library: " << newTargetName << " even though it was added in the previous pass" << std::endl;
-        abort();
-        }
-      cmTarget* tg = tarTypeIt->second;
-      switch ( tg->GetType() )
-        {
-      case cmTarget::EXECUTABLE:
-        str << "house";
-        break;
-      case cmTarget::STATIC_LIBRARY:
-        str << "diamond";
-        break;
-      case cmTarget::SHARED_LIBRARY:
-        str << "polygon";
-        break;
-      case cmTarget::MODULE_LIBRARY:
-        str << "octagon";
-        break;
-      default:
-        str << "box";
-        }
-      }
-    else
-      {
-      str << "ellipse";
-      }
-    str << "\"];" << std::endl;
+      errno = EEXIST;
+      return -1;
     }
+  }
 
-  // Now generate the connectivity
-  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
-    {
-    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
-      {
-      std::map<cmStdString, int>::iterator dependIt = targetDeps.find(tit->first.c_str());
-      if ( dependIt == targetDeps.end() )
-        {
-        continue;
-        }
-      std::map<cmStdString, cmStdString>::iterator cmakeTarIt = targetNamesNodes.find(tit->first.c_str());
-      const cmTarget::LinkLibraries* ll = &(tit->second.GetOriginalLinkLibraries());
-      cmTarget::LinkLibraries::const_iterator llit;
-      for ( llit = ll->begin(); llit != ll->end(); ++ llit )
-        {
-        const char* libName = llit->first.c_str();
-        std::map<cmStdString, cmStdString>::iterator tarIt = targetNamesNodes.find(libName);
-        if ( tarIt == targetNamesNodes.end() )
-          {
-          // We should not be here.
-          std::cout << "Cannot find library: " << libName << " even though it was added in the previous pass" << std::endl;
-          abort();
-          }
-        str << "    \"" << cmakeTarIt->second.c_str() << "\" -> \"" << tarIt->second.c_str() << "\"" << std::endl;
-        }
-      }
-    }
+  if (TH_ISDIR(t))
+  {
+    i = tar_extract_dir(t, realname);
+    if (i == 1)
+      i = 0;
+  }
+#ifndef _WIN32
+  else if (TH_ISLNK(t))
+    i = tar_extract_hardlink(t, realname);
+  else if (TH_ISSYM(t))
+    i = tar_extract_symlink(t, realname);
+  else if (TH_ISCHR(t))
+    i = tar_extract_chardev(t, realname);
+  else if (TH_ISBLK(t))
+    i = tar_extract_blockdev(t, realname);
+  else if (TH_ISFIFO(t))
+    i = tar_extract_fifo(t, realname);
+#endif
+  else /* if (TH_ISREG(t)) */
+    i = tar_extract_regfile(t, realname);
 
-  // TODO: Use dotted or something for external libraries
-  //str << "    \"node0\":f4 -> \"node12\"[color=\"#0000ff\" style=dotted]" << std::endl;
-  //
-  str << "}" << std::endl;
+  if (i != 0)
+    return i;
+
+  i = tar_set_file_perms(t, realname);
+  if (i != 0)
+    return i;
+
+  lnp = (linkname_t *)calloc(1, sizeof(linkname_t));
+  if (lnp == NULL)
+    return -1;
+  strlcpy(lnp->ln_save, th_get_pathname(t), sizeof(lnp->ln_save));
+  strlcpy(lnp->ln_real, realname, sizeof(lnp->ln_real));
+#ifdef DEBUG
+  printf("tar_extract_file(): calling libtar_hash_add(): key=\"%s\", "
+         "value=\"%s\"\n", th_get_pathname(t), realname);
+#endif
+  if (libtar_hash_add(t->h, lnp) != 0)
+    return -1;
+
+  return 0;
 }

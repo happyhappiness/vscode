@@ -1,1 +1,2 @@
-archive_set_error(a, ENOMEM, "No memory");
+archive_set_error(a, errno,
+				    "Can't allocate memory");

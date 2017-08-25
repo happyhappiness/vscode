@@ -1,1 +1,4 @@
-snprintf((char *)&dest[i*2], 3, "%02x", source[i])
+{
+  /* Generate and return our SPN */
+  return aprintf("%s/%s", service, host);
+}

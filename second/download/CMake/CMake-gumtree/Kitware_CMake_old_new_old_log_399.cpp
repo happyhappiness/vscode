@@ -1,1 +1,2 @@
-fprintf(fout, "\t%s\n", symbol.c_str()+1);
+fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              cmLocalGenerator::EscapeForCMake(flags?flags:"").c_str());

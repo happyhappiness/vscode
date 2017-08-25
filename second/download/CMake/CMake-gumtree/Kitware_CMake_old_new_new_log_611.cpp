@@ -1,1 +1,1 @@
-fprintf(fout, "ADD_EXECUTABLE(%s", targetName);
+fprintf(fout, " \"%s\"", si->c_str());

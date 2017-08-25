@@ -1,1 +1,1 @@
-fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
+fprintf(fout, "ADD_DEFINITIONS( ");

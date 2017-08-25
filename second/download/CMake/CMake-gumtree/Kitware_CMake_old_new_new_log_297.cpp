@@ -1,2 +1,2 @@
-archive_set_error(f->archive, EINVAL,
-		    "Can't launch external program: %s", cmd);
+archive_set_error(f->archive, EIO,
+			    "Can't write to program: %s", data->program_name);

@@ -1,1 +1,1 @@
-fprintf(ofp, "#endif\n");
+fprintf(stdout, "%s",   base64);

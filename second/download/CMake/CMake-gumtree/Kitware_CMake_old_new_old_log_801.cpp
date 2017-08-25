@@ -1,1 +1,1 @@
-::sprintf(newkey, "%s\\%s", this->m_SubKey.c_str(), key);
+fprintf(stderr, "kwsysProcess_New returned NULL!\n");

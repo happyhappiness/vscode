@@ -1,1 +1,1 @@
-snprintf(groupname, sizeof(groupname), "%d", gid);
+fprintf(stderr, "tar_open(): %s\n", strerror(errno));

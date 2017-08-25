@@ -1,1 +1,1 @@
-fprintf(conn->data->set.err, "> %s\n", s);
+snprintf(sbuf, sizeof(sbuf), "%d", port);

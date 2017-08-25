@@ -1,1 +1,1 @@
-f(fout, "PROJECT(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
+fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");

@@ -1,2 +1,2 @@
-snprintf(buf + len, sizeof(buf) - len,
-                 ": %s", (char*) status_string.value);
+snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+                     conn->host.name);

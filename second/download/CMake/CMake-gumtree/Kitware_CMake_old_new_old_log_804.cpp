@@ -1,1 +1,1 @@
-sprintf(hex, "%%%02X", (int)c);
+sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);

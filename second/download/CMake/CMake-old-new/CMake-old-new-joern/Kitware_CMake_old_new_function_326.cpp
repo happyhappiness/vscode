@@ -1,224 +1,233 @@
 static int
-parse_file(struct archive_read *a, struct archive_entry *entry,
-    struct mtree *mtree, struct mtree_entry *mentry, int *use_next)
+parse_keyword(struct archive_read *a, struct mtree *mtree,
+    struct archive_entry *entry, struct mtree_option *opt, int *parsed_kws)
 {
-	const char *path;
-	struct stat st_storage, *st;
-	struct mtree_entry *mp;
-	struct archive_entry *sparse_entry;
-	int r = ARCHIVE_OK, r1, parsed_kws;
+	char *val, *key;
 
-	mentry->used = 1;
+	key = opt->value;
 
-	/* Initialize reasonable defaults. */
-	archive_entry_set_filetype(entry, AE_IFREG);
-	archive_entry_set_size(entry, 0);
-	archive_string_empty(&mtree->contents_name);
+	if (*key == '\0')
+		return (ARCHIVE_OK);
 
-	/* Parse options from this line. */
-	parsed_kws = 0;
-	r = parse_line(a, entry, mtree, mentry, &parsed_kws);
-
-	if (mentry->full) {
-		archive_entry_copy_pathname(entry, mentry->name);
+	if (strcmp(key, "nochange") == 0) {
+		*parsed_kws |= MTREE_HAS_NOCHANGE;
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "optional") == 0) {
+		*parsed_kws |= MTREE_HAS_OPTIONAL;
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "ignore") == 0) {
 		/*
-		 * "Full" entries are allowed to have multiple lines
-		 * and those lines aren't required to be adjacent.  We
-		 * don't support multiple lines for "relative" entries
-		 * nor do we make any attempt to merge data from
-		 * separate "relative" and "full" entries.  (Merging
-		 * "relative" and "full" entries would require dealing
-		 * with pathname canonicalization, which is a very
-		 * tricky subject.)
+		 * The mtree processing is not recursive, so
+		 * recursion will only happen for explicitly listed
+		 * entries.
 		 */
-		for (mp = mentry->next; mp != NULL; mp = mp->next) {
-			if (mp->full && !mp->used
-			    && strcmp(mentry->name, mp->name) == 0) {
-				/* Later lines override earlier ones. */
-				mp->used = 1;
-				r1 = parse_line(a, entry, mtree, mp,
-				    &parsed_kws);
-				if (r1 < r)
-					r = r1;
-			}
-		}
-	} else {
-		/*
-		 * Relative entries require us to construct
-		 * the full path and possibly update the
-		 * current directory.
-		 */
-		size_t n = archive_strlen(&mtree->current_dir);
-		if (n > 0)
-			archive_strcat(&mtree->current_dir, "/");
-		archive_strcat(&mtree->current_dir, mentry->name);
-		archive_entry_copy_pathname(entry, mtree->current_dir.s);
-		if (archive_entry_filetype(entry) != AE_IFDIR)
-			mtree->current_dir.length = n;
+		return (ARCHIVE_OK);
 	}
 
-	if (mtree->checkfs) {
-		/*
-		 * Try to open and stat the file to get the real size
-		 * and other file info.  It would be nice to avoid
-		 * this here so that getting a listing of an mtree
-		 * wouldn't require opening every referenced contents
-		 * file.  But then we wouldn't know the actual
-		 * contents size, so I don't see a really viable way
-		 * around this.  (Also, we may want to someday pull
-		 * other unspecified info from the contents file on
-		 * disk.)
-		 */
-		mtree->fd = -1;
-		if (archive_strlen(&mtree->contents_name) > 0)
-			path = mtree->contents_name.s;
-		else
-			path = archive_entry_pathname(entry);
+	val = strchr(key, '=');
+	if (val == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Malformed attribute \"%s\" (%d)", key, key[0]);
+		return (ARCHIVE_WARN);
+	}
 
-		if (archive_entry_filetype(entry) == AE_IFREG ||
-				archive_entry_filetype(entry) == AE_IFDIR) {
-			mtree->fd = open(path, O_RDONLY | O_BINARY | O_CLOEXEC);
-			__archive_ensure_cloexec_flag(mtree->fd);
-			if (mtree->fd == -1 &&
-					(errno != ENOENT ||
-					 archive_strlen(&mtree->contents_name) > 0)) {
-				archive_set_error(&a->archive, errno,
-						"Can't open %s", path);
-				r = ARCHIVE_WARN;
-			}
+	*val = '\0';
+	++val;
+
+	switch (key[0]) {
+	case 'c':
+		if (strcmp(key, "content") == 0
+		    || strcmp(key, "contents") == 0) {
+			parse_escapes(val, NULL);
+			archive_strcpy(&mtree->contents_name, val);
+			break;
 		}
+		if (strcmp(key, "cksum") == 0)
+			break;
+	case 'd':
+		if (strcmp(key, "device") == 0) {
+			/* stat(2) st_rdev field, e.g. the major/minor IDs
+			 * of a char/block special file */
+			int r;
+			dev_t dev;
 
-		st = &st_storage;
-		if (mtree->fd >= 0) {
-			if (fstat(mtree->fd, st) == -1) {
-				archive_set_error(&a->archive, errno,
-						"Could not fstat %s", path);
-				r = ARCHIVE_WARN;
-				/* If we can't stat it, don't keep it open. */
-				close(mtree->fd);
-				mtree->fd = -1;
-				st = NULL;
-			}
-		} else if (lstat(path, st) == -1) {
-			st = NULL;
+			*parsed_kws |= MTREE_HAS_DEVICE;
+			r = parse_device(&dev, &a->archive, val);
+			if (r == ARCHIVE_OK)
+				archive_entry_set_rdev(entry, dev);
+			return r;
 		}
-
-		/*
-		 * Check for a mismatch between the type in the specification and
-		 * the type of the contents object on disk.
-		 */
-		if (st != NULL) {
-			if (
-					((st->st_mode & S_IFMT) == S_IFREG &&
-					 archive_entry_filetype(entry) == AE_IFREG)
-#ifdef S_IFLNK
-					|| ((st->st_mode & S_IFMT) == S_IFLNK &&
-						archive_entry_filetype(entry) == AE_IFLNK)
-#endif
-#ifdef S_IFSOCK
-					|| ((st->st_mode & S_IFSOCK) == S_IFSOCK &&
-						archive_entry_filetype(entry) == AE_IFSOCK)
-#endif
-#ifdef S_IFCHR
-					|| ((st->st_mode & S_IFMT) == S_IFCHR &&
-						archive_entry_filetype(entry) == AE_IFCHR)
-#endif
-#ifdef S_IFBLK
-					|| ((st->st_mode & S_IFMT) == S_IFBLK &&
-						archive_entry_filetype(entry) == AE_IFBLK)
-#endif
-					|| ((st->st_mode & S_IFMT) == S_IFDIR &&
-						archive_entry_filetype(entry) == AE_IFDIR)
-#ifdef S_IFIFO
-					|| ((st->st_mode & S_IFMT) == S_IFIFO &&
-							archive_entry_filetype(entry) == AE_IFIFO)
-#endif
-					) {
-						/* Types match. */
-					} else {
-						/* Types don't match; bail out gracefully. */
-						if (mtree->fd >= 0)
-							close(mtree->fd);
-						mtree->fd = -1;
-						if (parsed_kws & MTREE_HAS_OPTIONAL) {
-							/* It's not an error for an optional entry
-							   to not match disk. */
-							*use_next = 1;
-						} else if (r == ARCHIVE_OK) {
-							archive_set_error(&a->archive,
-									ARCHIVE_ERRNO_MISC,
-									"mtree specification has different type for %s",
-									archive_entry_pathname(entry));
-							r = ARCHIVE_WARN;
-						}
-						return r;
-					}
+	case 'f':
+		if (strcmp(key, "flags") == 0) {
+			*parsed_kws |= MTREE_HAS_FFLAGS;
+			archive_entry_copy_fflags_text(entry, val);
+			break;
 		}
-
-		/*
-		 * If there is a contents file on disk, pick some of the metadata
-		 * from that file.  For most of these, we only set it from the contents
-		 * if it wasn't already parsed from the specification.
-		 */
-		if (st != NULL) {
-			if (((parsed_kws & MTREE_HAS_DEVICE) == 0 ||
-						(parsed_kws & MTREE_HAS_NOCHANGE) != 0) &&
-					(archive_entry_filetype(entry) == AE_IFCHR ||
-					 archive_entry_filetype(entry) == AE_IFBLK))
-				archive_entry_set_rdev(entry, st->st_rdev);
-			if ((parsed_kws & (MTREE_HAS_GID | MTREE_HAS_GNAME)) == 0 ||
-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-				archive_entry_set_gid(entry, st->st_gid);
-			if ((parsed_kws & (MTREE_HAS_UID | MTREE_HAS_UNAME)) == 0 ||
-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-				archive_entry_set_uid(entry, st->st_uid);
-			if ((parsed_kws & MTREE_HAS_MTIME) == 0 ||
-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0) {
-#if HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
-				archive_entry_set_mtime(entry, st->st_mtime,
-						st->st_mtimespec.tv_nsec);
-#elif HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC
-				archive_entry_set_mtime(entry, st->st_mtime,
-						st->st_mtim.tv_nsec);
-#elif HAVE_STRUCT_STAT_ST_MTIME_N
-				archive_entry_set_mtime(entry, st->st_mtime,
-						st->st_mtime_n);
-#elif HAVE_STRUCT_STAT_ST_UMTIME
-				archive_entry_set_mtime(entry, st->st_mtime,
-						st->st_umtime*1000);
-#elif HAVE_STRUCT_STAT_ST_MTIME_USEC
-				archive_entry_set_mtime(entry, st->st_mtime,
-						st->st_mtime_usec*1000);
-#else
-				archive_entry_set_mtime(entry, st->st_mtime, 0);
-#endif
+	case 'g':
+		if (strcmp(key, "gid") == 0) {
+			*parsed_kws |= MTREE_HAS_GID;
+			archive_entry_set_gid(entry, mtree_atol10(&val));
+			break;
+		}
+		if (strcmp(key, "gname") == 0) {
+			*parsed_kws |= MTREE_HAS_GNAME;
+			archive_entry_copy_gname(entry, val);
+			break;
+		}
+	case 'i':
+		if (strcmp(key, "inode") == 0) {
+			archive_entry_set_ino(entry, mtree_atol10(&val));
+			break;
+		}
+	case 'l':
+		if (strcmp(key, "link") == 0) {
+			archive_entry_copy_symlink(entry, val);
+			break;
+		}
+	case 'm':
+		if (strcmp(key, "md5") == 0 || strcmp(key, "md5digest") == 0)
+			break;
+		if (strcmp(key, "mode") == 0) {
+			if (val[0] >= '0' && val[0] <= '9') {
+				*parsed_kws |= MTREE_HAS_PERM;
+				archive_entry_set_perm(entry,
+				    (mode_t)mtree_atol8(&val));
+			} else {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Symbolic mode \"%s\" unsupported", val);
+				return ARCHIVE_WARN;
 			}
-			if ((parsed_kws & MTREE_HAS_NLINK) == 0 ||
-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-				archive_entry_set_nlink(entry, st->st_nlink);
-			if ((parsed_kws & MTREE_HAS_PERM) == 0 ||
-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-				archive_entry_set_perm(entry, st->st_mode);
-			if ((parsed_kws & MTREE_HAS_SIZE) == 0 ||
-					(parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-				archive_entry_set_size(entry, st->st_size);
-			archive_entry_set_ino(entry, st->st_ino);
-			archive_entry_set_dev(entry, st->st_dev);
+			break;
+		}
+	case 'n':
+		if (strcmp(key, "nlink") == 0) {
+			*parsed_kws |= MTREE_HAS_NLINK;
+			archive_entry_set_nlink(entry,
+				(unsigned int)mtree_atol10(&val));
+			break;
+		}
+	case 'r':
+		if (strcmp(key, "resdevice") == 0) {
+			/* stat(2) st_dev field, e.g. the device ID where the
+			 * inode resides */
+			int r;
+			dev_t dev;
 
-			archive_entry_linkify(mtree->resolver, &entry, &sparse_entry);
-		} else if (parsed_kws & MTREE_HAS_OPTIONAL) {
+			r = parse_device(&dev, &a->archive, val);
+			if (r == ARCHIVE_OK)
+				archive_entry_set_dev(entry, dev);
+			return r;
+		}
+		if (strcmp(key, "rmd160") == 0 ||
+		    strcmp(key, "rmd160digest") == 0)
+			break;
+	case 's':
+		if (strcmp(key, "sha1") == 0 || strcmp(key, "sha1digest") == 0)
+			break;
+		if (strcmp(key, "sha256") == 0 ||
+		    strcmp(key, "sha256digest") == 0)
+			break;
+		if (strcmp(key, "sha384") == 0 ||
+		    strcmp(key, "sha384digest") == 0)
+			break;
+		if (strcmp(key, "sha512") == 0 ||
+		    strcmp(key, "sha512digest") == 0)
+			break;
+		if (strcmp(key, "size") == 0) {
+			archive_entry_set_size(entry, mtree_atol10(&val));
+			break;
+		}
+	case 't':
+		if (strcmp(key, "tags") == 0) {
 			/*
-			 * Couldn't open the entry, stat it or the on-disk type
-			 * didn't match.  If this entry is optional, just ignore it
-			 * and read the next header entry.
+			 * Comma delimited list of tags.
+			 * Ignore the tags for now, but the interface
+			 * should be extended to allow inclusion/exclusion.
 			 */
-			*use_next = 1;
-			return ARCHIVE_OK;
+			break;
 		}
+		if (strcmp(key, "time") == 0) {
+			int64_t m;
+			int64_t my_time_t_max = get_time_t_max();
+			int64_t my_time_t_min = get_time_t_min();
+			long ns;
+
+			*parsed_kws |= MTREE_HAS_MTIME;
+			m = mtree_atol10(&val);
+			/* Replicate an old mtree bug:
+			 * 123456789.1 represents 123456789
+			 * seconds and 1 nanosecond. */
+			if (*val == '.') {
+				++val;
+				ns = (long)mtree_atol10(&val);
+			} else
+				ns = 0;
+			if (m > my_time_t_max)
+				m = my_time_t_max;
+			else if (m < my_time_t_min)
+				m = my_time_t_min;
+			archive_entry_set_mtime(entry, (time_t)m, ns);
+			break;
+		}
+		if (strcmp(key, "type") == 0) {
+			switch (val[0]) {
+			case 'b':
+				if (strcmp(val, "block") == 0) {
+					archive_entry_set_filetype(entry, AE_IFBLK);
+					break;
+				}
+			case 'c':
+				if (strcmp(val, "char") == 0) {
+					archive_entry_set_filetype(entry, AE_IFCHR);
+					break;
+				}
+			case 'd':
+				if (strcmp(val, "dir") == 0) {
+					archive_entry_set_filetype(entry, AE_IFDIR);
+					break;
+				}
+			case 'f':
+				if (strcmp(val, "fifo") == 0) {
+					archive_entry_set_filetype(entry, AE_IFIFO);
+					break;
+				}
+				if (strcmp(val, "file") == 0) {
+					archive_entry_set_filetype(entry, AE_IFREG);
+					break;
+				}
+			case 'l':
+				if (strcmp(val, "link") == 0) {
+					archive_entry_set_filetype(entry, AE_IFLNK);
+					break;
+				}
+			default:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Unrecognized file type \"%s\"; assuming \"file\"", val);
+				archive_entry_set_filetype(entry, AE_IFREG);
+				return (ARCHIVE_WARN);
+			}
+			*parsed_kws |= MTREE_HAS_TYPE;
+			break;
+		}
+	case 'u':
+		if (strcmp(key, "uid") == 0) {
+			*parsed_kws |= MTREE_HAS_UID;
+			archive_entry_set_uid(entry, mtree_atol10(&val));
+			break;
+		}
+		if (strcmp(key, "uname") == 0) {
+			*parsed_kws |= MTREE_HAS_UNAME;
+			archive_entry_copy_uname(entry, val);
+			break;
+		}
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unrecognized key %s=%s", key, val);
+		return (ARCHIVE_WARN);
 	}
-
-	mtree->cur_size = archive_entry_size(entry);
-	mtree->offset = 0;
-
-	return r;
+	return (ARCHIVE_OK);
 }

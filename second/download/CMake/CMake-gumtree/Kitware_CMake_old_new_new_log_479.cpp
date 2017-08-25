@@ -1,1 +1,2 @@
-fprintf(fout, "set(CMAKE_MODULE_PATH %s)\n", def);
+fprintf(fout, "set(%s \"%s\")\n",
+                rulesOverrideLang.c_str(), rulesOverridePath);

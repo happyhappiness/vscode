@@ -1,1 +1,4 @@
-fprintf(fout,"%s ",compileFlags[i].c_str());
+archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unkonwn checksum name: `%s'",
+			    value);

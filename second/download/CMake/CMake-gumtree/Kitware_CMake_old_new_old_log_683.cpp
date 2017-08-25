@@ -1,3 +1,1 @@
-str.Printf("CMake %d.%d - %s", cmVersion::GetMajorVersion(),
-               cmVersion::GetMinorVersion(), 
-               cmVersion::GetReleaseVersion().c_str());
+sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);

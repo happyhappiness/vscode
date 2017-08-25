@@ -1,2 +1,2 @@
-f(newhost, sizeof(newhost),
-             "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+snprintf(buf, sizeof(data->state.buffer),
+               "Content-Length: %" FORMAT_OFF_T "\r\n", filesize);

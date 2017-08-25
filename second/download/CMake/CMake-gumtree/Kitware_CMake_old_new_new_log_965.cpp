@@ -1,1 +1,1 @@
-fprintf(fout, ")\n");
+self->AddError(message, title);

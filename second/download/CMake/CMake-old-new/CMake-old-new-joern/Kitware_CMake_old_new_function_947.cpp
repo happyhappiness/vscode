@@ -1,6 +1,15 @@
-void ctest::GenerateDartBuildOutput(std::ostream& os, 
-                                    std::vector<cmCTestBuildErrorWarning> ew)
+void ctest::GenerateDartOutput(std::ostream& os)
 {
+  if ( !m_DartMode )
+    {
+    return;
+    }
+
+  if ( m_TestResults.size() == 0 )
+    {
+    return;
+    }
+
   time_t tctime = time(0);
   struct tm *lctime = gmtime(&tctime);
   char datestring[100];
@@ -15,40 +24,48 @@ void ctest::GenerateDartBuildOutput(std::ostream& os,
      << "<Site BuildName=\"" << m_DartConfiguration["BuildName"]
      << "\" BuildStamp=\"" << datestring << "-Experimental\" Name=\""
      << m_DartConfiguration["Site"] << "\">\n"
-     << "<Build>\n"
+     << "<Testing>\n"
      << "  <StartDateTime>" << ::CurrentTime() << "</StartDateTime>\n"
-     << "  <BuildCommand>" << m_DartConfiguration["MakeCommand"]
-     << "</BuildCommand>" << std::endl;
-    
-  std::vector<cmCTestBuildErrorWarning>::iterator it;
-  for ( it = ew.begin(); it != ew.end(); it++ )
+     << "  <TestList>\n";
+  tm_TestResultsVector::size_type cc;
+  for ( cc = 0; cc < m_TestResults.size(); cc ++ )
     {
-    cmCTestBuildErrorWarning *cm = &(*it);
-    os << "  <" << (cm->m_Error ? "Error" : "Warning") << ">\n"
-       << "    <BuildLogLine>" << cm->m_LogLine << "</BuildLogLine>\n"
-       << "    <Text>" << cm->m_Text << "</Text>" << std::endl;
-    if ( cm->m_SourceFile.size() > 0 )
-      {
-      os << "    <SourceFile>" << cm->m_SourceFile << "</SourceFile>" 
-         << std::endl;
-      }
-    if ( cm->m_SourceFileTail.size() > 0 )
-      {
-      os << "    <SourceFileTail>" << cm->m_SourceFileTail 
-         << "</SourceFileTail>" << std::endl;
-      }
-    if ( cm->m_LineNumber >= 0 )
-      {
-      os << "    <SourceLineNumber>" << cm->m_LineNumber 
-         << "</SourceLineNumber>" << std::endl;
-      }
-    os << "    <PreContext>" << cm->m_PreContext << "</PreContext>\n"
-       << "    <PostContext>" << cm->m_PostContext << "</PostContext>\n"
-       << "  </" << (cm->m_Error ? "Error" : "Warning") << ">" 
-       << std::endl;
+    cmCTestTestResult *result = &m_TestResults[cc];
+    os << "    <Test>" << result->m_Path << "/" << result->m_Name 
+       << "</Test>" << std::endl;
     }
-  os << "  <Log Encoding=\"base64\" Compression=\"/bin/gzip\">\n    </Log>\n"
-     << "  <EndDateTime>" << ::CurrentTime() << "</EndDateTime>\n"
-     << "</Build>\n"
+  os << "  </TestList>\n";
+  for ( cc = 0; cc < m_TestResults.size(); cc ++ )
+    {
+    cmCTestTestResult *result = &m_TestResults[cc];
+    os << "  <Test Status=\"" << (result->m_ReturnValue?"failed":"passed") 
+       << "\">\n"
+       << "    <Name>" << result->m_Name << "</Name>\n"
+       << "    <Path>" << result->m_Path << "</Path>\n"
+       << "    <FullName>" << result->m_Path << "/" << result->m_Name << "</FullName>\n"
+       << "    <FullCommandLine>" << result->m_FullCommandLine << "</FullCommandLine>\n"
+       << "    <Results>" << std::endl;
+    if ( result->m_ReturnValue )
+      {
+      os << "      <NamedMeasurement type=\"text/string\" name=\"Exit Code\"><Value>"
+         << "CHILDSTATUS" << "</Value></NamedMeasurement>\n"
+         << "      <NamedMeasurement type=\"text/string\" name=\"Exit Value\"><Value>"
+         << result->m_ReturnValue << "</Value></NamedMeasurement>" << std::endl;
+      }
+    os << "      <NamedMeasurement type=\"numeric/double\" "
+       << "name=\"Execution Time\"><Value>"
+       << result->m_ExecutionTime << "</Value></NamedMeasurement>\n"
+       << "      <NamedMeasurement type=\"text/string\" "
+       << "name=\"Completion Status\"><Value>"
+       << result->m_CompletionStatus << "</Value></NamedMeasurement>\n"
+       << "      <Measurement>\n"
+       << "        <Value>" << result->m_Output << "</value>\n"
+       << "      </Measurement>\n"
+       << "    </Results>\n"
+       << "  </Test>" << std::endl;
+    }
+  
+  os << "<EndDateTime>" << ::CurrentTime() << "</EndDateTime>\n"
+     << "</Testing>\n"
      << "</Site>" << std::endl;
 }

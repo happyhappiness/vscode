@@ -1,1 +1,1 @@
-fprintf(fout, "IF (CMAKE_ANSI_CFLAGS)\n");
+fprintf(fout, "ENDIF (CMAKE_ANSI_CFLAGS)\n");

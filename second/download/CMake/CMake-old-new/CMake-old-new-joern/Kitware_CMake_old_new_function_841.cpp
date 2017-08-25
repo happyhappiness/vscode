@@ -1,183 +1,113 @@
 static
-CURLcode ftp_use_pasv(struct connectdata *conn,
-                      bool *connected)
+CURLcode ftp_perform(struct connectdata *conn,
+                     bool *connected)  /* for the TCP connect status after
+                                          PASV / PORT */
 {
-  struct SessionHandle *data = conn->data;
-  int nread;
+  /* this is FTP and no proxy */
+  CURLcode result=CURLE_OK;
+  struct SessionHandle *data=conn->data;
   char *buf = data->state.buffer; /* this is our buffer */
-  int ftpcode; /* receive FTP response codes in this */
-  CURLcode result;
-  struct Curl_dns_entry *addr=NULL;
-  Curl_ipconnect *conninfo;
 
-  /*
-    Here's the excecutive summary on what to do:
+  /* the ftp struct is already inited in Curl_ftp_connect() */
+  struct FTP *ftp = conn->proto.ftp;
 
-    PASV is RFC959, expect:
-    227 Entering Passive Mode (a1,a2,a3,a4,p1,p2)
-
-    LPSV is RFC1639, expect:
-    228 Entering Long Passive Mode (4,4,a1,a2,a3,a4,2,p1,p2)
-
-    EPSV is RFC2428, expect:
-    229 Entering Extended Passive Mode (|||port|)
-
-  */
-
-#if 1
-  const char *mode[] = { "EPSV", "PASV", NULL };
-  int results[] = { 229, 227, 0 };
-#else
-#if 0
-  char *mode[] = { "EPSV", "LPSV", "PASV", NULL };
-  int results[] = { 229, 228, 227, 0 };
-#else
-  const char *mode[] = { "PASV", NULL };
-  int results[] = { 227, 0 };
-#endif
-#endif
-  int modeoff;
-  unsigned short connectport; /* the local port connect() should use! */
-  unsigned short newport=0; /* remote port, not necessary the local one */
-  
-  /* newhost must be able to hold a full IP-style address in ASCII, which
-     in the IPv6 case means 5*8-1 = 39 letters */
-  char newhost[48];
-  char *newhostp=NULL;
-  
-  for (modeoff = (data->set.ftp_use_epsv?0:1);
-       mode[modeoff]; modeoff++) {
-    result = Curl_ftpsendf(conn, "%s", mode[modeoff]);
-    if(result)
+  /* Send any QUOTE strings? */
+  if(data->set.quote) {
+    if ((result = ftp_sendquote(conn, data->set.quote)) != CURLE_OK)
       return result;
-    result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-    if(result)
-      return result;
-    if (ftpcode == results[modeoff])
-      break;
-  }
-
-  if (!mode[modeoff]) {
-    failf(data, "Odd return code after PASV");
-    return CURLE_FTP_WEIRD_PASV_REPLY;
-  }
-  else if (227 == results[modeoff]) {
-    int ip[4];
-    int port[2];
-    char *str=buf;
-
-    /*
-     * New 227-parser June 3rd 1999.
-     * It now scans for a sequence of six comma-separated numbers and
-     * will take them as IP+port indicators.
-     *
-     * Found reply-strings include:
-     * "227 Entering Passive Mode (127,0,0,1,4,51)"
-     * "227 Data transfer will passively listen to 127,0,0,1,4,51"
-     * "227 Entering passive mode. 127,0,0,1,4,51"
-     */
-      
-    while(*str) {
-      if (6 == sscanf(str, "%d,%d,%d,%d,%d,%d",
-                      &ip[0], &ip[1], &ip[2], &ip[3],
-                      &port[0], &port[1]))
-        break;
-      str++;
-    }
-
-    if(!*str) {
-      failf(data, "Couldn't interpret this 227-reply: %s", buf);
-      return CURLE_FTP_WEIRD_227_FORMAT;
-    }
-
-    sprintf(newhost, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-    newhostp = newhost;
-    newport = (unsigned short)((port[0]<<8) + port[1]);
-  }
-#if 1
-  else if (229 == results[modeoff]) {
-    char *ptr = strchr(buf, '(');
-    if(ptr) {
-      unsigned int num;
-      char separator[4];
-      ptr++;
-      if(5  == sscanf(ptr, "%c%c%c%u%c",
-                      &separator[0],
-                      &separator[1],
-                      &separator[2],
-                      &num,
-                      &separator[3])) {
-        /* the four separators should be identical */
-        newport = (unsigned short)num;
-
-        /* we should use the same host we already are connected to */
-        newhostp = conn->name;
-      }                      
-      else
-        ptr=NULL;
-    }
-    if(!ptr) {
-      failf(data, "Weirdly formatted EPSV reply");
-      return CURLE_FTP_WEIRD_PASV_REPLY;
-    }
-  }
-#endif
-  else
-    return CURLE_FTP_CANT_RECONNECT;
-
-  if(data->change.proxy) {
-    /*
-     * This is a tunnel through a http proxy and we need to connect to the
-     * proxy again here.
-     *
-     * We don't want to rely on a former host lookup that might've expired
-     * now, instead we remake the lookup here and now!
-     */
-    addr = Curl_resolv(data, conn->proxyhost, conn->port);
-    connectport =
-      (unsigned short)conn->port; /* we connect to the proxy's port */    
-
-  }
-  else {
-    /* normal, direct, ftp connection */
-    addr = Curl_resolv(data, newhostp, newport);
-    if(!addr) {
-      failf(data, "Can't resolve new host %s:%d", newhostp, newport);
-      return CURLE_FTP_CANT_GET_HOST;
-    }
-    connectport = newport; /* we connect to the remote port */
   }
     
-  result = Curl_connecthost(conn,
-                            addr,
-                            connectport,
-                            &conn->secondarysocket,
-                            &conninfo,
-                            connected);
-
-  Curl_resolv_unlock(addr); /* we're done using this address */
-
-  /*
-   * When this is used from the multi interface, this might've returned with
-   * the 'connected' set to FALSE and thus we are now awaiting a non-blocking
-   * connect to connect and we should not be "hanging" here waiting.
-   */
-  
-  if((CURLE_OK == result) &&       
-     data->set.verbose)
-    /* this just dumps information about this second connection */
-    ftp_pasv_verbose(conn, conninfo, newhostp, connectport);
-  
-  if(CURLE_OK != result)
-    return result;
-
-  if (data->set.tunnel_thru_httpproxy) {
-    /* We want "seamless" FTP operations through HTTP proxy tunnel */
-    result = Curl_ConnectHTTPProxyTunnel(conn, conn->secondarysocket,
-                                         newhostp, newport);
-    if(CURLE_OK != result)
+  /* This is a re-used connection. Since we change directory to where the
+     transfer is taking place, we must now get back to the original dir
+     where we ended up after login: */
+  if (conn->bits.reuse && ftp->entrypath) {
+    if ((result = ftp_cwd(conn, ftp->entrypath)) != CURLE_OK)
       return result;
   }
 
-  return CURLE_OK;
+  /* change directory first! */
+  if(ftp->dir && ftp->dir[0]) {
+    if ((result = ftp_cwd(conn, ftp->dir)) != CURLE_OK)
+        return result;
+  }
+
+  /* Requested time of file? */
+  if(data->set.get_filetime && ftp->file) {
+    result = ftp_getfiletime(conn, ftp->file);
+    if(result)
+      return result;
+  }
+
+  /* If we have selected NOBODY and HEADER, it means that we only want file
+     information. Which in FTP can't be much more than the file size and
+     date. */
+  if(data->set.no_body && data->set.include_header && ftp->file) {
+    /* The SIZE command is _not_ RFC 959 specified, and therefor many servers
+       may not support it! It is however the only way we have to get a file's
+       size! */
+    ssize_t filesize;
+
+    ftp->no_transfer = TRUE; /* this means no actual transfer is made */
+    
+    /* Some servers return different sizes for different modes, and thus we
+       must set the proper type before we check the size */
+    result = ftp_transfertype(conn, data->set.ftp_ascii);
+    if(result)
+      return result;
+
+    /* failing to get size is not a serious error */
+    result = ftp_getsize(conn, ftp->file, &filesize);
+
+    if(CURLE_OK == result) {
+      sprintf(buf, "Content-Length: %d\r\n", filesize);
+      result = Curl_client_write(data, CLIENTWRITE_BOTH, buf, 0);
+      if(result)
+        return result;
+    }
+
+    /* If we asked for a time of the file and we actually got one as
+       well, we "emulate" a HTTP-style header in our output. */
+
+#ifdef HAVE_STRFTIME
+    if(data->set.get_filetime && (data->info.filetime>=0) ) {
+      struct tm *tm;
+#ifdef HAVE_LOCALTIME_R
+      struct tm buffer;
+      tm = (struct tm *)localtime_r((time_t*)&data->info.filetime, &buffer);
+#else
+      tm = localtime((time_t *)&data->info.filetime);
+#endif
+      /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+      strftime(buf, BUFSIZE-1, "Last-Modified: %a, %d %b %Y %H:%M:%S %Z\r\n",
+               tm);
+      result = Curl_client_write(data, CLIENTWRITE_BOTH, buf, 0);
+      if(result)
+        return result;
+    }
+#endif
+
+    return CURLE_OK;
+  }
+
+  if(data->set.no_body)
+    /* doesn't really transfer any data */
+    ftp->no_transfer = TRUE;
+  /* Get us a second connection up and connected */
+  else if(data->set.ftp_use_port) {
+    /* We have chosen to use the PORT command */
+    result = ftp_use_port(conn);
+    if(CURLE_OK == result) {
+      /* we have the data connection ready */
+      infof(data, "Ordered connect of the data stream with PORT!\n");
+      *connected = TRUE; /* mark us "still connected" */
+    }
+  }
+  else {
+    /* We have chosen (this is default) to use the PASV command */
+    result = ftp_use_pasv(conn, connected);
+    if(connected)
+      infof(data, "Connected the data stream with PASV!\n");
+  }
+  
+  return result;
 }

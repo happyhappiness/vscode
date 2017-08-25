@@ -1,1 +1,1 @@
-vfprintf(data->set.err, fmt, ap);
+fprintf(data->set.err, "> %s", s);

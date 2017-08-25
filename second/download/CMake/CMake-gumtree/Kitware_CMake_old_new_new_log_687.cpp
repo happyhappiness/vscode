@@ -1,1 +1,1 @@
-sprintf(buf, "%u", this->VersionPatch);
+sprintf(buf, "%u", this->VersionMinor);

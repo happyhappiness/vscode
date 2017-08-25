@@ -1,1 +1,2 @@
-fprintf(stderr,"***Bad command %d\n", res);
+sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%u_%p.exe",
+            GetCurrentProcessId(), cp);

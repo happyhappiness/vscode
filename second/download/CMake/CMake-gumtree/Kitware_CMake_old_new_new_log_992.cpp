@@ -1,1 +1,1 @@
-sprintf(firstLine, "Page %d of %d", cw->GetPage(), m_NumberOfPages);
+sprintf(firstLine,  "C)onfigure                 G)enerate and Exit            H)elp");

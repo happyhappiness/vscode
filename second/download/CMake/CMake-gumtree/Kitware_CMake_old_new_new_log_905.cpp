@@ -1,1 +1,1 @@
-sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);
+printf("Error, could not open file %s\n", filename);

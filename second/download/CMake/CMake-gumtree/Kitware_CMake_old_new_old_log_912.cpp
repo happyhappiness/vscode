@@ -1,1 +1,1 @@
-buf = aprintf(fmt, ap);
+vfprintf(f, fmt, ap);

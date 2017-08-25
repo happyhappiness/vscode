@@ -1,6 +1,7 @@
 {
-      /* if a line like this was already allocated, free the previous one */
-      if(conn->allocptr.rangeline)
-        free(conn->allocptr.rangeline);
-      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n", conn->range);
+      Curl_safefree(*allocuserpwd);
+      *allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
+                              proxy?"Proxy-":"",
+                              base64);
+      free(base64);
     }

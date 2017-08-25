@@ -1,3 +1,3 @@
 {
-        sprintf(tz, " +%04ld", committer.TimeZone);
+        sprintf(tz, " -%04ld", -committer.TimeZone);
         }

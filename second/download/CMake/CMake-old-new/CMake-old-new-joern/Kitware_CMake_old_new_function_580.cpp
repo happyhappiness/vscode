@@ -1,27 +1,26 @@
-int
-archive_read_support_filter_lzma(struct archive *_a)
+static int
+archive_read_format_cab_options(struct archive_read *a,
+    const char *key, const char *val)
 {
-	struct archive_read *a = (struct archive_read *)_a;
-	struct archive_read_filter_bidder *bidder;
+	struct cab *cab;
+	int ret = ARCHIVE_FAILED;
 
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_filter_lzma");
+	cab = (struct cab *)(a->format->data);
+	if (strcmp(key, "hdrcharset")  == 0) {
+		if (val == NULL || val[0] == 0)
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "cab: hdrcharset option needs a character-set name");
+		else {
+			cab->sconv = archive_string_conversion_from_charset(
+			    &a->archive, val, 0);
+			if (cab->sconv != NULL)
+				ret = ARCHIVE_OK;
+			else
+				ret = ARCHIVE_FATAL;
+		}
+	} else
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "cab: unknown keyword ``%s''", key);
 
-	if (__archive_read_get_bidder(a, &bidder) != ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
-
-	bidder->data = NULL;
-	bidder->bid = lzma_bidder_bid;
-	bidder->init = lzma_bidder_init;
-	bidder->options = NULL;
-	bidder->free = NULL;
-#if HAVE_LZMA_H && HAVE_LIBLZMA
-	return (ARCHIVE_OK);
-#elif HAVE_LZMADEC_H && HAVE_LIBLZMADEC
-	return (ARCHIVE_OK);
-#else
-	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external unlzma program for lzma decompression");
-	return (ARCHIVE_WARN);
-#endif
+	return (ret);
 }

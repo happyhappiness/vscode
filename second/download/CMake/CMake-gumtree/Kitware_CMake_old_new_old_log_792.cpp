@@ -1,1 +1,1 @@
-printf("### done extracting %s\n", filename);
+printf(" %s", th_get_pathname(t));

@@ -1,66 +1,113 @@
 {
-    if (this->HandlerVerbose && passed.size() &&
-      (this->UseIncludeRegExpFlag || this->UseExcludeRegExpFlag))
+    std::vector<std::pair<cmsys::RegularExpression,
+      std::string> >::iterator passIt;
+    bool forceFail = false;
+    if ( this->TestProperties->RequiredRegularExpressions.size() > 0 )
       {
-      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
-        << "The following tests passed:" << std::endl);
-      for(std::vector<cmStdString>::iterator j = passed.begin();
-          j != passed.end(); ++j)
+      bool found = false;
+      for ( passIt = this->TestProperties->RequiredRegularExpressions.begin();
+            passIt != this->TestProperties->RequiredRegularExpressions.end();
+            ++ passIt )
         {
-        cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "\t" << *j
-          << std::endl);
-        }
-      }
-
-    float percent = float(passed.size()) * 100.0f / total;
-    if ( failed.size() > 0 &&  percent > 99)
-      {
-      percent = 99;
-      }
-    
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl
-               << static_cast<int>(percent + .5) << "% tests passed, "
-               << failed.size() << " tests failed out of " 
-               << total << std::endl); 
-    double totalTestTime = 0;
-
-    for(cmCTestTestHandler::TestResultsVector::size_type cc = 0;
-        cc < this->TestResults.size(); cc ++ )
-      {
-      cmCTestTestResult *result = &this->TestResults[cc];
-      totalTestTime += result->ExecutionTime;
-      }
-    
-    char realBuf[1024];
-    sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (real) = "
-               << realBuf << "\n" );
-
-    char totalBuf[1024];
-    sprintf(totalBuf, "%6.2f sec", totalTestTime); 
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (parallel) = "
-               <<  totalBuf << "\n" );
-
-    if (failed.size())
-      {
-      cmGeneratedFileStream ofs;
-      cmCTestLog(this->CTest, ERROR_MESSAGE, std::endl
-                 << "The following tests FAILED:" << std::endl);
-      this->StartLogFile("TestsFailed", ofs);
-      
-      std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;
-      for(ftit = this->TestResults.begin();
-          ftit != this->TestResults.end(); ++ftit)
-        {
-        if ( ftit->Status != cmCTestTestHandler::COMPLETED )
+        if ( passIt->first.find(this->ProcessOutput.c_str()) )
           {
-          ofs << ftit->TestCount << ":" << ftit->Name << std::endl;
-          cmCTestLog(this->CTest, HANDLER_OUTPUT, "\t" << std::setw(3)
-                     << ftit->TestCount << " - " 
-                     << ftit->Name.c_str() << " ("
-                     << this->GetTestStatus(ftit->Status) << ")" 
-                     << std::endl);
+          found = true;
+          reason = "Required regular expression found.";
+          }
+        }
+      if ( !found )
+        { 
+        reason = "Required regular expression not found.";
+        forceFail = true;
+        }
+      reason +=  "Regex=["; 
+      for ( passIt = this->TestProperties->RequiredRegularExpressions.begin();
+            passIt != this->TestProperties->RequiredRegularExpressions.end();
+            ++ passIt )
+        {
+        reason += passIt->second;
+        reason += "\n";
+        }
+      reason += "]";
+      }
+    if ( this->TestProperties->ErrorRegularExpressions.size() > 0 )
+      {
+      for ( passIt = this->TestProperties->ErrorRegularExpressions.begin();
+            passIt != this->TestProperties->ErrorRegularExpressions.end();
+            ++ passIt )
+        {
+        if ( passIt->first.find(this->ProcessOutput.c_str()) )
+          {
+          reason = "Error regular expression found in output.";
+          reason += " Regex=[";
+          reason += passIt->second;
+          reason += "]";
+          forceFail = true;
           }
         }
       }
+    if (res == cmsysProcess_State_Exited)
+      {
+      bool success = 
+        !forceFail &&  (retVal == 0 || 
+        this->TestProperties->RequiredRegularExpressions.size());
+      if((success && !this->TestProperties->WillFail) 
+        || (!success && this->TestProperties->WillFail))
+        {
+        this->TestResult.Status = cmCTestTestHandler::COMPLETED;
+        cmCTestLog(this->CTest, HANDLER_OUTPUT, "   Passed  " );
+        }
+      else
+        {
+        this->TestResult.Status = cmCTestTestHandler::FAILED;
+        cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Failed  " << reason );
+        }
+      }
+    else if ( res == cmsysProcess_State_Expired )
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Timeout");
+      this->TestResult.Status = cmCTestTestHandler::TIMEOUT;
+      }
+    else if ( res == cmsysProcess_State_Exception )
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Exception: ");
+      switch ( retVal )
+        {
+        case cmsysProcess_Exception_Fault:
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "SegFault");
+          this->TestResult.Status = cmCTestTestHandler::SEGFAULT;
+          break;
+        case cmsysProcess_Exception_Illegal:
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "Illegal");
+          this->TestResult.Status = cmCTestTestHandler::ILLEGAL;
+          break;
+        case cmsysProcess_Exception_Interrupt:
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "Interrupt");
+          this->TestResult.Status = cmCTestTestHandler::INTERRUPT;
+          break;
+        case cmsysProcess_Exception_Numerical:
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "Numerical");
+          this->TestResult.Status = cmCTestTestHandler::NUMERICAL;
+          break;
+        default:
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "Other");
+          this->TestResult.Status = cmCTestTestHandler::OTHER_FAULT;
+        }
+      }
+    else // if ( res == cmsysProcess_State_Error )
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Bad command " << res );
+      this->TestResult.Status = cmCTestTestHandler::BAD_COMMAND;
+      }
+
+    passed = this->TestResult.Status == cmCTestTestHandler::COMPLETED;
+
+    char buf[1024];
+    sprintf(buf, "%6.2f sec", this->TestProcess->GetTotalTime());
+    cmCTestLog(this->CTest, HANDLER_OUTPUT, buf << "\n" );
+    if ( this->TestHandler->LogFile )
+      {
+      *this->TestHandler->LogFile << "Test time = " << buf << std::endl;
+      }
+    this->DartProcessing();
     }

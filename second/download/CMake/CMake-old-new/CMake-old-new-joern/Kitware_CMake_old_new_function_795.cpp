@@ -1,139 +1,80 @@
-int main(int argc, const char* argv[])
+void
+th_print_long_ls(TAR *t)
 {
-  int n = 0;
-#if 0
-    {
-    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-    DuplicateHandle(GetCurrentProcess(), out,
-                    GetCurrentProcess(), &out, 0, FALSE,
-                    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
-    SetStdHandle(STD_OUTPUT_HANDLE, out);
-    }
-    {
-    HANDLE out = GetStdHandle(STD_ERROR_HANDLE);
-    DuplicateHandle(GetCurrentProcess(), out,
-                    GetCurrentProcess(), &out, 0, FALSE,
-                    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
-    SetStdHandle(STD_ERROR_HANDLE, out);
-    }
+  char modestring[12];
+#ifndef WIN32
+  struct passwd *pw;
+  struct group *gr;
 #endif
-  if(argc == 2)
-    {
-    n = atoi(argv[1]);
-    }
-  else if(argc == 3)
-    {
-    n = atoi(argv[2]);
-    }
-  /* Check arguments.  */
-  if(n < 1 || n > 7 || (argc == 3 && strcmp(argv[1], "run") != 0))
-    {
-    fprintf(stdout, "Usage: %s <test number>\n", argv[0]);
-    return 1;
-    }
-  if(argc == 3)
-    {
-    switch (n)
-      {
-      case 1: return test1(argc, argv);
-      case 2: return test2(argc, argv);
-      case 3: return test3(argc, argv);
-      case 4: return test4(argc, argv);
-      case 5: return test5(argc, argv);
-      case 6: test6(argc, argv); return 0;
-      case 7: return test7(argc, argv);
-      }
-    fprintf(stderr, "Invalid test number %d.\n", n);
-    return 1;
-    }
-  
-  if(n >= 0 && n <= 7)
-    {
-    int states[7] =
-    {
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Expired,
-      kwsysProcess_State_Exception,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Expired,
-      kwsysProcess_State_Exited
-    };
-    int exceptions[7] =
-    {
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_Fault,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None
-    };
-    int values[7] = {0, 123, 1, 1, 0, 0, 0};
-    int outputs[7] = {1, 1, 1, 1, 1, 0, 1};
-    int delays[7] = {0, 0, 0, 0, 0, 1, 0};
-    double timeouts[7] = {10, 10, 10, 10, 30, 10, -1};
-    int polls[7] = {0, 0, 0, 0, 0, 0, 1};
-    int repeat[7] = {2, 1, 1, 1, 1, 1, 1};
-    int r;
-    const char* cmd[4];
-#ifdef _WIN32
-    char* argv0 = 0;
-    if(n == 0 && (argv0 = strdup(argv[0])))
-      {
-      /* Try converting to forward slashes to see if it works.  */
-      char* c;
-      for(c=argv0; *c; ++c)
-        {
-        if(*c == '\\')
-          {
-          *c = '/';
-          }
-        }
-      cmd[0] = argv0;
-      }
-    else
-      {
-      cmd[0] = argv[0];
-      }
+  uid_t uid;
+  gid_t gid;
+  char username[_POSIX_LOGIN_NAME_MAX];
+  char groupname[_POSIX_LOGIN_NAME_MAX];
+  time_t mtime;
+  struct tm *mtm;
+
+#ifdef HAVE_STRFTIME
+  char timebuf[18];
 #else
-    cmd[0] = argv[0];
+  const char *months[] = {
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+  };
 #endif
-    cmd[1] = "run";
-    cmd[2] = argv[1];
-    cmd[3] = 0;
-    fprintf(stdout, "Output on stdout before test %d.\n", n);
-    fprintf(stderr, "Output on stderr before test %d.\n", n);
-    fflush(stdout);
-    fflush(stderr);
-    r = runChild(cmd, states[n-1], exceptions[n-1], values[n-1], 0,
-                 outputs[n-1], delays[n-1], timeouts[n-1],
-                 polls[n-1], repeat[n-1]);
-    fprintf(stdout, "Output on stdout after test %d.\n", n);
-    fprintf(stderr, "Output on stderr after test %d.\n", n);
-    fflush(stdout);
-    fflush(stderr);
-#if _WIN32
-    if(argv0) { free(argv0); }
-#endif
-    return r;
-    }
-  else if(argc > 2 && strcmp(argv[1], "0") == 0)
-    {
-    /* This is the special debugging test to run a given command
-       line.  */
-    const char** cmd = argv+2;
-    int state = kwsysProcess_State_Exited;
-    int exception = kwsysProcess_Exception_None;
-    int value = 0;
-    double timeout = 0;
-    int r = runChild(cmd, state, exception, value, 0, 1, 0, timeout, 0, 1);
-    return r;
-    }
+
+  uid = th_get_uid(t);
+#ifndef WIN32
+  pw = getpwuid(uid);
+  if (pw != NULL)
+    strlcpy(username, pw->pw_name, sizeof(username));
   else
-    {
-    /* Improper usage.  */
-    fprintf(stdout, "Usage: %s <test number>\n", argv[0]);
-    return 1;
-    }
+#endif
+    snprintf(username, sizeof(username), "%d", uid);
+  gid = th_get_gid(t);
+#ifndef WIN32
+  gr = getgrgid(gid);
+  if (gr != NULL)
+    strlcpy(groupname, gr->gr_name, sizeof(groupname));
+  else
+#endif
+    snprintf(groupname, sizeof(groupname), "%d", gid);
+    
+  strmode(th_get_mode(t), modestring);
+  printf("%.10s %-8.8s %-8.8s ", modestring, username, groupname);
+
+#ifndef WIN32
+  if (TH_ISCHR(t) || TH_ISBLK(t))
+    printf(" %3d, %3d ", th_get_devmajor(t), th_get_devminor(t));
+  else
+    printf("%9ld ", (long)th_get_size(t));
+#endif
+
+  mtime = th_get_mtime(t);
+  mtm = localtime(&mtime);
+#ifdef HAVE_STRFTIME
+  strftime(timebuf, sizeof(timebuf), "%h %e %H:%M %Y", mtm);
+  printf("%s", timebuf);
+#else
+  printf("%.3s %2d %2d:%02d %4d",
+         months[mtm->tm_mon],
+         mtm->tm_mday, mtm->tm_hour, mtm->tm_min, mtm->tm_year + 1900);
+#endif
+
+  printf(" %s", th_get_pathname(t));
+
+#ifndef _WIN32
+  if (TH_ISSYM(t) || TH_ISLNK(t))
+  {
+    if (TH_ISSYM(t))
+      printf(" -> ");
+    else
+      printf(" link to ");
+    if ((t->options & TAR_GNU) && t->th_buf.gnu_longlink != NULL)
+      printf("%s", t->th_buf.gnu_longlink);
+    else
+      printf("%.100s", t->th_buf.linkname);
+  }
+#endif
+
+  putchar('\n');
 }

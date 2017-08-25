@@ -1,2 +1,1 @@
-fprintf(fout, "SET(%s \"%s\")\n",
-              rulesOverrideBase, rulesOverridePath2);
+fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE %s)\n", lang);

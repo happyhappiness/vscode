@@ -1,2 +1,1 @@
-sprintf(output,"%s/%s_force_%i", this->Makefile->GetCurrentBinaryDirectory(),
-          target.GetName().c_str(), count);
+sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));

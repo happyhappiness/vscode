@@ -1,4 +1,15 @@
 {
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
-    }
+        case '+':
+        case '?':
+        case '/':
+        case '\\':
+        case '&':
+        case ' ':
+        case '=':
+        case '%':
+          sprintf(hex, "%%%02X", (int)c);
+          ofile.append(hex);
+          break;
+        default: 
+          ofile.append(hex);
+          }

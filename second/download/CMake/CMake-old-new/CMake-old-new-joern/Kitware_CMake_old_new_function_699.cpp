@@ -1,267 +1,265 @@
-void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed, 
-                             cmCTest::tm_VectorOfStrings &failed,
-                             bool memcheck)
+kwsys_stl::string SystemTools::GetOperatingSystemNameAndVersion()
 {
-  std::string current_dir = cmSystemTools::GetCurrentWorkingDirectory();
-  cmsys::RegularExpression dartStuff("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
-  tm_ListOfTests testlist;
-  this->GetListOfTests(&testlist, memcheck);
-  tm_ListOfTests::size_type tmsize = testlist.size();
+  kwsys_stl::string res;
 
-  std::ofstream ofs;
-  std::ofstream *olog = 0;
-  if ( !m_ShowOnly && tmsize > 0 && 
-    this->OpenOutputFile("Temporary", 
-      (memcheck?"LastMemCheck.log":"LastTest.log"), ofs) )
+#ifdef _WIN32
+  char buffer[256];
+
+  OSVERSIONINFOEX osvi;
+  BOOL bOsVersionInfoEx;
+
+  // Try calling GetVersionEx using the OSVERSIONINFOEX structure.
+  // If that fails, try using the OSVERSIONINFO structure.
+
+  ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
+  osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+
+  bOsVersionInfoEx = GetVersionEx((OSVERSIONINFO *)&osvi);
+  if (!bOsVersionInfoEx)
     {
-    olog = &ofs;
+    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+    if (!GetVersionEx((OSVERSIONINFO *)&osvi)) 
+      {
+      return 0;
+      }
     }
-
-  m_StartTest = this->CurrentTime();
-  double elapsed_time_start = cmSystemTools::GetTime();
-
-  if ( olog )
-    {
-    *olog << "Start testing: " << m_StartTest << std::endl
-      << "----------------------------------------------------------"
-      << std::endl;
-    }
-
-  // expand the test list
-  this->ExpandTestsToRunInformation((int)tmsize);
   
-  int cnt = 0;
-  tm_ListOfTests::iterator it;
-  std::string last_directory = "";
-  for ( it = testlist.begin(); it != testlist.end(); it ++ )
+  switch (osvi.dwPlatformId)
     {
-    cnt ++;
-    const std::string& testname = it->m_Name;
-    tm_VectorOfListFileArgs& args = it->m_Args;
-    cmCTestTestResult cres;
-    cres.m_Status = cmCTest::NOT_RUN;
-    cres.m_TestCount = cnt;
+    // Test for the Windows NT product family.
 
-    if (!(last_directory == it->m_Directory))
-      {
-      if ( m_Verbose )
+    case VER_PLATFORM_WIN32_NT:
+      
+      // Test for the specific product family.
+
+      if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 2)
         {
-        std::cerr << "Changing directory into " 
-          << it->m_Directory.c_str() << "\n";
+        res += "Microsoft Windows Server 2003 family";
         }
-      last_directory = it->m_Directory;
-      cmSystemTools::ChangeDirectory(it->m_Directory.c_str());
-      }
-    cres.m_Name = testname;
-    if(m_TestsToRun.size() && 
-       std::find(m_TestsToRun.begin(), m_TestsToRun.end(), cnt) == m_TestsToRun.end())
-      {
-      continue;
-      }
 
-    if ( m_ShowOnly )
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s\n", cnt, (int)tmsize, testname.c_str());
-      }
-    else
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s ", cnt, (int)tmsize, testname.c_str());
-      fflush(stderr);
-      }
-    //std::cerr << "Testing " << args[0] << " ... ";
-    // find the test executable
-    std::string actualCommand = this->FindTheExecutable(args[1].Value.c_str());
-    std::string testCommand = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
-    std::string memcheckcommand = "";
-
-    // continue if we did not find the executable
-    if (testCommand == "")
-      {
-      std::cerr << "Unable to find executable: " <<
-        args[1].Value.c_str() << "\n";
-      if ( !m_ShowOnly )
+      if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 1)
         {
-        m_TestResults.push_back( cres ); 
-        failed.push_back(testname);
-        continue;
+        res += "Microsoft Windows XP";
         }
-      }
 
-    // add the arguments
-    tm_VectorOfListFileArgs::const_iterator j = args.begin();
-    ++j;
-    ++j;
-    std::vector<const char*> arguments;
-    if ( memcheck )
-      {
-      cmCTest::tm_VectorOfStrings::size_type pp;
-      arguments.push_back(m_MemoryTester.c_str());
-      memcheckcommand = m_MemoryTester;
-      for ( pp = 0; pp < m_MemoryTesterOptionsParsed.size(); pp ++ )
+      if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 0)
         {
-        arguments.push_back(m_MemoryTesterOptionsParsed[pp].c_str());
-        memcheckcommand += " ";
-        memcheckcommand += cmSystemTools::EscapeSpaces(m_MemoryTesterOptionsParsed[pp].c_str());
+        res += "Microsoft Windows 2000";
         }
-      }
-    arguments.push_back(actualCommand.c_str());
-    for(;j != args.end(); ++j)
-      {
-      testCommand += " ";
-      testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
-      arguments.push_back(j->Value.c_str());
-      }
-    arguments.push_back(0);
 
-    /**
-     * Run an executable command and put the stdout in output.
-     */
-    std::string output;
-    int retVal = 0;
-
-
-    if ( m_Verbose )
-      {
-      std::cout << std::endl << (memcheck?"MemCheck":"Test") << " command: " << testCommand << std::endl;
-      if ( memcheck )
+      if (osvi.dwMajorVersion <= 4)
         {
-        std::cout << "Memory check command: " << memcheckcommand << std::endl;
+        res += "Microsoft Windows NT";
         }
-      }
-    if ( olog )
-      {
-      *olog << cnt << "/" << tmsize 
-        << " Test: " << testname.c_str() << std::endl;
-      *olog << "Command: ";
-      tm_VectorOfStrings::size_type ll;
-      for ( ll = 0; ll < arguments.size()-1; ll ++ )
+
+      // Test for specific product on Windows NT 4.0 SP6 and later.
+
+      if (bOsVersionInfoEx)
         {
-        *olog << "\"" << arguments[ll] << "\" ";
-        }
-      *olog 
-        << std::endl 
-        << "Directory: " << it->m_Directory << std::endl 
-        << "\"" << testname.c_str() << "\" start time: " 
-        << this->CurrentTime() << std::endl
-        << "Output:" << std::endl 
-        << "----------------------------------------------------------"
-        << std::endl;
-      }
-    int res = 0;
-    double clock_start, clock_finish;
-    clock_start = cmSystemTools::GetTime();
+        // Test for the workstation type.
 
-    if ( !m_ShowOnly )
-      {
-      res = this->RunTest(arguments, &output, &retVal, olog);
-      }
-
-    clock_finish = cmSystemTools::GetTime();
-
-    if ( olog )
-      {
-      double ttime = clock_finish - clock_start;
-      int hours = static_cast<int>(ttime / (60 * 60));
-      int minutes = static_cast<int>(ttime / 60) % 60;
-      int seconds = static_cast<int>(ttime) % 60;
-      char buffer[100];
-      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
-      *olog 
-        << "----------------------------------------------------------"
-        << std::endl
-        << "\"" << testname.c_str() << "\" end time: " 
-        << this->CurrentTime() << std::endl
-        << "\"" << testname.c_str() << "\" time elapsed: " 
-        << buffer << std::endl
-        << "----------------------------------------------------------"
-        << std::endl << std::endl;
-      }
-
-    cres.m_ExecutionTime = (double)(clock_finish - clock_start);
-    cres.m_FullCommandLine = testCommand;
-
-    if ( !m_ShowOnly )
-      {
-      if (res == cmsysProcess_State_Exited && retVal == 0)
-        {
-        fprintf(stderr,"   Passed\n");
-        passed.push_back(testname);
-        cres.m_Status = cmCTest::COMPLETED;
-        }
-      else
-        {
-        cres.m_Status = cmCTest::FAILED;
-        if ( res == cmsysProcess_State_Expired )
+#if (_MSC_VER >= 1300) 
+        if (osvi.wProductType == VER_NT_WORKSTATION)
           {
-          fprintf(stderr,"***Timeout\n");
-          cres.m_Status = cmCTest::TIMEOUT;
-          }
-        else if ( res == cmsysProcess_State_Exception )
-          {
-          fprintf(stderr,"***Exception: ");
-          switch ( retVal )
+          if (osvi.dwMajorVersion == 4)
             {
-          case cmsysProcess_Exception_Fault:
-            fprintf(stderr,"SegFault");
-            cres.m_Status = cmCTest::SEGFAULT;
-            break;
-          case cmsysProcess_Exception_Illegal:
-            fprintf(stderr,"Illegal");
-            cres.m_Status = cmCTest::ILLEGAL;
-            break;
-          case cmsysProcess_Exception_Interrupt:
-            fprintf(stderr,"Interrupt");
-            cres.m_Status = cmCTest::INTERRUPT;
-            break;
-          case cmsysProcess_Exception_Numerical:
-            fprintf(stderr,"Numerical");
-            cres.m_Status = cmCTest::NUMERICAL;
-            break;
-          default:
-            fprintf(stderr,"Other");
-            cres.m_Status = cmCTest::OTHER_FAULT;
+            res += " Workstation 4.0";
             }
-          fprintf(stderr,"\n");
+          else if (osvi.wSuiteMask & VER_SUITE_PERSONAL)
+            {
+            res += " Home Edition";
+            }
+          else
+            {
+            res += " Professional";
+            }
           }
-        else if ( res == cmsysProcess_State_Error )
-          {
-          fprintf(stderr,"***Bad command %d\n", res);
-          cres.m_Status = cmCTest::BAD_COMMAND;
-          }
-        else
-          {
-          fprintf(stderr,"***Failed\n");
-          }
-        failed.push_back(testname);
-        }
-      if (output != "")
-        {
-        if (dartStuff.find(output.c_str()))
-          {
-          std::string dartString = dartStuff.match(1);
-          cmSystemTools::ReplaceString(output, dartString.c_str(),"");
-          cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
-          }
-        }
-      }
-    cres.m_Output = output;
-    cres.m_ReturnValue = retVal;
-    std::string nwd = it->m_Directory;
-    if ( nwd.size() > m_ToplevelPath.size() )
-      {
-      nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
-      }
-    cmSystemTools::ReplaceString(nwd, "\\", "/");
-    cres.m_Path = nwd;
-    cres.m_CompletionStatus = "Completed";
-    m_TestResults.push_back( cres );
-    }
+            
+        // Test for the server type.
 
-  m_EndTest = this->CurrentTime();
-  m_ElapsedTestingTime = cmSystemTools::GetTime() - elapsed_time_start;
-  if ( olog )
-    {
-    *olog << "End testing: " << m_EndTest << std::endl;
+        else if (osvi.wProductType == VER_NT_SERVER)
+          {
+          if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 2)
+            {
+            if (osvi.wSuiteMask & VER_SUITE_DATACENTER)
+              {
+              res += " Datacenter Edition";
+              }
+            else if (osvi.wSuiteMask & VER_SUITE_ENTERPRISE)
+              {
+              res += " Enterprise Edition";
+              }
+            else if (osvi.wSuiteMask == VER_SUITE_BLADE)
+              {
+              res += " Web Edition";
+              }
+            else
+              {
+              res += " Standard Edition";
+              }
+            }
+          
+          else if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 0)
+            {
+            if (osvi.wSuiteMask & VER_SUITE_DATACENTER)
+              {
+              res += " Datacenter Server";
+              }
+            else if (osvi.wSuiteMask & VER_SUITE_ENTERPRISE)
+              {
+              res += " Advanced Server";
+              }
+            else
+              {
+              res += " Server";
+              }
+            }
+
+          else  // Windows NT 4.0 
+            {
+            if (osvi.wSuiteMask & VER_SUITE_ENTERPRISE)
+              {
+              res += " Server 4.0, Enterprise Edition";
+              }
+            else
+              {
+              res += " Server 4.0";
+              }
+            }
+          }
+#endif // Visual Studio 7 and up
+        }
+
+      // Test for specific product on Windows NT 4.0 SP5 and earlier
+
+      else  
+        {
+        HKEY hKey;
+        #define BUFSIZE 80
+        char szProductType[BUFSIZE];
+        DWORD dwBufLen=BUFSIZE;
+        LONG lRet;
+
+        lRet = RegOpenKeyEx(
+          HKEY_LOCAL_MACHINE,
+          "SYSTEM\\CurrentControlSet\\Control\\ProductOptions",
+          0, KEY_QUERY_VALUE, &hKey);
+        if (lRet != ERROR_SUCCESS)
+          {
+          return 0;
+          }
+
+        lRet = RegQueryValueEx(hKey, "ProductType", NULL, NULL,
+                               (LPBYTE) szProductType, &dwBufLen);
+
+        if ((lRet != ERROR_SUCCESS) || (dwBufLen > BUFSIZE))
+          {
+          return 0;
+          }
+
+        RegCloseKey(hKey);
+
+        if (lstrcmpi("WINNT", szProductType) == 0)
+          {
+          res += " Workstation";
+          }
+        if (lstrcmpi("LANMANNT", szProductType) == 0)
+          {
+          res += " Server";
+          }
+        if (lstrcmpi("SERVERNT", szProductType) == 0)
+          {
+          res += " Advanced Server";
+          }
+
+        res += " ";
+        sprintf(buffer, "%d", osvi.dwMajorVersion);
+        res += buffer;
+        res += ".";
+        sprintf(buffer, "%d", osvi.dwMinorVersion);
+        res += buffer;
+        }
+
+      // Display service pack (if any) and build number.
+
+      if (osvi.dwMajorVersion == 4 && 
+          lstrcmpi(osvi.szCSDVersion, "Service Pack 6") == 0)
+        {
+        HKEY hKey;
+        LONG lRet;
+
+        // Test for SP6 versus SP6a.
+
+        lRet = RegOpenKeyEx(
+          HKEY_LOCAL_MACHINE,
+          "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Hotfix\\Q246009",
+          0, KEY_QUERY_VALUE, &hKey);
+
+        if (lRet == ERROR_SUCCESS)
+          {
+          res += " Service Pack 6a (Build ";
+          sprintf(buffer, "%d", osvi.dwBuildNumber & 0xFFFF);
+          res += buffer;
+          res += ")";
+          }
+        else // Windows NT 4.0 prior to SP6a
+          {
+          res += " ";
+          res += osvi.szCSDVersion;
+          res += " (Build ";
+          sprintf(buffer, "%d", osvi.dwBuildNumber & 0xFFFF);
+          res += buffer;
+          res += ")";
+          }
+        
+        RegCloseKey(hKey);
+        }
+      else // Windows NT 3.51 and earlier or Windows 2000 and later
+        {
+        res += " ";
+        res += osvi.szCSDVersion;
+        res += " (Build ";
+        sprintf(buffer, "%d", osvi.dwBuildNumber & 0xFFFF);
+        res += buffer;
+        res += ")";
+        }
+
+      break;
+
+      // Test for the Windows 95 product family.
+
+    case VER_PLATFORM_WIN32_WINDOWS:
+
+      if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 0)
+        {
+        res += "Microsoft Windows 95";
+        if (osvi.szCSDVersion[1] == 'C' || osvi.szCSDVersion[1] == 'B')
+          {
+          res += " OSR2";
+          }
+        }
+
+      if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 10)
+        {
+        res += "Microsoft Windows 98";
+        if (osvi.szCSDVersion[1] == 'A')
+          {
+          res += " SE";
+          }
+        }
+
+      if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 90)
+        {
+        res += "Microsoft Windows Millennium Edition";
+        } 
+      break;
+
+    case VER_PLATFORM_WIN32s:
+      
+      res +=  "Microsoft Win32s";
+      break;
     }
-  cmSystemTools::ChangeDirectory(current_dir.c_str());
+#endif
+
+  return res;
 }

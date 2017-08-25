@@ -1,2 +1,1 @@
-fprintf(stderr, "Mismatch in exit value.  Should have been %d.\n",
-              value);
+fprintf(stderr, "Mismatch in state.  Should have been %d.\n", state);

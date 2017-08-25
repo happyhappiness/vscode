@@ -1,2 +1,1 @@
-fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n\n",
-	  kitName);
+fprintf(fout,"\n\nextern void vtkTclGenericDeleteObject(ClientData cd);\n\n");

@@ -1,1 +1,1 @@
-sprintf(firstLine,  "C)onfigure                 G)enerate and Exit            H)elp");
+sprintf(secondLine, "Q)uit Without Generating   T)oggle Advanced Mode (On)");

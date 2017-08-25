@@ -1,267 +1,162 @@
-void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed, 
-                             cmCTest::tm_VectorOfStrings &failed,
-                             bool memcheck)
+int check_defines_C(void)
 {
-  std::string current_dir = cmSystemTools::GetCurrentWorkingDirectory();
-  cmsys::RegularExpression dartStuff("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
-  tm_ListOfTests testlist;
-  this->GetListOfTests(&testlist, memcheck);
-  tm_ListOfTests::size_type tmsize = testlist.size();
-
-  std::ofstream ofs;
-  std::ofstream *olog = 0;
-  if ( !m_ShowOnly && tmsize > 0 && 
-    this->OpenOutputFile("Temporary", 
-      (memcheck?"LastMemCheck.log":"LastTest.log"), ofs) )
+  int result = 1;
+#ifndef PREPROCESS_VS6
+  if(strcmp(FILE_STRING, STRING_VALUE) != 0)
     {
-    olog = &ofs;
+    fprintf(stderr,
+            "FILE_STRING has wrong value in C [%s]\n", FILE_STRING);
+    result = 0;
     }
-
-  m_StartTest = this->CurrentTime();
-  double elapsed_time_start = cmSystemTools::GetTime();
-
-  if ( olog )
+  if(strcmp(TARGET_STRING, STRING_VALUE) != 0)
     {
-    *olog << "Start testing: " << m_StartTest << std::endl
-      << "----------------------------------------------------------"
-      << std::endl;
+    fprintf(stderr,
+            "TARGET_STRING has wrong value in C [%s]\n", TARGET_STRING);
+    result = 0;
     }
-
-  // expand the test list
-  this->ExpandTestsToRunInformation((int)tmsize);
-  
-  int cnt = 0;
-  tm_ListOfTests::iterator it;
-  std::string last_directory = "";
-  for ( it = testlist.begin(); it != testlist.end(); it ++ )
+  {
+  int x = 2;
+  int y = 3;
+  if((FILE_EXPR) != (EXPR))
     {
-    cnt ++;
-    const std::string& testname = it->m_Name;
-    tm_VectorOfListFileArgs& args = it->m_Args;
-    cmCTestTestResult cres;
-    cres.m_Status = cmCTest::NOT_RUN;
-    cres.m_TestCount = cnt;
-
-    if (!(last_directory == it->m_Directory))
-      {
-      if ( m_Verbose )
-        {
-        std::cerr << "Changing directory into " 
-          << it->m_Directory.c_str() << "\n";
-        }
-      last_directory = it->m_Directory;
-      cmSystemTools::ChangeDirectory(it->m_Directory.c_str());
-      }
-    cres.m_Name = testname;
-    if(m_TestsToRun.size() && 
-       std::find(m_TestsToRun.begin(), m_TestsToRun.end(), cnt) == m_TestsToRun.end())
-      {
-      continue;
-      }
-
-    if ( m_ShowOnly )
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s\n", cnt, (int)tmsize, testname.c_str());
-      }
-    else
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s ", cnt, (int)tmsize, testname.c_str());
-      fflush(stderr);
-      }
-    //std::cerr << "Testing " << args[0] << " ... ";
-    // find the test executable
-    std::string actualCommand = this->FindTheExecutable(args[1].Value.c_str());
-    std::string testCommand = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
-    std::string memcheckcommand = "";
-
-    // continue if we did not find the executable
-    if (testCommand == "")
-      {
-      std::cerr << "Unable to find executable: " <<
-        args[1].Value.c_str() << "\n";
-      if ( !m_ShowOnly )
-        {
-        m_TestResults.push_back( cres ); 
-        failed.push_back(testname);
-        continue;
-        }
-      }
-
-    // add the arguments
-    tm_VectorOfListFileArgs::const_iterator j = args.begin();
-    ++j;
-    ++j;
-    std::vector<const char*> arguments;
-    if ( memcheck )
-      {
-      cmCTest::tm_VectorOfStrings::size_type pp;
-      arguments.push_back(m_MemoryTester.c_str());
-      memcheckcommand = m_MemoryTester;
-      for ( pp = 0; pp < m_MemoryTesterOptionsParsed.size(); pp ++ )
-        {
-        arguments.push_back(m_MemoryTesterOptionsParsed[pp].c_str());
-        memcheckcommand += " ";
-        memcheckcommand += cmSystemTools::EscapeSpaces(m_MemoryTesterOptionsParsed[pp].c_str());
-        }
-      }
-    arguments.push_back(actualCommand.c_str());
-    for(;j != args.end(); ++j)
-      {
-      testCommand += " ";
-      testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
-      arguments.push_back(j->Value.c_str());
-      }
-    arguments.push_back(0);
-
-    /**
-     * Run an executable command and put the stdout in output.
-     */
-    std::string output;
-    int retVal = 0;
-
-
-    if ( m_Verbose )
-      {
-      std::cout << std::endl << (memcheck?"MemCheck":"Test") << " command: " << testCommand << std::endl;
-      if ( memcheck )
-        {
-        std::cout << "Memory check command: " << memcheckcommand << std::endl;
-        }
-      }
-    if ( olog )
-      {
-      *olog << cnt << "/" << tmsize 
-        << " Test: " << testname.c_str() << std::endl;
-      *olog << "Command: ";
-      tm_VectorOfStrings::size_type ll;
-      for ( ll = 0; ll < arguments.size()-1; ll ++ )
-        {
-        *olog << "\"" << arguments[ll] << "\" ";
-        }
-      *olog 
-        << std::endl 
-        << "Directory: " << it->m_Directory << std::endl 
-        << "\"" << testname.c_str() << "\" start time: " 
-        << this->CurrentTime() << std::endl
-        << "Output:" << std::endl 
-        << "----------------------------------------------------------"
-        << std::endl;
-      }
-    int res = 0;
-    double clock_start, clock_finish;
-    clock_start = cmSystemTools::GetTime();
-
-    if ( !m_ShowOnly )
-      {
-      res = this->RunTest(arguments, &output, &retVal, olog);
-      }
-
-    clock_finish = cmSystemTools::GetTime();
-
-    if ( olog )
-      {
-      double ttime = clock_finish - clock_start;
-      int hours = static_cast<int>(ttime / (60 * 60));
-      int minutes = static_cast<int>(ttime / 60) % 60;
-      int seconds = static_cast<int>(ttime) % 60;
-      char buffer[100];
-      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
-      *olog 
-        << "----------------------------------------------------------"
-        << std::endl
-        << "\"" << testname.c_str() << "\" end time: " 
-        << this->CurrentTime() << std::endl
-        << "\"" << testname.c_str() << "\" time elapsed: " 
-        << buffer << std::endl
-        << "----------------------------------------------------------"
-        << std::endl << std::endl;
-      }
-
-    cres.m_ExecutionTime = (double)(clock_finish - clock_start);
-    cres.m_FullCommandLine = testCommand;
-
-    if ( !m_ShowOnly )
-      {
-      if (res == cmsysProcess_State_Exited && retVal == 0)
-        {
-        fprintf(stderr,"   Passed\n");
-        passed.push_back(testname);
-        cres.m_Status = cmCTest::COMPLETED;
-        }
-      else
-        {
-        cres.m_Status = cmCTest::FAILED;
-        if ( res == cmsysProcess_State_Expired )
-          {
-          fprintf(stderr,"***Timeout\n");
-          cres.m_Status = cmCTest::TIMEOUT;
-          }
-        else if ( res == cmsysProcess_State_Exception )
-          {
-          fprintf(stderr,"***Exception: ");
-          switch ( retVal )
-            {
-          case cmsysProcess_Exception_Fault:
-            fprintf(stderr,"SegFault");
-            cres.m_Status = cmCTest::SEGFAULT;
-            break;
-          case cmsysProcess_Exception_Illegal:
-            fprintf(stderr,"Illegal");
-            cres.m_Status = cmCTest::ILLEGAL;
-            break;
-          case cmsysProcess_Exception_Interrupt:
-            fprintf(stderr,"Interrupt");
-            cres.m_Status = cmCTest::INTERRUPT;
-            break;
-          case cmsysProcess_Exception_Numerical:
-            fprintf(stderr,"Numerical");
-            cres.m_Status = cmCTest::NUMERICAL;
-            break;
-          default:
-            fprintf(stderr,"Other");
-            cres.m_Status = cmCTest::OTHER_FAULT;
-            }
-          fprintf(stderr,"\n");
-          }
-        else if ( res == cmsysProcess_State_Error )
-          {
-          fprintf(stderr,"***Bad command %d\n", res);
-          cres.m_Status = cmCTest::BAD_COMMAND;
-          }
-        else
-          {
-          fprintf(stderr,"***Failed\n");
-          }
-        failed.push_back(testname);
-        }
-      if (output != "")
-        {
-        if (dartStuff.find(output.c_str()))
-          {
-          std::string dartString = dartStuff.match(1);
-          cmSystemTools::ReplaceString(output, dartString.c_str(),"");
-          cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
-          }
-        }
-      }
-    cres.m_Output = output;
-    cres.m_ReturnValue = retVal;
-    std::string nwd = it->m_Directory;
-    if ( nwd.size() > m_ToplevelPath.size() )
-      {
-      nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
-      }
-    cmSystemTools::ReplaceString(nwd, "\\", "/");
-    cres.m_Path = nwd;
-    cres.m_CompletionStatus = "Completed";
-    m_TestResults.push_back( cres );
+    fprintf(stderr, "FILE_EXPR did not work in C [%s]\n",
+            TO_STRING(FILE_EXPR));
+    result = 0;
     }
-
-  m_EndTest = this->CurrentTime();
-  m_ElapsedTestingTime = cmSystemTools::GetTime() - elapsed_time_start;
-  if ( olog )
+  if((TARGET_EXPR) != (EXPR))
     {
-    *olog << "End testing: " << m_EndTest << std::endl;
+    fprintf(stderr, "TARGET_EXPR did not work in C [%s]\n",
+            TO_STRING(FILE_EXPR));
+    result = 0;
     }
-  cmSystemTools::ChangeDirectory(current_dir.c_str());
+  }
+#endif
+#ifdef NDEBUG
+# ifdef FILE_DEF_DEBUG
+  {
+  fprintf(stderr, "FILE_DEF_DEBUG should not be defined in C\n");
+  result = 0;
+  }
+# endif
+# ifdef TARGET_DEF_DEBUG
+  {
+  fprintf(stderr, "TARGET_DEF_DEBUG should not be defined in C\n");
+  result = 0;
+  }
+# endif
+# ifndef FILE_DEF_RELEASE
+#  ifndef PREPROCESS_XCODE
+  {
+  fprintf(stderr, "FILE_DEF_RELEASE should be defined in C\n");
+  result = 0;
+  }
+#  endif
+# endif
+# ifndef TARGET_DEF_RELEASE
+  {
+  fprintf(stderr, "TARGET_DEF_RELEASE should be defined in C\n");
+  result = 0;
+  }
+# endif
+#endif
+#ifdef PREPROCESS_DEBUG
+# ifndef FILE_DEF_DEBUG
+#  ifndef PREPROCESS_XCODE
+  {
+  fprintf(stderr, "FILE_DEF_DEBUG should be defined in C\n");
+  result = 0;
+  }
+#  endif
+# endif
+# ifndef TARGET_DEF_DEBUG
+  {
+  fprintf(stderr, "TARGET_DEF_DEBUG should be defined in C\n");
+  result = 0;
+  }
+# endif
+# ifdef FILE_DEF_RELEASE
+  {
+  fprintf(stderr, "FILE_DEF_RELEASE should not be defined in C\n");
+  result = 0;
+  }
+# endif
+# ifdef TARGET_DEF_RELEASE
+  {
+  fprintf(stderr, "TARGET_DEF_RELEASE should not be defined in C\n");
+  result = 0;
+  }
+# endif
+#endif
+#if defined(FILE_DEF_DEBUG) || defined(TARGET_DEF_DEBUG)
+# if !defined(FILE_DEF_DEBUG) || !defined(TARGET_DEF_DEBUG)
+#  ifndef PREPROCESS_XCODE
+  {
+  fprintf(stderr,
+          "FILE_DEF_DEBUG and TARGET_DEF_DEBUG inconsistent in C\n");
+  result = 0;
+  }
+#  endif
+# endif
+# if defined(FILE_DEF_RELEASE) || defined(TARGET_DEF_RELEASE)
+  {
+  fprintf(stderr, "DEBUG and RELEASE definitions inconsistent in C\n");
+  result = 0;
+  }
+# endif
+#endif
+#if defined(FILE_DEF_RELEASE) || defined(TARGET_DEF_RELEASE)
+# if !defined(FILE_DEF_RELEASE) || !defined(TARGET_DEF_RELEASE)
+#  ifndef PREPROCESS_XCODE
+  {
+  fprintf(stderr,
+          "FILE_DEF_RELEASE and TARGET_DEF_RELEASE inconsistent in C\n");
+  result = 0;
+  }
+#  endif
+# endif
+# if defined(FILE_DEF_DEBUG) || defined(TARGET_DEF_DEBUG)
+  {
+  fprintf(stderr, "RELEASE and DEBUG definitions inconsistent in C\n");
+  result = 0;
+  }
+# endif
+#endif
+#ifndef FILE_PATH_DEF
+  {
+  fprintf(stderr, "FILE_PATH_DEF not defined in C\n");
+  result = 0;
+  }
+#endif
+#ifndef TARGET_PATH_DEF
+  {
+  fprintf(stderr, "TARGET_PATH_DEF not defined in C\n");
+  result = 0;
+  }
+#endif
+#ifndef FILE_DEF
+  {
+  fprintf(stderr, "FILE_DEF not defined in C\n");
+  result = 0;
+  }
+#endif
+#ifndef TARGET_DEF
+  {
+  fprintf(stderr, "TARGET_DEF not defined in C\n");
+  result = 0;
+  }
+#endif
+#ifndef OLD_DEF
+  {
+  fprintf(stderr, "OLD_DEF not defined in C\n");
+  result = 0;
+  }
+#endif
+#if !defined(OLD_EXPR) || OLD_EXPR != 2
+  {
+  fprintf(stderr, "OLD_EXPR id not work in C [%s]\n",
+          TO_STRING(OLD_EXPR));
+  result = 0;
+  }
+#endif
+  return result;
 }

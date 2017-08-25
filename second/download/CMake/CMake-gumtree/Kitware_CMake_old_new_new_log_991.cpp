@@ -1,1 +1,1 @@
-sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently Off)");
+sprintf(firstLine, "Page %d of %d", cw->GetPage(), m_NumberOfPages);

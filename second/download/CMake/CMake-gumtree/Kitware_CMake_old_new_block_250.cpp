@@ -1,20 +1,28 @@
-{
-      time_t filetime = (time_t)statbuf.st_mtime;
-      struct tm buffer;
-      const struct tm *tm = &buffer;
-      result = Curl_gmtime(filetime, &buffer);
-      if(result)
-        return result;
+struct negotiatedata *neg_ctx = proxy?&conn->data->state.proxyneg:
+    &conn->data->state.negotiate;
+  char *encoded = NULL;
+  size_t len = 0;
+  char *userp;
+  CURLcode result;
+  OM_uint32 discard_st;
 
-      /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-      snprintf(buf, BUFSIZE-1,
-               "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-               Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-               tm->tm_mday,
-               Curl_month[tm->tm_mon],
-               tm->tm_year + 1900,
-               tm->tm_hour,
-               tm->tm_min,
-               tm->tm_sec);
-      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-    }
+  result = Curl_base64_encode(conn->data,
+                              neg_ctx->output_token.value,
+                              neg_ctx->output_token.length,
+                              &encoded, &len);
+  if(result) {
+    gss_release_buffer(&discard_st, &neg_ctx->output_token);
+    neg_ctx->output_token.value = NULL;
+    neg_ctx->output_token.length = 0;
+    return result;
+  }
+
+  if(!encoded || !len) {
+    gss_release_buffer(&discard_st, &neg_ctx->output_token);
+    neg_ctx->output_token.value = NULL;
+    neg_ctx->output_token.length = 0;
+    return CURLE_REMOTE_ACCESS_DENIED;
+  }
+
+  userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
+                  encoded)

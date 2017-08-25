@@ -1,12 +1,29 @@
 {
-      const char* realTargetName = tit->first.c_str();
-      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
+      bool done;
+      int cc = 0;
+      char rpstr[100];
+      sprintf(rpstr, "_p_");
+      cmSystemTools::ReplaceString(ssin, "+", rpstr);
+      std::string sssin = sin;
+      do
         {
-        // Skip ignored targets
-        continue;
+        done = true;
+        for ( it = this->UniqueObjectNamesMap.begin();
+              it != this->UniqueObjectNamesMap.end();
+              ++ it )
+          {
+          if ( it->second == ssin )
+            {
+            done = false;
+            }
+          }
+        if ( done )
+          {
+          break;
+          }
+        sssin = ssin;
+        cmSystemTools::ReplaceString(ssin, "_p_", rpstr);
+        sprintf(rpstr, "_p%d_", cc++);
         }
-      //std::cout << "Found target: " << tit->first.c_str() << std::endl;
-      sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
-      targetNamesNodes[realTargetName] = tgtName;
-      targetPtrs[realTargetName] = &tit->second;
+      while ( !done );
       }

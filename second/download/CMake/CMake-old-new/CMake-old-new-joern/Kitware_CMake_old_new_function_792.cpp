@@ -1,108 +1,63 @@
-int
-tar_extract_regfile(TAR *t, char *realname)
+void
+th_print_long_ls(TAR *t)
 {
-  mode_t mode;
-  size_t size;
+  char modestring[12];
+#if !defined(_WIN32) || defined(__CYGWIN__)
+  struct passwd *pw;
+  struct group *gr;
+#endif
   uid_t uid;
   gid_t gid;
-  int fdout;
-  int i, k;
-  char buf[T_BLOCKSIZE];
-  char *filename;
+  char username[_POSIX_LOGIN_NAME_MAX];
+  char groupname[_POSIX_LOGIN_NAME_MAX];
+  time_t mtime;
+  struct tm *mtm;
 
-#ifdef DEBUG
-  printf("==> tar_extract_regfile(t=0x%lx, realname=\"%s\")\n", t,
-         realname);
+#ifdef HAVE_STRFTIME
+  char timebuf[18];
+#else
+  const char *months[] = {
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+  };
 #endif
 
-  if (!TH_ISREG(t))
-  {
-    errno = EINVAL;
-    return -1;
-  }
-
-  filename = (realname ? realname : th_get_pathname(t));
-  mode = th_get_mode(t);
-  size = th_get_size(t);
   uid = th_get_uid(t);
+#if !defined(_WIN32) || defined(__CYGWIN__)
+  pw = getpwuid(uid);
+  if (pw != NULL)
+    strlcpy(username, pw->pw_name, sizeof(username));
+  else
+#endif
+    snprintf(username, sizeof(username), "%d", (int)uid);
   gid = th_get_gid(t);
-
-  /* Make a copy of the string because dirname and mkdirhier may modify the
-   * string */
-  strncpy(buf, filename, sizeof(buf)-1);
-  buf[sizeof(buf)-1] = 0;
-
-  if (mkdirhier(dirname(buf)) == -1)
-    {
-    return -1;
-    }
-
-#ifdef DEBUG
-  printf("  ==> extracting: %s (mode %04o, uid %d, gid %d, %d bytes)\n",
-         filename, mode, uid, gid, size);
+#if !defined(_WIN32) || defined(__CYGWIN__)
+  gr = getgrgid(gid);
+  if (gr != NULL)
+    strlcpy(groupname, gr->gr_name, sizeof(groupname));
+  else
 #endif
-  fdout = open(filename, O_WRONLY | O_CREAT | O_TRUNC
-#ifdef O_BINARY
-         | O_BINARY
-#endif
-        , 0666);
-  if (fdout == -1)
-  {
-#ifdef DEBUG
-    perror("open()");
-#endif
-    return -1;
-  }
+    snprintf(groupname, sizeof(groupname), "%d", (int)gid);
+    
+  strmode(th_get_mode(t), modestring);
+  printf("%.10s %-8.8s %-8.8s ", modestring, username, groupname);
 
-#if 0
-  /* change the owner.  (will only work if run as root) */
-  if (fchown(fdout, uid, gid) == -1 && errno != EPERM)
-  {
-#ifdef DEBUG
-    perror("fchown()");
+#if !defined(_WIN32) || defined(__CYGWIN__)
+  if (TH_ISCHR(t) || TH_ISBLK(t))
+    printf(" %3d, %3d ", th_get_devmajor(t), th_get_devminor(t));
+  else
 #endif
-    return -1;
-  }
+    printf("%9ld ", (long)th_get_size(t));
 
-  /* make sure the mode isn't inheritted from a file we're overwriting */
-  if (fchmod(fdout, mode & 07777) == -1)
-  {
-#ifdef DEBUG
-    perror("fchmod()");
-#endif
-    return -1;
-  }
+  mtime = th_get_mtime(t);
+  mtm = localtime(&mtime);
+#ifdef HAVE_STRFTIME
+  strftime(timebuf, sizeof(timebuf), "%h %e %H:%M %Y", mtm);
+  printf("%s", timebuf);
+#else
+  printf("%.3s %2d %2d:%02d %4d",
+         months[mtm->tm_mon],
+         mtm->tm_mday, mtm->tm_hour, mtm->tm_min, mtm->tm_year + 1900);
 #endif
 
-  /* extract the file */
-  for (i = size; i > 0; i -= T_BLOCKSIZE)
-  {
-    k = tar_block_read(t, buf);
-    if (k != T_BLOCKSIZE)
-    {
-      if (k != -1)
-        errno = EINVAL;
-      return -1;
-    }
-
-    /* write block to output file */
-    if (write(fdout, buf,
-        ((i > T_BLOCKSIZE) ? T_BLOCKSIZE : i)) == -1)
-      return -1;
-  }
-
-  /* close output file */
-  if (close(fdout) == -1)
-    return -1;
-
-#ifdef DEBUG
-  printf("### done extracting %s\n", filename);
-#endif
-
-  (void)filename;
-  (void)gid;
-  (void)uid;
-  (void)mode;
-
-  return 0;
-}
+  printf(" %s", th_get_pathname(t))

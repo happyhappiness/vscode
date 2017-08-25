@@ -1,1 +1,1 @@
-buf = aprintf(fmt, ap);
+ret = fprintf(f, "MIC %s", buf);

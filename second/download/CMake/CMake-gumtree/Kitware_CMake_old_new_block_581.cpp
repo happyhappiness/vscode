@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "cab: unknown keyword ``%s''", key)
+		    "cpio: unknown keyword ``%s''", key)

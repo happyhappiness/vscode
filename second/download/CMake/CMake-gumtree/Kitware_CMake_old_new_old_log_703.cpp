@@ -1,1 +1,2 @@
-sprintf(buffer, "%d", osvi.dwBuildNumber & 0xFFFF);
+sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
+            cmVersion::GetMinorVersion());

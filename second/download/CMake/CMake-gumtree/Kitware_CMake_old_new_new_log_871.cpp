@@ -1,1 +1,1 @@
-std::cerr << "***Bad command " << res << "\n";
+std::cerr << "***Failed\n";

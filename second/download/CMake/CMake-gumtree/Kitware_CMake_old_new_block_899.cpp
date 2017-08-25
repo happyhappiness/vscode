@@ -1,56 +1,88 @@
 {
-    /* This is Win9x.  We need the console forwarding executable to
-       work-around a Windows 9x bug.  */
-    char fwdName[_MAX_FNAME+1] = "";
-    char tempDir[_MAX_PATH+1] = "";
-    
-    /* We will try putting the executable in the system temp
-       directory.  */
-    DWORD length = GetEnvironmentVariable("TEMP", tempDir, _MAX_PATH);
-    
-    /* Construct the executable name from the process id and kwsysProcess
-       instance.  This should be unique.  */
-    sprintf(fwdName, "cmw9xfwd_%u_%p.exe", _getpid(), cp);
-    
-    /* If the environment variable "TEMP" gave us a directory, use it.  */
-    if(length > 0 && length <= _MAX_PATH)
+    if ( ccount == 100 )
       {
-      /* Make sure there is no trailing slash.  */
-      size_t tdlen = strlen(tempDir);
-      if(tempDir[tdlen-1] == '/' || tempDir[tdlen-1] == '\\')
-        {
-        tempDir[tdlen-1] = 0;
-        --tdlen;
-        }
-      
-      /* Allocate a buffer to hold the forwarding executable path.  */
-      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
-      if(!win9x)
-        {
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
-      
-      /* Construct the full path to the forwarding executable.  */
-      sprintf(win9x, "%s/%s", tempDir, fwdName);
+      local_end_time = ::CurrentTime();
+      cfileoutput << "\t<EndDateTime>" << local_end_time << "</EndDateTime>\n"
+        << "</CoverageLog>\n"
+        << "</Site>" << std::endl;
+      cfileoutput.close();
+      std::cout << "Close file: " << cfileoutputname << std::endl;
+      ccount = 0;
       }
-    
-    /* If we found a place to put the forwarding executable, try to
-       write it. */
-    if(win9x)
+    if ( ccount == 0 )
       {
-      if(!kwsysEncodedWriteArrayProcessFwd9x(win9x))
+      sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);
+      std::cout << "Open file: " << cfileoutputname << std::endl;
+      if (!this->OpenOutputFile(m_CurrentTag, cfileoutputname, cfileoutput))
         {
-        /* Failed to create forwarding executable.  Give up.  */
-        free(win9x);
-        kwsysProcess_Delete(cp);
-        return 0;
+        std::cout << "Cannot open log file: " << cfileoutputname << std::endl;
+        return 1;
         }
+      local_start_time = ::CurrentTime();
+      cfileoutput << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        << "<Site BuildName=\"" << m_DartConfiguration["BuildName"]
+        << "\" BuildStamp=\"" << m_CurrentTag << "-"
+        << this->GetTestModelString() << "\" Site=\""
+        << m_DartConfiguration["Site"] << "\">\n"
+        << "<CoverageLog>\n"
+        << "\t<StartDateTime>" << local_start_time << "</StartDateTime>" << std::endl;
       }
-    else
+
+    //std::cerr << "Final process of Source file: " << cit->first << std::endl;
+    cmCTest::cmCTestCoverage &cov = cit->second;
+
+
+    std::ifstream ifile(cov.m_AbsolutePath.c_str());
+    if ( !ifile )
       {
-      /* Failed to find a place to put forwarding executable.  */
-      kwsysProcess_Delete(cp);
-      return 0;
+      std::cerr << "Cannot open file: " << cov.m_FullPath.c_str() << std::endl;
       }
+    ifile.seekg (0, std::ios::end);
+    int length = ifile.tellg();
+    ifile.seekg (0, std::ios::beg);
+    char *buffer = new char [ length + 1 ];
+    ifile.read(buffer, length);
+    buffer [length] = 0;
+    //std::cout << "Read: " << buffer << std::endl;
+    std::vector<cmStdString> lines;
+    cmSystemTools::Split(buffer, lines);
+    delete [] buffer;
+    cfileoutput << "\t<File Name=\"" << cit->first << "\" FullPath=\""
+      << cov.m_FullPath << std::endl << "\">\n"
+      << "\t\t<Report>" << std::endl;
+    for ( cc = 0; cc < lines.size(); cc ++ )
+      {
+      cfileoutput << "\t\t<Line Number=\"" 
+        << static_cast<int>(cc) << "\" Count=\""
+        << cov.m_Lines[cc] << "\">"
+        << cmCTest::MakeXMLSafe(lines[cc]) << "</Line>" << std::endl;
+      }
+    cfileoutput << "\t\t</Report>\n"
+      << "\t</File>" << std::endl;
+
+
+    total_tested += cov.m_Tested;
+    total_untested += cov.m_UnTested;
+    float cper = 0;
+    float cmet = 0;
+    if ( total_tested + total_untested > 0 )
+      {
+      cper = (100 * static_cast<float>(cov.m_Tested)/
+        static_cast<float>(cov.m_Tested + cov.m_UnTested));
+      cmet = ( static_cast<float>(cov.m_Tested + 10) /
+        static_cast<float>(cov.m_Tested + cov.m_UnTested + 10));
+      }
+    char cmbuff[100];
+    char cpbuff[100];
+    sprintf(cmbuff, "%.2f", cmet);
+    sprintf(cpbuff, "%.2f", cper);
+
+    log << "\t<File Name=\"" << cit->first << "\" FullPath=\"" << cov.m_FullPath
+      << "\" Covered=\"" << (cmet>0?"true":"false") << "\">\n"
+      << "\t\t<LOCTested>" << cov.m_Tested << "</LOCTested>\n"
+      << "\t\t<LOCUnTested>" << cov.m_UnTested << "</LOCUnTested>\n"
+      << "\t\t<PercentCoverage>" << cpbuff << "</PercentCoverage>\n"
+      << "\t\t<CoverageMetric>" << cmbuff << "</CoverageMetric>\n"
+      << "\t</File>" << std::endl;
+    ccount ++;
     }

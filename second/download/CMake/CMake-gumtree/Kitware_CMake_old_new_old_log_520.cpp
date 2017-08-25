@@ -1,2 +1,2 @@
 archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external bunzip2 program");
+	    "Using external gunzip program");

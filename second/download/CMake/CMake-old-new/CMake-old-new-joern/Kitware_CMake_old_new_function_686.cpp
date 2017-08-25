@@ -1,37 +1,59 @@
-static void yyunput (int c, register char * yy_bp , yyscan_t yyscanner)
+void cmFindPackageCommand::SetModuleVariables(const std::string& components)
 {
-        register char *yy_cp;
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+  // Store the list of components.
+  std::string components_var = this->Name + "_FIND_COMPONENTS";
+  this->Makefile->AddDefinition(components_var.c_str(), components.c_str());
+   
+  if(this->Quiet)
+    {
+    // Tell the module that is about to be read that it should find
+    // quietly.
+    std::string quietly = this->Name;
+    quietly += "_FIND_QUIETLY";
+    this->Makefile->AddDefinition(quietly.c_str(), "1");
+    }
 
-    yy_cp = yyg->yy_c_buf_p;
+  if(this->Required)
+    {
+    // Tell the module that is about to be read that it should report
+    // a fatal error if the package is not found.
+    std::string req = this->Name;
+    req += "_FIND_REQUIRED";
+    this->Makefile->AddDefinition(req.c_str(), "1");
+    }
 
-        /* undo effects of setting up yytext */
-        *yy_cp = yyg->yy_hold_char;
+  if(!this->Version.empty())
+    {
+    // Tell the module that is about to be read what version of the
+    // package has been requested.
+    std::string ver = this->Name;
+    ver += "_FIND_VERSION";
+    this->Makefile->AddDefinition(ver.c_str(), this->Version.c_str());
+    char buf[64];
+    switch(this->VersionCount)
+      {
+      case 3:
+        {
+        sprintf(buf, "%u", this->VersionPatch);
+        this->Makefile->AddDefinition((ver+"_PATCH").c_str(), buf);
+        } // no break
+      case 2:
+        {
+        sprintf(buf, "%u", this->VersionMinor);
+        this->Makefile->AddDefinition((ver+"_MINOR").c_str(), buf);
+        } // no break
+      case 1:
+        {
+        sprintf(buf, "%u", this->VersionMajor);
+        this->Makefile->AddDefinition((ver+"_MAJOR").c_str(), buf);
+        } // no break
+      default: break;
+      }
 
-        if ( yy_cp < YY_CURRENT_BUFFER_LVALUE->yy_ch_buf + 2 )
-                { /* need to shift things up to make room */
-                /* +2 for EOB chars. */
-                register int number_to_move = yyg->yy_n_chars + 2;
-                register char *dest = &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[
-                                        YY_CURRENT_BUFFER_LVALUE->yy_buf_size + 2];
-                register char *source =
-                                &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[number_to_move];
-
-                while ( source > YY_CURRENT_BUFFER_LVALUE->yy_ch_buf )
-                        *--dest = *--source;
-
-                yy_cp += (int) (dest - source);
-                yy_bp += (int) (dest - source);
-                YY_CURRENT_BUFFER_LVALUE->yy_n_chars =
-                        yyg->yy_n_chars = YY_CURRENT_BUFFER_LVALUE->yy_buf_size;
-
-                if ( yy_cp < YY_CURRENT_BUFFER_LVALUE->yy_ch_buf + 2 )
-                        YY_FATAL_ERROR( "flex scanner push-back overflow" );
-                }
-
-        *--yy_cp = (char) c;
-
-        yyg->yytext_ptr = yy_bp;
-        yyg->yy_hold_char = *yy_cp;
-        yyg->yy_c_buf_p = yy_cp;
+    // Tell the module whether an exact version has been requested.
+    std::string exact = this->Name;
+    exact += "_FIND_VERSION_EXACT";
+    this->Makefile->AddDefinition(exact.c_str(),
+                                  this->VersionExact? "1":"0");
+   }
 }

@@ -1,1 +1,1 @@
-sprintf(cpbuff, "%.2f", cper);
+sprintf(buffer, "&gt;&lt;");

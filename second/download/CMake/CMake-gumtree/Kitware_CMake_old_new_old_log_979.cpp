@@ -1,1 +1,1 @@
-fout << "    printf(\"%d is an invalid test number.\\n\", testNum);\n";
+fout << "  printf(\"Available tests:\\n\");\n";

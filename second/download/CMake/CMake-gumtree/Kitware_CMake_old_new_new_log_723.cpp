@@ -1,1 +1,1 @@
-fprintf(ofp, "# include <io.h>\n");
+fprintf(ofp, "#else\n");

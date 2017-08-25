@@ -1,1 +1,0 @@
-ch = tolower(ch);

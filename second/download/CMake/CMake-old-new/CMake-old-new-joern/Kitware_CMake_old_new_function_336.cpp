@@ -1,75 +1,17 @@
-ssize_t
-archive_read_data(struct archive *_a, void *buff, size_t s)
+static int
+_archive_read_data_block(struct archive *_a,
+    const void **buff, size_t *size, int64_t *offset)
 {
 	struct archive_read *a = (struct archive_read *)_a;
-	char	*dest;
-	const void *read_buf;
-	size_t	 bytes_read;
-	size_t	 len;
-	int	 r;
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC, ARCHIVE_STATE_DATA,
+	    "archive_read_data_block");
 
-	bytes_read = 0;
-	dest = (char *)buff;
-
-	while (s > 0) {
-		if (a->read_data_remaining == 0) {
-			read_buf = a->read_data_block;
-			a->read_data_is_posix_read = 1;
-			a->read_data_requested = s;
-			r = _archive_read_data_block(&a->archive, &read_buf,
-			    &a->read_data_remaining, &a->read_data_offset);
-			a->read_data_block = read_buf;
-			if (r == ARCHIVE_EOF)
-				return (bytes_read);
-			/*
-			 * Error codes are all negative, so the status
-			 * return here cannot be confused with a valid
-			 * byte count.  (ARCHIVE_OK is zero.)
-			 */
-			if (r < ARCHIVE_OK)
-				return (r);
-		}
-
-		if (a->read_data_offset < a->read_data_output_offset) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Encountered out-of-order sparse blocks");
-			return (ARCHIVE_RETRY);
-		}
-
-		/* Compute the amount of zero padding needed. */
-		if (a->read_data_output_offset + (int64_t)s <
-		    a->read_data_offset) {
-			len = s;
-		} else if (a->read_data_output_offset <
-		    a->read_data_offset) {
-			len = (size_t)(a->read_data_offset -
-			    a->read_data_output_offset);
-		} else
-			len = 0;
-
-		/* Add zeroes. */
-		memset(dest, 0, len);
-		s -= len;
-		a->read_data_output_offset += len;
-		dest += len;
-		bytes_read += len;
-
-		/* Copy data if there is any space left. */
-		if (s > 0) {
-			len = a->read_data_remaining;
-			if (len > s)
-				len = s;
-			memcpy(dest, a->read_data_block, len);
-			s -= len;
-			a->read_data_block += len;
-			a->read_data_remaining -= len;
-			a->read_data_output_offset += len;
-			a->read_data_offset += len;
-			dest += len;
-			bytes_read += len;
-		}
+	if (a->format->read_data == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
+		    "Internal error: "
+		    "No format_read_data_block function registered");
+		return (ARCHIVE_FATAL);
 	}
-	a->read_data_is_posix_read = 0;
-	a->read_data_requested = 0;
-	return (bytes_read);
+
+	return (a->format->read_data)(a, buff, size, offset);
 }

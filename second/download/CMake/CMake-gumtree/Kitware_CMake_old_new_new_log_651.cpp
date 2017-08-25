@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-				    "No memory for 7-Zip decompression");
+sprintf(firstLine,
+              "Press [c] to configure       Press [g] to generate and exit");

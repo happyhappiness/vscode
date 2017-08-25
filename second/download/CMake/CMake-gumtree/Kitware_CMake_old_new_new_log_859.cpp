@@ -1,1 +1,0 @@
-fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE Fortran)\n");

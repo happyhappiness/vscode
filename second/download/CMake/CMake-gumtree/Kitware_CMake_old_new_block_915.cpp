@@ -1,1 +1,1 @@
-ret = fprintf(f, "MIC %s", buf)
+ret = fprintf(f, "ENC %s", buf)

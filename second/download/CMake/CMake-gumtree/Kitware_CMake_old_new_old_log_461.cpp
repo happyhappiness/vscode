@@ -1,2 +1,2 @@
-fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
+fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName(), ni->IsStrong()? "strong" : "weak");

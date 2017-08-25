@@ -1,2 +1,1 @@
-fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
-              dependee->GetName());
+f(stderr, "Writing %s...\n", currentFilename.c_str());

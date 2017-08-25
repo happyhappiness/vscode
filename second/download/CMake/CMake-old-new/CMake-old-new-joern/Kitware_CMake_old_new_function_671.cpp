@@ -1,70 +1,21 @@
-int cmake::getAllExternalLibs(const std::set<cmStdString>& ignoreTargetsSet,
-                          std::map<cmStdString, cmStdString>& targetNamesNodes,
-                          std::map<cmStdString, const cmTarget*>& targetPtrs,
-                          std::map<cmStdString, int>& targetDeps,
-                          const char* graphNodePrefix) const
+void
+cmComputeTargetDepends::DisplayGraph(Graph const& graph, const char* name)
 {
-  int cnt = 0;
-
-  const std::vector<cmLocalGenerator*>& localGenerators =
-                              this->GetGlobalGenerator()->GetLocalGenerators();
-  // Ok, now find all the stuff we link to that is not in cmake
-  for (std::vector<cmLocalGenerator*>::const_iterator lit =
-                                                       localGenerators.begin();
-       lit != localGenerators.end();
-       ++ lit )
+  fprintf(stderr, "The %s target dependency graph is:\n", name);
+  int n = static_cast<int>(graph.size());
+  for(int depender_index = 0; depender_index < n; ++depender_index)
     {
-    const cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
-    for ( cmTargets::const_iterator tit = targets->begin();
-          tit != targets->end();
-          ++ tit )
+    EdgeList const& nl = graph[depender_index];
+    cmTarget* depender = this->Targets[depender_index];
+    fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
       {
-      const char* realTargetName = tit->first.c_str();
-      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
-        {
-        // Skip ignored targets
-        continue;
-        }
-      const cmTarget::LinkLibraryVectorType* ll =
-                                     &(tit->second.GetOriginalLinkLibraries());
-      if ( ll->size() > 0 )
-        {
-        targetDeps[realTargetName] = DOT_DEP_TARGET;
-        fprintf(stderr, " + %s\n", realTargetName);
-        }
-      for (cmTarget::LinkLibraryVectorType::const_iterator llit = ll->begin();
-           llit != ll->end();
-           ++ llit )
-        {
-        const char* libName = llit->first.c_str();
-        if ( ignoreTargetsSet.find(libName) != ignoreTargetsSet.end() )
-          {
-          // Skip ignored targets
-          continue;
-          }
-
-        std::map<cmStdString, cmStdString>::const_iterator tarIt =
-                                                targetNamesNodes.find(libName);
-        if ( tarIt == targetNamesNodes.end() )
-          {
-          cmOStringStream ostr;
-          ostr << graphNodePrefix << cnt++;
-          targetDeps[libName] = DOT_DEP_EXTERNAL;
-          targetNamesNodes[libName] = ostr.str();
-          //str << "    \"" << ostr.c_str() << "\" [ label=\"" << libName
-          //<<  "\" shape=\"ellipse\"];" << std::endl;
-          }
-        else
-          {
-          std::map<cmStdString, int>::const_iterator depIt =
-                                                      targetDeps.find(libName);
-          if ( depIt == targetDeps.end() )
-            {
-            targetDeps[libName] = DOT_DEP_TARGET;
-            }
-          }
-        }
+      int dependee_index = *ni;
+      cmTarget* dependee = this->Targets[dependee_index];
+      fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
+              dependee->GetName());
       }
     }
-   return cnt;
+  fprintf(stderr, "\n");
 }

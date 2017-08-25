@@ -1,1 +1,1 @@
-conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n", data->reqdata.range);
+DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));

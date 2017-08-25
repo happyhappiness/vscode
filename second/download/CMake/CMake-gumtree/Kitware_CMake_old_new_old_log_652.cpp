@@ -1,2 +1,1 @@
-sprintf(firstLine,
-              "Press [c] to configure     Press [g] to generate and exit");
+printf("Checking -%s-\n", absFilename.c_str());

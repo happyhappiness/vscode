@@ -1,6 +1,5 @@
 {
-			archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-			    "Unacceptable dictionary dize for lzip: %d",
-			    dict_size);
-			return (ARCHIVE_FATAL);
-		}
+		archive_set_error(&a->archive, 0,
+		    "Write request too large");
+		return (ARCHIVE_WARN);
+	}

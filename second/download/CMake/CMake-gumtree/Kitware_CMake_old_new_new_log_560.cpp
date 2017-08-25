@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate directory traversal data");
+archive_set_error(&a->archive, errno,
+				    "Can't GetFileInformationByHandle");

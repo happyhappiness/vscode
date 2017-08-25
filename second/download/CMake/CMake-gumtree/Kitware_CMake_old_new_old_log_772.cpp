@@ -1,1 +1,1 @@
-f(tgtName, "%s%d", graphNodePrefix, cnt++);
+sprintf(rpstr, "_p_");

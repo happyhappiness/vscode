@@ -1,1 +1,1 @@
-fprintf(fout,"void vtkCommonDeleteAssocData(ClientData cd)\n");
+sprintf(firstLine,  "Press [e] to exit help");

@@ -1,265 +1,219 @@
-kwsys_stl::string SystemTools::GetOperatingSystemNameAndVersion()
+int cmake::ActualConfigure()
 {
-  kwsys_stl::string res;
+  // Construct right now our path conversion table before it's too late:
+  this->UpdateConversionPathTable();
+  this->CleanupCommandsAndMacros();
 
-#ifdef _WIN32
-  char buffer[256];
-
-  OSVERSIONINFOEX osvi;
-  BOOL bOsVersionInfoEx;
-
-  // Try calling GetVersionEx using the OSVERSIONINFOEX structure.
-  // If that fails, try using the OSVERSIONINFO structure.
-
-  ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
-  osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
-
-  bOsVersionInfoEx = GetVersionEx((OSVERSIONINFO *)&osvi);
-  if (!bOsVersionInfoEx)
+  int res = 0;
+  if ( !this->ScriptMode )
     {
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    if (!GetVersionEx((OSVERSIONINFO *)&osvi)) 
-      {
-      return 0;
-      }
+    res = this->DoPreConfigureChecks();
     }
-  
-  switch (osvi.dwPlatformId)
+  if ( res < 0 )
     {
-    // Test for the Windows NT product family.
+    return -2;
+    }
+  if ( !res )
+    {
+    this->CacheManager->AddCacheEntry
+      ("CMAKE_HOME_DIRECTORY", 
+       this->GetHomeDirectory(),
+       "Start directory with the top level CMakeLists.txt file for this "
+       "project",
+       cmCacheManager::INTERNAL);
+    }
 
-    case VER_PLATFORM_WIN32_NT:
-      
-      // Test for the specific product family.
+  // set the default BACKWARDS compatibility to the current version
+  if(!this->CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
+    {
+    char ver[256];
+    sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
+            cmVersion::GetMinorVersion());
+    this->CacheManager->AddCacheEntry
+      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
+       "For backwards compatibility, what version of CMake commands and "
+       "syntax should this version of CMake allow.",
+       cmCacheManager::INTERNAL);
+    }
 
-      if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 2)
+  // no generator specified on the command line
+  if(!this->GlobalGenerator)
+    {
+    const char* genName = 
+      this->CacheManager->GetCacheValue("CMAKE_GENERATOR");
+    const char* extraGenName = 
+      this->CacheManager->GetCacheValue("CMAKE_EXTRA_GENERATOR");
+    if(genName)
+      {
+      std::string fullName = cmExternalMakefileProjectGenerator::
+                                CreateFullGeneratorName(genName, extraGenName);
+      this->GlobalGenerator = this->CreateGlobalGenerator(fullName.c_str());
+      }
+    if(this->GlobalGenerator)
+      {
+      // set the global flag for unix style paths on cmSystemTools as
+      // soon as the generator is set.  This allows gmake to be used
+      // on windows.
+      cmSystemTools::SetForceUnixPaths
+        (this->GlobalGenerator->GetForceUnixPaths());
+      }
+    else
+      {
+#if defined(__BORLANDC__) && defined(_WIN32)
+      this->SetGlobalGenerator(new cmGlobalBorlandMakefileGenerator);
+#elif defined(_WIN32) && !defined(__CYGWIN__) && !defined(CMAKE_BOOT_MINGW)
+      std::string installedCompiler;
+      std::string mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft"
+        "\\VisualStudio\\8.0\\Setup;Dbghelp_path]";
+      cmSystemTools::ExpandRegistryValues(mp);
+      if (!(mp == "/registry"))
         {
-        res += "Microsoft Windows Server 2003 family";
+        installedCompiler = "Visual Studio 8 2005";
         }
-
-      if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 1)
+      else
         {
-        res += "Microsoft Windows XP";
-        }
-
-      if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 0)
-        {
-        res += "Microsoft Windows 2000";
-        }
-
-      if (osvi.dwMajorVersion <= 4)
-        {
-        res += "Microsoft Windows NT";
-        }
-
-      // Test for specific product on Windows NT 4.0 SP6 and later.
-
-      if (bOsVersionInfoEx)
-        {
-        // Test for the workstation type.
-
-#if (_MSC_VER >= 1300) 
-        if (osvi.wProductType == VER_NT_WORKSTATION)
+        mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft"
+          "\\VisualStudio\\7.1;InstallDir]";
+        cmSystemTools::ExpandRegistryValues(mp);
+        if (!(mp == "/registry"))
           {
-          if (osvi.dwMajorVersion == 4)
+          installedCompiler = "Visual Studio 7 .NET 2003";
+          }
+        else
+          {
+          mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft"
+            "\\VisualStudio\\7.0;InstallDir]";
+          cmSystemTools::ExpandRegistryValues(mp);
+          if (!(mp == "/registry"))
             {
-            res += " Workstation 4.0";
-            }
-          else if (osvi.wSuiteMask & VER_SUITE_PERSONAL)
-            {
-            res += " Home Edition";
+            installedCompiler = "Visual Studio 7";
             }
           else
             {
-            res += " Professional";
+            installedCompiler = "Visual Studio 6";
             }
           }
-            
-        // Test for the server type.
-
-        else if (osvi.wProductType == VER_NT_SERVER)
-          {
-          if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 2)
-            {
-            if (osvi.wSuiteMask & VER_SUITE_DATACENTER)
-              {
-              res += " Datacenter Edition";
-              }
-            else if (osvi.wSuiteMask & VER_SUITE_ENTERPRISE)
-              {
-              res += " Enterprise Edition";
-              }
-            else if (osvi.wSuiteMask == VER_SUITE_BLADE)
-              {
-              res += " Web Edition";
-              }
-            else
-              {
-              res += " Standard Edition";
-              }
-            }
-          
-          else if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 0)
-            {
-            if (osvi.wSuiteMask & VER_SUITE_DATACENTER)
-              {
-              res += " Datacenter Server";
-              }
-            else if (osvi.wSuiteMask & VER_SUITE_ENTERPRISE)
-              {
-              res += " Advanced Server";
-              }
-            else
-              {
-              res += " Server";
-              }
-            }
-
-          else  // Windows NT 4.0 
-            {
-            if (osvi.wSuiteMask & VER_SUITE_ENTERPRISE)
-              {
-              res += " Server 4.0, Enterprise Edition";
-              }
-            else
-              {
-              res += " Server 4.0";
-              }
-            }
-          }
-#endif // Visual Studio 7 and up
         }
-
-      // Test for specific product on Windows NT 4.0 SP5 and earlier
-
-      else  
+      cmGlobalGenerator* gen
+        = this->CreateGlobalGenerator(installedCompiler.c_str());
+      if(!gen)
         {
-        HKEY hKey;
-        #define BUFSIZE 80
-        char szProductType[BUFSIZE];
-        DWORD dwBufLen=BUFSIZE;
-        LONG lRet;
-
-        lRet = RegOpenKeyEx(
-          HKEY_LOCAL_MACHINE,
-          "SYSTEM\\CurrentControlSet\\Control\\ProductOptions",
-          0, KEY_QUERY_VALUE, &hKey);
-        if (lRet != ERROR_SUCCESS)
-          {
-          return 0;
-          }
-
-        lRet = RegQueryValueEx(hKey, "ProductType", NULL, NULL,
-                               (LPBYTE) szProductType, &dwBufLen);
-
-        if ((lRet != ERROR_SUCCESS) || (dwBufLen > BUFSIZE))
-          {
-          return 0;
-          }
-
-        RegCloseKey(hKey);
-
-        if (lstrcmpi("WINNT", szProductType) == 0)
-          {
-          res += " Workstation";
-          }
-        if (lstrcmpi("LANMANNT", szProductType) == 0)
-          {
-          res += " Server";
-          }
-        if (lstrcmpi("SERVERNT", szProductType) == 0)
-          {
-          res += " Advanced Server";
-          }
-
-        res += " ";
-        sprintf(buffer, "%d", osvi.dwMajorVersion);
-        res += buffer;
-        res += ".";
-        sprintf(buffer, "%d", osvi.dwMinorVersion);
-        res += buffer;
+        gen = new cmGlobalNMakeMakefileGenerator;
         }
-
-      // Display service pack (if any) and build number.
-
-      if (osvi.dwMajorVersion == 4 && 
-          lstrcmpi(osvi.szCSDVersion, "Service Pack 6") == 0)
-        {
-        HKEY hKey;
-        LONG lRet;
-
-        // Test for SP6 versus SP6a.
-
-        lRet = RegOpenKeyEx(
-          HKEY_LOCAL_MACHINE,
-          "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Hotfix\\Q246009",
-          0, KEY_QUERY_VALUE, &hKey);
-
-        if (lRet == ERROR_SUCCESS)
-          {
-          res += " Service Pack 6a (Build ";
-          sprintf(buffer, "%d", osvi.dwBuildNumber & 0xFFFF);
-          res += buffer;
-          res += ")";
-          }
-        else // Windows NT 4.0 prior to SP6a
-          {
-          res += " ";
-          res += osvi.szCSDVersion;
-          res += " (Build ";
-          sprintf(buffer, "%d", osvi.dwBuildNumber & 0xFFFF);
-          res += buffer;
-          res += ")";
-          }
-        
-        RegCloseKey(hKey);
-        }
-      else // Windows NT 3.51 and earlier or Windows 2000 and later
-        {
-        res += " ";
-        res += osvi.szCSDVersion;
-        res += " (Build ";
-        sprintf(buffer, "%d", osvi.dwBuildNumber & 0xFFFF);
-        res += buffer;
-        res += ")";
-        }
-
-      break;
-
-      // Test for the Windows 95 product family.
-
-    case VER_PLATFORM_WIN32_WINDOWS:
-
-      if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 0)
-        {
-        res += "Microsoft Windows 95";
-        if (osvi.szCSDVersion[1] == 'C' || osvi.szCSDVersion[1] == 'B')
-          {
-          res += " OSR2";
-          }
-        }
-
-      if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 10)
-        {
-        res += "Microsoft Windows 98";
-        if (osvi.szCSDVersion[1] == 'A')
-          {
-          res += " SE";
-          }
-        }
-
-      if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 90)
-        {
-        res += "Microsoft Windows Millennium Edition";
-        } 
-      break;
-
-    case VER_PLATFORM_WIN32s:
-      
-      res +=  "Microsoft Win32s";
-      break;
-    }
+      this->SetGlobalGenerator(gen);
+#else
+      this->SetGlobalGenerator(new cmGlobalUnixMakefileGenerator3);
 #endif
+      }
+    if(!this->GlobalGenerator)
+      {
+      cmSystemTools::Error("Could not create generator");
+      return -1;
+      }
+    }
 
-  return res;
+  const char* genName = this->CacheManager->GetCacheValue("CMAKE_GENERATOR");
+  if(genName)
+    {
+    if(strcmp(this->GlobalGenerator->GetName(), genName) != 0)
+      {
+      std::string message = "Error: generator : ";
+      message += this->GlobalGenerator->GetName();
+      message += "\nDoes not match the generator used previously: ";
+      message += genName;
+      message +=
+        "\nEither remove the CMakeCache.txt file or choose a different"
+        " binary directory.";
+      cmSystemTools::Error(message.c_str());
+      return -2;
+      }
+    }
+  if(!this->CacheManager->GetCacheValue("CMAKE_GENERATOR"))
+    {
+    this->CacheManager->AddCacheEntry("CMAKE_GENERATOR", 
+                                      this->GlobalGenerator->GetName(),
+                                      "Name of generator.",
+                                      cmCacheManager::INTERNAL);
+    this->CacheManager->AddCacheEntry("CMAKE_EXTRA_GENERATOR", 
+                                this->GlobalGenerator->GetExtraGeneratorName(),
+                                "Name of external makefile project generator.",
+                                cmCacheManager::INTERNAL);
+    }
+
+  // reset any system configuration information, except for when we are
+  // InTryCompile. With TryCompile the system info is taken from the parent's
+  // info to save time
+  if (!this->InTryCompile)
+    {
+    this->GlobalGenerator->ClearEnabledLanguages();
+    }
+
+  this->CleanupWrittenFiles();
+
+  // Truncate log files
+  if (!this->InTryCompile)
+    {
+    this->TruncateOutputLog("CMakeOutput.log");
+    this->TruncateOutputLog("CMakeError.log");
+    }
+
+  // actually do the configure
+  this->GlobalGenerator->Configure();
+  // Before saving the cache
+  // if the project did not define one of the entries below, add them now
+  // so users can edit the values in the cache:
+  // LIBRARY_OUTPUT_PATH
+  // EXECUTABLE_OUTPUT_PATH
+  if(!this->CacheManager->GetCacheValue("LIBRARY_OUTPUT_PATH"))
+    {
+    this->CacheManager->AddCacheEntry
+      ("LIBRARY_OUTPUT_PATH", "",
+       "Single output directory for building all libraries.",
+       cmCacheManager::PATH);
+    } 
+  if(!this->CacheManager->GetCacheValue("EXECUTABLE_OUTPUT_PATH"))
+    {
+    this->CacheManager->AddCacheEntry
+      ("EXECUTABLE_OUTPUT_PATH", "",
+       "Single output directory for building all executables.",
+       cmCacheManager::PATH);
+    }  
+  if(!this->CacheManager->GetCacheValue("CMAKE_USE_RELATIVE_PATHS"))
+    {
+    this->CacheManager->AddCacheEntry
+      ("CMAKE_USE_RELATIVE_PATHS", false,
+       "If true, cmake will use relative paths in makefiles and projects.");
+    cmCacheManager::CacheIterator it =
+      this->CacheManager->GetCacheIterator("CMAKE_USE_RELATIVE_PATHS");
+    if ( !it.PropertyExists("ADVANCED") )
+      {
+      it.SetProperty("ADVANCED", "1");
+      }
+    }
+
+  if(cmSystemTools::GetFatalErrorOccured() &&
+     (!this->CacheManager->GetCacheValue("CMAKE_MAKE_PROGRAM") ||
+      cmSystemTools::IsOff(this->CacheManager->
+                           GetCacheValue("CMAKE_MAKE_PROGRAM"))))
+    {
+    // We must have a bad generator selection.  Wipe the cache entry so the
+    // user can select another.
+    this->CacheManager->RemoveCacheEntry("CMAKE_GENERATOR");
+    this->CacheManager->RemoveCacheEntry("CMAKE_EXTRA_GENERATOR");
+    }
+  // only save the cache if there were no fatal errors
+  if ( !this->ScriptMode )
+    {
+    this->CacheManager->SaveCache(this->GetHomeOutputDirectory());
+    }
+  if ( !this->GraphVizFile.empty() )
+    {
+    std::cout << "Generate graphviz: " << this->GraphVizFile << std::endl;
+    this->GenerateGraphViz(this->GraphVizFile.c_str());
+    }
+  if(cmSystemTools::GetErrorOccuredFlag())
+    {
+    return -1;
+    }
+  return 0;
 }

@@ -1,23 +1,4 @@
 {
-   unsigned i;
-   PSTR stringTable;
-   std::string sectionName;
-   std::string sectionCharacter;
-   int iSectNum;
-
-   fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
-      cSymbols);
-
-   fprintf(fout,
-      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
-      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");
-
-   /*
-   * The string table apparently starts right after the symbol table
-   */
-   stringTable = (PSTR)&pSymbolTable[cSymbols];
-
-   for ( i=0; i < cSymbols; i++ ) {
       fprintf(fout, "%04X ", i);
       if ( pSymbolTable->N.Name.Short != 0 )
          fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
@@ -48,4 +29,3 @@
       pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
       pSymbolTable++;
    }
-}

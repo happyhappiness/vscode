@@ -1,4 +1,3 @@
-m::AddError(const char* message, const char*)
-{
-  this->Errors.push_back(message);
-};
+aprintf("%s:%d",
+                 conn->bits.proxy?conn->proxy.name:conn->host.name,
+                 conn->localport);

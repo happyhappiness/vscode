@@ -1,1 +1,1 @@
-sprintf(cmbuff, "%.2f", cmet);
+sprintf(cpbuff, "%.2f", cper);

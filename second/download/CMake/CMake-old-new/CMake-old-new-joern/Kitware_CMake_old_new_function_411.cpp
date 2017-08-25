@@ -1,6 +1,5 @@
-bool Directory::Load(const char* name)
+unsigned long Directory::GetNumberOfFilesInDirectory(const char* name)
 {
-  this->Clear();
 #if _MSC_VER < 1300
   long srchHandle;
 #else
@@ -8,24 +7,15 @@ bool Directory::Load(const char* name)
 #endif
   char* buf;
   size_t n = strlen(name);
-  if ( name[n - 1] == '/' || name[n - 1] == '\\' )
+  if ( name[n - 1] == '/' )
     {
     buf = new char[n + 1 + 1];
     sprintf(buf, "%s*", name);
     }
   else
     {
-    // Make sure the slashes in the wildcard suffix are consistent with the
-    // rest of the path
     buf = new char[n + 2 + 1];
-    if ( strchr(name, '\\') )
-      {
-      sprintf(buf, "%s\\*", name);
-      }
-    else
-      {
-      sprintf(buf, "%s/*", name);
-      }
+    sprintf(buf, "%s/*", name);
     }
   struct _wfinddata_t data;      // data of current file
 
@@ -39,11 +29,12 @@ bool Directory::Load(const char* name)
     }
 
   // Loop through names
+  unsigned long count = 0;
   do
     {
-    this->Internal->Files.push_back(Encoding::ToNarrow(data.name));
+    count++;
     }
   while ( _wfindnext(srchHandle, &data) != -1 );
-  this->Internal->Path = name;
-  return _findclose(srchHandle) != -1;
+  _findclose(srchHandle);
+  return count;
 }

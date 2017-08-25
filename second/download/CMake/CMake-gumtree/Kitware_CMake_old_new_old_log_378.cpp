@@ -1,2 +1,1 @@
-snprintf(buf + len, sizeof(buf) - len,
-                 ": %s", (char*) status_string.value);
+sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));

@@ -1,142 +1,150 @@
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int output, int delay, double timeout,
-             int poll)
+bool cmCTestSubmitHandler::SubmitUsingHTTP(const cmStdString& localprefix, 
+  const std::set<cmStdString>& files,
+  const cmStdString& remoteprefix, 
+  const cmStdString& url)
 {
-  int result = 0;
-  char* data = 0;
-  int length = 0;
-  double userTimeout = 0;
-  double* pUserTimeout = 0;
-  kwsysProcess* kp = kwsysProcess_New();
-  if(!kp)
-    {
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
-    }
-  
-  kwsysProcess_SetCommand(kp, cmd);
-  if(timeout >= 0)
-    {
-    kwsysProcess_SetTimeout(kp, timeout);
-    }
-  if(share)
-    {
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
-    }
-  kwsysProcess_Execute(kp);
+  CURL *curl;
+  CURLcode res;
+  FILE* ftpfile;
+  char error_buffer[1024];
 
-  if(poll)
-    {
-    pUserTimeout = &userTimeout;
-    }
+  /* In windows, this will init the winsock stuff */
+  ::curl_global_init(CURL_GLOBAL_ALL);
 
-  if(!share)
+  cmStdString::size_type kk;
+  cmCTest::tm_SetOfStrings::const_iterator file;
+  for ( file = files.begin(); file != files.end(); ++file )
     {
-    int p;
-    while((p = kwsysProcess_WaitForData(kp, &data, &length, pUserTimeout)))
+    /* get a curl handle */
+    curl = curl_easy_init();
+    if(curl) 
       {
-      if(output)
-        {
-        if(poll && p == kwsysProcess_Pipe_Timeout)
-          {
-          fprintf(stdout, "WaitForData timeout reached.\n");
-          fflush(stdout);
 
-          /* Count the number of times we polled without getting data.
-             If it is excessive then kill the child and fail.  */
-          if(++poll >= MAXPOLL)
+      // Using proxy
+      if ( m_HTTPProxyType > 0 )
+        {
+        curl_easy_setopt(curl, CURLOPT_PROXY, m_HTTPProxy.c_str()); 
+        switch (m_HTTPProxyType)
+          {
+        case 2:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS4);
+          break;
+        case 3:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5);
+          break;
+        default:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
+          if (m_HTTPProxyAuth.size() > 0)
             {
-            fprintf(stdout, "Poll count reached limit %d.\n",
-                    MAXPOLL);
-            kwsysProcess_Kill(kp);
+            curl_easy_setopt(curl, CURLOPT_PROXYUSERPWD,
+              m_HTTPProxyAuth.c_str());
             }
           }
-        else
+        }
+
+      /* enable uploading */
+      curl_easy_setopt(curl, CURLOPT_UPLOAD, 1) ;
+
+      /* HTTP PUT please */
+      ::curl_easy_setopt(curl, CURLOPT_PUT, 1);
+      ::curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+
+      cmStdString local_file = localprefix + "/" + *file;
+      cmStdString remote_file = remoteprefix + *file;
+
+      *m_LogFile << "\tUpload file: " << local_file.c_str() << " to "
+          << remote_file.c_str() << std::endl;
+
+      cmStdString ofile = "";
+      for ( kk = 0; kk < remote_file.size(); kk ++ )
+        {
+        char c = remote_file[kk];
+        char hex[4] = { 0, 0, 0, 0 };
+        hex[0] = c;
+        switch ( c )
           {
-          fwrite(data, 1, length, stdout);
-          fflush(stdout);
+        case '+':
+        case '?':
+        case '/':
+        case '\\':
+        case '&':
+        case ' ':
+        case '=':
+        case '%':
+          sprintf(hex, "%%%02X", (int)c);
+          ofile.append(hex);
+          break;
+        default: 
+          ofile.append(hex);
           }
         }
-      if(poll)
-        {
-        /* Delay to avoid busy loop during polling.  */
-#if defined(_WIN32)
-        Sleep(100);
-#else
-        usleep(100000);
-#endif
-        }
-      if(delay)
-        {
-        /* Purposely sleeping only on Win32 to let pipe fill up.  */
-#if defined(_WIN32)
-        Sleep(100);
-#endif
-        }
-      }
-    }
-  
-  kwsysProcess_WaitForExit(kp, 0);
+      cmStdString upload_as 
+        = url + ((url.find("?",0) == cmStdString::npos) ? "?" : "&") 
+        + "FileName=" + ofile;
 
-  switch (kwsysProcess_GetState(kp))
-    {
-    case kwsysProcess_State_Starting:
-      printf("No process has been executed.\n"); break;
-    case kwsysProcess_State_Executing:
-      printf("The process is still executing.\n"); break;
-    case kwsysProcess_State_Expired:
-      printf("Child was killed when timeout expired.\n"); break;
-    case kwsysProcess_State_Exited:
-      printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Killed:
-      printf("Child was killed by parent.\n"); break;
-    case kwsysProcess_State_Exception:
-      printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Error:
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
-  
-  if(result)
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
-      {
-      fprintf(stderr, "Mismatch in exit exception.  "
-              "Should have been %d, was %d.\n",
-              exception, kwsysProcess_GetExitException(kp));
-      }
-    if(value != kwsysProcess_GetExitValue(kp))
-      {
-      fprintf(stderr, "Mismatch in exit value.  "
-              "Should have been %d, was %d.\n",
-              value, kwsysProcess_GetExitValue(kp));
-      }
-    }
-  
-  if(kwsysProcess_GetState(kp) != state)
-    {
-    fprintf(stderr, "Mismatch in state.  "
-            "Should have been %d, was %d.\n",
-            state, kwsysProcess_GetState(kp));
-    result = 1;
-    }
+      struct stat st;
+      if ( ::stat(local_file.c_str(), &st) )
+        {
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "   Cannot find file: " << local_file.c_str() << std::endl);
+        ::curl_easy_cleanup(curl);
+        ::curl_global_cleanup(); 
+        return false;
+        }
 
-  /* We should have polled more times than there were data if polling
-     was enabled.  */
-  if(poll && poll < MINPOLL)
-    {
-    fprintf(stderr, "Poll count is %d, which is less than %d.\n",
-            poll, MINPOLL);
-    result = 1;
+      ftpfile = ::fopen(local_file.c_str(), "rb");
+      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "   Upload file: " << local_file.c_str() << " to " 
+        << upload_as.c_str() << " Size: " << st.st_size << std::endl);
+
+
+      // specify target
+      ::curl_easy_setopt(curl,CURLOPT_URL, upload_as.c_str());
+
+      // now specify which file to upload
+      ::curl_easy_setopt(curl, CURLOPT_INFILE, ftpfile);
+
+      // and give the size of the upload (optional)
+      ::curl_easy_setopt(curl, CURLOPT_INFILESIZE, static_cast<long>(st.st_size));
+
+      // and give curl the buffer for errors
+      ::curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, &error_buffer);
+
+      // specify handler for output
+      ::curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cmCTestSubmitHandlerWriteMemoryCallback);
+      ::curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, cmCTestSubmitHandlerCurlDebugCallback);
+
+      /* we pass our 'chunk' struct to the callback function */
+      cmCTestSubmitHandlerVectorOfChar chunk;
+      cmCTestSubmitHandlerVectorOfChar chunkDebug;
+      ::curl_easy_setopt(curl, CURLOPT_FILE, (void *)&chunk);
+      ::curl_easy_setopt(curl, CURLOPT_DEBUGDATA, (void *)&chunkDebug);
+
+      // Now run off and do what you've been told!
+      res = ::curl_easy_perform(curl);
+
+      cmCTestLog(m_CTest, DEBUG, "CURL output: ["
+        << cmCTestLogWrite(&*chunk.begin(), chunk.size()) << "]" << std::endl);
+      cmCTestLog(m_CTest, DEBUG, "CURL debug output: ["
+        << cmCTestLogWrite(&*chunkDebug.begin(), chunkDebug.size()) << "]" << std::endl);
+
+      fclose(ftpfile);
+      if ( res )
+        {
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "   Error when uploading file: " << local_file.c_str() << std::endl);
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "   Error message was: " << error_buffer << std::endl);
+        *m_LogFile << "   Error when uploading file: " << local_file.c_str() << std::endl
+          << "   Error message was: " << error_buffer << std::endl
+          << "   Curl output was: " << cmCTestLogWrite(&*chunk.begin(), chunk.size()) << std::endl;
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "CURL output: ["
+          << cmCTestLogWrite(&*chunk.begin(), chunk.size()) << "]" << std::endl);
+        ::curl_easy_cleanup(curl);
+        ::curl_global_cleanup(); 
+        return false;
+        }
+      // always cleanup
+      ::curl_easy_cleanup(curl);
+      cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Uploaded: " + local_file << std::endl);
+      }
     }
-  
-  kwsysProcess_Delete(kp);
-  return result;
+  ::curl_global_cleanup(); 
+  return true;
 }

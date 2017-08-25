@@ -1,4 +1,6 @@
-f(ptr, " (SSL %lx.%lx.%lx)",
-          (SSLEAY_VERSION_NUMBER>>28)&0xff,
-          (SSLEAY_VERSION_NUMBER>>20)&0xff,
-          (SSLEAY_VERSION_NUMBER>>12)&0xf);
+sprintf(datestring, "%04d%02d%02d-%02d%02d",
+              lctime->tm_year + 1900,
+              lctime->tm_mon,
+              lctime->tm_mday,
+              lctime->tm_hour,
+              lctime->tm_min);

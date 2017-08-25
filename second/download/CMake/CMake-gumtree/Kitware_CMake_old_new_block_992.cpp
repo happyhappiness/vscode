@@ -1,28 +1,14 @@
 {
   int x,y;
-  getmaxyx(stdscr, y, x);
+  getmaxyx(m_Window, y, x);
   if ( x < cmCursesMainForm::MIN_WIDTH  || 
        y < cmCursesMainForm::MIN_HEIGHT )
     {
     return;
     }
   char firstLine[512], secondLine[512];
-  if (m_OkToGenerate)
-    {
-    sprintf(firstLine,  "C)onfigure                 G)enerate and Exit            H)elp");
-    }
-  else
-    {
-    sprintf(firstLine,  "C)onfigure                                               H)elp");
-    }
-  if (m_AdvancedMode)
-    {
-    sprintf(secondLine, "Q)uit Without Generating   T)oggle Advanced Mode (On)");
-    }
-  else
-    {
-    sprintf(secondLine, "Q)uit Without Generating   T)oggle Advanced Mode (Off)");
-    }
+  sprintf(firstLine,  "C)onfigure             G)enerate and Exit");
+  sprintf(secondLine, "Q)uit                  H)elp");
 
   curses_move(y-2,0);
   printw(firstLine);

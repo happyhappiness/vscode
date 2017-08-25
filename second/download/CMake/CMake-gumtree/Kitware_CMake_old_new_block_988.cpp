@@ -1,3 +1,3 @@
 {
-    sprintf(firstLine,  "C)onfigure                                               H)elp");
+    sprintf(secondLine, "Q)uit Without Generating   T)oggle Advanced Mode (On)");
     }

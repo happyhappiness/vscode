@@ -1,2 +1,2 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external gunzip program");
+archive_set_error(_a, -1,
+	    "External compression programs not supported on this platform");

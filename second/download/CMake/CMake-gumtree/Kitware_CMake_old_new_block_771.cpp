@@ -1,1 +1,12 @@
-yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" , yyscanner)
+{
+      const char* realTargetName = tit->first.c_str();
+      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
+        {
+        // Skip ignored targets
+        continue;
+        }
+      //std::cout << "Found target: " << tit->first.c_str() << std::endl;
+      sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
+      targetNamesNodes[realTargetName] = tgtName;
+      targetPtrs[realTargetName] = &tit->second;
+      }

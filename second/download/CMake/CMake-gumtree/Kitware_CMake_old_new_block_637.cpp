@@ -1,29 +1,35 @@
 {
-    /* Create an error reporting pipe for the forwarding executable.
-       Neither end is directly inherited.  */
-    if(!CreatePipe(&si->ErrorPipeRead, &si->ErrorPipeWrite, 0, 0))
-      {
-      return 0;
-      }
+  char pipe_name[100];
+  snprintf(pipe_name, sizeof(pipe_name),
+           "\\\\.\\pipe\\ninja_pid%u_sp%p", GetCurrentProcessId(), this);
 
-    /* Create an inherited duplicate of the write end.  This also closes
-       the non-inherited version. */
-    if(!DuplicateHandle(GetCurrentProcess(), si->ErrorPipeWrite,
-                        GetCurrentProcess(), &si->ErrorPipeWrite,
-                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
-                                  DUPLICATE_SAME_ACCESS)))
-      {
-      return 0;
-      }
+  pipe_ = ::CreateNamedPipeA(pipe_name,
+                             PIPE_ACCESS_INBOUND | FILE_FLAG_OVERLAPPED,
+                             PIPE_TYPE_BYTE,
+                             PIPE_UNLIMITED_INSTANCES,
+                             0, 0, INFINITE, NULL);
+  if (pipe_ == INVALID_HANDLE_VALUE)
+    Win32Fatal("CreateNamedPipe");
 
-    /* The forwarding executable is given a handle to the error pipe
-       and resume and kill events.  */
-    realCommand = (char*)malloc(strlen(cp->Win9x)+strlen(cp->Commands[index])+100);
-    if(!realCommand)
-      {
-      return 0;
-      }
-    sprintf(realCommand, "%s %p %p %p %d %s", cp->Win9x,
-            si->ErrorPipeWrite, cp->Win9xResumeEvent, cp->Win9xKillEvent,
-            cp->HideWindow, cp->Commands[index]);
-    }
+  if (!CreateIoCompletionPort(pipe_, ioport, (cmULONG_PTR)this, 0))
+    Win32Fatal("CreateIoCompletionPort");
+
+  memset(&overlapped_, 0, sizeof(overlapped_));
+  if (!ConnectNamedPipe(pipe_, &overlapped_) &&
+      GetLastError() != ERROR_IO_PENDING) {
+    Win32Fatal("ConnectNamedPipe");
+  }
+
+  // Get the write end of the pipe as a handle inheritable across processes.
+  HANDLE output_write_handle = CreateFile(pipe_name, GENERIC_WRITE, 0,
+                                          NULL, OPEN_EXISTING, 0, NULL);
+  HANDLE output_write_child;
+  if (!DuplicateHandle(GetCurrentProcess(), output_write_handle,
+                       GetCurrentProcess(), &output_write_child,
+                       0, TRUE, DUPLICATE_SAME_ACCESS)) {
+    Win32Fatal("DuplicateHandle");
+  }
+  CloseHandle(output_write_handle);
+
+  return output_write_child;
+}

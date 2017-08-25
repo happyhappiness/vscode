@@ -1,5 +1,5 @@
-(fd < 0) {
-			archive_set_error(&a->archive, errno,
-			    "Can't open `%s'", path);
-			return (ARCHIVE_FAILED);
-		}
+{
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Ignored the request descending the current object");
+		return (ARCHIVE_WARN);
+	}

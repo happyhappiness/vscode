@@ -9,7 +9,7 @@
             passIt != this->TestProperties->RequiredRegularExpressions.end();
             ++ passIt )
         {
-        if ( passIt->first.find(this->ProcessOutput.c_str()) )
+        if ( passIt->first.find(output.c_str()) )
           {
           found = true;
           reason = "Required regular expression found.";
@@ -36,7 +36,7 @@
             passIt != this->TestProperties->ErrorRegularExpressions.end();
             ++ passIt )
         {
-        if ( passIt->first.find(this->ProcessOutput.c_str()) )
+        if ( passIt->first.find(output.c_str()) )
           {
           reason = "Error regular expression found in output.";
           reason += " Regex=[";
@@ -46,6 +46,7 @@
           }
         }
       }
+
     if (res == cmsysProcess_State_Exited)
       {
       bool success = 
@@ -55,12 +56,13 @@
         || (!success && this->TestProperties->WillFail))
         {
         this->TestResult.Status = cmCTestTestHandler::COMPLETED;
-        cmCTestLog(this->CTest, HANDLER_OUTPUT, "   Passed  " );
+        cmCTestLog(this->CTest, HANDLER_OUTPUT,   "   Passed  " );
         }
       else
         {
         this->TestResult.Status = cmCTestTestHandler::FAILED;
-        cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Failed  " << reason );
+        cmCTestLog(this->CTest, HANDLER_OUTPUT,
+                   "***Failed  " << reason );
         }
       }
     else if ( res == cmsysProcess_State_Expired )
@@ -103,11 +105,11 @@
     passed = this->TestResult.Status == cmCTestTestHandler::COMPLETED;
 
     char buf[1024];
-    sprintf(buf, "%6.2f sec", this->TestProcess->GetTotalTime());
+    sprintf(buf, "%6.2f sec", this->TestResult.ExecutionTime);
     cmCTestLog(this->CTest, HANDLER_OUTPUT, buf << "\n" );
     if ( this->TestHandler->LogFile )
       {
-      *this->TestHandler->LogFile << "Test time = " << buf << std::endl;
+      *this->TestHandler->LogFile << "\nTest time = " << buf << std::endl;
       }
-    this->DartProcessing();
+    this->DartProcessing(output);
     }

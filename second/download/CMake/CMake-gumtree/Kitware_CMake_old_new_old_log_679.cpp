@@ -1,1 +1,1 @@
-sprintf(buf, "%6.2f sec", this->TestProcess->GetTotalTime());
+sprintf(buf, "%6.2f sec", this->TestResult.ExecutionTime);

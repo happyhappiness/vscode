@@ -1,136 +1,170 @@
-bool cmVTKWrapTclCommand::WriteInit(const char *kitName, 
-                                    std::string& outFileName,
-                                    std::vector<std::string>& classes)
+void ctest::ProcessDirectory(std::vector<std::string> &passed, 
+                             std::vector<std::string> &failed)
 {
-  unsigned int i;
-  std::string tempOutputFile = outFileName + ".tmp";
-  FILE *fout = fopen(tempOutputFile.c_str(),"w");
-  if (!fout)
+  // does the DartTestfile.txt exist ?
+  if(!cmSystemTools::FileExists("DartTestfile.txt"))
     {
-    cmSystemTools::Error("Failed to open TclInit file for ", tempOutputFile.c_str());
-    return false;
-    }
-
-  // capitalized commands just once
-  std::vector<std::string> capcommands;
-  for (i = 0; i < m_Commands.size(); i++)
-    {
-    capcommands.push_back(cmSystemTools::Capitalized(m_Commands[i]));
+    return;
     }
   
-  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
-  
-  fprintf(fout,
-          "extern \"C\"\n"
-          "{\n"
-          "#if (TCL_MAJOR_VERSION == 8) && (TCL_MINOR_VERSION >= 4) && (TCL_RELEASE_LEVEL >= TCL_FINAL_RELEASE)\n"
-          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, CONST84 char *[]);\n"
-          "#else\n"
-          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, char *[]);\n"
-          "#endif\n"
-          "}\n"
-          "\n");
+  // parse the file
+  std::ifstream fin("DartTestfile.txt");
+  if(!fin)
+    {
+    return;
+    }
 
-  for (i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
-    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
-    }
+  int firstTest = 1;
+  long line = 0;
   
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,"int vtkCommand(ClientData cd, Tcl_Interp *interp,\n"
-                 "               int argc, char *argv[]);\n");
-    fprintf(fout,"\nTcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkCommandLookup;\n");
-    fprintf(fout,"int vtkCommandForward(ClientData cd, Tcl_Interp *interp,\n"
-                 "                      int argc, char *argv[]){\n"
-                 "  return vtkCommand(cd, interp, argc, argv);\n"
-                 "}\n");
-    }
-  else
-    {
-    fprintf(fout,"\nextern Tcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkCommandLookup;\n");
-    }
-  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
-  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
+  cmRegularExpression ireg(this->m_IncludeRegExp.c_str());
+  cmRegularExpression ereg(this->m_ExcludeRegExp.c_str());
+  cmRegularExpression dartStuff("([\t\n ]*<DartMeasurement.*/DartMeasurement[a-zA-Z]*>[\t ]*[\n]*)");
 
-  for (i = 0; i < m_Commands.size(); i++)
+  bool parseError;
+  while ( fin )
     {
-    fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-            capcommands[i].c_str());
-    }
-  
-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n",
-          kitName);
-  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-          kitName);
-  
-  /* create an extern ref to the generic delete function */
-  fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
+    cmListFileFunction lff;
+    if(cmListFileCache::ParseFunction(fin, lff, "DartTestfile.txt",
+                                      parseError, line))
+      {
+      const std::string& name = lff.m_Name;
+      const std::vector<cmListFileArgument>& args = lff.m_Arguments;
+      if (name == "SUBDIRS")
+        {
+        std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
+        for(std::vector<cmListFileArgument>::const_iterator j = args.begin();
+            j != args.end(); ++j)
+          {   
+          std::string nwd = cwd + "/";
+          nwd += j->Value;
+          if (cmSystemTools::FileIsDirectory(nwd.c_str()))
+            {
+            cmSystemTools::ChangeDirectory(nwd.c_str());
+            this->ProcessDirectory(passed, failed);
+            }
+          }
+        // return to the original directory
+        cmSystemTools::ChangeDirectory(cwd.c_str());
+        }
+      
+      if (name == "ADD_TEST")
+        {
+        if (this->m_UseExcludeRegExp && 
+            this->m_UseExcludeRegExpFirst && 
+            ereg.find(args[0].Value.c_str()))
+          {
+          continue;
+          }
+        if (this->m_UseIncludeRegExp && !ireg.find(args[0].Value.c_str()))
+          {
+          continue;
+          }
+        if (this->m_UseExcludeRegExp && 
+            !this->m_UseExcludeRegExpFirst && 
+            ereg.find(args[0].Value.c_str()))
+          {
+          continue;
+          }
 
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,"extern \"C\"\n{\nvoid vtkCommonDeleteAssocData(ClientData cd)\n");
-    fprintf(fout,"  {\n");
-    fprintf(fout,"  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n");
-    fprintf(fout,"  delete tis;\n  }\n}\n");
-    }
-    
-  /* the main declaration */
-  fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
-  fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
-  
-  fprintf(fout,"\n\nint VTK_EXPORT %s_Init(Tcl_Interp *interp)\n{\n",
-          kitName);
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,
-            "  vtkTclInterpStruct *info = new vtkTclInterpStruct;\n");
-    fprintf(fout,
-            "  info->Number = 0; info->InDelete = 0; info->DebugOn = 0;\n");
-    fprintf(fout,"\n");
-    fprintf(fout,"\n");
-    fprintf(fout,
-            "  Tcl_InitHashTable(&info->InstanceLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_InitHashTable(&info->PointerLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_InitHashTable(&info->CommandLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");
-    fprintf(fout,
-            "  Tcl_CreateExitHandler(vtkCommonDeleteAssocData,(ClientData *)info);\n");
+        cmCTestTestResult cres;
 
-    /* create special vtkCommand command */
-    fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",\n"
-                 "                    reinterpret_cast<vtkTclCommandType>(vtkCommandForward),\n"
-                 "                    (ClientData *)NULL, NULL);\n\n");
-    }
-  
-  for (i = 0; i < m_Commands.size(); i++)
-    {
-    fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
-    }
-  fprintf(fout,"\n");
+        if (firstTest)
+          {
+          std::string nwd = cmSystemTools::GetCurrentWorkingDirectory();
+          std::cerr << "Changing directory into " << nwd.c_str() << "\n";
+          firstTest = 0;
+          }
+        cres.m_Name = args[0].Value;
+        fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());
+        fflush(stderr);
+        //std::cerr << "Testing " << args[0] << " ... ";
+        // find the test executable
+        std::string testCommand = this->FindExecutable(args[1].Value.c_str());
+        testCommand = cmSystemTools::ConvertToOutputPath(testCommand.c_str());
 
-  for (i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"  vtkTclCreateNew(interp,(char *) \"%s\", %sNewCommand,\n",
-            classes[i].c_str(), classes[i].c_str());
-    fprintf(fout,"                  %sCommand);\n",classes[i].c_str());
+        // continue if we did not find the executable
+        if (testCommand == "")
+          {
+          std::cerr << "Unable to find executable: " << 
+            args[1].Value.c_str() << "\n";
+          continue;
+          }
+        
+        // add the arguments
+        std::vector<cmListFileArgument>::const_iterator j = args.begin();
+        ++j;
+        ++j;
+        for(;j != args.end(); ++j)
+          {   
+          testCommand += " ";
+          testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
+          }
+        /**
+         * Run an executable command and put the stdout in output.
+         */
+        std::string output;
+        int retVal;
+
+        double clock_start, clock_finish;
+        clock_start = cmSystemTools::GetTime();
+
+        if ( m_Verbose )
+          {
+          std::cout << std::endl << "Test command: " << testCommand << std::endl;
+          }
+        bool res = cmSystemTools::RunCommand(testCommand.c_str(), output, 
+                                             retVal, 0, false);
+        clock_finish = cmSystemTools::GetTime();
+
+        cres.m_ExecutionTime = (double)(clock_finish - clock_start);
+        cres.m_FullCommandLine = testCommand;
+
+        if (!res || retVal != 0)
+          {
+          fprintf(stderr,"***Failed\n");
+          if (output != "")
+            {
+            if (dartStuff.find(output.c_str()))
+              {
+              cmSystemTools::ReplaceString(output,
+                                           dartStuff.match(1).c_str(),"");
+              }
+            if (output != "" && m_Verbose)
+              {
+              std::cerr << output.c_str() << "\n";
+              }
+            }
+          failed.push_back(args[0].Value); 
+          }
+        else
+          {
+          fprintf(stderr,"   Passed\n");
+          if (output != "")
+            {
+            if (dartStuff.find(output.c_str()))
+              {
+              cmSystemTools::ReplaceString(output,
+                                           dartStuff.match(1).c_str(),"");
+              }
+            if (output != "" && m_Verbose)
+              {
+              std::cerr << output.c_str() << "\n";
+              }
+            }
+          passed.push_back(args[0].Value); 
+          }
+        cres.m_Output = output;
+        cres.m_ReturnValue = retVal;
+        std::string nwd = cmSystemTools::GetCurrentWorkingDirectory();
+        if ( nwd.size() > m_ToplevelPath.size() )
+          {
+          nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
+          }
+        cres.m_Path = nwd;
+        cres.m_CompletionStatus = "Completed";
+        m_TestResults.push_back( cres );
+        }
+      }
     }
-  
-  fprintf(fout,"  return TCL_OK;\n}\n");
-  fclose(fout);
-
-  // copy the file if different
-  cmSystemTools::CopyFileIfDifferent(tempOutputFile.c_str(),
-                                     outFileName.c_str());
-  cmSystemTools::RemoveFile(tempOutputFile.c_str());
-
-  return true;
 }

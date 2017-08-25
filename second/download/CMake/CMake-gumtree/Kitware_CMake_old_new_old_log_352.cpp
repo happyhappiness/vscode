@@ -1,1 +1,2 @@
-sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
+snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+                     conn->host.name);

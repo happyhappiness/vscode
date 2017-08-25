@@ -1,1 +1,2 @@
-fprintf(stderr, "  followed by Component (%d)\n", *oi);
+fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
+              dependee->GetName());

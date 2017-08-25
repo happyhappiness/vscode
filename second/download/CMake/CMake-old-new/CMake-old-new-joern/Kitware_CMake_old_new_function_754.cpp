@@ -1,307 +1,372 @@
-CURLcode Curl_output_ntlm(struct connectdata *conn,
-                          bool proxy)
+void cmCTestTestHandler::ProcessDirectory(std::vector<cmStdString> &passed,
+                                          std::vector<cmStdString> &failed)
 {
-  const char *domain=""; /* empty */
-  const char *host=""; /* empty */
-  int domlen=(int)strlen(domain);
-  int hostlen = (int)strlen(host);
-  int hostoff; /* host name offset */
-  int domoff;  /* domain name offset */
-  size_t size;
-  char *base64=NULL;
-  unsigned char ntlmbuf[256]; /* enough, unless the host/domain is very long */
+  std::string current_dir = cmSystemTools::GetCurrentWorkingDirectory();
+  this->TestList.clear();
 
-  /* point to the address of the pointer that holds the string to sent to the
-     server, which is for a plain host or for a HTTP proxy */
-  char **allocuserpwd;
+  this->GetListOfTests();
+  cmCTestTestHandler::ListOfTests::size_type tmsize = this->TestList.size();
 
-  /* point to the name and password for this */
-  char *userp;
-  char *passwdp;
-  /* point to the correct struct with this */
-  struct ntlmdata *ntlm;
-  struct auth *authp;
+  this->StartTest = this->CTest->CurrentTime();
+  double elapsed_time_start = cmSystemTools::GetTime();
 
-  curlassert(conn);
-  curlassert(conn->data);
+  *this->LogFile << "Start testing: " << this->StartTest << std::endl
+    << "----------------------------------------------------------"
+    << std::endl;
 
-  if(proxy) {
-    allocuserpwd = &conn->allocptr.proxyuserpwd;
-    userp = conn->proxyuser;
-    passwdp = conn->proxypasswd;
-    ntlm = &conn->proxyntlm;
-    authp = &conn->data->state.authproxy;
-  }
-  else {
-    allocuserpwd = &conn->allocptr.userpwd;
-    userp = conn->user;
-    passwdp = conn->passwd;
-    ntlm = &conn->ntlm;
-    authp = &conn->data->state.authhost;
-  }
-  authp->done = FALSE;
-
-  /* not set means empty */
-  if(!userp)
-    userp=(char *)"";
-
-  if(!passwdp)
-    passwdp=(char *)"";
-
-  switch(ntlm->state) {
-  case NTLMSTATE_TYPE1:
-  default: /* for the weird cases we (re)start here */
-    hostoff = 32;
-    domoff = hostoff + hostlen;
-
-    /* Create and send a type-1 message:
-
-    Index Description          Content
-    0     NTLMSSP Signature    Null-terminated ASCII "NTLMSSP"
-                               (0x4e544c4d53535000)
-    8     NTLM Message Type    long (0x01000000)
-    12    Flags                long
-    16    Supplied Domain      security buffer(*)
-    24    Supplied Workstation security buffer(*)
-    32    start of data block
-
-    */
-
-    snprintf((char *)ntlmbuf, sizeof(ntlmbuf), "NTLMSSP%c"
-             "\x01%c%c%c" /* 32-bit type = 1 */
-             "%c%c%c%c"   /* 32-bit NTLM flag field */
-             "%c%c"  /* domain length */
-             "%c%c"  /* domain allocated space */
-             "%c%c"  /* domain name offset */
-             "%c%c"  /* 2 zeroes */
-             "%c%c"  /* host length */
-             "%c%c"  /* host allocated space */
-             "%c%c"  /* host name offset */
-             "%c%c"  /* 2 zeroes */
-             "%s"   /* host name */
-             "%s",  /* domain string */
-             0,     /* trailing zero */
-             0,0,0, /* part of type-1 long */
-
-             LONGQUARTET(
-               NTLMFLAG_NEGOTIATE_OEM|      /*   2 */
-               NTLMFLAG_NEGOTIATE_NTLM_KEY  /* 200 */
-               /* equals 0x0202 */
-               ),
-             SHORTPAIR(domlen),
-             SHORTPAIR(domlen),
-             SHORTPAIR(domoff),
-             0,0,
-             SHORTPAIR(hostlen),
-             SHORTPAIR(hostlen),
-             SHORTPAIR(hostoff),
-             0,0,
-             host, domain);
-
-    /* initial packet length */
-    size = 32 + hostlen + domlen;
-
-    /* now keeper of the base64 encoded package size */
-    size = Curl_base64_encode((char *)ntlmbuf, size, &base64);
-
-    if(size >0 ) {
-      Curl_safefree(*allocuserpwd);
-      *allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
-                              proxy?"Proxy-":"",
-                              base64);
-      free(base64);
+  // how many tests are in based on RegExp?
+  int inREcnt = 0;
+  cmCTestTestHandler::ListOfTests::iterator it;
+  for ( it = this->TestList.begin(); it != this->TestList.end(); it ++ )
+    {
+    if (it->IsInBasedOnREOptions)
+      {
+      inREcnt ++;
+      }
     }
+  // expand the test list based on the union flag
+  if (this->UseUnion)
+    {
+    this->ExpandTestsToRunInformation((int)tmsize);
+    }
+  else
+    {
+    this->ExpandTestsToRunInformation(inREcnt);
+    }
+
+  int cnt = 0;
+  inREcnt = 0;
+  std::string last_directory = "";
+  for ( it = this->TestList.begin(); it != this->TestList.end(); it ++ )
+    {
+    cnt ++;
+    if (it->IsInBasedOnREOptions)
+      {
+      inREcnt++;
+      }
+
+    // if we are out of time then skip this test, we leave two minutes 
+    // to submit results
+    if (this->CTest->GetRemainingTimeAllowed() - 120 <= 0)
+      {
+      continue;
+      }
+
+    const std::string& testname = it->Name;
+    std::vector<std::string>& args = it->Args;
+    cmCTestTestResult cres;
+    cres.Properties = &*it;
+    cres.ExecutionTime = 0;
+    cres.ReturnValue = -1;
+    cres.Status = cmCTestTestHandler::NOT_RUN;
+    cres.TestCount = cnt;
+
+    if (!(last_directory == it->Directory))
+      {
+      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
+        "Changing directory into " << it->Directory.c_str() << "\n");
+      *this->LogFile << "Changing directory into: " << it->Directory.c_str()
+        << std::endl;
+      last_directory = it->Directory;
+      cmSystemTools::ChangeDirectory(it->Directory.c_str());
+      }
+    cres.Name = testname;
+    cres.Path = it->Directory.c_str();
+
+    if (this->UseUnion)
+      {
+      // if it is not in the list and not in the regexp then skip
+      if ((this->TestsToRun.size() &&
+           std::find(this->TestsToRun.begin(), this->TestsToRun.end(), cnt)
+           == this->TestsToRun.end()) && !it->IsInBasedOnREOptions)
+        {
+        continue;
+        }
+      }
     else
-      return CURLE_OUT_OF_MEMORY; /* FIX TODO */
+      {
+      // is this test in the list of tests to run? If not then skip it
+      if ((this->TestsToRun.size() &&
+           std::find(this->TestsToRun.begin(),
+             this->TestsToRun.end(), inREcnt)
+           == this->TestsToRun.end()) || !it->IsInBasedOnREOptions)
+        {
+        continue;
+        }
+      }
 
-    break;
-
-  case NTLMSTATE_TYPE2:
-    /* We received the type-2 already, create a type-3 message:
-
-    Index   Description            Content
-    0       NTLMSSP Signature      Null-terminated ASCII "NTLMSSP"
-                                   (0x4e544c4d53535000)
-    8       NTLM Message Type      long (0x03000000)
-    12      LM/LMv2 Response       security buffer(*)
-    20      NTLM/NTLMv2 Response   security buffer(*)
-    28      Domain Name            security buffer(*)
-    36      User Name              security buffer(*)
-    44      Workstation Name       security buffer(*)
-    (52)    Session Key (optional) security buffer(*)
-    (60)    Flags (optional)       long
-    52 (64) start of data block
-
-    */
-
-  {
-    int lmrespoff;
-    int ntrespoff;
-    int useroff;
-    unsigned char lmresp[0x18]; /* fixed-size */
-#ifdef USE_NTRESPONSES
-    unsigned char ntresp[0x18]; /* fixed-size */
-#endif
-    const char *user;
-    int userlen;
-
-    user = strchr(userp, '\\');
-    if(!user)
-      user = strchr(userp, '/');
-
-    if (user) {
-      domain = userp;
-      domlen = (int)(user - domain);
-      user++;
-    }
+    cmCTestLog(this->CTest, HANDLER_OUTPUT, std::setw(3) << cnt << "/");
+    cmCTestLog(this->CTest, HANDLER_OUTPUT, std::setw(3) << tmsize << " ");
+    if ( this->MemCheck )
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "Memory Check");
+      }
     else
-      user = userp;
-    userlen = (int)strlen(user);
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "Testing");
+      }
+    cmCTestLog(this->CTest, HANDLER_OUTPUT, " ");
+    std::string outname = testname;
+    outname.resize(30, ' ');
+    *this->LogFile << cnt << "/" << tmsize << " Testing: " << testname
+      << std::endl;
 
-    mkhash(passwdp, &ntlm->nonce[0], lmresp
-#ifdef USE_NTRESPONSES
-           , ntresp
-#endif
-      );
-
-    domoff = 64; /* always */
-    useroff = domoff + domlen;
-    hostoff = useroff + userlen;
-    lmrespoff = hostoff + hostlen;
-    ntrespoff = lmrespoff + 0x18;
-
-    /* Create the big type-3 message binary blob */
-    size = snprintf((char *)ntlmbuf, sizeof(ntlmbuf),
-                    "NTLMSSP%c"
-                    "\x03%c%c%c" /* type-3, 32 bits */
-
-                    "%c%c%c%c" /* LanManager length + allocated space */
-                    "%c%c" /* LanManager offset */
-                    "%c%c" /* 2 zeroes */
-
-                    "%c%c" /* NT-response length */
-                    "%c%c" /* NT-response allocated space */
-                    "%c%c" /* NT-response offset */
-                    "%c%c" /* 2 zeroes */
-
-                    "%c%c"  /* domain length */
-                    "%c%c"  /* domain allocated space */
-                    "%c%c"  /* domain name offset */
-                    "%c%c"  /* 2 zeroes */
-
-                    "%c%c"  /* user length */
-                    "%c%c"  /* user allocated space */
-                    "%c%c"  /* user offset */
-                    "%c%c"  /* 2 zeroes */
-
-                    "%c%c"  /* host length */
-                    "%c%c"  /* host allocated space */
-                    "%c%c"  /* host offset */
-                    "%c%c%c%c%c%c"  /* 6 zeroes */
-
-                    "\xff\xff"  /* message length */
-                    "%c%c"  /* 2 zeroes */
-
-                    "\x01\x82" /* flags */
-                    "%c%c"  /* 2 zeroes */
-
-                    /* domain string */
-                    /* user string */
-                    /* host string */
-                    /* LanManager response */
-                    /* NT response */
-                    ,
-                    0, /* zero termination */
-                    0,0,0, /* type-3 long, the 24 upper bits */
-
-                    SHORTPAIR(0x18),  /* LanManager response length, twice */
-                    SHORTPAIR(0x18),
-                    SHORTPAIR(lmrespoff),
-                    0x0, 0x0,
-
-#ifdef USE_NTRESPONSES
-                    SHORTPAIR(0x18),  /* NT-response length, twice */
-                    SHORTPAIR(0x18),
-#else
-                    0x0, 0x0,
-                    0x0, 0x0,
-#endif
-                    SHORTPAIR(ntrespoff),
-                    0x0, 0x0,
-
-                    SHORTPAIR(domlen),
-                    SHORTPAIR(domlen),
-                    SHORTPAIR(domoff),
-                    0x0, 0x0,
-
-                    SHORTPAIR(userlen),
-                    SHORTPAIR(userlen),
-                    SHORTPAIR(useroff),
-                    0x0, 0x0,
-
-                    SHORTPAIR(hostlen),
-                    SHORTPAIR(hostlen),
-                    SHORTPAIR(hostoff),
-                    0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-
-                    0x0, 0x0,
-
-                    0x0, 0x0);
-
-    /* size is now 64 */
-    size=64;
-    ntlmbuf[62]=ntlmbuf[63]=0;
-
-    memcpy(&ntlmbuf[size], domain, domlen);
-    size += domlen;
-
-    memcpy(&ntlmbuf[size], user, userlen);
-    size += userlen;
-
-    /* we append the binary hashes to the end of the blob */
-    if(size < ((int)sizeof(ntlmbuf) - 0x18)) {
-      memcpy(&ntlmbuf[size], lmresp, 0x18);
-      size += 0x18;
-    }
-
-#ifdef USE_NTRESPONSES
-    if(size < ((int)sizeof(ntlmbuf) - 0x18)) {
-      memcpy(&ntlmbuf[size], ntresp, 0x18);
-      size += 0x18;
-    }
-#endif
-
-    ntlmbuf[56] = (unsigned char)(size & 0xff);
-    ntlmbuf[57] = (unsigned char)(size >> 8);
-
-    /* convert the binary blob into base64 */
-    size = Curl_base64_encode((char *)ntlmbuf, size, &base64);
-
-    if(size >0 ) {
-      Curl_safefree(*allocuserpwd);
-      *allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
-                              proxy?"Proxy-":"",
-                              base64);
-      free(base64);
-    }
+    if ( this->CTest->GetShowOnly() )
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, outname.c_str() << std::endl);
+      }
     else
-      return CURLE_OUT_OF_MEMORY; /* FIX TODO */
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, outname.c_str());
+      }
 
-    ntlm->state = NTLMSTATE_TYPE3; /* we sent a type-3 */
-    authp->done = TRUE;
-  }
-  break;
+    cmCTestLog(this->CTest, DEBUG, "Testing " << args[0].c_str() << " ... ");
+    // find the test executable
+    std::string actualCommand = this->FindTheExecutable(args[1].c_str());
+    std::string testCommand
+      = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
 
-  case NTLMSTATE_TYPE3:
-    /* connection is already authenticated,
-     * don't send a header in future requests */
-    if(*allocuserpwd) {
-      free(*allocuserpwd);
-      *allocuserpwd=NULL;
+    // continue if we did not find the executable
+    if (testCommand == "")
+      {
+      *this->LogFile << "Unable to find executable: " << args[1].c_str()
+        << std::endl;
+      cmCTestLog(this->CTest, ERROR_MESSAGE, "Unable to find executable: "
+        << args[1].c_str() << std::endl);
+      cres.Output = "Unable to find executable: " + args[1];
+      if ( !this->CTest->GetShowOnly() )
+        {
+        cres.FullCommandLine = actualCommand;
+        this->TestResults.push_back( cres );
+        failed.push_back(testname);
+        continue;
+        }
+      }
+
+    // add the arguments
+    std::vector<std::string>::const_iterator j = args.begin();
+    ++j;
+    ++j;
+    std::vector<const char*> arguments;
+    this->GenerateTestCommand(arguments);
+    arguments.push_back(actualCommand.c_str());
+    for(;j != args.end(); ++j)
+      {
+      testCommand += " ";
+      testCommand += cmSystemTools::EscapeSpaces(j->c_str());
+      arguments.push_back(j->c_str());
+      }
+    arguments.push_back(0);
+
+    /**
+     * Run an executable command and put the stdout in output.
+     */
+    std::string output;
+    int retVal = 0;
+
+
+    cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
+      << (this->MemCheck?"MemCheck":"Test") << " command: " << testCommand
+      << std::endl);
+    *this->LogFile << cnt << "/" << tmsize
+      << " Test: " << testname.c_str() << std::endl;
+    *this->LogFile << "Command: ";
+    std::vector<cmStdString>::size_type ll;
+    for ( ll = 0; ll < arguments.size()-1; ll ++ )
+      {
+      *this->LogFile << "\"" << arguments[ll] << "\" ";
+      }
+    *this->LogFile
+      << std::endl
+      << "Directory: " << it->Directory << std::endl
+      << "\"" << testname.c_str() << "\" start time: "
+      << this->CTest->CurrentTime() << std::endl
+      << "Output:" << std::endl
+      << "----------------------------------------------------------"
+      << std::endl;
+    int res = 0;
+    double clock_start, clock_finish;
+    clock_start = cmSystemTools::GetTime();
+
+    if ( !this->CTest->GetShowOnly() )
+      {
+      res = this->CTest->RunTest(arguments, &output, &retVal, this->LogFile);
+      }
+
+    clock_finish = cmSystemTools::GetTime();
+
+    if ( this->LogFile )
+      {
+      double ttime = clock_finish - clock_start;
+      int hours = static_cast<int>(ttime / (60 * 60));
+      int minutes = static_cast<int>(ttime / 60) % 60;
+      int seconds = static_cast<int>(ttime) % 60;
+      char buffer[100];
+      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+      *this->LogFile
+        << "----------------------------------------------------------"
+        << std::endl
+        << "\"" << testname.c_str() << "\" end time: "
+        << this->CTest->CurrentTime() << std::endl
+        << "\"" << testname.c_str() << "\" time elapsed: "
+        << buffer << std::endl
+        << "----------------------------------------------------------"
+        << std::endl << std::endl;
+      }
+
+    cres.ExecutionTime = (double)(clock_finish - clock_start);
+    cres.FullCommandLine = testCommand;
+
+    if ( !this->CTest->GetShowOnly() )
+      {
+      bool testFailed = false;
+      std::vector<cmsys::RegularExpression>::iterator passIt;
+      bool forceFail = false;
+      if ( it->RequiredRegularExpressions.size() > 0 )
+        {
+        bool found = false;
+        for ( passIt = it->RequiredRegularExpressions.begin();
+          passIt != it->RequiredRegularExpressions.end();
+          ++ passIt )
+          {
+          if ( passIt->find(output.c_str()) )
+            {
+            found = true;
+            }
+          }
+        if ( !found )
+          {
+          forceFail = true;
+          }
+        }
+      if ( it->ErrorRegularExpressions.size() > 0 )
+        {
+        for ( passIt = it->ErrorRegularExpressions.begin();
+          passIt != it->ErrorRegularExpressions.end();
+          ++ passIt )
+          {
+          if ( passIt->find(output.c_str()) )
+            {
+            forceFail = true;
+            }
+          }
+        }
+
+      if (res == cmsysProcess_State_Exited &&
+          (retVal == 0 || it->RequiredRegularExpressions.size()) &&
+          !forceFail)
+        {
+        cmCTestLog(this->CTest, HANDLER_OUTPUT,   "   Passed");
+        if ( it->WillFail )
+          {
+          cmCTestLog(this->CTest, HANDLER_OUTPUT,   " - But it should fail!");
+          cres.Status = cmCTestTestHandler::FAILED;
+          testFailed = true;
+          }
+        else
+          {
+          cres.Status = cmCTestTestHandler::COMPLETED;
+          }
+        cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl);
+        }
+      else
+        {
+        testFailed = true;
+
+        cres.Status = cmCTestTestHandler::FAILED;
+        if ( res == cmsysProcess_State_Expired )
+          {
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Timeout" << std::endl);
+          cres.Status = cmCTestTestHandler::TIMEOUT;
+          }
+        else if ( res == cmsysProcess_State_Exception )
+          {
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Exception: ");
+          switch ( retVal )
+            {
+          case cmsysProcess_Exception_Fault:
+            cmCTestLog(this->CTest, HANDLER_OUTPUT, "SegFault");
+            cres.Status = cmCTestTestHandler::SEGFAULT;
+            break;
+          case cmsysProcess_Exception_Illegal:
+            cmCTestLog(this->CTest, HANDLER_OUTPUT, "Illegal");
+            cres.Status = cmCTestTestHandler::ILLEGAL;
+            break;
+          case cmsysProcess_Exception_Interrupt:
+            cmCTestLog(this->CTest, HANDLER_OUTPUT, "Interrupt");
+            cres.Status = cmCTestTestHandler::INTERRUPT;
+            break;
+          case cmsysProcess_Exception_Numerical:
+            cmCTestLog(this->CTest, HANDLER_OUTPUT, "Numerical");
+            cres.Status = cmCTestTestHandler::NUMERICAL;
+            break;
+          default:
+            cmCTestLog(this->CTest, HANDLER_OUTPUT, "Other");
+            cres.Status = cmCTestTestHandler::OTHER_FAULT;
+            }
+           cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl);
+          }
+        else if ( res == cmsysProcess_State_Error )
+          {
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Bad command " << res
+            << std::endl);
+          cres.Status = cmCTestTestHandler::BAD_COMMAND;
+          }
+        else
+          {
+          // Force fail will also be here?
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Failed");
+          if ( it->WillFail )
+            {
+            cres.Status = cmCTestTestHandler::COMPLETED;
+            cmCTestLog(this->CTest, HANDLER_OUTPUT, " - supposed to fail");
+            testFailed = false;
+            }
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl);
+          }
+        }
+      if ( testFailed )
+        {
+        failed.push_back(testname);
+        }
+      else
+        {
+        passed.push_back(testname);
+        }
+      if (!output.empty() && output.find("<DartMeasurement") != output.npos)
+        {
+        if (this->DartStuff.find(output.c_str()))
+          {
+          std::string dartString = this->DartStuff.match(1);
+          cmSystemTools::ReplaceString(output, dartString.c_str(),"");
+          cres.RegressionImages
+            = this->GenerateRegressionImages(dartString);
+          }
+        }
+      }
+
+    if ( cres.Status == cmCTestTestHandler::COMPLETED )
+      {
+      this->CleanTestOutput(output, static_cast<size_t>(
+          this->CustomMaximumPassedTestOutputSize));
+      }
+    else
+      {
+      this->CleanTestOutput(output, static_cast<size_t>(
+          this->CustomMaximumFailedTestOutputSize));
+      }
+
+    cres.Output = output;
+    cres.ReturnValue = retVal;
+    cres.CompletionStatus = "Completed";
+    this->TestResults.push_back( cres );
     }
-    authp->done = TRUE;
-    break;
-  }
 
-  return CURLE_OK;
+  this->EndTest = this->CTest->CurrentTime();
+  this->ElapsedTestingTime = cmSystemTools::GetTime() - elapsed_time_start;
+  if ( this->LogFile )
+    {
+    *this->LogFile << "End testing: " << this->EndTest << std::endl;
+    }
+  cmSystemTools::ChangeDirectory(current_dir.c_str());
 }

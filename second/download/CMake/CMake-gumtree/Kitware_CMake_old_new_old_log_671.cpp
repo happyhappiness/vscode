@@ -1,1 +1,2 @@
-fprintf(stderr, " + %s\n", realTargetName);
+fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
+              dependee->GetName());

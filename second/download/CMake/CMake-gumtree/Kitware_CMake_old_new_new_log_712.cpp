@@ -1,1 +1,1 @@
-str << this->ChipID.Model;
+str << this->ChipID.Revision;

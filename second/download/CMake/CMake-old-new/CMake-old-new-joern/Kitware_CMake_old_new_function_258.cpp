@@ -1,6 +1,7 @@
-static char *hashkey(struct connectdata *conn)
+static void sasl_digest_md5_to_ascii(unsigned char *source, /* 16 bytes */
+                                     unsigned char *dest) /* 33 bytes */
 {
-  return aprintf("%s:%d",
-                 conn->bits.proxy?conn->proxy.name:conn->host.name,
-                 conn->localport);
+  int i;
+  for(i = 0; i < 16; i++)
+    snprintf((char *)&dest[i*2], 3, "%02x", source[i]);
 }

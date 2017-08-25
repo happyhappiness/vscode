@@ -1,5 +1,4 @@
-f(ptr, " (OpenSSL %lx.%lx.%lx%s)",
-            (ssleay_value>>28)&0xf,
-            (ssleay_value>>20)&0xff,
-            (ssleay_value>>12)&0xff,
-            sub);
+f(ptr, " (SSL %lx.%lx.%lx)",
+          (SSLEAY_VERSION_NUMBER>>28)&0xff,
+          (SSLEAY_VERSION_NUMBER>>20)&0xff,
+          (SSLEAY_VERSION_NUMBER>>12)&0xf);

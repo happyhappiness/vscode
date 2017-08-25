@@ -1,1 +1,1 @@
-sprintf(buf, "Content-Length: %d\r\n", filesize);
+fprintf(stderr, "Starting parse\n");

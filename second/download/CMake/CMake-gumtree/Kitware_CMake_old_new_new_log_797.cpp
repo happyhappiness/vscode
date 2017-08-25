@@ -1,1 +1,1 @@
-snprintf(groupname, sizeof(groupname), "%d", (int)gid);
+cmSystemTools::Error("Problem with tar_open(): ", strerror(errno));

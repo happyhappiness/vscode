@@ -1,1 +1,1 @@
-str << this->ChipID.Type;
+str << this->ChipID.Family;

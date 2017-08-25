@@ -1,1 +1,1 @@
-Err:509
+= aprintf("%s:%s", user, pwd);

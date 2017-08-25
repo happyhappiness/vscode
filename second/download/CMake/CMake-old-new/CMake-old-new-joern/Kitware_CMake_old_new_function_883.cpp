@@ -70,7 +70,6 @@ void cmCTest::ProcessDirectory(std::vector<std::string> &passed,
           }
 
         cmCTestTestResult cres;
-        cres.m_Status = cmCTest::NOT_RUN;
 
         if (firstTest)
           {
@@ -123,10 +122,11 @@ void cmCTest::ProcessDirectory(std::vector<std::string> &passed,
           {
           std::cout << std::endl << "Test command: " << testCommand << std::endl;
           }
-        int res = 0;
+        bool res = true;
         if ( !m_ShowOnly )
           {
-          res = this->RunTest(testCommand.c_str(), &output, &retVal);
+          res = cmSystemTools::RunSingleCommand(testCommand.c_str(), &output, 
+            &retVal, 0, false, m_TimeOut);
           }
         clock_finish = cmSystemTools::GetTime();
 
@@ -135,63 +135,41 @@ void cmCTest::ProcessDirectory(std::vector<std::string> &passed,
 
         if ( !m_ShowOnly )
           {
-          if (res == cmsysProcess_State_Exited && retVal )
+          if (!res || retVal != 0)
             {
-            fprintf(stderr,"   Passed\n");
-            passed.push_back(args[0].Value); 
-            }
-          else
-            {
-            if ( res == cmsysProcess_State_Expired )
+            fprintf(stderr,"***Failed\n");
+            if (output != "")
               {
-              fprintf(stderr,"***Timeout\n");
-              cres.m_Status = cmCTest::TIMEOUT;
-              }
-            else if ( res == cmsysProcess_State_Exception )
-              {
-              fprintf(stderr,"***Exception: ");
-              switch ( retVal )
+              if (dartStuff.find(output.c_str()))
                 {
-              case cmsysProcess_Exception_Fault:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::SEGFAULT;
-                break;
-              case cmsysProcess_Exception_Illegal:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::ILLEGAL;
-                break;
-              case cmsysProcess_Exception_Interrupt:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::INTERRUPT;
-                break;
-              case cmsysProcess_Exception_Numerical:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::NUMERICAL;
-                break;
-              default:
-                fprintf(stderr,"Other");
-                cres.m_Status = cmCTest::OTHER_FAULT;
+                std::string dartString = dartStuff.match(1);
+                cmSystemTools::ReplaceString(output, dartString.c_str(),"");
+                cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
                 }
-              }
-            else if ( res == cmsysProcess_State_Error )
-              {
-              fprintf(stderr,"***Bad command\n");
-              cres.m_Status = cmCTest::BAD_COMMAND;
-              }
-            else
-              {
-              fprintf(stderr,"***Failed\n");
+              if (output != "" && m_Verbose)
+                {
+                std::cerr << output.c_str() << "\n";
+                }
               }
             failed.push_back(args[0].Value); 
             }
-          if (output != "")
+          else
             {
-            if (dartStuff.find(output.c_str()))
+            fprintf(stderr,"   Passed\n");
+            if (output != "")
               {
-              std::string dartString = dartStuff.match(1);
-              cmSystemTools::ReplaceString(output, dartString.c_str(),"");
-              cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
+              if (dartStuff.find(output.c_str()))
+                {
+                std::string dartString = dartStuff.match(1);
+                cmSystemTools::ReplaceString(output, dartString.c_str(),"");
+                cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
+                }
+              if (output != "" && m_Verbose)
+                {
+                std::cerr << output.c_str() << "\n";
+                }
               }
+            passed.push_back(args[0].Value); 
             }
           }
         cres.m_Output = output;

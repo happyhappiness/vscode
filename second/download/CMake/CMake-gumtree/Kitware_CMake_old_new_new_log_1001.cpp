@@ -1,1 +1,2 @@
-sprintf(version+sideSpace, "%s", vertmp);
+sprintf(version,"(CMake Version %d.%d)", cmMakefile::GetMajorVersion(),
+	  cmMakefile::GetMinorVersion());

@@ -1,1 +1,1 @@
-fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);
+yy_fatal_error( "cmFortran_yyset_lineno called with no buffer" , yyscanner);

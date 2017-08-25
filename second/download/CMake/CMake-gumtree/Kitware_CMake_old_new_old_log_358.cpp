@@ -1,2 +1,1 @@
-conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
-                                         data->state.range);
+snprintf((char *)&dest[i*2], 3, "%02x", source[i]);

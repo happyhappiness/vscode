@@ -1,1 +1,2 @@
-cmCursesForm::CurrentForm->AddError(message, title);
+sprintf(tmp,"Version %d.%d", cmMakefile::GetMajorVersion(),
+          cmMakefile::GetMinorVersion());

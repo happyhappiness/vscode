@@ -1,1 +1,1 @@
-fprintf(fout,"void vtkCommonDeleteAssocData(ClientData cd, Tcl_Interp *)\n");
+fprintf(fout,"  {\n");

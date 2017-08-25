@@ -1,60 +1,21 @@
-std::vector<cmComputeLinkDepends::LinkEntry> const&
-cmComputeLinkDepends::Compute()
+void
+cmComputeTargetDepends::DisplayGraph(Graph const& graph, const char* name)
 {
-  // Follow the link dependencies of the target to be linked.
-  this->AddDirectLinkEntries();
-
-  // Complete the breadth-first search of dependencies.
-  while(!this->BFSQueue.empty())
+  fprintf(stderr, "The %s target dependency graph is:\n", name);
+  int n = static_cast<int>(graph.size());
+  for(int depender_index = 0; depender_index < n; ++depender_index)
     {
-    // Get the next entry.
-    BFSEntry qe = this->BFSQueue.front();
-    this->BFSQueue.pop();
-
-    // Follow the entry's dependencies.
-    this->FollowLinkEntry(qe);
+    EdgeList const& nl = graph[depender_index];
+    cmTarget const* depender = this->Targets[depender_index];
+    fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int dependee_index = *ni;
+      cmTarget const* dependee = this->Targets[dependee_index];
+      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
+      }
     }
-
-  // Complete the search of shared library dependencies.
-  while(!this->SharedDepQueue.empty())
-    {
-    // Handle the next entry.
-    this->HandleSharedDependency(this->SharedDepQueue.front());
-    this->SharedDepQueue.pop();
-    }
-
-  // Infer dependencies of targets for which they were not known.
-  this->InferDependencies();
-
-  // Cleanup the constraint graph.
-  this->CleanConstraintGraph();
-
-  // Display the constraint graph.
-  if(this->DebugMode)
-    {
-    fprintf(stderr,
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName(), this->Config?this->Config:"noconfig");
-    this->DisplayConstraintGraph();
-    }
-
-  // Compute the final ordering.
-  this->OrderLinkEntires();
-
-  // Compute the final set of link entries.
-  for(std::vector<int>::const_iterator li = this->FinalLinkOrder.begin();
-      li != this->FinalLinkOrder.end(); ++li)
-    {
-    this->FinalLinkEntries.push_back(this->EntryList[*li]);
-    }
-
-  // Display the final set.
-  if(this->DebugMode)
-    {
-    this->DisplayFinalEntries();
-    }
-
-  return this->FinalLinkEntries;
+  fprintf(stderr, "\n");
 }

@@ -1,1 +1,1 @@
-std::cerr << "Illegal";
+std::cerr << "Interrupt";

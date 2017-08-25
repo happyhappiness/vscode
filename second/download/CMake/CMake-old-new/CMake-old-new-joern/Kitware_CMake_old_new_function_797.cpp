@@ -1,80 +1,55 @@
-void
-th_print_long_ls(TAR *t)
+bool cmSystemTools::CreateTar(const char* outFileName, const std::vector<cmStdString>& files)
 {
-  char modestring[12];
-#ifndef WIN32
-  struct passwd *pw;
-  struct group *gr;
-#endif
-  uid_t uid;
-  gid_t gid;
-  char username[_POSIX_LOGIN_NAME_MAX];
-  char groupname[_POSIX_LOGIN_NAME_MAX];
-  time_t mtime;
-  struct tm *mtm;
+#if defined(CMAKE_BUILD_WITH_CMAKE)
+  TAR *t;
+  char buf[TAR_MAXPATHLEN];
+  char pathname[TAR_MAXPATHLEN];
 
-#ifdef HAVE_STRFTIME
-  char timebuf[18];
+  // Ok, this libtar is not const safe. for now use auto_ptr hack
+  char* realName = new char[ strlen(outFileName) + 1 ];
+  std::auto_ptr<char> realNamePtr(realName);
+  strcpy(realName, outFileName);
+  if (tar_open(&t, realName,
+      NULL,
+      O_WRONLY | O_CREAT, 0644,
+      TAR_VERBOSE
+      | 0) == -1)
+    {
+    fprintf(stderr, "tar_open(): %s\n", strerror(errno));
+    return false;
+    }
+
+  std::vector<cmStdString>::const_iterator it;
+  for (it = files.begin(); it != files.end(); ++ it )
+    {
+    strncpy(pathname, it->c_str(), sizeof(pathname));
+    pathname[sizeof(pathname)-1] = 0;
+    strncpy(buf, pathname, sizeof(buf));
+    buf[sizeof(buf)-1] = 0;
+    if (tar_append_tree(t, buf, pathname) != 0)
+      {
+      fprintf(stderr,
+        "tar_append_tree(\"%s\", \"%s\"): %s\n", buf,
+        pathname, strerror(errno));
+      tar_close(t);
+      return false;
+      }
+    }
+
+  if (tar_append_eof(t) != 0)
+    {
+    fprintf(stderr, "tar_append_eof(): %s\n", strerror(errno));
+    tar_close(t);
+    return false;
+    }
+
+  if (tar_close(t) != 0)
+    {
+    fprintf(stderr, "tar_close(): %s\n", strerror(errno));
+    return false;
+    }
+  return true;
 #else
-  const char *months[] = {
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-  };
+  return false;
 #endif
-
-  uid = th_get_uid(t);
-#ifndef WIN32
-  pw = getpwuid(uid);
-  if (pw != NULL)
-    strlcpy(username, pw->pw_name, sizeof(username));
-  else
-#endif
-    snprintf(username, sizeof(username), "%d", uid);
-  gid = th_get_gid(t);
-#ifndef WIN32
-  gr = getgrgid(gid);
-  if (gr != NULL)
-    strlcpy(groupname, gr->gr_name, sizeof(groupname));
-  else
-#endif
-    snprintf(groupname, sizeof(groupname), "%d", gid);
-    
-  strmode(th_get_mode(t), modestring);
-  printf("%.10s %-8.8s %-8.8s ", modestring, username, groupname);
-
-#ifndef WIN32
-  if (TH_ISCHR(t) || TH_ISBLK(t))
-    printf(" %3d, %3d ", th_get_devmajor(t), th_get_devminor(t));
-  else
-    printf("%9ld ", (long)th_get_size(t));
-#endif
-
-  mtime = th_get_mtime(t);
-  mtm = localtime(&mtime);
-#ifdef HAVE_STRFTIME
-  strftime(timebuf, sizeof(timebuf), "%h %e %H:%M %Y", mtm);
-  printf("%s", timebuf);
-#else
-  printf("%.3s %2d %2d:%02d %4d",
-         months[mtm->tm_mon],
-         mtm->tm_mday, mtm->tm_hour, mtm->tm_min, mtm->tm_year + 1900);
-#endif
-
-  printf(" %s", th_get_pathname(t));
-
-#ifndef _WIN32
-  if (TH_ISSYM(t) || TH_ISLNK(t))
-  {
-    if (TH_ISSYM(t))
-      printf(" -> ");
-    else
-      printf(" link to ");
-    if ((t->options & TAR_GNU) && t->th_buf.gnu_longlink != NULL)
-      printf("%s", t->th_buf.gnu_longlink);
-    else
-      printf("%.100s", t->th_buf.linkname);
-  }
-#endif
-
-  putchar('\n');
 }

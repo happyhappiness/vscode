@@ -1,2 +1,1 @@
-sprintf(vertmp,"CMake Version %d.%d", cmMakefile::GetMajorVersion(),
-	  cmMakefile::GetMinorVersion());
+sprintf(help,"%127s", helpString);

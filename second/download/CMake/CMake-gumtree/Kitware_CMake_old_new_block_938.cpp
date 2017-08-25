@@ -1,17 +1,17 @@
 {
         if (this->m_UseExcludeRegExp && 
             this->m_UseExcludeRegExpFirst && 
-            ereg.find(args[0].Value.c_str()))
+            ereg.find(args[0].c_str()))
           {
           continue;
           }
-        if (this->m_UseIncludeRegExp && !ireg.find(args[0].Value.c_str()))
+        if (this->m_UseIncludeRegExp && !ireg.find(args[0].c_str()))
           {
           continue;
           }
         if (this->m_UseExcludeRegExp && 
             !this->m_UseExcludeRegExpFirst && 
-            ereg.find(args[0].Value.c_str()))
+            ereg.find(args[0].c_str()))
           {
           continue;
           }
@@ -24,30 +24,30 @@
           std::cerr << "Changing directory into " << nwd.c_str() << "\n";
           firstTest = 0;
           }
-        cres.m_Name = args[0].Value;
-        fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());
+        cres.m_Name = args[0];
+        fprintf(stderr,"Testing %-30s ",args[0].c_str());
         fflush(stderr);
         //std::cerr << "Testing " << args[0] << " ... ";
         // find the test executable
-        std::string testCommand = this->FindExecutable(args[1].Value.c_str());
+        std::string testCommand = this->FindExecutable(args[1].c_str());
         testCommand = cmSystemTools::ConvertToOutputPath(testCommand.c_str());
 
         // continue if we did not find the executable
         if (testCommand == "")
           {
           std::cerr << "Unable to find executable: " << 
-            args[1].Value.c_str() << "\n";
+            args[1].c_str() << "\n";
           continue;
           }
         
         // add the arguments
-        std::vector<cmListFileArgument>::const_iterator j = args.begin();
+        std::vector<std::string>::iterator j = args.begin();
         ++j;
         ++j;
         for(;j != args.end(); ++j)
           {   
           testCommand += " ";
-          testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
+          testCommand += cmSystemTools::EscapeSpaces(j->c_str());
           }
         /**
          * Run an executable command and put the stdout in output.
@@ -84,7 +84,7 @@
               std::cerr << output.c_str() << "\n";
               }
             }
-          failed.push_back(args[0].Value); 
+          failed.push_back(args[0]); 
           }
         else
           {
@@ -101,7 +101,7 @@
               std::cerr << output.c_str() << "\n";
               }
             }
-          passed.push_back(args[0].Value); 
+          passed.push_back(args[0]); 
           }
         cres.m_Output = output;
         cres.m_ReturnValue = retVal;
