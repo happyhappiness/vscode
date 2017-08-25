@@ -123,6 +123,11 @@ public class GumTreeApi {
 		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_94.cpp";
 		GumTreeApi g = new GumTreeApi();
 		g.setOldAndNewFile(oldFile, newFile);
+		g.addNewLogNode(5);		
+		g.addNewLogNode(11);
+		g.addOldLogNode(5);
+		g.setOldLoc(5);
+		System.out.println(g.getNewLoc());
 		g.setNewLoc(5);
 		System.out.println(g.getOldLoc());
 		System.out.println(g.getActionType());
@@ -284,7 +289,7 @@ public class GumTreeApi {
 				}
 			}
 //			decide whether insertion of new logs
-			if(!isIdentified && isFeature == 0)
+			if(!isIdentified && (isFeature == 0 || isLogs == 0))
 			{
 				if(this.isInsertionOfLog(action))
 				{
@@ -674,7 +679,9 @@ public class GumTreeApi {
 			ITree newNode = action.getNode();
 			Iterator<ITree> newLogsIter = this.newLogs.iterator();
 			while(newLogsIter.hasNext())
-			{
+			{	
+//				this.isChildrenOf(this.newLogNode, currAction.getNode()
+//				inserted node is children of log
 				if(this.isChildrenOf(newNode, newLogsIter.next()))
 				{
 					return true;

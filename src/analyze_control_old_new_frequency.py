@@ -180,7 +180,7 @@ def cluster(z3_api):
         new_log_feature = gumtree.get_block_feature()
         if z3_api is not None:
             # old cdg feature
-            old_cdg_feature = record[my_constant.ANALYZE_OLD_NEW_OLD_CDG_FEATURE]
+            old_cdg_feature = json.loads(record[my_constant.ANALYZE_OLD_NEW_OLD_CDG_FEATURE])
             old_cdg_z3_feature = z3_api.get_infix_for_postfix(old_cdg_feature)
             feature_lists.append(old_cdg_z3_feature)
         else:
