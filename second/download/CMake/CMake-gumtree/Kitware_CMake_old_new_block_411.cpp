@@ -1,3 +1,4 @@
 {
-      sprintf(buf, "%s/*", name);
-      }
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
+    }

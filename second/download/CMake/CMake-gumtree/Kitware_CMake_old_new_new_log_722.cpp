@@ -1,1 +1,1 @@
-fprintf(ofp, "#if defined(_WIN32)\n");
+fprintf(ofp, "# include <io.h>\n");

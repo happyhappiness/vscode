@@ -1,2 +1,2 @@
-sprintf(firstLine, 
+sprintf(secondLine, 
             "                                                               ");

@@ -1,2 +1,2 @@
-printf("  ==> extracting: %s (mode %04o, directory)\n", filename,
-         mode);
+sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
+            cmVersion::GetMinorVersion());

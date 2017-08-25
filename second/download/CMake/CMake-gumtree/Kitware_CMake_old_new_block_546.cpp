@@ -1,5 +1,5 @@
-{
-				archive_set_error(&a->archive, errno,
-				    "FIEMAP failed");
-				exit_sts = ARCHIVE_FAILED;
-			}
+(fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't open `%s'", path);
+			return (ARCHIVE_FAILED);
+		}

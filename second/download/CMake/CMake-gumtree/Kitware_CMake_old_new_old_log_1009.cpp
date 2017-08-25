@@ -1,1 +1,2 @@
-fprintf(stderr,"Testing %-30s ",args[0].c_str());
+fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n\n",
+	  kitName);

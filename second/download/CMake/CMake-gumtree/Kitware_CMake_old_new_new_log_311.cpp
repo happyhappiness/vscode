@@ -1,2 +1,1 @@
-fprintf(fout, "set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY \"%s\")\n",
-              this->BinaryDirectory.c_str());
+fprintf(fout, "add_library(%s STATIC", targetName.c_str());

@@ -1,1 +1,1 @@
-printf("0x%02x: ", i);
+printf("%02x ", data[i+j]);

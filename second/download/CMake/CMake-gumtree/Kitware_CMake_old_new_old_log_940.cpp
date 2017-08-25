@@ -1,2 +1,1 @@
-sprintf(tmp,"Version %d.%d - %s", cmake::GetMajorVersion(),
-          cmake::GetMinorVersion(), cmake::GetReleaseVersion());
+f(fout, "SET(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} ${COMPILE_DEFINITIONS})\n");

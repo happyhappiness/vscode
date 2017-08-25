@@ -1,1 +1,1 @@
-yy_fatal_error( "yyset_lineno called with no buffer" , yyscanner)
+yy_fatal_error( "yyset_column called with no buffer" , yyscanner)

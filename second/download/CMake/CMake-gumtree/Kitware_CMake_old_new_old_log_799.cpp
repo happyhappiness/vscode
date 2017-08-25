@@ -1,2 +1,2 @@
-snprintf(realpath, MAXPATHLEN, "%s/%s", realdir,
-       dent->d_name);
+snprintf(savepath, MAXPATHLEN, "%s/%s", savedir,
+         dent->d_name);

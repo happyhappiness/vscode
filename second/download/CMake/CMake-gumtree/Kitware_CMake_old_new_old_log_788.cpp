@@ -1,1 +1,1 @@
-fprintf(fout,"%s\n",(*d)->m_FullPath.c_str());
+sprintf(tgtName, "node%d", cnt++);

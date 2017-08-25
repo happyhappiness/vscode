@@ -1,1 +1,1 @@
-strncpy(cp->ErrorMessage, strerror(errno), KWSYSPE_PIPE_BUFFER_SIZE);
+fprintf(ofp, "#include <stdio.h>\n\n");

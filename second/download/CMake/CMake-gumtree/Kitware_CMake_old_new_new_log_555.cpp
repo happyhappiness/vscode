@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, t->tree_errno,
-				    "%ls: Cannot stat",
-				    tree_current_path(t));
+archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));

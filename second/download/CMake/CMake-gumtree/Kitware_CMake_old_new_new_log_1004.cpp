@@ -1,1 +1,1 @@
-sprintf(secondLine, "Q)uit                  H)elp");
+fprintf(fout,"void vtkCommonDeleteAssocData(ClientData cd, Tcl_Interp *)\n");

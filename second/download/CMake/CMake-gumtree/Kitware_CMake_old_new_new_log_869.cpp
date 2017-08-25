@@ -1,1 +1,1 @@
-std::cerr << "Other";
+std::cerr << "\n";

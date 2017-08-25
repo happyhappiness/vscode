@@ -1,1 +1,2 @@
-fprintf(stderr, "tar_open(): %s\n", strerror(errno));
+snprintf(realpath, MAXPATHLEN, "%s/%s", realdir,
+       dent->d_name);

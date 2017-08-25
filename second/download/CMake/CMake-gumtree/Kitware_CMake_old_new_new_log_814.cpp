@@ -1,3 +1,3 @@
-fprintf(stderr, "Mismatch in exit exception.  "
+fprintf(stderr, "Mismatch in exit value.  "
               "Should have been %d, was %d.\n",
-              exception, kwsysProcess_GetExitException(kp));
+              value, kwsysProcess_GetExitValue(kp));

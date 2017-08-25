@@ -1,1 +1,1 @@
-sprintf(buffer, "&gt;&lt;");
+sprintf(buffer, "&%x", (int)ch);

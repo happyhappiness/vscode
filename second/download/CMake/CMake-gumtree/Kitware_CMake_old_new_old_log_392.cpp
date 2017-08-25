@@ -1,1 +1,1 @@
-fprintf(fout, "%04X ", i);
+fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);

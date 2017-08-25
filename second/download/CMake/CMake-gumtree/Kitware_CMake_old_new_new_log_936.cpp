@@ -1,1 +1,1 @@
-fprintf(fout,"#define VTK_TCL_TO_STRING0(x) #x\n");
+fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());

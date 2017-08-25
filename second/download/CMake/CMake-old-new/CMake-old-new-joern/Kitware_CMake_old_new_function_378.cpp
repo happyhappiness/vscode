@@ -1,29 +1,84 @@
-static void
-log_gss_error(struct connectdata *conn, OM_uint32 error_status,
-              const char *prefix)
+void cmGlobalGenerator::Configure()
 {
-  OM_uint32 maj_stat, min_stat;
-  OM_uint32 msg_ctx = 0;
-  gss_buffer_desc status_string;
-  char buf[1024];
-  size_t len;
+  this->FirstTimeProgress = 0.0f;
+  this->ClearGeneratorMembers();
 
-  snprintf(buf, sizeof(buf), "%s", prefix);
-  len = strlen(buf);
-  do {
-    maj_stat = gss_display_status(&min_stat,
-                                  error_status,
-                                  GSS_C_MECH_CODE,
-                                  GSS_C_NO_OID,
-                                  &msg_ctx,
-                                  &status_string);
-      if(sizeof(buf) > len + status_string.length + 1) {
-        snprintf(buf + len, sizeof(buf) - len,
-                 ": %s", (char*) status_string.value);
-      len += status_string.length;
+  // start with this directory
+  cmLocalGenerator *lg = this->MakeLocalGenerator();
+  this->Makefiles.push_back(lg->GetMakefile());
+  this->LocalGenerators.push_back(lg);
+
+  // set the Start directories
+  lg->GetMakefile()->SetCurrentSourceDirectory
+    (this->CMakeInstance->GetHomeDirectory());
+  lg->GetMakefile()->SetCurrentBinaryDirectory
+    (this->CMakeInstance->GetHomeOutputDirectory());
+
+  this->BinaryDirectories.insert(
+      this->CMakeInstance->GetHomeOutputDirectory());
+
+  // now do it
+  lg->GetMakefile()->Configure();
+  lg->GetMakefile()->EnforceDirectoryLevelRules();
+
+  // update the cache entry for the number of local generators, this is used
+  // for progress
+  char num[100];
+  sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
+  this->GetCMakeInstance()->AddCacheEntry
+    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
+     "number of local generators", cmState::INTERNAL);
+
+  // check for link libraries and include directories containing "NOTFOUND"
+  // and for infinite loops
+  this->CheckLocalGenerators();
+
+  // at this point this->LocalGenerators has been filled,
+  // so create the map from project name to vector of local generators
+  this->FillProjectMap();
+
+  if ( this->CMakeInstance->GetWorkingMode() == cmake::NORMAL_MODE)
+    {
+    std::ostringstream msg;
+    if(cmSystemTools::GetErrorOccuredFlag())
+      {
+      msg << "Configuring incomplete, errors occurred!";
+      const char* logs[] = {"CMakeOutput.log", "CMakeError.log", 0};
+      for(const char** log = logs; *log; ++log)
+        {
+        std::string f = this->CMakeInstance->GetHomeOutputDirectory();
+        f += this->CMakeInstance->GetCMakeFilesDirectory();
+        f += "/";
+        f += *log;
+        if(cmSystemTools::FileExists(f.c_str()))
+          {
+          msg << "\nSee also \"" << f << "\".";
+          }
+        }
+      }
+    else
+      {
+      msg << "Configuring done";
+      }
+    this->CMakeInstance->UpdateProgress(msg.str().c_str(), -1);
     }
-    gss_release_buffer(&min_stat, &status_string);
-  } while(!GSS_ERROR(maj_stat) && msg_ctx != 0);
 
-  infof(conn->data, "%s\n", buf);
+  unsigned int i;
+
+  // Put a copy of each global target in every directory.
+  cmTargets globalTargets;
+  this->CreateDefaultGlobalTargets(&globalTargets);
+
+  for (i = 0; i < this->LocalGenerators.size(); ++i)
+    {
+    cmMakefile* mf = this->LocalGenerators[i]->GetMakefile();
+    cmTargets* targets = &(mf->GetTargets());
+    cmTargets::iterator tit;
+    for ( tit = globalTargets.begin(); tit != globalTargets.end(); ++ tit )
+      {
+      (*targets)[tit->first] = tit->second;
+      (*targets)[tit->first].SetMakefile(mf);
+      }
+    }
+
 }

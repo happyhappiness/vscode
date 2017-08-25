@@ -1,1 +1,1 @@
-fprintf(stderr,"***Timeout\n");
+fprintf(stderr,"***Exception: ");

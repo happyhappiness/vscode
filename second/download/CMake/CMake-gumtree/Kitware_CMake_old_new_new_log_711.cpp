@@ -1,1 +1,1 @@
-str << this->ChipID.Family;
+str << this->ChipID.Model;

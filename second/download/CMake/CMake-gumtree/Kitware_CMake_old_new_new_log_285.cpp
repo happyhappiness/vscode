@@ -1,1 +1,1 @@
-snprintf(buf, sizeof(buf), "%d", state->requested_blksize);
+snprintf(buf, sizeof(buf), "%d", state->retry_time);

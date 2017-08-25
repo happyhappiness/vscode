@@ -1,1 +1,1 @@
-sprintf(temp,"%d",this->ChipID.Model);
+sprintf(temp,"%d",this->ChipID.Revision);

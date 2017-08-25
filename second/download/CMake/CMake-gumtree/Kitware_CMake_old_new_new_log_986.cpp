@@ -1,1 +1,1 @@
-sprintf(firstLine,  "Press [e] to exit help");
+sprintf(firstLine,  "Press [c] to configure");

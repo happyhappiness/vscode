@@ -1,244 +1,267 @@
-int cmTryCompileCommand::CoreTryCompileCode(
-  cmMakefile *mf, std::vector<std::string> const& argv, bool clean)
+void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed, 
+                             cmCTest::tm_VectorOfStrings &failed,
+                             bool memcheck)
 {
-  // which signature were we called with ?
-  bool srcFileSignature = false;
-  unsigned int i;
-  
-  // where will the binaries be stored
-  const char* binaryDirectory = argv[1].c_str();
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  const char* targetName = 0;
-  std::string tmpString;
-  int extraArgs = 0;
-  
-  // look for CMAKE_FLAGS and store them
-  std::vector<std::string> cmakeFlags;
-  for (i = 3; i < argv.size(); ++i)
+  std::string current_dir = cmSystemTools::GetCurrentWorkingDirectory();
+  cmsys::RegularExpression dartStuff("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
+  tm_ListOfTests testlist;
+  this->GetListOfTests(&testlist, memcheck);
+  tm_ListOfTests::size_type tmsize = testlist.size();
+
+  std::ofstream ofs;
+  std::ofstream *olog = 0;
+  if ( !m_ShowOnly && tmsize > 0 && 
+    this->OpenOutputFile("Temporary", 
+      (memcheck?"LastMemCheck.log":"LastTest.log"), ofs) )
     {
-    if (argv[i] == "CMAKE_FLAGS")
+    olog = &ofs;
+    }
+
+  m_StartTest = this->CurrentTime();
+  double elapsed_time_start = cmSystemTools::GetTime();
+
+  if ( olog )
+    {
+    *olog << "Start testing: " << m_StartTest << std::endl
+      << "----------------------------------------------------------"
+      << std::endl;
+    }
+
+  // expand the test list
+  this->ExpandTestsToRunInformation((int)tmsize);
+  
+  int cnt = 0;
+  tm_ListOfTests::iterator it;
+  std::string last_directory = "";
+  for ( it = testlist.begin(); it != testlist.end(); it ++ )
+    {
+    cnt ++;
+    const std::string& testname = it->m_Name;
+    tm_VectorOfListFileArgs& args = it->m_Args;
+    cmCTestTestResult cres;
+    cres.m_Status = cmCTest::NOT_RUN;
+    cres.m_TestCount = cnt;
+
+    if (!(last_directory == it->m_Directory))
       {
-     // CMAKE_FLAGS is the first argument because we need an argv[0] that
-     // is not used, so it matches regular command line parsing which has
-     // the program name as arg 0
-      for (; i < argv.size() && argv[i] != "COMPILE_DEFINITIONS" && 
-             argv[i] != "OUTPUT_VARIABLE"; 
-           ++i)
+      if ( m_Verbose )
         {
-        extraArgs++;
-        cmakeFlags.push_back(argv[i]);
+        std::cerr << "Changing directory into " 
+          << it->m_Directory.c_str() << "\n";
         }
-      break;
+      last_directory = it->m_Directory;
+      cmSystemTools::ChangeDirectory(it->m_Directory.c_str());
       }
-    }
-
-  // look for OUTPUT_VARIABLE and store them
-  std::string outputVariable;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "OUTPUT_VARIABLE")
+    cres.m_Name = testname;
+    if(m_TestsToRun.size() && 
+       std::find(m_TestsToRun.begin(), m_TestsToRun.end(), cnt) == m_TestsToRun.end())
       {
-      if ( argv.size() <= (i+1) )
-        {
-        cmSystemTools::Error(
-          "OUTPUT_VARIABLE specified but there is no variable");
-        return -1;
-        }
-      extraArgs += 2;
-      outputVariable = argv[i+1];
-      break;
+      continue;
       }
-    }
 
-  // look for COMPILE_DEFINITIONS and store them
-  std::vector<std::string> compileFlags;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "COMPILE_DEFINITIONS")
+    if ( m_ShowOnly )
       {
-      extraArgs++;
-      for (i = i + 1; i < argv.size() && argv[i] != "CMAKE_FLAGS" && 
-             argv[i] != "OUTPUT_VARIABLE"; 
-           ++i)
-        {
-        extraArgs++;
-        compileFlags.push_back(argv[i]);
-        }
-      break;
-      }
-    }
-
-  // do we have a srcfile signature
-  if (argv.size() - extraArgs == 3)
-    {
-    srcFileSignature = true;
-    }
-
-  // only valid for srcfile signatures
-  if (!srcFileSignature && compileFlags.size())
-    {
-    cmSystemTools::Error(
-      "COMPILE_FLAGS specified on a srcdir type TRY_COMPILE");
-    return -1;
-    }
-
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (srcFileSignature)
-    {
-    tmpString = argv[1] + "/CMakeTmp";
-    binaryDirectory = tmpString.c_str();
-    }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(binaryDirectory);
-  
-  // do not allow recursive try Compiles
-  if (!strcmp(binaryDirectory,mf->GetHomeOutputDirectory()))
-    {
-    cmSystemTools::Error("Attempt at a recursive or nested TRY_COMPILE in directory ",
-                         binaryDirectory);
-    return -1;
-    }
-  
-  std::string outFileName = tmpString + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (srcFileSignature)
-    {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = tmpString + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile.c_str());
-    
-    // we need to create a directory and CMakeList file etc...
-    // first create the directories
-    sourceDirectory = binaryDirectory;
-
-    // now create a CMakeList.txt file in that directory
-    FILE *fout = fopen(outFileName.c_str(),"w");
-    if (!fout)
-      {
-      cmSystemTools::Error("Failed to create CMakeList file for ", 
-                           outFileName.c_str());
-      return -1;
-      }
-    
-    std::string source = argv[2];
-    cmSystemTools::FileFormat format = 
-      cmSystemTools::GetFileFormat( 
-        cmSystemTools::GetFilenameExtension(source).c_str());
-    if ( format == cmSystemTools::C_FILE_FORMAT )
-      {
-      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE C)\n");      
-      }
-    else if ( format == cmSystemTools::CXX_FILE_FORMAT )
-      {
-      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE CXX)\n");      
-      }
-    else if ( format == cmSystemTools::FORTRAN_FILE_FORMAT )
-      {
-      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE FORTRAN)\n");      
+      fprintf(stderr,"%3d/%3d Testing %-30s\n", cnt, (int)tmsize, testname.c_str());
       }
     else
       {
-      cmSystemTools::Error("Unknown file format for file: ", source.c_str(), 
-                           "; TRY_COMPILE only works for C, CXX, and FORTRAN files");
-      return -1;
+      fprintf(stderr,"%3d/%3d Testing %-30s ", cnt, (int)tmsize, testname.c_str());
+      fflush(stderr);
       }
-    const char* cflags = mf->GetDefinition("CMAKE_C_FLAGS"); 
-    fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");
-    fprintf(fout, "SET(CMAKE_C_FLAGS \"${CMAKE_C_FLAGS}");
-    if(cflags)
-      {
-      fprintf(fout, " %s ", cflags);
-      }
-    fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
-    // CXX specific flags
-    if(format == cmSystemTools::CXX_FILE_FORMAT )
-      {
-      const char* cxxflags = mf->GetDefinition("CMAKE_CXX_FLAGS");
-      fprintf(fout, "SET(CMAKE_CXX_FLAGS \"${CMAKE_CXX_FLAGS} ");
-      if(cxxflags)
-        {
-        fprintf(fout, " %s ", cxxflags);
-        }
-      fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
-      }
-    if(format == cmSystemTools::FORTRAN_FILE_FORMAT )
-      {
-      const char* fflags = mf->GetDefinition("CMAKE_FORTRAN_FLAGS");
-      fprintf(fout, "SET(CMAKE_FORTRAN_FLAGS \"${CMAKE_FORTRAN_FLAGS} ");
-      if(fflags)
-        {
-        fprintf(fout, " %s ", fflags);
-        }
-      fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
-      }
-    fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (compileFlags.size())
-      {
-      fprintf(fout, "ADD_DEFINITIONS( ");
-      for (i = 0; i < compileFlags.size(); ++i)
-        {
-        fprintf(fout,"%s ",compileFlags[i].c_str());
-        }
-      fprintf(fout, ")\n");
-      }
-    
-    fprintf(fout, "ADD_EXECUTABLE(cmTryCompileExec \"%s\")\n",source.c_str());
-    fprintf(fout, "TARGET_LINK_LIBRARIES(cmTryCompileExec ${LINK_LIBRARIES})\n");
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
-    targetName = "cmTryCompileExec";
-    // if the source is not in CMakeTmp 
-    if(source.find(argv[1] + "/CMakeTmp") == source.npos)
-      {
-      mf->AddCMakeDependFile(source.c_str());
-      }
-    
-    }
-  // else the srcdir bindir project target signature
-  else
-    {
-    projectName = argv[3].c_str();
-    
-    if (argv.size() - extraArgs == 5)
-      {
-      targetName = argv[4].c_str();
-      }
-    }
-  
-  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
-  cmSystemTools::ResetErrorOccuredFlag();
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = mf->TryCompile(sourceDirectory, binaryDirectory,
-                           projectName, targetName, &cmakeFlags, &output);
-  
-  if ( erroroc )
-    {
-    cmSystemTools::SetErrorOccured();
-    }
-  
-  // set the result var to the return value to indicate success or failure
-  mf->AddCacheDefinition(argv[0].c_str(), (res == 0 ? "TRUE" : "FALSE"),
-                         "Result of TRY_COMPILE",
-                         cmCacheManager::INTERNAL);
+    //std::cerr << "Testing " << args[0] << " ... ";
+    // find the test executable
+    std::string actualCommand = this->FindTheExecutable(args[1].Value.c_str());
+    std::string testCommand = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
+    std::string memcheckcommand = "";
 
-  if ( outputVariable.size() > 0 )
-    {
-    mf->AddDefinition(outputVariable.c_str(), output.c_str());
-    }
-  
-  // if They specified clean then we clean up what we can
-  if (srcFileSignature && clean)
-    {    
-    cmListFileCache::GetInstance()->FlushCache(outFileName.c_str());
-    if(!mf->GetCMakeInstance()->GetDebugTryCompile())
+    // continue if we did not find the executable
+    if (testCommand == "")
       {
-      cmTryCompileCommand::CleanupFiles(binaryDirectory);
+      std::cerr << "Unable to find executable: " <<
+        args[1].Value.c_str() << "\n";
+      if ( !m_ShowOnly )
+        {
+        m_TestResults.push_back( cres ); 
+        failed.push_back(testname);
+        continue;
+        }
       }
+
+    // add the arguments
+    tm_VectorOfListFileArgs::const_iterator j = args.begin();
+    ++j;
+    ++j;
+    std::vector<const char*> arguments;
+    if ( memcheck )
+      {
+      cmCTest::tm_VectorOfStrings::size_type pp;
+      arguments.push_back(m_MemoryTester.c_str());
+      memcheckcommand = m_MemoryTester;
+      for ( pp = 0; pp < m_MemoryTesterOptionsParsed.size(); pp ++ )
+        {
+        arguments.push_back(m_MemoryTesterOptionsParsed[pp].c_str());
+        memcheckcommand += " ";
+        memcheckcommand += cmSystemTools::EscapeSpaces(m_MemoryTesterOptionsParsed[pp].c_str());
+        }
+      }
+    arguments.push_back(actualCommand.c_str());
+    for(;j != args.end(); ++j)
+      {
+      testCommand += " ";
+      testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
+      arguments.push_back(j->Value.c_str());
+      }
+    arguments.push_back(0);
+
+    /**
+     * Run an executable command and put the stdout in output.
+     */
+    std::string output;
+    int retVal = 0;
+
+
+    if ( m_Verbose )
+      {
+      std::cout << std::endl << (memcheck?"MemCheck":"Test") << " command: " << testCommand << std::endl;
+      if ( memcheck )
+        {
+        std::cout << "Memory check command: " << memcheckcommand << std::endl;
+        }
+      }
+    if ( olog )
+      {
+      *olog << cnt << "/" << tmsize 
+        << " Test: " << testname.c_str() << std::endl;
+      *olog << "Command: ";
+      tm_VectorOfStrings::size_type ll;
+      for ( ll = 0; ll < arguments.size()-1; ll ++ )
+        {
+        *olog << "\"" << arguments[ll] << "\" ";
+        }
+      *olog 
+        << std::endl 
+        << "Directory: " << it->m_Directory << std::endl 
+        << "\"" << testname.c_str() << "\" start time: " 
+        << this->CurrentTime() << std::endl
+        << "Output:" << std::endl 
+        << "----------------------------------------------------------"
+        << std::endl;
+      }
+    int res = 0;
+    double clock_start, clock_finish;
+    clock_start = cmSystemTools::GetTime();
+
+    if ( !m_ShowOnly )
+      {
+      res = this->RunTest(arguments, &output, &retVal, olog);
+      }
+
+    clock_finish = cmSystemTools::GetTime();
+
+    if ( olog )
+      {
+      double ttime = clock_finish - clock_start;
+      int hours = static_cast<int>(ttime / (60 * 60));
+      int minutes = static_cast<int>(ttime / 60) % 60;
+      int seconds = static_cast<int>(ttime) % 60;
+      char buffer[100];
+      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+      *olog 
+        << "----------------------------------------------------------"
+        << std::endl
+        << "\"" << testname.c_str() << "\" end time: " 
+        << this->CurrentTime() << std::endl
+        << "\"" << testname.c_str() << "\" time elapsed: " 
+        << buffer << std::endl
+        << "----------------------------------------------------------"
+        << std::endl << std::endl;
+      }
+
+    cres.m_ExecutionTime = (double)(clock_finish - clock_start);
+    cres.m_FullCommandLine = testCommand;
+
+    if ( !m_ShowOnly )
+      {
+      if (res == cmsysProcess_State_Exited && retVal == 0)
+        {
+        fprintf(stderr,"   Passed\n");
+        passed.push_back(testname);
+        cres.m_Status = cmCTest::COMPLETED;
+        }
+      else
+        {
+        cres.m_Status = cmCTest::FAILED;
+        if ( res == cmsysProcess_State_Expired )
+          {
+          fprintf(stderr,"***Timeout\n");
+          cres.m_Status = cmCTest::TIMEOUT;
+          }
+        else if ( res == cmsysProcess_State_Exception )
+          {
+          fprintf(stderr,"***Exception: ");
+          switch ( retVal )
+            {
+          case cmsysProcess_Exception_Fault:
+            fprintf(stderr,"SegFault");
+            cres.m_Status = cmCTest::SEGFAULT;
+            break;
+          case cmsysProcess_Exception_Illegal:
+            fprintf(stderr,"Illegal");
+            cres.m_Status = cmCTest::ILLEGAL;
+            break;
+          case cmsysProcess_Exception_Interrupt:
+            fprintf(stderr,"Interrupt");
+            cres.m_Status = cmCTest::INTERRUPT;
+            break;
+          case cmsysProcess_Exception_Numerical:
+            fprintf(stderr,"Numerical");
+            cres.m_Status = cmCTest::NUMERICAL;
+            break;
+          default:
+            fprintf(stderr,"Other");
+            cres.m_Status = cmCTest::OTHER_FAULT;
+            }
+          fprintf(stderr,"\n");
+          }
+        else if ( res == cmsysProcess_State_Error )
+          {
+          fprintf(stderr,"***Bad command %d\n", res);
+          cres.m_Status = cmCTest::BAD_COMMAND;
+          }
+        else
+          {
+          fprintf(stderr,"***Failed\n");
+          }
+        failed.push_back(testname);
+        }
+      if (output != "")
+        {
+        if (dartStuff.find(output.c_str()))
+          {
+          std::string dartString = dartStuff.match(1);
+          cmSystemTools::ReplaceString(output, dartString.c_str(),"");
+          cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
+          }
+        }
+      }
+    cres.m_Output = output;
+    cres.m_ReturnValue = retVal;
+    std::string nwd = it->m_Directory;
+    if ( nwd.size() > m_ToplevelPath.size() )
+      {
+      nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
+      }
+    cmSystemTools::ReplaceString(nwd, "\\", "/");
+    cres.m_Path = nwd;
+    cres.m_CompletionStatus = "Completed";
+    m_TestResults.push_back( cres );
     }
-  return res;
+
+  m_EndTest = this->CurrentTime();
+  m_ElapsedTestingTime = cmSystemTools::GetTime() - elapsed_time_start;
+  if ( olog )
+    {
+    *olog << "End testing: " << m_EndTest << std::endl;
+    }
+  cmSystemTools::ChangeDirectory(current_dir.c_str());
 }

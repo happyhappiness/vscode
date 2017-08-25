@@ -1,1 +1,0 @@
-fprintf(stderr, "********* NewGen %s\n", name);

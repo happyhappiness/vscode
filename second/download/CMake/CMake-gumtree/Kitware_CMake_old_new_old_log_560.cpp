@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate direcotry traversal data");
+archive_set_error(&a->archive, GetLastError(),
+				    "Can't GetFileInformationByHandle");

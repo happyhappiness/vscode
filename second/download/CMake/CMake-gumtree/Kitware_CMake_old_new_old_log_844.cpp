@@ -1,1 +1,1 @@
-fprintf(stderr, "Stack size increased to %d\n", yystacksize);
+fprintf(stderr, "Entering state %d\n", yystate);

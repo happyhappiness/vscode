@@ -1,1 +1,1 @@
-f(stderr, "\n");
+sprintf(buffer, "%ld", osvi.dwMajorVersion);

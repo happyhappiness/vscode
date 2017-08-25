@@ -1,51 +1,151 @@
-int cmCTestScriptHandler::PerformExtraUpdates()
+void CommandLineArguments::GenerateHelp()
 {
-  std::string command;
-  std::string output;
-  int retVal;
-  bool res; 
+  kwsys_ios::ostringstream str;
 
-  // do an initial cvs update as required
-  command = m_CVSCmd;
-  char updateVar[40];
-  int i;
-  for (i = 1; i < 10; ++i)
+  // Collapse all arguments into the map of vectors of all arguments that do
+  // the same thing.
+  CommandLineArguments::Internal::CallbacksMap::iterator it;
+  typedef kwsys_stl::map<CommandLineArguments::Internal::String, 
+     CommandLineArguments::Internal::SetOfStrings > MapArgs;
+  MapArgs mp;
+  MapArgs::iterator mpit, smpit;
+  for ( it = this->Internals->Callbacks.begin();
+    it != this->Internals->Callbacks.end();
+    it ++ )
     {
-    sprintf(updateVar,"CTEST_EXTRA_UPDATES_%i",i);
-    const char *updateVal = m_Makefile->GetDefinition(updateVar);
-    if (updateVal)
+    CommandLineArgumentsCallbackStructure *cs = &(it->second);
+    mpit = mp.find(cs->Help);
+    if ( mpit != mp.end() )
       {
-      if (m_CVSCmd.empty())
+      mpit->second.insert(it->first);
+      mp[it->first].insert(it->first);
+      }
+    else
+      {
+      mp[it->first].insert(it->first);
+      }
+    }
+  for ( it = this->Internals->Callbacks.begin();
+    it != this->Internals->Callbacks.end();
+    it ++ )
+    {
+    CommandLineArgumentsCallbackStructure *cs = &(it->second);
+    mpit = mp.find(cs->Help);
+    if ( mpit != mp.end() )
+      {
+      mpit->second.insert(it->first);
+      smpit = mp.find(it->first);
+      CommandLineArguments::Internal::SetOfStrings::iterator sit;
+      for ( sit = smpit->second.begin(); sit != smpit->second.end(); sit++ )
         {
-        cmSystemTools::Error(updateVar, " specified without specifying CTEST_CVS_COMMAND.");
-        this->RestoreBackupDirectories();
-        return 12;
+        mpit->second.insert(*sit);
         }
-      std::vector<std::string> cvsArgs;
-      cmSystemTools::ExpandListArgument(updateVal,cvsArgs);
-      if (cvsArgs.size() == 2)
+      mp.erase(smpit);
+      }
+    else
+      {
+      mp[it->first].insert(it->first);
+      }
+    }
+ 
+  // Find the length of the longest string
+  CommandLineArguments::Internal::String::size_type maxlen = 0;
+  for ( mpit = mp.begin();
+    mpit != mp.end();
+    mpit ++ )
+    {
+    CommandLineArguments::Internal::SetOfStrings::iterator sit;
+    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
+      {
+      CommandLineArguments::Internal::String::size_type clen = sit->size();
+      switch ( this->Internals->Callbacks[*sit].ArgumentType )
         {
-        std::string fullCommand = command;
-        fullCommand += " update ";
-        fullCommand += cvsArgs[1];
-        output = "";
-        retVal = 0;
-        if ( m_Verbose )
-          {
-          std::cerr << "Run CVS: " << fullCommand.c_str() << std::endl;
-          }
-        res = cmSystemTools::RunSingleCommand(fullCommand.c_str(), &output, 
-          &retVal, cvsArgs[0].c_str(),
-          m_Verbose, 0 /*m_TimeOut*/);
-        if (!res || retVal != 0)
-          {
-          cmSystemTools::Error("Unable to perform extra cvs updates:\n", 
-            output.c_str());
-          this->RestoreBackupDirectories();
-          return 8;
-          }
+        case CommandLineArguments::NO_ARGUMENT:     clen += 0; break;
+        case CommandLineArguments::CONCAT_ARGUMENT: clen += 6; break;
+        case CommandLineArguments::SPACE_ARGUMENT:  clen += 7; break;
+        case CommandLineArguments::EQUAL_ARGUMENT:  clen += 7; break;
+        }
+      if ( clen > maxlen )
+        {
+        maxlen = clen;
         }
       }
     }
-  return 0;
+
+  // Create format for that string
+  char format[80];
+  sprintf(format, "%%%ds", static_cast<unsigned int>(maxlen));
+
+
+  // Print help for each option
+  for ( mpit = mp.begin();
+    mpit != mp.end();
+    mpit ++ )
+    {
+    CommandLineArguments::Internal::SetOfStrings::iterator sit;
+    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
+      {
+      str << kwsys_ios::endl;
+      char argument[100];
+      sprintf(argument, sit->c_str());
+      switch ( this->Internals->Callbacks[*sit].ArgumentType )
+        {
+        case CommandLineArguments::NO_ARGUMENT: break;
+        case CommandLineArguments::CONCAT_ARGUMENT: strcat(argument, "option"); break;
+        case CommandLineArguments::SPACE_ARGUMENT:  strcat(argument, " option"); break;
+        case CommandLineArguments::EQUAL_ARGUMENT:  strcat(argument, "=option"); break;
+        }
+      char buffer[80];
+      sprintf(buffer, format, argument);
+      str << buffer;
+      }
+    str << "\t";
+    const char* ptr = this->Internals->Callbacks[mpit->first].Help;
+    int len = strlen(ptr);
+    int cnt = 0;
+    while ( len > 0)
+      {
+      // If argument with help is longer than line length, split it on previous
+      // space (or tab) and continue on the next line
+      CommandLineArguments::Internal::String::size_type cc;
+      for ( cc = 0; ptr[cc]; cc ++ )
+        {
+        if ( *ptr == ' ' || *ptr == '\t' )
+          {
+          ptr ++;
+          len --;
+          }
+        }
+      if ( cnt > 0 )
+        {
+        for ( cc = 0; cc < maxlen; cc ++ )
+          {
+          str << " ";
+          }
+        str << "\t";
+        }
+      CommandLineArguments::Internal::String::size_type skip = len;
+      if ( skip > this->LineLength - maxlen )
+        {
+        skip = this->LineLength - maxlen;
+        for ( cc = skip-1; cc > 0; cc -- )
+          {
+          if ( ptr[cc] == ' ' || ptr[cc] == '\t' )
+            {
+            break;
+            }
+          }
+        if ( cc != 0 )
+          {
+          skip = cc;
+          }
+        }
+      str.write(ptr, skip);
+      str << kwsys_ios::endl;
+      ptr += skip;
+      len -= skip;
+      cnt ++;
+      }
+    }
+  this->Help = str.str();
 }

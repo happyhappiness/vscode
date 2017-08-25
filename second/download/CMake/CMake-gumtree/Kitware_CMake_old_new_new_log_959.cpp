@@ -1,1 +1,1 @@
-fprintf(fout, "ENDIF (CMAKE_ANSI_CFLAGS)\n");
+fprintf(fout, "ADD_DEFINITIONS(${COMPILE_DEFINITIONS})\n");

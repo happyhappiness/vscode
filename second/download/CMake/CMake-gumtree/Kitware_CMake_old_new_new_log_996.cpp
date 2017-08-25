@@ -1,1 +1,2 @@
-sprintf(secondLine, "Q)uit Without Generating   T)oggle Advanced Mode (Off)");
+sprintf(vertmp,"CMake Version %d.%d", cmMakefile::GetMajorVersion(),
+	  cmMakefile::GetMinorVersion());

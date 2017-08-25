@@ -1,1 +1,1 @@
-fprintf(fout,"  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n");
+sprintf(firstLine, "Page %d of %d", cw->GetPage(), m_NumberOfPages);

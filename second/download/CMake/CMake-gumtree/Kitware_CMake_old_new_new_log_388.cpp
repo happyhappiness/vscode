@@ -1,1 +1,1 @@
-fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);
+fprintf(stderr, "Couldn't open file '%s' with CreateFile()\n", filename);

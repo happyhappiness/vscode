@@ -1,3 +1,4 @@
 {
-        sprintf(tz, " -%04ld", -committer.TimeZone);
-        }
+    fprintf(stderr, "No current working directory.\n");
+    abort();
+    }

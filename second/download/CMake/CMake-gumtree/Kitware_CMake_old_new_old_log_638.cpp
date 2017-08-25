@@ -1,2 +1,1 @@
-snprintf(pipe_name, sizeof(pipe_name),
-           "\\\\.\\pipe\\ninja_pid%u_sp%p", GetCurrentProcessId(), this);
+fprintf(out, "%s: \\\n", objfile.c_str());

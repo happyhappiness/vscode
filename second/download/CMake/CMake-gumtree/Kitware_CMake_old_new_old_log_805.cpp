@@ -1,1 +1,1 @@
-sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
+sprintf(argvName,"${ARGV%i}",t);

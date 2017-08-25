@@ -1,1 +1,1 @@
-fprintf(this->FileOut,"EXPORTS \n");
+fprintf(this->FileOut, "\t%s \t DATA\n", symbol.c_str());

@@ -1,1 +1,1 @@
-conn->allocptr.ref = aprintf("Referer: %s\r\n", data->change.referer);
+("Accept-Encoding: %s\r\n";

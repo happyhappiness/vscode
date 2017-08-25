@@ -1,5 +1,4 @@
 {
-      sprintf(buffer, "&gt;&lt;");
-      //sprintf(buffer, "&#x%0x;", (unsigned int)ch);
+      sprintf(buffer, "&%x", (int)ch);
       ost << buffer;
       }

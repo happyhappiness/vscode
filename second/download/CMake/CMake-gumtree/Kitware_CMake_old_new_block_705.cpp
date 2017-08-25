@@ -1,10 +1,17 @@
 {
-    char ver[256];
-    sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
-            cmVersion::GetMinorVersion());
-    this->CacheManager->AddCacheEntry
-      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
-       "For backwards compatibility, what version of CMake commands and "
-       "syntax should this version of CMake allow.",
-       cmCacheManager::STRING);
+  fprintf(stderr, "The strongly connected components are:\n");
+  int n = static_cast<int>(this->Components.size());
+  for(int c = 0; c < n; ++c)
+    {
+    ComponentList const& cl = this->Components[c];
+    fprintf(stderr, "Component (%d):\n", c);
+    for(ComponentList::const_iterator ci = cl.begin();
+        ci != cl.end(); ++ci)
+      {
+      int i = *ci;
+      fprintf(stderr, "  contains target %d [%s]\n",
+              i, this->Targets[i]->GetName());
+      }
     }
+  fprintf(stderr, "\n");
+}

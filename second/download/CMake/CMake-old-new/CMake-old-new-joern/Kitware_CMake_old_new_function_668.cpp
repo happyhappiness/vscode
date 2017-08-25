@@ -1,25 +1,21 @@
 void
-cmComputeLinkDepends::DisplayComponents()
+cmComputeTargetDepends::DisplayGraph(Graph const& graph, const char* name)
 {
-  fprintf(stderr, "The strongly connected components are:\n");
-  std::vector<NodeList> const& components = this->CCG->GetComponents();
-  for(unsigned int c=0; c < components.size(); ++c)
+  fprintf(stderr, "The %s target dependency graph is:\n", name);
+  int n = static_cast<int>(graph.size());
+  for(int depender_index = 0; depender_index < n; ++depender_index)
     {
-    fprintf(stderr, "Component (%u):\n", c);
-    NodeList const& nl = components[c];
+    NodeList const& nl = graph[depender_index];
+    cmTarget* depender = this->Targets[depender_index];
+    fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());
     for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
       {
-      int i = *ni;
-      fprintf(stderr, "  item %d [%s]\n", i,
-              this->EntryList[i].Item.c_str());
+      int dependee_index = *ni;
+      cmTarget* dependee = this->Targets[dependee_index];
+      fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
+              dependee->GetName());
       }
-    NodeList const& ol = this->CCG->GetComponentGraphEdges(c);
-    for(NodeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
-      {
-      fprintf(stderr, "  followed by Component (%d)\n", *oi);
-      }
-    fprintf(stderr, "  topo order index %d\n",
-            this->ComponentOrder[c]);
     }
   fprintf(stderr, "\n");
 }

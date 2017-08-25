@@ -1,5 +1,6 @@
 {
-          ReadFile(read_stdout,buf,1023,&bread,NULL); //read the stdout pipe
-          printf("%s",buf);
-          memset(buf, 0, sizeof(buf));
-          }
+    fprintf(fout,"void vtkCommonDeleteAssocData(ClientData cd, Tcl_Interp *)\n");
+    fprintf(fout,"  {\n");
+    fprintf(fout,"  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n");
+    fprintf(fout,"  delete tis;\n  }\n");
+    }

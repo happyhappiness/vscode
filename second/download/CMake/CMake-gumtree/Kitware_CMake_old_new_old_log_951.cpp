@@ -1,1 +1,1 @@
-f(fout, "PROJECT(CMAKE_TRY_COMPILE)\n");
+fprintf(fout, "IF (CMAKE_ANSI_CXXFLAGS)\n");

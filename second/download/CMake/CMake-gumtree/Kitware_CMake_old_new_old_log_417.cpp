@@ -1,1 +1,1 @@
-fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
+fprintf(stderr, "The %s target dependency graph is:\n", name);

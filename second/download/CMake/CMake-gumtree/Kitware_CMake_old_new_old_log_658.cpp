@@ -1,1 +1,1 @@
-sprintf(tz, " -%04ld", -author.TimeZone);
+sprintf(this->ChipID.ProcessorName,"%s",this->ParseValueFromKStat("-s cpu_type").c_str());

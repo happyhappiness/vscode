@@ -1,17 +1,10 @@
 {
-      char datestring[100];
-      sprintf(datestring, "%04d%02d%02d-%02d%02d",
-              lctime->tm_year + 1900,
-              lctime->tm_mon,
-              lctime->tm_mday,
-              lctime->tm_hour,
-              lctime->tm_min);
-      tag = datestring;
-      std::ofstream ofs(tagfile.c_str());
-      if ( ofs )
-        {
-        ofs << tag << std::endl;
-        }
-      ofs.close();
-      std::cout << "Create new tag: " << tag << std::endl;
-      }
+    char ver[256];
+    sprintf(ver,"%i.%i",cmMakefile::GetMajorVersion(),
+            cmMakefile::GetMinorVersion());
+    this->CacheManager->AddCacheEntry
+      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
+       "For backwards compatibility, what version of CMake commands and "
+       "syntax should this version of CMake allow.",
+       cmCacheManager::STRING);
+    }

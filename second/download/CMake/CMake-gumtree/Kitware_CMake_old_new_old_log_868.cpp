@@ -1,1 +1,1 @@
-fprintf(stderr,"Numerical");
+fprintf(stderr,"Other");

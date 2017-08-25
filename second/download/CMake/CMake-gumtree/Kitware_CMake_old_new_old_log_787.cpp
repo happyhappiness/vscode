@@ -1,2 +1,1 @@
-sprintf(output,"%s/%s_force_%i", m_Makefile->GetStartOutputDirectory(),
-          target.GetName(), count);
+fprintf(fout,"%s\n",(*d)->m_FullPath.c_str());

@@ -1,1 +1,1 @@
-sprintf(buf, "%s*", name);
+sprintf(buf, "%s/*", name);

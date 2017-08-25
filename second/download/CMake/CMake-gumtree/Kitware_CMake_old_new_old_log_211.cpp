@@ -1,1 +1,1 @@
-tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
+md5this = (unsigned char *)aprintf("%s:%s", request, uripath);

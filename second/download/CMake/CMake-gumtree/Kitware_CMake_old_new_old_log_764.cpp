@@ -1,1 +1,1 @@
-sprintf(buffer, "%c", tolower(ch));
+sprintf(buffer, "%c", ch);

@@ -1,2 +1,2 @@
-archive_set_error(f->archive, EIO,
-			    "Can't write to program: %s", data->program_name);
+archive_set_error(f->archive, errno,
+			    "Error reading from program: %s", data->program_name);

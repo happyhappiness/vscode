@@ -1,1 +1,1 @@
-ret = fprintf(f, "CONF %s", buf);
+ret = Curl_sec_vfprintf(conn, f, fmt, ap);

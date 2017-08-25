@@ -1,118 +1,159 @@
-static int
-zip_read_data_deflate(struct archive_read *a, const void **buff,
-    size_t *size, int64_t *offset)
+const void *
+__archive_read_filter_ahead(struct archive_read_filter *filter,
+    size_t min, ssize_t *avail)
 {
-	struct zip *zip;
-	ssize_t bytes_avail;
-	const void *compressed_buff;
-	int r;
+	ssize_t bytes_read;
+	size_t tocopy;
 
-	zip = (struct zip *)(a->format->data);
-
-	/* If the buffer hasn't been allocated, allocate it now. */
-	if (zip->uncompressed_buffer == NULL) {
-		zip->uncompressed_buffer_size = 256 * 1024;
-		zip->uncompressed_buffer
-		    = (unsigned char *)malloc(zip->uncompressed_buffer_size);
-		if (zip->uncompressed_buffer == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "No memory for ZIP decompression");
-			return (ARCHIVE_FATAL);
-		}
+	if (filter->fatal) {
+		if (avail)
+			*avail = ARCHIVE_FATAL;
+		return (NULL);
 	}
 
-	/* If we haven't yet read any data, initialize the decompressor. */
-	if (!zip->decompress_init) {
-		if (zip->stream_valid)
-			r = inflateReset(&zip->stream);
+	/*
+	 * Keep pulling more data until we can satisfy the request.
+	 */
+	for (;;) {
+
+		/*
+		 * If we can satisfy from the copy buffer (and the
+		 * copy buffer isn't empty), we're done.  In particular,
+		 * note that min == 0 is a perfectly well-defined
+		 * request.
+		 */
+		if (filter->avail >= min && filter->avail > 0) {
+			if (avail != NULL)
+				*avail = filter->avail;
+			return (filter->next);
+		}
+
+		/*
+		 * We can satisfy directly from client buffer if everything
+		 * currently in the copy buffer is still in the client buffer.
+		 */
+		if (filter->client_total >= filter->client_avail + filter->avail
+		    && filter->client_avail + filter->avail >= min) {
+			/* "Roll back" to client buffer. */
+			filter->client_avail += filter->avail;
+			filter->client_next -= filter->avail;
+			/* Copy buffer is now empty. */
+			filter->avail = 0;
+			filter->next = filter->buffer;
+			/* Return data from client buffer. */
+			if (avail != NULL)
+				*avail = filter->client_avail;
+			return (filter->client_next);
+		}
+
+		/* Move data forward in copy buffer if necessary. */
+		if (filter->next > filter->buffer &&
+		    filter->next + min > filter->buffer + filter->buffer_size) {
+			if (filter->avail > 0)
+				memmove(filter->buffer, filter->next, filter->avail);
+			filter->next = filter->buffer;
+		}
+
+		/* If we've used up the client data, get more. */
+		if (filter->client_avail <= 0) {
+			if (filter->end_of_file) {
+				if (avail != NULL)
+					*avail = 0;
+				return (NULL);
+			}
+			bytes_read = (filter->read)(filter,
+			    &filter->client_buff);
+			if (bytes_read < 0) {		/* Read error. */
+				filter->client_total = filter->client_avail = 0;
+				filter->client_next = filter->client_buff = NULL;
+				filter->fatal = 1;
+				if (avail != NULL)
+					*avail = ARCHIVE_FATAL;
+				return (NULL);
+			}
+			if (bytes_read == 0) {	/* Premature end-of-file. */
+				filter->client_total = filter->client_avail = 0;
+				filter->client_next = filter->client_buff = NULL;
+				filter->end_of_file = 1;
+				/* Return whatever we do have. */
+				if (avail != NULL)
+					*avail = filter->avail;
+				return (NULL);
+			}
+			filter->client_total = bytes_read;
+			filter->client_avail = filter->client_total;
+			filter->client_next = filter->client_buff;
+		}
 		else
-			r = inflateInit2(&zip->stream,
-			    -15 /* Don't check for zlib header */);
-		if (r != Z_OK) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Can't initialize ZIP decompression.");
-			return (ARCHIVE_FATAL);
-		}
-		/* Stream structure has been set up. */
-		zip->stream_valid = 1;
-		/* We've initialized decompression for this stream. */
-		zip->decompress_init = 1;
-	}
+		{
+			/*
+			 * We can't satisfy the request from the copy
+			 * buffer or the existing client data, so we
+			 * need to copy more client data over to the
+			 * copy buffer.
+			 */
 
-	/*
-	 * Note: '1' here is a performance optimization.
-	 * Recall that the decompression layer returns a count of
-	 * available bytes; asking for more than that forces the
-	 * decompressor to combine reads by copying data.
-	 */
-	compressed_buff = __archive_read_ahead(a, 1, &bytes_avail);
-	if (0 == (zip->entry->flags & ZIP_LENGTH_AT_END)
-	    && bytes_avail > zip->entry_bytes_remaining) {
-		bytes_avail = zip->entry_bytes_remaining;
-	}
-	if (bytes_avail <= 0) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file body");
-		return (ARCHIVE_FATAL);
-	}
+			/* Ensure the buffer is big enough. */
+			if (min > filter->buffer_size) {
+				size_t s, t;
+				char *p;
 
-	/*
-	 * A bug in zlib.h: stream.next_in should be marked 'const'
-	 * but isn't (the library never alters data through the
-	 * next_in pointer, only reads it).  The result: this ugly
-	 * cast to remove 'const'.
-	 */
-	zip->stream.next_in = (Bytef *)(uintptr_t)(const void *)compressed_buff;
-	zip->stream.avail_in = bytes_avail;
-	zip->stream.total_in = 0;
-	zip->stream.next_out = zip->uncompressed_buffer;
-	zip->stream.avail_out = zip->uncompressed_buffer_size;
-	zip->stream.total_out = 0;
+				/* Double the buffer; watch for overflow. */
+				s = t = filter->buffer_size;
+				if (s == 0)
+					s = min;
+				while (s < min) {
+					t *= 2;
+					if (t <= s) { /* Integer overflow! */
+						archive_set_error(
+							&filter->archive->archive,
+							ENOMEM,
+						    "Unable to allocate copy buffer");
+						filter->fatal = 1;
+						if (avail != NULL)
+							*avail = ARCHIVE_FATAL;
+						return (NULL);
+					}
+					s = t;
+				}
+				/* Now s >= min, so allocate a new buffer. */
+				p = (char *)malloc(s);
+				if (p == NULL) {
+					archive_set_error(
+						&filter->archive->archive,
+						ENOMEM,
+					    "Unable to allocate copy buffer");
+					filter->fatal = 1;
+					if (avail != NULL)
+						*avail = ARCHIVE_FATAL;
+					return (NULL);
+				}
+				/* Move data into newly-enlarged buffer. */
+				if (filter->avail > 0)
+					memmove(p, filter->next, filter->avail);
+				free(filter->buffer);
+				filter->next = filter->buffer = p;
+				filter->buffer_size = s;
+			}
 
-	r = inflate(&zip->stream, 0);
-	switch (r) {
-	case Z_OK:
-		break;
-	case Z_STREAM_END:
-		zip->end_of_entry = 1;
-		break;
-	case Z_MEM_ERROR:
-		archive_set_error(&a->archive, ENOMEM,
-		    "Out of memory for ZIP decompression");
-		return (ARCHIVE_FATAL);
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "ZIP decompression failed (%d)", r);
-		return (ARCHIVE_FATAL);
-	}
+			/* We can add client data to copy buffer. */
+			/* First estimate: copy to fill rest of buffer. */
+			tocopy = (filter->buffer + filter->buffer_size)
+			    - (filter->next + filter->avail);
+			/* Don't waste time buffering more than we need to. */
+			if (tocopy + filter->avail > min)
+				tocopy = min - filter->avail;
+			/* Don't copy more than is available. */
+			if (tocopy > filter->client_avail)
+				tocopy = filter->client_avail;
 
-	/* Consume as much as the compressor actually used. */
-	bytes_avail = zip->stream.total_in;
-	__archive_read_consume(a, bytes_avail);
-	zip->entry_bytes_remaining -= bytes_avail;
-	zip->entry_compressed_bytes_read += bytes_avail;
-
-	*size = zip->stream.total_out;
-	zip->entry_uncompressed_bytes_read += zip->stream.total_out;
-	*buff = zip->uncompressed_buffer;
-
-	if (zip->end_of_entry && (zip->entry->flags & ZIP_LENGTH_AT_END)) {
-		const char *p;
-
-		if (NULL == (p = __archive_read_ahead(a, 16, NULL))) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP end-of-file record");
-			return (ARCHIVE_FATAL);
-		}
-		/* Consume the optional PK\007\010 marker. */
-		if (p[0] == 'P' && p[1] == 'K' && p[2] == '\007' && p[3] == '\010') {
-			zip->entry->crc32 = archive_le32dec(p + 4);
-			zip->entry->compressed_size = archive_le32dec(p + 8);
-			zip->entry->uncompressed_size = archive_le32dec(p + 12);
-			zip->unconsumed = 16;
+			memcpy(filter->next + filter->avail, filter->client_next,
+			    tocopy);
+			/* Remove this data from client buffer. */
+			filter->client_next += tocopy;
+			filter->client_avail -= tocopy;
+			/* add it to copy buffer. */
+			filter->avail += tocopy;
 		}
 	}
-
-	return (ARCHIVE_OK);
 }

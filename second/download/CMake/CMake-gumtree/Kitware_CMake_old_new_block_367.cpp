@@ -1,1 +1,1 @@
-snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str)
+snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s", conn->host.name)

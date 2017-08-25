@@ -1,7 +1,8 @@
 {
-			/* Non-ascii character is found. */
-			archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Insufficient compressed data");
-			return (ARCHIVE_FATAL);
-		}
+    fprintf(stderr,
+            "---------------------------------------"
+            "---------------------------------------\n");
+    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
+            this->Target->GetName(), this->Config?this->Config:"noconfig");
+    this->DisplayConstraintGraph();
+    }

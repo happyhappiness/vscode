@@ -1,1 +1,1 @@
-fout << "    printf(\"To run a test, enter the test number: \");\n";
+fout << "    printf(\"%d is an invalid test number.\\n\", testNum);\n";

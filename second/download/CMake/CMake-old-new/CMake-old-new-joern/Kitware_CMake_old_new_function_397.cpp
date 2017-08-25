@@ -1,18 +1,9 @@
 void
-DumpSymbolTable(PIMAGE_SYMBOL pSymbolTable, PIMAGE_SECTION_HEADER pSectionHeaders, FILE *fout, unsigned cSymbols)
+DumpExternals(PIMAGE_SYMBOL pSymbolTable, FILE *fout, unsigned cSymbols)
 {
    unsigned i;
    PSTR stringTable;
-   std::string sectionName;
-   std::string sectionCharacter;
-   int iSectNum;
-
-   fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
-      cSymbols);
-
-   fprintf(fout,
-      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
-      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");
+   std::string symbol;
 
    /*
    * The string table apparently starts right after the symbol table
@@ -20,28 +11,23 @@ DumpSymbolTable(PIMAGE_SYMBOL pSymbolTable, PIMAGE_SECTION_HEADER pSectionHeader
    stringTable = (PSTR)&pSymbolTable[cSymbols];
 
    for ( i=0; i < cSymbols; i++ ) {
-      fprintf(fout, "%04X ", i);
-      if ( pSymbolTable->N.Name.Short != 0 )
-         fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
-      else
-         fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);
-
-      fprintf(fout, " %08X", pSymbolTable->Value);
-
-      iSectNum = pSymbolTable->SectionNumber;
-      GetSectionName(pSymbolTable, sectionName);
-      fprintf(fout, " sect:%s aux:%X type:%02X st:%s",
-         sectionName.c_str(),
-         pSymbolTable->NumberOfAuxSymbols,
-         pSymbolTable->Type,
-         GetSZStorageClass(pSymbolTable->StorageClass) );
-
-      GetSectionCharacteristics(pSectionHeaders,iSectNum,sectionCharacter);
-      fprintf(fout," hc: %s \n",sectionCharacter.c_str());
-#if 0
-      if ( pSymbolTable->NumberOfAuxSymbols )
-         DumpAuxSymbols(pSymbolTable);
+      if (pSymbolTable->SectionNumber > 0 && pSymbolTable->Type == 0x20) {
+         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
+            if (pSymbolTable->N.Name.Short != 0) {
+               symbol = "";
+               symbol.insert(0, (const char *)(pSymbolTable->N.ShortName), 8);
+            } else {
+               symbol = stringTable + pSymbolTable->N.Name.Long;
+            }
+            std::string::size_type posAt = symbol.find('@');
+            if (posAt != std::string::npos) symbol.erase(posAt);
+#ifndef _MSC_VER
+            fprintf(fout, "\t%s\n", symbol.c_str());
+#else
+            fprintf(fout, "\t%s\n", symbol.c_str()+1);
 #endif
+         }
+      }
 
       /*
       * Take into account any aux symbols

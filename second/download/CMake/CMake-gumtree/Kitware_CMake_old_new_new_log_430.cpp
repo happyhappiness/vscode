@@ -1,1 +1,4 @@
-archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino);
+archive_string_sprintf(str,
+		    " resdevice=native,%ju,%ju",
+		    (uintmax_t)me->devmajor,
+		    (uintmax_t)me->devminor);

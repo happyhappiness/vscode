@@ -1,4 +1,4 @@
 {
         fprintf(fout, "SET(%s \"%s\")\n",
-                rulesOverrideLang.c_str(), rulesOverridePath);
+                rulesOverrideBase.c_str(), rulesOverridePath2);
         }

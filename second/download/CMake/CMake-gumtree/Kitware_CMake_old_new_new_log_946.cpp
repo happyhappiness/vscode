@@ -1,1 +1,0 @@
-sprintf(s2, "%s", cmdstring);

@@ -1,1 +1,1 @@
-fprintf(stderr, "Entering state %d\n", yystate);
+fprintf(stderr, "Reading a token: ");

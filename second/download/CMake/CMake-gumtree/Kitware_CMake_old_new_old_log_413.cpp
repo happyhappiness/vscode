@@ -1,1 +1,1 @@
-sprintf(buf, "%s/*", name);
+fprintf(out, "%s", archive_entry_pathname(entry));

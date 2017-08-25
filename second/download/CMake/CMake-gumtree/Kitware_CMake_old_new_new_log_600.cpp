@@ -1,1 +1,1 @@
-fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
+fprintf(fout,"%s ",compileDefs[i].c_str());

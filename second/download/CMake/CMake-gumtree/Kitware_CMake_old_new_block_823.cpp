@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "bad buffer in yy_scan_bytes()" )
+yy_fatal_error( "yyset_lineno called with no buffer" , yyscanner)

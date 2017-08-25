@@ -1,63 +1,23 @@
-int
-__archive_write_program_close(struct archive_write_filter *f,
-    struct archive_write_program_data *data)
+static int
+unknowntag_start(struct archive_read *a, struct xar *xar, const char *name)
 {
-	int ret, r1, status;
-	ssize_t bytes_read;
+	struct unknown_tag *tag;
 
-	if (data->child == 0)
-		return __archive_write_close_filter(f->next_filter);
-
-	ret = 0;
-	close(data->child_stdin);
-	data->child_stdin = -1;
-	fcntl(data->child_stdout, F_SETFL, 0);
-
-	for (;;) {
-		do {
-			bytes_read = read(data->child_stdout,
-			    data->child_buf + data->child_buf_avail,
-			    data->child_buf_len - data->child_buf_avail);
-		} while (bytes_read == -1 && errno == EINTR);
-
-		if (bytes_read == 0 || (bytes_read == -1 && errno == EPIPE))
-			break;
-
-		if (bytes_read == -1) {
-			archive_set_error(f->archive, errno,
-			    "Read from filter failed unexpectedly.");
-			ret = ARCHIVE_FATAL;
-			goto cleanup;
-		}
-		data->child_buf_avail += bytes_read;
-
-		ret = __archive_write_filter(f->next_filter,
-		    data->child_buf, data->child_buf_avail);
-		if (ret != ARCHIVE_OK) {
-			ret = ARCHIVE_FATAL;
-			goto cleanup;
-		}
-		data->child_buf_avail = 0;
-	}
-
-cleanup:
-	/* Shut down the child. */
-	if (data->child_stdin != -1)
-		close(data->child_stdin);
-	if (data->child_stdout != -1)
-		close(data->child_stdout);
-	while (waitpid(data->child, &status, 0) == -1 && errno == EINTR)
-		continue;
-#if defined(_WIN32) && !defined(__CYGWIN__)
-	CloseHandle(data->child);
+#if DEBUG
+	fprintf(stderr, "unknowntag_start:%s\n", name);
 #endif
-	data->child = 0;
-
-	if (status != 0) {
-		archive_set_error(f->archive, EIO,
-		    "Filter exited with failure.");
-		ret = ARCHIVE_FATAL;
+	tag = malloc(sizeof(*tag));
+	if (tag == NULL) {
+		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+		return (ARCHIVE_FATAL);
 	}
-	r1 = __archive_write_close_filter(f->next_filter);
-	return (r1 < ret ? r1 : ret);
+	tag->next = xar->unknowntags;
+	archive_string_init(&(tag->name));
+	archive_strcpy(&(tag->name), name);
+	if (xar->unknowntags == NULL) {
+		xar->xmlsts_unknown = xar->xmlsts;
+		xar->xmlsts = UNKNOWN;
+	}
+	xar->unknowntags = tag;
+	return (ARCHIVE_OK);
 }

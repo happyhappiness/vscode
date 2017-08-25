@@ -1,1 +1,0 @@
-printf("Error fetching: %s\n", url1);

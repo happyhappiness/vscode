@@ -1,43 +1,122 @@
-static
-CURLcode ftp_getfiletime(struct connectdata *conn, char *file)
+static void
+ftp_pasv_verbose(struct connectdata *conn,
+                 Curl_ipconnect *addr,
+                 char *newhost, /* ascii version */
+                 int port)
 {
-  CURLcode result=CURLE_OK;
-  int ftpcode; /* for ftp status */
-  int nread;
-  char *buf = conn->data->state.buffer;
+#ifndef ENABLE_IPV6
+  /*****************************************************************
+   *
+   * IPv4-only code section
+   */
 
-  /* we have requested to get the modified-time of the file, this is yet
-     again a grey area as the MDTM is not kosher RFC959 */
-  FTPSENDF(conn, "MDTM %s", file);
+  struct in_addr in;
+  struct hostent * answer;
 
-  result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-  if(result)
-    return result;
+#ifdef HAVE_INET_NTOA_R
+  char ntoa_buf[64];
+#endif
+  /* The array size trick below is to make this a large chunk of memory
+     suitably 8-byte aligned on 64-bit platforms. This was thoughtfully
+     suggested by Philip Gladstone. */
+  long bigbuf[9000 / sizeof(long)];
 
-  switch(ftpcode) {
-  case 213:
-    {
-      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
-         last .sss part is optional and means fractions of a second */
-      int year, month, day, hour, minute, second;
-      if(6 == sscanf(buf+4, "%04d%02d%02d%02d%02d%02d",
-                     &year, &month, &day, &hour, &minute, &second)) {
-        /* we have a time, reformat it */
-        time_t secs=time(NULL);
-        sprintf(buf, "%04d%02d%02d %02d:%02d:%02d",
-                year, month, day, hour, minute, second);
-        /* now, convert this into a time() value: */
-        conn->data->info.filetime = curl_getdate(buf, &secs);
-      }
-    }
-    break;
-  default:
-    infof(conn->data, "unsupported MDTM reply format\n");
-    break;
-  case 550: /* "No such file or directory" */
-    failf(conn->data, "Given file does not exist");
-    result = CURLE_FTP_COULDNT_RETR_FILE;
-    break;
+#if defined(HAVE_INET_ADDR)
+  in_addr_t address;
+# if defined(HAVE_GETHOSTBYADDR_R)
+  int h_errnop;
+# endif
+  char *hostent_buf = (char *)bigbuf; /* get a char * to the buffer */
+  (void)hostent_buf;
+  address = inet_addr(newhost);
+# ifdef HAVE_GETHOSTBYADDR_R
+
+#  ifdef HAVE_GETHOSTBYADDR_R_5
+  /* AIX, Digital Unix (OSF1, Tru64) style:
+     extern int gethostbyaddr_r(char *addr, size_t len, int type,
+     struct hostent *htent, struct hostent_data *ht_data); */
+
+  /* Fred Noz helped me try this out, now it at least compiles! */
+
+  /* Bjorn Reese (November 28 2001):
+     The Tru64 man page on gethostbyaddr_r() says that
+     the hostent struct must be filled with zeroes before the call to
+     gethostbyaddr_r(). 
+
+     ... as must be struct hostent_data Craig Markwardt 19 Sep 2002. */
+
+  memset(hostent_buf, 0, sizeof(struct hostent)+sizeof(struct hostent_data));
+
+  if(gethostbyaddr_r((char *) &address,
+                     sizeof(address), AF_INET,
+                     (struct hostent *)hostent_buf,
+                     (struct hostent_data *)(hostent_buf + sizeof(*answer))))
+    answer=NULL;
+  else
+    answer=(struct hostent *)hostent_buf;
+                           
+#  endif
+#  ifdef HAVE_GETHOSTBYADDR_R_7
+  /* Solaris and IRIX */
+  answer = gethostbyaddr_r((char *) &address, sizeof(address), AF_INET,
+                           (struct hostent *)bigbuf,
+                           hostent_buf + sizeof(*answer),
+                           sizeof(bigbuf) - sizeof(*answer),
+                           &h_errnop);
+#  endif
+#  ifdef HAVE_GETHOSTBYADDR_R_8
+  /* Linux style */
+  if(gethostbyaddr_r((char *) &address, sizeof(address), AF_INET,
+                     (struct hostent *)hostent_buf,
+                     hostent_buf + sizeof(*answer),
+                     sizeof(bigbuf) - sizeof(*answer),
+                     &answer,
+                     &h_errnop))
+    answer=NULL; /* error */
+#  endif
+        
+# else
+  answer = gethostbyaddr((char *) &address, sizeof(address), AF_INET);
+# endif
+#else
+  answer = NULL;
+#endif
+  (void) memcpy(&in.s_addr, addr, sizeof (Curl_ipconnect));
+  infof(conn->data, "Connecting to %s (%s) port %u\n",
+        answer?answer->h_name:newhost,
+#if defined(HAVE_INET_NTOA_R)
+        inet_ntoa_r(in, ntoa_buf, sizeof(ntoa_buf)),
+#else
+        inet_ntoa(in),
+#endif
+        port);
+
+#else
+  /*****************************************************************
+   *
+   * IPv6-only code section
+   */
+  char hbuf[NI_MAXHOST]; /* ~1KB */
+  char nbuf[NI_MAXHOST]; /* ~1KB */
+  char sbuf[NI_MAXSERV]; /* around 32 */
+#ifdef NI_WITHSCOPEID
+  const int niflags = NI_NUMERICHOST | NI_NUMERICSERV | NI_WITHSCOPEID;
+#else
+  const int niflags = NI_NUMERICHOST | NI_NUMERICSERV;
+#endif
+  port = 0; /* unused, prevent warning */
+  if (getnameinfo(addr->ai_addr, addr->ai_addrlen,
+                  nbuf, sizeof(nbuf), sbuf, sizeof(sbuf), niflags)) {
+    snprintf(nbuf, sizeof(nbuf), "?");
+    snprintf(sbuf, sizeof(sbuf), "?");
   }
-  return  result;
+        
+  if (getnameinfo(addr->ai_addr, addr->ai_addrlen,
+                  hbuf, sizeof(hbuf), NULL, 0, 0)) {
+    infof(conn->data, "Connecting to %s (%s) port %s\n", nbuf, newhost, sbuf);
+  }
+  else {
+    infof(conn->data, "Connecting to %s (%s) port %s\n", hbuf, nbuf, sbuf);
+  }
+#endif
 }

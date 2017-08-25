@@ -1,1 +1,1 @@
-sprintf(help,"%127s", helpString);
+sprintf(help,"%s", helpString);

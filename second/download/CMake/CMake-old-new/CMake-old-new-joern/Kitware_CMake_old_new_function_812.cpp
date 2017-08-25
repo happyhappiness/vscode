@@ -1,109 +1,202 @@
-int cmCTestTestHandler::ProcessHandler()
+void cmLocalVisualStudio6Generator::WriteDSPFile(std::ostream& fout, 
+                                 const char *libName,
+                                 cmTarget &target)
 {
-  // Update internal data structure from generic one
-  this->SetTestsToRunInformation(this->GetOption("TestsToRunInformation"));
-  this->SetUseUnion(cmSystemTools::IsOn(this->GetOption("UseUnion")));
-  const char* val;
-  val = this->GetOption("IncludeRegularExpression");
-  if ( val )
+  // if we should add regen rule then...
+  const char *suppRegenRule = 
+    m_Makefile->GetDefinition("CMAKE_SUPPRESS_REGENERATION");
+  if (!cmSystemTools::IsOn(suppRegenRule))
     {
-    this->UseIncludeRegExp();
-    this->SetIncludeRegExp(val);
-    }
-  val = this->GetOption("ExcludeRegularExpression");
-  if ( val )
-    {
-    this->UseExcludeRegExp();
-    this->SetExcludeRegExp(val);
+    this->AddDSPBuildRule();
     }
 
-  m_TestResults.clear();
-
-  std::cout << (m_MemCheck ? "Memory check" : "Test") << " project" << std::endl;
-  if ( ! this->PreProcessHandler() )
+  // for utility targets need custom command since post build doesn't
+  // do anything (Visual Studio 7 seems to do this correctly without 
+  // the hack)
+  if (target.GetType() == cmTarget::UTILITY && 
+      target.GetPostBuildCommands().size())
     {
-    return -1;
-    }
-
-  std::vector<cmStdString> passed;
-  std::vector<cmStdString> failed;
-  int total;
-
-  this->ProcessDirectory(passed, failed);
-
-  total = int(passed.size()) + int(failed.size());
-
-  if (total == 0)
-    {
-    if ( !m_CTest->GetShowOnly() )
+    int count = 1;
+    for (std::vector<cmCustomCommand>::const_iterator cr = 
+           target.GetPostBuildCommands().begin(); 
+         cr != target.GetPostBuildCommands().end(); ++cr)
       {
-      std::cerr << "No tests were found!!!\n";
+      char *output = new char [
+        strlen(m_Makefile->GetStartOutputDirectory()) + 
+        strlen(libName) + 30];
+      sprintf(output,"%s/%s_force_%i",
+              m_Makefile->GetStartOutputDirectory(),
+              libName, count);
+      const char* no_main_dependency = 0;
+      const char* no_comment = 0;
+      m_Makefile->AddCustomCommandToOutput(output,
+                                           cr->GetDepends(),
+                                           no_main_dependency,
+                                           cr->GetCommandLines(),
+                                           no_comment);
+      cmSourceFile* outsf = 
+        m_Makefile->GetSourceFileWithOutput(output);
+      target.GetSourceFiles().push_back(outsf);
+      count++;
+      delete [] output;
       }
     }
-  else
+  
+  // trace the visual studio dependencies
+  std::string name = libName;
+  name += ".dsp.cmake";
+  target.TraceVSDependencies(name, m_Makefile);
+
+  // We may be modifying the source groups temporarily, so make a copy.
+  std::vector<cmSourceGroup> sourceGroups = m_Makefile->GetSourceGroups();
+  
+  // get the classes from the source lists then add them to the groups
+  std::vector<cmSourceFile*> & classes = target.GetSourceFiles();
+
+  // now all of the source files have been properly assigned to the target
+  // now stick them into source groups using the reg expressions
+  for(std::vector<cmSourceFile*>::iterator i = classes.begin(); 
+      i != classes.end(); i++)
     {
-    if (m_Verbose && passed.size() && 
-      (m_UseIncludeRegExp || m_UseExcludeRegExp)) 
+    // Add the file to the list of sources.
+    std::string source = (*i)->GetFullPath();
+    cmSourceGroup& sourceGroup = m_Makefile->FindSourceGroup(source.c_str(),
+                                                             sourceGroups);
+    sourceGroup.AssignSource(*i);
+    // while we are at it, if it is a .rule file then for visual studio 6 we
+    // must generate it
+    if ((*i)->GetSourceExtension() == "rule")
       {
-      std::cerr << "\nThe following tests passed:\n";
-      for(std::vector<cmStdString>::iterator j = passed.begin();
-          j != passed.end(); ++j)
-        {   
-        std::cerr << "\t" << *j << "\n";
-        }
-      }
-
-    float percent = float(passed.size()) * 100.0f / total;
-    if ( failed.size() > 0 &&  percent > 99)
-      {
-      percent = 99;
-      }
-    fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
-      percent, int(failed.size()), total);
-
-    if (failed.size()) 
-      {
-      cmGeneratedFileStream ofs;
-
-      std::cerr << "\nThe following tests FAILED:\n";
-      m_CTest->OpenOutputFile("Temporary", "LastTestsFailed.log", ofs);
-
-      std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;
-      for(ftit = m_TestResults.begin();
-        ftit != m_TestResults.end(); ++ftit)
+      if(!cmSystemTools::FileExists(source.c_str()))
         {
-        if ( ftit->m_Status != cmCTestTestHandler::COMPLETED )
+        cmSystemTools::ReplaceString(source, "$(IntDir)/", "");
+#if defined(_WIN32) || defined(__CYGWIN__)
+        std::ofstream fout(source.c_str(), 
+                           std::ios::binary | std::ios::out | std::ios::trunc);
+#else
+        std::ofstream fout(source.c_str(), 
+                           std::ios::out | std::ios::trunc);
+#endif
+        if(fout)
           {
-          ofs << ftit->m_TestCount << ":" << ftit->m_Name << std::endl;
-          fprintf(stderr, "\t%3d - %s (%s)\n", ftit->m_TestCount, ftit->m_Name.c_str(),
-            this->GetTestStatus(ftit->m_Status));
+          fout.write("# generated from CMake",22);
+          fout.flush();
+          fout.close();
           }
         }
-
       }
     }
+  
+  // Write the DSP file's header.
+  this->WriteDSPHeader(fout, libName, target, sourceGroups);
+  
 
-  if ( m_CTest->GetProduceXML() )
+  // Loop through every source group.
+  for(std::vector<cmSourceGroup>::const_iterator sg = sourceGroups.begin();
+      sg != sourceGroups.end(); ++sg)
     {
-    cmGeneratedFileStream xmlfile;
-    if( !m_CTest->OpenOutputFile(m_CTest->GetCurrentTag(), 
-        (m_MemCheck ? "DynamicAnalysis.xml" : "Test.xml"), xmlfile, true) )
+    const std::vector<const cmSourceFile *> &sourceFiles = 
+      sg->GetSourceFiles();
+    // If the group is empty, don't write it at all.
+    if(sourceFiles.empty())
+      { 
+      continue; 
+      }
+    
+    // If the group has a name, write the header.
+    std::string name = sg->GetName();
+    if(name != "")
       {
-      std::cerr << "Cannot create " << (m_MemCheck ? "memory check" : "testing")
-        << " XML file" << std::endl;
-      return 1;
+      this->WriteDSPBeginGroup(fout, name.c_str(), "");
       }
-    this->GenerateDartOutput(xmlfile);
-    }
+    
+    // Loop through each source in the source group.
+    for(std::vector<const cmSourceFile *>::const_iterator sf =
+          sourceFiles.begin(); sf != sourceFiles.end(); ++sf)
+      {
+      std::string source = (*sf)->GetFullPath();
+      const cmCustomCommand *command = 
+        (*sf)->GetCustomCommand();
+      std::string compileFlags;
+      std::vector<std::string> depends;
+      const char* cflags = (*sf)->GetProperty("COMPILE_FLAGS");
+      if(cflags)
+        {
+        compileFlags = cflags;
+        }
+      const char* lang = 
+        m_GlobalGenerator->GetLanguageFromExtension((*sf)->GetSourceExtension().c_str());
+      if(lang && strcmp(lang, "CXX") == 0)
+        {
+        // force a C++ file type
+        compileFlags += " /TP ";
+        }
+      
+      // Check for extra object-file dependencies.
+      const char* dependsValue = (*sf)->GetProperty("OBJECT_DEPENDS");
+      if(dependsValue)
+        {
+        cmSystemTools::ExpandListArgument(dependsValue, depends);
+        }
+      if (source != libName || target.GetType() == cmTarget::UTILITY)
+        {
+        fout << "# Begin Source File\n\n";
+        
+        // Tell MS-Dev what the source is.  If the compiler knows how to
+        // build it, then it will.
+        fout << "SOURCE=" << 
+          this->ConvertToOptionallyRelativeOutputPath(source.c_str()) << "\n\n";
+        if(!depends.empty())
+          {
+          // Write out the dependencies for the rule.
+          fout << "USERDEP__HACK=";
+          for(std::vector<std::string>::const_iterator d = depends.begin();
+              d != depends.end(); ++d)
+            { 
+            fout << "\\\n\t" << 
+              this->ConvertToOptionallyRelativeOutputPath(d->c_str());
+            }
+          fout << "\n";
+          }
+        if (command)
+          {
+          std::string script =
+            this->ConstructScript(command->GetCommandLines(), "\\\n\t");
+          const char* comment = command->GetComment();
+          const char* flags = compileFlags.size() ? compileFlags.c_str(): 0;
+          this->WriteCustomRule(fout, source.c_str(), script.c_str(), 
+                                (*comment?comment:"Custom Rule"),
+                                command->GetDepends(), 
+                                command->GetOutput(), flags);
+          }
+        else if(compileFlags.size())
+          {
+          for(std::vector<std::string>::iterator i
+                = m_Configurations.begin(); i != m_Configurations.end(); ++i)
+            { 
+            if (i == m_Configurations.begin())
+              {
+              fout << "!IF  \"$(CFG)\" == " << i->c_str() << std::endl;
+              }
+            else 
+              {
+              fout << "!ELSEIF  \"$(CFG)\" == " << i->c_str() << std::endl;
+              }
+            fout << "\n# ADD CPP " << compileFlags << "\n\n";
+            } 
+          fout << "!ENDIF\n\n";
+          }
+        fout << "# End Source File\n";
+        }
+      }
+    
+    // If the group has a name, write the footer.
+    if(name != "")
+      {
+      this->WriteDSPEndGroup(fout);
+      }
+    }  
 
-  if ( ! this->PostProcessHandler() )
-    {
-    return -1;
-    }
-
-  if ( !failed.empty() )
-    {
-    return -1;
-    }
-  return 0;
+  // Write the DSP file's footer.
+  this->WriteDSPFooter(fout);
 }

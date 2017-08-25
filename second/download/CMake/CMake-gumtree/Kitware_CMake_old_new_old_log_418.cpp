@@ -1,1 +1,2 @@
-fprintf(stderr, "The %s target dependency graph is:\n", name);
+fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());

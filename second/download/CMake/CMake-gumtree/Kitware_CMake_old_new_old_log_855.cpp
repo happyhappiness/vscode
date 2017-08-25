@@ -1,2 +1,2 @@
-fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
-      percent, int(failed.size()), total);
+fprintf(stderr, "\t%3d - %s (%s)\n", ftit->m_TestCount, ftit->m_Name.c_str(),
+            this->GetTestStatus(ftit->m_Status));

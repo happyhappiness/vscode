@@ -1,1 +1,1 @@
-fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");
+fprintf(fout, "link_directories(${LINK_DIRECTORIES})\n");

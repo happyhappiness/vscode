@@ -5,11 +5,10 @@ std::string cmCTest::MakeXMLSafe(const std::string& str)
   char buffer[10];
   for ( pos = 0; pos < str.size(); pos ++ )
     {
-    unsigned char ch = str[pos];
-    if ( (ch > 126 || ch < 32) && ch != 9 )
+    char ch = str[pos];
+    if ( ch > 126 )
       {
-      sprintf(buffer, "&gt;&lt;");
-      //sprintf(buffer, "&#x%0x;", (unsigned int)ch);
+      sprintf(buffer, "&%x", (int)ch);
       ost << buffer;
       }
     else

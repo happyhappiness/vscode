@@ -1,1 +1,1 @@
-fprintf(stderr, "kwsysProcess_New returned NULL!\n");
+sprintf(hex, "%%%02X", (int)c);

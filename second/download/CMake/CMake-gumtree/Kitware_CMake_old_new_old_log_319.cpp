@@ -1,1 +1,2 @@
-yy_fatal_error( "cmFortran_yyset_column called with no buffer" , yyscanner);
+sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
+          target.GetName().c_str(), count);

@@ -1,1 +1,1 @@
-sprintf(buf, "%u", this->VersionTweak);
+sprintf(buf, "%u", this->VersionCount);

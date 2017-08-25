@@ -1,3 +1,1 @@
-fprintf(fout,
-      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
-      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");
+fprintf(fout, "%04X ", i);

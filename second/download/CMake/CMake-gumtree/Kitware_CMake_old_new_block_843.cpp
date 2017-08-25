@@ -1,1 +1,1 @@
-fprintf(stderr, "Starting parse\n")
+fprintf(stderr, "Stack size increased to %d\n", yystacksize)

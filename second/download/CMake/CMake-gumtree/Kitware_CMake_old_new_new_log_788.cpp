@@ -1,1 +1,1 @@
-fprintf(fout,"%s\n",(*d)->FullPath.c_str());
+sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);

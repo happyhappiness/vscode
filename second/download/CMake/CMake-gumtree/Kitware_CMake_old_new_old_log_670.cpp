@@ -1,1 +1,1 @@
-f(stderr, "Writing %s...\n", currentFilename.c_str());
+fprintf(stderr, " + %s\n", realTargetName);

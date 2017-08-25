@@ -1,1 +1,1 @@
-sprintf(buffer, "&%x", (int)ch);
+sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);

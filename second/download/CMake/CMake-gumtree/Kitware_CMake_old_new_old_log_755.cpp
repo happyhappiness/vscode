@@ -1,1 +1,2 @@
-sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+f("  ==> extracting: %s (mode %04o, directory)\n", filename,
+         mode);

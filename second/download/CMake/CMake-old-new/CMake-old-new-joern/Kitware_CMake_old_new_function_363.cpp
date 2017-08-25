@@ -1,24 +1,29 @@
-static int
-get_gss_name(struct connectdata *conn, bool proxy, gss_name_t *server)
+static void
+log_gss_error(struct connectdata *conn, OM_uint32 error_status,
+              const char *prefix)
 {
-  OM_uint32 major_status, minor_status;
-  gss_buffer_desc token = GSS_C_EMPTY_BUFFER;
-  char name[2048];
-  const char* service = "HTTP";
+  OM_uint32 maj_stat, min_stat;
+  OM_uint32 msg_ctx = 0;
+  gss_buffer_desc status_string;
+  char buf[1024];
+  size_t len;
 
-  token.length = strlen(service) + 1 + strlen(proxy ? conn->proxy.name :
-                                              conn->host.name) + 1;
-  if(token.length + 1 > sizeof(name))
-    return EMSGSIZE;
+  snprintf(buf, sizeof(buf), "%s", prefix);
+  len = strlen(buf);
+  do {
+    maj_stat = gss_display_status(&min_stat,
+                                  error_status,
+                                  GSS_C_MECH_CODE,
+                                  GSS_C_NO_OID,
+                                  &msg_ctx,
+                                  &status_string);
+      if(sizeof(buf) > len + status_string.length + 1) {
+        snprintf(buf + len, sizeof(buf) - len,
+                 ": %s", (char*) status_string.value);
+      len += status_string.length;
+    }
+    gss_release_buffer(&min_stat, &status_string);
+  } while(!GSS_ERROR(maj_stat) && msg_ctx != 0);
 
-  snprintf(name, sizeof(name), "%s@%s", service, proxy ? conn->proxy.name :
-           conn->host.name);
-
-  token.value = (void *) name;
-  major_status = gss_import_name(&minor_status,
-                                 &token,
-                                 GSS_C_NT_HOSTBASED_SERVICE,
-                                 server);
-
-  return GSS_ERROR(major_status) ? -1 : 0;
+  infof(conn->data, "%s\n", buf);
 }

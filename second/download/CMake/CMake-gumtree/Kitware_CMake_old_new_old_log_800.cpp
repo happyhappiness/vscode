@@ -1,2 +1,1 @@
-snprintf(savepath, MAXPATHLEN, "%s/%s", savedir,
-         dent->d_name);
+::sprintf(newkey, "%s\\%s", this->m_SubKey.c_str(), key);

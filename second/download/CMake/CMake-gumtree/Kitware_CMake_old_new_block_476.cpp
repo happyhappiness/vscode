@@ -1,4 +1,4 @@
 {
-          fprintf(progFile,"%i\n",count);
+          fprintf(progFile,"empty");
           fclose(progFile);
           }

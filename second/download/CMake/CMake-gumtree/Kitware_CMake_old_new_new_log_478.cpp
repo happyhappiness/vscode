@@ -1,0 +1,1 @@
+fprintf(fout, "set(CMAKE_MODULE_PATH %s)\n", def);

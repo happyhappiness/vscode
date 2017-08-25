@@ -1,5 +1,5 @@
 {
-            fprintf(stderr,"***Failed\n");
+            fprintf(stderr,"   Passed\n");
             if (output != "")
               {
               if (dartStuff.find(output.c_str()))
@@ -13,5 +13,5 @@
                 std::cerr << output.c_str() << "\n";
                 }
               }
-            failed.push_back(args[0].Value); 
+            passed.push_back(args[0].Value); 
             }

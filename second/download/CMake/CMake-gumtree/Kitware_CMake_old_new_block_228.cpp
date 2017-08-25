@@ -1,5 +1,1 @@
-{
-  return aprintf("%s:%d",
-                 conn->bits.proxy?conn->proxy.name:conn->host.name,
-                 conn->localport);
-}
+snprintf((char *)&dest[i*2], 3, "%02x", source[i])

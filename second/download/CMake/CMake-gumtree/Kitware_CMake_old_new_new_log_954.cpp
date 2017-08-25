@@ -1,1 +1,1 @@
-fprintf(fout, "  SET(CMAKE_C_FLAGS \"${CMAKE_C_FLAGS} ${CMAKE_ANSI_CFLAGS}\")\n");
+fprintf(fout, "ENDIF (CMAKE_ANSI_CXXFLAGS)\n");

@@ -1,1 +1,1 @@
-fprintf(stderr,"%3d/%3d Testing %-30s\n", cnt, tmsize, testname.c_str());
+sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);

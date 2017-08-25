@@ -1,246 +1,67 @@
-void cmake::GenerateGraphViz(const char* fileName)
+std::string&
+cmLocalUnixMakefileGenerator3::CreateSafeUniqueObjectFileName(const char* sin)
 {
-  cmGeneratedFileStream str(fileName);
-  if ( !str )
-    {
-    return;
-    }
-  cmake cm;
-  cmGlobalGenerator ggi;
-  ggi.SetCMakeInstance(&cm);
-  std::auto_ptr<cmLocalGenerator> lg(ggi.CreateLocalGenerator());
-  lg->SetGlobalGenerator(&ggi);
-  cmMakefile *mf = lg->GetMakefile();
+  // Look for an existing mapped name for this object file.
+  std::map<cmStdString,cmStdString>::iterator it =
+    this->UniqueObjectNamesMap.find(sin);
 
-  std::string infile = this->GetHomeOutputDirectory();
-  infile += "/CMakeGraphVizOptions.cmake";
-  if ( !cmSystemTools::FileExists(infile.c_str()) )
+  // If no entry exists create one.
+  if(it == this->UniqueObjectNamesMap.end())
     {
-    infile = this->GetHomeDirectory();
-    infile += "/CMakeGraphVizOptions.cmake";
-    if ( !cmSystemTools::FileExists(infile.c_str()) )
+    // Start with the original name.
+    std::string ssin = sin;
+
+    // Avoid full paths by removing leading slashes.
+    std::string::size_type pos = 0;
+    for(;pos < ssin.size() && ssin[pos] == '/'; ++pos);
+    ssin = ssin.substr(pos);
+
+    // Avoid full paths by removing colons.
+    cmSystemTools::ReplaceString(ssin, ":", "_");
+
+    // Avoid relative paths that go up the tree.
+    cmSystemTools::ReplaceString(ssin, "../", "__/");
+
+    // Avoid spaces.
+    cmSystemTools::ReplaceString(ssin, " ", "_");
+
+    // Mangle the name if necessary.
+    if(this->Makefile->IsOn("CMAKE_MANGLE_OBJECT_FILE_NAMES"))
       {
-      infile = "";
-      }
-    }
-
-  if ( !infile.empty() )
-    {
-    if ( !mf->ReadListFile(0, infile.c_str()) )
-      {
-      cmSystemTools::Error("Problem opening GraphViz options file: ",
-        infile.c_str());
-      return;
-      }
-    std::cout << "Read GraphViz options file: " << infile.c_str()
-      << std::endl;
-    }
-
-#define __set_if_not_set(var, value, cmakeDefinition) \
-  const char* var = mf->GetDefinition(cmakeDefinition); \
-  if ( !var ) \
-    { \
-    var = value; \
-    }
-  __set_if_not_set(graphType, "digraph", "GRAPHVIZ_GRAPH_TYPE");
-  __set_if_not_set(graphName, "GG", "GRAPHVIZ_GRAPH_NAME");
-  __set_if_not_set(graphHeader, "node [\n  fontsize = \"12\"\n];",
-    "GRAPHVIZ_GRAPH_HEADER");
-  __set_if_not_set(graphNodePrefix, "node", "GRAPHVIZ_NODE_PREFIX");
-  const char* ignoreTargets = mf->GetDefinition("GRAPHVIZ_IGNORE_TARGETS");
-  std::set<cmStdString> ignoreTargetsSet;
-  if ( ignoreTargets )
-    {
-    std::vector<std::string> ignoreTargetsVector;
-    cmSystemTools::ExpandListArgument(ignoreTargets,ignoreTargetsVector);
-    std::vector<std::string>::iterator itvIt;
-    for ( itvIt = ignoreTargetsVector.begin();
-      itvIt != ignoreTargetsVector.end();
-      ++ itvIt )
-      {
-      ignoreTargetsSet.insert(itvIt->c_str());
-      }
-    }
-
-  str << graphType << " " << graphName << " {" << std::endl;
-  str << graphHeader << std::endl;
-
-  cmGlobalGenerator* gg = this->GetGlobalGenerator();
-  std::vector<cmLocalGenerator*> localGenerators;
-  gg->GetLocalGenerators(localGenerators);
-  std::vector<cmLocalGenerator*>::iterator lit;
-  // for target deps
-  // 1 - cmake target
-  // 2 - external target
-  // 0 - no deps
-  std::map<cmStdString, int> targetDeps;
-  std::map<cmStdString, cmTarget*> targetPtrs;
-  std::map<cmStdString, cmStdString> targetNamesNodes;
-  char tgtName[2048];
-  int cnt = 0;
-  // First pass get the list of all cmake targets
-  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
-    {
-    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
-      {
-      const char* realTargetName = tit->first.c_str();
-      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
+      bool done;
+      int cc = 0;
+      char rpstr[100];
+      sprintf(rpstr, "_p_");
+      cmSystemTools::ReplaceString(ssin, "+", rpstr);
+      std::string sssin = sin;
+      do
         {
-        // Skip ignored targets
-        continue;
-        }
-      //std::cout << "Found target: " << tit->first.c_str() << std::endl;
-      sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
-      targetNamesNodes[realTargetName] = tgtName;
-      targetPtrs[realTargetName] = &tit->second;
-      }
-    }
-  // Ok, now find all the stuff we link to that is not in cmake
-  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
-    {
-    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
-      {
-      const cmTarget::LinkLibraryVectorType* ll
-        = &(tit->second.GetOriginalLinkLibraries());
-      cmTarget::LinkLibraryVectorType::const_iterator llit;
-      const char* realTargetName = tit->first.c_str();
-      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
-        {
-        // Skip ignored targets
-        continue;
-        }
-      if ( ll->size() > 0 )
-        {
-        targetDeps[realTargetName] = 1;
-        }
-      for ( llit = ll->begin(); llit != ll->end(); ++ llit )
-        {
-        const char* libName = llit->first.c_str();
-        std::map<cmStdString, cmStdString>::iterator tarIt
-          = targetNamesNodes.find(libName);
-        if ( ignoreTargetsSet.find(libName) != ignoreTargetsSet.end() )
+        done = true;
+        for ( it = this->UniqueObjectNamesMap.begin();
+              it != this->UniqueObjectNamesMap.end();
+              ++ it )
           {
-          // Skip ignored targets
-          continue;
-          }
-        if ( tarIt == targetNamesNodes.end() )
-          {
-          sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
-          targetDeps[libName] = 2;
-          targetNamesNodes[libName] = tgtName;
-          //str << "    \"" << tgtName << "\" [ label=\"" << libName
-          //<<  "\" shape=\"ellipse\"];" << std::endl;
-          }
-        else
-          {
-          std::map<cmStdString, int>::iterator depIt
-            = targetDeps.find(libName);
-          if ( depIt == targetDeps.end() )
+          if ( it->second == ssin )
             {
-            targetDeps[libName] = 1;
+            done = false;
             }
           }
-        }
-      }
-    }
-
-  // Write out nodes
-  std::map<cmStdString, int>::iterator depIt;
-  for ( depIt = targetDeps.begin(); depIt != targetDeps.end(); ++ depIt )
-    {
-    const char* newTargetName = depIt->first.c_str();
-    std::map<cmStdString, cmStdString>::iterator tarIt
-      = targetNamesNodes.find(newTargetName);
-    if ( tarIt == targetNamesNodes.end() )
-      {
-      // We should not be here.
-      std::cout << __LINE__ << " Cannot find library: " << newTargetName
-        << " even though it was added in the previous pass" << std::endl;
-      abort();
-      }
-
-    str << "    \"" << tarIt->second.c_str() << "\" [ label=\""
-      << newTargetName <<  "\" shape=\"";
-    if ( depIt->second == 1 )
-      {
-      std::map<cmStdString, cmTarget*>::iterator tarTypeIt= targetPtrs.find(
-        newTargetName);
-      if ( tarTypeIt == targetPtrs.end() )
-        {
-        // We should not be here.
-        std::cout << __LINE__ << " Cannot find library: " << newTargetName
-          << " even though it was added in the previous pass" << std::endl;
-        abort();
-        }
-      cmTarget* tg = tarTypeIt->second;
-      switch ( tg->GetType() )
-        {
-      case cmTarget::EXECUTABLE:
-        str << "house";
-        break;
-      case cmTarget::STATIC_LIBRARY:
-        str << "diamond";
-        break;
-      case cmTarget::SHARED_LIBRARY:
-        str << "polygon";
-        break;
-      case cmTarget::MODULE_LIBRARY:
-        str << "octagon";
-        break;
-      default:
-        str << "box";
-        }
-      }
-    else
-      {
-      str << "ellipse";
-      }
-    str << "\"];" << std::endl;
-    }
-
-  // Now generate the connectivity
-  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
-    {
-    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
-      {
-      std::map<cmStdString, int>::iterator dependIt
-        = targetDeps.find(tit->first.c_str());
-      if ( dependIt == targetDeps.end() )
-        {
-        continue;
-        }
-      std::map<cmStdString, cmStdString>::iterator cmakeTarIt
-        = targetNamesNodes.find(tit->first.c_str());
-      const cmTarget::LinkLibraryVectorType* ll
-        = &(tit->second.GetOriginalLinkLibraries());
-      cmTarget::LinkLibraryVectorType::const_iterator llit;
-      for ( llit = ll->begin(); llit != ll->end(); ++ llit )
-        {
-        const char* libName = llit->first.c_str();
-        std::map<cmStdString, cmStdString>::iterator tarIt
-          = targetNamesNodes.find(libName);
-        if ( tarIt == targetNamesNodes.end() )
+        if ( done )
           {
-          // We should not be here.
-          std::cout << __LINE__ << " Cannot find library: " << libName
-            << " even though it was added in the previous pass" << std::endl;
-          abort();
+          break;
           }
-        str << "    \"" << cmakeTarIt->second.c_str() << "\" -> \""
-          << tarIt->second.c_str() << "\"" << std::endl;
+        sssin = ssin;
+        cmSystemTools::ReplaceString(ssin, "_p_", rpstr);
+        sprintf(rpstr, "_p%d_", cc++);
         }
+      while ( !done );
       }
+
+    // Insert the newly mapped object file name.
+    std::map<cmStdString, cmStdString>::value_type e(sin, ssin);
+    it = this->UniqueObjectNamesMap.insert(e).first;
     }
 
-  // TODO: Use dotted or something for external libraries
-  //str << "    \"node0\":f4 -> \"node12\"[color=\"#0000ff\" style=dotted]"
-  //<< std::endl;
-  //
-  str << "}" << std::endl;
+  // Return the map entry.
+  return it->second;
 }

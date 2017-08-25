@@ -1,1 +1,5 @@
-fprintf(fout, "add_executable(%s", targetName);
+archive_set_error(
+						    &filter->archive->archive,
+						    ENOMEM,
+						    "Unable to allocate copy"
+						    " buffer");

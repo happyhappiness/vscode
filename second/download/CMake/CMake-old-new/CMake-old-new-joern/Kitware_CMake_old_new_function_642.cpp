@@ -1,107 +1,123 @@
-static ssize_t
-decode_header_image(struct archive_read *a, struct _7zip *zip,
-    struct _7z_stream_info *si, const unsigned char *p, uint64_t len,
-    const void **image)
+static int
+slurp_central_directory(struct archive_read *a, struct _7zip *zip,
+    struct _7z_header_info *header)
 {
-	const unsigned char *v;
-	size_t vsize;
+	const unsigned char *p;
+	const void *image;
+	uint64_t len;
+	uint64_t next_header_offset;
+	uint64_t next_header_size;
+	uint32_t next_header_crc;
+	ssize_t bytes_avail, image_bytes;
 	int r;
 
-	errno = 0;
-	r = read_StreamsInfo(zip, si, p, len);
-	if (r < 0) {
-		if (errno == ENOMEM)
-			archive_set_error(&a->archive, -1,
-			    "Couldn't allocate memory");
-		else
-			archive_set_error(&a->archive, -1,
-			    "Malformed 7-Zip archive");
+	if ((p = __archive_read_ahead(a, 32, &bytes_avail)) == NULL)
+		return (ARCHIVE_FATAL);
+
+	if ((p[0] == 'M' && p[1] == 'Z') || memcmp(p, "\x7F\x45LF", 4) == 0) {
+		/* This is an executable ? Must be self-extracting... */
+		r = skip_sfx(a, bytes_avail);
+		if (r < ARCHIVE_WARN)
+			return (r);
+		if ((p = __archive_read_ahead(a, 32, NULL)) == NULL)
+			return (ARCHIVE_FATAL);
+	}
+	zip->seek_base += 32;
+
+	if (memcmp(p, _7ZIP_SIGNATURE, 6) != 0) {
+		archive_set_error(&a->archive, -1, "Not 7-Zip archive file");
 		return (ARCHIVE_FATAL);
 	}
 
-	if (si->pi.numPackStreams == 0 || si->ci.numFolders == 0) {
+	/* CRC check. */
+	if (crc32(0, (unsigned char *)p + 12, 20) != archive_le32dec(p + 8)) {
+		archive_set_error(&a->archive, -1, "Header CRC error");
+		return (ARCHIVE_FATAL);
+	}
+
+	next_header_offset = archive_le64dec(p + 12);
+	next_header_size = archive_le64dec(p + 20);
+	next_header_crc = archive_le32dec(p + 28);
+
+	if (next_header_size == 0)
+		/* There is no entry in an archive file. */
+		return (ARCHIVE_EOF);
+
+	if (((int64_t)next_header_offset) < 0) {
 		archive_set_error(&a->archive, -1, "Malformed 7-Zip archive");
 		return (ARCHIVE_FATAL);
 	}
+	if (__archive_read_seek(a, next_header_offset + zip->seek_base,
+	    SEEK_SET) < 0)
+		return (ARCHIVE_FATAL);
+	zip->header_offset = next_header_offset;
 
-	if (zip->header_offset < si->pi.pos + si->pi.sizes[0] ||
-	    (int64_t)(si->pi.pos + si->pi.sizes[0]) < 0 ||
-	    si->pi.sizes[0] == 0 || (int64_t)si->pi.pos < 0) {
-		archive_set_error(&a->archive, -1, "Malformed Header offset");
+	if ((p = __archive_read_ahead(a, next_header_size, NULL)) == NULL)
+		return (ARCHIVE_FATAL);
+
+	if (crc32(0, p, next_header_size) != next_header_crc) {
+		archive_set_error(&a->archive, -1, "Damaged 7-Zip archive");
 		return (ARCHIVE_FATAL);
 	}
 
-	r = setup_decode_folder(a, si->ci.folders, 1);
-	if (r != ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
+	len = next_header_size;
+	/* Parse ArchiveProperties. */
+	switch (p[0]) {
+	case kEncodedHeader:
+		p++;
+		len--;
 
-	/* Get an uncompressed header size. */
-	vsize = (size_t)zip->folder_outbytes_remaining;
-
-	/*
-	 * Allocate an uncompressed buffer for the header image.
-	 */
-	zip->uncompressed_buffer_size = 64 * 1024;
-	if (vsize > zip->uncompressed_buffer_size)
-		zip->uncompressed_buffer_size = vsize;
-	zip->uncompressed_buffer = malloc(zip->uncompressed_buffer_size);
-	if (zip->uncompressed_buffer == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "No memory for 7-Zip decompression");
-		return (ARCHIVE_FATAL);
-	}
-
-	/* Get the bytes we can read to decode the header. */
-	zip->pack_stream_inbytes_remaining = si->pi.sizes[0];
-
-	/* Seek the read point. */
-	if (__archive_read_seek(a, si->pi.pos + zip->seek_base, SEEK_SET) < 0)
-		return (ARCHIVE_FATAL);
-	zip->header_offset = si->pi.pos;
-
-	/* Extract a pack stream. */
-	r = extract_pack_stream(a);
-	if (r < 0)
-		return (r);
-	for (;;) {
-		ssize_t bytes;
-		
-		bytes = get_uncompressed_data(a, image, vsize);
-		if (bytes < 0)
-			return (r);
-		if (bytes != vsize) {
-			if (*image != zip->uncompressed_buffer) {
-				/* This might happen if the coder was COPY.
-				 * We have to make sure we read a full plain
-				 * header image. */
-				if (NULL==__archive_read_ahead(a, vsize, NULL))
-					return (ARCHIVE_FATAL);
-				continue;
-			} else {
+		/*
+		 * The archive has an encoded header and we have to decode it
+		 * in order to parse the header correctly.
+		 */
+		image_bytes =
+		    decode_header_image(a, zip, &(zip->si), p, len, &image);
+		free_StreamsInfo(&(zip->si));
+		memset(&(zip->si), 0, sizeof(zip->si));
+		if (image_bytes < 0)
+			return (ARCHIVE_FATAL);
+		p = image;
+		len = image_bytes;
+		/* FALL THROUGH */
+	case kHeader:
+		/*
+		 * Parse the header.
+		 */
+		errno = 0;
+		r = read_Header(zip, header, p, len);
+		if (r < 0) {
+			if (errno == ENOMEM)
 				archive_set_error(&a->archive, -1,
-				    "Malformed 7-Zip archive file");
-				return (ARCHIVE_FATAL);
-			}
-		}
-		break;
-	}
-	v = *image;
-
-	/* Clean up variables which will not be used for decoding the
-	 * archive header */
-	zip->pack_stream_remaining = 0;
-	zip->pack_stream_index = 0;
-	zip->folder_outbytes_remaining = 0;
-	zip->uncompressed_buffer_bytes_remaining = 0;
-	zip->pack_stream_bytes_unconsumed = 0;
-
-	/* Check the header CRC. */
-	if (si->ci.folders[0].digest_defined){
-		uint32_t c = crc32(0, v, vsize);
-		if (c != si->ci.folders[0].digest) {
-			archive_set_error(&a->archive, -1, "Header CRC error");
+				    "Couldn't allocate memory");
+			else
+				archive_set_error(&a->archive, -1,
+				    "Damaged 7-Zip archive");
 			return (ARCHIVE_FATAL);
 		}
+		if (len - r == 0 || p[r] != kEnd) {
+			archive_set_error(&a->archive, -1,
+			    "Malformed 7-Zip archive");
+			return (ARCHIVE_FATAL);
+		}
+		break;
+	default:
+		archive_set_error(&a->archive, -1,
+		    "Unexpected Property ID = %X", p[0]);
+		return (ARCHIVE_FATAL);
 	}
-	return ((ssize_t)vsize);
+	zip->stream_offset = -1;
+
+	/*
+	 * If the uncompressed buffer was allocated more than 64K for
+	 * the header image, release it.
+	 */
+	if (zip->uncompressed_buffer != NULL &&
+	    zip->uncompressed_buffer_size != 64 * 1024) {
+		free(zip->uncompressed_buffer);
+		zip->uncompressed_buffer = NULL;
+		zip->uncompressed_buffer_size = 0;
+	}
+
+	return (ARCHIVE_OK);
 }

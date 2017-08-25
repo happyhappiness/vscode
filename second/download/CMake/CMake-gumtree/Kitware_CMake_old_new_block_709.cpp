@@ -1,4 +1,5 @@
 {
-  fprintf(stderr, "FILE_DEF_RELEASE should not be defined in CXX\n");
-  result = 0;
-  }
+  char * temp = new char[32];
+  sprintf(temp,"%d",this->ChipID.Type);
+  return temp;
+}

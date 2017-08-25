@@ -1,4 +1,4 @@
 {
-      fprintf(stderr, "Mismatch in exit exception.  Should have been %d.\n",
-              exception);
+      fprintf(stderr, "Mismatch in exit value.  Should have been %d.\n",
+              value);
       }

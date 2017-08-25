@@ -1,31 +1,26 @@
 int
-archive_read_disk_descend(struct archive *_a)
+archive_read_disk_open(struct archive *_a, const char *pathname)
 {
 	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	struct tree *t = a->tree;
+	struct archive_wstring wpath;
+	int ret;
 
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
-	    "archive_read_disk_descend");
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_NEW | ARCHIVE_STATE_CLOSED,
+	    "archive_read_disk_open");
+	archive_clear_error(&a->archive);
 
-	if (t->visit_type != TREE_REGULAR || !t->descend) {
+	/* Make a wchar_t string from a char string. */
+	archive_string_init(&wpath);
+	if (archive_wstring_append_from_mbs(&wpath, pathname,
+	    strlen(pathname)) != 0) {
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Ignored the request descending the current object");
-		return (ARCHIVE_WARN);
-	}
+		    "Can't convert a path to a wchar_t string");
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		ret = ARCHIVE_FATAL;
+	} else
+		ret = _archive_read_disk_open_w(_a, wpath.s);
 
-	if (tree_current_is_physical_dir(t)) {
-		tree_push(t, t->basename, t->full_path.s,
-		    t->current_filesystem_id,
-		    bhfi_dev(&(t->lst)), bhfi_ino(&(t->lst)),
-		    &t->restore_time);
-		t->stack->flags |= isDir;
-	} else if (tree_current_is_dir(t)) {
-		tree_push(t, t->basename, t->full_path.s,
-		    t->current_filesystem_id,
-		    bhfi_dev(&(t->st)), bhfi_ino(&(t->st)),
-		    &t->restore_time);
-		t->stack->flags |= isDirLink;
-	}
-	t->descend = 0;
-	return (ARCHIVE_OK);
+	archive_wstring_free(&wpath);
+	return (ret);
 }

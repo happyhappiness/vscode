@@ -1,19 +1,10 @@
-static void prratio(FILE *stream, long int num, long int den)
+void cmDependsFortran_yyset_lineno (int  line_number , yyscan_t yyscanner)
 {
-  register int q;      /* Doesn't need to be long */
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
 
-  if(num > 214748L)
-    {    /* 2147483647/10000 */
-    q = num / (den / 10000L);
-    }
-  else
-    {
-    q = 10000L * num / den;    /* Long calculations, though */
-    }
-  if (q < 0)
-    {
-    putc('-', stream);
-    q = -q;
-    }
-  fprintf(stream, "%d.%02d%%", q / 100, q % 100);
+        /* lineno is only valid if an input buffer exists. */
+        if (! YY_CURRENT_BUFFER )
+           yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" ); 
+    
+    yylineno = line_number;
 }

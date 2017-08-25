@@ -1,4 +1,7 @@
 {
-          tmp = tmp.substr(0, pos);
-          fprintf(fout,"%s\n",(*d)->m_FullPath.c_str());
-          }
+      //std::cout << "Found target: " << tit->first.c_str() << std::endl;
+      sprintf(tgtName, "node%d", cnt++);
+      targetNamesNodes[tit->first.c_str()] = tgtName;
+      targetPtrs[tit->first.c_str()] = &tit->second;
+      //str << "    \"" << tgtName << "\" [ label=\"" << tit->first.c_str() <<  "\" shape=\"box\"];" << std::endl;
+      }

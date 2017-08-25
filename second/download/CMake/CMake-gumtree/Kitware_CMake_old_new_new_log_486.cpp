@@ -1,1 +1,1 @@
-fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");
+fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");

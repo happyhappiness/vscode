@@ -1,1 +1,1 @@
-sprintf(argvName,"ARGV%i",cnt);
+sprintf(argvName,"ARGV%i",j);

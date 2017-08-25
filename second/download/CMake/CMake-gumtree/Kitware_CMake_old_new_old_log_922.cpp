@@ -1,1 +1,1 @@
-snprintf(sbuf, sizeof(sbuf), "%d", port);
+conn->allocptr.host = aprintf("Host: %s\r\n", host);

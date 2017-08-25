@@ -1,1 +1,1 @@
-xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer);
+DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));

@@ -1,1 +1,1 @@
-fprintf(stream, "%d.%02d%%", q / 100, q % 100);
+yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" );

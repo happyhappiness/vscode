@@ -1,1 +1,1 @@
-sprintf(buf, "Content-Length: %d\r\n", filesize);
+fprintf(conn->data->set.err, "> %s\n", s);

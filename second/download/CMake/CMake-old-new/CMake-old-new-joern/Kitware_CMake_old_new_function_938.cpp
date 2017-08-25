@@ -15,8 +15,9 @@ void ctest::ProcessDirectory(std::vector<std::string> &passed,
     }
 
   int firstTest = 1;
-  long line = 0;
   
+  std::string name;
+  std::vector<std::string> args;
   cmRegularExpression ireg(this->m_IncludeRegExp.c_str());
   cmRegularExpression ereg(this->m_ExcludeRegExp.c_str());
   cmRegularExpression dartStuff("([\t\n ]*<DartMeasurement.*/DartMeasurement[a-zA-Z]*>[\t ]*[\n]*)");
@@ -24,20 +25,17 @@ void ctest::ProcessDirectory(std::vector<std::string> &passed,
   bool parseError;
   while ( fin )
     {
-    cmListFileFunction lff;
-    if(cmListFileCache::ParseFunction(fin, lff, "DartTestfile.txt",
-                                      parseError, line))
+    if(cmSystemTools::ParseFunction(fin, name, args, "DartTestfile.txt",
+                                    parseError))
       {
-      const std::string& name = lff.m_Name;
-      const std::vector<cmListFileArgument>& args = lff.m_Arguments;
       if (name == "SUBDIRS")
         {
         std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-        for(std::vector<cmListFileArgument>::const_iterator j = args.begin();
+        for(std::vector<std::string>::iterator j = args.begin();
             j != args.end(); ++j)
           {   
           std::string nwd = cwd + "/";
-          nwd += j->Value;
+          nwd += *j;
           if (cmSystemTools::FileIsDirectory(nwd.c_str()))
             {
             cmSystemTools::ChangeDirectory(nwd.c_str());
@@ -52,17 +50,17 @@ void ctest::ProcessDirectory(std::vector<std::string> &passed,
         {
         if (this->m_UseExcludeRegExp && 
             this->m_UseExcludeRegExpFirst && 
-            ereg.find(args[0].Value.c_str()))
+            ereg.find(args[0].c_str()))
           {
           continue;
           }
-        if (this->m_UseIncludeRegExp && !ireg.find(args[0].Value.c_str()))
+        if (this->m_UseIncludeRegExp && !ireg.find(args[0].c_str()))
           {
           continue;
           }
         if (this->m_UseExcludeRegExp && 
             !this->m_UseExcludeRegExpFirst && 
-            ereg.find(args[0].Value.c_str()))
+            ereg.find(args[0].c_str()))
           {
           continue;
           }
@@ -75,30 +73,30 @@ void ctest::ProcessDirectory(std::vector<std::string> &passed,
           std::cerr << "Changing directory into " << nwd.c_str() << "\n";
           firstTest = 0;
           }
-        cres.m_Name = args[0].Value;
-        fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());
+        cres.m_Name = args[0];
+        fprintf(stderr,"Testing %-30s ",args[0].c_str());
         fflush(stderr);
         //std::cerr << "Testing " << args[0] << " ... ";
         // find the test executable
-        std::string testCommand = this->FindExecutable(args[1].Value.c_str());
+        std::string testCommand = this->FindExecutable(args[1].c_str());
         testCommand = cmSystemTools::ConvertToOutputPath(testCommand.c_str());
 
         // continue if we did not find the executable
         if (testCommand == "")
           {
           std::cerr << "Unable to find executable: " << 
-            args[1].Value.c_str() << "\n";
+            args[1].c_str() << "\n";
           continue;
           }
         
         // add the arguments
-        std::vector<cmListFileArgument>::const_iterator j = args.begin();
+        std::vector<std::string>::iterator j = args.begin();
         ++j;
         ++j;
         for(;j != args.end(); ++j)
           {   
           testCommand += " ";
-          testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
+          testCommand += cmSystemTools::EscapeSpaces(j->c_str());
           }
         /**
          * Run an executable command and put the stdout in output.
@@ -135,7 +133,7 @@ void ctest::ProcessDirectory(std::vector<std::string> &passed,
               std::cerr << output.c_str() << "\n";
               }
             }
-          failed.push_back(args[0].Value); 
+          failed.push_back(args[0]); 
           }
         else
           {
@@ -152,7 +150,7 @@ void ctest::ProcessDirectory(std::vector<std::string> &passed,
               std::cerr << output.c_str() << "\n";
               }
             }
-          passed.push_back(args[0].Value); 
+          passed.push_back(args[0]); 
           }
         cres.m_Output = output;
         cres.m_ReturnValue = retVal;

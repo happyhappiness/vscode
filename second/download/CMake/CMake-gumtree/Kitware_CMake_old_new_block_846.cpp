@@ -1,1 +1,1 @@
-fprintf(stderr, "Reading a token: ")
+fprintf(stderr, "Now at end of input.\n")

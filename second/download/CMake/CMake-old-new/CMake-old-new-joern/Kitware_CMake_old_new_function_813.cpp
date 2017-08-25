@@ -1,202 +1,91 @@
-void cmLocalVisualStudio6Generator::WriteDSPFile(std::ostream& fout, 
-                                 const char *libName,
-                                 cmTarget &target)
+int runChild(const char* cmd[], int state, int exception, int value,
+             int share, int output, int delay, double timeout)
 {
-  // if we should add regen rule then...
-  const char *suppRegenRule = 
-    m_Makefile->GetDefinition("CMAKE_SUPPRESS_REGENERATION");
-  if (!cmSystemTools::IsOn(suppRegenRule))
+  int result = 0;
+  char* data = 0;
+  int length = 0;
+  kwsysProcess* kp = kwsysProcess_New();
+  if(!kp)
     {
-    this->AddDSPBuildRule();
-    }
-
-  // for utility targets need custom command since post build doesn't
-  // do anything (Visual Studio 7 seems to do this correctly without 
-  // the hack)
-  if (target.GetType() == cmTarget::UTILITY && 
-      target.GetPostBuildCommands().size())
-    {
-    int count = 1;
-    for (std::vector<cmCustomCommand>::const_iterator cr = 
-           target.GetPostBuildCommands().begin(); 
-         cr != target.GetPostBuildCommands().end(); ++cr)
-      {
-      char *output = new char [
-        strlen(m_Makefile->GetStartOutputDirectory()) + 
-        strlen(libName) + 30];
-      sprintf(output,"%s/%s_force_%i",
-              m_Makefile->GetStartOutputDirectory(),
-              libName, count);
-      const char* no_main_dependency = 0;
-      const char* no_comment = 0;
-      m_Makefile->AddCustomCommandToOutput(output,
-                                           cr->GetDepends(),
-                                           no_main_dependency,
-                                           cr->GetCommandLines(),
-                                           no_comment);
-      cmSourceFile* outsf = 
-        m_Makefile->GetSourceFileWithOutput(output);
-      target.GetSourceFiles().push_back(outsf);
-      count++;
-      delete [] output;
-      }
+    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
+    return 1;
     }
   
-  // trace the visual studio dependencies
-  std::string name = libName;
-  name += ".dsp.cmake";
-  target.TraceVSDependencies(name, m_Makefile);
-
-  // We may be modifying the source groups temporarily, so make a copy.
-  std::vector<cmSourceGroup> sourceGroups = m_Makefile->GetSourceGroups();
-  
-  // get the classes from the source lists then add them to the groups
-  std::vector<cmSourceFile*> & classes = target.GetSourceFiles();
-
-  // now all of the source files have been properly assigned to the target
-  // now stick them into source groups using the reg expressions
-  for(std::vector<cmSourceFile*>::iterator i = classes.begin(); 
-      i != classes.end(); i++)
+  kwsysProcess_SetCommand(kp, cmd);
+  kwsysProcess_SetTimeout(kp, timeout);
+  if(share)
     {
-    // Add the file to the list of sources.
-    std::string source = (*i)->GetFullPath();
-    cmSourceGroup& sourceGroup = m_Makefile->FindSourceGroup(source.c_str(),
-                                                             sourceGroups);
-    sourceGroup.AssignSource(*i);
-    // while we are at it, if it is a .rule file then for visual studio 6 we
-    // must generate it
-    if ((*i)->GetSourceExtension() == "rule")
+    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
+    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
+    }
+  kwsysProcess_Execute(kp);
+
+  if(!share)
+    {
+    while(kwsysProcess_WaitForData(kp, &data, &length, 0))
       {
-      if(!cmSystemTools::FileExists(source.c_str()))
+      if(output)
         {
-        cmSystemTools::ReplaceString(source, "$(IntDir)/", "");
-#if defined(_WIN32) || defined(__CYGWIN__)
-        std::ofstream fout(source.c_str(), 
-                           std::ios::binary | std::ios::out | std::ios::trunc);
-#else
-        std::ofstream fout(source.c_str(), 
-                           std::ios::out | std::ios::trunc);
+        fwrite(data, 1, length, stdout);
+        fflush(stdout);
+        }
+      if(delay)
+        {
+        /* Purposely sleeping only on Win32 to let pipe fill up.  */
+#if defined(_WIN32)
+        Sleep(100);
 #endif
-        if(fout)
-          {
-          fout.write("# generated from CMake",22);
-          fout.flush();
-          fout.close();
-          }
         }
       }
     }
   
-  // Write the DSP file's header.
-  this->WriteDSPHeader(fout, libName, target, sourceGroups);
+  kwsysProcess_WaitForExit(kp, 0);
   
-
-  // Loop through every source group.
-  for(std::vector<cmSourceGroup>::const_iterator sg = sourceGroups.begin();
-      sg != sourceGroups.end(); ++sg)
+  switch (kwsysProcess_GetState(kp))
     {
-    const std::vector<const cmSourceFile *> &sourceFiles = 
-      sg->GetSourceFiles();
-    // If the group is empty, don't write it at all.
-    if(sourceFiles.empty())
-      { 
-      continue; 
-      }
-    
-    // If the group has a name, write the header.
-    std::string name = sg->GetName();
-    if(name != "")
+    case kwsysProcess_State_Starting:
+      printf("No process has been executed.\n"); break;
+    case kwsysProcess_State_Executing:
+      printf("The process is still executing.\n"); break;
+    case kwsysProcess_State_Expired:
+      printf("Child was killed when timeout expired.\n"); break;
+    case kwsysProcess_State_Exited:
+      printf("Child exited with value = %d\n",
+             kwsysProcess_GetExitValue(kp));
+      result = ((exception != kwsysProcess_GetExitException(kp)) ||
+                (value != kwsysProcess_GetExitValue(kp))); break;
+    case kwsysProcess_State_Killed:
+      printf("Child was killed by parent.\n"); break;
+    case kwsysProcess_State_Exception:
+      printf("Child terminated abnormally: %s\n",
+             kwsysProcess_GetExceptionString(kp));
+      result = ((exception != kwsysProcess_GetExitException(kp)) ||
+                (value != kwsysProcess_GetExitValue(kp))); break;
+    case kwsysProcess_State_Error:
+      printf("Error in administrating child process: [%s]\n",
+             kwsysProcess_GetErrorString(kp)); break;
+    };
+  
+  if(result)
+    {
+    if(exception != kwsysProcess_GetExitException(kp))
       {
-      this->WriteDSPBeginGroup(fout, name.c_str(), "");
+      fprintf(stderr, "Mismatch in exit exception.  Should have been %d.\n",
+              exception);
       }
-    
-    // Loop through each source in the source group.
-    for(std::vector<const cmSourceFile *>::const_iterator sf =
-          sourceFiles.begin(); sf != sourceFiles.end(); ++sf)
+    if(value != kwsysProcess_GetExitValue(kp))
       {
-      std::string source = (*sf)->GetFullPath();
-      const cmCustomCommand *command = 
-        (*sf)->GetCustomCommand();
-      std::string compileFlags;
-      std::vector<std::string> depends;
-      const char* cflags = (*sf)->GetProperty("COMPILE_FLAGS");
-      if(cflags)
-        {
-        compileFlags = cflags;
-        }
-      const char* lang = 
-        m_GlobalGenerator->GetLanguageFromExtension((*sf)->GetSourceExtension().c_str());
-      if(lang && strcmp(lang, "CXX") == 0)
-        {
-        // force a C++ file type
-        compileFlags += " /TP ";
-        }
-      
-      // Check for extra object-file dependencies.
-      const char* dependsValue = (*sf)->GetProperty("OBJECT_DEPENDS");
-      if(dependsValue)
-        {
-        cmSystemTools::ExpandListArgument(dependsValue, depends);
-        }
-      if (source != libName || target.GetType() == cmTarget::UTILITY)
-        {
-        fout << "# Begin Source File\n\n";
-        
-        // Tell MS-Dev what the source is.  If the compiler knows how to
-        // build it, then it will.
-        fout << "SOURCE=" << 
-          this->ConvertToOptionallyRelativeOutputPath(source.c_str()) << "\n\n";
-        if(!depends.empty())
-          {
-          // Write out the dependencies for the rule.
-          fout << "USERDEP__HACK=";
-          for(std::vector<std::string>::const_iterator d = depends.begin();
-              d != depends.end(); ++d)
-            { 
-            fout << "\\\n\t" << 
-              this->ConvertToOptionallyRelativeOutputPath(d->c_str());
-            }
-          fout << "\n";
-          }
-        if (command)
-          {
-          std::string script =
-            this->ConstructScript(command->GetCommandLines(), "\\\n\t");
-          const char* comment = command->GetComment();
-          const char* flags = compileFlags.size() ? compileFlags.c_str(): 0;
-          this->WriteCustomRule(fout, source.c_str(), script.c_str(), 
-                                (*comment?comment:"Custom Rule"),
-                                command->GetDepends(), 
-                                command->GetOutput(), flags);
-          }
-        else if(compileFlags.size())
-          {
-          for(std::vector<std::string>::iterator i
-                = m_Configurations.begin(); i != m_Configurations.end(); ++i)
-            { 
-            if (i == m_Configurations.begin())
-              {
-              fout << "!IF  \"$(CFG)\" == " << i->c_str() << std::endl;
-              }
-            else 
-              {
-              fout << "!ELSEIF  \"$(CFG)\" == " << i->c_str() << std::endl;
-              }
-            fout << "\n# ADD CPP " << compileFlags << "\n\n";
-            } 
-          fout << "!ENDIF\n\n";
-          }
-        fout << "# End Source File\n";
-        }
+      fprintf(stderr, "Mismatch in exit value.  Should have been %d.\n",
+              value);
       }
-    
-    // If the group has a name, write the footer.
-    if(name != "")
-      {
-      this->WriteDSPEndGroup(fout);
-      }
-    }  
-
-  // Write the DSP file's footer.
-  this->WriteDSPFooter(fout);
+    }
+  
+  if(kwsysProcess_GetState(kp) != state)
+    {
+    fprintf(stderr, "Mismatch in state.  Should have been %d.\n", state);
+    result = 1;
+    }
+  
+  kwsysProcess_Delete(kp);
+  return result;
 }

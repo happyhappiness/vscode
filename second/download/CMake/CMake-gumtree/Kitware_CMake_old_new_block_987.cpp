@@ -1,3 +1,3 @@
 {
-    sprintf(firstLine,  "C)onfigure                 G)enerate and Exit            H)elp");
+    sprintf(firstLine,  "C)onfigure                                               H)elp");
     }

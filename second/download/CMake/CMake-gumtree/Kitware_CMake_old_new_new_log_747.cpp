@@ -1,3 +1,1 @@
-*userp = aprintf( "%sAuthorization: Basic %s\r\n",
-                      proxy?"Proxy-":"",
-                      authorization);
+host = aprintf("Host: %s\r\n", host_port);

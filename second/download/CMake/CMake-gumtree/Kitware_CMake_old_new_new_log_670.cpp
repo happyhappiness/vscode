@@ -1,1 +1,0 @@
-d::cout << "Writing " << currentFilename << "..." << std::endl;

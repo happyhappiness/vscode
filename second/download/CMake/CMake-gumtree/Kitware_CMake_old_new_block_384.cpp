@@ -1,4 +1,4 @@
 {
-               fImportFlag = 0;
-               fprintf(fout,"EXPORTS \n");
-            }
+                  // Read only (i.e. constants) must be excluded
+                  fprintf(fout, "\t%s \t DATA\n", symbol.c_str());
+               }

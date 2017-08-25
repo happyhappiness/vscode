@@ -1,1 +1,2 @@
-fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());
+fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName().c_str());

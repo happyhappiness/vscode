@@ -1,21 +1,38 @@
-void
-cmComputeTargetDepends::DisplayGraph(Graph const& graph, const char* name)
+void cmGraphVizWriter::WritePerTargetFiles(const char* fileName)
 {
-  fprintf(stderr, "The %s target dependency graph is:\n", name);
-  int n = static_cast<int>(graph.size());
-  for(int depender_index = 0; depender_index < n; ++depender_index)
+  for(std::map<cmStdString, const cmTarget*>::const_iterator ptrIt =
+                                                      this->TargetPtrs.begin();
+      ptrIt != this->TargetPtrs.end();
+      ++ptrIt)
     {
-    NodeList const& nl = graph[depender_index];
-    cmTarget* depender = this->Targets[depender_index];
-    fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
-    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+    if (ptrIt->second == NULL)
       {
-      int dependee_index = *ni;
-      cmTarget* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
-              dependee->GetName());
+      continue;
       }
+
+    if (this->GenerateForTargetType(ptrIt->second->GetType()) == false)
+      {
+      continue;
+      }
+
+    std::set<std::string> insertedConnections;
+    std::set<std::string> insertedNodes;
+
+    std::string currentFilename = fileName;
+    currentFilename += ".";
+    currentFilename += ptrIt->first;
+    cmGeneratedFileStream str(currentFilename.c_str());
+    if ( !str )
+      {
+      return;
+      }
+
+    fprintf(stderr, "Writing %s...\n", currentFilename.c_str());
+    this->WriteHeader(str);
+
+    this->WriteConnections(ptrIt->first.c_str(),
+                              insertedNodes, insertedConnections, str);
+    this->WriteFooter(str);
     }
-  fprintf(stderr, "\n");
+
 }

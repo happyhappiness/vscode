@@ -1,1 +1,1 @@
-fprintf(stderr,"***Failed\n");
+fprintf(stderr,"   Passed\n");

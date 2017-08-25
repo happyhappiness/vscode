@@ -1,1 +1,1 @@
-printf("Error, could not open file %s\n", filename);
+printf("%s", comment);

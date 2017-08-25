@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "No memory for 7-Zip decompression");
+archive_set_error(&a->archive, -1,
+				    "Malformed 7-Zip archive file");

@@ -1,101 +1,119 @@
-static int
-lha_read_data_lzh(struct archive_read *a, const void **buff,
-    size_t *size, int64_t *offset)
+static CURLcode tftp_send_first(tftp_state_data_t *state, tftp_event_t event)
 {
-	struct lha *lha = (struct lha *)(a->format->data);
-	ssize_t bytes_avail;
-	int r;
+  size_t sbytes;
+  ssize_t senddata;
+  const char *mode = "octet";
+  char *filename;
+  char buf[64];
+  struct SessionHandle *data = state->conn->data;
+  CURLcode result = CURLE_OK;
 
-	/* If the buffer hasn't been allocated, allocate it now. */
-	if (lha->uncompressed_buffer == NULL) {
-		lha->uncompressed_buffer_size = 64 * 1024;
-		lha->uncompressed_buffer
-		    = (unsigned char *)malloc(lha->uncompressed_buffer_size);
-		if (lha->uncompressed_buffer == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "No memory for lzh decompression");
-			return (ARCHIVE_FATAL);
-		}
-	}
+  /* Set ascii mode if -B flag was used */
+  if(data->set.prefer_ascii)
+    mode = "netascii";
 
-	/* If we haven't yet read any data, initialize the decompressor. */
-	if (!lha->decompress_init) {
-		r = lzh_decode_init(&(lha->strm), lha->method);
-		switch (r) {
-		case ARCHIVE_OK:
-			break;
-		case ARCHIVE_FAILED:
-        		/* Unsupported compression. */
-			*buff = NULL;
-			*size = 0;
-			*offset = 0;
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Unsupported lzh compression method -%c%c%c-",
-			    lha->method[0], lha->method[1], lha->method[2]);
-			/* We know compressed size; just skip it. */
-			archive_read_format_lha_read_data_skip(a);
-			return (ARCHIVE_WARN);
-		default:
-			archive_set_error(&a->archive, ENOMEM,
-			    "Couldn't allocate memory "
-			    "for lzh decompression");
-			return (ARCHIVE_FATAL);
-		}
-		/* We've initialized decompression for this stream. */
-		lha->decompress_init = 1;
-		lha->strm.avail_out = 0;
-		lha->strm.total_out = 0;
-	}
+  switch(event) {
 
-	/*
-	 * Note: '1' here is a performance optimization.
-	 * Recall that the decompression layer returns a count of
-	 * available bytes; asking for more than that forces the
-	 * decompressor to combine reads by copying data.
-	 */
-	lha->strm.next_in = __archive_read_ahead(a, 1, &bytes_avail);
-	if (bytes_avail <= 0) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated LHa file body");
-		return (ARCHIVE_FATAL);
-	}
-	if (bytes_avail > lha->entry_bytes_remaining)
-		bytes_avail = (ssize_t)lha->entry_bytes_remaining;
+  case TFTP_EVENT_INIT:    /* Send the first packet out */
+  case TFTP_EVENT_TIMEOUT: /* Resend the first packet out */
+    /* Increment the retry counter, quit if over the limit */
+    state->retries++;
+    if(state->retries>state->retry_max) {
+      state->error = TFTP_ERR_NORESPONSE;
+      state->state = TFTP_STATE_FIN;
+      return result;
+    }
 
-	lha->strm.avail_in = bytes_avail;
-	lha->strm.total_in = 0;
-	if (lha->strm.avail_out == 0) {
-		lha->strm.next_out = lha->uncompressed_buffer;
-		lha->strm.avail_out = lha->uncompressed_buffer_size;
-	}
+    if(data->set.upload) {
+      /* If we are uploading, send an WRQ */
+      setpacketevent(&state->spacket, TFTP_EVENT_WRQ);
+      state->conn->data->req.upload_fromhere =
+        (char *)state->spacket.data+4;
+      if(data->state.infilesize != -1)
+        Curl_pgrsSetUploadSize(data, data->state.infilesize);
+    }
+    else {
+      /* If we are downloading, send an RRQ */
+      setpacketevent(&state->spacket, TFTP_EVENT_RRQ);
+    }
+    /* As RFC3617 describes the separator slash is not actually part of the
+       file name so we skip the always-present first letter of the path
+       string. */
+    filename = curl_easy_unescape(data, &state->conn->data->state.path[1], 0,
+                                  NULL);
+    if(!filename)
+      return CURLE_OUT_OF_MEMORY;
 
-	r = lzh_decode(&(lha->strm), bytes_avail == lha->entry_bytes_remaining);
-	switch (r) {
-	case ARCHIVE_OK:
-		break;
-	case ARCHIVE_EOF:
-		lha->end_of_entry = 1;
-		break;
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Bad lzh data");
-		return (ARCHIVE_FAILED);
-	}
-	lha->entry_unconsumed = lha->strm.total_in;
-	lha->entry_bytes_remaining -= lha->strm.total_in;
+    snprintf((char *)state->spacket.data+2,
+             state->blksize,
+             "%s%c%s%c", filename, '\0',  mode, '\0');
+    sbytes = 4 + strlen(filename) + strlen(mode);
 
-	if (lha->strm.avail_out == 0 || lha->end_of_entry) {
-		*offset = lha->entry_offset;
-		*size = lha->strm.next_out - lha->uncompressed_buffer;
-		*buff = lha->uncompressed_buffer;
-		lha->entry_crc_calculated =
-		    lha_crc16(lha->entry_crc_calculated, *buff, *size);
-		lha->entry_offset += *size;
-	} else {
-		*offset = lha->entry_offset;
-		*size = 0;
-		*buff = NULL;
-	}
-	return (ARCHIVE_OK);
+    /* add tsize option */
+    if(data->set.upload && (data->state.infilesize != -1))
+      snprintf(buf, sizeof(buf), "%" CURL_FORMAT_CURL_OFF_T,
+               data->state.infilesize);
+    else
+      strcpy(buf, "0"); /* the destination is large enough */
+
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes,
+                              TFTP_OPTION_TSIZE);
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes, buf);
+    /* add blksize option */
+    snprintf( buf, sizeof(buf), "%d", state->requested_blksize );
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes,
+                              TFTP_OPTION_BLKSIZE);
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes, buf );
+
+    /* add timeout option */
+    snprintf( buf, sizeof(buf), "%d", state->retry_time);
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes,
+                              TFTP_OPTION_INTERVAL);
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes, buf );
+
+    /* the typecase for the 3rd argument is mostly for systems that do
+       not have a size_t argument, like older unixes that want an 'int' */
+    senddata = sendto(state->sockfd, (void *)state->spacket.data,
+                      (SEND_TYPE_ARG3)sbytes, 0,
+                      state->conn->ip_addr->ai_addr,
+                      state->conn->ip_addr->ai_addrlen);
+    if(senddata != (ssize_t)sbytes) {
+      failf(data, "%s", Curl_strerror(state->conn, SOCKERRNO));
+    }
+    free(filename);
+    break;
+
+  case TFTP_EVENT_OACK:
+    if(data->set.upload) {
+      result = tftp_connect_for_tx(state, event);
+    }
+    else {
+      result = tftp_connect_for_rx(state, event);
+    }
+    break;
+
+  case TFTP_EVENT_ACK: /* Connected for transmit */
+    result = tftp_connect_for_tx(state, event);
+    break;
+
+  case TFTP_EVENT_DATA: /* Connected for receive */
+    result = tftp_connect_for_rx(state, event);
+    break;
+
+  case TFTP_EVENT_ERROR:
+    state->state = TFTP_STATE_FIN;
+    break;
+
+  default:
+    failf(state->conn->data, "tftp_send_first: internal error");
+    break;
+  }
+
+  return result;
 }

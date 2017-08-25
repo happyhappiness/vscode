@@ -1,2 +1,1 @@
-log << FIXNUM(cper) << "</PercentCoverage>\n"
-      << "\t\t<CoverageMetric>";;
+sprintf(buffer, "&gt;%d&lt;", (int)ch);

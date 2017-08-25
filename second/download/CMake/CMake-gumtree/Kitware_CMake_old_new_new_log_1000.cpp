@@ -1,1 +1,1 @@
-sprintf(help," ");
+sprintf(version+sideSpace, "%s", vertmp);

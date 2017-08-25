@@ -1,165 +1,182 @@
-int cmCTestTestHandler::ProcessHandler()
-{
-  // Update internal data structure from generic one
-  this->SetTestsToRunInformation(this->GetOption("TestsToRunInformation"));
-  this->SetUseUnion(cmSystemTools::IsOn(this->GetOption("UseUnion")));
-  const char* val;
-  val = this->GetOption("LabelRegularExpression");
-  if ( val )
+void CMakeSetupFrm::DoInitFrame(cmCommandLineInfo &cm, const wxString &fn)
+{ 
+    // path to where cmake.exe is
+    // m_PathToExecutable = cm.GetPathToExecutable().c_str();
+    m_PathToExecutable = fn;
+
+    // adjust size of last bar, to display % progress
+    wxStatusBar *bar = GetStatusBar();
+    if(bar)
     {
-    this->UseIncludeLabelRegExpFlag = true;
-    this->IncludeLabelRegExp = val;
+        wxASSERT(bar->GetFieldsCount() > 1);
+        
+        // fill all with -1. Why this way? because the count of the status bars
+        // can change. All of the widths must be accounted for and initialised
+        int *widths = new int[bar->GetFieldsCount()];
+        for(int i = 0; i < bar->GetFieldsCount(); i++)
+            widths[i] = -1;
+
+        // the % field
+        widths[1] = 75;
+        bar->SetStatusWidths(bar->GetFieldsCount(), widths);
+        delete widths;
     }
-  val = this->GetOption("ExcludeLabelRegularExpression");
-  if ( val )
-    {
-    this->UseExcludeLabelRegExpFlag = true;
-    this->ExcludeLabelRegularExpression = val;
-    }
-  val = this->GetOption("IncludeRegularExpression");
-  if ( val )
-    {
-    this->UseIncludeRegExp();
-    this->SetIncludeRegExp(val);
-    }
-  val = this->GetOption("ExcludeRegularExpression");
-  if ( val )
-    {
-    this->UseExcludeRegExp();
-    this->SetExcludeRegExp(val);
-    }
+
+    wxString name, generator;
+    std::vector<std::string> names;
   
-  this->TestResults.clear();
- // do not output startup if this is a sub-process for parallel tests
-  if(!this->CTest->GetParallelSubprocess())
+    m_RunningConfigure = false;
+
+    // set grid labels
+    m_cmOptions->SetColLabelValue(0, wxT("Cache Name"));
+    m_cmOptions->SetColLabelValue(1, wxT("Cache Value"));
+    m_cmOptions->SetProjectGenerated(false);
+
+    // set drop target
+    m_cmOptions->SetDropTarget(new DnDFile(m_cmBuildPath));
+
+    m_cmake->GetRegisteredGenerators(names);
+    for(std::vector<std::string>::iterator i = names.begin(); i != names.end(); ++i)
     {
-    cmCTestLog(this->CTest, HANDLER_OUTPUT,
-               (this->MemCheck ? "Memory check" : "Test")
-               << " project " << cmSystemTools::GetCurrentWorkingDirectory()
-               << std::endl);
+        name = i->c_str();
+        m_cmGeneratorChoice->Append(name);
     }
-  if ( ! this->PreProcessHandler() )
-    {
-    return -1;
-    }
-
-  cmGeneratedFileStream mLogFile;
-  this->StartLogFile((this->MemCheck ? "DynamicAnalysis" : "Test"), mLogFile);
-  this->LogFile = &mLogFile;
-
-  std::vector<cmStdString> passed;
-  std::vector<cmStdString> failed;
-  int total;
-  this->ProcessDirectory(passed, failed);
-
-  total = int(passed.size()) + int(failed.size());
-
-  if (total == 0)
-    {
-    if ( !this->CTest->GetShowOnly() )
-      {
-      cmCTestLog(this->CTest, ERROR_MESSAGE, "No tests were found!!!"
-        << std::endl);
-      }
-    }
-  else
-    {
-    if (this->HandlerVerbose && passed.size() &&
-      (this->UseIncludeRegExpFlag || this->UseExcludeRegExpFlag))
-      {
-      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
-        << "The following tests passed:" << std::endl);
-      for(std::vector<cmStdString>::iterator j = passed.begin();
-          j != passed.end(); ++j)
-        {
-        cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "\t" << *j
-          << std::endl);
-        }
-      }
-
-    float percent = float(passed.size()) * 100.0f / total;
-    if ( failed.size() > 0 &&  percent > 99)
-      {
-      percent = 99;
-      }
     
-    if(!this->CTest->GetParallelSubprocess())
-      {
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl
-                 << static_cast<int>(percent + .5) << "% tests passed, "
-                 << failed.size() << " tests failed out of " 
-                 << total << std::endl); 
-      double totalTestTime = 0;
+    // sync advanced option with grid
+    m_cmOptions->SetShowAdvanced(m_cmShowAdvanced->GetValue());
 
-      for(cmCTestTestHandler::TestResultsVector::size_type cc = 0;
-          cc < this->TestResults.size(); cc ++ )
-        {
-        cmCTestTestResult *result = &this->TestResults[cc];
-        totalTestTime += result->ExecutionTime;
-        }
-      
-      char buf[1024];
-      sprintf(buf, "%6.2f sec", totalTestTime); 
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time = " 
-                 <<  buf << "\n" );
-      
-      }
+    // if we have a command line query that a generator 
+    // needs to be chosen instead of the default, take it
+    bool foundGivenGenerator = false;
+    if(!cm.m_GeneratorChoiceString.IsEmpty())
+    {
+        // set proper discovered generator
+        foundGivenGenerator = m_cmGeneratorChoice->SetStringSelection(cm.m_GeneratorChoiceString);  
+    }
 
-    if (failed.size())
-      {
-      cmGeneratedFileStream ofs;
-      if(!this->CTest->GetParallelSubprocess())
+    // if none selected, we will see if VS8, VS7 or VS6 is present
+    if(!foundGivenGenerator || m_cmGeneratorChoice->GetValue().IsEmpty())
+    {
+        std::string mp;
+        mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\8.0\\Setup;Dbghelp_path]";
+        cmSystemTools::ExpandRegistryValues(mp);
+        if(mp != "/registry")
+            generator = wxT("Visual Studio 8 2005");
+        else
         {
-        cmCTestLog(this->CTest, ERROR_MESSAGE, std::endl
-                   << "The following tests FAILED:" << std::endl);
-        this->StartLogFile("TestsFailed", ofs);
-        
-        std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;
-        for(ftit = this->TestResults.begin();
-            ftit != this->TestResults.end(); ++ftit)
-          {
-          if ( ftit->Status != cmCTestTestHandler::COMPLETED )
+            mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\7.1;InstallDir]";
+            cmSystemTools::ExpandRegistryValues(mp);
+            if (mp != "/registry")
+                generator = wxT("Visual Studio 7 .NET 2003");
+            else
             {
-            ofs << ftit->TestCount << ":" << ftit->Name << std::endl;
-            cmCTestLog(this->CTest, HANDLER_OUTPUT, "\t" << std::setw(3)
-                       << ftit->TestCount << " - " 
-                       << ftit->Name.c_str() << " ("
-                       << this->GetTestStatus(ftit->Status) << ")" 
-                       << std::endl);
+                mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\7.0;InstallDir]";
+                cmSystemTools::ExpandRegistryValues(mp);
+                if (mp != "/registry")
+                    generator = wxT("Visual Studio 7");
+                else
+                    generator = wxT("Visual Studio 6");         
             }
-          }
-        
         }
-      }
     }
 
-  if ( this->CTest->GetProduceXML() )
+    // set proper discovered generator
+    m_cmGeneratorChoice->SetStringSelection(generator);
+    
+    wxString str;
+    str.Printf("CMake %d.%d - %s", cmVersion::GetMajorVersion(),
+               cmVersion::GetMinorVersion(), 
+               cmVersion::GetReleaseVersion().c_str());
+    str.Printf("CMakeSetup v%i.%i%s", CMAKEGUI_MAJORVER, CMAKEGUI_MINORVER, CMAKEGUI_ADDVER);
+
+    SetTitle(str);
+    wxString path;
+    
+    // get last 5 used projects
+    for(size_t i = 0; i < CM_MAX_RECENT_PATHS; i++)
     {
-    cmGeneratedFileStream xmlfile;
-    if( !this->StartResultingXML(
-          (this->MemCheck ? cmCTest::PartMemCheck : cmCTest::PartTest),
-        (this->MemCheck ? "DynamicAnalysis" : "Test"), xmlfile) )
-      {
-      cmCTestLog(this->CTest, ERROR_MESSAGE, "Cannot create "
-        << (this->MemCheck ? "memory check" : "testing")
-        << " XML file" << std::endl);
-      this->LogFile = 0;
-      return 1;
-      }
-    this->GenerateDartOutput(xmlfile);
+        path.Printf("%s%i", _(CM_RECENT_BUILD_PATH), i);
+        if(m_config->Read(path, &str))
+            AppendPathToRecentList(str);
     }
 
-  if ( ! this->PostProcessHandler() )
+    // get query items
+    for(size_t i = 0; i < CM_MAX_SEARCH_QUERIES; i++)
     {
-    this->LogFile = 0;
-    return -1;
+        path.Printf("%s%i", _(CM_SEARCH_QUERY), i);
+        if(m_config->Read(path, &str))
+            m_cmSearchQuery->Append(str);
     }
 
-  if ( !failed.empty() )
+
+    // make sure the call to update grid is not executed
+    m_noRefresh = true;
+    m_cmSearchQuery->SetValue(_(""));
+    m_noRefresh = false;
+
+    // Get the parameters from the command line info
+    // If an unknown parameter is found, try to interpret it too, since it
+    // is likely to be a file dropped on the shortcut :)
+    bool sourceDirLoaded = false,
+         buildDirLoaded = false;
+    
+    if(cm.m_LastUnknownParameter.empty())
     {
-    this->LogFile = 0;
-    return -1;
+        if(cm.m_WhereSource.size() > 0 )
+        {
+            m_cmProjectPath->SetValue(cm.m_WhereSource.c_str());
+            sourceDirLoaded = true;
+        }   
+    
+        if (cm.m_WhereBuild.size() > 0 )
+        {
+            m_cmBuildPath->SetValue(cm.m_WhereBuild.c_str());
+            buildDirLoaded = true;
+        }
+            
+        m_cmShowAdvanced->SetValue(cm.m_AdvancedValues);
     }
-  this->LogFile = 0;
-  return 0;
+    else
+    {
+        m_cmShowAdvanced->SetValue(false);
+        
+        // TODO: Interpret directory from dropped shortcut
+        //this->ChangeDirectoriesFromFile(cmdInfo->m_LastUnknownParameter.c_str());
+    }
+
+    if (cm.m_ExitAfterLoad)
+    {
+        int id = GetId();
+        m_ExitTimer = new wxTimer(this, id);
+        m_ExitTimer->Start(3000);
+
+        Connect( id, wxEVT_TIMER,(wxObjectEventFunction) &CMakeSetupFrm::OnExitTimer ); 
+
+    } 
+
+    // retrieve settings, this needs to be done here
+    // because writing to the m_cmBuildPath triggers a cache reload
+    if(!sourceDirLoaded && m_config->Read(CM_LASTPROJECT_PATH, &str))
+        m_cmProjectPath->SetValue(str);
+
+    if(!buildDirLoaded)
+    {
+        m_cmOptions->RemoveAll();
+        if(m_config->Read(CM_LASTBUILD_PATH, &str))
+            m_cmBuildPath->SetValue(str);
+    }
+
+    // set window size from settings
+    long xsize, ysize, splitpos;
+    if(m_config->Read(CM_XSIZE, &xsize) && m_config->Read(CM_YSIZE, &ysize) &&
+       m_config->Read(CM_SPLITTERPOS, &splitpos))
+    {
+        SetSize(xsize, ysize);
+        m_splitter->SetSashPosition(splitpos);
+    }
+
+    if(m_config->Read(CM_XPOS, &xsize) && m_config->Read(CM_YPOS, &ysize))
+        SetSize(xsize, ysize, -1, -1, wxSIZE_USE_EXISTING);
+
+    UpdateWindowState();
 }

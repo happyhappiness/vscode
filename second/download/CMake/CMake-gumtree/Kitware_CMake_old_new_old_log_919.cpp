@@ -1,1 +1,1 @@
-printf("Error fetching: http://www.cmake.org/\n");
+sprintf(buf, "Content-Length: %d\r\n", filesize);

@@ -1,1 +1,1 @@
-fprintf(fout, "\t%s DATA \n", symbol.c_str()+1);
+fprintf(stderr, "Couldn't open file with CreateFile()\n");

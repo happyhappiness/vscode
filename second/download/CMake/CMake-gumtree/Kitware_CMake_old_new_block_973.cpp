@@ -1,5 +1,8 @@
-(i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
-    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
+{
+    char msg[256];
+    sprintf(msg, "FilesDiffer failed to read files (allocated: %lu, source: %lu, dest: %lu)", statSource.st_size, finSource.gcount(), finDestination.gcount());
+    cmSystemTools::Error(msg);
+    delete [] source_buf;
+    delete [] dest_buf;
+    return false;
     }

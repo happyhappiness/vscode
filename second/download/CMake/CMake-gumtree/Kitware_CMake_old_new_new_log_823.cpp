@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "bad buffer in cmListFileLexer_yy_scan_bytes()" );
+yy_fatal_error( "cmListFileLexer_yyset_lineno called with no buffer" , yyscanner);

@@ -1,1 +1,1 @@
-fprintf(ofp, "#ifdef __WATCOMC__\n");
+fprintf(ofp, "#define _unlink unlink\n");

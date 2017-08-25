@@ -1,1 +1,1 @@
-fprintf(stderr, "Shifting token %d (%s), ", yychar, yytname[yychar1])
+fprintf(stderr, "Discarding token %d (%s).\n", yychar, yytname[yychar1])

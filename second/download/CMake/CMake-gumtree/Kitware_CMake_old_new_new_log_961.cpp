@@ -1,1 +1,1 @@
-fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
+fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");

@@ -1,1 +1,1 @@
-yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" );
+ostr << graphNodePrefix << cnt++;

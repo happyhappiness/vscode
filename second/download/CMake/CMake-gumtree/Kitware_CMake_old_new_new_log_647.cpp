@@ -1,1 +1,0 @@
-zip->header_bytes_remaining -= bytes;

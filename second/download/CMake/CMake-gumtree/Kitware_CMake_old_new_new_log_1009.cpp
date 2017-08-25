@@ -1,7 +1,2 @@
-(name == "ADD_TEST")
-        {
-        if (this->m_UseRegExp && !var.find(args[0].c_str()))
-          {
-          continue;
-          }
-        fprintf(stderr,"Testing %-30s ",args[0].c_str());
+fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
+	  kitName);

@@ -1,1 +1,1 @@
-printf("NETRC: overridden .netrc file: %s\n", home);
+vsnprintf(print_buffer, 1024, fmt, ap);

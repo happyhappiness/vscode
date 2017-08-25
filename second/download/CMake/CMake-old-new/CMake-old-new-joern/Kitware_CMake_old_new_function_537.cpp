@@ -1,32 +1,57 @@
 static int
-archive_read_format_tar_options(struct archive_read *a,
-    const char *key, const char *val)
+archive_read_format_zip_seekable_read_header(struct archive_read *a,
+	struct archive_entry *entry)
 {
-	struct tar *tar;
-	int ret = ARCHIVE_FAILED;
+	struct zip *zip = (struct zip *)a->format->data;
+	int r;
 
-	tar = (struct tar *)(a->format->data);
-	if (strcmp(key, "compat-2x")  == 0) {
-		/* Handle UTF-8 filnames as libarchive 2.x */
-		tar->compat_2x = (val != NULL)?1:0;
-		tar->init_default_conversion = tar->compat_2x;
-		ret = ARCHIVE_OK;
-	} else if (strcmp(key, "hdrcharset")  == 0) {
-		if (val == NULL || val[0] == 0)
+	a->archive.archive_format = ARCHIVE_FORMAT_ZIP;
+	if (a->archive.archive_format_name == NULL)
+		a->archive.archive_format_name = "ZIP";
+
+	if (zip->zip_entries == NULL) {
+		r = slurp_central_directory(a, zip);
+		zip->entries_remaining = zip->central_directory_entries;
+		if (r != ARCHIVE_OK)
+			return r;
+		zip->entry = zip->zip_entries;
+	} else {
+		++zip->entry;
+	}
+
+	if (zip->entries_remaining <= 0)
+		return ARCHIVE_EOF;
+	--zip->entries_remaining;
+
+	/* TODO: If entries are sorted by offset within the file, we
+	   should be able to skip here instead of seeking.  Skipping is
+	   typically faster (easier for I/O layer to optimize). */
+	__archive_read_seek(a, zip->entry->local_header_offset, SEEK_SET);
+	zip->unconsumed = 0;
+	r = zip_read_local_file_header(a, entry, zip);
+	if (r != ARCHIVE_OK)
+		return r;
+	if ((zip->entry->mode & AE_IFMT) == AE_IFLNK) {
+		const void *p;
+		size_t linkname_length = archive_entry_size(entry);
+
+		archive_entry_set_size(entry, 0);
+		p = __archive_read_ahead(a, linkname_length, NULL);
+		if (p == NULL) {
 			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "tar: hdrcharset option needs a character-set name");
-		else {
-			tar->opt_sconv =
-			    archive_string_conversion_from_charset(
-				&a->archive, val, 0);
-			if (tar->opt_sconv != NULL)
-				ret = ARCHIVE_OK;
-			else
-				ret = ARCHIVE_FATAL;
+			    "Truncated Zip file");
+			return ARCHIVE_FATAL;
 		}
-	} else
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "tar: unknown keyword ``%s''", key);
 
-	return (ret);
+		if (archive_entry_copy_symlink_l(entry, p, linkname_length,
+		    NULL) != 0) {
+			/* NOTE: If the last argument is NULL, this will
+			 * fail only by memeory allocation failure. */
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Symlink");
+			return (ARCHIVE_FATAL);
+		}
+		/* TODO: handle character-set issues? */
+	}
+	return ARCHIVE_OK;
 }

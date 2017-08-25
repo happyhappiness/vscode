@@ -1,0 +1,1 @@
+fprintf(fout, "ADD_EXECUTABLE(%s \"%s\")\n", targetName, source.c_str());

@@ -1,0 +1,1 @@
+std::cout << buf << std::flush;

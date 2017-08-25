@@ -1,2 +1,1 @@
-sprintf(firstLine,
-              "Press [c] to configure       Press [g] to generate and exit");
+std::cout << "AUTOMOC: Checking " << absFilename << std::endl;

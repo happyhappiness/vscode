@@ -1,4 +1,4 @@
 archive_set_error(&(a->archive),
 			    ARCHIVE_ERRNO_MISC,
-			    "Unknown checksum name: `%s'",
+			    "Unknown compression name: `%s'",
 			    value);

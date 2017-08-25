@@ -1,1 +1,1 @@
-fprintf(stdout, "Usage: %s <test number>\n", argv[0]);
+snprintf(username, sizeof(username), "%d", uid);

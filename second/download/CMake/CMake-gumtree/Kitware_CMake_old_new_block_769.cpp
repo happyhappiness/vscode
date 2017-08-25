@@ -1,1 +1,1 @@
-yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" )
+yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" , yyscanner)

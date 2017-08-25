@@ -1,21 +1,17 @@
 {
-              case cmsysProcess_Exception_Fault:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::SEGFAULT;
-                break;
-              case cmsysProcess_Exception_Illegal:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::ILLEGAL;
-                break;
-              case cmsysProcess_Exception_Interrupt:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::INTERRUPT;
-                break;
-              case cmsysProcess_Exception_Numerical:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::NUMERICAL;
-                break;
-              default:
-                fprintf(stderr,"Other");
-                cres.m_Status = cmCTest::OTHER_FAULT;
+            fprintf(stderr,"***Failed\n");
+            if (output != "")
+              {
+              if (dartStuff.find(output.c_str()))
+                {
+                std::string dartString = dartStuff.match(1);
+                cmSystemTools::ReplaceString(output, dartString.c_str(),"");
+                cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
                 }
+              if (output != "" && m_Verbose)
+                {
+                std::cerr << output.c_str() << "\n";
+                }
+              }
+            failed.push_back(args[0].Value); 
+            }

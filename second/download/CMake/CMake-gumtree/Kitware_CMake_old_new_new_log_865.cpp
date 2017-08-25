@@ -1,1 +1,1 @@
-std::cerr << "SegFault";
+std::cerr << "Illegal";

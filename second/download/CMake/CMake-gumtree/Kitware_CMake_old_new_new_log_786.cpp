@@ -1,1 +1,2 @@
-sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
+sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
+          target.GetName(), count);

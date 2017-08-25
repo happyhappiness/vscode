@@ -1,1 +1,1 @@
-fout << "  printf(\"Failed: %s is an invalid test name.\\n\", av[1]);\n";
+printf("%s",buf);

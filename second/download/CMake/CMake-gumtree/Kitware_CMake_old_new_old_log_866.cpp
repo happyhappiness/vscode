@@ -1,1 +1,1 @@
-fprintf(stderr,"Illegal");
+fprintf(stderr,"Interrupt");

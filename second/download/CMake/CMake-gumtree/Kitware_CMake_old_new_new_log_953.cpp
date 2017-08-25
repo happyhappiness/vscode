@@ -1,1 +1,1 @@
-fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE C)\n");
+fprintf(fout, "  SET(CMAKE_C_FLAGS \"${CMAKE_C_FLAGS} ${CMAKE_ANSI_CFLAGS}\")\n");

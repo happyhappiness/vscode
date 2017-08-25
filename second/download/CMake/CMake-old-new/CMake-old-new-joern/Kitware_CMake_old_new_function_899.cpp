@@ -1,159 +1,406 @@
-kwsysProcess* kwsysProcess_New()
+int cmCTest::CoverageDirectory()
 {
-  int i;
+  std::cout << "Performing coverage" << std::endl;
+  std::vector<std::string> files;
+  std::vector<std::string> cfiles;
+  std::vector<std::string> cdirs;
+  bool done = false;
+  std::string::size_type cc;
+  std::string glob;
+  std::map<std::string, std::string> allsourcefiles;
+  std::map<std::string, std::string> allbinaryfiles;
 
-  /* Process control structure.  */
-  kwsysProcess* cp;
+  std::string start_time = ::CurrentTime();
 
-  /* Path to Win9x forwarding executable.  */
-  char* win9x = 0;
-
-  /* Windows version number data.  */
-  OSVERSIONINFO osv;
-  
-  /* Allocate a process control structure.  */
-  cp = (kwsysProcess*)malloc(sizeof(kwsysProcess));
-  ZeroMemory(cp, sizeof(*cp));
-  
-  /* Set initial status.  */
-  cp->State = kwsysProcess_Starting;
-  
-  /* Choose a method of running the child based on version of
-     windows.  */
-  ZeroMemory(&osv, sizeof(osv));
-  osv.dwOSVersionInfoSize = sizeof(osv);
-  GetVersionEx(&osv);
-  if(osv.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS)
+  // Find all source files.
+  std::string sourceDirectory = m_DartConfiguration["SourceDirectory"];
+  if ( sourceDirectory.size() == 0 )
     {
-    /* This is Win9x.  We need the console forwarding executable to
-       work-around a Windows 9x bug.  */
-    char fwdName[_MAX_FNAME+1] = "";
-    char tempDir[_MAX_PATH+1] = "";
-    
-    /* We will try putting the executable in the system temp
-       directory.  */
-    DWORD length = GetEnvironmentVariable("TEMP", tempDir, _MAX_PATH);
-    
-    /* Construct the executable name from the process id and kwsysProcess
-       instance.  This should be unique.  */
-    sprintf(fwdName, "cmw9xfwd_%u_%p.exe", _getpid(), cp);
-    
-    /* If the environment variable "TEMP" gave us a directory, use it.  */
-    if(length > 0 && length <= _MAX_PATH)
+    std::cerr << "Cannot find SourceDirectory  key in the DartConfiguration.tcl" << std::endl;
+    return 1;
+    }
+  cdirs.push_back(sourceDirectory);
+  while ( !done ) 
+    {
+    if ( cdirs.size() <= 0 )
       {
-      /* Make sure there is no trailing slash.  */
-      size_t tdlen = strlen(tempDir);
-      if(tempDir[tdlen-1] == '/' || tempDir[tdlen-1] == '\\')
-        {
-        tempDir[tdlen-1] = 0;
-        --tdlen;
-        }
-      
-      /* Allocate a buffer to hold the forwarding executable path.  */
-      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
-      if(!win9x)
-        {
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
-      
-      /* Construct the full path to the forwarding executable.  */
-      sprintf(win9x, "%s/%s", tempDir, fwdName);
+      break;
       }
-    
-    /* If we found a place to put the forwarding executable, try to
-       write it. */
-    if(win9x)
+    glob = cdirs[cdirs.size()-1] + "/*";
+    //std::cout << "Glob: " << glob << std::endl;
+    cdirs.pop_back();
+    if ( cmSystemTools::SimpleGlob(glob, cfiles, 1) )
       {
-      if(!kwsysEncodedWriteArrayProcessFwd9x(win9x))
+      for ( cc = 0; cc < cfiles.size(); cc ++ )
         {
-        /* Failed to create forwarding executable.  Give up.  */
-        free(win9x);
-        kwsysProcess_Delete(cp);
-        return 0;
+        allsourcefiles[cmSystemTools::GetFilenameName(cfiles[cc])] = cfiles[cc];
         }
+      }
+    if ( cmSystemTools::SimpleGlob(glob, cfiles, -1) )
+      {
+      for ( cc = 0; cc < cfiles.size(); cc ++ )
+        {
+        if ( cfiles[cc] != "." && cfiles[cc] != ".." )
+          {
+          cdirs.push_back(cfiles[cc]);
+          }
+        }
+      }
+    }
+
+  // find all binary files
+  cdirs.push_back(cmSystemTools::GetCurrentWorkingDirectory());
+  while ( !done ) 
+    {
+    if ( cdirs.size() <= 0 )
+      {
+      break;
+      }
+    glob = cdirs[cdirs.size()-1] + "/*";
+    //std::cout << "Glob: " << glob << std::endl;
+    cdirs.pop_back();
+    if ( cmSystemTools::SimpleGlob(glob, cfiles, 1) )
+      {
+      for ( cc = 0; cc < cfiles.size(); cc ++ )
+        {
+        allbinaryfiles[cmSystemTools::GetFilenameName(cfiles[cc])] = cfiles[cc];
+        }
+      }
+    if ( cmSystemTools::SimpleGlob(glob, cfiles, -1) )
+      {
+      for ( cc = 0; cc < cfiles.size(); cc ++ )
+        {
+        if ( cfiles[cc] != "." && cfiles[cc] != ".." )
+          {
+          cdirs.push_back(cfiles[cc]);
+          }
+        }
+      }
+    }
+
+  std::map<std::string, std::string>::iterator sit;
+  for ( sit = allbinaryfiles.begin(); sit != allbinaryfiles.end(); sit ++ )
+    {
+    const std::string& fname = sit->second;
+    //std::cout << "File: " << fname << std::endl;
+    if ( strcmp(fname.substr(fname.size()-3, 3).c_str(), ".da") == 0 )
+      {
+      files.push_back(fname);
+      }
+    }
+  
+  if ( files.size() == 0 )
+    {
+    std::cout << "Cannot find any coverage information files (.da)" << std::endl;
+    return 1;
+    }
+
+  std::ofstream log; 
+  if (!this->OpenOutputFile("Temporary", "Coverage.log", log))
+    {
+    std::cout << "Cannot open log file" << std::endl;
+    return 1;
+    }
+  log.close();
+  if (!this->OpenOutputFile(m_CurrentTag, "Coverage.xml", log))
+    {
+    std::cout << "Cannot open log file" << std::endl;
+    return 1;
+    }
+
+  std::string opath = m_ToplevelPath + "/Testing/Temporary/Coverage";
+  cmSystemTools::MakeDirectory(opath.c_str());
+  
+  for ( cc = 0; cc < files.size(); cc ++ )
+    {
+    std::string command = "gcov -l \"" + files[cc] + "\"";
+    std::string output;
+    int retVal = 0;
+    //std::cout << "Run gcov on " << files[cc] << std::flush;
+    //std::cout << "   --- Run [" << command << "]" << std::endl;
+    bool res = true;
+    if ( !m_ShowOnly )
+      {
+      res = cmSystemTools::RunCommand(command.c_str(), output, 
+                                      retVal, opath.c_str(),
+                                      m_Verbose);
+      }
+    if ( res && retVal == 0 )
+      {
+      //std::cout << " - done" << std::endl;
       }
     else
       {
-      /* Failed to find a place to put forwarding executable.  */
-      kwsysProcess_Delete(cp);
-      return 0;
+      //std::cout << " - fail" << std::endl;
       }
     }
   
-  /* We need the extra error pipe on Win9x.  */
-  cp->Win9x = win9x;
-  cp->PipeCount = cp->Win9x? 3:2;
-  
-  /* Initially no thread owns the mutex.  Initialize semaphore to 1.  */
-  if(!(cp->SharedIndexMutex = CreateSemaphore(0, 1, 1, 0)))
+  files.clear();
+  glob = opath + "/*";
+  if ( !cmSystemTools::SimpleGlob(glob, cfiles, 1) )
     {
-    kwsysProcess_Delete(cp);
-    return 0;
+    std::cout << "Cannot found any coverage files" << std::endl;
+    return 1;
     }
-  
-  /* Initially no data are available.  Initialize semaphore to 0.  */
-  if(!(cp->Full = CreateSemaphore(0, 0, 1, 0)))
+  std::map<std::string, std::vector<std::string> > sourcefiles;
+  for ( cc = 0; cc < cfiles.size(); cc ++ )
     {
-    kwsysProcess_Delete(cp);
-    return 0;
+    std::string& fname = cfiles[cc];
+    //std::cout << "File: " << fname << std::endl;
+    if ( strcmp(fname.substr(fname.size()-5, 5).c_str(), ".gcov") == 0 )
+      {
+      files.push_back(fname);
+      std::string::size_type pos = fname.find(".da.");
+      if ( pos != fname.npos )
+        {
+        pos += 4;
+        std::string::size_type epos = fname.size() - pos - strlen(".gcov");
+        std::string nf = fname.substr(pos, epos);
+        //std::cout << "Substring: " << nf << std::endl;
+        if ( allsourcefiles.find(nf) != allsourcefiles.end() || 
+             allbinaryfiles.find(nf) != allbinaryfiles.end() )
+          {
+          std::vector<std::string> &cvec = sourcefiles[nf];
+          cvec.push_back(fname);
+          }
+        }
+      }
+    }
+  for ( cc = 0; cc < files.size(); cc ++ )
+    {
+    //std::cout << "File: " << files[cc] << std::endl;
     }
 
-  if(cp->Win9x)
+  std::map<std::string, std::vector<std::string> >::iterator it;
+  cmCTest::tm_CoverageMap coverageresults;
+
+  log << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+      << "<Site BuildName=\"" << m_DartConfiguration["BuildName"]
+      << "\" BuildStamp=\"" << m_CurrentTag << "-"
+      << this->GetTestModelString() << "\" Name=\""
+      << m_DartConfiguration["Site"] << "\">\n"
+      << "<Coverage>\n"
+      << "\t<StartDateTime>" << start_time << "</StartDateTime>" << std::endl;
+
+  int total_tested = 0;
+  int total_untested = 0;
+
+  for ( it = sourcefiles.begin(); it != sourcefiles.end(); it ++ )
     {
-    /* Create an event to tell the forwarding executable to kill the
-       child.  */
-    SECURITY_ATTRIBUTES sa;
-    ZeroMemory(&sa, sizeof(sa));
-    sa.nLength = sizeof(sa);
-    sa.bInheritHandle = TRUE;
-    if(!(cp->Win9xKillEvent = CreateEvent(&sa, TRUE, 0, 0)))
+    //std::cerr << "Source file: " << it->first << std::endl;
+    std::vector<std::string> &gfiles = it->second;
+    for ( cc = 0; cc < gfiles.size(); cc ++ )
       {
-      kwsysProcess_Delete(cp);
-      return 0;
+      //std::cout << "\t" << gfiles[cc] << std::endl;
+      std::ifstream ifile(gfiles[cc].c_str());
+      if ( !ifile )
+        {
+        std::cout << "Cannot open file: " << gfiles[cc].c_str() << std::endl;
+        }
+
+      ifile.seekg (0, std::ios::end);
+      int length = ifile.tellg();
+      ifile.seekg (0, std::ios::beg);
+      char *buffer = new char [ length + 1 ];
+      ifile.read(buffer, length);
+      buffer [length] = 0;
+      //std::cout << "Read: " << buffer << std::endl;
+      std::vector<cmStdString> lines;
+      cmSystemTools::Split(buffer, lines);
+      delete [] buffer;
+      cmCTest::cmCTestCoverage& cov = coverageresults[it->first];
+      std::vector<int>& covlines = cov.m_Lines; 
+      if ( cov.m_FullPath == "" )
+        {
+        covlines.insert(covlines.begin(), lines.size(), -1);
+        if ( allsourcefiles.find(it->first) != allsourcefiles.end() )
+          {
+          cov.m_FullPath = allsourcefiles[it->first];
+          }
+        else if ( allbinaryfiles.find(it->first) != allbinaryfiles.end() )
+          {
+          cov.m_FullPath = allbinaryfiles[it->first];
+          }
+        cov.m_AbsolutePath = cov.m_FullPath;
+        std::string src_dir = m_DartConfiguration["SourceDirectory"];
+        if ( src_dir[src_dir.size()-1] != '/' )
+          {
+          src_dir = src_dir + "/";
+          }
+        std::string::size_type spos = cov.m_FullPath.find(src_dir);
+        if ( spos == 0 )
+          {
+          cov.m_FullPath = std::string("./") + cov.m_FullPath.substr(src_dir.size());
+          }
+        else
+          {
+          //std::cerr << "Compare -- " << cov.m_FullPath << std::endl;
+          //std::cerr << "        -- " << src_dir << std::endl;
+          continue;
+          }
+        }
+      for ( cc = 0; cc < lines.size(); cc ++ )
+        {
+        std::string& line = lines[cc];
+        std::string sub = line.substr(0, strlen("      ######"));
+        int count = atoi(sub.c_str());
+        if ( sub.compare("      ######") == 0 )
+          {
+          if ( covlines[cc] == -1 )
+            {
+            covlines[cc] = 0;
+            }
+          cov.m_UnTested ++;
+          //std::cout << "Untested - ";
+          }
+        else if ( count > 0 )
+          {
+          if ( covlines[cc] == -1 )
+            {
+            covlines[cc] = 0;
+            }
+          cov.m_Tested ++;
+          covlines[cc] += count;
+          //std::cout << "Tested[" << count << "] - ";
+          }
+
+        //std::cout << line << std::endl;
+        }
       }
     }
-    
-  /* Create the thread to read each pipe.  */
-  for(i=0; i < cp->PipeCount; ++i)
+
+  //std::cerr << "Finalizing" << std::endl;
+  cmCTest::tm_CoverageMap::iterator cit;
+  int ccount = 0;
+  std::ofstream cfileoutput; 
+  int cfileoutputcount = 0;
+  char cfileoutputname[100];
+  std::string local_start_time = ::CurrentTime();
+  std::string local_end_time;
+  for ( cit = coverageresults.begin(); cit != coverageresults.end(); cit ++ )
     {
-    DWORD dummy=0;
-    
-    /* Assign the thread its index.  */
-    cp->Pipe[i].Index = i;
-    
-    /* Give the thread a pointer back to the kwsysProcess instance.  */
-    cp->Pipe[i].Process = cp;
-    
-    /* The pipe is not yet ready to read.  Initialize semaphore to 0.  */
-    if(!(cp->Pipe[i].Ready = CreateSemaphore(0, 0, 1, 0)))
+    if ( ccount == 100 )
       {
-      kwsysProcess_Delete(cp);
-      return 0;
+      local_end_time = ::CurrentTime();
+      cfileoutput << "\t<EndDateTime>" << local_end_time << "</EndDateTime>\n"
+        << "</CoverageLog>\n"
+        << "</Site>" << std::endl;
+      cfileoutput.close();
+      std::cout << "Close file: " << cfileoutputname << std::endl;
+      ccount = 0;
       }
-    
-    /* The pipe is not yet reset.  Initialize semaphore to 0.  */
-    if(!(cp->Pipe[i].Reset = CreateSemaphore(0, 0, 1, 0)))
+    if ( ccount == 0 )
       {
-      kwsysProcess_Delete(cp);
-      return 0;
+      sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);
+      std::cout << "Open file: " << cfileoutputname << std::endl;
+      if (!this->OpenOutputFile(m_CurrentTag, cfileoutputname, cfileoutput))
+        {
+        std::cout << "Cannot open log file: " << cfileoutputname << std::endl;
+        return 1;
+        }
+      local_start_time = ::CurrentTime();
+      cfileoutput << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        << "<Site BuildName=\"" << m_DartConfiguration["BuildName"]
+        << "\" BuildStamp=\"" << m_CurrentTag << "-"
+        << this->GetTestModelString() << "\" Site=\""
+        << m_DartConfiguration["Site"] << "\">\n"
+        << "<CoverageLog>\n"
+        << "\t<StartDateTime>" << local_start_time << "</StartDateTime>" << std::endl;
       }
-    
-    /* The thread's buffer is initially empty.  Initialize semaphore to 1.  */
-    if(!(cp->Pipe[i].Empty = CreateSemaphore(0, 1, 1, 0)))
+
+    //std::cerr << "Final process of Source file: " << cit->first << std::endl;
+    cmCTest::cmCTestCoverage &cov = cit->second;
+
+
+    std::ifstream ifile(cov.m_AbsolutePath.c_str());
+    if ( !ifile )
       {
-      kwsysProcess_Delete(cp);
-      return 0;
+      std::cerr << "Cannot open file: " << cov.m_FullPath.c_str() << std::endl;
       }
-    
-    /* Create the thread.  It will block immediately.  */
-    if(!(cp->Pipe[i].Thread = CreateThread(0, 0, kwsysProcessPipeThread,
-                                           &cp->Pipe[i], 0, &dummy)))
+    ifile.seekg (0, std::ios::end);
+    int length = ifile.tellg();
+    ifile.seekg (0, std::ios::beg);
+    char *buffer = new char [ length + 1 ];
+    ifile.read(buffer, length);
+    buffer [length] = 0;
+    //std::cout << "Read: " << buffer << std::endl;
+    std::vector<cmStdString> lines;
+    cmSystemTools::Split(buffer, lines);
+    delete [] buffer;
+    cfileoutput << "\t<File Name=\"" << cit->first << "\" FullPath=\""
+      << cov.m_FullPath << std::endl << "\">\n"
+      << "\t\t<Report>" << std::endl;
+    for ( cc = 0; cc < lines.size(); cc ++ )
       {
-      kwsysProcess_Delete(cp);
-      return 0;
+      cfileoutput << "\t\t<Line Number=\"" 
+        << static_cast<int>(cc) << "\" Count=\""
+        << cov.m_Lines[cc] << "\">"
+        << cmCTest::MakeXMLSafe(lines[cc]) << "</Line>" << std::endl;
       }
+    cfileoutput << "\t\t</Report>\n"
+      << "\t</File>" << std::endl;
+
+
+    total_tested += cov.m_Tested;
+    total_untested += cov.m_UnTested;
+    float cper = 0;
+    float cmet = 0;
+    if ( total_tested + total_untested > 0 )
+      {
+      cper = (100 * static_cast<float>(cov.m_Tested)/
+        static_cast<float>(cov.m_Tested + cov.m_UnTested));
+      cmet = ( static_cast<float>(cov.m_Tested + 10) /
+        static_cast<float>(cov.m_Tested + cov.m_UnTested + 10));
+      }
+    char cmbuff[100];
+    char cpbuff[100];
+    sprintf(cmbuff, "%.2f", cmet);
+    sprintf(cpbuff, "%.2f", cper);
+
+    log << "\t<File Name=\"" << cit->first << "\" FullPath=\"" << cov.m_FullPath
+      << "\" Covered=\"" << (cmet>0?"true":"false") << "\">\n"
+      << "\t\t<LOCTested>" << cov.m_Tested << "</LOCTested>\n"
+      << "\t\t<LOCUnTested>" << cov.m_UnTested << "</LOCUnTested>\n"
+      << "\t\t<PercentCoverage>" << cpbuff << "</PercentCoverage>\n"
+      << "\t\t<CoverageMetric>" << cmbuff << "</CoverageMetric>\n"
+      << "\t</File>" << std::endl;
+    ccount ++;
     }
   
-  return cp;
+  if ( ccount > 0 )
+    {
+    local_end_time = ::CurrentTime();
+    cfileoutput << "\t<EndDateTime>" << local_end_time << "</EndDateTime>\n"
+                << "</CoverageLog>\n"
+                << "</Site>" << std::endl;
+    cfileoutput.close();
+    }
+
+  int total_lines = total_tested + total_untested;
+  float percent_coverage = 100 * static_cast<float>(total_tested) / 
+    static_cast<float>(total_lines);
+  if ( total_lines == 0 )
+    {
+    percent_coverage = 0;
+    }
+
+  std::string end_time = ::CurrentTime();
+  char buffer[100];
+  sprintf(buffer, "%.2f", percent_coverage);
+
+  log << "\t<LOCTested>" << total_tested << "</LOCTested>\n"
+      << "\t<LOCUntested>" << total_untested << "</LOCUntested>\n"
+      << "\t<LOC>" << total_lines << "</LOC>\n"
+      << "\t<PercentCoverage>" << buffer << "</PercentCoverage>\n"
+      << "\t<EndDateTime>" << end_time << "</EndDateTime>\n"
+      << "</Coverage>\n"
+      << "</Site>" << std::endl;
+
+  std::cout << "\tCovered LOC:         " << total_tested << std::endl
+            << "\tNot covered LOC:     " << total_untested << std::endl
+            << "\tTotal LOC:           " << total_lines << std::endl
+            << "\tPercentage Coverage: " << percent_coverage << "%" << std::endl;
+
+
+  return 1;
 }

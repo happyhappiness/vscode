@@ -1,6 +1,6 @@
 void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed, 
                              cmCTest::tm_VectorOfStrings &failed,
-                             bool memcheck, std::ostream* logfile)
+                             bool memcheck)
 {
   // does the DartTestfile.txt exist ?
   if(!cmSystemTools::FileExists("DartTestfile.txt"))
@@ -40,7 +40,7 @@ void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed,
         if (cmSystemTools::FileIsDirectory(nwd.c_str()))
           {
           cmSystemTools::ChangeDirectory(nwd.c_str());
-          this->ProcessDirectory(passed, failed, memcheck, logfile);
+          this->ProcessDirectory(passed, failed, memcheck);
           }
         }
       // return to the original directory
@@ -55,59 +55,13 @@ void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed,
         {
         continue;
         }
-      if ( memcheck )
-        {
-        tm_VectorOfStrings::iterator it;
-        bool found = false;
-        for ( it = m_CustomMemCheckIgnore.begin(); 
-          it != m_CustomMemCheckIgnore.end(); ++ it )
-          {
-          if ( *it == args[0].Value )
-            {
-            found = true;
-            break;
-            }
-          }
-        if ( found )
-          {
-          if ( m_Verbose )
-            {
-            std::cout << "Ignore memcheck: " << *it << std::endl;
-            }
-          continue;
-          }
-        }
-      else
-        {
-        tm_VectorOfStrings::iterator it;
-        bool found = false;
-        for ( it = m_CustomTestsIgnore.begin(); 
-          it != m_CustomTestsIgnore.end(); ++ it )
-          {
-          if ( *it == args[0].Value )
-            {
-            found = true;
-            break;
-            }
-          }
-        if ( found )
-          {
-          if ( m_Verbose )
-            {
-            std::cout << "Ignore test: " << *it << std::endl;
-            }
-          continue;
-          }
-        }
-
-
       if (this->m_UseIncludeRegExp && !ireg.find(args[0].Value.c_str()))
         {
         continue;
         }
       if (this->m_UseExcludeRegExp &&
-        !this->m_UseExcludeRegExpFirst &&
-        ereg.find(args[0].Value.c_str()))
+          !this->m_UseExcludeRegExpFirst &&
+          ereg.find(args[0].Value.c_str()))
         {
         continue;
         }
@@ -145,8 +99,7 @@ void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed,
         {
         std::cerr << "Unable to find executable: " <<
           args[1].Value.c_str() << "\n";
-        m_TestResults.push_back( cres ); 
-        failed.push_back(args[0].Value);
+        m_TestResults.push_back( cres );
         continue;
         }
 
@@ -193,33 +146,11 @@ void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed,
           std::cout << "Memory check command: " << memcheckcommand << std::endl;
           }
         }
-      if ( logfile )
-        {
-        *logfile << "Command: ";
-        tm_VectorOfStrings::size_type ll;
-        for ( ll = 0; ll < arguments.size()-1; ll ++ )
-          {
-          *logfile << "\"" << arguments[ll] << "\" ";
-          }
-        *logfile 
-          << std::endl 
-          << "Directory: " << cmSystemTools::GetCurrentWorkingDirectory() << std::endl 
-          << "Output:" << std::endl 
-          << "----------------------------------------------------------"
-          << std::endl;
-        }
       int res = 0;
       if ( !m_ShowOnly )
         {
-        res = this->RunTest(arguments, &output, &retVal, logfile);
+        res = this->RunTest(arguments, &output, &retVal);
         }
-      if ( logfile )
-        {
-        *logfile 
-          << "----------------------------------------------------------"
-          << std::endl << std::endl;
-        }
-      
       clock_finish = cmSystemTools::GetTime();
 
       cres.m_ExecutionTime = (double)(clock_finish - clock_start);
@@ -246,31 +177,31 @@ void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed,
             fprintf(stderr,"***Exception: ");
             switch ( retVal )
               {
-            case cmsysProcess_Exception_Fault:
-              fprintf(stderr,"SegFault");
-              cres.m_Status = cmCTest::SEGFAULT;
-              break;
-            case cmsysProcess_Exception_Illegal:
-              fprintf(stderr,"Illegal");
-              cres.m_Status = cmCTest::ILLEGAL;
-              break;
-            case cmsysProcess_Exception_Interrupt:
-              fprintf(stderr,"Interrupt");
-              cres.m_Status = cmCTest::INTERRUPT;
-              break;
-            case cmsysProcess_Exception_Numerical:
-              fprintf(stderr,"Numerical");
-              cres.m_Status = cmCTest::NUMERICAL;
-              break;
-            default:
-              fprintf(stderr,"Other");
-              cres.m_Status = cmCTest::OTHER_FAULT;
+              case cmsysProcess_Exception_Fault:
+                fprintf(stderr,"SegFault");
+                cres.m_Status = cmCTest::SEGFAULT;
+                break;
+              case cmsysProcess_Exception_Illegal:
+                fprintf(stderr,"Illegal");
+                cres.m_Status = cmCTest::ILLEGAL;
+                break;
+              case cmsysProcess_Exception_Interrupt:
+                fprintf(stderr,"Interrupt");
+                cres.m_Status = cmCTest::INTERRUPT;
+                break;
+              case cmsysProcess_Exception_Numerical:
+                fprintf(stderr,"Numerical");
+                cres.m_Status = cmCTest::NUMERICAL;
+                break;
+              default:
+                fprintf(stderr,"Other");
+                cres.m_Status = cmCTest::OTHER_FAULT;
               }
             fprintf(stderr,"\n");
             }
           else if ( res == cmsysProcess_State_Error )
             {
-            fprintf(stderr,"***Bad command %d\n", res);
+            fprintf(stderr,"***Bad command\n");
             cres.m_Status = cmCTest::BAD_COMMAND;
             }
           else

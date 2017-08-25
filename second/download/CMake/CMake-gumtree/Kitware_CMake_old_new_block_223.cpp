@@ -1,28 +1,67 @@
-struct negotiatedata *neg_ctx = proxy?&conn->data->state.proxyneg:
-    &conn->data->state.negotiate;
-  char *encoded = NULL;
-  size_t len = 0;
-  char *userp;
-  CURLcode result;
-  OM_uint32 discard_st;
+{
+        char *host=(char *)"";
+        const char *proxyconn="";
+        const char *useragent="";
+        const char *http = (conn->proxytype == CURLPROXY_HTTP_1_0) ?
+          "1.0" : "1.1";
+        char *hostheader= /* host:port with IPv6 support */
+          aprintf("%s%s%s:%hu", conn->bits.ipv6_ip?"[":"",
+                  hostname, conn->bits.ipv6_ip?"]":"",
+                  remote_port);
+        if(!hostheader) {
+          Curl_add_buffer_free(req_buffer);
+          return CURLE_OUT_OF_MEMORY;
+        }
 
-  result = Curl_base64_encode(conn->data,
-                              neg_ctx->output_token.value,
-                              neg_ctx->output_token.length,
-                              &encoded, &len);
-  if(result) {
-    gss_release_buffer(&discard_st, &neg_ctx->output_token);
-    neg_ctx->output_token.value = NULL;
-    neg_ctx->output_token.length = 0;
-    return result;
-  }
+        if(!Curl_checkProxyheaders(conn, "Host:")) {
+          host = aprintf("Host: %s\r\n", hostheader);
+          if(!host) {
+            free(hostheader);
+            Curl_add_buffer_free(req_buffer);
+            return CURLE_OUT_OF_MEMORY;
+          }
+        }
+        if(!Curl_checkProxyheaders(conn, "Proxy-Connection:"))
+          proxyconn = "Proxy-Connection: Keep-Alive\r\n";
 
-  if(!encoded || !len) {
-    gss_release_buffer(&discard_st, &neg_ctx->output_token);
-    neg_ctx->output_token.value = NULL;
-    neg_ctx->output_token.length = 0;
-    return CURLE_REMOTE_ACCESS_DENIED;
-  }
+        if(!Curl_checkProxyheaders(conn, "User-Agent:") &&
+           data->set.str[STRING_USERAGENT])
+          useragent = conn->allocptr.uagent;
 
-  userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
-                  encoded)
+        result =
+          Curl_add_bufferf(req_buffer,
+                           "CONNECT %s HTTP/%s\r\n"
+                           "%s"  /* Host: */
+                           "%s"  /* Proxy-Authorization */
+                           "%s"  /* User-Agent */
+                           "%s", /* Proxy-Connection */
+                           hostheader,
+                           http,
+                           host,
+                           conn->allocptr.proxyuserpwd?
+                           conn->allocptr.proxyuserpwd:"",
+                           useragent,
+                           proxyconn);
+
+        if(host && *host)
+          free(host);
+        free(hostheader);
+
+        if(!result)
+          result = Curl_add_custom_headers(conn, TRUE, req_buffer);
+
+        if(!result)
+          /* CRLF terminate the request */
+          result = Curl_add_bufferf(req_buffer, "\r\n");
+
+        if(!result) {
+          /* Send the connect request to the proxy */
+          /* BLOCKING */
+          result =
+            Curl_add_buffer_send(req_buffer, conn,
+                                 &data->info.request_size, 0, sockindex);
+        }
+        req_buffer = NULL;
+        if(result)
+          failf(data, "Failed sending CONNECT to proxy");
+      }

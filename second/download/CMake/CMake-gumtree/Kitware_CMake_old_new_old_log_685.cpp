@@ -1,1 +1,1 @@
-sprintf(buffer, "&lt;%d&gt;", (int)ch);
+YY_FATAL_ERROR( "flex scanner push-back overflow" );

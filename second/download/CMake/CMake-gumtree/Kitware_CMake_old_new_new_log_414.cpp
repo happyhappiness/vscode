@@ -1,1 +1,3 @@
-fprintf(out, "%s", cm_archive_entry_pathname(entry).c_str());
+fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
+            this->Target->GetName().c_str(),
+            this->HasConfig?this->Config.c_str():"noconfig");

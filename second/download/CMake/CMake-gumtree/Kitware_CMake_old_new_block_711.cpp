@@ -1,5 +1,5 @@
 {
   char * temp = new char[32];
-  sprintf(temp,"%d",this->ChipID.Family);
+  sprintf(temp,"%d",this->ChipID.Model);
   return temp;
 }

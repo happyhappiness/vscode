@@ -1,1 +1,1 @@
-fprintf(ofp, "#define _unlink unlink\n");
+fprintf(ofp, "#endif\n");

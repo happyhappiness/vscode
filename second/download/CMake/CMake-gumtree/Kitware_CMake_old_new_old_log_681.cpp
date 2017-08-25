@@ -1,1 +1,0 @@
-sprintf(buf, "%6.2f sec", totalTestTime);

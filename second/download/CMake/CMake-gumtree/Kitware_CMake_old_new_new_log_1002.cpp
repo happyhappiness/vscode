@@ -1,2 +1,1 @@
-sprintf(version,"(CMake Version %d.%d)", cmMakefile::GetMajorVersion(),
-	  cmMakefile::GetMinorVersion());
+sprintf(firstLine,  "C)onfigure             G)enerate and Exit");

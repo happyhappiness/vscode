@@ -1,1 +1,1 @@
-("%s:%s:%s";
+tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);

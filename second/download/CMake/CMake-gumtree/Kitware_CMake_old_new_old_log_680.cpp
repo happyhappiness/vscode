@@ -1,1 +1,1 @@
-sprintf(buf, "%6.2f sec", this->TestResult.ExecutionTime);
+sprintf(buf, "%6.2f sec", totalTestTime);

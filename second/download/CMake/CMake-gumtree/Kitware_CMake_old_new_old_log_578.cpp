@@ -1,3 +1,2 @@
-archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Insufficient compressed data");
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external unxz program for xz decompression");

@@ -1,1 +1,1 @@
-yy_fatal_error( "yyset_column called with no buffer" , yyscanner);
+sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);

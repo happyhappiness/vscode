@@ -1,1 +1,1 @@
-f("### done extracting %s\n", filename);
+pathname = th_get_pathname(t);

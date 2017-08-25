@@ -1,1 +1,1 @@
-sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);
+sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);

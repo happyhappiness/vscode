@@ -1,1 +1,0 @@
-YY_FATAL_ERROR( "flex scanner push-back overflow" );

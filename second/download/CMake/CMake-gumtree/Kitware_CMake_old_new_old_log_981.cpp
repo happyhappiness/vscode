@@ -1,1 +1,1 @@
-fout << "    printf(\"%d. %s\\n\", i, cmakeGeneratedFunctionMapEntries[i].name);\n";
+fout << "  printf(\"Failed: %s is an invalid test name.\\n\", av[1]);\n";

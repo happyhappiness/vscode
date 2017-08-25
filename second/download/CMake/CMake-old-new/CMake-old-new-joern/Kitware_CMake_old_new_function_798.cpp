@@ -1,55 +1,82 @@
-bool cmSystemTools::CreateTar(const char* outFileName, const std::vector<cmStdString>& files)
+int
+tar_append_tree(TAR *t, char *realdir, char *savedir)
 {
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-  TAR *t;
-  char buf[TAR_MAXPATHLEN];
-  char pathname[TAR_MAXPATHLEN];
+  char realpath[MAXPATHLEN];
+  char savepath[MAXPATHLEN];
+#ifndef _MSC_VER
+  struct dirent *dent;
+  DIR *dp;
+#else  
+  kwDirEntry * dent;
+  kwDirectory *dp;
+#endif  
+  struct stat s;
 
-  // Ok, this libtar is not const safe. for now use auto_ptr hack
-  char* realName = new char[ strlen(outFileName) + 1 ];
-  std::auto_ptr<char> realNamePtr(realName);
-  strcpy(realName, outFileName);
-  if (tar_open(&t, realName,
-      NULL,
-      O_WRONLY | O_CREAT, 0644,
-      TAR_VERBOSE
-      | 0) == -1)
-    {
-    fprintf(stderr, "tar_open(): %s\n", strerror(errno));
-    return false;
-    }
-
-  std::vector<cmStdString>::const_iterator it;
-  for (it = files.begin(); it != files.end(); ++ it )
-    {
-    strncpy(pathname, it->c_str(), sizeof(pathname));
-    pathname[sizeof(pathname)-1] = 0;
-    strncpy(buf, pathname, sizeof(buf));
-    buf[sizeof(buf)-1] = 0;
-    if (tar_append_tree(t, buf, pathname) != 0)
-      {
-      fprintf(stderr,
-        "tar_append_tree(\"%s\", \"%s\"): %s\n", buf,
-        pathname, strerror(errno));
-      tar_close(t);
-      return false;
-      }
-    }
-
-  if (tar_append_eof(t) != 0)
-    {
-    fprintf(stderr, "tar_append_eof(): %s\n", strerror(errno));
-    tar_close(t);
-    return false;
-    }
-
-  if (tar_close(t) != 0)
-    {
-    fprintf(stderr, "tar_close(): %s\n", strerror(errno));
-    return false;
-    }
-  return true;
-#else
-  return false;
+#ifdef DEBUG
+  printf("==> tar_append_tree(0x%lx, \"%s\", \"%s\")\n",
+         t, realdir, (savedir ? savedir : "[NULL]"));
 #endif
+
+  if (tar_append_file(t, realdir, savedir) != 0)
+    return -1;
+
+#ifdef DEBUG
+  puts("    tar_append_tree(): done with tar_append_file()...");
+#endif
+
+#ifdef _MSC_VER
+  dp = kwOpenDir(realdir);
+#else
+  dp = opendir(realdir);
+#endif
+
+  if (dp == NULL)
+  {
+    if (errno == ENOTDIR)
+      return 0;
+    return -1;
+  }
+#ifdef _MSC_VER
+  while ((dent = kwReadDir(dp)) != NULL)
+#else
+  while ((dent = readdir(dp)) != NULL)
+#endif
+  {
+    if (strcmp(dent->d_name, ".") == 0 ||
+        strcmp(dent->d_name, "..") == 0)
+      continue;
+
+    snprintf(realpath, MAXPATHLEN, "%s/%s", realdir,
+       dent->d_name);
+    if (savedir)
+      snprintf(savepath, MAXPATHLEN, "%s/%s", savedir,
+         dent->d_name);
+
+#ifndef WIN32
+    if (lstat(realpath, &s) != 0)
+      return -1;
+#else
+    if (stat(realpath, &s) != 0)
+      return -1;
+#endif
+    if (S_ISDIR(s.st_mode))
+    {
+      if (tar_append_tree(t, realpath,
+              (savedir ? savepath : NULL)) != 0)
+        return -1;
+      continue;
+    }
+
+    if (tar_append_file(t, realpath,
+            (savedir ? savepath : NULL)) != 0)
+      return -1;
+  }
+
+#ifdef _MSC_VER
+  kwCloseDir(dp);
+#else
+  closedir(dp);
+#endif
+
+  return 0;
 }

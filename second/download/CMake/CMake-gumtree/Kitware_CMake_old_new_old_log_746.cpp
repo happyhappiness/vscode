@@ -1,1 +1,3 @@
-snprintf((char*)(h->h_name), 16, "%s", hostname);
+*userp = aprintf( "%sAuthorization: Basic %s\015\012",
+                      proxy?"Proxy-":"",
+                      authorization);

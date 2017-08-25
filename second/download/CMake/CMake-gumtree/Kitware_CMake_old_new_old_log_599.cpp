@@ -1,1 +1,1 @@
-fprintf(fout, "SET(CMAKE_%s_FLAGS \"", lang);
+fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");

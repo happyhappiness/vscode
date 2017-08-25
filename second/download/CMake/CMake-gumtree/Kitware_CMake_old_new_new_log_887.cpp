@@ -1,1 +1,1 @@
-fprintf(stderr,"***Exception: ");
+fprintf(stderr,"SegFault");

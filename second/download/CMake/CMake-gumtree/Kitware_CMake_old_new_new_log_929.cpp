@@ -1,1 +1,1 @@
-free(conn->allocptr.accept_encoding);
+("Accept-Encoding: %s\015\012";

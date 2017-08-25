@@ -1,5 +1,4 @@
 {
-        fprintf(stderr,"   Passed\n");
-        passed.push_back(testname);
-        cres.m_Status = cmCTest::COMPLETED;
-        }
+          fprintf(stderr,"***Timeout\n");
+          cres.m_Status = cmCTest::TIMEOUT;
+          }

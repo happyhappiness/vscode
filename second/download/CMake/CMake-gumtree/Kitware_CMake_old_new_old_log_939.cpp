@@ -1,1 +1,2 @@
-fprintf(stderr,"Testing %-30s ",args[0].c_str());
+sprintf(tmp,"Version %d.%d - %s", cmake::GetMajorVersion(),
+          cmake::GetMinorVersion(), cmake::GetReleaseVersion());

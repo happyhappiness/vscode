@@ -1,1 +1,2 @@
-fprintf(fout,"             int argc, char *argv[]);\n");
+fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp,"
+          "ClientData arg);\n");

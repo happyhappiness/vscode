@@ -1,1 +1,2 @@
-tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);
+snprintf(name, sizeof(name), "%s@%s", service, proxy ? conn->proxy.name :
+           conn->host.name);

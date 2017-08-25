@@ -1,7 +1,4 @@
 {
-          fprintf(stderr,"***Exception: ");
-          switch ( retVal )
-            {
           case cmsysProcess_Exception_Fault:
             fprintf(stderr,"SegFault");
             cres.m_Status = cmCTest::SEGFAULT;
@@ -22,5 +19,3 @@
             fprintf(stderr,"Other");
             cres.m_Status = cmCTest::OTHER_FAULT;
             }
-          fprintf(stderr,"\n");
-          }

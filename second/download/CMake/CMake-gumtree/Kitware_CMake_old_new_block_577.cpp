@@ -1,4 +1,7 @@
 {
-        sprintf(buf, "%u", this->VersionPatch);
-        this->Makefile->AddDefinition((ver+"_PATCH").c_str(), buf);
-        }
+			/* Non-ascii character is found. */
+			archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "Insufficient compressed data");
+			return (ARCHIVE_FATAL);
+		}

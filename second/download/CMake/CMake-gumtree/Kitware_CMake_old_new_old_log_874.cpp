@@ -1,1 +1,1 @@
-sprintf(argcDef,"%i",expandedArguments.size());
+fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());

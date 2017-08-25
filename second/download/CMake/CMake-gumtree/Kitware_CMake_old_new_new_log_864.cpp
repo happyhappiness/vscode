@@ -1,1 +1,1 @@
-std::cerr << "***Exception: ";
+std::cerr << "SegFault";

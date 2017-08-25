@@ -1,7 +1,5 @@
 {
-				archive_set_error(&a->archive,
-				    GetLastError(),
-				    "Can't GetFileInformationByHandle");
-				CloseHandle(h);
+				archive_set_error(&a->archive, GetLastError(),
+				    "Can't CreateFileW");
 				return (ARCHIVE_FAILED);
 			}

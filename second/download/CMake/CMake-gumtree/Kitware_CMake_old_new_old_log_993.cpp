@@ -1,1 +1,1 @@
-sprintf(firstLine,  "C)onfigure             G)enerate and Exit");
+sprintf(secondLine, "Q)uit                  H)elp");

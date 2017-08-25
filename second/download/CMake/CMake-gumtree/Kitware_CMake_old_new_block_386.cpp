@@ -1,3 +1,4 @@
 {
-                     fprintf(fout, "\t%s\n", symbol.c_str());
-                  }
+               fImportFlag = 1;
+               fprintf(fout,"IMPORTS \n");
+            }

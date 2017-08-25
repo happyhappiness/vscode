@@ -1,1 +1,1 @@
-sprintf(buffer, "%c", ch);
+printf("Error...\n");

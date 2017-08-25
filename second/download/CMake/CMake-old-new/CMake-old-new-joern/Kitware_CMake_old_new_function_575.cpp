@@ -1,13 +1,10 @@
 int
-archive_read_support_filter_program_signature(struct archive *_a,
-    const char *cmd, const void *signature, size_t signature_len)
+__archive_read_program(struct archive_read_filter *self, const char *cmd)
 {
-	(void)_a; /* UNUSED */
+	(void)self; /* UNUSED */
 	(void)cmd; /* UNUSED */
-	(void)signature; /* UNUSED */
-	(void)signature_len; /* UNUSED */
 
-	archive_set_error(_a, -1,
+	archive_set_error(&self->archive->archive, -1,
 	    "External compression programs not supported on this platform");
 	return (ARCHIVE_FATAL);
 }
