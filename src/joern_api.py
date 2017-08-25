@@ -131,6 +131,24 @@ class Joern_api:
         return self.__get_control_dependence_for_node(self.log_id)
 
     """
+    @ param
+    @ return data dependence of given log node
+    @ involve get control statement and identified variable type
+    """
+    def get_control_dependence_for_patch(self):
+        condition_info = self.__get_control_dependence_for_node(self.log_id)
+        normalized_condition = []
+        for condition in condition_info:
+            node_std_code = self.__get_std_condition(condition[0], condition[1])
+            if len(normalized_condition) == 0:
+                normalized_condition = node_std_code
+            else:
+                normalized_condition = node_std_code + normalized_condition + ['&&']
+        return normalized_condition
+        
+
+
+    """
     @ param condition node id and condition label(true or false)
     @ return normalized condition(type and post prefix expression)
     @ involve identify var type and remove ()
