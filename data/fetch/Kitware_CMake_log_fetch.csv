@@ -418,7 +418,7 @@ df1c187f2fdfa48bd36d770bac23f6503fd9b071,Merge branch 'update-curl' into release
                ""Content-Length: %"" CURL_FORMAT_CURL_OFF_T ""\r\n"", filesize);","snprintf(clbuf, sizeof(clbuf),
                ""Content-Length: %"" CURL_FORMAT_CURL_OFF_T ""\r\n"", filesize);",7
 df1c187f2fdfa48bd36d770bac23f6503fd9b071,Merge branch 'update-curl' into release-3.9,[],Utilities/cmcurl/lib/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_9.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_9.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_9.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_49.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_49.cpp,297,298,299,300,"f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
-           ""%s:%s"", user, pwd);",Err:509,7
+           ""%s:%s"", user, pwd);","= aprintf(""%s:%s"", user, pwd);",7
 df1c187f2fdfa48bd36d770bac23f6503fd9b071,Merge branch 'update-curl' into release-3.9,[],Utilities/cmcurl/lib/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_9.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_9.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_9.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_49.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_49.cpp,297,298,312,314,"*userp = aprintf(""%sAuthorization: Basic %s\r\n"",
                    proxy ? ""Proxy-"" : """",
                    authorization);","*userp = aprintf(""%sAuthorization: Basic %s\r\n"",
@@ -469,7 +469,7 @@ a3ef36f153f51c33ea2154cff17bbf9abb7ee073,"Merge branch 'upstream-curl' into upda
 Resolve a logical conflict in `Utilities/cmcurl/CMakeLists.txt`
 by disabling CA bundle/path detection for build within CMake.
 CMake already handles locating a CA bundle/path at runtime.",[],Utilities/cmcurl/lib/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_16.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_16.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_16.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_61.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_61.cpp,297,298,299,300,"f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
-           ""%s:%s"", user, pwd);",Err:509,7
+           ""%s:%s"", user, pwd);","= aprintf(""%s:%s"", user, pwd);",7
 a3ef36f153f51c33ea2154cff17bbf9abb7ee073,"Merge branch 'upstream-curl' into update-curl
 
 * upstream-curl:
@@ -551,7 +551,7 @@ Code extracted from:
     https://github.com/curl/curl.git
 
 at commit 54b636f14546d3fde9f9c67c3b32701d78563161 (curl-7_54_1).",[],lib/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_23.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_23.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_23.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_73.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_73.cpp,297,298,299,300,"f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
-           ""%s:%s"", user, pwd);",Err:509,7
+           ""%s:%s"", user, pwd);","= aprintf(""%s:%s"", user, pwd);",7
 06d6d6c4aee149cd6560b919ef6935ef0867d921,"curl 2017-06-14 (54b636f1)
 
 Code extracted from:
@@ -4687,7 +4687,7 @@ e7b842e18955d13f6d9c021bab4a8935bf282744,Make sure unnused parameters are /*name
 };","m::AddError(const char* message, const char* /*unused*/)
 {
   this->Errors.push_back(message);
-};",1
+};",0
 5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,[],Utilities/cmcurl/lib/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_156.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_156.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_156.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_353.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_353.cpp,233,233,236,237,"snprintf(output, 5, ""%c%c%c="",
                table64[obuf[0]],
                table64[obuf[1]],
