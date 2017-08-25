@@ -418,7 +418,7 @@ df1c187f2fdfa48bd36d770bac23f6503fd9b071,Merge branch 'update-curl' into release
                ""Content-Length: %"" CURL_FORMAT_CURL_OFF_T ""\r\n"", filesize);","snprintf(clbuf, sizeof(clbuf),
                ""Content-Length: %"" CURL_FORMAT_CURL_OFF_T ""\r\n"", filesize);",7
 df1c187f2fdfa48bd36d770bac23f6503fd9b071,Merge branch 'update-curl' into release-3.9,[],Utilities/cmcurl/lib/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_9.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_9.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_9.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_49.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_49.cpp,297,298,299,300,"f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
-           ""%s:%s"", user, pwd);","= aprintf(""%s:%s"", user, pwd);",7
+           ""%s:%s"", user, pwd);",Err:509,7
 df1c187f2fdfa48bd36d770bac23f6503fd9b071,Merge branch 'update-curl' into release-3.9,[],Utilities/cmcurl/lib/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_9.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_9.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_9.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_49.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_49.cpp,297,298,312,314,"*userp = aprintf(""%sAuthorization: Basic %s\r\n"",
                    proxy ? ""Proxy-"" : """",
                    authorization);","*userp = aprintf(""%sAuthorization: Basic %s\r\n"",
@@ -469,7 +469,7 @@ a3ef36f153f51c33ea2154cff17bbf9abb7ee073,"Merge branch 'upstream-curl' into upda
 Resolve a logical conflict in `Utilities/cmcurl/CMakeLists.txt`
 by disabling CA bundle/path detection for build within CMake.
 CMake already handles locating a CA bundle/path at runtime.",[],Utilities/cmcurl/lib/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_16.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_16.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_16.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_61.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_61.cpp,297,298,299,300,"f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
-           ""%s:%s"", user, pwd);","= aprintf(""%s:%s"", user, pwd);",7
+           ""%s:%s"", user, pwd);",Err:509,7
 a3ef36f153f51c33ea2154cff17bbf9abb7ee073,"Merge branch 'upstream-curl' into update-curl
 
 * upstream-curl:
@@ -551,7 +551,7 @@ Code extracted from:
     https://github.com/curl/curl.git
 
 at commit 54b636f14546d3fde9f9c67c3b32701d78563161 (curl-7_54_1).",[],lib/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_23.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_23.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_23.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_73.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_73.cpp,297,298,299,300,"f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
-           ""%s:%s"", user, pwd);","= aprintf(""%s:%s"", user, pwd);",7
+           ""%s:%s"", user, pwd);",Err:509,7
 06d6d6c4aee149cd6560b919ef6935ef0867d921,"curl 2017-06-14 (54b636f1)
 
 Code extracted from:
@@ -710,14 +710,14 @@ We will re-apply our logic as needed in following commits.",[],Utilities/cmcurl/
   curl 2017-04-19 (d957e218)
 
 Resolve conflicts in `CMakeLists.txt` in favor of the upstream version.
-We will re-apply our logic as needed in following commits.",[],Utilities/cmcurl/lib/url.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_40.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_40.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_40.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_94.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_94.cpp,641,644,645,654,"DEBUGF(fprintf(stderr, ""Error: malloc of headerbuff failed\n""));","DEBUGF(fprintf(stderr, ""Error: malloc of headerbuff failed\n""));",4
+We will re-apply our logic as needed in following commits.",[],Utilities/cmcurl/lib/url.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_40.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_40.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_40.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_94.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_94.cpp,641,644,645,654,"DEBUGF(fprintf(stderr, ""Error: malloc of headerbuff failed\n""));","DEBUGF(fprintf(stderr, ""Error: malloc of headerbuff failed\n""));",6
 299975908ada992800791fac7f3739050e0ae2a9,"Merge branch 'upstream-curl' into update-curl
 
 * upstream-curl:
   curl 2017-04-19 (d957e218)
 
 Resolve conflicts in `CMakeLists.txt` in favor of the upstream version.
-We will re-apply our logic as needed in following commits.",[],Utilities/cmcurl/lib/url.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_40.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_40.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_40.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_94.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_94.cpp,641,644,644,648,,"DEBUGF(fprintf(stderr, ""Error: malloc of buffer failed\n""));",5
+We will re-apply our logic as needed in following commits.",[],Utilities/cmcurl/lib/url.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_40.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_40.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_40.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_94.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_94.cpp,641,644,644,648,,"DEBUGF(fprintf(stderr, ""Error: malloc of buffer failed\n""));",7
 299975908ada992800791fac7f3739050e0ae2a9,"Merge branch 'upstream-curl' into update-curl
 
 * upstream-curl:
@@ -731,21 +731,21 @@ We will re-apply our logic as needed in following commits.",[],Utilities/cmcurl/
   curl 2017-04-19 (d957e218)
 
 Resolve conflicts in `CMakeLists.txt` in favor of the upstream version.
-We will re-apply our logic as needed in following commits.",[],Utilities/cmcurl/lib/vtls/cyassl.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_42.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_42.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_42.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_96.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_96.cpp,720,741,723,746,"snprintf(buffer, size, ""wolfSSL/%s"", WOLFSSL_VERSION);","snprintf(buffer, size, ""wolfSSL/%s"", WOLFSSL_VERSION);",4
+We will re-apply our logic as needed in following commits.",[],Utilities/cmcurl/lib/vtls/cyassl.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_42.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_42.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_42.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_96.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_96.cpp,720,741,723,746,"snprintf(buffer, size, ""wolfSSL/%s"", WOLFSSL_VERSION);","snprintf(buffer, size, ""wolfSSL/%s"", WOLFSSL_VERSION);",6
 299975908ada992800791fac7f3739050e0ae2a9,"Merge branch 'upstream-curl' into update-curl
 
 * upstream-curl:
   curl 2017-04-19 (d957e218)
 
 Resolve conflicts in `CMakeLists.txt` in favor of the upstream version.
-We will re-apply our logic as needed in following commits.",[],Utilities/cmcurl/lib/vtls/cyassl.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_42.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_42.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_42.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_96.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_96.cpp,720,741,725,748,"snprintf(buffer, size, ""CyaSSL/%s"", CYASSL_VERSION);","snprintf(buffer, size, ""CyaSSL/%s"", CYASSL_VERSION);",4
+We will re-apply our logic as needed in following commits.",[],Utilities/cmcurl/lib/vtls/cyassl.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_42.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_42.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_42.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_96.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_96.cpp,720,741,725,748,"snprintf(buffer, size, ""CyaSSL/%s"", CYASSL_VERSION);","snprintf(buffer, size, ""CyaSSL/%s"", CYASSL_VERSION);",6
 299975908ada992800791fac7f3739050e0ae2a9,"Merge branch 'upstream-curl' into update-curl
 
 * upstream-curl:
   curl 2017-04-19 (d957e218)
 
 Resolve conflicts in `CMakeLists.txt` in favor of the upstream version.
-We will re-apply our logic as needed in following commits.",[],Utilities/cmcurl/lib/vtls/cyassl.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_42.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_42.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_42.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_96.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_96.cpp,720,741,723,744,,"snprintf(buffer, size, ""wolfSSL/%s"", wolfSSL_lib_version());",5
+We will re-apply our logic as needed in following commits.",[],Utilities/cmcurl/lib/vtls/cyassl.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_42.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_42.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_42.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_96.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_96.cpp,720,741,723,744,,"snprintf(buffer, size, ""wolfSSL/%s"", wolfSSL_lib_version());",7
 299975908ada992800791fac7f3739050e0ae2a9,"Merge branch 'upstream-curl' into update-curl
 
 * upstream-curl:
@@ -817,14 +817,14 @@ Code extracted from:
 
     https://github.com/curl/curl.git
 
-at commit d957e2189fdc73cef0ff3d1fb58043d354754449 (curl-7_54_0).",[],lib/url.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_49.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_49.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_49.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_105.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_105.cpp,641,644,645,654,"DEBUGF(fprintf(stderr, ""Error: malloc of headerbuff failed\n""));","DEBUGF(fprintf(stderr, ""Error: malloc of headerbuff failed\n""));",4
+at commit d957e2189fdc73cef0ff3d1fb58043d354754449 (curl-7_54_0).",[],lib/url.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_49.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_49.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_49.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_105.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_105.cpp,641,644,645,654,"DEBUGF(fprintf(stderr, ""Error: malloc of headerbuff failed\n""));","DEBUGF(fprintf(stderr, ""Error: malloc of headerbuff failed\n""));",6
 fd7d521c9d70655618db8232d45e5aaf81700f91,"curl 2017-04-19 (d957e218)
 
 Code extracted from:
 
     https://github.com/curl/curl.git
 
-at commit d957e2189fdc73cef0ff3d1fb58043d354754449 (curl-7_54_0).",[],lib/url.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_49.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_49.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_49.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_105.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_105.cpp,641,644,644,648,,"DEBUGF(fprintf(stderr, ""Error: malloc of buffer failed\n""));",5
+at commit d957e2189fdc73cef0ff3d1fb58043d354754449 (curl-7_54_0).",[],lib/url.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_49.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_49.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_49.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_105.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_105.cpp,641,644,644,648,,"DEBUGF(fprintf(stderr, ""Error: malloc of buffer failed\n""));",7
 fd7d521c9d70655618db8232d45e5aaf81700f91,"curl 2017-04-19 (d957e218)
 
 Code extracted from:
@@ -838,21 +838,21 @@ Code extracted from:
 
     https://github.com/curl/curl.git
 
-at commit d957e2189fdc73cef0ff3d1fb58043d354754449 (curl-7_54_0).",[],lib/vtls/cyassl.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_51.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_51.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_51.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_107.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_107.cpp,720,741,723,746,"snprintf(buffer, size, ""wolfSSL/%s"", WOLFSSL_VERSION);","snprintf(buffer, size, ""wolfSSL/%s"", WOLFSSL_VERSION);",4
+at commit d957e2189fdc73cef0ff3d1fb58043d354754449 (curl-7_54_0).",[],lib/vtls/cyassl.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_51.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_51.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_51.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_107.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_107.cpp,720,741,723,746,"snprintf(buffer, size, ""wolfSSL/%s"", WOLFSSL_VERSION);","snprintf(buffer, size, ""wolfSSL/%s"", WOLFSSL_VERSION);",6
 fd7d521c9d70655618db8232d45e5aaf81700f91,"curl 2017-04-19 (d957e218)
 
 Code extracted from:
 
     https://github.com/curl/curl.git
 
-at commit d957e2189fdc73cef0ff3d1fb58043d354754449 (curl-7_54_0).",[],lib/vtls/cyassl.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_51.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_51.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_51.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_107.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_107.cpp,720,741,725,748,"snprintf(buffer, size, ""CyaSSL/%s"", CYASSL_VERSION);","snprintf(buffer, size, ""CyaSSL/%s"", CYASSL_VERSION);",4
+at commit d957e2189fdc73cef0ff3d1fb58043d354754449 (curl-7_54_0).",[],lib/vtls/cyassl.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_51.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_51.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_51.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_107.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_107.cpp,720,741,725,748,"snprintf(buffer, size, ""CyaSSL/%s"", CYASSL_VERSION);","snprintf(buffer, size, ""CyaSSL/%s"", CYASSL_VERSION);",6
 fd7d521c9d70655618db8232d45e5aaf81700f91,"curl 2017-04-19 (d957e218)
 
 Code extracted from:
 
     https://github.com/curl/curl.git
 
-at commit d957e2189fdc73cef0ff3d1fb58043d354754449 (curl-7_54_0).",[],lib/vtls/cyassl.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_51.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_51.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_51.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_107.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_107.cpp,720,741,723,744,,"snprintf(buffer, size, ""wolfSSL/%s"", wolfSSL_lib_version());",5
+at commit d957e2189fdc73cef0ff3d1fb58043d354754449 (curl-7_54_0).",[],lib/vtls/cyassl.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_51.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_51.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_51.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_107.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_107.cpp,720,741,723,744,,"snprintf(buffer, size, ""wolfSSL/%s"", wolfSSL_lib_version());",7
 fd7d521c9d70655618db8232d45e5aaf81700f91,"curl 2017-04-19 (d957e218)
 
 Code extracted from:
@@ -1261,13 +1261,13 @@ a59a7ee95601f3496ec9ba9ae1283a8d980460bf,"Merge branch 'upstream-LibArchive' int
 
 * upstream-LibArchive:
   LibArchive 2017-02-19 (100ee75a)",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_75.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_75.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_75.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_162.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_162.cpp,418,418,417,430,,"archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    ""Too-small extra data: Need at least 4 bytes, but only found %d bytes"", (int)extra_length);",5
+		    ""Too-small extra data: Need at least 4 bytes, but only found %d bytes"", (int)extra_length);",7
 a59a7ee95601f3496ec9ba9ae1283a8d980460bf,"Merge branch 'upstream-LibArchive' into update-libarchive
 
 * upstream-LibArchive:
   LibArchive 2017-02-19 (100ee75a)",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_75.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_75.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_75.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_162.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_162.cpp,418,418,-1,440,,"archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
 			    ""Extra data overflow: Need %d bytes but only found %d bytes"",
-			    (int)datasize, (int)(extra_length - offset));",4
+			    (int)datasize, (int)(extra_length - offset));",6
 a59a7ee95601f3496ec9ba9ae1283a8d980460bf,"Merge branch 'upstream-LibArchive' into update-libarchive
 
 * upstream-LibArchive:
@@ -1970,7 +1970,7 @@ Code extracted from:
     https://github.com/libarchive/libarchive.git
 
 at commit 100ee75a01f1f785fc681f616db49a33405f8bf3 (v3.3.0).",[],libarchive/archive_read_support_format_zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_97.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_97.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_97.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_226.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_226.cpp,418,418,417,430,,"archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    ""Too-small extra data: Need at least 4 bytes, but only found %d bytes"", (int)extra_length);",5
+		    ""Too-small extra data: Need at least 4 bytes, but only found %d bytes"", (int)extra_length);",7
 c206211af647dd1f7039da91c34c9c72e50aefdf,"LibArchive 2017-02-19 (100ee75a)
 
 Code extracted from:
@@ -1979,7 +1979,7 @@ Code extracted from:
 
 at commit 100ee75a01f1f785fc681f616db49a33405f8bf3 (v3.3.0).",[],libarchive/archive_read_support_format_zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_97.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_97.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_97.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_226.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_226.cpp,418,418,-1,440,,"archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
 			    ""Extra data overflow: Need %d bytes but only found %d bytes"",
-			    (int)datasize, (int)(extra_length - offset));",4
+			    (int)datasize, (int)(extra_length - offset));",6
 c206211af647dd1f7039da91c34c9c72e50aefdf,"LibArchive 2017-02-19 (100ee75a)
 
 Code extracted from:
@@ -2454,7 +2454,7 @@ supported compilers.  Some steps changed with newer versions of flex.
 
 Then regenerate all lexers with flex version 2.6.1.",[],Source/cmExprLexer.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_118.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_118.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_118.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_270.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_270.cpp,676,684,967,990,"YY_FATAL_ERROR(
       ""fatal flex scanner internal error--no action found"" );","YY_FATAL_ERROR(
-			""fatal flex scanner internal error--no action found"" );",4
+			""fatal flex scanner internal error--no action found"" );",6
 c5df1f165c7f8f1e31e3144d326c6836af2e678d,"Regenerate lexer source code
 
 Revise the manual procedure in the `*Lexer.in.l` files.  Some of our
@@ -2463,7 +2463,7 @@ supported compilers.  Some steps changed with newer versions of flex.
 
 Then regenerate all lexers with flex version 2.6.1.",[],Source/cmExprLexer.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_118.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_118.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_118.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_270.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_270.cpp,676,684,990,1013,"YY_FATAL_ERROR(
     ""fatal flex scanner internal error--end of buffer missed"" );","YY_FATAL_ERROR(
-		""fatal flex scanner internal error--end of buffer missed"" );",4
+		""fatal flex scanner internal error--end of buffer missed"" );",6
 c5df1f165c7f8f1e31e3144d326c6836af2e678d,"Regenerate lexer source code
 
 Revise the manual procedure in the `*Lexer.in.l` files.  Some of our
@@ -2472,21 +2472,21 @@ supported compilers.  Some steps changed with newer versions of flex.
 
 Then regenerate all lexers with flex version 2.6.1.",[],Source/cmExprLexer.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_118.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_118.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_118.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_270.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_270.cpp,676,684,1058,1081,"YY_FATAL_ERROR(
         ""fatal error - scanner input buffer overflow"" );","YY_FATAL_ERROR(
-				""fatal error - scanner input buffer overflow"" );",4
+				""fatal error - scanner input buffer overflow"" );",6
 c5df1f165c7f8f1e31e3144d326c6836af2e678d,"Regenerate lexer source code
 
 Revise the manual procedure in the `*Lexer.in.l` files.  Some of our
 post-processing steps are no longer necessary with the current set of
 supported compilers.  Some steps changed with newer versions of flex.
 
-Then regenerate all lexers with flex version 2.6.1.",[],Source/cmExprLexer.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_118.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_118.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_118.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_270.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_270.cpp,676,684,1097,1125,,"YY_FATAL_ERROR( ""out of dynamic memory in yy_get_next_buffer()"" );",5
+Then regenerate all lexers with flex version 2.6.1.",[],Source/cmExprLexer.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_118.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_118.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_118.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_270.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_270.cpp,676,684,1097,1125,,"YY_FATAL_ERROR( ""out of dynamic memory in yy_get_next_buffer()"" );",7
 c5df1f165c7f8f1e31e3144d326c6836af2e678d,"Regenerate lexer source code
 
 Revise the manual procedure in the `*Lexer.in.l` files.  Some of our
 post-processing steps are no longer necessary with the current set of
 supported compilers.  Some steps changed with newer versions of flex.
 
-Then regenerate all lexers with flex version 2.6.1.",[],Source/cmExprLexer.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_118.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_118.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_118.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_270.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_270.cpp,676,684,1167,1227,,"YY_FATAL_ERROR( ""flex scanner push-back overflow"" );",5
+Then regenerate all lexers with flex version 2.6.1.",[],Source/cmExprLexer.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_118.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_118.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_118.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_270.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_270.cpp,676,684,1167,1227,,"YY_FATAL_ERROR( ""flex scanner push-back overflow"" );",7
 c5df1f165c7f8f1e31e3144d326c6836af2e678d,"Regenerate lexer source code
 
 Revise the manual procedure in the `*Lexer.in.l` files.  Some of our
@@ -4708,8 +4708,8 @@ e7b842e18955d13f6d9c021bab4a8935bf282744,Make sure unnused parameters are /*name
                  conn->bits.proxy?conn->proxy.name:conn->host.name,
                  conn->localport);",,7
 5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,[],Utilities/cmcurl/lib/conncache.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_157.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_157.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_157.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_354.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_354.cpp,132,131,134,142,,"aprintf(""%s:%d"", hostname, conn->port);",7
-5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,[],Utilities/cmcurl/lib/cookie.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_158.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_158.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_158.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_355.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_355.cpp,1267,1301,1282,1313,"fprintf(out, ""#\n# Fatal libcurl error\n"");","fprintf(out, ""#\n# Fatal libcurl error\n"");",4
-5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,[],Utilities/cmcurl/lib/cookie.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_158.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_158.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_158.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_355.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_355.cpp,1267,1301,1287,1318,(out;,(out;,4
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,[],Utilities/cmcurl/lib/cookie.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_158.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_158.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_158.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_355.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_355.cpp,1267,1301,1282,1313,"fprintf(out, ""#\n# Fatal libcurl error\n"");","fprintf(out, ""#\n# Fatal libcurl error\n"");",6
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,[],Utilities/cmcurl/lib/cookie.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_158.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_158.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_158.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_355.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_355.cpp,1267,1301,1287,1318,(out;,(out;,6
 5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,[],Utilities/cmcurl/lib/curl_sasl.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_159.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_159.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_159.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_356.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_356.cpp,56,57,168,-1,"snprintf((char *)&dest[i*2], 3, ""%02x"", source[i]);",,7
 5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,[],Utilities/cmcurl/lib/curl_sasl.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_159.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_159.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_159.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_356.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_356.cpp,56,57,277,-1,"aprintf(""%s/%s"", service, host);",,7
 5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,[],Utilities/cmcurl/lib/curl_sasl.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_159.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_159.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_159.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_356.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_356.cpp,56,57,474,-1,"response = aprintf(
@@ -4863,11 +4863,11 @@ f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into upda
 f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
 
 * upstream-curl:
-  curl 2016-08-03 (f2cb3a01)",[],Utilities/cmcurl/lib/cookie.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_173.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_173.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_173.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_372.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_372.cpp,1267,1301,1282,1313,"fprintf(out, ""#\n# Fatal libcurl error\n"");","fprintf(out, ""#\n# Fatal libcurl error\n"");",4
+  curl 2016-08-03 (f2cb3a01)",[],Utilities/cmcurl/lib/cookie.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_173.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_173.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_173.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_372.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_372.cpp,1267,1301,1282,1313,"fprintf(out, ""#\n# Fatal libcurl error\n"");","fprintf(out, ""#\n# Fatal libcurl error\n"");",6
 f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
 
 * upstream-curl:
-  curl 2016-08-03 (f2cb3a01)",[],Utilities/cmcurl/lib/cookie.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_173.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_173.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_173.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_372.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_372.cpp,1267,1301,1287,1318,(out;,(out;,4
+  curl 2016-08-03 (f2cb3a01)",[],Utilities/cmcurl/lib/cookie.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_173.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_173.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_173.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_372.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_372.cpp,1267,1301,1287,1318,(out;,(out;,6
 f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
 
 * upstream-curl:
@@ -5140,14 +5140,14 @@ Code extracted from:
 
     https://github.com/bagder/curl.git
 
-at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",[],lib/cookie.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_189.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_189.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_189.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_390.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_390.cpp,1267,1301,1282,1313,"fprintf(out, ""#\n# Fatal libcurl error\n"");","fprintf(out, ""#\n# Fatal libcurl error\n"");",4
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",[],lib/cookie.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_189.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_189.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_189.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_390.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_390.cpp,1267,1301,1282,1313,"fprintf(out, ""#\n# Fatal libcurl error\n"");","fprintf(out, ""#\n# Fatal libcurl error\n"");",6
 202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
 
 Code extracted from:
 
     https://github.com/bagder/curl.git
 
-at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",[],lib/cookie.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_189.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_189.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_189.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_390.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_390.cpp,1267,1301,1287,1318,(out;,(out;,4
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",[],lib/cookie.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_189.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_189.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_189.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_390.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_390.cpp,1267,1301,1287,1318,(out;,(out;,6
 202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
 
 Code extracted from:
@@ -5497,31 +5497,31 @@ Revise the documented modifications we need to make to the
 flex-generated source file according to the needs of the new version.
 Update our own implementation to avoid warnings with flex types.",[],Source/cmListFileLexer.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_212.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_212.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_212.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_417.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_417.cpp,1197,1213,1335,1351,"YY_FATAL_ERROR(
                         ""fatal flex scanner internal error--no action found"" );","YY_FATAL_ERROR(
-			""fatal flex scanner internal error--no action found"" );",4
+			""fatal flex scanner internal error--no action found"" );",6
 e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
 
 Revise the documented modifications we need to make to the
 flex-generated source file according to the needs of the new version.
 Update our own implementation to avoid warnings with flex types.",[],Source/cmListFileLexer.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_212.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_212.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_212.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_417.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_417.cpp,1197,1213,1357,1374,"YY_FATAL_ERROR(
                 ""fatal flex scanner internal error--end of buffer missed"" );","YY_FATAL_ERROR(
-		""fatal flex scanner internal error--end of buffer missed"" );",4
+		""fatal flex scanner internal error--end of buffer missed"" );",6
 e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
 
 Revise the documented modifications we need to make to the
 flex-generated source file according to the needs of the new version.
 Update our own implementation to avoid warnings with flex types.",[],Source/cmListFileLexer.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_212.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_212.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_212.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_417.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_417.cpp,1197,1213,1425,1442,"YY_FATAL_ERROR(
                                 ""fatal error - scanner input buffer overflow"" );","YY_FATAL_ERROR(
-				""fatal error - scanner input buffer overflow"" );",4
+				""fatal error - scanner input buffer overflow"" );",6
 e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
 
 Revise the documented modifications we need to make to the
 flex-generated source file according to the needs of the new version.
-Update our own implementation to avoid warnings with flex types.",[],Source/cmListFileLexer.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_212.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_212.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_212.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_417.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_417.cpp,1197,1213,1469,1486,"YY_FATAL_ERROR( ""out of dynamic memory in yy_get_next_buffer()"" );","YY_FATAL_ERROR( ""out of dynamic memory in yy_get_next_buffer()"" );",4
+Update our own implementation to avoid warnings with flex types.",[],Source/cmListFileLexer.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_212.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_212.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_212.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_417.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_417.cpp,1197,1213,1469,1486,"YY_FATAL_ERROR( ""out of dynamic memory in yy_get_next_buffer()"" );","YY_FATAL_ERROR( ""out of dynamic memory in yy_get_next_buffer()"" );",6
 e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
 
 Revise the documented modifications we need to make to the
 flex-generated source file according to the needs of the new version.
-Update our own implementation to avoid warnings with flex types.",[],Source/cmListFileLexer.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_212.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_212.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_212.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_417.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_417.cpp,1197,1213,1542,1588,,"YY_FATAL_ERROR( ""flex scanner push-back overflow"" );",5
+Update our own implementation to avoid warnings with flex types.",[],Source/cmListFileLexer.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_212.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_212.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_212.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_417.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_417.cpp,1197,1213,1542,1588,,"YY_FATAL_ERROR( ""flex scanner push-back overflow"" );",7
 e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
 
 Revise the documented modifications we need to make to the
@@ -9054,20 +9054,20 @@ Resolve conflicts in favor of the upstream side where possible.
 Resolve a logical conflict in archive_windows.h where the upstream
 port to Watcom was done slightly differently from ours.",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_330.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_330.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_330.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_649.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_649.cpp,1203,1285,1202,1284,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
 		    ""Unexpected codec ID: %lX"", zip->codec);","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    ""Unexpected codec ID: %lX"", zip->codec);",4
+		    ""Unexpected codec ID: %lX"", zip->codec);",6
 2f1978632b709a9370b3cb1137375c05351d149c,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Resolve conflicts in favor of the upstream side where possible.
 Resolve a logical conflict in archive_windows.h where the upstream
 port to Watcom was done slightly differently from ours.",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_330.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_330.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_330.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_649.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_649.cpp,1203,1285,1206,1299,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
 		    ""Unknown codec ID: %lX"", zip->codec);","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    ""Unknown codec ID: %lX"", zip->codec);",4
+		    ""Unknown codec ID: %lX"", zip->codec);",6
 2f1978632b709a9370b3cb1137375c05351d149c,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Resolve conflicts in favor of the upstream side where possible.
 Resolve a logical conflict in archive_windows.h where the upstream
 port to Watcom was done slightly differently from ours.",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_330.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_330.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_330.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_649.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_649.cpp,1203,1285,1206,1295,,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    ""Crypto codec not supported yet (ID: 0x%lX)"", zip->codec);",5
+		    ""Crypto codec not supported yet (ID: 0x%lX)"", zip->codec);",7
 2f1978632b709a9370b3cb1137375c05351d149c,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Resolve conflicts in favor of the upstream side where possible.
@@ -9164,12 +9164,12 @@ port to Watcom was done slightly differently from ours.",[],Utilities/cmlibarchi
 
 Resolve conflicts in favor of the upstream side where possible.
 Resolve a logical conflict in archive_windows.h where the upstream
-port to Watcom was done slightly differently from ours.",[],Utilities/cmlibarchive/libarchive/archive_write_set_format_mtree.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_334.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_334.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_334.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_657.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_657.cpp,983,992,983,992,"archive_string_sprintf(str, "" uid=%jd"", (intmax_t)me->uid);","archive_string_sprintf(str, "" uid=%jd"", (intmax_t)me->uid);",4
+port to Watcom was done slightly differently from ours.",[],Utilities/cmlibarchive/libarchive/archive_write_set_format_mtree.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_334.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_334.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_334.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_657.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_657.cpp,983,992,983,992,"archive_string_sprintf(str, "" uid=%jd"", (intmax_t)me->uid);","archive_string_sprintf(str, "" uid=%jd"", (intmax_t)me->uid);",6
 2f1978632b709a9370b3cb1137375c05351d149c,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Resolve conflicts in favor of the upstream side where possible.
 Resolve a logical conflict in archive_windows.h where the upstream
-port to Watcom was done slightly differently from ours.",[],Utilities/cmlibarchive/libarchive/archive_write_set_format_mtree.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_334.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_334.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_334.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_657.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_657.cpp,983,992,985,995,,"archive_string_sprintf(str, "" inode=%jd"", (intmax_t)me->ino);",5
+port to Watcom was done slightly differently from ours.",[],Utilities/cmlibarchive/libarchive/archive_write_set_format_mtree.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_334.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_334.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_334.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_657.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_657.cpp,983,992,985,995,,"archive_string_sprintf(str, "" inode=%jd"", (intmax_t)me->ino);",7
 2f1978632b709a9370b3cb1137375c05351d149c,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Resolve conflicts in favor of the upstream side where possible.
@@ -9177,7 +9177,7 @@ Resolve a logical conflict in archive_windows.h where the upstream
 port to Watcom was done slightly differently from ours.",[],Utilities/cmlibarchive/libarchive/archive_write_set_format_mtree.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_334.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_334.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_334.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_657.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_657.cpp,983,992,985,997,,"archive_string_sprintf(str,
 		    "" resdevice=native,%ju,%ju"",
 		    (uintmax_t)me->devmajor,
-		    (uintmax_t)me->devminor);",5
+		    (uintmax_t)me->devminor);",7
 2f1978632b709a9370b3cb1137375c05351d149c,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Resolve conflicts in favor of the upstream side where possible.
@@ -9324,7 +9324,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_337.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_337.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_337.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_666.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_666.cpp,1203,1285,1202,1284,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
 		    ""Unexpected codec ID: %lX"", zip->codec);","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    ""Unexpected codec ID: %lX"", zip->codec);",4
+		    ""Unexpected codec ID: %lX"", zip->codec);",6
 64713ae3ffddf6fbbfa7ea762c3d756cb245a066,"libarchive 3.1.2-218-g00f4bd83 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -9350,7 +9350,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_337.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_337.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_337.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_666.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_666.cpp,1203,1285,1206,1299,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
 		    ""Unknown codec ID: %lX"", zip->codec);","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    ""Unknown codec ID: %lX"", zip->codec);",4
+		    ""Unknown codec ID: %lX"", zip->codec);",6
 64713ae3ffddf6fbbfa7ea762c3d756cb245a066,"libarchive 3.1.2-218-g00f4bd83 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -9375,7 +9375,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 (cd libarchive-$v-g$r-reduced && tar xv) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_337.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_337.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_337.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_666.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_666.cpp,1203,1285,1206,1295,,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    ""Crypto codec not supported yet (ID: 0x%lX)"", zip->codec);",5
+		    ""Crypto codec not supported yet (ID: 0x%lX)"", zip->codec);",7
 64713ae3ffddf6fbbfa7ea762c3d756cb245a066,"libarchive 3.1.2-218-g00f4bd83 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -9738,7 +9738,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 (cd libarchive-git && git archive --format=tar $r -- $paths) |
 (cd libarchive-$v-g$r-reduced && tar xv) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
-echo ""g$r date: $date""",[],libarchive/archive_write_set_format_mtree.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_341.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_341.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_341.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_674.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_674.cpp,983,992,983,992,"archive_string_sprintf(str, "" uid=%jd"", (intmax_t)me->uid);","archive_string_sprintf(str, "" uid=%jd"", (intmax_t)me->uid);",4
+echo ""g$r date: $date""",[],libarchive/archive_write_set_format_mtree.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_341.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_341.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_341.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_674.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_674.cpp,983,992,983,992,"archive_string_sprintf(str, "" uid=%jd"", (intmax_t)me->uid);","archive_string_sprintf(str, "" uid=%jd"", (intmax_t)me->uid);",6
 64713ae3ffddf6fbbfa7ea762c3d756cb245a066,"libarchive 3.1.2-218-g00f4bd83 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -9762,7 +9762,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 (cd libarchive-git && git archive --format=tar $r -- $paths) |
 (cd libarchive-$v-g$r-reduced && tar xv) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
-echo ""g$r date: $date""",[],libarchive/archive_write_set_format_mtree.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_341.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_341.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_341.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_674.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_674.cpp,983,992,985,995,,"archive_string_sprintf(str, "" inode=%jd"", (intmax_t)me->ino);",5
+echo ""g$r date: $date""",[],libarchive/archive_write_set_format_mtree.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_341.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_341.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_341.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_674.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_674.cpp,983,992,985,995,,"archive_string_sprintf(str, "" inode=%jd"", (intmax_t)me->ino);",7
 64713ae3ffddf6fbbfa7ea762c3d756cb245a066,"libarchive 3.1.2-218-g00f4bd83 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -9789,7 +9789,7 @@ fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_write_set_format_mtree.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_341.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_341.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_341.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_674.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_674.cpp,983,992,985,997,,"archive_string_sprintf(str,
 		    "" resdevice=native,%ju,%ju"",
 		    (uintmax_t)me->devmajor,
-		    (uintmax_t)me->devminor);",5
+		    (uintmax_t)me->devminor);",7
 64713ae3ffddf6fbbfa7ea762c3d756cb245a066,"libarchive 3.1.2-218-g00f4bd83 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -10613,7 +10613,7 @@ Conflicts:
 	Utilities/cmlibarchive/libarchive/archive_windows.h
 	Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.c",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_370.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_370.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_370.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_725.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_725.cpp,213,223,223,241,"archive_set_error(&a->archive, errno,
 			    ""Couldn't read link data"");","archive_set_error(&a->archive, errno,
-			    ""Couldn't read link data"");",4
+			    ""Couldn't read link data"");",6
 102071f80cf4ad7aa97bf8a1618cfc6ee6689ab6,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
@@ -10624,7 +10624,7 @@ Conflicts:
 	Utilities/cmlibarchive/libarchive/archive_read_support_format_iso9660.c
 	Utilities/cmlibarchive/libarchive/archive_windows.h
 	Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.c",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_370.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_370.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_370.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_725.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_725.cpp,213,223,215,231,,"archive_set_error(&a->archive, errno,
-				    ""Couldn't read link data"");",5
+				    ""Couldn't read link data"");",7
 102071f80cf4ad7aa97bf8a1618cfc6ee6689ab6,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
@@ -10707,7 +10707,7 @@ Conflicts:
 	Utilities/cmlibarchive/libarchive/archive_windows.h
 	Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.c",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_370.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_370.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_370.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_730.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_730.cpp,926,1130,944,1141,"archive_set_error(&a->archive, errno,
 			    ""Can't open `%s'"", path);","archive_set_error(&a->archive, errno,
-			    ""Can't open `%s'"", path);",4
+			    ""Can't open `%s'"", path);",6
 102071f80cf4ad7aa97bf8a1618cfc6ee6689ab6,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
@@ -10718,7 +10718,7 @@ Conflicts:
 	Utilities/cmlibarchive/libarchive/archive_read_support_format_iso9660.c
 	Utilities/cmlibarchive/libarchive/archive_windows.h
 	Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.c",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_370.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_370.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_370.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_730.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_730.cpp,926,1130,943,1164,,"archive_set_error(&a->archive, errno,
-			    ""Can't open `%s'"", path);",5
+			    ""Can't open `%s'"", path);",7
 102071f80cf4ad7aa97bf8a1618cfc6ee6689ab6,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
@@ -10741,7 +10741,7 @@ Conflicts:
 	Utilities/cmlibarchive/libarchive/archive_windows.h
 	Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.c",[],Utilities/cmlibarchive/libarchive/archive_read_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_371.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_371.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_371.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_732.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_732.cpp,1079,1290,1081,1296,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
 		    ""Can't convert a path to a char string"");","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    ""Can't convert a path to a char string"");",4
+			    ""Can't convert a path to a char string"");",6
 102071f80cf4ad7aa97bf8a1618cfc6ee6689ab6,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
@@ -10752,7 +10752,7 @@ Conflicts:
 	Utilities/cmlibarchive/libarchive/archive_read_support_format_iso9660.c
 	Utilities/cmlibarchive/libarchive/archive_windows.h
 	Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.c",[],Utilities/cmlibarchive/libarchive/archive_read_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_371.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_371.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_371.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_732.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_732.cpp,1079,1290,1080,1293,,"archive_set_error(&a->archive, ENOMEM,
-			    ""Can't allocate memory"");",5
+			    ""Can't allocate memory"");",7
 102071f80cf4ad7aa97bf8a1618cfc6ee6689ab6,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
@@ -10906,7 +10906,7 @@ Conflicts:
 	Utilities/cmlibarchive/libarchive/archive_windows.h
 	Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.c",[],Utilities/cmlibarchive/libarchive/archive_read_disk_windows.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_372.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_372.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_372.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_740.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_740.cpp,759,846,787,933,"archive_set_error(&a->archive, errno,
 			    ""Couldn't open %ls"", tree_current_path(a->tree));","archive_set_error(&a->archive, errno,
-			    ""Couldn't open %ls"", tree_current_path(a->tree));",4
+			    ""Couldn't open %ls"", tree_current_path(a->tree));",6
 102071f80cf4ad7aa97bf8a1618cfc6ee6689ab6,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
@@ -10917,7 +10917,7 @@ Conflicts:
 	Utilities/cmlibarchive/libarchive/archive_read_support_format_iso9660.c
 	Utilities/cmlibarchive/libarchive/archive_windows.h
 	Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.c",[],Utilities/cmlibarchive/libarchive/archive_read_disk_windows.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_372.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_372.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_372.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_740.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_740.cpp,759,846,774,871,,"archive_set_error(&(a->archive), errno,
-			    ""Faild : %s"", archive_error_string(a->matching));",5
+			    ""Faild : %s"", archive_error_string(a->matching));",7
 102071f80cf4ad7aa97bf8a1618cfc6ee6689ab6,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
@@ -10928,7 +10928,7 @@ Conflicts:
 	Utilities/cmlibarchive/libarchive/archive_read_support_format_iso9660.c
 	Utilities/cmlibarchive/libarchive/archive_windows.h
 	Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.c",[],Utilities/cmlibarchive/libarchive/archive_read_disk_windows.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_372.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_372.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_372.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_740.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_740.cpp,759,846,781,897,,"archive_set_error(&(a->archive), errno,
-			    ""Faild : %s"", archive_error_string(a->matching));",5
+			    ""Faild : %s"", archive_error_string(a->matching));",7
 102071f80cf4ad7aa97bf8a1618cfc6ee6689ab6,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
@@ -10951,7 +10951,7 @@ Conflicts:
 	Utilities/cmlibarchive/libarchive/archive_windows.h
 	Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.c",[],Utilities/cmlibarchive/libarchive/archive_read_disk_windows.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_372.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_372.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_372.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_742.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_742.cpp,920,1169,922,1175,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
 		    ""Can't convert a path to a wchar_t string"");","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    ""Can't convert a path to a wchar_t string"");",4
+			    ""Can't convert a path to a wchar_t string"");",6
 102071f80cf4ad7aa97bf8a1618cfc6ee6689ab6,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
@@ -10962,7 +10962,7 @@ Conflicts:
 	Utilities/cmlibarchive/libarchive/archive_read_support_format_iso9660.c
 	Utilities/cmlibarchive/libarchive/archive_windows.h
 	Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.c",[],Utilities/cmlibarchive/libarchive/archive_read_disk_windows.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_372.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_372.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_372.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_742.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_742.cpp,920,1169,921,1172,,"archive_set_error(&a->archive, ENOMEM,
-			    ""Can't allocate memory"");",5
+			    ""Can't allocate memory"");",7
 102071f80cf4ad7aa97bf8a1618cfc6ee6689ab6,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
@@ -11233,7 +11233,7 @@ Conflicts:
 	Utilities/cmlibarchive/libarchive/archive_windows.h
 	Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.c",[],Utilities/cmlibarchive/libarchive/archive_read_support_filter_program.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_377.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_377.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_377.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_760.cpp,376,399,385,410,"archive_set_error(&self->archive->archive, ENOMEM,
 		    ""Can't allocate input data"");","archive_set_error(&self->archive->archive, ENOMEM,
-		    ""Can't allocate input data"");",4
+		    ""Can't allocate input data"");",6
 102071f80cf4ad7aa97bf8a1618cfc6ee6689ab6,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
@@ -11246,7 +11246,7 @@ Conflicts:
 	Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.c",[],Utilities/cmlibarchive/libarchive/archive_read_support_filter_program.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_377.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_377.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_377.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_760.cpp,376,399,406,433,"archive_set_error(&self->archive->archive, EINVAL,
 		    ""Can't initialize filter; unable to run program \""%s\"""", cmd);","archive_set_error(&self->archive->archive, EINVAL,
 		    ""Can't initialize filter; unable to run program \""%s\"""",
-		    cmd);",4
+		    cmd);",6
 102071f80cf4ad7aa97bf8a1618cfc6ee6689ab6,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
@@ -11258,7 +11258,7 @@ Conflicts:
 	Utilities/cmlibarchive/libarchive/archive_windows.h
 	Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.c",[],Utilities/cmlibarchive/libarchive/archive_read_support_filter_program.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_377.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_377.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_377.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_760.cpp,376,399,412,444,,"archive_set_error(&self->archive->archive, EINVAL,
 		    ""Can't initialize filter; unable to run program \""%s\"""",
-		    cmd);",5
+		    cmd);",7
 102071f80cf4ad7aa97bf8a1618cfc6ee6689ab6,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
@@ -11999,7 +11999,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_391.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_391.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_391.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_820.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_820.cpp,210,223,220,241,"archive_set_error(&a->archive, errno,
 			    ""Couldn't read link data"");","archive_set_error(&a->archive, errno,
-			    ""Couldn't read link data"");",4
+			    ""Couldn't read link data"");",6
 35df7c8ba8854e97bd6994c4d1143f57535ed6f2,"libarchive 3.1.2 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -12024,7 +12024,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 (cd libarchive-$v-g$r-reduced && tar xv) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_391.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_391.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_391.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_820.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_820.cpp,210,223,212,231,,"archive_set_error(&a->archive, errno,
-				    ""Couldn't read link data"");",5
+				    ""Couldn't read link data"");",7
 35df7c8ba8854e97bd6994c4d1143f57535ed6f2,"libarchive 3.1.2 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -12205,7 +12205,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_391.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_391.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_391.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_825.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_825.cpp,923,1130,941,1141,"archive_set_error(&a->archive, errno,
 			    ""Can't open `%s'"", path);","archive_set_error(&a->archive, errno,
-			    ""Can't open `%s'"", path);",4
+			    ""Can't open `%s'"", path);",6
 35df7c8ba8854e97bd6994c4d1143f57535ed6f2,"libarchive 3.1.2 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -12230,7 +12230,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 (cd libarchive-$v-g$r-reduced && tar xv) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_391.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_391.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_391.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_825.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_825.cpp,923,1130,940,1164,,"archive_set_error(&a->archive, errno,
-			    ""Can't open `%s'"", path);",5
+			    ""Can't open `%s'"", path);",7
 35df7c8ba8854e97bd6994c4d1143f57535ed6f2,"libarchive 3.1.2 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -12281,7 +12281,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_392.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_392.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_392.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_827.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_827.cpp,1079,1290,1081,1296,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
 		    ""Can't convert a path to a char string"");","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    ""Can't convert a path to a char string"");",4
+			    ""Can't convert a path to a char string"");",6
 35df7c8ba8854e97bd6994c4d1143f57535ed6f2,"libarchive 3.1.2 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -12306,7 +12306,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 (cd libarchive-$v-g$r-reduced && tar xv) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_392.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_392.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_392.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_827.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_827.cpp,1079,1290,1080,1293,,"archive_set_error(&a->archive, ENOMEM,
-			    ""Can't allocate memory"");",5
+			    ""Can't allocate memory"");",7
 35df7c8ba8854e97bd6994c4d1143f57535ed6f2,"libarchive 3.1.2 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -12642,7 +12642,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_disk_windows.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_393.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_393.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_393.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_835.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_835.cpp,759,846,787,933,"archive_set_error(&a->archive, errno,
 			    ""Couldn't open %ls"", tree_current_path(a->tree));","archive_set_error(&a->archive, errno,
-			    ""Couldn't open %ls"", tree_current_path(a->tree));",4
+			    ""Couldn't open %ls"", tree_current_path(a->tree));",6
 35df7c8ba8854e97bd6994c4d1143f57535ed6f2,"libarchive 3.1.2 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -12667,7 +12667,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 (cd libarchive-$v-g$r-reduced && tar xv) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_disk_windows.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_393.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_393.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_393.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_835.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_835.cpp,759,846,774,871,,"archive_set_error(&(a->archive), errno,
-			    ""Faild : %s"", archive_error_string(a->matching));",5
+			    ""Faild : %s"", archive_error_string(a->matching));",7
 35df7c8ba8854e97bd6994c4d1143f57535ed6f2,"libarchive 3.1.2 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -12692,7 +12692,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 (cd libarchive-$v-g$r-reduced && tar xv) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_disk_windows.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_393.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_393.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_393.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_835.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_835.cpp,759,846,781,897,,"archive_set_error(&(a->archive), errno,
-			    ""Faild : %s"", archive_error_string(a->matching));",5
+			    ""Faild : %s"", archive_error_string(a->matching));",7
 35df7c8ba8854e97bd6994c4d1143f57535ed6f2,"libarchive 3.1.2 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -12743,7 +12743,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_disk_windows.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_393.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_393.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_393.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_837.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_837.cpp,920,1169,922,1175,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
 		    ""Can't convert a path to a wchar_t string"");","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    ""Can't convert a path to a wchar_t string"");",4
+			    ""Can't convert a path to a wchar_t string"");",6
 35df7c8ba8854e97bd6994c4d1143f57535ed6f2,"libarchive 3.1.2 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -12768,7 +12768,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 (cd libarchive-$v-g$r-reduced && tar xv) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_disk_windows.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_393.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_393.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_393.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_837.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_837.cpp,920,1169,921,1172,,"archive_set_error(&a->archive, ENOMEM,
-			    ""Can't allocate memory"");",5
+			    ""Can't allocate memory"");",7
 35df7c8ba8854e97bd6994c4d1143f57535ed6f2,"libarchive 3.1.2 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -13387,7 +13387,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_support_filter_program.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_398.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_398.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_398.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_856.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_856.cpp,376,399,385,410,"archive_set_error(&self->archive->archive, ENOMEM,
 		    ""Can't allocate input data"");","archive_set_error(&self->archive->archive, ENOMEM,
-		    ""Can't allocate input data"");",4
+		    ""Can't allocate input data"");",6
 35df7c8ba8854e97bd6994c4d1143f57535ed6f2,"libarchive 3.1.2 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -13414,7 +13414,7 @@ fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_support_filter_program.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_398.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_398.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_398.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_856.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_856.cpp,376,399,406,433,"archive_set_error(&self->archive->archive, EINVAL,
 		    ""Can't initialize filter; unable to run program \""%s\"""", cmd);","archive_set_error(&self->archive->archive, EINVAL,
 		    ""Can't initialize filter; unable to run program \""%s\"""",
-		    cmd);",4
+		    cmd);",6
 35df7c8ba8854e97bd6994c4d1143f57535ed6f2,"libarchive 3.1.2 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -13440,7 +13440,7 @@ date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
 fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
 echo ""g$r date: $date""",[],libarchive/archive_read_support_filter_program.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_398.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_398.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_398.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_856.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_856.cpp,376,399,412,444,,"archive_set_error(&self->archive->archive, EINVAL,
 		    ""Can't initialize filter; unable to run program \""%s\"""",
-		    cmd);",5
+		    cmd);",7
 35df7c8ba8854e97bd6994c4d1143f57535ed6f2,"libarchive 3.1.2 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -15836,46 +15836,46 @@ Conflicts:
 
 Conflicts:
 	Utilities/cmlibarchive/CMakeLists.txt
-	Utilities/cmlibarchive/libarchive/archive_windows.c",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_450.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_980.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_980.cpp,2810,2712,2809,2711,"archive_set_error(&a->archive, -1, ""Malformed 7-Zip archive"");;","archive_set_error(&a->archive, -1, ""Malformed 7-Zip archive"");;",4
+	Utilities/cmlibarchive/libarchive/archive_windows.c",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_450.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_980.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_980.cpp,2810,2712,2809,2711,"archive_set_error(&a->archive, -1, ""Malformed 7-Zip archive"");;","archive_set_error(&a->archive, -1, ""Malformed 7-Zip archive"");;",6
 156cb3bbf257f747672eac945fa2e19d33fc3a63,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
 	Utilities/cmlibarchive/CMakeLists.txt
 	Utilities/cmlibarchive/libarchive/archive_windows.c",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_450.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_980.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_980.cpp,2810,2712,2821,2747,"archive_set_error(&a->archive, -1, ""Damaged 7-Zip archive"");","archive_set_error(&a->archive, -1,
-			    ""Damaged 7-Zip archive"");",4
+			    ""Damaged 7-Zip archive"");",6
 156cb3bbf257f747672eac945fa2e19d33fc3a63,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
 	Utilities/cmlibarchive/CMakeLists.txt
 	Utilities/cmlibarchive/libarchive/archive_windows.c",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_450.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_980.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_980.cpp,2810,2712,2827,2731,,"archive_set_error(&a->archive,
 		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    ""Truncated 7-Zip file body"");",5
+		    ""Truncated 7-Zip file body"");",7
 156cb3bbf257f747672eac945fa2e19d33fc3a63,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
 	Utilities/cmlibarchive/CMakeLists.txt
 	Utilities/cmlibarchive/libarchive/archive_windows.c",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_450.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_981.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_981.cpp,2858,2786,2861,2793,"archive_set_error(&a->archive, -1,
 			    ""Malformed 7-Zip archive"");","archive_set_error(&a->archive, -1,
-			    ""Malformed 7-Zip archive"");",4
+			    ""Malformed 7-Zip archive"");",6
 156cb3bbf257f747672eac945fa2e19d33fc3a63,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
 	Utilities/cmlibarchive/CMakeLists.txt
 	Utilities/cmlibarchive/libarchive/archive_windows.c",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_450.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_981.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_981.cpp,2858,2786,2860,2800,,"archive_set_error(&a->archive, -1,
-			    ""Malformed 7-Zip archive"");",5
+			    ""Malformed 7-Zip archive"");",7
 156cb3bbf257f747672eac945fa2e19d33fc3a63,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
 	Utilities/cmlibarchive/CMakeLists.txt
 	Utilities/cmlibarchive/libarchive/archive_windows.c",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_450.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_983.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_983.cpp,2961,2908,2967,2918,"archive_set_error(&a->archive, ENOMEM,
 			    ""No memory for 7-Zip decompression"");","archive_set_error(&a->archive, ENOMEM,
-			    ""No memory for 7-Zip decompression"");",4
+			    ""No memory for 7-Zip decompression"");",6
 156cb3bbf257f747672eac945fa2e19d33fc3a63,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
 	Utilities/cmlibarchive/CMakeLists.txt
 	Utilities/cmlibarchive/libarchive/archive_windows.c",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_450.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_983.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_983.cpp,2961,2908,2962,2947,,"archive_set_error(&a->archive, ENOMEM,
-				    ""No memory for 7-Zip decompression"");",5
+				    ""No memory for 7-Zip decompression"");",7
 156cb3bbf257f747672eac945fa2e19d33fc3a63,"Merge branch 'libarchive-upstream' into update-libarchive
 
 Conflicts:
@@ -16049,7 +16049,7 @@ svn export -r$r $url libarchive-$v-r$r &&
 mkdir libarchive-$v-r$r-reduced &&
 (cd libarchive-$v-r$r && tar c $paths) |
 (cd libarchive-$v-r$r-reduced && tar x)
-echo ""r$r date: $date""",[],libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_454.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_454.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_454.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_992.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_992.cpp,2810,2712,2809,2711,"archive_set_error(&a->archive, -1, ""Malformed 7-Zip archive"");;","archive_set_error(&a->archive, -1, ""Malformed 7-Zip archive"");;",4
+echo ""r$r date: $date""",[],libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_454.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_454.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_454.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_992.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_992.cpp,2810,2712,2809,2711,"archive_set_error(&a->archive, -1, ""Malformed 7-Zip archive"");;","archive_set_error(&a->archive, -1, ""Malformed 7-Zip archive"");;",6
 4f4fe6e50bb3dbe59f9bc3cc848cbd07dead324d,"libarchive 3.0.2-r4051 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -16074,7 +16074,7 @@ mkdir libarchive-$v-r$r-reduced &&
 (cd libarchive-$v-r$r && tar c $paths) |
 (cd libarchive-$v-r$r-reduced && tar x)
 echo ""r$r date: $date""",[],libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_454.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_454.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_454.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_992.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_992.cpp,2810,2712,2821,2747,"archive_set_error(&a->archive, -1, ""Damaged 7-Zip archive"");","archive_set_error(&a->archive, -1,
-			    ""Damaged 7-Zip archive"");",4
+			    ""Damaged 7-Zip archive"");",6
 4f4fe6e50bb3dbe59f9bc3cc848cbd07dead324d,"libarchive 3.0.2-r4051 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -16100,7 +16100,7 @@ mkdir libarchive-$v-r$r-reduced &&
 (cd libarchive-$v-r$r-reduced && tar x)
 echo ""r$r date: $date""",[],libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_454.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_454.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_454.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_992.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_992.cpp,2810,2712,2827,2731,,"archive_set_error(&a->archive,
 		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    ""Truncated 7-Zip file body"");",5
+		    ""Truncated 7-Zip file body"");",7
 4f4fe6e50bb3dbe59f9bc3cc848cbd07dead324d,"libarchive 3.0.2-r4051 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -16126,7 +16126,7 @@ mkdir libarchive-$v-r$r-reduced &&
 (cd libarchive-$v-r$r-reduced && tar x)
 echo ""r$r date: $date""",[],libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_454.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_454.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_454.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_993.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_993.cpp,2858,2786,2861,2793,"archive_set_error(&a->archive, -1,
 			    ""Malformed 7-Zip archive"");","archive_set_error(&a->archive, -1,
-			    ""Malformed 7-Zip archive"");",4
+			    ""Malformed 7-Zip archive"");",6
 4f4fe6e50bb3dbe59f9bc3cc848cbd07dead324d,"libarchive 3.0.2-r4051 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -16151,7 +16151,7 @@ mkdir libarchive-$v-r$r-reduced &&
 (cd libarchive-$v-r$r && tar c $paths) |
 (cd libarchive-$v-r$r-reduced && tar x)
 echo ""r$r date: $date""",[],libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_454.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_454.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_454.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_993.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_993.cpp,2858,2786,2860,2800,,"archive_set_error(&a->archive, -1,
-			    ""Malformed 7-Zip archive"");",5
+			    ""Malformed 7-Zip archive"");",7
 4f4fe6e50bb3dbe59f9bc3cc848cbd07dead324d,"libarchive 3.0.2-r4051 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -16177,7 +16177,7 @@ mkdir libarchive-$v-r$r-reduced &&
 (cd libarchive-$v-r$r-reduced && tar x)
 echo ""r$r date: $date""",[],libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_454.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_454.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_454.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_995.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_995.cpp,2961,2908,2967,2918,"archive_set_error(&a->archive, ENOMEM,
 			    ""No memory for 7-Zip decompression"");","archive_set_error(&a->archive, ENOMEM,
-			    ""No memory for 7-Zip decompression"");",4
+			    ""No memory for 7-Zip decompression"");",6
 4f4fe6e50bb3dbe59f9bc3cc848cbd07dead324d,"libarchive 3.0.2-r4051 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -16202,7 +16202,7 @@ mkdir libarchive-$v-r$r-reduced &&
 (cd libarchive-$v-r$r && tar c $paths) |
 (cd libarchive-$v-r$r-reduced && tar x)
 echo ""r$r date: $date""",[],libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_454.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_454.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_454.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_995.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_995.cpp,2961,2908,2962,2947,,"archive_set_error(&a->archive, ENOMEM,
-				    ""No memory for 7-Zip decompression"");",5
+				    ""No memory for 7-Zip decompression"");",7
 4f4fe6e50bb3dbe59f9bc3cc848cbd07dead324d,"libarchive 3.0.2-r4051 (reduced)
 
 Extract upstream libarchive using the following shell code.
@@ -16965,10 +16965,10 @@ cd4d2acbe654ca57a9ffc7ca34dcf4835bfc77c3,ENH: more policy changes,[],Source/cmak
   - Added EXACT option to request an exact version.
   - Enforce version using check provided by package.
   - Updated FindPackageTest to test versioning in config mode.",[],Source/cmFindPackageCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_521.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_521.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_521.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1091.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1091.cpp,1028,1100,1028,1100,"fprintf(stderr, ""Checking file [%s]\n"", file.c_str());","fprintf(stderr, ""Checking file [%s]\n"", file.c_str());",4
-433099ecddb334cc6e43c6302594d7c713ef4d1e,ENH: Converted cmMakefile DefineFlags added by ADD_DEFINITIONS command into a COMPILE_DEFINITIONS directory property.,[],Tests/Preprocess/preprocess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_522.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_522.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_522.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1092.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1092.cpp,82,94,86,104,"fprintf(stderr, ""FILE_DEF_RELEASE should not be defined in C\n"");","fprintf(stderr, ""FILE_DEF_RELEASE should not be defined in C\n"");",4
-433099ecddb334cc6e43c6302594d7c713ef4d1e,ENH: Converted cmMakefile DefineFlags added by ADD_DEFINITIONS command into a COMPILE_DEFINITIONS directory property.,[],Tests/Preprocess/preprocess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_522.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_522.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_522.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1092.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1092.cpp,82,94,86,98,,"fprintf(stderr, ""DIRECTORY_DEF_DEBUG should be defined in C\n"");",5
-433099ecddb334cc6e43c6302594d7c713ef4d1e,ENH: Converted cmMakefile DefineFlags added by ADD_DEFINITIONS command into a COMPILE_DEFINITIONS directory property.,[],Tests/Preprocess/preprocess.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_523.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_523.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_523.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1093.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1093.cpp,84,96,88,106,"fprintf(stderr, ""FILE_DEF_RELEASE should not be defined in CXX\n"");","fprintf(stderr, ""FILE_DEF_RELEASE should not be defined in CXX\n"");",4
-433099ecddb334cc6e43c6302594d7c713ef4d1e,ENH: Converted cmMakefile DefineFlags added by ADD_DEFINITIONS command into a COMPILE_DEFINITIONS directory property.,[],Tests/Preprocess/preprocess.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_523.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_523.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_523.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1093.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1093.cpp,84,96,88,100,,"fprintf(stderr, ""DIRECTORY_DEF_DEBUG should be defined in CXX\n"");",5
+433099ecddb334cc6e43c6302594d7c713ef4d1e,ENH: Converted cmMakefile DefineFlags added by ADD_DEFINITIONS command into a COMPILE_DEFINITIONS directory property.,[],Tests/Preprocess/preprocess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_522.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_522.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_522.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1092.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1092.cpp,82,94,86,104,"fprintf(stderr, ""FILE_DEF_RELEASE should not be defined in C\n"");","fprintf(stderr, ""FILE_DEF_RELEASE should not be defined in C\n"");",6
+433099ecddb334cc6e43c6302594d7c713ef4d1e,ENH: Converted cmMakefile DefineFlags added by ADD_DEFINITIONS command into a COMPILE_DEFINITIONS directory property.,[],Tests/Preprocess/preprocess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_522.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_522.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_522.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1092.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1092.cpp,82,94,86,98,,"fprintf(stderr, ""DIRECTORY_DEF_DEBUG should be defined in C\n"");",7
+433099ecddb334cc6e43c6302594d7c713ef4d1e,ENH: Converted cmMakefile DefineFlags added by ADD_DEFINITIONS command into a COMPILE_DEFINITIONS directory property.,[],Tests/Preprocess/preprocess.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_523.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_523.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_523.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1093.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1093.cpp,84,96,88,106,"fprintf(stderr, ""FILE_DEF_RELEASE should not be defined in CXX\n"");","fprintf(stderr, ""FILE_DEF_RELEASE should not be defined in CXX\n"");",6
+433099ecddb334cc6e43c6302594d7c713ef4d1e,ENH: Converted cmMakefile DefineFlags added by ADD_DEFINITIONS command into a COMPILE_DEFINITIONS directory property.,[],Tests/Preprocess/preprocess.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_523.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_523.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_523.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1093.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1093.cpp,84,96,88,100,,"fprintf(stderr, ""DIRECTORY_DEF_DEBUG should be defined in CXX\n"");",7
 50c5d5a3d5b6edc32baf3f6102368aae535262e0,ENH: fix leaks and turn on by default,[],Source/kwsys/SystemInformation.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_524.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_524.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_524.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1094.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1094.cpp,171,172,176,177,"sprintf(temp,""%d"",this->ChipID.Type);",str << this->ChipID.Type;,7
 50c5d5a3d5b6edc32baf3f6102368aae535262e0,ENH: fix leaks and turn on by default,[],Source/kwsys/SystemInformation.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_524.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_524.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_524.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1094.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1094.cpp,171,172,184,185,"sprintf(temp,""%d"",this->ChipID.Family);",str << this->ChipID.Family;,7
 50c5d5a3d5b6edc32baf3f6102368aae535262e0,ENH: fix leaks and turn on by default,[],Source/kwsys/SystemInformation.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_524.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_524.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_524.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1094.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1094.cpp,171,172,192,193,"sprintf(temp,""%d"",this->ChipID.Model);",str << this->ChipID.Model;,7
@@ -17046,8 +17046,8 @@ d75bfedab59d325b72d575beac8844290de0c279,COMP: Need to include header for unlink
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_535.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_535.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_535.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1113.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1113.cpp,205,256,211,271,"fprintf(stderr, ""%d\n"", base64Len);","fprintf(stderr, ""%d\n"", base64Len);",6
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_535.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_535.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_535.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1113.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1113.cpp,205,256,212,272,"fprintf(stdout, ""%s"",   base64);","fprintf(stdout, ""%s\n"", base64);",7
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_535.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_535.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_535.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1113.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1113.cpp,205,256,214,264,,"fprintf(stderr, ""Error: curl_easy_init failed\n"");",7
-9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_535.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_535.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_535.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1114.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1114.cpp,235,298,242,312,"fprintf(stderr, ""%d\n"", dataLen);","fprintf(stderr, ""%d\n"", dataLen);",4
-9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_535.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_535.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_535.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1114.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1114.cpp,235,298,242,304,,"fprintf(stderr, ""Error: curl_easy_init failed\n"");",5
+9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_535.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_535.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_535.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1114.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1114.cpp,235,298,242,312,"fprintf(stderr, ""%d\n"", dataLen);","fprintf(stderr, ""%d\n"", dataLen);",6
+9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_535.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_535.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_535.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1114.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1114.cpp,235,298,242,304,,"fprintf(stderr, ""Error: curl_easy_init failed\n"");",7
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/cookie.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_537.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_537.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_537.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1116.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1116.cpp,839,957,848,-1,"fprintf(out,
               ""%s%s\t"" /* domain */
               ""%s\t"" /* tailmatch */
@@ -17072,7 +17072,7 @@ d75bfedab59d325b72d575beac8844290de0c279,COMP: Need to include header for unlink
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/escape.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_538.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_538.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_538.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1117.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1117.cpp,72,91,74,104,"snprintf(&ns[strindex], 4, ""%%%02X"", in);","snprintf(&ns[strindex], 4, ""%%%02X"", in);",4
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_539.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_539.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_539.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1118.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1118.cpp,308,318,308,318,"snprintf(buf, sizeof(data->state.buffer),
              ""Content-Length: %"" FORMAT_OFF_T ""\r\n"", expected_size);","snprintf(buf, sizeof(data->state.buffer),
-             ""Content-Length: %"" FORMAT_OFF_T ""\r\n"", expected_size);",4
+             ""Content-Length: %"" FORMAT_OFF_T ""\r\n"", expected_size);",6
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_539.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_539.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_539.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1118.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1118.cpp,308,318,-1,339,,"snprintf(buf, BUFSIZE-1,
                ""Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n"",
                Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
@@ -17081,7 +17081,7 @@ d75bfedab59d325b72d575beac8844290de0c279,COMP: Need to include header for unlink
                tm->tm_year + 1900,
                tm->tm_hour,
                tm->tm_min,
-               tm->tm_sec);",4
+               tm->tm_sec);",6
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/hostip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_540.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_540.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_540.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1119.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1119.cpp,218,195,223,200,"aprintf(""%s:%d"", server, port);","aprintf(""%s:%d"", server, port);",0
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/hostip4.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_541.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_541.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_541.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1120.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1120.cpp,125,101,163,-1,"snprintf((char*)(h->h_name), 16, ""%s"", hostname);",,7
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/hostip6.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_542.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_542.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_542.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1121.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1121.cpp,171,177,170,176,"fprintf(logfile, ""ADDR %s:%d freeaddrinfo(%p)\n"",
@@ -17093,8 +17093,8 @@ d75bfedab59d325b72d575beac8844290de0c279,COMP: Need to include header for unlink
                       authorization);","*userp = aprintf( ""%sAuthorization: Basic %s\r\n"",
                       proxy?""Proxy-"":"""",
                       authorization);",7
-9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_543.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_543.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_543.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1123.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1123.cpp,895,1093,942,1154,"host_port = aprintf(""%s:%d"", hostname, remote_port);","host_port = aprintf(""%s:%d"", hostname, remote_port);",4
-9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_543.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_543.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_543.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1123.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1123.cpp,895,1093,969,1167,,"host = aprintf(""Host: %s\r\n"", host_port);",5
+9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_543.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_543.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_543.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1123.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1123.cpp,895,1093,942,1154,"host_port = aprintf(""%s:%d"", hostname, remote_port);","host_port = aprintf(""%s:%d"", hostname, remote_port);",6
+9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_543.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_543.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_543.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1123.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1123.cpp,895,1093,969,1167,,"host = aprintf(""Host: %s\r\n"", host_port);",7
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_543.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_543.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_543.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1124.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1124.cpp,1300,1710,1319,1724,"conn->allocptr.ref = aprintf(""Referer: %s\015\012"", data->change.referer);","conn->allocptr.ref = aprintf(""Referer: %s\r\n"", data->change.referer);",7
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_543.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_543.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_543.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1124.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1124.cpp,1300,1710,1352,1735,,"(""Accept-Encoding: %s\r\n"";",7
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_543.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_543.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_543.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1125.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1125.cpp,1533,1942,1535,1944,"conn->allocptr.rangeline = aprintf(""Range: bytes=%s\r\n"", conn->range);","conn->allocptr.rangeline = aprintf(""Range: bytes=%s\r\n"", data->reqdata.range);",7
@@ -17109,8 +17109,8 @@ d75bfedab59d325b72d575beac8844290de0c279,COMP: Need to include header for unlink
                               proxy?""Proxy-"":"""",
                               base64);","*allocuserpwd = aprintf(""%sAuthorization: NTLM %s\r\n"",
                               proxy?""Proxy-"":"""",
-                              base64);",4
-9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/http_ntlm.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_545.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_545.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_545.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1130.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1130.cpp,372,708,387,745,,"DEBUG_OUT(fprintf(stderr, ""**** Header %s\n "", *allocuserpwd));",5
+                              base64);",6
+9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/http_ntlm.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_545.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_545.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_545.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1130.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1130.cpp,372,708,387,745,,"DEBUG_OUT(fprintf(stderr, ""**** Header %s\n "", *allocuserpwd));",7
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/http_ntlm.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_545.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_545.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_545.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1131.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1131.cpp,411,770,449,911,"size = snprintf((char *)ntlmbuf, sizeof(ntlmbuf),
                     ""NTLMSSP%c""
                     ""\x03%c%c%c"" /* type-3, 32 bits */
@@ -17129,8 +17129,8 @@ d75bfedab59d325b72d575beac8844290de0c279,COMP: Need to include header for unlink
                               proxy?""Proxy-"":"""",
                               base64);","*allocuserpwd = aprintf(""%sAuthorization: NTLM %s\r\n"",
                               proxy?""Proxy-"":"""",
-                              base64);",4
-9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/http_ntlm.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_545.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_545.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_545.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1132.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1132.cpp,518,983,560,1067,,"DEBUG_OUT(fprintf(stderr, ""**** %s\n "", *allocuserpwd));",5
+                              base64);",6
+9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/http_ntlm.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_545.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_545.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_545.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1132.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1132.cpp,518,983,560,1067,,"DEBUG_OUT(fprintf(stderr, ""**** %s\n "", *allocuserpwd));",7
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/krb4.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_546.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_546.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_546.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1133.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1133.cpp,242,245,252,255,"Curl_failf(data, ""Out of memory base64-encoding"");","Curl_failf(data, ""Out of memory base64-encoding"");",4
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/krb4.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_546.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_546.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_546.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1134.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1134.cpp,275,278,279,286,"Curl_failf(data, ""Failed to decode base64 from server"");","Curl_failf(data, ""Failed to decode base64 from server"");",4
 9314bb49e09b323f1c889d95448ca5dd0a42cc61,ENH: Update Curl to 7.16.1,[],Utilities/cmcurl/krb4.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_546.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_546.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_546.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1135.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1135.cpp,346,356,350,364,"Curl_failf(conn->data, ""Failed to decode base64 in reply.\n"");","Curl_failf(conn->data, ""Failed to decode base64 in reply.\n"");",4
@@ -17159,14 +17159,14 @@ bdf8e186e5084020a4cbbbe9aa2f63af0febf4ff,BUG: Need to match shared library names
               this->ExtractStaticLibraryName.match(3).c_str());",,7
 97c97730a6c93b46295284c5a49d285f57a57121,BUG: Character + should be valid in a variable name.,[],Source/cmCommandArgumentLexer.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_556.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_556.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_556.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1147.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1147.cpp,854,863,1018,1027,"YY_FATAL_ERROR(
       ""fatal flex scanner internal error--no action found"" );","YY_FATAL_ERROR(
-                        ""fatal flex scanner internal error--no action found"" );",4
+                        ""fatal flex scanner internal error--no action found"" );",6
 97c97730a6c93b46295284c5a49d285f57a57121,BUG: Character + should be valid in a variable name.,[],Source/cmCommandArgumentLexer.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_556.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_556.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_556.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1147.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1147.cpp,854,863,1040,1049,"YY_FATAL_ERROR(
     ""fatal flex scanner internal error--end of buffer missed"" );","YY_FATAL_ERROR(
-                ""fatal flex scanner internal error--end of buffer missed"" );",4
+                ""fatal flex scanner internal error--end of buffer missed"" );",6
 97c97730a6c93b46295284c5a49d285f57a57121,BUG: Character + should be valid in a variable name.,[],Source/cmCommandArgumentLexer.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_556.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_556.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_556.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1147.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1147.cpp,854,863,1108,1117,"YY_FATAL_ERROR(
         ""fatal error - scanner input buffer overflow"" );","YY_FATAL_ERROR(
-                                ""fatal error - scanner input buffer overflow"" );",4
-97c97730a6c93b46295284c5a49d285f57a57121,BUG: Character + should be valid in a variable name.,[],Source/cmCommandArgumentLexer.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_556.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_556.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_556.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1147.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1147.cpp,854,863,1216,1252,,"YY_FATAL_ERROR( ""flex scanner push-back overflow"" );",5
+                                ""fatal error - scanner input buffer overflow"" );",6
+97c97730a6c93b46295284c5a49d285f57a57121,BUG: Character + should be valid in a variable name.,[],Source/cmCommandArgumentLexer.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_556.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_556.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_556.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1147.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1147.cpp,854,863,1216,1252,,"YY_FATAL_ERROR( ""flex scanner push-back overflow"" );",7
 97c97730a6c93b46295284c5a49d285f57a57121,BUG: Character + should be valid in a variable name.,[],Source/cmCommandArgumentLexer.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_556.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_556.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_556.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1148.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1148.cpp,1316,1362,1366,1413,"YY_FATAL_ERROR( ""out of dynamic memory in cmCommandArgument_yy_create_buffer()"" );","YY_FATAL_ERROR( ""out of dynamic memory in cmCommandArgument_yy_create_buffer()"" );",0
 97c97730a6c93b46295284c5a49d285f57a57121,BUG: Character + should be valid in a variable name.,[],Source/cmCommandArgumentLexer.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_556.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_556.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_556.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1148.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1148.cpp,1316,1362,1375,1422,"YY_FATAL_ERROR( ""out of dynamic memory in cmCommandArgument_yy_create_buffer()"" );","YY_FATAL_ERROR( ""out of dynamic memory in cmCommandArgument_yy_create_buffer()"" );",0
 97c97730a6c93b46295284c5a49d285f57a57121,BUG: Character + should be valid in a variable name.,[],Source/cmCommandArgumentLexer.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_556.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_556.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_556.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1149.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1149.cpp,1504,1550,1580,1627,"YY_FATAL_ERROR( ""out of dynamic memory in cmCommandArgument_yy_scan_buffer()"" );","YY_FATAL_ERROR( ""out of dynamic memory in cmCommandArgument_yy_scan_buffer()"" );",4
@@ -17205,8 +17205,8 @@ da285df242411b2b798018009e1c2f37e5515c60,ENH: Added test 8 to test grandchildren
 da285df242411b2b798018009e1c2f37e5515c60,ENH: Added test 8 to test grandchildren running after children exit.,[],Source/kwsys/testProcess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_567.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_567.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_567.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1176.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1176.cpp,84,84,114,102,"fprintf(stderr, ""Output on stderr after recursive test.\n"");","fprintf(stderr, ""Output on stderr after recursive test.\n"");",4
 da285df242411b2b798018009e1c2f37e5515c60,ENH: Added test 8 to test grandchildren running after children exit.,[],Source/kwsys/testProcess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_567.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_567.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_567.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1177.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1177.cpp,258,303,261,308,"printf(""Error in administrating child process: [%s]\n"",
              kwsysProcess_GetErrorString(kp));","printf(""Error in administrating child process: [%s]\n"",
-             kwsysProcess_GetErrorString(kp));",4
-da285df242411b2b798018009e1c2f37e5515c60,ENH: Added test 8 to test grandchildren running after children exit.,[],Source/kwsys/testProcess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_567.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_567.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_567.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1177.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1177.cpp,258,303,261,306,,"printf(""Child was disowned.\n"");",5
+             kwsysProcess_GetErrorString(kp));",6
+da285df242411b2b798018009e1c2f37e5515c60,ENH: Added test 8 to test grandchildren running after children exit.,[],Source/kwsys/testProcess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_567.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_567.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_567.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1177.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1177.cpp,258,303,261,306,,"printf(""Child was disowned.\n"");",7
 da285df242411b2b798018009e1c2f37e5515c60,ENH: Added test 8 to test grandchildren running after children exit.,[],Source/kwsys/testProcess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_567.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_567.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_567.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1178.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1178.cpp,359,406,362,411,"f(stderr, ""Invalid test number %d.\n"", n);","f(stderr, ""Invalid test number %d.\n"", n);",4
 da285df242411b2b798018009e1c2f37e5515c60,ENH: Added test 8 to test grandchildren running after children exit.,[],Source/kwsys/testProcess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_567.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_567.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_567.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1179.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1179.cpp,425,476,428,479,"fprintf(stdout, ""Output on stdout after test %d.\n"", n);","fprintf(stdout, ""Output on stdout after test %d.\n"", n);",4
 da285df242411b2b798018009e1c2f37e5515c60,ENH: Added test 8 to test grandchildren running after children exit.,[],Source/kwsys/testProcess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_567.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_567.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_567.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1179.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1179.cpp,425,476,429,480,"fprintf(stderr, ""Output on stderr after test %d.\n"", n);","fprintf(stderr, ""Output on stderr after test %d.\n"", n);",4
@@ -17477,12 +17477,12 @@ ace5f90d9c991250ec31080341b7d0b90bd3d8dc,BUG: Fix output to match the Dart outpu
                table64[obuf[3]] );",7
 609801fe67c95f9959468df8316a8f4a26943842,ENH: Update Curl to 7.12.1,[],Source/CTest/Curl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_656.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1311.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1311.cpp,204,202,213,211,"fprintf(stderr, ""%d\n"", base64Len);","fprintf(stderr, ""%d\n"", base64Len);",4
 609801fe67c95f9959468df8316a8f4a26943842,ENH: Update Curl to 7.12.1,[],Source/CTest/Curl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_656.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1311.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1311.cpp,204,202,214,212,"fprintf(stdout, ""%s"",   base64);","fprintf(stdout, ""%s"",   base64);",4
-609801fe67c95f9959468df8316a8f4a26943842,ENH: Update Curl to 7.12.1,[],Source/CTest/Curl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_656.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1312.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1312.cpp,234,234,241,242,"fprintf(stderr, ""%d\n"", dataLen);","fprintf(stderr, ""%d\n"", dataLen);",4
-609801fe67c95f9959468df8316a8f4a26943842,ENH: Update Curl to 7.12.1,[],Source/CTest/Curl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_656.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1312.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1312.cpp,234,234,244,245,,"printf(""0x%02x: "", i);",5
-609801fe67c95f9959468df8316a8f4a26943842,ENH: Update Curl to 7.12.1,[],Source/CTest/Curl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_656.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1312.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1312.cpp,234,234,244,248,,"printf(""%02x "", data[i+j]);",5
-609801fe67c95f9959468df8316a8f4a26943842,ENH: Update Curl to 7.12.1,[],Source/CTest/Curl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_656.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1312.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1312.cpp,234,234,244,250,,"printf(""   "");",5
-609801fe67c95f9959468df8316a8f4a26943842,ENH: Update Curl to 7.12.1,[],Source/CTest/Curl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_656.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1312.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1312.cpp,234,234,244,252,,"printf("" | "");",5
-609801fe67c95f9959468df8316a8f4a26943842,ENH: Update Curl to 7.12.1,[],Source/CTest/Curl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_656.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1312.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1312.cpp,234,234,244,256,,"printf(""%c"", isgraph(data[i+j])?data[i+j]:'.');",5
+609801fe67c95f9959468df8316a8f4a26943842,ENH: Update Curl to 7.12.1,[],Source/CTest/Curl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_656.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1312.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1312.cpp,234,234,241,242,"fprintf(stderr, ""%d\n"", dataLen);","fprintf(stderr, ""%d\n"", dataLen);",6
+609801fe67c95f9959468df8316a8f4a26943842,ENH: Update Curl to 7.12.1,[],Source/CTest/Curl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_656.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1312.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1312.cpp,234,234,244,245,,"printf(""0x%02x: "", i);",7
+609801fe67c95f9959468df8316a8f4a26943842,ENH: Update Curl to 7.12.1,[],Source/CTest/Curl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_656.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1312.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1312.cpp,234,234,244,248,,"printf(""%02x "", data[i+j]);",7
+609801fe67c95f9959468df8316a8f4a26943842,ENH: Update Curl to 7.12.1,[],Source/CTest/Curl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_656.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1312.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1312.cpp,234,234,244,250,,"printf(""   "");",7
+609801fe67c95f9959468df8316a8f4a26943842,ENH: Update Curl to 7.12.1,[],Source/CTest/Curl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_656.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1312.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1312.cpp,234,234,244,252,,"printf("" | "");",7
+609801fe67c95f9959468df8316a8f4a26943842,ENH: Update Curl to 7.12.1,[],Source/CTest/Curl/base64.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_656.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_656.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1312.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1312.cpp,234,234,244,256,,"printf(""%c"", isgraph(data[i+j])?data[i+j]:'.');",7
 609801fe67c95f9959468df8316a8f4a26943842,ENH: Update Curl to 7.12.1,[],Source/CTest/Curl/formdata.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_658.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_658.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_658.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1314.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1314.cpp,1006,780,1042,848,"vsprintf(s, fmt, ap);","vsnprintf(s, sizeof(s), fmt, ap);",7
 609801fe67c95f9959468df8316a8f4a26943842,ENH: Update Curl to 7.12.1,[],Source/CTest/Curl/ftp.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_659.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_659.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_659.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1315.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1315.cpp,770,932,772,934,"sprintf(buf, ""%04d%02d%02d %02d:%02d:%02d"",
                 year, month, day, hour, minute, second);","snprintf(buf, sizeof(conn->data->state.buffer),
@@ -17542,8 +17542,8 @@ d2087dfe99d87356462a9a8b6608ca56d6293c5e,"ENH: fixes for RUN_TESTS from visual s
 d2087dfe99d87356462a9a8b6608ca56d6293c5e,"ENH: fixes for RUN_TESTS from visual studio IDE, fprintf does not print right away, so std::cerr had to be used.  Also, allow .\ to start the config type",[],Source/cmCTest.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_670.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_670.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_670.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1337.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1337.cpp,2288,2302,2318,2332,"fprintf(stderr,""\n"");","std::cerr << ""\n"";",7
 d2087dfe99d87356462a9a8b6608ca56d6293c5e,"ENH: fixes for RUN_TESTS from visual studio IDE, fprintf does not print right away, so std::cerr had to be used.  Also, allow .\ to start the config type",[],Source/cmCTest.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_670.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_670.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_670.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1337.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1337.cpp,2288,2302,2322,2336,"fprintf(stderr,""***Bad command %d\n"", res);","std::cerr << ""***Bad command "" << res << ""\n"";",7
 d2087dfe99d87356462a9a8b6608ca56d6293c5e,"ENH: fixes for RUN_TESTS from visual studio IDE, fprintf does not print right away, so std::cerr had to be used.  Also, allow .\ to start the config type",[],Source/cmCTest.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_670.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_670.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_670.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1337.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1337.cpp,2288,2302,2327,2341,"fprintf(stderr,""***Failed\n"");","std::cerr << ""***Failed\n"";",7
-9655299f08b5aa04ea63193ebecfa08efae7ca3d,ENH: initial fortran support,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_671.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_671.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_671.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1338.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1338.cpp,156,156,156,156,"fprintf(fout, ""PROJECT(CMAKE_TRY_COMPILE CXX)\n"");","fprintf(fout, ""PROJECT(CMAKE_TRY_COMPILE CXX)\n"");",4
-9655299f08b5aa04ea63193ebecfa08efae7ca3d,ENH: initial fortran support,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_671.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_671.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_671.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1338.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1338.cpp,156,156,159,160,,"fprintf(fout, ""PROJECT(CMAKE_TRY_COMPILE FORTRAN)\n"");",5
+9655299f08b5aa04ea63193ebecfa08efae7ca3d,ENH: initial fortran support,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_671.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_671.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_671.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1338.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1338.cpp,156,156,156,156,"fprintf(fout, ""PROJECT(CMAKE_TRY_COMPILE CXX)\n"");","fprintf(fout, ""PROJECT(CMAKE_TRY_COMPILE CXX)\n"");",6
+9655299f08b5aa04ea63193ebecfa08efae7ca3d,ENH: initial fortran support,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_671.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_671.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_671.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1338.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1338.cpp,156,156,159,160,,"fprintf(fout, ""PROJECT(CMAKE_TRY_COMPILE FORTRAN)\n"");",7
 0437b776b6d2b1d954b9e2256f2cf3e56f450f9b,ENH: Added test for runaway output.,[],Source/kwsys/testProcess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_672.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_672.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_672.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1339.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1339.cpp,84,84,87,87,"fprintf(stdout, ""Output on stdout after recursive test.\n"");","fprintf(stdout, ""Output on stdout after recursive test.\n"");",4
 0437b776b6d2b1d954b9e2256f2cf3e56f450f9b,ENH: Added test for runaway output.,[],Source/kwsys/testProcess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_672.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_672.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_672.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1339.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1339.cpp,84,84,88,88,"fprintf(stderr, ""Output on stderr after recursive test.\n"");","fprintf(stderr, ""Output on stderr after recursive test.\n"");",4
 0437b776b6d2b1d954b9e2256f2cf3e56f450f9b,ENH: Added test for runaway output.,[],Source/kwsys/testProcess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_672.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_672.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_672.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1340.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1340.cpp,203,231,207,235,"fprintf(stdout, ""Usage: %s <test number>\n"", argv[0]);","fprintf(stdout, ""Usage: %s <test number>\n"", argv[0]);",4
@@ -17628,8 +17628,8 @@ d9cb234d98238e94073eab4cadb0846a96e943e4,ENH: Cleanup the output,[],Source/CTest
 d9cb234d98238e94073eab4cadb0846a96e943e4,ENH: Cleanup the output,[],Source/CTest/cmCTestSubmit.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_693.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_693.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_693.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1370.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1370.cpp,341,344,351,354,"sprintf(hex, ""%%%02X"", (int)c);","sprintf(hex, ""%%%02X"", (int)c);",4
 511b0c9661c44da9670153127178d11eb359907b,ENH: Add regression images support,[],Source/cmCTest.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_694.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_694.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_694.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1371.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1371.cpp,1771,1774,1770,1773,"fprintf(stderr,""   Passed\n"");;","fprintf(stderr,""   Passed\n"");;",4
 d720b2bc723d6c5810abf0809adfbbbb46edd044,ENH: On windows handle network paths,[],Source/cmGlob.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_695.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_695.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_695.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1372.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1372.cpp,52,62,56,66,"sprintf(buffer, ""%c"", tolower(ch));","sprintf(buffer, ""%c"", tolower(ch));",4
-8d22e9f70a1653fc6620cc8b5389d1036ec27596,ENH: On windows and apple handle lowercase/upercase file name problem,[],Source/cmGlob.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_696.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_696.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_696.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1373.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1373.cpp,51,52,53,58,"sprintf(buffer, ""%c"", ch);","sprintf(buffer, ""%c"", ch);",4
-8d22e9f70a1653fc6620cc8b5389d1036ec27596,ENH: On windows and apple handle lowercase/upercase file name problem,[],Source/cmGlob.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_696.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_696.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_696.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1373.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1373.cpp,51,52,53,56,,"sprintf(buffer, ""%c"", tolower(ch));",5
+8d22e9f70a1653fc6620cc8b5389d1036ec27596,ENH: On windows and apple handle lowercase/upercase file name problem,[],Source/cmGlob.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_696.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_696.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_696.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1373.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1373.cpp,51,52,53,58,"sprintf(buffer, ""%c"", ch);","sprintf(buffer, ""%c"", ch);",6
+8d22e9f70a1653fc6620cc8b5389d1036ec27596,ENH: On windows and apple handle lowercase/upercase file name problem,[],Source/cmGlob.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_696.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_696.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_696.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1373.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1373.cpp,51,52,53,56,,"sprintf(buffer, ""%c"", tolower(ch));",7
 36880845b66fbe9062fb9e72b703a14dfb2c2036,ERR: Using strncpy instead of snprintf for portability.,[],Source/kwsys/ProcessUNIX.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_697.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_697.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_697.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1374.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1374.cpp,526,526,528,528,"snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
                ""%s"", strerror(errno));","strncpy(cp->ErrorMessage, strerror(errno), KWSYSPE_PIPE_BUFFER_SIZE);",3
 36880845b66fbe9062fb9e72b703a14dfb2c2036,ERR: Using strncpy instead of snprintf for portability.,[],Source/kwsys/ProcessUNIX.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_697.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_697.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_697.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1375.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1375.cpp,730,729,732,731,"snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE, ""%s"", strerror(errno));","strncpy(cp->ErrorMessage, strerror(errno), KWSYSPE_PIPE_BUFFER_SIZE);",3
@@ -17726,8 +17726,8 @@ d9324c178bbfa5e2ef1dcabb6ace504fe3c94328,Fix proxy code and fix comments to be C
 3ad91bf9d39c22dc6941068e6fdc1453988f0b07,New version of libcurl,[],Source/CTest/Curl/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_728.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_728.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_728.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1417.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1417.cpp,661,678,663,683,"conn->allocptr.rangeline = aprintf(""Range: bytes=%s\r\n"", conn->range);","conn->allocptr.rangeline = aprintf(""Range: bytes=%s\r\n"", conn->range);",4
 3ad91bf9d39c22dc6941068e6fdc1453988f0b07,New version of libcurl,[],Source/CTest/Curl/mprintf.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_729.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_729.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_729.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1418.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1418.cpp,1028,1028,1033,1032,"*curl_maprintf(const char *format, ...);","*curl_maprintf(const char *format, ...);",0
 3ad91bf9d39c22dc6941068e6fdc1453988f0b07,New version of libcurl,[],Source/CTest/Curl/mprintf.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_729.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_729.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_729.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1419.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1419.cpp,1044,1043,1054,1058,"*curl_mvaprintf(const char *format, va_list ap_save);","*curl_mvaprintf(const char *format, va_list ap_save);",4
-3ad91bf9d39c22dc6941068e6fdc1453988f0b07,New version of libcurl,[],Source/CTest/Curl/netrc.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_730.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_730.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_730.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1420.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1420.cpp,116,119,116,119,"sprintf(netrcbuffer, ""%s%s%s"", home, DIR_CHAR, NETRC);","sprintf(netrcbuffer, ""%s%s%s"", home, DIR_CHAR, NETRC);",4
-3ad91bf9d39c22dc6941068e6fdc1453988f0b07,New version of libcurl,[],Source/CTest/Curl/netrc.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_730.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_730.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_730.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1420.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1420.cpp,116,119,119,130,,"printf(""NETRC: overridden .netrc file: %s\n"", home);",5
+3ad91bf9d39c22dc6941068e6fdc1453988f0b07,New version of libcurl,[],Source/CTest/Curl/netrc.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_730.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_730.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_730.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1420.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1420.cpp,116,119,116,119,"sprintf(netrcbuffer, ""%s%s%s"", home, DIR_CHAR, NETRC);","sprintf(netrcbuffer, ""%s%s%s"", home, DIR_CHAR, NETRC);",6
+3ad91bf9d39c22dc6941068e6fdc1453988f0b07,New version of libcurl,[],Source/CTest/Curl/netrc.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_730.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_730.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_730.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1420.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1420.cpp,116,119,119,130,,"printf(""NETRC: overridden .netrc file: %s\n"", home);",7
 3ad91bf9d39c22dc6941068e6fdc1453988f0b07,New version of libcurl,[],Source/CTest/Curl/netrc.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_730.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_730.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_730.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1421.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1421.cpp,149,180,153,187,"printf(""LOGIN: %s\n"", login);","printf(""LOGIN: %s\n"", login);",4
 3ad91bf9d39c22dc6941068e6fdc1453988f0b07,New version of libcurl,[],Source/CTest/Curl/netrc.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_730.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_730.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_730.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1421.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1421.cpp,149,180,160,196,"printf(""PASSWORD: %s\n"", password);","printf(""PASSWORD: %s\n"", password);",4
 3ad91bf9d39c22dc6941068e6fdc1453988f0b07,New version of libcurl,[],Source/CTest/Curl/sendf.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_731.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_731.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_731.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1422.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1422.cpp,84,84,95,95,"fprintf(stderr, ""Cannot allocate memory for QUOTE list.\n"");","fprintf(stderr, ""Cannot allocate memory for QUOTE list.\n"");",6
@@ -17785,13 +17785,13 @@ c1132e4b08da658a1eab86e212a9b205bce63337,ENH: move version to title bar,[],Sourc
 145390fcc9f6d59435d03b6217e1adc4f8fc93d0,fix flag setting,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_742.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_742.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_742.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1436.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1436.cpp,153,153,157,157,"fprintf(fout, ""INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n"");","fprintf(fout, ""INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n"");",2
 145390fcc9f6d59435d03b6217e1adc4f8fc93d0,fix flag setting,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_742.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_742.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_742.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1436.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1436.cpp,153,153,158,158,"fprintf(fout, ""LINK_DIRECTORIES(${LINK_DIRECTORIES})\n"");","fprintf(fout, ""LINK_DIRECTORIES(${LINK_DIRECTORIES})\n"");",2
 1d39833446340e262020c83d9ef3124da6a1e3f7,Add progress to ccmake,[],Source/CursesDialog/cmCursesMainForm.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_743.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_743.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_743.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1437.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1437.cpp,381,381,386,399,"sprintf(firstLine,  ""Press [c] to configure     Press [g] to generate and exit"");","sprintf(firstLine,  
-              ""Press [c] to configure     Press [g] to generate and exit"");",4
+              ""Press [c] to configure     Press [g] to generate and exit"");",6
 1d39833446340e262020c83d9ef3124da6a1e3f7,Add progress to ccmake,[],Source/CursesDialog/cmCursesMainForm.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_743.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_743.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_743.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1437.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1437.cpp,381,381,384,388,,"sprintf(firstLine, 
-            ""                                                               "");",5
+            ""                                                               "");",7
 1d39833446340e262020c83d9ef3124da6a1e3f7,Add progress to ccmake,[],Source/CursesDialog/cmCursesMainForm.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_743.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_743.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_743.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1437.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1437.cpp,381,381,384,390,,"sprintf(secondLine, 
-            ""                                                               "");",5
+            ""                                                               "");",7
 1d39833446340e262020c83d9ef3124da6a1e3f7,Add progress to ccmake,[],Source/CursesDialog/cmCursesMainForm.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_743.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_743.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_743.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1437.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1437.cpp,381,381,384,392,,"sprintf(thirdLine, 
-            ""                                                               "");",5
+            ""                                                               "");",7
 1d39833446340e262020c83d9ef3124da6a1e3f7,Add progress to ccmake,[],Source/CursesDialog/cmCursesMainForm.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_743.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_743.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_743.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1438.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1438.cpp,399,413,398,412,"sprintf(thirdLine,  ""Press [t] to toggle advanced mode (Currently Off)"");;","sprintf(thirdLine,  ""Press [t] to toggle advanced mode (Currently Off)"");;",4
 1d39833446340e262020c83d9ef3124da6a1e3f7,Add progress to ccmake,[],Source/CursesDialog/cmCursesMainForm.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_743.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_743.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_743.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1438.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1438.cpp,399,413,401,415,"f(secondLine, ""Press [h] for help         Press [q] to quit without generating"");","f(secondLine, 
             ""Press [h] for help         Press [q] to quit without generating"");",4
@@ -17945,14 +17945,14 @@ dbd13144a36d4d46cf9a69ba016ed47af7c988c7,possible fix for warnings,[],Source/cmW
 561a3da2043c3fbebd1f90c88842513625076aed,"Several changes: COMPILE_DEFINITIONS is now depricated. If you want to specify some, use CMAKE_FLAGS -DCMAKE_DEFINITIONS:STRING=...; same goes for libraries, include path, ... It now detects wether the file is C or C++ and uses the apropriate project command, it also does the right thing when doing try_compile, so it does not execute configure for every single try_compile",[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_758.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_758.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_758.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1459.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1459.cpp,133,133,141,170,,"fprintf(fout, ""INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n"");",7
 561a3da2043c3fbebd1f90c88842513625076aed,"Several changes: COMPILE_DEFINITIONS is now depricated. If you want to specify some, use CMAKE_FLAGS -DCMAKE_DEFINITIONS:STRING=...; same goes for libraries, include path, ... It now detects wether the file is C or C++ and uses the apropriate project command, it also does the right thing when doing try_compile, so it does not execute configure for every single try_compile",[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_758.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_758.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_758.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1459.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1459.cpp,133,133,141,171,,"fprintf(fout, ""LINK_DIRECTORIES(${LINK_DIRECTORIES})\n"");",7
 5d0716439fc07bfa5e8605efa3fc8be5c98217ed,Fix tryrun to work on Linux,[],Source/cmTryRunCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_759.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_759.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_759.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1460.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1460.cpp,93,98,94,99,"sprintf(retChar,""%i"",retVal);","sprintf(retChar,""%i"",retVal);",4
-d4f5545007c99259dcb7414d975a5446d5163933,updated to try compile,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1461.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1461.cpp,89,108,93,112,"fprintf(fout,""PROJECT(CMAKE_TRY_COMPILE)\n"");","fprintf(fout, ""PROJECT(CMAKE_TRY_COMPILE)\n"");",4
-d4f5545007c99259dcb7414d975a5446d5163933,updated to try compile,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1461.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1461.cpp,89,108,94,113,"fprintf(fout, ""IF (CMAKE_ANSI_CXXFLAGS)\n"");","fprintf(fout, ""IF (CMAKE_ANSI_CXXFLAGS)\n"");",4
-d4f5545007c99259dcb7414d975a5446d5163933,updated to try compile,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1461.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1461.cpp,89,108,95,114,"fprintf(fout, ""  SET(CMAKE_CXX_FLAGS \""${CMAKE_CXX_FLAGS} ${CMAKE_ANSI_CXXFLAGS}\"")\n"");","fprintf(fout, ""  SET(CMAKE_CXX_FLAGS \""${CMAKE_CXX_FLAGS} ${CMAKE_ANSI_CXXFLAGS}\"")\n"");",4
-d4f5545007c99259dcb7414d975a5446d5163933,updated to try compile,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1461.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1461.cpp,89,108,96,115,"fprintf(fout, ""ENDIF (CMAKE_ANSI_CXXFLAGS)\n"");","fprintf(fout, ""ENDIF (CMAKE_ANSI_CXXFLAGS)\n"");",4
-d4f5545007c99259dcb7414d975a5446d5163933,updated to try compile,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1461.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1461.cpp,89,108,97,127,"fprintf(fout,""ADD_EXECUTABLE(cmTryCompileExec \""%s\"")\n"",argv[2].c_str());","fprintf(fout, ""ADD_EXECUTABLE(cmTryCompileExec \""%s\"")\n"",argv[2].c_str());",4
-d4f5545007c99259dcb7414d975a5446d5163933,updated to try compile,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1461.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1461.cpp,89,108,98,119,,"fprintf(fout, ""ADD_DEFINITIONS( "");",5
-d4f5545007c99259dcb7414d975a5446d5163933,updated to try compile,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1461.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1461.cpp,89,108,98,122,,"fprintf(fout,""%s "",compileFlags[i].c_str());",5
-d4f5545007c99259dcb7414d975a5446d5163933,updated to try compile,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1461.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1461.cpp,89,108,98,124,,"fprintf(fout, "")\n"");",5
+d4f5545007c99259dcb7414d975a5446d5163933,updated to try compile,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1461.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1461.cpp,89,108,93,112,"fprintf(fout,""PROJECT(CMAKE_TRY_COMPILE)\n"");","fprintf(fout, ""PROJECT(CMAKE_TRY_COMPILE)\n"");",6
+d4f5545007c99259dcb7414d975a5446d5163933,updated to try compile,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1461.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1461.cpp,89,108,94,113,"fprintf(fout, ""IF (CMAKE_ANSI_CXXFLAGS)\n"");","fprintf(fout, ""IF (CMAKE_ANSI_CXXFLAGS)\n"");",6
+d4f5545007c99259dcb7414d975a5446d5163933,updated to try compile,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1461.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1461.cpp,89,108,95,114,"fprintf(fout, ""  SET(CMAKE_CXX_FLAGS \""${CMAKE_CXX_FLAGS} ${CMAKE_ANSI_CXXFLAGS}\"")\n"");","fprintf(fout, ""  SET(CMAKE_CXX_FLAGS \""${CMAKE_CXX_FLAGS} ${CMAKE_ANSI_CXXFLAGS}\"")\n"");",6
+d4f5545007c99259dcb7414d975a5446d5163933,updated to try compile,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1461.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1461.cpp,89,108,96,115,"fprintf(fout, ""ENDIF (CMAKE_ANSI_CXXFLAGS)\n"");","fprintf(fout, ""ENDIF (CMAKE_ANSI_CXXFLAGS)\n"");",6
+d4f5545007c99259dcb7414d975a5446d5163933,updated to try compile,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1461.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1461.cpp,89,108,97,127,"fprintf(fout,""ADD_EXECUTABLE(cmTryCompileExec \""%s\"")\n"",argv[2].c_str());","fprintf(fout, ""ADD_EXECUTABLE(cmTryCompileExec \""%s\"")\n"",argv[2].c_str());",6
+d4f5545007c99259dcb7414d975a5446d5163933,updated to try compile,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1461.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1461.cpp,89,108,98,119,,"fprintf(fout, ""ADD_DEFINITIONS( "");",7
+d4f5545007c99259dcb7414d975a5446d5163933,updated to try compile,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1461.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1461.cpp,89,108,98,122,,"fprintf(fout,""%s "",compileFlags[i].c_str());",7
+d4f5545007c99259dcb7414d975a5446d5163933,updated to try compile,[],Source/cmTryCompileCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_760.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_760.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1461.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1461.cpp,89,108,98,124,,"fprintf(fout, "")\n"");",7
 6769e8447291ab73cbf904a9470e4a7094c34e4d,Improve message handler to include client data.,[],Source/CursesDialog/ccmake.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_761.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_761.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_761.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1462.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1462.cpp,52,52,56,57,"cmCursesForm::CurrentForm->AddError(message, title);","self->AddError(message, title);",7
 2ca71beb2a480e75be4443e1bf425afdc5edc973,Fix problem with ccmake crashing on empty caches,[],Source/CursesDialog/cmCursesMainForm.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_762.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_762.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_762.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1463.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1463.cpp,450,450,475,478,"sprintf(help,"" "");","sprintf(help,"" "");",4
 bea21587cf35f9d373314dd67c24b99fd0e11e49,updated makefile moved commands into cmake and fixed try compile,[],Source/cmMakefile.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_763.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_763.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_763.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1464.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1464.cpp,898,867,909,-1,"sprintf(tmp,""Version %d.%d"", cmMakefile::GetMajorVersion(),
@@ -18074,13 +18074,13 @@ d8088655ffdbe947c9e701e49f2b95d6525b6f5d,minor fix,[],Source/cmVTKWrapTclCommand
 	  cmMakefile::GetMinorVersion());",7
 4848c81428b8b8218eb86f23451ff32d78c039cd,Many improvements.,[],Source/CursesDialog/cmCursesMainForm.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_782.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_782.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_782.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1488.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1488.cpp,212,221,219,239,,"sprintf(firstLine,  ""C)onfigure             G)enerate and Exit"");",7
 4848c81428b8b8218eb86f23451ff32d78c039cd,Many improvements.,[],Source/CursesDialog/cmCursesMainForm.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_782.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_782.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_782.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1488.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1488.cpp,212,221,219,240,,"sprintf(secondLine, ""Q)uit                  H)elp"");",7
-b502515ad1a41b6487d3883db0c133f6e4fe4fe4,memory leak,[],Source/cmVTKWrapTclCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_783.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1489.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1489.cpp,269,269,269,269,"fprintf(fout,""\nextern void vtkTclGenericDeleteObject(ClientData cd);\n"");","fprintf(fout,""\nextern void vtkTclGenericDeleteObject(ClientData cd);\n"");",4
-b502515ad1a41b6487d3883db0c133f6e4fe4fe4,memory leak,[],Source/cmVTKWrapTclCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_783.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1489.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1489.cpp,269,269,272,280,"fprintf(fout,""\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n"",kitName);","fprintf(fout,""\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n"",kitName);",4
-b502515ad1a41b6487d3883db0c133f6e4fe4fe4,memory leak,[],Source/cmVTKWrapTclCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_783.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1489.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1489.cpp,269,269,273,281,"fprintf(fout,""  return %s_Init(interp);\n}\n"",kitName);","fprintf(fout,""  return %s_Init(interp);\n}\n"",kitName);",4
-b502515ad1a41b6487d3883db0c133f6e4fe4fe4,memory leak,[],Source/cmVTKWrapTclCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_783.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1489.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1489.cpp,269,269,271,273,,"fprintf(fout,""void vtkCommonDeleteAssocData(ClientData cd, Tcl_Interp *)\n"");",5
-b502515ad1a41b6487d3883db0c133f6e4fe4fe4,memory leak,[],Source/cmVTKWrapTclCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_783.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1489.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1489.cpp,269,269,271,274,,"fprintf(fout,""  {\n"");",5
-b502515ad1a41b6487d3883db0c133f6e4fe4fe4,memory leak,[],Source/cmVTKWrapTclCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_783.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1489.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1489.cpp,269,269,271,275,,"fprintf(fout,""  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n"");",5
-b502515ad1a41b6487d3883db0c133f6e4fe4fe4,memory leak,[],Source/cmVTKWrapTclCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_783.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1489.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1489.cpp,269,269,271,276,,"fprintf(fout,""  delete tis;\n  }\n"");",5
+b502515ad1a41b6487d3883db0c133f6e4fe4fe4,memory leak,[],Source/cmVTKWrapTclCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_783.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1489.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1489.cpp,269,269,269,269,"fprintf(fout,""\nextern void vtkTclGenericDeleteObject(ClientData cd);\n"");","fprintf(fout,""\nextern void vtkTclGenericDeleteObject(ClientData cd);\n"");",6
+b502515ad1a41b6487d3883db0c133f6e4fe4fe4,memory leak,[],Source/cmVTKWrapTclCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_783.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1489.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1489.cpp,269,269,272,280,"fprintf(fout,""\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n"",kitName);","fprintf(fout,""\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n"",kitName);",6
+b502515ad1a41b6487d3883db0c133f6e4fe4fe4,memory leak,[],Source/cmVTKWrapTclCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_783.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1489.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1489.cpp,269,269,273,281,"fprintf(fout,""  return %s_Init(interp);\n}\n"",kitName);","fprintf(fout,""  return %s_Init(interp);\n}\n"",kitName);",6
+b502515ad1a41b6487d3883db0c133f6e4fe4fe4,memory leak,[],Source/cmVTKWrapTclCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_783.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1489.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1489.cpp,269,269,271,273,,"fprintf(fout,""void vtkCommonDeleteAssocData(ClientData cd, Tcl_Interp *)\n"");",7
+b502515ad1a41b6487d3883db0c133f6e4fe4fe4,memory leak,[],Source/cmVTKWrapTclCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_783.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1489.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1489.cpp,269,269,271,274,,"fprintf(fout,""  {\n"");",7
+b502515ad1a41b6487d3883db0c133f6e4fe4fe4,memory leak,[],Source/cmVTKWrapTclCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_783.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1489.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1489.cpp,269,269,271,275,,"fprintf(fout,""  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n"");",7
+b502515ad1a41b6487d3883db0c133f6e4fe4fe4,memory leak,[],Source/cmVTKWrapTclCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_783.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_783.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1489.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1489.cpp,269,269,271,276,,"fprintf(fout,""  delete tis;\n  }\n"");",7
 faafcdddbf83e3efc96eb04fd80cce4c8514a5fa,updated testing,[],Source/ctest.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_784.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_784.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_784.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1490.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1490.cpp,153,154,159,160,"fprintf(stderr,""***Failed\n"");","fprintf(stderr,""***Failed\n"");",4
 08a89bd8dc87fb904d10a0b1718e7c61da725c12,added regexp option,[],Source/ctest.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_786.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_786.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_786.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1492.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1492.cpp,125,128,130,131,"fprintf(stderr,""Testing %-30s "",args[0].c_str());","(name == ""ADD_TEST"")
         {
