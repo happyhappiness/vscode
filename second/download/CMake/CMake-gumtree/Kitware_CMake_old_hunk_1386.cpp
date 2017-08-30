@@ -1,16 +1,8 @@
     fprintf(logfile, "ADDR %s:%d freeaddrinfo(%p)\n",
-
             source, line, (void *)freethis);
-
 }
-
-
 
 #endif
 
-
-
 /*
-
  * Curl_ipvalid() checks what CURL_IPRESOLVE_* requirements that might've
-

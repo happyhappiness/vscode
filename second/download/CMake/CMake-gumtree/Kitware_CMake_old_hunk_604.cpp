@@ -1,12 +1,6 @@
 			return (ARCHIVE_FATAL);
-
 		}
-
 	}
-
 }
 
-
-
 /*
-

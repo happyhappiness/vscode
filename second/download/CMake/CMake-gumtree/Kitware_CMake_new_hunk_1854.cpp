@@ -1,44 +1,22 @@
   SetIcon(m_hIcon, FALSE);		// Set small icon
-
   // Load source and build dirs from registry
-
   this->LoadFromRegistry();
-
   cmake m; // force a register of generators
-
   std::vector<std::string> names;
-
   cmMakefileGenerator::GetRegisteredGenerators(names);
-
   for(std::vector<std::string>::iterator i = names.begin();
-
       i != names.end(); ++i)
-
     {
-
     m_GeneratorChoice.AddString(i->c_str());
-
     }
-
   m_GeneratorChoiceString = "Visual Studio 6";
 
-
-
   // try to load the cmake cache from disk
-
   this->LoadCacheFromDiskToGUI();
-
   m_WhereBuildControl.LimitText(2048);
-
   m_WhereSourceControl.LimitText(2048);
-
   m_GeneratorChoice.LimitText(2048);
-
     
-
   // Set the version number
-
   char tmp[1024];
-
   sprintf(tmp,"Version %d.%d", cmMakefile::GetMajorVersion(),
-

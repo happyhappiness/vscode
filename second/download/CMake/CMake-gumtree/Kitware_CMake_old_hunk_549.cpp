@@ -1,6 +1,3 @@
    CloseHandle(hFile);
-
    return true;
-
 }
-

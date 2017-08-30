@@ -24,7 +24,7 @@ sys.setdefaultencoding('utf8')
 @ return bool has log and updated hunk counter
 @ involve deal with patch file and save hunk info(has log)
 """
-def deal_patch(patch_info, patch, total_hunk, writer):
+def deal_patch(patch_info, patch, total_hunk, writer, caller_flag):
 
     has_log = False
 
@@ -79,12 +79,12 @@ def deal_patch(patch_info, patch, total_hunk, writer):
         # decide if it belongs to log change
         is_log_change = re.search(log_function, line, re.I)
         if change_type != '-':
-            new_hunk += (line[1:]) + '\n'
+            new_hunk += (line[1:]) + caller_flag
             if is_log_change:
                 new_log_loc.append(new_loc)
             new_loc += 1
         if change_type != '+':
-            old_hunk += (line[1:]) + '\n'
+            old_hunk += (line[1:]) + caller_flag
             if is_log_change:
                 old_log_loc.append(old_loc)
             old_loc += 1
@@ -170,7 +170,7 @@ def fetch_patch():
         curr_patch_file = patch_info[my_constant.FETCH_PATCH_PATCH_FILE]
         curr_patch_file = open(curr_patch_file, 'rb')
         patch = curr_patch_file.readlines()
-        has_log, total_hunk = deal_patch(patch_info, patch, total_hunk, hunk_writer)
+        has_log, total_hunk = deal_patch(patch_info, patch, total_hunk, hunk_writer, '')
         curr_patch_file.close()
 
     hunk_file.close()
@@ -209,7 +209,7 @@ def deal_commit(gh, sha, total_hunk, total_log_cpp, total_cpp, total_file, hunk_
                     continue
                 # call deal_patch to deal with the patch file
                 patch = patch.split('\n')
-                has_log, total_hunk = deal_patch(patch_info, patch, total_hunk, hunk_writer)
+                has_log, total_hunk = deal_patch(patch_info, patch, total_hunk, hunk_writer, '/n')
                 if has_log:
                     patch_writer.writerow(patch_info)
                     # increment the file count
