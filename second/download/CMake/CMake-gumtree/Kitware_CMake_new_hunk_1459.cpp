@@ -1,43 +1,14 @@
-                           outFileName.c_str());
-      return -1;
-      }
-    
-    std::string source = argv[2];
-    cmSystemTools::e_FileFormat format = 
-      cmSystemTools::GetFileFormat( 
-        cmSystemTools::GetFilenameExtension(source).c_str());
-    if ( format == cmSystemTools::C_FILE_FORMAT )
-      {
-      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE C)\n");      
-      }
-    else if ( format == cmSystemTools::CXX_FILE_FORMAT )
-      {
-      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE CXX)\n");      
-      }
-    else
-      {
-      cmSystemTools::Error("Unknown file format for file: ", source.c_str(), 
-                           "; TRY_COMPILE only works for C and CXX files");
-      return -1;
-      }
+    fflush(stderr);
 
-    if ( format == cmSystemTools::CXX_FILE_FORMAT )
-      {
-      fprintf(fout, "IF (CMAKE_ANSI_CXXFLAGS)\n");
-      fprintf(fout, "  SET(CMAKE_CXX_FLAGS \"${CMAKE_CXX_FLAGS}"
-              " ${CMAKE_ANSI_CXXFLAGS}\")\n");
-      fprintf(fout, "ENDIF (CMAKE_ANSI_CXXFLAGS)\n");
-      }
+    r = runChild(cmd, states[n-1], exceptions[n-1], values[n-1], 0,
 
-    if ( format == cmSystemTools::C_FILE_FORMAT )
-      {
-      fprintf(fout, "IF (CMAKE_ANSI_CFLAGS)\n");
-      fprintf(fout, "  SET(CMAKE_C_FLAGS \"${CMAKE_C_FLAGS} ${CMAKE_ANSI_CFLAGS}\")\n");
-      fprintf(fout, "ENDIF (CMAKE_ANSI_CFLAGS)\n");
-      }
-    fprintf(fout, "ADD_DEFINITIONS(${COMPILE_DEFINITIONS})\n");
-    fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (compileFlags.size())
-      {
+                 outputs[n-1], delays[n-1], timeouts[n-1],
+
+                 polls[n-1], repeat[n-1], 0);
+
+    fprintf(stdout, "Output on stdout after test %d.\n", n);
+
+    fprintf(stderr, "Output on stderr after test %d.\n", n);
+
+    fflush(stdout);
+

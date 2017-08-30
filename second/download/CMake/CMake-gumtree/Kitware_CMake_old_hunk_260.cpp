@@ -1,7 +1,12 @@
+				 * NULL pointer to strlen().  */
 
-        lerr = SSL_get_verify_result(connssl->handle);
-        if(lerr != X509_V_OK) {
-          data->set.ssl.certverifyresult = lerr;
-          snprintf(error_buffer, sizeof(error_buffer),
-                   "SSL certificate problem: %s",
-                   X509_verify_cert_error_string(lerr));
+	switch (key[0]) {
+
+	case 'G':
+
+		/* GNU "0.0" sparse pax format. */
+
+		if (strcmp(key, "GNU.sparse.numblocks") == 0) {
+
+			tar->sparse_offset = -1;
+

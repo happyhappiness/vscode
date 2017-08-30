@@ -1,7 +1,22 @@
-int check_defines_C(void)
-{
-  int result = 1;
-#ifndef PREPROCESS_VS6
-  if(strcmp(FILE_STRING, STRING_VALUE) != 0)
-    {
-    fprintf(stderr,
+			else
+
+				ret = ARCHIVE_FATAL;
+
+		}
+
+	} else
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "cab: unknown keyword ``%s''", key);
+
+
+
+	return (ret);
+
+}
+
+
+
+static int
+

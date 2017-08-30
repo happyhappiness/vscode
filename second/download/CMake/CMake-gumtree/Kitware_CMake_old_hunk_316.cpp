@@ -1,158 +1,1114 @@
-  return 0;
-}
 
-static int runChild2(kwsysProcess* kp,
-              const char* cmd[], int state, int exception, int value,
-              int share, int output, int delay, double timeout,
-              int poll, int disown, int createNewGroup,
-              unsigned int interruptDelay)
-{
-  int result = 0;
-  char* data = 0;
-  int length = 0;
-  double userTimeout = 0;
-  double* pUserTimeout = 0;
-  kwsysProcess_SetCommand(kp, cmd);
-  if(timeout >= 0)
-    {
-    kwsysProcess_SetTimeout(kp, timeout);
-    }
-  if(share)
-    {
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
-    }
-  if(disown)
-    {
-    kwsysProcess_SetOption(kp, kwsysProcess_Option_Detach, 1);
-    }
-  if(createNewGroup)
-    {
-    kwsysProcess_SetOption(kp, kwsysProcess_Option_CreateProcessGroup, 1);
-    }
-  kwsysProcess_Execute(kp);
 
-  if(poll)
-    {
-    pUserTimeout = &userTimeout;
-    }
+/* Code executed at the end of each rule. */
 
-  if(interruptDelay)
-    {
-    testProcess_sleep(interruptDelay);
-    kwsysProcess_Interrupt(kp);
-    }
+#ifndef YY_BREAK
 
-  if(!share && !disown)
-    {
-    int p;
-    while((p = kwsysProcess_WaitForData(kp, &data, &length, pUserTimeout)))
-      {
-      if(output)
-        {
-        if(poll && p == kwsysProcess_Pipe_Timeout)
-          {
-          fprintf(stdout, "WaitForData timeout reached.\n");
-          fflush(stdout);
+#define YY_BREAK break;
 
-          /* Count the number of times we polled without getting data.
-             If it is excessive then kill the child and fail.  */
-          if(++poll >= MAXPOLL)
-            {
-            fprintf(stdout, "Poll count reached limit %d.\n",
-                    MAXPOLL);
-            kwsysProcess_Kill(kp);
-            }
-          }
-        else
-          {
-          fwrite(data, 1, (size_t) length, stdout);
-          fflush(stdout);
-          }
-        }
-      if(poll)
-        {
-        /* Delay to avoid busy loop during polling.  */
-        testProcess_usleep(100000);
-        }
-      if(delay)
-        {
-        /* Purposely sleeping only on Win32 to let pipe fill up.  */
-#if defined(_WIN32)
-        testProcess_usleep(100000);
 #endif
-        }
-      }
-    }
 
-  if(disown)
-    {
-    kwsysProcess_Disown(kp);
-    }
-  else
-    {
-    kwsysProcess_WaitForExit(kp, 0);
-    }
 
-  switch (kwsysProcess_GetState(kp))
-    {
-    case kwsysProcess_State_Starting:
-      printf("No process has been executed.\n"); break;
-    case kwsysProcess_State_Executing:
-      printf("The process is still executing.\n"); break;
-    case kwsysProcess_State_Expired:
-      printf("Child was killed when timeout expired.\n"); break;
-    case kwsysProcess_State_Exited:
-      printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Killed:
-      printf("Child was killed by parent.\n"); break;
-    case kwsysProcess_State_Exception:
-      printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Disowned:
-      printf("Child was disowned.\n"); break;
-    case kwsysProcess_State_Error:
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
 
-  if(result)
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
-      {
-      fprintf(stderr, "Mismatch in exit exception.  "
-              "Should have been %d, was %d.\n",
-              exception, kwsysProcess_GetExitException(kp));
-      }
-    if(value != kwsysProcess_GetExitValue(kp))
-      {
-      fprintf(stderr, "Mismatch in exit value.  "
-              "Should have been %d, was %d.\n",
-              value, kwsysProcess_GetExitValue(kp));
-      }
-    }
+#define YY_RULE_SETUP \
 
-  if(kwsysProcess_GetState(kp) != state)
-    {
-    fprintf(stderr, "Mismatch in state.  "
-            "Should have been %d, was %d.\n",
-            state, kwsysProcess_GetState(kp));
-    result = 1;
-    }
+        YY_USER_ACTION
 
-  /* We should have polled more times than there were data if polling
-     was enabled.  */
-  if(poll && poll < MINPOLL)
-    {
-    fprintf(stderr, "Poll count is %d, which is less than %d.\n",
-            poll, MINPOLL);
-    result = 1;
-    }
 
-  return result;
+
+/** The main scanner function which does all the work.
+
+ */
+
+YY_DECL
+
+{
+
+        yy_state_type yy_current_state;
+
+        char *yy_cp, *yy_bp;
+
+        int yy_act;
+
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+
+
+
+#line 64 "cmCommandArgumentLexer.in.l"
+
+
+
+
+
+#line 732 "cmCommandArgumentLexer.cxx"
+
+
+
+        if ( !yyg->yy_init )
+
+                {
+
+                yyg->yy_init = 1;
+
+
+
+#ifdef YY_USER_INIT
+
+                YY_USER_INIT;
+
+#endif
+
+
+
+                if ( ! yyg->yy_start )
+
+                        yyg->yy_start = 1;      /* first start state */
+
+
+
+                if ( ! yyin )
+
+                        yyin = stdin;
+
+
+
+                if ( ! yyout )
+
+                        yyout = stdout;
+
+
+
+                if ( ! YY_CURRENT_BUFFER ) {
+
+                        cmCommandArgument_yyensure_buffer_stack (yyscanner);
+
+                        YY_CURRENT_BUFFER_LVALUE =
+
+                                cmCommandArgument_yy_create_buffer(yyin,YY_BUF_SIZE ,yyscanner);
+
+                }
+
+
+
+                cmCommandArgument_yy_load_buffer_state(yyscanner );
+
+                }
+
+
+
+        for(;;)             /* loops until end-of-file is reached */
+
+                {
+
+                yy_cp = yyg->yy_c_buf_p;
+
+
+
+                /* Support of yytext. */
+
+                *yy_cp = yyg->yy_hold_char;
+
+
+
+                /* yy_bp points to the position in yy_ch_buf of the start of
+
+                 * the current run.
+
+                 */
+
+                yy_bp = yy_cp;
+
+
+
+                yy_current_state = yyg->yy_start;
+
+yy_match:
+
+                do
+
+                        {
+
+                        YY_CHAR yy_c = yy_ec[YY_SC_TO_UI(*yy_cp)];
+
+                        if ( yy_accept[yy_current_state] )
+
+                                {
+
+                                yyg->yy_last_accepting_state = yy_current_state;
+
+                                yyg->yy_last_accepting_cpos = yy_cp;
+
+                                }
+
+                        while ( yy_chk[yy_base[yy_current_state] + yy_c] != yy_current_state )
+
+                                {
+
+                                yy_current_state = (int) yy_def[yy_current_state];
+
+                                if ( yy_current_state >= 30 )
+
+                                        yy_c = yy_meta[(unsigned int) yy_c];
+
+                                }
+
+                        yy_current_state = yy_nxt[yy_base[yy_current_state] + (unsigned int) yy_c];
+
+                        ++yy_cp;
+
+                        }
+
+                while ( yy_base[yy_current_state] != 41 );
+
+
+
+yy_find_action:
+
+                yy_act = yy_accept[yy_current_state];
+
+                if ( yy_act == 0 )
+
+                        { /* have to back up */
+
+                        yy_cp = yyg->yy_last_accepting_cpos;
+
+                        yy_current_state = yyg->yy_last_accepting_state;
+
+                        yy_act = yy_accept[yy_current_state];
+
+                        }
+
+
+
+                YY_DO_BEFORE_ACTION;
+
+
+
+do_action:      /* This label is used only to access EOF actions. */
+
+
+
+                switch ( yy_act )
+
+        { /* beginning of action switch */
+
+                        case 0: /* must back up */
+
+                        /* undo the effects of YY_DO_BEFORE_ACTION */
+
+                        *yy_cp = yyg->yy_hold_char;
+
+                        yy_cp = yyg->yy_last_accepting_cpos;
+
+                        yy_current_state = yyg->yy_last_accepting_state;
+
+                        goto yy_find_action;
+
+
+
+case 1:
+
+YY_RULE_SETUP
+
+#line 66 "cmCommandArgumentLexer.in.l"
+
+{
+
+  //std::cerr << __LINE__ << " here: [" << yytext << "]" << std::endl;
+
+  yyextra->AllocateParserType(yylvalp, yytext+1, strlen(yytext)-2);
+
+  return cal_ENVCURLY;
+
 }
+
+case 2:
+
+YY_RULE_SETUP
+
+#line 72 "cmCommandArgumentLexer.in.l"
+
+{
+
+  //std::cerr << __LINE__ << " here: [" << yytext << "]" << std::endl;
+
+  yyextra->AllocateParserType(yylvalp, yytext+1, strlen(yytext)-2);
+
+  return cal_NCURLY;
+
+}
+
+case 3:
+
+YY_RULE_SETUP
+
+#line 78 "cmCommandArgumentLexer.in.l"
+
+{
+
+  //std::cerr << __LINE__ << " here: [" << yytext << "]" << std::endl;
+
+  yyextra->AllocateParserType(yylvalp, yytext+1, strlen(yytext)-2);
+
+  return cal_ATNAME;
+
+}
+
+case 4:
+
+YY_RULE_SETUP
+
+#line 84 "cmCommandArgumentLexer.in.l"
+
+{
+
+  //std::cerr << __LINE__ << " here: [" << yytext << "]" << std::endl;
+
+  //yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
+
+  yylvalp->str = yyextra->DCURLYVariable;
+
+  return cal_DCURLY;
+
+}
+
+case 5:
+
+YY_RULE_SETUP
+
+#line 91 "cmCommandArgumentLexer.in.l"
+
+{
+
+  //std::cerr << __LINE__ << " here: [" << yytext << "]" << std::endl;
+
+  //yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
+
+  yylvalp->str = yyextra->RCURLYVariable;
+
+  return cal_RCURLY;
+
+}
+
+case 6:
+
+YY_RULE_SETUP
+
+#line 98 "cmCommandArgumentLexer.in.l"
+
+{
+
+  //std::cerr << __LINE__ << " here: [" << yytext << "]" << std::endl;
+
+  //yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
+
+  yylvalp->str = yyextra->ATVariable;
+
+  return cal_AT;
+
+}
+
+case 7:
+
+YY_RULE_SETUP
+
+#line 105 "cmCommandArgumentLexer.in.l"
+
+{
+
+  //std::cerr << __LINE__ << " here: [" << yytext << "]" << std::endl;
+
+  yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
+
+  return cal_NAME;
+
+}
+
+case 8:
+
+YY_RULE_SETUP
+
+#line 111 "cmCommandArgumentLexer.in.l"
+
+{
+
+  if ( !yyextra->HandleEscapeSymbol(yylvalp, *(yytext+1)) )
+
+    {
+
+    return cal_ERROR;
+
+    }
+
+  return cal_SYMBOL;
+
+}
+
+case 9:
+
+/* rule 9 can match eol */
+
+YY_RULE_SETUP
+
+#line 119 "cmCommandArgumentLexer.in.l"
+
+{
+
+  //std::cerr << __LINE__ << " here: [" << yytext << "]" << std::endl;
+
+  yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
+
+  return cal_SYMBOL;
+
+}
+
+case 10:
+
+YY_RULE_SETUP
+
+#line 125 "cmCommandArgumentLexer.in.l"
+
+{
+
+  //yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
+
+  yylvalp->str = yyextra->DOLLARVariable;
+
+  return cal_DOLLAR;
+
+}
+
+case 11:
+
+YY_RULE_SETUP
+
+#line 131 "cmCommandArgumentLexer.in.l"
+
+{
+
+  //yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
+
+  yylvalp->str = yyextra->LCURLYVariable;
+
+  return cal_LCURLY;
+
+}
+
+case 12:
+
+YY_RULE_SETUP
+
+#line 137 "cmCommandArgumentLexer.in.l"
+
+{
+
+  //yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
+
+  yylvalp->str = yyextra->BSLASHVariable;
+
+  return cal_BSLASH;
+
+}
+
+case 13:
+
+YY_RULE_SETUP
+
+#line 143 "cmCommandArgumentLexer.in.l"
+
+{
+
+  //yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
+
+  yylvalp->str = yyextra->BSLASHVariable;
+
+  return cal_SYMBOL;
+
+}
+
+case 14:
+
+YY_RULE_SETUP
+
+#line 149 "cmCommandArgumentLexer.in.l"
+
+ECHO;
+
+        YY_BREAK
+
+#line 943 "cmCommandArgumentLexer.cxx"
+
+case YY_STATE_EOF(INITIAL):
+
+case YY_STATE_EOF(ESCAPES):
+
+case YY_STATE_EOF(NOESCAPES):
+
+        yyterminate();
+
+
+
+        case YY_END_OF_BUFFER:
+
+                {
+
+                /* Amount of text matched not including the EOB char. */
+
+                int yy_amount_of_matched_text = (int) (yy_cp - yyg->yytext_ptr) - 1;
+
+
+
+                /* Undo the effects of YY_DO_BEFORE_ACTION. */
+
+                *yy_cp = yyg->yy_hold_char;
+
+                YY_RESTORE_YY_MORE_OFFSET
+
+
+
+                if ( YY_CURRENT_BUFFER_LVALUE->yy_buffer_status == YY_BUFFER_NEW )
+
+                        {
+
+                        /* We're scanning a new file or input source.  It's
+
+                         * possible that this happened because the user
+
+                         * just pointed yyin at a new source and called
+
+                         * cmCommandArgument_yylex().  If so, then we have to assure
+
+                         * consistency between YY_CURRENT_BUFFER and our
+
+                         * globals.  Here is the right place to do so, because
+
+                         * this is the first action (other than possibly a
+
+                         * back-up) that will match for the new input source.
+
+                         */
+
+                        yyg->yy_n_chars = YY_CURRENT_BUFFER_LVALUE->yy_n_chars;
+
+                        YY_CURRENT_BUFFER_LVALUE->yy_input_file = yyin;
+
+                        YY_CURRENT_BUFFER_LVALUE->yy_buffer_status = YY_BUFFER_NORMAL;
+
+                        }
+
+
+
+                /* Note that here we test for yy_c_buf_p "<=" to the position
+
+                 * of the first EOB in the buffer, since yy_c_buf_p will
+
+                 * already have been incremented past the NUL character
+
+                 * (since all states make transitions on EOB to the
+
+                 * end-of-buffer state).  Contrast this with the test
+
+                 * in input().
+
+                 */
+
+                if ( yyg->yy_c_buf_p <= &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars] )
+
+                        { /* This was really a NUL. */
+
+                        yy_state_type yy_next_state;
+
+
+
+                        yyg->yy_c_buf_p = yyg->yytext_ptr + yy_amount_of_matched_text;
+
+
+
+                        yy_current_state = yy_get_previous_state( yyscanner );
+
+
+
+                        /* Okay, we're now positioned to make the NUL
+
+                         * transition.  We couldn't have
+
+                         * yy_get_previous_state() go ahead and do it
+
+                         * for us because it doesn't know how to deal
+
+                         * with the possibility of jamming (and we don't
+
+                         * want to build jamming into it because then it
+
+                         * will run more slowly).
+
+                         */
+
+
+
+                        yy_next_state = yy_try_NUL_trans( yy_current_state , yyscanner);
+
+
+
+                        yy_bp = yyg->yytext_ptr + YY_MORE_ADJ;
+
+
+
+                        if ( yy_next_state )
+
+                                {
+
+                                /* Consume the NUL. */
+
+                                yy_cp = ++yyg->yy_c_buf_p;
+
+                                yy_current_state = yy_next_state;
+
+                                goto yy_match;
+
+                                }
+
+
+
+                        else
+
+                                {
+
+                                yy_cp = yyg->yy_c_buf_p;
+
+                                goto yy_find_action;
+
+                                }
+
+                        }
+
+
+
+                else switch ( yy_get_next_buffer( yyscanner ) )
+
+                        {
+
+                        case EOB_ACT_END_OF_FILE:
+
+                                {
+
+                                yyg->yy_did_buffer_switch_on_eof = 0;
+
+
+
+                                if ( cmCommandArgument_yywrap(yyscanner ) )
+
+                                        {
+
+                                        /* Note: because we've taken care in
+
+                                         * yy_get_next_buffer() to have set up
+
+                                         * yytext, we can now set up
+
+                                         * yy_c_buf_p so that if some total
+
+                                         * hoser (like flex itself) wants to
+
+                                         * call the scanner after we return the
+
+                                         * YY_NULL, it'll still work - another
+
+                                         * YY_NULL will get returned.
+
+                                         */
+
+                                        yyg->yy_c_buf_p = yyg->yytext_ptr + YY_MORE_ADJ;
+
+
+
+                                        yy_act = YY_STATE_EOF(YY_START);
+
+                                        goto do_action;
+
+                                        }
+
+
+
+                                else
+
+                                        {
+
+                                        if ( ! yyg->yy_did_buffer_switch_on_eof )
+
+                                                YY_NEW_FILE;
+
+                                        }
+
+                                break;
+
+                                }
+
+
+
+                        case EOB_ACT_CONTINUE_SCAN:
+
+                                yyg->yy_c_buf_p =
+
+                                        yyg->yytext_ptr + yy_amount_of_matched_text;
+
+
+
+                                yy_current_state = yy_get_previous_state( yyscanner );
+
+
+
+                                yy_cp = yyg->yy_c_buf_p;
+
+                                yy_bp = yyg->yytext_ptr + YY_MORE_ADJ;
+
+                                goto yy_match;
+
+
+
+                        case EOB_ACT_LAST_MATCH:
+
+                                yyg->yy_c_buf_p =
+
+                                &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars];
+
+
+
+                                yy_current_state = yy_get_previous_state( yyscanner );
+
+
+
+                                yy_cp = yyg->yy_c_buf_p;
+
+                                yy_bp = yyg->yytext_ptr + YY_MORE_ADJ;
+
+                                goto yy_find_action;
+
+                        }
+
+                break;
+
+                }
+
+
+
+        default:
+
+                YY_FATAL_ERROR(
+
+                        "fatal flex scanner internal error--no action found" );
+
+        } /* end of action switch */
+
+                } /* end of scanning one token */
+
+return 0; /* this should not happen but it quiets some compilers */
+
+} /* end of cmCommandArgument_yylex */
+
+
+
+/* yy_get_next_buffer - try to read in a new buffer
+
+ *
+
+ * Returns a code representing an action:
+
+ *      EOB_ACT_LAST_MATCH -
+
+ *      EOB_ACT_CONTINUE_SCAN - continue scanning from current position
+
+ *      EOB_ACT_END_OF_FILE - end of file
+
+ */
+
+static int yy_get_next_buffer (yyscan_t yyscanner)
+
+{
+
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+
+        char *dest = YY_CURRENT_BUFFER_LVALUE->yy_ch_buf;
+
+        char *source = yyg->yytext_ptr;
+
+        int number_to_move, i;
+
+        int ret_val;
+
+
+
+        if ( yyg->yy_c_buf_p > &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars + 1] )
+
+                YY_FATAL_ERROR(
+
+                "fatal flex scanner internal error--end of buffer missed" );
+
+
+
+        if ( YY_CURRENT_BUFFER_LVALUE->yy_fill_buffer == 0 )
+
+                { /* Don't try to fill the buffer, so this is an EOF. */
+
+                if ( yyg->yy_c_buf_p - yyg->yytext_ptr - YY_MORE_ADJ == 1 )
+
+                        {
+
+                        /* We matched a single character, the EOB, so
+
+                         * treat this as a final EOF.
+
+                         */
+
+                        return EOB_ACT_END_OF_FILE;
+
+                        }
+
+
+
+                else
+
+                        {
+
+                        /* We matched some text prior to the EOB, first
+
+                         * process it.
+
+                         */
+
+                        return EOB_ACT_LAST_MATCH;
+
+                        }
+
+                }
+
+
+
+        /* Try to read more data. */
+
+
+
+        /* First move last chars to start of buffer. */
+
+        number_to_move = (int) (yyg->yy_c_buf_p - yyg->yytext_ptr) - 1;
+
+
+
+        for ( i = 0; i < number_to_move; ++i )
+
+                *(dest++) = *(source++);
+
+
+
+        if ( YY_CURRENT_BUFFER_LVALUE->yy_buffer_status == YY_BUFFER_EOF_PENDING )
+
+                /* don't do the read, it's not guaranteed to return an EOF,
+
+                 * just force an EOF
+
+                 */
+
+                YY_CURRENT_BUFFER_LVALUE->yy_n_chars = yyg->yy_n_chars = 0;
+
+
+
+        else
+
+                {
+
+                        int num_to_read =
+
+                        YY_CURRENT_BUFFER_LVALUE->yy_buf_size - number_to_move - 1;
+
+
+
+                while ( num_to_read <= 0 )
+
+                        { /* Not enough room in the buffer - grow it. */
+
+
+
+                        /* just a shorter name for the current buffer */
+
+                        YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
+
+
+
+                        int yy_c_buf_p_offset =
+
+                                (int) (yyg->yy_c_buf_p - b->yy_ch_buf);
+
+
+
+                        if ( b->yy_is_our_buffer )
+
+                                {
+
+                                int new_size = b->yy_buf_size * 2;
+
+
+
+                                if ( new_size <= 0 )
+
+                                        b->yy_buf_size += b->yy_buf_size / 8;
+
+                                else
+
+                                        b->yy_buf_size *= 2;
+
+
+
+                                b->yy_ch_buf = (char *)
+
+                                        /* Include room in for 2 EOB chars. */
+
+                                        cmCommandArgument_yyrealloc((void *) b->yy_ch_buf,b->yy_buf_size + 2 ,yyscanner );
+
+                                }
+
+                        else
+
+                                /* Can't grow it, we don't own it. */
+
+                                b->yy_ch_buf = 0;
+
+
+
+                        if ( ! b->yy_ch_buf )
+
+                                YY_FATAL_ERROR(
+
+                                "fatal error - scanner input buffer overflow" );
+
+
+
+                        yyg->yy_c_buf_p = &b->yy_ch_buf[yy_c_buf_p_offset];
+
+
+
+                        num_to_read = YY_CURRENT_BUFFER_LVALUE->yy_buf_size -
+
+                                                number_to_move - 1;
+
+
+
+                        }
+
+
+
+                if ( num_to_read > YY_READ_BUF_SIZE )
+
+                        num_to_read = YY_READ_BUF_SIZE;
+
+
+
+                /* Read in more data. */
+
+                YY_INPUT( (&YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[number_to_move]),
+
+                        yyg->yy_n_chars, (size_t) num_to_read );
+
+
+
+                YY_CURRENT_BUFFER_LVALUE->yy_n_chars = yyg->yy_n_chars;
+
+                }
+
+
+
+        if ( yyg->yy_n_chars == 0 )
+
+                {
+
+                if ( number_to_move == YY_MORE_ADJ )
+
+                        {
+
+                        ret_val = EOB_ACT_END_OF_FILE;
+
+                        cmCommandArgument_yyrestart(yyin  ,yyscanner);
+
+                        }
+
+
+
+                else
+
+                        {
+
+                        ret_val = EOB_ACT_LAST_MATCH;
+
+                        YY_CURRENT_BUFFER_LVALUE->yy_buffer_status =
+
+                                YY_BUFFER_EOF_PENDING;
+
+                        }
+
+                }
+
+
+
+        else
+
+                ret_val = EOB_ACT_CONTINUE_SCAN;
+
+
+
+        if ((yy_size_t) (yyg->yy_n_chars + number_to_move) > YY_CURRENT_BUFFER_LVALUE->yy_buf_size) {
+
+                /* Extend the array by 50%, plus the number we really need. */
+
+                yy_size_t new_size = yyg->yy_n_chars + number_to_move + (yyg->yy_n_chars >> 1);
+
+                YY_CURRENT_BUFFER_LVALUE->yy_ch_buf = (char *) cmCommandArgument_yyrealloc((void *) YY_CURRENT_BUFFER_LVALUE->yy_ch_buf,new_size ,yyscanner );
+
+                if ( ! YY_CURRENT_BUFFER_LVALUE->yy_ch_buf )
+
+                        YY_FATAL_ERROR( "out of dynamic memory in yy_get_next_buffer()" );
+
+        }
+
+
+
+        yyg->yy_n_chars += number_to_move;
+
+        YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars] = YY_END_OF_BUFFER_CHAR;
+
+        YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars + 1] = YY_END_OF_BUFFER_CHAR;
+
+
+
+        yyg->yytext_ptr = &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[0];
+
+
+
+        return ret_val;
+
+}
+
+
+
+/* yy_get_previous_state - get the state just before the EOB char was reached */
+
+
+
+    static yy_state_type yy_get_previous_state (yyscan_t yyscanner)
+
+{
+
+        yy_state_type yy_current_state;
+
+        char *yy_cp;
+
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+
+
+
+        yy_current_state = yyg->yy_start;
+
+
+
+        for ( yy_cp = yyg->yytext_ptr + YY_MORE_ADJ; yy_cp < yyg->yy_c_buf_p; ++yy_cp )
+
+                {
+
+                YY_CHAR yy_c = (*yy_cp ? yy_ec[YY_SC_TO_UI(*yy_cp)] : 1);
+
+                if ( yy_accept[yy_current_state] )
+
+                        {
+
+                        yyg->yy_last_accepting_state = yy_current_state;
+
+                        yyg->yy_last_accepting_cpos = yy_cp;
+
+                        }
+
+                while ( yy_chk[yy_base[yy_current_state] + yy_c] != yy_current_state )
+
+                        {
+
+                        yy_current_state = (int) yy_def[yy_current_state];
+
+                        if ( yy_current_state >= 30 )
+
+                                yy_c = yy_meta[(unsigned int) yy_c];
+
+                        }
+
+                yy_current_state = yy_nxt[yy_base[yy_current_state] + (unsigned int) yy_c];
+
+                }
+
+
+
+        return yy_current_state;
+
+}
+
+
+
+/* yy_try_NUL_trans - try to make a transition on the NUL character
+
+ *
+
+ * synopsis
+
+ *      next_state = yy_try_NUL_trans( current_state );
+
+ */
+
+    static yy_state_type yy_try_NUL_trans  (yy_state_type yy_current_state , yyscan_t yyscanner)
+
+{
+
+        int yy_is_jam;
+
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner; /* This var may be unused depending upon options. */
+
+        char *yy_cp = yyg->yy_c_buf_p;
+
+
+
+        YY_CHAR yy_c = 1;
+
+        if ( yy_accept[yy_current_state] )
+
+                {
+
+                yyg->yy_last_accepting_state = yy_current_state;
+
+                yyg->yy_last_accepting_cpos = yy_cp;
+
+                }
+
+        while ( yy_chk[yy_base[yy_current_state] + yy_c] != yy_current_state )
+
+                {
+
+                yy_current_state = (int) yy_def[yy_current_state];
+
+                if ( yy_current_state >= 30 )
+
+                        yy_c = yy_meta[(unsigned int) yy_c];
+
+                }
+
+        yy_current_state = yy_nxt[yy_base[yy_current_state] + (unsigned int) yy_c];
+
+        yy_is_jam = (yy_current_state == 29);
+
+
+
+        return yy_is_jam ? 0 : yy_current_state;
+
+}
+
+
+
+#ifndef YY_NO_INPUT
+
+#ifdef __cplusplus
+
+    static int yyinput (yyscan_t yyscanner)
+

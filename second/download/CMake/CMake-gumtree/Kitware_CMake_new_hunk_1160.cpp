@@ -1,8 +1,14 @@
+   delaying 1/10th of a second should ever have to poll.  */
 
-        /* lineno is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" , yyscanner);
+#define MINPOLL 5
 
-    yylineno = line_number;
-}
+#define MAXPOLL 20
+
+static int test7(int argc, const char* argv[])
+
+{
+
+  (void)argc; (void)argv;
+
+  fprintf(stdout, "Output on stdout before sleep.\n");
 

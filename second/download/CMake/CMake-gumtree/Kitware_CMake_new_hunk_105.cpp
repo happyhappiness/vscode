@@ -1,12 +1,50 @@
+        {
 
-  /* We do some initial setup here, all those fields that can't be just 0 */
+          const BIGNUM *n;
 
-  data->state.buffer = malloc(BUFSIZE + 1);
-  if(!data->state.buffer) {
-    DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"));
-    result = CURLE_OUT_OF_MEMORY;
-  }
+          const BIGNUM *e;
 
-  data->state.headerbuff = malloc(HEADERSIZE);
-  if(!data->state.headerbuff) {
-    DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"));
+
+
+          RSA_get0_key(rsa, &n, &e, NULL);
+
+          BN_print(mem, n);
+
+          push_certinfo("RSA Public Key", i);
+
+          print_pubkey_BN(rsa, n, i);
+
+          print_pubkey_BN(rsa, e, i);
+
+        }
+
+#else
+
+        BIO_printf(mem, "%d", BN_num_bits(rsa->n));
+
+        push_certinfo("RSA Public Key", i);
+
+        print_pubkey_BN(rsa, n, i);
+
+        print_pubkey_BN(rsa, e, i);
+
+#endif
+
+
+
+        break;
+
+      }
+
+      case EVP_PKEY_DSA:
+
+      {
+
+#ifndef OPENSSL_NO_DSA
+
+        DSA *dsa;
+
+#ifdef HAVE_OPAQUE_EVP_PKEY
+
+        dsa = EVP_PKEY_get0_DSA(pubkey);
+

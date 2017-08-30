@@ -1,16 +1,30 @@
-  if(statSource.st_size != finSource.gcount() ||
-     statSource.st_size != finDestination.gcount())
-    {
-    std::strstream msg;
-    msg << "FilesDiffer failed to read files (allocated: " 
-        << statSource.st_size << ", read source: " <<  finSource.gcount() 
-        << ", read dest: " << finDestination.gcount() << std::ends;
-    cmSystemTools::Error(msg.str());
-    delete [] msg.str();
-    delete [] source_buf;
-    delete [] dest_buf;
-    return false;
-    }
-  int ret = memcmp((const void*)source_buf, 
-                   (const void*)dest_buf, 
-                   statSource.st_size);
+#ifdef DEBUG
+
+  printf("<== th_read_internal(): returning %d\n", i);
+
+#endif
+
+  return (int)i;
+
+}
+
+
+
+
+
+/* wrapper function for th_read_internal() to handle GNU extensions */
+
+int
+
+th_read(TAR *t)
+
+{
+
+  ssize_t i, j;
+
+  size_t sz;
+
+  char *ptr;
+
+
+

@@ -1,12 +1,14 @@
-		return (ARCHIVE_FATAL);
+	if (ver != w->pver) {
+
+		/* stringify this entry's version */
+
+		archive_string_sprintf(&w->sver,
+
+			"WARC/%u.%u", ver / 10000, (ver % 10000) / 100);
+
+		/* remember the version */
+
+		w->pver = ver;
+
 	}
 
-	v7tar = (struct v7tar *)calloc(1, sizeof(*v7tar));
-	if (v7tar == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate v7tar data");
-		return (ARCHIVE_FATAL);
-	}
-	a->format_data = v7tar;
-	a->format_name = "tar (non-POSIX)";
-	a->format_options = archive_write_v7tar_options;

@@ -1,46 +1,44 @@
-		(*last_entry)->next = entry;
-	*last_entry = entry;
+	if (path == NULL)
 
-	if (is_form_d) {
-		/*
-		 * This form places the file name as last parameter.
-		 */
-		name = line + line_len -1;
-		while (line_len > 0) {
-			if (*name != '\r' && *name != '\n' &&
-			    *name != '\t' && *name != ' ')
-				break;
-			name--;
-			line_len--;
-		}
-		len = 0;
-		while (line_len > 0) {
-			if (*name == '\r' || *name == '\n' ||
-			    *name == '\t' || *name == ' ') {
-				name++;
-				break;
+		path = archive_entry_pathname(entry);
+
+
+
+	if (*fd < 0 && a->tree != NULL) {
+
+		if (a->follow_symlinks ||
+
+		    archive_entry_filetype(entry) != AE_IFLNK)
+
+			*fd = a->open_on_current_dir(a->tree, path,
+
+				O_RDONLY | O_NONBLOCK);
+
+		if (*fd < 0) {
+
+			if (a->tree_enter_working_dir(a->tree) != 0) {
+
+				archive_set_error(&a->archive, errno,
+
+				    "Couldn't access %s", path);
+
+				return (ARCHIVE_FAILED);
+
 			}
-			name--;
-			line_len--;
-			len++;
+
 		}
-		end = name;
-	} else {
-		len = strcspn(line, " \t\r\n");
-		name = line;
-		line += len;
-		end = line + line_len;
+
 	}
 
-	if ((entry->name = malloc(len + 1)) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
 
-	memcpy(entry->name, name, len);
-	entry->name[len] = '\0';
-	parse_escapes(entry->name, entry);
 
-	for (iter = *global; iter != NULL; iter = iter->next) {
-		r = add_option(a, &entry->options, iter->value,
-		    strlen(iter->value));
+	if (*fd >= 0)
+
+		list_size = extattr_list_fd(*fd, namespace, NULL, 0);
+
+	else if (!a->follow_symlinks)
+
+		list_size = extattr_list_link(path, namespace, NULL, 0);
+
+	else
+

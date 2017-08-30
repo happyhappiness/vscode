@@ -1,7 +1,14 @@
-    {
-    std::string reg_shared = reg;
-    this->SharedRegexString =
-      this->CreateExtensionRegex(this->SharedLinkExtensions, LinkShared);
-    reg_shared += this->SharedRegexString;
-#ifdef CM_COMPUTE_LINK_INFO_DEBUG
-  fprintf(stderr, "shared regex [%s]\n", reg_shared.c_str());
+	return (ARCHIVE_OK);
+
+#else
+
+	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+
+	    "Using external bzip2 program");
+
+	return (ARCHIVE_WARN);
+
+#endif
+
+}
+

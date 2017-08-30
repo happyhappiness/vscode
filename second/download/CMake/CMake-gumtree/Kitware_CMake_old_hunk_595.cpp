@@ -1,11 +1,22 @@
-  fprintf(stderr, "Output before sleep on stderr from timeout test.\n");
-  fflush(stdout);
-  fflush(stderr);
-#if defined(_WIN32)
-  Sleep(15000);
-#else
-  sleep(15);
-#endif
-  fprintf(stdout, "Output after sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output after sleep on stderr from timeout test.\n");
-  return 0;
+			ret = ARCHIVE_OK;
+
+		}
+
+		return (ret);
+
+	} else if (strcmp(key, "experimental") == 0) {
+
+		if (val == NULL || val[0] == 0) {
+
+			zip->flags &= ~ ZIP_FLAG_EXPERIMENT_EL;
+
+		} else {
+
+			zip->flags |= ZIP_FLAG_EXPERIMENT_EL;
+
+		}
+
+		return (ARCHIVE_OK);
+
+	} else if (strcmp(key, "fakecrc32") == 0) {
+

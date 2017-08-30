@@ -1,7 +1,14 @@
-		if ((file->utf16be_name = malloc(name_len)) == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "No memory for file name");
-			return (NULL);
+		r = archive_match_time_excluded(a->matching, entry);
+
+		if (r < 0) {
+
+			archive_set_error(&(a->archive), errno,
+
+			    "Faild : %s", archive_error_string(a->matching));
+
+			return (r);
+
 		}
-		memcpy(file->utf16be_name, p, name_len);
-		file->utf16be_bytes = name_len;
+
+		if (r) {
+

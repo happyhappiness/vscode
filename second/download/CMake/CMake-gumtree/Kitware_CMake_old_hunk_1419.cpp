@@ -1,12 +1,39 @@
-  va_start(ap_save, format);
-  retcode = dprintf_formatf(&info, alloc_addbyter, format, ap_save);
-  va_end(ap_save);
-  if(info.len) {
-    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
-    return info.buffer;
-  }
-  else
-    return NULL;
-}
+        }
 
-char *curl_mvaprintf(const char *format, va_list ap_save)
+      int fileNum = static_cast<int>
+
+        (cmsys::Directory::GetNumberOfFilesInDirectory(dirName.c_str()));
+
+      // read the count
+
+      fName = dirName;
+
+      fName += "/count.txt";
+
+      progFile = fopen(fName.c_str(),"r");
+
+      if (progFile)
+
+        {
+
+        int count = 0;
+
+        fscanf(progFile,"%i",&count);
+
+        if (count > 0)
+
+          {
+
+          // print the progress
+
+          fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
+
+          }
+
+        fclose(progFile);
+
+        }
+
+      return 0;
+
+      }

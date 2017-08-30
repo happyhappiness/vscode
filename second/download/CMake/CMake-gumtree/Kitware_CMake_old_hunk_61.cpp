@@ -1,27 +1,14 @@
-    pwd = conn->passwd;
-  }
+      return result;
 
-  snprintf(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
-           "%s:%s", user, pwd);
 
-  result = Curl_base64_encode(data,
-                              data->state.buffer, strlen(data->state.buffer),
-                              &authorization, &size);
-  if(result)
-    return result;
 
-  if(!authorization)
-    return CURLE_REMOTE_ACCESS_DENIED;
+    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
 
-  free(*userp);
-  *userp = aprintf("%sAuthorization: Basic %s\r\n",
-                   proxy ? "Proxy-" : "",
-                   authorization);
-  free(authorization);
-  if(!*userp)
-    return CURLE_OUT_OF_MEMORY;
+    snprintf(buf, BUFSIZE-1,
 
-  return CURLE_OK;
-}
+             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
 
-/* pickoneauth() selects the most favourable authentication method from the
+             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+
+             tm->tm_mday,
+

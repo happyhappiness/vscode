@@ -1,24 +1,39 @@
-    total_untested += cov.m_UnTested;
-    float cper = 0;
-    float cmet = 0;
-    if ( total_tested + total_untested > 0 )
-      {
-      cper = (100 * static_cast<float>(cov.m_Tested)/
-        static_cast<float>(cov.m_Tested + cov.m_UnTested));
-      cmet = ( static_cast<float>(cov.m_Tested + 10) /
-        static_cast<float>(cov.m_Tested + cov.m_UnTested + 10));
-      }
-    char cmbuff[100];
-    char cpbuff[100];
-    sprintf(cmbuff, "%.2f", cmet);
-    sprintf(cpbuff, "%.2f", cper);
+      break;
 
-    log << "\t<File Name=\"" << cit->first << "\" FullPath=\"" << cov.m_FullPath
-      << "\" Covered=\"" << (cmet>0?"true":"false") << "\">\n"
-      << "\t\t<LOCTested>" << cov.m_Tested << "</LOCTested>\n"
-      << "\t\t<LOCUnTested>" << cov.m_UnTested << "</LOCUnTested>\n"
-      << "\t\t<PercentCoverage>" << cpbuff << "</PercentCoverage>\n"
-      << "\t\t<CoverageMetric>" << cmbuff << "</CoverageMetric>\n"
-      << "\t</File>" << std::endl;
-    ccount ++;
     }
+
+  }
+
+ 
+
+  memset(&hints, 0, sizeof(hints));
+
+  hints.ai_family = pf;
+
+  hints.ai_socktype = SOCK_STREAM;
+
+  hints.ai_flags = AI_CANONNAME;
+
+  snprintf(sbuf, sizeof(sbuf), "%d", port);
+
+  error = getaddrinfo(hostname, sbuf, &hints, &res);
+
+  if (error) {
+
+    infof(data, "getaddrinfo(3) failed for %s:%d\n", hostname, port);    
+
+    return NULL;
+
+  }
+
+
+
+  return res;
+
+}
+
+#endif /* USE_THREADING_GETADDRINFO */
+
+#endif /* ipv6 */
+
+

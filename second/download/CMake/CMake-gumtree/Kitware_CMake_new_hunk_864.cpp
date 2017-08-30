@@ -1,19 +1,20 @@
-			 * Expand the uncompressed buffer up to
-			 * the minimum size.
-			 */
-			void *p;
-			size_t new_size;
+    buf = new char[n + 2 + 1];
 
-			new_size = minimum + 1023;
-			new_size &= ~0x3ff;
-			p = realloc(zip->uncompressed_buffer, new_size);
-			if (p == NULL) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "No memory for 7-Zip decompression");
-				return (ARCHIVE_FATAL);
-			}
-			zip->uncompressed_buffer = (unsigned char *)p;
-			zip->uncompressed_buffer_size = new_size;
-		}
-		/*
-		 * Move unconsumed bytes to the head.
+    sprintf(buf, "%s/*", name);
+
+    }
+
+  struct _wfinddata_t data;      // data of current file
+
+
+
+  // Now put them into the file array
+
+  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
+
+  delete [] buf;
+
+
+
+  if ( srchHandle == -1 )
+

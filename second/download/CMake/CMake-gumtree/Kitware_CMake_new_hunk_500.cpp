@@ -1,7 +1,16 @@
-		}
+	struct mtree_entry *entry;
 
-		if (a->read_data_offset < a->read_data_output_offset) {
-			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Encountered out-of-order sparse blocks");
-			return (ARCHIVE_RETRY);
-		}
+	struct mtree_option *iter;
+
+	const char *next, *eq, *name, *end;
+
+	size_t name_len, len;
+
+	int r, i;
+
+
+
+	if ((entry = malloc(sizeof(*entry))) == NULL) {
+
+		archive_set_error(&a->archive, errno, "Can't allocate memory");
+

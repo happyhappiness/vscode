@@ -1,11 +1,38 @@
-		 */
-		if (ar->strtab == NULL || number > ar->strtab_size) {
-			archive_set_error(&a->archive, EINVAL,
-			    "Can't find long filename for GNU/SVR4 archive entry");
-			archive_entry_copy_pathname(entry, filename);
-			/* Parse the time, owner, mode, size fields. */
-			ar_parse_common_header(ar, entry, h);
-			return (ARCHIVE_FATAL);
+{
+
+	struct unknown_tag *tag;
+
+
+
+	tag = xar->unknowntags;
+
+	if (tag == NULL || name == NULL)
+
+		return;
+
+	if (strcmp(tag->name.s, name) == 0) {
+
+		xar->unknowntags = tag->next;
+
+		archive_string_free(&(tag->name));
+
+		free(tag);
+
+		if (xar->unknowntags == NULL) {
+
+#if DEBUG
+
+			fprintf(stderr, "UNKNOWNTAG_END:%s\n", name);
+
+#endif
+
+			xar->xmlsts = xar->xmlsts_unknown;
+
 		}
 
-		archive_entry_copy_pathname(entry, &ar->strtab[(size_t)number]);
+	}
+
+}
+
+
+

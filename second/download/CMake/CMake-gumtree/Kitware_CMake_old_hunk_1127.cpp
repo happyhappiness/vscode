@@ -1,6 +1,31 @@
-    aprintf("%s:%s:%s", userp, d->realm, passwdp);
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-  Curl_md5it(md5buf, md5this);
-  free(md5this); /* free this again */
+{
 
+  printf("Would you like to see advanced options? [No]:");
+
+  char buffer[4096];
+
+  if(!fgets(buffer, sizeof(buffer)-1, stdin))
+
+    {
+
+    buffer[0] = 0;
+
+    }
+
+  if(buffer[0])
+
+    {
+
+    if(buffer[0] == 'y' || buffer[0] == 'Y')
+
+      {
+
+      return true;
+
+      }
+
+    }
+
+  return false;
+
+}

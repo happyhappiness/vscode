@@ -1,11 +1,14 @@
-  this->ChipID.Family = 0; 
- 
-  // Chip Vendor
-  strcpy(this->ChipID.Vendor,"Sun");
-  this->FindManufacturer();
-  
-  // Chip Model
-  sprintf(this->ChipID.ProcessorName,"%s",this->ParseValueFromKStat("-s cpu_type").c_str());
-  this->ChipID.Model = 0;
+			a->archive.state = ARCHIVE_STATE_FATAL;
 
-  // Cache size
+			return (ARCHIVE_FATAL);
+
+		case TREE_ERROR_DIR:
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "%ls: Couldn't visit directory",
+
+			    tree_current_path(t));
+
+			return (ARCHIVE_FAILED);
+

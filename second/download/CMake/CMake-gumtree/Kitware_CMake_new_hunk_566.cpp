@@ -1,12 +1,12 @@
-    if(res)
-      return res;
+	ssize_t bytes_avail;
 
-    free(*allocuserpwd);
-    *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
-                            proxy ? "Proxy-" : "",
-                            conn->response_header);
-    DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
-    free(conn->response_header);
-    conn->response_header = NULL;
-    break;
-  case NTLMSTATE_TYPE2:
+	int r;
+
+
+
+	/* If we haven't yet read any data, initialize the decompressor. */
+
+	if (!lha->decompress_init) {
+
+		r = lzh_decode_init(&(lha->strm), lha->method);
+

@@ -1,9 +1,14 @@
-    return CURLE_BAD_CONTENT_ENCODING;
+				archive_set_error(&a->archive,
 
-  /* Generate 16 bytes of random data */
-  result = Curl_rand(data, &entropy[0], 4);
-  if(result)
-    return result;
+				    ARCHIVE_ERRNO_MISC,
 
-  /* Convert the random data into a 32 byte hex string */
-  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
+				    "Invalid Rockridge CL");
+
+				goto fail;
+
+			}
+
+			parent->subdirs++;
+
+			/* Overwrite an offset and a number of this "CL" entry
+

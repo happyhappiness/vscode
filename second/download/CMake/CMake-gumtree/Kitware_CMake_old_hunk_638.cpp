@@ -1,24 +1,12 @@
-  return _findclose(srchHandle) != -1;
-}
 
-unsigned long Directory::GetNumberOfFilesInDirectory(const char* name)
-{
-#if _MSC_VER < 1300
-  long srchHandle;
-#else
-  intptr_t srchHandle;
-#endif
-  char* buf;
-  size_t n = strlen(name);
-  if ( name[n - 1] == '/' )
-    {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name);
-    }
-  else
-    {
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name);
-    }
-  struct _wfinddata_t data;      // data of current file
+
+		if (!S_ISDIR(a->st.st_mode)) {
+
+			/* A non-dir is in the way, unlink it. */
+
+			if (unlink(a->name) != 0) {
+
+				archive_set_error(&a->archive, errno,
+
+				    "Can't unlink already-existing object");
 

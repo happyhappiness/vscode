@@ -1,7 +1,18 @@
-		    &data->child_stdout);
-	if (child == -1) {
-		archive_set_error(f->archive, EINVAL,
-		    "Can't launch external program: %s", cmd);
-		return (ARCHIVE_FATAL);
-	}
-#if defined(_WIN32) && !defined(__CYGWIN__)
+}
+
+
+
+#ifdef DEBUGBUILD
+
+void Curl_multi_dump(struct Curl_multi *multi)
+
+{
+
+  struct Curl_easy *data;
+
+  int i;
+
+  fprintf(stderr, "* Multi status: %d handles, %d alive\n",
+
+          multi->num_easy, multi->num_alive);
+

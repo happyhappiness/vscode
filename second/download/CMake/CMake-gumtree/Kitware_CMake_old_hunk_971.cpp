@@ -1,6 +1,26 @@
-    //doEscape(tmp, "(", "\\("); // TODO ninja can't read ( and )
-    //doEscape(tmp, ")", "\\)");
-    fprintf(out, "%s \\\n", tmp.c_str());
+      "Invalid filename size");
+
+    return (ARCHIVE_FATAL);
+
   }
 
-  fprintf(out, "\n");
+  if (rar->filename_allocated < filename_size+2) {
+
+    rar->filename = realloc(rar->filename, filename_size+2);
+
+    if (rar->filename == NULL) {
+
+      archive_set_error(&a->archive, ENOMEM,
+
+                        "Couldn't allocate memory.");
+
+      return (ARCHIVE_FATAL);
+
+    }
+
+  }
+
+  filename = rar->filename;
+
+  memcpy(filename, p, filename_size);
+

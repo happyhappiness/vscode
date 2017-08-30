@@ -1,7 +1,12 @@
-    fprintf(logfile, "ADDR %s:%d freeaddrinfo(%p)\n",
-            source, line, (void *)freethis);
-}
-#endif  /* CURLDEBUG */
+      return -1;
 
-/*
- * Curl_ipvalid() checks what CURL_IPRESOLVE_* requirements that might've
+      }
+
+
+
+    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
+
+    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
+
+            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
+

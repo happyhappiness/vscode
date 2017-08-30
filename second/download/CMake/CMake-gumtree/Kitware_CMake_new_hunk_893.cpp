@@ -1,17 +1,28 @@
-      "Invalid filename size");
-    return (ARCHIVE_FATAL);
-  }
-  if (rar->filename_allocated < filename_size * 2 + 2) {
-    char *newptr;
-    size_t newsize = filename_size * 2 + 2;
-    newptr = realloc(rar->filename, newsize);
-    if (newptr == NULL) {
-      archive_set_error(&a->archive, ENOMEM,
-                        "Couldn't allocate memory.");
-      return (ARCHIVE_FATAL);
-    }
-    rar->filename = newptr;
-    rar->filename_allocated = newsize;
-  }
-  filename = rar->filename;
-  memcpy(filename, p, filename_size);
+	t->current_filesystem->synthetic = -1;
+
+	t->current_filesystem->remote = -1;
+
+	if (tree_current_is_symblic_link_target(t)) {
+
+#if defined(HAVE_OPENAT)
+
+		/*
+
+		 * Get file system statistics on any directory
+
+		 * where current is.
+
+		 */
+
+		int fd = openat(tree_current_dir_fd(t),
+
+		    tree_current_access_path(t), O_RDONLY | O_CLOEXEC);
+
+		__archive_ensure_cloexec_flag(fd);
+
+		if (fd < 0) {
+
+			archive_set_error(&a->archive, errno,
+
+			    "openat failed");
+

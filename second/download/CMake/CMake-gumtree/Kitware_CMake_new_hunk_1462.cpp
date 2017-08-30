@@ -1,10 +1,44 @@
- 
-}
+  fprintf(fout,
 
-void CMakeErrorHandler(const char* message, const char* title, bool&, void* clientData)
-{
-  cmCursesForm* self = static_cast<cmCursesForm*>( clientData );
-  self->AddError(message, title);
-}
+          "extern \"C\"\n"
 
-int main(int argc, char** argv)
+          "{\n"
+
+          "#if (TCL_MAJOR_VERSION == 8) && (TCL_MINOR_VERSION >= 4) "
+
+          "&& (TCL_RELEASE_LEVEL >= TCL_FINAL_RELEASE)\n"
+
+          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,"
+
+          "int, CONST84 char *[]);\n"
+
+          "#else\n"
+
+          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,"
+
+          "int, char *[]);\n"
+
+          "#endif\n"
+
+          "}\n"
+
+          "\n");
+
+
+
+  for (i = 0; i < classes.size(); i++)
+
+    {
+
+    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n"
+
+            ,classes[i].c_str());
+
+    fprintf(fout,"             int argc, char *argv[]);\n");
+
+    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
+
+    }
+
+  
+

@@ -1,7 +1,14 @@
-   delaying 1/10th of a second should ever have to poll.  */
-#define MINPOLL 5
-#define MAXPOLL 20
-int test7(int argc, const char* argv[])
+seek_pack(struct archive_read *a)
+
 {
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout before sleep.\n");
+
+	struct _7zip *zip = (struct _7zip *)a->format->data;
+
+	uint64_t pack_offset;
+
+
+
+	if (zip->pack_stream_remaining <= 0) {
+
+		archive_set_error(&(a->archive),
+

@@ -1,7 +1,14 @@
-					tail[0] = c;
+				/*
+
+				if (!S_ISLNK(path)) {
+
 					fsobj_error(a_eno, a_estr, 0,
-					    "Cannot remove intervening "
-					    "symlink %s", path);
-					res = ARCHIVE_FAILED;
-					break;
+
+					    "Removing symlink %s", path);
+
 				}
+
+				*/
+
+				/* Symlink gone.  No more problem! */
+

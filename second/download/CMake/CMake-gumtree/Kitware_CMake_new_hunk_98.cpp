@@ -1,10 +1,14 @@
-  else
-    hostname = conn->host.name;
+  case CURLWC_DOWNLOADING: {
 
-  DEBUGASSERT(len > 32);
+    /* filelist has at least one file, lets get first one */
 
-  /* put the number first so that the hostname gets cut off if too long */
-  snprintf(buf, len, "%ld%s", conn->port, hostname);
-}
+    struct ftp_conn *ftpc = &conn->proto.ftpc;
 
-/* Look up the bundle with all the connections to the same host this
+    struct curl_fileinfo *finfo = wildcard->filelist.head->ptr;
+
+
+
+    char *tmp_path = aprintf("%s%s", wildcard->path, finfo->filename);
+
+    if(!tmp_path)
+

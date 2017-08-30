@@ -1,13 +1,22 @@
-}
-inline const char* Getcwd(char* buf, unsigned int len)
-{
-  const char* ret = getcwd(buf, len);
-  if(!ret)
-    {
-    fprintf(stderr, "No current working directory\n");
-    abort();
-    }
-  return ret;
+			else
+
+				ret = ARCHIVE_FATAL;
+
+		}
+
+	} else
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "cab: unknown keyword ``%s''", key);
+
+
+
+	return (ret);
+
 }
 
-inline int Chdir(const char* dir)
+
+
+static int
+

@@ -1,9 +1,24 @@
-{
-	struct unknown_tag *tag;
+    }
 
-#if DEBUG
-	fprintf(stderr, "unknowntag_start:%s\n", name);
-#endif
-	tag = malloc(sizeof(*tag));
-	if (tag == NULL) {
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+  }
+
+
+
+  cmd = aprintf( "%s%s%s",
+
+                 data->set.str[STRING_CUSTOMREQUEST]?
+
+                 data->set.str[STRING_CUSTOMREQUEST]:
+
+                 (data->set.ftp_list_only?"NLST":"LIST"),
+
+                 lstArg? " ": "",
+
+                 lstArg? lstArg: "" );
+
+
+
+  if(!cmd) {
+
+    free(lstArg);
+

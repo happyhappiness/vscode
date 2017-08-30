@@ -1,23 +1,16 @@
- * memory we need to free after use. That meory *MUST* be freed with
- * Curl_freeaddrinfo(), nothing else.
- */
-Curl_addrinfo *Curl_getaddrinfo(struct SessionHandle *data,
-                                char *hostname,
-                                int port,
-                                char **bufp)
-{
-  struct addrinfo hints, *res;
-  int error;
-  char sbuf[NI_MAXSERV];
+  const char *terse;
 
-  memset(&hints, 0, sizeof(hints));
-  hints.ai_family = PF_INET;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_CANONNAME;
-  snprintf(sbuf, sizeof(sbuf), "%d", port);
-  error = getaddrinfo(hostname, sbuf, &hints, &res);
-  if (error) {
-    infof(data, "getaddrinfo(3) failed for %s\n", hostname);    
-    return NULL;
-  }
-  *bufp=(char *)res; /* make it point to the result struct */
+  const char *full;
+
+  char tmp[1024];
+
+  sprintf(tmp,"Version %d.%d (%s)", cmake::GetMajorVersion(),
+
+          cmake::GetMinorVersion(), cmVersion::GetReleaseVersion().c_str());
+
+  f << "<html>\n";
+
+  f << "<h1>Documentation for commands of CMake " << tmp << "</h1>\n";
+
+  f << "<ul>\n";
+

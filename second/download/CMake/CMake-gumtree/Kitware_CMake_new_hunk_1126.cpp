@@ -1,7 +1,14 @@
-    /* Generate a cnonce */
-    now = Curl_tvnow();
-    snprintf(cnoncebuf, sizeof(cnoncebuf), "%06ld", now.tv_sec);
-    if(Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf), &cnonce))
-      d->cnonce = cnonce;
-    else
-      return CURLE_OUT_OF_MEMORY;
+  printf("Current Value: %s\n", iter.GetValue());
+
+  printf("New Value (Enter to keep current value): ");
+
+  char buffer[4096];
+
+  if(!fgets(buffer, static_cast<int>(sizeof(buffer) - 1), stdin))
+
+    {
+
+    buffer[0] = 0;
+
+    }
+

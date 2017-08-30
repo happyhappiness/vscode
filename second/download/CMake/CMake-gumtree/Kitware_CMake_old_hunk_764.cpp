@@ -1,7 +1,13 @@
-	return (ARCHIVE_OK);
-#else
-	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external unlzma program for lzma decompression");
-	return (ARCHIVE_WARN);
-#endif
-}
+# define printf curl_mprintf
+
+# define fprintf curl_mfprintf
+
+#ifdef CURLDEBUG
+
+/* When built with CURLDEBUG we define away the sprintf() functions since we
+
+   don't want internal code to be using them */
+
+# define sprintf sprintf_was_used
+
+# define vsprintf vsprintf_was_used

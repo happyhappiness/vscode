@@ -1,14 +1,49 @@
-			h = CreateFileW(path, GENERIC_READ, 0, NULL,
-			    OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
-			if (h == INVALID_HANDLE_VALUE) {
-				archive_set_error(&a->archive, GetLastError(),
-				    "Can't CreateFileW");
-				return (ARCHIVE_FAILED);
-			}
-		}
-		r = GetFileInformationByHandle(h, &bhfi);
-		if (r == 0) {
-			archive_set_error(&a->archive, GetLastError(),
-			    "Can't GetFileInformationByHandle");
-			if (h != INVALID_HANDLE_VALUE && fd < 0)
-				CloseHandle(h);
+  ver += "_VERSION";
+
+  if(this->VersionFound.empty())
+
+    {
+
+    this->Makefile->RemoveDefinition(ver.c_str());
+
+    }
+
+  else
+
+    {
+
+    this->Makefile->AddDefinition(ver.c_str(), this->VersionFound.c_str());
+
+    }
+
+
+
+  // Store the version components.
+
+  char buf[64];
+
+  sprintf(buf, "%u", this->VersionFoundMajor);
+
+  this->Makefile->AddDefinition((ver+"_MAJOR").c_str(), buf);
+
+  sprintf(buf, "%u", this->VersionFoundMinor);
+
+  this->Makefile->AddDefinition((ver+"_MINOR").c_str(), buf);
+
+  sprintf(buf, "%u", this->VersionFoundPatch);
+
+  this->Makefile->AddDefinition((ver+"_PATCH").c_str(), buf);
+
+  sprintf(buf, "%u", this->VersionFoundTweak);
+
+  this->Makefile->AddDefinition((ver+"_TWEAK").c_str(), buf);
+
+  sprintf(buf, "%u", this->VersionFoundCount);
+
+  this->Makefile->AddDefinition((ver+"_COUNT").c_str(), buf);
+
+}
+
+
+
+//----------------------------------------------------------------------------

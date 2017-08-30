@@ -1,7 +1,14 @@
-    int ni = 0;
-    sprintf(buffer, "%04d", ni);
-    ret = str1 + str2 + buffer;
-    while(this->ShortMakeVariableMap.count(ret) && ni < 1000)
-      {
-      ++ni;
-      sprintf(buffer, "%04d", ni);
+		    (parent->re || parent->re_descendant))
+
+			file->re_descendant = 1;
+
+		if (file->cl_offset) {
+
+			struct file_info *r;
+
+
+
+			if (parent == NULL || parent->parent == NULL) {
+
+				archive_set_error(&a->archive,
+

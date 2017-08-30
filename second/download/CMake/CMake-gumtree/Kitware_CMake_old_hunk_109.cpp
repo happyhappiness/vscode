@@ -1,9 +1,14 @@
-    fprintf(stderr, "File is an executable.  I don't dump those.\n");
-    return false;
-  }
-  /* Does it look like a i386 COFF OBJ file??? */
-  else if (((dosHeader->e_magic == IMAGE_FILE_MACHINE_I386) ||
-            (dosHeader->e_magic == IMAGE_FILE_MACHINE_AMD64)) &&
-           (dosHeader->e_sp == 0)) {
-    /*
-    * The two tests above aren't what they look like.  They're
+  if(instate == FTP_SIZE) {
+
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
+
+    if(-1 != filesize) {
+
+      snprintf(buf, sizeof(data->state.buffer),
+
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);
+
+      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+
+      if(result)
+

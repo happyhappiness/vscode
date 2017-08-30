@@ -1,41 +1,54 @@
-    }
-  if ( !res )
-    {
-    m_CacheManager->AddCacheEntry("CMAKE_HOME_DIRECTORY",
-      this->GetHomeDirectory(),
-      "Start directory with the top level CMakeLists.txt file for this "
-      "project",
-      cmCacheManager::INTERNAL);
-    }
+ * easy to compare versions at build time: for version a.b.c, the
 
-  // set the default BACKWARDS compatibility to the current version
-  if(!m_CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
-    {
-    char ver[256];
-    sprintf(ver,"%i.%i",cmMakefile::GetMajorVersion(),
-            cmMakefile::GetMinorVersion());
-    this->m_CacheManager->AddCacheEntry
-      ("CMAKE_BACKWARDS_COMPATIBILITY",ver,
-       "For backwards compatibility, what version of CMake commands and "
-       "syntax should this version of CMake allow.",
-       cmCacheManager::STRING);
-    }
+ * version number is printf("%d%03d%03d",a,b,c).  For example, if you
 
-  // no generator specified on the command line
-  if(!m_GlobalGenerator)
-    {
-    const char* genName = m_CacheManager->GetCacheValue("CMAKE_GENERATOR");
-    if(genName)
-      {
-      m_GlobalGenerator = this->CreateGlobalGenerator(genName);
-      }
-    if(m_GlobalGenerator)
-      {
-      // set the global flag for unix style paths on cmSystemTools as
-      // soon as the generator is set.  This allows gmake to be used
-      // on windows.
-      cmSystemTools::SetForceUnixPaths(
-        m_GlobalGenerator->GetForceUnixPaths());
-      }
-    else
-      {
+ * know your application requires version 2.12.108 or later, you can
+
+ * assert that ARCHIVE_VERSION >= 2012108.
+
+ *
+
+ * This single-number format was introduced with libarchive 1.9.0 in
+
+ * the libarchive 1.x family and libarchive 2.2.4 in the libarchive
+
+ * 2.x family.  The following may be useful if you really want to do
+
+ * feature detection for earlier libarchive versions (which defined
+
+ * ARCHIVE_API_VERSION and ARCHIVE_API_FEATURE instead):
+
+ *
+
+ * #ifndef ARCHIVE_VERSION_NUMBER
+
+ * #define ARCHIVE_VERSION_NUMBER	\
+
+ *             (ARCHIVE_API_VERSION * 1000000 + ARCHIVE_API_FEATURE * 1000)
+
+ * #endif
+
+ */
+
+/* Note: Compiler will complain if this does not match archive_entry.h! */
+
+#define	ARCHIVE_VERSION_NUMBER 3000001
+
+__LA_DECL int		archive_version_number(void);
+
+
+
+/*
+
+ * Textual name/version of the library, useful for version displays.
+
+ */
+
+#define	ARCHIVE_VERSION_STRING "libarchive 3.0.1b"
+
+__LA_DECL const char *	archive_version_string(void);
+
+
+
+/* Declare our basic types. */
+

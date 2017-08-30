@@ -1,7 +1,46 @@
-      if (setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE,
-                     data->set.device, strlen(data->set.device)+1) != 0) {
-        /* printf("Failed to BINDTODEVICE, socket: %d  device: %s error: %s\n",
-           sockfd, data->set.device, Curl_strerror(Curl_ourerrno())); */
-        infof(data, "SO_BINDTODEVICE %s failed\n",
-              data->set.device);
-        /* This is typically "errno 1, error: Operation not permitted" if
+		}
+
+	}
+
+
+
+	/* If we haven't yet read any data, initialize the decompressor. */
+
+	if (!zip->decompress_init) {
+
+		if (zip->stream_valid)
+
+			r = inflateReset(&zip->stream);
+
+		else
+
+			r = inflateInit2(&zip->stream,
+
+			    -15 /* Don't check for zlib header */);
+
+		if (r != Z_OK) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "Can't initialize ZIP decompression.");
+
+			return (ARCHIVE_FATAL);
+
+		}
+
+		/* Stream structure has been set up. */
+
+		zip->stream_valid = 1;
+
+		/* We've initialized decompression for this stream. */
+
+		zip->decompress_init = 1;
+
+	}
+
+
+
+	/*
+
+	 * Note: '1' here is a performance optimization.
+

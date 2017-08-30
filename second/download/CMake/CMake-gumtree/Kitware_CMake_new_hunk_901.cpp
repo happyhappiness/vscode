@@ -1,7 +1,20 @@
-	}
+			xr = get_xfer_size(t, fd, NULL);
 
-	/* Fail if we can't make our buffer big enough. */
-	if (archive_string_ensure(as, (size_t)size+1) == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "No memory");
-		return (ARCHIVE_FATAL);
+		close(fd);
+
+#else
+
+		if (tree_enter_working_dir(t) != 0) {
+
+			archive_set_error(&a->archive, errno, "fchdir failed");
+
+			return (ARCHIVE_FAILED);
+
+		}
+
+		r = statvfs(tree_current_access_path(t), &sfs);
+
+		if (r == 0)
+
+			xr = get_xfer_size(t, -1, tree_current_access_path(t));
+

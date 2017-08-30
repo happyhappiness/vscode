@@ -1,9 +1,14 @@
-                /* They forgot to leave room for the EOB's. */
-                return 0;
+        cmCTestTestResult *result = &this->TestResults[cc];
 
-        b = (YY_BUFFER_STATE) cmListFileLexer_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
-        if ( ! b )
-                YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_scan_buffer()" );
+        totalTestTime += result->ExecutionTime;
 
-        b->yy_buf_size = size - 2;      /* "- 2" to take care of EOB's */
-        b->yy_buf_pos = b->yy_ch_buf = base;
+        }
+
+      this->PrintLabelSummary();
+
+      char buf[1024];
+
+      sprintf(buf, "%6.2f sec", totalTestTime); 
+
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time = " 
+

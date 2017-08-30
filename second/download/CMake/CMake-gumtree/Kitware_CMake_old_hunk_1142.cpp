@@ -1,7 +1,14 @@
-#ifdef CM_ORDER_LINK_DIRECTORIES_DEBUG
-    fprintf(stderr, "Raw link item [%s]\n", this->RawLinkItems[i].c_str());
-#endif
-    if(cmSystemTools::FileIsFullPath(this->RawLinkItems[i].c_str()))
-      {
-      if(cmSystemTools::FileIsDirectory(this->RawLinkItems[i].c_str()))
-        {
+		else {
+
+			archive_set_error(&(a->archive),
+
+			    ARCHIVE_ERRNO_MISC,
+
+			    "Unkonwn checksum name: `%s'",
+
+			    value);
+
+			return (ARCHIVE_FAILED);
+
+		}
+

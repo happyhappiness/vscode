@@ -1,7 +1,26 @@
-  case CURLWC_DOWNLOADING: {
-    /* filelist has at least one file, lets get first one */
-    struct ftp_conn *ftpc = &conn->proto.ftpc;
-    struct curl_fileinfo *finfo = wildcard->filelist.head->ptr;
+#endif
 
-    char *tmp_path = aprintf("%s%s", wildcard->path, finfo->filename);
-    if(!tmp_path)
+#endif
+
+    default:
+
+      cp->ProcessResults[idx].ExitException = kwsysProcess_Exception_Other;
+
+      sprintf(cp->ProcessResults[idx].ExitExceptionString, "Signal %d", sig);
+
+      break;
+
+  }
+
+}
+
+#undef KWSYSPE_CASE
+
+
+
+/* When the child process encounters an error before its program is
+
+   invoked, this is called to report the error to the parent and
+
+   exit.  */
+

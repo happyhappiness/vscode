@@ -1,8 +1,14 @@
-{
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d", logFileCount);
-  cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Open file: "
-    << covLogFilename << std::endl);
-  if(!this->StartResultingXML(cmCTest::PartCoverage,
-                              covLogFilename, covLogFile))
-    {
+				    "Missing number");
+
+				return ARCHIVE_WARN;
+
+			}
+
+			numbers[argc++] = mtree_atol(&p);
+
+			if (argc > MAX_PACK_ARGS) {
+
+				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+
+				    "Too many arguments");
+

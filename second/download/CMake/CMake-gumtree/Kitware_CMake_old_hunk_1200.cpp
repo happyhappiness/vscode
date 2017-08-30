@@ -1,7 +1,12 @@
-  char buffer[1024];
-  sprintf(buffer, "%d", static_cast<int>(length));
+		}
 
-  m_Makefile->AddDefinition(variableName.c_str(), buffer);
-  return true;
+		read_consume(a);
+
+	}
+
+	zip->uncompressed_buffer_pointer = zip->uncompressed_buffer;
+
+	return (ARCHIVE_OK);
+
 }
 

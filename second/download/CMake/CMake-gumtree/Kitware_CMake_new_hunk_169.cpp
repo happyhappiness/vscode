@@ -1,8 +1,24 @@
-		return (r);
-	if ((size_t)r < size) {
-		archive_set_error(&a->archive, 0,
-		    "Too much data: Truncating file at %ju bytes",
-		    (uintmax_t)a->filesize);
-		return (ARCHIVE_WARN);
-	}
-#if ARCHIVE_VERSION_NUMBER < 3999000
+    struct mtree_option **global, const char *line, ssize_t line_len,
+
+    struct mtree_entry **last_entry, int is_form_d)
+
+{
+
+	struct mtree_entry *entry, *ht_iter;
+
+	struct mtree_option *iter;
+
+	const char *next, *eq, *name, *end;
+
+	size_t name_len, len;
+
+	int r, i;
+
+	unsigned int ht_idx;
+
+
+
+	if ((entry = malloc(sizeof(*entry))) == NULL) {
+
+		archive_set_error(&a->archive, errno, "Can't allocate memory");
+

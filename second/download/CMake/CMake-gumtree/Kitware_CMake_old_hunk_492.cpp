@@ -1,10 +1,14 @@
-		return (r);
-	if ((size_t)r < size) {
-		archive_set_error(&a->archive, 0,
-		    "Write request too large");
-		return (ARCHIVE_WARN);
-	}
-	return (ARCHIVE_OK);
+  fprintf(stderr, "\n");
+
 }
 
-static ssize_t
+
+
+//----------------------------------------------------------------------------
+
+void cmComputeLinkDepends::VisitComponent(unsigned int c)
+
+{
+
+  // Check if the node has already been visited.
+

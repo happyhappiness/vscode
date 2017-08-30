@@ -1,7 +1,18 @@
-		ret = child_write(f, data, buf, length);
-		if (ret == -1 || ret == 0) {
-			archive_set_error(f->archive, EIO,
-			    "Can't write to program: %s", data->program_name);
-			return (ARCHIVE_FATAL);
-		}
-		length -= ret;
+}
+
+
+
+#ifdef DEBUGBUILD
+
+void Curl_multi_dump(struct Curl_multi *multi)
+
+{
+
+  struct Curl_easy *data;
+
+  int i;
+
+  fprintf(stderr, "* Multi status: %d handles, %d alive\n",
+
+          multi->num_easy, multi->num_alive);
+

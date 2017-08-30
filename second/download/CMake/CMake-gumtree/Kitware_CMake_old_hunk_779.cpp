@@ -1,8 +1,14 @@
-		iso9660->current_position = parent->offset;
-	}
+    }
 
-	step = ((parent->size + iso9660->logical_block_size -1) /
-	    iso9660->logical_block_size) * iso9660->logical_block_size;
-	b = __archive_read_ahead(a, step, NULL);
-	if (b == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+  strftime(tmp, sizeof(tmp), fmt, localtime(&tim));
+
+  fprintf(out, " %s ", tmp);
+
+  fprintf(out, "%s", archive_entry_pathname(entry));
+
+
+
+  /* Extra information for links. */
+
+  if (archive_entry_hardlink(entry)) /* Hard link */
+

@@ -1,6 +1,26 @@
+		return (ARCHIVE_FATAL);
 
-        lerr = SSL_get_verify_result(connssl->handle);
-        if(lerr != X509_V_OK) {
-          snprintf(error_buffer, sizeof(error_buffer),
-                   "SSL certificate problem: %s",
-                   X509_verify_cert_error_string(lerr));
+	}
+
+
+
+	v7tar = (struct v7tar *)malloc(sizeof(*v7tar));
+
+	if (v7tar == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM,
+
+		    "Can't allocate v7tar data");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+	memset(v7tar, 0, sizeof(*v7tar));
+
+	a->format_data = v7tar;
+
+	a->format_name = "tar (non-POSIX)";
+
+	a->format_options = archive_write_v7tar_options;
+

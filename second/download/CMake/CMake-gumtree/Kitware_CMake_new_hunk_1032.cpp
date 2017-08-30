@@ -1,7 +1,14 @@
-      return;
-      }
+		a->tree = tree_open(pathname, a->symlink_mode, a->restore_time);
 
-    std::cout << "Writing " << currentFilename << "..." << std::endl;
-    this->WriteHeader(str);
+	if (a->tree == NULL) {
 
-    this->WriteConnections(ptrIt->first.c_str(),
+		archive_set_error(&a->archive, ENOMEM,
+
+		    "Can't allocate directory traversal data");
+
+		a->archive.state = ARCHIVE_STATE_FATAL;
+
+		return (ARCHIVE_FATAL);
+
+	}
+

@@ -1,13 +1,14 @@
-  buf[sizeof(buf)-1] = 0;
+  fprintf(out, "%s %d ",
 
-  if (mkdirhier(dirname(buf)) == -1)
-    {
-    if (pathname)
-      {
-      free(pathname);
-      }
-    return -1;
-    }
+          archive_entry_strmode(entry),
 
-#ifdef DEBUG
-  printf("  ==> extracting: %s (fifo)\n", filename);
+          archive_entry_nlink(entry));
+
+
+
+  /* Use uname if it's present, else uid. */
+
+  p = archive_entry_uname(entry);
+
+  if ((p == NULL) || (*p == '\0'))
+

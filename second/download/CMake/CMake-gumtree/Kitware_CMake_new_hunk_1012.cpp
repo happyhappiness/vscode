@@ -1,7 +1,24 @@
-    YY_BUFFER_STATE cmDependsJava_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
-{
-  YY_BUFFER_STATE b;
+	archive_string_init(&path);
 
-  b = (YY_BUFFER_STATE) cmDependsJava_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
-  if ( ! b )
-    YY_FATAL_ERROR( "out of dynamic memory in cmDependsJava_yy_create_buffer()" );
+	if (archive_string_append_from_wcs(&path, pathname,
+
+	    wcslen(pathname)) != 0) {
+
+		if (errno == ENOMEM)
+
+			archive_set_error(&a->archive, ENOMEM,
+
+			    "Can't allocate memory");
+
+		else
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "Can't convert a path to a char string");
+
+		a->archive.state = ARCHIVE_STATE_FATAL;
+
+		ret = ARCHIVE_FATAL;
+
+	} else
+

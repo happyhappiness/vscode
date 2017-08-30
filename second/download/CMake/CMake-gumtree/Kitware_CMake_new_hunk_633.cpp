@@ -1,15 +1,22 @@
-static char *get_netscape_format(const struct Cookie *co)
-{
-  return aprintf(
-    "%s"     /* httponly preamble */
-    "%s%s\t" /* domain */
-    "%s\t"   /* tailmatch */
-    "%s\t"   /* path */
-    "%s\t"   /* secure */
-    "%" CURL_FORMAT_CURL_OFF_T "\t"   /* expires */
-    "%s\t"   /* name */
-    "%s",    /* value */
-    co->httponly?"#HttpOnly_":"",
-    /* Make sure all domains are prefixed with a dot if they allow
-       tailmatching. This is Mozilla-style. */
-    (co->tailmatch && co->domain && co->domain[0] != '.')? ".":"",
+		/* We're done with the regular data; get the filename and
+
+		 * extra data. */
+
+		__archive_read_consume(a, 46);
+
+		p = __archive_read_ahead(a, filename_length + extra_length,
+
+			NULL);
+
+		if (p == NULL) {
+
+			archive_set_error(&a->archive,
+
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+
+			    "Truncated ZIP file header");
+
+			return ARCHIVE_FATAL;
+
+		}
+

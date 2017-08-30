@@ -1,8 +1,26 @@
+  archive_check_magic(_a, ARCHIVE_READ_MAGIC, ARCHIVE_STATE_NEW,
 
-	if (en) {
-		/* Everything failed; give up here. */
-		archive_set_error(&a->archive, en, "Can't create '%s'",
-		    a->name);
-		return (ARCHIVE_FAILED);
-	}
+                      "archive_read_support_format_rar");
+
+
+
+  rar = (struct rar *)malloc(sizeof(*rar));
+
+  if (rar == NULL)
+
+  {
+
+    archive_set_error(&a->archive, ENOMEM, "Can't allocate rar data");
+
+    return (ARCHIVE_FATAL);
+
+  }
+
+  memset(rar, 0, sizeof(*rar));
+
+
+
+	/*
+
+	 * Until enough data has been read, we cannot tell about
 

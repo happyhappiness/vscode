@@ -1,10 +1,26 @@
-  printf("Current Value: %s\n", iter.GetValue());
-  printf("New Value (Enter to keep current value): ");
-  char buffer[4096];
-  if(!fgets(buffer, sizeof(buffer)-1, stdin))
-    {
-    buffer[0] = 0;
-    }
+	return (archive_read_support_filter_program_signature(a, cmd, NULL, 0));
 
-  if(strlen(buffer) > 0)
-    {
+}
+
+
+
+/*
+
+ * The bidder object stores the command and the signature to watch for.
+
+ * The 'inhibit' entry here is used to ensure that unchecked filters never
+
+ * bid twice in the same pipeline.
+
+ */
+
+struct program_bidder {
+
+	char *description;
+
+	char *cmd;
+
+	void *signature;
+
+	size_t signature_len;
+

@@ -1,32 +1,64 @@
-		return (ARCHIVE_FATAL);
-	}
+	ssize_t size;
+
+	void *value = NULL;
+
+
+
 
 
 	if (fd >= 0) {
+
 #if ARCHIVE_XATTR_LINUX
-		size = fgetxattr(fd, name, value, size);
+
+		size = fgetxattr(fd, name, NULL, 0);
+
 #elif ARCHIVE_XATTR_DARWIN
-		size = fgetxattr(fd, name, value, size, 0, 0);
+
+		size = fgetxattr(fd, name, NULL, 0, 0, 0);
+
 #elif ARCHIVE_XATTR_AIX
-		size = fgetea(fd, name, value, size);
+
+		size = fgetea(fd, name, NULL, 0);
+
 #endif
+
 	} else if (!a->follow_symlinks) {
+
 #if ARCHIVE_XATTR_LINUX
-		size = lgetxattr(accpath, name, value, size);
+
+		size = lgetxattr(accpath, name, NULL, 0);
+
 #elif ARCHIVE_XATTR_DARWIN
-		size = getxattr(accpath, name, value, size, 0, XATTR_NOFOLLOW);
+
+		size = getxattr(accpath, name, NULL, 0, 0, XATTR_NOFOLLOW);
+
 #elif ARCHIVE_XATTR_AIX
-		size = lgetea(accpath, name, value, size);
+
+		size = lgetea(accpath, name, NULL, 0);
+
 #endif
+
 	} else {
+
 #if ARCHIVE_XATTR_LINUX
-		size = getxattr(accpath, name, value, size);
+
+		size = getxattr(accpath, name, NULL, 0);
+
 #elif ARCHIVE_XATTR_DARWIN
-		size = getxattr(accpath, name, value, size, 0, 0);
+
+		size = getxattr(accpath, name, NULL, 0, 0, 0);
+
 #elif ARCHIVE_XATTR_AIX
-		size = getea(accpath, name, value, size);
+
+		size = getea(accpath, name, NULL, 0);
+
 #endif
+
 	}
 
+
+
 	if (size == -1) {
+
 		archive_set_error(&a->archive, errno,
+

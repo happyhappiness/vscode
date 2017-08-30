@@ -1,21 +1,24 @@
-#  define YYFPRINTF fprintf
-# endif
+  if (!out)
 
-# define YYDPRINTF(Args)                        \
-do {                                            \
-  if (yydebug)                                  \
-    YYFPRINTF Args;                             \
-} while (0)
+    return;
 
-# define YY_SYMBOL_PRINT(Title, Type, Value, Location)          \
-do {                                                            \
-  if (yydebug)                                                  \
-    {                                                           \
-      YYFPRINTF (stderr, "%s ", Title);                         \
-      yysymprint (stderr,                                       \
-                  Type, Value); \
-      YYFPRINTF (stderr, "\n");                                 \
-    }                                                           \
-} while (0)
 
-/*------------------------------------------------------------------.
+
+  string tmp = objfile;
+
+  doEscape(tmp, " ", "\\ ");
+
+  fprintf(out, "%s: \\\n", tmp.c_str());
+
+
+
+  for (vector<string>::iterator i(incs.begin()); i != incs.end(); ++i) {
+
+    tmp = *i;
+
+    doEscape(tmp, "\\", "\\\\");
+
+    doEscape(tmp, " ", "\\ ");
+
+    //doEscape(tmp, "(", "("); // TODO ninja cant read ( and )
+

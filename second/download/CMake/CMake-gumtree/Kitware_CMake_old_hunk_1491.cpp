@@ -1,10 +1,18 @@
-  SetIcon(m_hIcon, FALSE);		// Set small icon
-  // Load source and build dirs from registry
-  this->LoadFromRegistry();
-  // try to load the cmake cache from disk
-  this->LoadCacheFromDiskToGUI();
-  m_WhereBuildControl.LimitText(2048);
-  m_WhereSourceControl.LimitText(2048);
-  // Set the version number
-  char tmp[1024];
-  sprintf(tmp,"Version %d.%d", cmMakefile::GetMajorVersion(),
+
+
+  // capitalized commands just once
+
+  std::vector<std::string> capcommands;
+
+  for (i = 0; i < m_Commands.size(); i++)
+
+    {
+
+    capcommands.push_back(cmSystemTools::Capitalized(m_Commands[i]));
+
+    }
+
+  
+
+  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
+

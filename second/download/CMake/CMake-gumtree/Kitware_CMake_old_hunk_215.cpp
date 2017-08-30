@@ -1,9 +1,42 @@
-				tar->sparse_gnu_pending = 0;
-				/* Read initial sparse map. */
-				bytes_read = gnu_sparse_10_read(a, tar, unconsumed);
-				tar->entry_bytes_remaining -= bytes_read;
-				if (bytes_read < 0)
-					return ((int)bytes_read);
-			} else {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
+		acl = NULL;
+
+#endif
+
+	else
+
+		acl = acl_get_file(accpath, ACL_TYPE_NFS4);
+
+#if HAVE_ACL_IS_TRIVIAL_NP
+
+	/* Ignore "trivial" ACLs that just mirror the file mode. */
+
+	acl_is_trivial_np(acl, &r);
+
+	if (r) {
+
+		acl_free(acl);
+
+		acl = NULL;
+
+	}
+
+#endif
+
+	if (acl != NULL) {
+
+		translate_acl(a, entry, acl, ARCHIVE_ENTRY_ACL_TYPE_NFS4);
+
+		acl_free(acl);
+
+		return (ARCHIVE_OK);
+
+	}
+
+#endif
+
+
+
+	/* Retrieve access ACL from file. */
+
+	if (*fd >= 0)
+

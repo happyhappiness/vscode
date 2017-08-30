@@ -1,7 +1,14 @@
+      }
 
-bool cmakewizard::AskAdvanced()
-{
-  printf("Would you like to see advanced options? [No]:");  
-  char buffer[4096];
-  buffer[0] = 0;
-  fgets(buffer, sizeof(buffer)-1, stdin);
+    if ((!currentWidget || !widgetHandled) && !this->SearchMode)
+
+      {
+
+      // If the current widget does not want to handle input, 
+
+      // we handle it.
+
+      sprintf(debugMessage, "Main form handling input, key: %d", key);
+
+      cmCursesForm::LogMessage(debugMessage);
+

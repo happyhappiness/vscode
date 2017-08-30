@@ -1,7 +1,46 @@
+	return (ARCHIVE_OK);
 
-        lerr = SSL_get_verify_result(connssl->handle);
-        if(lerr != X509_V_OK) {
-          data->set.ssl.certverifyresult = lerr;
-          snprintf(error_buffer, sizeof(error_buffer),
-                   "SSL certificate problem: %s",
-                   X509_verify_cert_error_string(lerr));
+}
+
+
+
+static int
+
+cleanup_pathname(struct archive_write_disk *a)
+
+{
+
+	struct archive_string error_string;
+
+	int error_number;
+
+	int rc;
+
+	archive_string_init(&error_string);
+
+	rc = cleanup_pathname_fsobj(a->name, &error_number, &error_string,
+
+	    a->flags);
+
+	if (rc != ARCHIVE_OK) {
+
+		archive_set_error(&a->archive, error_number, "%s",
+
+		    error_string.s);
+
+	}
+
+	archive_string_free(&error_string);
+
+	return rc;
+
+}
+
+
+
+/*
+
+ * Create the parent directory of the specified path, assuming path
+
+ * is already in mutable storage.
+

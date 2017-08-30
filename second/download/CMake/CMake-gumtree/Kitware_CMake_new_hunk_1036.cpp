@@ -1,8 +1,24 @@
-      fprintf(stderr, "  item %d [%s]\n", i,
-              this->EntryList[i].Item.c_str());
-      }
-    EdgeList const& ol = this->CCG->GetComponentGraphEdges(c);
-    for(EdgeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
-      {
-      fprintf(stderr, "  followed by Component (%d)\n", *oi);
-      }
+
+
+	/* First item is set up a lot like a symlink traversal. */
+
+	/* printf("Looking for wildcard in %s\n", path); */
+
+	if ((base[0] == L'/' && base[1] == L'/' &&
+
+	     base[2] == L'?' && base[3] == L'/' &&
+
+	     (wcschr(base+4, L'*') || wcschr(base+4, L'?'))) ||
+
+	    (!(base[0] == L'/' && base[1] == L'/' &&
+
+	       base[2] == L'?' && base[3] == L'/') &&
+
+	       (wcschr(base, L'*') || wcschr(base, L'?')))) {
+
+		// It has a wildcard in it...
+
+		// Separate the last element.
+
+		p = wcsrchr(base, L'/');
+

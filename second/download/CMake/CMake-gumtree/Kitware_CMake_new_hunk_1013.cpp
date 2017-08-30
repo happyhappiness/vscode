@@ -1,8 +1,34 @@
+	fid = t->max_filesystem_id++;
 
-        /* lineno is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           yy_fatal_error( "cmDependsJava_yyset_lineno called with no buffer" , yyscanner);
+	if (t->max_filesystem_id > t->allocated_filesytem) {
 
-    yylineno = line_number;
-}
+		size_t s;
+
+		void *p;
+
+
+
+		s = t->max_filesystem_id * 2;
+
+		p = realloc(t->filesystem_table,
+
+		        s * sizeof(*t->filesystem_table));
+
+		if (p == NULL) {
+
+			archive_set_error(&a->archive, ENOMEM,
+
+			    "Can't allocate tar data");
+
+			return (ARCHIVE_FATAL);
+
+		}
+
+		t->filesystem_table = (struct filesystem *)p;
+
+		t->allocated_filesytem = s;
+
+	}
+
+	t->current_filesystem_id = fid;
 

@@ -1,11 +1,12 @@
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 1 second.  */
-#if defined(_WIN32)
-  Sleep(1000);
-#else
-  sleep(1);
-#endif
-  fprintf(stdout, "Output on stdout after sleep.\n");
-  fprintf(stderr, "Output on stderr after sleep.\n");
-  fflush(stdout);
+
+
+		if (!S_ISDIR(a->st.st_mode)) {
+
+			/* A non-dir is in the way, unlink it. */
+
+			if (unlink(a->name) != 0) {
+
+				archive_set_error(&a->archive, errno,
+
+				    "Can't unlink already-existing object");
+

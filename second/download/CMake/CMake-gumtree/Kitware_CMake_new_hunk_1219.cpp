@@ -1,8 +1,16 @@
-      }
-    
-    fprintf(fout, "ADD_EXECUTABLE(cmTryCompileExec \"%s\")\n",source.c_str());
-    fprintf(fout, 
-            "TARGET_LINK_LIBRARIES(cmTryCompileExec ${LINK_LIBRARIES})\n");
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
-    targetName = "cmTryCompileExec";
+
+
+	zip = (struct zip *) calloc(1, sizeof(*zip));
+
+	if (zip == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM,
+
+		    "Can't allocate zip data");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+	zip->central_directory = NULL;
+

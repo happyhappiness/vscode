@@ -1,7 +1,24 @@
-    {
-    std::string reg_shared = reg;
-    this->SharedRegexString =
-      this->CreateExtensionRegex(this->SharedLinkExtensions);
-    reg_shared += this->SharedRegexString;
-#ifdef CM_COMPUTE_LINK_INFO_DEBUG
-  fprintf(stderr, "shared regex [%s]\n", reg_shared.c_str());
+		uudecode->in_cnt = 0;
+
+	}
+
+	for (;used < avail_in; d += llen, used += llen) {
+
+		int l, body;
+
+
+
+		b = d;
+
+		len = get_line(b, avail_in - used, &nl);
+
+		if (len < 0) {
+
+			/* Non-ascii character is found. */
+
+			archive_set_error(&self->archive->archive,
+
+			    ARCHIVE_ERRNO_MISC,
+
+			    "Insufficient compressed data");
+

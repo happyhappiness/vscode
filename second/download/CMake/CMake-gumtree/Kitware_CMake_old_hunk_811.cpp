@@ -1,13 +1,66 @@
-		return (r);
-	/* Update checksum */
-	if (*size)
-		zip->entry_crc32 = crc32(zip->entry_crc32, *buff, *size);
-	/* If we hit the end, swallow any end-of-data marker. */
-	if (zip->end_of_entry) {
-		/* Check file size, CRC against these values. */
-		if (zip->entry->compressed_size != zip->entry_compressed_bytes_read) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP compressed data is wrong size (read %jd, expected %jd)",
-			    (intmax_t)zip->entry_compressed_bytes_read,
-			    (intmax_t)zip->entry->compressed_size);
-			return (ARCHIVE_WARN);
+
+
+/*
+
+ * Device entries have one of the following forms:
+
+ * raw dev_t
+
+ * format,major,minor[,subdevice]
+
+ *
+
+ * Just use major and minor, no translation etc is done
+
+ * between formats.
+
+ */
+
+static int
+
+parse_device(struct archive *a, struct archive_entry *entry, char *val)
+
+{
+
+	char *comma1, *comma2;
+
+
+
+	comma1 = strchr(val, ',');
+
+	if (comma1 == NULL) {
+
+		archive_entry_set_dev(entry, (dev_t)mtree_atol10(&val));
+
+		return (ARCHIVE_OK);
+
+	}
+
+	++comma1;
+
+	comma2 = strchr(comma1, ',');
+
+	if (comma2 == NULL) {
+
+		archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+
+		    "Malformed device attribute");
+
+		return (ARCHIVE_WARN);
+
+	}
+
+	++comma2;
+
+	archive_entry_set_rdevmajor(entry, (dev_t)mtree_atol(&comma1));
+
+	archive_entry_set_rdevminor(entry, (dev_t)mtree_atol(&comma2));
+
+	return (ARCHIVE_OK);
+
+}
+
+
+
+/*
+

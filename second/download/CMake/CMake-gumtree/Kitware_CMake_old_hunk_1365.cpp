@@ -1,7 +1,32 @@
+    va_list va;
 
-        if ( !m_ShowOnly )
-          {
-          if (res == cmsysProcess_State_Exited && retVal )
-            {
-            fprintf(stderr,"   Passed\n");
-            passed.push_back(args[0].Value); 
+    int len;
+
+
+
+    va_start(va, format);
+
+#ifdef HAS_vsnprintf
+
+    (void)vsnprintf(buf, sizeof(buf), format, va);
+
+#else
+
+    (void)vsprintf(buf, format, va);
+
+#endif
+
+    va_end(va);
+
+    len = strlen(buf); /* some *sprintf don't return the nb of bytes written */
+
+    if (len <= 0) return 0;
+
+
+
+    return gzwrite(file, buf, (unsigned)len);
+
+}
+
+#else /* not ANSI C */
+

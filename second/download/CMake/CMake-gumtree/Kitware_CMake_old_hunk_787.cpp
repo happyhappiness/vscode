@@ -1,11 +1,14 @@
-			else
-				ret = ARCHIVE_FATAL;
-		}
-	} else
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "lha: unknown keyword ``%s''", key);
+    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
 
-	return (ret);
-}
+            this->BinaryDirectory.c_str());
 
-static int
+    /* Create the actual executable.  */
+
+    fprintf(fout, "add_executable(%s", targetName);
+
+    for(std::vector<std::string>::iterator si = sources.begin();
+
+        si != sources.end(); ++si)
+
+      {
+

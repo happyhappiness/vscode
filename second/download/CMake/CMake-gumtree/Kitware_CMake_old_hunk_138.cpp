@@ -1,7 +1,16 @@
-		 * If we can't look up the real name, warn and return
-		 * the entry with the wrong name.
-		 */
-		if (ar->strtab == NULL || number > ar->strtab_size) {
-			archive_set_error(&a->archive, EINVAL,
-			    "Can't find long filename for GNU/SVR4 archive entry");
-			archive_entry_copy_pathname(entry, filename);
+		if (path == NULL)
+
+			path = archive_entry_pathname(entry);
+
+			
+
+		if (pathconf(path, _PC_MIN_HOLE_SIZE) <= 0)
+
+			return (ARCHIVE_OK);
+
+		*fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+
+		if (*fd < 0) {
+
+			archive_set_error(&a->archive, errno,
+

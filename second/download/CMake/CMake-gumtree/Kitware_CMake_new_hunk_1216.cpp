@@ -1,68 +1,90 @@
-    int retVal = 0;
+}
 
 
-    cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
-      << (this->MemCheck?"MemCheck":"Test") << " command: " << testCommand
-      << std::endl);
-    *this->LogFile << cnt << "/" << tmsize
-      << " Test: " << testname.c_str() << std::endl;
-    *this->LogFile << "Command: ";
-    std::vector<cmStdString>::size_type ll;
-    for ( ll = 0; ll < arguments.size()-1; ll ++ )
-      {
-      *this->LogFile << "\"" << arguments[ll] << "\" ";
-      }
-    *this->LogFile
-      << std::endl
-      << "Directory: " << it->Directory << std::endl
-      << "\"" << testname.c_str() << "\" start time: "
-      << this->CTest->CurrentTime() << std::endl
-      << "Output:" << std::endl
-      << "----------------------------------------------------------"
-      << std::endl;
-    int res = 0;
-    double clock_start, clock_finish;
-    clock_start = cmSystemTools::GetTime();
 
-    if ( !this->CTest->GetShowOnly() )
-      {
-      res = this->CTest->RunTest(arguments, &output, &retVal, this->LogFile);
-      }
+static ssize_t
 
-    clock_finish = cmSystemTools::GetTime();
+read_stream(struct archive_read *a, const void **buff, size_t size,
 
-    if ( this->LogFile )
-      {
-      double ttime = clock_finish - clock_start;
-      int hours = static_cast<int>(ttime / (60 * 60));
-      int minutes = static_cast<int>(ttime / 60) % 60;
-      int seconds = static_cast<int>(ttime) % 60;
-      char buffer[100];
-      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
-      *this->LogFile
-        << "----------------------------------------------------------"
-        << std::endl
-        << "\"" << testname.c_str() << "\" end time: "
-        << this->CTest->CurrentTime() << std::endl
-        << "\"" << testname.c_str() << "\" time elapsed: "
-        << buffer << std::endl
-        << "----------------------------------------------------------"
-        << std::endl << std::endl;
-      }
+    size_t minimum)
 
-    cres.ExecutionTime = (double)(clock_finish - clock_start);
-    cres.FullCommandLine = testCommand;
+{
 
-    if ( !this->CTest->GetShowOnly() )
-      {
-      bool testFailed = false;
-      std::vector<cmsys::RegularExpression>::iterator passIt;
-      bool forceFail = false;
-      if ( it->RequiredRegularExpressions.size() > 0 )
-        {
-        bool found = false;
-        for ( passIt = it->RequiredRegularExpressions.begin();
-          passIt != it->RequiredRegularExpressions.end();
-          ++ passIt )
-          {
-          if ( passIt->find(output.c_str()) )
+	struct _7zip *zip = (struct _7zip *)a->format->data;
+
+	uint64_t skip_bytes = 0;
+
+	int r;
+
+
+
+	if (zip->uncompressed_buffer_bytes_remaining == 0) {
+
+		if (zip->pack_stream_inbytes_remaining > 0) {
+
+			r = extract_pack_stream(a, 0);
+
+			if (r < 0)
+
+				return (r);
+
+			return (get_uncompressed_data(a, buff, size, minimum));
+
+		} else if (zip->folder_outbytes_remaining > 0) {
+
+			/* Extract a remaining pack stream. */
+
+			r = extract_pack_stream(a, 0);
+
+			if (r < 0)
+
+				return (r);
+
+			return (get_uncompressed_data(a, buff, size, minimum));
+
+		}
+
+	} else
+
+		return (get_uncompressed_data(a, buff, size, minimum));
+
+
+
+	/*
+
+	 * Current pack stream has been consumed.
+
+	 */
+
+	if (zip->pack_stream_remaining == 0) {
+
+		if (zip->header_is_being_read) {
+
+			/* Invalid sequence. This might happen when
+
+			 * reading a malformed archive. */
+
+			archive_set_error(&(a->archive),
+
+			    ARCHIVE_ERRNO_MISC, "Malformed 7-Zip archive");
+
+			return (ARCHIVE_FATAL);
+
+		}
+
+
+
+		/*
+
+		 * All current folder's pack streams have been
+
+		 * consumed. Switch to next folder.
+
+		 */
+
+		if (zip->folder_index == 0 &&
+
+		    (zip->si.ci.folders[zip->entry->folderIndex].skipped_bytes
+
+		     || zip->folder_index != zip->entry->folderIndex)) {
+

@@ -1,15 +1,14 @@
-	if (zip->zip_entries == NULL) {
-		zip->zip_entries = malloc(sizeof(struct zip_entry));
-		if (zip->zip_entries == NULL) {
-			archive_set_error(&a->archive, ENOMEM, "Out  of memory");
-			return ARCHIVE_FATAL;
-		}
-	}
-	zip->entry = zip->zip_entries;
-	memset(zip->entry, 0, sizeof(struct zip_entry));
+			a->archive.state = ARCHIVE_STATE_FATAL;
 
-	/* Search ahead for the next local file header. */
-	__archive_read_consume(a, zip->unconsumed);
-	zip->unconsumed = 0;
-	for (;;) {
-		int64_t skipped = 0;
+			return (ARCHIVE_FATAL);
+
+		case TREE_ERROR_DIR:
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "%ls: Couldn't visit directory",
+
+			    tree_current_path(t));
+
+			return (ARCHIVE_FAILED);
+

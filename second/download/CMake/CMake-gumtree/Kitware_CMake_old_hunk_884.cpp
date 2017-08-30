@@ -1,17 +1,16 @@
-		(*last_entry)->next = entry;
-	*last_entry = entry;
+	if (path == NULL)
 
-	len = strcspn(line, " \t\r\n");
-	if ((entry->name = malloc(len + 1)) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
+		path = archive_entry_pathname(entry);
 
-	memcpy(entry->name, line, len);
-	entry->name[len] = '\0';
-	parse_escapes(entry->name, entry);
 
-	line += len;
-	for (iter = *global; iter != NULL; iter = iter->next) {
-		r = add_option(a, &entry->options, iter->value,
-		    strlen(iter->value));
+
+	if (fd >= 0)
+
+		list_size = extattr_list_fd(fd, namespace, NULL, 0);
+
+	else if (!a->follow_symlinks)
+
+		list_size = extattr_list_link(path, namespace, NULL, 0);
+
+	else
+

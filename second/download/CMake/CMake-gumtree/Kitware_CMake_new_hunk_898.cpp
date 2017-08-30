@@ -1,13 +1,20 @@
-			else
-				ret = ARCHIVE_FATAL;
+			xr = get_xfer_size(t, fd, NULL);
+
+		close(fd);
+
+#else
+
+		if (tree_enter_working_dir(t) != 0) {
+
+			archive_set_error(&a->archive, errno, "fchdir failed");
+
+			return (ARCHIVE_FAILED);
+
 		}
-		return (ret);
-	}
 
-	/* Note: The "warn" return is just to inform the options
-	 * supervisor that we didn't handle it.  It will generate
-	 * a suitable error if no one used this option. */
-	return (ARCHIVE_WARN);
-}
+		vr = statvfs(tree_current_access_path(t), &svfs);
 
-/* utility function- this exists to centralize the logic of tracking
+		r = statfs(tree_current_access_path(t), &sfs);
+
+		if (r == 0)
+

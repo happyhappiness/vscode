@@ -1,7 +1,14 @@
-    YY_BUFFER_STATE cmDependsFortran_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
-{
-        YY_BUFFER_STATE b;
+			if (val[0] >= '0' && val[0] <= '9') {
 
-        b = (YY_BUFFER_STATE) cmDependsFortran_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
-        if ( ! b )
-                YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yy_create_buffer()" );
+				*parsed_kws |= MTREE_HAS_PERM;
+
+				archive_entry_set_perm(entry,
+
+				    (mode_t)mtree_atol8(&val));
+
+			} else {
+
+				archive_set_error(&a->archive,
+
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+

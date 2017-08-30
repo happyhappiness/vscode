@@ -1,11 +1,50 @@
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+        {
 
-	if (a->tree != NULL)
-		a->tree = tree_reopen(a->tree, pathname,
-		    a->flags & ARCHIVE_READDISK_RESTORE_ATIME);
-	else
-		a->tree = tree_open(pathname, a->symlink_mode,
-		    a->flags & ARCHIVE_READDISK_RESTORE_ATIME);
-	if (a->tree == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate directory traversal data");
+          const BIGNUM *n;
+
+          const BIGNUM *e;
+
+
+
+          RSA_get0_key(rsa, &n, &e, NULL);
+
+          BN_print(mem, n);
+
+          push_certinfo("RSA Public Key", i);
+
+          print_pubkey_BN(rsa, n, i);
+
+          print_pubkey_BN(rsa, e, i);
+
+        }
+
+#else
+
+        BIO_printf(mem, "%d", BN_num_bits(rsa->n));
+
+        push_certinfo("RSA Public Key", i);
+
+        print_pubkey_BN(rsa, n, i);
+
+        print_pubkey_BN(rsa, e, i);
+
+#endif
+
+
+
+        break;
+
+      }
+
+      case EVP_PKEY_DSA:
+
+      {
+
+#ifndef OPENSSL_NO_DSA
+
+        DSA *dsa;
+
+#ifdef HAVE_OPAQUE_EVP_PKEY
+
+        dsa = EVP_PKEY_get0_DSA(pubkey);
+

@@ -1,7 +1,14 @@
- * The message SHALL NOT include any LF or CR.
- */
+  /* Avoid error diagnostic popups since we are crashing on purpose.  */
 
-void Curl_failf(struct SessionHandle *data, const char *fmt, ...)
-{
-  va_list ap;
-  size_t len;
+  disable_debugger(1);
+
+#endif
+
+  (void)argc; (void)argv;
+
+  fprintf(stdout, "Output before crash on stdout from crash test.\n");
+
+  fprintf(stderr, "Output before crash on stderr from crash test.\n");
+
+  fflush(stdout);
+

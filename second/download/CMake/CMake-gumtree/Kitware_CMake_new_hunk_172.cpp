@@ -1,27 +1,24 @@
- * is set) if the path is absolute.
- */
-static int
-cleanup_pathname_fsobj(char *path, int *a_eno, struct archive_string *a_estr,
-    int flags)
-{
-	char *dest, *src;
-	char separator = '\0';
+	switch ((int)type & ~0777777) {
 
-	dest = src = path;
-	if (*src == '\0') {
-		fsobj_error(a_eno, a_estr, ARCHIVE_ERRNO_MISC,
-		    "Invalid empty ", "pathname");
-		return (ARCHIVE_FAILED);
-	}
+	case 01000000:
 
-#if defined(__CYGWIN__)
-	cleanup_pathname_win(path);
-#endif
-	/* Skip leading '/'. */
-	if (*src == '/') {
-		if (flags & ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS) {
-			fsobj_error(a_eno, a_estr, ARCHIVE_ERRNO_MISC,
-			    "Path is ", "absolute");
-			return (ARCHIVE_FAILED);
-		}
+		/* POSIX.1e ACL */
+
+		acl_type = ARCHIVE_ENTRY_ACL_TYPE_ACCESS;
+
+		break;
+
+	case 03000000:
+
+		/* NFSv4 ACL */
+
+		acl_type = ARCHIVE_ENTRY_ACL_TYPE_NFS4;
+
+		break;
+
+	default:
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "Malformed Solaris ACL attribute (unsupported type %o)",
 

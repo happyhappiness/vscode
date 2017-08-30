@@ -1,32 +1,46 @@
-#endif
-	/* TODO: Add an "is_tape_like" variable and appropriate tests. */
 
-	/* Disk-like devices prefer power-of-two block sizes.  */
-	/* Use provided block_size as a guide so users have some control. */
-	if (is_disk_like) {
-		size_t new_block_size = 64 * 1024;
-		while (new_block_size < mine->block_size
-		    && new_block_size < 64 * 1024 * 1024)
-			new_block_size *= 2;
-		mine->block_size = new_block_size;
-	}
-	buffer = malloc(mine->block_size);
-	if (mine == NULL || buffer == NULL) {
-		archive_set_error(a, ENOMEM, "No memory");
-		free(mine);
-		free(buffer);
-		return (ARCHIVE_FATAL);
-	}
-	mine->buffer = buffer;
-	mine->fd = fd;
-	/* Remember mode so close can decide whether to flush. */
-	mine->st_mode = st.st_mode;
 
-	/* Disk-like inputs can use lseek(). */
-	if (is_disk_like)
-		mine->use_lseek = 1;
+//----------------------------------------------------------------------------
 
-	return (ARCHIVE_OK);
-}
+void
 
-static ssize_t
+cmComputeTargetDepends::DisplayGraph(Graph const& graph,
+
+                                     const std::string& name)
+
+{
+
+  fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());
+
+  int n = static_cast<int>(graph.size());
+
+  for(int depender_index = 0; depender_index < n; ++depender_index)
+
+    {
+
+    EdgeList const& nl = graph[depender_index];
+
+    cmTarget const* depender = this->Targets[depender_index];
+
+    fprintf(stderr, "target %d is [%s]\n",
+
+            depender_index, depender->GetName().c_str());
+
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+
+      {
+
+      int dependee_index = *ni;
+
+      cmTarget const* dependee = this->Targets[dependee_index];
+
+      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+
+              dependee->GetName().c_str(), ni->IsStrong()? "strong" : "weak");
+
+      }
+
+    }
+
+  fprintf(stderr, "\n");
+

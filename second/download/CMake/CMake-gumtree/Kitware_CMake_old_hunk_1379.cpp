@@ -1,10 +1,40 @@
-  return haveData;
+ ****************************************************************************/
+
+void Curl_cookie_cleanup(struct CookieInfo *c)
+
+{
+
+   struct Cookie *co;
+
+   struct Cookie *next;
+
+   if(c) {
+
+      if(c->filename)
+
+         free(c->filename);
+
+      co = c->cookies;
+
+
+
+      while(co) {
+
+         next = co->next;
+
+         freecookie(co);
+
+         co = next;
+
+      }
+
+      free(c); /* free the base struct as well */
+
+   }
+
 }
 
-#if defined(_MSC_VER) && defined(_DEBUG)
-# include <crtdbg.h>
-# include <stdio.h>
-# include <stdlib.h>
-static int SystemToolsDebugReport(int, char* message, int*)
-{
-  fprintf(stderr, message);
+
+
+/*
+

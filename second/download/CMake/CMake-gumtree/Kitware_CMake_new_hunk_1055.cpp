@@ -1,15 +1,36 @@
-               << static_cast<int>(percent + .5) << "% tests passed, "
-               << failed.size() << " tests failed out of " 
-               << total << std::endl); 
-    if(this->CTest->GetLabelSummary())
-      {
-      this->PrintLabelSummary();
-      }
-    char realBuf[1024];
-    sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (real) = "
-               << realBuf << "\n" );
+		uudecode->in_cnt = 0;
 
-    if (failed.size())
-      {
-      cmGeneratedFileStream ofs;
+	}
+
+	for (;used < avail_in; d += llen, used += llen) {
+
+		int64_t l, body;
+
+
+
+		b = d;
+
+		len = get_line(b, avail_in - used, &nl);
+
+		if (len < 0) {
+
+			/* Non-ascii character is found. */
+
+			if (uudecode->state == ST_FIND_HEAD &&
+
+			    (uudecode->total > 0 || total > 0)) {
+
+				uudecode->state = ST_IGNORE;
+
+				used = avail_in;
+
+				goto finish;
+
+			}
+
+			archive_set_error(&self->archive->archive,
+
+			    ARCHIVE_ERRNO_MISC,
+
+			    "Insufficient compressed data");
+

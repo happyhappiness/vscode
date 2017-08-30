@@ -1,41 +1,50 @@
-    return;
-    }
+  // update the cache entry for the number of local generators, this is used
 
-  height -= 5;
-  m_Height = height;
+  // for progress
 
-  int size = m_Entries->size();
-  bool isNewPage;
-  for(int i=0; i < size; i++)
+  char num[100];
+
+  sprintf(num,"%d",static_cast<int>(m_LocalGenerators.size()));
+
+  this->GetCMakeInstance()->AddCacheEntry
+
+    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
+
+     "number of local generators", cmCacheManager::INTERNAL);
+
+  
+
+  std::set<cmStdString> notFoundMap;
+
+  // after it is all done do a ConfigureFinalPass
+
+  cmCacheManager* manager = 0;
+
+  for (i = 0; i < m_LocalGenerators.size(); ++i)
+
     {
-    int row = (i % height) + 1;  
-    int page = (i / height) + 1;
-    isNewPage = ( page > 1 ) && ( row == 1 );
 
-    (*m_Entries)[i]->m_Label->Move(left, top+row-1, isNewPage);
-    (*m_Entries)[i]->m_IsNewLabel->Move(left+32, top+row-1, false);
-    (*m_Entries)[i]->m_Entry->Move(left+33, top+row-1, false);
-    }
-  m_Form = new_form(m_Fields);
-  post_form(m_Form);
-  this->UpdateStatusBar();
-  this->PrintKeys();
-  touchwin(m_Window); 
-  refresh();
-}
+    manager = m_LocalGenerators[i]->GetMakefile()->GetCacheManager();
 
-void cmCursesMainForm::PrintKeys()
-{
-  int x,y;
-  getmaxyx(m_Window, y, x);
-  if ( x < cmCursesMainForm::MIN_WIDTH  || 
-       y < cmCursesMainForm::MIN_HEIGHT )
-    {
-    return;
-    }
-  char firstLine[512], secondLine[512];
-  sprintf(firstLine,  "C)onfigure             G)enerate and Exit");
-  sprintf(secondLine, "Q)uit                  H)elp");
+    m_LocalGenerators[i]->ConfigureFinalPass();
 
-  curses_move(y-2,0);
-  printw(firstLine);
+    cmTargets & targets = 
+
+      m_LocalGenerators[i]->GetMakefile()->GetTargets(); 
+
+    for (cmTargets::iterator l = targets.begin();
+
+         l != targets.end(); l++)
+
+      {
+
+      cmTarget::LinkLibraries libs = l->second.GetLinkLibraries();
+
+      for(cmTarget::LinkLibraries::iterator lib = libs.begin();
+
+          lib != libs.end(); ++lib)
+
+        {
+
+        if(lib->first.size() > 9 && 
+

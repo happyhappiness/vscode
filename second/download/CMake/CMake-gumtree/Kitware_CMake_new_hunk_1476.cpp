@@ -1,9 +1,88 @@
-  fout << "  int i;\n";
-  fout << "  if(ac < 2)\n";
-  fout << "    {\n";
-  fout << "    // if there is only one test, then run it with the arguments\n";
-  fout << "    if(NumTests == 1)\n";
-  fout << "      { return (*cmakeGeneratedFunctionMapEntries[0].func)(ac, av); }\n";
-  fout << "    printf(\"Available tests:\\n\");\n";
-  fout << "    for(i =0; i < NumTests; ++i)\n";
-  fout << "      {\n";
+#endif
+
+{
+
+  int yyi;
+
+  unsigned long int yylno = yyrline[yyrule];
+
+  YYFPRINTF (stderr, "Reducing stack by rule %d (line %lu), ",
+
+             yyrule - 1, yylno);
+
+  /* Print the symbols being reduced, and their result.  */
+
+  for (yyi = yyprhs[yyrule]; 0 <= yyrhs[yyi]; yyi++)
+
+    YYFPRINTF (stderr, "%s ", yytname[yyrhs[yyi]]);
+
+  YYFPRINTF (stderr, "-> %s\n", yytname[yyr1[yyrule]]);
+
+}
+
+
+
+# define YY_REDUCE_PRINT(Rule)          \
+
+do {                                    \
+
+  if (yydebug)                          \
+
+    yy_reduce_print (Rule);             \
+
+} while (0)
+
+
+
+/* Nonzero means print parse trace.  It is left uninitialized so that
+
+   multiple parsers can coexist.  */
+
+int yydebug;
+
+#else /* !YYDEBUG */
+
+# define YYDPRINTF(Args)
+
+# define YY_SYMBOL_PRINT(Title, Type, Value, Location)
+
+# define YY_STACK_PRINT(Bottom, Top)
+
+# define YY_REDUCE_PRINT(Rule)
+
+#endif /* !YYDEBUG */
+
+
+
+
+
+/* YYINITDEPTH -- initial size of the parser's stacks.  */
+
+#ifndef YYINITDEPTH
+
+# define YYINITDEPTH 200
+
+#endif
+
+
+
+/* YYMAXDEPTH -- maximum size the stacks can grow to (effective only
+
+   if the built-in stack extension method is used).
+
+
+
+   Do not make this value too large; the results are undefined if
+
+   YYSTACK_ALLOC_MAXIMUM < YYSTACK_BYTES (YYMAXDEPTH)
+
+   evaluated with infinite-precision integer arithmetic.  */
+
+
+
+#ifndef YYMAXDEPTH
+
+# define YYMAXDEPTH 10000
+
+#endif
+

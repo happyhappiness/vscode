@@ -1,10 +1,26 @@
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_tar");
+  sprintf(version+sideSpace, "%s", vertmp);
 
-	tar = (struct tar *)calloc(1, sizeof(*tar));
-#ifdef HAVE_COPYFILE_H
-	/* Set this by default on Mac OS. */
-	tar->process_mac_extensions = 1;
-#endif
-	if (tar == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate tar data");
+  version[width] = '\0';
+
+
+
+  char fmt_s[] = "%s";
+
+  curses_move(y-4,0);
+
+  attron(A_STANDOUT);
+
+  printw(fmt_s, bar);
+
+  attroff(A_STANDOUT);
+
+  curses_move(y-3,0);
+
+  printw(fmt_s, version);
+
+  pos_form_cursor(this->Form);
+
+}
+
+
+

@@ -1,13 +1,14 @@
-tar_append_file(TAR *t, char *realname, char *savename)
-{
-  struct stat s;
-  libtar_hashptr_t hp;
-  tar_dev_t *td = NULL;
-  tar_ino_t *ti = NULL;
-#if !defined(_WIN32) || defined(__CYGWIN__)
-  int i;
-  char path[TAR_MAXPATHLEN];
-#endif
+    char name[128];
 
-#ifdef DEBUG
-  printf("==> tar_append_file(TAR=0x%lx (\"%s\"), realname=\"%s\", "
+    sprintf(name, "CMAKE_MATCH_%d", i);
+
+    mf->AddDefinition(name, "");
+
+    mf->MarkVariableAsUsed(name);
+
+    }
+
+}
+
+
+

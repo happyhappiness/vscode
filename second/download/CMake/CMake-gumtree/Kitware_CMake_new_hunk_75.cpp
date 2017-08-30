@@ -1,20 +1,34 @@
-{
-  va_list ap;
-  size_t len;
-  char error[CURL_ERROR_SIZE + 2];
-  va_start(ap, fmt);
+      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
 
-  vsnprintf(error, CURL_ERROR_SIZE, fmt, ap);
-  len = strlen(error);
+         last .sss part is optional and means fractions of a second */
 
-  if(data->set.errorbuffer && !data->state.errorbuf) {
-    strcpy(data->set.errorbuffer, error);
-    data->state.errorbuf = TRUE; /* wrote error string */
-  }
-  if(data->set.verbose) {
-    error[len] = '\n';
-    error[++len] = '\0';
-    Curl_debug(data, CURLINFO_TEXT, error, len, NULL);
-  }
+      int year, month, day, hour, minute, second;
 
-  va_end(ap);
+      if(6 == sscanf(&data->state.buffer[4], "%04d%02d%02d%02d%02d%02d",
+
+                     &year, &month, &day, &hour, &minute, &second)) {
+
+        /* we have a time, reformat it */
+
+        char timebuf[24];
+
+        time_t secs=time(NULL);
+
+
+
+        snprintf(timebuf, sizeof(timebuf),
+
+                 "%04d%02d%02d %02d:%02d:%02d GMT",
+
+                 year, month, day, hour, minute, second);
+
+        /* now, convert this into a time() value: */
+
+        data->info.filetime = (long)curl_getdate(timebuf, &secs);
+
+      }
+
+
+
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
+

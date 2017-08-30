@@ -1,10 +1,24 @@
-		lha->entry_unconsumed = 0;
-	}
-	if (lha->end_of_entry) {
-		*offset = lha->entry_offset;
-		*size = 0;
-		*buff = NULL;
-		return (lha_end_of_entry(a));
-	}
+      rar->range_dec.Stream = &rar->bytein;
 
-	if (lha->entry_is_compressed)
+      __archive_ppmd7_functions.Ppmd7_Construct(&rar->ppmd7_context);
+
+
+
+      if (rar->dictionary_size == 0) {
+
+	      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+                          "Invalid zero dictionary size");
+
+	      return (ARCHIVE_FATAL);
+
+      }
+
+
+
+      if (!__archive_ppmd7_functions.Ppmd7_Alloc(&rar->ppmd7_context,
+
+        rar->dictionary_size, &g_szalloc))
+
+      {
+

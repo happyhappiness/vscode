@@ -1,7 +1,16 @@
-  buf[sizeof(buf)-1] = 0;
+#include "cmQtAutomoc.h"
 
-  if (mkdirhier(dirname(buf)) == -1)
-    return -1;
 
-#ifdef DEBUG
-  printf("  ==> extracting: %s (mode %04o, directory)\n", filename,
+
+
+
+#define TRACE_LINE() printf(" %s %d\n", __PRETTY_FUNCTION__, __LINE__)
+
+
+
+cmQtAutomoc::cmQtAutomoc()
+
+:Verbose(true)
+
+,RunMocFailed(false)
+

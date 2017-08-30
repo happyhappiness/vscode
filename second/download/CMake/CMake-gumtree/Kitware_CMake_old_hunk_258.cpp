@@ -1,9 +1,16 @@
-    else {
-      CURLcode result;
-      ssl_sessionid =
-        aprintf("%s:%d:%d:%s:%hu", data->set.str[STRING_SSL_CAFILE],
-                data->set.ssl.verifypeer, data->set.ssl.verifyhost,
-                conn->host.name, conn->remote_port);
-      ssl_sessionid_len = strlen(ssl_sessionid);
+	if (tar->entry_bytes_remaining < 0) {
 
-      err = SSLSetPeerID(connssl->ssl_ctx, ssl_sessionid, ssl_sessionid_len);
+		tar->entry_bytes_remaining = 0;
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "Tar entry has negative size?");
+
+		err = ARCHIVE_WARN;
+
+	}
+
+	tar->realsize = tar->entry_bytes_remaining;
+
+	archive_entry_set_size(entry, tar->entry_bytes_remaining);
+

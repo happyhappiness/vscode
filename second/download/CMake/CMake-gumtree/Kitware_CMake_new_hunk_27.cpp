@@ -1,31 +1,64 @@
 		return (ARCHIVE_FATAL);
+
 	}
 
-	if (*fd >= 0) {
+
+
+
+
+	if (fd >= 0) {
+
 #if ARCHIVE_XATTR_LINUX
-		list_size = flistxattr(*fd, list, list_size);
+
+		size = fgetxattr(fd, name, value, size);
+
 #elif ARCHIVE_XATTR_DARWIN
-		list_size = flistxattr(*fd, list, list_size, 0);
+
+		size = fgetxattr(fd, name, value, size, 0, 0);
+
 #elif ARCHIVE_XATTR_AIX
-		list_size = flistea(*fd, list, list_size);
+
+		size = fgetea(fd, name, value, size);
+
 #endif
+
 	} else if (!a->follow_symlinks) {
+
 #if ARCHIVE_XATTR_LINUX
-		list_size = llistxattr(path, list, list_size);
+
+		size = lgetxattr(accpath, name, value, size);
+
 #elif ARCHIVE_XATTR_DARWIN
-		list_size = listxattr(path, list, list_size, XATTR_NOFOLLOW);
+
+		size = getxattr(accpath, name, value, size, 0, XATTR_NOFOLLOW);
+
 #elif ARCHIVE_XATTR_AIX
-		list_size = llistea(path, list, list_size);
+
+		size = lgetea(accpath, name, value, size);
+
 #endif
+
 	} else {
+
 #if ARCHIVE_XATTR_LINUX
-		list_size = listxattr(path, list, list_size);
+
+		size = getxattr(accpath, name, value, size);
+
 #elif ARCHIVE_XATTR_DARWIN
-		list_size = listxattr(path, list, list_size, 0);
+
+		size = getxattr(accpath, name, value, size, 0, 0);
+
 #elif ARCHIVE_XATTR_AIX
-		list_size = listea(path, list, list_size);
+
+		size = getea(accpath, name, value, size);
+
 #endif
+
 	}
 
-	if (list_size == -1) {
+
+
+	if (size == -1) {
+
 		archive_set_error(&a->archive, errno,
+

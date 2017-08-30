@@ -1,14 +1,16 @@
-    ++comshell;
 
-    if (GetVersion() < 0x80000000 &&
-        STRICMP(comshell, "command.com") != 0) 
-      {
-      /* NT/2000 and not using command.com. */
-      x = i + (int)strlen(s3) + (int)strlen(cmdstring) + 1;
-      s2 = (char *)_alloca(x);
-      ZeroMemory(s2, x);
-      //sprintf(s2, "%s%s%s", s1, s3, cmdstring);
-      sprintf(s2, "%s", cmdstring);
-      }
-    else 
-      {
+
+        /* column is only valid if an input buffer exists. */
+
+        if (! YY_CURRENT_BUFFER )
+
+           yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" ); 
+
+    
+
+    yycolumn = column_no;
+
+}
+
+
+

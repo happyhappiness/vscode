@@ -1,7 +1,22 @@
-		r = archive_match_owner_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+
+
+
+	if (a->tree != NULL)
+
+		a->tree = tree_reopen(a->tree, pathname,
+
+		    a->flags & ARCHIVE_READDISK_RESTORE_ATIME);
+
+	else
+
+		a->tree = tree_open(pathname, a->symlink_mode,
+
+		    a->flags & ARCHIVE_READDISK_RESTORE_ATIME);
+
+	if (a->tree == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM,
+
+		    "Can't allocate tar data");
+

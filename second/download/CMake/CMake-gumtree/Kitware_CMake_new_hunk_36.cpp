@@ -1,7 +1,14 @@
-				/*
-				if (!S_ISLNK(path)) {
-					fsobj_error(a_eno, a_estr, 0,
-					    "Removing symlink ", path);
+				if (chdir(head) != 0) {
+
+					tail[0] = c;
+
+					fsobj_error(a_eno, a_estr, errno,
+
+					    "Could not chdir ", path);
+
+					res = (ARCHIVE_FATAL);
+
+					break;
+
 				}
-				*/
-				/* Symlink gone.  No more problem! */
+

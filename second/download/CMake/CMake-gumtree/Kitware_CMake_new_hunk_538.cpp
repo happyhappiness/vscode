@@ -1,16 +1,120 @@
+	struct private_data *data = (struct private_data *)f->data;
 
-static int test1(int argc, const char* argv[])
-{
-  /* This is a very basic functional test of kwsysProcess.  It is repeated
-     numerous times to verify that there are no resource leaks in kwsysProcess
-     that eventually lead to an error.  Many versions of OS X will fail after
-     256 leaked file handles, so 257 iterations seems to be a good test.  On
-     the other hand, too many iterations will cause the test to time out -
-     especially if the test is instrumented with e.g. valgrind.
+	int outsize;
 
-     If you have problems with this test timing out on your system, or want to
-     run more than 257 iterations, you can change the number of iterations by
-     setting the KWSYS_TEST_PROCESS_1_COUNT environment variable.  */
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 0.\n");
-  fprintf(stderr, "Output on stderr from test returning 0.\n");
+
+
+#define DICT_SIZE	(64 * 1024)
+
+#ifdef HAVE_LZ4HC_H
+
+	if (data->compression_level >= 3) {
+
+		if (data->lz4_stream == NULL) {
+
+#if LZ4_VERSION_MAJOR >= 1 && LZ4_VERSION_MINOR >= 7
+
+			data->lz4_stream = LZ4_createStreamHC();
+
+			LZ4_resetStreamHC(data->lz4_stream, data->compression_level);
+
+#else
+
+			data->lz4_stream =
+
+			    LZ4_createHC(data->in_buffer_allocated);
+
+#endif
+
+			if (data->lz4_stream == NULL) {
+
+				archive_set_error(f->archive, ENOMEM,
+
+				    "Can't allocate data for compression"
+
+				    " buffer");
+
+				return (ARCHIVE_FATAL);
+
+			}
+
+		}
+
+		else
+
+			LZ4_loadDictHC(data->lz4_stream, data->in_buffer_allocated, DICT_SIZE);
+
+
+
+#if LZ4_VERSION_MAJOR >= 1 && LZ4_VERSION_MINOR >= 7
+
+		outsize = LZ4_compress_HC_continue(
+
+		    data->lz4_stream, p, data->out + 4, (int)length,
+
+		    (int)data->block_size);
+
+#else
+
+		outsize = LZ4_compressHC2_limitedOutput_continue(
+
+		    data->lz4_stream, p, data->out + 4, (int)length,
+
+		    (int)data->block_size, data->compression_level);
+
+#endif
+
+	} else
+
+#endif
+
+	{
+
+		if (data->lz4_stream == NULL) {
+
+			data->lz4_stream = LZ4_createStream();
+
+			if (data->lz4_stream == NULL) {
+
+				archive_set_error(f->archive, ENOMEM,
+
+				    "Can't allocate data for compression"
+
+				    " buffer");
+
+				return (ARCHIVE_FATAL);
+
+			}
+
+		}
+
+		else
+
+			LZ4_loadDict(data->lz4_stream, data->in_buffer_allocated, DICT_SIZE);
+
+
+
+#if LZ4_VERSION_MAJOR >= 1 && LZ4_VERSION_MINOR >= 7
+
+		outsize = LZ4_compress_fast_continue(
+
+		    data->lz4_stream, p, data->out + 4, (int)length,
+
+		    (int)data->block_size, 1);
+
+#else
+
+		outsize = LZ4_compress_limitedOutput_continue(
+
+		    data->lz4_stream, p, data->out + 4, (int)length,
+
+		    (int)data->block_size);
+
+#endif
+
+	}
+
+
+
+	if (outsize) {
+

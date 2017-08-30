@@ -1,11 +1,40 @@
-  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
-    return CURLE_BAD_CONTENT_ENCODING;
+{
 
-  /* Generate 32 random hex chars, 32 bytes + 1 zero termination */
-  result = Curl_rand_hex(data, (unsigned char *)cnonce, sizeof(cnonce));
-  if(result)
-    return result;
+  va_list ap;
 
-  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt)
+  size_t len;
+
+  char error[CURL_ERROR_SIZE + 2];
+
+  va_start(ap, fmt);
+
+
+
+  vsnprintf(error, CURL_ERROR_SIZE, fmt, ap);
+
+  len = strlen(error);
+
+
+
+  if(data->set.errorbuffer && !data->state.errorbuf) {
+
+    strcpy(data->set.errorbuffer, error);
+
+    data->state.errorbuf = TRUE; /* wrote error string */
+
+  }
+
+  if(data->set.verbose) {
+
+    error[len] = '\n';
+
+    error[++len] = '\0';
+
+    Curl_debug(data, CURLINFO_TEXT, error, len, NULL);
+
+  }
+
+
+
+  va_end(ap);
+

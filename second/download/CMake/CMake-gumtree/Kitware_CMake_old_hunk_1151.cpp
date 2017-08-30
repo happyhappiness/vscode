@@ -1,109 +1,46 @@
-}
+             int share, int output, int delay, double timeout, int poll,
 
-//----------------------------------------------------------------------------
-void Glob::Escape(int ch, char* buffer)
-{
-  if (! (
-      'a' <= ch && ch <= 'z' ||
-      'A' <= ch && ch <= 'Z' ||
-      '0' <= ch && ch <= '9') )
-    {
-    sprintf(buffer, "\\%c", ch);
-    }
-  else
-    {
-#if defined( KWSYS_GLOB_CASE_INDEPENDENT )
-    // On Windows and apple, no difference between lower and upper case
-    sprintf(buffer, "%c", tolower(ch));
-#else
-    sprintf(buffer, "%c", ch);
-#endif
-    }
-}
+             int repeat, int disown);
 
-//----------------------------------------------------------------------------
-kwsys_stl::vector<kwsys_stl::string>& Glob::GetFiles()
-{
-  return this->Internals->Files;
-}
 
-//----------------------------------------------------------------------------
-kwsys_stl::string Glob::ConvertExpression(const kwsys_stl::string& expr)
+
+int test1(int argc, const char* argv[])
+
 {
 
-  kwsys_stl::string::size_type i = 0;
-  kwsys_stl::string::size_type n = expr.size();
+  (void)argc; (void)argv;
 
-  kwsys_stl::string res = "^";
-  kwsys_stl::string stuff = "";
+  fprintf(stdout, "Output on stdout from test returning 0.\n");
 
-  while ( i < n )
-    {
-    int c = expr[i];
-    i = i+1;
-    if ( c == '*' )
-      {
-      res = res + ".*";
-      }
-    else if ( c == '?' )
-      {
-      res = res + ".";
-      }
-    else if ( c == '[' )
-      {
-      kwsys_stl::string::size_type j = i;
-      if ( j < n && ( expr[j] == '!' || expr[j] == '^' ) )
-        {
-        j = j+1;
-        }
-      if ( j < n && expr[j] == ']' )
-        {
-        j = j+1;
-        }
-      while ( j < n && expr[j] != ']' )
-        {
-        j = j+1;
-        }
-      if ( j >= n )
-        {
-        res = res + "\\[";
-        }
-      else
-        {
-        stuff = "";
-        kwsys_stl::string::size_type cc;
-        for ( cc = i; cc < j; cc ++ )
-          {
-          if ( expr[cc] == '\\' )
-            {
-            stuff += "\\\\";
-            }
-          else
-            {
-            stuff += expr[cc];
-            }
-          }
-        i = j+1;
-        if ( stuff[0] == '!' || stuff[0] == '^' )
-          {
-          stuff = '^' + stuff.substr(1);
-          }
-        else if ( stuff[0] == '^' )
-          {
-          stuff = '\\' + stuff;
-          }
-        res = res + "[" + stuff + "]";
-        }
-      }
-    else
-      {
-      char buffer[100];
-      buffer[0] = 0;
-      this->Escape(c, buffer);
-      res = res + buffer;
-      }
-    }
-  return res + "$";
+  fprintf(stderr, "Output on stderr from test returning 0.\n");
+
+  return 0;
+
 }
 
-//----------------------------------------------------------------------------
+
+
+int test2(int argc, const char* argv[])
+
+{
+
+  (void)argc; (void)argv;
+
+  fprintf(stdout, "Output on stdout from test returning 123.\n");
+
+  fprintf(stderr, "Output on stderr from test returning 123.\n");
+
+  return 123;
+
+}
+
+
+
+int test3(int argc, const char* argv[])
+
+{
+
+  (void)argc; (void)argv;
+
+  fprintf(stdout, "Output before sleep on stdout from timeout test.\n");
+

@@ -1,11 +1,50 @@
-      return CURLE_FTP_WEIRD_227_FORMAT;
-    }
+    ver += "_FIND_VERSION";
 
-    sprintf(newhost, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-    newhostp = newhost;
-    newport = (unsigned short)((port[0]<<8) + port[1]);
-  }
-#if 1
-  else if (229 == results[modeoff]) {
-    char *ptr = strchr(buf, '(');
-    if(ptr) {
+    this->Makefile->AddDefinition(ver.c_str(), this->Version.c_str());
+
+    char buf[64];
+
+    switch(this->VersionCount)
+
+      {
+
+      case 3:
+
+        {
+
+        sprintf(buf, "%u", this->VersionPatch);
+
+        this->Makefile->AddDefinition((ver+"_PATCH").c_str(), buf);
+
+        } // no break
+
+      case 2:
+
+        {
+
+        sprintf(buf, "%u", this->VersionMinor);
+
+        this->Makefile->AddDefinition((ver+"_MINOR").c_str(), buf);
+
+        } // no break
+
+      case 1:
+
+        {
+
+        sprintf(buf, "%u", this->VersionMajor);
+
+        this->Makefile->AddDefinition((ver+"_MAJOR").c_str(), buf);
+
+        } // no break
+
+      default: break;
+
+      }
+
+
+
+    // Tell the module whether an exact version has been requested.
+
+    std::string exact = this->Name;
+

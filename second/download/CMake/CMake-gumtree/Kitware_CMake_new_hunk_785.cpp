@@ -1,7 +1,26 @@
-			archive_set_error(&a->archive, ENOMEM, "Out of memory");
-			return (ARCHIVE_FATAL);
-		}
-		p = calloc(new_size, sizeof(p[0]));
-		if (p == NULL) {
-			archive_set_error(&a->archive, ENOMEM, "Out of memory");
-			return (ARCHIVE_FATAL);
+      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
+
+      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
+
+      if(const char* rulesOverridePath =
+
+         this->Makefile->GetDefinition(rulesOverrideLang))
+
+        {
+
+        fprintf(fout, "set(%s \"%s\")\n",
+
+                rulesOverrideLang.c_str(), rulesOverridePath);
+
+        }
+
+      else if(const char* rulesOverridePath2 =
+
+              this->Makefile->GetDefinition(rulesOverrideBase))
+
+        {
+
+        fprintf(fout, "set(%s \"%s\")\n",
+
+                rulesOverrideBase.c_str(), rulesOverridePath2);
+

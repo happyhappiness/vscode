@@ -1,8 +1,15 @@
-  // We want to display this on the right
-  char version[cmCursesMainForm::MAX_WIDTH];
-  char vertmp[128];
-  sprintf(vertmp,"CMake Version %d.%d - %s", cmake::GetMajorVersion(),
-	  cmake::GetMinorVersion(),cmake::GetReleaseVersion());
-  int sideSpace = (width-strlen(vertmp));
-  for(i=0; i<sideSpace; i++) { version[i] = ' '; }
-  sprintf(version+sideSpace, "%s", vertmp);
+void cmCommandArgumentParserHelper::Error(const char* str)
+
+{
+
+  unsigned long pos = static_cast<unsigned long>(this->InputBufferPos);
+
+  cmOStringStream ostr;
+
+  ostr << str << " (" << pos << ")";
+
+  this->ErrorString = ostr.str();
+
+}
+
+

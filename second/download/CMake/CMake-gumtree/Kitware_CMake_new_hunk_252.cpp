@@ -1,7 +1,24 @@
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
 
-        lerr = SSL_get_verify_result(connssl->handle);
-        if(lerr != X509_V_OK) {
-          *certverifyresult = lerr;
-          snprintf(error_buffer, sizeof(error_buffer),
-                   "SSL certificate problem: %s",
-                   X509_verify_cert_error_string(lerr));
+	    ARCHIVE_STATE_NEW, "archive_read_support_format_mtree");
+
+
+
+	mtree = (struct mtree *)calloc(1, sizeof(*mtree));
+
+	if (mtree == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM,
+
+		    "Can't allocate mtree data");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+	mtree->fd = -1;
+
+
+
+	r = __archive_read_register_format(a, mtree, "mtree",
+

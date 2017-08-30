@@ -1,23 +1,14 @@
- * @param yyscanner The scanner object.
- * @return the newly allocated buffer state object.
- */
-YY_BUFFER_STATE cmDependsFortran_yy_scan_bytes  (yyconst char * yybytes, int  _yybytes_len , yyscan_t yyscanner)
-{
-        YY_BUFFER_STATE b;
-        char *buf;
-        yy_size_t n;
-        int i;
-    
-        /* Get memory for full buffer, including space for trailing EOB's. */
-        n = _yybytes_len + 2;
-        buf = (char *) cmDependsFortran_yyalloc(n ,yyscanner );
-        if ( ! buf )
-                YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yy_scan_bytes()" );
+		/* Handle UTF-8 filnames as libarchive 2.x */
 
-        for ( i = 0; i < _yybytes_len; ++i )
-                buf[i] = yybytes[i];
+		tar->compat_2x = (val != NULL)?1:0;
 
-        buf[_yybytes_len] = buf[_yybytes_len+1] = YY_END_OF_BUFFER_CHAR;
+		tar->init_default_conversion = tar->compat_2x;
 
-        b = cmDependsFortran_yy_scan_buffer(buf,n ,yyscanner);
-        if ( ! b )
+		return (ARCHIVE_OK);
+
+	} else if (strcmp(key, "hdrcharset")  == 0) {
+
+		if (val == NULL || val[0] == 0)
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+

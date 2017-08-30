@@ -1,7 +1,30 @@
-    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
+        sprintf(rpstr, "_p%d_", cc++);
+
+        }
+
+      while ( !done );
+
+      }
+
+
+
+    // Insert the newly mapped object file name.
+
+    std::map<cmStdString, cmStdString>::value_type e(sin, ssin);
+
+    it = m_UniqueObjectNamesMap.insert(e).first;
+
     }
-  
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,"int vtkCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n");
-    fprintf(fout,"\nTcl_HashTable vtkInstanceLookup;\n");
+
+
+
+  // Return the map entry.
+
+  return it->second;
+
+}
+
+
+
+//----------------------------------------------------------------------------
+

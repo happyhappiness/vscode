@@ -1,14 +1,23 @@
-#endif
-#endif
-    default:
-      cp->ExitException = kwsysProcess_Exception_Other;
-      sprintf(cp->ExitExceptionString, "Signal %d", sig);
-      break;
-  }
-}
-#undef KWSYSPE_CASE
+    digest->nc = 1;
 
-/*--------------------------------------------------------------------------*/
-/* When the child process encounters an error before its program is
-   invoked, this is called to report the error to the parent and
-   exit.  */
+
+
+  if(!digest->cnonce) {
+
+    unsigned int rnd[4];
+
+    result = Curl_rand(data, &rnd[0], 4);
+
+    if(result)
+
+      return result;
+
+    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+
+             rnd[0], rnd[1], rnd[2], rnd[3]);
+
+
+
+    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
+
+                                &cnonce, &cnonce_sz);

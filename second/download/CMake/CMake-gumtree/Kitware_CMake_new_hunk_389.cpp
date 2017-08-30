@@ -1,16 +1,16 @@
-/* returns an allocated key to find a bundle for this connection */
-static char *hashkey(struct connectdata *conn)
-{
-  const char *hostname;
+  fprintf(stderr, "Output on stderr before grandchild test.\n");
 
-  if(conn->bits.proxy)
-    hostname = conn->proxy.name;
-  else if(conn->bits.conn_to_host)
-    hostname = conn->conn_to_host.name;
-  else
-    hostname = conn->host.name;
+  fflush(stdout);
 
-  return aprintf("%s:%d", hostname, conn->port);
-}
+  fflush(stderr);
 
-/* Look up the bundle with all the connections to the same host this
+  r = runChild(cmd, kwsysProcess_State_Exited, kwsysProcess_Exception_None, 0,
+
+               1, 1, 0, 30, 0, 1, 0, 0, 0);
+
+  /* This sleep will avoid a race condition between this function exiting
+
+     normally and our Ctrl+C handler exiting abnormally after the process
+
+     exits.  */
+

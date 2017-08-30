@@ -1,7 +1,42 @@
-				    "Too many arguments");
-				return ARCHIVE_WARN;
-			}
-			numbers[argc++] = (unsigned long)mtree_atol(&p);
+	path = NULL;
+
+
+
+	if (*fd < 0) {
+
+		path = archive_entry_sourcepath(entry);
+
+		if (path == NULL || (a->tree != NULL &&
+
+		    a->tree_enter_working_dir(a->tree) != 0))
+
+			path = archive_entry_pathname(entry);
+
+		if (path == NULL) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "Couldn't determine file path to read "
+
+			    "extended attributes");
+
+			return (ARCHIVE_WARN);
+
 		}
-		if (argc < 2) {
-			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+
+		if (a->tree != NULL && (a->follow_symlinks ||
+
+		    archive_entry_filetype(entry) != AE_IFLNK)) {
+
+			*fd = a->open_on_current_dir(a->tree,
+
+			    path, O_RDONLY | O_NONBLOCK);
+
+		}
+
+	}
+
+
+
+	if (*fd >= 0)
+

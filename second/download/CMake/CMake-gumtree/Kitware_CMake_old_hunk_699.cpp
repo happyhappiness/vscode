@@ -1,23 +1,38 @@
-    // package has been requested.
-    std::string ver = this->Name;
-    ver += "_FIND_VERSION";
-    this->AddFindDefinition(ver.c_str(), this->Version.c_str());
-    char buf[64];
-    sprintf(buf, "%u", this->VersionMajor);
-    this->AddFindDefinition((ver+"_MAJOR").c_str(), buf);
-    sprintf(buf, "%u", this->VersionMinor);
-    this->AddFindDefinition((ver+"_MINOR").c_str(), buf);
-    sprintf(buf, "%u", this->VersionPatch);
-    this->AddFindDefinition((ver+"_PATCH").c_str(), buf);
-    sprintf(buf, "%u", this->VersionTweak);
-    this->AddFindDefinition((ver+"_TWEAK").c_str(), buf);
-    sprintf(buf, "%u", this->VersionCount);
-    this->AddFindDefinition((ver+"_COUNT").c_str(), buf);
+        }
 
-    // Tell the module whether an exact version has been requested.
-    std::string exact = this->Name;
-    exact += "_FIND_VERSION_EXACT";
-    this->AddFindDefinition(exact.c_str(), this->VersionExact? "1":"0");
-   }
-}
+        if(ptr) {
+
+          ftpc->newport = (unsigned short)(num & 0xffff);
+
+
+
+          if(conn->bits.tunnel_proxy ||
+
+             conn->proxytype == CURLPROXY_SOCKS5 ||
+
+             conn->proxytype == CURLPROXY_SOCKS5_HOSTNAME ||
+
+             conn->proxytype == CURLPROXY_SOCKS4 ||
+
+             conn->proxytype == CURLPROXY_SOCKS4A)
+
+            /* proxy tunnel -> use other host info because ip_addr_str is the
+
+               proxy address not the ftp host */
+
+            snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+
+                     conn->host.name);
+
+          else
+
+            /* use the same IP we are already connected to */
+
+            snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str);
+
+        }
+
+      }
+
+      else
 

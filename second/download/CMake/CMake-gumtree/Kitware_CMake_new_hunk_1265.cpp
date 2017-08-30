@@ -1,7 +1,13 @@
-  libtar_hashptr_t hp;
-  tar_dev_t *td = NULL;
-  tar_ino_t *ti = NULL;
-  char path[TAR_MAXPATHLEN];
+    char name[128];
 
-#ifdef DEBUG
-  printf("==> tar_append_file(TAR=0x%lx (\"%s\"), realname=\"%s\", "
+    sprintf(name, "CMAKE_MATCH_%d", i);
+
+    mf->AddDefinition(name, re.match(i).c_str());
+
+    mf->MarkVariableAsUsed(name);
+
+    }
+
+}
+
+

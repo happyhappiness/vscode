@@ -1,186 +1,644 @@
-			ret2 = ARCHIVE_WARN;
-		}
-		if (len > 0)
-			archive_entry_set_pathname(l->entry, p);
 
-		/*
-		 * Although there is no character-set regulation for Symlink,
-		 * it is suitable to convert a character-set of Symlinke to
-		 * what those of the Pathname has been converted to.
-		 */
-		if (type == AE_IFLNK) {
-			if (archive_entry_symlink_l(entry, &p, &len, sconv)) {
-				if (errno == ENOMEM) {
-					archive_entry_free(l->entry);
-					free(l);
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory "
-					    " for Symlink");
-					return (ARCHIVE_FATAL);
-				}
-				/*
-				 * Even if the strng conversion failed,
-				 * we should not report the error since
-				 * thre is no regulation for.
-				 */
-			} else if (len > 0)
-				archive_entry_set_symlink(l->entry, p);
-		}
-	}
-	/* If all characters in a filename are ASCII, Reset UTF-8 Name flag. */
-	if ((l->flags & ZIP_FLAGS_UTF8_NAME) != 0 &&
-	    is_all_ascii(archive_entry_pathname(l->entry)))
-		l->flags &= ~ZIP_FLAGS_UTF8_NAME;
 
-	/* Initialize the CRC variable and potentially the local crc32(). */
-	l->crc32 = crc32(0, NULL, 0);
-	if (type == AE_IFLNK) {
-		const char *p = archive_entry_symlink(l->entry);
-		if (p != NULL)
-			size = strlen(p);
-		else
-			size = 0;
-		zip->remaining_data_bytes = 0;
-		archive_entry_set_size(l->entry, size);
-		l->compression = COMPRESSION_STORE;
-		l->compressed_size = size;
-	} else {
-		l->compression = zip->compression;
-		l->compressed_size = 0;
-	}
-	l->next = NULL;
-	if (zip->central_directory == NULL) {
-		zip->central_directory = l;
-	} else {
-		zip->central_directory_end->next = l;
-	}
-	zip->central_directory_end = l;
+#include "urldata.h"
 
-	/* Store the offset of this header for later use in central
-	 * directory. */
-	l->offset = zip->written_bytes;
+#include "rawstr.h"
 
-	memset(h, 0, sizeof(h));
-	archive_le32enc(&h[LOCAL_FILE_HEADER_SIGNATURE],
-		ZIP_SIGNATURE_LOCAL_FILE_HEADER);
-	archive_le16enc(&h[LOCAL_FILE_HEADER_VERSION], ZIP_VERSION_EXTRACT);
-	archive_le16enc(&h[LOCAL_FILE_HEADER_FLAGS], l->flags);
-	archive_le16enc(&h[LOCAL_FILE_HEADER_COMPRESSION], l->compression);
-	archive_le32enc(&h[LOCAL_FILE_HEADER_TIMEDATE],
-		dos_time(archive_entry_mtime(entry)));
-	archive_le16enc(&h[LOCAL_FILE_HEADER_FILENAME_LENGTH],
-		(uint16_t)path_length(l->entry));
+#include "curl_base64.h"
 
-	switch (l->compression) {
-	case COMPRESSION_STORE:
-		/* Setting compressed and uncompressed sizes even when
-		 * specification says to set to zero when using data
-		 * descriptors. Otherwise the end of the data for an
-		 * entry is rather difficult to find. */
-		archive_le32enc(&h[LOCAL_FILE_HEADER_COMPRESSED_SIZE],
-		    (uint32_t)size);
-		archive_le32enc(&h[LOCAL_FILE_HEADER_UNCOMPRESSED_SIZE],
-		    (uint32_t)size);
-		break;
-#ifdef HAVE_ZLIB_H
-	case COMPRESSION_DEFLATE:
-		archive_le32enc(&h[LOCAL_FILE_HEADER_UNCOMPRESSED_SIZE],
-		    (uint32_t)size);
+#include "curl_md5.h"
 
-		zip->stream.zalloc = Z_NULL;
-		zip->stream.zfree = Z_NULL;
-		zip->stream.opaque = Z_NULL;
-		zip->stream.next_out = zip->buf;
-		zip->stream.avail_out = (uInt)zip->len_buf;
-		if (deflateInit2(&zip->stream, Z_DEFAULT_COMPRESSION,
-		    Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't init deflate compressor");
-			return (ARCHIVE_FATAL);
-		}
-		break;
-#endif
-	}
+#include "http_digest.h"
 
-	/* Formatting extra data. */
-	archive_le16enc(&h[LOCAL_FILE_HEADER_EXTRA_LENGTH], sizeof(e));
-	archive_le16enc(&e[EXTRA_DATA_LOCAL_TIME_ID],
-		ZIP_SIGNATURE_EXTRA_TIMESTAMP);
-	archive_le16enc(&e[EXTRA_DATA_LOCAL_TIME_SIZE], 1 + 4 * 3);
-	e[EXTRA_DATA_LOCAL_TIME_FLAG] = 0x07;
-	archive_le32enc(&e[EXTRA_DATA_LOCAL_MTIME],
-	    (uint32_t)archive_entry_mtime(entry));
-	archive_le32enc(&e[EXTRA_DATA_LOCAL_ATIME],
-	    (uint32_t)archive_entry_atime(entry));
-	archive_le32enc(&e[EXTRA_DATA_LOCAL_CTIME],
-	    (uint32_t)archive_entry_ctime(entry));
+#include "strtok.h"
 
-	archive_le16enc(&e[EXTRA_DATA_LOCAL_UNIX_ID],
-		ZIP_SIGNATURE_EXTRA_NEW_UNIX);
-	archive_le16enc(&e[EXTRA_DATA_LOCAL_UNIX_SIZE], 1 + (1 + 4) * 2);
-	e[EXTRA_DATA_LOCAL_UNIX_VERSION] = 1;
-	e[EXTRA_DATA_LOCAL_UNIX_UID_SIZE] = 4;
-	archive_le32enc(&e[EXTRA_DATA_LOCAL_UNIX_UID],
-		(uint32_t)archive_entry_uid(entry));
-	e[EXTRA_DATA_LOCAL_UNIX_GID_SIZE] = 4;
-	archive_le32enc(&e[EXTRA_DATA_LOCAL_UNIX_GID],
-		(uint32_t)archive_entry_gid(entry));
+#include "curl_memory.h"
 
-	archive_le32enc(&d[DATA_DESCRIPTOR_UNCOMPRESSED_SIZE],
-	    (uint32_t)size);
+#include "vtls/vtls.h" /* for Curl_rand() */
 
-	ret = __archive_write_output(a, h, sizeof(h));
-	if (ret != ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
-	zip->written_bytes += sizeof(h);
+#include "non-ascii.h" /* included for Curl_convert_... prototypes */
 
-	ret = write_path(l->entry, a);
-	if (ret <= ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
-	zip->written_bytes += ret;
+#include "warnless.h"
 
-	ret = __archive_write_output(a, e, sizeof(e));
-	if (ret != ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
-	zip->written_bytes += sizeof(e);
 
-	if (type == AE_IFLNK) {
-		const unsigned char *p;
 
-		p = (const unsigned char *)archive_entry_symlink(l->entry);
-		ret = __archive_write_output(a, p, (size_t)size);
-		if (ret != ARCHIVE_OK)
-			return (ARCHIVE_FATAL);
-		zip->written_bytes += size;
-		l->crc32 = crc32(l->crc32, p, (unsigned)size);
-	}
+#define _MPRINTF_REPLACE /* use our functions only */
 
-	if (ret2 != ARCHIVE_OK)
-		return (ret2);
-	return (ARCHIVE_OK);
+#include <curl/mprintf.h>
+
+
+
+/* The last #include file should be: */
+
+#include "memdebug.h"
+
+
+
+#define MAX_VALUE_LENGTH 256
+
+#define MAX_CONTENT_LENGTH 1024
+
+
+
+static void digest_cleanup_one(struct digestdata *dig);
+
+
+
+/*
+
+ * Return 0 on success and then the buffers are filled in fine.
+
+ *
+
+ * Non-zero means failure to parse.
+
+ */
+
+static int get_pair(const char *str, char *value, char *content,
+
+                    const char **endptr)
+
+{
+
+  int c;
+
+  bool starts_with_quote = FALSE;
+
+  bool escape = FALSE;
+
+
+
+  for(c=MAX_VALUE_LENGTH-1; (*str && (*str != '=') && c--); )
+
+    *value++ = *str++;
+
+  *value=0;
+
+
+
+  if('=' != *str++)
+
+    /* eek, no match */
+
+    return 1;
+
+
+
+  if('\"' == *str) {
+
+    /* this starts with a quote so it must end with one as well! */
+
+    str++;
+
+    starts_with_quote = TRUE;
+
+  }
+
+
+
+  for(c=MAX_CONTENT_LENGTH-1; *str && c--; str++) {
+
+    switch(*str) {
+
+    case '\\':
+
+      if(!escape) {
+
+        /* possibly the start of an escaped quote */
+
+        escape = TRUE;
+
+        *content++ = '\\'; /* even though this is an escape character, we still
+
+                              store it as-is in the target buffer */
+
+        continue;
+
+      }
+
+      break;
+
+    case ',':
+
+      if(!starts_with_quote) {
+
+        /* this signals the end of the content if we didn't get a starting
+
+           quote and then we do "sloppy" parsing */
+
+        c=0; /* the end */
+
+        continue;
+
+      }
+
+      break;
+
+    case '\r':
+
+    case '\n':
+
+      /* end of string */
+
+      c=0;
+
+      continue;
+
+    case '\"':
+
+      if(!escape && starts_with_quote) {
+
+        /* end of string */
+
+        c=0;
+
+        continue;
+
+      }
+
+      break;
+
+    }
+
+    escape = FALSE;
+
+    *content++ = *str;
+
+  }
+
+  *content=0;
+
+
+
+  *endptr = str;
+
+
+
+  return 0; /* all is fine! */
+
 }
 
-static ssize_t
-archive_write_zip_data(struct archive_write *a, const void *buff, size_t s)
+
+
+/* Test example headers:
+
+
+
+WWW-Authenticate: Digest realm="testrealm", nonce="1053604598"
+
+Proxy-Authenticate: Digest realm="testrealm", nonce="1053604598"
+
+
+
+*/
+
+
+
+CURLdigest Curl_input_digest(struct connectdata *conn,
+
+                             bool proxy,
+
+                             const char *header) /* rest of the *-authenticate:
+
+                                                    header */
+
 {
-	int ret;
-	struct zip *zip = a->format_data;
-	struct zip_file_header_link *l = zip->central_directory_end;
 
-	if ((int64_t)s > zip->remaining_data_bytes)
-		s = (size_t)zip->remaining_data_bytes;
+  char *token = NULL;
 
-	if (s == 0) return 0;
+  char *tmp = NULL;
 
-	switch (l->compression) {
-	case COMPRESSION_STORE:
-		ret = __archive_write_output(a, buff, s);
-		if (ret != ARCHIVE_OK) return (ret);
-		zip->written_bytes += s;
-		zip->remaining_data_bytes -= s;
-		l->compressed_size += s;
-		l->crc32 = crc32(l->crc32, buff, (unsigned)s);
-		return (s);
-#if HAVE_ZLIB_H
-	case COMPRESSION_DEFLATE:
-		zip->stream.next_in = (unsigned char*)(uintptr_t)buff;
+  bool foundAuth = FALSE;
+
+  bool foundAuthInt = FALSE;
+
+  struct SessionHandle *data=conn->data;
+
+  bool before = FALSE; /* got a nonce before */
+
+  struct digestdata *d;
+
+
+
+  if(proxy) {
+
+    d = &data->state.proxydigest;
+
+  }
+
+  else {
+
+    d = &data->state.digest;
+
+  }
+
+
+
+  if(checkprefix("Digest", header)) {
+
+    header += strlen("Digest");
+
+
+
+    /* If we already have received a nonce, keep that in mind */
+
+    if(d->nonce)
+
+      before = TRUE;
+
+
+
+    /* clear off any former leftovers and init to defaults */
+
+    digest_cleanup_one(d);
+
+
+
+    for(;;) {
+
+      char value[MAX_VALUE_LENGTH];
+
+      char content[MAX_CONTENT_LENGTH];
+
+
+
+      while(*header && ISSPACE(*header))
+
+        header++;
+
+
+
+      /* extract a value=content pair */
+
+      if(!get_pair(header, value, content, &header)) {
+
+        if(Curl_raw_equal(value, "nonce")) {
+
+          d->nonce = strdup(content);
+
+          if(!d->nonce)
+
+            return CURLDIGEST_NOMEM;
+
+        }
+
+        else if(Curl_raw_equal(value, "stale")) {
+
+          if(Curl_raw_equal(content, "true")) {
+
+            d->stale = TRUE;
+
+            d->nc = 1; /* we make a new nonce now */
+
+          }
+
+        }
+
+        else if(Curl_raw_equal(value, "realm")) {
+
+          d->realm = strdup(content);
+
+          if(!d->realm)
+
+            return CURLDIGEST_NOMEM;
+
+        }
+
+        else if(Curl_raw_equal(value, "opaque")) {
+
+          d->opaque = strdup(content);
+
+          if(!d->opaque)
+
+            return CURLDIGEST_NOMEM;
+
+        }
+
+        else if(Curl_raw_equal(value, "qop")) {
+
+          char *tok_buf;
+
+          /* tokenize the list and choose auth if possible, use a temporary
+
+             clone of the buffer since strtok_r() ruins it */
+
+          tmp = strdup(content);
+
+          if(!tmp)
+
+            return CURLDIGEST_NOMEM;
+
+          token = strtok_r(tmp, ",", &tok_buf);
+
+          while(token != NULL) {
+
+            if(Curl_raw_equal(token, "auth")) {
+
+              foundAuth = TRUE;
+
+            }
+
+            else if(Curl_raw_equal(token, "auth-int")) {
+
+              foundAuthInt = TRUE;
+
+            }
+
+            token = strtok_r(NULL, ",", &tok_buf);
+
+          }
+
+          free(tmp);
+
+          /*select only auth o auth-int. Otherwise, ignore*/
+
+          if(foundAuth) {
+
+            d->qop = strdup("auth");
+
+            if(!d->qop)
+
+              return CURLDIGEST_NOMEM;
+
+          }
+
+          else if(foundAuthInt) {
+
+            d->qop = strdup("auth-int");
+
+            if(!d->qop)
+
+              return CURLDIGEST_NOMEM;
+
+          }
+
+        }
+
+        else if(Curl_raw_equal(value, "algorithm")) {
+
+          d->algorithm = strdup(content);
+
+          if(!d->algorithm)
+
+            return CURLDIGEST_NOMEM;
+
+          if(Curl_raw_equal(content, "MD5-sess"))
+
+            d->algo = CURLDIGESTALGO_MD5SESS;
+
+          else if(Curl_raw_equal(content, "MD5"))
+
+            d->algo = CURLDIGESTALGO_MD5;
+
+          else
+
+            return CURLDIGEST_BADALGO;
+
+        }
+
+        else {
+
+          /* unknown specifier, ignore it! */
+
+        }
+
+      }
+
+      else
+
+        break; /* we're done here */
+
+
+
+      /* pass all additional spaces here */
+
+      while(*header && ISSPACE(*header))
+
+        header++;
+
+      if(',' == *header)
+
+        /* allow the list to be comma-separated */
+
+        header++;
+
+    }
+
+    /* We had a nonce since before, and we got another one now without
+
+       'stale=true'. This means we provided bad credentials in the previous
+
+       request */
+
+    if(before && !d->stale)
+
+      return CURLDIGEST_BAD;
+
+
+
+    /* We got this header without a nonce, that's a bad Digest line! */
+
+    if(!d->nonce)
+
+      return CURLDIGEST_BAD;
+
+  }
+
+  else
+
+    /* else not a digest, get out */
+
+    return CURLDIGEST_NONE;
+
+
+
+  return CURLDIGEST_FINE;
+
+}
+
+
+
+/* convert md5 chunk to RFC2617 (section 3.1.3) -suitable ascii string*/
+
+static void md5_to_ascii(unsigned char *source, /* 16 bytes */
+
+                         unsigned char *dest) /* 33 bytes */
+
+{
+
+  int i;
+
+  for(i=0; i<16; i++)
+
+    snprintf((char *)&dest[i*2], 3, "%02x", source[i]);
+
+}
+
+
+
+/* Perform quoted-string escaping as described in RFC2616 and its errata */
+
+static char *string_quoted(const char *source)
+
+{
+
+  char *dest, *d;
+
+  const char *s = source;
+
+  size_t n = 1; /* null terminator */
+
+
+
+  /* Calculate size needed */
+
+  while(*s) {
+
+    ++n;
+
+    if(*s == '"' || *s == '\\') {
+
+      ++n;
+
+    }
+
+    ++s;
+
+  }
+
+
+
+  dest = malloc(n);
+
+  if(dest) {
+
+    s = source;
+
+    d = dest;
+
+    while(*s) {
+
+      if(*s == '"' || *s == '\\') {
+
+        *d++ = '\\';
+
+      }
+
+      *d++ = *s++;
+
+    }
+
+    *d = 0;
+
+  }
+
+
+
+  return dest;
+
+}
+
+
+
+CURLcode Curl_output_digest(struct connectdata *conn,
+
+                            bool proxy,
+
+                            const unsigned char *request,
+
+                            const unsigned char *uripath)
+
+{
+
+  /* We have a Digest setup for this, use it!  Now, to get all the details for
+
+     this sorted out, I must urge you dear friend to read up on the RFC2617
+
+     section 3.2.2, */
+
+  size_t urilen;
+
+  unsigned char md5buf[16]; /* 16 bytes/128 bits */
+
+  unsigned char request_digest[33];
+
+  unsigned char *md5this;
+
+  unsigned char ha1[33];/* 32 digits and 1 zero byte */
+
+  unsigned char ha2[33];/* 32 digits and 1 zero byte */
+
+  char cnoncebuf[33];
+
+  char *cnonce = NULL;
+
+  size_t cnonce_sz = 0;
+
+  char *tmp = NULL;
+
+  char **allocuserpwd;
+
+  size_t userlen;
+
+  const char *userp;
+
+  char *userp_quoted;
+
+  const char *passwdp;
+
+  struct auth *authp;
+
+
+
+  struct SessionHandle *data = conn->data;
+
+  struct digestdata *d;
+
+  CURLcode rc;
+
+/* The CURL_OUTPUT_DIGEST_CONV macro below is for non-ASCII machines.
+
+   It converts digest text to ASCII so the MD5 will be correct for
+
+   what ultimately goes over the network.
+
+*/
+
+#define CURL_OUTPUT_DIGEST_CONV(a, b) \
+
+  rc = Curl_convert_to_network(a, (char *)b, strlen((const char*)b)); \
+
+  if(rc != CURLE_OK) { \
+
+    free(b); \
+
+    return rc; \
+
+  }
+
+
+
+  if(proxy) {
+
+    d = &data->state.proxydigest;
+
+    allocuserpwd = &conn->allocptr.proxyuserpwd;
+
+    userp = conn->proxyuser;
+
+    passwdp = conn->proxypasswd;
+
+    authp = &data->state.authproxy;
+
+  }
+
+  else {
+
+    d = &data->state.digest;
+
+    allocuserpwd = &conn->allocptr.userpwd;
+
+    userp = conn->user;
+
+    passwdp = conn->passwd;
+

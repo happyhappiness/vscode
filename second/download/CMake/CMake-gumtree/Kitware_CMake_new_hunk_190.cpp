@@ -1,7 +1,36 @@
-		r = archive_match_path_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
-			return (r);
+			zip->unconsumed = 4;
+
 		}
-		if (r) {
+
+		if (zip->entry->flags & LA_USED_ZIP64) {
+
+			uint64_t compressed, uncompressed;
+
+			zip->entry->crc32 = archive_le32dec(p);
+
+			compressed = archive_le64dec(p + 4);
+
+			uncompressed = archive_le64dec(p + 12);
+
+			if (compressed > INT64_MAX || uncompressed > INT64_MAX) {
+
+				archive_set_error(&a->archive,
+
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+
+				    "Overflow of 64-bit file sizes");
+
+				return ARCHIVE_FAILED;
+
+			}
+
+			zip->entry->compressed_size = compressed;
+
+			zip->entry->uncompressed_size = uncompressed;
+
+			zip->unconsumed += 20;
+
+		} else {
+
+			zip->entry->crc32 = archive_le32dec(p);
+

@@ -1,7 +1,20 @@
-      snprintf((char *)&temp[len], sizeof(temp) - len,
-               "%c%c", IAC, SE);
-      len += 2;
-      swrite(conn->firstsocket, temp, len);
-      printsub(data, '>', &temp[2], len-2);
-      break;
-  }
+ * returns a pointer to the malloc()ed copy. You need to call free() on the
+
+ * returned buffer when you're done with it.
+
+ */
+
+Curl_addrinfo *Curl_addrinfo_copy(void *org, int port)
+
+{
+
+  struct hostent *orig = org;
+
+
+
+  return Curl_he2ai(orig, port);
+
+}
+
+#endif /* CURLRES_ADDRINFO_COPY */
+

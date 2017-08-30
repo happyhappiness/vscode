@@ -1,7 +1,18 @@
-  case CURLWC_DOWNLOADING: {
-    /* filelist has at least one file, lets get first one */
-    struct ftp_conn *ftpc = &conn->proto.ftpc;
-    struct curl_fileinfo *finfo = wildcard->filelist->head->ptr;
+     */
 
-    char *tmp_path = aprintf("%s%s", wildcard->path, finfo->filename);
-    if(!tmp_path)
+    data->set.buffer_size = va_arg(param, long);
+
+
+
+    if((data->set.buffer_size> (BUFSIZE -1)) ||
+
+       (data->set.buffer_size < 1))
+
+      data->set.buffer_size = 0; /* huge internal default */
+
+
+
+    break;
+
+
+

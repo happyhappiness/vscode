@@ -1,9 +1,24 @@
-  for ( pos = 0; pos < str.size(); pos ++ )
-    {
-    unsigned char ch = str[pos];
-    if ( (ch > 126 || ch < 32) && ch != 9 )
-      {
-      sprintf(buffer, "&gt;&lt;");
-      //sprintf(buffer, "&#x%0x;", (unsigned int)ch);
-      ost << buffer;
-      }
+  }
+
+
+
+  snprintf(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
+
+  if(Curl_base64_encode(data->state.buffer,
+
+                        strlen(data->state.buffer),
+
+                        &authorization) > 0) {
+
+    if(*userp)
+
+      free(*userp);
+
+    *userp = aprintf( "%sAuthorization: Basic %s\015\012",
+
+                      proxy?"Proxy-":"",
+
+                      authorization);
+
+    free(authorization);
+

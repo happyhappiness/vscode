@@ -1,7 +1,16 @@
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name);
-    }
-  struct _finddata_t data;      // data of current file
-  
-  // Now put them into the file array
-  size_t srchHandle = _findfirst(buf, &data);
+
+
+        /* lineno is only valid if an input buffer exists. */
+
+        if (! YY_CURRENT_BUFFER )
+
+           yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" ); 
+
+    
+
+    yylineno = line_number;
+
+}
+
+
+

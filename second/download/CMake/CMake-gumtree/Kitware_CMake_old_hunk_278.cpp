@@ -1,10 +1,14 @@
-  }
-#endif
+	if (a->restore_pwd >= 0) {
 
-#ifdef USE_LIBIDN
-  idna_init();
-#endif
+		r = fchdir(a->restore_pwd);
 
-  if(Curl_resolver_global_init()) {
-    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
-    return CURLE_FAILED_INIT;
+		if (r != 0) {
+
+			archive_set_error(&a->archive, errno, "chdir() failure");
+
+			ret = ARCHIVE_FATAL;
+
+		}
+
+		close(a->restore_pwd);
+

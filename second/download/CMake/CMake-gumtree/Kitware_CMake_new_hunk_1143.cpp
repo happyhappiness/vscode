@@ -1,14 +1,14 @@
+		else {
 
-static int SystemToolsDebugReport(int, char* message, int*)
-{
-  fprintf(stderr, "%s", message);
-  fflush(stderr);
-  return 1; // no further reporting required
-}
+			archive_set_error(&(a->archive),
 
-void SystemTools::EnableMSVCDebugHook()
-{
-  if (getenv("DART_TEST_FROM_DART"))
-    {
-    _CrtSetReportHook(SystemToolsDebugReport);
-    }
+			    ARCHIVE_ERRNO_MISC,
+
+			    "Unknown compression name: `%s'",
+
+			    value);
+
+			return (ARCHIVE_FAILED);
+
+		}
+

@@ -1,23 +1,30 @@
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
-      {
-      fprintf(stderr, "Mismatch in exit exception.  "
-              "Should have been %d, was %d.\n",
-              exception, kwsysProcess_GetExitException(kp));
+        totalTestTime += result->ExecutionTime;
+
+        }
+
+      
+
+      char realBuf[1024];
+
+      sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
+
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (real) = "
+
+                 << realBuf << "\n" );
+
+
+
+      char totalBuf[1024];
+
+      sprintf(totalBuf, "%6.2f sec", totalTestTime); 
+
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (parallel) = " 
+
+                 <<  totalBuf << "\n" );
+
+      
+
       }
-    if(value != kwsysProcess_GetExitValue(kp))
-      {
-      fprintf(stderr, "Mismatch in exit value.  "
-              "Should have been %d, was %d.\n",
-              value, kwsysProcess_GetExitValue(kp));
-      }
-    }
-  
-  if(kwsysProcess_GetState(kp) != state)
-    {
-    fprintf(stderr, "Mismatch in state.  "
-            "Should have been %d, was %d.\n",
-            state, kwsysProcess_GetState(kp));
-    result = 1;
-    }
-  
+
+
+

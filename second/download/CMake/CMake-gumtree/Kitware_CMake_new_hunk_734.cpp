@@ -1,14 +1,20 @@
-	t->current_filesystem->synthetic = -1;
-	t->current_filesystem->remote = -1;
-	if (tree_current_is_symblic_link_target(t)) {
-#if defined(HAVE_OPENAT)
-		/*
-		 * Get file system statistics on any directory
-		 * where current is.
-		 */
-		int fd = openat(tree_current_dir_fd(t),
-		    tree_current_access_path(t), O_RDONLY | O_CLOEXEC);
-		__archive_ensure_cloexec_flag(fd);
-		if (fd < 0) {
-			archive_set_error(&a->archive, errno,
-			    "openat failed");
+    fprintf(stderr, "Output on stderr before test %d.\n", n);
+
+    fflush(stdout);
+
+    fflush(stderr);
+
+    r = runChild(cmd, states[n-1], exceptions[n-1], values[n-1], shares[n-1],
+
+                 outputs[n-1], delays[n-1], timeouts[n-1],
+
+                 polls[n-1], repeat[n-1], 0, createNewGroups[n-1],
+
+                 interruptDelays[n-1]);
+
+    fprintf(stdout, "Output on stdout after test %d.\n", n);
+
+    fprintf(stderr, "Output on stderr after test %d.\n", n);
+
+    fflush(stdout);
+

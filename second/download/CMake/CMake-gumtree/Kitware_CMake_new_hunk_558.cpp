@@ -1,15 +1,30 @@
-                  hostname, conn->bits.ipv6_ip?"]":"",
-                  remote_port);
-        if(!hostheader) {
-          Curl_add_buffer_free(req_buffer);
-          return CURLE_OUT_OF_MEMORY;
-        }
+	 * and are not terminated in '/', so we don't trim anything
 
-        if(!Curl_checkProxyheaders(conn, "Host:")) {
-          host = aprintf("Host: %s\r\n", hostheader);
-          if(!host) {
-            free(hostheader);
-            Curl_add_buffer_free(req_buffer);
-            return CURLE_OUT_OF_MEMORY;
-          }
-        }
+	 * that starts with '/'.)
+
+	 */
+
+	if (filename[0] != '/' && p > filename && *p == '/') {
+
+		*p = '\0';
+
+	}
+
+
+
+	if (p < filename) {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "Found entry with empty filename");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+
+
+	/*
+
+	 * '//' is the GNU filename table.
+

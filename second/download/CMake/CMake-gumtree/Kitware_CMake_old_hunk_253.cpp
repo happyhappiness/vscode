@@ -1,22 +1,22 @@
-  return strdup(*beg? "TRUE": "FALSE");
-}
+    struct mtree_option **global, const char *line, ssize_t line_len,
 
-static const char * octet2str(const char * beg, const char * end)
+    struct mtree_entry **last_entry, int is_form_d)
+
 {
-  size_t n = end - beg;
-  char * buf;
 
-  /* Convert an ASN.1 octet string to a printable string.
-     Return the dynamically allocated string, or NULL if an error occurs. */
+	struct mtree_entry *entry;
 
-  buf = malloc(3 * n + 1);
-  if(buf)
-    for(n = 0; beg < end; n += 3)
-      snprintf(buf + n, 4, "%02x:", *(const unsigned char *) beg++);
-  return buf;
-}
+	struct mtree_option *iter;
 
-static const char * bit2str(const char * beg, const char * end)
-{
-  /* Convert an ASN.1 bit string to a printable string.
-     Return the dynamically allocated string, or NULL if an error occurs. */
+	const char *next, *eq, *name, *end;
+
+	size_t name_len, len;
+
+	int r, i;
+
+
+
+	if ((entry = malloc(sizeof(*entry))) == NULL) {
+
+		archive_set_error(&a->archive, errno, "Can't allocate memory");
+

@@ -1,7 +1,14 @@
-  struct TELNET *tn = (struct TELNET *)data->req.protop;
+				archive_set_error(&a->archive,
 
-  printsub(data, '<', (unsigned char *)tn->subbuffer, CURL_SB_LEN(tn)+2);
-  switch (CURL_SB_GET(tn)) {
-    case CURL_TELOPT_TTYPE:
-      len = strlen(tn->subopt_ttype) + 4 + 2;
-      snprintf((char *)temp, sizeof(temp),
+				    ARCHIVE_ERRNO_MISC,
+
+				    "Invalid Rockridge CL");
+
+				return (NULL);
+
+			}
+
+			/*
+
+			 * Sanity check: The file type must be a regular file.
+

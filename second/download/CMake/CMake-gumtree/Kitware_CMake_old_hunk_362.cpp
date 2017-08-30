@@ -1,7 +1,14 @@
+  /* Avoid error diagnostic popups since we are crashing on purpose.  */
 
-  free(*userp);
-  *userp = aprintf("%sAuthorization: Basic %s\r\n",
-                   proxy?"Proxy-":"",
-                   authorization);
-  free(authorization);
-  if(!*userp)
+  disable_debugger(1);
+
+#endif
+
+  (void)argc; (void)argv;
+
+  fprintf(stdout, "Output before crash on stdout from crash test.\n");
+
+  fprintf(stderr, "Output before crash on stderr from crash test.\n");
+
+  fflush(stdout);
+

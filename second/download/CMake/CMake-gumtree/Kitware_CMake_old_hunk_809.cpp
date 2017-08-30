@@ -1,15 +1,31 @@
-	if (zip->zip_entries == NULL) {
-		zip->zip_entries = malloc(sizeof(struct zip_entry));
-		if (zip->zip_entries == NULL) {
-			archive_set_error(&a->archive, ENOMEM, "Out  of memory");
-			return ARCHIVE_FATAL;
-		}
-	}
-	zip->entry = zip->zip_entries;
-	memset(zip->entry, 0, sizeof(struct zip_entry));
+	 * Check coder types.
 
-	/* Search ahead for the next local file header. */
-	__archive_read_consume(a, zip->unconsumed);
-	zip->unconsumed = 0;
-	for (;;) {
-		int64_t skipped = 0;
+	 */
+
+	for (i = 0; i < folder->numCoders; i++) {
+
+		if (folder->coders[i].codec == _7Z_CRYPTO) {
+
+			archive_set_error(&(a->archive),
+
+			    ARCHIVE_ERRNO_MISC,
+
+			    "The %s is encrypted, "
+
+			    "but currently not supported", cname);
+
+			return (ARCHIVE_FATAL);
+
+		}
+
+		if (folder->coders[i].codec == _7Z_X86_BCJ2)
+
+			found_bcj2++;
+
+	}
+
+	if ((folder->numCoders > 2 && !found_bcj2) || found_bcj2 > 1) {
+
+		archive_set_error(&(a->archive),
+
+		    ARCHIVE_ERRNO_MISC,

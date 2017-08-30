@@ -1,51 +1,62 @@
-		zip->end_of_entry = 1;
+ */
 
-	/* Set up a more descriptive format name. */
-	archive_string_sprintf(&zip->format_name, "ZIP %d.%d (%s)",
-	    version / 10, version % 10,
-	    compression_name(zip->entry->compression));
-	a->archive.archive_format_name = zip->format_name.s;
+YY_BUFFER_STATE cmListFileLexer_yy_scan_buffer  (char * base, yy_size_t  size , yyscan_t yyscanner)
 
-	return (ret);
-}
-
-static int
-check_authentication_code(struct archive_read *a, const void *_p)
 {
-	struct zip *zip = (struct zip *)(a->format->data);
 
-	/* Check authentication code. */
-	if (zip->hctx_valid) {
-		const void *p;
-		uint8_t hmac[20];
-		size_t hmac_len = 20;
-		int cmp;
+	YY_BUFFER_STATE b;
 
-		archive_hmac_sha1_final(&zip->hctx, hmac, &hmac_len);
-		if (_p == NULL) {
-			/* Read authentication code. */
-			p = __archive_read_ahead(a, AUTH_CODE_SIZE, NULL);
-			if (p == NULL) {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Truncated ZIP file data");
-				return (ARCHIVE_FATAL);
-			}
-		} else {
-			p = _p;
-		}
-		cmp = memcmp(hmac, p, AUTH_CODE_SIZE);
-		__archive_read_consume(a, AUTH_CODE_SIZE);
-		if (cmp != 0) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "ZIP bad Authentication code");
-			return (ARCHIVE_WARN);
-		}
-	}
-	return (ARCHIVE_OK);
+
+
+	if ( size < 2 ||
+
+	     base[size-2] != YY_END_OF_BUFFER_CHAR ||
+
+	     base[size-1] != YY_END_OF_BUFFER_CHAR )
+
+		/* They forgot to leave room for the EOB's. */
+
+		return 0;
+
+
+
+	b = (YY_BUFFER_STATE) cmListFileLexer_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
+
+	if ( ! b )
+
+		YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_scan_buffer()" );
+
+
+
+	b->yy_buf_size = size - 2;	/* "- 2" to take care of EOB's */
+
+	b->yy_buf_pos = b->yy_ch_buf = base;
+
+	b->yy_is_our_buffer = 0;
+
+	b->yy_input_file = 0;
+
+	b->yy_n_chars = b->yy_buf_size;
+
+	b->yy_is_interactive = 0;
+
+	b->yy_at_bol = 1;
+
+	b->yy_fill_buffer = 0;
+
+	b->yy_buffer_status = YY_BUFFER_NEW;
+
+
+
+	cmListFileLexer_yy_switch_to_buffer(b ,yyscanner );
+
+
+
+	return b;
+
 }
 
-/*
- * Read "uncompressed" data.  There are three cases:
- *  1) We know the size of the data.  This is always true for the
+
+
+/** Setup the input buffer state to scan a string. The next call to cmListFileLexer_yylex() will
+

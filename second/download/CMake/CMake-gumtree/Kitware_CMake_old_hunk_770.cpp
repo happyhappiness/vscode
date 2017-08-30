@@ -1,7 +1,30 @@
-seek_pack(struct archive_read *a)
-{
-	struct _7zip *zip = (struct _7zip *)a->format->data;
-	uint64_t pack_offset;
+        fName = dirName;
 
-	if (zip->pack_stream_remaining <= 0) {
-		archive_set_error(&(a->archive),
+        fName += "/";
+
+        fName += args[i];
+
+        progFile = cmsys::SystemTools::Fopen(fName.c_str(),"w");
+
+        if (progFile)
+
+          {
+
+          fprintf(progFile,"empty");
+
+          fclose(progFile);
+
+          }
+
+        }
+
+      int fileNum = static_cast<int>
+
+        (cmsys::Directory::GetNumberOfFilesInDirectory(dirName.c_str()));
+
+      if (count > 0)
+
+        {
+
+        // print the progress
+

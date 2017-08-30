@@ -1,13 +1,14 @@
-        // return to the original directory
-        cmSystemTools::ChangeDirectory(cwd.c_str());
-        }
-      
-      if (name == "ADD_TEST")
-        {
-        if (this->m_UseRegExp && !var.find(args[0].c_str()))
-          {
-          continue;
-          }
-        fprintf(stderr,"Testing %-30s ",args[0].c_str());
-        //std::cerr << "Testing " << args[0] << " ... ";
-        // find the test executable
+  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
+
+  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
+
+
+
+  for (i = 0; i < this->Commands.size(); i++)
+
+    {
+
+    fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
+
+            capcommands[i].c_str());
+

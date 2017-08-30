@@ -1,51 +1,14 @@
-}
+	    && bytes_avail > zip->entry_bytes_remaining) {
 
-/** Set the current line number.
- * @param _line_number line number
- * @param yyscanner The scanner object.
- */
-void cmExpr_yyset_lineno (int  _line_number , yyscan_t yyscanner)
-{
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+		bytes_avail = (ssize_t)zip->entry_bytes_remaining;
 
-        /* lineno is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           YY_FATAL_ERROR( "cmExpr_yyset_lineno called with no buffer" );
+	}
 
-    yylineno = _line_number;
-}
+	if (bytes_avail < 0) {
 
-/** Set the current column.
- * @param _column_no column number
- * @param yyscanner The scanner object.
- */
-void cmExpr_yyset_column (int  _column_no , yyscan_t yyscanner)
-{
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
 
-        /* column is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           YY_FATAL_ERROR( "cmExpr_yyset_column called with no buffer" );
+		    "Truncated ZIP file body");
 
-    yycolumn = _column_no;
-}
+		return (ARCHIVE_FATAL);
 
-/** Set the input stream. This does not discard the current
- * input buffer.
- * @param _in_str A readable stream.
- * @param yyscanner The scanner object.
- * @see cmExpr_yy_switch_to_buffer
- */
-void cmExpr_yyset_in (FILE *  _in_str , yyscan_t yyscanner)
-{
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
-    yyin = _in_str ;
-}
-
-void cmExpr_yyset_out (FILE *  _out_str , yyscan_t yyscanner)
-{
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
-    yyout = _out_str ;
-}
-
-int cmExpr_yyget_debug  (yyscan_t yyscanner)

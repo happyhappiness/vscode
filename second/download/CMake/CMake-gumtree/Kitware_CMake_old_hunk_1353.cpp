@@ -1,16 +1,70 @@
+}
+
+
+
+/** Return the type ID of the CPU */
+
+const char * SystemInformation::GetTypeID()
+
 {
-  cmOStringStream ost;
-  char buffer[10];
-  int lcnt = 0;
-  for (std::string::size_type  pos = 0; pos < str.size(); pos ++ )
-    {
-    unsigned char ch = str[pos];
-    if ( (ch > 126 || ch < 32) && ch != 9  && ch != 10 && ch != 13 )
-      {
-      sprintf(buffer, "&gt;%d&lt;", (int)ch);
-      //sprintf(buffer, "&#x%0x;", (unsigned int)ch);
-      ost << buffer;
-      lcnt += 4;
-      }
-    else
-      {
+
+  char * temp = new char[32];
+
+  sprintf(temp,"%d",this->ChipID.Type);
+
+  return temp;
+
+}
+
+
+
+/** Return the family of the CPU present */
+
+const char * SystemInformation::GetFamilyID()
+
+{
+
+  char * temp = new char[32];
+
+  sprintf(temp,"%d",this->ChipID.Family);
+
+  return temp;
+
+}
+
+
+
+// Return the model of CPU present */
+
+const char * SystemInformation::GetModelID()
+
+{
+
+  char * temp = new char[32];
+
+  sprintf(temp,"%d",this->ChipID.Model);
+
+  return temp;
+
+}
+
+
+
+/** Return the stepping code of the CPU present. */
+
+const char * SystemInformation::GetSteppingCode()
+
+{
+
+  char * temp = new char[32];
+
+  sprintf(temp,"%d",this->ChipID.Revision);
+
+  return temp;
+
+}
+
+
+
+/** Return the stepping code of the CPU present. */
+

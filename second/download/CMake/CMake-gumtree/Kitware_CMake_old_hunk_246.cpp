@@ -1,12 +1,14 @@
-        *fptr = 0;
+				archive_set_error(&a->archive,
 
-        if(width >= 0) {
-          /* RECURSIVE USAGE */
-          len = curl_msnprintf(fptr, left, "%ld", width);
-          fptr += len;
-          left -= len;
-        }
-        if(prec >= 0) {
-          /* RECURSIVE USAGE */
-          len = curl_msnprintf(fptr, left, ".%ld", prec);
-          fptr += len;
+				    ARCHIVE_ERRNO_MISC,
+
+				    "Invalid Rockridge RE and CL");
+
+				return (NULL);
+
+			}
+
+			/*
+
+			 * Sanity check: The file type must be a directory.
+

@@ -1,26 +1,32 @@
-#endif
+  int n = static_cast<int>(graph.size());
 
-  uid = th_get_uid(t);
-#ifndef WIN32
-  pw = getpwuid(uid);
-  if (pw != NULL)
-    strlcpy(username, pw->pw_name, sizeof(username));
-  else
-#endif
-    snprintf(username, sizeof(username), "%d", uid);
-  gid = th_get_gid(t);
-#ifndef WIN32
-  gr = getgrgid(gid);
-  if (gr != NULL)
-    strlcpy(groupname, gr->gr_name, sizeof(groupname));
-  else
-#endif
-    snprintf(groupname, sizeof(groupname), "%d", gid);
-    
-  strmode(th_get_mode(t), modestring);
-  printf("%.10s %-8.8s %-8.8s ", modestring, username, groupname);
+  for(int depender_index = 0; depender_index < n; ++depender_index)
 
-#ifndef WIN32
-  if (TH_ISCHR(t) || TH_ISBLK(t))
-    printf(" %3d, %3d ", th_get_devmajor(t), th_get_devminor(t));
-  else
+    {
+
+    NodeList const& nl = graph[depender_index];
+
+    cmTarget* depender = this->Targets[depender_index];
+
+    fprintf(stderr, "target %d is [%s]\n",
+
+            depender_index, depender->GetName());
+
+    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+
+      {
+
+      int dependee_index = *ni;
+
+      cmTarget* dependee = this->Targets[dependee_index];
+
+      fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
+
+              dependee->GetName());
+
+      }
+
+    }
+
+  fprintf(stderr, "\n");
+

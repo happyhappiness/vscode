@@ -1,25 +1,14 @@
-        {
-          const BIGNUM *n;
-          const BIGNUM *e;
+  if(instate == FTP_SIZE) {
 
-          RSA_get0_key(rsa, &n, &e, NULL);
-          BN_print(mem, n);
-          push_certinfo("RSA Public Key", i);
-          print_pubkey_BN(rsa, n, i);
-          print_pubkey_BN(rsa, e, i);
-        }
-#else
-        BIO_printf(mem, "%d", BN_num_bits(rsa->n));
-        push_certinfo("RSA Public Key", i);
-        print_pubkey_BN(rsa, n, i);
-        print_pubkey_BN(rsa, e, i);
-#endif
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
 
-        break;
-      }
-      case EVP_PKEY_DSA:
-      {
-#ifndef OPENSSL_NO_DSA
-        DSA *dsa;
-#ifdef HAVE_OPAQUE_EVP_PKEY
-        dsa = EVP_PKEY_get0_DSA(pubkey);
+    if(-1 != filesize) {
+
+      snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);
+
+      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+
+      if(result)
+

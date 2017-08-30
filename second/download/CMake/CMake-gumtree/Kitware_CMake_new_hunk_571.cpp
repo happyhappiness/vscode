@@ -1,6 +1,20 @@
-     information. Which for FILE can't be much more than the file size and
-     date. */
-  if(data->set.opt_no_body && data->set.include_header && fstated) {
-    snprintf(buf, sizeof(data->state.buffer),
-             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+			return (0);
+
+		if (bytes_read < 0)
+
+			return (ARCHIVE_FATAL);
+
+		nl = memchr(t, '\n', bytes_read);
+
+		/* If we found '\n', trim the read to end exactly there. */
+
+		if (nl != NULL) {
+
+			bytes_read = ((const char *)nl) - ((const char *)t) + 1;
+
+		}
+
+		if (total_size + bytes_read + 1 > limit) {
+
+			archive_set_error(&a->archive,
+

@@ -1,11 +1,42 @@
-		mine->block_size = new_block_size;
+		acl = NULL;
+
+#endif
+
+	else
+
+		acl = acl_get_file(accpath, ACL_TYPE_NFS4);
+
+#if HAVE_ACL_IS_TRIVIAL_NP
+
+	/* Ignore "trivial" ACLs that just mirror the file mode. */
+
+	acl_is_trivial_np(acl, &r);
+
+	if (r) {
+
+		acl_free(acl);
+
+		acl = NULL;
+
 	}
-	buffer = malloc(mine->block_size);
-	if (mine == NULL || buffer == NULL) {
-		archive_set_error(a, ENOMEM, "No memory");
-		free(mine);
-		free(buffer);
-		return (ARCHIVE_FATAL);
+
+#endif
+
+	if (acl != NULL) {
+
+		translate_acl(a, entry, acl, ARCHIVE_ENTRY_ACL_TYPE_NFS4);
+
+		acl_free(acl);
+
+		return (ARCHIVE_OK);
+
 	}
-	mine->buffer = buffer;
-	mine->fd = fd;
+
+#endif
+
+
+
+	/* Retrieve access ACL from file. */
+
+	if (*fd >= 0)
+

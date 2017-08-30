@@ -1,12 +1,28 @@
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	struct tree *t = a->tree;
+               symbol.compare(0, 4, vectorPrefix) &&
 
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
-	    "archive_read_disk_descend");
+               symbol.find("real@") == std::string::npos)
 
-	if (t->visit_type != TREE_REGULAR || !t->descend)
-		return (ARCHIVE_OK);
+            {
 
-	if (tree_current_is_physical_dir(t)) {
-		tree_push(t, t->basename, t->full_path.s,
+               SectChar =
+
+                pSectionHeaders[pSymbolTable->SectionNumber-1].Characteristics;
+
+               if (!pSymbolTable->Type  && (SectChar & IMAGE_SCN_MEM_WRITE)) {
+
+                  // Read only (i.e. constants) must be excluded
+
+                  fprintf(fout, "\t%s \t DATA\n", symbol.c_str());
+
+               } else {
+
+                  if ( pSymbolTable->Type  ||
+
+                       !(SectChar & IMAGE_SCN_MEM_READ)) {
+
+                     fprintf(fout, "\t%s\n", symbol.c_str());
+
+                  } else {
+
+                     //                    printf(" strange symbol: %s \n",s);
+

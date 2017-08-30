@@ -1,8 +1,19 @@
-    32    start of data block
+{
 
-    */
+  for (unsigned int i=0; i<10; i++)
 
-    snprintf((char *)ntlmbuf, sizeof(ntlmbuf), "NTLMSSP%c"
-             "\x01%c%c%c" /* 32-bit type = 1 */
-             "%c%c%c%c"   /* 32-bit NTLM flag field */
-             "%c%c"  /* domain length */
+    {
+
+    char name[128];
+
+    sprintf(name, "CMAKE_MATCH_%d", i);
+
+    mf->AddDefinition(name, re.match(i).c_str());
+
+    mf->MarkVariableAsUsed(name);
+
+    }
+
+}
+
+

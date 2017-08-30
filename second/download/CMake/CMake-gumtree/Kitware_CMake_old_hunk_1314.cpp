@@ -1,88 +1,118 @@
-  return result;
-}
+    strftime(current_time, 1000, "%a %b %d %H:%M:%S %Z %Y", t);
 
-static int AddFormData(struct FormData **formp,
-                       const void *line,
-                       long length)
-{
-  struct FormData *newform = (struct FormData *)
-    malloc(sizeof(struct FormData));
-  newform->next = NULL;
+    }
 
-  /* we make it easier for plain strings: */
-  if(!length)
-    length = (long)strlen((char *)line);
+  cmCTestLog(this, DEBUG, "   Current_Time: " << current_time << std::endl);
 
-  newform->line = (char *)malloc(length+1);
-  memcpy(newform->line, line, length);
-  newform->length = length;
-  newform->line[length]=0; /* zero terminate for easier debugging */
-  
-  if(*formp) {
-    (*formp)->next = newform;
-    *formp = newform;
-  }
-  else
-    *formp = newform;
+  return cmCTest::MakeXMLSafe(cmCTest::CleanString(current_time));
 
-  return length;
 }
 
 
-static int AddFormDataf(struct FormData **formp,
-                        const char *fmt, ...)
-{
-  char s[4096];
-  va_list ap;
-  va_start(ap, fmt);
-  vsprintf(s, fmt, ap);
-  va_end(ap);
 
-  return AddFormData(formp, s, 0);
+
+
+//----------------------------------------------------------------------
+
+std::string cmCTest::MakeXMLSafe(const std::string& str)
+
+{
+
+  std::vector<char> result;
+
+  result.reserve(500);
+
+  const char* pos = str.c_str();
+
+  for ( ;*pos; ++pos)
+
+    {
+
+    char ch = *pos;
+
+    if ( (ch > 126 || ch < 32) && ch != 9  &&
+
+      ch != 10 && ch != 13 && ch != '\r' )
+
+      {
+
+      char buffer[33];
+
+      sprintf(buffer, "&lt;%d&gt;", (int)ch);
+
+      //sprintf(buffer, "&#x%0x;", (unsigned int)ch);
+
+      result.insert(result.end(), buffer, buffer+strlen(buffer));
+
+      }
+
+    else
+
+      {
+
+      const char* const encodedChars[] = {
+
+        "&amp;",
+
+        "&lt;",
+
+        "&gt;"
+
+      };
+
+      switch ( ch )
+
+        {
+
+        case '&':
+
+          result.insert(result.end(), encodedChars[0], encodedChars[0]+5);
+
+          break;
+
+        case '<':
+
+          result.insert(result.end(), encodedChars[1], encodedChars[1]+4);
+
+          break;
+
+        case '>':
+
+          result.insert(result.end(), encodedChars[2], encodedChars[2]+4);
+
+          break;
+
+        case '\n':
+
+          result.push_back('\n');
+
+          break;
+
+        case '\r': break; // Ignore \r
+
+        default:
+
+          result.push_back(ch);
+
+        }
+
+      }
+
+    }
+
+  if ( result.size() == 0 )
+
+    {
+
+    return "";
+
+    }
+
+  return std::string(&*result.begin(), result.size());
+
 }
 
 
-char *Curl_FormBoundary(void)
-{
-  char *retstring;
-  static int randomizer=0; /* this is just so that two boundaries within
-                              the same form won't be identical */
-  int i;
 
-  static char table62[]=
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+//----------------------------------------------------------------------
 
-  retstring = (char *)malloc(BOUNDARY_LENGTH);
-
-  if(!retstring)
-    return NULL; /* failed */
-
-  srand((unsigned int)(time(NULL)+randomizer++)); /* seed */
-
-  strcpy(retstring, "curl"); /* bonus commercials 8*) */
-
-  for(i=4; i<(BOUNDARY_LENGTH-1); i++) {
-    retstring[i] = table62[rand()%62];
-  }
-  retstring[BOUNDARY_LENGTH-1]=0; /* zero terminate */
-
-  return retstring;
-}
-
-/* Used from http.c, this cleans a built FormData linked list */ 
-void Curl_formclean(struct FormData *form)
-{
-  struct FormData *next;
-
-  do {
-    next=form->next;  /* the following form line */
-    free(form->line); /* free the line */
-    free(form);       /* free the struct */
-  
-  } while((form=next)); /* continue */
-}
-
-/* external function to free up a whole form post chain */
-void curl_formfree(struct curl_httppost *form)
-{
-  struct curl_httppost *next;

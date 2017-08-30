@@ -1,7 +1,14 @@
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Exception,
-               kwsysProcess_Exception_Fault, 1, 1, 1, 0, 15, 0, 1, 0, 0, 0);
-  fprintf(stdout, "Output on stdout after recursive test.\n");
-  fprintf(stderr, "Output on stderr after recursive test.\n");
-  fflush(stdout);
+		zip->stream.opaque = Z_NULL;
+
+		zip->stream.next_out = zip->buf;
+
+		zip->stream.avail_out = (uInt)zip->len_buf;
+
+		if (deflateInit2(&zip->stream, zip->deflate_compression_level,
+
+		    Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+
+			archive_set_error(&a->archive, ENOMEM,
+
+			    "Can't init deflate compressor");
+

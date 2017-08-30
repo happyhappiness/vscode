@@ -1,8 +1,24 @@
-			   that are longer than this, so a failure to get at
-			   least 16 bytes really does indicate a truncated
-			   file. */
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file data");
-			return (ARCHIVE_FATAL);
-		}
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+
+	struct tree *t = a->tree;
+
+
+
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+
+	    ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
+
+	    "archive_read_disk_descend");
+
+
+
+	if (t->visit_type != TREE_REGULAR || !t->descend)
+
+		return (ARCHIVE_OK);
+
+
+
+	if (tree_current_is_physical_dir(t)) {
+
+		tree_push(t, t->basename, t->full_path.s,
+

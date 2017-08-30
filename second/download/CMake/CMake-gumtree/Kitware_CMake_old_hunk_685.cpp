@@ -1,13 +1,30 @@
-      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
-      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
-      if(const char* rulesOverridePath =
-         this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
-        {
-        fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideLang.c_str(), rulesOverridePath);
+                  hostname, conn->bits.ipv6_ip?"]":"",
+
+                  remote_port);
+
+        if(!hostheader) {
+
+          free(req_buffer);
+
+          return CURLE_OUT_OF_MEMORY;
+
         }
-      else if(const char* rulesOverridePath2 =
-              this->Makefile->GetDefinition(rulesOverrideBase.c_str()))
-        {
-        fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideBase.c_str(), rulesOverridePath2);
+
+
+
+        if(!Curl_checkProxyheaders(conn, "Host:")) {
+
+          host = aprintf("Host: %s\r\n", hostheader);
+
+          if(!host) {
+
+            free(hostheader);
+
+            free(req_buffer);
+
+            return CURLE_OUT_OF_MEMORY;
+
+          }
+
+        }
+

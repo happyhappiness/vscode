@@ -1,7 +1,12 @@
-		else
-			flags |= FILE_FLAG_SEQUENTIAL_SCAN;
-		t->entry_fh = CreateFileW(tree_current_access_path(t),
-		    GENERIC_READ, 0, NULL, OPEN_EXISTING, flags, NULL);
-		if (t->entry_fh == INVALID_HANDLE_VALUE) {
-			archive_set_error(&a->archive, errno,
-			    "Couldn't open %ls", tree_current_path(a->tree));
+			if (ret == Z_STREAM_ERROR)
+
+				return (ARCHIVE_FATAL);
+
+			if (zip->stream.avail_out == 0) {
+
+				ret = __archive_write_output(a, zip->buf,
+
+					zip->len_buf);
+
+				if (ret != ARCHIVE_OK)
+

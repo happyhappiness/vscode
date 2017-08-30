@@ -1,7 +1,18 @@
-				    "Too many arguments");
-				return ARCHIVE_WARN;
-			}
-			numbers[argc++] = (unsigned long)mtree_atol(&p, 0);
-		}
-		if (argc < 2) {
-			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+	path = NULL;
+
+
+
+	if (*fd < 0) {
+
+		path = archive_read_disk_entry_setup_path(a, entry, fd);
+
+		if (path == NULL)
+
+			return (ARCHIVE_WARN);
+
+	}
+
+
+
+	if (*fd >= 0)
+

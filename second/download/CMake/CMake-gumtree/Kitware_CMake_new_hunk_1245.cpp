@@ -1,13 +1,33 @@
-  buf[sizeof(buf)-1] = 0;
-
-  if (mkdirhier(dirname(buf)) == -1)
-    {
-    if (pathname)
       {
-      free(pathname);
-      }
-    return -1;
-    }
 
-#ifdef DEBUG
-  printf("  ==> extracting: %s (character device %ld,%ld)\n",
+      for(int i=0; i<command.size(); i++)
+
+        {
+
+        std::cout << command[i] << " ";
+
+        }
+
+      std::cout << std::endl;
+
+      }
+
+
+
+    std::string output;
+
+    int retVal = 0;
+
+    bool result = cmSystemTools::RunSingleCommand(command, &output, &retVal);
+
+    if (!result || retVal)
+
+      {
+
+      std::cerr << "AUTOMOC: process for " << mocFilePath << " failed:\n"
+
+                << output << std::endl;
+
+      this->RunMocFailed = true;
+
+      cmSystemTools::RemoveFile(mocFilePath.c_str());

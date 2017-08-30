@@ -1,7 +1,20 @@
-  sprintf(num, "%d", static_cast<int>(this->Makefiles.size()));
-  this->GetCMakeInstance()->AddCacheEntry("CMAKE_NUMBER_OF_MAKEFILES", num,
-                                          "number of local generators",
-                                          cmState::INTERNAL);
+  }
 
-  // check for link libraries and include directories containing "NOTFOUND"
-  // and for infinite loops
+#endif
+
+
+
+#ifdef USE_LIBIDN
+
+  idna_init();
+
+#endif
+
+
+
+  if(Curl_resolver_global_init()) {
+
+    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+
+    return CURLE_FAILED_INIT;
+

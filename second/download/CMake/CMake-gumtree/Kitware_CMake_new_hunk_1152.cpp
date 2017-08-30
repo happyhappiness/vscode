@@ -1,6 +1,14 @@
-  return 1;
-}
+   delaying 1/10th of a second should ever have to poll.  */
 
-static void cl_hash(struct cmcompress_stream* cdata, count_int hsize)    /* reset code table */
+#define MINPOLL 5
+
+#define MAXPOLL 20
+
+static int test7(int argc, const char* argv[])
+
 {
-  register count_int *htab_p = cdata->htab+hsize;
+
+  (void)argc; (void)argv;
+
+  fprintf(stdout, "Output on stdout before sleep.\n");
+

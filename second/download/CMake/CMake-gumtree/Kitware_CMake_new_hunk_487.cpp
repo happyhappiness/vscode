@@ -1,22 +1,68 @@
-	if (AE_IFREG != (zip->entry->mode & AE_IFMT))
-		return (ARCHIVE_EOF);
+ * @param yyscanner The scanner object.
 
-	__archive_read_consume(a, zip->unconsumed);
-	zip->unconsumed = 0;
+ * @return the newly allocated buffer state object.
 
-	if (zip->init_decryption) {
-		zip->has_encrypted_entries = 1;
-		if (zip->entry->zip_flags & ZIP_STRONG_ENCRYPTED)
-			r = read_decryption_header(a);
-		else if (zip->entry->compression == WINZIP_AES_ENCRYPTION)
-			r = init_WinZip_AES_decryption(a);
-		else
-			r = init_traditional_PKWARE_decryption(a);
-		if (r != ARCHIVE_OK)
-			return (r);
-		zip->init_decryption = 0;
-	}
+ */
 
-	switch(zip->entry->compression) {
-	case 0:  /* No compression. */
-		r =  zip_read_data_none(a, buff, size, offset);
+YY_BUFFER_STATE cmListFileLexer_yy_scan_bytes  (yyconst char * yybytes, yy_size_t  _yybytes_len , yyscan_t yyscanner)
+
+{
+
+	YY_BUFFER_STATE b;
+
+	char *buf;
+
+	yy_size_t n;
+
+	yy_size_t i;
+
+
+
+	/* Get memory for full buffer, including space for trailing EOB's. */
+
+	n = _yybytes_len + 2;
+
+	buf = (char *) cmListFileLexer_yyalloc(n ,yyscanner );
+
+	if ( ! buf )
+
+		YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_scan_bytes()" );
+
+
+
+	for ( i = 0; i < _yybytes_len; ++i )
+
+		buf[i] = yybytes[i];
+
+
+
+	buf[_yybytes_len] = buf[_yybytes_len+1] = YY_END_OF_BUFFER_CHAR;
+
+
+
+	b = cmListFileLexer_yy_scan_buffer(buf,n ,yyscanner);
+
+	if ( ! b )
+
+		YY_FATAL_ERROR( "bad buffer in cmListFileLexer_yy_scan_bytes()" );
+
+
+
+	/* It's okay to grow etc. this buffer, and we should throw it
+
+	 * away when we're done.
+
+	 */
+
+	b->yy_is_our_buffer = 1;
+
+
+
+	return b;
+
+}
+
+
+
+#ifndef YY_EXIT_FAILURE
+

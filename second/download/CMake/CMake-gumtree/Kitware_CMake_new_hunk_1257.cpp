@@ -1,10 +1,14 @@
-  tar_ino_t *ti = NULL;
-#if !defined(_WIN32) || defined(__CYGWIN__)
-  int i;
-#else
-  size_t plen;
-#endif
-  char path[TAR_MAXPATHLEN];
+  const char* ret = getcwd(buf, len);
 
-#ifdef DEBUG
-  printf("==> tar_append_file(TAR=0x%lx (\"%s\"), realname=\"%s\", "
+  if(!ret)
+
+    {
+
+    std::cerr << "No current working directory" << std::endl;
+
+    abort();
+
+    }
+
+  return ret;
+

@@ -1,7 +1,23 @@
-          return result;
+    digest->nc = 1;
 
-        /* format: "Tue, 15 Nov 1994 12:45:26" */
-        snprintf(buf, BUFSIZE-1,
-                 "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-                 Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-                 tm->tm_mday,
+
+
+  if(!digest->cnonce) {
+
+    unsigned int rnd[4];
+
+    result = Curl_rand(data, &rnd[0], 4);
+
+    if(result)
+
+      return result;
+
+    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+
+             rnd[0], rnd[1], rnd[2], rnd[3]);
+
+
+
+    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
+
+                                &cnonce, &cnonce_sz);

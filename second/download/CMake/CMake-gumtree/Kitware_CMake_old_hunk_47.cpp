@@ -1,7 +1,18 @@
-          return result;
+    time_t filetime;
 
-        /* format: "Tue, 15 Nov 1994 12:45:26" */
-        snprintf(buf, BUFSIZE-1,
-                 "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-                 Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-                 tm->tm_mday,
+    struct tm buffer;
+
+    const struct tm *tm = &buffer;
+
+    snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+
+    if(result)
+
+      return result;
+
+
+

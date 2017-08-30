@@ -1,7 +1,21 @@
-			return (NULL);
-		}
-	}
-	uavail = (uint16_t)cab->stream.total_out;
+    if (useOldLinkLibs)
 
-	if (uavail < cfdata->uncompressed_size) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+      {
+
+      fprintf(fout,
+
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);
+
+      }
+
+    else
+
+      {
+
+      fprintf(fout, "target_link_libraries(%s %s)\n",
+
+              targetName,
+
+              libsToLink.c_str());
+
+      }

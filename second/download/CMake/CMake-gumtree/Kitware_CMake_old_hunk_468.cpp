@@ -1,7 +1,12 @@
+      rar->range_dec.Stream = &rar->bytein;
 
-        /* column is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           yy_fatal_error( "cmFortran_yyset_column called with no buffer" , yyscanner);
+      __archive_ppmd7_functions.Ppmd7_Construct(&rar->ppmd7_context);
 
-    yycolumn = column_no;
-}
+
+
+      if (!__archive_ppmd7_functions.Ppmd7_Alloc(&rar->ppmd7_context,
+
+        rar->dictionary_size, &g_szalloc))
+
+      {
+

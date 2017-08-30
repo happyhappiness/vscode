@@ -1,47 +1,74 @@
-  // if there is no restriction on the length of make variables
-  // and there are no "." charactors in the string, then return the
-  // unmodified combination.
-  if((!m_MakefileVariableSize && unmodified.find('.') == s.npos)
-     && (!m_MakefileVariableSize && unmodified.find('-') == s.npos))
-    {
-    return unmodified;
-    }
+}
 
-  // see if the variable has been defined before and return
-  // the modified version of the variable
-  std::map<cmStdString, cmStdString>::iterator i = m_MakeVariableMap.find(unmodified);
-  if(i != m_MakeVariableMap.end())
-    {
-    return i->second;
-    }
-  // start with the unmodified variable
-  std::string ret = unmodified;
-  // if this there is no value for m_MakefileVariableSize then
-  // the string must have bad characters in it
-  if(!m_MakefileVariableSize)
-    {
-    cmSystemTools::ReplaceString(ret, ".", "_");
-    cmSystemTools::ReplaceString(ret, "-", "__");
-    int ni = 0;
-    char buffer[5];
-    // make sure the _ version is not already used, if
-    // it is used then add number to the end of the variable
-    while(m_ShortMakeVariableMap.count(ret) && ni < 1000)
-      {
-      ++ni;
-      sprintf(buffer, "%04d", ni);
-      ret = unmodified + buffer;
-      }
-    m_ShortMakeVariableMap[ret] = "1";
-    m_MakeVariableMap[unmodified] = ret;
-    return ret;
-    }
 
-  // if the string is greater the 32 chars it is an invalid vairable name
-  // for borland make
-  if(static_cast<int>(ret.size()) > m_MakefileVariableSize)
-    {
-    int keep = m_MakefileVariableSize - 8;
-    int size = keep + 3;
-    std::string str1 = s;
-    std::string str2 = s2;
+
+static ssize_t
+
+read_stream(struct archive_read *a, const void **buff, size_t size)
+
+{
+
+	struct _7zip *zip = (struct _7zip *)a->format->data;
+
+	uint64_t skip_bytes = 0;
+
+	int r;
+
+
+
+	if (zip->uncompressed_buffer_bytes_remaining == 0) {
+
+		if (zip->pack_stream_inbytes_remaining > 0) {
+
+			r = extract_pack_stream(a);
+
+			if (r < 0)
+
+				return (r);
+
+			return (get_uncompressed_data(a, buff, size));
+
+		} else if (zip->folder_outbytes_remaining > 0) {
+
+			/* Extract a remaining pack stream. */
+
+			r = extract_pack_stream(a);
+
+			if (r < 0)
+
+				return (r);
+
+			return (get_uncompressed_data(a, buff, size));
+
+		}
+
+	} else
+
+		return (get_uncompressed_data(a, buff, size));
+
+
+
+	/*
+
+	 * Current pack stream has been consumed.
+
+	 */
+
+	if (zip->pack_stream_remaining == 0) {
+
+		/*
+
+		 * All current folder's pack streams have been
+
+		 * consumed. Switch to next folder.
+
+		 */
+
+
+
+		if (zip->folder_index == 0 &&
+
+		    (zip->si.ci.folders[zip->entry->folderIndex].skipped_bytes
+
+		     || zip->folder_index != zip->entry->folderIndex)) {
+

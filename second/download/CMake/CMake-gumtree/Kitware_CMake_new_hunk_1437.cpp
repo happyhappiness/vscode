@@ -1,24 +1,14 @@
-//    }
-//  else
-//    {
-  char firstLine[512]="";
-  char secondLine[512]="";
-  char thirdLine[512]="";
-  if (process)
-    {
-    sprintf(firstLine, 
-            "                                                               ");  
-    sprintf(secondLine, 
-            "                                                               ");  
-    sprintf(thirdLine, 
-            "                                                               ");  
-    }
-  else
-    {
-    if (m_OkToGenerate)
-      {
-      sprintf(firstLine,  
-              "Press [c] to configure     Press [g] to generate and exit");
-      }
-    else
-      {
+#define YY_EXIT_FAILURE 2
+
+#endif
+
+
+
+static void yy_fatal_error (yyconst char* msg , yyscan_t)
+
+{
+
+        (void) fprintf( stderr, "%s\n", msg );
+
+        exit( YY_EXIT_FAILURE );
+

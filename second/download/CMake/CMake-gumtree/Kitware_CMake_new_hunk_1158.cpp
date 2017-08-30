@@ -1,10 +1,14 @@
-        char *buf;
-        yy_size_t n;
-        int i;
+}
 
-        /* Get memory for full buffer, including space for trailing EOB's. */
-        n = len + 2;
-        buf = (char *) cmDependsFortran_yyalloc(n ,yyscanner );
-        if ( ! buf )
-                YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yy_scan_bytes()" );
+inline const char* Getcwd(char* buf, unsigned int len)
+
+{
+
+  return getcwd(buf, len);
+
+}
+
+
+
+inline int Chdir(const char* dir)
 

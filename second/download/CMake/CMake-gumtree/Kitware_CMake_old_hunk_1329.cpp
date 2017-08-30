@@ -1,15 +1,12 @@
-      switch ( this->Internals->Callbacks[*sit].ArgumentType )
-        {
-        case CommandLineArguments::NO_ARGUMENT: break;
-        case CommandLineArguments::CONCAT_ARGUMENT: strcat(argument, "option"); break;
-        case CommandLineArguments::SPACE_ARGUMENT:  strcat(argument, " option"); break;
-        case CommandLineArguments::EQUAL_ARGUMENT:  strcat(argument, "=option"); break;
-        }
-      char buffer[80];
-      sprintf(buffer, format, argument);
-      str << buffer;
-      }
-    str << "\t";
-    const char* ptr = this->Internals->Callbacks[mpit->first].Help;
-    int len = strlen(ptr);
-    int cnt = 0;
+        else
+
+                ret_val = EOB_ACT_CONTINUE_SCAN;
+
+
+
+        yyg->yy_n_chars += number_to_move;
+
+        YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars] = YY_END_OF_BUFFER_CHAR;
+
+        YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars + 1] = YY_END_OF_BUFFER_CHAR;
+

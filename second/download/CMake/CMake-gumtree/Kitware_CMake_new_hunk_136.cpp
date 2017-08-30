@@ -1,12 +1,46 @@
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_ar");
+	const char *path;
 
-	ar = (struct ar *)calloc(1, sizeof(*ar));
-	if (ar == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate ar data");
-		return (ARCHIVE_FATAL);
+	ssize_t list_size;
+
+
+
+	path = NULL;
+
+
+
+	if (*fd < 0) {
+
+		path = archive_entry_sourcepath(entry);
+
+		if (path == NULL || (a->tree != NULL &&
+
+		    a->tree_enter_working_dir(a->tree) != 0))
+
+			path = archive_entry_pathname(entry);
+
+		if (path == NULL) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "Couldn't determine file path to read "
+
+			    "extended attributes");
+
+			return (ARCHIVE_WARN);
+
+		}
+
+		if (a->tree != NULL && (a->follow_symlinks ||
+
+		    archive_entry_filetype(entry) != AE_IFLNK)) {
+
+			*fd = a->open_on_current_dir(a->tree,
+
+			    path, O_RDONLY | O_NONBLOCK);
+
+		}
+
 	}
-	ar->strtab = NULL;
 
-	r = __archive_read_register_format(a,
+
+

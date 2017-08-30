@@ -1,14 +1,30 @@
-    {
-    n = atoi(argv[1]);
-    }
-  else if(argc == 3 && strcmp(argv[1], "run") == 0)
-    {
-    n = atoi(argv[2]);
-    }
-  /* Check arguments.  */
-  if(n >= 1 && n <= 7 && argc == 3)
-    {
-    /* This is the child process for a requested test number.  */
-    switch (n)
+      this->ParsePerson(this->Line.c_str()+7, author);
+
+      this->Rev.Author = author.Name;
+
+      this->Rev.EMail = author.EMail;
+
+      this->Rev.Date = this->FormatDateTime(author);
+
+      }
+
+    else if(strncmp(this->Line.c_str(), "committer ", 10) == 0)
+
       {
-      case 1: return test1(argc, argv);
+
+      Person committer;
+
+      this->ParsePerson(this->Line.c_str()+10, committer);
+
+      this->Rev.Committer = committer.Name;
+
+      this->Rev.CommitterEMail = committer.EMail;
+
+      this->Rev.CommitDate = this->FormatDateTime(committer);
+
+      }
+
+    }
+
+
+

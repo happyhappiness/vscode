@@ -1,7 +1,52 @@
-      return result;
+     * The application kindly asks for a differently sized receive buffer.
 
-    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-    snprintf(header, sizeof(header),
-             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-             tm->tm_mday,
+     * If it seems reasonable, we'll use it.
+
+     */
+
+    arg = va_arg(param, long);
+
+
+
+    if(arg > READBUFFER_MAX)
+
+      arg = READBUFFER_MAX;
+
+    else if(arg < 1)
+
+      arg = READBUFFER_SIZE;
+
+    else if(arg < READBUFFER_MIN)
+
+      arg = READBUFFER_MIN;
+
+
+
+    /* Resize if new size */
+
+    if(arg != data->set.buffer_size) {
+
+      char *newbuff = realloc(data->state.buffer, arg + 1);
+
+      if(!newbuff) {
+
+        DEBUGF(fprintf(stderr, "Error: realloc of buffer failed\n"));
+
+        result = CURLE_OUT_OF_MEMORY;
+
+      }
+
+      else
+
+        data->state.buffer = newbuff;
+
+    }
+
+    data->set.buffer_size = arg;
+
+
+
+    break;
+
+
+

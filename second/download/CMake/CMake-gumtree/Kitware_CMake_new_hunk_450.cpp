@@ -1,8 +1,16 @@
-	struct mtree_entry *entry;
-	struct mtree_option *iter;
-	const char *next, *eq, *name, *end;
-	size_t name_len, len;
-	int r, i;
+    return CURLE_FAILED_INIT;
 
-	if ((entry = malloc(sizeof(*entry))) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
+  }
+
+
+
+  (void)Curl_ipv6works();
+
+
+
+#if defined(USE_LIBSSH2) && defined(HAVE_LIBSSH2_INIT)
+
+  if(libssh2_init(0)) {
+
+    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+

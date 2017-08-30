@@ -1,7 +1,11 @@
-    "      printf(\"%3d. %s\\n\", i, cmakeGeneratedFunctionMapEntries[i].name);\n"
-    "      }\n"
-    "    printf(\"To run a test, enter the test number: \");\n"
-    "    int testNum = 0;\n"
-    "    scanf(\"%d\", &testNum);\n"
-    "    if (testNum >= NumTests)\n"
-    "      {\n"
+    printf("Problem with libc2\n");
+
+    return 1;
+
+    }
+
+  printf("Foo: %s\n", foo);
+
+  return 0;
+
+}

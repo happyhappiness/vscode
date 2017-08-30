@@ -1,8 +1,14 @@
-  printf("Current Value: %s\n", iter.GetValue());
-  printf("New Value (Enter to keep current value): ");
-  char buffer[4096];
-  buffer[0] = 0;
-  fgets(buffer, sizeof(buffer)-1, stdin);
+	return (ARCHIVE_OK);
 
-  if(strlen(buffer) > 0)
-    {
+#else
+
+	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+
+	    "Using external gunzip program");
+
+	return (ARCHIVE_WARN);
+
+#endif
+
+}
+

@@ -1,8 +1,18 @@
-			en = create_filesystem_object(a);
-		} else if (!S_ISDIR(a->mode)) {
-			/* A dir is in the way of a non-dir, rmdir it. */
-			if (a->flags & ARCHIVE_EXTRACT_CLEAR_NOCHANGE_FFLAGS)
-				(void)clear_nochange_fflags(a);
-			if (rmdir(a->name) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Can't replace existing directory with non-directory");
+			archive_set_error(&a->archive, errno, "fchdir failed");
+
+			return (ARCHIVE_FAILED);
+
+		}
+
+#if defined(HAVE_STATVFS)
+
+		vr = statvfs(".", &svfs);
+
+#endif
+
+		r = statfs(".", &sfs);
+
+		if (r == 0)
+
+			xr = get_xfer_size(t, -1, ".");
+

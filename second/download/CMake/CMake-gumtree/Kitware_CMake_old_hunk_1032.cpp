@@ -1,7 +1,14 @@
-      return;
-      }
+		a->tree = tree_open(pathname, a->symlink_mode, a->restore_time);
 
-    fprintf(stderr, "Writing %s...\n", currentFilename.c_str());
-    this->WriteHeader(str);
+	if (a->tree == NULL) {
 
-    this->WriteConnections(ptrIt->first.c_str(),
+		archive_set_error(&a->archive, ENOMEM,
+
+		    "Can't allocate direcotry traversal data");
+
+		a->archive.state = ARCHIVE_STATE_FATAL;
+
+		return (ARCHIVE_FATAL);
+
+	}
+

@@ -1,8 +1,26 @@
-    std::string linkLibs;
-    std::string flags;
-    std::string linkFlags;
-    cmGeneratorTarget gtgt(tgt);
-    lg->GetTargetFlags(linkLibs, flags, linkFlags, &gtgt);
+			else
 
-    printf("%s\n", linkLibs.c_str() );
+				ret = ARCHIVE_FATAL;
+
+		}
+
+		return (ret);
+
+	}
+
+
+
+	/* Note: The "warn" return is just to inform the options
+
+	 * supervisor that we didn't handle it.  It will generate
+
+	 * a suitable error if no one used this option. */
+
+	return (ARCHIVE_WARN);
+
+}
+
+
+
+static int
 

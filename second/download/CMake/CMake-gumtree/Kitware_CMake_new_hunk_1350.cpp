@@ -1,28 +1,24 @@
-# include <unistd.h>
-#endif
+  result = 0;
 
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, double timeout);
+  }
 
-int test1(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 0.\n");
-  fprintf(stderr, "Output on stderr from test returning 0.\n");
-  return 0;
-}
+# endif
 
-int test2(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 123.\n");
-  fprintf(stderr, "Output on stderr from test returning 123.\n");
-  return 123;
-}
+# ifndef DIRECTORY_DEF_DEBUG
 
-int test3(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output before sleep on stderr from timeout test.\n");
-  fflush(stdout);
+  {
+
+  fprintf(stderr, "DIRECTORY_DEF_DEBUG should be defined in CXX\n");
+
+  result = 0;
+
+  }
+
+# endif
+
+# ifdef FILE_DEF_RELEASE
+
+  {
+
+  fprintf(stderr, "FILE_DEF_RELEASE should not be defined in CXX\n");
+

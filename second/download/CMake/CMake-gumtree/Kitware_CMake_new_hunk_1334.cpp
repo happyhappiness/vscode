@@ -1,7 +1,16 @@
-      }
-    else if ( format == cmSystemTools::FORTRAN_FILE_FORMAT )
-      {
-      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE Fortran)\n");      
-      }
-    else
-      {
+
+
+        /* column is only valid if an input buffer exists. */
+
+        if (! YY_CURRENT_BUFFER )
+
+           yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" , yyscanner);
+
+
+
+    yycolumn = column_no;
+
+}
+
+
+

@@ -1,8 +1,22 @@
+			else
 
-        /* lineno is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" , yyscanner);
+				ret = ARCHIVE_FATAL;
 
-    yylineno = line_number;
+		}
+
+	} else
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "tar: unknown keyword ``%s''", key);
+
+
+
+	return (ret);
+
 }
+
+
+
+/* utility function- this exists to centralize the logic of tracking
 

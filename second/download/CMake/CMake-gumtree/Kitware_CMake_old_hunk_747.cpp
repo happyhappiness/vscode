@@ -1,8 +1,20 @@
-			DWORD flag, desiredAccess;
-	
-			h = FindFirstFileW(path, &findData);
-			if (h == INVALID_DIR_HANDLE) {
-				archive_set_error(&a->archive, GetLastError(),
-				    "Can't FindFirstFileW");
-				return (ARCHIVE_FAILED);
-			}
+    sprintf(argvName,"${ARGV%i}",j);
+
+    argVs.push_back(argvName);
+
+    }
+
+  if(!this->Functions.empty())
+
+    {
+
+    this->FilePath = this->Functions[0].FilePath;
+
+    }
+
+  // Invoke all the functions that were collected in the block.
+
+  cmListFileFunction newLFF;
+
+  // for each function
+

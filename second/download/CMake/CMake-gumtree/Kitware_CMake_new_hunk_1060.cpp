@@ -1,15 +1,14 @@
-        totalTestTime += result->ExecutionTime;
-        }
-      
-      char realBuf[1024];
-      sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (real) = "
-                 << realBuf << "\n" );
+		uint64_t flush_bytes;
 
-      char totalBuf[1024];
-      sprintf(totalBuf, "%6.2f sec", totalTestTime); 
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (parallel) = " 
-                 <<  totalBuf << "\n" );
-      
-      }
+
+
+		if (!zip->ppmd7_valid || zip->ppmd7_stat < 0 ||
+
+		    t_avail_out <= 0) {
+
+			archive_set_error(&(a->archive),
+
+			    ARCHIVE_ERRNO_MISC,
+
+			    "Decompression internal error");
 

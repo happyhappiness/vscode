@@ -1,7 +1,12 @@
-  if(!this->StaticLinkExtensions.empty())
-    {
-    std::string reg_static = reg;
-    reg_static += this->CreateExtensionRegex(this->StaticLinkExtensions);
-#ifdef CM_COMPUTE_LINK_INFO_DEBUG
-  fprintf(stderr, "static regex [%s]\n", reg_static.c_str());
-#endif
+	tree_push(t, base, t->full_path.s, 0, 0, 0, NULL);
+
+	archive_wstring_free(&ws);
+
+	t->stack->flags = needsFirstVisit;
+
+	return (t);
+
+failed:
+
+	archive_wstring_free(&ws);
+

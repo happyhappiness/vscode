@@ -1,10 +1,16 @@
-#include "memdebug.h"
-#endif
+  if(!this->CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
 
-char *getpass_r(const char *prompt, char *buffer, size_t buflen)
-{
-  FILE *infp;
-  char infp_fclose = 0;
-  FILE *outfp;
-  RETSIGTYPE (*sigint)();
-#ifndef __EMX__
+    {
+
+    char ver[256];
+
+    sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
+
+            cmVersion::GetMinorVersion());
+
+    this->CacheManager->AddCacheEntry
+
+      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
+
+       "For backwards compatibility, what version of CMake commands and "
+

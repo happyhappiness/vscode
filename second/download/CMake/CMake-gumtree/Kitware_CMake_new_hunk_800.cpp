@@ -1,21 +1,98 @@
-    /* Seems as though dictionary sizes are not used. Even so, minimize
-     * memory usage as much as possible.
-     */
-    void *new_window;
-    unsigned int new_size;
+	int ret = ARCHIVE_FAILED;
 
-    if (rar->unp_size >= DICTIONARY_MAX_SIZE)
-      new_size = DICTIONARY_MAX_SIZE;
-    else
-      new_size = rar_fls((unsigned int)rar->unp_size) << 1;
-    new_window = realloc(rar->lzss.window, new_size);
-    if (new_window == NULL) {
-      archive_set_error(&a->archive, ENOMEM,
-                        "Unable to allocate memory for uncompressed data.");
-      return (ARCHIVE_FATAL);
-    }
-    rar->lzss.window = (unsigned char *)new_window;
-    rar->dictionary_size = new_size;
-    memset(rar->lzss.window, 0, rar->dictionary_size);
-    rar->lzss.mask = rar->dictionary_size - 1;
-  }
+
+
+	if (strcmp(key, "compression") == 0) {
+
+		/*
+
+		 * Set compression to use on all future entries.
+
+		 * This only affects regular files.
+
+		 */
+
+		if (val == NULL || val[0] == 0) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "%s: compression option needs a compression name",
+
+			    a->format_name);
+
+		} else if (strcmp(val, "deflate") == 0) {
+
+#ifdef HAVE_ZLIB_H
+
+			zip->requested_compression = COMPRESSION_DEFLATE;
+
+			ret = ARCHIVE_OK;
+
+#else
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "deflate compression not supported");
+
+#endif
+
+		} else if (strcmp(val, "store") == 0) {
+
+			zip->requested_compression = COMPRESSION_STORE;
+
+			ret = ARCHIVE_OK;
+
+		}
+
+		return (ret);
+
+	} else if (strcmp(key, "experimental") == 0) {
+
+		if (val == NULL || val[0] == 0) {
+
+			zip->flags &= ~ ZIP_FLAG_EXPERIMENT_EL;
+
+		} else {
+
+			zip->flags |= ZIP_FLAG_EXPERIMENT_EL;
+
+		}
+
+		return (ARCHIVE_OK);
+
+	} else if (strcmp(key, "fakecrc32") == 0) {
+
+		/*
+
+		 * FOR TESTING ONLY:  disable CRC calculation to speed up
+
+		 * certain complex tests.
+
+		 */
+
+		if (val == NULL || val[0] == 0) {
+
+			zip->crc32func = real_crc32;
+
+		} else {
+
+			zip->crc32func = fake_crc32;
+
+		}
+
+		return (ARCHIVE_OK);
+
+	} else if (strcmp(key, "hdrcharset")  == 0) {
+
+		/*
+
+		 * Set the character set used in translating filenames.
+
+		 */
+
+		if (val == NULL || val[0] == 0) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "%s: hdrcharset option needs a character-set name",
+

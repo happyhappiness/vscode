@@ -1,14 +1,18 @@
-                            sizeof(rar->reserved2));
-      }
+                        const cmCustomCommand& origCommand)
 
-      /* Main header is password encrytped, so we cannot read any
-         file names or any other info about files from the header. */
-      if (rar->main_flags & MHD_PASSWORD)
-      {
-        archive_entry_set_is_metadata_encrypted(entry, 1);
-        archive_entry_set_is_data_encrypted(entry, 1);
-        rar->has_encrypted_entries = 1;
-         archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "RAR encryption support unavailable.");
-        return (ARCHIVE_FATAL);
-      }
+{
+
+  // Create a fake output that forces the rule to run.
+
+  char* output = new char[(strlen(this->GetCurrentBinaryDirectory())
+
+                           + target.GetName().size() + 30)];
+
+  sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
+
+          target.GetName().c_str(), count);
+
+  const char* comment = origCommand.GetComment();
+
+  if(!comment && origCommand.GetOutputs().empty())
+

@@ -1,7 +1,13 @@
-      sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
-      targetNamesNodes[realTargetName] = tgtName;
-      targetPtrs[realTargetName] = &tit->second;
-      //str << "    \"" << tgtName << "\" [ label=\"" << tit->first.c_str() <<  "\" shape=\"box\"];" << std::endl;
       }
+
+
+
+    sprintf(secondLine,
+
+            "Press [h] for help         Press [q] to quit without generating");
+
     }
-  // Ok, now find all the stuff we link to that is not in cmake
+
+
+
+  curses_move(y-4,0);

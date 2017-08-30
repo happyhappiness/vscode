@@ -1,7 +1,15 @@
-  printf("Current Value: %s\n", iter.GetValue());
-  printf("New Value (Enter to keep current value): ");
-  char buffer[4096];
-  if(!fgets(buffer, static_cast<int>(sizeof(buffer) - 1), stdin))
-    {
-    buffer[0] = 0;
-    }
+			}
+
+			break;
+
+		} else {
+
+			la_dosmaperr(GetLastError());
+
+			archive_set_error(&a->archive, errno,
+
+			    "DeviceIoControl Failed: %lu", GetLastError());
+
+			exit_sts = ARCHIVE_FAILED;
+
+			goto exit_setup_sparse;

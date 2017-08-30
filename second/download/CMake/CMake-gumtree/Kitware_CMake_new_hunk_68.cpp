@@ -1,10 +1,14 @@
-    time_t filetime;
-    struct tm buffer;
-    const struct tm *tm = &buffer;
-    char header[80];
-    snprintf(header, sizeof(header),
-             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, header, 0);
-    if(result)
-      return result;
+
+
+  /* We do some initial setup here, all those fields that can't be just 0 */
+
+
+
+  data->state.buffer = malloc(READBUFFER_SIZE + 1);
+
+  if(!data->state.buffer) {
+
+    DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"));
+
+    result = CURLE_OUT_OF_MEMORY;
 

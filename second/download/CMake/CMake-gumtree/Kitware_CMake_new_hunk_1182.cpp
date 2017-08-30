@@ -1,37 +1,75 @@
-    fprintf(fout,"extern Tcl_HashTable vtkCommandLookup;\n");
-    }
-  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
-  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp,"
-          "ClientData arg);\n");
+  parseCommandLine(GetCommandLine(), lang, srcfile, dfile, objfile,
 
-  for (i = 0; i < this->Commands.size(); i++)
-    {
-    fprintf(fout,
-            "\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-            capcommands[i].c_str());
-    }
-  
-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT "
-          "%s_SafeInit(Tcl_Interp *interp);}\n", kitName);
-  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init"
-          "(Tcl_Interp *interp);}\n", kitName);
-  
-  /* create an extern ref to the generic delete function */
-  fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
+                                     prefix, cl, binpath, rest);
 
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,"extern \"C\"\n{\nvoid "
-            "vtkCommonDeleteAssocData(ClientData cd)\n");
-    fprintf(fout,"  {\n");
-    fprintf(fout,"  vtkTclInterpStruct *tis = "
-            "static_cast<vtkTclInterpStruct*>(cd);\n");
-    fprintf(fout,"  delete tis;\n  }\n}\n");
-    }
-    
-  /* the main declaration */
-  fprintf(fout,
-          "\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
-  fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
-  
-  fprintf(fout,"\n\nint VTK_EXPORT %s_Init(Tcl_Interp *interp)\n{\n",
+
+
+  // needed to suppress filename output of msvc tools
+
+  string srcfilename;
+
+  std::string::size_type pos = srcfile.rfind("\\");
+
+  if (pos != string::npos) {
+
+    srcfilename = srcfile.substr(pos + 1);
+
+  }
+
+
+
+  std::string nol = " /nologo ";
+
+  std::string show = " /showIncludes ";
+
+  if (lang == "C" || lang == "CXX") {
+
+    return process(srcfilename, dfile, objfile, prefix,
+
+                   binpath + nol + show + rest);
+
+  } else if (lang == "RC") {
+
+    // "misuse" cl.exe to get headers from .rc files
+
+
+
+    string clrest = rest;
+
+    // rc: /fo x.dir\x.rc.res  ->  cl: /out:x.dir\x.rc.res.dep.obj
+
+    clrest = replace(clrest, "/fo", "/out:");
+
+    clrest = replace(clrest, objfile, objfile + ".dep.obj ");
+
+    // rc: src\x\x.rc  ->  cl: /Tc src\x\x.rc
+
+    clrest = replace(clrest, srcfile, "/Tc " + srcfile);
+
+
+
+    cl = "\"" + cl + "\" /P /DRC_INVOKED ";
+
+
+
+    // extract dependencies with cl.exe
+
+    process(srcfilename, dfile, objfile,
+
+                  prefix, cl + nol + show + clrest, true);
+
+
+
+    // compile rc file with rc.exe
+
+    return process(srcfilename, "" , objfile, prefix, binpath + nol + rest);
+
+  }
+
+
+
+  usage("Invalid language specified.");
+
+  return 1;
+
+}

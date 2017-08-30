@@ -1,38 +1,43 @@
-#define ECHO (void) fwrite( yytext, yyleng, 1, yyout )
-#endif
+      fprintf(fout, "SET(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
 
-/* Gets input and stuffs it into "buf".  number of characters read, or YY_NULL,
- * is returned in "result".
- */
-#ifndef YY_INPUT
-#define YY_INPUT(buf,result,max_size) \
-        if ( YY_CURRENT_BUFFER_LVALUE->yy_is_interactive ) \
-                { \
-                int c = '*'; \
-                size_t n; \
-                for ( n = 0; n < max_size && \
-                             (c = getc( yyin )) != EOF && c != '\n'; ++n ) \
-                        buf[n] = (char) c; \
-                if ( c == '\n' ) \
-                        buf[n++] = (char) c; \
-                if ( c == EOF && ferror( yyin ) ) \
-                        YY_FATAL_ERROR( "input in flex scanner failed" ); \
-                result = n; \
-                } \
-        else \
-                { \
-                errno=0; \
-                while ( (result = fread(buf, 1, max_size, yyin))==0 && ferror(yyin)) \
-                        { \
-                        if( errno != EINTR) \
-                                { \
-                                YY_FATAL_ERROR( "input in flex scanner failed" ); \
-                                break; \
-                                } \
-                        errno=0; \
-                        clearerr(yyin); \
-                        } \
-                }\
-\
+      }
 
-#endif
+
+
+    /* Put the executable at a known location (for COPY_FILE).  */
+
+    fprintf(fout, "SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+
+            this->BinaryDirectory.c_str());
+
+    /* Create the actual executable.  */
+
+    fprintf(fout, "ADD_EXECUTABLE(%s \"%s\")\n", targetName, source.c_str());
+
+    if (useOldLinkLibs)
+
+      {
+
+      fprintf(fout,
+
+              "TARGET_LINK_LIBRARIES(%s ${LINK_LIBRARIES})\n",targetName);
+
+      }
+
+    else
+
+      {
+
+      fprintf(fout, "TARGET_LINK_LIBRARIES(%s %s)\n",
+
+              targetName,
+
+              libsToLink.c_str());
+
+      }
+
+    fclose(fout);
+
+    projectName = "CMAKE_TRY_COMPILE";
+
+    // if the source is not in CMakeTmp

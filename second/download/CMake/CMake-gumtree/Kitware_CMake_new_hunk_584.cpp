@@ -1,27 +1,23 @@
-    if(cp->ErrorMessage[0] == 0)
-      {
-      /* Format the error message.  */
-      wchar_t err_msg[KWSYSPE_PIPE_BUFFER_SIZE];
-      DWORD length = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
-                                   FORMAT_MESSAGE_IGNORE_INSERTS, 0, error,
-                                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                                   err_msg, KWSYSPE_PIPE_BUFFER_SIZE, 0);
-      if(length < 1)
-        {
-        /* FormatMessage failed.  Use a default message.  */
-        _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
-                  "Process execution failed with error 0x%X.  "
-                  "FormatMessage failed with error 0x%X",
-                  error, GetLastError());
-        }
-      if(!WideCharToMultiByte(CP_UTF8, 0, err_msg, -1, cp->ErrorMessage,
-                              KWSYSPE_PIPE_BUFFER_SIZE, NULL, NULL))
-        {
-        /* WideCharToMultiByte failed.  Use a default message.  */
-        _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
-                  "Process execution failed with error 0x%X.  "
-                  "WideCharToMultiByte failed with error 0x%X",
-                  error, GetLastError());
-        }
-      }
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
 
+	    ARCHIVE_STATE_NEW, "archive_read_support_format_zip_seekable");
+
+
+
+	zip = (struct zip *)calloc(1, sizeof(*zip));
+
+	if (zip == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM,
+
+		    "Can't allocate zip data");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+
+
+#ifdef HAVE_COPYFILE_H
+
+	/* Set this by default on Mac OS. */

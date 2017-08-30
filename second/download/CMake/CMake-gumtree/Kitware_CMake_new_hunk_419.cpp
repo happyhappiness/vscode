@@ -1,65 +1,68 @@
-void cmListFileLexer_yypop_buffer_state (yyscan_t yyscanner)
-{
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
-	if (!YY_CURRENT_BUFFER)
-		return;
+  return snprintf(p, len, " nghttp2/%s", h2->version_str);
 
-	cmListFileLexer_yy_delete_buffer(YY_CURRENT_BUFFER ,yyscanner);
-	YY_CURRENT_BUFFER_LVALUE = NULL;
-	if (yyg->yy_buffer_stack_top > 0)
-		--yyg->yy_buffer_stack_top;
-
-	if (YY_CURRENT_BUFFER) {
-		cmListFileLexer_yy_load_buffer_state(yyscanner );
-		yyg->yy_did_buffer_switch_on_eof = 1;
-	}
 }
 
-/* Allocates the stack if it does not exist.
- *  Guarantees space for at least one push.
- */
-static void cmListFileLexer_yyensure_buffer_stack (yyscan_t yyscanner)
-{
-	yy_size_t num_to_alloc;
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
 
-	if (!yyg->yy_buffer_stack) {
 
-		/* First allocation is just for 2 elements, since we don't know if this
-		 * scanner will even need a stack. We use 2 instead of 1 to avoid an
-		 * immediate realloc on the next call.
-         */
-		num_to_alloc = 1; /* After all that talk, this was set to 1 anyways... */
-		yyg->yy_buffer_stack = (struct yy_buffer_state**)cmListFileLexer_yyalloc
-								(num_to_alloc * sizeof(struct yy_buffer_state*)
-								, yyscanner);
-		if ( ! yyg->yy_buffer_stack )
-			YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yyensure_buffer_stack()" );
+/* HTTP/2 error code to name based on the Error Code Registry.
 
-		memset(yyg->yy_buffer_stack, 0, num_to_alloc * sizeof(struct yy_buffer_state*));
+https://tools.ietf.org/html/rfc7540#page-77
 
-		yyg->yy_buffer_stack_max = num_to_alloc;
-		yyg->yy_buffer_stack_top = 0;
-		return;
-	}
+nghttp2_error_code enums are identical.
 
-	if (yyg->yy_buffer_stack_top >= (yyg->yy_buffer_stack_max) - 1){
+*/
 
-		/* Increase the buffer to prepare for a possible push. */
-		yy_size_t grow_size = 8 /* arbitrary grow size */;
+const char *Curl_http2_strerror(uint32_t err) {
 
-		num_to_alloc = yyg->yy_buffer_stack_max + grow_size;
-		yyg->yy_buffer_stack = (struct yy_buffer_state**)cmListFileLexer_yyrealloc
-								(yyg->yy_buffer_stack,
-								num_to_alloc * sizeof(struct yy_buffer_state*)
-								, yyscanner);
-		if ( ! yyg->yy_buffer_stack )
-			YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yyensure_buffer_stack()" );
+#ifndef NGHTTP2_HAS_HTTP2_STRERROR
 
-		/* zero only the new slots.*/
-		memset(yyg->yy_buffer_stack + yyg->yy_buffer_stack_max, 0, grow_size * sizeof(struct yy_buffer_state*));
-		yyg->yy_buffer_stack_max = num_to_alloc;
-	}
+  const char *str[] = {
+
+    "NO_ERROR",             /* 0x0 */
+
+    "PROTOCOL_ERROR",       /* 0x1 */
+
+    "INTERNAL_ERROR",       /* 0x2 */
+
+    "FLOW_CONTROL_ERROR",   /* 0x3 */
+
+    "SETTINGS_TIMEOUT",     /* 0x4 */
+
+    "STREAM_CLOSED",        /* 0x5 */
+
+    "FRAME_SIZE_ERROR",     /* 0x6 */
+
+    "REFUSED_STREAM",       /* 0x7 */
+
+    "CANCEL",               /* 0x8 */
+
+    "COMPRESSION_ERROR",    /* 0x9 */
+
+    "CONNECT_ERROR",        /* 0xA */
+
+    "ENHANCE_YOUR_CALM",    /* 0xB */
+
+    "INADEQUATE_SECURITY",  /* 0xC */
+
+    "HTTP_1_1_REQUIRED"     /* 0xD */
+
+  };
+
+  return (err < sizeof str / sizeof str[0]) ? str[err] : "unknown";
+
+#else
+
+  return nghttp2_http2_strerror(err);
+
+#endif
+
 }
 
-/** Setup the input buffer state to scan directly from a user-specified character buffer.
+
+
+/*
+
+ * The implementation of nghttp2_send_callback type. Here we write |data| with
+
+ * size |length| to the network and return the number of bytes actually
+

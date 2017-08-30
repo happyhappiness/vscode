@@ -1,7 +1,20 @@
-	}
+    buf = new char[n + 2 + 1];
 
-	/* CRC check. */
-	if (crc32(0, (unsigned char *)p + 12, 20) != archive_le32dec(p + 8)) {
-		archive_set_error(&a->archive, -1, "Header CRC error");
-		return (ARCHIVE_FATAL);
-	}
+    sprintf(buf, "%s/*", name);
+
+    }
+
+  struct _finddata_t data;      // data of current file
+
+
+
+  // Now put them into the file array
+
+  srchHandle = _findfirst(buf, &data);
+
+  delete [] buf;
+
+
+
+  if ( srchHandle == -1 )
+

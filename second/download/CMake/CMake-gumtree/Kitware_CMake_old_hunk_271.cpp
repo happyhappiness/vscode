@@ -1,26 +1,26 @@
- */
-    YY_BUFFER_STATE cmExpr_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
-{
-  YY_BUFFER_STATE b;
+		}
 
-  b = (YY_BUFFER_STATE) cmExpr_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
-  if ( ! b )
-    YY_FATAL_ERROR( "out of dynamic memory in cmExpr_yy_create_buffer()" );
+		offset += datasize;
 
-  b->yy_buf_size = size;
+	}
 
-  /* yy_ch_buf has to be 2 characters longer than the size given because
-   * we need to put in 2 end-of-buffer characters.
-   */
-  b->yy_ch_buf = (char *) cmExpr_yyalloc(b->yy_buf_size + 2 ,yyscanner );
-  if ( ! b->yy_ch_buf )
-    YY_FATAL_ERROR( "out of dynamic memory in cmExpr_yy_create_buffer()" );
+#ifdef DEBUG
 
-  b->yy_is_our_buffer = 1;
+	if (offset != extra_length)
 
-  cmExpr_yy_init_buffer(b,file ,yyscanner);
+	{
 
-  return b;
+		fprintf(stderr,
+
+		    "Extra data field contents do not match reported size!\n");
+
+	}
+
+#endif
+
 }
 
-/** Destroy the buffer.
+
+
+/*
+

@@ -1,17 +1,30 @@
-  if(statSource.st_size != finSource.gcount() ||
-     statSource.st_size != finDestination.gcount())
-    {
-    char msg[256];
-    sprintf(msg, "FilesDiffer failed to read files (allocated: %lu, source: %lu, dest: %lu)", statSource.st_size, finSource.gcount(), finDestination.gcount());
-    cmSystemTools::Error(msg);
-    delete [] source_buf;
-    delete [] dest_buf;
-    return false;
-    }
+#ifdef DEBUG
 
-  finSource.close();
-  finDestination.close();
+  printf("<== th_read_internal(): returning %d\n", i);
 
-  int ret = memcmp((const void*)source_buf, 
-                   (const void*)dest_buf, 
-                   statSource.st_size);
+#endif
+
+  return i;
+
+}
+
+
+
+
+
+/* wrapper function for th_read_internal() to handle GNU extensions */
+
+int
+
+th_read(TAR *t)
+
+{
+
+  int i, j;
+
+  size_t sz;
+
+  char *ptr;
+
+
+

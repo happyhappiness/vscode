@@ -1,7 +1,20 @@
+					t *= 2;
 
-	/* Entries other than a regular file or a folder are skipped. */
-	type = archive_entry_filetype(entry);
-	if (type != AE_IFREG && type != AE_IFDIR && type != AE_IFLNK) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Filetype not supported");
-		return ARCHIVE_FAILED;
+					if (t <= s) { /* Integer overflow! */
+
+						archive_set_error(
+
+						    &filter->archive->archive,
+
+						    ENOMEM,
+
+						    "Unable to allocate copy"
+
+						    " buffer");
+
+						filter->fatal = 1;
+
+						if (avail != NULL)
+
+							*avail = ARCHIVE_FATAL;
+

@@ -1,7 +1,14 @@
+	if (strncmp(h + AR_fmag_offset, "`\n", 2) != 0) {
 
-      host_port = aprintf("%s:%hu", hostname, remote_port);
-      if(!host_port) {
-        Curl_add_buffer_free(req_buffer);
-        return CURLE_OUT_OF_MEMORY;
-      }
+		archive_set_error(&a->archive, EINVAL,
+
+		    "Incorrect file header signature");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+
+
+	/* Copy filename into work buffer. */
 

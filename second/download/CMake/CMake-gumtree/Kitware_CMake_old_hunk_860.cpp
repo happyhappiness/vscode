@@ -1,7 +1,20 @@
-	return (ARCHIVE_OK);
-#else
-	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external unlzma program for lzma decompression");
-	return (ARCHIVE_WARN);
-#endif
-}
+    buf = new char[n + 2 + 1];
+
+    sprintf(buf, "%s/*", name);
+
+    }
+
+  struct _finddata_t data;      // data of current file
+
+
+
+  // Now put them into the file array
+
+  srchHandle = _findfirst(buf, &data);
+
+  delete [] buf;
+
+
+
+  if ( srchHandle == -1 )
+

@@ -1,19 +1,92 @@
-	struct archive_string tempfile;
+				name += 5;
 
-	(void)fd; /* UNUSED */
-	name = archive_entry_sourcepath(entry);
-	if (name == NULL)
-		name = archive_entry_pathname(entry);
-	else if (a->tree != NULL && a->tree_enter_working_dir(a->tree) != 0) {
-		archive_set_error(&a->archive, errno,
-			    "Can't change dir to read extended attributes");
-			return (ARCHIVE_FAILED);
-	}
-	if (name == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Can't open file to read extended attributes: No name");
-		return (ARCHIVE_WARN);
+				namespace = EXTATTR_NAMESPACE_USER;
+
+			} else {
+
+				/* Warn about other extended attributes. */
+
+				archive_set_error(&a->archive,
+
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+
+				    "Can't restore extended attribute ``%s''",
+
+				    name);
+
+				ret = ARCHIVE_WARN;
+
+				continue;
+
+			}
+
+			errno = 0;
+
+#if HAVE_EXTATTR_SET_FD
+
+			if (a->fd >= 0)
+
+				e = extattr_set_fd(a->fd, namespace, name,
+
+				    value, size);
+
+			else
+
+#endif
+
+			/* TODO: should we use extattr_set_link() instead? */
+
+			{
+
+				e = extattr_set_file(
+
+				    archive_entry_pathname(entry), namespace,
+
+				    name, value, size);
+
+			}
+
+			if (e != (int)size) {
+
+				if (errno == ENOTSUP || errno == ENOSYS) {
+
+					if (!warning_done) {
+
+						warning_done = 1;
+
+						archive_set_error(&a->archive,
+
+						    errno,
+
+						    "Cannot restore extended "
+
+						    "attributes on this file "
+
+						    "system");
+
+					}
+
+				} else {
+
+					archive_set_error(&a->archive, errno,
+
+					    "Failed to set extended attribute");
+
+				}
+
+
+
+				ret = ARCHIVE_WARN;
+
+			}
+
+		}
+
 	}
 
-	/* Short-circuit if there's nothing to do. */
-	have_attrs = copyfile(name, NULL, 0, copyfile_flags | COPYFILE_CHECK);
+	return (ret);
+
+}
+
+#else
+

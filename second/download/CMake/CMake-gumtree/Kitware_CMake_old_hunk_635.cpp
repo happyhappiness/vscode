@@ -1,24 +1,46 @@
-  intptr_t srchHandle;
-#endif
-  char* buf;
-  size_t n = strlen(name);
-  if ( name[n - 1] == '/' || name[n - 1] == '\\' )
-    {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name);
-    }
-  else
-    {
-    // Make sure the slashes in the wildcard suffix are consistent with the
-    // rest of the path
-    buf = new char[n + 2 + 1];
-    if ( strchr(name, '\\') )
-      {
-      sprintf(buf, "%s\\*", name);
-      }
-    else
-      {
-      sprintf(buf, "%s/*", name);
-      }
-    }
-  struct _wfinddata_t data;      // data of current file
+{
+
+	static const lzma_stream lzma_stream_init_data = LZMA_STREAM_INIT;
+
+	int ret;
+
+
+
+	data->stream = lzma_stream_init_data;
+
+	data->stream.next_out = data->compressed;
+
+	data->stream.avail_out = data->compressed_buffer_size;
+
+	if (f->code == ARCHIVE_FILTER_XZ)
+
+		ret = lzma_stream_encoder(&(data->stream),
+
+		    data->lzmafilters, LZMA_CHECK_CRC64);
+
+	else if (f->code == ARCHIVE_FILTER_LZMA)
+
+		ret = lzma_alone_encoder(&(data->stream), &data->lzma_opt);
+
+	else {	/* ARCHIVE_FILTER_LZIP */
+
+		int dict_size = data->lzma_opt.dict_size;
+
+		int ds, log2dic, wedges;
+
+
+
+		/* Calculate a coded dictionary size */
+
+		if (dict_size < (1 << 12) || dict_size > (1 << 27)) {
+
+			archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+
+			    "Unacceptable dictionary dize for lzip: %d",
+
+			    dict_size);
+
+			return (ARCHIVE_FATAL);
+
+		}
+

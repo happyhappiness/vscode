@@ -1,7 +1,14 @@
-	return (ARCHIVE_OK);
-#else
-	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external gunzip program");
-	return (ARCHIVE_WARN);
-#endif
-}
+    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+
+            this->BinaryDirectory.c_str());
+
+    /* Create the actual executable.  */
+
+    fprintf(fout, "add_executable(%s", targetName);
+
+    for(std::vector<std::string>::iterator si = sources.begin();
+
+        si != sources.end(); ++si)
+
+      {
+

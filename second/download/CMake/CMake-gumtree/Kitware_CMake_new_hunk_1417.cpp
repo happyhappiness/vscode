@@ -1,9 +1,28 @@
-     */
-    if((data->set.httpreq == HTTPREQ_GET) &&
-       !checkheaders(data, "Range:")) {
-      /* if a line like this was already allocated, free the previous one */
-      if(conn->allocptr.rangeline)
-        free(conn->allocptr.rangeline);
-      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n", conn->range);
+
+
+static int SystemToolsDebugReport(int, char* message, int*)
+
+{
+
+  fprintf(stderr, "%s", message);
+
+  fflush(stderr);
+
+  return 1; // no further reporting required
+
+}
+
+
+
+void SystemTools::EnableMSVCDebugHook()
+
+{
+
+  if (getenv("DART_TEST_FROM_DART"))
+
+    {
+
+    _CrtSetReportHook(SystemToolsDebugReport);
+
     }
-    else if((data->set.httpreq != HTTPREQ_GET) &&
+

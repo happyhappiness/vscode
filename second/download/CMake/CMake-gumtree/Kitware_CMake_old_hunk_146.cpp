@@ -1,15 +1,14 @@
-					archive_set_error(&a->archive,
-					    ARCHIVE_ERRNO_MISC,
-					    "Invalid Rockridge CL");
-					return (NULL);
-				}
-			}
-			if (file->cl_offset == file->offset ||
-			    parent->rr_moved) {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Invalid Rockridge CL");
-				return (NULL);
-			}
-		}
+#else
+
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+
+		    "Unexpedted operation in archive_read_open_filename");
+
+		return (ARCHIVE_FATAL);
+
+#endif
+
 	}
+
+	if (fstat(fd, &st) != 0) {
+

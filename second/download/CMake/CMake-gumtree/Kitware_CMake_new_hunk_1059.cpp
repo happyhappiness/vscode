@@ -1,29 +1,62 @@
-    passed = this->TestResult.Status == cmCTestTestHandler::COMPLETED;
+	if ((zip_entry->mode & AE_IFMT) == AE_IFLNK) {
 
-    char buf[1024];
-    sprintf(buf, "%6.2f sec", this->TestProcess->GetTotalTime());
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, buf << "\n" );
-    if ( this->TestHandler->LogFile )
-      {
-      *this->TestHandler->LogFile << "Test time = " << buf << std::endl;
-      }
-    this->DartProcessing();
-    } 
-  // if this is doing MemCheck then all the output needs to be put into
-  // Output since that is what is parsed by cmCTestMemCheckHandler
-  if(!this->TestHandler->MemCheck)
-    {
-    if ( this->TestResult.Status == cmCTestTestHandler::COMPLETED )
-      {
-      this->TestHandler->CleanTestOutput(this->ProcessOutput, 
-          static_cast<size_t>
-          (this->TestHandler->CustomMaximumPassedTestOutputSize));
-      }
-    else
-      {
-      this->TestHandler->CleanTestOutput(this->ProcessOutput,
-          static_cast<size_t>
-          (this->TestHandler->CustomMaximumFailedTestOutputSize));
-      }
-    }
-  this->TestResult.Reason = reason;
+		unsigned char *symname = NULL;
+
+		size_t symsize = 0;
+
+
+
+		/*
+
+		 * Symbolic-name is recorded as its contents. We have to
+
+		 * read the contents at this time.
+
+		 */
+
+		while (zip->entry_bytes_remaining > 0) {
+
+			const void *buff;
+
+			unsigned char *mem;
+
+			size_t size;
+
+			int64_t offset;
+
+
+
+			r = archive_read_format_7zip_read_data(a, &buff,
+
+				&size, &offset);
+
+			if (r < ARCHIVE_WARN) {
+
+				free(symname);
+
+				return (r);
+
+			}
+
+			mem = realloc(symname, symsize + size + 1);
+
+			if (mem == NULL) {
+
+				free(symname);
+
+				archive_set_error(&a->archive, ENOMEM,
+
+				    "Can't allocate memory for Symname");
+
+				return (ARCHIVE_FATAL);
+
+			}
+
+			symname = mem;
+
+			memcpy(symname+symsize, buff, size);
+
+			symsize += size;
+
+		}
+

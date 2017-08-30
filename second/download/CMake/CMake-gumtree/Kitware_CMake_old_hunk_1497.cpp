@@ -1,7 +1,28 @@
-    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
+        sprintf(rpstr, "_p%d_", cc++);
+
+        }
+
+      while ( !done );
+
+      m_UniqueObjectNamesMap[sin] = ssin;
+
+      }
+
     }
-  
-  if (!strcmp(kitName,"Vtkcommon"))
+
+  else
+
     {
-    fprintf(fout,"int vtkCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n");
-    fprintf(fout,"\nTcl_HashTable vtkInstanceLookup;\n");
+
+    m_UniqueObjectNamesMap[sin] = sin;
+
+    }
+
+  return m_UniqueObjectNamesMap[sin];
+
+}
+
+
+
+//----------------------------------------------------------------------------
+

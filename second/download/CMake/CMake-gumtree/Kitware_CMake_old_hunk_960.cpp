@@ -1,7 +1,22 @@
-    std::string linkLibs;
-    std::string flags;
-    std::string linkFlags;
-    lg->GetTargetFlags(linkLibs, flags, linkFlags, *tgt);
+			else
 
-    printf("%s\n", linkLibs.c_str() );
+				ret = ARCHIVE_FATAL;
+
+		}
+
+	} else
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "lha: unknown keyword ``%s''", key);
+
+
+
+	return (ret);
+
+}
+
+
+
+static int
 

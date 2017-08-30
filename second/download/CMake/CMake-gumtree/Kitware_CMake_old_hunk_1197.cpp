@@ -1,18 +1,14 @@
+				    "Damaged 7-Zip archive");
 
-  FORM* form = fm->GetForm();
-  // 10 == enter
-  if (!m_InEdit && ( key != 10 && key != KEY_ENTER ) )
-    {
-    return false;
-    }
+			return (ARCHIVE_FATAL);
 
-  m_OriginalString=0;
-  m_Done = false;
+		}
 
-  char debugMessage[128];
+		if (len - r == 0 || p[r] != kEnd) {
 
-  // <Enter> is used to change edit mode (like <Esc> in vi).
-  while(!m_Done)
-    {
-    sprintf(debugMessage, "String widget handling input, key: %d", key);
-    cmCursesForm::LogMessage(debugMessage);
+			archive_set_error(&a->archive, -1,
+
+			    "Malformed 7-Zip archive");
+
+			return (ARCHIVE_FATAL);
+

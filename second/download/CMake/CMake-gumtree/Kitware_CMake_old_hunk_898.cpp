@@ -1,11 +1,12 @@
-			else
-				ret = ARCHIVE_FATAL;
-		}
-	} else
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "tar: unknown keyword ``%s''", key);
+			xr = get_xfer_size(t, fd, NULL);
 
-	return (ret);
-}
+		close(fd);
 
-/* utility function- this exists to centralize the logic of tracking
+#else
+
+		vr = statvfs(tree_current_access_path(t), &svfs);
+
+		r = statfs(tree_current_access_path(t), &sfs);
+
+		if (r == 0)
+

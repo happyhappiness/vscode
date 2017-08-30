@@ -1,16 +1,52 @@
-		return (r);
-	/* Update checksum */
-	if (*size)
-		zip->entry_crc32 = crc32(zip->entry_crc32, *buff,
-		    (unsigned)*size);
-	/* If we hit the end, swallow any end-of-data marker. */
-	if (zip->end_of_entry) {
-		/* Check file size, CRC against these values. */
-		if (zip->entry->compressed_size !=
-		    zip->entry_compressed_bytes_read) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP compressed data is wrong size "
-			    "(read %jd, expected %jd)",
-			    (intmax_t)zip->entry_compressed_bytes_read,
-			    (intmax_t)zip->entry->compressed_size);
-			return (ARCHIVE_WARN);
+		}	
+
+	} while (lst == NULL);
+
+
+
+	archive_entry_copy_pathname_w(entry, tree_current_path(t));
+
+
+
+	/*
+
+	 * Perform path matching.
+
+	 */
+
+	if (a->matching) {
+
+		r = archive_match_path_excluded(a->matching, entry);
+
+		if (r < 0) {
+
+			archive_set_error(&(a->archive), errno,
+
+			    "Faild : %s", archive_error_string(a->matching));
+
+			return (r);
+
+		}
+
+		if (r) {
+
+			if (a->excluded_cb_func)
+
+				a->excluded_cb_func(&(a->archive),
+
+				    a->excluded_cb_data, entry);
+
+			return (ARCHIVE_RETRY);
+
+		}
+
+	}
+
+
+
+	/*
+
+	 * Distinguish 'L'/'P'/'H' symlink following.
+
+	 */
+

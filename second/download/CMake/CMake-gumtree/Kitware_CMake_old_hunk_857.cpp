@@ -1,12 +1,14 @@
-		uudecode->in_cnt = 0;
-	}
-	for (;used < avail_in; d += llen, used += llen) {
-		int l, body;
+        // write the count into the directory
 
-		b = d;
-		len = get_line(b, avail_in - used, &nl);
-		if (len < 0) {
-			/* Non-ascii character is found. */
-			archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Insufficient compressed data");
+        std::string fName = dirName;
+
+        fName += "/count.txt";
+
+        FILE *progFile = fopen(fName.c_str(),"w");
+
+        if (progFile)
+
+          {
+
+          fprintf(progFile,"%i\n",count);
+

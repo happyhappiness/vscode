@@ -1,12 +1,14 @@
-	if (strcmp(key, "compat-2x")  == 0) {
-		/* Handle filnames as libarchive 2.x */
-		zip->init_default_conversion = (val != NULL) ? 1 : 0;
-		return (ARCHIVE_OK);
-	} else if (strcmp(key, "hdrcharset")  == 0) {
-		if (val == NULL || val[0] == 0)
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "zip: hdrcharset option needs a character-set name"
-			);
-		else {
-			zip->sconv = archive_string_conversion_from_charset(
-			    &a->archive, val, 0);
+		else
+
+			flags |= FILE_FLAG_SEQUENTIAL_SCAN;
+
+		t->entry_fh = CreateFileW(tree_current_access_path(t),
+
+		    GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, flags, NULL);
+
+		if (t->entry_fh == INVALID_HANDLE_VALUE) {
+
+			archive_set_error(&a->archive, errno,
+
+			    "Couldn't open %ls", tree_current_path(a->tree));
+

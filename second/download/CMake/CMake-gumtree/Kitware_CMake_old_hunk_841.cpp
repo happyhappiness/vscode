@@ -1,8 +1,28 @@
+                           target.GetName().size() + 30)];
 
-	/* First item is set up a lot like a symlink traversal. */
-	/* printf("Looking for wildcard in %s\n", path); */
-	/* TODO: wildcard detection here screws up on \\?\c:\ UNC names */
-	if (wcschr(base, L'*') || wcschr(base, L'?')) {
-		// It has a wildcard in it...
-		// Separate the last element.
-		p = wcsrchr(base, L'/');
+  sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
+
+          target.GetName().c_str(), count);
+
+  std::string comment = this->ConstructComment(origCommand, "<hack>");
+
+
+
+  // Add the rule with the given dependencies and commands.
+
+  std::string no_main_dependency = "";
+
+  if(cmSourceFile* outsf =
+
+     this->Makefile->AddCustomCommandToOutput(
+
+       output, depends, no_main_dependency,
+
+       origCommand.GetCommandLines(), comment.c_str(),
+
+       origCommand.GetWorkingDirectory().c_str()))
+
+    {
+
+    target.AddSourceFile(outsf);
+

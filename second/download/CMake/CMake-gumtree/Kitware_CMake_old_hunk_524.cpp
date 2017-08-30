@@ -1,6 +1,14 @@
-			en = create_filesystem_object(a);
-		} else if (!S_ISDIR(a->mode)) {
-			/* A dir is in the way of a non-dir, rmdir it. */
-			if (rmdir(a->name) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Can't replace existing directory with non-directory");
+			archive_set_error(&a->archive, errno, "fchdir failed");
+
+			return (ARCHIVE_FAILED);
+
+		}
+
+		vr = statvfs(".", &svfs);
+
+		r = statfs(".", &sfs);
+
+		if (r == 0)
+
+			xr = get_xfer_size(t, -1, ".");
+

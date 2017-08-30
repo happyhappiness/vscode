@@ -1,11 +1,18 @@
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
 
-	if (a->tree != NULL)
-		a->tree = tree_reopen(a->tree, pathname,
-		    a->flags & ARCHIVE_READDISK_RESTORE_ATIME);
-	else
-		a->tree = tree_open(pathname, a->symlink_mode,
-		    a->flags & ARCHIVE_READDISK_RESTORE_ATIME);
-	if (a->tree == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate tar data");
+
+size_t Curl_cyassl_version(char *buffer, size_t size)
+
+{
+
+#if LIBCYASSL_VERSION_HEX >= 0x03006000
+
+  return snprintf(buffer, size, "wolfSSL/%s", wolfSSL_lib_version());
+
+#elif defined(WOLFSSL_VERSION)
+
+  return snprintf(buffer, size, "wolfSSL/%s", WOLFSSL_VERSION);
+
+#elif defined(CYASSL_VERSION)
+
+  return snprintf(buffer, size, "CyaSSL/%s", CYASSL_VERSION);
+

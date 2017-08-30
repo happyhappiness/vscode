@@ -1,10 +1,12 @@
-  va_start(ap, fmt);
-  vsnprintf(s, 250, fmt, ap);
-  va_end(ap);
+#if defined(_WIN32)
 
-  if(conn->data->set.verbose)
-    fprintf(conn->data->set.err, "> %s\n", s);
+  /* Avoid error diagnostic popups since we are crashing on purpose.  */
 
-  strcat(s, "\r\n"); /* append a trailing CRLF */
+  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 
-  bytes_written=0;
+#endif
+
+  (void)argc; (void)argv;
+
+  fprintf(stdout, "Output before crash on stdout from crash test.\n");
+

@@ -1,7 +1,14 @@
-      TAR_VERBOSE
-      | 0) == -1)
-    {
-    cmSystemTools::Error("Problem with tar_open(): ", strerror(errno));
-    return false;
-    }
+      return;
+
+      }
+
+
+
+    std::cout << "Writing " << currentFilename << "..." << std::endl;
+
+    this->WriteHeader(str);
+
+
+
+    this->WriteConnections(ptrIt->first.c_str(),
 

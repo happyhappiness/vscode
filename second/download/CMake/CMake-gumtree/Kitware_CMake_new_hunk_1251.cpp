@@ -1,7 +1,30 @@
-  char *filename;
-  char buf[TAR_MAXPATHLEN];
-  int i;
-  char *pathname = 0;
+      this->ParsePerson(this->Line.c_str()+7, author);
 
-#ifdef DEBUG
-  printf("==> tar_extract_all(TAR *t, \"%s\")\n",
+      this->Rev.Author = author.Name;
+
+      this->Rev.EMail = author.EMail;
+
+      this->Rev.Date = this->FormatDateTime(author);
+
+      }
+
+    else if(strncmp(this->Line.c_str(), "committer ", 10) == 0)
+
+      {
+
+      Person committer;
+
+      this->ParsePerson(this->Line.c_str()+10, committer);
+
+      this->Rev.Committer = committer.Name;
+
+      this->Rev.CommitterEMail = committer.EMail;
+
+      this->Rev.CommitDate = this->FormatDateTime(committer);
+
+      }
+
+    }
+
+
+

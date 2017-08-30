@@ -1,7 +1,22 @@
-		bytes_to_write = size;
-		/* Seek if necessary to the specified offset. */
-		if (a->offset < a->fd_offset) {
-			/* Can't support backword move. */
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Seek failed");
-			return (ARCHIVE_FATAL);
+		mine->block_size = new_block_size;
+
+	}
+
+	buffer = malloc(mine->block_size);
+
+	if (mine == NULL || buffer == NULL) {
+
+		archive_set_error(a, ENOMEM, "No memory");
+
+		free(mine);
+
+		free(buffer);
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+	mine->buffer = buffer;
+
+	mine->fd = fd;
+

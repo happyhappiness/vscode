@@ -1,28 +1,34 @@
-		tempdir = getenv("TMPDIR");
-	if (tempdir == NULL)
-		tempdir = _PATH_TMP;
-	archive_string_init(&tempfile);
-	archive_strcpy(&tempfile, tempdir);
-	archive_strcat(&tempfile, "tar.md.XXXXXX");
-	tempfd = mkstemp(tempfile.s);
-	if (tempfd < 0) {
-		archive_set_error(&a->archive, errno,
-		    "Could not open extended attribute file");
-		ret = ARCHIVE_WARN;
-		goto cleanup;
-	}
-	__archive_ensure_cloexec_flag(tempfd);
+	struct archive_write *a = (struct archive_write *)_a;
 
-	/* XXX I wish copyfile() could pack directly to a memory
-	 * buffer; that would avoid the temp file here.  For that
-	 * matter, it would be nice if fcopyfile() actually worked,
-	 * that would reduce the many open/close races here. */
-	if (copyfile(name, tempfile.s, 0, copyfile_flags | COPYFILE_PACK)) {
-		archive_set_error(&a->archive, errno,
-		    "Could not pack extended attributes");
-		ret = ARCHIVE_WARN;
-		goto cleanup;
+	struct zip *zip = a->format_data;
+
+	int ret = ARCHIVE_FAILED;
+
+
+
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+
+		ARCHIVE_STATE_NEW | ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
+
+		"archive_write_zip_set_compression_deflate");
+
+	if (a->archive.archive_format != ARCHIVE_FORMAT_ZIP) {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			"Can only use archive_write_zip_set_compression_store"
+
+			" with zip format");
+
+		ret = ARCHIVE_FATAL;
+
+	} else {
+
+		zip->requested_compression = COMPRESSION_STORE;
+
+		ret = ARCHIVE_OK;
+
 	}
-	if (fstat(tempfd, &copyfile_stat)) {
-		archive_set_error(&a->archive, errno,
-		    "Could not check size of extended attributes");
+
+	return (ret);
+

@@ -1,22 +1,14 @@
-      }
+	outranges_size = 2048;
 
-    /* get the first document */
-    curl_easy_setopt(curl, CURLOPT_URL, "http://www.cmake.org/page1.html");
-    res = curl_easy_perform(curl);
-    if ( res != 0 )
-      {
-      printf("Error fetching: http://www.cmake.org/page1.html\n");
-      retVal = 1;
-      }
+	outranges = (FILE_ALLOCATED_RANGE_BUFFER *)malloc(outranges_size);
 
-    /* get another document from the same server using the same
-       connection */
-    /*
-      curl_easy_setopt(curl, CURLOPT_URL, "http://www.cmake.org/page2.html");
-      res = curl_easy_perform(curl);
-      if ( res != 0 )
-      {
-      printf("Error fetching: http://www.cmake.org/page2.html\n");
-      retVal = 1;
-      }
-    */
+	if (outranges == NULL) {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			"Couldn't allocate memory");
+
+		exit_sts = ARCHIVE_FATAL;
+
+		goto exit_setup_sparse;
+

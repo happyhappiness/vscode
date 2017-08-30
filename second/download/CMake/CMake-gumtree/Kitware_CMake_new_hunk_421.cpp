@@ -1,34 +1,34 @@
- * @param yyscanner The scanner object.
- * @return the newly allocated buffer state object.
- */
-YY_BUFFER_STATE cmListFileLexer_yy_scan_bytes  (yyconst char * yybytes, yy_size_t  _yybytes_len , yyscan_t yyscanner)
-{
-	YY_BUFFER_STATE b;
-	char *buf;
-	yy_size_t n;
-	yy_size_t i;
 
-	/* Get memory for full buffer, including space for trailing EOB's. */
-	n = _yybytes_len + 2;
-	buf = (char *) cmListFileLexer_yyalloc(n ,yyscanner );
-	if ( ! buf )
-		YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_scan_bytes()" );
 
-	for ( i = 0; i < _yybytes_len; ++i )
-		buf[i] = yybytes[i];
+      if(!result) {
 
-	buf[_yybytes_len] = buf[_yybytes_len+1] = YY_END_OF_BUFFER_CHAR;
+        char *host=(char *)"";
 
-	b = cmListFileLexer_yy_scan_buffer(buf,n ,yyscanner);
-	if ( ! b )
-		YY_FATAL_ERROR( "bad buffer in cmListFileLexer_yy_scan_bytes()" );
+        const char *useragent="";
 
-	/* It's okay to grow etc. this buffer, and we should throw it
-	 * away when we're done.
-	 */
-	b->yy_is_our_buffer = 1;
+        const char *http = (conn->proxytype == CURLPROXY_HTTP_1_0) ?
 
-	return b;
-}
+          "1.0" : "1.1";
 
-#ifndef YY_EXIT_FAILURE
+        bool ipv6_ip = conn->bits.ipv6_ip;
+
+        char *hostheader;
+
+
+
+        /* the hostname may be different */
+
+        if(hostname != conn->host.name)
+
+          ipv6_ip = (strchr(hostname, ':') != NULL);
+
+        hostheader= /* host:port with IPv6 support */
+
+          aprintf("%s%s%s:%hu", ipv6_ip?"[":"", hostname, ipv6_ip?"]":"",
+
+                  remote_port);
+
+        if(!hostheader) {
+
+          Curl_add_buffer_free(req_buffer);
+

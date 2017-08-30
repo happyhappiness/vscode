@@ -1,47 +1,114 @@
-    */
+      fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
 
-  {
-    int lmrespoff;
-    int ntrespoff;
-    int useroff;
-    unsigned char lmresp[0x18]; /* fixed-size */
-#ifdef USE_NTRESPONSES
-    unsigned char ntresp[0x18]; /* fixed-size */
-#endif
-    const char *user;
-    int userlen;
+      }
 
-    user = strchr(userp, '\\');
-    if(!user)
-      user = strchr(userp, '/');
 
-    if (user) {
-      domain = userp;
-      domlen = (int)(user - domain);
-      user++;
-    }
+
+    const char* rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
+
+    std::string rulesOverrideLang =
+
+      rulesOverrideBase + (lang ? std::string("_") + lang : std::string(""));
+
+    if(const char* rulesOverridePath =
+
+       this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
+
+      {
+
+      fprintf(fout, "SET(%s \"%s\")\n",
+
+              rulesOverrideLang.c_str(), rulesOverridePath);
+
+      }
+
+    else if(const char* rulesOverridePath2 =
+
+            this->Makefile->GetDefinition(rulesOverrideBase))
+
+      {
+
+      fprintf(fout, "SET(%s \"%s\")\n",
+
+              rulesOverrideBase, rulesOverridePath2);
+
+      }
+
+
+
+    if(lang)
+
+      {
+
+      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE %s)\n", lang);
+
+      }
+
     else
-      user = userp;
-    userlen = (int)strlen(user);
 
-    mkhash(passwdp, &ntlm->nonce[0], lmresp
-#ifdef USE_NTRESPONSES
-           , ntresp
-#endif
-      );
+      {
 
-    domoff = 64; /* always */
-    useroff = domoff + domlen;
-    hostoff = useroff + userlen;
-    lmrespoff = hostoff + hostlen;
-    ntrespoff = lmrespoff + 0x18;
+      fclose(fout);
 
-    /* Create the big type-3 message binary blob */
-    size = snprintf((char *)ntlmbuf, sizeof(ntlmbuf),
-                    "NTLMSSP%c"
-                    "\x03%c%c%c" /* type-3, 32 bits */
+      cmOStringStream err;
 
-                    "%c%c%c%c" /* LanManager length + allocated space */
-                    "%c%c" /* LanManager offset */
-                    "%c%c" /* 2 zeroes */
+      err << "Unknown extension \"" << ext << "\" for file\n"
+
+          << "  " << source << "\n"
+
+          << "try_compile() works only for enabled languages.  "
+
+          << "Currently these are:\n ";
+
+      std::vector<std::string> langs;
+
+      this->Makefile->GetCMakeInstance()->GetGlobalGenerator()->
+
+        GetEnabledLanguages(langs);
+
+      for(std::vector<std::string>::iterator l = langs.begin();
+
+          l != langs.end(); ++l)
+
+        {
+
+        err << " " << *l;
+
+        }
+
+      err << "\nSee project() command to enable other languages.";
+
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
+
+      return -1;
+
+      }
+
+    std::string langFlags = "CMAKE_";
+
+    langFlags +=  lang;
+
+    langFlags += "_FLAGS";
+
+    fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");
+
+    fprintf(fout, "SET(CMAKE_%s_FLAGS \"", lang);
+
+    const char* flags = this->Makefile->GetDefinition(langFlags.c_str());
+
+    if(flags)
+
+      {
+
+      fprintf(fout, " %s ", flags);
+
+      }
+
+    fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
+
+    fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
+
+    fprintf(fout, "SET(CMAKE_SUPPRESS_REGENERATION 1)\n");
+
+    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
 

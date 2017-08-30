@@ -1,14 +1,18 @@
+  // update the cache entry for the number of local generators, this is used
 
-  if (rar->file_flags & FHD_PASSWORD)
-  {
-	archive_entry_set_is_data_encrypted(entry, 1);
-	rar->has_encrypted_entries = 1;
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "RAR encryption support unavailable.");
-    /* Since it is only the data part itself that is encrypted we can at least
-       extract information about the currently processed entry and don't need
-       to return ARCHIVE_FATAL here. */
-    /*return (ARCHIVE_FATAL);*/
-  }
+  // for progress
 
-  if (rar->file_flags & FHD_LARGE)
+  char num[100];
+
+  sprintf(num,"%d",static_cast<int>(this->Makefiles.size()));
+
+  this->GetCMakeInstance()->AddCacheEntry
+
+    ("CMAKE_NUMBER_OF_MAKEFILES", num,
+
+     "number of local generators", cmState::INTERNAL);
+
+
+
+  // check for link libraries and include directories containing "NOTFOUND"
+

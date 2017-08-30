@@ -1,7 +1,14 @@
- * the DNS caching.
- */
-static char *
-create_hostcache_id(char *server, int port)
-{
-  /* create and return the new allocated entry */
-  return aprintf("%s:%d", server, port);
+  if(!this->StaticLinkExtensions.empty())
+
+    {
+
+    std::string reg_static = reg;
+
+    reg_static += this->CreateExtensionRegex(this->StaticLinkExtensions);
+
+#ifdef CM_COMPUTE_LINK_INFO_DEBUG
+
+  fprintf(stderr, "static regex [%s]\n", reg_static.c_str());
+
+#endif
+

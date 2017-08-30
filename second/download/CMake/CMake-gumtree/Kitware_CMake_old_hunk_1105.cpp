@@ -1,16 +1,22 @@
-    va_list va;
-    int len;
+	if (strcmp(key, "compat-2x")  == 0) {
 
-    va_start(va, format);
-#ifdef HAS_vsnprintf
-    (void)vsnprintf(buf, sizeof(buf), format, va);
-#else
-    (void)vsprintf(buf, format, va);
-#endif
-    va_end(va);
-    len = strlen(buf); /* some *sprintf don't return the nb of bytes written */
-    if (len <= 0) return 0;
+		/* Handle filnames as libarchive 2.x */
 
-    return gzwrite(file, buf, (unsigned)len);
-}
-#else /* not ANSI C */
+		zip->init_default_conversion = (val != NULL) ? 1 : 0;
+
+		ret = ARCHIVE_OK;
+
+	} else if (strcmp(key, "hdrcharset")  == 0) {
+
+		if (val == NULL || val[0] == 0)
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "zip: hdrcharset option needs a character-set name");
+
+		else {
+
+			zip->sconv = archive_string_conversion_from_charset(
+
+			    &a->archive, val, 0);
+

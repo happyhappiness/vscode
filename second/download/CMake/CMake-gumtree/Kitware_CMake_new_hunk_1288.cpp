@@ -1,8 +1,14 @@
-  std::string extra_update_opts;
-  if ( m_CTest->GetTestModel() == cmCTest::NIGHTLY )
+  printf("New Value (Enter to keep current value): ");
+
+  char buffer[4096];
+
+  buffer[0] = 0;
+
+  (void) fgets(buffer, sizeof(buffer)-1, stdin);
+
+
+
+  if(strlen(buffer) > 0)
+
     {
-    struct tm* t = m_CTest->GetNightlyTime(m_CTest->GetCTestConfiguration("NightlyStartTime"),
-      m_CTest->GetTomorrowTag());
-    char current_time[1024];
-    sprintf(current_time, "%04d-%02d-%02d %02d:%02d:%02d",
-      t->tm_year + 1900,
+

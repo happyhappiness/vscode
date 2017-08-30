@@ -1,13 +1,30 @@
-  
-  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
-  
-  fprintf(fout,
-          "extern \"C\"\n"
-          "{\n"
-          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, char *[]);\n"
-          "}\n"
-          "\n");
+                           strlen(target.GetName()) + 30)];
 
-  for (i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
+  sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
+
+          target.GetName(), count);
+
+  std::string comment = this->ConstructComment(origCommand, "<hack>");
+
+
+
+  // Add the rule with the given dependencies and commands.
+
+  const char* no_main_dependency = 0;
+
+  this->Makefile->AddCustomCommandToOutput(output,
+
+                                       depends,
+
+                                       no_main_dependency,
+
+                                       origCommand.GetCommandLines(),
+
+                                       comment.c_str(),
+
+                                       origCommand.GetWorkingDirectory());
+
+
+
+  // Replace the dependencies with the output of this rule so that the
+

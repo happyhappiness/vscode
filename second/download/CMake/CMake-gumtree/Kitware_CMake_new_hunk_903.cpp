@@ -1,12 +1,26 @@
-	if (strcmp(key, "compat-2x")  == 0) {
-		/* Handle filnames as libarchive 2.x */
-		zip->init_default_conversion = (val != NULL) ? 1 : 0;
-		return (ARCHIVE_OK);
-	} else if (strcmp(key, "hdrcharset")  == 0) {
-		if (val == NULL || val[0] == 0)
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "zip: hdrcharset option needs a character-set name"
-			);
-		else {
-			zip->sconv = archive_string_conversion_from_charset(
-			    &a->archive, val, 0);
+#if defined(HAVE_READDIR_R)
+
+	/* Set maximum filename length. */
+
+#  if defined(_PC_NAME_MAX)
+
+	if (tree_current_is_symblic_link_target(t)) {
+
+		if (tree_enter_working_dir(t) != 0) {
+
+			archive_set_error(&a->archive, errno, "fchdir failed");
+
+			return (ARCHIVE_FAILED);
+
+		}
+
+		nm = pathconf(tree_current_access_path(t), _PC_NAME_MAX);
+
+	} else
+
+		nm = fpathconf(tree_current_dir_fd(t), _PC_NAME_MAX);
+
+	if (nm == -1)
+
+#  endif /* _PC_NAME_MAX */
+

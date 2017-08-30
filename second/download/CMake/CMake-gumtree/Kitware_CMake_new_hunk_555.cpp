@@ -1,21 +1,14 @@
+		}
 
-  /* not set means empty */
-  if(!userp)
-    userp = "";
 
-  if(!passwdp)
-    passwdp = "";
 
-#if defined(USE_WINDOWS_SSPI)
-  have_chlg = digest->input_token ? TRUE : FALSE;
-#else
-  have_chlg = digest->nonce ? TRUE : FALSE;
-#endif
+		if (a->read_data_offset < a->read_data_output_offset) {
 
-  if(!have_chlg) {
-    authp->done = FALSE;
-    return CURLE_OK;
-  }
+			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
 
-  /* So IE browsers < v7 cut off the URI part at the query part when they
-     evaluate the MD5 and some (IIS?) servers work with them so we may need to
+			    "Encountered out-of-order sparse blocks");
+
+			return (ARCHIVE_RETRY);
+
+		}
+

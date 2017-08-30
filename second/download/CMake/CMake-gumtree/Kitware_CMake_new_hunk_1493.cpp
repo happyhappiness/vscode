@@ -1,8 +1,14 @@
-  // Set the version number
-  char tmp[1024];
-  sprintf(tmp,"Version %s", cmMakefile::GetVersion());
-  SetDlgItemText(IDC_CMAKE_VERSION, tmp);
-  this->UpdateData(FALSE);
-  return TRUE;  // return TRUE  unless you set the focus to a control
-}
+                 "                    (ClientData *)NULL, NULL);\n\n");
+
+    }
+
+  
+
+  for (i = 0; i < this->Commands.size(); i++)
+
+    {
+
+    fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
+
+    }
 

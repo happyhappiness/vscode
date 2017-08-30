@@ -1,7 +1,14 @@
-		r = archive_match_time_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
+	case 0x6720:/* Blowfish */
+
+	case 0x6721:/* Twofish */
+
+	case 0x6801:/* RC4 */
+
+		/* Suuported encryption algorithm. */
+
+		break;
+
+	default:
+
+		archive_set_error(&a->archive,
+

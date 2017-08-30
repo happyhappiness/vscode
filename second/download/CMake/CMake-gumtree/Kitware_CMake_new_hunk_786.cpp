@@ -1,9 +1,14 @@
+        li != testLangs.end(); ++li)
 
-fatal_rr:
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-	    "Failed to connect 'CL' pointer to 'RE' rr_moved pointer of "
-	    "Rockridge extensions: current position = %jd, CL offset = %jd",
-	    (intmax_t)iso9660->current_position, (intmax_t)file->cl_offset);
-	return (ARCHIVE_FATAL);
-}
+      {
+
+      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
+
+      const char* flags = this->Makefile->GetDefinition(langFlags);
+
+      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+
+              lg->EscapeForCMake(flags?flags:"").c_str());
+
+      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
 

@@ -1,7 +1,15 @@
+              statename[data->mstate], data->numsocks);
 
-		if (bytes_read == -1) {
-			archive_set_error(f->archive, errno,
-			    "Read from filter failed unexpectedly.");
-			ret = ARCHIVE_FATAL;
-			goto cleanup;
-		}
+      for(i=0; i < data->numsocks; i++) {
+
+        curl_socket_t s = data->sockets[i];
+
+        struct Curl_sh_entry *entry =
+
+          Curl_hash_pick(&multi->sockhash, (char *)&s, sizeof(s));
+
+
+
+        fprintf(stderr, "%d ", (int)s);
+
+        if(!entry) {

@@ -1,12 +1,24 @@
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_mtree");
-
-	mtree = (struct mtree *)calloc(1, sizeof(*mtree));
-	if (mtree == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate mtree data");
 		return (ARCHIVE_FATAL);
-	}
-	mtree->fd = -1;
 
-	r = __archive_read_register_format(a, mtree, "mtree",
+	}
+
+
+
+	v7tar = (struct v7tar *)calloc(1, sizeof(*v7tar));
+
+	if (v7tar == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM,
+
+		    "Can't allocate v7tar data");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+	a->format_data = v7tar;
+
+	a->format_name = "tar (non-POSIX)";
+
+	a->format_options = archive_write_v7tar_options;
+

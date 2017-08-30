@@ -1,7 +1,14 @@
-              value, kwsysProcess_GetExitValue(kp));
-      }
-    }
+			archive_le64enc(z, zip->entry_offset);
 
-  if(kwsysProcess_GetState(kp) != state)
-    {
-    fprintf(stderr, "Mismatch in state.  "
+			z += 8;
+
+		}
+
+		archive_le16enc(zip64 + 2, (uint16_t)(z - (zip64 + 4)));
+
+		zd = cd_alloc(zip, z - zip64);
+
+		if (zd == NULL) {
+
+			archive_set_error(&a->archive, ENOMEM,
+

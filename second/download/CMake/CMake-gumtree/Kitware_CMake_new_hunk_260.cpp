@@ -1,7 +1,28 @@
+				 * NULL pointer to strlen().  */
 
-        lerr = SSL_get_verify_result(connssl->handle);
-        if(lerr != X509_V_OK) {
-          *certverifyresult = lerr;
-          snprintf(error_buffer, sizeof(error_buffer),
-                   "SSL certificate problem: %s",
-                   X509_verify_cert_error_string(lerr));
+	switch (key[0]) {
+
+	case 'G':
+
+		/* Reject GNU.sparse.* headers on non-regular files. */
+
+		if (strncmp(key, "GNU.sparse", 10) == 0 &&
+
+		    !tar->sparse_allowed) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "Non-regular file cannot be sparse");
+
+			return (ARCHIVE_FATAL);
+
+		}
+
+
+
+		/* GNU "0.0" sparse pax format. */
+
+		if (strcmp(key, "GNU.sparse.numblocks") == 0) {
+
+			tar->sparse_offset = -1;
+

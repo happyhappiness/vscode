@@ -1,11 +1,16 @@
-      fprintf(fout, "set(CMAKE_ENABLE_EXPORTS %s)\n", ee);
-      }
 
-    /* Put the executable at a known location (for COPY_FILE).  */
-    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-            this->BinaryDirectory.c_str());
-    /* Create the actual executable.  */
-    fprintf(fout, "add_executable(%s", targetName.c_str());
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
+
+CURLcode Curl_sendf(curl_socket_t sockfd, struct connectdata *,
+
+                    const char *fmt, ...);
+
+void Curl_infof(struct SessionHandle *, const char *fmt, ...);
+
+void Curl_failf(struct SessionHandle *, const char *fmt, ...);
+
+
+
+#if defined(CURL_DISABLE_VERBOSE_STRINGS)
+
+
+

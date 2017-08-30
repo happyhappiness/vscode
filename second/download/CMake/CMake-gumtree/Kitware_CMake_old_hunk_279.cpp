@@ -1,13 +1,14 @@
-                             curl_off_t *size,
-                             const char *fmt, ...)
-{
-  char s[4096];
-  va_list ap;
-  va_start(ap, fmt);
-  vsnprintf(s, sizeof(s), fmt, ap);
-  va_end(ap);
+		bytes_to_write = size;
 
-  return AddFormData(formp, FORM_DATA, s, 0, size);
-}
+		/* Seek if necessary to the specified offset. */
 
-/*
+		if (a->offset < a->fd_offset) {
+
+			/* Can't support backword move. */
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "Seek failed");
+
+			return (ARCHIVE_FATAL);
+

@@ -1,7 +1,12 @@
-    CommandLineArguments::Internal::SetOfStrings::iterator sit;
-    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
-      {
-      str << kwsys_ios::endl;
-      char argument[100];
-      sprintf(argument, "%s", sit->c_str());
-      switch ( this->Internals->Callbacks[*sit].ArgumentType )
+		    (intmax_t)rsrc->uncompressed_size);
+
+		return (ARCHIVE_WARN);
+
+	}
+
+
+
+	metadata = malloc((size_t)rsrc->uncompressed_size);
+
+	if (metadata == NULL) {
+

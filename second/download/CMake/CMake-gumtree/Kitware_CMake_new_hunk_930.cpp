@@ -1,12 +1,26 @@
-    fprintf(fout, "SET(CMAKE_SUPPRESS_REGENERATION 1)\n");
-    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (compileDefs.size())
-      {
-      fprintf(fout, "ADD_DEFINITIONS( ");
-      for (size_t i = 0; i < compileDefs.size(); ++i)
-        {
-        fprintf(fout,"%s ",compileDefs[i].c_str());
-        }
-      fprintf(fout, ")\n");
-      }
+	return (archive_read_support_filter_program_signature(a, cmd, NULL, 0));
+
+}
+
+
+
+/*
+
+ * The bidder object stores the command and the signature to watch for.
+
+ * The 'inhibit' entry here is used to ensure that unchecked filters never
+
+ * bid twice in the same pipeline.
+
+ */
+
+struct program_bidder {
+
+	char *description;
+
+	char *cmd;
+
+	void *signature;
+
+	size_t signature_len;
+

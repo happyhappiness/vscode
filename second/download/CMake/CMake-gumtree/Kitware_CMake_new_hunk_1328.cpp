@@ -1,11 +1,13 @@
-      }
-    }
+        res += " ";
 
-  maxlen += 2; // For the space after option
+        res += osvi.szCSDVersion;
 
-  // Create format for that string
-  char format[80];
-  sprintf(format, "%%%ds  ", static_cast<unsigned int>(maxlen-2));
+        res += " (Build ";
 
+        sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF);
 
-  // Print help for each option
+        res += buffer;
+
+        res += ")";
+
+        }

@@ -1,14 +1,15 @@
-                        const cmCustomCommand& origCommand)
-{
-  // Create a fake output that forces the rule to run.
-  char* output = new char[(strlen(m_Makefile->GetStartOutputDirectory()) +
-                           strlen(target.GetName()) + 30)];
-  sprintf(output,"%s/%s_force_%i", m_Makefile->GetStartOutputDirectory(),
-          target.GetName(), count);
+			 * Sanity check: cl_offset does not point at its
 
-  // Add the rule with the given dependencies and commands.
-  const char* no_main_dependency = 0;
-  m_Makefile->AddCustomCommandToOutput(output,
-                                       depends,
-                                       no_main_dependency,
-                                       origCommand.GetCommandLines(),
+			 * the parents or itself.
+
+			 */
+
+			for (p = parent; p; p = p->parent) {
+
+				if (p->offset == file->cl_offset) {
+
+					archive_set_error(&a->archive,
+
+					    ARCHIVE_ERRNO_MISC,
+
+					    "Invalid Rockridge CL");

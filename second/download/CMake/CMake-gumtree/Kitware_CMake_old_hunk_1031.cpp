@@ -1,16 +1,16 @@
-  int n = static_cast<int>(graph.size());
-  for(int depender_index = 0; depender_index < n; ++depender_index)
-    {
-    NodeList const& nl = graph[depender_index];
-    cmTarget* depender = this->Targets[depender_index];
-    fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
-    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int dependee_index = *ni;
-      cmTarget* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
-              dependee->GetName());
-      }
-    }
-  fprintf(stderr, "\n");
+	archive_string_init(&wpath);
+
+	if (archive_wstring_append_from_mbs(&wpath, pathname,
+
+	    strlen(pathname)) != 0) {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "Can't convert a path to a wchar_t string");
+
+		a->archive.state = ARCHIVE_STATE_FATAL;
+
+		ret = ARCHIVE_FATAL;
+
+	} else
+

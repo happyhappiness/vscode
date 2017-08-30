@@ -1,12 +1,24 @@
-*----------------------------------------------------------------------
-*/
+		if (entry_size == 0) {
 
-#include <windows.h>
-#include <stdio.h>
-#include <string>
-#include <fstream>
+			archive_set_error(&a->archive, EINVAL,
 
-/*
-+ * Utility func, strstr with size
-+ */
-const char* StrNStr(const char* start, const char* find, size_t &size) {
+			    "Invalid string table");
+
+			return (ARCHIVE_FATAL);
+
+		}
+
+		if (ar->strtab != NULL) {
+
+			archive_set_error(&a->archive, EINVAL,
+
+			    "More than one string tables exist");
+
+			return (ARCHIVE_FATAL);
+
+		}
+
+
+
+		/* Read the filename table into memory. */
+

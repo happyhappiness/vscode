@@ -1,18 +1,14 @@
-  }
+  printf("Current Value: %s\n", iter.GetValue());
 
-  p += 2;
-  tmp = Curl_base64_decode(p, &ptr);
-  if(tmp >= sizeof(tkt.dat)) {
-    free(ptr);
-    tmp=0;
-  }
-  if(!tmp || !ptr) {
-    Curl_failf(conn->data, "Failed to decode base64 in reply.\n");
-    Curl_set_command_prot(conn, save);
-    return CURLE_FTP_WEIRD_SERVER_REPLY;
-  }
-  memcpy((char *)tkt.dat, ptr, tmp);
-  free(ptr);
-  tkt.length = tmp;
-  tktcopy.length = tkt.length;
+  printf("New Value (Enter to keep current value): ");
+
+  char buffer[4096];
+
+  if(!fgets(buffer, static_cast<int>(sizeof(buffer) - 1), stdin))
+
+    {
+
+    buffer[0] = 0;
+
+    }
 

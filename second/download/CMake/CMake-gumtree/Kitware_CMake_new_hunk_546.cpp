@@ -1,7 +1,12 @@
-    }
+                symbol.erase(0,1);
 
-  if(flags & CURL_GLOBAL_WIN32)
-    if(win32_init()) {
-      DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));
-      return CURLE_FAILED_INIT;
-    }
+                }
+
+              }
+
+            /*
+
+            Check whether it is "Scalar deleting destructor" and
+
+            "Vector deleting destructor"
+

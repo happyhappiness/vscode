@@ -1,13 +1,58 @@
+			entries[i].flg |= MTIME_IS_SET;
 
-  if (cw)
-    {
-    sprintf(firstLine, "Page %d of %d", cw->GetPage(), m_NumberOfPages);
-    curses_move(0,65-strlen(firstLine)-1);
-    printw(firstLine);
-    }
-//    }
+			break;
 
-  pos_form_cursor(m_Form);
-  
+		}
+
+		p += 8;
+
+		len -= 8;
+
+	}
+
+
+
+	free(timeBools);
+
+	return (p - _p);
+
+failed:
+
+	free(timeBools);
+
+	return (-1);
+
 }
+
+
+
+static ssize_t
+
+decode_header_image(struct archive_read *a, struct _7zip *zip,
+
+    struct _7z_stream_info *si, const unsigned char *p, uint64_t len,
+
+    const void **image)
+
+{
+
+	const unsigned char *v;
+
+	size_t vsize;
+
+	int r;
+
+
+
+	errno = 0;
+
+	r = read_StreamsInfo(zip, si, p, len);
+
+	if (r < 0) {
+
+		if (errno == ENOMEM)
+
+			archive_set_error(&a->archive, -1,
+
+			    "Couldn't allocate memory");
 

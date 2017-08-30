@@ -1,11 +1,40 @@
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+     */
 
-	if (a->tree != NULL)
-		a->tree = tree_reopen(a->tree, pathname,
-		    a->flags & ARCHIVE_READDISK_RESTORE_ATIME);
-	else
-		a->tree = tree_open(pathname, a->symlink_mode,
-		    a->flags & ARCHIVE_READDISK_RESTORE_ATIME);
-	if (a->tree == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate directory traversal data");
+    data->set.buffer_size = va_arg(param, long);
+
+
+
+    if(data->set.buffer_size > MAX_BUFSIZE)
+
+      data->set.buffer_size = MAX_BUFSIZE; /* huge internal default */
+
+    else if(data->set.buffer_size < 1)
+
+      data->set.buffer_size = BUFSIZE;
+
+
+
+    /* Resize only if larger than default buffer size. */
+
+    if(data->set.buffer_size > BUFSIZE) {
+
+      data->state.buffer = realloc(data->state.buffer,
+
+                                   data->set.buffer_size + 1);
+
+      if(!data->state.buffer) {
+
+        DEBUGF(fprintf(stderr, "Error: realloc of buffer failed\n"));
+
+        result = CURLE_OUT_OF_MEMORY;
+
+      }
+
+    }
+
+
+
+    break;
+
+
+

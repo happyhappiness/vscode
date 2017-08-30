@@ -1,15 +1,14 @@
- *
- * If you ever want truly portable and good *printf() clones, the project that
- * took on from here is named 'Trio' and you find more details on the trio web
- * page at http://daniel.haxx.se/trio/
- */
+  printf("md5sum 2: expected [%s]\n"
 
-#include "curl_setup.h"
+         "               got [%s]\n",
 
-#if defined(DJGPP) && (DJGPP_MINOR < 4)
-#undef _MPRINTF_REPLACE /* don't use x_was_used() here */
-#endif
+         testMD5output2, md5out);
 
-#include <curl/mprintf.h>
+  return (strcmp(md5out, testMD5output2) != 0)? 1:0;
 
-#include "curl_memory.h"
+}
+
+
+
+int testEncode(int argc, char* argv[])
+

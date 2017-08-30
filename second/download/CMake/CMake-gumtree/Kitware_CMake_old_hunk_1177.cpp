@@ -1,6 +1,14 @@
-             kwsysProcess_GetExceptionString(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Error:
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
+      includes.push_back(inc);
+
+    } else {
+
+      if (!isFirstLine || !startsWith(line, srcfilename)) {
+
+        if (!quiet) {
+
+          fprintf(stdout, "%s\n", line.c_str());
+
+        }
+
+      } else {
+

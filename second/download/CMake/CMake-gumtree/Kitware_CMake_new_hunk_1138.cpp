@@ -1,23 +1,14 @@
-    return -1;
+  printf("Current Value: %s\n", iter.GetValue());
+
+  printf("New Value (Enter to keep current value): ");
+
+  char buffer[4096];
+
+  if(!fgets(buffer, static_cast<int>(sizeof(buffer) - 1), stdin))
+
+    {
+
+    buffer[0] = 0;
+
     }
 
-    /* Strip trailing '/'...it confuses some Unixes (and BeOS)... */
-    strncpy(buf, filename, sizeof(buf)-1);
-    buf[sizeof(buf)-1] = 0;
-    len = strlen(buf);
-    if ((len > 0) && (buf[len-1] == '/'))
-      {
-      buf[len-1] = '\0';
-      }
-
-#ifdef DEBUG
-  printf("  ==> extracting: %s (mode %04o, directory)\n", filename,
-         mode);
-#endif
-#ifdef WIN32
-  if (mkdir(buf) == -1)
-#else
-  if (mkdir(buf, mode & 07777) == -1)
-#endif
-  {
-#ifdef __BORLANDC__

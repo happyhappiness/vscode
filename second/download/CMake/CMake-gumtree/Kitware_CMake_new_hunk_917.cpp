@@ -1,6 +1,18 @@
-      return -1;
-      }
+			DWORD flag, desiredAccess;
 
-    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
-    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
-            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
+	
+
+			h = FindFirstFileW(path, &findData);
+
+			if (h == INVALID_HANDLE_VALUE) {
+
+				la_dosmaperr(GetLastError());
+
+				archive_set_error(&a->archive, errno,
+
+				    "Can't FindFirstFileW");
+
+				return (ARCHIVE_FAILED);
+
+			}
+

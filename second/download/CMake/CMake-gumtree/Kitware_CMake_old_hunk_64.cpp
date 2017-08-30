@@ -1,7 +1,18 @@
+  if(instate == FTP_SIZE) {
 
-  /* We do some initial setup here, all those fields that can't be just 0 */
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
 
-  data->state.buffer = malloc(BUFSIZE + 1);
-  if(!data->state.buffer) {
-    DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"));
-    result = CURLE_OUT_OF_MEMORY;
+    if(-1 != filesize) {
+
+      snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);
+
+      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+
+      if(result)
+
+        return result;
+
+    }
+

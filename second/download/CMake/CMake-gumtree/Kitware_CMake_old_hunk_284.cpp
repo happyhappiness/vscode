@@ -1,7 +1,52 @@
+ * is set) if the path is absolute.
 
-  md5this = (unsigned char *) aprintf("%s:%s", request, uripath);
+ */
 
-  if(digest->qop && Curl_raw_equal(digest->qop, "auth-int")) {
-    /* We don't support auth-int for PUT or POST at the moment.
-       TODO: replace md5 of empty string with entity-body for PUT/POST */
-    unsigned char *md5this2 = (unsigned char *)
+static int
+
+cleanup_pathname(struct archive_write_disk *a)
+
+{
+
+	char *dest, *src;
+
+	char separator = '\0';
+
+
+
+	dest = src = a->name;
+
+	if (*src == '\0') {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "Invalid empty pathname");
+
+		return (ARCHIVE_FAILED);
+
+	}
+
+
+
+#if defined(__CYGWIN__)
+
+	cleanup_pathname_win(a);
+
+#endif
+
+	/* Skip leading '/'. */
+
+	if (*src == '/') {
+
+		if (a->flags & ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			                  "Path is absolute");
+
+			return (ARCHIVE_FAILED);
+
+		}
+
+
+

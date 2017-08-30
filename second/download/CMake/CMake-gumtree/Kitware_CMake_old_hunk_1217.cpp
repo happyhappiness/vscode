@@ -1,39 +1,14 @@
-  else
-    {
-    updateType = this->DetermineType(updateCommand.c_str(),
-      m_CTest->GetCTestConfiguration("UpdateType").c_str());
-    }
+		    (parent->re || parent->re_descendant))
 
-  cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Use "
-    << cmCTestUpdateHandlerUpdateToString(updateType) << " repository type"
-    << std::endl;);
+			file->re_descendant = 1;
 
-  // And update options
-  std::string updateOptions = m_CTest->GetCTestConfiguration("UpdateOptions");
-  if ( updateOptions.empty() )
-    {
-    switch (updateType)
-      {
-    case cmCTestUpdateHandler::e_CVS:
-      updateOptions = m_CTest->GetCTestConfiguration("CVSUpdateOptions");
-      if ( updateOptions.empty() )
-        {
-        updateOptions = "-dP";
-        }
-      break;
-    case cmCTestUpdateHandler::e_SVN:
-      updateOptions = m_CTest->GetCTestConfiguration("SVNUpdateOptions");
-      break;
-      }
-    }
+		if (file->cl_offset) {
 
-  // Get update time
-  std::string extra_update_opts;
-  if ( m_CTest->GetTestModel() == cmCTest::NIGHTLY )
-    {
-    struct tm* t = m_CTest->GetNightlyTime(
-      m_CTest->GetCTestConfiguration("NightlyStartTime"),
-      m_CTest->GetTomorrowTag());
-    char current_time[1024];
-    sprintf(current_time, "%04d-%02d-%02d %02d:%02d:%02d",
-      t->tm_year + 1900,
+			struct file_info *p;
+
+
+
+			if (parent == NULL || parent->parent == NULL) {
+
+				archive_set_error(&a->archive,
+

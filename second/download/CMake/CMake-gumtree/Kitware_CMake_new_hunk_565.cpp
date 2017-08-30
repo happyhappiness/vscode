@@ -1,6 +1,20 @@
-  /* Initial packet length */
-  size = 32 + hostlen + domlen;
+		lha->entry_unconsumed = 0;
 
-  DEBUG_OUT({
-    fprintf(stderr, "* TYPE1 header flags=0x%02.2x%02.2x%02.2x%02.2x "
-            "0x%08.8x ",
+	}
+
+	if (lha->end_of_entry) {
+
+		*offset = lha->entry_offset;
+
+		*size = 0;
+
+		*buff = NULL;
+
+		return (lha_end_of_entry(a));
+
+	}
+
+
+
+	if (lha->entry_is_compressed)
+

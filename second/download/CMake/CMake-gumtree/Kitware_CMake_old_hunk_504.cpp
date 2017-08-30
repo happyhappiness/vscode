@@ -1,11 +1,36 @@
-		 */
-		if (ar->strtab == NULL || number > ar->strtab_size) {
-			archive_set_error(&a->archive, EINVAL,
-			    "Can't find long filename for entry");
-			archive_entry_copy_pathname(entry, filename);
-			/* Parse the time, owner, mode, size fields. */
-			ar_parse_common_header(ar, entry, h);
-			return (ARCHIVE_WARN);
-		}
+{
 
-		archive_entry_copy_pathname(entry, &ar->strtab[(size_t)number]);
+	struct unknown_tag *tag;
+
+
+
+#if DEBUG
+
+	fprintf(stderr, "unknowntag_end:%s\n", name);
+
+#endif
+
+	tag = xar->unknowntags;
+
+	if (tag == NULL || name == NULL)
+
+		return;
+
+	if (strcmp(tag->name.s, name) == 0) {
+
+		xar->unknowntags = tag->next;
+
+		archive_string_free(&(tag->name));
+
+		free(tag);
+
+		if (xar->unknowntags == NULL)
+
+			xar->xmlsts = xar->xmlsts_unknown;
+
+	}
+
+}
+
+
+

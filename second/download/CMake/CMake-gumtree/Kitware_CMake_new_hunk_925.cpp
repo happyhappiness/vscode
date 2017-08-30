@@ -1,39 +1,36 @@
-      fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
-      }
+		setmode(0, O_BINARY);
 
-    std::string projectLangs;
-    for(std::set<std::string>::iterator li = testLangs.begin();
-        li != testLangs.end(); ++li)
-      {
-      projectLangs += " " + *li;
-      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
-      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
-      if(const char* rulesOverridePath =
-         this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
-        {
-        fprintf(fout, "SET(%s \"%s\")\n",
-                rulesOverrideLang.c_str(), rulesOverridePath);
-        }
-      else if(const char* rulesOverridePath2 =
-              this->Makefile->GetDefinition(rulesOverrideBase.c_str()))
-        {
-        fprintf(fout, "SET(%s \"%s\")\n",
-                rulesOverrideBase.c_str(), rulesOverridePath2);
-        }
-      }
-    fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
-    fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");
-    for(std::set<std::string>::iterator li = testLangs.begin();
-        li != testLangs.end(); ++li)
-      {
-      fprintf(fout, "SET(CMAKE_%s_FLAGS \"", li->c_str());
-      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
-      if(const char* flags = this->Makefile->GetDefinition(langFlags.c_str()))
-        {
-        fprintf(fout, " %s ", flags);
-        }
-      fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
-      }
-    fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "SET(CMAKE_SUPPRESS_REGENERATION 1)\n");
-    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
+#endif
+
+		filename = "";
+
+	} else if (mine->filename_type == FNT_MBS) {
+
+		filename = mine->filename.m;
+
+		fd = open(filename, O_RDONLY | O_BINARY | O_CLOEXEC);
+
+		__archive_ensure_cloexec_flag(fd);
+
+		if (fd < 0) {
+
+			archive_set_error(a, errno,
+
+			    "Failed to open '%s'", filename);
+
+			return (ARCHIVE_FATAL);
+
+		}
+
+	} else {
+
+#if defined(_WIN32) && !defined(__CYGWIN__)
+
+		wfilename = mine->filename.w;
+
+		fd = _wopen(wfilename, O_RDONLY | O_BINARY);
+
+		if (fd < 0 && errno == ENOENT) {
+
+			wchar_t *fullpath;
+

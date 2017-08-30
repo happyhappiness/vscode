@@ -1,7 +1,18 @@
-		archive_set_error(&a->archive, errno, "statvfs failed");
-		return (ARCHIVE_FAILED);
-	} else if (xr == 1) {
-		/* Usuall come here unless NetBSD supports _PC_REC_XFER_ALIGN
-		 * for pathconf() function. */
-		t->current_filesystem->xfer_align = sfs.f_frsize;
-		t->current_filesystem->max_xfer_size = -1;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+
+
+
+	if (a->tree != NULL)
+
+		a->tree = tree_reopen(a->tree, pathname, a->restore_time);
+
+	else
+
+		a->tree = tree_open(pathname, a->symlink_mode, a->restore_time);
+
+	if (a->tree == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM,
+
+		    "Can't allocate directory traversal data");
+

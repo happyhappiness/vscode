@@ -1,17 +1,64 @@
-  for(std::vector<cmStdString>::iterator i = originalLinkItems.begin();
-      i != originalLinkItems.end(); ++i)
-    {
-    // Parse out the prefix, base, and suffix components of the
-    // library name.  If the name matches that of a shared or static
-    // library then set the link type accordingly.
-    //
-    // Search for shared library names first because some platforms
-    // have shared libraries with names that match the static library
-    // pattern.  For example cygwin and msys use the convention
-    // libfoo.dll.a for import libraries and libfoo.a for static
-    // libraries.  On AIX a library with the name libfoo.a can be
-    // shared!
-    if(this->ExtractSharedLibraryName.find(*i))
+      fprintf(fout, ")\n");
+
+      }
+
+
+
+    /* Use a random file name to avoid rapid creation and deletion
+
+       of the same executable name (some filesystems fail on that).  */
+
+    sprintf(targetNameBuf, "cmTryCompileExec%u",
+
+            cmSystemTools::RandomSeed());
+
+    targetName = targetNameBuf;
+
+
+
+    if (!targets.empty())
+
       {
-#ifdef CM_ORDER_LINK_DIRECTORIES_DEBUG
-      fprintf(stderr, "shared regex matched [%s] [%s] [%s]\n",
+
+      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
+
+      cmExportTryCompileFileGenerator tcfg;
+
+      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
+
+      tcfg.SetExports(targets);
+
+      tcfg.SetConfig(this->Makefile->GetDefinition(
+
+                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
+
+
+
+      if(!tcfg.GenerateImportFile())
+
+        {
+
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+
+                                     "could not write export file.");
+
+        return -1;
+
+        }
+
+      fprintf(fout,
+
+              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
+
+              fname.c_str());
+
+      }
+
+
+
+    /* for the TRY_COMPILEs we want to be able to specify the architecture.
+
+      So the user can set CMAKE_OSX_ARCHITECTURE to i386;ppc and then set
+
+      CMAKE_TRY_COMPILE_OSX_ARCHITECTURE first to i386 and then to ppc to
+

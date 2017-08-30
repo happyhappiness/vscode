@@ -1,10 +1,14 @@
-//    }
-//  else
-//    {
-    char firstLine[512], secondLine[512], thirdLine[512];
-    if (m_OkToGenerate)
-      {
-      sprintf(firstLine,  "Press [c] to configure     Press [g] to generate and exit");
-      }
-    else
-      {
+#define YY_EXIT_FAILURE 2
+
+#endif
+
+
+
+static void yy_fatal_error (yyconst char* msg )
+
+{
+
+        (void) fprintf( stderr, "%s\n", msg );
+
+        exit( YY_EXIT_FAILURE );
+

@@ -1,6 +1,24 @@
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_tar");
+  sprintf(version+sideSpace, "%s", vertmp);
 
-	tar = (struct tar *)calloc(1, sizeof(*tar));
-	if (tar == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate tar data");
+  version[width] = '\0';
+
+
+
+  curses_move(y-4,0);
+
+  attron(A_STANDOUT);
+
+  printw(bar);
+
+  attroff(A_STANDOUT);
+
+  curses_move(y-3,0);
+
+  printw(version);
+
+  pos_form_cursor(this->Form);
+
+}
+
+
+

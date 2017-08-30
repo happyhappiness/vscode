@@ -1,6 +1,53 @@
-     information. Which for FILE can't be much more than the file size and
-     date. */
-  if(data->set.opt_no_body && data->set.include_header && fstated) {
-    snprintf(buf, sizeof(data->state.buffer),
-             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+   CloseHandle(hFile);
+
+   return true;
+
+}
+
+
+
+bool bindexplib::AddObjectFile(const char* filename)
+
+{
+
+  if(!DumpFile(filename, this->Symbols, this->DataSymbols))
+
+    {
+
+    return false;
+
+    }
+
+  return true;
+
+}
+
+
+
+void bindexplib::WriteFile(FILE* file)
+
+{
+
+  fprintf(file,"EXPORTS \n");
+
+  for(std::set<std::string>::const_iterator i = this->DataSymbols.begin();
+
+      i!= this->DataSymbols.end(); ++i)
+
+    {
+
+    fprintf(file, "\t%s \t DATA\n", i->c_str());
+
+    }
+
+  for(std::set<std::string>::const_iterator i = this->Symbols.begin();
+
+      i!= this->Symbols.end(); ++i)
+
+    {
+
+    fprintf(file, "\t%s\n", i->c_str());
+
+    }
+
+}

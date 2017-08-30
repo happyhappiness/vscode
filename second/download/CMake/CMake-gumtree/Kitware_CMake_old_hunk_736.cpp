@@ -1,13 +1,28 @@
-	t->current_filesystem->synthetic = -1;/* Not supported */
-	t->current_filesystem->remote = -1;/* Not supported */
-	if (tree_current_is_symblic_link_target(t)) {
-#if defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR)
-		/*
-		 * Get file system statistics on any directory
-		 * where current is.
-		 */
-		int fd = openat(tree_current_dir_fd(t),
-		    tree_current_access_path(t), O_RDONLY);
-		if (fd < 0) {
-			archive_set_error(&a->archive, errno,
-			    "openat failed");
+                symbol.compare(0, 4, vectorPrefix) )
+
+            {
+
+               SectChar =
+
+                pSectionHeaders[pSymbolTable->SectionNumber-1].Characteristics;
+
+               if (!pSymbolTable->Type  && (SectChar & IMAGE_SCN_MEM_WRITE)) {
+
+                  // Read only (i.e. constants) must be excluded
+
+                  fprintf(fout, "\t%s \t DATA\n", symbol.c_str());
+
+               } else {
+
+                  if ( pSymbolTable->Type  ||
+
+                       !(SectChar & IMAGE_SCN_MEM_READ)) {
+
+                     fprintf(fout, "\t%s\n", symbol.c_str());
+
+                  } else {
+
+                     // printf(" strange symbol: %s \n",symbol.c_str());
+
+                  }
+

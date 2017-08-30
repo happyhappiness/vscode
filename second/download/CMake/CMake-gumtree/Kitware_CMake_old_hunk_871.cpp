@@ -1,7 +1,12 @@
-	if (strcmp(key, "compat-2x")  == 0) {
-		/* Handle filnames as libarchive 2.x */
-		cpio->init_default_conversion = (val != NULL)?1:0;
-		ret = ARCHIVE_OK;
-	} else if (strcmp(key, "hdrcharset")  == 0) {
-		if (val == NULL || val[0] == 0)
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+        else
+
+                ret_val = EOB_ACT_CONTINUE_SCAN;
+
+
+
+        yyg->yy_n_chars += number_to_move;
+
+        YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars] = YY_END_OF_BUFFER_CHAR;
+
+        YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars + 1] = YY_END_OF_BUFFER_CHAR;
+

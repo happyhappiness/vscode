@@ -1,10 +1,14 @@
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name);
-    }
-  struct _finddata_t data;      // data of current file
+#endif
 
-  // Now put them into the file array
-  srchHandle = _findfirst(buf, &data);
-  delete [] buf;
+  (void)argc; (void)argv;
 
-  if ( srchHandle == -1 )
+  fprintf(stdout, "Output before crash on stdout from crash test.\n");
+
+  fprintf(stderr, "Output before crash on stderr from crash test.\n");  
+
+  fflush(stdout);
+
+  fflush(stderr);
+
+  assert(invalidAddress); /* Quiet Clang scan-build. */
+

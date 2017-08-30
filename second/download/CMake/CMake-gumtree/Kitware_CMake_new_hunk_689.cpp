@@ -1,8 +1,12 @@
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName().c_str(),
-            this->HasConfig?this->Config.c_str():"noconfig");
-    this->DisplayConstraintGraph();
+      }
+
+      fprintf(out, "%s\n", format_ptr);
+
+      free(format_ptr);
+
     }
+
+  }
+
+
 

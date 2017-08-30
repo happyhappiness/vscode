@@ -1,15 +1,16 @@
-#include <stdio.h>
-#include "DumpInformation.h"
+    aprintf("%s:%s:%s", userp, d->realm, passwdp);
 
-int DumpFile(char* filename, char* comment)
-{
-  FILE* file = fopen(filename, "r");
-  if(!file)
-    {
-    printf("Error, could not open file %s\n", filename);
-    return 1;
-    }
-  printf("%s", comment);
-  while(!feof(file))
-    {
-    int ch = fgetc(file);
+  if(!md5this)
+
+    return CURLE_OUT_OF_MEMORY;
+
+
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+
+  Curl_md5it(md5buf, md5this);
+
+  free(md5this); /* free this again */
+
+
+

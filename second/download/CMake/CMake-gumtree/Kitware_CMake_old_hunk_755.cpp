@@ -1,7 +1,16 @@
-#endif
-	}
-	if (fstat(fd, &st) != 0) {
-		if (filename_type == FNT_WCS)
-			archive_set_error(a, errno, "Can't stat '%S'",
-			    wfilename);
-		else
+{
+
+  char covLogFilename[1024];
+
+  sprintf(covLogFilename, "CoverageLog-%d", logFileCount);
+
+  cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Open file: "
+
+    << covLogFilename << std::endl);
+
+  if(!this->StartResultingXML(cmCTest::PartCoverage,
+
+                              covLogFilename, covLogFile))
+
+    {
+

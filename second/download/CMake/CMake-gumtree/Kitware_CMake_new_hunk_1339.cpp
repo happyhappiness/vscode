@@ -1,39 +1,48 @@
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Exception,
-               kwsysProcess_Exception_Fault, 1, 1, 0, 2);
-  fprintf(stdout, "Output on stdout after recursive test.\n");
-  fprintf(stderr, "Output on stderr after recursive test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
-}
+  int dependee_index = tii->second;
 
-#define TEST6_SIZE (4096*2)
-int test6(int argc, const char* argv[])
-{
-  int i;
-  char runaway[TEST6_SIZE+2];
-  (void)argc; (void)argv;
-  for(i=0;i < TEST6_SIZE;++i)
-    {
-    runaway[i] = '.';
-    }
-  runaway[TEST6_SIZE] = '\n';
-  runaway[TEST6_SIZE] = 0;
 
-  /* Generate huge amounts of output to test killing.  */
-  for(;;)
-    {
-    fwrite(runaway, 1, TEST6_SIZE+2, stdout);
-    fflush(stdout);
-    }
-  return 0;
+
+  // Add this entry to the dependency graph.
+
+  this->InitialGraph[depender_index].push_back(dependee_index);
+
 }
 
 
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int delay, double timeout)
+
+//----------------------------------------------------------------------------
+
+void
+
+cmComputeTargetDepends::DisplayGraph(Graph const& graph, const char* name)
+
 {
-  int result = 0;
-  char* data = 0;
+
+  fprintf(stderr, "The %s target dependency graph is:\n", name);
+
+  int n = static_cast<int>(graph.size());
+
+  for(int depender_index = 0; depender_index < n; ++depender_index)
+
+    {
+
+    NodeList const& nl = graph[depender_index];
+
+    cmTarget* depender = this->Targets[depender_index];
+
+    fprintf(stderr, "target %d is [%s]\n",
+
+            depender_index, depender->GetName());
+
+    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+
+      {
+
+      int dependee_index = *ni;
+
+      cmTarget* dependee = this->Targets[dependee_index];
+
+      fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
+
+              dependee->GetName());
+

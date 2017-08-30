@@ -1,6 +1,14 @@
-  int i, k;
-  char buf[T_BLOCKSIZE];
-  char *filename;
+    const std::string &absFilename = *it;
 
-#ifdef DEBUG
-  printf("==> tar_extract_regfile(t=0x%lx, realname=\"%s\")\n", t,
+    if (this->Verbose)
+
+      {
+
+      printf("Checking -%s-\n", absFilename.c_str());
+
+      }
+
+    this->ParseCppFile(absFilename, includedMocs, notIncludedMocs);
+
+    }
+

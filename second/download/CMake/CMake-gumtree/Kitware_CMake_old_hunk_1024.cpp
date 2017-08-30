@@ -1,8 +1,18 @@
-    const char* lang =(this->Makefile->GetCMakeInstance()->GetGlobalGenerator()
-                        ->GetLanguageFromExtension(ext.c_str()));
-    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
-    fprintf(fout, "cmake_minimum_required(VERSION %u.%u)\n",
-            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion());
-    if(def)
-      {
-      fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
+#if defined(HAVE_READDIR_R)
+
+	/* Set maximum filename length. */
+
+#  if defined(_PC_NAME_MAX)
+
+	if (tree_current_is_symblic_link_target(t))
+
+		nm = pathconf(tree_current_access_path(t), _PC_NAME_MAX);
+
+	else
+
+		nm = fpathconf(tree_current_dir_fd(t), _PC_NAME_MAX);
+
+	if (nm == -1)
+
+#  endif /* _PC_NAME_MAX */
+

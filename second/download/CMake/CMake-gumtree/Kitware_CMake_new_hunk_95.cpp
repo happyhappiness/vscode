@@ -1,9 +1,14 @@
-  return snprintf(buffer, size, "axTLS/%s", ssl_version());
-}
+    time_t filetime;
 
-CURLcode Curl_axtls_random(struct Curl_easy *data,
-                           unsigned char *entropy,
-                           size_t length)
-{
-  static bool ssl_seeded = FALSE;
-  (void)data;
+    struct tm buffer;
+
+    const struct tm *tm = &buffer;
+
+    snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+
+    if(result)
+

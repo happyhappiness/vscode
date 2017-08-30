@@ -1,7 +1,22 @@
-  vsnprintf(print_buffer, sizeof(print_buffer), message, args);
-  va_end(args);
+	if (a->format_free != NULL)
 
-  if(Curl_ftpsend(conn, print_buffer)) {
-    ftp_code = -1;
-  }
-  else {
+		(a->format_free)(a);
+
+
+
+	cpio = (struct cpio *)calloc(1, sizeof(*cpio));
+
+	if (cpio == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+	a->format_data = cpio;
+
+	a->format_name = "cpio";
+
+	a->format_options = archive_write_newc_options;
+

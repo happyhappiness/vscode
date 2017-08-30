@@ -1,23 +1,28 @@
-    rar->unp_size = archive_le32dec(file_header.unp_size);
-  }
 
-  if (rar->packed_size < 0 || rar->unp_size < 0)
+
+  if (rar->file_flags & FHD_PASSWORD)
+
   {
+
+	archive_entry_set_is_data_encrypted(entry, 1);
+
+	rar->has_encrypted_entries = 1;
+
     archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Invalid sizes specified.");
-    return (ARCHIVE_FATAL);
+
+                      "RAR encryption support unavailable.");
+
+    /* Since it is only the data part itself that is encrypted we can at least
+
+       extract information about the currently processed entry and don't need
+
+       to return ARCHIVE_FATAL here. */
+
+    /*return (ARCHIVE_FATAL);*/
+
   }
 
-  rar->bytes_remaining = rar->packed_size;
 
-  /* TODO: RARv3 subblocks contain comments. For now the complete block is
-   * consumed at the end.
-   */
-  if (head_type == NEWSUB_HEAD) {
-    size_t distance = p - (const char *)h;
-    header_size += rar->packed_size;
-    /* Make sure we have the extended data. */
-    if ((h = __archive_read_ahead(a, (size_t)header_size - 7, NULL)) == NULL)
-        return (ARCHIVE_FATAL);
-    p = h;
-    endp = p + header_size - 7;
+
+  if (rar->file_flags & FHD_LARGE)
+

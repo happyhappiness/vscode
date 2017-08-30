@@ -1,9 +1,14 @@
-  return snprintf(buffer, size, "axTLS/%s", ssl_version());
+  else
+
+    hostname = conn->host.name;
+
+
+
+  return aprintf("%s:%d", hostname, conn->port);
+
 }
 
-int Curl_axtls_random(struct Curl_easy *data,
-                      unsigned char *entropy,
-                      size_t length)
-{
-  static bool ssl_seeded = FALSE;
-  (void)data;
+
+
+/* Look up the bundle with all the connections to the same host this
+

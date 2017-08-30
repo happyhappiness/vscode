@@ -1,8 +1,26 @@
-		zip->stream.opaque = Z_NULL;
-		zip->stream.next_out = zip->buf;
-		zip->stream.avail_out = zip->len_buf;
-		if (deflateInit2(&zip->stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
-		    -15, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't init deflate compressor");
-			return (ARCHIVE_FATAL);
+			    "Couldn't read link data");
+
+			return (ARCHIVE_FAILED);
+
+		}
+
+#ifdef HAVE_READLINKAT
+
+		if (a->entry_wd_fd >= 0)
+
+			lnklen = readlinkat(a->entry_wd_fd, path,
+
+			    linkbuffer, linkbuffer_len);
+
+		else
+
+#endif /* HAVE_READLINKAT */
+
+		lnklen = readlink(path, linkbuffer, linkbuffer_len);
+
+		if (lnklen < 0) {
+
+			archive_set_error(&a->archive, errno,
+
+			    "Couldn't read link data");
+

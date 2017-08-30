@@ -1,26 +1,46 @@
- */
-    YY_BUFFER_STATE cmCommandArgument_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
-{
-        YY_BUFFER_STATE b;
+			&a->archive, ARCHIVE_ERRNO_MISC,
 
-        b = (YY_BUFFER_STATE) cmCommandArgument_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
-        if ( ! b )
-                YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_create_buffer()" );
+			"Bad record header");
 
-        b->yy_buf_size = size;
+		return (ARCHIVE_FATAL);
 
-        /* yy_ch_buf has to be 2 characters longer than the size given because
-         * we need to put in 2 end-of-buffer characters.
-         */
-        b->yy_ch_buf = (char *) cmCommandArgument_yyalloc(b->yy_buf_size + 2 ,yyscanner );
-        if ( ! b->yy_ch_buf )
-                YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_create_buffer()" );
+	} else if ((ver = _warc_rdver(buf, eoh - buf)) > 10000U) {
 
-        b->yy_is_our_buffer = 1;
+		/* nawww, I wish they promised backward compatibility
 
-        cmCommandArgument_yy_init_buffer(b,file ,yyscanner);
+		 * anyhoo, in their infinite wisdom the 28500 guys might
 
-        return b;
-}
+		 * come up with something we can't possibly handle so
 
-/** Destroy the buffer.
+		 * best end things here */
+
+		archive_set_error(
+
+			&a->archive, ARCHIVE_ERRNO_MISC,
+
+			"Unsupported record version");
+
+		return (ARCHIVE_FATAL);
+
+	} else if ((cntlen = _warc_rdlen(buf, eoh - buf)) < 0) {
+
+		/* nightmare!  the specs say content-length is mandatory
+
+		 * so I don't feel overly bad stopping the reader here */
+
+		archive_set_error(
+
+			&a->archive, EINVAL,
+
+			"Bad content length");
+
+		return (ARCHIVE_FATAL);
+
+	} else if ((rtime = _warc_rdrtm(buf, eoh - buf)) == (time_t)-1) {
+
+		/* record time is mandatory as per WARC/1.0,
+
+		 * so just barf here, fast and loud */
+
+		archive_set_error(
+

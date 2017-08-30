@@ -1,13 +1,16 @@
-			else
-				ret = ARCHIVE_FATAL;
-		}
-		return (ret);
-	}
+                yyg->yy_buffer_stack = (struct yy_buffer_state**)cmListFileLexer_yyalloc
 
-	/* Note: The "warn" return is just to inform the options
-	 * supervisor that we didn't handle it.  It will generate
-	 * a suitable error if no one used this option. */
-	return (ARCHIVE_WARN);
-}
+                                                                (num_to_alloc * sizeof(struct yy_buffer_state*)
 
-static int
+                                                                , yyscanner);
+
+                if ( ! yyg->yy_buffer_stack )
+
+                        YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yyensure_buffer_stack()" );
+
+
+
+                memset(yyg->yy_buffer_stack, 0, num_to_alloc * sizeof(struct yy_buffer_state*));
+
+
+

@@ -1,8 +1,26 @@
-#include "cmQtAutomoc.h"
+	t->current_filesystem->synthetic = -1;/* Not supported */
 
+	t->current_filesystem->remote = -1;/* Not supported */
 
-#define TRACE_LINE() printf(" %s %d\n", __PRETTY_FUNCTION__, __LINE__)
+	if (tree_current_is_symblic_link_target(t)) {
 
-cmQtAutomoc::cmQtAutomoc()
-:Verbose(true)
-,RunMocFailed(false)
+#if defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR)
+
+		/*
+
+		 * Get file system statistics on any directory
+
+		 * where current is.
+
+		 */
+
+		int fd = openat(tree_current_dir_fd(t),
+
+		    tree_current_access_path(t), O_RDONLY);
+
+		if (fd < 0) {
+
+			archive_set_error(&a->archive, errno,
+
+			    "openat failed");
+

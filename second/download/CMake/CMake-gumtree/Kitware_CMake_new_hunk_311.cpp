@@ -1,8 +1,16 @@
+    else {
 
-static int test8_grandchild(int argc, const char* argv[])
-{
-  (void)argc;
-  (void)argv;
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
+      CURLcode result;
+
+      ssl_sessionid =
+
+        aprintf("%s:%d:%d:%s:%hu", ssl_cafile,
+
+                verifypeer, SSL_CONN_CONFIG(verifyhost), hostname, port);
+
+      ssl_sessionid_len = strlen(ssl_sessionid);
+
+
+
+      err = SSLSetPeerID(connssl->ssl_ctx, ssl_sessionid, ssl_sessionid_len);
+

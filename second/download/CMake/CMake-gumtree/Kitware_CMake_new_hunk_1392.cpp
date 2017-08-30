@@ -1,29 +1,54 @@
-      {
-      local_end_time = ::CurrentTime();
-      cfileoutput << "\t<EndDateTime>" << local_end_time << "</EndDateTime>\n"
-        << "</CoverageLog>\n"
-        << "</Site>" << std::endl;
-      cfileoutput.close();
-      std::cout << "Close file: " << cfileoutputname << std::endl;
-      ccount = 0;
-      }
-    if ( ccount == 0 )
-      {
-      sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);
-      std::cout << "Open file: " << cfileoutputname << std::endl;
-      if (!this->OpenOutputFile(m_CurrentTag, cfileoutputname, cfileoutput))
-        {
-        std::cout << "Cannot open log file: " << cfileoutputname << std::endl;
-        return 1;
-        }
-      local_start_time = ::CurrentTime();
-      cfileoutput << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        << "<Site BuildName=\"" << m_DartConfiguration["BuildName"]
-        << "\" BuildStamp=\"" << m_CurrentTag << "-"
-        << this->GetTestModelString() << "\" Site=\""
-        << m_DartConfiguration["Site"] << "\">\n"
-        << "<CoverageLog>\n"
-        << "\t<StartDateTime>" << local_start_time << "</StartDateTime>" << std::endl;
+      /* if a line like this was already allocated, free the previous one */
+
+      if(conn->allocptr.rangeline)
+
+        free(conn->allocptr.rangeline);
+
+      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n", data->reqdata.range);
+
+    }
+
+    else if((httpreq != HTTPREQ_GET) &&
+
+            !checkheaders(data, "Content-Range:")) {
+
+
+
+      if(data->reqdata.resume_from) {
+
+        /* This is because "resume" was selected */
+
+        curl_off_t total_expected_size=
+
+          data->reqdata.resume_from + data->set.infilesize;
+
+        conn->allocptr.rangeline =
+
+            aprintf("Content-Range: bytes %s%" FORMAT_OFF_T
+
+                    "/%" FORMAT_OFF_T "\r\n",
+
+                    data->reqdata.range, total_expected_size-1,
+
+                    total_expected_size);
+
       }
 
-    //std::cerr << "Final process of Source file: " << cit->first << std::endl;
+      else {
+
+        /* Range was selected and then we just pass the incoming range and
+
+           append total size */
+
+        conn->allocptr.rangeline =
+
+            aprintf("Content-Range: bytes %s/%" FORMAT_OFF_T "\r\n",
+
+                    data->reqdata.range, data->set.infilesize);
+
+      }
+
+    }
+
+  }
+

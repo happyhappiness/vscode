@@ -1,10 +1,14 @@
-      sprintf(buf, "%6.2f sec", totalTestTime); 
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time = " 
-                 <<  buf << "\n" );
-      if ( this->LogFile )
-        {
-        *this->LogFile << "\nTotal Test time = " << buf << std::endl;
-        }
-      }
+		if (zip->pack_stream_inbytes_remaining == 0 &&
 
-    if (failed.size())
+		    zip->folder_outbytes_remaining == 0)
+
+			break;
+
+		if (end_of_data || (bytes_in == 0 && bytes_out == 0)) {
+
+			archive_set_error(&(a->archive),
+
+			    ARCHIVE_ERRNO_MISC, "Damaged 7-Zip archive");
+
+			return (ARCHIVE_FATAL);
+

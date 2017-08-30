@@ -1,12 +1,90 @@
-  lnp = (linkname_t *)calloc(1, sizeof(linkname_t));
-  if (lnp == NULL)
-    return -1;
-  strlcpy(lnp->ln_save, th_get_pathname(t), sizeof(lnp->ln_save));
-  strlcpy(lnp->ln_real, realname, sizeof(lnp->ln_real));
-#ifdef DEBUG
-  printf("tar_extract_file(): calling libtar_hash_add(): key=\"%s\", "
-         "value=\"%s\"\n", th_get_pathname(t), realname);
-#endif
-  if (libtar_hash_add(t->h, lnp) != 0)
-    return -1;
+            this->BinaryDirectory.c_str());
+
+    /* Create the actual executable.  */
+
+    fprintf(fout, "ADD_EXECUTABLE(cmTryCompileExec \"%s\")\n",source.c_str());
+
+    fprintf(fout, 
+
+            "TARGET_LINK_LIBRARIES(cmTryCompileExec ${LINK_LIBRARIES})\n");
+
+    fclose(fout);
+
+    projectName = "CMAKE_TRY_COMPILE";
+
+    targetName = "cmTryCompileExec";
+
+    // if the source is not in CMakeTmp 
+
+    if(source.find("CMakeTmp") == source.npos)
+
+      {
+
+      this->Makefile->AddCMakeDependFile(source.c_str());
+
+      }
+
+    
+
+    }
+
+  // else the srcdir bindir project target signature
+
+  else
+
+    {
+
+    projectName = argv[3].c_str();
+
+    
+
+    if (argv.size() - extraArgs == 5)
+
+      {
+
+      targetName = argv[4].c_str();
+
+      }
+
+    }
+
+  
+
+  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
+
+  cmSystemTools::ResetErrorOccuredFlag();
+
+  std::string output;
+
+  // actually do the try compile now that everything is setup
+
+  int res = this->Makefile->TryCompile(sourceDirectory, 
+
+                                       this->BinaryDirectory.c_str(),
+
+                                       projectName, 
+
+                                       targetName, 
+
+                                       this->SrcFileSignature,
+
+                                       &cmakeFlags, 
+
+                                       &output);
+
+  if ( erroroc )
+
+    {
+
+    cmSystemTools::SetErrorOccured();
+
+    }
+
+  
+
+  // set the result var to the return value to indicate success or failure
+
+  this->Makefile->AddCacheDefinition(argv[0].c_str(),
+
+                                     (res == 0 ? "TRUE" : "FALSE"),
 

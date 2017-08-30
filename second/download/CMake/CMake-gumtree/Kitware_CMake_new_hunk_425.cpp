@@ -1,6 +1,14 @@
-  fprintf(stderr, "%s\n", e.str().c_str());
-}
+ * The message SHALL NOT include any LF or CR.
 
-void cmComputeLinkDepends::OrderLinkEntires()
+ */
+
+
+
+void Curl_failf(struct Curl_easy *data, const char *fmt, ...)
+
 {
-  // Compute the DAG of strongly connected components.  The algorithm
+
+  va_list ap;
+
+  size_t len;
+

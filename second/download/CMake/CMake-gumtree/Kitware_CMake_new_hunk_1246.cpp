@@ -1,13 +1,14 @@
-  buf[sizeof(buf)-1] = 0;
-
-  if (mkdirhier(dirname(buf)) == -1)
-    {
-    if (pathname)
       {
-      free(pathname);
+
+      printf("Checking -%s-\n", absFilename.c_str());
+
       }
-    return -1;
+
+    this->ParseCppFile(absFilename, includedMocs, notIncludedMocs);
+
     }
 
-#ifdef DEBUG
-  printf("  ==> extracting: %s (block device %ld,%ld)\n",
+
+
+  std::vector<std::string> headerFiles;
+

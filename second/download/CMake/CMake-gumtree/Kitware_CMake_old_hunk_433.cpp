@@ -1,8 +1,12 @@
-	struct mtree_entry *entry;
-	struct mtree_option *iter;
-	const char *next, *eq, *name, *end;
-	size_t len;
-	int r;
+     information. Which for FILE can't be much more than the file size and
 
-	if ((entry = malloc(sizeof(*entry))) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
+     date. */
+
+  if(data->set.opt_no_body && data->set.include_header && fstated) {
+
+    snprintf(buf, sizeof(data->state.buffer),
+
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+

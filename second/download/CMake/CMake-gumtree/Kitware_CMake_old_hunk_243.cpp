@@ -1,13 +1,22 @@
-	if (a->format_free != NULL)
-		(a->format_free)(a);
+			    "Rejecting malformed cpio archive: symlink contents exceed 1 megabyte");
 
-	pax = (struct pax *)malloc(sizeof(*pax));
-	if (pax == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate pax data");
-		return (ARCHIVE_FATAL);
-	}
-	memset(pax, 0, sizeof(*pax));
-	a->format_data = pax;
-	a->format_name = "pax";
-	a->format_options = archive_write_pax_options;
+			return (ARCHIVE_FATAL);
+
+		}
+
+		h = __archive_read_ahead(a,
+
+			(size_t)cpio->entry_bytes_remaining, NULL);
+
+		if (h == NULL)
+
+			return (ARCHIVE_FATAL);
+
+		if (archive_entry_copy_symlink_l(entry, (const char *)h,
+
+		    (size_t)cpio->entry_bytes_remaining, sconv) != 0) {
+
+			if (errno == ENOMEM) {
+
+				archive_set_error(&a->archive, ENOMEM,
+

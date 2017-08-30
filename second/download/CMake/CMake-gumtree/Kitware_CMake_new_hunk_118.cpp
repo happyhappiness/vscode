@@ -1,17 +1,20 @@
-	name = archive_entry_sourcepath(entry);
-	if (name == NULL)
-		name = archive_entry_pathname(entry);
-	else if (a->tree != NULL && a->tree_enter_working_dir(a->tree) != 0) {
-		archive_set_error(&a->archive, errno,
-			    "Can't change dir to read extended attributes");
-			return (ARCHIVE_FAILED);
-	}
-	if (name == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Can't open file to read extended attributes: No name");
-		return (ARCHIVE_WARN);
-	}
+    fprintf(stderr, "File is an executable.  I don't dump those.\n");
 
-	/* Short-circuit if there's nothing to do. */
-	have_attrs = copyfile(name, NULL, 0, copyfile_flags | COPYFILE_CHECK);
-	if (have_attrs == -1) {
+    return false;
+
+  }
+
+  /* Does it look like a COFF OBJ file??? */
+
+  else if (((dosHeader->e_magic == IMAGE_FILE_MACHINE_I386) ||
+
+            (dosHeader->e_magic == IMAGE_FILE_MACHINE_AMD64) ||
+
+            (dosHeader->e_magic == IMAGE_FILE_MACHINE_ARMNT)) &&
+
+           (dosHeader->e_sp == 0)) {
+
+    /*
+
+    * The two tests above aren't what they look like.  They're
+

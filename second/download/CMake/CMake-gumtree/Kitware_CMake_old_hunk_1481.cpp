@@ -1,28 +1,56 @@
-    {
-    return;
-    }
-  char firstLine[512], secondLine[512];
-  if (m_OkToGenerate)
-    {
-    sprintf(firstLine,  "C)onfigure                 G)enerate and Exit            H)elp");
-    }
-  else
-    {
-    sprintf(firstLine,  "C)onfigure                                               H)elp");
-    }
-  if (m_AdvancedMode)
-    {
-    sprintf(secondLine, "Q)uit Without Generating   T)oggle Advanced Mode (On)");
-    }
-  else
-    {
-    sprintf(secondLine, "Q)uit Without Generating   T)oggle Advanced Mode (Off)");
-    }
+          char* message = new char[strlen(curField)+strlen(helpString)
 
-  curses_move(y-2,0);
-  printw(firstLine);
-  curses_move(y-1,0);
-  printw(secondLine);
-  pos_form_cursor(m_Form);
-  
-}
+                                  +strlen("Current option is: \n Help string for this option is: \n")+10];
+
+          sprintf(message,"Current option is: %s\nHelp string for this option is: %s\n", curField, helpString);
+
+          m_HelpMessage[1] = message;
+
+          delete[] message;
+
+          }
+
+        else
+
+          {
+
+          m_HelpMessage[1] = "";
+
+          }
+
+
+
+        cmCursesLongMessageForm* msgs = new cmCursesLongMessageForm(m_HelpMessage,
+
+                                                                    "Help.");
+
+        CurrentForm = msgs;
+
+        msgs->Render(1,1,x,y);
+
+        msgs->HandleInput();
+
+        CurrentForm = this; 
+
+        this->Render(1,1,x,y);
+
+        set_current_field(m_Form, cur);
+
+        }
+
+      // display last errors
+
+      else if ( key == 'l' )
+
+        {
+
+        getmaxyx(stdscr, y, x);
+
+        cmCursesLongMessageForm* msgs = new cmCursesLongMessageForm(m_Errors,
+
+                                                                    "Errors occurred during the last pass.");
+
+        CurrentForm = msgs;
+
+        msgs->Render(1,1,x,y);
+

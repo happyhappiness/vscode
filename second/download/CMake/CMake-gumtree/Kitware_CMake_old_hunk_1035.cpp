@@ -1,8 +1,12 @@
-      {
-      int dependee_index = *ni;
-      cmTarget* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
-              dependee->GetName());
-      }
-    }
-  fprintf(stderr, "\n");
+		break;
+
+	}
+
+
+
+	return (ARCHIVE_OK);
+
+}
+
+
+

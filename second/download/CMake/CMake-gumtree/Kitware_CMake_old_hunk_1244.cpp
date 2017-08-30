@@ -1,18 +1,14 @@
-    {
-      if (k != -1)
-        errno = EINVAL;
-      return -1;
-    }
+    const std::string &absFilename = *it;
 
-    /* write block to output file */
-    if (write(fdout, buf,
-        ((i > T_BLOCKSIZE) ? T_BLOCKSIZE : i)) == -1)
-      return -1;
-  }
+    if (this->Verbose)
 
-  /* close output file */
-  if (close(fdout) == -1)
-    return -1;
+      {
 
-#ifdef DEBUG
-  printf("### done extracting %s\n", filename);
+      printf("Checking -%s-\n", absFilename.c_str());
+
+      }
+
+    if (includedMocs.find(absFilename) == includedMocs.end()
+
+              && notIncludedMocs.find(absFilename) == notIncludedMocs.end())
+

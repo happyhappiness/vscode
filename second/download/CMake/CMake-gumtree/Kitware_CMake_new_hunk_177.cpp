@@ -1,22 +1,40 @@
-			errno = 0;
-#if HAVE_EXTATTR_SET_FD
-			if (a->fd >= 0)
-				e = extattr_set_fd(a->fd, namespace, name,
-				    value, size);
-			else
-#endif
-			/* TODO: should we use extattr_set_link() instead? */
-			{
-				e = extattr_set_file(
-				    archive_entry_pathname(entry), namespace,
-				    name, value, size);
-			}
-			if (e != (int)size) {
-				if (errno == ENOTSUP || errno == ENOSYS) {
-					if (!warning_done) {
-						warning_done = 1;
-						archive_set_error(&a->archive,
-						    errno,
-						    "Cannot restore extended "
-						    "attributes on this file "
-						    "system");
+	case 'S':
+
+		/* We support some keys used by the "star" archiver */
+
+		if (strcmp(key, "SCHILY.acl.access") == 0) {
+
+			r = pax_attribute_acl(a, tar, entry, value,
+
+			    ARCHIVE_ENTRY_ACL_TYPE_ACCESS);
+
+			if (r == ARCHIVE_FATAL)
+
+				return (r);
+
+		} else if (strcmp(key, "SCHILY.acl.default") == 0) {
+
+			r = pax_attribute_acl(a, tar, entry, value,
+
+			    ARCHIVE_ENTRY_ACL_TYPE_DEFAULT);
+
+			if (r == ARCHIVE_FATAL)
+
+				return (r);
+
+		} else if (strcmp(key, "SCHILY.acl.ace") == 0) {
+
+			r = pax_attribute_acl(a, tar, entry, value,
+
+			    ARCHIVE_ENTRY_ACL_TYPE_NFS4);
+
+			if (r == ARCHIVE_FATAL)
+
+				return (r);
+
+		} else if (strcmp(key, "SCHILY.devmajor") == 0) {
+
+			archive_entry_set_rdevmajor(entry,
+
+			    (dev_t)tar_atol10(value, strlen(value)));
+

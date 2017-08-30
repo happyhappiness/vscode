@@ -1,9 +1,14 @@
-			archive_set_error(&a->archive, errno, "fchdir failed");
-			return (ARCHIVE_FAILED);
-		}
-#if defined(HAVE_STATVFS)
-		vr = statvfs(".", &svfs);
-#endif
-		r = statfs(".", &sfs);
-		if (r == 0)
-			xr = get_xfer_size(t, -1, ".");
+    if(0 == pollrc) {
+
+      /* timeout! */
+
+      ev->ms = 0;
+
+      /* fprintf(stderr, "call curl_multi_socket_action(TIMEOUT)\n"); */
+
+      mcode = curl_multi_socket_action(multi, CURL_SOCKET_TIMEOUT, 0,
+
+                                       &ev->running_handles);
+
+    }
+

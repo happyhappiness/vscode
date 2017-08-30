@@ -27,8 +27,6 @@ sys.setdefaultencoding('utf8')
 def deal_patch(patch_info, patch, total_hunk, writer):
 
     has_log = False
-    # divide mutiline string into single lines
-    patch = patch.split('\n')
 
     # old and new hunk content
     old_hunk = ''
@@ -52,7 +50,7 @@ def deal_patch(patch_info, patch, total_hunk, writer):
         # deal with past hunk and record new one
         if is_hunk:
             # if has log update, so deal with it
-            if not len(old_log_loc) == 0:
+            if len(old_log_loc) != 0 or len(new_log_loc) != 0:
                 has_log = True
                 total_hunk += 1
                 # write old hunk file to temp file
@@ -63,7 +61,7 @@ def deal_patch(patch_info, patch, total_hunk, writer):
                 new_hunk_name = my_constant.DOWNLOAD_NEW_HUNK + str(total_hunk) + '.cpp'
                 myUtil.save_file(new_hunk, new_hunk_name)
 
-                writer.writerow(patch_info + [ old_hunk_name, new_hunk_name, \
+                writer.writerow(patch_info + [old_hunk_name, new_hunk_name, \
                 old_hunk_loc, new_hunk_loc, json.dumps(old_log_loc), json.dumps(new_log_loc)])
             # initialize hunk info
             old_hunk = ''
@@ -90,6 +88,22 @@ def deal_patch(patch_info, patch, total_hunk, writer):
             if is_log_change:
                 old_log_loc.append(old_loc)
             old_loc += 1
+
+    # deal with last hunk, if has log update
+    if len(old_log_loc) != 0 or len(new_log_loc) != 0:
+        has_log = True
+        total_hunk += 1
+        # write old hunk file to temp file
+        old_hunk_name = my_constant.DOWNLOAD_OLD_HUNK + str(total_hunk) + '.cpp'
+        myUtil.save_file(old_hunk, old_hunk_name)
+
+        # write new hunk file to temp file
+        new_hunk_name = my_constant.DOWNLOAD_NEW_HUNK + str(total_hunk) + '.cpp'
+        myUtil.save_file(new_hunk, new_hunk_name)
+
+        writer.writerow(patch_info + [old_hunk_name, new_hunk_name, \
+        old_hunk_loc, new_hunk_loc, json.dumps(old_log_loc), json.dumps(new_log_loc)])
+
     return has_log, total_hunk
 
 
@@ -156,7 +170,7 @@ def fetch_patch():
         curr_patch_file = patch_info[my_constant.FETCH_PATCH_PATCH_FILE]
         curr_patch_file = open(curr_patch_file, 'rb')
         patch = curr_patch_file.readlines()
-        total_hunk = deal_patch(patch_info, patch, total_hunk, hunk_writer)
+        has_log, total_hunk = deal_patch(patch_info, patch, total_hunk, hunk_writer)
         curr_patch_file.close()
 
     hunk_file.close()
@@ -194,6 +208,7 @@ def deal_commit(gh, sha, total_hunk, total_log_cpp, total_cpp, total_file, hunk_
                     print e
                     continue
                 # call deal_patch to deal with the patch file
+                patch = patch.split('\n')
                 has_log, total_hunk = deal_patch(patch_info, patch, total_hunk, hunk_writer)
                 if has_log:
                     patch_writer.writerow(patch_info)
@@ -282,9 +297,9 @@ if __name__ == "__main__":
 
     # sha = 'a0f91f1daa7765066a784e4479da7e231374a065'
     # with function to retieve all the commits of given path
-    fetch_commit(False, 'b59987eed9f5a67b6672d913501e3ce6495f1465', 98892, 49199, 774, 1476)
+    # fetch_commit(False, 'b59987eed9f5a67b6672d913501e3ce6495f1465', 98892, 49199, 774, 1476)
     # fetch_commit()
-    # fetch_patch()
+    fetch_patch()
 
     # re.match(r'^@@.*-(.*),.*\+(.*),.*@@', 'test statement')
     # log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)

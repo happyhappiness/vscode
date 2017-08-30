@@ -1,7 +1,14 @@
-  // Set the version number
-  char tmp[1024];
-  sprintf(tmp,"Version %s", cmMakefile::GetVersion());
-	SetDlgItemText(IDC_CMAKE_VERSION, tmp);
-  return TRUE;  // return TRUE  unless you set the focus to a control
-}
+                 "                    (ClientData *)NULL, NULL);\n\n");
+
+    }
+
+  
+
+  for (i = 0; i < m_Commands.size(); i++)
+
+    {
+
+    fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
+
+    }
 

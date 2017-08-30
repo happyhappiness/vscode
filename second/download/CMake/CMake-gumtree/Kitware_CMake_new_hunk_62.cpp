@@ -1,9 +1,34 @@
-   */
+      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
 
-  /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-  snprintf(datestr, sizeof(datestr),
-           "%s: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-           condp,
-           Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-           tm->tm_mday,
-           Curl_month[tm->tm_mon],
+         last .sss part is optional and means fractions of a second */
+
+      int year, month, day, hour, minute, second;
+
+      if(6 == sscanf(&data->state.buffer[4], "%04d%02d%02d%02d%02d%02d",
+
+                     &year, &month, &day, &hour, &minute, &second)) {
+
+        /* we have a time, reformat it */
+
+        char timebuf[24];
+
+        time_t secs=time(NULL);
+
+
+
+        snprintf(timebuf, sizeof(timebuf),
+
+                 "%04d%02d%02d %02d:%02d:%02d GMT",
+
+                 year, month, day, hour, minute, second);
+
+        /* now, convert this into a time() value: */
+
+        data->info.filetime = (long)curl_getdate(timebuf, &secs);
+
+      }
+
+
+
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
+

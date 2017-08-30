@@ -1,14 +1,14 @@
-    return -1;
+  printf("Current Value: %s\n", iter.GetValue());
+
+  printf("New Value (Enter to keep current value): ");
+
+  char buffer[4096];
+
+  if(!fgets(buffer, sizeof(buffer)-1, stdin))
+
+    {
+
+    buffer[0] = 0;
+
     }
 
-#ifdef DEBUG
-  printf("  ==> extracting: %s (mode %04o, directory)\n", filename,
-         mode);
-#endif
-#ifdef WIN32
-  if (mkdir(filename) == -1)
-#else
-  if (mkdir(filename, mode) == -1)
-#endif
-  {
-#ifdef __BORLANDC__

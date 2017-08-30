@@ -1,11 +1,24 @@
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
 
-	if (a->tree != NULL)
-		a->tree = tree_reopen(a->tree, pathname,
-		    a->flags & ARCHIVE_READDISK_RESTORE_ATIME);
-	else
-		a->tree = tree_open(pathname, a->symlink_mode,
-		    a->flags & ARCHIVE_READDISK_RESTORE_ATIME);
-	if (a->tree == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate tar data");
+
+  /* We do some initial setup here, all those fields that can't be just 0 */
+
+
+
+  data->state.buffer = malloc(BUFSIZE + 1);
+
+  if(!data->state.buffer) {
+
+    DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"));
+
+    result = CURLE_OUT_OF_MEMORY;
+
+  }
+
+
+
+  data->state.headerbuff = malloc(HEADERSIZE);
+
+  if(!data->state.headerbuff) {
+
+    DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"));
+

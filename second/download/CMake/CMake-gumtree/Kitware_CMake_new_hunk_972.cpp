@@ -1,26 +1,52 @@
-  return str.find(what) != std::string::npos;
-}
+            break;
 
-std::string replace(const std::string& str, const std::string& what, const std::string& replacement) {
-  size_t pos = str.find(what);
-  if (pos == std::string::npos)
-    return str;
-  std::string replaced = str;
-  return replaced.replace(pos, what.size(), replacement);
-}
+          case 3:
 
+          {
+
+            char extra, high;
+
+            uint8_t length = *(p + offset++);
 
 
-static int process(bool ignoreErrors,
-                    const string& srcfile,
-                    const string& dfile,
-                    const string& objfile,
-                    const string& prefix,
-                    const string& cmd) {
 
-  SubprocessSet subprocs;
-  Subprocess* subproc = subprocs.Add(cmd);
+            if (length & 0x80) {
 
-  if(!subproc)
-    return 2;
+              extra = *(p + offset++);
+
+              high = (char)highbyte;
+
+            } else
+
+              extra = high = 0;
+
+            length = (length & 0x7f) + 2;
+
+            while (length && filename_size < fn_end) {
+
+              unsigned cp = filename_size >> 1;
+
+              filename[filename_size++] = high;
+
+              filename[filename_size++] = p[cp] + extra;
+
+              length--;
+
+            }
+
+          }
+
+          break;
+
+        }
+
+      }
+
+      if (filename_size > fn_end) {
+
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+          "Invalid filename");
+
+        return (ARCHIVE_FATAL);
 

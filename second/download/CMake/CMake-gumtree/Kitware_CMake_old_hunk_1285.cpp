@@ -1,13 +1,15 @@
-  m_CTest->EndXML(ostr);
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-  std::cout << "Close file: " << covLogFilename << std::endl;
-  ostr.close();
-}
-
-//----------------------------------------------------------------------
-bool cmCTestCoverageHandler::ShouldIDoCoverage(const char* file, const char* srcDir,
-  const char* binDir, bool verbose)
 {
-  std::string fSrcDir = cmSystemTools::CollapseFullPath(srcDir);
-  std::string fBinDir = cmSystemTools::CollapseFullPath(binDir);
+
+  printf("Would you like to see advanced options? [No]:");
+
+  char buffer[4096];
+
+  buffer[0] = 0;
+
+  fgets(buffer, sizeof(buffer)-1, stdin);
+
+  if(buffer[0])
+
+    {
+
+    if(buffer[0] == 'y' || buffer[0] == 'Y')

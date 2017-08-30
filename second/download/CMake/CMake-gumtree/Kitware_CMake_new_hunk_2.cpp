@@ -1,10 +1,20 @@
-}
-#endif
+	struct archive_string tempfile;
 
-#if ARCHIVE_XATTR_LINUX || ARCHIVE_XATTR_DARWIN || ARCHIVE_XATTR_AIX
 
-/*
- * Linux, Darwin and AIX extended attribute support.
- *
- * TODO:  By using a stack-allocated buffer for the first
- * call to getxattr(), we might be able to avoid the second
+
+	(void)fd; /* UNUSED */
+
+
+
+	name = archive_read_disk_entry_setup_path(a, entry, NULL);
+
+	if (name == NULL)
+
+		return (ARCHIVE_WARN);
+
+
+
+	/* Short-circuit if there's nothing to do. */
+
+	have_attrs = copyfile(name, NULL, 0, copyfile_flags | COPYFILE_CHECK);
+

@@ -1,8 +1,12 @@
-		unsigned short datasize = archive_le16dec(p + offset + 2);
+  return snprintf(p, len, " nghttp2/%s", h2->version_str);
 
-		offset += 4;
-		if (offset + datasize > extra_length)
-			break;
-#ifdef DEBUG
-		fprintf(stderr, "Header id 0x%04x, length %d\n",
-		    headerid, datasize);
+}
+
+
+
+/*
+
+ * The implementation of nghttp2_send_callback type. Here we write |data| with
+
+ * size |length| to the network and return the number of bytes actually
+

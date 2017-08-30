@@ -1,9 +1,33 @@
-{
-	struct archive_write *a = (struct archive_write *)_a;
-	int ret = ARCHIVE_FAILED;
+      * and IMAGE_FILE_HEADER.SizeOfOptionalHeader == 0;
 
-	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
-		ARCHIVE_STATE_NEW | ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
-		"archive_write_zip_set_compression_deflate");
-	if (a->archive.archive_format != ARCHIVE_FORMAT_ZIP) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+      */
+
+      DumpSymbols<IMAGE_FILE_HEADER, IMAGE_SYMBOL>
+
+        symbolDumper((PIMAGE_FILE_HEADER) lpFileBase, fout,
+
+                     (dosHeader->e_magic == IMAGE_FILE_MACHINE_AMD64));
+
+      symbolDumper.DumpObjFile();
+
+   } else {
+
+      // check for /bigobj format
+
+      cmANON_OBJECT_HEADER_BIGOBJ* h =
+
+        (cmANON_OBJECT_HEADER_BIGOBJ*) lpFileBase;
+
+      if(h->Sig1 == 0x0 && h->Sig2 == 0xffff) {
+
+         DumpSymbols<cmANON_OBJECT_HEADER_BIGOBJ, cmIMAGE_SYMBOL_EX>
+
+           symbolDumper((cmANON_OBJECT_HEADER_BIGOBJ*) lpFileBase, fout,
+
+                        (dosHeader->e_magic == IMAGE_FILE_MACHINE_AMD64));
+
+         symbolDumper.DumpObjFile();
+
+      } else {
+
+         printf("unrecognized file format in '%s'\n", filename);

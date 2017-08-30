@@ -1,7 +1,14 @@
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Invalid Rockridge RE");
-				return (NULL);
+				ret = ARCHIVE_WARN;
+
 			}
-			/*
-			 * Sanity check: file does not have "CL" extension.
+
+		} else {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+			    "Invalid extended attribute encountered");
+
+			ret = ARCHIVE_WARN;
+
+		}
+

@@ -1,15 +1,34 @@
-    return AUTH_CONTINUE;
+    return AUTH_ERROR;
+
   }
 
-  result = Curl_ftpsendf(conn, "ADAT %s", p);
+  p += 5;
 
-  free(p);
+  len = Curl_base64_decode(p, &ptr);
 
-  if(result)
-    return -2;
+  if(len > sizeof(adat.dat)-1) {
 
-  if(Curl_GetFTPResponse(&nread, conn, NULL))
-    return -1;
+    free(ptr);
 
-  if(data->state.buffer[0] != '2'){
-    Curl_failf(data, "Server didn't accept auth data");
+    len=0;
+
+  }
+
+  if(!len || !ptr) {
+
+    Curl_failf(data, "Failed to decode base64 from server");
+
+    return AUTH_ERROR;
+
+  }
+
+  memcpy((char *)adat.dat, ptr, len);
+
+  free(ptr);
+
+  adat.length = len;
+
+  ret = krb_rd_safe(adat.dat, adat.length, &d->key,
+
+                    (struct sockaddr_in *)hisctladdr,
+

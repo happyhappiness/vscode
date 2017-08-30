@@ -1,7 +1,13 @@
-	return (ARCHIVE_OK);
-#else
-	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external bunzip2 program");
-	return (ARCHIVE_WARN);
-#endif
-}
+      {
+
+      int i = *ni;
+
+      fprintf(stderr, "  contains target %d [%s]\n",
+
+              i, this->Targets[i]->GetName());
+
+      }
+
+    }
+
+  fprintf(stderr, "\n");

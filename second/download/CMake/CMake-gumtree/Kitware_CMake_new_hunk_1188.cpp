@@ -1,15 +1,16 @@
-#ifdef DEBUG
-  printf("<== th_read_internal(): returning %d\n", i);
-#endif
-  return (int)i;
-}
+    tmp = *i;
+
+    doEscape(tmp, "\\", "/");
+
+    doEscape(tmp, " ", "\\ ");
+
+    //doEscape(tmp, "(", "\\("); // TODO ninja can't read ( and )
+
+    //doEscape(tmp, ")", "\\)");
+
+    fprintf(out, "%s \\\n", tmp.c_str());
+
+  }
 
 
-/* wrapper function for th_read_internal() to handle GNU extensions */
-int
-th_read(TAR *t)
-{
-  ssize_t i, j;
-  size_t sz;
-  char *ptr;
 

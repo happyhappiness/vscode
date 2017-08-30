@@ -1,15 +1,22 @@
+  }
 
-void
-cmLocalVisualStudio6Generator
-::AddUtilityCommandHack(cmTarget& target, int count,
-                        std::vector<std::string>& depends,
-                        const cmCustomCommand& origCommand)
-{
-  // Create a fake output that forces the rule to run.
-  char* output = new char[(strlen(this->GetCurrentBinaryDirectory())
-                           + target.GetName().size() + 30)];
-  sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
-          target.GetName().c_str(), count);
-  const char* comment = origCommand.GetComment();
-  if(!comment && origCommand.GetOutputs().empty())
-    {
+
+
+  windowoffs = lzss_offset_for_position(&rar->lzss, startpos);
+
+  if(windowoffs + length <= lzss_size(&rar->lzss))
+
+    memcpy(&rar->unp_buffer[rar->unp_offset], &rar->lzss.window[windowoffs],
+
+           length);
+
+  else
+
+  {
+
+    firstpart = lzss_size(&rar->lzss) - windowoffs;
+
+    if (firstpart < 0) {
+
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+

@@ -1,13 +1,14 @@
-	if (zip->flags & ZIP_FLAG_AVOID_ZIP64) {
-		/* Reject entries over 4GB. */
-		if (archive_entry_size_is_set(entry)
-		    && (archive_entry_size(entry) > ZIP_4GB_MAX)) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Files > 4GB require Zip64 extensions");
-			return ARCHIVE_FAILED;
-		}
-		/* Reject entries if archive is > 4GB. */
-		if (zip->written_bytes > ZIP_4GB_MAX) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Archives > 4GB require Zip64 extensions");
-			return ARCHIVE_FAILED;
+ * The message SHALL NOT include any LF or CR.
+
+ */
+
+
+
+void Curl_failf(struct Curl_easy *data, const char *fmt, ...)
+
+{
+
+  va_list ap;
+
+  size_t len;
+

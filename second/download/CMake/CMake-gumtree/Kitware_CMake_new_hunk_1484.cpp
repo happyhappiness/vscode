@@ -1,26 +1,48 @@
-    {
-    sprintf(debugMessage, "String widget handling input, key: %d", key);
-    cmCursesForm::LogMessage(debugMessage);
+      std::string tagmode;
 
-    fm->PrintKeys();
+      if ( cmSystemTools::GetLineFromStream(tfin, tagmode) )
 
-    getmaxyx(stdscr, y, x);
-    // If window too small, handle 'q' only
-    if ( x < cmCursesMainForm::MIN_WIDTH  || 
-	 y < cmCursesMainForm::MIN_HEIGHT )
-      {
-      // quit
-      if ( key == 'q' )
-	{
-	return false;
-	}
-      else
-	{
-	key=getch(); 
-	continue;
-	}
+        {
+
+        if ( tagmode.size() > 4 && !( this->Tests[cmCTest::START_TEST] ||
+
+            this->Tests[ALL_TEST] ))
+
+          {
+
+          this->TestModel = cmCTest::GetTestModelFromString(tagmode.c_str());
+
+          }
+
+        }
+
+      tfin.close();
+
       }
 
-    // If resize occured during edit, move out of edit mode
-    if (!m_InEdit && ( key != 10 && key != KEY_ENTER ) )
+    if ( tag.size() == 0 || new_tag || this->Tests[cmCTest::START_TEST] ||
+
+      this->Tests[ALL_TEST])
+
       {
+
+      cmCTestLog(this, DEBUG, "TestModel: " << this->GetTestModelString()
+
+        << std::endl);
+
+      cmCTestLog(this, DEBUG, "TestModel: " << this->TestModel << std::endl);
+
+      if ( this->TestModel == cmCTest::NIGHTLY )
+
+        {
+
+        lctime = this->GetNightlyTime(
+
+          this->GetCTestConfiguration("NightlyStartTime"), this->TomorrowTag);
+
+        }
+
+      char datestring[100];
+
+      sprintf(datestring, "%04d%02d%02d-%02d%02d",
+

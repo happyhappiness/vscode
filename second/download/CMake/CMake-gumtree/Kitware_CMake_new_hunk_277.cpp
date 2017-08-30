@@ -1,6 +1,38 @@
-  return CURLE_OK;
-}
 
-/* true globals -- for curl_global_init() and curl_global_cleanup() */
-static unsigned int  initialized;
-static long          init_flags;
+
+#define HFS_BLOCKS(s)	((s) >> 12)
+
+
+
+static void	fsobj_error(int *, struct archive_string *, int, const char *,
+
+		    const char *);
+
+static int	check_symlinks_fsobj(char *, int *, struct archive_string *,
+
+		    int);
+
+static int	check_symlinks(struct archive_write_disk *);
+
+static int	create_filesystem_object(struct archive_write_disk *);
+
+static struct fixup_entry *current_fixup(struct archive_write_disk *,
+
+		    const char *pathname);
+
+#if defined(HAVE_FCHDIR) && defined(PATH_MAX)
+
+static void	edit_deep_directories(struct archive_write_disk *ad);
+
+#endif
+
+static int	cleanup_pathname_fsobj(char *, int *, struct archive_string *,
+
+		    int);
+
+static int	cleanup_pathname(struct archive_write_disk *);
+
+static int	create_dir(struct archive_write_disk *, char *);
+
+static int	create_parent_dir(struct archive_write_disk *, char *);
+

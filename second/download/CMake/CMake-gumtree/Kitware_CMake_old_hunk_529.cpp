@@ -1,9 +1,36 @@
-                        const cmCustomCommand& origCommand)
 {
-  // Create a fake output that forces the rule to run.
-  char* output = new char[(strlen(this->Makefile->GetCurrentBinaryDirectory())
-                           + target.GetName().size() + 30)];
-  sprintf(output,"%s/%s_force_%i", this->Makefile->GetCurrentBinaryDirectory(),
-          target.GetName().c_str(), count);
-  const char* comment = origCommand.GetComment();
-  if(!comment && origCommand.GetOutputs().empty())
+
+	struct unknown_tag *tag;
+
+
+
+#if DEBUG
+
+	fprintf(stderr, "unknowntag_end:%s\n", name);
+
+#endif
+
+	tag = xar->unknowntags;
+
+	if (tag == NULL || name == NULL)
+
+		return;
+
+	if (strcmp(tag->name.s, name) == 0) {
+
+		xar->unknowntags = tag->next;
+
+		archive_string_free(&(tag->name));
+
+		free(tag);
+
+		if (xar->unknowntags == NULL)
+
+			xar->xmlsts = xar->xmlsts_unknown;
+
+	}
+
+}
+
+
+

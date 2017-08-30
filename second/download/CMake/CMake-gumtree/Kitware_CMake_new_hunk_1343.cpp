@@ -1,9 +1,24 @@
-      cmSystemTools::Error(error.str().c_str());
-      return true;
-      }
-    cmOStringStream argcDefStream;
-    argcDefStream << expandedArguments.size();
-    std::string argcDef = argcDefStream.str();
-    
-    // Invoke all the functions that were collected in the block.
-    cmListFileFunction newLFF;
+  result = 0;
+
+  }
+
+# endif
+
+# ifdef DIRECTORY_DEF_DEBUG
+
+  {
+
+  fprintf(stderr, "DIRECTORY_DEF_DEBUG should not be defined in C\n");
+
+  result = 0;
+
+  }
+
+# endif
+
+# ifndef FILE_DEF_RELEASE
+
+#  ifndef PREPROCESS_XCODE
+
+  {
+

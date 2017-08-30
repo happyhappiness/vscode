@@ -1,13 +1,26 @@
-	return (archive_read_support_filter_program_signature(a, cmd, NULL, 0));
-}
+    if (useOldLinkLibs)
 
-/*
- * The bidder object stores the command and the signature to watch for.
- * The 'inhibit' entry here is used to ensure that unchecked filters never
- * bid twice in the same pipeline.
- */
-struct program_bidder {
-	char *description;
-	char *cmd;
-	void *signature;
-	size_t signature_len;
+      {
+
+      fprintf(fout,
+
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
+
+              targetName.c_str());
+
+      }
+
+    else
+
+      {
+
+      fprintf(fout, "target_link_libraries(%s %s)\n",
+
+              targetName.c_str(),
+
+              libsToLink.c_str());
+
+      }
+
+    fclose(fout);
+

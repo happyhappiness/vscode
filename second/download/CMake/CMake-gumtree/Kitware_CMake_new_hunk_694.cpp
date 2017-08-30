@@ -1,7 +1,14 @@
-    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-            this->BinaryDirectory.c_str());
-    /* Create the actual executable.  */
-    fprintf(fout, "add_executable(%s", targetName.c_str());
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
+    if(res)
+
+      return res;
+
+
+
+    free(*allocuserpwd);
+
+    *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
+
+                            proxy ? "Proxy-" : "",
+
+                            conn->response_header);
+

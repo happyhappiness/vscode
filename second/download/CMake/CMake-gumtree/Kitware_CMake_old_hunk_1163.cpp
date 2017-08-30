@@ -1,8 +1,46 @@
-    YY_BUFFER_STATE cmDependsFortran_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
-{
-        YY_BUFFER_STATE b;
+             int share, int output, int delay, double timeout, int poll,
 
-        b = (YY_BUFFER_STATE) cmDependsFortran_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
-        if ( ! b )
-                YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yy_create_buffer()" );
+             int repeat, int disown);
+
+
+
+int test1(int argc, const char* argv[])
+
+{
+
+  (void)argc; (void)argv;
+
+  fprintf(stdout, "Output on stdout from test returning 0.\n");
+
+  fprintf(stderr, "Output on stderr from test returning 0.\n");
+
+  return 0;
+
+}
+
+
+
+int test2(int argc, const char* argv[])
+
+{
+
+  (void)argc; (void)argv;
+
+  fprintf(stdout, "Output on stdout from test returning 123.\n");
+
+  fprintf(stderr, "Output on stderr from test returning 123.\n");
+
+  return 123;
+
+}
+
+
+
+int test3(int argc, const char* argv[])
+
+{
+
+  (void)argc; (void)argv;
+
+  fprintf(stdout, "Output before sleep on stdout from timeout test.\n");
 

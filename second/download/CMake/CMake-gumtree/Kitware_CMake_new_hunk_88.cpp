@@ -1,7 +1,26 @@
-    time_t filetime;
-    struct tm buffer;
-    const struct tm *tm = &buffer;
-    snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
-             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-    if(result)
+#endif
+
+#endif
+
+    default:
+
+      cp->ProcessResults[idx].ExitException = kwsysProcess_Exception_Other;
+
+      sprintf(cp->ProcessResults[idx].ExitExceptionString, "Signal %d", sig);
+
+      break;
+
+  }
+
+}
+
+#undef KWSYSPE_CASE
+
+
+
+/* When the child process encounters an error before its program is
+
+   invoked, this is called to report the error to the parent and
+
+   exit.  */
+

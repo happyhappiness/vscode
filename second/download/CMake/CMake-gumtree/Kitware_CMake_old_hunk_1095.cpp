@@ -1,7 +1,12 @@
-    fprintf(stdout, "%s\n", message.c_str());
-#endif
+    p += filename_size;
 
-    return this->ScanDependencies(tgtInfo);
-    }
-  else
-    {
+  }
+
+
+
+  if (rar->file_flags & FHD_SALT)
+
+  {
+
+    if (p + 8 > endp) {
+
