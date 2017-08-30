@@ -1,1 +1,1 @@
-xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer);
+len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL));

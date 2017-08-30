@@ -1,2 +1,2 @@
-fprintf(stderr, "cwd=[%s]\npwd=[%s]\npwd_path=[%s]\n",
-                cwd, pwd, pwd_path.c_str());
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external bunzip2 program");

@@ -1,7 +1,1 @@
-md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       digest->nc,
-                                       digest->cnonce,
-                                       digest->qop,
-                                       ha2);
+yy_fatal_error( "cmExpr_yyset_column called with no buffer" , yyscanner);

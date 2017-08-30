@@ -1,1 +1,1 @@
-sprintf(tz, " -%04ld", -author.TimeZone);
+fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);

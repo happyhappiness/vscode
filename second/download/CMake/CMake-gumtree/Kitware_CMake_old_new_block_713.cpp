@@ -1,5 +1,3 @@
 {
-  char * temp = new char[32];
-  sprintf(temp,"%d",this->ChipID.Revision);
-  return temp;
-}
+      fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
+      }

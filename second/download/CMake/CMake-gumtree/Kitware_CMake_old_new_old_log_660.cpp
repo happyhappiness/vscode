@@ -1,1 +1,1 @@
-sprintf(tz, " +%04ld", author.TimeZone);
+fprintf(progFile,"empty");

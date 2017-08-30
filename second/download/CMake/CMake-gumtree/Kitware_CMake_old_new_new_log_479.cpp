@@ -1,2 +1,3 @@
-fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideLang.c_str(), rulesOverridePath);
+archive_set_error(&a->archive,
+						    ARCHIVE_ERRNO_MISC,
+						    "Failed to encrypt file");

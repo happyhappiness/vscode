@@ -1,50 +1,50 @@
-(me->filetype) {
-	case AE_IFLNK:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=link");
-		if ((keys & F_SLINK) != 0) {
-			archive_strcat(str, " link=");
-			mtree_quote(str, me->symlink.s);
+{
+		size_t linkname_length = zip_entry->compressed_size;
+
+		archive_entry_set_size(entry, 0);
+		p = __archive_read_ahead(a, linkname_length, NULL);
+		if (p == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated Zip file");
+			return ARCHIVE_FATAL;
 		}
-		break;
-	case AE_IFSOCK:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=socket");
-		break;
-	case AE_IFCHR:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=char");
-		if ((keys & F_DEV) != 0) {
-			archive_string_sprintf(str,
-			    " device=native,%ju,%ju",
-			    (uintmax_t)me->rdevmajor,
-			    (uintmax_t)me->rdevminor);
+		if (__archive_read_consume(a, linkname_length) < 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Read error skipping symlink target name");
+			return ARCHIVE_FATAL;
 		}
-		break;
-	case AE_IFBLK:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=block");
-		if ((keys & F_DEV) != 0) {
-			archive_string_sprintf(str,
-			    " device=native,%ju,%ju",
-			    (uintmax_t)me->rdevmajor,
-			    (uintmax_t)me->rdevminor);
+
+		sconv = zip->sconv;
+		if (sconv == NULL && (zip->entry->zip_flags & ZIP_UTF8_NAME))
+			sconv = zip->sconv_utf8;
+		if (sconv == NULL)
+			sconv = zip->sconv_default;
+		if (archive_entry_copy_symlink_l(entry, p, linkname_length,
+		    sconv) != 0) {
+			if (errno != ENOMEM && sconv == zip->sconv_utf8 &&
+			    (zip->entry->zip_flags & ZIP_UTF8_NAME))
+			    archive_entry_copy_symlink_l(entry, p,
+				linkname_length, NULL);
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Symlink");
+				return (ARCHIVE_FATAL);
+			}
+			/*
+			 * Since there is no character-set regulation for
+			 * symlink name, do not report the conversion error
+			 * in an automatic conversion.
+			 */
+			if (sconv != zip->sconv_utf8 ||
+			    (zip->entry->zip_flags & ZIP_UTF8_NAME) == 0) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Symlink cannot be converted "
+				    "from %s to current locale.",
+				    archive_string_conversion_charset_name(
+					sconv));
+				ret = ARCHIVE_WARN;
+			}
 		}
-		break;
-	case AE_IFDIR:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=dir");
-		break;
-	case AE_IFIFO:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=fifo");
-		break;
-	case AE_IFREG:
-	default:	/* Handle unknown file types as regular files. */
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=file");
-		if ((keys & F_SIZE) != 0)
-			archive_string_sprintf(str, " size=%jd",
-			    (intmax_t)me->size);
-		break;
+		zip_entry->uncompressed_size = zip_entry->compressed_size = 0;
 	}

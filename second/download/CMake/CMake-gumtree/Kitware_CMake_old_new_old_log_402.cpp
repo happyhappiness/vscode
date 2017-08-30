@@ -1,1 +1,2 @@
-fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");

@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Tar entry size overflow");
+archive_set_error(&a->archive, errno,
+		    "Failed to get first ACL entry");

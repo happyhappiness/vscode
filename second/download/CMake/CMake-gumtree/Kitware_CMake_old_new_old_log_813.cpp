@@ -1,2 +1,3 @@
-fprintf(stderr, "Mismatch in exit exception.  Should have been %d.\n",
-              exception);
+archive_set_error(a, EINVAL,
+			    "Failed to convert a wide-character filename to"
+			    " a multi-byte filename");

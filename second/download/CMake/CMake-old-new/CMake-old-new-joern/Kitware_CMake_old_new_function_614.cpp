@@ -1,97 +1,47 @@
-static int
-xar_options(struct archive_write *a, const char *key, const char *value)
+void kwsysProcessCleanup(kwsysProcess* cp, int error)
 {
-	struct xar *xar;
+  int i;
+  /* If this is an error case, report the error.  */
+  if(error)
+    {
+    /* Construct an error message if one has not been provided already.  */
+    if(cp->ErrorMessage[0] == 0)
+      {
+      /* Format the error message.  */
+      DWORD original = GetLastError();
+      wchar_t err_msg[KWSYSPE_PIPE_BUFFER_SIZE];
+      DWORD length = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
+                                   FORMAT_MESSAGE_IGNORE_INSERTS, 0, original,
+                                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                                   err_msg, KWSYSPE_PIPE_BUFFER_SIZE, 0);
+      WideCharToMultiByte(CP_UTF8, 0, err_msg, -1, cp->ErrorMessage,
+                          KWSYSPE_PIPE_BUFFER_SIZE, NULL, NULL);
+      if(length < 1)
+        {
+        /* FormatMessage failed.  Use a default message.  */
+        _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  "Process execution failed with error 0x%X.  "
+                  "FormatMessage failed with error 0x%X",
+                  original, GetLastError());
+        }
+      }
 
-	xar = (struct xar *)a->format_data;
+    /* Remove trailing period and newline, if any.  */
+    kwsysProcessCleanErrorMessage(cp);
 
-	if (strcmp(key, "checksum") == 0) {
-		if (value == NULL)
-			xar->opt_sumalg = CKSUM_NONE;
-		else if (strcmp(value, "sha1") == 0)
-			xar->opt_sumalg = CKSUM_SHA1;
-		else if (strcmp(value, "md5") == 0)
-			xar->opt_sumalg = CKSUM_MD5;
-		else {
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Unkonwn checksum name: `%s'",
-			    value);
-			return (ARCHIVE_FAILED);
-		}
-		return (ARCHIVE_OK);
-	}
-	if (strcmp(key, "compression") == 0) {
-		const char *name = NULL;
+    /* Set the error state.  */
+    cp->State = kwsysProcess_State_Error;
 
-		if (value == NULL)
-			xar->opt_compression = NONE;
-		else if (strcmp(value, "gzip") == 0)
-			xar->opt_compression = GZIP;
-		else if (strcmp(value, "bzip2") == 0)
-#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
-			xar->opt_compression = BZIP2;
-#else
-			name = "bzip2";
-#endif
-		else if (strcmp(value, "lzma") == 0)
-#if HAVE_LZMA_H
-			xar->opt_compression = LZMA;
-#else
-			name = "lzma";
-#endif
-		else if (strcmp(value, "xz") == 0)
-#if HAVE_LZMA_H
-			xar->opt_compression = XZ;
-#else
-			name = "xz";
-#endif
-		else {
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Unkonwn compression name: `%s'",
-			    value);
-			return (ARCHIVE_FAILED);
-		}
-		if (name != NULL) {
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "`%s' compression not supported "
-			    "on this platform",
-			    name);
-			return (ARCHIVE_FAILED);
-		}
-		return (ARCHIVE_OK);
-	}
-	if (strcmp(key, "compression-level") == 0) {
-		if (value == NULL ||
-		    !(value[0] >= '0' && value[0] <= '9') ||
-		    value[1] != '\0') {
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Illeagal value `%s'",
-			    value);
-			return (ARCHIVE_FAILED);
-		}
-		xar->opt_compression_level = value[0] - '0';
-		return (ARCHIVE_OK);
-	}
-	if (strcmp(key, "toc-checksum") == 0) {
-		if (value == NULL)
-			xar->opt_toc_sumalg = CKSUM_NONE;
-		else if (strcmp(value, "sha1") == 0)
-			xar->opt_toc_sumalg = CKSUM_SHA1;
-		else if (strcmp(value, "md5") == 0)
-			xar->opt_toc_sumalg = CKSUM_MD5;
-		else {
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Unkonwn checksum name: `%s'",
-			    value);
-			return (ARCHIVE_FAILED);
-		}
-		return (ARCHIVE_OK);
-	}
-
-	return (ARCHIVE_FAILED);
-}
+    /* Cleanup any processes already started in a suspended state.  */
+    if(cp->ProcessInformation)
+      {
+      for(i=0; i < cp->NumberOfCommands; ++i)
+        {
+        if(cp->ProcessInformation[i].hProcess)
+          {
+          TerminateProcess(cp->ProcessInformation[i].hProcess, 255);
+          WaitForSingleObject(cp->ProcessInformation[i].hProcess, INFINITE);
+          }
+        }
+      for(i=0; i < cp->NumberOfCommands; ++i)
+        {

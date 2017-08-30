@@ -1,170 +1,142 @@
 static int
-header_common(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const void *h)
+translate_acl(struct archive_read_disk *a,
+    struct archive_entry *entry, acl_t acl, int default_entry_acl_type)
 {
-	const struct archive_entry_header_ustar	*header;
-	char	tartype;
-	int     err = ARCHIVE_OK;
+	acl_tag_t	 acl_tag;
+#ifdef ACL_TYPE_NFS4
+	acl_entry_type_t acl_type;
+	acl_flagset_t	 acl_flagset;
+	int brand, r;
+#endif
+	acl_entry_t	 acl_entry;
+	acl_permset_t	 acl_permset;
+	int		 i, entry_acl_type;
+	int		 s, ae_id, ae_tag, ae_perm;
+	const char	*ae_name;
 
-	header = (const struct archive_entry_header_ustar *)h;
-	if (header->linkname[0])
-		archive_strncpy(&(tar->entry_linkpath),
-		    header->linkname, sizeof(header->linkname));
-	else
-		archive_string_empty(&(tar->entry_linkpath));
 
-	/* Parse out the numeric fields (all are octal) */
-	archive_entry_set_mode(entry,
-		(mode_t)tar_atol(header->mode, sizeof(header->mode)));
-	archive_entry_set_uid(entry, tar_atol(header->uid, sizeof(header->uid)));
-	archive_entry_set_gid(entry, tar_atol(header->gid, sizeof(header->gid)));
-	tar->entry_bytes_remaining = tar_atol(header->size, sizeof(header->size));
-	if (tar->entry_bytes_remaining < 0) {
-		tar->entry_bytes_remaining = 0;
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Tar entry has negative size?");
-		err = ARCHIVE_WARN;
-	}
-	tar->realsize = tar->entry_bytes_remaining;
-	archive_entry_set_size(entry, tar->entry_bytes_remaining);
-	archive_entry_set_mtime(entry, tar_atol(header->mtime, sizeof(header->mtime)), 0);
-
-	/* Handle the tar type flag appropriately. */
-	tartype = header->typeflag[0];
-
-	switch (tartype) {
-	case '1': /* Hard link */
-		if (archive_entry_copy_hardlink_l(entry, tar->entry_linkpath.s,
-		    archive_strlen(&(tar->entry_linkpath)), tar->sconv) != 0) {
-			err = set_conversion_failed_error(a, tar->sconv,
-			    "Linkname");
-			if (err == ARCHIVE_FATAL)
-				return (err);
+#ifdef ACL_TYPE_NFS4
+	// FreeBSD "brands" ACLs as POSIX.1e or NFSv4
+	// Make sure the "brand" on this ACL is consistent
+	// with the default_entry_acl_type bits provided.
+	acl_get_brand_np(acl, &brand);
+	switch (brand) {
+	case ACL_BRAND_POSIX:
+		switch (default_entry_acl_type) {
+		case ARCHIVE_ENTRY_ACL_TYPE_ACCESS:
+		case ARCHIVE_ENTRY_ACL_TYPE_DEFAULT:
+			break;
+		default:
+			// XXX set warning message?
+			return ARCHIVE_FAILED;
 		}
-		/*
-		 * The following may seem odd, but: Technically, tar
-		 * does not store the file type for a "hard link"
-		 * entry, only the fact that it is a hard link.  So, I
-		 * leave the type zero normally.  But, pax interchange
-		 * format allows hard links to have data, which
-		 * implies that the underlying entry is a regular
-		 * file.
-		 */
-		if (archive_entry_size(entry) > 0)
-			archive_entry_set_filetype(entry, AE_IFREG);
+		break;
+	case ACL_BRAND_NFS4:
+		if (default_entry_acl_type & ~ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
+			// XXX set warning message?
+			return ARCHIVE_FAILED;
+		}
+		break;
+	default:
+		// XXX set warning message?
+		return ARCHIVE_FAILED;
+		break;
+	}
+#endif
+
+
+	s = acl_get_entry(acl, ACL_FIRST_ENTRY, &acl_entry);
+	while (s == 1) {
+		ae_id = -1;
+		ae_name = NULL;
+		ae_perm = 0;
+
+		acl_get_tag_type(acl_entry, &acl_tag);
+		switch (acl_tag) {
+		case ACL_USER:
+			ae_id = (int)*(uid_t *)acl_get_qualifier(acl_entry);
+			ae_name = archive_read_disk_uname(&a->archive, ae_id);
+			ae_tag = ARCHIVE_ENTRY_ACL_USER;
+			break;
+		case ACL_GROUP:
+			ae_id = (int)*(gid_t *)acl_get_qualifier(acl_entry);
+			ae_name = archive_read_disk_gname(&a->archive, ae_id);
+			ae_tag = ARCHIVE_ENTRY_ACL_GROUP;
+			break;
+		case ACL_MASK:
+			ae_tag = ARCHIVE_ENTRY_ACL_MASK;
+			break;
+		case ACL_USER_OBJ:
+			ae_tag = ARCHIVE_ENTRY_ACL_USER_OBJ;
+			break;
+		case ACL_GROUP_OBJ:
+			ae_tag = ARCHIVE_ENTRY_ACL_GROUP_OBJ;
+			break;
+		case ACL_OTHER:
+			ae_tag = ARCHIVE_ENTRY_ACL_OTHER;
+			break;
+#ifdef ACL_TYPE_NFS4
+		case ACL_EVERYONE:
+			ae_tag = ARCHIVE_ENTRY_ACL_EVERYONE;
+			break;
+#endif
+		default:
+			/* Skip types that libarchive can't support. */
+			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+			continue;
+		}
+
+		// XXX acl type maps to allow/deny/audit/YYYY bits
+		// XXX acl_get_entry_type_np on FreeBSD returns EINVAL for
+		// non-NFSv4 ACLs
+		entry_acl_type = default_entry_acl_type;
+#ifdef ACL_TYPE_NFS4
+		r = acl_get_entry_type_np(acl_entry, &acl_type);
+		if (r == 0) {
+			switch (acl_type) {
+			case ACL_ENTRY_TYPE_ALLOW:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
+				break;
+			case ACL_ENTRY_TYPE_DENY:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
+				break;
+			case ACL_ENTRY_TYPE_AUDIT:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_AUDIT;
+				break;
+			case ACL_ENTRY_TYPE_ALARM:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALARM;
+				break;
+			}
+		}
 
 		/*
-		 * A tricky point: Traditionally, tar readers have
-		 * ignored the size field when reading hardlink
-		 * entries, and some writers put non-zero sizes even
-		 * though the body is empty.  POSIX blessed this
-		 * convention in the 1988 standard, but broke with
-		 * this tradition in 2001 by permitting hardlink
-		 * entries to store valid bodies in pax interchange
-		 * format, but not in ustar format.  Since there is no
-		 * hard and fast way to distinguish pax interchange
-		 * from earlier archives (the 'x' and 'g' entries are
-		 * optional, after all), we need a heuristic.
+		 * Libarchive stores "flag" (NFSv4 inheritance bits)
+		 * in the ae_perm bitmap.
 		 */
-		if (archive_entry_size(entry) == 0) {
-			/* If the size is already zero, we're done. */
-		}  else if (a->archive.archive_format
-		    == ARCHIVE_FORMAT_TAR_PAX_INTERCHANGE) {
-			/* Definitely pax extended; must obey hardlink size. */
-		} else if (a->archive.archive_format == ARCHIVE_FORMAT_TAR
-		    || a->archive.archive_format == ARCHIVE_FORMAT_TAR_GNUTAR)
-		{
-			/* Old-style or GNU tar: we must ignore the size. */
-			archive_entry_set_size(entry, 0);
-			tar->entry_bytes_remaining = 0;
-		} else if (archive_read_format_tar_bid(a, 50) > 50) {
+		acl_get_flagset_np(acl_entry, &acl_flagset);
+                for (i = 0; i < (int)(sizeof(acl_inherit_map) / sizeof(acl_inherit_map[0])); ++i) {
+			if (acl_get_flag_np(acl_flagset,
+					    acl_inherit_map[i].platform_inherit))
+				ae_perm |= acl_inherit_map[i].archive_inherit;
+
+                }
+#endif
+
+		acl_get_permset(acl_entry, &acl_permset);
+		for (i = 0; i < (int)(sizeof(acl_perm_map) / sizeof(acl_perm_map[0])); ++i) {
 			/*
-			 * We don't know if it's pax: If the bid
-			 * function sees a valid ustar header
-			 * immediately following, then let's ignore
-			 * the hardlink size.
+			 * acl_get_perm() is spelled differently on different
+			 * platforms; see above.
 			 */
-			archive_entry_set_size(entry, 0);
-			tar->entry_bytes_remaining = 0;
+			if (ACL_GET_PERM(acl_permset, acl_perm_map[i].platform_perm))
+				ae_perm |= acl_perm_map[i].archive_perm;
 		}
-		/*
-		 * TODO: There are still two cases I'd like to handle:
-		 *   = a ustar non-pax archive with a hardlink entry at
-		 *     end-of-archive.  (Look for block of nulls following?)
-		 *   = a pax archive that has not seen any pax headers
-		 *     and has an entry which is a hardlink entry storing
-		 *     a body containing an uncompressed tar archive.
-		 * The first is worth addressing; I don't see any reliable
-		 * way to deal with the second possibility.
-		 */
-		break;
-	case '2': /* Symlink */
-		archive_entry_set_filetype(entry, AE_IFLNK);
-		archive_entry_set_size(entry, 0);
-		tar->entry_bytes_remaining = 0;
-		if (archive_entry_copy_symlink_l(entry, tar->entry_linkpath.s,
-		    archive_strlen(&(tar->entry_linkpath)), tar->sconv) != 0) {
-			err = set_conversion_failed_error(a, tar->sconv,
-			    "Linkname");
-			if (err == ARCHIVE_FATAL)
-				return (err);
-		}
-		break;
-	case '3': /* Character device */
-		archive_entry_set_filetype(entry, AE_IFCHR);
-		archive_entry_set_size(entry, 0);
-		tar->entry_bytes_remaining = 0;
-		break;
-	case '4': /* Block device */
-		archive_entry_set_filetype(entry, AE_IFBLK);
-		archive_entry_set_size(entry, 0);
-		tar->entry_bytes_remaining = 0;
-		break;
-	case '5': /* Dir */
-		archive_entry_set_filetype(entry, AE_IFDIR);
-		archive_entry_set_size(entry, 0);
-		tar->entry_bytes_remaining = 0;
-		break;
-	case '6': /* FIFO device */
-		archive_entry_set_filetype(entry, AE_IFIFO);
-		archive_entry_set_size(entry, 0);
-		tar->entry_bytes_remaining = 0;
-		break;
-	case 'D': /* GNU incremental directory type */
-		/*
-		 * No special handling is actually required here.
-		 * It might be nice someday to preprocess the file list and
-		 * provide it to the client, though.
-		 */
-		archive_entry_set_filetype(entry, AE_IFDIR);
-		break;
-	case 'M': /* GNU "Multi-volume" (remainder of file from last archive)*/
-		/*
-		 * As far as I can tell, this is just like a regular file
-		 * entry, except that the contents should be _appended_ to
-		 * the indicated file at the indicated offset.  This may
-		 * require some API work to fully support.
-		 */
-		break;
-	case 'N': /* Old GNU "long filename" entry. */
-		/* The body of this entry is a script for renaming
-		 * previously-extracted entries.  Ugh.  It will never
-		 * be supported by libarchive. */
-		archive_entry_set_filetype(entry, AE_IFREG);
-		break;
-	case 'S': /* GNU sparse files */
-		/*
-		 * Sparse files are really just regular files with
-		 * sparse information in the extended area.
-		 */
-		/* FALLTHROUGH */
-	default: /* Regular file  and non-standard types */
-		/*
-		 * Per POSIX: non-recognized types should always be
-		 * treated as regular files.
-		 */
-		archive_entry_set_filetype(entry, AE_IFREG);
-		break;
+
+		archive_entry_acl_add_entry(entry, entry_acl_type,
+					    ae_perm, ae_tag,
+					    ae_id, ae_name);
+
+		s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
 	}
-	return (err);
+	return (ARCHIVE_OK);
 }

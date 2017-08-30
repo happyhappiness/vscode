@@ -1,1 +1,1 @@
-fprintf(fout, "ADD_DEFINITIONS( ");
+fprintf(fout, "ADD_EXECUTABLE(%s", targetName);

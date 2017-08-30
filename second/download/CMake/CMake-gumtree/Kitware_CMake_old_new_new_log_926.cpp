@@ -1,1 +1,2 @@
-Curl_debug(data, CURLINFO_DATA_OUT, sptr, bytes_written);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+              "Attempt to seek past beginning of RAR data block");

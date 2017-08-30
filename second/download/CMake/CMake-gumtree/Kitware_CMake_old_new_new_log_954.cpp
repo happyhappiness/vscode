@@ -1,1 +1,1 @@
-fprintf(fout, "ENDIF (CMAKE_ANSI_CXXFLAGS)\n");
+fprintf(fout, "ADD_EXECUTABLE(%s", targetName);

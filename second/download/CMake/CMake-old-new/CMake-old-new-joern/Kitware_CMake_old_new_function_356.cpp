@@ -1,190 +1,209 @@
-static CURLcode ftp_state_pasv_resp(struct connectdata *conn,
-                                    int ftpcode)
+CURLcode Curl_sasl_create_digest_http_message(struct SessionHandle *data,
+                                              const char *userp,
+                                              const char *passwdp,
+                                              const unsigned char *request,
+                                              const unsigned char *uripath,
+                                              struct digestdata *digest,
+                                              char **outptr, size_t *outlen)
 {
-  struct ftp_conn *ftpc = &conn->proto.ftpc;
   CURLcode result;
-  struct SessionHandle *data=conn->data;
-  struct Curl_dns_entry *addr=NULL;
-  int rc;
-  unsigned short connectport; /* the local port connect() should use! */
-  char *str=&data->state.buffer[4];  /* start on the first letter */
+  unsigned char md5buf[16]; /* 16 bytes/128 bits */
+  unsigned char request_digest[33];
+  unsigned char *md5this;
+  unsigned char ha1[33];/* 32 digits and 1 zero byte */
+  unsigned char ha2[33];/* 32 digits and 1 zero byte */
+  char cnoncebuf[33];
+  char *cnonce = NULL;
+  size_t cnonce_sz = 0;
+  char *userp_quoted;
+  char *response = NULL;
+  char *tmp = NULL;
 
-  if((ftpc->count1 == 0) &&
-     (ftpcode == 229)) {
-    /* positive EPSV response */
-    char *ptr = strchr(str, '(');
-    if(ptr) {
-      unsigned int num;
-      char separator[4];
-      ptr++;
-      if(5  == sscanf(ptr, "%c%c%c%u%c",
-                      &separator[0],
-                      &separator[1],
-                      &separator[2],
-                      &num,
-                      &separator[3])) {
-        const char sep1 = separator[0];
-        int i;
+  if(!digest->nc)
+    digest->nc = 1;
 
-        /* The four separators should be identical, or else this is an oddly
-           formatted reply and we bail out immediately. */
-        for(i=1; i<4; i++) {
-          if(separator[i] != sep1) {
-            ptr=NULL; /* set to NULL to signal error */
-            break;
-          }
-        }
-        if(num > 0xffff) {
-          failf(data, "Illegal port number in EPSV reply");
-          return CURLE_FTP_WEIRD_PASV_REPLY;
-        }
-        if(ptr) {
-          ftpc->newport = (unsigned short)(num & 0xffff);
+  if(!digest->cnonce) {
+    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+             Curl_rand(data), Curl_rand(data),
+             Curl_rand(data), Curl_rand(data));
 
-          if(conn->bits.tunnel_proxy ||
-             conn->proxytype == CURLPROXY_SOCKS5 ||
-             conn->proxytype == CURLPROXY_SOCKS5_HOSTNAME ||
-             conn->proxytype == CURLPROXY_SOCKS4 ||
-             conn->proxytype == CURLPROXY_SOCKS4A)
-            /* proxy tunnel -> use other host info because ip_addr_str is the
-               proxy address not the ftp host */
-            snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
-                     conn->host.name);
-          else
-            /* use the same IP we are already connected to */
-            snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str);
-        }
-      }
-      else
-        ptr=NULL;
-    }
-    if(!ptr) {
-      failf(data, "Weirdly formatted EPSV reply");
-      return CURLE_FTP_WEIRD_PASV_REPLY;
-    }
+    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
+                                &cnonce, &cnonce_sz);
+    if(result)
+      return result;
+
+    digest->cnonce = cnonce;
   }
-  else if((ftpc->count1 == 1) &&
-          (ftpcode == 227)) {
-    /* positive PASV response */
-    int ip[4];
-    int port[2];
-
-    /*
-     * Scan for a sequence of six comma-separated numbers and use them as
-     * IP+port indicators.
-     *
-     * Found reply-strings include:
-     * "227 Entering Passive Mode (127,0,0,1,4,51)"
-     * "227 Data transfer will passively listen to 127,0,0,1,4,51"
-     * "227 Entering passive mode. 127,0,0,1,4,51"
-     */
-    while(*str) {
-      if(6 == sscanf(str, "%d,%d,%d,%d,%d,%d",
-                      &ip[0], &ip[1], &ip[2], &ip[3],
-                      &port[0], &port[1]))
-        break;
-      str++;
-    }
-
-    if(!*str) {
-      failf(data, "Couldn't interpret the 227-response");
-      return CURLE_FTP_WEIRD_227_FORMAT;
-    }
-
-    /* we got OK from server */
-    if(data->set.ftp_skip_ip) {
-      /* told to ignore the remotely given IP but instead use the one we used
-         for the control connection */
-      infof(data, "Skips %d.%d.%d.%d for data connection, uses %s instead\n",
-            ip[0], ip[1], ip[2], ip[3],
-            conn->ip_addr_str);
-      if(conn->bits.tunnel_proxy ||
-         conn->proxytype == CURLPROXY_SOCKS5 ||
-         conn->proxytype == CURLPROXY_SOCKS5_HOSTNAME ||
-         conn->proxytype == CURLPROXY_SOCKS4 ||
-         conn->proxytype == CURLPROXY_SOCKS4A)
-        /* proxy tunnel -> use other host info because ip_addr_str is the
-           proxy address not the ftp host */
-        snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s", conn->host.name);
-      else
-        snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
-                 conn->ip_addr_str);
-    }
-    else
-      snprintf(ftpc->newhost, sizeof(ftpc->newhost),
-               "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-    ftpc->newport = (unsigned short)(((port[0]<<8) + port[1]) & 0xffff);
-  }
-  else if(ftpc->count1 == 0) {
-    /* EPSV failed, move on to PASV */
-    return ftp_epsv_disable(conn);
-  }
-  else {
-    failf(data, "Bad PASV/EPSV response: %03d", ftpcode);
-    return CURLE_FTP_WEIRD_PASV_REPLY;
-  }
-
-  if(conn->bits.proxy) {
-    /*
-     * This connection uses a proxy and we need to connect to the proxy again
-     * here. We don't want to rely on a former host lookup that might've
-     * expired now, instead we remake the lookup here and now!
-     */
-    rc = Curl_resolv(conn, conn->proxy.name, (int)conn->port, &addr);
-    if(rc == CURLRESOLV_PENDING)
-      /* BLOCKING, ignores the return code but 'addr' will be NULL in
-         case of failure */
-      (void)Curl_resolver_wait_resolv(conn, &addr);
-
-    connectport =
-      (unsigned short)conn->port; /* we connect to the proxy's port */
-
-    if(!addr) {
-      failf(data, "Can't resolve proxy host %s:%hu",
-            conn->proxy.name, connectport);
-      return CURLE_FTP_CANT_GET_HOST;
-    }
-  }
-  else {
-    /* normal, direct, ftp connection */
-    rc = Curl_resolv(conn, ftpc->newhost, ftpc->newport, &addr);
-    if(rc == CURLRESOLV_PENDING)
-      /* BLOCKING */
-      (void)Curl_resolver_wait_resolv(conn, &addr);
-
-    connectport = ftpc->newport; /* we connect to the remote port */
-
-    if(!addr) {
-      failf(data, "Can't resolve new host %s:%hu", ftpc->newhost, connectport);
-      return CURLE_FTP_CANT_GET_HOST;
-    }
-  }
-
-  conn->bits.tcpconnect[SECONDARYSOCKET] = FALSE;
-  result = Curl_connecthost(conn, addr);
-
-  Curl_resolv_unlock(data, addr); /* we're done using this address */
-
-  if(result) {
-    if(ftpc->count1 == 0 && ftpcode == 229)
-      return ftp_epsv_disable(conn);
-
-    return result;
-  }
-
 
   /*
-   * When this is used from the multi interface, this might've returned with
-   * the 'connected' set to FALSE and thus we are now awaiting a non-blocking
-   * connect to connect.
-   */
+    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
 
-  if(data->set.verbose)
-    /* this just dumps information about this second connection */
-    ftp_pasv_verbose(conn, conn->ip_addr, ftpc->newhost, connectport);
+    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
 
-  conn->bits.do_more = TRUE;
-  state(conn, FTP_STOP); /* this phase is completed */
+    if the algorithm is "MD5-sess" then:
 
-  return result;
+    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
+         ":" unq(nonce-value) ":" unq(cnonce-value)
+  */
+
+  md5this = (unsigned char *)
+    aprintf("%s:%s:%s", userp, digest->realm, passwdp);
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  sasl_digest_md5_to_ascii(md5buf, ha1);
+
+  if(digest->algo == CURLDIGESTALGO_MD5SESS) {
+    /* nonce and cnonce are OUTSIDE the hash */
+    tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
+    Curl_md5it(md5buf, (unsigned char *)tmp);
+    free(tmp);
+    sasl_digest_md5_to_ascii(md5buf, ha1);
+  }
+
+  /*
+    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
+
+      A2       = Method ":" digest-uri-value
+
+          If the "qop" value is "auth-int", then A2 is:
+
+      A2       = Method ":" digest-uri-value ":" H(entity-body)
+
+    (The "Method" value is the HTTP request method as specified in section
+    5.1.1 of RFC 2616)
+  */
+
+  md5this = (unsigned char *)aprintf("%s:%s", request, uripath);
+
+  if(digest->qop && Curl_raw_equal(digest->qop, "auth-int")) {
+    /* We don't support auth-int for PUT or POST at the moment.
+       TODO: replace md5 of empty string with entity-body for PUT/POST */
+    unsigned char *md5this2 = (unsigned char *)
+      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
+    free(md5this);
+    md5this = md5this2;
+  }
+
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  sasl_digest_md5_to_ascii(md5buf, ha2);
+
+  if(digest->qop) {
+    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       digest->nc,
+                                       digest->cnonce,
+                                       digest->qop,
+                                       ha2);
+  }
+  else {
+    md5this = (unsigned char *)aprintf("%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       ha2);
+  }
+
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  sasl_digest_md5_to_ascii(md5buf, request_digest);
+
+  /* for test case 64 (snooped from a Mozilla 1.3a request)
+
+    Authorization: Digest username="testuser", realm="testrealm", \
+    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
+
+    Digest parameters are all quoted strings.  Username which is provided by
+    the user will need double quotes and backslashes within it escaped.  For
+    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
+    are copied as is from the server, escapes and all.  cnonce is generated
+    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
+    characters.  algorithm and qop with standard values only contain web-safe
+    chracters.
+  */
+  userp_quoted = sasl_digest_string_quoted(userp);
+  if(!userp_quoted)
+    return CURLE_OUT_OF_MEMORY;
+
+  if(digest->qop) {
+    response = aprintf("username=\"%s\", "
+                       "realm=\"%s\", "
+                       "nonce=\"%s\", "
+                       "uri=\"%s\", "
+                       "cnonce=\"%s\", "
+                       "nc=%08x, "
+                       "qop=%s, "
+                       "response=\"%s\"",
+                       userp_quoted,
+                       digest->realm,
+                       digest->nonce,
+                       uripath,
+                       digest->cnonce,
+                       digest->nc,
+                       digest->qop,
+                       request_digest);
+
+    if(Curl_raw_equal(digest->qop, "auth"))
+      digest->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0
+                       padded which tells to the server how many times you are
+                       using the same nonce in the qop=auth mode */
+  }
+  else {
+    response = aprintf("username=\"%s\", "
+                       "realm=\"%s\", "
+                       "nonce=\"%s\", "
+                       "uri=\"%s\", "
+                       "response=\"%s\"",
+                       userp_quoted,
+                       digest->realm,
+                       digest->nonce,
+                       uripath,
+                       request_digest);
+  }
+  free(userp_quoted);
+  if(!response)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Add the optional fields */
+  if(digest->opaque) {
+    /* Append the opaque */
+    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
+    free(response);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    response = tmp;
+  }
+
+  if(digest->algorithm) {
+    /* Append the algorithm */
+    tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
+    free(response);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    response = tmp;
+  }
+
+  /* Return the output */
+  *outptr = response;
+  *outlen = strlen(response);
+
+  return CURLE_OK;
 }

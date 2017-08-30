@@ -1,1 +1,1 @@
-sprintf(buf, "%6.2f sec", this->TestProcess->GetTotalTime());
+fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());

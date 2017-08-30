@@ -1,1 +1,2 @@
-ret = fprintf(f, "CONF %s", buf);
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external unlzma program for lzma decompression");

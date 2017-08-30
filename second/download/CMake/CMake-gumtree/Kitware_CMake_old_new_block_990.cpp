@@ -1,33 +1,29 @@
 {
-  int x,y;
-  getmaxyx(stdscr, y, x);
-  if ( x < cmCursesMainForm::MIN_WIDTH  || 
-       y < cmCursesMainForm::MIN_HEIGHT )
-    {
-    return;
-    }
-  char firstLine[512], secondLine[512];
-  if (m_OkToGenerate)
-    {
-    sprintf(firstLine,  "C)onfigure                 G)enerate and Exit            H)elp");
-    }
-  else
-    {
-    sprintf(firstLine,  "C)onfigure                                               H)elp");
-    }
-  if (m_AdvancedMode)
-    {
-    sprintf(secondLine, "Q)uit Without Generating   T)oggle Advanced Mode (On)");
-    }
-  else
-    {
-    sprintf(secondLine, "Q)uit Without Generating   T)oggle Advanced Mode (Off)");
-    }
+    /* Create an error reporting pipe for the forwarding executable.
+       Neither end is directly inherited.  */
+    if(!CreatePipe(&si->ErrorPipeRead, &si->ErrorPipeWrite, 0, 0))
+      {
+      return 0;
+      }
 
-  curses_move(y-2,0);
-  printw(firstLine);
-  curses_move(y-1,0);
-  printw(secondLine);
-  pos_form_cursor(m_Form);
-  
-}
+    /* Create an inherited duplicate of the write end.  This also closes
+       the non-inherited version. */
+    if(!DuplicateHandle(GetCurrentProcess(), si->ErrorPipeWrite,
+                        GetCurrentProcess(), &si->ErrorPipeWrite,
+                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
+                                  DUPLICATE_SAME_ACCESS)))
+      {
+      return 0;
+      }
+
+    /* The forwarding executable is given a handle to the error pipe
+       and resume and kill events.  */
+    realCommand = (char*)malloc(strlen(cp->Win9x)+strlen(cp->Commands[index])+100);
+    if(!realCommand)
+      {
+      return 0;
+      }
+    sprintf(realCommand, "%s %p %p %p %d %s", cp->Win9x,
+            si->ErrorPipeWrite, cp->Win9xResumeEvent, cp->Win9xKillEvent,
+            cp->HideWindow, cp->Commands[index]);
+    }

@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, 0,
-		    "Write request too large");
+DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));

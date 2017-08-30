@@ -1,140 +1,233 @@
-int
-archive_read_disk_entry_from_file(struct archive *_a,
-    struct archive_entry *entry, int fd, const struct stat *st)
+static int
+parse_keyword(struct archive_read *a, struct mtree *mtree,
+    struct archive_entry *entry, struct mtree_option *opt, int *parsed_kws)
 {
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	const wchar_t *path;
-	const wchar_t *wname;
-	const char *name;
-	HANDLE h;
-	BY_HANDLE_FILE_INFORMATION bhfi;
-	DWORD fileAttributes = 0;
-	int r;
+	char *val, *key;
 
-	archive_clear_error(_a);
-	wname = archive_entry_sourcepath_w(entry);
-	if (wname == NULL)
-		wname = archive_entry_pathname_w(entry);
-	if (wname == NULL) {
-		archive_set_error(&a->archive, EINVAL,
-		    "Can't get a wide character version of the path");
-		return (ARCHIVE_FAILED);
+	key = opt->value;
+
+	if (*key == '\0')
+		return (ARCHIVE_OK);
+
+	if (strcmp(key, "nochange") == 0) {
+		*parsed_kws |= MTREE_HAS_NOCHANGE;
+		return (ARCHIVE_OK);
 	}
-	path = __la_win_permissive_name_w(wname);
-
-	if (st == NULL) {
+	if (strcmp(key, "optional") == 0) {
+		*parsed_kws |= MTREE_HAS_OPTIONAL;
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "ignore") == 0) {
 		/*
-		 * Get metadata through GetFileInformationByHandle().
+		 * The mtree processing is not recursive, so
+		 * recursion will only happen for explicitly listed
+		 * entries.
 		 */
-		if (fd >= 0) {
-			h = (HANDLE)_get_osfhandle(fd);
-			r = GetFileInformationByHandle(h, &bhfi);
-			if (r == 0) {
-				archive_set_error(&a->archive, GetLastError(),
-				    "Can't GetFileInformationByHandle");
-				return (ARCHIVE_FAILED);
-			}
-			entry_copy_bhfi(entry, path, NULL, &bhfi);
-		} else {
-			WIN32_FIND_DATAW findData;
-			DWORD flag, desiredAccess;
-	
-			h = FindFirstFileW(path, &findData);
-			if (h == INVALID_DIR_HANDLE) {
-				archive_set_error(&a->archive, GetLastError(),
-				    "Can't FindFirstFileW");
-				return (ARCHIVE_FAILED);
-			}
-			FindClose(h);
+		return (ARCHIVE_OK);
+	}
 
-			flag = FILE_FLAG_BACKUP_SEMANTICS;
-			if (!a->follow_symlinks &&
-			    (findData.dwFileAttributes
-			      & FILE_ATTRIBUTE_REPARSE_POINT) &&
-				  (findData.dwReserved0 == IO_REPARSE_TAG_SYMLINK)) {
-				flag |= FILE_FLAG_OPEN_REPARSE_POINT;
-				desiredAccess = 0;
-			} else if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-				desiredAccess = 0;
+	val = strchr(key, '=');
+	if (val == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Malformed attribute \"%s\" (%d)", key, key[0]);
+		return (ARCHIVE_WARN);
+	}
+
+	*val = '\0';
+	++val;
+
+	switch (key[0]) {
+	case 'c':
+		if (strcmp(key, "content") == 0
+		    || strcmp(key, "contents") == 0) {
+			parse_escapes(val, NULL);
+			archive_strcpy(&mtree->contents_name, val);
+			break;
+		}
+		if (strcmp(key, "cksum") == 0)
+			break;
+	case 'd':
+		if (strcmp(key, "device") == 0) {
+			/* stat(2) st_rdev field, e.g. the major/minor IDs
+			 * of a char/block special file */
+			int r;
+			dev_t dev;
+
+			*parsed_kws |= MTREE_HAS_DEVICE;
+			r = parse_device(&dev, &a->archive, val);
+			if (r == ARCHIVE_OK)
+				archive_entry_set_rdev(entry, dev);
+			return r;
+		}
+	case 'f':
+		if (strcmp(key, "flags") == 0) {
+			*parsed_kws |= MTREE_HAS_FFLAGS;
+			archive_entry_copy_fflags_text(entry, val);
+			break;
+		}
+	case 'g':
+		if (strcmp(key, "gid") == 0) {
+			*parsed_kws |= MTREE_HAS_GID;
+			archive_entry_set_gid(entry, mtree_atol10(&val));
+			break;
+		}
+		if (strcmp(key, "gname") == 0) {
+			*parsed_kws |= MTREE_HAS_GNAME;
+			archive_entry_copy_gname(entry, val);
+			break;
+		}
+	case 'i':
+		if (strcmp(key, "inode") == 0) {
+			archive_entry_set_ino(entry, mtree_atol10(&val));
+			break;
+		}
+	case 'l':
+		if (strcmp(key, "link") == 0) {
+			archive_entry_copy_symlink(entry, val);
+			break;
+		}
+	case 'm':
+		if (strcmp(key, "md5") == 0 || strcmp(key, "md5digest") == 0)
+			break;
+		if (strcmp(key, "mode") == 0) {
+			if (val[0] >= '0' && val[0] <= '9') {
+				*parsed_kws |= MTREE_HAS_PERM;
+				archive_entry_set_perm(entry,
+				    (mode_t)mtree_atol8(&val));
+			} else {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Symbolic mode \"%s\" unsupported", val);
+				return ARCHIVE_WARN;
+			}
+			break;
+		}
+	case 'n':
+		if (strcmp(key, "nlink") == 0) {
+			*parsed_kws |= MTREE_HAS_NLINK;
+			archive_entry_set_nlink(entry,
+				(unsigned int)mtree_atol10(&val));
+			break;
+		}
+	case 'r':
+		if (strcmp(key, "resdevice") == 0) {
+			/* stat(2) st_dev field, e.g. the device ID where the
+			 * inode resides */
+			int r;
+			dev_t dev;
+
+			r = parse_device(&dev, &a->archive, val);
+			if (r == ARCHIVE_OK)
+				archive_entry_set_dev(entry, dev);
+			return r;
+		}
+		if (strcmp(key, "rmd160") == 0 ||
+		    strcmp(key, "rmd160digest") == 0)
+			break;
+	case 's':
+		if (strcmp(key, "sha1") == 0 || strcmp(key, "sha1digest") == 0)
+			break;
+		if (strcmp(key, "sha256") == 0 ||
+		    strcmp(key, "sha256digest") == 0)
+			break;
+		if (strcmp(key, "sha384") == 0 ||
+		    strcmp(key, "sha384digest") == 0)
+			break;
+		if (strcmp(key, "sha512") == 0 ||
+		    strcmp(key, "sha512digest") == 0)
+			break;
+		if (strcmp(key, "size") == 0) {
+			archive_entry_set_size(entry, mtree_atol10(&val));
+			break;
+		}
+	case 't':
+		if (strcmp(key, "tags") == 0) {
+			/*
+			 * Comma delimited list of tags.
+			 * Ignore the tags for now, but the interface
+			 * should be extended to allow inclusion/exclusion.
+			 */
+			break;
+		}
+		if (strcmp(key, "time") == 0) {
+			int64_t m;
+			int64_t my_time_t_max = get_time_t_max();
+			int64_t my_time_t_min = get_time_t_min();
+			long ns;
+
+			*parsed_kws |= MTREE_HAS_MTIME;
+			m = mtree_atol10(&val);
+			/* Replicate an old mtree bug:
+			 * 123456789.1 represents 123456789
+			 * seconds and 1 nanosecond. */
+			if (*val == '.') {
+				++val;
+				ns = (long)mtree_atol10(&val);
 			} else
-				desiredAccess = GENERIC_READ;
-
-			h = CreateFileW(path, desiredAccess, 0, NULL,
-			    OPEN_EXISTING, flag, NULL);
-			if (h == INVALID_HANDLE_VALUE) {
+				ns = 0;
+			if (m > my_time_t_max)
+				m = my_time_t_max;
+			else if (m < my_time_t_min)
+				m = my_time_t_min;
+			archive_entry_set_mtime(entry, (time_t)m, ns);
+			break;
+		}
+		if (strcmp(key, "type") == 0) {
+			switch (val[0]) {
+			case 'b':
+				if (strcmp(val, "block") == 0) {
+					archive_entry_set_filetype(entry, AE_IFBLK);
+					break;
+				}
+			case 'c':
+				if (strcmp(val, "char") == 0) {
+					archive_entry_set_filetype(entry, AE_IFCHR);
+					break;
+				}
+			case 'd':
+				if (strcmp(val, "dir") == 0) {
+					archive_entry_set_filetype(entry, AE_IFDIR);
+					break;
+				}
+			case 'f':
+				if (strcmp(val, "fifo") == 0) {
+					archive_entry_set_filetype(entry, AE_IFIFO);
+					break;
+				}
+				if (strcmp(val, "file") == 0) {
+					archive_entry_set_filetype(entry, AE_IFREG);
+					break;
+				}
+			case 'l':
+				if (strcmp(val, "link") == 0) {
+					archive_entry_set_filetype(entry, AE_IFLNK);
+					break;
+				}
+			default:
 				archive_set_error(&a->archive,
-				    GetLastError(),
-				    "Can't CreateFileW");
-				return (ARCHIVE_FAILED);
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Unrecognized file type \"%s\"; assuming \"file\"", val);
+				archive_entry_set_filetype(entry, AE_IFREG);
+				return (ARCHIVE_WARN);
 			}
-			r = GetFileInformationByHandle(h, &bhfi);
-			if (r == 0) {
-				archive_set_error(&a->archive,
-				    GetLastError(),
-				    "Can't GetFileInformationByHandle");
-				CloseHandle(h);
-				return (ARCHIVE_FAILED);
-			}
-			entry_copy_bhfi(entry, path, &findData, &bhfi);
+			*parsed_kws |= MTREE_HAS_TYPE;
+			break;
 		}
-		fileAttributes = bhfi.dwFileAttributes;
-	} else {
-		archive_entry_copy_stat(entry, st);
-		h = INVALID_DIR_HANDLE;
-	}
-
-	/* Lookup uname/gname */
-	name = archive_read_disk_uname(_a, archive_entry_uid(entry));
-	if (name != NULL)
-		archive_entry_copy_uname(entry, name);
-	name = archive_read_disk_gname(_a, archive_entry_gid(entry));
-	if (name != NULL)
-		archive_entry_copy_gname(entry, name);
-
-	/*
-	 * Can this file be sparse file ?
-	 */
-	if (archive_entry_filetype(entry) != AE_IFREG
-	    || archive_entry_size(entry) <= 0
-		|| archive_entry_hardlink(entry) != NULL) {
-		if (h != INVALID_HANDLE_VALUE && fd < 0)
-			CloseHandle(h);
-		return (ARCHIVE_OK);
-	}
-
-	if (h == INVALID_HANDLE_VALUE) {
-		if (fd >= 0) {
-			h = (HANDLE)_get_osfhandle(fd);
-		} else {
-			h = CreateFileW(path, GENERIC_READ, 0, NULL,
-			    OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
-			if (h == INVALID_HANDLE_VALUE) {
-				archive_set_error(&a->archive, GetLastError(),
-				    "Can't CreateFileW");
-				return (ARCHIVE_FAILED);
-			}
+	case 'u':
+		if (strcmp(key, "uid") == 0) {
+			*parsed_kws |= MTREE_HAS_UID;
+			archive_entry_set_uid(entry, mtree_atol10(&val));
+			break;
 		}
-		r = GetFileInformationByHandle(h, &bhfi);
-		if (r == 0) {
-			archive_set_error(&a->archive, GetLastError(),
-			    "Can't GetFileInformationByHandle");
-			if (h != INVALID_HANDLE_VALUE && fd < 0)
-				CloseHandle(h);
-			return (ARCHIVE_FAILED);
+		if (strcmp(key, "uname") == 0) {
+			*parsed_kws |= MTREE_HAS_UNAME;
+			archive_entry_copy_uname(entry, val);
+			break;
 		}
-		fileAttributes = bhfi.dwFileAttributes;
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unrecognized key %s=%s", key, val);
+		return (ARCHIVE_WARN);
 	}
-
-	/* Sparse file must be set a mark, FILE_ATTRIBUTE_SPARSE_FILE */
-	if ((fileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) == 0) {
-		if (fd < 0)
-			CloseHandle(h);
-		return (ARCHIVE_OK);
-	}
-
-	r = setup_sparse_from_disk(a, entry, h);
-	if (fd < 0)
-		CloseHandle(h);
-
-	return (r);
+	return (ARCHIVE_OK);
 }

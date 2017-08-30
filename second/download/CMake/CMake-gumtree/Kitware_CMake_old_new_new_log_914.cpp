@@ -1,0 +1,1 @@
+uudecode->state = ST_IGNORE;

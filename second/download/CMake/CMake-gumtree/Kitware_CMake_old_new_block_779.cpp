@@ -1,143 +1,176 @@
 {
-  unsigned int i;
-  std::string tempOutputFile = outFileName + ".tmp";
-  FILE *fout = fopen(tempOutputFile.c_str(),"w");
-  if (!fout)
-    {
-    cmSystemTools::Error("Failed to open TclInit file for ",
-                         tempOutputFile.c_str());
-    cmSystemTools::ReportLastSystemError("");
-    return false;
-    }
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	struct tree *t;
+	const struct stat *st; /* info to use for this entry */
+	const struct stat *lst;/* lstat() information */
+	int descend, fd = -1, r;
 
-  // capitalized commands just once
-  std::vector<std::string> capcommands;
-  for (i = 0; i < this->Commands.size(); i++)
-    {
-    capcommands.push_back(cmSystemTools::Capitalized(this->Commands[i]));
-    }
-  
-  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
-  fprintf(fout,"#include \"vtkVersion.h\"\n");
-  fprintf(fout,"#define VTK_TCL_TO_STRING(x) VTK_TCL_TO_STRING0(x)\n");
-  fprintf(fout,"#define VTK_TCL_TO_STRING0(x) #x\n");
-  
-  fprintf(fout,
-          "extern \"C\"\n"
-          "{\n"
-          "#if (TCL_MAJOR_VERSION == 8) && (TCL_MINOR_VERSION >= 4) && (TCL_RELEASE_LEVEL >= TCL_FINAL_RELEASE)\n"
-          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, CONST84 char *[]);\n"
-          "#else\n"
-          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, char *[]);\n"
-          "#endif\n"
-          "}\n"
-          "\n");
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
+	    "archive_read_next_header2");
 
-  for (i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
-    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
-    }
-  
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,"int vtkCommand(ClientData cd, Tcl_Interp *interp,\n"
-                 "               int argc, char *argv[]);\n");
-    fprintf(fout,"\nTcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkCommandLookup;\n");
-    fprintf(fout,"int vtkCommandForward(ClientData cd, Tcl_Interp *interp,\n"
-                 "                      int argc, char *argv[]){\n"
-                 "  return vtkCommand(cd, interp, argc, argv);\n"
-                 "}\n");
-    }
-  else
-    {
-    fprintf(fout,"\nextern Tcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkCommandLookup;\n");
-    }
-  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
-  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
+	t = a->tree;
+	if (t->entry_fd >= 0) {
+		close_and_restore_time(t->entry_fd, t, &t->restore_time);
+		t->entry_fd = -1;
+	}
+#if !(defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR))
+	/* Restore working directory. */
+	tree_enter_working_dir(t);
+#endif
+	st = NULL;
+	lst = NULL;
+	do {
+		switch (tree_next(t)) {
+		case TREE_ERROR_FATAL:
+			archive_set_error(&a->archive, t->tree_errno,
+			    "%s: Unable to continue traversing directory tree",
+			    tree_current_path(t));
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			tree_enter_initial_dir(t);
+			return (ARCHIVE_FATAL);
+		case TREE_ERROR_DIR:
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%s: Couldn't visit directory",
+			    tree_current_path(t));
+			tree_enter_initial_dir(t);
+			return (ARCHIVE_FAILED);
+		case 0:
+			tree_enter_initial_dir(t);
+			return (ARCHIVE_EOF);
+		case TREE_POSTDESCENT:
+		case TREE_POSTASCENT:
+			break;
+		case TREE_REGULAR:
+			lst = tree_current_lstat(t);
+			if (lst == NULL) {
+				archive_set_error(&a->archive, errno,
+				    "%s: Cannot stat",
+				    tree_current_path(t));
+				tree_enter_initial_dir(t);
+				return (ARCHIVE_FAILED);
+			}
+			break;
+		}	
+	} while (lst == NULL);
 
-  for (i = 0; i < this->Commands.size(); i++)
-    {
-    fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-            capcommands[i].c_str());
-    }
-  
-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n",
-          kitName);
-  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-          kitName);
-  
-  /* create an extern ref to the generic delete function */
-  fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
+	/*
+	 * Distinguish 'L'/'P'/'H' symlink following.
+	 */
+	switch(t->symlink_mode) {
+	case 'H':
+		/* 'H': After the first item, rest like 'P'. */
+		t->symlink_mode = 'P';
+		/* 'H': First item (from command line) like 'L'. */
+		/* FALLTHROUGH */
+	case 'L':
+		/* 'L': Do descend through a symlink to dir. */
+		descend = tree_current_is_dir(t);
+		/* 'L': Follow symlinks to files. */
+		a->symlink_mode = 'L';
+		a->follow_symlinks = 1;
+		/* 'L': Archive symlinks as targets, if we can. */
+		st = tree_current_stat(t);
+		if (st != NULL && !tree_target_is_same_as_parent(t, st))
+			break;
+		/* If stat fails, we have a broken symlink;
+		 * in that case, don't follow the link. */
+		/* FALLTHROUGH */
+	default:
+		/* 'P': Don't descend through a symlink to dir. */
+		descend = tree_current_is_physical_dir(t);
+		/* 'P': Don't follow symlinks to files. */
+		a->symlink_mode = 'P';
+		a->follow_symlinks = 0;
+		/* 'P': Archive symlinks as symlinks. */
+		st = lst;
+		break;
+	}
 
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,"extern \"C\"\n{\nvoid vtkCommonDeleteAssocData(ClientData cd)\n");
-    fprintf(fout,"  {\n");
-    fprintf(fout,"  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n");
-    fprintf(fout,"  delete tis;\n  }\n}\n");
-    }
-    
-  /* the main declaration */
-  fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
-  fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
-  
-  fprintf(fout,"\n\nint VTK_EXPORT %s_Init(Tcl_Interp *interp)\n{\n",
-          kitName);
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,
-            "  vtkTclInterpStruct *info = new vtkTclInterpStruct;\n");
-    fprintf(fout,
-            "  info->Number = 0; info->InDelete = 0; info->DebugOn = 0;\n");
-    fprintf(fout,"\n");
-    fprintf(fout,"\n");
-    fprintf(fout,
-            "  Tcl_InitHashTable(&info->InstanceLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_InitHashTable(&info->PointerLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_InitHashTable(&info->CommandLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");
-    fprintf(fout,
-            "  Tcl_CreateExitHandler(vtkCommonDeleteAssocData,(ClientData *)info);\n");
+	if (update_current_filesystem(a, st->st_dev) != ARCHIVE_OK) {
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		tree_enter_initial_dir(t);
+		return (ARCHIVE_FATAL);
+	}
+	t->descend = descend;
 
-    /* create special vtkCommand command */
-    fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",\n"
-                 "                    reinterpret_cast<vtkTclCommandType>(vtkCommandForward),\n"
-                 "                    (ClientData *)NULL, NULL);\n\n");
-    }
-  
-  for (i = 0; i < this->Commands.size(); i++)
-    {
-    fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
-    }
-  fprintf(fout,"\n");
+	archive_entry_set_pathname(entry, tree_current_path(t));
+	archive_entry_copy_sourcepath(entry, tree_current_access_path(t));
+	archive_entry_copy_stat(entry, st);
 
-  for (i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"  vtkTclCreateNew(interp,(char *) \"%s\", %sNewCommand,\n",
-            classes[i].c_str(), classes[i].c_str());
-    fprintf(fout,"                  %sCommand);\n",classes[i].c_str());
-    }
-  
-  fprintf(fout,"  char pkgName[]=\"%s\";\n", this->LibraryName.c_str());
-  fprintf(fout,"  char pkgVers[]=VTK_TCL_TO_STRING(VTK_MAJOR_VERSION)"
-               " \".\" "
-               "VTK_TCL_TO_STRING(VTK_MINOR_VERSION);\n");
-  fprintf(fout,"  Tcl_PkgProvide(interp, pkgName, pkgVers);\n");
-  fprintf(fout,"  return TCL_OK;\n}\n");
-  fclose(fout);
+	/* Save the times to be restored. */
+	t->restore_time.mtime = archive_entry_mtime(entry);
+	t->restore_time.mtime_nsec = archive_entry_mtime_nsec(entry);
+	t->restore_time.atime = archive_entry_atime(entry);
+	t->restore_time.atime_nsec = archive_entry_atime_nsec(entry);
+	t->restore_time.filetype = archive_entry_filetype(entry);
+	t->restore_time.noatime = t->current_filesystem->noatime;
 
-  // copy the file if different
-  cmSystemTools::CopyFileIfDifferent(tempOutputFile.c_str(),
-                                     outFileName.c_str());
-  cmSystemTools::RemoveFile(tempOutputFile.c_str());
+#if defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR)
+	/*
+	 * Open the current file to freely gather its metadata anywhere in
+	 * working directory.
+	 * Note: A symbolic link file cannot be opened with O_NOFOLLOW.
+	 */
+	if (a->follow_symlinks || archive_entry_filetype(entry) != AE_IFLNK)
+		fd = openat(tree_current_dir_fd(t), tree_current_access_path(t),
+		    O_RDONLY | O_NONBLOCK);
+	/* Restore working directory if openat() operation failed or
+	 * the file is a symbolic link. */
+	if (fd < 0)
+		tree_enter_working_dir(t);
 
-  return true;
+	/* The current directory fd is needed at
+	 * archive_read_disk_entry_from_file() function to read link data
+	 * with readlinkat(). */
+	a->entry_wd_fd = tree_current_dir_fd(t);
+#endif
+
+	/*
+	 * Populate the archive_entry with metadata from the disk.
+	 */
+	r = archive_read_disk_entry_from_file(&(a->archive), entry, fd, st);
+
+	/* Close the file descriptor used for reding the current file
+	 * metadata at archive_read_disk_entry_from_file(). */
+	if (fd >= 0)
+		close(fd);
+
+	/* Return to the initial directory. */
+	tree_enter_initial_dir(t);
+	archive_entry_copy_sourcepath(entry, tree_current_path(t));
+
+	/*
+	 * EOF and FATAL are persistent at this layer.  By
+	 * modifying the state, we guarantee that future calls to
+	 * read a header or read data will fail.
+	 */
+	switch (r) {
+	case ARCHIVE_EOF:
+		a->archive.state = ARCHIVE_STATE_EOF;
+		break;
+	case ARCHIVE_OK:
+	case ARCHIVE_WARN:
+		t->entry_total = 0;
+		if (archive_entry_filetype(entry) == AE_IFREG) {
+			t->nlink = archive_entry_nlink(entry);
+			t->entry_remaining_bytes = archive_entry_size(entry);
+			t->entry_eof = (t->entry_remaining_bytes == 0)? 1: 0;
+			if (!t->entry_eof &&
+			    setup_sparse(a, entry) != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+		} else {
+			t->entry_remaining_bytes = 0;
+			t->entry_eof = 1;
+		}
+		a->archive.state = ARCHIVE_STATE_DATA;
+		break;
+	case ARCHIVE_RETRY:
+		break;
+	case ARCHIVE_FATAL:
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		break;
+	}
+
+	return (r);
 }

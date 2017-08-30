@@ -1,0 +1,1 @@
+std::cerr << "No current working directory." << std::endl;

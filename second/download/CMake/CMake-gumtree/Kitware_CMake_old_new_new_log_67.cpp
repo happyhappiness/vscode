@@ -1,2 +1,2 @@
-_snprintf(cp->ProcessResults[idx].ExitExceptionString,
-                KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);
+snprintf(clbuf, sizeof(clbuf),
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);

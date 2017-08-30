@@ -1,1 +1,2 @@
-conn->allocptr.host = aprintf("Host: %s\r\n", host)
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+        "rar: unknown keyword ``%s''", key)

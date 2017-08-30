@@ -1,2 +1,1 @@
-fsobj_error(a_eno, a_estr, ARCHIVE_ERRNO_MISC,
-			    "Path is ", "absolute");
+acl_type = ARCHIVE_ENTRY_ACL_TYPE_ACCESS;

@@ -1,1 +1,1 @@
-fprintf(this->FileOut, "\t%s\n", symbol.c_str());
+snprintf((char *)&dest[i*2], 3, "%02x", source[i]);

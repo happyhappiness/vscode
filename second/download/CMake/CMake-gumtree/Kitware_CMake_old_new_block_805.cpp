@@ -1,5 +1,5 @@
 {
-          sprintf(argvName,"${ARGV%i}",t);
-          cmSystemTools::ReplaceString(tmps, argvName,
-                                       expandedArgs[t].c_str());
-          }
+				archive_set_error(&a->archive, GetLastError(),
+				    "Can't FindFirstFileW");
+				return (ARCHIVE_FAILED);
+			}

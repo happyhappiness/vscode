@@ -1,1 +1,1 @@
-fprintf(stderr, message);
+fprintf(fout, "ADD_EXECUTABLE(%s", targetName);

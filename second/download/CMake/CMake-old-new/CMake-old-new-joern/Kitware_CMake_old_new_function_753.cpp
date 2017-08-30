@@ -1,307 +1,489 @@
-CURLcode Curl_output_ntlm(struct connectdata *conn,
-                          bool proxy)
+int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
 {
-  const char *domain=""; /* empty */
-  const char *host=""; /* empty */
-  int domlen=(int)strlen(domain);
-  int hostlen = (int)strlen(host);
-  int hostoff; /* host name offset */
-  int domoff;  /* domain name offset */
-  size_t size;
-  char *base64=NULL;
-  unsigned char ntlmbuf[256]; /* enough, unless the host/domain is very long */
+  this->BinaryDirectory = argv[1].c_str();
+  this->OutputFile = "";
+  // which signature were we called with ?
+  this->SrcFileSignature = true;
 
-  /* point to the address of the pointer that holds the string to sent to the
-     server, which is for a plain host or for a HTTP proxy */
-  char **allocuserpwd;
+  const char* sourceDirectory = argv[2].c_str();
+  const char* projectName = 0;
+  const char* targetName = 0;
+  std::vector<std::string> cmakeFlags;
+  std::vector<std::string> compileDefs;
+  std::string outputVariable;
+  std::string copyFile;
+  std::string copyFileError;
+  std::vector<cmTarget*> targets;
+  std::string libsToLink = " ";
+  bool useOldLinkLibs = true;
+  char targetNameBuf[64];
+  bool didOutputVariable = false;
+  bool didCopyFile = false;
+  bool didCopyFileError = false;
+  bool useSources = argv[2] == "SOURCES";
+  std::vector<std::string> sources;
 
-  /* point to the name and password for this */
-  char *userp;
-  char *passwdp;
-  /* point to the correct struct with this */
-  struct ntlmdata *ntlm;
-  struct auth *authp;
-
-  curlassert(conn);
-  curlassert(conn->data);
-
-  if(proxy) {
-    allocuserpwd = &conn->allocptr.proxyuserpwd;
-    userp = conn->proxyuser;
-    passwdp = conn->proxypasswd;
-    ntlm = &conn->proxyntlm;
-    authp = &conn->data->state.authproxy;
-  }
-  else {
-    allocuserpwd = &conn->allocptr.userpwd;
-    userp = conn->user;
-    passwdp = conn->passwd;
-    ntlm = &conn->ntlm;
-    authp = &conn->data->state.authhost;
-  }
-  authp->done = FALSE;
-
-  /* not set means empty */
-  if(!userp)
-    userp=(char *)"";
-
-  if(!passwdp)
-    passwdp=(char *)"";
-
-  switch(ntlm->state) {
-  case NTLMSTATE_TYPE1:
-  default: /* for the weird cases we (re)start here */
-    hostoff = 32;
-    domoff = hostoff + hostlen;
-
-    /* Create and send a type-1 message:
-
-    Index Description          Content
-    0     NTLMSSP Signature    Null-terminated ASCII "NTLMSSP"
-                               (0x4e544c4d53535000)
-    8     NTLM Message Type    long (0x01000000)
-    12    Flags                long
-    16    Supplied Domain      security buffer(*)
-    24    Supplied Workstation security buffer(*)
-    32    start of data block
-
-    */
-
-    snprintf((char *)ntlmbuf, sizeof(ntlmbuf), "NTLMSSP%c"
-             "\x01%c%c%c" /* 32-bit type = 1 */
-             "%c%c%c%c"   /* 32-bit NTLM flag field */
-             "%c%c"  /* domain length */
-             "%c%c"  /* domain allocated space */
-             "%c%c"  /* domain name offset */
-             "%c%c"  /* 2 zeroes */
-             "%c%c"  /* host length */
-             "%c%c"  /* host allocated space */
-             "%c%c"  /* host name offset */
-             "%c%c"  /* 2 zeroes */
-             "%s"   /* host name */
-             "%s",  /* domain string */
-             0,     /* trailing zero */
-             0,0,0, /* part of type-1 long */
-
-             LONGQUARTET(
-               NTLMFLAG_NEGOTIATE_OEM|      /*   2 */
-               NTLMFLAG_NEGOTIATE_NTLM_KEY  /* 200 */
-               /* equals 0x0202 */
-               ),
-             SHORTPAIR(domlen),
-             SHORTPAIR(domlen),
-             SHORTPAIR(domoff),
-             0,0,
-             SHORTPAIR(hostlen),
-             SHORTPAIR(hostlen),
-             SHORTPAIR(hostoff),
-             0,0,
-             host, domain);
-
-    /* initial packet length */
-    size = 32 + hostlen + domlen;
-
-    /* now keeper of the base64 encoded package size */
-    size = Curl_base64_encode((char *)ntlmbuf, size, &base64);
-
-    if(size >0 ) {
-      Curl_safefree(*allocuserpwd);
-      *allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
-                              proxy?"Proxy-":"",
-                              base64);
-      free(base64);
-    }
+  enum Doing { DoingNone, DoingCMakeFlags, DoingCompileDefinitions,
+               DoingLinkLibraries, DoingOutputVariable, DoingCopyFile,
+               DoingCopyFileError, DoingSources };
+  Doing doing = useSources? DoingSources : DoingNone;
+  for(size_t i=3; i < argv.size(); ++i)
+    {
+    if(argv[i] == "CMAKE_FLAGS")
+      {
+      doing = DoingCMakeFlags;
+      // CMAKE_FLAGS is the first argument because we need an argv[0] that
+      // is not used, so it matches regular command line parsing which has
+      // the program name as arg 0
+      cmakeFlags.push_back(argv[i]);
+      }
+    else if(argv[i] == "COMPILE_DEFINITIONS")
+      {
+      doing = DoingCompileDefinitions;
+      }
+    else if(argv[i] == "LINK_LIBRARIES")
+      {
+      doing = DoingLinkLibraries;
+      useOldLinkLibs = false;
+      }
+    else if(argv[i] == "OUTPUT_VARIABLE")
+      {
+      doing = DoingOutputVariable;
+      didOutputVariable = true;
+      }
+    else if(argv[i] == "COPY_FILE")
+      {
+      doing = DoingCopyFile;
+      didCopyFile = true;
+      }
+    else if(argv[i] == "COPY_FILE_ERROR")
+      {
+      doing = DoingCopyFileError;
+      didCopyFileError = true;
+      }
+    else if(doing == DoingCMakeFlags)
+      {
+      cmakeFlags.push_back(argv[i]);
+      }
+    else if(doing == DoingCompileDefinitions)
+      {
+      compileDefs.push_back(argv[i]);
+      }
+    else if(doing == DoingLinkLibraries)
+      {
+      libsToLink += "\"" + cmSystemTools::TrimWhitespace(argv[i]) + "\" ";
+      if(cmTarget *tgt = this->Makefile->FindTargetToUse(argv[i].c_str()))
+        {
+        switch(tgt->GetType())
+          {
+          case cmTarget::SHARED_LIBRARY:
+          case cmTarget::STATIC_LIBRARY:
+          case cmTarget::UNKNOWN_LIBRARY:
+            break;
+          case cmTarget::EXECUTABLE:
+            if (tgt->IsExecutableWithExports())
+              {
+              break;
+              }
+          default:
+            this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+              "Only libraries may be used as try_compile IMPORTED "
+              "LINK_LIBRARIES.  Got " + std::string(tgt->GetName()) + " of "
+              "type " + tgt->GetTargetTypeName(tgt->GetType()) + ".");
+            return -1;
+          }
+        if (tgt->IsImported())
+          {
+          targets.push_back(tgt);
+          }
+        }
+      }
+    else if(doing == DoingOutputVariable)
+      {
+      outputVariable = argv[i].c_str();
+      doing = DoingNone;
+      }
+    else if(doing == DoingCopyFile)
+      {
+      copyFile = argv[i].c_str();
+      doing = DoingNone;
+      }
+    else if(doing == DoingCopyFileError)
+      {
+      copyFileError = argv[i].c_str();
+      doing = DoingNone;
+      }
+    else if(doing == DoingSources)
+      {
+      sources.push_back(argv[i]);
+      }
+    else if(i == 3)
+      {
+      this->SrcFileSignature = false;
+      projectName = argv[i].c_str();
+      }
+    else if(i == 4 && !this->SrcFileSignature)
+      {
+      targetName = argv[i].c_str();
+      }
     else
-      return CURLE_OUT_OF_MEMORY; /* FIX TODO */
-
-    break;
-
-  case NTLMSTATE_TYPE2:
-    /* We received the type-2 already, create a type-3 message:
-
-    Index   Description            Content
-    0       NTLMSSP Signature      Null-terminated ASCII "NTLMSSP"
-                                   (0x4e544c4d53535000)
-    8       NTLM Message Type      long (0x03000000)
-    12      LM/LMv2 Response       security buffer(*)
-    20      NTLM/NTLMv2 Response   security buffer(*)
-    28      Domain Name            security buffer(*)
-    36      User Name              security buffer(*)
-    44      Workstation Name       security buffer(*)
-    (52)    Session Key (optional) security buffer(*)
-    (60)    Flags (optional)       long
-    52 (64) start of data block
-
-    */
-
-  {
-    int lmrespoff;
-    int ntrespoff;
-    int useroff;
-    unsigned char lmresp[0x18]; /* fixed-size */
-#ifdef USE_NTRESPONSES
-    unsigned char ntresp[0x18]; /* fixed-size */
-#endif
-    const char *user;
-    int userlen;
-
-    user = strchr(userp, '\\');
-    if(!user)
-      user = strchr(userp, '/');
-
-    if (user) {
-      domain = userp;
-      domlen = (int)(user - domain);
-      user++;
+      {
+      cmOStringStream m;
+      m << "try_compile given unknown argument \"" << argv[i] << "\".";
+      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, m.str());
+      }
     }
+
+  if(didCopyFile && copyFile.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "COPY_FILE must be followed by a file path");
+    return -1;
+    }
+
+  if(didCopyFileError && copyFileError.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "COPY_FILE_ERROR must be followed by a variable name");
+    return -1;
+    }
+
+  if(didCopyFileError && !didCopyFile)
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "COPY_FILE_ERROR may be used only with COPY_FILE");
+    return -1;
+    }
+
+  if(didOutputVariable && outputVariable.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "OUTPUT_VARIABLE must be followed by a variable name");
+    return -1;
+    }
+
+  if(useSources && sources.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "SOURCES must be followed by at least one source file");
+    return -1;
+    }
+
+  // compute the binary dir when TRY_COMPILE is called with a src file
+  // signature
+  if (this->SrcFileSignature)
+    {
+    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
+    this->BinaryDirectory += "/CMakeTmp";
+    }
+  else
+    {
+    // only valid for srcfile signatures
+    if (compileDefs.size())
+      {
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
+      return -1;
+      }
+    if (copyFile.size())
+      {
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+        "COPY_FILE specified on a srcdir type TRY_COMPILE");
+      return -1;
+      }
+    }
+  // make sure the binary directory exists
+  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
+
+  // do not allow recursive try Compiles
+  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory())
+    {
+    cmOStringStream e;
+    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
+      << "  " << this->BinaryDirectory << "\n";
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+    return -1;
+    }
+
+  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
+  // which signature are we using? If we are using var srcfile bindir
+  if (this->SrcFileSignature)
+    {
+    // remove any CMakeCache.txt files so we will have a clean test
+    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
+    cmSystemTools::RemoveFile(ccFile.c_str());
+
+    // Choose sources.
+    if(!useSources)
+      {
+      sources.push_back(argv[2]);
+      }
+
+    // Detect languages to enable.
+    cmLocalGenerator* lg = this->Makefile->GetLocalGenerator();
+    cmGlobalGenerator* gg = lg->GetGlobalGenerator();
+    std::set<std::string> testLangs;
+    for(std::vector<std::string>::iterator si = sources.begin();
+        si != sources.end(); ++si)
+      {
+      std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
+      if(const char* lang = gg->GetLanguageFromExtension(ext.c_str()))
+        {
+        testLangs.insert(lang);
+        }
+      else
+        {
+        cmOStringStream err;
+        err << "Unknown extension \"" << ext << "\" for file\n"
+            << "  " << *si << "\n"
+            << "try_compile() works only for enabled languages.  "
+            << "Currently these are:\n ";
+        std::vector<std::string> langs;
+        gg->GetEnabledLanguages(langs);
+        for(std::vector<std::string>::iterator l = langs.begin();
+            l != langs.end(); ++l)
+          {
+          err << " " << *l;
+          }
+        err << "\nSee project() command to enable other languages.";
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
+        return -1;
+        }
+      }
+
+    // we need to create a directory and CMakeLists file etc...
+    // first create the directories
+    sourceDirectory = this->BinaryDirectory.c_str();
+
+    // now create a CMakeLists.txt file in that directory
+    FILE *fout = fopen(outFileName.c_str(),"w");
+    if (!fout)
+      {
+      cmOStringStream e;
+      e << "Failed to open\n"
+        << "  " << outFileName.c_str() << "\n"
+        << cmSystemTools::GetLastSystemError();
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+      return -1;
+      }
+
+    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
+    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
+            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
+            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
+    if(def)
+      {
+      fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
+      }
+
+    std::string projectLangs;
+    for(std::set<std::string>::iterator li = testLangs.begin();
+        li != testLangs.end(); ++li)
+      {
+      projectLangs += " " + *li;
+      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
+      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
+      if(const char* rulesOverridePath =
+         this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
+        {
+        fprintf(fout, "SET(%s \"%s\")\n",
+                rulesOverrideLang.c_str(), rulesOverridePath);
+        }
+      else if(const char* rulesOverridePath2 =
+              this->Makefile->GetDefinition(rulesOverrideBase.c_str()))
+        {
+        fprintf(fout, "SET(%s \"%s\")\n",
+                rulesOverrideBase.c_str(), rulesOverridePath2);
+        }
+      }
+    fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
+    fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");
+    for(std::set<std::string>::iterator li = testLangs.begin();
+        li != testLangs.end(); ++li)
+      {
+      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
+      const char* flags = this->Makefile->GetDefinition(langFlags.c_str());
+      fprintf(fout, "SET(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              lg->EscapeForCMake(flags?flags:"").c_str());
+      fprintf(fout, "SET(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
+              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
+      }
+    fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
+    fprintf(fout, "SET(CMAKE_SUPPRESS_REGENERATION 1)\n");
+    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
+    // handle any compile flags we need to pass on
+    if (compileDefs.size())
+      {
+      fprintf(fout, "ADD_DEFINITIONS( ");
+      for (size_t i = 0; i < compileDefs.size(); ++i)
+        {
+        fprintf(fout,"%s ",compileDefs[i].c_str());
+        }
+      fprintf(fout, ")\n");
+      }
+
+    /* Use a random file name to avoid rapid creation and deletion
+       of the same executable name (some filesystems fail on that).  */
+    sprintf(targetNameBuf, "cmTryCompileExec%u",
+            cmSystemTools::RandomSeed());
+    targetName = targetNameBuf;
+
+    if (!targets.empty())
+      {
+      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
+      cmExportTryCompileFileGenerator tcfg;
+      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
+      tcfg.SetExports(targets);
+      tcfg.SetConfig(this->Makefile->GetDefinition(
+                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
+
+      if(!tcfg.GenerateImportFile())
+        {
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+                                     "could not write export file.");
+        fclose(fout);
+        return -1;
+        }
+      fprintf(fout,
+              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
+              fname.c_str());
+      }
+
+    /* for the TRY_COMPILEs we want to be able to specify the architecture.
+      So the user can set CMAKE_OSX_ARCHITECTURE to i386;ppc and then set
+      CMAKE_TRY_COMPILE_OSX_ARCHITECTURE first to i386 and then to ppc to
+      have the tests run for each specific architecture. Since
+      cmLocalGenerator doesn't allow building for "the other"
+      architecture only via CMAKE_OSX_ARCHITECTURES.
+      */
+    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition(
+                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+      }
+    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+      }
+    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
+    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_SYSROOT=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
+      cmakeFlags.push_back(flag);
+      }
+    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
+    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
+      cmakeFlags.push_back(flag);
+      }
+    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
+      {
+      fprintf(fout, "SET(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
+      }
+
+    /* Put the executable at a known location (for COPY_FILE).  */
+    fprintf(fout, "SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+            this->BinaryDirectory.c_str());
+    /* Create the actual executable.  */
+    fprintf(fout, "ADD_EXECUTABLE(%s", targetName);
+    for(std::vector<std::string>::iterator si = sources.begin();
+        si != sources.end(); ++si)
+      {
+      fprintf(fout, " \"%s\"", si->c_str());
+
+      // Add dependencies on any non-temporary sources.
+      if(si->find("CMakeTmp") == si->npos)
+        {
+        this->Makefile->AddCMakeDependFile(*si);
+        }
+      }
+    fprintf(fout, ")\n");
+    if (useOldLinkLibs)
+      {
+      fprintf(fout,
+              "TARGET_LINK_LIBRARIES(%s ${LINK_LIBRARIES})\n",targetName);
+      }
     else
-      user = userp;
-    userlen = (int)strlen(user);
-
-    mkhash(passwdp, &ntlm->nonce[0], lmresp
-#ifdef USE_NTRESPONSES
-           , ntresp
-#endif
-      );
-
-    domoff = 64; /* always */
-    useroff = domoff + domlen;
-    hostoff = useroff + userlen;
-    lmrespoff = hostoff + hostlen;
-    ntrespoff = lmrespoff + 0x18;
-
-    /* Create the big type-3 message binary blob */
-    size = snprintf((char *)ntlmbuf, sizeof(ntlmbuf),
-                    "NTLMSSP%c"
-                    "\x03%c%c%c" /* type-3, 32 bits */
-
-                    "%c%c%c%c" /* LanManager length + allocated space */
-                    "%c%c" /* LanManager offset */
-                    "%c%c" /* 2 zeroes */
-
-                    "%c%c" /* NT-response length */
-                    "%c%c" /* NT-response allocated space */
-                    "%c%c" /* NT-response offset */
-                    "%c%c" /* 2 zeroes */
-
-                    "%c%c"  /* domain length */
-                    "%c%c"  /* domain allocated space */
-                    "%c%c"  /* domain name offset */
-                    "%c%c"  /* 2 zeroes */
-
-                    "%c%c"  /* user length */
-                    "%c%c"  /* user allocated space */
-                    "%c%c"  /* user offset */
-                    "%c%c"  /* 2 zeroes */
-
-                    "%c%c"  /* host length */
-                    "%c%c"  /* host allocated space */
-                    "%c%c"  /* host offset */
-                    "%c%c%c%c%c%c"  /* 6 zeroes */
-
-                    "\xff\xff"  /* message length */
-                    "%c%c"  /* 2 zeroes */
-
-                    "\x01\x82" /* flags */
-                    "%c%c"  /* 2 zeroes */
-
-                    /* domain string */
-                    /* user string */
-                    /* host string */
-                    /* LanManager response */
-                    /* NT response */
-                    ,
-                    0, /* zero termination */
-                    0,0,0, /* type-3 long, the 24 upper bits */
-
-                    SHORTPAIR(0x18),  /* LanManager response length, twice */
-                    SHORTPAIR(0x18),
-                    SHORTPAIR(lmrespoff),
-                    0x0, 0x0,
-
-#ifdef USE_NTRESPONSES
-                    SHORTPAIR(0x18),  /* NT-response length, twice */
-                    SHORTPAIR(0x18),
-#else
-                    0x0, 0x0,
-                    0x0, 0x0,
-#endif
-                    SHORTPAIR(ntrespoff),
-                    0x0, 0x0,
-
-                    SHORTPAIR(domlen),
-                    SHORTPAIR(domlen),
-                    SHORTPAIR(domoff),
-                    0x0, 0x0,
-
-                    SHORTPAIR(userlen),
-                    SHORTPAIR(userlen),
-                    SHORTPAIR(useroff),
-                    0x0, 0x0,
-
-                    SHORTPAIR(hostlen),
-                    SHORTPAIR(hostlen),
-                    SHORTPAIR(hostoff),
-                    0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-
-                    0x0, 0x0,
-
-                    0x0, 0x0);
-
-    /* size is now 64 */
-    size=64;
-    ntlmbuf[62]=ntlmbuf[63]=0;
-
-    memcpy(&ntlmbuf[size], domain, domlen);
-    size += domlen;
-
-    memcpy(&ntlmbuf[size], user, userlen);
-    size += userlen;
-
-    /* we append the binary hashes to the end of the blob */
-    if(size < ((int)sizeof(ntlmbuf) - 0x18)) {
-      memcpy(&ntlmbuf[size], lmresp, 0x18);
-      size += 0x18;
+      {
+      fprintf(fout, "TARGET_LINK_LIBRARIES(%s %s)\n",
+              targetName,
+              libsToLink.c_str());
+      }
+    fclose(fout);
+    projectName = "CMAKE_TRY_COMPILE";
     }
 
-#ifdef USE_NTRESPONSES
-    if(size < ((int)sizeof(ntlmbuf) - 0x18)) {
-      memcpy(&ntlmbuf[size], ntresp, 0x18);
-      size += 0x18;
+  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
+  cmSystemTools::ResetErrorOccuredFlag();
+  std::string output;
+  // actually do the try compile now that everything is setup
+  int res = this->Makefile->TryCompile(sourceDirectory,
+                                       this->BinaryDirectory.c_str(),
+                                       projectName,
+                                       targetName,
+                                       this->SrcFileSignature,
+                                       &cmakeFlags,
+                                       &output);
+  if ( erroroc )
+    {
+    cmSystemTools::SetErrorOccured();
     }
-#endif
 
-    ntlmbuf[56] = (unsigned char)(size & 0xff);
-    ntlmbuf[57] = (unsigned char)(size >> 8);
+  // set the result var to the return value to indicate success or failure
+  this->Makefile->AddCacheDefinition(argv[0].c_str(),
+                                     (res == 0 ? "TRUE" : "FALSE"),
+                                     "Result of TRY_COMPILE",
+                                     cmCacheManager::INTERNAL);
 
-    /* convert the binary blob into base64 */
-    size = Curl_base64_encode((char *)ntlmbuf, size, &base64);
-
-    if(size >0 ) {
-      Curl_safefree(*allocuserpwd);
-      *allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
-                              proxy?"Proxy-":"",
-                              base64);
-      free(base64);
+  if ( outputVariable.size() > 0 )
+    {
+    this->Makefile->AddDefinition(outputVariable.c_str(), output.c_str());
     }
-    else
-      return CURLE_OUT_OF_MEMORY; /* FIX TODO */
 
-    ntlm->state = NTLMSTATE_TYPE3; /* we sent a type-3 */
-    authp->done = TRUE;
-  }
-  break;
+  if (this->SrcFileSignature)
+    {
+    std::string copyFileErrorMessage;
+    this->FindOutputFile(targetName);
 
-  case NTLMSTATE_TYPE3:
-    /* connection is already authenticated,
-     * don't send a header in future requests */
-    if(*allocuserpwd) {
-      free(*allocuserpwd);
-      *allocuserpwd=NULL;
+    if ((res==0) && (copyFile.size()))
+      {
+      if(this->OutputFile.empty() ||
+         !cmSystemTools::CopyFileAlways(this->OutputFile.c_str(),
+                                        copyFile.c_str()))
+        {
+        cmOStringStream emsg;
+        emsg << "Cannot copy output executable\n"
+             << "  '" << this->OutputFile.c_str() << "'\n"
+             << "to destination specified by COPY_FILE:\n"
+             << "  '" << copyFile.c_str() << "'\n";
+        if(!this->FindErrorMessage.empty())
+          {
+          emsg << this->FindErrorMessage.c_str();
+          }
+        if(copyFileError.empty())
+          {
+          this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
+          return -1;
+          }
+        else
+          {
+          copyFileErrorMessage = emsg.str();
+          }
+        }
+      }
+
+    if(!copyFileError.empty())
+      {
+      this->Makefile->AddDefinition(copyFileError.c_str(),
+                                    copyFileErrorMessage.c_str());
+      }
     }
-    authp->done = TRUE;
-    break;
-  }
-
-  return CURLE_OK;
+  return res;
 }

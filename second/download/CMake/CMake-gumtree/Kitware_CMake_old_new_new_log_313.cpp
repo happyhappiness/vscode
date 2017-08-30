@@ -1,1 +1,1 @@
-this->DataSymbols.insert(symbol);
+aprintf("%s:%d", hostname, conn->port);

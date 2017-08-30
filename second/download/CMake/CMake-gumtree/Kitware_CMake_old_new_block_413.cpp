@@ -1,114 +1,292 @@
 {
-  char                   tmp[100];
-  size_t                         w;
-  const char            *p;
-  const char            *fmt;
-  time_t                         tim;
-  static time_t          now;
-  size_t u_width = 6;
-  size_t gs_width = 13;
+    // remove any CMakeCache.txt files so we will have a clean test
+    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
+    cmSystemTools::RemoveFile(ccFile);
 
-  /*
-   * We avoid collecting the entire list in memory at once by
-   * listing things as we see them.  However, that also means we can't
-   * just pre-compute the field widths.  Instead, we start with guesses
-   * and just widen them as necessary.  These numbers are completely
-   * arbitrary.
-   */
-  if (!now)
-    {
-    time(&now);
-    }
-  fprintf(out, "%s %d ",
-          archive_entry_strmode(entry),
-          archive_entry_nlink(entry));
+    // Choose sources.
+    if(!useSources)
+      {
+      sources.push_back(argv[2]);
+      }
 
-  /* Use uname if it's present, else uid. */
-  p = archive_entry_uname(entry);
-  if ((p == NULL) || (*p == '\0'))
-    {
-    sprintf(tmp, "%lu ",
-            (unsigned long)archive_entry_uid(entry));
-    p = tmp;
-    }
-  w = strlen(p);
-  if (w > u_width)
-    {
-    u_width = w;
-    }
-  fprintf(out, "%-*s ", (int)u_width, p);
-  /* Use gname if it's present, else gid. */
-  p = archive_entry_gname(entry);
-  if (p != NULL && p[0] != '\0')
-    {
-    fprintf(out, "%s", p);
-    w = strlen(p);
-    }
-  else
-    {
-    sprintf(tmp, "%lu",
-            (unsigned long)archive_entry_gid(entry));
-    w = strlen(tmp);
-    fprintf(out, "%s", tmp);
-    }
+    // Detect languages to enable.
+    cmGlobalGenerator* gg = this->Makefile->GetGlobalGenerator();
+    std::set<std::string> testLangs;
+    for(std::vector<std::string>::iterator si = sources.begin();
+        si != sources.end(); ++si)
+      {
+      std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
+      std::string lang = gg->GetLanguageFromExtension(ext.c_str());
+      if(!lang.empty())
+        {
+        testLangs.insert(lang);
+        }
+      else
+        {
+        std::ostringstream err;
+        err << "Unknown extension \"" << ext << "\" for file\n"
+            << "  " << *si << "\n"
+            << "try_compile() works only for enabled languages.  "
+            << "Currently these are:\n  ";
+        std::vector<std::string> langs;
+        gg->GetEnabledLanguages(langs);
+        err << cmJoin(langs, " ");
+        err << "\nSee project() command to enable other languages.";
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
+        return -1;
+        }
+      }
 
-  /*
-   * Print device number or file size, right-aligned so as to make
-   * total width of group and devnum/filesize fields be gs_width.
-   * If gs_width is too small, grow it.
-   */
-  if (archive_entry_filetype(entry) == AE_IFCHR
-      || archive_entry_filetype(entry) == AE_IFBLK)
-    {
-    sprintf(tmp, "%lu,%lu",
-            (unsigned long)archive_entry_rdevmajor(entry),
-            (unsigned long)archive_entry_rdevminor(entry));
-    }
-  else
-    {
-    /*
-     * Note the use of platform-dependent macros to format
-     * the filesize here.  We need the format string and the
-     * corresponding type for the cast.
-     */
-    sprintf(tmp, BSDTAR_FILESIZE_PRINTF,
-            (BSDTAR_FILESIZE_TYPE)archive_entry_size(entry));
-    }
-  if (w + strlen(tmp) >= gs_width)
-    {
-    gs_width = w+strlen(tmp)+1;
-    }
-  fprintf(out, "%*s", (int)(gs_width - w), tmp);
+    // we need to create a directory and CMakeLists file etc...
+    // first create the directories
+    sourceDirectory = this->BinaryDirectory.c_str();
 
-  /* Format the time using 'ls -l' conventions. */
-  tim = archive_entry_mtime(entry);
-#define HALF_YEAR (time_t)365 * 86400 / 2
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  /* Windows' strftime function does not support %e format. */
-#define DAY_FMT  "%d"
-#else
-#define DAY_FMT  "%e"  /* Day number without leading zeros */
-#endif
-  if (tim < now - HALF_YEAR || tim > now + HALF_YEAR)
-    {
-    fmt = DAY_FMT " %b  %Y";
-    }
-  else
-    {
-    fmt = DAY_FMT " %b %H:%M";
-    }
-  strftime(tmp, sizeof(tmp), fmt, localtime(&tim));
-  fprintf(out, " %s ", tmp);
-  fprintf(out, "%s", archive_entry_pathname(entry));
+    // now create a CMakeLists.txt file in that directory
+    FILE *fout = cmsys::SystemTools::Fopen(outFileName,"w");
+    if (!fout)
+      {
+      std::ostringstream e;
+      e << "Failed to open\n"
+        << "  " << outFileName << "\n"
+        << cmSystemTools::GetLastSystemError();
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+      return -1;
+      }
 
-  /* Extra information for links. */
-  if (archive_entry_hardlink(entry)) /* Hard link */
-    {
-    fprintf(out, " link to %s",
-            archive_entry_hardlink(entry));
+    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
+    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
+            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
+            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
+    if(def)
+      {
+      fprintf(fout, "set(CMAKE_MODULE_PATH \"%s\")\n", def);
+      }
+
+    std::string projectLangs;
+    for(std::set<std::string>::iterator li = testLangs.begin();
+        li != testLangs.end(); ++li)
+      {
+      projectLangs += " " + *li;
+      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
+      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
+      if(const char* rulesOverridePath =
+         this->Makefile->GetDefinition(rulesOverrideLang))
+        {
+        fprintf(fout, "set(%s \"%s\")\n",
+                rulesOverrideLang.c_str(), rulesOverridePath);
+        }
+      else if(const char* rulesOverridePath2 =
+              this->Makefile->GetDefinition(rulesOverrideBase))
+        {
+        fprintf(fout, "set(%s \"%s\")\n",
+                rulesOverrideBase.c_str(), rulesOverridePath2);
+        }
+      }
+    fprintf(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
+    fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");
+    for(std::set<std::string>::iterator li = testLangs.begin();
+        li != testLangs.end(); ++li)
+      {
+      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
+      const char* flags = this->Makefile->GetDefinition(langFlags);
+      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              cmOutputConverter::EscapeForCMake(flags?flags:"").c_str());
+      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
+              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
+      }
+    switch(this->Makefile->GetPolicyStatus(cmPolicies::CMP0056))
+      {
+      case cmPolicies::WARN:
+        if(this->Makefile->PolicyOptionalWarningEnabled(
+             "CMAKE_POLICY_WARNING_CMP0056"))
+          {
+          std::ostringstream w;
+          w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0056) << "\n"
+            "For compatibility with older versions of CMake, try_compile "
+            "is not honoring caller link flags (e.g. CMAKE_EXE_LINKER_FLAGS) "
+            "in the test project."
+            ;
+          this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, w.str());
+          }
+      case cmPolicies::OLD:
+        // OLD behavior is to do nothing.
+        break;
+      case cmPolicies::REQUIRED_IF_USED:
+      case cmPolicies::REQUIRED_ALWAYS:
+        this->Makefile->IssueMessage(
+          cmake::FATAL_ERROR,
+          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0056)
+          );
+      case cmPolicies::NEW:
+        // NEW behavior is to pass linker flags.
+        {
+        const char* exeLinkFlags =
+          this->Makefile->GetDefinition("CMAKE_EXE_LINKER_FLAGS");
+        fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS %s)\n",
+                cmOutputConverter::EscapeForCMake(
+                    exeLinkFlags ? exeLinkFlags : "").c_str());
+        } break;
+      }
+    fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS \"${CMAKE_EXE_LINKER_FLAGS}"
+            " ${EXE_LINKER_FLAGS}\")\n");
+    fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");
+    fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");
+    fprintf(fout, "link_directories(${LINK_DIRECTORIES})\n");
+    // handle any compile flags we need to pass on
+    if (!compileDefs.empty())
+      {
+      fprintf(fout, "add_definitions(%s)\n", cmJoin(compileDefs, " ").c_str());
+      }
+
+    /* Use a random file name to avoid rapid creation and deletion
+       of the same executable name (some filesystems fail on that).  */
+    sprintf(targetNameBuf, "cmTC_%05x",
+            cmSystemTools::RandomSeed() & 0xFFFFF);
+    targetName = targetNameBuf;
+
+    if (!targets.empty())
+      {
+      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
+      cmExportTryCompileFileGenerator tcfg(gg, targets, this->Makefile);
+      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
+      tcfg.SetConfig(this->Makefile->GetSafeDefinition(
+                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
+
+      if(!tcfg.GenerateImportFile())
+        {
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+                                     "could not write export file.");
+        fclose(fout);
+        return -1;
+        }
+      fprintf(fout,
+              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
+              fname.c_str());
+      }
+
+    /* for the TRY_COMPILEs we want to be able to specify the architecture.
+      So the user can set CMAKE_OSX_ARCHITECTURES to i386;ppc and then set
+      CMAKE_TRY_COMPILE_OSX_ARCHITECTURES first to i386 and then to ppc to
+      have the tests run for each specific architecture. Since
+      cmLocalGenerator doesn't allow building for "the other"
+      architecture only via CMAKE_OSX_ARCHITECTURES.
+      */
+    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition(
+                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+      }
+    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+      }
+    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
+    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_SYSROOT=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
+      cmakeFlags.push_back(flag);
+      }
+    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
+    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
+      cmakeFlags.push_back(flag);
+      }
+    if (const char *cxxDef
+              = this->Makefile->GetDefinition("CMAKE_CXX_COMPILER_TARGET"))
+      {
+      std::string flag="-DCMAKE_CXX_COMPILER_TARGET=";
+      flag += cxxDef;
+      cmakeFlags.push_back(flag);
+      }
+    if (const char *cDef
+                = this->Makefile->GetDefinition("CMAKE_C_COMPILER_TARGET"))
+      {
+      std::string flag="-DCMAKE_C_COMPILER_TARGET=";
+      flag += cDef;
+      cmakeFlags.push_back(flag);
+      }
+    if (const char *tcxxDef = this->Makefile->GetDefinition(
+                                  "CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN"))
+      {
+      std::string flag="-DCMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN=";
+      flag += tcxxDef;
+      cmakeFlags.push_back(flag);
+      }
+    if (const char *tcDef = this->Makefile->GetDefinition(
+                                    "CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN"))
+      {
+      std::string flag="-DCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN=";
+      flag += tcDef;
+      cmakeFlags.push_back(flag);
+      }
+    if (const char *rootDef
+              = this->Makefile->GetDefinition("CMAKE_SYSROOT"))
+      {
+      std::string flag="-DCMAKE_SYSROOT=";
+      flag += rootDef;
+      cmakeFlags.push_back(flag);
+      }
+    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
+      {
+      fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
+      }
+    if (const char *lssDef = this->Makefile->GetDefinition(
+        "CMAKE_LINK_SEARCH_START_STATIC"))
+      {
+      fprintf(fout, "set(CMAKE_LINK_SEARCH_START_STATIC \"%s\")\n", lssDef);
+      }
+    if (const char *lssDef = this->Makefile->GetDefinition(
+        "CMAKE_LINK_SEARCH_END_STATIC"))
+      {
+      fprintf(fout, "set(CMAKE_LINK_SEARCH_END_STATIC \"%s\")\n", lssDef);
+      }
+
+    /* Set the appropriate policy information for ENABLE_EXPORTS */
+    fprintf(fout, "cmake_policy(SET CMP0065 %s)\n",
+       this->Makefile->GetPolicyStatus(cmPolicies::CMP0065) ==
+         cmPolicies::NEW ? "NEW" : "OLD");
+    if(const char *ee = this->Makefile->GetDefinition(
+        "CMAKE_ENABLE_EXPORTS"))
+      {
+      fprintf(fout, "set(CMAKE_ENABLE_EXPORTS %s)\n", ee);
+      }
+
+    /* Put the executable at a known location (for COPY_FILE).  */
+    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+            this->BinaryDirectory.c_str());
+    /* Create the actual executable.  */
+    fprintf(fout, "add_executable(%s", targetName.c_str());
+    for(std::vector<std::string>::iterator si = sources.begin();
+        si != sources.end(); ++si)
+      {
+      fprintf(fout, " \"%s\"", si->c_str());
+
+      // Add dependencies on any non-temporary sources.
+      if(si->find("CMakeTmp") == si->npos)
+        {
+        this->Makefile->AddCMakeDependFile(*si);
+        }
+      }
+    fprintf(fout, ")\n");
+    if (useOldLinkLibs)
+      {
+      fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
+              targetName.c_str());
+      }
+    else
+      {
+      fprintf(fout, "target_link_libraries(%s %s)\n",
+              targetName.c_str(),
+              libsToLink.c_str());
+      }
+    fclose(fout);
+    projectName = "CMAKE_TRY_COMPILE";
     }
-  else if (archive_entry_symlink(entry)) /* Symbolic link */
-    {
-    fprintf(out, " -> %s", archive_entry_symlink(entry));
-    }
-}

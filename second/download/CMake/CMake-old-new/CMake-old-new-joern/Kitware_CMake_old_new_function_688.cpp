@@ -1,59 +1,22 @@
-void cmFindPackageCommand::SetModuleVariables(const std::string& components)
+static int
+parse_device(struct archive *a, struct archive_entry *entry, char *val)
 {
-  // Store the list of components.
-  std::string components_var = this->Name + "_FIND_COMPONENTS";
-  this->Makefile->AddDefinition(components_var.c_str(), components.c_str());
-   
-  if(this->Quiet)
-    {
-    // Tell the module that is about to be read that it should find
-    // quietly.
-    std::string quietly = this->Name;
-    quietly += "_FIND_QUIETLY";
-    this->Makefile->AddDefinition(quietly.c_str(), "1");
-    }
+	char *comma1, *comma2;
 
-  if(this->Required)
-    {
-    // Tell the module that is about to be read that it should report
-    // a fatal error if the package is not found.
-    std::string req = this->Name;
-    req += "_FIND_REQUIRED";
-    this->Makefile->AddDefinition(req.c_str(), "1");
-    }
-
-  if(!this->Version.empty())
-    {
-    // Tell the module that is about to be read what version of the
-    // package has been requested.
-    std::string ver = this->Name;
-    ver += "_FIND_VERSION";
-    this->Makefile->AddDefinition(ver.c_str(), this->Version.c_str());
-    char buf[64];
-    switch(this->VersionCount)
-      {
-      case 3:
-        {
-        sprintf(buf, "%u", this->VersionPatch);
-        this->Makefile->AddDefinition((ver+"_PATCH").c_str(), buf);
-        } // no break
-      case 2:
-        {
-        sprintf(buf, "%u", this->VersionMinor);
-        this->Makefile->AddDefinition((ver+"_MINOR").c_str(), buf);
-        } // no break
-      case 1:
-        {
-        sprintf(buf, "%u", this->VersionMajor);
-        this->Makefile->AddDefinition((ver+"_MAJOR").c_str(), buf);
-        } // no break
-      default: break;
-      }
-
-    // Tell the module whether an exact version has been requested.
-    std::string exact = this->Name;
-    exact += "_FIND_VERSION_EXACT";
-    this->Makefile->AddDefinition(exact.c_str(),
-                                  this->VersionExact? "1":"0");
-   }
+	comma1 = strchr(val, ',');
+	if (comma1 == NULL) {
+		archive_entry_set_dev(entry, (dev_t)mtree_atol10(&val));
+		return (ARCHIVE_OK);
+	}
+	++comma1;
+	comma2 = strchr(comma1, ',');
+	if (comma2 == NULL) {
+		archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Malformed device attribute");
+		return (ARCHIVE_WARN);
+	}
+	++comma2;
+	archive_entry_set_rdevmajor(entry, (dev_t)mtree_atol(&comma1));
+	archive_entry_set_rdevminor(entry, (dev_t)mtree_atol(&comma2));
+	return (ARCHIVE_OK);
 }

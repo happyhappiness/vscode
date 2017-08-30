@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-			    "Can't open `%s'", path);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "LHa data CRC error");

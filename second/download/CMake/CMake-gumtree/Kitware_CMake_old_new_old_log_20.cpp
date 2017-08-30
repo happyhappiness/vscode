@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, errno,
-				    "Invalid NFSv4 ACL entry type");
+		    "Failed to get first ACL entry");

@@ -1,0 +1,1 @@
+fprintf(stderr, "Test number out of range\n");

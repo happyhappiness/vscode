@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-		    "GetOverlappedResult failed");
+fprintf(stderr, "Header id 0x%04x, length %d\n",
+		    headerid, datasize);

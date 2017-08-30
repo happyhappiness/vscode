@@ -1,1 +1,1 @@
-fprintf(fout, "ADD_DEFINITIONS(${COMPILE_DEFINITIONS})\n");
+fprintf(fout, "SET(CMAKE_%s_FLAGS \"", li->c_str());

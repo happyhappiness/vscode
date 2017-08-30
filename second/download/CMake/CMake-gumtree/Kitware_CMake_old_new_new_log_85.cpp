@@ -1,3 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Couldn't determine file path to read "
-			    "extended attributes");
+snprintf(buffer, size, "wolfSSL/%s", wolfSSL_lib_version());

@@ -1,1 +1,2 @@
-printf("Checking -%s-\n", absFilename.c_str());
+fprintf(stderr, "Unable to open \'%s\' for reading:\n",
+               argv[arg]);

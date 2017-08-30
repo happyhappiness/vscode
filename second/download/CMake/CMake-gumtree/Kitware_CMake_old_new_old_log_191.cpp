@@ -1,1 +1,0 @@
-len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL));

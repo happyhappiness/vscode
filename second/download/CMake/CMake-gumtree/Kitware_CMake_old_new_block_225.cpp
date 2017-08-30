@@ -1,4 +1,7 @@
-f(!hostheader) {
-          Curl_add_buffer_free(req_buffer);
-          return CURLE_OUT_OF_MEMORY;
-        }
+{
+		/* stringify this entry's version */
+		archive_string_sprintf(&w->sver,
+			"WARC/%u.%u", ver / 10000, ver % 10000);
+		/* remember the version */
+		w->pver = ver;
+	}

@@ -1,2 +1,2 @@
-sprintf(version,"(CMake Version %d.%d)", cmMakefile::GetMajorVersion(),
-	  cmMakefile::GetMinorVersion());
+archive_set_error(&a->archive, ENOMEM,
+				    "No memory for 7-Zip decompression");

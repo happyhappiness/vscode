@@ -1,63 +1,20 @@
-int
-__archive_write_program_close(struct archive_write_filter *f,
-    struct archive_write_program_data *data)
+static CURLcode sasl_create_xoauth2_message(struct SessionHandle *data,
+                                            const char *user,
+                                            const char *bearer,
+                                            char **outptr, size_t *outlen)
 {
-	int ret, r1, status;
-	ssize_t bytes_read;
+  CURLcode result = CURLE_OK;
+  char *xoauth = NULL;
 
-	if (data->child == 0)
-		return __archive_write_close_filter(f->next_filter);
+  /* Generate the message */
+  xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer);
+  if(!xoauth)
+    return CURLE_OUT_OF_MEMORY;
 
-	ret = 0;
-	close(data->child_stdin);
-	data->child_stdin = -1;
-	fcntl(data->child_stdout, F_SETFL, 0);
+  /* Base64 encode the reply */
+  result = Curl_base64_encode(data, xoauth, strlen(xoauth), outptr, outlen);
 
-	for (;;) {
-		do {
-			bytes_read = read(data->child_stdout,
-			    data->child_buf + data->child_buf_avail,
-			    data->child_buf_len - data->child_buf_avail);
-		} while (bytes_read == -1 && errno == EINTR);
+  free(xoauth);
 
-		if (bytes_read == 0 || (bytes_read == -1 && errno == EPIPE))
-			break;
-
-		if (bytes_read == -1) {
-			archive_set_error(f->archive, errno,
-			    "Read from filter failed unexpectedly.");
-			ret = ARCHIVE_FATAL;
-			goto cleanup;
-		}
-		data->child_buf_avail += bytes_read;
-
-		ret = __archive_write_filter(f->next_filter,
-		    data->child_buf, data->child_buf_avail);
-		if (ret != ARCHIVE_OK) {
-			ret = ARCHIVE_FATAL;
-			goto cleanup;
-		}
-		data->child_buf_avail = 0;
-	}
-
-cleanup:
-	/* Shut down the child. */
-	if (data->child_stdin != -1)
-		close(data->child_stdin);
-	if (data->child_stdout != -1)
-		close(data->child_stdout);
-	while (waitpid(data->child, &status, 0) == -1 && errno == EINTR)
-		continue;
-#if defined(_WIN32) && !defined(__CYGWIN__)
-	CloseHandle(data->child);
-#endif
-	data->child = 0;
-
-	if (status != 0) {
-		archive_set_error(f->archive, EIO,
-		    "Filter exited with failure.");
-		ret = ARCHIVE_FATAL;
-	}
-	r1 = __archive_write_close_filter(f->next_filter);
-	return (r1 < ret ? r1 : ret);
+  return result;
 }

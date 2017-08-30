@@ -1,6 +1,1 @@
-{
-			archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-			    "Unacceptable dictionary dize for lzip: %d",
-			    dict_size);
-			return (ARCHIVE_FATAL);
-		}
+snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i])

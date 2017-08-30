@@ -1,30 +1,31 @@
-int GetFtpFile(void)
+static int
+archive_read_format_cpio_options(struct archive_read *a,
+    const char *key, const char *val)
 {
-  int retVal = 0;
-  CURL *curl;
-  CURLcode res;
-  curl = curl_easy_init();
-  if(curl) 
-    {
-    /* Get curl 7.9.2 from sunet.se's FTP site: */
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-    curl_easy_setopt(curl, CURLOPT_HEADER, 1);
-    curl_easy_setopt(curl, CURLOPT_URL,
-                     "ftp://public.kitware.com/pub/cmake/cygwin/setup.hint");
-    res = curl_easy_perform(curl);
-    if ( res != 0 )
-      {
-      printf("Error fetching: http://www.cmake.org/\n");
-      retVal = 1;
-      }
+	struct cpio *cpio;
+	int ret = ARCHIVE_FAILED;
 
-    /* always cleanup */
-    curl_easy_cleanup(curl);
-    }
-  else
-    {
-    printf("Cannot create curl object\n");
-    retVal = 1;
-    }
-  return retVal;
+	cpio = (struct cpio *)(a->format->data);
+	if (strcmp(key, "compat-2x")  == 0) {
+		/* Handle filnames as libarchive 2.x */
+		cpio->init_default_conversion = (val != NULL)?1:0;
+		ret = ARCHIVE_OK;
+	} else if (strcmp(key, "hdrcharset")  == 0) {
+		if (val == NULL || val[0] == 0)
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "cpio: hdrcharset option needs a character-set name");
+		else {
+			cpio->opt_sconv =
+			    archive_string_conversion_from_charset(
+				&a->archive, val, 0);
+			if (cpio->opt_sconv != NULL)
+				ret = ARCHIVE_OK;
+			else
+				ret = ARCHIVE_FATAL;
+		}
+	} else
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "cpio: unknown keyword ``%s''", key);
+
+	return (ret);
 }

@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "cmCommandArgument_yyset_lineno called with no buffer" );
+archive_set_error(&a->archive, errno,
+			    "Couldn't translate access ACLs");

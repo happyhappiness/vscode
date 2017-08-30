@@ -1,1 +1,2 @@
-fprintf(stderr, "Argument Parser Error: %s (%lu / Line: %d)\n", str, pos, this->CurrentLine);
+archive_set_error(&a->archive, errno,
+			    "Can't GetFileInformationByHandle");

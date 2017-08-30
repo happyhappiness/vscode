@@ -1,21 +1,13 @@
 {
-              case cmsysProcess_Exception_Fault:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::SEGFAULT;
-                break;
-              case cmsysProcess_Exception_Illegal:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::ILLEGAL;
-                break;
-              case cmsysProcess_Exception_Interrupt:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::INTERRUPT;
-                break;
-              case cmsysProcess_Exception_Numerical:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::NUMERICAL;
-                break;
-              default:
-                fprintf(stderr,"Other");
-                cres.m_Status = cmCTest::OTHER_FAULT;
-                }
+			DWORD lasterr;
+
+			lasterr = GetLastError();
+			if (lasterr == ERROR_ACCESS_DENIED)
+				errno = EBADF;
+			else
+				la_dosmaperr(lasterr);
+			archive_set_error(&a->archive, errno, "Seek error");
+			r = ARCHIVE_FATAL;
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			goto abort_read_data;
+		}

@@ -1,15 +1,21 @@
 {
-            if (pSymbolTable->N.Name.Short != 0) {
-               symbol = "";
-               symbol.insert(0, (const char *)(pSymbolTable->N.ShortName), 8);
-            } else {
-               symbol = stringTable + pSymbolTable->N.Name.Long;
-            }
-            std::string::size_type posAt = symbol.find('@');
-            if (posAt != std::string::npos) symbol.erase(posAt);
-#ifndef _MSC_VER
-            fprintf(fout, "\t%s\n", symbol.c_str());
-#else
-            fprintf(fout, "\t%s\n", symbol.c_str()+1);
+	struct unknown_tag *tag;
+
+#if DEBUG
+	fprintf(stderr, "unknowntag_start:%s\n", name);
 #endif
-         }
+	tag = malloc(sizeof(*tag));
+	if (tag == NULL) {
+		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+	tag->next = xar->unknowntags;
+	archive_string_init(&(tag->name));
+	archive_strcpy(&(tag->name), name);
+	if (xar->unknowntags == NULL) {
+		xar->xmlsts_unknown = xar->xmlsts;
+		xar->xmlsts = UNKNOWN;
+	}
+	xar->unknowntags = tag;
+	return (ARCHIVE_OK);
+}

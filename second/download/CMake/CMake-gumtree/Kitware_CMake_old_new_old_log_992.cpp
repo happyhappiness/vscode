@@ -1,1 +1,1 @@
-sprintf(firstLine,  "C)onfigure             G)enerate and Exit");
+sprintf(win9x, "%s%s", tempDir, fwdName);

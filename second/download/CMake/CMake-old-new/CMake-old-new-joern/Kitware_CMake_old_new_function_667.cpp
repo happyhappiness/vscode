@@ -1,25 +1,49 @@
-void
-cmComputeLinkDepends::DisplayComponents()
+bool Directory::Load(const char* name)
 {
-  fprintf(stderr, "The strongly connected components are:\n");
-  std::vector<NodeList> const& components = this->CCG->GetComponents();
-  for(unsigned int c=0; c < components.size(); ++c)
+  this->Clear();
+#if _MSC_VER < 1300
+  long srchHandle;
+#else
+  intptr_t srchHandle;
+#endif
+  char* buf;
+  size_t n = strlen(name);
+  if ( name[n - 1] == '/' || name[n - 1] == '\\' )
     {
-    fprintf(stderr, "Component (%u):\n", c);
-    NodeList const& nl = components[c];
-    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int i = *ni;
-      fprintf(stderr, "  item %d [%s]\n", i,
-              this->EntryList[i].Item.c_str());
-      }
-    NodeList const& ol = this->CCG->GetComponentGraphEdges(c);
-    for(NodeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
-      {
-      fprintf(stderr, "  followed by Component (%d)\n", *oi);
-      }
-    fprintf(stderr, "  topo order index %d\n",
-            this->ComponentOrder[c]);
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
     }
-  fprintf(stderr, "\n");
+  else
+    {
+    // Make sure the slashes in the wildcard suffix are consistent with the
+    // rest of the path
+    buf = new char[n + 2 + 1];
+    if ( strchr(name, '\\') )
+      {
+      sprintf(buf, "%s\\*", name);
+      }
+    else
+      {
+      sprintf(buf, "%s/*", name);
+      }
+    }
+  struct _wfinddata_t data;      // data of current file
+
+  // Now put them into the file array
+  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
+  delete [] buf;
+
+  if ( srchHandle == -1 )
+    {
+    return 0;
+    }
+
+  // Loop through names
+  do
+    {
+    this->Internal->Files.push_back(Encoding::ToNarrow(data.name));
+    }
+  while ( _wfindnext(srchHandle, &data) != -1 );
+  this->Internal->Path = name;
+  return _findclose(srchHandle) != -1;
 }

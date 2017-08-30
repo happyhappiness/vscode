@@ -1,1 +1,1 @@
-fprintf(fout, " \"%s\"", si->c_str());
+fprintf(stdout, "Output on stdout from grandchild after sleep.\n");

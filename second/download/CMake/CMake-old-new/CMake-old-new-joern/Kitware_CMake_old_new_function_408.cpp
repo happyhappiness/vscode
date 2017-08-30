@@ -1,49 +1,23 @@
-bool Directory::Load(const char* name)
+int
+__archive_write_program_write(struct archive_write_filter *f,
+    struct archive_write_program_data *data, const void *buff, size_t length)
 {
-  this->Clear();
-#if _MSC_VER < 1300
-  long srchHandle;
-#else
-  intptr_t srchHandle;
-#endif
-  char* buf;
-  size_t n = strlen(name);
-  if ( name[n - 1] == '/' || name[n - 1] == '\\' )
-    {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name);
-    }
-  else
-    {
-    // Make sure the slashes in the wildcard suffix are consistent with the
-    // rest of the path
-    buf = new char[n + 2 + 1];
-    if ( strchr(name, '\\') )
-      {
-      sprintf(buf, "%s\\*", name);
-      }
-    else
-      {
-      sprintf(buf, "%s/*", name);
-      }
-    }
-  struct _wfinddata_t data;      // data of current file
+	ssize_t ret;
+	const char *buf;
 
-  // Now put them into the file array
-  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
-  delete [] buf;
+	if (data->child == 0)
+		return (ARCHIVE_OK);
 
-  if ( srchHandle == -1 )
-    {
-    return 0;
-    }
-
-  // Loop through names
-  do
-    {
-    this->Internal->Files.push_back(Encoding::ToNarrow(data.name));
-    }
-  while ( _wfindnext(srchHandle, &data) != -1 );
-  this->Internal->Path = name;
-  return _findclose(srchHandle) != -1;
+	buf = buff;
+	while (length > 0) {
+		ret = child_write(f, data, buf, length);
+		if (ret == -1 || ret == 0) {
+			archive_set_error(f->archive, EIO,
+			    "Can't write to filter");
+			return (ARCHIVE_FATAL);
+		}
+		length -= ret;
+		buf += ret;
+	}
+	return (ARCHIVE_OK);
 }

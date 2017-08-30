@@ -1,3 +1,2 @@
-hostheader= /* host:port with IPv6 support */
-          aprintf("%s%s%s:%hu", ipv6_ip?"[":"", hostname, ipv6_ip?"]":"",
-                  remote_port);
+fsobj_error(a_eno, a_estr, ARCHIVE_ERRNO_MISC,
+			    "Path is ", "absolute");

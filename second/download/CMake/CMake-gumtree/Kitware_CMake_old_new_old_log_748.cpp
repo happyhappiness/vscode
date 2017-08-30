@@ -1,1 +1,2 @@
-conn->allocptr.ref = aprintf("Referer: %s\015\012", data->change.referer);
+fprintf(fout, "SET(%s \"%s\")\n",
+                rulesOverrideLang.c_str(), rulesOverridePath);

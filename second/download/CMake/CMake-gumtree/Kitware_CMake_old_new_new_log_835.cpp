@@ -1,1 +1,2 @@
-printf("%c", isgraph(data[i+j])?data[i+j]:'.');
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+              "Error during seek of RAR file");

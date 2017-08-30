@@ -1,32 +1,29 @@
-static int
-archive_read_format_zip_options(struct archive_read *a,
-    const char *key, const char *val)
+static void
+log_gss_error(struct connectdata *conn, OM_uint32 error_status,
+              const char *prefix)
 {
-	struct zip *zip;
-	int ret = ARCHIVE_FAILED;
+  OM_uint32 maj_stat, min_stat;
+  OM_uint32 msg_ctx = 0;
+  gss_buffer_desc status_string;
+  char buf[1024];
+  size_t len;
 
-	zip = (struct zip *)(a->format->data);
-	if (strcmp(key, "compat-2x")  == 0) {
-		/* Handle filnames as libarchive 2.x */
-		zip->init_default_conversion = (val != NULL) ? 1 : 0;
-		ret = ARCHIVE_OK;
-	} else if (strcmp(key, "hdrcharset")  == 0) {
-		if (val == NULL || val[0] == 0)
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "zip: hdrcharset option needs a character-set name");
-		else {
-			zip->sconv = archive_string_conversion_from_charset(
-			    &a->archive, val, 0);
-			if (zip->sconv != NULL) {
-				if (strcmp(val, "UTF-8") == 0)
-					zip->sconv_utf8 = zip->sconv;
-				ret = ARCHIVE_OK;
-			} else
-				ret = ARCHIVE_FATAL;
-		}
-	} else
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "zip: unknown keyword ``%s''", key);
+  snprintf(buf, sizeof(buf), "%s", prefix);
+  len = strlen(buf);
+  do {
+    maj_stat = gss_display_status(&min_stat,
+                                  error_status,
+                                  GSS_C_MECH_CODE,
+                                  GSS_C_NO_OID,
+                                  &msg_ctx,
+                                  &status_string);
+      if(sizeof(buf) > len + status_string.length + 1) {
+        snprintf(buf + len, sizeof(buf) - len,
+                 ": %s", (char*) status_string.value);
+      len += status_string.length;
+    }
+    gss_release_buffer(&min_stat, &status_string);
+  } while(!GSS_ERROR(maj_stat) && msg_ctx != 0);
 
-	return (ret);
+  infof(conn->data, "%s\n", buf);
 }

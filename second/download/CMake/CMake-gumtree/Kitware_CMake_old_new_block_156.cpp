@@ -1,1 +1,7 @@
-yy_fatal_error( "cmExpr_yyset_lineno called with no buffer" , yyscanner)
+{
+					archive_set_error(&a->archive, errno,
+					    "Could not remove symlink %s",
+					    a->name);
+					pn[0] = c;
+					return (ARCHIVE_FAILED);
+				}

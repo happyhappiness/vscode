@@ -1,17 +1,13 @@
 {
-    char buf[Z_PRINTF_BUFSIZE];
-    va_list va;
-    int len;
-
-    va_start(va, format);
-#ifdef HAS_vsnprintf
-    (void)vsnprintf(buf, sizeof(buf), format, va);
-#else
-    (void)vsprintf(buf, format, va);
-#endif
-    va_end(va);
-    len = strlen(buf); /* some *sprintf don't return the nb of bytes written */
-    if (len <= 0) return 0;
-
-    return gzwrite(file, buf, (unsigned)len);
-}
+    EdgeList const& nl = graph[depender_index];
+    cmTarget const* depender = this->Targets[depender_index];
+    fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int dependee_index = *ni;
+      cmTarget const* dependee = this->Targets[dependee_index];
+      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
+      }
+    }

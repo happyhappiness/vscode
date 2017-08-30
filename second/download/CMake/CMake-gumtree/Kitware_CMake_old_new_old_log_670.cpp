@@ -1,1 +1,1 @@
-fprintf(stderr, " + %s\n", realTargetName);
+sprintf(buf, "%s/*", name);

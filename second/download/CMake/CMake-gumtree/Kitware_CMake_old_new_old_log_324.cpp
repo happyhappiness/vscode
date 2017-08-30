@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "No memory for lzh decompression");
+tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);

@@ -1,1 +1,2 @@
-snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);
+archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+	    "Internal error initializing lzma library");

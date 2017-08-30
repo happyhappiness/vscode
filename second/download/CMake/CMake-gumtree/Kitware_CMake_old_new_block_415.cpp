@@ -1,17 +1,11 @@
-{
-  fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());
-  for(std::vector<LinkEntry>::const_iterator lei =
-        this->FinalLinkEntries.begin();
-      lei != this->FinalLinkEntries.end(); ++lei)
-    {
-    if(lei->Target)
+r(std::vector<std::string>::iterator si = sources.begin();
+        si != sources.end(); ++si)
       {
-      fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
+      fprintf(fout, " \"%s\"", si->c_str());
+
+      // Add dependencies on any non-temporary sources.
+      if(si->find("CMakeTmp") == si->npos)
+        {
+        this->Makefile->AddCMakeDependFile(*si);
+        }
       }
-    else
-      {
-      fprintf(stderr, "  item [%s]\n", lei->Item.c_str());
-      }
-    }
-  fprintf(stderr, "\n");
-}

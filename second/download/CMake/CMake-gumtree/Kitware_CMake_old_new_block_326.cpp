@@ -1,37 +1,8 @@
 {
-			case 'b':
-				if (strcmp(val, "block") == 0) {
-					archive_entry_set_filetype(entry, AE_IFBLK);
-					break;
-				}
-			case 'c':
-				if (strcmp(val, "char") == 0) {
-					archive_entry_set_filetype(entry, AE_IFCHR);
-					break;
-				}
-			case 'd':
-				if (strcmp(val, "dir") == 0) {
-					archive_entry_set_filetype(entry, AE_IFDIR);
-					break;
-				}
-			case 'f':
-				if (strcmp(val, "fifo") == 0) {
-					archive_entry_set_filetype(entry, AE_IFIFO);
-					break;
-				}
-				if (strcmp(val, "file") == 0) {
-					archive_entry_set_filetype(entry, AE_IFREG);
-					break;
-				}
-			case 'l':
-				if (strcmp(val, "link") == 0) {
-					archive_entry_set_filetype(entry, AE_IFLNK);
-					break;
-				}
-			default:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Unrecognized file type \"%s\"; assuming \"file\"", val);
-				archive_entry_set_filetype(entry, AE_IFREG);
-				return (ARCHIVE_WARN);
-			}
+    /* We don't support auth-int for PUT or POST at the moment.
+       TODO: replace md5 of empty string with entity-body for PUT/POST */
+    unsigned char *md5this2 = (unsigned char *)
+      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
+    free(md5this);
+    md5this = md5this2;
+  }

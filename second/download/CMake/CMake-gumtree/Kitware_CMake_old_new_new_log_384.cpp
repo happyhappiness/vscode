@@ -1,1 +1,1 @@
-fprintf(this->FileOut, "\t%s \t DATA\n", symbol.c_str());
+YY_FATAL_ERROR( "cmListFileLexer_yyset_column called with no buffer" );

@@ -1,36 +1,64 @@
-static CURLcode ftp_state_size_resp(struct connectdata *conn,
-                                    int ftpcode,
-                                    ftpstate instate)
+static int
+set_xattrs(struct archive_write_disk *a)
 {
-  CURLcode result = CURLE_OK;
-  struct Curl_easy *data=conn->data;
-  curl_off_t filesize;
-  char *buf = data->state.buffer;
+	struct archive_entry *entry = a->entry;
+	static int warning_done = 0;
+	int ret = ARCHIVE_OK;
+	int i = archive_entry_xattr_reset(entry);
 
-  /* get the size from the ascii string: */
-  filesize = (ftpcode == 213)?curlx_strtoofft(buf+4, NULL, 0):-1;
+	while (i--) {
+		const char *name;
+		const void *value;
+		size_t size;
+		archive_entry_xattr_next(entry, &name, &value, &size);
+		if (name != NULL) {
+			int e;
+			int namespace;
 
-  if(instate == FTP_SIZE) {
-#ifdef CURL_FTP_HTTPSTYLE_HEAD
-    if(-1 != filesize) {
-      snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
-               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);
-      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-      if(result)
-        return result;
-    }
+			if (strncmp(name, "user.", 5) == 0) {
+				/* "user." attributes go to user namespace */
+				name += 5;
+				namespace = EXTATTR_NAMESPACE_USER;
+			} else {
+				/* Warn about other extended attributes. */
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Can't restore extended attribute ``%s''",
+				    name);
+				ret = ARCHIVE_WARN;
+				continue;
+			}
+			errno = 0;
+#if HAVE_EXTATTR_SET_FD
+			if (a->fd >= 0)
+				e = extattr_set_fd(a->fd, namespace, name,
+				    value, size);
+			else
 #endif
-    Curl_pgrsSetDownloadSize(data, filesize);
-    result = ftp_state_rest(conn);
-  }
-  else if(instate == FTP_RETR_SIZE) {
-    Curl_pgrsSetDownloadSize(data, filesize);
-    result = ftp_state_retr(conn, filesize);
-  }
-  else if(instate == FTP_STOR_SIZE) {
-    data->state.resume_from = filesize;
-    result = ftp_state_ul_setup(conn, TRUE);
-  }
+			/* TODO: should we use extattr_set_link() instead? */
+			{
+				e = extattr_set_file(
+				    archive_entry_pathname(entry), namespace,
+				    name, value, size);
+			}
+			if (e != (int)size) {
+				if (errno == ENOTSUP || errno == ENOSYS) {
+					if (!warning_done) {
+						warning_done = 1;
+						archive_set_error(&a->archive,
+						    errno,
+						    "Cannot restore extended "
+						    "attributes on this file "
+						    "system");
+					}
+				} else {
+					archive_set_error(&a->archive, errno,
+					    "Failed to set extended attribute");
+				}
 
-  return result;
+				ret = ARCHIVE_WARN;
+			}
+		}
+	}
+	return (ret);
 }

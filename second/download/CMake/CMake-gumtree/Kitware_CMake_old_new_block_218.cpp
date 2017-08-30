@@ -1,9 +1,6 @@
-{
-    /* Append the algorithm */
-    tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    response = tmp;
-  }
+(strcmp(key, "GNU.sparse.numblocks") == 0) {
+			tar->sparse_offset = -1;
+			tar->sparse_numbytes = -1;
+			tar->sparse_gnu_major = 0;
+			tar->sparse_gnu_minor = 0;
+		}

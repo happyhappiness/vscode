@@ -1,2 +1,2 @@
-fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n"
-            ,classes[i].c_str());
+archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));

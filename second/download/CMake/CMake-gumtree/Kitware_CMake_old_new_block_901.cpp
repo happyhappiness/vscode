@@ -1,5 +1,7 @@
 {
-      sprintf(buffer, "&gt;&lt;");
-      //sprintf(buffer, "&#x%0x;", (unsigned int)ch);
-      ost << buffer;
-      }
+			archive_set_error(&a->archive, GetLastError(),
+			    "Can't GetFileInformationByHandle");
+			if (h != INVALID_HANDLE_VALUE && fd < 0)
+				CloseHandle(h);
+			return (ARCHIVE_FAILED);
+		}

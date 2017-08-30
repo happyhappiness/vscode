@@ -1,8 +1,9 @@
-(targetType == cmState::EXECUTABLE)
-      {
-      /* Put the executable at a known location (for COPY_FILE).  */
-      fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-              this->BinaryDirectory.c_str());
-      /* Create the actual executable.  */
-      fprintf(fout, "add_executable(%s", targetName.c_str());
-      };
+snprintf(buf, BUFSIZE-1,
+             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+             tm->tm_mday,
+             Curl_month[tm->tm_mon],
+             tm->tm_year + 1900,
+             tm->tm_hour,
+             tm->tm_min,
+             tm->tm_sec);

@@ -1,1 +1,2 @@
-snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);
+snprintf(service.value, service.length+1, "%s@%s",
+             serviceptr, conn->proxy.name);

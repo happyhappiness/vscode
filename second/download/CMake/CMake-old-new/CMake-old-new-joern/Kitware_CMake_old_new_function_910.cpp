@@ -1,14 +1,26 @@
 int
-Curl_sec_vfprintf2(struct connectdata *conn, FILE *f, const char *fmt, va_list ap)
+archive_read_support_filter_gzip(struct archive *_a)
 {
-  char *buf;
-  int ret;
-  if(conn->data_prot == prot_clear)
-    return vfprintf(f, fmt, ap);
-  else {
-    buf = aprintf(fmt, ap);
-    ret = buffer_write(&conn->out_buffer, buf, strlen(buf));
-    free(buf);
-    return ret;
-  }
+	struct archive_read *a = (struct archive_read *)_a;
+	struct archive_read_filter_bidder *bidder;
+
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_filter_gzip");
+
+	if (__archive_read_get_bidder(a, &bidder) != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	bidder->data = NULL;
+	bidder->bid = gzip_bidder_bid;
+	bidder->init = gzip_bidder_init;
+	bidder->options = NULL;
+	bidder->free = NULL; /* No data, so no cleanup necessary. */
+	/* Signal the extent of gzip support with the return value here. */
+#if HAVE_ZLIB_H
+	return (ARCHIVE_OK);
+#else
+	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external gunzip program");
+	return (ARCHIVE_WARN);
+#endif
 }

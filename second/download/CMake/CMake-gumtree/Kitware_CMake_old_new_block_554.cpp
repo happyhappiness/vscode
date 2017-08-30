@@ -1,6 +1,7 @@
 {
-				archive_set_error(&a->archive, errno,
-				    "%ls: Cannot stat",
-				    tree_current_path(t));
-				return (ARCHIVE_FAILED);
-			}
+      /* if a line like this was already allocated, free the previous one */
+      if(conn->allocptr.rangeline)
+        free(conn->allocptr.rangeline);
+      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
+                                         data->state.range);
+    }

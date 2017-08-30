@@ -1,2 +1,1 @@
-archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
+f(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);

@@ -1,1 +1,0 @@
-fprintf(fout, "ADD_DEFINITIONS( ");

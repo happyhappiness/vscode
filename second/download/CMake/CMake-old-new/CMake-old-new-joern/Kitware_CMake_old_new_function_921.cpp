@@ -1,23 +1,27 @@
-Curl_addrinfo *Curl_getaddrinfo(struct SessionHandle *data,
-                                char *hostname,
-                                int port,
-                                char **bufp)
+static int
+archive_read_format_lha_options(struct archive_read *a,
+    const char *key, const char *val)
 {
-  struct addrinfo hints, *res;
-  int error;
-  char sbuf[NI_MAXSERV];
+	struct lha *lha;
+	int ret = ARCHIVE_FAILED;
 
-  memset(&hints, 0, sizeof(hints));
-  hints.ai_family = PF_INET;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_CANONNAME;
-  snprintf(sbuf, sizeof(sbuf), "%d", port);
-  error = getaddrinfo(hostname, sbuf, &hints, &res);
-  if (error) {
-    infof(data, "getaddrinfo(3) failed for %s\n", hostname);    
-    return NULL;
-  }
-  *bufp=(char *)res; /* make it point to the result struct */
+	lha = (struct lha *)(a->format->data);
+	if (strcmp(key, "hdrcharset")  == 0) {
+		if (val == NULL || val[0] == 0)
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "lha: hdrcharset option needs a character-set name");
+		else {
+			lha->opt_sconv =
+			    archive_string_conversion_from_charset(
+				&a->archive, val, 0);
+			if (lha->opt_sconv != NULL)
+				ret = ARCHIVE_OK;
+			else
+				ret = ARCHIVE_FATAL;
+		}
+	} else
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "lha: unknown keyword ``%s''", key);
 
-  return res;
+	return (ret);
 }

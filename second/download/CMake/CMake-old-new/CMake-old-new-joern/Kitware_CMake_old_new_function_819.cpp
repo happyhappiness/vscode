@@ -1,23 +1,13 @@
-YY_BUFFER_STATE yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
+int
+archive_read_support_filter_program_signature(struct archive *_a,
+    const char *cmd, const void *signature, size_t signature_len)
 {
-        YY_BUFFER_STATE b;
-    
-        b = (YY_BUFFER_STATE) yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
-        if ( ! b )
-                YY_FATAL_ERROR( "out of dynamic memory in yy_create_buffer()" );
+	(void)_a; /* UNUSED */
+	(void)cmd; /* UNUSED */
+	(void)signature; /* UNUSED */
+	(void)signature_len; /* UNUSED */
 
-        b->yy_buf_size = size;
-
-        /* yy_ch_buf has to be 2 characters longer than the size given because
-         * we need to put in 2 end-of-buffer characters.
-         */
-        b->yy_ch_buf = (char *) yyalloc(b->yy_buf_size + 2 ,yyscanner );
-        if ( ! b->yy_ch_buf )
-                YY_FATAL_ERROR( "out of dynamic memory in yy_create_buffer()" );
-
-        b->yy_is_our_buffer = 1;
-
-        yy_init_buffer(b,file ,yyscanner);
-
-        return b;
+	archive_set_error(_a, -1,
+	    "External compression programs not supported on this platform");
+	return (ARCHIVE_FATAL);
 }

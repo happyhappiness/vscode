@@ -1,23 +1,26 @@
-YY_BUFFER_STATE yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
+int
+archive_read_support_filter_gzip(struct archive *_a)
 {
-        YY_BUFFER_STATE b;
-    
-        b = (YY_BUFFER_STATE) yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
-        if ( ! b )
-                YY_FATAL_ERROR( "out of dynamic memory in yy_create_buffer()" );
+	struct archive_read *a = (struct archive_read *)_a;
+	struct archive_read_filter_bidder *bidder;
 
-        b->yy_buf_size = size;
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_filter_gzip");
 
-        /* yy_ch_buf has to be 2 characters longer than the size given because
-         * we need to put in 2 end-of-buffer characters.
-         */
-        b->yy_ch_buf = (char *) yyalloc(b->yy_buf_size + 2 ,yyscanner );
-        if ( ! b->yy_ch_buf )
-                YY_FATAL_ERROR( "out of dynamic memory in yy_create_buffer()" );
+	if (__archive_read_get_bidder(a, &bidder) != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
 
-        b->yy_is_our_buffer = 1;
-
-        yy_init_buffer(b,file ,yyscanner);
-
-        return b;
+	bidder->data = NULL;
+	bidder->bid = gzip_bidder_bid;
+	bidder->init = gzip_bidder_init;
+	bidder->options = NULL;
+	bidder->free = NULL; /* No data, so no cleanup necessary. */
+	/* Signal the extent of gzip support with the return value here. */
+#if HAVE_ZLIB_H
+	return (ARCHIVE_OK);
+#else
+	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external gunzip program");
+	return (ARCHIVE_WARN);
+#endif
 }

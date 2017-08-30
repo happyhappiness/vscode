@@ -1,6 +1,4 @@
 {
-    md5this = (unsigned char *)aprintf("%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       ha2);
+    snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);
+    putenv(buf);
   }

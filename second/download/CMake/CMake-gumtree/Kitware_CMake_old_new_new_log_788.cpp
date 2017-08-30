@@ -1,1 +1,1 @@
-sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
+archive_set_error(&a->archive, errno, "fchdir failed");

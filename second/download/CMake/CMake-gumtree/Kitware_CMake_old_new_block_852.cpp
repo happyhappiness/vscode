@@ -1,13 +1,7 @@
 {
-      sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);
-      std::cout << "Open file: " << cfileoutputname << std::endl;
-      if (!this->OpenOutputFile(m_CurrentTag, cfileoutputname, cfileoutput))
-        {
-        std::cerr << "Cannot open log file: " << cfileoutputname << std::endl;
-        return 1;
-        }
-      local_start_time = this->CurrentTime();
-      this->StartXML(cfileoutput);
-      cfileoutput << "<CoverageLog>\n"
-        << "\t<StartDateTime>" << local_start_time << "</StartDateTime>" << std::endl;
-      }
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "ZIP compressed data is wrong size (read %jd, expected %jd)",
+			    (intmax_t)zip->entry_compressed_bytes_read,
+			    (intmax_t)zip->entry->compressed_size);
+			return (ARCHIVE_WARN);
+		}

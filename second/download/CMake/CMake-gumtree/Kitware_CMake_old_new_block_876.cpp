@@ -1,8 +1,25 @@
-(testCommand == "")
-        {
-        std::cerr << "Unable to find executable: " <<
-          args[1].Value.c_str() << "\n";
-        m_TestResults.push_back( cres ); 
-        failed.push_back(args[0].Value);
-        continue;
-        }
+{
+#if defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR)
+		/*
+		 * Get file system statistics on any directory
+		 * where current is.
+		 */
+		int fd = openat(tree_current_dir_fd(t),
+		    tree_current_access_path(t), O_RDONLY);
+		if (fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "openat failed");
+			return (ARCHIVE_FAILED);
+		}
+		vr = fstatvfs(fd, &svfs);/* for f_flag, mount flags */
+		r = fstatfs(fd, &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, fd, NULL);
+		close(fd);
+#else
+		vr = statvfs(tree_current_access_path(t), &svfs);
+		r = statfs(tree_current_access_path(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, tree_current_access_path(t));
+#endif
+	}

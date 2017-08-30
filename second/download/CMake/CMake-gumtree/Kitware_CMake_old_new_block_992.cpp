@@ -1,19 +1,13 @@
 {
-  int x,y;
-  getmaxyx(m_Window, y, x);
-  if ( x < cmCursesMainForm::MIN_WIDTH  || 
-       y < cmCursesMainForm::MIN_HEIGHT )
-    {
-    return;
-    }
-  char firstLine[512], secondLine[512];
-  sprintf(firstLine,  "C)onfigure             G)enerate and Exit");
-  sprintf(secondLine, "Q)uit                  H)elp");
+      /* Allocate a buffer to hold the forwarding executable path.  */
+      size_t tdlen = strlen(tempDir);
+      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
+      if(!win9x)
+        {
+        kwsysProcess_Delete(cp);
+        return 0;
+        }
 
-  curses_move(y-2,0);
-  printw(firstLine);
-  curses_move(y-1,0);
-  printw(secondLine);
-  pos_form_cursor(m_Form);
-  
-}
+      /* Construct the full path to the forwarding executable.  */
+      sprintf(win9x, "%s%s", tempDir, fwdName);
+      }

@@ -1,0 +1,1 @@
+printf("Error fetching: http://www.cmake.org/HTML/Sponsors.html\n");

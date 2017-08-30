@@ -1,88 +1,104 @@
-bool cmVTKWrapTclCommand::WriteInit(const char *kitName, 
-                                    std::string& outFileName,
-                                    std::vector<std::string>& classes)
+static ssize_t
+extract_pack_stream(struct archive_read *a)
 {
-  unsigned int i;
-  std::string tempOutputFile = outFileName + ".tmp";
-  FILE *fout = fopen(tempOutputFile.c_str(),"w");
-  if (!fout)
-    {
-    return false;
-    }
-  
-  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
-  
-  for (i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
-    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
-    }
-  
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,"int vtkCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n");
-    fprintf(fout,"\nTcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkCommandLookup;\n");
-    }
-  else
-    {
-    fprintf(fout,"\nextern Tcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkCommandLookup;\n");
-    }
-  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
-  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
-  
-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n\n",
-	  kitName);
-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n\n",
-	  kitName);
-  
-  /* create an extern ref to the generic delete function */
-  fprintf(fout,"\n\nextern void vtkTclGenericDeleteObject(ClientData cd);\n\n");
+	struct _7zip *zip = (struct _7zip *)a->format->data;
+	ssize_t bytes_avail;
+	int r;
 
-  /* the main declaration */
-  fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
-  fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
-  
-  fprintf(fout,"\n\nint VTK_EXPORT %s_Init(Tcl_Interp *interp)\n{\n",
-          kitName);
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,
-	    "  vtkTclInterpStruct *info = new vtkTclInterpStruct;\n");
-    fprintf(fout,
-            "  info->Number = 0; info->InDelete = 0; info->DebugOn = 0;\n");
-    fprintf(fout,"\n");
-    fprintf(fout,"\n");
-    fprintf(fout,
-	    "  Tcl_InitHashTable(&info->InstanceLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-	    "  Tcl_InitHashTable(&info->PointerLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-	    "  Tcl_InitHashTable(&info->CommandLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");
+	if (zip->codec == _7Z_COPY && zip->codec2 == -1) {
+		if (__archive_read_ahead(a, 1, &bytes_avail) == NULL
+		    || bytes_avail <= 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated 7-Zip file body");
+			return (ARCHIVE_FATAL);
+		}
+		if (bytes_avail > zip->pack_stream_inbytes_remaining)
+			bytes_avail = zip->pack_stream_inbytes_remaining;
+		zip->pack_stream_inbytes_remaining -= bytes_avail;
+		if (bytes_avail > zip->folder_outbytes_remaining)
+			bytes_avail = zip->folder_outbytes_remaining;
+		zip->folder_outbytes_remaining -= bytes_avail;
+		zip->uncompressed_buffer_bytes_remaining = bytes_avail;
+		return (ARCHIVE_OK);
+	}
 
-    /* create special vtkCommand command */
-    fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",vtkCommand,\n		    (ClientData *)NULL, NULL);\n\n");
-    }
-  
-  for (i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"  vtkTclCreateNew(interp,(char *) \"%s\", %sNewCommand,\n",
-	    classes[i].c_str(), classes[i].c_str());
-    fprintf(fout,"                  %sCommand);\n",classes[i].c_str());
-    }
-  
-  fprintf(fout,"  return TCL_OK;\n}\n");
-  fclose(fout);
+	/* If the buffer hasn't been allocated, allocate it now. */
+	if (zip->uncompressed_buffer == NULL) {
+		zip->uncompressed_buffer_size = 64 * 1024;
+		zip->uncompressed_buffer =
+		    malloc(zip->uncompressed_buffer_size);
+		if (zip->uncompressed_buffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for 7-Zip decompression");
+			return (ARCHIVE_FATAL);
+		}
+	}
+	zip->uncompressed_buffer_bytes_remaining = 0;
+	zip->uncompressed_buffer_pointer = NULL;
+	for (;;) {
+		size_t bytes_in, bytes_out;
+		const void *buff_in;
+		unsigned char *buff_out;
+		int eof;
 
-  // copy the file if different
-  cmSystemTools::CopyFileIfDifferent(tempOutputFile.c_str(),
-                                     outFileName.c_str());
-  cmSystemTools::RemoveFile(tempOutputFile.c_str());
+		/*
+		 * Note: '1' here is a performance optimization.
+		 * Recall that the decompression layer returns a count of
+		 * available bytes; asking for more than that forces the
+		 * decompressor to combine reads by copying data.
+		 */
+		buff_in = __archive_read_ahead(a, 1, &bytes_avail);
+		if (bytes_avail <= 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated 7-Zip file body");
+			return (ARCHIVE_FATAL);
+		}
 
-  return true;
+		buff_out = zip->uncompressed_buffer
+			+ zip->uncompressed_buffer_bytes_remaining;
+		bytes_out = zip->uncompressed_buffer_size
+			- zip->uncompressed_buffer_bytes_remaining;
+		bytes_in = bytes_avail;
+		if (bytes_in > zip->pack_stream_inbytes_remaining)
+			bytes_in = zip->pack_stream_inbytes_remaining;
+		/* Drive decompression. */
+		r = decompress(a, zip, buff_out, &bytes_out,
+			buff_in, &bytes_in);
+		switch (r) {
+		case ARCHIVE_OK:
+			eof = 0;
+			break;
+		case ARCHIVE_EOF:
+			eof = 1;
+			break;
+		default:
+			return (ARCHIVE_FATAL);
+		}
+		zip->pack_stream_inbytes_remaining -= bytes_in;
+		if (bytes_out > zip->folder_outbytes_remaining)
+			bytes_out = zip->folder_outbytes_remaining;
+		zip->folder_outbytes_remaining -= bytes_out;
+		zip->uncompressed_buffer_bytes_remaining += bytes_out;
+		zip->pack_stream_bytes_unconsumed = bytes_in;
+
+		/*
+		 * Continue decompression until uncompressed_buffer is full.
+		 */
+		if (zip->uncompressed_buffer_bytes_remaining ==
+		    zip->uncompressed_buffer_size)
+			break;
+		if (zip->pack_stream_inbytes_remaining == 0 &&
+		    zip->folder_outbytes_remaining == 0)
+			break;
+		if (eof || (bytes_in == 0 && bytes_out == 0)) {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC, "Damaged 7-Zip archive");
+			return (ARCHIVE_FATAL);
+		}
+		read_consume(a);
+	}
+	zip->uncompressed_buffer_pointer = zip->uncompressed_buffer;
+	return (ARCHIVE_OK);
 }

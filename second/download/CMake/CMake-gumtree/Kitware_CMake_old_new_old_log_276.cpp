@@ -1,1 +1,1 @@
-tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
+write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap);

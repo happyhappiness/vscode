@@ -1,4 +1,2 @@
-fprintf(stderr, "static regex matched [%s] [%s] [%s]\n",
-              this->ExtractStaticLibraryName.match(1).c_str(),
-              this->ExtractStaticLibraryName.match(2).c_str(),
-              this->ExtractStaticLibraryName.match(3).c_str());
+fprintf(fout,
+              "TARGET_LINK_LIBRARIES(%s ${LINK_LIBRARIES})\n",targetName);

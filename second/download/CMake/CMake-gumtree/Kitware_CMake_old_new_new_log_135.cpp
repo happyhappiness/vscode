@@ -1,2 +1,2 @@
-archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Non-regular file cannot be sparse");

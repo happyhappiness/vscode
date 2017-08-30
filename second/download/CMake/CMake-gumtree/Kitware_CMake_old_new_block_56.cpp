@@ -1,22 +1,15 @@
 {
-  va_list ap;
-  size_t len;
-  va_start(ap, fmt);
+    unsigned int rnd[4];
+    result = Curl_rand(data, &rnd[0], 4);
+    if(result)
+      return result;
+    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+             rnd[0], rnd[1], rnd[2], rnd[3]);
 
-  vsnprintf(data->state.buffer, BUFSIZE, fmt, ap);
+    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
+                                &cnonce, &cnonce_sz);
+    if(result)
+      return result;
 
-  if(data->set.errorbuffer && !data->state.errorbuf) {
-    snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer);
-    data->state.errorbuf = TRUE; /* wrote error string */
+    digest->cnonce = cnonce;
   }
-  if(data->set.verbose) {
-    len = strlen(data->state.buffer);
-    if(len < BUFSIZE - 1) {
-      data->state.buffer[len] = '\n';
-      data->state.buffer[++len] = '\0';
-    }
-    Curl_debug(data, CURLINFO_TEXT, data->state.buffer, len, NULL);
-  }
-
-  va_end(ap);
-}

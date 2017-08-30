@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate direcotry traversal data");
+md5this = (unsigned char *)aprintf("%s:%.*s", request, urilen, uripath);

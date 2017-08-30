@@ -1,4 +1,5 @@
 {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name);
-    }
+			archive_set_error(f->archive, EIO,
+			    "Can't write to filter");
+			return (ARCHIVE_FATAL);
+		}

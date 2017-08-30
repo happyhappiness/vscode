@@ -1,8 +1,2 @@
-size = snprintf((char *)ntlmbuf, sizeof(ntlmbuf),
-                    NTLMSSP_SIGNATURE "%c"
-                    "\x03%c%c%c" /* type-3, 32 bits */
-
-                    "%c%c" /* LanManager length */
-                    "%c%c" /* LanManager allocated space */
-                    "%c%c" /* LanManager offset */
-                    "%c%c";
+fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              lg->EscapeForCMake(flags?flags:"").c_str());

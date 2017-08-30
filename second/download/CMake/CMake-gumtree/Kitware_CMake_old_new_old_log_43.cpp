@@ -1,5 +1,3 @@
 archive_set_error(&a->archive,
-						    errno,
-						    "Cannot restore extended "
-						    "attributes on this file "
-						    "system");
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Invalid extended attribute encountered");

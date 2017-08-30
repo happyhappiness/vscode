@@ -1,4 +1,4 @@
 {
-               this->ImportFlag = true;
-               fprintf(this->FileOut,"IMPORTS \n");
-            }
+  /* Generate and return our SPN */
+  return aprintf("%s/%s", service, host);
+}

@@ -1,2 +1,8 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "tar: unknown keyword ``%s''", key)
+{
+    /* append algorithm */
+    tmp = aprintf("%s, algorithm=\"%s\"", *allocuserpwd, d->algorithm);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+    free(*allocuserpwd);
+    *allocuserpwd = tmp;
+  }

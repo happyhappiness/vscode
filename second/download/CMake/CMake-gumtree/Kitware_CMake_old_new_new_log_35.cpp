@@ -1,3 +1,3 @@
-fsobj_error(a_eno, a_estr,
-						    errno,
-						    "Could not chdir ", path);
+fsobj_error(a_eno, a_estr, errno,
+					    "Could not remove symlink ",
+					    path);

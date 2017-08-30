@@ -1,6 +1,6 @@
 {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Symbolic mode \"%s\" unsupported", val);
-				return ARCHIVE_WARN;
-			}
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Couldn't determine file path to read "
+			    "extended attributes");
+			return (ARCHIVE_WARN);
+		}

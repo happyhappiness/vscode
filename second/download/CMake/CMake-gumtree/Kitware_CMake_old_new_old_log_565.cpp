@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, GetLastError(),
-			    "Can't GetFileInformationByHandle");
+tmp = aprintf("%s, opaque=\"%s\"", *allocuserpwd, d->opaque);

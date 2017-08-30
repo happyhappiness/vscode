@@ -1,0 +1,1 @@
+sprintf(buffer, "%%%02X", *str);

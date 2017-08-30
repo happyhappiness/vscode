@@ -1,70 +1,40 @@
-int cmake::getAllExternalLibs(const std::set<cmStdString>& ignoreTargetsSet,
-                          std::map<cmStdString, cmStdString>& targetNamesNodes,
-                          std::map<cmStdString, const cmTarget*>& targetPtrs,
-                          std::map<cmStdString, int>& targetDeps,
-                          const char* graphNodePrefix) const
+unsigned long Directory::GetNumberOfFilesInDirectory(const char* name)
 {
-  int cnt = 0;
-
-  const std::vector<cmLocalGenerator*>& localGenerators =
-                              this->GetGlobalGenerator()->GetLocalGenerators();
-  // Ok, now find all the stuff we link to that is not in cmake
-  for (std::vector<cmLocalGenerator*>::const_iterator lit =
-                                                       localGenerators.begin();
-       lit != localGenerators.end();
-       ++ lit )
+#if _MSC_VER < 1300
+  long srchHandle;
+#else
+  intptr_t srchHandle;
+#endif
+  char* buf;
+  size_t n = strlen(name);
+  if ( name[n - 1] == '/' )
     {
-    const cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
-    for ( cmTargets::const_iterator tit = targets->begin();
-          tit != targets->end();
-          ++ tit )
-      {
-      const char* realTargetName = tit->first.c_str();
-      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
-        {
-        // Skip ignored targets
-        continue;
-        }
-      const cmTarget::LinkLibraryVectorType* ll =
-                                     &(tit->second.GetOriginalLinkLibraries());
-      if ( ll->size() > 0 )
-        {
-        targetDeps[realTargetName] = DOT_DEP_TARGET;
-        fprintf(stderr, " + %s\n", realTargetName);
-        }
-      for (cmTarget::LinkLibraryVectorType::const_iterator llit = ll->begin();
-           llit != ll->end();
-           ++ llit )
-        {
-        const char* libName = llit->first.c_str();
-        if ( ignoreTargetsSet.find(libName) != ignoreTargetsSet.end() )
-          {
-          // Skip ignored targets
-          continue;
-          }
-
-        std::map<cmStdString, cmStdString>::const_iterator tarIt =
-                                                targetNamesNodes.find(libName);
-        if ( tarIt == targetNamesNodes.end() )
-          {
-          cmOStringStream ostr;
-          ostr << graphNodePrefix << cnt++;
-          targetDeps[libName] = DOT_DEP_EXTERNAL;
-          targetNamesNodes[libName] = ostr.str();
-          //str << "    \"" << ostr.c_str() << "\" [ label=\"" << libName
-          //<<  "\" shape=\"ellipse\"];" << std::endl;
-          }
-        else
-          {
-          std::map<cmStdString, int>::const_iterator depIt =
-                                                      targetDeps.find(libName);
-          if ( depIt == targetDeps.end() )
-            {
-            targetDeps[libName] = DOT_DEP_TARGET;
-            }
-          }
-        }
-      }
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
     }
-   return cnt;
+  else
+    {
+    buf = new char[n + 2 + 1];
+    sprintf(buf, "%s/*", name);
+    }
+  struct _wfinddata_t data;      // data of current file
+
+  // Now put them into the file array
+  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
+  delete [] buf;
+
+  if ( srchHandle == -1 )
+    {
+    return 0;
+    }
+
+  // Loop through names
+  unsigned long count = 0;
+  do
+    {
+    count++;
+    }
+  while ( _wfindnext(srchHandle, &data) != -1 );
+  _findclose(srchHandle);
+  return count;
 }

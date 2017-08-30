@@ -1,1 +1,2 @@
-sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
+fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName().c_str());

@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, EILSEQ,
-            "Can't translate gname '%s' to UTF-8", gname);
+fprintf(out, "%s", archive_entry_pathname(entry));

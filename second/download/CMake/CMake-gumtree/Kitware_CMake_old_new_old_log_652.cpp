@@ -1,1 +1,1 @@
-printf("Checking -%s-\n", absFilename.c_str());
+fprintf(fout, "DATA PRELOAD MOVEABLE MULTIPLE\n\n");

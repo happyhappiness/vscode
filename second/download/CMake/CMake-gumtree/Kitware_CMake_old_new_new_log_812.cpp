@@ -1,2 +1,2 @@
-depends.insert(depends.end(),
-                     cr->GetDepends().begin(), cr->GetDepends().end());
+archive_set_error(&a->archive, errno,
+			    "DeviceIoControl Failed: %lu", GetLastError());

@@ -1,6 +1,7 @@
 {
-    md5this = (unsigned char *)aprintf("%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       ha2);
-  }
+				archive_set_error(&a->archive, 0,
+				    "Cannot extract through symlink %s",
+				    a->name);
+				pn[0] = c;
+				return (ARCHIVE_FAILED);
+			}

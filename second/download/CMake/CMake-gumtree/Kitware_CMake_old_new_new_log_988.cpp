@@ -1,1 +1,0 @@
-sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently On)");

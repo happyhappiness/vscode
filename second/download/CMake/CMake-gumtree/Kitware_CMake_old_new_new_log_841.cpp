@@ -1,2 +1,3 @@
-snprintf(buf, sizeof(data->state.buffer),
-               "Content-Length: %" FORMAT_OFF_T "\r\n", filesize);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unsupported ZIP compression method (%s)",
+		    compression_name(rsrc->compression));

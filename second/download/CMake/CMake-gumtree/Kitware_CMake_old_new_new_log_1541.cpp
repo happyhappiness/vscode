@@ -1,0 +1,1 @@
+sprintf(help,"%s", helpString);

@@ -1,2 +1,3 @@
-fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
+archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    "Unacceptable dictionary dize for lzip: %d",
+			    dict_size);

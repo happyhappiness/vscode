@@ -1,5 +1,4 @@
 {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Can't open file to read extended attributes: No name");
-		return (ARCHIVE_WARN);
-	}
+					archive_set_error(&a->archive, errno,
+					    "Failed to set extended attribute");
+				}

@@ -1,10 +1,8 @@
 {
-    char ver[256];
-    sprintf(ver,"%i.%i",cmMakefile::GetMajorVersion(),
-            cmMakefile::GetMinorVersion());
-    this->CacheManager->AddCacheEntry
-      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
-       "For backwards compatibility, what version of CMake commands and "
-       "syntax should this version of CMake allow.",
-       cmCacheManager::STRING);
-    }
+      fprintf(fout, "ADD_DEFINITIONS( ");
+      for (size_t i = 0; i < compileDefs.size(); ++i)
+        {
+        fprintf(fout,"%s ",compileDefs[i].c_str());
+        }
+      fprintf(fout, ")\n");
+      }

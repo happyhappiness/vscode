@@ -1,1 +1,2 @@
-fprintf(stderr, "Shifting token %d (%s), ", yychar, yytname[yychar1]);
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Symlink");

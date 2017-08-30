@@ -1,1 +1,2 @@
-fprintf(ofp, "#define _unlink unlink\n");
+fprintf(stderr, "  contains target %d [%s]\n",
+              i, this->Targets[i]->GetName());

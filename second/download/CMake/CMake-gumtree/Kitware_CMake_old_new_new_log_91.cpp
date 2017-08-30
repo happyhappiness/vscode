@@ -1,2 +1,1 @@
-archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
+DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"));

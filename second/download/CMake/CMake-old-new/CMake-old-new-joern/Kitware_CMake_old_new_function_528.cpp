@@ -1,31 +1,24 @@
-static int
-archive_read_format_cpio_options(struct archive_read *a,
-    const char *key, const char *val)
+static ssize_t
+_archive_write_disk_data_block(struct archive *_a,
+    const void *buff, size_t size, int64_t offset)
 {
-	struct cpio *cpio;
-	int ret = ARCHIVE_FAILED;
+	struct archive_write_disk *a = (struct archive_write_disk *)_a;
+	ssize_t r;
 
-	cpio = (struct cpio *)(a->format->data);
-	if (strcmp(key, "compat-2x")  == 0) {
-		/* Handle filnames as libarchive 2.x */
-		cpio->init_default_conversion = (val != NULL)?1:0;
-		ret = ARCHIVE_OK;
-	} else if (strcmp(key, "hdrcharset")  == 0) {
-		if (val == NULL || val[0] == 0)
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "cpio: hdrcharset option needs a character-set name");
-		else {
-			cpio->opt_sconv =
-			    archive_string_conversion_from_charset(
-				&a->archive, val, 0);
-			if (cpio->opt_sconv != NULL)
-				ret = ARCHIVE_OK;
-			else
-				ret = ARCHIVE_FATAL;
-		}
-	} else
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "cpio: unknown keyword ``%s''", key);
+	archive_check_magic(&a->archive, ARCHIVE_WRITE_DISK_MAGIC,
+	    ARCHIVE_STATE_DATA, "archive_write_data_block");
 
-	return (ret);
+	a->offset = offset;
+	if (a->todo & TODO_HFS_COMPRESSION)
+		r = hfs_write_data_block(a, buff, size);
+	else
+		r = write_data_block(a, buff, size);
+	if (r < ARCHIVE_OK)
+		return (r);
+	if ((size_t)r < size) {
+		archive_set_error(&a->archive, 0,
+		    "Write request too large");
+		return (ARCHIVE_WARN);
+	}
+	return (ARCHIVE_OK);
 }

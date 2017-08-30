@@ -1,2 +1,5 @@
-archive_set_error(&a->archive, errno,
-			    "Can't change dir to read extended attributes");
+archive_set_error(&a->archive,
+						    errno,
+						    "Cannot restore extended "
+						    "attributes on this file "
+						    "system");

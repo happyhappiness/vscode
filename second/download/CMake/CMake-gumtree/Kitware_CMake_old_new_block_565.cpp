@@ -1,7 +1,8 @@
 {
-			archive_set_error(&a->archive, GetLastError(),
-			    "Can't GetFileInformationByHandle");
-			if (h != INVALID_HANDLE_VALUE && fd < 0)
-				CloseHandle(h);
-			return (ARCHIVE_FAILED);
-		}
+    /* append opaque */
+    tmp = aprintf("%s, opaque=\"%s\"", *allocuserpwd, d->opaque);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+    free(*allocuserpwd);
+    *allocuserpwd = tmp;
+  }

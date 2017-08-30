@@ -1,2 +1,3 @@
-fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n",
-	  kitName);
+f(secondLine,
+            "Press [h] for help           "
+            "Press [q] to quit without generating");

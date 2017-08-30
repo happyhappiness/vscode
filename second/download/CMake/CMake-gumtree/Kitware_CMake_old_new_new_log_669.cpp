@@ -1,1 +1,1 @@
-d::cout << "Writing " << currentFilename << "..." << std::endl;
+sprintf(buf, "%s*", name.c_str());

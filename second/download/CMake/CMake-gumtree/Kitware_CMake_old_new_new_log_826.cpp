@@ -1,1 +1,0 @@
-sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);

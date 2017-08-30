@@ -1,0 +1,1 @@
+fprintf(ofp, "    kwsys_unlink(fname);\n");

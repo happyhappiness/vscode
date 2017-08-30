@@ -1,280 +1,84 @@
-void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed, 
-                             cmCTest::tm_VectorOfStrings &failed,
-                             bool memcheck)
+static int
+archive_read_format_zip_read_data(struct archive_read *a,
+    const void **buff, size_t *size, int64_t *offset)
 {
-  std::string current_dir = cmSystemTools::GetCurrentWorkingDirectory();
-  cmsys::RegularExpression dartStuff("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
-  tm_ListOfTests testlist;
-  this->GetListOfTests(&testlist, memcheck);
-  tm_ListOfTests::size_type tmsize = testlist.size();
+	int r;
+	struct zip *zip = (struct zip *)(a->format->data);
 
-  std::ofstream ofs;
-  std::ofstream *olog = 0;
-  if ( !m_ShowOnly && tmsize > 0 && 
-    this->OpenOutputFile("Temporary", 
-      (memcheck?"LastMemCheck.log":"LastTest.log"), ofs) )
-    {
-    olog = &ofs;
-    }
+	*offset = zip->entry_uncompressed_bytes_read;
+	*size = 0;
+	*buff = NULL;
 
-  m_StartTest = this->CurrentTime();
-  double elapsed_time_start = cmSystemTools::GetTime();
+	/* If we hit end-of-entry last time, return ARCHIVE_EOF. */
+	if (zip->end_of_entry)
+		return (ARCHIVE_EOF);
 
-  if ( olog )
-    {
-    *olog << "Start testing: " << m_StartTest << std::endl
-      << "----------------------------------------------------------"
-      << std::endl;
-    }
+	/* Return EOF immediately if this is a non-regular file. */
+	if (AE_IFREG != (zip->entry->mode & AE_IFMT))
+		return (ARCHIVE_EOF);
 
-  // expand the test list
-  this->ExpandTestsToRunInformation((int)tmsize);
-  
-  int cnt = 0;
-  tm_ListOfTests::iterator it;
-  std::string last_directory = "";
-  for ( it = testlist.begin(); it != testlist.end(); it ++ )
-    {
-    cnt ++;
-    const std::string& testname = it->m_Name;
-    tm_VectorOfListFileArgs& args = it->m_Args;
-    cmCTestTestResult cres;
-    cres.m_Status = cmCTest::NOT_RUN;
-    cres.m_TestCount = cnt;
+	if (zip->entry->flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Encrypted file is unsupported");
+		return (ARCHIVE_FAILED);
+	}
 
-    if (!(last_directory == it->m_Directory))
-      {
-      if ( m_Verbose )
-        {
-        std::cerr << "Changing directory into " 
-          << it->m_Directory.c_str() << "\n";
-        }
-      last_directory = it->m_Directory;
-      cmSystemTools::ChangeDirectory(it->m_Directory.c_str());
-      }
-    cres.m_Name = testname;
-    if(m_TestsToRun.size() && 
-       std::find(m_TestsToRun.begin(), m_TestsToRun.end(), cnt) == m_TestsToRun.end())
-      {
-      continue;
-      }
+	__archive_read_consume(a, zip->unconsumed);
+	zip->unconsumed = 0;
 
-    if ( m_ShowOnly )
-      {
-      std::cerr.width(3);
-      std::cerr << cnt << "/";
-      std::cerr.width(3);
-      std::cerr << tmsize << " Testing ";
-      std::string outname = testname;
-      outname.resize(30, ' ');
-      std::cerr << outname.c_str() << "\n";
-     }
-    else
-      {
-      std::cerr.width(3);
-      std::cerr << cnt << "/";
-      std::cerr.width(3);
-      std::cerr << tmsize << " Testing ";
-      std::string outname = testname;
-      outname.resize(30, ' ');
-      std::cerr << outname.c_str();
-      std::cerr.flush();
-      }
-    
-    //std::cerr << "Testing " << args[0] << " ... ";
-    // find the test executable
-    std::string actualCommand = this->FindTheExecutable(args[1].Value.c_str());
-    std::string testCommand = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
-    std::string memcheckcommand = "";
+	switch(zip->entry->compression) {
+	case 0:  /* No compression. */
+		r =  zip_read_data_none(a, buff, size, offset);
+		break;
+#ifdef HAVE_ZLIB_H
+	case 8: /* Deflate compression. */
+		r =  zip_read_data_deflate(a, buff, size, offset);
+		break;
+#endif
+	default: /* Unsupported compression. */
+		/* Return a warning. */
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unsupported ZIP compression method (%s)",
+		    compression_name(zip->entry->compression));
+		/* We can't decompress this entry, but we will
+		 * be able to skip() it and try the next entry. */
+		return (ARCHIVE_FAILED);
+		break;
+	}
+	if (r != ARCHIVE_OK)
+		return (r);
+	/* Update checksum */
+	if (*size)
+		zip->entry_crc32 = crc32(zip->entry_crc32, *buff, *size);
+	/* If we hit the end, swallow any end-of-data marker. */
+	if (zip->end_of_entry) {
+		/* Check file size, CRC against these values. */
+		if (zip->entry->compressed_size != zip->entry_compressed_bytes_read) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "ZIP compressed data is wrong size (read %jd, expected %jd)",
+			    (intmax_t)zip->entry_compressed_bytes_read,
+			    (intmax_t)zip->entry->compressed_size);
+			return (ARCHIVE_WARN);
+		}
+		/* Size field only stores the lower 32 bits of the actual
+		 * size. */
+		if ((zip->entry->uncompressed_size & UINT32_MAX)
+		    != (zip->entry_uncompressed_bytes_read & UINT32_MAX)) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "ZIP uncompressed data is wrong size (read %jd, expected %jd)",
+			    (intmax_t)zip->entry_uncompressed_bytes_read,
+			    (intmax_t)zip->entry->uncompressed_size);
+			return (ARCHIVE_WARN);
+		}
+		/* Check computed CRC against header */
+		if (zip->entry->crc32 != zip->entry_crc32) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "ZIP bad CRC: 0x%lx should be 0x%lx",
+			    (unsigned long)zip->entry_crc32,
+			    (unsigned long)zip->entry->crc32);
+			return (ARCHIVE_WARN);
+		}
+	}
 
-    // continue if we did not find the executable
-    if (testCommand == "")
-      {
-      std::cerr << "Unable to find executable: " <<
-        args[1].Value.c_str() << "\n";
-      if ( !m_ShowOnly )
-        {
-        m_TestResults.push_back( cres ); 
-        failed.push_back(testname);
-        continue;
-        }
-      }
-
-    // add the arguments
-    tm_VectorOfListFileArgs::const_iterator j = args.begin();
-    ++j;
-    ++j;
-    std::vector<const char*> arguments;
-    if ( memcheck )
-      {
-      cmCTest::tm_VectorOfStrings::size_type pp;
-      arguments.push_back(m_MemoryTester.c_str());
-      memcheckcommand = m_MemoryTester;
-      for ( pp = 0; pp < m_MemoryTesterOptionsParsed.size(); pp ++ )
-        {
-        arguments.push_back(m_MemoryTesterOptionsParsed[pp].c_str());
-        memcheckcommand += " ";
-        memcheckcommand += cmSystemTools::EscapeSpaces(m_MemoryTesterOptionsParsed[pp].c_str());
-        }
-      }
-    arguments.push_back(actualCommand.c_str());
-    for(;j != args.end(); ++j)
-      {
-      testCommand += " ";
-      testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
-      arguments.push_back(j->Value.c_str());
-      }
-    arguments.push_back(0);
-
-    /**
-     * Run an executable command and put the stdout in output.
-     */
-    std::string output;
-    int retVal = 0;
-
-
-    if ( m_Verbose )
-      {
-      std::cout << std::endl << (memcheck?"MemCheck":"Test") << " command: " << testCommand << std::endl;
-      if ( memcheck )
-        {
-        std::cout << "Memory check command: " << memcheckcommand << std::endl;
-        }
-      }
-    if ( olog )
-      {
-      *olog << cnt << "/" << tmsize 
-        << " Test: " << testname.c_str() << std::endl;
-      *olog << "Command: ";
-      tm_VectorOfStrings::size_type ll;
-      for ( ll = 0; ll < arguments.size()-1; ll ++ )
-        {
-        *olog << "\"" << arguments[ll] << "\" ";
-        }
-      *olog 
-        << std::endl 
-        << "Directory: " << it->m_Directory << std::endl 
-        << "\"" << testname.c_str() << "\" start time: " 
-        << this->CurrentTime() << std::endl
-        << "Output:" << std::endl 
-        << "----------------------------------------------------------"
-        << std::endl;
-      }
-    int res = 0;
-    double clock_start, clock_finish;
-    clock_start = cmSystemTools::GetTime();
-
-    if ( !m_ShowOnly )
-      {
-      res = this->RunTest(arguments, &output, &retVal, olog);
-      }
-
-    clock_finish = cmSystemTools::GetTime();
-
-    if ( olog )
-      {
-      double ttime = clock_finish - clock_start;
-      int hours = static_cast<int>(ttime / (60 * 60));
-      int minutes = static_cast<int>(ttime / 60) % 60;
-      int seconds = static_cast<int>(ttime) % 60;
-      char buffer[100];
-      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
-      *olog 
-        << "----------------------------------------------------------"
-        << std::endl
-        << "\"" << testname.c_str() << "\" end time: " 
-        << this->CurrentTime() << std::endl
-        << "\"" << testname.c_str() << "\" time elapsed: " 
-        << buffer << std::endl
-        << "----------------------------------------------------------"
-        << std::endl << std::endl;
-      }
-
-    cres.m_ExecutionTime = (double)(clock_finish - clock_start);
-    cres.m_FullCommandLine = testCommand;
-
-    if ( !m_ShowOnly )
-      {
-      if (res == cmsysProcess_State_Exited && retVal == 0)
-        {
-        std::cerr <<   "   Passed\n";
-        passed.push_back(testname);
-        cres.m_Status = cmCTest::COMPLETED;
-        }
-      else
-        {
-        cres.m_Status = cmCTest::FAILED;
-        if ( res == cmsysProcess_State_Expired )
-          {
-          std::cerr << "***Timeout\n";
-          cres.m_Status = cmCTest::TIMEOUT;
-          }
-        else if ( res == cmsysProcess_State_Exception )
-          {
-          std::cerr << "***Exception: ";
-          switch ( retVal )
-            {
-          case cmsysProcess_Exception_Fault:
-            std::cerr << "SegFault";
-            cres.m_Status = cmCTest::SEGFAULT;
-            break;
-          case cmsysProcess_Exception_Illegal:
-            std::cerr << "Illegal";
-            cres.m_Status = cmCTest::ILLEGAL;
-            break;
-          case cmsysProcess_Exception_Interrupt:
-            std::cerr << "Interrupt";
-            cres.m_Status = cmCTest::INTERRUPT;
-            break;
-          case cmsysProcess_Exception_Numerical:
-            std::cerr << "Numerical";
-            cres.m_Status = cmCTest::NUMERICAL;
-            break;
-          default:
-            std::cerr << "Other";
-            cres.m_Status = cmCTest::OTHER_FAULT;
-            }
-           std::cerr << "\n";
-          }
-        else if ( res == cmsysProcess_State_Error )
-          {
-          std::cerr << "***Bad command " << res << "\n";
-          cres.m_Status = cmCTest::BAD_COMMAND;
-          }
-        else
-          {
-          std::cerr << "***Failed\n";
-          }
-        failed.push_back(testname);
-        }
-      if (output != "")
-        {
-        if (dartStuff.find(output.c_str()))
-          {
-          std::string dartString = dartStuff.match(1);
-          cmSystemTools::ReplaceString(output, dartString.c_str(),"");
-          cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
-          }
-        }
-      }
-    cres.m_Output = output;
-    cres.m_ReturnValue = retVal;
-    std::string nwd = it->m_Directory;
-    if ( nwd.size() > m_ToplevelPath.size() )
-      {
-      nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
-      }
-    cmSystemTools::ReplaceString(nwd, "\\", "/");
-    cres.m_Path = nwd;
-    cres.m_CompletionStatus = "Completed";
-    m_TestResults.push_back( cres );
-    }
-
-  m_EndTest = this->CurrentTime();
-  m_ElapsedTestingTime = cmSystemTools::GetTime() - elapsed_time_start;
-  if ( olog )
-    {
-    *olog << "End testing: " << m_EndTest << std::endl;
-    }
-  cmSystemTools::ChangeDirectory(current_dir.c_str());
+	return (ARCHIVE_OK);
 }

@@ -1,1 +1,2 @@
-DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+fsobj_error(a_eno, a_estr, errno,
+			    "chdir() failure", "");

@@ -1,64 +1,85 @@
-CURLcode Curl_open(struct Curl_easy **curl)
+static void kwsysProcessSetExitException(kwsysProcess* cp, int code)
 {
-  CURLcode result;
-  struct Curl_easy *data;
+  switch (code) {
+    case STATUS_CONTROL_C_EXIT:
+      KWSYSPE_CASE(Interrupt, "User interrupt");
+      break;
 
-  /* Very simple start-up: alloc the struct, init it with zeroes and return */
-  data = calloc(1, sizeof(struct Curl_easy));
-  if(!data) {
-    /* this is a very serious error */
-    DEBUGF(fprintf(stderr, "Error: calloc of Curl_easy failed\n"));
-    return CURLE_OUT_OF_MEMORY;
+    case STATUS_FLOAT_DENORMAL_OPERAND:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (denormal operand)");
+      break;
+    case STATUS_FLOAT_DIVIDE_BY_ZERO:
+      KWSYSPE_CASE(Numerical, "Divide-by-zero");
+      break;
+    case STATUS_FLOAT_INEXACT_RESULT:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (inexact result)");
+      break;
+    case STATUS_FLOAT_INVALID_OPERATION:
+      KWSYSPE_CASE(Numerical, "Invalid floating-point operation");
+      break;
+    case STATUS_FLOAT_OVERFLOW:
+      KWSYSPE_CASE(Numerical, "Floating-point overflow");
+      break;
+    case STATUS_FLOAT_STACK_CHECK:
+      KWSYSPE_CASE(Numerical, "Floating-point stack check failed");
+      break;
+    case STATUS_FLOAT_UNDERFLOW:
+      KWSYSPE_CASE(Numerical, "Floating-point underflow");
+      break;
+#ifdef STATUS_FLOAT_MULTIPLE_FAULTS
+    case STATUS_FLOAT_MULTIPLE_FAULTS:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (multiple faults)");
+      break;
+#endif
+#ifdef STATUS_FLOAT_MULTIPLE_TRAPS
+    case STATUS_FLOAT_MULTIPLE_TRAPS:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (multiple traps)");
+      break;
+#endif
+    case STATUS_INTEGER_DIVIDE_BY_ZERO:
+      KWSYSPE_CASE(Numerical, "Integer divide-by-zero");
+      break;
+    case STATUS_INTEGER_OVERFLOW:
+      KWSYSPE_CASE(Numerical, "Integer overflow");
+      break;
+
+    case STATUS_DATATYPE_MISALIGNMENT:
+      KWSYSPE_CASE(Fault, "Datatype misalignment");
+      break;
+    case STATUS_ACCESS_VIOLATION:
+      KWSYSPE_CASE(Fault, "Access violation");
+      break;
+    case STATUS_IN_PAGE_ERROR:
+      KWSYSPE_CASE(Fault, "In-page error");
+      break;
+    case STATUS_INVALID_HANDLE:
+      KWSYSPE_CASE(Fault, "Invalid hanlde");
+      break;
+    case STATUS_NONCONTINUABLE_EXCEPTION:
+      KWSYSPE_CASE(Fault, "Noncontinuable exception");
+      break;
+    case STATUS_INVALID_DISPOSITION:
+      KWSYSPE_CASE(Fault, "Invalid disposition");
+      break;
+    case STATUS_ARRAY_BOUNDS_EXCEEDED:
+      KWSYSPE_CASE(Fault, "Array bounds exceeded");
+      break;
+    case STATUS_STACK_OVERFLOW:
+      KWSYSPE_CASE(Fault, "Stack overflow");
+      break;
+
+    case STATUS_ILLEGAL_INSTRUCTION:
+      KWSYSPE_CASE(Illegal, "Illegal instruction");
+      break;
+    case STATUS_PRIVILEGED_INSTRUCTION:
+      KWSYSPE_CASE(Illegal, "Privileged instruction");
+      break;
+
+    case STATUS_NO_MEMORY:
+    default:
+      cp->ExitException = kwsysProcess_Exception_Other;
+      _snprintf(cp->ExitExceptionString, KWSYSPE_PIPE_BUFFER_SIZE,
+                "Exit code 0x%x\n", code);
+      break;
   }
-
-  data->magic = CURLEASY_MAGIC_NUMBER;
-
-  result = Curl_resolver_init(&data->state.resolver);
-  if(result) {
-    DEBUGF(fprintf(stderr, "Error: resolver_init failed\n"));
-    free(data);
-    return result;
-  }
-
-  /* We do some initial setup here, all those fields that can't be just 0 */
-
-  data->state.headerbuff = malloc(HEADERSIZE);
-  if(!data->state.headerbuff) {
-    DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"));
-    result = CURLE_OUT_OF_MEMORY;
-  }
-  else {
-    result = Curl_init_userdefined(&data->set);
-
-    data->state.headersize=HEADERSIZE;
-
-    Curl_convert_init(data);
-
-    Curl_initinfo(data);
-
-    /* most recent connection is not yet defined */
-    data->state.lastconnect = NULL;
-
-    data->progress.flags |= PGRS_HIDE;
-    data->state.current_speed = -1; /* init to negative == impossible */
-
-    data->wildcard.state = CURLWC_INIT;
-    data->wildcard.filelist = NULL;
-    data->set.fnmatch = ZERO_NULL;
-    data->set.maxconnects = DEFAULT_CONNCACHE_SIZE; /* for easy handles */
-
-    Curl_http2_init_state(&data->state);
-  }
-
-  if(result) {
-    Curl_resolver_cleanup(data->state.resolver);
-    free(data->state.headerbuff);
-    Curl_freeset(data);
-    free(data);
-    data = NULL;
-  }
-  else
-    *curl = data;
-
-  return result;
 }

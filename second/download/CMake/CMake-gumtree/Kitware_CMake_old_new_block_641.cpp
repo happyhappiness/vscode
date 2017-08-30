@@ -1,4 +1,1 @@
-{
-			archive_set_error(&a->archive, -1, "Header CRC error");
-			return (ARCHIVE_FATAL);
-		}
+fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName)

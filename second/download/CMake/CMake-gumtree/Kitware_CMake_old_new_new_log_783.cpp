@@ -1,2 +1,1 @@
-fprintf(fout,"  vtkTclInterpStruct *tis = "
-            "static_cast<vtkTclInterpStruct*>(cd);\n");
+archive_set_error(&a->archive, errno, "fchdir failed");

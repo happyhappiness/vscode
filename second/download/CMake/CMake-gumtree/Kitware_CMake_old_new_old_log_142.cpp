@@ -1,4 +1,2 @@
-archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Internal error initializing compression library: "
-		    "invalid header");
+archive_string_sprintf(&w->sver,
+			"WARC/%u.%u", ver / 10000, ver % 10000);

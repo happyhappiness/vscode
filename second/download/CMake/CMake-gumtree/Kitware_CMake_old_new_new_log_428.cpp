@@ -1,2 +1,2 @@
-archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "%s", error);
+archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+		    "Current client reader does not support seeking a device");

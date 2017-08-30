@@ -1,159 +1,103 @@
-CURLcode Curl_auth_create_digest_md5_message(struct Curl_easy *data,
-                                             const char *chlg64,
-                                             const char *userp,
-                                             const char *passwdp,
-                                             const char *service,
-                                             char **outptr, size_t *outlen)
+static CURLcode ftp_state_mdtm_resp(struct connectdata *conn,
+                                    int ftpcode)
 {
   CURLcode result = CURLE_OK;
-  size_t i;
-  MD5_context *ctxt;
-  char *response = NULL;
-  unsigned char digest[MD5_DIGEST_LEN];
-  char HA1_hex[2 * MD5_DIGEST_LEN + 1];
-  char HA2_hex[2 * MD5_DIGEST_LEN + 1];
-  char resp_hash_hex[2 * MD5_DIGEST_LEN + 1];
-  char nonce[64];
-  char realm[128];
-  char algorithm[64];
-  char qop_options[64];
-  int qop_values;
-  char cnonce[33];
-  unsigned int entropy[4];
-  char nonceCount[] = "00000001";
-  char method[]     = "AUTHENTICATE";
-  char qop[]        = DIGEST_QOP_VALUE_STRING_AUTH;
-  char *spn         = NULL;
+  struct Curl_easy *data=conn->data;
+  struct FTP *ftp = data->req.protop;
+  struct ftp_conn *ftpc = &conn->proto.ftpc;
 
-  /* Decode the challenge message */
-  result = auth_decode_digest_md5_message(chlg64, nonce, sizeof(nonce),
-                                          realm, sizeof(realm),
-                                          algorithm, sizeof(algorithm),
-                                          qop_options, sizeof(qop_options));
-  if(result)
-    return result;
+  switch(ftpcode) {
+  case 213:
+    {
+      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
+         last .sss part is optional and means fractions of a second */
+      int year, month, day, hour, minute, second;
+      char *buf = data->state.buffer;
+      if(6 == sscanf(buf+4, "%04d%02d%02d%02d%02d%02d",
+                     &year, &month, &day, &hour, &minute, &second)) {
+        /* we have a time, reformat it */
+        time_t secs=time(NULL);
+        /* using the good old yacc/bison yuck */
+        snprintf(buf, CURL_BUFSIZE(conn->data->set.buffer_size),
+                 "%04d%02d%02d %02d:%02d:%02d GMT",
+                 year, month, day, hour, minute, second);
+        /* now, convert this into a time() value: */
+        data->info.filetime = (long)curl_getdate(buf, &secs);
+      }
 
-  /* We only support md5 sessions */
-  if(strcmp(algorithm, "md5-sess") != 0)
-    return CURLE_BAD_CONTENT_ENCODING;
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
+      /* If we asked for a time of the file and we actually got one as well,
+         we "emulate" a HTTP-style header in our output. */
 
-  /* Get the qop-values from the qop-options */
-  result = auth_digest_get_qop_values(qop_options, &qop_values);
-  if(result)
-    return result;
+      if(data->set.opt_no_body &&
+         ftpc->file &&
+         data->set.get_filetime &&
+         (data->info.filetime>=0) ) {
+        time_t filetime = (time_t)data->info.filetime;
+        struct tm buffer;
+        const struct tm *tm = &buffer;
 
-  /* We only support auth quality-of-protection */
-  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
-    return CURLE_BAD_CONTENT_ENCODING;
+        result = Curl_gmtime(filetime, &buffer);
+        if(result)
+          return result;
 
-  /* Generate 16 bytes of random data */
-  result = Curl_rand(data, &entropy[0], 4);
-  if(result)
-    return result;
-
-  /* Convert the random data into a 32 byte hex string */
-  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
-           entropy[0], entropy[1], entropy[2], entropy[3]);
-
-  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt)
-    return CURLE_OUT_OF_MEMORY;
-
-  Curl_MD5_update(ctxt, (const unsigned char *) userp,
-                  curlx_uztoui(strlen(userp)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) realm,
-                  curlx_uztoui(strlen(realm)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) passwdp,
-                  curlx_uztoui(strlen(passwdp)));
-  Curl_MD5_final(ctxt, digest);
-
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt)
-    return CURLE_OUT_OF_MEMORY;
-
-  Curl_MD5_update(ctxt, (const unsigned char *) digest, MD5_DIGEST_LEN);
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
-                  curlx_uztoui(strlen(nonce)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
-                  curlx_uztoui(strlen(cnonce)));
-  Curl_MD5_final(ctxt, digest);
-
-  /* Convert calculated 16 octet hex into 32 bytes string */
-  for(i = 0; i < MD5_DIGEST_LEN; i++)
-    snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);
-
-  /* Generate our SPN */
-  spn = Curl_auth_build_spn(service, realm, NULL);
-  if(!spn)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Calculate H(A2) */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt) {
-    free(spn);
-
-    return CURLE_OUT_OF_MEMORY;
+        /* format: "Tue, 15 Nov 1994 12:45:26" */
+        snprintf(buf, BUFSIZE-1,
+                 "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+                 Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+                 tm->tm_mday,
+                 Curl_month[tm->tm_mon],
+                 tm->tm_year + 1900,
+                 tm->tm_hour,
+                 tm->tm_min,
+                 tm->tm_sec);
+        result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+        if(result)
+          return result;
+      } /* end of a ridiculous amount of conditionals */
+#endif
+    }
+    break;
+  default:
+    infof(data, "unsupported MDTM reply format\n");
+    break;
+  case 550: /* "No such file or directory" */
+    failf(data, "Given file does not exist");
+    result = CURLE_FTP_COULDNT_RETR_FILE;
+    break;
   }
 
-  Curl_MD5_update(ctxt, (const unsigned char *) method,
-                  curlx_uztoui(strlen(method)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) spn,
-                  curlx_uztoui(strlen(spn)));
-  Curl_MD5_final(ctxt, digest);
-
-  for(i = 0; i < MD5_DIGEST_LEN; i++)
-    snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);
-
-  /* Now calculate the response hash */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt) {
-    free(spn);
-
-    return CURLE_OUT_OF_MEMORY;
+  if(data->set.timecondition) {
+    if((data->info.filetime > 0) && (data->set.timevalue > 0)) {
+      switch(data->set.timecondition) {
+      case CURL_TIMECOND_IFMODSINCE:
+      default:
+        if(data->info.filetime <= data->set.timevalue) {
+          infof(data, "The requested document is not new enough\n");
+          ftp->transfer = FTPTRANSFER_NONE; /* mark to not transfer data */
+          data->info.timecond = TRUE;
+          state(conn, FTP_STOP);
+          return CURLE_OK;
+        }
+        break;
+      case CURL_TIMECOND_IFUNMODSINCE:
+        if(data->info.filetime > data->set.timevalue) {
+          infof(data, "The requested document is not old enough\n");
+          ftp->transfer = FTPTRANSFER_NONE; /* mark to not transfer data */
+          data->info.timecond = TRUE;
+          state(conn, FTP_STOP);
+          return CURLE_OK;
+        }
+        break;
+      } /* switch */
+    }
+    else {
+      infof(data, "Skipping time comparison\n");
+    }
   }
 
-  Curl_MD5_update(ctxt, (const unsigned char *) HA1_hex, 2 * MD5_DIGEST_LEN);
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
-                  curlx_uztoui(strlen(nonce)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-
-  Curl_MD5_update(ctxt, (const unsigned char *) nonceCount,
-                  curlx_uztoui(strlen(nonceCount)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
-                  curlx_uztoui(strlen(cnonce)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) qop,
-                  curlx_uztoui(strlen(qop)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-
-  Curl_MD5_update(ctxt, (const unsigned char *) HA2_hex, 2 * MD5_DIGEST_LEN);
-  Curl_MD5_final(ctxt, digest);
-
-  for(i = 0; i < MD5_DIGEST_LEN; i++)
-    snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
-
-  /* Generate the response */
-  response = aprintf("username=\"%s\",realm=\"%s\",nonce=\"%s\","
-                     "cnonce=\"%s\",nc=\"%s\",digest-uri=\"%s\",response=%s,"
-                     "qop=%s",
-                     userp, realm, nonce,
-                     cnonce, nonceCount, spn, resp_hash_hex, qop);
-  free(spn);
-  if(!response)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Base64 encode the response */
-  result = Curl_base64_encode(data, response, 0, outptr, outlen);
-
-  free(response);
+  if(!result)
+    result = ftp_state_type(conn);
 
   return result;
 }

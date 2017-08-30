@@ -1,1 +1,2 @@
-fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE Fortran)\n");
+archive_set_error(&a->archive, EINVAL,
+			"Invalid index specified.");

@@ -1,1 +1,2 @@
-sprintf(proxy, "%s", getenv("HTTP_PROXY"));
+archive_set_error(a, errno,
+				    "Can't allocate memory");

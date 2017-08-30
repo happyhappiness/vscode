@@ -1,5 +1,1 @@
-{
-		archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Malformed device attribute");
-		return (ARCHIVE_WARN);
-	}
+yy_fatal_error( "cmFortran_yyset_lineno called with no buffer" , yyscanner)

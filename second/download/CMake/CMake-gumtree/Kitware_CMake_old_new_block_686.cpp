@@ -1,4 +1,5 @@
 {
-        sprintf(buf, "%u", this->VersionPatch);
-        this->Makefile->AddDefinition((ver+"_PATCH").c_str(), buf);
-        }
+      fprintf(fout, "target_link_libraries(%s %s)\n",
+              targetName,
+              libsToLink.c_str());
+      }

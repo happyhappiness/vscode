@@ -1,1 +1,1 @@
-fout << "  printf(\"Available tests:\\n\");\n";
+sprintf(win9x, "%s%s", tempDir, fwdName);

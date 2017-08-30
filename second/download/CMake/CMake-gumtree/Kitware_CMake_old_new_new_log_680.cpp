@@ -1,1 +1,1 @@
-sprintf(totalBuf, "%6.2f sec", totalTestTime);
+fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());

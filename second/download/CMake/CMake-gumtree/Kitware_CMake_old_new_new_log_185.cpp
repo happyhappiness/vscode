@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "cmExpr_yyset_column called with no buffer" );
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Unknown ACL brand");

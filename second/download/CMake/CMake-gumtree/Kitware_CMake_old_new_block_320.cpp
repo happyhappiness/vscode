@@ -1,5 +1,1 @@
-{
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Encountered out-of-order sparse blocks");
-			return (ARCHIVE_RETRY);
-		}
+snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i])

@@ -1,1 +1,1 @@
-fprintf(stderr, "No current working directory\n");
+sprintf(buf, "%s*", name);

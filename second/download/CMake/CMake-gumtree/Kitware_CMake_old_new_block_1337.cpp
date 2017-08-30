@@ -1,0 +1,1 @@
+fprintf(stderr, "Discarding token %d (%s).\n", yychar, yytname[yychar1])

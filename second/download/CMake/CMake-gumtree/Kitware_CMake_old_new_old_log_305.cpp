@@ -1,2 +1,1 @@
-archive_set_error(f->archive, errno,
-			    "Read from filter failed unexpectedly.");
+xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer);

@@ -1,10 +1,26 @@
-int
-Curl_sec_fprintf(struct connectdata *conn, FILE *f, const char *fmt, ...)
+static int
+archive_read_format_cab_options(struct archive_read *a,
+    const char *key, const char *val)
 {
-    va_list ap;
-    int ret;
-    va_start(ap, fmt);
-    ret = Curl_sec_vfprintf(conn, f, fmt, ap);
-    va_end(ap);
-    return ret;
+	struct cab *cab;
+	int ret = ARCHIVE_FAILED;
+
+	cab = (struct cab *)(a->format->data);
+	if (strcmp(key, "hdrcharset")  == 0) {
+		if (val == NULL || val[0] == 0)
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "cab: hdrcharset option needs a character-set name");
+		else {
+			cab->sconv = archive_string_conversion_from_charset(
+			    &a->archive, val, 0);
+			if (cab->sconv != NULL)
+				ret = ARCHIVE_OK;
+			else
+				ret = ARCHIVE_FATAL;
+		}
+	} else
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "cab: unknown keyword ``%s''", key);
+
+	return (ret);
 }

@@ -1,6 +1,16 @@
 {
-			archive_set_error(f->archive, errno,
-			    "Read from filter failed unexpectedly.");
-			ret = ARCHIVE_FATAL;
-			goto cleanup;
-		}
+  CURLcode result = CURLE_OK;
+  char *xoauth = NULL;
+
+  /* Generate the message */
+  xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer);
+  if(!xoauth)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Base64 encode the reply */
+  result = Curl_base64_encode(data, xoauth, strlen(xoauth), outptr, outlen);
+
+  free(xoauth);
+
+  return result;
+}

@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, errno, "Seek error");
+snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str);

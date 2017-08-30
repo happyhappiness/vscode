@@ -1,1 +1,1 @@
-printf("%s",buf);
+fprintf(stderr, "No current working directory.\n");

@@ -1,1 +1,1 @@
-fout << "      printf(\"%d. %s\\n\", i, cmakeGeneratedFunctionMapEntries[i].name);\n";
+sprintf(win9x, "%s%s", tempDir, fwdName);

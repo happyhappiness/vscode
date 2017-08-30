@@ -1,267 +1,159 @@
-void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed, 
-                             cmCTest::tm_VectorOfStrings &failed,
-                             bool memcheck)
+const void *
+__archive_read_filter_ahead(struct archive_read_filter *filter,
+    size_t min, ssize_t *avail)
 {
-  std::string current_dir = cmSystemTools::GetCurrentWorkingDirectory();
-  cmsys::RegularExpression dartStuff("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
-  tm_ListOfTests testlist;
-  this->GetListOfTests(&testlist, memcheck);
-  tm_ListOfTests::size_type tmsize = testlist.size();
+	ssize_t bytes_read;
+	size_t tocopy;
 
-  std::ofstream ofs;
-  std::ofstream *olog = 0;
-  if ( !m_ShowOnly && tmsize > 0 && 
-    this->OpenOutputFile("Temporary", 
-      (memcheck?"LastMemCheck.log":"LastTest.log"), ofs) )
-    {
-    olog = &ofs;
-    }
+	if (filter->fatal) {
+		if (avail)
+			*avail = ARCHIVE_FATAL;
+		return (NULL);
+	}
 
-  m_StartTest = this->CurrentTime();
-  double elapsed_time_start = cmSystemTools::GetTime();
+	/*
+	 * Keep pulling more data until we can satisfy the request.
+	 */
+	for (;;) {
 
-  if ( olog )
-    {
-    *olog << "Start testing: " << m_StartTest << std::endl
-      << "----------------------------------------------------------"
-      << std::endl;
-    }
+		/*
+		 * If we can satisfy from the copy buffer (and the
+		 * copy buffer isn't empty), we're done.  In particular,
+		 * note that min == 0 is a perfectly well-defined
+		 * request.
+		 */
+		if (filter->avail >= min && filter->avail > 0) {
+			if (avail != NULL)
+				*avail = filter->avail;
+			return (filter->next);
+		}
 
-  // expand the test list
-  this->ExpandTestsToRunInformation((int)tmsize);
-  
-  int cnt = 0;
-  tm_ListOfTests::iterator it;
-  std::string last_directory = "";
-  for ( it = testlist.begin(); it != testlist.end(); it ++ )
-    {
-    cnt ++;
-    const std::string& testname = it->m_Name;
-    tm_VectorOfListFileArgs& args = it->m_Args;
-    cmCTestTestResult cres;
-    cres.m_Status = cmCTest::NOT_RUN;
-    cres.m_TestCount = cnt;
+		/*
+		 * We can satisfy directly from client buffer if everything
+		 * currently in the copy buffer is still in the client buffer.
+		 */
+		if (filter->client_total >= filter->client_avail + filter->avail
+		    && filter->client_avail + filter->avail >= min) {
+			/* "Roll back" to client buffer. */
+			filter->client_avail += filter->avail;
+			filter->client_next -= filter->avail;
+			/* Copy buffer is now empty. */
+			filter->avail = 0;
+			filter->next = filter->buffer;
+			/* Return data from client buffer. */
+			if (avail != NULL)
+				*avail = filter->client_avail;
+			return (filter->client_next);
+		}
 
-    if (!(last_directory == it->m_Directory))
-      {
-      if ( m_Verbose )
-        {
-        std::cerr << "Changing directory into " 
-          << it->m_Directory.c_str() << "\n";
-        }
-      last_directory = it->m_Directory;
-      cmSystemTools::ChangeDirectory(it->m_Directory.c_str());
-      }
-    cres.m_Name = testname;
-    if(m_TestsToRun.size() && 
-       std::find(m_TestsToRun.begin(), m_TestsToRun.end(), cnt) == m_TestsToRun.end())
-      {
-      continue;
-      }
+		/* Move data forward in copy buffer if necessary. */
+		if (filter->next > filter->buffer &&
+		    filter->next + min > filter->buffer + filter->buffer_size) {
+			if (filter->avail > 0)
+				memmove(filter->buffer, filter->next, filter->avail);
+			filter->next = filter->buffer;
+		}
 
-    if ( m_ShowOnly )
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s\n", cnt, (int)tmsize, testname.c_str());
-      }
-    else
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s ", cnt, (int)tmsize, testname.c_str());
-      fflush(stderr);
-      }
-    //std::cerr << "Testing " << args[0] << " ... ";
-    // find the test executable
-    std::string actualCommand = this->FindTheExecutable(args[1].Value.c_str());
-    std::string testCommand = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
-    std::string memcheckcommand = "";
+		/* If we've used up the client data, get more. */
+		if (filter->client_avail <= 0) {
+			if (filter->end_of_file) {
+				if (avail != NULL)
+					*avail = 0;
+				return (NULL);
+			}
+			bytes_read = (filter->read)(filter,
+			    &filter->client_buff);
+			if (bytes_read < 0) {		/* Read error. */
+				filter->client_total = filter->client_avail = 0;
+				filter->client_next = filter->client_buff = NULL;
+				filter->fatal = 1;
+				if (avail != NULL)
+					*avail = ARCHIVE_FATAL;
+				return (NULL);
+			}
+			if (bytes_read == 0) {	/* Premature end-of-file. */
+				filter->client_total = filter->client_avail = 0;
+				filter->client_next = filter->client_buff = NULL;
+				filter->end_of_file = 1;
+				/* Return whatever we do have. */
+				if (avail != NULL)
+					*avail = filter->avail;
+				return (NULL);
+			}
+			filter->client_total = bytes_read;
+			filter->client_avail = filter->client_total;
+			filter->client_next = filter->client_buff;
+		}
+		else
+		{
+			/*
+			 * We can't satisfy the request from the copy
+			 * buffer or the existing client data, so we
+			 * need to copy more client data over to the
+			 * copy buffer.
+			 */
 
-    // continue if we did not find the executable
-    if (testCommand == "")
-      {
-      std::cerr << "Unable to find executable: " <<
-        args[1].Value.c_str() << "\n";
-      if ( !m_ShowOnly )
-        {
-        m_TestResults.push_back( cres ); 
-        failed.push_back(testname);
-        continue;
-        }
-      }
+			/* Ensure the buffer is big enough. */
+			if (min > filter->buffer_size) {
+				size_t s, t;
+				char *p;
 
-    // add the arguments
-    tm_VectorOfListFileArgs::const_iterator j = args.begin();
-    ++j;
-    ++j;
-    std::vector<const char*> arguments;
-    if ( memcheck )
-      {
-      cmCTest::tm_VectorOfStrings::size_type pp;
-      arguments.push_back(m_MemoryTester.c_str());
-      memcheckcommand = m_MemoryTester;
-      for ( pp = 0; pp < m_MemoryTesterOptionsParsed.size(); pp ++ )
-        {
-        arguments.push_back(m_MemoryTesterOptionsParsed[pp].c_str());
-        memcheckcommand += " ";
-        memcheckcommand += cmSystemTools::EscapeSpaces(m_MemoryTesterOptionsParsed[pp].c_str());
-        }
-      }
-    arguments.push_back(actualCommand.c_str());
-    for(;j != args.end(); ++j)
-      {
-      testCommand += " ";
-      testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
-      arguments.push_back(j->Value.c_str());
-      }
-    arguments.push_back(0);
+				/* Double the buffer; watch for overflow. */
+				s = t = filter->buffer_size;
+				if (s == 0)
+					s = min;
+				while (s < min) {
+					t *= 2;
+					if (t <= s) { /* Integer overflow! */
+						archive_set_error(
+							&filter->archive->archive,
+							ENOMEM,
+						    "Unable to allocate copy buffer");
+						filter->fatal = 1;
+						if (avail != NULL)
+							*avail = ARCHIVE_FATAL;
+						return (NULL);
+					}
+					s = t;
+				}
+				/* Now s >= min, so allocate a new buffer. */
+				p = (char *)malloc(s);
+				if (p == NULL) {
+					archive_set_error(
+						&filter->archive->archive,
+						ENOMEM,
+					    "Unable to allocate copy buffer");
+					filter->fatal = 1;
+					if (avail != NULL)
+						*avail = ARCHIVE_FATAL;
+					return (NULL);
+				}
+				/* Move data into newly-enlarged buffer. */
+				if (filter->avail > 0)
+					memmove(p, filter->next, filter->avail);
+				free(filter->buffer);
+				filter->next = filter->buffer = p;
+				filter->buffer_size = s;
+			}
 
-    /**
-     * Run an executable command and put the stdout in output.
-     */
-    std::string output;
-    int retVal = 0;
+			/* We can add client data to copy buffer. */
+			/* First estimate: copy to fill rest of buffer. */
+			tocopy = (filter->buffer + filter->buffer_size)
+			    - (filter->next + filter->avail);
+			/* Don't waste time buffering more than we need to. */
+			if (tocopy + filter->avail > min)
+				tocopy = min - filter->avail;
+			/* Don't copy more than is available. */
+			if (tocopy > filter->client_avail)
+				tocopy = filter->client_avail;
 
-
-    if ( m_Verbose )
-      {
-      std::cout << std::endl << (memcheck?"MemCheck":"Test") << " command: " << testCommand << std::endl;
-      if ( memcheck )
-        {
-        std::cout << "Memory check command: " << memcheckcommand << std::endl;
-        }
-      }
-    if ( olog )
-      {
-      *olog << cnt << "/" << tmsize 
-        << " Test: " << testname.c_str() << std::endl;
-      *olog << "Command: ";
-      tm_VectorOfStrings::size_type ll;
-      for ( ll = 0; ll < arguments.size()-1; ll ++ )
-        {
-        *olog << "\"" << arguments[ll] << "\" ";
-        }
-      *olog 
-        << std::endl 
-        << "Directory: " << it->m_Directory << std::endl 
-        << "\"" << testname.c_str() << "\" start time: " 
-        << this->CurrentTime() << std::endl
-        << "Output:" << std::endl 
-        << "----------------------------------------------------------"
-        << std::endl;
-      }
-    int res = 0;
-    double clock_start, clock_finish;
-    clock_start = cmSystemTools::GetTime();
-
-    if ( !m_ShowOnly )
-      {
-      res = this->RunTest(arguments, &output, &retVal, olog);
-      }
-
-    clock_finish = cmSystemTools::GetTime();
-
-    if ( olog )
-      {
-      double ttime = clock_finish - clock_start;
-      int hours = static_cast<int>(ttime / (60 * 60));
-      int minutes = static_cast<int>(ttime / 60) % 60;
-      int seconds = static_cast<int>(ttime) % 60;
-      char buffer[100];
-      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
-      *olog 
-        << "----------------------------------------------------------"
-        << std::endl
-        << "\"" << testname.c_str() << "\" end time: " 
-        << this->CurrentTime() << std::endl
-        << "\"" << testname.c_str() << "\" time elapsed: " 
-        << buffer << std::endl
-        << "----------------------------------------------------------"
-        << std::endl << std::endl;
-      }
-
-    cres.m_ExecutionTime = (double)(clock_finish - clock_start);
-    cres.m_FullCommandLine = testCommand;
-
-    if ( !m_ShowOnly )
-      {
-      if (res == cmsysProcess_State_Exited && retVal == 0)
-        {
-        fprintf(stderr,"   Passed\n");
-        passed.push_back(testname);
-        cres.m_Status = cmCTest::COMPLETED;
-        }
-      else
-        {
-        cres.m_Status = cmCTest::FAILED;
-        if ( res == cmsysProcess_State_Expired )
-          {
-          fprintf(stderr,"***Timeout\n");
-          cres.m_Status = cmCTest::TIMEOUT;
-          }
-        else if ( res == cmsysProcess_State_Exception )
-          {
-          fprintf(stderr,"***Exception: ");
-          switch ( retVal )
-            {
-          case cmsysProcess_Exception_Fault:
-            fprintf(stderr,"SegFault");
-            cres.m_Status = cmCTest::SEGFAULT;
-            break;
-          case cmsysProcess_Exception_Illegal:
-            fprintf(stderr,"Illegal");
-            cres.m_Status = cmCTest::ILLEGAL;
-            break;
-          case cmsysProcess_Exception_Interrupt:
-            fprintf(stderr,"Interrupt");
-            cres.m_Status = cmCTest::INTERRUPT;
-            break;
-          case cmsysProcess_Exception_Numerical:
-            fprintf(stderr,"Numerical");
-            cres.m_Status = cmCTest::NUMERICAL;
-            break;
-          default:
-            fprintf(stderr,"Other");
-            cres.m_Status = cmCTest::OTHER_FAULT;
-            }
-          fprintf(stderr,"\n");
-          }
-        else if ( res == cmsysProcess_State_Error )
-          {
-          fprintf(stderr,"***Bad command %d\n", res);
-          cres.m_Status = cmCTest::BAD_COMMAND;
-          }
-        else
-          {
-          fprintf(stderr,"***Failed\n");
-          }
-        failed.push_back(testname);
-        }
-      if (output != "")
-        {
-        if (dartStuff.find(output.c_str()))
-          {
-          std::string dartString = dartStuff.match(1);
-          cmSystemTools::ReplaceString(output, dartString.c_str(),"");
-          cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
-          }
-        }
-      }
-    cres.m_Output = output;
-    cres.m_ReturnValue = retVal;
-    std::string nwd = it->m_Directory;
-    if ( nwd.size() > m_ToplevelPath.size() )
-      {
-      nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
-      }
-    cmSystemTools::ReplaceString(nwd, "\\", "/");
-    cres.m_Path = nwd;
-    cres.m_CompletionStatus = "Completed";
-    m_TestResults.push_back( cres );
-    }
-
-  m_EndTest = this->CurrentTime();
-  m_ElapsedTestingTime = cmSystemTools::GetTime() - elapsed_time_start;
-  if ( olog )
-    {
-    *olog << "End testing: " << m_EndTest << std::endl;
-    }
-  cmSystemTools::ChangeDirectory(current_dir.c_str());
+			memcpy(filter->next + filter->avail, filter->client_next,
+			    tocopy);
+			/* Remove this data from client buffer. */
+			filter->client_next += tocopy;
+			filter->client_avail -= tocopy;
+			/* add it to copy buffer. */
+			filter->avail += tocopy;
+		}
+	}
 }

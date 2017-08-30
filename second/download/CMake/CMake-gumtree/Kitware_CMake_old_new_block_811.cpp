@@ -1,5 +1,7 @@
 {
-          ofs << ftit->m_TestCount << ":" << ftit->m_Name << std::endl;
-          fprintf(stderr, "\t%3d - %s (%s)\n", ftit->m_TestCount, ftit->m_Name.c_str(),
-            this->GetTestStatus(ftit->m_Status));
-          }
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    "Couldn't allocate memory");
+					exit_sts = ARCHIVE_FATAL;
+					goto exit_setup_sparse;
+				}

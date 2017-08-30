@@ -1,162 +1,81 @@
-static int
-decompress(struct archive_read *a, const void **buff, size_t *outbytes,
-    const void *b, size_t *used)
+int
+setup_xattrs(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-	struct xar *xar;
-	void *outbuff;
-	size_t avail_in, avail_out;
-	int r;
+	char buff[512];
+	char *list, *p;
+	ssize_t list_size;
+	const char *path;
+	int namespace = EXTATTR_NAMESPACE_USER;
 
-	xar = (struct xar *)(a->format->data);
-	avail_in = *used;
-	outbuff = (void *)(uintptr_t)*buff;
-	if (outbuff == NULL) {
-		if (xar->outbuff == NULL) {
-			xar->outbuff = malloc(OUTBUFF_SIZE);
-			if (xar->outbuff == NULL) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "Couldn't allocate memory for out buffer");
-				return (ARCHIVE_FATAL);
+	path = archive_entry_sourcepath(entry);
+	if (path == NULL)
+		path = archive_entry_pathname(entry);
+
+	if (*fd < 0 && a->tree != NULL) {
+		if (a->follow_symlinks ||
+		    archive_entry_filetype(entry) != AE_IFLNK)
+			*fd = a->open_on_current_dir(a->tree, path,
+				O_RDONLY | O_NONBLOCK);
+		if (*fd < 0) {
+			if (a->tree_enter_working_dir(a->tree) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Couldn't access %s", path);
+				return (ARCHIVE_FAILED);
 			}
 		}
-		outbuff = xar->outbuff;
-		*buff = outbuff;
-		avail_out = OUTBUFF_SIZE;
-	} else
-		avail_out = *outbytes;
-	switch (xar->rd_encoding) {
-	case GZIP:
-		xar->stream.next_in = (Bytef *)(uintptr_t)b;
-		xar->stream.avail_in = avail_in;
-		xar->stream.next_out = (unsigned char *)outbuff;
-		xar->stream.avail_out = avail_out;
-		r = inflate(&(xar->stream), 0);
-		switch (r) {
-		case Z_OK: /* Decompressor made some progress.*/
-		case Z_STREAM_END: /* Found end of stream. */
-			break;
-		default:
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "File decompression failed (%d)", r);
-			return (ARCHIVE_FATAL);
-		}
-		*used = avail_in - xar->stream.avail_in;
-		*outbytes = avail_out - xar->stream.avail_out;
-		break;
-#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-		xar->bzstream.next_in = (char *)(uintptr_t)b;
-		xar->bzstream.avail_in = avail_in;
-		xar->bzstream.next_out = (char *)outbuff;
-		xar->bzstream.avail_out = avail_out;
-		r = BZ2_bzDecompress(&(xar->bzstream));
-		switch (r) {
-		case BZ_STREAM_END: /* Found end of stream. */
-			switch (BZ2_bzDecompressEnd(&(xar->bzstream))) {
-			case BZ_OK:
-				break;
-			default:
-				archive_set_error(&(a->archive),
-				    ARCHIVE_ERRNO_MISC,
-				    "Failed to clean up decompressor");
-				return (ARCHIVE_FATAL);
-			}
-			xar->bzstream_valid = 0;
-			/* FALLTHROUGH */
-		case BZ_OK: /* Decompressor made some progress. */
-			break;
-		default:
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "bzip decompression failed");
-			return (ARCHIVE_FATAL);
-		}
-		*used = avail_in - xar->bzstream.avail_in;
-		*outbytes = avail_out - xar->bzstream.avail_out;
-		break;
-#endif
-#if defined(HAVE_LZMA_H) && defined(HAVE_LIBLZMA)
-	case LZMA:
-	case XZ:
-		xar->lzstream.next_in = b;
-		xar->lzstream.avail_in = avail_in;
-		xar->lzstream.next_out = (unsigned char *)outbuff;
-		xar->lzstream.avail_out = avail_out;
-		r = lzma_code(&(xar->lzstream), LZMA_RUN);
-		switch (r) {
-		case LZMA_STREAM_END: /* Found end of stream. */
-			lzma_end(&(xar->lzstream));
-			xar->lzstream_valid = 0;
-			/* FALLTHROUGH */
-		case LZMA_OK: /* Decompressor made some progress. */
-			break;
-		default:
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "%s decompression failed(%d)",
-			    (xar->entry_encoding == XZ)?"xz":"lzma",
-			    r);
-			return (ARCHIVE_FATAL);
-		}
-		*used = avail_in - xar->lzstream.avail_in;
-		*outbytes = avail_out - xar->lzstream.avail_out;
-		break;
-#elif defined(HAVE_LZMADEC_H) && defined(HAVE_LIBLZMADEC)
-	case LZMA:
-		xar->lzstream.next_in = (unsigned char *)(uintptr_t)b;
-		xar->lzstream.avail_in = avail_in;
-		xar->lzstream.next_out = (unsigned char *)outbuff;
-		xar->lzstream.avail_out = avail_out;
-		r = lzmadec_decode(&(xar->lzstream), 0);
-		switch (r) {
-		case LZMADEC_STREAM_END: /* Found end of stream. */
-			switch (lzmadec_end(&(xar->lzstream))) {
-			case LZMADEC_OK:
-				break;
-			default:
-				archive_set_error(&(a->archive),
-				    ARCHIVE_ERRNO_MISC,
-				    "Failed to clean up lzmadec decompressor");
-				return (ARCHIVE_FATAL);
-			}
-			xar->lzstream_valid = 0;
-			/* FALLTHROUGH */
-		case LZMADEC_OK: /* Decompressor made some progress. */
-			break;
-		default:
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "lzmadec decompression failed(%d)",
-			    r);
-			return (ARCHIVE_FATAL);
-		}
-		*used = avail_in - xar->lzstream.avail_in;
-		*outbytes = avail_out - xar->lzstream.avail_out;
-		break;
-#endif
-#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-#endif
-#if !defined(HAVE_LZMA_H) || !defined(HAVE_LIBLZMA)
-#if !defined(HAVE_LZMADEC_H) || !defined(HAVE_LIBLZMADEC)
-	case LZMA:
-#endif
-	case XZ:
-#endif
-	case NONE:
-	default:
-		if (outbuff == xar->outbuff) {
-			*buff = b;
-			*used = avail_in;
-			*outbytes = avail_in;
-		} else {
-			if (avail_out > avail_in)
-				avail_out = avail_in;
-			memcpy(outbuff, b, avail_out);
-			*used = avail_out;
-			*outbytes = avail_out;
-		}
-		break;
 	}
+
+	if (*fd >= 0)
+		list_size = extattr_list_fd(*fd, namespace, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = extattr_list_link(path, namespace, NULL, 0);
+	else
+		list_size = extattr_list_file(path, namespace, NULL, 0);
+
+	if (list_size == -1 && errno == EOPNOTSUPP)
+		return (ARCHIVE_OK);
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't list extended attributes");
+		return (ARCHIVE_WARN);
+	}
+
+	if (list_size == 0)
+		return (ARCHIVE_OK);
+
+	if ((list = malloc(list_size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (*fd >= 0)
+		list_size = extattr_list_fd(*fd, namespace, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = extattr_list_link(path, namespace, list, list_size);
+	else
+		list_size = extattr_list_file(path, namespace, list, list_size);
+
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't retrieve extended attributes");
+		free(list);
+		return (ARCHIVE_WARN);
+	}
+
+	p = list;
+	while ((p - list) < list_size) {
+		size_t len = 255 & (int)*p;
+		char *name;
+
+		strcpy(buff, "user.");
+		name = buff + strlen(buff);
+		memcpy(name, p + 1, len);
+		name[len] = '\0';
+		setup_xattr(a, entry, namespace, name, buff, *fd);
+		p += 1 + len;
+	}
+
+	free(list);
 	return (ARCHIVE_OK);
 }

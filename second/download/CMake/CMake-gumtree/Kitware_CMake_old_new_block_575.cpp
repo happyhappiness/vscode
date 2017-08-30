@@ -1,8 +1,2 @@
-{
-	(void)self; /* UNUSED */
-	(void)cmd; /* UNUSED */
-
-	archive_set_error(&self->archive->archive, -1,
-	    "External compression programs not supported on this platform");
-	return (ARCHIVE_FATAL);
-}
+snprintf(ftpc->newhost, sizeof(ftpc->newhost),
+               "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3])

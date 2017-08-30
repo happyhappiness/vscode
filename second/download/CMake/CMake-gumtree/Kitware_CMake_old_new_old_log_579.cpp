@@ -1,2 +1,3 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external unlzma program for lzma decompression");
+snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+             Curl_rand(data), Curl_rand(data),
+             Curl_rand(data), Curl_rand(data));

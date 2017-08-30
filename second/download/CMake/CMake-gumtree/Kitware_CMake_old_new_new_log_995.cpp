@@ -1,1 +1,1 @@
-sprintf(secondLine, "Q)uit Without Generating   T)oggle Advanced Mode (Off)");
+fprintf(out, "%s: \\\n", tmp.c_str());

@@ -1,88 +1,89 @@
-bool cmVTKWrapTclCommand::WriteInit(const char *kitName, 
-                                    std::string& outFileName,
-                                    std::vector<std::string>& classes)
+void cmCursesMainForm::PrintKeys(int process /* = 0 */)
 {
-  unsigned int i;
-  std::string tempOutputFile = outFileName + ".tmp";
-  FILE *fout = fopen(tempOutputFile.c_str(),"w");
-  if (!fout)
+  int x,y;
+  getmaxyx(stdscr, y, x);
+  if ( x < cmCursesMainForm::MIN_WIDTH  ||
+       x < this->InitialWidth               ||
+       y < cmCursesMainForm::MIN_HEIGHT )
     {
-    return false;
+    return;
     }
-  
-  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
-  
-  for (i = 0; i < classes.size(); i++)
+
+  // Give the current widget (if it exists), a chance to print keys
+  cmCursesWidget* cw = 0;
+  if (this->Form)
     {
-    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
-    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
+    FIELD* currentField = current_field(this->Form);
+    cw = reinterpret_cast<cmCursesWidget*>(field_userptr(currentField));
     }
-  
-  if (!strcmp(kitName,"Vtkcommontcl"))
+
+  if (cw)
     {
-    fprintf(fout,"int vtkCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n");
-    fprintf(fout,"\nTcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkCommandLookup;\n");
+    cw->PrintKeys();
+    }
+
+//    {
+//    }
+//  else
+//    {
+  char firstLine[512]="";
+  char secondLine[512]="";
+  char thirdLine[512]="";
+  if (process)
+    {
+    sprintf(firstLine,
+            "                                                               ");
+    sprintf(secondLine,
+            "                                                               ");
+    sprintf(thirdLine,
+            "                                                               ");
     }
   else
     {
-    fprintf(fout,"\nextern Tcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkCommandLookup;\n");
-    }
-  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
-  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
-  
-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n\n",
-	  kitName);
-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n\n",
-	  kitName);
-  
-  /* create an extern ref to the generic delete function */
-  fprintf(fout,"\n\nextern void vtkTclGenericDeleteObject(ClientData cd);\n\n");
+    if (this->OkToGenerate)
+      {
+      sprintf(firstLine,
+              "Press [c] to configure     Press [g] to generate and exit");
+      }
+    else
+      {
+      sprintf(firstLine,  "Press [c] to configure                                   ");
+      }
+    if (this->AdvancedMode)
+      {
+      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently On)");
+      }
+    else
+      {
+      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently Off)");
+      }
 
-  /* the main declaration */
-  fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
-  fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
-  
-  fprintf(fout,"\n\nint VTK_EXPORT %s_Init(Tcl_Interp *interp)\n{\n",
-          kitName);
-  if (!strcmp(kitName,"Vtkcommontcl"))
+    sprintf(secondLine,
+            "Press [h] for help         Press [q] to quit without generating");
+    }
+
+  curses_move(y-4,0);
+  char fmt[512] = "Press [enter] to edit option";
+  if ( process )
     {
-    fprintf(fout,
-	    "  vtkTclInterpStruct *info = new vtkTclInterpStruct;\n");
-    fprintf(fout,
-            "  info->Number = 0; info->InDelete = 0; info->DebugOn = 0;\n");
-    fprintf(fout,"\n");
-    fprintf(fout,"\n");
-    fprintf(fout,
-	    "  Tcl_InitHashTable(&info->InstanceLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-	    "  Tcl_InitHashTable(&info->PointerLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-	    "  Tcl_InitHashTable(&info->CommandLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");
-
-    /* create special vtkCommand command */
-    fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",vtkCommand,\n		    (ClientData *)NULL, NULL);\n\n");
+    strcpy(fmt, "                           ");
     }
-  
-  for (i = 0; i < classes.size(); i++)
+  printw(fmt);
+  curses_move(y-3,0);
+  printw(firstLine);
+  curses_move(y-2,0);
+  printw(secondLine);
+  curses_move(y-1,0);
+  printw(thirdLine);
+
+  if (cw)
     {
-    fprintf(fout,"  vtkTclCreateNew(interp,(char *) \"%s\", %sNewCommand,\n",
-	    classes[i].c_str(), classes[i].c_str());
-    fprintf(fout,"                  %sCommand);\n",classes[i].c_str());
+    sprintf(firstLine, "Page %d of %d", cw->GetPage(), this->NumberOfPages);
+    curses_move(0,65-static_cast<unsigned int>(strlen(firstLine))-1);
+    printw(firstLine);
     }
-  
-  fprintf(fout,"  return TCL_OK;\n}\n");
-  fclose(fout);
+//    }
 
-  // copy the file if different
-  cmSystemTools::CopyFileIfDifferent(tempOutputFile.c_str(),
-                                     outFileName.c_str());
-  cmSystemTools::RemoveFile(tempOutputFile.c_str());
+  pos_form_cursor(this->Form);
 
-  return true;
 }

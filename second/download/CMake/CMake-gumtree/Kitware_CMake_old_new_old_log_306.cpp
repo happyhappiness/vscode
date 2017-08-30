@@ -1,2 +1,1 @@
-f(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-            this->BinaryDirectory.c_str());
+DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));

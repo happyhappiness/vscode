@@ -1,26 +1,41 @@
-f(!data->state.headerbuff) {
-    DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"));
-    result = CURLE_OUT_OF_MEMORY;
+{
+  size_t size = 0;
+  char *authorization = NULL;
+  struct Curl_easy *data = conn->data;
+  char **userp;
+  const char *user;
+  const char *pwd;
+  CURLcode result;
+
+  if(proxy) {
+    userp = &conn->allocptr.proxyuserpwd;
+    user = conn->http_proxy.user;
+    pwd = conn->http_proxy.passwd;
   }
   else {
-    result = Curl_init_userdefined(&data->set);
-
-    data->state.headersize=HEADERSIZE;
-
-    Curl_convert_init(data);
-
-    Curl_initinfo(data);
-
-    /* most recent connection is not yet defined */
-    data->state.lastconnect = NULL;
-
-    data->progress.flags |= PGRS_HIDE;
-    data->state.current_speed = -1; /* init to negative == impossible */
-
-    data->wildcard.state = CURLWC_INIT;
-    data->wildcard.filelist = NULL;
-    data->set.fnmatch = ZERO_NULL;
-    data->set.maxconnects = DEFAULT_CONNCACHE_SIZE; /* for easy handles */
-
-    Curl_http2_init_state(&data->state);
+    userp = &conn->allocptr.userpwd;
+    user = conn->user;
+    pwd = conn->passwd;
   }
+
+  snprintf(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
+
+  result = Curl_base64_encode(data,
+                              data->state.buffer, strlen(data->state.buffer),
+                              &authorization, &size);
+  if(result)
+    return result;
+
+  if(!authorization)
+    return CURLE_REMOTE_ACCESS_DENIED;
+
+  free(*userp);
+  *userp = aprintf("%sAuthorization: Basic %s\r\n",
+                   proxy ? "Proxy-" : "",
+                   authorization);
+  free(authorization);
+  if(!*userp)
+    return CURLE_OUT_OF_MEMORY;
+
+  return CURLE_OK;
+}

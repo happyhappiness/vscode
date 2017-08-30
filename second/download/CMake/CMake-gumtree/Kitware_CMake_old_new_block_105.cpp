@@ -1,12 +1,14 @@
-{
-				err = r;
-				if (err == ARCHIVE_FATAL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.access");
-					return (err);
-				}
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.access");
+(acl_type) {
+			case ACL_ENTRY_TYPE_ALLOW:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
+				break;
+			case ACL_ENTRY_TYPE_DENY:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
+				break;
+			case ACL_ENTRY_TYPE_AUDIT:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_AUDIT;
+				break;
+			case ACL_ENTRY_TYPE_ALARM:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALARM;
+				break;
 			}

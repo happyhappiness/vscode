@@ -1,5 +1,5 @@
 {
-				archive_set_error(&a->archive, errno,
-				    "Couldn't translate default ACLs");
-				return (r);
-			}
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Couldn't determine file path to read ACLs");
+			return (ARCHIVE_WARN);
+		}

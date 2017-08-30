@@ -1,265 +1,209 @@
-static int
-zip_read_local_file_header(struct archive_read *a, struct archive_entry *entry,
-    struct zip *zip)
+CURLcode Curl_sasl_create_digest_http_message(struct SessionHandle *data,
+                                              const char *userp,
+                                              const char *passwdp,
+                                              const unsigned char *request,
+                                              const unsigned char *uripath,
+                                              struct digestdata *digest,
+                                              char **outptr, size_t *outlen)
 {
-	const char *p;
-	const void *h;
-	const wchar_t *wp;
-	const char *cp;
-	size_t len, filename_length, extra_length;
-	struct archive_string_conv *sconv;
-	struct zip_entry *zip_entry = zip->entry;
-	struct zip_entry zip_entry_central_dir;
-	int ret = ARCHIVE_OK;
-	char version;
+  CURLcode result;
+  unsigned char md5buf[16]; /* 16 bytes/128 bits */
+  unsigned char request_digest[33];
+  unsigned char *md5this;
+  unsigned char ha1[33];/* 32 digits and 1 zero byte */
+  unsigned char ha2[33];/* 32 digits and 1 zero byte */
+  char cnoncebuf[33];
+  char *cnonce = NULL;
+  size_t cnonce_sz = 0;
+  char *userp_quoted;
+  char *response = NULL;
+  char *tmp = NULL;
 
-	/* Save a copy of the original for consistency checks. */
-	zip_entry_central_dir = *zip_entry;
+  if(!digest->nc)
+    digest->nc = 1;
 
-	zip->decompress_init = 0;
-	zip->end_of_entry = 0;
-	zip->entry_uncompressed_bytes_read = 0;
-	zip->entry_compressed_bytes_read = 0;
-	zip->entry_crc32 = zip->crc32func(0, NULL, 0);
+  if(!digest->cnonce) {
+    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+             Curl_rand(data), Curl_rand(data),
+             Curl_rand(data), Curl_rand(data));
 
-	/* Setup default conversion. */
-	if (zip->sconv == NULL && !zip->init_default_conversion) {
-		zip->sconv_default =
-		    archive_string_default_conversion_for_read(&(a->archive));
-		zip->init_default_conversion = 1;
-	}
+    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
+                                &cnonce, &cnonce_sz);
+    if(result)
+      return result;
 
-	if ((p = __archive_read_ahead(a, 30, NULL)) == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file header");
-		return (ARCHIVE_FATAL);
-	}
+    digest->cnonce = cnonce;
+  }
 
-	if (memcmp(p, "PK\003\004", 4) != 0) {
-		archive_set_error(&a->archive, -1, "Damaged Zip archive");
-		return ARCHIVE_FATAL;
-	}
-	version = p[4];
-	zip_entry->system = p[5];
-	zip_entry->zip_flags = archive_le16dec(p + 6);
-	if (zip_entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
-		zip->has_encrypted_entries = 1;
-		archive_entry_set_is_data_encrypted(entry, 1);
-		if (zip_entry->zip_flags & ZIP_CENTRAL_DIRECTORY_ENCRYPTED &&
-			zip_entry->zip_flags & ZIP_ENCRYPTED &&
-			zip_entry->zip_flags & ZIP_STRONG_ENCRYPTED) {
-			archive_entry_set_is_metadata_encrypted(entry, 1);
-			return ARCHIVE_FATAL;
-		}
-	}
-	zip_entry->compression = (char)archive_le16dec(p + 8);
-	zip_entry->mtime = zip_time(p + 10);
-	zip_entry->crc32 = archive_le32dec(p + 14);
-	zip_entry->compressed_size = archive_le32dec(p + 18);
-	zip_entry->uncompressed_size = archive_le32dec(p + 22);
-	filename_length = archive_le16dec(p + 26);
-	extra_length = archive_le16dec(p + 28);
+  /*
+    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
 
-	__archive_read_consume(a, 30);
+    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
 
-	/* Read the filename. */
-	if ((h = __archive_read_ahead(a, filename_length, NULL)) == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file header");
-		return (ARCHIVE_FATAL);
-	}
-	if (zip_entry->zip_flags & ZIP_UTF8_NAME) {
-		/* The filename is stored to be UTF-8. */
-		if (zip->sconv_utf8 == NULL) {
-			zip->sconv_utf8 =
-			    archive_string_conversion_from_charset(
-				&a->archive, "UTF-8", 1);
-			if (zip->sconv_utf8 == NULL)
-				return (ARCHIVE_FATAL);
-		}
-		sconv = zip->sconv_utf8;
-	} else if (zip->sconv != NULL)
-		sconv = zip->sconv;
-	else
-		sconv = zip->sconv_default;
+    if the algorithm is "MD5-sess" then:
 
-	if (archive_entry_copy_pathname_l(entry,
-	    h, filename_length, sconv) != 0) {
-		if (errno == ENOMEM) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Pathname");
-			return (ARCHIVE_FATAL);
-		}
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Pathname cannot be converted "
-		    "from %s to current locale.",
-		    archive_string_conversion_charset_name(sconv));
-		ret = ARCHIVE_WARN;
-	}
-	__archive_read_consume(a, filename_length);
+    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
+         ":" unq(nonce-value) ":" unq(cnonce-value)
+  */
 
-	/* Work around a bug in Info-Zip: When reading from a pipe, it
-	 * stats the pipe instead of synthesizing a file entry. */
-	if ((zip_entry->mode & AE_IFMT) == AE_IFIFO) {
-		zip_entry->mode &= ~ AE_IFMT;
-		zip_entry->mode |= AE_IFREG;
-	}
+  md5this = (unsigned char *)
+    aprintf("%s:%s:%s", userp, digest->realm, passwdp);
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
 
-	if ((zip_entry->mode & AE_IFMT) == 0) {
-		/* Especially in streaming mode, we can end up
-		   here without having seen proper mode information.
-		   Guess from the filename. */
-		wp = archive_entry_pathname_w(entry);
-		if (wp != NULL) {
-			len = wcslen(wp);
-			if (len > 0 && wp[len - 1] == L'/')
-				zip_entry->mode |= AE_IFDIR;
-			else
-				zip_entry->mode |= AE_IFREG;
-		} else {
-			cp = archive_entry_pathname(entry);
-			len = (cp != NULL)?strlen(cp):0;
-			if (len > 0 && cp[len - 1] == '/')
-				zip_entry->mode |= AE_IFDIR;
-			else
-				zip_entry->mode |= AE_IFREG;
-		}
-		if (zip_entry->mode == AE_IFDIR) {
-			zip_entry->mode |= 0775;
-		} else if (zip_entry->mode == AE_IFREG) {
-			zip_entry->mode |= 0664;
-		}
-	}
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  sasl_digest_md5_to_ascii(md5buf, ha1);
 
-	/* Read the extra data. */
-	if ((h = __archive_read_ahead(a, extra_length, NULL)) == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file header");
-		return (ARCHIVE_FATAL);
-	}
+  if(digest->algo == CURLDIGESTALGO_MD5SESS) {
+    /* nonce and cnonce are OUTSIDE the hash */
+    tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
 
-	process_extra(h, extra_length, zip_entry);
-	__archive_read_consume(a, extra_length);
+    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
+    Curl_md5it(md5buf, (unsigned char *)tmp);
+    free(tmp);
+    sasl_digest_md5_to_ascii(md5buf, ha1);
+  }
 
-	if (zip_entry->flags & LA_FROM_CENTRAL_DIRECTORY) {
-		/* If this came from the central dir, it's size info
-		 * is definitive, so ignore the length-at-end flag. */
-		zip_entry->zip_flags &= ~ZIP_LENGTH_AT_END;
-		/* If local header is missing a value, use the one from
-		   the central directory.  If both have it, warn about
-		   mismatches. */
-		if (zip_entry->crc32 == 0) {
-			zip_entry->crc32 = zip_entry_central_dir.crc32;
-		} else if (!zip->ignore_crc32
-		    && zip_entry->crc32 != zip_entry_central_dir.crc32) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Inconsistent CRC32 values");
-			ret = ARCHIVE_WARN;
-		}
-		if (zip_entry->compressed_size == 0) {
-			zip_entry->compressed_size
-			    = zip_entry_central_dir.compressed_size;
-		} else if (zip_entry->compressed_size
-		    != zip_entry_central_dir.compressed_size) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Inconsistent compressed size: "
-			    "%jd in central directory, %jd in local header",
-			    (intmax_t)zip_entry_central_dir.compressed_size,
-			    (intmax_t)zip_entry->compressed_size);
-			ret = ARCHIVE_WARN;
-		}
-		if (zip_entry->uncompressed_size == 0) {
-			zip_entry->uncompressed_size
-			    = zip_entry_central_dir.uncompressed_size;
-		} else if (zip_entry->uncompressed_size
-		    != zip_entry_central_dir.uncompressed_size) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Inconsistent uncompressed size: "
-			    "%jd in central directory, %jd in local header",
-			    (intmax_t)zip_entry_central_dir.uncompressed_size,
-			    (intmax_t)zip_entry->uncompressed_size);
-			ret = ARCHIVE_WARN;
-		}
-	}
+  /*
+    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
 
-	/* Populate some additional entry fields: */
-	archive_entry_set_mode(entry, zip_entry->mode);
-	archive_entry_set_uid(entry, zip_entry->uid);
-	archive_entry_set_gid(entry, zip_entry->gid);
-	archive_entry_set_mtime(entry, zip_entry->mtime, 0);
-	archive_entry_set_ctime(entry, zip_entry->ctime, 0);
-	archive_entry_set_atime(entry, zip_entry->atime, 0);
+      A2       = Method ":" digest-uri-value
 
-	if ((zip->entry->mode & AE_IFMT) == AE_IFLNK) {
-		size_t linkname_length = zip_entry->compressed_size;
+          If the "qop" value is "auth-int", then A2 is:
 
-		archive_entry_set_size(entry, 0);
-		p = __archive_read_ahead(a, linkname_length, NULL);
-		if (p == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Truncated Zip file");
-			return ARCHIVE_FATAL;
-		}
-		if (__archive_read_consume(a, linkname_length) < 0) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Read error skipping symlink target name");
-			return ARCHIVE_FATAL;
-		}
+      A2       = Method ":" digest-uri-value ":" H(entity-body)
 
-		sconv = zip->sconv;
-		if (sconv == NULL && (zip->entry->zip_flags & ZIP_UTF8_NAME))
-			sconv = zip->sconv_utf8;
-		if (sconv == NULL)
-			sconv = zip->sconv_default;
-		if (archive_entry_copy_symlink_l(entry, p, linkname_length,
-		    sconv) != 0) {
-			if (errno != ENOMEM && sconv == zip->sconv_utf8 &&
-			    (zip->entry->zip_flags & ZIP_UTF8_NAME))
-			    archive_entry_copy_symlink_l(entry, p,
-				linkname_length, NULL);
-			if (errno == ENOMEM) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate memory for Symlink");
-				return (ARCHIVE_FATAL);
-			}
-			/*
-			 * Since there is no character-set regulation for
-			 * symlink name, do not report the conversion error
-			 * in an automatic conversion.
-			 */
-			if (sconv != zip->sconv_utf8 ||
-			    (zip->entry->zip_flags & ZIP_UTF8_NAME) == 0) {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Symlink cannot be converted "
-				    "from %s to current locale.",
-				    archive_string_conversion_charset_name(
-					sconv));
-				ret = ARCHIVE_WARN;
-			}
-		}
-		zip_entry->uncompressed_size = zip_entry->compressed_size = 0;
-	} else if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
-	    || zip_entry->uncompressed_size > 0) {
-		/* Set the size only if it's meaningful. */
-		archive_entry_set_size(entry, zip_entry->uncompressed_size);
-	}
-	zip->entry_bytes_remaining = zip_entry->compressed_size;
+    (The "Method" value is the HTTP request method as specified in section
+    5.1.1 of RFC 2616)
+  */
 
-	/* If there's no body, force read_data() to return EOF immediately. */
-	if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
-	    && zip->entry_bytes_remaining < 1)
-		zip->end_of_entry = 1;
+  md5this = (unsigned char *)aprintf("%s:%s", request, uripath);
 
-	/* Set up a more descriptive format name. */
-	snprintf(zip->format_name, sizeof(zip->format_name), "ZIP %d.%d (%s)",
-	    version / 10, version % 10,
-	    compression_name(zip->entry->compression));
-	a->archive.archive_format_name = zip->format_name;
+  if(digest->qop && Curl_raw_equal(digest->qop, "auth-int")) {
+    /* We don't support auth-int for PUT or POST at the moment.
+       TODO: replace md5 of empty string with entity-body for PUT/POST */
+    unsigned char *md5this2 = (unsigned char *)
+      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
+    free(md5this);
+    md5this = md5this2;
+  }
 
-	return (ret);
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  sasl_digest_md5_to_ascii(md5buf, ha2);
+
+  if(digest->qop) {
+    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       digest->nc,
+                                       digest->cnonce,
+                                       digest->qop,
+                                       ha2);
+  }
+  else {
+    md5this = (unsigned char *)aprintf("%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       ha2);
+  }
+
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  sasl_digest_md5_to_ascii(md5buf, request_digest);
+
+  /* for test case 64 (snooped from a Mozilla 1.3a request)
+
+    Authorization: Digest username="testuser", realm="testrealm", \
+    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
+
+    Digest parameters are all quoted strings.  Username which is provided by
+    the user will need double quotes and backslashes within it escaped.  For
+    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
+    are copied as is from the server, escapes and all.  cnonce is generated
+    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
+    characters.  algorithm and qop with standard values only contain web-safe
+    chracters.
+  */
+  userp_quoted = sasl_digest_string_quoted(userp);
+  if(!userp_quoted)
+    return CURLE_OUT_OF_MEMORY;
+
+  if(digest->qop) {
+    response = aprintf("username=\"%s\", "
+                       "realm=\"%s\", "
+                       "nonce=\"%s\", "
+                       "uri=\"%s\", "
+                       "cnonce=\"%s\", "
+                       "nc=%08x, "
+                       "qop=%s, "
+                       "response=\"%s\"",
+                       userp_quoted,
+                       digest->realm,
+                       digest->nonce,
+                       uripath,
+                       digest->cnonce,
+                       digest->nc,
+                       digest->qop,
+                       request_digest);
+
+    if(Curl_raw_equal(digest->qop, "auth"))
+      digest->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0
+                       padded which tells to the server how many times you are
+                       using the same nonce in the qop=auth mode */
+  }
+  else {
+    response = aprintf("username=\"%s\", "
+                       "realm=\"%s\", "
+                       "nonce=\"%s\", "
+                       "uri=\"%s\", "
+                       "response=\"%s\"",
+                       userp_quoted,
+                       digest->realm,
+                       digest->nonce,
+                       uripath,
+                       request_digest);
+  }
+  free(userp_quoted);
+  if(!response)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Add the optional fields */
+  if(digest->opaque) {
+    /* Append the opaque */
+    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
+    free(response);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    response = tmp;
+  }
+
+  if(digest->algorithm) {
+    /* Append the algorithm */
+    tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
+    free(response);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    response = tmp;
+  }
+
+  /* Return the output */
+  *outptr = response;
+  *outlen = strlen(response);
+
+  return CURLE_OK;
 }

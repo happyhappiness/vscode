@@ -1,3 +1,1 @@
-fsobj_error(a_eno, a_estr, 0,
-					    "Cannot remove intervening "
-					    "symlink ", path);
+archive_string_sprintf(a_estr, "%s%s", errstr, path);

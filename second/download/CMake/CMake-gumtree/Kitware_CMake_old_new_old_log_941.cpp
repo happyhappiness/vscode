@@ -1,1 +1,2 @@
-fprintf(fout, "SET(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${COMPILE_DEFINITIONS})\n");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "zip: unknown keyword ``%s''", key);

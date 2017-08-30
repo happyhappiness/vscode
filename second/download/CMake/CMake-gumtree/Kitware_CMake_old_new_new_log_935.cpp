@@ -1,1 +1,2 @@
-fprintf(fout,"#define VTK_TCL_TO_STRING0(x) #x\n");
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory for Mac metadata");

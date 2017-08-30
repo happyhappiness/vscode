@@ -1,9 +1,7 @@
 {
-    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       digest->nc,
-                                       digest->cnonce,
-                                       digest->qop,
-                                       ha2);
-  }
+					archive_set_error(&a->archive, 0,
+					    "Cannot remove intervening symlink %s",
+					    a->name);
+					pn[0] = c;
+					return (ARCHIVE_FAILED);
+				}

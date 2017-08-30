@@ -1,1 +1,1 @@
-self->AddError(message, title);
+fprintf(fout,"%s ",compileDefs[i].c_str());

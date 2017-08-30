@@ -1,267 +1,178 @@
-void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed, 
-                             cmCTest::tm_VectorOfStrings &failed,
-                             bool memcheck)
+static int
+_archive_read_next_header2(struct archive *_a, struct archive_entry *entry)
 {
-  std::string current_dir = cmSystemTools::GetCurrentWorkingDirectory();
-  cmsys::RegularExpression dartStuff("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
-  tm_ListOfTests testlist;
-  this->GetListOfTests(&testlist, memcheck);
-  tm_ListOfTests::size_type tmsize = testlist.size();
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	struct tree *t;
+	const struct stat *st; /* info to use for this entry */
+	const struct stat *lst;/* lstat() information */
+	int descend, fd = -1, r;
 
-  std::ofstream ofs;
-  std::ofstream *olog = 0;
-  if ( !m_ShowOnly && tmsize > 0 && 
-    this->OpenOutputFile("Temporary", 
-      (memcheck?"LastMemCheck.log":"LastTest.log"), ofs) )
-    {
-    olog = &ofs;
-    }
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
+	    "archive_read_next_header2");
 
-  m_StartTest = this->CurrentTime();
-  double elapsed_time_start = cmSystemTools::GetTime();
+	t = a->tree;
+	if (t->entry_fd >= 0) {
+		close_and_restore_time(t->entry_fd, t, &t->restore_time);
+		t->entry_fd = -1;
+	}
+#if !(defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR))
+	/* Restore working directory. */
+	tree_enter_working_dir(t);
+#endif
+	st = NULL;
+	lst = NULL;
+	do {
+		switch (tree_next(t)) {
+		case TREE_ERROR_FATAL:
+			archive_set_error(&a->archive, t->tree_errno,
+			    "%s: Unable to continue traversing directory tree",
+			    tree_current_path(t));
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			tree_enter_initial_dir(t);
+			return (ARCHIVE_FATAL);
+		case TREE_ERROR_DIR:
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%s: Couldn't visit directory",
+			    tree_current_path(t));
+			tree_enter_initial_dir(t);
+			return (ARCHIVE_FAILED);
+		case 0:
+			tree_enter_initial_dir(t);
+			return (ARCHIVE_EOF);
+		case TREE_POSTDESCENT:
+		case TREE_POSTASCENT:
+			break;
+		case TREE_REGULAR:
+			lst = tree_current_lstat(t);
+			if (lst == NULL) {
+				archive_set_error(&a->archive, errno,
+				    "%s: Cannot stat",
+				    tree_current_path(t));
+				tree_enter_initial_dir(t);
+				return (ARCHIVE_FAILED);
+			}
+			break;
+		}	
+	} while (lst == NULL);
 
-  if ( olog )
-    {
-    *olog << "Start testing: " << m_StartTest << std::endl
-      << "----------------------------------------------------------"
-      << std::endl;
-    }
+	/*
+	 * Distinguish 'L'/'P'/'H' symlink following.
+	 */
+	switch(t->symlink_mode) {
+	case 'H':
+		/* 'H': After the first item, rest like 'P'. */
+		t->symlink_mode = 'P';
+		/* 'H': First item (from command line) like 'L'. */
+		/* FALLTHROUGH */
+	case 'L':
+		/* 'L': Do descend through a symlink to dir. */
+		descend = tree_current_is_dir(t);
+		/* 'L': Follow symlinks to files. */
+		a->symlink_mode = 'L';
+		a->follow_symlinks = 1;
+		/* 'L': Archive symlinks as targets, if we can. */
+		st = tree_current_stat(t);
+		if (st != NULL && !tree_target_is_same_as_parent(t, st))
+			break;
+		/* If stat fails, we have a broken symlink;
+		 * in that case, don't follow the link. */
+		/* FALLTHROUGH */
+	default:
+		/* 'P': Don't descend through a symlink to dir. */
+		descend = tree_current_is_physical_dir(t);
+		/* 'P': Don't follow symlinks to files. */
+		a->symlink_mode = 'P';
+		a->follow_symlinks = 0;
+		/* 'P': Archive symlinks as symlinks. */
+		st = lst;
+		break;
+	}
 
-  // expand the test list
-  this->ExpandTestsToRunInformation((int)tmsize);
-  
-  int cnt = 0;
-  tm_ListOfTests::iterator it;
-  std::string last_directory = "";
-  for ( it = testlist.begin(); it != testlist.end(); it ++ )
-    {
-    cnt ++;
-    const std::string& testname = it->m_Name;
-    tm_VectorOfListFileArgs& args = it->m_Args;
-    cmCTestTestResult cres;
-    cres.m_Status = cmCTest::NOT_RUN;
-    cres.m_TestCount = cnt;
+	if (update_current_filesystem(a, st->st_dev) != ARCHIVE_OK) {
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		tree_enter_initial_dir(t);
+		return (ARCHIVE_FATAL);
+	}
+	t->descend = descend;
 
-    if (!(last_directory == it->m_Directory))
-      {
-      if ( m_Verbose )
-        {
-        std::cerr << "Changing directory into " 
-          << it->m_Directory.c_str() << "\n";
-        }
-      last_directory = it->m_Directory;
-      cmSystemTools::ChangeDirectory(it->m_Directory.c_str());
-      }
-    cres.m_Name = testname;
-    if(m_TestsToRun.size() && 
-       std::find(m_TestsToRun.begin(), m_TestsToRun.end(), cnt) == m_TestsToRun.end())
-      {
-      continue;
-      }
+	archive_entry_set_pathname(entry, tree_current_path(t));
+	archive_entry_copy_sourcepath(entry, tree_current_access_path(t));
+	archive_entry_copy_stat(entry, st);
 
-    if ( m_ShowOnly )
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s\n", cnt, (int)tmsize, testname.c_str());
-      }
-    else
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s ", cnt, (int)tmsize, testname.c_str());
-      fflush(stderr);
-      }
-    //std::cerr << "Testing " << args[0] << " ... ";
-    // find the test executable
-    std::string actualCommand = this->FindTheExecutable(args[1].Value.c_str());
-    std::string testCommand = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
-    std::string memcheckcommand = "";
+	/* Save the times to be restored. */
+	t->restore_time.mtime = archive_entry_mtime(entry);
+	t->restore_time.mtime_nsec = archive_entry_mtime_nsec(entry);
+	t->restore_time.atime = archive_entry_atime(entry);
+	t->restore_time.atime_nsec = archive_entry_atime_nsec(entry);
+	t->restore_time.filetype = archive_entry_filetype(entry);
+	t->restore_time.noatime = t->current_filesystem->noatime;
 
-    // continue if we did not find the executable
-    if (testCommand == "")
-      {
-      std::cerr << "Unable to find executable: " <<
-        args[1].Value.c_str() << "\n";
-      if ( !m_ShowOnly )
-        {
-        m_TestResults.push_back( cres ); 
-        failed.push_back(testname);
-        continue;
-        }
-      }
+#if defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR)
+	/*
+	 * Open the current file to freely gather its metadata anywhere in
+	 * working directory.
+	 * Note: A symbolic link file cannot be opened with O_NOFOLLOW.
+	 */
+	if (a->follow_symlinks || archive_entry_filetype(entry) != AE_IFLNK)
+		fd = openat(tree_current_dir_fd(t), tree_current_access_path(t),
+		    O_RDONLY | O_NONBLOCK);
+	/* Restore working directory if openat() operation failed or
+	 * the file is a symbolic link. */
+	if (fd < 0)
+		tree_enter_working_dir(t);
 
-    // add the arguments
-    tm_VectorOfListFileArgs::const_iterator j = args.begin();
-    ++j;
-    ++j;
-    std::vector<const char*> arguments;
-    if ( memcheck )
-      {
-      cmCTest::tm_VectorOfStrings::size_type pp;
-      arguments.push_back(m_MemoryTester.c_str());
-      memcheckcommand = m_MemoryTester;
-      for ( pp = 0; pp < m_MemoryTesterOptionsParsed.size(); pp ++ )
-        {
-        arguments.push_back(m_MemoryTesterOptionsParsed[pp].c_str());
-        memcheckcommand += " ";
-        memcheckcommand += cmSystemTools::EscapeSpaces(m_MemoryTesterOptionsParsed[pp].c_str());
-        }
-      }
-    arguments.push_back(actualCommand.c_str());
-    for(;j != args.end(); ++j)
-      {
-      testCommand += " ";
-      testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
-      arguments.push_back(j->Value.c_str());
-      }
-    arguments.push_back(0);
+	/* The current direcotry fd is needed at
+	 * archive_read_disk_entry_from_file() function to read link data
+	 * with readlinkat(). */
+	a->entry_wd_fd = tree_current_dir_fd(t);
+#endif
 
-    /**
-     * Run an executable command and put the stdout in output.
-     */
-    std::string output;
-    int retVal = 0;
+	/*
+	 * Populate the archive_entry with metadata from the disk.
+	 */
+	r = archive_read_disk_entry_from_file(&(a->archive), entry, fd, st);
 
+	/* Close the file descriptor used for reding the current file
+	 * metadata at archive_read_disk_entry_from_file(). */
+	if (fd >= 0)
+		close(fd);
 
-    if ( m_Verbose )
-      {
-      std::cout << std::endl << (memcheck?"MemCheck":"Test") << " command: " << testCommand << std::endl;
-      if ( memcheck )
-        {
-        std::cout << "Memory check command: " << memcheckcommand << std::endl;
-        }
-      }
-    if ( olog )
-      {
-      *olog << cnt << "/" << tmsize 
-        << " Test: " << testname.c_str() << std::endl;
-      *olog << "Command: ";
-      tm_VectorOfStrings::size_type ll;
-      for ( ll = 0; ll < arguments.size()-1; ll ++ )
-        {
-        *olog << "\"" << arguments[ll] << "\" ";
-        }
-      *olog 
-        << std::endl 
-        << "Directory: " << it->m_Directory << std::endl 
-        << "\"" << testname.c_str() << "\" start time: " 
-        << this->CurrentTime() << std::endl
-        << "Output:" << std::endl 
-        << "----------------------------------------------------------"
-        << std::endl;
-      }
-    int res = 0;
-    double clock_start, clock_finish;
-    clock_start = cmSystemTools::GetTime();
+	/* Return to the initial directory. */
+	tree_enter_initial_dir(t);
+	archive_entry_copy_sourcepath(entry, tree_current_path(t));
 
-    if ( !m_ShowOnly )
-      {
-      res = this->RunTest(arguments, &output, &retVal, olog);
-      }
+	/*
+	 * EOF and FATAL are persistent at this layer.  By
+	 * modifying the state, we guarantee that future calls to
+	 * read a header or read data will fail.
+	 */
+	switch (r) {
+	case ARCHIVE_EOF:
+		a->archive.state = ARCHIVE_STATE_EOF;
+		break;
+	case ARCHIVE_OK:
+	case ARCHIVE_WARN:
+		t->entry_total = 0;
+		if (archive_entry_filetype(entry) == AE_IFREG) {
+			t->nlink = archive_entry_nlink(entry);
+			t->entry_remaining_bytes = archive_entry_size(entry);
+			t->entry_eof = (t->entry_remaining_bytes == 0)? 1: 0;
+			if (!t->entry_eof &&
+			    setup_sparse(a, entry) != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+		} else {
+			t->entry_remaining_bytes = 0;
+			t->entry_eof = 1;
+		}
+		a->archive.state = ARCHIVE_STATE_DATA;
+		break;
+	case ARCHIVE_RETRY:
+		break;
+	case ARCHIVE_FATAL:
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		break;
+	}
 
-    clock_finish = cmSystemTools::GetTime();
-
-    if ( olog )
-      {
-      double ttime = clock_finish - clock_start;
-      int hours = static_cast<int>(ttime / (60 * 60));
-      int minutes = static_cast<int>(ttime / 60) % 60;
-      int seconds = static_cast<int>(ttime) % 60;
-      char buffer[100];
-      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
-      *olog 
-        << "----------------------------------------------------------"
-        << std::endl
-        << "\"" << testname.c_str() << "\" end time: " 
-        << this->CurrentTime() << std::endl
-        << "\"" << testname.c_str() << "\" time elapsed: " 
-        << buffer << std::endl
-        << "----------------------------------------------------------"
-        << std::endl << std::endl;
-      }
-
-    cres.m_ExecutionTime = (double)(clock_finish - clock_start);
-    cres.m_FullCommandLine = testCommand;
-
-    if ( !m_ShowOnly )
-      {
-      if (res == cmsysProcess_State_Exited && retVal == 0)
-        {
-        fprintf(stderr,"   Passed\n");
-        passed.push_back(testname);
-        cres.m_Status = cmCTest::COMPLETED;
-        }
-      else
-        {
-        cres.m_Status = cmCTest::FAILED;
-        if ( res == cmsysProcess_State_Expired )
-          {
-          fprintf(stderr,"***Timeout\n");
-          cres.m_Status = cmCTest::TIMEOUT;
-          }
-        else if ( res == cmsysProcess_State_Exception )
-          {
-          fprintf(stderr,"***Exception: ");
-          switch ( retVal )
-            {
-          case cmsysProcess_Exception_Fault:
-            fprintf(stderr,"SegFault");
-            cres.m_Status = cmCTest::SEGFAULT;
-            break;
-          case cmsysProcess_Exception_Illegal:
-            fprintf(stderr,"Illegal");
-            cres.m_Status = cmCTest::ILLEGAL;
-            break;
-          case cmsysProcess_Exception_Interrupt:
-            fprintf(stderr,"Interrupt");
-            cres.m_Status = cmCTest::INTERRUPT;
-            break;
-          case cmsysProcess_Exception_Numerical:
-            fprintf(stderr,"Numerical");
-            cres.m_Status = cmCTest::NUMERICAL;
-            break;
-          default:
-            fprintf(stderr,"Other");
-            cres.m_Status = cmCTest::OTHER_FAULT;
-            }
-          fprintf(stderr,"\n");
-          }
-        else if ( res == cmsysProcess_State_Error )
-          {
-          fprintf(stderr,"***Bad command %d\n", res);
-          cres.m_Status = cmCTest::BAD_COMMAND;
-          }
-        else
-          {
-          fprintf(stderr,"***Failed\n");
-          }
-        failed.push_back(testname);
-        }
-      if (output != "")
-        {
-        if (dartStuff.find(output.c_str()))
-          {
-          std::string dartString = dartStuff.match(1);
-          cmSystemTools::ReplaceString(output, dartString.c_str(),"");
-          cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
-          }
-        }
-      }
-    cres.m_Output = output;
-    cres.m_ReturnValue = retVal;
-    std::string nwd = it->m_Directory;
-    if ( nwd.size() > m_ToplevelPath.size() )
-      {
-      nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
-      }
-    cmSystemTools::ReplaceString(nwd, "\\", "/");
-    cres.m_Path = nwd;
-    cres.m_CompletionStatus = "Completed";
-    m_TestResults.push_back( cres );
-    }
-
-  m_EndTest = this->CurrentTime();
-  m_ElapsedTestingTime = cmSystemTools::GetTime() - elapsed_time_start;
-  if ( olog )
-    {
-    *olog << "End testing: " << m_EndTest << std::endl;
-    }
-  cmSystemTools::ChangeDirectory(current_dir.c_str());
+	return (r);
 }

@@ -1,85 +1,140 @@
-bool cmFindPackageCommand::CheckVersionFile(std::string const& version_file)
+static int
+write_mtree_entry(struct archive_write *a, struct mtree_entry *me)
 {
-  // The version file will be loaded in an isolated scope.
-  this->Makefile->PushScope();
+	struct mtree_writer *mtree = a->format_data;
+	struct archive_string *str;
+	int keys, ret;
 
-  // Clear the output variables.
-  this->Makefile->RemoveDefinition("PACKAGE_VERSION");
-  this->Makefile->RemoveDefinition("PACKAGE_VERSION_COMPATIBLE");
-  this->Makefile->RemoveDefinition("PACKAGE_VERSION_EXACT");
+	if (me->dir_info) {
+		if (mtree->classic) {
+			/*
+			 * Output a comment line to describe the full
+			 * pathname of the entry as mtree utility does
+			 * while generating classic format.
+			 */
+			if (!mtree->dironly)
+				archive_strappend_char(&mtree->buf, '\n');
+			if (me->parentdir.s)
+				archive_string_sprintf(&mtree->buf,
+				    "# %s/%s\n",
+				    me->parentdir.s, me->basename.s);
+			else
+				archive_string_sprintf(&mtree->buf,
+				    "# %s\n",
+				    me->basename.s);
+		}
+		if (mtree->output_global_set)
+			write_global(mtree);
+	}
+	archive_string_empty(&mtree->ebuf);
+	str = (mtree->indent || mtree->classic)? &mtree->ebuf : &mtree->buf;
 
-  // Set the input variables.
-  this->Makefile->AddDefinition("PACKAGE_FIND_NAME", this->Name.c_str());
-  this->Makefile->AddDefinition("PACKAGE_FIND_VERSION",
-                                this->Version.c_str());
-  if(this->VersionCount >= 3)
-    {
-    char buf[64];
-    sprintf(buf, "%u", this->VersionPatch);
-    this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_PATCH", buf);
-    }
-  else
-    {
-    this->Makefile->RemoveDefinition("PACKAGE_FIND_VERSION_PATCH");
-    }
-  if(this->VersionCount >= 2)
-    {
-    char buf[64];
-    sprintf(buf, "%u", this->VersionMinor);
-    this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_MINOR", buf);
-    }
-  else
-    {
-    this->Makefile->RemoveDefinition("PACKAGE_FIND_VERSION_MINOR");
-    }
-  if(this->VersionCount >= 1)
-    {
-    char buf[64];
-    sprintf(buf, "%u", this->VersionMajor);
-    this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_MAJOR", buf);
-    }
-  else
-    {
-    this->Makefile->RemoveDefinition("PACKAGE_FIND_VERSION_MAJOR");
-    }
+	if (!mtree->classic && me->parentdir.s) {
+		/*
+		 * If generating format is not classic one(v1), output
+		 * a full pathname.
+		 */
+		mtree_quote(str, me->parentdir.s);
+		archive_strappend_char(str, '/');
+	}
+	mtree_quote(str, me->basename.s);
 
-  // Load the version check file.
-  bool found = false;
-  if(this->ReadListFile(version_file.c_str()))
-    {
-    // Check the output variables.
-    found = this->Makefile->IsOn("PACKAGE_VERSION_EXACT");
-    if(!found && !this->VersionExact)
-      {
-      found = this->Makefile->IsOn("PACKAGE_VERSION_COMPATIBLE");
-      }
-    if(found || this->Version.empty())
-      {
-      // Get the version found.
-      this->VersionFound =
-        this->Makefile->GetSafeDefinition("PACKAGE_VERSION");
+	keys = get_global_set_keys(mtree, me);
+	if ((keys & F_NLINK) != 0 &&
+	    me->nlink != 1 && me->filetype != AE_IFDIR)
+		archive_string_sprintf(str, " nlink=%u", me->nlink);
 
-      // Try to parse the version number and store the results that were
-      // successfully parsed.
-      unsigned int parsed_major;
-      unsigned int parsed_minor;
-      unsigned int parsed_patch;
-      this->VersionFoundCount =
-        sscanf(this->VersionFound.c_str(), "%u.%u.%u",
-               &parsed_major, &parsed_minor, &parsed_patch);
-      switch(this->VersionFoundCount)
-        {
-        case 3: this->VersionFoundPatch = parsed_patch; // no break!
-        case 2: this->VersionFoundMinor = parsed_minor; // no break!
-        case 1: this->VersionFoundMajor = parsed_major; // no break!
-        default: break;
-        }
-      }
-    }
+	if ((keys & F_GNAME) != 0 && archive_strlen(&me->gname) > 0) {
+		archive_strcat(str, " gname=");
+		mtree_quote(str, me->gname.s);
+	}
+	if ((keys & F_UNAME) != 0 && archive_strlen(&me->uname) > 0) {
+		archive_strcat(str, " uname=");
+		mtree_quote(str, me->uname.s);
+	}
+	if ((keys & F_FLAGS) != 0) {
+		if (archive_strlen(&me->fflags_text) > 0) {
+			archive_strcat(str, " flags=");
+			mtree_quote(str, me->fflags_text.s);
+		} else if (mtree->set.processing &&
+		    (mtree->set.keys & F_FLAGS) != 0)
+			/* Overwrite the global parameter. */
+			archive_strcat(str, " flags=none");
+	}
+	if ((keys & F_TIME) != 0)
+		archive_string_sprintf(str, " time=%jd.%jd",
+		    (intmax_t)me->mtime, (intmax_t)me->mtime_nsec);
+	if ((keys & F_MODE) != 0)
+		archive_string_sprintf(str, " mode=%o", (unsigned int)me->mode);
+	if ((keys & F_GID) != 0)
+		archive_string_sprintf(str, " gid=%jd", (intmax_t)me->gid);
+	if ((keys & F_UID) != 0)
+		archive_string_sprintf(str, " uid=%jd", (intmax_t)me->uid);
 
-  // Restore the original scope.
-  this->Makefile->PopScope();
+	switch (me->filetype) {
+	case AE_IFLNK:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=link");
+		if ((keys & F_SLINK) != 0) {
+			archive_strcat(str, " link=");
+			mtree_quote(str, me->symlink.s);
+		}
+		break;
+	case AE_IFSOCK:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=socket");
+		break;
+	case AE_IFCHR:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=char");
+		if ((keys & F_DEV) != 0) {
+			archive_string_sprintf(str,
+			    " device=native,%ju,%ju",
+			    (uintmax_t)me->rdevmajor,
+			    (uintmax_t)me->rdevminor);
+		}
+		break;
+	case AE_IFBLK:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=block");
+		if ((keys & F_DEV) != 0) {
+			archive_string_sprintf(str,
+			    " device=native,%ju,%ju",
+			    (uintmax_t)me->rdevmajor,
+			    (uintmax_t)me->rdevminor);
+		}
+		break;
+	case AE_IFDIR:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=dir");
+		break;
+	case AE_IFIFO:
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=fifo");
+		break;
+	case AE_IFREG:
+	default:	/* Handle unknown file types as regular files. */
+		if ((keys & F_TYPE) != 0)
+			archive_strcat(str, " type=file");
+		if ((keys & F_SIZE) != 0)
+			archive_string_sprintf(str, " size=%jd",
+			    (intmax_t)me->size);
+		break;
+	}
 
-  // Succeed if the version was found or no version was requested.
-  return found || this->Version.empty();
+	/* Write a bunch of sum. */
+	if (me->reg_info)
+		sum_write(str, me->reg_info);
+
+	archive_strappend_char(str, '\n');
+	if (mtree->indent || mtree->classic)
+		mtree_indent(mtree);
+
+	if (mtree->buf.length > 32768) {
+		ret = __archive_write_output(
+			a, mtree->buf.s, mtree->buf.length);
+		archive_string_empty(&mtree->buf);
+	} else
+		ret = ARCHIVE_OK;
+	return (ret);
 }

@@ -1,1 +1,1 @@
-sprintf(secondLine, "Q)uit Without Generating   T)oggle Advanced Mode (Off)");
+sprintf(win9x, "%s%s", tempDir, fwdName);

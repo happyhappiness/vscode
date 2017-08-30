@@ -1,1 +1,1 @@
-sprintf(firstLine, "Page %d of %d", cw->GetPage(), this->NumberOfPages);
+archive_set_error(&a->archive, errno, "fchdir failed");

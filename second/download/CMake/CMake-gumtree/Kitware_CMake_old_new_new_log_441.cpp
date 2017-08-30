@@ -1,1 +1,2 @@
-archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Zip file with oversized link entry");

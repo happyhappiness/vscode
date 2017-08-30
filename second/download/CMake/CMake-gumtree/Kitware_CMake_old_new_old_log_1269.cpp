@@ -1,0 +1,1 @@
+fprintf(stderr, "tar_close(): %s\n", strerror(errno));

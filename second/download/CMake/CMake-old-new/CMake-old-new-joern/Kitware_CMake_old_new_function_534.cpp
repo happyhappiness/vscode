@@ -1,158 +1,86 @@
 static int
-archive_read_format_rar_read_header(struct archive_read *a,
-                                    struct archive_entry *entry)
+archive_write_zip_options(struct archive_write *a, const char *key,
+    const char *val)
 {
-  const void *h;
-  const char *p;
-  struct rar *rar;
-  size_t skip;
-  char head_type;
-  int ret;
-  unsigned flags;
+	struct zip *zip = a->format_data;
+	int ret = ARCHIVE_FAILED;
 
-  a->archive.archive_format = ARCHIVE_FORMAT_RAR;
-  if (a->archive.archive_format_name == NULL)
-    a->archive.archive_format_name = "RAR";
+	if (strcmp(key, "compression") == 0) {
+		/*
+		 * Set compression to use on all future entries.
+		 * This only affects regular files.
+		 */
+		if (val == NULL || val[0] == 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%s: compression option needs a compression name",
+			    a->format_name);
+		} else if (strcmp(val, "deflate") == 0) {
+#ifdef HAVE_ZLIB_H
+			zip->requested_compression = COMPRESSION_DEFLATE;
+			ret = ARCHIVE_OK;
+#else
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "deflate compression not supported");
+#endif
+		} else if (strcmp(val, "store") == 0) {
+			zip->requested_compression = COMPRESSION_STORE;
+			ret = ARCHIVE_OK;
+		}
+		return (ret);
+	} else if (strcmp(key, "experimental") == 0) {
+		if (val == NULL || val[0] == 0) {
+			zip->flags &= ~ ZIP_FLAG_EXPERIMENT_EL;
+		} else {
+			zip->flags |= ZIP_FLAG_EXPERIMENT_EL;
+		}
+		return (ARCHIVE_OK);
+	} else if (strcmp(key, "fakecrc32") == 0) {
+		/*
+		 * FOR TESTING ONLY:  disable CRC calculation to speed up
+		 * certain complex tests.
+		 */
+		if (val == NULL || val[0] == 0) {
+			zip->crc32func = real_crc32;
+		} else {
+			zip->crc32func = fake_crc32;
+		}
+		return (ARCHIVE_OK);
+	} else if (strcmp(key, "hdrcharset")  == 0) {
+		/*
+		 * Set the character set used in translating filenames.
+		 */
+		if (val == NULL || val[0] == 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%s: hdrcharset option needs a character-set name",
+			    a->format_name);
+		} else {
+			zip->opt_sconv = archive_string_conversion_to_charset(
+			    &a->archive, val, 0);
+			if (zip->opt_sconv != NULL)
+				ret = ARCHIVE_OK;
+			else
+				ret = ARCHIVE_FATAL;
+		}
+		return (ret);
+	} else if (strcmp(key, "zip64") == 0) {
+		/*
+		 * Bias decisions about Zip64: force them to be
+		 * generated in certain cases where they are not
+		 * forbidden or avoid them in certain cases where they
+		 * are not strictly required.
+		 */
+		if (val != NULL && *val != '\0') {
+			zip->flags |= ZIP_FLAG_FORCE_ZIP64;
+			zip->flags &= ~ZIP_FLAG_AVOID_ZIP64;
+		} else {
+			zip->flags &= ~ZIP_FLAG_FORCE_ZIP64;
+			zip->flags |= ZIP_FLAG_AVOID_ZIP64;
+		}
+		return (ARCHIVE_OK);
+	}
 
-  rar = (struct rar *)(a->format->data);
-
-  /* RAR files can be generated without EOF headers, so return ARCHIVE_EOF if
-  * this fails.
-  */
-  if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
-    return (ARCHIVE_EOF);
-
-  p = h;
-  if (rar->found_first_header == 0 &&
-     ((p[0] == 'M' && p[1] == 'Z') || memcmp(p, "\x7F\x45LF", 4) == 0)) {
-    /* This is an executable ? Must be self-extracting... */
-    ret = skip_sfx(a);
-    if (ret < ARCHIVE_WARN)
-      return (ret);
-  }
-  rar->found_first_header = 1;
-
-  while (1)
-  {
-    unsigned long crc32_val;
-
-    if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
-      return (ARCHIVE_FATAL);
-    p = h;
-
-    head_type = p[2];
-    switch(head_type)
-    {
-    case MARK_HEAD:
-      if (memcmp(p, RAR_SIGNATURE, 7) != 0) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Invalid marker header");
-        return (ARCHIVE_FATAL);
-      }
-      __archive_read_consume(a, 7);
-      break;
-
-    case MAIN_HEAD:
-      rar->main_flags = archive_le16dec(p + 3);
-      skip = archive_le16dec(p + 5);
-      if (skip < 7 + sizeof(rar->reserved1) + sizeof(rar->reserved2)) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Invalid header size");
-        return (ARCHIVE_FATAL);
-      }
-      if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
-        return (ARCHIVE_FATAL);
-      p = h;
-      memcpy(rar->reserved1, p + 7, sizeof(rar->reserved1));
-      memcpy(rar->reserved2, p + 7 + sizeof(rar->reserved1),
-             sizeof(rar->reserved2));
-      if (rar->main_flags & MHD_ENCRYPTVER) {
-        if (skip < 7 + sizeof(rar->reserved1) + sizeof(rar->reserved2)+1) {
-          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-            "Invalid header size");
-          return (ARCHIVE_FATAL);
-        }
-        rar->encryptver = *(p + 7 + sizeof(rar->reserved1) +
-                            sizeof(rar->reserved2));
-      }
-
-      if (rar->main_flags & MHD_VOLUME ||
-          rar->main_flags & MHD_FIRSTVOLUME)
-      {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "RAR volume support unavailable.");
-        return (ARCHIVE_FATAL);
-      }
-      if (rar->main_flags & MHD_PASSWORD)
-      {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "RAR encryption support unavailable.");
-        return (ARCHIVE_FATAL);
-      }
-
-      crc32_val = crc32(0, (const unsigned char *)p + 2, skip - 2);
-      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Header CRC error");
-        return (ARCHIVE_FATAL);
-      }
-      __archive_read_consume(a, skip);
-      break;
-
-    case FILE_HEAD:
-      return read_header(a, entry, head_type);
-
-    case COMM_HEAD:
-    case AV_HEAD:
-    case SUB_HEAD:
-    case PROTECT_HEAD:
-    case SIGN_HEAD:
-      flags = archive_le16dec(p + 3);
-      skip = archive_le16dec(p + 5);
-      if (skip < 7) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Invalid header size");
-        return (ARCHIVE_FATAL);
-      }
-      if (skip > 7) {
-        if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
-          return (ARCHIVE_FATAL);
-        p = h;
-      }
-      if (flags & HD_ADD_SIZE_PRESENT)
-      {
-        if (skip < 7 + 4) {
-          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-            "Invalid header size");
-          return (ARCHIVE_FATAL);
-        }
-        skip += archive_le32dec(p + 7);
-        if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
-          return (ARCHIVE_FATAL);
-        p = h;
-      }
-
-      crc32_val = crc32(0, (const unsigned char *)p + 2, skip - 2);
-      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Header CRC error");
-        return (ARCHIVE_FATAL);
-      }
-      __archive_read_consume(a, skip);
-      break;
-
-    case NEWSUB_HEAD:
-      if ((ret = read_header(a, entry, head_type)) < ARCHIVE_WARN)
-        return ret;
-      break;
-
-    case ENDARC_HEAD:
-      return (ARCHIVE_EOF);
-
-    default:
-      archive_set_error(&a->archive,  ARCHIVE_ERRNO_FILE_FORMAT,
-                        "Bad RAR file");
-      return (ARCHIVE_FATAL);
-    }
-  }
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
 }

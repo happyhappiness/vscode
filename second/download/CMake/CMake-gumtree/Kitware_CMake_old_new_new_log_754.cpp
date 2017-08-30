@@ -1,0 +1,1 @@
+fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");

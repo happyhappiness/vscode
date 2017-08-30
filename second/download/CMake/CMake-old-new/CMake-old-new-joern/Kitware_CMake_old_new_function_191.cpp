@@ -1,103 +1,142 @@
-char *curl_version(void)
+static int
+translate_acl(struct archive_read_disk *a,
+    struct archive_entry *entry, acl_t acl, int default_entry_acl_type)
 {
-  static bool initialized;
-  static char version[200];
-  char *ptr = version;
-  size_t len;
-  size_t left = sizeof(version);
-
-  if(initialized)
-    return version;
-
-  strcpy(ptr, LIBCURL_NAME "/" LIBCURL_VERSION);
-  len = strlen(ptr);
-  left -= len;
-  ptr += len;
-
-  if(left > 1) {
-    len = Curl_ssl_version(ptr + 1, left - 1);
-
-    if(len > 0) {
-      *ptr = ' ';
-      left -= ++len;
-      ptr += len;
-    }
-  }
-
-#ifdef HAVE_LIBZ
-  len = snprintf(ptr, left, " zlib/%s", zlibVersion());
-  left -= len;
-  ptr += len;
+	acl_tag_t	 acl_tag;
+#ifdef ACL_TYPE_NFS4
+	acl_entry_type_t acl_type;
+	acl_flagset_t	 acl_flagset;
+	int brand, r;
 #endif
-#ifdef USE_ARES
-  /* this function is only present in c-ares, not in the original ares */
-  len = snprintf(ptr, left, " c-ares/%s", ares_version(NULL));
-  left -= len;
-  ptr += len;
-#endif
-#ifdef USE_LIBIDN
-  if(stringprep_check_version(LIBIDN_REQUIRED_VERSION)) {
-    len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL));
-    left -= len;
-    ptr += len;
-  }
-#endif
-#ifdef USE_LIBPSL
-  len = snprintf(ptr, left, " libpsl/%s", psl_get_version());
-  left -= len;
-  ptr += len;
-#endif
-#ifdef USE_WIN32_IDN
-  len = snprintf(ptr, left, " WinIDN");
-  left -= len;
-  ptr += len;
-#endif
-#if defined(HAVE_ICONV) && defined(CURL_DOES_CONVERSIONS)
-#ifdef _LIBICONV_VERSION
-  len = snprintf(ptr, left, " iconv/%d.%d",
-                 _LIBICONV_VERSION >> 8, _LIBICONV_VERSION & 255);
-#else
-  /* version unknown */
-  len = snprintf(ptr, left, " iconv");
-#endif /* _LIBICONV_VERSION */
-  left -= len;
-  ptr += len;
-#endif
-#ifdef USE_LIBSSH2
-  len = snprintf(ptr, left, " libssh2/%s", CURL_LIBSSH2_VERSION);
-  left -= len;
-  ptr += len;
-#endif
-#ifdef USE_NGHTTP2
-  len = Curl_http2_ver(ptr, left);
-  left -= len;
-  ptr += len;
-#endif
-#ifdef USE_LIBRTMP
-  {
-    char suff[2];
-    if(RTMP_LIB_VERSION & 0xff) {
-      suff[0] = (RTMP_LIB_VERSION & 0xff) + 'a' - 1;
-      suff[1] = '\0';
-    }
-    else
-      suff[0] = '\0';
+	acl_entry_t	 acl_entry;
+	acl_permset_t	 acl_permset;
+	int		 i, entry_acl_type;
+	int		 s, ae_id, ae_tag, ae_perm;
+	const char	*ae_name;
 
-    snprintf(ptr, left, " librtmp/%d.%d%s",
-             RTMP_LIB_VERSION >> 16, (RTMP_LIB_VERSION >> 8) & 0xff,
-             suff);
-/*
-  If another lib version is added below this one, this code would
-  also have to do:
 
-    len = what snprintf() returned
-
-    left -= len;
-    ptr += len;
-*/
-  }
+#ifdef ACL_TYPE_NFS4
+	// FreeBSD "brands" ACLs as POSIX.1e or NFSv4
+	// Make sure the "brand" on this ACL is consistent
+	// with the default_entry_acl_type bits provided.
+	acl_get_brand_np(acl, &brand);
+	switch (brand) {
+	case ACL_BRAND_POSIX:
+		switch (default_entry_acl_type) {
+		case ARCHIVE_ENTRY_ACL_TYPE_ACCESS:
+		case ARCHIVE_ENTRY_ACL_TYPE_DEFAULT:
+			break;
+		default:
+			// XXX set warning message?
+			return ARCHIVE_FAILED;
+		}
+		break;
+	case ACL_BRAND_NFS4:
+		if (default_entry_acl_type & ~ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
+			// XXX set warning message?
+			return ARCHIVE_FAILED;
+		}
+		break;
+	default:
+		// XXX set warning message?
+		return ARCHIVE_FAILED;
+		break;
+	}
 #endif
 
-  initialized = true;
-  return version;
+
+	s = acl_get_entry(acl, ACL_FIRST_ENTRY, &acl_entry);
+	while (s == 1) {
+		ae_id = -1;
+		ae_name = NULL;
+		ae_perm = 0;
+
+		acl_get_tag_type(acl_entry, &acl_tag);
+		switch (acl_tag) {
+		case ACL_USER:
+			ae_id = (int)*(uid_t *)acl_get_qualifier(acl_entry);
+			ae_name = archive_read_disk_uname(&a->archive, ae_id);
+			ae_tag = ARCHIVE_ENTRY_ACL_USER;
+			break;
+		case ACL_GROUP:
+			ae_id = (int)*(gid_t *)acl_get_qualifier(acl_entry);
+			ae_name = archive_read_disk_gname(&a->archive, ae_id);
+			ae_tag = ARCHIVE_ENTRY_ACL_GROUP;
+			break;
+		case ACL_MASK:
+			ae_tag = ARCHIVE_ENTRY_ACL_MASK;
+			break;
+		case ACL_USER_OBJ:
+			ae_tag = ARCHIVE_ENTRY_ACL_USER_OBJ;
+			break;
+		case ACL_GROUP_OBJ:
+			ae_tag = ARCHIVE_ENTRY_ACL_GROUP_OBJ;
+			break;
+		case ACL_OTHER:
+			ae_tag = ARCHIVE_ENTRY_ACL_OTHER;
+			break;
+#ifdef ACL_TYPE_NFS4
+		case ACL_EVERYONE:
+			ae_tag = ARCHIVE_ENTRY_ACL_EVERYONE;
+			break;
+#endif
+		default:
+			/* Skip types that libarchive can't support. */
+			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+			continue;
+		}
+
+		// XXX acl type maps to allow/deny/audit/YYYY bits
+		// XXX acl_get_entry_type_np on FreeBSD returns EINVAL for
+		// non-NFSv4 ACLs
+		entry_acl_type = default_entry_acl_type;
+#ifdef ACL_TYPE_NFS4
+		r = acl_get_entry_type_np(acl_entry, &acl_type);
+		if (r == 0) {
+			switch (acl_type) {
+			case ACL_ENTRY_TYPE_ALLOW:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
+				break;
+			case ACL_ENTRY_TYPE_DENY:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
+				break;
+			case ACL_ENTRY_TYPE_AUDIT:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_AUDIT;
+				break;
+			case ACL_ENTRY_TYPE_ALARM:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALARM;
+				break;
+			}
+		}
+
+		/*
+		 * Libarchive stores "flag" (NFSv4 inheritance bits)
+		 * in the ae_perm bitmap.
+		 */
+		acl_get_flagset_np(acl_entry, &acl_flagset);
+                for (i = 0; i < (int)(sizeof(acl_inherit_map) / sizeof(acl_inherit_map[0])); ++i) {
+			if (acl_get_flag_np(acl_flagset,
+					    acl_inherit_map[i].platform_inherit))
+				ae_perm |= acl_inherit_map[i].archive_inherit;
+
+                }
+#endif
+
+		acl_get_permset(acl_entry, &acl_permset);
+		for (i = 0; i < (int)(sizeof(acl_perm_map) / sizeof(acl_perm_map[0])); ++i) {
+			/*
+			 * acl_get_perm() is spelled differently on different
+			 * platforms; see above.
+			 */
+			if (ACL_GET_PERM(acl_permset, acl_perm_map[i].platform_perm))
+				ae_perm |= acl_perm_map[i].archive_perm;
+		}
+
+		archive_entry_acl_add_entry(entry, entry_acl_type,
+					    ae_perm, ae_tag,
+					    ae_id, ae_name);
+
+		s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+	}
+	return (ARCHIVE_OK);
 }

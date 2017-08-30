@@ -1,0 +1,1 @@
+fprintf(stdout, "Working directory: -->%s<--", cwd);

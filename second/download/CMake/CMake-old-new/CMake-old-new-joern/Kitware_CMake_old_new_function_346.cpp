@@ -1,53 +1,46 @@
-void
-DumpSymbolTable(PIMAGE_SYMBOL pSymbolTable, PIMAGE_SECTION_HEADER pSectionHeaders, FILE *fout, unsigned cSymbols)
+static CURLcode sasl_create_cram_md5_message(struct SessionHandle *data,
+                                             const char *chlg,
+                                             const char *userp,
+                                             const char *passwdp,
+                                             char **outptr, size_t *outlen)
 {
-   unsigned i;
-   PSTR stringTable;
-   std::string sectionName;
-   std::string sectionCharacter;
-   int iSectNum;
+  CURLcode result = CURLE_OK;
+  size_t chlglen = 0;
+  HMAC_context *ctxt;
+  unsigned char digest[MD5_DIGEST_LEN];
+  char *response;
 
-   fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
-      cSymbols);
+  if(chlg)
+    chlglen = strlen(chlg);
 
-   fprintf(fout,
-      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
-      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");
+  /* Compute the digest using the password as the key */
+  ctxt = Curl_HMAC_init(Curl_HMAC_MD5,
+                        (const unsigned char *) passwdp,
+                        curlx_uztoui(strlen(passwdp)));
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
 
-   /*
-   * The string table apparently starts right after the symbol table
-   */
-   stringTable = (PSTR)&pSymbolTable[cSymbols];
+  /* Update the digest with the given challenge */
+  if(chlglen > 0)
+    Curl_HMAC_update(ctxt, (const unsigned char *) chlg,
+                     curlx_uztoui(chlglen));
 
-   for ( i=0; i < cSymbols; i++ ) {
-      fprintf(fout, "%04X ", i);
-      if ( pSymbolTable->N.Name.Short != 0 )
-         fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
-      else
-         fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);
+  /* Finalise the digest */
+  Curl_HMAC_final(ctxt, digest);
 
-      fprintf(fout, " %08X", pSymbolTable->Value);
+  /* Generate the response */
+  response = aprintf(
+      "%s %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+           userp, digest[0], digest[1], digest[2], digest[3], digest[4],
+           digest[5], digest[6], digest[7], digest[8], digest[9], digest[10],
+           digest[11], digest[12], digest[13], digest[14], digest[15]);
+  if(!response)
+    return CURLE_OUT_OF_MEMORY;
 
-      iSectNum = pSymbolTable->SectionNumber;
-      GetSectionName(pSymbolTable, sectionName);
-      fprintf(fout, " sect:%s aux:%X type:%02X st:%s",
-         sectionName.c_str(),
-         pSymbolTable->NumberOfAuxSymbols,
-         pSymbolTable->Type,
-         GetSZStorageClass(pSymbolTable->StorageClass) );
+  /* Base64 encode the response */
+  result = Curl_base64_encode(data, response, 0, outptr, outlen);
 
-      GetSectionCharacteristics(pSectionHeaders,iSectNum,sectionCharacter);
-      fprintf(fout," hc: %s \n",sectionCharacter.c_str());
-#if 0
-      if ( pSymbolTable->NumberOfAuxSymbols )
-         DumpAuxSymbols(pSymbolTable);
-#endif
+  free(response);
 
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-   }
+  return result;
 }

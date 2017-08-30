@@ -1,1 +1,0 @@
-std::cout << "AUTOMOC: Checking " << absFilename << std::endl;

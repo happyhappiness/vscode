@@ -1,267 +1,77 @@
-void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed, 
-                             cmCTest::tm_VectorOfStrings &failed,
-                             bool memcheck)
+static int
+setup_xattrs(struct archive_read_disk *a,
+    struct archive_entry *entry, int fd)
 {
-  std::string current_dir = cmSystemTools::GetCurrentWorkingDirectory();
-  cmsys::RegularExpression dartStuff("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
-  tm_ListOfTests testlist;
-  this->GetListOfTests(&testlist, memcheck);
-  tm_ListOfTests::size_type tmsize = testlist.size();
+	char *list, *p;
+	const char *path;
+	ssize_t list_size;
 
-  std::ofstream ofs;
-  std::ofstream *olog = 0;
-  if ( !m_ShowOnly && tmsize > 0 && 
-    this->OpenOutputFile("Temporary", 
-      (memcheck?"LastMemCheck.log":"LastTest.log"), ofs) )
-    {
-    olog = &ofs;
-    }
+	path = archive_entry_sourcepath(entry);
+	if (path == NULL)
+		path = archive_entry_pathname(entry);
 
-  m_StartTest = this->CurrentTime();
-  double elapsed_time_start = cmSystemTools::GetTime();
+#if HAVE_FLISTXATTR
+	if (fd >= 0)
+		list_size = flistxattr(fd, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = llistxattr(path, NULL, 0);
+	else
+		list_size = listxattr(path, NULL, 0);
+#elif HAVE_FLISTEA
+	if (fd >= 0)
+		list_size = flistea(fd, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = llistea(path, NULL, 0);
+	else
+		list_size = listea(path, NULL, 0);
+#endif
 
-  if ( olog )
-    {
-    *olog << "Start testing: " << m_StartTest << std::endl
-      << "----------------------------------------------------------"
-      << std::endl;
-    }
+	if (list_size == -1) {
+		if (errno == ENOTSUP || errno == ENOSYS)
+			return (ARCHIVE_OK);
+		archive_set_error(&a->archive, errno,
+			"Couldn't list extended attributes");
+		return (ARCHIVE_WARN);
+	}
 
-  // expand the test list
-  this->ExpandTestsToRunInformation((int)tmsize);
-  
-  int cnt = 0;
-  tm_ListOfTests::iterator it;
-  std::string last_directory = "";
-  for ( it = testlist.begin(); it != testlist.end(); it ++ )
-    {
-    cnt ++;
-    const std::string& testname = it->m_Name;
-    tm_VectorOfListFileArgs& args = it->m_Args;
-    cmCTestTestResult cres;
-    cres.m_Status = cmCTest::NOT_RUN;
-    cres.m_TestCount = cnt;
+	if (list_size == 0)
+		return (ARCHIVE_OK);
 
-    if (!(last_directory == it->m_Directory))
-      {
-      if ( m_Verbose )
-        {
-        std::cerr << "Changing directory into " 
-          << it->m_Directory.c_str() << "\n";
-        }
-      last_directory = it->m_Directory;
-      cmSystemTools::ChangeDirectory(it->m_Directory.c_str());
-      }
-    cres.m_Name = testname;
-    if(m_TestsToRun.size() && 
-       std::find(m_TestsToRun.begin(), m_TestsToRun.end(), cnt) == m_TestsToRun.end())
-      {
-      continue;
-      }
+	if ((list = malloc(list_size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
 
-    if ( m_ShowOnly )
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s\n", cnt, (int)tmsize, testname.c_str());
-      }
-    else
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s ", cnt, (int)tmsize, testname.c_str());
-      fflush(stderr);
-      }
-    //std::cerr << "Testing " << args[0] << " ... ";
-    // find the test executable
-    std::string actualCommand = this->FindTheExecutable(args[1].Value.c_str());
-    std::string testCommand = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
-    std::string memcheckcommand = "";
+#if HAVE_FLISTXATTR
+	if (fd >= 0)
+		list_size = flistxattr(fd, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = llistxattr(path, list, list_size);
+	else
+		list_size = listxattr(path, list, list_size);
+#elif HAVE_FLISTEA
+	if (fd >= 0)
+		list_size = flistea(fd, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = llistea(path, list, list_size);
+	else
+		list_size = listea(path, list, list_size);
+#endif
 
-    // continue if we did not find the executable
-    if (testCommand == "")
-      {
-      std::cerr << "Unable to find executable: " <<
-        args[1].Value.c_str() << "\n";
-      if ( !m_ShowOnly )
-        {
-        m_TestResults.push_back( cres ); 
-        failed.push_back(testname);
-        continue;
-        }
-      }
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't retrieve extended attributes");
+		free(list);
+		return (ARCHIVE_WARN);
+	}
 
-    // add the arguments
-    tm_VectorOfListFileArgs::const_iterator j = args.begin();
-    ++j;
-    ++j;
-    std::vector<const char*> arguments;
-    if ( memcheck )
-      {
-      cmCTest::tm_VectorOfStrings::size_type pp;
-      arguments.push_back(m_MemoryTester.c_str());
-      memcheckcommand = m_MemoryTester;
-      for ( pp = 0; pp < m_MemoryTesterOptionsParsed.size(); pp ++ )
-        {
-        arguments.push_back(m_MemoryTesterOptionsParsed[pp].c_str());
-        memcheckcommand += " ";
-        memcheckcommand += cmSystemTools::EscapeSpaces(m_MemoryTesterOptionsParsed[pp].c_str());
-        }
-      }
-    arguments.push_back(actualCommand.c_str());
-    for(;j != args.end(); ++j)
-      {
-      testCommand += " ";
-      testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
-      arguments.push_back(j->Value.c_str());
-      }
-    arguments.push_back(0);
+	for (p = list; (p - list) < list_size; p += strlen(p) + 1) {
+		if (strncmp(p, "system.", 7) == 0 ||
+				strncmp(p, "xfsroot.", 8) == 0)
+			continue;
+		setup_xattr(a, entry, p, fd);
+	}
 
-    /**
-     * Run an executable command and put the stdout in output.
-     */
-    std::string output;
-    int retVal = 0;
-
-
-    if ( m_Verbose )
-      {
-      std::cout << std::endl << (memcheck?"MemCheck":"Test") << " command: " << testCommand << std::endl;
-      if ( memcheck )
-        {
-        std::cout << "Memory check command: " << memcheckcommand << std::endl;
-        }
-      }
-    if ( olog )
-      {
-      *olog << cnt << "/" << tmsize 
-        << " Test: " << testname.c_str() << std::endl;
-      *olog << "Command: ";
-      tm_VectorOfStrings::size_type ll;
-      for ( ll = 0; ll < arguments.size()-1; ll ++ )
-        {
-        *olog << "\"" << arguments[ll] << "\" ";
-        }
-      *olog 
-        << std::endl 
-        << "Directory: " << it->m_Directory << std::endl 
-        << "\"" << testname.c_str() << "\" start time: " 
-        << this->CurrentTime() << std::endl
-        << "Output:" << std::endl 
-        << "----------------------------------------------------------"
-        << std::endl;
-      }
-    int res = 0;
-    double clock_start, clock_finish;
-    clock_start = cmSystemTools::GetTime();
-
-    if ( !m_ShowOnly )
-      {
-      res = this->RunTest(arguments, &output, &retVal, olog);
-      }
-
-    clock_finish = cmSystemTools::GetTime();
-
-    if ( olog )
-      {
-      double ttime = clock_finish - clock_start;
-      int hours = static_cast<int>(ttime / (60 * 60));
-      int minutes = static_cast<int>(ttime / 60) % 60;
-      int seconds = static_cast<int>(ttime) % 60;
-      char buffer[100];
-      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
-      *olog 
-        << "----------------------------------------------------------"
-        << std::endl
-        << "\"" << testname.c_str() << "\" end time: " 
-        << this->CurrentTime() << std::endl
-        << "\"" << testname.c_str() << "\" time elapsed: " 
-        << buffer << std::endl
-        << "----------------------------------------------------------"
-        << std::endl << std::endl;
-      }
-
-    cres.m_ExecutionTime = (double)(clock_finish - clock_start);
-    cres.m_FullCommandLine = testCommand;
-
-    if ( !m_ShowOnly )
-      {
-      if (res == cmsysProcess_State_Exited && retVal == 0)
-        {
-        fprintf(stderr,"   Passed\n");
-        passed.push_back(testname);
-        cres.m_Status = cmCTest::COMPLETED;
-        }
-      else
-        {
-        cres.m_Status = cmCTest::FAILED;
-        if ( res == cmsysProcess_State_Expired )
-          {
-          fprintf(stderr,"***Timeout\n");
-          cres.m_Status = cmCTest::TIMEOUT;
-          }
-        else if ( res == cmsysProcess_State_Exception )
-          {
-          fprintf(stderr,"***Exception: ");
-          switch ( retVal )
-            {
-          case cmsysProcess_Exception_Fault:
-            fprintf(stderr,"SegFault");
-            cres.m_Status = cmCTest::SEGFAULT;
-            break;
-          case cmsysProcess_Exception_Illegal:
-            fprintf(stderr,"Illegal");
-            cres.m_Status = cmCTest::ILLEGAL;
-            break;
-          case cmsysProcess_Exception_Interrupt:
-            fprintf(stderr,"Interrupt");
-            cres.m_Status = cmCTest::INTERRUPT;
-            break;
-          case cmsysProcess_Exception_Numerical:
-            fprintf(stderr,"Numerical");
-            cres.m_Status = cmCTest::NUMERICAL;
-            break;
-          default:
-            fprintf(stderr,"Other");
-            cres.m_Status = cmCTest::OTHER_FAULT;
-            }
-          fprintf(stderr,"\n");
-          }
-        else if ( res == cmsysProcess_State_Error )
-          {
-          fprintf(stderr,"***Bad command %d\n", res);
-          cres.m_Status = cmCTest::BAD_COMMAND;
-          }
-        else
-          {
-          fprintf(stderr,"***Failed\n");
-          }
-        failed.push_back(testname);
-        }
-      if (output != "")
-        {
-        if (dartStuff.find(output.c_str()))
-          {
-          std::string dartString = dartStuff.match(1);
-          cmSystemTools::ReplaceString(output, dartString.c_str(),"");
-          cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
-          }
-        }
-      }
-    cres.m_Output = output;
-    cres.m_ReturnValue = retVal;
-    std::string nwd = it->m_Directory;
-    if ( nwd.size() > m_ToplevelPath.size() )
-      {
-      nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
-      }
-    cmSystemTools::ReplaceString(nwd, "\\", "/");
-    cres.m_Path = nwd;
-    cres.m_CompletionStatus = "Completed";
-    m_TestResults.push_back( cres );
-    }
-
-  m_EndTest = this->CurrentTime();
-  m_ElapsedTestingTime = cmSystemTools::GetTime() - elapsed_time_start;
-  if ( olog )
-    {
-    *olog << "End testing: " << m_EndTest << std::endl;
-    }
-  cmSystemTools::ChangeDirectory(current_dir.c_str());
+	free(list);
+	return (ARCHIVE_OK);
 }

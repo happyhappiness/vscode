@@ -1,63 +1,113 @@
-int
-tar_extract_file(TAR *t, char *realname)
+static int
+_archive_read_data_block(struct archive *_a, const void **buff,
+    size_t *size, int64_t *offset)
 {
-  int i;
-  linkname_t *lnp;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	struct tree *t = a->tree;
+	int r;
+	int64_t bytes;
+	size_t buffbytes;
 
-  if (t->options & TAR_NOOVERWRITE)
-  {
-    struct stat s;
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
+	    "archive_read_data_block");
 
-#ifdef WIN32
-    if (stat(realname, &s) == 0 || errno != ENOENT)
-#else
-    if (lstat(realname, &s) == 0 || errno != ENOENT)
-#endif
-    {
-      errno = EEXIST;
-      return -1;
-    }
-  }
+	if (t->entry_eof || t->entry_remaining_bytes <= 0) {
+		r = ARCHIVE_EOF;
+		goto abort_read_data;
+	}
 
-  if (TH_ISDIR(t))
-  {
-    i = tar_extract_dir(t, realname);
-    if (i == 1)
-      i = 0;
-  }
-#ifndef _WIN32
-  else if (TH_ISLNK(t))
-    i = tar_extract_hardlink(t, realname);
-  else if (TH_ISSYM(t))
-    i = tar_extract_symlink(t, realname);
-  else if (TH_ISCHR(t))
-    i = tar_extract_chardev(t, realname);
-  else if (TH_ISBLK(t))
-    i = tar_extract_blockdev(t, realname);
-  else if (TH_ISFIFO(t))
-    i = tar_extract_fifo(t, realname);
-#endif
-  else /* if (TH_ISREG(t)) */
-    i = tar_extract_regfile(t, realname);
+	/* Allocate read buffer. */
+	if (t->entry_buff == NULL) {
+		t->entry_buff = malloc(1024 * 64);
+		if (t->entry_buff == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Couldn't allocate memory");
+			r = ARCHIVE_FATAL;
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			goto abort_read_data;
+		}
+		t->entry_buff_size = 1024 * 64;
+	}
 
-  if (i != 0)
-    return i;
+	buffbytes = t->entry_buff_size;
+	if (buffbytes > t->current_sparse->length)
+		buffbytes = t->current_sparse->length;
 
-  i = tar_set_file_perms(t, realname);
-  if (i != 0)
-    return i;
+	/*
+	 * Skip hole.
+	 */
+	if (t->current_sparse->offset > t->entry_total) {
+		LARGE_INTEGER distance;
+		distance.QuadPart = t->current_sparse->offset;
+		if (!SetFilePointerEx_perso(t->entry_fh, distance, NULL, FILE_BEGIN)) {
+			DWORD lasterr;
 
-  lnp = (linkname_t *)calloc(1, sizeof(linkname_t));
-  if (lnp == NULL)
-    return -1;
-  strlcpy(lnp->ln_save, th_get_pathname(t), sizeof(lnp->ln_save));
-  strlcpy(lnp->ln_real, realname, sizeof(lnp->ln_real));
-#ifdef DEBUG
-  printf("tar_extract_file(): calling libtar_hash_add(): key=\"%s\", "
-         "value=\"%s\"\n", th_get_pathname(t), realname);
-#endif
-  if (libtar_hash_add(t->h, lnp) != 0)
-    return -1;
+			lasterr = GetLastError();
+			if (lasterr == ERROR_ACCESS_DENIED)
+				errno = EBADF;
+			else
+				la_dosmaperr(lasterr);
+			archive_set_error(&a->archive, errno, "Seek error");
+			r = ARCHIVE_FATAL;
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			goto abort_read_data;
+		}
+		bytes = t->current_sparse->offset - t->entry_total;
+		t->entry_remaining_bytes -= bytes;
+		t->entry_total += bytes;
+	}
+	if (buffbytes > 0) {
+		DWORD bytes_read;
+		if (!ReadFile(t->entry_fh, t->entry_buff,
+		    (uint32_t)buffbytes, &bytes_read, NULL)) {
+			DWORD lasterr;
 
-  return 0;
+			lasterr = GetLastError();
+			if (lasterr == ERROR_NO_DATA)
+				errno = EAGAIN;
+			else if (lasterr == ERROR_ACCESS_DENIED)
+				errno = EBADF;
+			else
+				la_dosmaperr(lasterr);
+			archive_set_error(&a->archive, errno, "Read error");
+			r = ARCHIVE_FATAL;
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			goto abort_read_data;
+		}
+		bytes = bytes_read;
+	} else
+		bytes = 0;
+	if (bytes == 0) {
+		/* Get EOF */
+		t->entry_eof = 1;
+		r = ARCHIVE_EOF;
+		goto abort_read_data;
+	}
+	*buff = t->entry_buff;
+	*size = bytes;
+	*offset = t->entry_total;
+	t->entry_total += bytes;
+	t->entry_remaining_bytes -= bytes;
+	if (t->entry_remaining_bytes == 0) {
+		/* Close the current file descriptor */
+		close_and_restore_time(t->entry_fh, t, &t->restore_time);
+		t->entry_fh = INVALID_HANDLE_VALUE;
+		t->entry_eof = 1;
+	}
+	t->current_sparse->offset += bytes;
+	t->current_sparse->length -= bytes;
+	if (t->current_sparse->length == 0 && !t->entry_eof)
+		t->current_sparse++;
+	return (ARCHIVE_OK);
+
+abort_read_data:
+	*buff = NULL;
+	*size = 0;
+	*offset = t->entry_total;
+	if (t->entry_fh != INVALID_HANDLE_VALUE) {
+		/* Close the current file descriptor */
+		close_and_restore_time(t->entry_fh, t, &t->restore_time);
+		t->entry_fh = INVALID_HANDLE_VALUE;
+	}
+	return (r);
 }

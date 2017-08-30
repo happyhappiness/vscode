@@ -1,1 +1,2 @@
-f(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Encryption needs passphrase");

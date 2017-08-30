@@ -1,0 +1,1 @@
+fprintf(ofp, "#if defined(__WATCOMC__)\n");

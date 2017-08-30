@@ -1,202 +1,84 @@
-void cmLocalVisualStudio6Generator::WriteDSPFile(std::ostream& fout, 
-                                 const char *libName,
-                                 cmTarget &target)
+static int
+setup_sparse_from_disk(struct archive_read_disk *a,
+    struct archive_entry *entry, HANDLE handle)
 {
-  // if we should add regen rule then...
-  const char *suppRegenRule = 
-    m_Makefile->GetDefinition("CMAKE_SUPPRESS_REGENERATION");
-  if (!cmSystemTools::IsOn(suppRegenRule))
-    {
-    this->AddDSPBuildRule();
-    }
+	FILE_ALLOCATED_RANGE_BUFFER range, *outranges = NULL;
+	size_t outranges_size;
+	int64_t entry_size = archive_entry_size(entry);
+	int exit_sts = ARCHIVE_OK;
 
-  // for utility targets need custom command since post build doesn't
-  // do anything (Visual Studio 7 seems to do this correctly without 
-  // the hack)
-  if (target.GetType() == cmTarget::UTILITY && 
-      target.GetPostBuildCommands().size())
-    {
-    int count = 1;
-    for (std::vector<cmCustomCommand>::const_iterator cr = 
-           target.GetPostBuildCommands().begin(); 
-         cr != target.GetPostBuildCommands().end(); ++cr)
-      {
-      char *output = new char [
-        strlen(m_Makefile->GetStartOutputDirectory()) + 
-        strlen(libName) + 30];
-      sprintf(output,"%s/%s_force_%i",
-              m_Makefile->GetStartOutputDirectory(),
-              libName, count);
-      const char* no_main_dependency = 0;
-      const char* no_comment = 0;
-      m_Makefile->AddCustomCommandToOutput(output,
-                                           cr->GetDepends(),
-                                           no_main_dependency,
-                                           cr->GetCommandLines(),
-                                           no_comment);
-      cmSourceFile* outsf = 
-        m_Makefile->GetSourceFileWithOutput(output);
-      target.GetSourceFiles().push_back(outsf);
-      count++;
-      delete [] output;
-      }
-    }
-  
-  // trace the visual studio dependencies
-  std::string name = libName;
-  name += ".dsp.cmake";
-  target.TraceVSDependencies(name, m_Makefile);
+	range.FileOffset.QuadPart = 0;
+	range.Length.QuadPart = entry_size;
+	outranges_size = 2048;
+	outranges = (FILE_ALLOCATED_RANGE_BUFFER *)malloc(outranges_size);
+	if (outranges == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			"Couldn't allocate memory");
+		exit_sts = ARCHIVE_FATAL;
+		goto exit_setup_sparse;
+	}
 
-  // We may be modifying the source groups temporarily, so make a copy.
-  std::vector<cmSourceGroup> sourceGroups = m_Makefile->GetSourceGroups();
-  
-  // get the classes from the source lists then add them to the groups
-  std::vector<cmSourceFile*> & classes = target.GetSourceFiles();
+	for (;;) {
+		DWORD retbytes;
+		BOOL ret;
 
-  // now all of the source files have been properly assigned to the target
-  // now stick them into source groups using the reg expressions
-  for(std::vector<cmSourceFile*>::iterator i = classes.begin(); 
-      i != classes.end(); i++)
-    {
-    // Add the file to the list of sources.
-    std::string source = (*i)->GetFullPath();
-    cmSourceGroup& sourceGroup = m_Makefile->FindSourceGroup(source.c_str(),
-                                                             sourceGroups);
-    sourceGroup.AssignSource(*i);
-    // while we are at it, if it is a .rule file then for visual studio 6 we
-    // must generate it
-    if ((*i)->GetSourceExtension() == "rule")
-      {
-      if(!cmSystemTools::FileExists(source.c_str()))
-        {
-        cmSystemTools::ReplaceString(source, "$(IntDir)/", "");
-#if defined(_WIN32) || defined(__CYGWIN__)
-        std::ofstream fout(source.c_str(), 
-                           std::ios::binary | std::ios::out | std::ios::trunc);
-#else
-        std::ofstream fout(source.c_str(), 
-                           std::ios::out | std::ios::trunc);
-#endif
-        if(fout)
-          {
-          fout.write("# generated from CMake",22);
-          fout.flush();
-          fout.close();
-          }
-        }
-      }
-    }
-  
-  // Write the DSP file's header.
-  this->WriteDSPHeader(fout, libName, target, sourceGroups);
-  
+		for (;;) {
+			ret = DeviceIoControl(handle,
+			    FSCTL_QUERY_ALLOCATED_RANGES,
+			    &range, sizeof(range), outranges,
+			    outranges_size, &retbytes, NULL);
+			if (ret == 0 && GetLastError() == ERROR_MORE_DATA) {
+				free(outranges);
+				outranges_size *= 2;
+				outranges = (FILE_ALLOCATED_RANGE_BUFFER *)
+				    malloc(outranges_size);
+				if (outranges == NULL) {
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    "Couldn't allocate memory");
+					exit_sts = ARCHIVE_FATAL;
+					goto exit_setup_sparse;
+				}
+				continue;
+			} else
+				break;
+		}
+		if (ret != 0) {
+			if (retbytes > 0) {
+				DWORD i, n;
 
-  // Loop through every source group.
-  for(std::vector<cmSourceGroup>::const_iterator sg = sourceGroups.begin();
-      sg != sourceGroups.end(); ++sg)
-    {
-    const std::vector<const cmSourceFile *> &sourceFiles = 
-      sg->GetSourceFiles();
-    // If the group is empty, don't write it at all.
-    if(sourceFiles.empty())
-      { 
-      continue; 
-      }
-    
-    // If the group has a name, write the header.
-    std::string name = sg->GetName();
-    if(name != "")
-      {
-      this->WriteDSPBeginGroup(fout, name.c_str(), "");
-      }
-    
-    // Loop through each source in the source group.
-    for(std::vector<const cmSourceFile *>::const_iterator sf =
-          sourceFiles.begin(); sf != sourceFiles.end(); ++sf)
-      {
-      std::string source = (*sf)->GetFullPath();
-      const cmCustomCommand *command = 
-        (*sf)->GetCustomCommand();
-      std::string compileFlags;
-      std::vector<std::string> depends;
-      const char* cflags = (*sf)->GetProperty("COMPILE_FLAGS");
-      if(cflags)
-        {
-        compileFlags = cflags;
-        }
-      const char* lang = 
-        m_GlobalGenerator->GetLanguageFromExtension((*sf)->GetSourceExtension().c_str());
-      if(lang && strcmp(lang, "CXX") == 0)
-        {
-        // force a C++ file type
-        compileFlags += " /TP ";
-        }
-      
-      // Check for extra object-file dependencies.
-      const char* dependsValue = (*sf)->GetProperty("OBJECT_DEPENDS");
-      if(dependsValue)
-        {
-        cmSystemTools::ExpandListArgument(dependsValue, depends);
-        }
-      if (source != libName || target.GetType() == cmTarget::UTILITY)
-        {
-        fout << "# Begin Source File\n\n";
-        
-        // Tell MS-Dev what the source is.  If the compiler knows how to
-        // build it, then it will.
-        fout << "SOURCE=" << 
-          this->ConvertToOptionallyRelativeOutputPath(source.c_str()) << "\n\n";
-        if(!depends.empty())
-          {
-          // Write out the dependencies for the rule.
-          fout << "USERDEP__HACK=";
-          for(std::vector<std::string>::const_iterator d = depends.begin();
-              d != depends.end(); ++d)
-            { 
-            fout << "\\\n\t" << 
-              this->ConvertToOptionallyRelativeOutputPath(d->c_str());
-            }
-          fout << "\n";
-          }
-        if (command)
-          {
-          std::string script =
-            this->ConstructScript(command->GetCommandLines(), "\\\n\t");
-          const char* comment = command->GetComment();
-          const char* flags = compileFlags.size() ? compileFlags.c_str(): 0;
-          this->WriteCustomRule(fout, source.c_str(), script.c_str(), 
-                                (*comment?comment:"Custom Rule"),
-                                command->GetDepends(), 
-                                command->GetOutput(), flags);
-          }
-        else if(compileFlags.size())
-          {
-          for(std::vector<std::string>::iterator i
-                = m_Configurations.begin(); i != m_Configurations.end(); ++i)
-            { 
-            if (i == m_Configurations.begin())
-              {
-              fout << "!IF  \"$(CFG)\" == " << i->c_str() << std::endl;
-              }
-            else 
-              {
-              fout << "!ELSEIF  \"$(CFG)\" == " << i->c_str() << std::endl;
-              }
-            fout << "\n# ADD CPP " << compileFlags << "\n\n";
-            } 
-          fout << "!ENDIF\n\n";
-          }
-        fout << "# End Source File\n";
-        }
-      }
-    
-    // If the group has a name, write the footer.
-    if(name != "")
-      {
-      this->WriteDSPEndGroup(fout);
-      }
-    }  
+				n = retbytes / sizeof(outranges[0]);
+				if (n == 1 &&
+				    outranges[0].FileOffset.QuadPart == 0 &&
+				    outranges[0].Length.QuadPart == entry_size)
+					break;/* This is not sparse. */
+				for (i = 0; i < n; i++)
+					archive_entry_sparse_add_entry(entry,
+					    outranges[i].FileOffset.QuadPart,
+						outranges[i].Length.QuadPart);
+				range.FileOffset.QuadPart =
+				    outranges[n-1].FileOffset.QuadPart
+				    + outranges[n-1].Length.QuadPart;
+				range.Length.QuadPart =
+				    entry_size - range.FileOffset.QuadPart;
+				if (range.Length.QuadPart > 0)
+					continue;
+			} else {
+				/* The remaining data is hole. */
+				archive_entry_sparse_add_entry(entry,
+				    range.FileOffset.QuadPart,
+				    range.Length.QuadPart);
+			}
+			break;
+		} else {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "DeviceIoControl Failed: %lu", GetLastError());
+			exit_sts = ARCHIVE_FAILED;
+			goto exit_setup_sparse;
+		}
+	}
+exit_setup_sparse:
+	free(outranges);
 
-  // Write the DSP file's footer.
-  this->WriteDSPFooter(fout);
+	return (exit_sts);
 }

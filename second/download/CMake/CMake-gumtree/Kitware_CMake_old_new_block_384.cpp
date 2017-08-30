@@ -1,4 +1,1 @@
-{
-                  // Read only (i.e. constants) must be excluded
-                  fprintf(fout, "\t%s \t DATA\n", symbol.c_str());
-               }
+yy_fatal_error( "cmListFileLexer_yyset_column called with no buffer" , yyscanner)

@@ -1,1 +1,1 @@
-fprintf(fout, "ADD_EXECUTABLE(%s", targetName);
+fprintf(stderr, "Output on stderr from grandchild before sleep.\n");

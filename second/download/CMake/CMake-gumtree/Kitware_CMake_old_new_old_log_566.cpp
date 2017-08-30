@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			"Couldn't allocate memory");
+tmp = aprintf("%s, algorithm=\"%s\"", *allocuserpwd, d->algorithm);

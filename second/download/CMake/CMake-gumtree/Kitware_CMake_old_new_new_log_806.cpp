@@ -1,1 +1,2 @@
-sprintf(argvName,"ARGV%i",cnt);
+archive_set_error(&a->archive, errno,
+				    "Can't CreateFileW");

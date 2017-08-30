@@ -1,4 +1,4 @@
 {
-               fImportFlag = 1;
-               fprintf(fout,"IMPORTS \n");
-            }
+		xar->xmlsts_unknown = xar->xmlsts;
+		xar->xmlsts = UNKNOWN;
+	}

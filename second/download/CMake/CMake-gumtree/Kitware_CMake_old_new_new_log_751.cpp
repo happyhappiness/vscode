@@ -1,1 +1,1 @@
-DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
+fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");

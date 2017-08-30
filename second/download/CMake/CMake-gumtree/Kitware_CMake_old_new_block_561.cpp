@@ -1,5 +1,9 @@
 {
-				archive_set_error(&a->archive, GetLastError(),
-				    "Can't FindFirstFileW");
-				return (ARCHIVE_FAILED);
-			}
+    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
+                                       ha1,
+                                       d->nonce,
+                                       d->nc,
+                                       d->cnonce,
+                                       d->qop,
+                                       ha2);
+  }

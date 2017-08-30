@@ -1,1 +1,2 @@
-sprintf(buffer, "&%x", (int)ch);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			"Couldn't allocate memory");

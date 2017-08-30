@@ -1,2 +1,2 @@
-archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
+snprintf(buf, sizeof(data->state.buffer),
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);

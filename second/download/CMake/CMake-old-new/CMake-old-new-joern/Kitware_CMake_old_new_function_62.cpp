@@ -1,43 +1,23 @@
-static CURLcode http_output_basic(struct connectdata *conn, bool proxy)
+void Curl_failf(struct Curl_easy *data, const char *fmt, ...)
 {
-  size_t size = 0;
-  char *authorization = NULL;
-  struct Curl_easy *data = conn->data;
-  char **userp;
-  const char *user;
-  const char *pwd;
-  CURLcode result;
+  va_list ap;
+  size_t len;
+  va_start(ap, fmt);
 
-  if(proxy) {
-    userp = &conn->allocptr.proxyuserpwd;
-    user = conn->http_proxy.user;
-    pwd = conn->http_proxy.passwd;
+  vsnprintf(data->state.buffer, BUFSIZE, fmt, ap);
+
+  if(data->set.errorbuffer && !data->state.errorbuf) {
+    snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer);
+    data->state.errorbuf = TRUE; /* wrote error string */
   }
-  else {
-    userp = &conn->allocptr.userpwd;
-    user = conn->user;
-    pwd = conn->passwd;
+  if(data->set.verbose) {
+    len = strlen(data->state.buffer);
+    if(len < BUFSIZE - 1) {
+      data->state.buffer[len] = '\n';
+      data->state.buffer[++len] = '\0';
+    }
+    Curl_debug(data, CURLINFO_TEXT, data->state.buffer, len, NULL);
   }
 
-  snprintf(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
-           "%s:%s", user, pwd);
-
-  result = Curl_base64_encode(data,
-                              data->state.buffer, strlen(data->state.buffer),
-                              &authorization, &size);
-  if(result)
-    return result;
-
-  if(!authorization)
-    return CURLE_REMOTE_ACCESS_DENIED;
-
-  free(*userp);
-  *userp = aprintf("%sAuthorization: Basic %s\r\n",
-                   proxy ? "Proxy-" : "",
-                   authorization);
-  free(authorization);
-  if(!*userp)
-    return CURLE_OUT_OF_MEMORY;
-
-  return CURLE_OK;
+  va_end(ap);
 }

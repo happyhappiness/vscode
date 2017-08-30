@@ -1,1 +1,1 @@
-fprintf(fout, "IF (CMAKE_ANSI_CXXFLAGS)\n");
+fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");

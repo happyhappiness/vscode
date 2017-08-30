@@ -1,1 +1,1 @@
-fprintf(ofp, "  _unlink(fname);\n");
+fprintf(stderr, "target [%s] links to:\n", this->Target->GetName().c_str());

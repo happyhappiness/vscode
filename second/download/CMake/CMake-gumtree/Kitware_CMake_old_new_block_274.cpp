@@ -1,12 +1,4 @@
 {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       request_digest);
+    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+    return CURLE_FAILED_INIT;
   }

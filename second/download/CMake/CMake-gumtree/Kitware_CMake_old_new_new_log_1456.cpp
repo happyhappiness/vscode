@@ -1,0 +1,1 @@
+sprintf(ptr, " zlib/%s", zlibVersion());

@@ -1,5 +1,8 @@
-{
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "RAR volume support unavailable.");
-        return (ARCHIVE_FATAL);
-      }
+(strcmp(key, "experimental") == 0) {
+		if (val == NULL || val[0] == 0) {
+			zip->flags &= ~ ZIP_FLAG_EXPERIMENT_EL;
+		} else {
+			zip->flags |= ZIP_FLAG_EXPERIMENT_EL;
+		}
+		return (ARCHIVE_OK);
+	}

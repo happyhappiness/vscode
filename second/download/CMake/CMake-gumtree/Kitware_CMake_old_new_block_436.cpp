@@ -1,5 +1,6 @@
 {
-		archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Malformed device attribute");
-		return (ARCHIVE_WARN);
-	}
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "LHa data CRC error");
+				return (ARCHIVE_WARN);
+			}

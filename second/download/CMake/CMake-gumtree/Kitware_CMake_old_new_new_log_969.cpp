@@ -1,1 +1,2 @@
-sprintf(firstLine,  "Press [c] to configure                                   ");
+f(targetNameBuf, "cmTryCompileExec%u",
+            cmSystemTools::RandomSeed());

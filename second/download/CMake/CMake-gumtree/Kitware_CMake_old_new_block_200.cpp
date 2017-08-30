@@ -1,1 +1,5 @@
-snprintf((char *)&dest[i*2], 3, "%02x", source[i])
+{
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
+		}

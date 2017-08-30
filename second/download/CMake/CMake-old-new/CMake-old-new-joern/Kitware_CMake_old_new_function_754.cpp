@@ -1,372 +1,489 @@
-void cmCTestTestHandler::ProcessDirectory(std::vector<cmStdString> &passed,
-                                          std::vector<cmStdString> &failed)
+int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
 {
-  std::string current_dir = cmSystemTools::GetCurrentWorkingDirectory();
-  this->TestList.clear();
+  this->BinaryDirectory = argv[1].c_str();
+  this->OutputFile = "";
+  // which signature were we called with ?
+  this->SrcFileSignature = true;
 
-  this->GetListOfTests();
-  cmCTestTestHandler::ListOfTests::size_type tmsize = this->TestList.size();
+  const char* sourceDirectory = argv[2].c_str();
+  const char* projectName = 0;
+  const char* targetName = 0;
+  std::vector<std::string> cmakeFlags;
+  std::vector<std::string> compileDefs;
+  std::string outputVariable;
+  std::string copyFile;
+  std::string copyFileError;
+  std::vector<cmTarget*> targets;
+  std::string libsToLink = " ";
+  bool useOldLinkLibs = true;
+  char targetNameBuf[64];
+  bool didOutputVariable = false;
+  bool didCopyFile = false;
+  bool didCopyFileError = false;
+  bool useSources = argv[2] == "SOURCES";
+  std::vector<std::string> sources;
 
-  this->StartTest = this->CTest->CurrentTime();
-  double elapsed_time_start = cmSystemTools::GetTime();
-
-  *this->LogFile << "Start testing: " << this->StartTest << std::endl
-    << "----------------------------------------------------------"
-    << std::endl;
-
-  // how many tests are in based on RegExp?
-  int inREcnt = 0;
-  cmCTestTestHandler::ListOfTests::iterator it;
-  for ( it = this->TestList.begin(); it != this->TestList.end(); it ++ )
+  enum Doing { DoingNone, DoingCMakeFlags, DoingCompileDefinitions,
+               DoingLinkLibraries, DoingOutputVariable, DoingCopyFile,
+               DoingCopyFileError, DoingSources };
+  Doing doing = useSources? DoingSources : DoingNone;
+  for(size_t i=3; i < argv.size(); ++i)
     {
-    if (it->IsInBasedOnREOptions)
+    if(argv[i] == "CMAKE_FLAGS")
       {
-      inREcnt ++;
+      doing = DoingCMakeFlags;
+      // CMAKE_FLAGS is the first argument because we need an argv[0] that
+      // is not used, so it matches regular command line parsing which has
+      // the program name as arg 0
+      cmakeFlags.push_back(argv[i]);
+      }
+    else if(argv[i] == "COMPILE_DEFINITIONS")
+      {
+      doing = DoingCompileDefinitions;
+      }
+    else if(argv[i] == "LINK_LIBRARIES")
+      {
+      doing = DoingLinkLibraries;
+      useOldLinkLibs = false;
+      }
+    else if(argv[i] == "OUTPUT_VARIABLE")
+      {
+      doing = DoingOutputVariable;
+      didOutputVariable = true;
+      }
+    else if(argv[i] == "COPY_FILE")
+      {
+      doing = DoingCopyFile;
+      didCopyFile = true;
+      }
+    else if(argv[i] == "COPY_FILE_ERROR")
+      {
+      doing = DoingCopyFileError;
+      didCopyFileError = true;
+      }
+    else if(doing == DoingCMakeFlags)
+      {
+      cmakeFlags.push_back(argv[i]);
+      }
+    else if(doing == DoingCompileDefinitions)
+      {
+      compileDefs.push_back(argv[i]);
+      }
+    else if(doing == DoingLinkLibraries)
+      {
+      libsToLink += "\"" + cmSystemTools::TrimWhitespace(argv[i]) + "\" ";
+      if(cmTarget *tgt = this->Makefile->FindTargetToUse(argv[i].c_str()))
+        {
+        switch(tgt->GetType())
+          {
+          case cmTarget::SHARED_LIBRARY:
+          case cmTarget::STATIC_LIBRARY:
+          case cmTarget::UNKNOWN_LIBRARY:
+            break;
+          case cmTarget::EXECUTABLE:
+            if (tgt->IsExecutableWithExports())
+              {
+              break;
+              }
+          default:
+            this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+              "Only libraries may be used as try_compile IMPORTED "
+              "LINK_LIBRARIES.  Got " + std::string(tgt->GetName()) + " of "
+              "type " + tgt->GetTargetTypeName(tgt->GetType()) + ".");
+            return -1;
+          }
+        if (tgt->IsImported())
+          {
+          targets.push_back(tgt);
+          }
+        }
+      }
+    else if(doing == DoingOutputVariable)
+      {
+      outputVariable = argv[i].c_str();
+      doing = DoingNone;
+      }
+    else if(doing == DoingCopyFile)
+      {
+      copyFile = argv[i].c_str();
+      doing = DoingNone;
+      }
+    else if(doing == DoingCopyFileError)
+      {
+      copyFileError = argv[i].c_str();
+      doing = DoingNone;
+      }
+    else if(doing == DoingSources)
+      {
+      sources.push_back(argv[i]);
+      }
+    else if(i == 3)
+      {
+      this->SrcFileSignature = false;
+      projectName = argv[i].c_str();
+      }
+    else if(i == 4 && !this->SrcFileSignature)
+      {
+      targetName = argv[i].c_str();
+      }
+    else
+      {
+      cmOStringStream m;
+      m << "try_compile given unknown argument \"" << argv[i] << "\".";
+      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, m.str());
       }
     }
-  // expand the test list based on the union flag
-  if (this->UseUnion)
+
+  if(didCopyFile && copyFile.empty())
     {
-    this->ExpandTestsToRunInformation((int)tmsize);
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "COPY_FILE must be followed by a file path");
+    return -1;
+    }
+
+  if(didCopyFileError && copyFileError.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "COPY_FILE_ERROR must be followed by a variable name");
+    return -1;
+    }
+
+  if(didCopyFileError && !didCopyFile)
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "COPY_FILE_ERROR may be used only with COPY_FILE");
+    return -1;
+    }
+
+  if(didOutputVariable && outputVariable.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "OUTPUT_VARIABLE must be followed by a variable name");
+    return -1;
+    }
+
+  if(useSources && sources.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "SOURCES must be followed by at least one source file");
+    return -1;
+    }
+
+  // compute the binary dir when TRY_COMPILE is called with a src file
+  // signature
+  if (this->SrcFileSignature)
+    {
+    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
+    this->BinaryDirectory += "/CMakeTmp";
     }
   else
     {
-    this->ExpandTestsToRunInformation(inREcnt);
+    // only valid for srcfile signatures
+    if (compileDefs.size())
+      {
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
+      return -1;
+      }
+    if (copyFile.size())
+      {
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+        "COPY_FILE specified on a srcdir type TRY_COMPILE");
+      return -1;
+      }
+    }
+  // make sure the binary directory exists
+  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
+
+  // do not allow recursive try Compiles
+  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory())
+    {
+    cmOStringStream e;
+    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
+      << "  " << this->BinaryDirectory << "\n";
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+    return -1;
     }
 
-  int cnt = 0;
-  inREcnt = 0;
-  std::string last_directory = "";
-  for ( it = this->TestList.begin(); it != this->TestList.end(); it ++ )
+  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
+  // which signature are we using? If we are using var srcfile bindir
+  if (this->SrcFileSignature)
     {
-    cnt ++;
-    if (it->IsInBasedOnREOptions)
+    // remove any CMakeCache.txt files so we will have a clean test
+    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
+    cmSystemTools::RemoveFile(ccFile.c_str());
+
+    // Choose sources.
+    if(!useSources)
       {
-      inREcnt++;
+      sources.push_back(argv[2]);
       }
 
-    // if we are out of time then skip this test, we leave two minutes 
-    // to submit results
-    if (this->CTest->GetRemainingTimeAllowed() - 120 <= 0)
+    // Detect languages to enable.
+    cmLocalGenerator* lg = this->Makefile->GetLocalGenerator();
+    cmGlobalGenerator* gg = lg->GetGlobalGenerator();
+    std::set<std::string> testLangs;
+    for(std::vector<std::string>::iterator si = sources.begin();
+        si != sources.end(); ++si)
       {
-      continue;
-      }
-
-    const std::string& testname = it->Name;
-    std::vector<std::string>& args = it->Args;
-    cmCTestTestResult cres;
-    cres.Properties = &*it;
-    cres.ExecutionTime = 0;
-    cres.ReturnValue = -1;
-    cres.Status = cmCTestTestHandler::NOT_RUN;
-    cres.TestCount = cnt;
-
-    if (!(last_directory == it->Directory))
-      {
-      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-        "Changing directory into " << it->Directory.c_str() << "\n");
-      *this->LogFile << "Changing directory into: " << it->Directory.c_str()
-        << std::endl;
-      last_directory = it->Directory;
-      cmSystemTools::ChangeDirectory(it->Directory.c_str());
-      }
-    cres.Name = testname;
-    cres.Path = it->Directory.c_str();
-
-    if (this->UseUnion)
-      {
-      // if it is not in the list and not in the regexp then skip
-      if ((this->TestsToRun.size() &&
-           std::find(this->TestsToRun.begin(), this->TestsToRun.end(), cnt)
-           == this->TestsToRun.end()) && !it->IsInBasedOnREOptions)
+      std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
+      if(const char* lang = gg->GetLanguageFromExtension(ext.c_str()))
         {
-        continue;
-        }
-      }
-    else
-      {
-      // is this test in the list of tests to run? If not then skip it
-      if ((this->TestsToRun.size() &&
-           std::find(this->TestsToRun.begin(),
-             this->TestsToRun.end(), inREcnt)
-           == this->TestsToRun.end()) || !it->IsInBasedOnREOptions)
-        {
-        continue;
-        }
-      }
-
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, std::setw(3) << cnt << "/");
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, std::setw(3) << tmsize << " ");
-    if ( this->MemCheck )
-      {
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, "Memory Check");
-      }
-    else
-      {
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, "Testing");
-      }
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, " ");
-    std::string outname = testname;
-    outname.resize(30, ' ');
-    *this->LogFile << cnt << "/" << tmsize << " Testing: " << testname
-      << std::endl;
-
-    if ( this->CTest->GetShowOnly() )
-      {
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, outname.c_str() << std::endl);
-      }
-    else
-      {
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, outname.c_str());
-      }
-
-    cmCTestLog(this->CTest, DEBUG, "Testing " << args[0].c_str() << " ... ");
-    // find the test executable
-    std::string actualCommand = this->FindTheExecutable(args[1].c_str());
-    std::string testCommand
-      = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
-
-    // continue if we did not find the executable
-    if (testCommand == "")
-      {
-      *this->LogFile << "Unable to find executable: " << args[1].c_str()
-        << std::endl;
-      cmCTestLog(this->CTest, ERROR_MESSAGE, "Unable to find executable: "
-        << args[1].c_str() << std::endl);
-      cres.Output = "Unable to find executable: " + args[1];
-      if ( !this->CTest->GetShowOnly() )
-        {
-        cres.FullCommandLine = actualCommand;
-        this->TestResults.push_back( cres );
-        failed.push_back(testname);
-        continue;
-        }
-      }
-
-    // add the arguments
-    std::vector<std::string>::const_iterator j = args.begin();
-    ++j;
-    ++j;
-    std::vector<const char*> arguments;
-    this->GenerateTestCommand(arguments);
-    arguments.push_back(actualCommand.c_str());
-    for(;j != args.end(); ++j)
-      {
-      testCommand += " ";
-      testCommand += cmSystemTools::EscapeSpaces(j->c_str());
-      arguments.push_back(j->c_str());
-      }
-    arguments.push_back(0);
-
-    /**
-     * Run an executable command and put the stdout in output.
-     */
-    std::string output;
-    int retVal = 0;
-
-
-    cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
-      << (this->MemCheck?"MemCheck":"Test") << " command: " << testCommand
-      << std::endl);
-    *this->LogFile << cnt << "/" << tmsize
-      << " Test: " << testname.c_str() << std::endl;
-    *this->LogFile << "Command: ";
-    std::vector<cmStdString>::size_type ll;
-    for ( ll = 0; ll < arguments.size()-1; ll ++ )
-      {
-      *this->LogFile << "\"" << arguments[ll] << "\" ";
-      }
-    *this->LogFile
-      << std::endl
-      << "Directory: " << it->Directory << std::endl
-      << "\"" << testname.c_str() << "\" start time: "
-      << this->CTest->CurrentTime() << std::endl
-      << "Output:" << std::endl
-      << "----------------------------------------------------------"
-      << std::endl;
-    int res = 0;
-    double clock_start, clock_finish;
-    clock_start = cmSystemTools::GetTime();
-
-    if ( !this->CTest->GetShowOnly() )
-      {
-      res = this->CTest->RunTest(arguments, &output, &retVal, this->LogFile);
-      }
-
-    clock_finish = cmSystemTools::GetTime();
-
-    if ( this->LogFile )
-      {
-      double ttime = clock_finish - clock_start;
-      int hours = static_cast<int>(ttime / (60 * 60));
-      int minutes = static_cast<int>(ttime / 60) % 60;
-      int seconds = static_cast<int>(ttime) % 60;
-      char buffer[100];
-      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
-      *this->LogFile
-        << "----------------------------------------------------------"
-        << std::endl
-        << "\"" << testname.c_str() << "\" end time: "
-        << this->CTest->CurrentTime() << std::endl
-        << "\"" << testname.c_str() << "\" time elapsed: "
-        << buffer << std::endl
-        << "----------------------------------------------------------"
-        << std::endl << std::endl;
-      }
-
-    cres.ExecutionTime = (double)(clock_finish - clock_start);
-    cres.FullCommandLine = testCommand;
-
-    if ( !this->CTest->GetShowOnly() )
-      {
-      bool testFailed = false;
-      std::vector<cmsys::RegularExpression>::iterator passIt;
-      bool forceFail = false;
-      if ( it->RequiredRegularExpressions.size() > 0 )
-        {
-        bool found = false;
-        for ( passIt = it->RequiredRegularExpressions.begin();
-          passIt != it->RequiredRegularExpressions.end();
-          ++ passIt )
-          {
-          if ( passIt->find(output.c_str()) )
-            {
-            found = true;
-            }
-          }
-        if ( !found )
-          {
-          forceFail = true;
-          }
-        }
-      if ( it->ErrorRegularExpressions.size() > 0 )
-        {
-        for ( passIt = it->ErrorRegularExpressions.begin();
-          passIt != it->ErrorRegularExpressions.end();
-          ++ passIt )
-          {
-          if ( passIt->find(output.c_str()) )
-            {
-            forceFail = true;
-            }
-          }
-        }
-
-      if (res == cmsysProcess_State_Exited &&
-          (retVal == 0 || it->RequiredRegularExpressions.size()) &&
-          !forceFail)
-        {
-        cmCTestLog(this->CTest, HANDLER_OUTPUT,   "   Passed");
-        if ( it->WillFail )
-          {
-          cmCTestLog(this->CTest, HANDLER_OUTPUT,   " - But it should fail!");
-          cres.Status = cmCTestTestHandler::FAILED;
-          testFailed = true;
-          }
-        else
-          {
-          cres.Status = cmCTestTestHandler::COMPLETED;
-          }
-        cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl);
+        testLangs.insert(lang);
         }
       else
         {
-        testFailed = true;
-
-        cres.Status = cmCTestTestHandler::FAILED;
-        if ( res == cmsysProcess_State_Expired )
+        cmOStringStream err;
+        err << "Unknown extension \"" << ext << "\" for file\n"
+            << "  " << *si << "\n"
+            << "try_compile() works only for enabled languages.  "
+            << "Currently these are:\n ";
+        std::vector<std::string> langs;
+        gg->GetEnabledLanguages(langs);
+        for(std::vector<std::string>::iterator l = langs.begin();
+            l != langs.end(); ++l)
           {
-          cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Timeout" << std::endl);
-          cres.Status = cmCTestTestHandler::TIMEOUT;
+          err << " " << *l;
           }
-        else if ( res == cmsysProcess_State_Exception )
-          {
-          cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Exception: ");
-          switch ( retVal )
-            {
-          case cmsysProcess_Exception_Fault:
-            cmCTestLog(this->CTest, HANDLER_OUTPUT, "SegFault");
-            cres.Status = cmCTestTestHandler::SEGFAULT;
-            break;
-          case cmsysProcess_Exception_Illegal:
-            cmCTestLog(this->CTest, HANDLER_OUTPUT, "Illegal");
-            cres.Status = cmCTestTestHandler::ILLEGAL;
-            break;
-          case cmsysProcess_Exception_Interrupt:
-            cmCTestLog(this->CTest, HANDLER_OUTPUT, "Interrupt");
-            cres.Status = cmCTestTestHandler::INTERRUPT;
-            break;
-          case cmsysProcess_Exception_Numerical:
-            cmCTestLog(this->CTest, HANDLER_OUTPUT, "Numerical");
-            cres.Status = cmCTestTestHandler::NUMERICAL;
-            break;
-          default:
-            cmCTestLog(this->CTest, HANDLER_OUTPUT, "Other");
-            cres.Status = cmCTestTestHandler::OTHER_FAULT;
-            }
-           cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl);
-          }
-        else if ( res == cmsysProcess_State_Error )
-          {
-          cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Bad command " << res
-            << std::endl);
-          cres.Status = cmCTestTestHandler::BAD_COMMAND;
-          }
-        else
-          {
-          // Force fail will also be here?
-          cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Failed");
-          if ( it->WillFail )
-            {
-            cres.Status = cmCTestTestHandler::COMPLETED;
-            cmCTestLog(this->CTest, HANDLER_OUTPUT, " - supposed to fail");
-            testFailed = false;
-            }
-          cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl);
-          }
-        }
-      if ( testFailed )
-        {
-        failed.push_back(testname);
-        }
-      else
-        {
-        passed.push_back(testname);
-        }
-      if (!output.empty() && output.find("<DartMeasurement") != output.npos)
-        {
-        if (this->DartStuff.find(output.c_str()))
-          {
-          std::string dartString = this->DartStuff.match(1);
-          cmSystemTools::ReplaceString(output, dartString.c_str(),"");
-          cres.RegressionImages
-            = this->GenerateRegressionImages(dartString);
-          }
+        err << "\nSee project() command to enable other languages.";
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
+        return -1;
         }
       }
 
-    if ( cres.Status == cmCTestTestHandler::COMPLETED )
+    // we need to create a directory and CMakeLists file etc...
+    // first create the directories
+    sourceDirectory = this->BinaryDirectory.c_str();
+
+    // now create a CMakeLists.txt file in that directory
+    FILE *fout = fopen(outFileName.c_str(),"w");
+    if (!fout)
       {
-      this->CleanTestOutput(output, static_cast<size_t>(
-          this->CustomMaximumPassedTestOutputSize));
+      cmOStringStream e;
+      e << "Failed to open\n"
+        << "  " << outFileName.c_str() << "\n"
+        << cmSystemTools::GetLastSystemError();
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+      return -1;
+      }
+
+    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
+    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
+            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
+            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
+    if(def)
+      {
+      fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
+      }
+
+    std::string projectLangs;
+    for(std::set<std::string>::iterator li = testLangs.begin();
+        li != testLangs.end(); ++li)
+      {
+      projectLangs += " " + *li;
+      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
+      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
+      if(const char* rulesOverridePath =
+         this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
+        {
+        fprintf(fout, "SET(%s \"%s\")\n",
+                rulesOverrideLang.c_str(), rulesOverridePath);
+        }
+      else if(const char* rulesOverridePath2 =
+              this->Makefile->GetDefinition(rulesOverrideBase.c_str()))
+        {
+        fprintf(fout, "SET(%s \"%s\")\n",
+                rulesOverrideBase.c_str(), rulesOverridePath2);
+        }
+      }
+    fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
+    fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");
+    for(std::set<std::string>::iterator li = testLangs.begin();
+        li != testLangs.end(); ++li)
+      {
+      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
+      const char* flags = this->Makefile->GetDefinition(langFlags.c_str());
+      fprintf(fout, "SET(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              lg->EscapeForCMake(flags?flags:"").c_str());
+      fprintf(fout, "SET(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
+              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
+      }
+    fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
+    fprintf(fout, "SET(CMAKE_SUPPRESS_REGENERATION 1)\n");
+    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
+    // handle any compile flags we need to pass on
+    if (compileDefs.size())
+      {
+      fprintf(fout, "ADD_DEFINITIONS( ");
+      for (size_t i = 0; i < compileDefs.size(); ++i)
+        {
+        fprintf(fout,"%s ",compileDefs[i].c_str());
+        }
+      fprintf(fout, ")\n");
+      }
+
+    /* Use a random file name to avoid rapid creation and deletion
+       of the same executable name (some filesystems fail on that).  */
+    sprintf(targetNameBuf, "cmTryCompileExec%u",
+            cmSystemTools::RandomSeed());
+    targetName = targetNameBuf;
+
+    if (!targets.empty())
+      {
+      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
+      cmExportTryCompileFileGenerator tcfg;
+      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
+      tcfg.SetExports(targets);
+      tcfg.SetConfig(this->Makefile->GetDefinition(
+                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
+
+      if(!tcfg.GenerateImportFile())
+        {
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+                                     "could not write export file.");
+        fclose(fout);
+        return -1;
+        }
+      fprintf(fout,
+              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
+              fname.c_str());
+      }
+
+    /* for the TRY_COMPILEs we want to be able to specify the architecture.
+      So the user can set CMAKE_OSX_ARCHITECTURE to i386;ppc and then set
+      CMAKE_TRY_COMPILE_OSX_ARCHITECTURE first to i386 and then to ppc to
+      have the tests run for each specific architecture. Since
+      cmLocalGenerator doesn't allow building for "the other"
+      architecture only via CMAKE_OSX_ARCHITECTURES.
+      */
+    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition(
+                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+      }
+    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+      }
+    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
+    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_SYSROOT=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
+      cmakeFlags.push_back(flag);
+      }
+    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
+    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
+      cmakeFlags.push_back(flag);
+      }
+    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
+      {
+      fprintf(fout, "SET(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
+      }
+
+    /* Put the executable at a known location (for COPY_FILE).  */
+    fprintf(fout, "SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+            this->BinaryDirectory.c_str());
+    /* Create the actual executable.  */
+    fprintf(fout, "ADD_EXECUTABLE(%s", targetName);
+    for(std::vector<std::string>::iterator si = sources.begin();
+        si != sources.end(); ++si)
+      {
+      fprintf(fout, " \"%s\"", si->c_str());
+
+      // Add dependencies on any non-temporary sources.
+      if(si->find("CMakeTmp") == si->npos)
+        {
+        this->Makefile->AddCMakeDependFile(*si);
+        }
+      }
+    fprintf(fout, ")\n");
+    if (useOldLinkLibs)
+      {
+      fprintf(fout,
+              "TARGET_LINK_LIBRARIES(%s ${LINK_LIBRARIES})\n",targetName);
       }
     else
       {
-      this->CleanTestOutput(output, static_cast<size_t>(
-          this->CustomMaximumFailedTestOutputSize));
+      fprintf(fout, "TARGET_LINK_LIBRARIES(%s %s)\n",
+              targetName,
+              libsToLink.c_str());
+      }
+    fclose(fout);
+    projectName = "CMAKE_TRY_COMPILE";
+    }
+
+  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
+  cmSystemTools::ResetErrorOccuredFlag();
+  std::string output;
+  // actually do the try compile now that everything is setup
+  int res = this->Makefile->TryCompile(sourceDirectory,
+                                       this->BinaryDirectory.c_str(),
+                                       projectName,
+                                       targetName,
+                                       this->SrcFileSignature,
+                                       &cmakeFlags,
+                                       &output);
+  if ( erroroc )
+    {
+    cmSystemTools::SetErrorOccured();
+    }
+
+  // set the result var to the return value to indicate success or failure
+  this->Makefile->AddCacheDefinition(argv[0].c_str(),
+                                     (res == 0 ? "TRUE" : "FALSE"),
+                                     "Result of TRY_COMPILE",
+                                     cmCacheManager::INTERNAL);
+
+  if ( outputVariable.size() > 0 )
+    {
+    this->Makefile->AddDefinition(outputVariable.c_str(), output.c_str());
+    }
+
+  if (this->SrcFileSignature)
+    {
+    std::string copyFileErrorMessage;
+    this->FindOutputFile(targetName);
+
+    if ((res==0) && (copyFile.size()))
+      {
+      if(this->OutputFile.empty() ||
+         !cmSystemTools::CopyFileAlways(this->OutputFile.c_str(),
+                                        copyFile.c_str()))
+        {
+        cmOStringStream emsg;
+        emsg << "Cannot copy output executable\n"
+             << "  '" << this->OutputFile.c_str() << "'\n"
+             << "to destination specified by COPY_FILE:\n"
+             << "  '" << copyFile.c_str() << "'\n";
+        if(!this->FindErrorMessage.empty())
+          {
+          emsg << this->FindErrorMessage.c_str();
+          }
+        if(copyFileError.empty())
+          {
+          this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
+          return -1;
+          }
+        else
+          {
+          copyFileErrorMessage = emsg.str();
+          }
+        }
       }
 
-    cres.Output = output;
-    cres.ReturnValue = retVal;
-    cres.CompletionStatus = "Completed";
-    this->TestResults.push_back( cres );
+    if(!copyFileError.empty())
+      {
+      this->Makefile->AddDefinition(copyFileError.c_str(),
+                                    copyFileErrorMessage.c_str());
+      }
     }
-
-  this->EndTest = this->CTest->CurrentTime();
-  this->ElapsedTestingTime = cmSystemTools::GetTime() - elapsed_time_start;
-  if ( this->LogFile )
-    {
-    *this->LogFile << "End testing: " << this->EndTest << std::endl;
-    }
-  cmSystemTools::ChangeDirectory(current_dir.c_str());
+  return res;
 }

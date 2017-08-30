@@ -1,26 +1,53 @@
-static void outputDepFile(const string& dfile, const string& objfile,
-        vector<string>& incs) {
+void
+DumpSymbolTable(PIMAGE_SYMBOL pSymbolTable, PIMAGE_SECTION_HEADER pSectionHeaders, FILE *fout, unsigned cSymbols)
+{
+   unsigned i;
+   PSTR stringTable;
+   std::string sectionName;
+   std::string sectionCharacter;
+   int iSectNum;
 
-  // strip duplicates
-  sort(incs.begin(), incs.end());
-  incs.erase(unique(incs.begin(), incs.end()), incs.end());
+   fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
+      cSymbols);
 
-  FILE* out = fopen(dfile.c_str(), "wb");
+   fprintf(fout,
+      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
+      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");
 
-  // FIXME should this be fatal or not? delete obj? delete d?
-  if (!out)
-    return;
+   /*
+   * The string table apparently starts right after the symbol table
+   */
+   stringTable = (PSTR)&pSymbolTable[cSymbols];
 
-  fprintf(out, "%s: \\\n", objfile.c_str());
-  for (vector<string>::iterator i(incs.begin()); i != incs.end(); ++i) {
-    string tmp = *i;
-    doEscape(tmp, "\\", "\\\\");
-    doEscape(tmp, " ", "\\ ");
-    //doEscape(tmp, "(", "("); // TODO ninja cant read ( and )
-    //doEscape(tmp, ")", ")");
-    fprintf(out, "%s \\\n", tmp.c_str());
-  }
+   for ( i=0; i < cSymbols; i++ ) {
+      fprintf(fout, "%04X ", i);
+      if ( pSymbolTable->N.Name.Short != 0 )
+         fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
+      else
+         fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);
 
-  fprintf(out, "\n");
-  fclose(out);
+      fprintf(fout, " %08X", pSymbolTable->Value);
+
+      iSectNum = pSymbolTable->SectionNumber;
+      GetSectionName(pSymbolTable, sectionName);
+      fprintf(fout, " sect:%s aux:%X type:%02X st:%s",
+         sectionName.c_str(),
+         pSymbolTable->NumberOfAuxSymbols,
+         pSymbolTable->Type,
+         GetSZStorageClass(pSymbolTable->StorageClass) );
+
+      GetSectionCharacteristics(pSectionHeaders,iSectNum,sectionCharacter);
+      fprintf(fout," hc: %s \n",sectionCharacter.c_str());
+#if 0
+      if ( pSymbolTable->NumberOfAuxSymbols )
+         DumpAuxSymbols(pSymbolTable);
+#endif
+
+      /*
+      * Take into account any aux symbols
+      */
+      i += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable++;
+   }
 }

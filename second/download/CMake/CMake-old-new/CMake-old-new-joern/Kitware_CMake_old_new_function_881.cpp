@@ -1,211 +1,113 @@
-void cmCTest::ProcessDirectory(std::vector<std::string> &passed, 
-                             std::vector<std::string> &failed)
+static int
+_archive_read_data_block(struct archive *_a, const void **buff,
+    size_t *size, int64_t *offset)
 {
-  // does the DartTestfile.txt exist ?
-  if(!cmSystemTools::FileExists("DartTestfile.txt"))
-    {
-    return;
-    }
-  
-  // parse the file
-  std::ifstream fin("DartTestfile.txt");
-  if(!fin)
-    {
-    return;
-    }
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	struct tree *t = a->tree;
+	int r;
+	int64_t bytes;
+	size_t buffbytes;
 
-  int firstTest = 1;
-  long line = 0;
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
+	    "archive_read_data_block");
 
-#define SPACE_REGEX "[ \t\r\n]"
-  
-  cmsys::RegularExpression ireg(this->m_IncludeRegExp.c_str());
-  cmsys::RegularExpression ereg(this->m_ExcludeRegExp.c_str());
-  cmsys::RegularExpression dartStuff("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
+	if (t->entry_eof || t->entry_remaining_bytes <= 0) {
+		r = ARCHIVE_EOF;
+		goto abort_read_data;
+	}
 
-  bool parseError;
-  while ( fin )
-    {
-    cmListFileFunction lff;
-    if(cmListFileCache::ParseFunction(fin, lff, "DartTestfile.txt",
-                                      parseError, line))
-      {
-      const std::string& name = lff.m_Name;
-      const std::vector<cmListFileArgument>& args = lff.m_Arguments;
-      if (name == "SUBDIRS")
-        {
-        std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-        for(std::vector<cmListFileArgument>::const_iterator j = args.begin();
-            j != args.end(); ++j)
-          {   
-          std::string nwd = cwd + "/";
-          nwd += j->Value;
-          if (cmSystemTools::FileIsDirectory(nwd.c_str()))
-            {
-            cmSystemTools::ChangeDirectory(nwd.c_str());
-            this->ProcessDirectory(passed, failed);
-            }
-          }
-        // return to the original directory
-        cmSystemTools::ChangeDirectory(cwd.c_str());
-        }
-      
-      if (name == "ADD_TEST")
-        {
-        if (this->m_UseExcludeRegExp && 
-            this->m_UseExcludeRegExpFirst && 
-            ereg.find(args[0].Value.c_str()))
-          {
-          continue;
-          }
-        if (this->m_UseIncludeRegExp && !ireg.find(args[0].Value.c_str()))
-          {
-          continue;
-          }
-        if (this->m_UseExcludeRegExp && 
-            !this->m_UseExcludeRegExpFirst && 
-            ereg.find(args[0].Value.c_str()))
-          {
-          continue;
-          }
+	/* Allocate read buffer. */
+	if (t->entry_buff == NULL) {
+		t->entry_buff = malloc(1024 * 64);
+		if (t->entry_buff == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Couldn't allocate memory");
+			r = ARCHIVE_FATAL;
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			goto abort_read_data;
+		}
+		t->entry_buff_size = 1024 * 64;
+	}
 
-        cmCTestTestResult cres;
-        cres.m_Status = cmCTest::NOT_RUN;
+	buffbytes = t->entry_buff_size;
+	if (buffbytes > t->current_sparse->length)
+		buffbytes = t->current_sparse->length;
 
-        if (firstTest)
-          {
-          std::string nwd = cmSystemTools::GetCurrentWorkingDirectory();
-          std::cerr << "Changing directory into " << nwd.c_str() << "\n";
-          firstTest = 0;
-          }
-        cres.m_Name = args[0].Value;
-        if ( m_ShowOnly )
-          {
-          std::cout << args[0].Value << std::endl;
-          }
-        else
-          {
-          fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());
-          fflush(stderr);
-          }
-        //std::cerr << "Testing " << args[0] << " ... ";
-        // find the test executable
-        std::string testCommand = this->FindTheExecutable(args[1].Value.c_str());
-        testCommand = cmSystemTools::ConvertToOutputPath(testCommand.c_str());
+	/*
+	 * Skip hole.
+	 */
+	if (t->current_sparse->offset > t->entry_total) {
+		LARGE_INTEGER distance;
+		distance.QuadPart = t->current_sparse->offset;
+		if (!SetFilePointerEx_perso(t->entry_fh, distance, NULL, FILE_BEGIN)) {
+			DWORD lasterr;
 
-        // continue if we did not find the executable
-        if (testCommand == "")
-          {
-          std::cerr << "Unable to find executable: " << 
-            args[1].Value.c_str() << "\n";
-          continue;
-          }
-        
-        // add the arguments
-        std::vector<cmListFileArgument>::const_iterator j = args.begin();
-        ++j;
-        ++j;
-        for(;j != args.end(); ++j)
-          {   
-          testCommand += " ";
-          testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
-          }
-        /**
-         * Run an executable command and put the stdout in output.
-         */
-        std::string output;
-        int retVal = 0;
+			lasterr = GetLastError();
+			if (lasterr == ERROR_ACCESS_DENIED)
+				errno = EBADF;
+			else
+				la_dosmaperr(lasterr);
+			archive_set_error(&a->archive, errno, "Seek error");
+			r = ARCHIVE_FATAL;
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			goto abort_read_data;
+		}
+		bytes = t->current_sparse->offset - t->entry_total;
+		t->entry_remaining_bytes -= bytes;
+		t->entry_total += bytes;
+	}
+	if (buffbytes > 0) {
+		DWORD bytes_read;
+		if (!ReadFile(t->entry_fh, t->entry_buff,
+		    (uint32_t)buffbytes, &bytes_read, NULL)) {
+			DWORD lasterr;
 
-        double clock_start, clock_finish;
-        clock_start = cmSystemTools::GetTime();
+			lasterr = GetLastError();
+			if (lasterr == ERROR_NO_DATA)
+				errno = EAGAIN;
+			else if (lasterr == ERROR_ACCESS_DENIED)
+				errno = EBADF;
+			else
+				la_dosmaperr(lasterr);
+			archive_set_error(&a->archive, errno, "Read error");
+			r = ARCHIVE_FATAL;
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			goto abort_read_data;
+		}
+		bytes = bytes_read;
+	} else
+		bytes = 0;
+	if (bytes == 0) {
+		/* Get EOF */
+		t->entry_eof = 1;
+		r = ARCHIVE_EOF;
+		goto abort_read_data;
+	}
+	*buff = t->entry_buff;
+	*size = bytes;
+	*offset = t->entry_total;
+	t->entry_total += bytes;
+	t->entry_remaining_bytes -= bytes;
+	if (t->entry_remaining_bytes == 0) {
+		/* Close the current file descriptor */
+		close_and_restore_time(t->entry_fh, t, &t->restore_time);
+		t->entry_fh = INVALID_HANDLE_VALUE;
+		t->entry_eof = 1;
+	}
+	t->current_sparse->offset += bytes;
+	t->current_sparse->length -= bytes;
+	if (t->current_sparse->length == 0 && !t->entry_eof)
+		t->current_sparse++;
+	return (ARCHIVE_OK);
 
-        if ( m_Verbose )
-          {
-          std::cout << std::endl << "Test command: " << testCommand << std::endl;
-          }
-        int res = 0;
-        if ( !m_ShowOnly )
-          {
-          res = this->RunTest(testCommand.c_str(), &output, &retVal);
-          }
-        clock_finish = cmSystemTools::GetTime();
-
-        cres.m_ExecutionTime = (double)(clock_finish - clock_start);
-        cres.m_FullCommandLine = testCommand;
-
-        if ( !m_ShowOnly )
-          {
-          if (res == cmsysProcess_State_Exited && retVal )
-            {
-            fprintf(stderr,"   Passed\n");
-            passed.push_back(args[0].Value); 
-            }
-          else
-            {
-            if ( res == cmsysProcess_State_Expired )
-              {
-              fprintf(stderr,"***Timeout\n");
-              cres.m_Status = cmCTest::TIMEOUT;
-              }
-            else if ( res == cmsysProcess_State_Exception )
-              {
-              fprintf(stderr,"***Exception: ");
-              switch ( retVal )
-                {
-              case cmsysProcess_Exception_Fault:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::SEGFAULT;
-                break;
-              case cmsysProcess_Exception_Illegal:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::ILLEGAL;
-                break;
-              case cmsysProcess_Exception_Interrupt:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::INTERRUPT;
-                break;
-              case cmsysProcess_Exception_Numerical:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::NUMERICAL;
-                break;
-              default:
-                fprintf(stderr,"Other");
-                cres.m_Status = cmCTest::OTHER_FAULT;
-                }
-              }
-            else if ( res == cmsysProcess_State_Error )
-              {
-              fprintf(stderr,"***Bad command\n");
-              cres.m_Status = cmCTest::BAD_COMMAND;
-              }
-            else
-              {
-              fprintf(stderr,"***Failed\n");
-              }
-            failed.push_back(args[0].Value); 
-            }
-          if (output != "")
-            {
-            if (dartStuff.find(output.c_str()))
-              {
-              std::string dartString = dartStuff.match(1);
-              cmSystemTools::ReplaceString(output, dartString.c_str(),"");
-              cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
-              }
-            }
-          }
-        cres.m_Output = output;
-        cres.m_ReturnValue = retVal;
-        std::string nwd = cmSystemTools::GetCurrentWorkingDirectory();
-        if ( nwd.size() > m_ToplevelPath.size() )
-          {
-          nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
-          }
-        cmSystemTools::ReplaceString(nwd, "\\", "/");
-        cres.m_Path = nwd;
-        cres.m_CompletionStatus = "Completed";
-        m_TestResults.push_back( cres );
-        }
-      }
-    }
+abort_read_data:
+	*buff = NULL;
+	*size = 0;
+	*offset = t->entry_total;
+	if (t->entry_fh != INVALID_HANDLE_VALUE) {
+		/* Close the current file descriptor */
+		close_and_restore_time(t->entry_fh, t, &t->restore_time);
+		t->entry_fh = INVALID_HANDLE_VALUE;
+	}
+	return (r);
 }

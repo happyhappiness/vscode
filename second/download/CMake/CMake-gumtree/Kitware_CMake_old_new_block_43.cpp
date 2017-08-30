@@ -1,8 +1,6 @@
 {
-						warning_done = 1;
-						archive_set_error(&a->archive,
-						    errno,
-						    "Cannot restore extended "
-						    "attributes on this file "
-						    "system");
-					}
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Invalid extended attribute encountered");
+			ret = ARCHIVE_WARN;
+		}

@@ -1,7 +1,2 @@
-(name == "ADD_TEST")
-        {
-        if (this->m_UseRegExp && !var.find(args[0].c_str()))
-          {
-          continue;
-          }
-        fprintf(stderr,"Testing %-30s ",args[0].c_str());
+archive_set_error(&a->archive, -1,
+			    "Malformed 7-Zip archive");

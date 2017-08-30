@@ -1,1 +1,1 @@
-sprintf(proxy, "%s:%s", getenv("HTTP_PROXY"), getenv("HTTP_PROXY_PORT"));
+archive_set_error(a, ENOMEM, "No memory");

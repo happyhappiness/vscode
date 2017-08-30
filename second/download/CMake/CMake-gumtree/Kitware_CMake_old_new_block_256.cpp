@@ -1,5 +1,6 @@
 {
-  return aprintf("%s:%d",
-                 conn->bits.proxy?conn->proxy.name:conn->host.name,
-                 conn->localport);
-}
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for "
+				    "ACL.access");
+				return (ARCHIVE_FATAL);
+			}

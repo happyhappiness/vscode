@@ -1,1 +1,2 @@
-strncpy(cp->ErrorMessage, strerror(errno), KWSYSPE_PIPE_BUFFER_SIZE);
+fprintf(stderr, "LIBARCHIVE_ASYNC_IO=%s\n",
+			    (t->async_io)?"Enabled":"Disabled");

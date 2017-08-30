@@ -1,4 +1,2 @@
-the project that
- * took on from here is named 'Trio' and you find more details on the trio web
- * page at https://daniel.haxx.se/projects/trio/
- */;
+archive_set_error(&a->archive, error_number, "%s",
+		    error_string.s);

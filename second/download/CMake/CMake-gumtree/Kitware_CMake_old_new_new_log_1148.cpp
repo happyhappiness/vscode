@@ -1,0 +1,1 @@
+printf("%c", ISGRAPH(data[i+j])?data[i+j]:'.');

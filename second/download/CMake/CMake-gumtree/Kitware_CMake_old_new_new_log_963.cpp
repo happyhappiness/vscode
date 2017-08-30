@@ -1,1 +1,1 @@
-fprintf(fout,"%s ",compileFlags[i].c_str());
+fprintf(fout, " \"%s\"", si->c_str());

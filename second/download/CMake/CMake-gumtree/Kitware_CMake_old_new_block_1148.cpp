@@ -1,0 +1,1 @@
+printf("%c", isgraph(data[i+j])?data[i+j]:'.')

@@ -1,98 +1,47 @@
-static int
-check_symlinks(struct archive_write_disk *a)
+static ssize_t
+lz4_filter_read_legacy_stream(struct archive_read_filter *self, const void **p)
 {
-#if !defined(HAVE_LSTAT)
-	/* Platform doesn't have lstat, so we can't look for symlinks. */
-	(void)a; /* UNUSED */
-	return (ARCHIVE_OK);
-#else
-	char *pn;
-	char c;
-	int r;
-	struct stat st;
+	struct private_data *state = (struct private_data *)self->data;
+	int compressed;
+	const char *read_buf;
+	ssize_t ret;
 
-	/*
-	 * Guard against symlink tricks.  Reject any archive entry whose
-	 * destination would be altered by a symlink.
-	 */
-	/* Whatever we checked last time doesn't need to be re-checked. */
-	pn = a->name;
-	if (archive_strlen(&(a->path_safe)) > 0) {
-		char *p = a->path_safe.s;
-		while ((*pn != '\0') && (*p == *pn))
-			++p, ++pn;
-	}
-	/* Skip the root directory if the path is absolute. */
-	if(pn == a->name && pn[0] == '/')
-		++pn;
-	c = pn[0];
-	/* Keep going until we've checked the entire name. */
-	while (pn[0] != '\0' && (pn[0] != '/' || pn[1] != '\0')) {
-		/* Skip the next path element. */
-		while (*pn != '\0' && *pn != '/')
-			++pn;
-		c = pn[0];
-		pn[0] = '\0';
-		/* Check that we haven't hit a symlink. */
-		r = lstat(a->name, &st);
-		if (r != 0) {
-			/* We've hit a dir that doesn't exist; stop now. */
-			if (errno == ENOENT)
-				break;
-		} else if (S_ISLNK(st.st_mode)) {
-			if (c == '\0') {
-				/*
-				 * Last element is symlink; remove it
-				 * so we can overwrite it with the
-				 * item being extracted.
-				 */
-				if (unlink(a->name)) {
-					archive_set_error(&a->archive, errno,
-					    "Could not remove symlink %s",
-					    a->name);
-					pn[0] = c;
-					return (ARCHIVE_FAILED);
-				}
-				a->pst = NULL;
-				/*
-				 * Even if we did remove it, a warning
-				 * is in order.  The warning is silly,
-				 * though, if we're just replacing one
-				 * symlink with another symlink.
-				 */
-				if (!S_ISLNK(a->mode)) {
-					archive_set_error(&a->archive, 0,
-					    "Removing symlink %s",
-					    a->name);
-				}
-				/* Symlink gone.  No more problem! */
-				pn[0] = c;
-				return (0);
-			} else if (a->flags & ARCHIVE_EXTRACT_UNLINK) {
-				/* User asked us to remove problems. */
-				if (unlink(a->name) != 0) {
-					archive_set_error(&a->archive, 0,
-					    "Cannot remove intervening symlink %s",
-					    a->name);
-					pn[0] = c;
-					return (ARCHIVE_FAILED);
-				}
-				a->pst = NULL;
-			} else {
-				archive_set_error(&a->archive, 0,
-				    "Cannot extract through symlink %s",
-				    a->name);
-				pn[0] = c;
-				return (ARCHIVE_FAILED);
-			}
+	*p = NULL;
+	ret = lz4_allocate_out_block_for_legacy(self);
+	if (ret != ARCHIVE_OK)
+		return ret;
+
+	/* Make sure we have 4 bytes for a block size. */
+	read_buf = __archive_read_filter_ahead(self->upstream, 4, NULL);
+	if (read_buf == NULL) {
+		if (state->stage == SELECT_STREAM) {
+			state->stage = READ_LEGACY_STREAM;
+			archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "truncated lz4 input");
+			return (ARCHIVE_FATAL);
 		}
-		pn[0] = c;
-		if (pn[0] != '\0')
-			pn++; /* Advance to the next segment. */
+		state->stage = SELECT_STREAM;
+		return 0;
 	}
-	pn[0] = c;
-	/* We've checked and/or cleaned the whole path, so remember it. */
-	archive_strcpy(&a->path_safe, a->name);
-	return (ARCHIVE_OK);
-#endif
+	state->stage = READ_LEGACY_BLOCK;
+	compressed = archive_le32dec(read_buf);
+	if (compressed > LZ4_COMPRESSBOUND(LEGACY_BLOCK_SIZE)) {
+		state->stage = SELECT_STREAM;
+		return 0;
+	}
+
+	/* Make sure we have a whole block. */
+	read_buf = __archive_read_filter_ahead(self->upstream,
+	    4 + compressed, NULL);
+	ret = LZ4_decompress_safe(read_buf + 4, state->out_block,
+	    compressed, (int)state->out_block_size);
+	if (ret < 0) {
+		archive_set_error(&(self->archive->archive),
+		    ARCHIVE_ERRNO_MISC, "lz4 decompression failed");
+		return (ARCHIVE_FATAL);
+	}
+	*p = state->out_block;
+	state->unconsumed = 4 + compressed;
+	return ret;
 }

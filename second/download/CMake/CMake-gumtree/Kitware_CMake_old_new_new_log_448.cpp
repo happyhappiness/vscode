@@ -1,1 +1,3 @@
-fprintf(stderr, "target [%s] links to:\n", this->Target->GetName().c_str());
+archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unknown encryption algorithm: %u", zip->alg_id);

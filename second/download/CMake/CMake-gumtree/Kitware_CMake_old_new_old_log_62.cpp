@@ -1,2 +1,1 @@
-f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
-           "%s:%s", user, pwd);
+snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer);

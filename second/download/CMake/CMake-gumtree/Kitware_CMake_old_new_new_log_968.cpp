@@ -1,2 +1,4 @@
-sprintf(tmp,"Version %d.%d - %s", cmake::GetMajorVersion(),
-          cmake::GetMinorVersion(), cmake::GetReleaseVersion());
+archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unknown checksum name: `%s'",
+			    value);

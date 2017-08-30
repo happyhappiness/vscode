@@ -1,168 +1,98 @@
 static int
-decompression_init(struct archive_read *a, enum enctype encoding)
+check_symlinks(struct archive_write_disk *a)
 {
-	struct xar *xar;
-	const char *detail;
-	int r;
-
-	xar = (struct xar *)(a->format->data);
-	xar->rd_encoding = encoding;
-	switch (encoding) {
-	case NONE:
-		break;
-	case GZIP:
-		if (xar->stream_valid)
-			r = inflateReset(&(xar->stream));
-		else
-			r = inflateInit(&(xar->stream));
-		if (r != Z_OK) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Couldn't initialize zlib stream.");
-			return (ARCHIVE_FATAL);
-		}
-		xar->stream_valid = 1;
-		xar->stream.total_in = 0;
-		xar->stream.total_out = 0;
-		break;
-#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-		if (xar->bzstream_valid) {
-			BZ2_bzDecompressEnd(&(xar->bzstream));
-			xar->bzstream_valid = 0;
-		}
-		r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 0);
-		if (r == BZ_MEM_ERROR)
-			r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 1);
-		if (r != BZ_OK) {
-			int err = ARCHIVE_ERRNO_MISC;
-			detail = NULL;
-			switch (r) {
-			case BZ_PARAM_ERROR:
-				detail = "invalid setup parameter";
-				break;
-			case BZ_MEM_ERROR:
-				err = ENOMEM;
-				detail = "out of memory";
-				break;
-			case BZ_CONFIG_ERROR:
-				detail = "mis-compiled library";
-				break;
-			}
-			archive_set_error(&a->archive, err,
-			    "Internal error initializing decompressor: %s",
-			    detail == NULL ? "??" : detail);
-			xar->bzstream_valid = 0;
-			return (ARCHIVE_FATAL);
-		}
-		xar->bzstream_valid = 1;
-		xar->bzstream.total_in_lo32 = 0;
-		xar->bzstream.total_in_hi32 = 0;
-		xar->bzstream.total_out_lo32 = 0;
-		xar->bzstream.total_out_hi32 = 0;
-		break;
-#endif
-#if defined(HAVE_LZMA_H) && defined(HAVE_LIBLZMA)
-#if LZMA_VERSION_MAJOR >= 5
-/* Effectively disable the limiter. */
-#define LZMA_MEMLIMIT   UINT64_MAX
-#else
-/* NOTE: This needs to check memory size which running system has. */
-#define LZMA_MEMLIMIT   (1U << 30)
-#endif
-	case XZ:
-	case LZMA:
-		if (xar->lzstream_valid) {
-			lzma_end(&(xar->lzstream));
-			xar->lzstream_valid = 0;
-		}
-		if (xar->entry_encoding == XZ)
-			r = lzma_stream_decoder(&(xar->lzstream),
-			    LZMA_MEMLIMIT,/* memlimit */
-			    LZMA_CONCATENATED);
-		else
-			r = lzma_alone_decoder(&(xar->lzstream),
-			    LZMA_MEMLIMIT);/* memlimit */
-		if (r != LZMA_OK) {
-			switch (r) {
-			case LZMA_MEM_ERROR:
-				archive_set_error(&a->archive,
-				    ENOMEM,
-				    "Internal error initializing "
-				    "compression library: "
-				    "Cannot allocate memory");
-				break;
-			case LZMA_OPTIONS_ERROR:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "compression library: "
-				    "Invalid or unsupported options");
-				break;
-			default:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "lzma library");
-				break;
-			}
-			return (ARCHIVE_FATAL);
-		}
-		xar->lzstream_valid = 1;
-		xar->lzstream.total_in = 0;
-		xar->lzstream.total_out = 0;
-		break;
-#elif defined(HAVE_LZMADEC_H) && defined(HAVE_LIBLZMADEC)
-	case LZMA:
-		if (xar->lzstream_valid)
-			lzmadec_end(&(xar->lzstream));
-		r = lzmadec_init(&(xar->lzstream));
-		if (r != LZMADEC_OK) {
-			switch (r) {
-			case LZMADEC_HEADER_ERROR:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "compression library: "
-				    "invalid header");
-				break;
-			case LZMADEC_MEM_ERROR:
-				archive_set_error(&a->archive,
-				    ENOMEM,
-				    "Internal error initializing "
-				    "compression library: "
-				    "out of memory");
-				break;
-			}
-			return (ARCHIVE_FATAL);
-		}
-		xar->lzstream_valid = 1;
-		xar->lzstream.total_in = 0;
-		xar->lzstream.total_out = 0;
-		break;
-#endif
-	/*
-	 * Unsupported compression.
-	 */
-	default:
-#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-#endif
-#if !defined(HAVE_LZMA_H) || !defined(HAVE_LIBLZMA)
-#if !defined(HAVE_LZMADEC_H) || !defined(HAVE_LIBLZMADEC)
-	case LZMA:
-#endif
-	case XZ:
-#endif
-		switch (xar->entry_encoding) {
-		case BZIP2: detail = "bzip2"; break;
-		case LZMA: detail = "lzma"; break;
-		case XZ: detail = "xz"; break;
-		default: detail = "??"; break;
-		}
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "%s compression not supported on this platform",
-		    detail);
-		return (ARCHIVE_FAILED);
-	}
+#if !defined(HAVE_LSTAT)
+	/* Platform doesn't have lstat, so we can't look for symlinks. */
+	(void)a; /* UNUSED */
 	return (ARCHIVE_OK);
+#else
+	char *pn;
+	char c;
+	int r;
+	struct stat st;
+
+	/*
+	 * Guard against symlink tricks.  Reject any archive entry whose
+	 * destination would be altered by a symlink.
+	 */
+	/* Whatever we checked last time doesn't need to be re-checked. */
+	pn = a->name;
+	if (archive_strlen(&(a->path_safe)) > 0) {
+		char *p = a->path_safe.s;
+		while ((*pn != '\0') && (*p == *pn))
+			++p, ++pn;
+	}
+	/* Skip the root directory if the path is absolute. */
+	if(pn == a->name && pn[0] == '/')
+		++pn;
+	c = pn[0];
+	/* Keep going until we've checked the entire name. */
+	while (pn[0] != '\0' && (pn[0] != '/' || pn[1] != '\0')) {
+		/* Skip the next path element. */
+		while (*pn != '\0' && *pn != '/')
+			++pn;
+		c = pn[0];
+		pn[0] = '\0';
+		/* Check that we haven't hit a symlink. */
+		r = lstat(a->name, &st);
+		if (r != 0) {
+			/* We've hit a dir that doesn't exist; stop now. */
+			if (errno == ENOENT)
+				break;
+		} else if (S_ISLNK(st.st_mode)) {
+			if (c == '\0') {
+				/*
+				 * Last element is symlink; remove it
+				 * so we can overwrite it with the
+				 * item being extracted.
+				 */
+				if (unlink(a->name)) {
+					archive_set_error(&a->archive, errno,
+					    "Could not remove symlink %s",
+					    a->name);
+					pn[0] = c;
+					return (ARCHIVE_FAILED);
+				}
+				a->pst = NULL;
+				/*
+				 * Even if we did remove it, a warning
+				 * is in order.  The warning is silly,
+				 * though, if we're just replacing one
+				 * symlink with another symlink.
+				 */
+				if (!S_ISLNK(a->mode)) {
+					archive_set_error(&a->archive, 0,
+					    "Removing symlink %s",
+					    a->name);
+				}
+				/* Symlink gone.  No more problem! */
+				pn[0] = c;
+				return (0);
+			} else if (a->flags & ARCHIVE_EXTRACT_UNLINK) {
+				/* User asked us to remove problems. */
+				if (unlink(a->name) != 0) {
+					archive_set_error(&a->archive, 0,
+					    "Cannot remove intervening symlink %s",
+					    a->name);
+					pn[0] = c;
+					return (ARCHIVE_FAILED);
+				}
+				a->pst = NULL;
+			} else {
+				archive_set_error(&a->archive, 0,
+				    "Cannot extract through symlink %s",
+				    a->name);
+				pn[0] = c;
+				return (ARCHIVE_FAILED);
+			}
+		}
+		pn[0] = c;
+		if (pn[0] != '\0')
+			pn++; /* Advance to the next segment. */
+	}
+	pn[0] = c;
+	/* We've checked and/or cleaned the whole path, so remember it. */
+	archive_strcpy(&a->path_safe, a->name);
+	return (ARCHIVE_OK);
+#endif
 }

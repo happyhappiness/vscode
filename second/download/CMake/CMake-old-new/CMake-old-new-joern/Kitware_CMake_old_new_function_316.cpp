@@ -1,102 +1,46 @@
-void DumpExternalsObjects() {
-    unsigned i;
-    PSTR stringTable;
-    std::string symbol;
-    DWORD SectChar;
-    /*
-     * The string table apparently starts right after the symbol table
-     */
-    stringTable = (PSTR)&this->SymbolTable[this->SymbolCount];
-    SymbolTableType* pSymbolTable = this->SymbolTable;
-    for ( i=0; i < this->SymbolCount; i++ ) {
-      if (pSymbolTable->SectionNumber > 0 &&
-          ( pSymbolTable->Type == 0x20 || pSymbolTable->Type == 0x0)) {
-         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
-            /*
-            *    The name of the Function entry points
-            */
-            if (pSymbolTable->N.Name.Short != 0) {
-               symbol = "";
-               symbol.insert(0, (const char *)pSymbolTable->N.ShortName, 8);
-            } else {
-               symbol = stringTable + pSymbolTable->N.Name.Long;
-            }
+static CURLcode sasl_create_cram_md5_message(struct SessionHandle *data,
+                                             const char *chlg,
+                                             const char *userp,
+                                             const char *passwdp,
+                                             char **outptr, size_t *outlen)
+{
+  CURLcode result = CURLE_OK;
+  size_t chlglen = 0;
+  HMAC_context *ctxt;
+  unsigned char digest[MD5_DIGEST_LEN];
+  char *response;
 
-            // clear out any leading spaces
-            while (isspace(symbol[0])) symbol.erase(0,1);
-            // if it starts with _ and has an @ then it is a __cdecl
-            // so remove the @ stuff for the export
-            if(symbol[0] == '_') {
-               std::string::size_type posAt = symbol.find('@');
-               if (posAt != std::string::npos) {
-                  symbol.erase(posAt);
-               }
-            }
-            // For 64 bit builds we don't need to remove _
-            if(!this->Is64Bit)
-              {
-              if (symbol[0] == '_')
-                {
-                symbol.erase(0,1);
-                }
-              }
-            if (this->ImportFlag) {
-               this->ImportFlag = false;
-               fprintf(this->FileOut,"EXPORTS \n");
-            }
-            /*
-            Check whether it is "Scalar deleting destructor" and
-            "Vector deleting destructor"
-            */
-            const char *scalarPrefix = "??_G";
-            const char *vectorPrefix = "??_E";
-            // original code had a check for
-            // symbol.find("real@") == std::string::npos)
-            // but if this disallows memmber functions with the name real
-            // if scalarPrefix and vectorPrefix are not found then print
-            // the symbol
-            if (symbol.compare(0, 4, scalarPrefix) &&
-                symbol.compare(0, 4, vectorPrefix) )
-            {
-               SectChar =
-                 this->
-                 SectionHeaders[pSymbolTable->SectionNumber-1].Characteristics;
-               if (!pSymbolTable->Type  && (SectChar & IMAGE_SCN_MEM_WRITE)) {
-                  // Read only (i.e. constants) must be excluded
-                  fprintf(this->FileOut, "\t%s \t DATA\n", symbol.c_str());
-               } else {
-                  if ( pSymbolTable->Type  ||
-                       !(SectChar & IMAGE_SCN_MEM_READ)) {
-                     fprintf(this->FileOut, "\t%s\n", symbol.c_str());
-                  } else {
-                     // printf(" strange symbol: %s \n",symbol.c_str());
-                  }
-               }
-            }
-         }
-      }
-      else if (pSymbolTable->SectionNumber == IMAGE_SYM_UNDEFINED &&
-               !pSymbolTable->Type && 0) {
-         /*
-         *    The IMPORT global variable entry points
-         */
-         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
-            symbol = stringTable + pSymbolTable->N.Name.Long;
-            while (isspace(symbol[0]))  symbol.erase(0,1);
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (!this->ImportFlag) {
-               this->ImportFlag = true;
-               fprintf(this->FileOut,"IMPORTS \n");
-            }
-            fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);
-         }
-      }
+  if(chlg)
+    chlglen = strlen(chlg);
 
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-    }
-  }
+  /* Compute the digest using the password as the key */
+  ctxt = Curl_HMAC_init(Curl_HMAC_MD5,
+                        (const unsigned char *) passwdp,
+                        curlx_uztoui(strlen(passwdp)));
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Update the digest with the given challenge */
+  if(chlglen > 0)
+    Curl_HMAC_update(ctxt, (const unsigned char *) chlg,
+                     curlx_uztoui(chlglen));
+
+  /* Finalise the digest */
+  Curl_HMAC_final(ctxt, digest);
+
+  /* Generate the response */
+  response = aprintf(
+      "%s %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+           userp, digest[0], digest[1], digest[2], digest[3], digest[4],
+           digest[5], digest[6], digest[7], digest[8], digest[9], digest[10],
+           digest[11], digest[12], digest[13], digest[14], digest[15]);
+  if(!response)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Base64 encode the response */
+  result = Curl_base64_encode(data, response, 0, outptr, outlen);
+
+  free(response);
+
+  return result;
+}

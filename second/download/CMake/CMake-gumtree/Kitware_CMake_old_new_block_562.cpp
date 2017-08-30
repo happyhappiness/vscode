@@ -1,6 +1,6 @@
 {
-				archive_set_error(&a->archive,
-				    GetLastError(),
-				    "Can't CreateFileW");
-				return (ARCHIVE_FAILED);
-			}
+    md5this = (unsigned char *)aprintf("%s:%s:%s",
+                                       ha1,
+                                       d->nonce,
+                                       ha2);
+  }

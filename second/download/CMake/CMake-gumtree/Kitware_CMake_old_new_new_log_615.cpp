@@ -1,4 +1,1 @@
-archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Unknown compression name: `%s'",
-			    value);
+fprintf(stdout, "Output on stdout before grandchild test.\n");

@@ -1,21 +1,49 @@
-void
-cmComputeTargetDepends::DisplayGraph(Graph const& graph, const char* name)
+bool Directory::Load(const char* name)
 {
-  fprintf(stderr, "The %s target dependency graph is:\n", name);
-  int n = static_cast<int>(graph.size());
-  for(int depender_index = 0; depender_index < n; ++depender_index)
+  this->Clear();
+#if _MSC_VER < 1300
+  long srchHandle;
+#else
+  intptr_t srchHandle;
+#endif
+  char* buf;
+  size_t n = strlen(name);
+  if ( name[n - 1] == '/' || name[n - 1] == '\\' )
     {
-    EdgeList const& nl = graph[depender_index];
-    cmTarget* depender = this->Targets[depender_index];
-    fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
-    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
+    }
+  else
+    {
+    // Make sure the slashes in the wildcard suffix are consistent with the
+    // rest of the path
+    buf = new char[n + 2 + 1];
+    if ( strchr(name, '\\') )
       {
-      int dependee_index = *ni;
-      cmTarget* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
-              dependee->GetName());
+      sprintf(buf, "%s\\*", name);
+      }
+    else
+      {
+      sprintf(buf, "%s/*", name);
       }
     }
-  fprintf(stderr, "\n");
+  struct _wfinddata_t data;      // data of current file
+
+  // Now put them into the file array
+  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
+  delete [] buf;
+
+  if ( srchHandle == -1 )
+    {
+    return 0;
+    }
+
+  // Loop through names
+  do
+    {
+    this->Internal->Files.push_back(Encoding::ToNarrow(data.name));
+    }
+  while ( _wfindnext(srchHandle, &data) != -1 );
+  this->Internal->Path = name;
+  return _findclose(srchHandle) != -1;
 }

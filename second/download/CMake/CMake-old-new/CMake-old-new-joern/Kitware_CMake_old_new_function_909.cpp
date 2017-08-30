@@ -1,42 +1,25 @@
-int GetWebFile(void)
+int
+archive_read_support_filter_bzip2(struct archive *_a)
 {
-  int retVal = 0;
-  CURL *curl;
-  CURLcode res;
-  curl = curl_easy_init();
-  if(curl) 
-    {
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-    curl_easy_setopt(curl, CURLOPT_HEADER, 1);
+	struct archive_read *a = (struct archive_read *)_a;
+	struct archive_read_filter_bidder *reader;
 
-    /* get the first document */
-    curl_easy_setopt(curl, CURLOPT_URL, "http://www.cmake.org/page1.html");
-    res = curl_easy_perform(curl);
-    if ( res != 0 )
-      {
-      printf("Error fetching: http://www.cmake.org/page1.html\n");
-      retVal = 1;
-      }
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_filter_bzip2");
 
+	if (__archive_read_get_bidder(a, &reader) != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
 
-    /* get another document from the same server using the same
-       connection */
-    curl_easy_setopt(curl, CURLOPT_URL, "http://www.cmake.org/page2.html");
-    res = curl_easy_perform(curl);
-    if ( res != 0 )
-      {
-      printf("Error fetching: http://www.cmake.org/page2.html\n");
-      retVal = 1;
-      }
-
-    /* always cleanup */
-    curl_easy_cleanup(curl);
-    }
-  else
-    {
-    printf("Cannot create curl object\n");
-    retVal = 1;
-    }
-
-  return retVal;
+	reader->data = NULL;
+	reader->bid = bzip2_reader_bid;
+	reader->init = bzip2_reader_init;
+	reader->options = NULL;
+	reader->free = bzip2_reader_free;
+#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
+	return (ARCHIVE_OK);
+#else
+	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external bunzip2 program");
+	return (ARCHIVE_WARN);
+#endif
 }

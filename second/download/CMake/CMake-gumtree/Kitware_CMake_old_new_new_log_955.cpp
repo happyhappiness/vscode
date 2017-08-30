@@ -1,1 +1,1 @@
-fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE CXX)\n");
+fprintf(fout, " \"%s\"", si->c_str());

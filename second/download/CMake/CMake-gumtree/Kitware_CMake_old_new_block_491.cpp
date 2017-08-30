@@ -1,10 +1,8 @@
-{ /* Integer overflow! */
-						archive_set_error(
-							&filter->archive->archive,
-							ENOMEM,
-						    "Unable to allocate copy buffer");
-						filter->fatal = 1;
-						if (avail != NULL)
-							*avail = ARCHIVE_FATAL;
-						return (NULL);
-					}
+{
+			archive_set_error(&a->archive, EINVAL,
+			    "Can't find long filename for entry");
+			archive_entry_copy_pathname(entry, filename);
+			/* Parse the time, owner, mode, size fields. */
+			ar_parse_common_header(ar, entry, h);
+			return (ARCHIVE_WARN);
+		}

@@ -1,68 +1,168 @@
 static int
-lzma_bidder_init(struct archive_read_filter *self)
+decompression_init(struct archive_read *a, enum enctype encoding)
 {
-	static const size_t out_block_size = 64 * 1024;
-	void *out_block;
-	struct private_data *state;
-	ssize_t ret, avail_in;
+	struct xar *xar;
+	const char *detail;
+	int r;
 
-	self->code = ARCHIVE_FILTER_LZMA;
-	self->name = "lzma";
-
-	state = (struct private_data *)calloc(sizeof(*state), 1);
-	out_block = (unsigned char *)malloc(out_block_size);
-	if (state == NULL || out_block == NULL) {
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for lzma decompression");
-		free(out_block);
-		free(state);
-		return (ARCHIVE_FATAL);
-	}
-
-	self->data = state;
-	state->out_block_size = out_block_size;
-	state->out_block = out_block;
-	self->read = lzma_filter_read;
-	self->skip = NULL; /* not supported */
-	self->close = lzma_filter_close;
-
-	/* Prime the lzma library with 18 bytes of input. */
-	state->stream.next_in = (unsigned char *)(uintptr_t)
-	    __archive_read_filter_ahead(self->upstream, 18, &avail_in);
-	if (state->stream.next_in == NULL)
-		return (ARCHIVE_FATAL);
-	state->stream.avail_in = avail_in;
-	state->stream.next_out = state->out_block;
-	state->stream.avail_out = state->out_block_size;
-
-	/* Initialize compression library. */
-	ret = lzmadec_init(&(state->stream));
-	__archive_read_filter_consume(self->upstream,
-	    avail_in - state->stream.avail_in);
-	if (ret == LZMADEC_OK)
-		return (ARCHIVE_OK);
-
-	/* Library setup failed: Clean up. */
-	archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-	    "Internal error initializing lzma library");
-
-	/* Override the error message if we know what really went wrong. */
-	switch (ret) {
-	case LZMADEC_HEADER_ERROR:
-		archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Internal error initializing compression library: "
-		    "invalid header");
+	xar = (struct xar *)(a->format->data);
+	xar->rd_encoding = encoding;
+	switch (encoding) {
+	case NONE:
 		break;
-	case LZMADEC_MEM_ERROR:
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Internal error initializing compression library: "
-		    "out of memory");
+	case GZIP:
+		if (xar->stream_valid)
+			r = inflateReset(&(xar->stream));
+		else
+			r = inflateInit(&(xar->stream));
+		if (r != Z_OK) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Couldn't initialize zlib stream.");
+			return (ARCHIVE_FATAL);
+		}
+		xar->stream_valid = 1;
+		xar->stream.total_in = 0;
+		xar->stream.total_out = 0;
 		break;
+#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
+	case BZIP2:
+		if (xar->bzstream_valid) {
+			BZ2_bzDecompressEnd(&(xar->bzstream));
+			xar->bzstream_valid = 0;
+		}
+		r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 0);
+		if (r == BZ_MEM_ERROR)
+			r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 1);
+		if (r != BZ_OK) {
+			int err = ARCHIVE_ERRNO_MISC;
+			detail = NULL;
+			switch (r) {
+			case BZ_PARAM_ERROR:
+				detail = "invalid setup parameter";
+				break;
+			case BZ_MEM_ERROR:
+				err = ENOMEM;
+				detail = "out of memory";
+				break;
+			case BZ_CONFIG_ERROR:
+				detail = "mis-compiled library";
+				break;
+			}
+			archive_set_error(&a->archive, err,
+			    "Internal error initializing decompressor: %s",
+			    detail == NULL ? "??" : detail);
+			xar->bzstream_valid = 0;
+			return (ARCHIVE_FATAL);
+		}
+		xar->bzstream_valid = 1;
+		xar->bzstream.total_in_lo32 = 0;
+		xar->bzstream.total_in_hi32 = 0;
+		xar->bzstream.total_out_lo32 = 0;
+		xar->bzstream.total_out_hi32 = 0;
+		break;
+#endif
+#if defined(HAVE_LZMA_H) && defined(HAVE_LIBLZMA)
+#if LZMA_VERSION_MAJOR >= 5
+/* Effectively disable the limiter. */
+#define LZMA_MEMLIMIT   UINT64_MAX
+#else
+/* NOTE: This needs to check memory size which running system has. */
+#define LZMA_MEMLIMIT   (1U << 30)
+#endif
+	case XZ:
+	case LZMA:
+		if (xar->lzstream_valid) {
+			lzma_end(&(xar->lzstream));
+			xar->lzstream_valid = 0;
+		}
+		if (xar->entry_encoding == XZ)
+			r = lzma_stream_decoder(&(xar->lzstream),
+			    LZMA_MEMLIMIT,/* memlimit */
+			    LZMA_CONCATENATED);
+		else
+			r = lzma_alone_decoder(&(xar->lzstream),
+			    LZMA_MEMLIMIT);/* memlimit */
+		if (r != LZMA_OK) {
+			switch (r) {
+			case LZMA_MEM_ERROR:
+				archive_set_error(&a->archive,
+				    ENOMEM,
+				    "Internal error initializing "
+				    "compression library: "
+				    "Cannot allocate memory");
+				break;
+			case LZMA_OPTIONS_ERROR:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Internal error initializing "
+				    "compression library: "
+				    "Invalid or unsupported options");
+				break;
+			default:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Internal error initializing "
+				    "lzma library");
+				break;
+			}
+			return (ARCHIVE_FATAL);
+		}
+		xar->lzstream_valid = 1;
+		xar->lzstream.total_in = 0;
+		xar->lzstream.total_out = 0;
+		break;
+#elif defined(HAVE_LZMADEC_H) && defined(HAVE_LIBLZMADEC)
+	case LZMA:
+		if (xar->lzstream_valid)
+			lzmadec_end(&(xar->lzstream));
+		r = lzmadec_init(&(xar->lzstream));
+		if (r != LZMADEC_OK) {
+			switch (r) {
+			case LZMADEC_HEADER_ERROR:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Internal error initializing "
+				    "compression library: "
+				    "invalid header");
+				break;
+			case LZMADEC_MEM_ERROR:
+				archive_set_error(&a->archive,
+				    ENOMEM,
+				    "Internal error initializing "
+				    "compression library: "
+				    "out of memory");
+				break;
+			}
+			return (ARCHIVE_FATAL);
+		}
+		xar->lzstream_valid = 1;
+		xar->lzstream.total_in = 0;
+		xar->lzstream.total_out = 0;
+		break;
+#endif
+	/*
+	 * Unsupported compression.
+	 */
+	default:
+#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR)
+	case BZIP2:
+#endif
+#if !defined(HAVE_LZMA_H) || !defined(HAVE_LIBLZMA)
+#if !defined(HAVE_LZMADEC_H) || !defined(HAVE_LIBLZMADEC)
+	case LZMA:
+#endif
+	case XZ:
+#endif
+		switch (xar->entry_encoding) {
+		case BZIP2: detail = "bzip2"; break;
+		case LZMA: detail = "lzma"; break;
+		case XZ: detail = "xz"; break;
+		default: detail = "??"; break;
+		}
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "%s compression not supported on this platform",
+		    detail);
+		return (ARCHIVE_FAILED);
 	}
-
-	free(state->out_block);
-	free(state);
-	self->data = NULL;
-	return (ARCHIVE_FATAL);
+	return (ARCHIVE_OK);
 }

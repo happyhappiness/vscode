@@ -1,4 +1,7 @@
 {
-    printf("Error, could not open file %s\n", CMAKE_DUMP_FILE);
-    return -1;
-    }
+			archive_set_error(a, EINVAL,
+			    "Failed to convert a wide-character filename to"
+			    " a multi-byte filename");
+			archive_string_free(&fn);
+			return (ARCHIVE_FATAL);
+		}

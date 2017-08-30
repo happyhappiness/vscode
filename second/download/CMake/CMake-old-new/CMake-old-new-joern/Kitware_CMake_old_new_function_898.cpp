@@ -1,159 +1,140 @@
-kwsysProcess* kwsysProcess_New()
+int
+archive_read_disk_entry_from_file(struct archive *_a,
+    struct archive_entry *entry, int fd, const struct stat *st)
 {
-  int i;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	const wchar_t *path;
+	const wchar_t *wname;
+	const char *name;
+	HANDLE h;
+	BY_HANDLE_FILE_INFORMATION bhfi;
+	DWORD fileAttributes = 0;
+	int r;
 
-  /* Process control structure.  */
-  kwsysProcess* cp;
+	archive_clear_error(_a);
+	wname = archive_entry_sourcepath_w(entry);
+	if (wname == NULL)
+		wname = archive_entry_pathname_w(entry);
+	if (wname == NULL) {
+		archive_set_error(&a->archive, EINVAL,
+		    "Can't get a wide character version of the path");
+		return (ARCHIVE_FAILED);
+	}
+	path = __la_win_permissive_name_w(wname);
 
-  /* Path to Win9x forwarding executable.  */
-  char* win9x = 0;
+	if (st == NULL) {
+		/*
+		 * Get metadata through GetFileInformationByHandle().
+		 */
+		if (fd >= 0) {
+			h = (HANDLE)_get_osfhandle(fd);
+			r = GetFileInformationByHandle(h, &bhfi);
+			if (r == 0) {
+				archive_set_error(&a->archive, GetLastError(),
+				    "Can't GetFileInformationByHandle");
+				return (ARCHIVE_FAILED);
+			}
+			entry_copy_bhfi(entry, path, NULL, &bhfi);
+		} else {
+			WIN32_FIND_DATAW findData;
+			DWORD flag, desiredAccess;
+	
+			h = FindFirstFileW(path, &findData);
+			if (h == INVALID_DIR_HANDLE) {
+				archive_set_error(&a->archive, GetLastError(),
+				    "Can't FindFirstFileW");
+				return (ARCHIVE_FAILED);
+			}
+			FindClose(h);
 
-  /* Windows version number data.  */
-  OSVERSIONINFO osv;
-  
-  /* Allocate a process control structure.  */
-  cp = (kwsysProcess*)malloc(sizeof(kwsysProcess));
-  ZeroMemory(cp, sizeof(*cp));
-  
-  /* Set initial status.  */
-  cp->State = kwsysProcess_Starting;
-  
-  /* Choose a method of running the child based on version of
-     windows.  */
-  ZeroMemory(&osv, sizeof(osv));
-  osv.dwOSVersionInfoSize = sizeof(osv);
-  GetVersionEx(&osv);
-  if(osv.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS)
-    {
-    /* This is Win9x.  We need the console forwarding executable to
-       work-around a Windows 9x bug.  */
-    char fwdName[_MAX_FNAME+1] = "";
-    char tempDir[_MAX_PATH+1] = "";
-    
-    /* We will try putting the executable in the system temp
-       directory.  */
-    DWORD length = GetEnvironmentVariable("TEMP", tempDir, _MAX_PATH);
-    
-    /* Construct the executable name from the process id and kwsysProcess
-       instance.  This should be unique.  */
-    sprintf(fwdName, "cmw9xfwd_%u_%p.exe", _getpid(), cp);
-    
-    /* If the environment variable "TEMP" gave us a directory, use it.  */
-    if(length > 0 && length <= _MAX_PATH)
-      {
-      /* Make sure there is no trailing slash.  */
-      size_t tdlen = strlen(tempDir);
-      if(tempDir[tdlen-1] == '/' || tempDir[tdlen-1] == '\\')
-        {
-        tempDir[tdlen-1] = 0;
-        --tdlen;
-        }
-      
-      /* Allocate a buffer to hold the forwarding executable path.  */
-      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
-      if(!win9x)
-        {
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
-      
-      /* Construct the full path to the forwarding executable.  */
-      sprintf(win9x, "%s/%s", tempDir, fwdName);
-      }
-    
-    /* If we found a place to put the forwarding executable, try to
-       write it. */
-    if(win9x)
-      {
-      if(!kwsysEncodedWriteArrayProcessFwd9x(win9x))
-        {
-        /* Failed to create forwarding executable.  Give up.  */
-        free(win9x);
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
-      }
-    else
-      {
-      /* Failed to find a place to put forwarding executable.  */
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    }
-  
-  /* We need the extra error pipe on Win9x.  */
-  cp->Win9x = win9x;
-  cp->PipeCount = cp->Win9x? 3:2;
-  
-  /* Initially no thread owns the mutex.  Initialize semaphore to 1.  */
-  if(!(cp->SharedIndexMutex = CreateSemaphore(0, 1, 1, 0)))
-    {
-    kwsysProcess_Delete(cp);
-    return 0;
-    }
-  
-  /* Initially no data are available.  Initialize semaphore to 0.  */
-  if(!(cp->Full = CreateSemaphore(0, 0, 1, 0)))
-    {
-    kwsysProcess_Delete(cp);
-    return 0;
-    }
+			flag = FILE_FLAG_BACKUP_SEMANTICS;
+			if (!a->follow_symlinks &&
+			    (findData.dwFileAttributes
+			      & FILE_ATTRIBUTE_REPARSE_POINT) &&
+				  (findData.dwReserved0 == IO_REPARSE_TAG_SYMLINK)) {
+				flag |= FILE_FLAG_OPEN_REPARSE_POINT;
+				desiredAccess = 0;
+			} else if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+				desiredAccess = 0;
+			} else
+				desiredAccess = GENERIC_READ;
 
-  if(cp->Win9x)
-    {
-    /* Create an event to tell the forwarding executable to kill the
-       child.  */
-    SECURITY_ATTRIBUTES sa;
-    ZeroMemory(&sa, sizeof(sa));
-    sa.nLength = sizeof(sa);
-    sa.bInheritHandle = TRUE;
-    if(!(cp->Win9xKillEvent = CreateEvent(&sa, TRUE, 0, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    }
-    
-  /* Create the thread to read each pipe.  */
-  for(i=0; i < cp->PipeCount; ++i)
-    {
-    DWORD dummy=0;
-    
-    /* Assign the thread its index.  */
-    cp->Pipe[i].Index = i;
-    
-    /* Give the thread a pointer back to the kwsysProcess instance.  */
-    cp->Pipe[i].Process = cp;
-    
-    /* The pipe is not yet ready to read.  Initialize semaphore to 0.  */
-    if(!(cp->Pipe[i].Ready = CreateSemaphore(0, 0, 1, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    
-    /* The pipe is not yet reset.  Initialize semaphore to 0.  */
-    if(!(cp->Pipe[i].Reset = CreateSemaphore(0, 0, 1, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    
-    /* The thread's buffer is initially empty.  Initialize semaphore to 1.  */
-    if(!(cp->Pipe[i].Empty = CreateSemaphore(0, 1, 1, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    
-    /* Create the thread.  It will block immediately.  */
-    if(!(cp->Pipe[i].Thread = CreateThread(0, 0, kwsysProcessPipeThread,
-                                           &cp->Pipe[i], 0, &dummy)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    }
-  
-  return cp;
+			h = CreateFileW(path, desiredAccess, 0, NULL,
+			    OPEN_EXISTING, flag, NULL);
+			if (h == INVALID_HANDLE_VALUE) {
+				archive_set_error(&a->archive,
+				    GetLastError(),
+				    "Can't CreateFileW");
+				return (ARCHIVE_FAILED);
+			}
+			r = GetFileInformationByHandle(h, &bhfi);
+			if (r == 0) {
+				archive_set_error(&a->archive,
+				    GetLastError(),
+				    "Can't GetFileInformationByHandle");
+				CloseHandle(h);
+				return (ARCHIVE_FAILED);
+			}
+			entry_copy_bhfi(entry, path, &findData, &bhfi);
+		}
+		fileAttributes = bhfi.dwFileAttributes;
+	} else {
+		archive_entry_copy_stat(entry, st);
+		h = INVALID_DIR_HANDLE;
+	}
+
+	/* Lookup uname/gname */
+	name = archive_read_disk_uname(_a, archive_entry_uid(entry));
+	if (name != NULL)
+		archive_entry_copy_uname(entry, name);
+	name = archive_read_disk_gname(_a, archive_entry_gid(entry));
+	if (name != NULL)
+		archive_entry_copy_gname(entry, name);
+
+	/*
+	 * Can this file be sparse file ?
+	 */
+	if (archive_entry_filetype(entry) != AE_IFREG
+	    || archive_entry_size(entry) <= 0
+		|| archive_entry_hardlink(entry) != NULL) {
+		if (h != INVALID_HANDLE_VALUE && fd < 0)
+			CloseHandle(h);
+		return (ARCHIVE_OK);
+	}
+
+	if (h == INVALID_HANDLE_VALUE) {
+		if (fd >= 0) {
+			h = (HANDLE)_get_osfhandle(fd);
+		} else {
+			h = CreateFileW(path, GENERIC_READ, 0, NULL,
+			    OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+			if (h == INVALID_HANDLE_VALUE) {
+				archive_set_error(&a->archive, GetLastError(),
+				    "Can't CreateFileW");
+				return (ARCHIVE_FAILED);
+			}
+		}
+		r = GetFileInformationByHandle(h, &bhfi);
+		if (r == 0) {
+			archive_set_error(&a->archive, GetLastError(),
+			    "Can't GetFileInformationByHandle");
+			if (h != INVALID_HANDLE_VALUE && fd < 0)
+				CloseHandle(h);
+			return (ARCHIVE_FAILED);
+		}
+		fileAttributes = bhfi.dwFileAttributes;
+	}
+
+	/* Sparse file must be set a mark, FILE_ATTRIBUTE_SPARSE_FILE */
+	if ((fileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) == 0) {
+		if (fd < 0)
+			CloseHandle(h);
+		return (ARCHIVE_OK);
+	}
+
+	r = setup_sparse_from_disk(a, entry, h);
+	if (fd < 0)
+		CloseHandle(h);
+
+	return (r);
 }

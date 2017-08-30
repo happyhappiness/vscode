@@ -1,1 +1,1 @@
-sprintf(win9x, "%s%s", tempDir, fwdName);
+fprintf(fout, "\t%s DATA \n", symbol.c_str()+1);

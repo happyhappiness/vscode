@@ -1,108 +1,94 @@
-void cmGlobalGenerator::Configure()
+static int
+setup_current_filesystem(struct archive_read_disk *a)
 {
-  // Delete any existing cmLocalGenerators
-  unsigned int i;
-  for (i = 0; i < m_LocalGenerators.size(); ++i)
-    {
-    delete m_LocalGenerators[i];
-    }
-  m_LocalGenerators.clear();
+	struct tree *t = a->tree;
+	struct statfs sfs;
+	struct statvfs svfs;
+	int r, vr = 0, xr = 0;
 
-  // Setup relative path generation.
-  this->ConfigureRelativePaths();
+	if (tree_current_is_symblic_link_target(t)) {
+#if defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR)
+		/*
+		 * Get file system statistics on any directory
+		 * where current is.
+		 */
+		int fd = openat(tree_current_dir_fd(t),
+		    tree_current_access_path(t), O_RDONLY);
+		if (fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "openat failed");
+			return (ARCHIVE_FAILED);
+		}
+		vr = fstatvfs(fd, &svfs);/* for f_flag, mount flags */
+		r = fstatfs(fd, &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, fd, NULL);
+		close(fd);
+#else
+		vr = statvfs(tree_current_access_path(t), &svfs);
+		r = statfs(tree_current_access_path(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, tree_current_access_path(t));
+#endif
+	} else {
+#ifdef HAVE_FSTATFS
+		vr = fstatvfs(tree_current_dir_fd(t), &svfs);
+		r = fstatfs(tree_current_dir_fd(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
+#elif defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR)
+#error "Unexpected case. Please tell us about this error."
+#else
+		vr = statvfs(".", &svfs);
+		r = statfs(".", &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, ".");
+#endif
+	}
+	if (r == -1 || xr == -1 || vr == -1) {
+		t->current_filesystem->synthetic = -1;
+		t->current_filesystem->remote = -1;
+		archive_set_error(&a->archive, errno, "statfs failed");
+		return (ARCHIVE_FAILED);
+	} else if (xr == 1) {
+		/* pathconf(_PC_REX_*) operations are not supported. */
+		t->current_filesystem->xfer_align = svfs.f_frsize;
+		t->current_filesystem->max_xfer_size = -1;
+		t->current_filesystem->min_xfer_size = svfs.f_bsize;
+		t->current_filesystem->incr_xfer_size = svfs.f_bsize;
+	}
+	switch (sfs.f_type) {
+	case AFS_SUPER_MAGIC:
+	case CIFS_SUPER_MAGIC:
+	case CODA_SUPER_MAGIC:
+	case NCP_SUPER_MAGIC:/* NetWare */
+	case NFS_SUPER_MAGIC:
+	case SMB_SUPER_MAGIC:
+		t->current_filesystem->remote = 1;
+		t->current_filesystem->synthetic = 0;
+		break;
+	case DEVFS_SUPER_MAGIC:
+	case PROC_SUPER_MAGIC:
+	case USBDEVICE_SUPER_MAGIC:
+		t->current_filesystem->remote = 0;
+		t->current_filesystem->synthetic = 1;
+		break;
+	default:
+		t->current_filesystem->remote = 0;
+		t->current_filesystem->synthetic = 0;
+		break;
+	}
 
-  // start with this directory
-  cmLocalGenerator *lg = this->CreateLocalGenerator();
-  m_LocalGenerators.push_back(lg);
+#if defined(ST_NOATIME)
+	if (svfs.f_flag & ST_NOATIME)
+		t->current_filesystem->noatime = 1;
+	else
+#endif
+		t->current_filesystem->noatime = 0;
 
-  // set the Start directories
-  lg->GetMakefile()->SetStartDirectory
-    (m_CMakeInstance->GetStartDirectory());
-  lg->GetMakefile()->SetStartOutputDirectory
-    (m_CMakeInstance->GetStartOutputDirectory());
-  lg->GetMakefile()->MakeStartDirectoriesCurrent();
-  
-  // now do it
-  lg->Configure();
-  
-  // update the cache entry for the number of local generators, this is used
-  // for progress
-  char num[100];
-  sprintf(num,"%d",static_cast<int>(m_LocalGenerators.size()));
-  this->GetCMakeInstance()->AddCacheEntry
-    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
-     "number of local generators", cmCacheManager::INTERNAL);
-  
-  std::set<cmStdString> notFoundMap;
-  // after it is all done do a ConfigureFinalPass
-  cmCacheManager* manager = 0;
-  for (i = 0; i < m_LocalGenerators.size(); ++i)
-    {
-    manager = m_LocalGenerators[i]->GetMakefile()->GetCacheManager();
-    m_LocalGenerators[i]->ConfigureFinalPass();
-    cmTargets & targets = 
-      m_LocalGenerators[i]->GetMakefile()->GetTargets(); 
-    for (cmTargets::iterator l = targets.begin();
-         l != targets.end(); l++)
-      {
-      cmTarget::LinkLibraries libs = l->second.GetLinkLibraries();
-      for(cmTarget::LinkLibraries::iterator lib = libs.begin();
-          lib != libs.end(); ++lib)
-        {
-        if(lib->first.size() > 9 && 
-           cmSystemTools::IsNOTFOUND(lib->first.c_str()))
-          {
-          std::string varName = lib->first.substr(0, lib->first.size()-9);
-          notFoundMap.insert(varName);
-          }
-        }
-      std::vector<std::string>& incs = 
-        m_LocalGenerators[i]->GetMakefile()->GetIncludeDirectories();
-      
-      for( std::vector<std::string>::iterator lib = incs.begin();
-           lib != incs.end(); ++lib)
-        {
-        if(lib->size() > 9 && 
-           cmSystemTools::IsNOTFOUND(lib->c_str()))
-          {
-          std::string varName = lib->substr(0, lib->size()-9); 
-          notFoundMap.insert(varName);
-          }
-        }
-      m_CMakeInstance->UpdateProgress("Configuring", 
-                                      0.9f+0.1f*(i+1.0f)/m_LocalGenerators.size());
-      m_LocalGenerators[i]->GetMakefile()->CheckInfiniteLoops();
-      }
-    }
-
-  if(notFoundMap.size())
-    {
-    std::string notFoundVars;
-    for(std::set<cmStdString>::iterator ii = notFoundMap.begin();
-        ii != notFoundMap.end(); ++ii)
-      { 
-      notFoundVars += *ii;
-      if(manager)
-        {
-        cmCacheManager::CacheIterator it = 
-          manager->GetCacheIterator(ii->c_str());
-        if(it.GetPropertyAsBool("ADVANCED"))
-          {
-          notFoundVars += " (ADVANCED)";
-          }
-        }
-      notFoundVars += "\n";
-      }
-    cmSystemTools::Error("This project requires some variables to be set,\n"
-                         "and cmake can not find them.\n"
-                         "Please set the following variables:\n",
-                         notFoundVars.c_str());
-    }
-  // at this point m_LocalGenerators has been filled,
-  // so create the map from project name to vector of local generators
-  this->FillProjectMap();
-  if ( !m_CMakeInstance->GetScriptMode() )
-    {
-    m_CMakeInstance->UpdateProgress("Configuring done", -1);
-    }
+#if defined(HAVE_READDIR_R)
+	/* Set maximum filename length. */
+	t->current_filesystem->name_max = sfs.f_namelen;
+#endif
+	return (ARCHIVE_OK);
 }

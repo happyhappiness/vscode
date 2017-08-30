@@ -1,53 +1,63 @@
-void
-DumpSymbolTable(PIMAGE_SYMBOL pSymbolTable, PIMAGE_SECTION_HEADER pSectionHeaders, FILE *fout, unsigned cSymbols)
+int
+__archive_write_program_close(struct archive_write_filter *f,
+    struct archive_write_program_data *data)
 {
-   unsigned i;
-   PSTR stringTable;
-   std::string sectionName;
-   std::string sectionCharacter;
-   int iSectNum;
+	int ret, r1, status;
+	ssize_t bytes_read;
 
-   fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
-      cSymbols);
+	if (data->child == 0)
+		return __archive_write_close_filter(f->next_filter);
 
-   fprintf(fout,
-      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
-      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");
+	ret = 0;
+	close(data->child_stdin);
+	data->child_stdin = -1;
+	fcntl(data->child_stdout, F_SETFL, 0);
 
-   /*
-   * The string table apparently starts right after the symbol table
-   */
-   stringTable = (PSTR)&pSymbolTable[cSymbols];
+	for (;;) {
+		do {
+			bytes_read = read(data->child_stdout,
+			    data->child_buf + data->child_buf_avail,
+			    data->child_buf_len - data->child_buf_avail);
+		} while (bytes_read == -1 && errno == EINTR);
 
-   for ( i=0; i < cSymbols; i++ ) {
-      fprintf(fout, "%04X ", i);
-      if ( pSymbolTable->N.Name.Short != 0 )
-         fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
-      else
-         fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);
+		if (bytes_read == 0 || (bytes_read == -1 && errno == EPIPE))
+			break;
 
-      fprintf(fout, " %08X", pSymbolTable->Value);
+		if (bytes_read == -1) {
+			archive_set_error(f->archive, errno,
+			    "Read from filter failed unexpectedly.");
+			ret = ARCHIVE_FATAL;
+			goto cleanup;
+		}
+		data->child_buf_avail += bytes_read;
 
-      iSectNum = pSymbolTable->SectionNumber;
-      GetSectionName(pSymbolTable, sectionName);
-      fprintf(fout, " sect:%s aux:%X type:%02X st:%s",
-         sectionName.c_str(),
-         pSymbolTable->NumberOfAuxSymbols,
-         pSymbolTable->Type,
-         GetSZStorageClass(pSymbolTable->StorageClass) );
+		ret = __archive_write_filter(f->next_filter,
+		    data->child_buf, data->child_buf_avail);
+		if (ret != ARCHIVE_OK) {
+			ret = ARCHIVE_FATAL;
+			goto cleanup;
+		}
+		data->child_buf_avail = 0;
+	}
 
-      GetSectionCharacteristics(pSectionHeaders,iSectNum,sectionCharacter);
-      fprintf(fout," hc: %s \n",sectionCharacter.c_str());
-#if 0
-      if ( pSymbolTable->NumberOfAuxSymbols )
-         DumpAuxSymbols(pSymbolTable);
+cleanup:
+	/* Shut down the child. */
+	if (data->child_stdin != -1)
+		close(data->child_stdin);
+	if (data->child_stdout != -1)
+		close(data->child_stdout);
+	while (waitpid(data->child, &status, 0) == -1 && errno == EINTR)
+		continue;
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	CloseHandle(data->child);
 #endif
+	data->child = 0;
 
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-   }
+	if (status != 0) {
+		archive_set_error(f->archive, EIO,
+		    "Filter exited with failure.");
+		ret = ARCHIVE_FATAL;
+	}
+	r1 = __archive_write_close_filter(f->next_filter);
+	return (r1 < ret ? r1 : ret);
 }

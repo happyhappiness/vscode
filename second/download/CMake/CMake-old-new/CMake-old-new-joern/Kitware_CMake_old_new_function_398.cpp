@@ -1,39 +1,23 @@
-void
-DumpExternals(PIMAGE_SYMBOL pSymbolTable, FILE *fout, unsigned cSymbols)
+static int
+unknowntag_start(struct archive_read *a, struct xar *xar, const char *name)
 {
-   unsigned i;
-   PSTR stringTable;
-   std::string symbol;
+	struct unknown_tag *tag;
 
-   /*
-   * The string table apparently starts right after the symbol table
-   */
-   stringTable = (PSTR)&pSymbolTable[cSymbols];
-
-   for ( i=0; i < cSymbols; i++ ) {
-      if (pSymbolTable->SectionNumber > 0 && pSymbolTable->Type == 0x20) {
-         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
-            if (pSymbolTable->N.Name.Short != 0) {
-               symbol = "";
-               symbol.insert(0, (const char *)(pSymbolTable->N.ShortName), 8);
-            } else {
-               symbol = stringTable + pSymbolTable->N.Name.Long;
-            }
-            std::string::size_type posAt = symbol.find('@');
-            if (posAt != std::string::npos) symbol.erase(posAt);
-#ifndef _MSC_VER
-            fprintf(fout, "\t%s\n", symbol.c_str());
-#else
-            fprintf(fout, "\t%s\n", symbol.c_str()+1);
+#if DEBUG
+	fprintf(stderr, "unknowntag_start:%s\n", name);
 #endif
-         }
-      }
-
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-   }
+	tag = malloc(sizeof(*tag));
+	if (tag == NULL) {
+		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+	tag->next = xar->unknowntags;
+	archive_string_init(&(tag->name));
+	archive_strcpy(&(tag->name), name);
+	if (xar->unknowntags == NULL) {
+		xar->xmlsts_unknown = xar->xmlsts;
+		xar->xmlsts = UNKNOWN;
+	}
+	xar->unknowntags = tag;
+	return (ARCHIVE_OK);
 }

@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, 0,
-					    "Removing symlink %s",
-					    a->name);
+archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));

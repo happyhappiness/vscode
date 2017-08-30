@@ -1,18 +1,13 @@
-e((n = (int)fread(buffer, 1, 1024, ifp)) > 0)
-    {
-    fprintf(ofp, "static unsigned char kwsysEncodedArray%s_%d[%d] = {\n", 
-            argv[4], count++, n);
-    for(i=0; i < n-1; ++i)
+{
+    EdgeList const& nl = graph[depender_index];
+    cmTarget const* depender = this->Targets[depender_index];
+    fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
       {
-      fprintf(ofp, "0x%02X", buffer[i]);
-      if(i%10 == 9)
-        {
-        fprintf(ofp, ",\n");
-        }
-      else
-        {
-        fprintf(ofp, ", ");
-        }
+      int dependee_index = *ni;
+      cmTarget const* dependee = this->Targets[dependee_index];
+      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
       }
-    fprintf(ofp, "0x%02X};\n\n", buffer[n-1]);
     }

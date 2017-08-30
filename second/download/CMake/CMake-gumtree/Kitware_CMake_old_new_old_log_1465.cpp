@@ -1,0 +1,1 @@
+fprintf(stderr,"Testing %-30s ",args[0].c_str());

@@ -1,1 +1,5 @@
-yy_fatal_error( "cmCommandArgument_yyset_lineno called with no buffer" , yyscanner)
+{
+		translate_acl(a, entry, acl,
+		    ARCHIVE_ENTRY_ACL_TYPE_ACCESS);
+		acl_free(acl);
+	}

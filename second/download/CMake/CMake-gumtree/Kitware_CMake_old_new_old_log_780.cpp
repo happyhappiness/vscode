@@ -1,2 +1,2 @@
-fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n",
-          kitName);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Ignored the request descending the current object");

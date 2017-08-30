@@ -1,85 +1,23 @@
-static void kwsysProcessSetExitException(kwsysProcess* cp, int code)
+void Curl_failf(struct Curl_easy *data, const char *fmt, ...)
 {
-  switch (code) {
-    case STATUS_CONTROL_C_EXIT:
-      KWSYSPE_CASE(Interrupt, "User interrupt");
-      break;
+  va_list ap;
+  size_t len;
+  va_start(ap, fmt);
 
-    case STATUS_FLOAT_DENORMAL_OPERAND:
-      KWSYSPE_CASE(Numerical, "Floating-point exception (denormal operand)");
-      break;
-    case STATUS_FLOAT_DIVIDE_BY_ZERO:
-      KWSYSPE_CASE(Numerical, "Divide-by-zero");
-      break;
-    case STATUS_FLOAT_INEXACT_RESULT:
-      KWSYSPE_CASE(Numerical, "Floating-point exception (inexact result)");
-      break;
-    case STATUS_FLOAT_INVALID_OPERATION:
-      KWSYSPE_CASE(Numerical, "Invalid floating-point operation");
-      break;
-    case STATUS_FLOAT_OVERFLOW:
-      KWSYSPE_CASE(Numerical, "Floating-point overflow");
-      break;
-    case STATUS_FLOAT_STACK_CHECK:
-      KWSYSPE_CASE(Numerical, "Floating-point stack check failed");
-      break;
-    case STATUS_FLOAT_UNDERFLOW:
-      KWSYSPE_CASE(Numerical, "Floating-point underflow");
-      break;
-#ifdef STATUS_FLOAT_MULTIPLE_FAULTS
-    case STATUS_FLOAT_MULTIPLE_FAULTS:
-      KWSYSPE_CASE(Numerical, "Floating-point exception (multiple faults)");
-      break;
-#endif
-#ifdef STATUS_FLOAT_MULTIPLE_TRAPS
-    case STATUS_FLOAT_MULTIPLE_TRAPS:
-      KWSYSPE_CASE(Numerical, "Floating-point exception (multiple traps)");
-      break;
-#endif
-    case STATUS_INTEGER_DIVIDE_BY_ZERO:
-      KWSYSPE_CASE(Numerical, "Integer divide-by-zero");
-      break;
-    case STATUS_INTEGER_OVERFLOW:
-      KWSYSPE_CASE(Numerical, "Integer overflow");
-      break;
+  vsnprintf(data->state.buffer, BUFSIZE, fmt, ap);
 
-    case STATUS_DATATYPE_MISALIGNMENT:
-      KWSYSPE_CASE(Fault, "Datatype misalignment");
-      break;
-    case STATUS_ACCESS_VIOLATION:
-      KWSYSPE_CASE(Fault, "Access violation");
-      break;
-    case STATUS_IN_PAGE_ERROR:
-      KWSYSPE_CASE(Fault, "In-page error");
-      break;
-    case STATUS_INVALID_HANDLE:
-      KWSYSPE_CASE(Fault, "Invalid hanlde");
-      break;
-    case STATUS_NONCONTINUABLE_EXCEPTION:
-      KWSYSPE_CASE(Fault, "Noncontinuable exception");
-      break;
-    case STATUS_INVALID_DISPOSITION:
-      KWSYSPE_CASE(Fault, "Invalid disposition");
-      break;
-    case STATUS_ARRAY_BOUNDS_EXCEEDED:
-      KWSYSPE_CASE(Fault, "Array bounds exceeded");
-      break;
-    case STATUS_STACK_OVERFLOW:
-      KWSYSPE_CASE(Fault, "Stack overflow");
-      break;
-
-    case STATUS_ILLEGAL_INSTRUCTION:
-      KWSYSPE_CASE(Illegal, "Illegal instruction");
-      break;
-    case STATUS_PRIVILEGED_INSTRUCTION:
-      KWSYSPE_CASE(Illegal, "Privileged instruction");
-      break;
-
-    case STATUS_NO_MEMORY:
-    default:
-      cp->ExitException = kwsysProcess_Exception_Other;
-      _snprintf(cp->ExitExceptionString, KWSYSPE_PIPE_BUFFER_SIZE,
-                "Exit code 0x%x\n", code);
-      break;
+  if(data->set.errorbuffer && !data->state.errorbuf) {
+    snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer);
+    data->state.errorbuf = TRUE; /* wrote error string */
   }
+  if(data->set.verbose) {
+    len = strlen(data->state.buffer);
+    if(len < BUFSIZE - 1) {
+      data->state.buffer[len] = '\n';
+      data->state.buffer[++len] = '\0';
+    }
+    Curl_debug(data, CURLINFO_TEXT, data->state.buffer, len, NULL);
+  }
+
+  va_end(ap);
 }

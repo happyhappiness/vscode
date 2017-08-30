@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, EINVAL,
-			    "Can't find long filename for entry");
+aprintf("%s%s%s:%hu", conn->bits.ipv6_ip?"[":"",
+                  hostname, conn->bits.ipv6_ip?"]":"",
+                  remote_port);

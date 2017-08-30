@@ -1,2 +1,3 @@
-archive_string_sprintf(&w->sver,
-			"WARC/%u.%u", ver / 10000, ver % 10000);
+archive_set_error(&a->archive, 0,
+					    "Removing symlink %s",
+					    a->name);

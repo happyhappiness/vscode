@@ -1,2 +1,2 @@
-fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp,"
-          "ClientData arg);\n");
+archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));

@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "out of dynamic memory in yy_create_buffer()" );
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external gunzip program");

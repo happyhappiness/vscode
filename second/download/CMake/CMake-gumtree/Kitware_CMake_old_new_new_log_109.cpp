@@ -1,4 +1,2 @@
-archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Unsupported record version: %u.%u",
-			ver / 10000, (ver % 10000) / 100);
+archive_set_error(&a->archive, errno,
+			    "Failed to get ACL permission set");

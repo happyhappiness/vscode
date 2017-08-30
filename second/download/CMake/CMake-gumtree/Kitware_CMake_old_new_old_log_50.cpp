@@ -1,1 +1,3 @@
-snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer);
+snprintf(buf, CURL_BUFSIZE(conn->data->set.buffer_size),
+                 "%04d%02d%02d %02d:%02d:%02d GMT",
+                 year, month, day, hour, minute, second);

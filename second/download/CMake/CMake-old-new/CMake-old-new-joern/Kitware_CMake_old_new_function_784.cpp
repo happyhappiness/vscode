@@ -1,89 +1,56 @@
-void cmCursesMainForm::PrintKeys(int process /* = 0 */)
+static int
+setup_current_filesystem(struct archive_read_disk *a)
 {
-  int x,y;
-  getmaxyx(stdscr, y, x);
-  if ( x < cmCursesMainForm::MIN_WIDTH  || 
-       x < m_InitialWidth               ||
-       y < cmCursesMainForm::MIN_HEIGHT )
-    {
-    return;
-    }
+	struct tree *t = a->tree;
+	struct statvfs sfs;
+	int r, xr = 0;
 
-  // Give the current widget (if it exists), a chance to print keys
-  cmCursesWidget* cw = 0;
-  if (m_Form)
-    {
-    FIELD* currentField = current_field(m_Form);
-    cw = reinterpret_cast<cmCursesWidget*>(field_userptr(currentField));
-    }
+	t->current_filesystem->synthetic = -1;
+	if (tree_current_is_symblic_link_target(t)) {
+		r = statvfs(tree_current_access_path(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, tree_current_access_path(t));
+	} else {
+#ifdef HAVE_FSTATVFS
+		r = fstatvfs(tree_current_dir_fd(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
+#else
+		r = statvfs(".", &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, ".");
+#endif
+	}
+	if (r == -1 || xr == -1) {
+		t->current_filesystem->remote = -1;
+		archive_set_error(&a->archive, errno, "statvfs failed");
+		return (ARCHIVE_FAILED);
+	} else if (xr == 1) {
+		/* Usuall come here unless NetBSD supports _PC_REC_XFER_ALIGN
+		 * for pathconf() function. */
+		t->current_filesystem->xfer_align = sfs.f_frsize;
+		t->current_filesystem->max_xfer_size = -1;
+#if defined(HAVE_STRUCT_STATVFS_F_IOSIZE)
+		t->current_filesystem->min_xfer_size = sfs.f_iosize;
+		t->current_filesystem->incr_xfer_size = sfs.f_iosize;
+#else
+		t->current_filesystem->min_xfer_size = sfs.f_bsize;
+		t->current_filesystem->incr_xfer_size = sfs.f_bsize;
+#endif
+	}
+	if (sfs.f_flag & ST_LOCAL)
+		t->current_filesystem->remote = 0;
+	else
+		t->current_filesystem->remote = 1;
 
-  if (cw)
-    {
-    cw->PrintKeys();
-    }
-  
-//    {
-//    }
-//  else
-//    {
-  char firstLine[512]="";
-  char secondLine[512]="";
-  char thirdLine[512]="";
-  if (process)
-    {
-    sprintf(firstLine, 
-            "                                                               ");  
-    sprintf(secondLine, 
-            "                                                               ");  
-    sprintf(thirdLine, 
-            "                                                               ");  
-    }
-  else
-    {
-    if (m_OkToGenerate)
-      {
-      sprintf(firstLine,  
-              "Press [c] to configure     Press [g] to generate and exit");
-      }
-    else
-      {
-      sprintf(firstLine,  "Press [c] to configure                                   ");
-      }
-    if (m_AdvancedMode)
-      {
-      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently On)");
-      }
-    else
-      {
-      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently Off)");
-      }
-    
-    sprintf(secondLine, 
-            "Press [h] for help         Press [q] to quit without generating");
-    }
+#if defined(ST_NOATIME)
+	if (sfs.f_flag & ST_NOATIME)
+		t->current_filesystem->noatime = 1;
+	else
+#endif
+		t->current_filesystem->noatime = 0;
 
-  curses_move(y-4,0);
-  char fmt[512] = "Press [enter] to edit option";
-  if ( process )
-    {
-    strcpy(fmt, "                           ");
-    }
-  printw(fmt);
-  curses_move(y-3,0);
-  printw(firstLine);
-  curses_move(y-2,0);
-  printw(secondLine);
-  curses_move(y-1,0);
-  printw(thirdLine);
-
-  if (cw)
-    {
-    sprintf(firstLine, "Page %d of %d", cw->GetPage(), m_NumberOfPages);
-    curses_move(0,65-strlen(firstLine)-1);
-    printw(firstLine);
-    }
-//    }
-
-  pos_form_cursor(m_Form);
-  
+	/* Set maximum filename length. */
+	t->current_filesystem->name_max = sfs.f_namemax;
+	return (ARCHIVE_OK);
 }

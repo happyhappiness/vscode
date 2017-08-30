@@ -1,1 +1,1 @@
-fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
+snprintf((char *)&dest[i*2], 3, "%02x", source[i]);

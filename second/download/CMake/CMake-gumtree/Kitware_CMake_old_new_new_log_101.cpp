@@ -1,1 +1,2 @@
-acl_type = ARCHIVE_ENTRY_ACL_TYPE_ACCESS;
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Invalid ACL entry type for NFSv4 ACL");

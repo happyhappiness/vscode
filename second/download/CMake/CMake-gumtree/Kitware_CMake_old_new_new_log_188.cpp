@@ -1,1 +1,2 @@
-DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+archive_set_error(&a->archive, errno, "Failed "
+				    "to get ACL type from a NFSv4 ACL entry");

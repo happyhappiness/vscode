@@ -1,567 +1,503 @@
-int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
+CURLcode Curl_proxyCONNECT(struct connectdata *conn,
+                           int sockindex,
+                           const char *hostname,
+                           int remote_port,
+                           bool blocking)
 {
-  this->BinaryDirectory = argv[1].c_str();
-  this->OutputFile = "";
-  // which signature were we called with ?
-  this->SrcFileSignature = true;
+  int subversion=0;
+  struct SessionHandle *data=conn->data;
+  struct SingleRequest *k = &data->req;
+  CURLcode result;
+  curl_socket_t tunnelsocket = conn->sock[sockindex];
+  curl_off_t cl=0;
+  bool closeConnection = FALSE;
+  bool chunked_encoding = FALSE;
+  long check;
 
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  std::string targetName;
-  std::vector<std::string> cmakeFlags(1, "CMAKE_FLAGS"); // fake argv[0]
-  std::vector<std::string> compileDefs;
-  std::string outputVariable;
-  std::string copyFile;
-  std::string copyFileError;
-  std::vector<std::string> targets;
-  std::string libsToLink = " ";
-  bool useOldLinkLibs = true;
-  char targetNameBuf[64];
-  bool didOutputVariable = false;
-  bool didCopyFile = false;
-  bool didCopyFileError = false;
-  bool useSources = argv[2] == "SOURCES";
-  std::vector<std::string> sources;
+#define SELECT_OK      0
+#define SELECT_ERROR   1
+#define SELECT_TIMEOUT 2
+  int error = SELECT_OK;
 
-  enum Doing { DoingNone, DoingCMakeFlags, DoingCompileDefinitions,
-               DoingLinkLibraries, DoingOutputVariable, DoingCopyFile,
-               DoingCopyFileError, DoingSources };
-  Doing doing = useSources? DoingSources : DoingNone;
-  for(size_t i=3; i < argv.size(); ++i)
-    {
-    if(argv[i] == "CMAKE_FLAGS")
-      {
-      doing = DoingCMakeFlags;
+  if(conn->tunnel_state[sockindex] == TUNNEL_COMPLETE)
+    return CURLE_OK; /* CONNECT is already completed */
+
+  conn->bits.proxy_connect_closed = FALSE;
+
+  do {
+    if(TUNNEL_INIT == conn->tunnel_state[sockindex]) {
+      /* BEGIN CONNECT PHASE */
+      char *host_port;
+      Curl_send_buffer *req_buffer;
+
+      infof(data, "Establish HTTP proxy tunnel to %s:%hu\n",
+            hostname, remote_port);
+
+        /* This only happens if we've looped here due to authentication
+           reasons, and we don't really use the newly cloned URL here
+           then. Just free() it. */
+      free(data->req.newurl);
+      data->req.newurl = NULL;
+
+      /* initialize a dynamic send-buffer */
+      req_buffer = Curl_add_buffer_init();
+
+      if(!req_buffer)
+        return CURLE_OUT_OF_MEMORY;
+
+      host_port = aprintf("%s:%hu", hostname, remote_port);
+      if(!host_port) {
+        Curl_add_buffer_free(req_buffer);
+        return CURLE_OUT_OF_MEMORY;
       }
-    else if(argv[i] == "COMPILE_DEFINITIONS")
-      {
-      doing = DoingCompileDefinitions;
+
+      /* Setup the proxy-authorization header, if any */
+      result = Curl_http_output_auth(conn, "CONNECT", host_port, TRUE);
+
+      free(host_port);
+
+      if(!result) {
+        char *host=(char *)"";
+        const char *proxyconn="";
+        const char *useragent="";
+        const char *http = (conn->proxytype == CURLPROXY_HTTP_1_0) ?
+          "1.0" : "1.1";
+        char *hostheader= /* host:port with IPv6 support */
+          aprintf("%s%s%s:%hu", conn->bits.ipv6_ip?"[":"",
+                  hostname, conn->bits.ipv6_ip?"]":"",
+                  remote_port);
+        if(!hostheader) {
+          Curl_add_buffer_free(req_buffer);
+          return CURLE_OUT_OF_MEMORY;
+        }
+
+        if(!Curl_checkProxyheaders(conn, "Host:")) {
+          host = aprintf("Host: %s\r\n", hostheader);
+          if(!host) {
+            free(hostheader);
+            Curl_add_buffer_free(req_buffer);
+            return CURLE_OUT_OF_MEMORY;
+          }
+        }
+        if(!Curl_checkProxyheaders(conn, "Proxy-Connection:"))
+          proxyconn = "Proxy-Connection: Keep-Alive\r\n";
+
+        if(!Curl_checkProxyheaders(conn, "User-Agent:") &&
+           data->set.str[STRING_USERAGENT])
+          useragent = conn->allocptr.uagent;
+
+        result =
+          Curl_add_bufferf(req_buffer,
+                           "CONNECT %s HTTP/%s\r\n"
+                           "%s"  /* Host: */
+                           "%s"  /* Proxy-Authorization */
+                           "%s"  /* User-Agent */
+                           "%s", /* Proxy-Connection */
+                           hostheader,
+                           http,
+                           host,
+                           conn->allocptr.proxyuserpwd?
+                           conn->allocptr.proxyuserpwd:"",
+                           useragent,
+                           proxyconn);
+
+        if(host && *host)
+          free(host);
+        free(hostheader);
+
+        if(!result)
+          result = Curl_add_custom_headers(conn, TRUE, req_buffer);
+
+        if(!result)
+          /* CRLF terminate the request */
+          result = Curl_add_bufferf(req_buffer, "\r\n");
+
+        if(!result) {
+          /* Send the connect request to the proxy */
+          /* BLOCKING */
+          result =
+            Curl_add_buffer_send(req_buffer, conn,
+                                 &data->info.request_size, 0, sockindex);
+        }
+        req_buffer = NULL;
+        if(result)
+          failf(data, "Failed sending CONNECT to proxy");
       }
-    else if(argv[i] == "LINK_LIBRARIES")
-      {
-      doing = DoingLinkLibraries;
-      useOldLinkLibs = false;
+
+      Curl_add_buffer_free(req_buffer);
+      if(result)
+        return result;
+
+      conn->tunnel_state[sockindex] = TUNNEL_CONNECT;
+    } /* END CONNECT PHASE */
+
+    check = Curl_timeleft(data, NULL, TRUE);
+    if(check <= 0) {
+      failf(data, "Proxy CONNECT aborted due to timeout");
+      return CURLE_RECV_ERROR;
+    }
+
+    if(!blocking) {
+      if(0 == Curl_socket_ready(tunnelsocket, CURL_SOCKET_BAD, 0))
+        /* return so we'll be called again polling-style */
+        return CURLE_OK;
+      else {
+        DEBUGF(infof(data,
+               "Read response immediately from proxy CONNECT\n"));
       }
-    else if(argv[i] == "OUTPUT_VARIABLE")
-      {
-      doing = DoingOutputVariable;
-      didOutputVariable = true;
-      }
-    else if(argv[i] == "COPY_FILE")
-      {
-      doing = DoingCopyFile;
-      didCopyFile = true;
-      }
-    else if(argv[i] == "COPY_FILE_ERROR")
-      {
-      doing = DoingCopyFileError;
-      didCopyFileError = true;
-      }
-    else if(doing == DoingCMakeFlags)
-      {
-      cmakeFlags.push_back(argv[i]);
-      }
-    else if(doing == DoingCompileDefinitions)
-      {
-      compileDefs.push_back(argv[i]);
-      }
-    else if(doing == DoingLinkLibraries)
-      {
-      libsToLink += "\"" + cmSystemTools::TrimWhitespace(argv[i]) + "\" ";
-      if(cmTarget *tgt = this->Makefile->FindTargetToUse(argv[i]))
-        {
-        switch(tgt->GetType())
-          {
-          case cmState::SHARED_LIBRARY:
-          case cmState::STATIC_LIBRARY:
-          case cmState::INTERFACE_LIBRARY:
-          case cmState::UNKNOWN_LIBRARY:
-            break;
-          case cmState::EXECUTABLE:
-            if (tgt->IsExecutableWithExports())
-              {
-              break;
+    }
+
+    /* at this point, the tunnel_connecting phase is over. */
+
+    { /* READING RESPONSE PHASE */
+      size_t nread;   /* total size read */
+      int perline; /* count bytes per line */
+      int keepon=TRUE;
+      ssize_t gotbytes;
+      char *ptr;
+      char *line_start;
+
+      ptr=data->state.buffer;
+      line_start = ptr;
+
+      nread=0;
+      perline=0;
+
+      while((nread<BUFSIZE) && (keepon && !error)) {
+
+        check = Curl_timeleft(data, NULL, TRUE);
+        if(check <= 0) {
+          failf(data, "Proxy CONNECT aborted due to timeout");
+          error = SELECT_TIMEOUT; /* already too little time */
+          break;
+        }
+
+        /* loop every second at least, less if the timeout is near */
+        switch (Curl_socket_ready(tunnelsocket, CURL_SOCKET_BAD,
+                                  check<1000L?check:1000)) {
+        case -1: /* select() error, stop reading */
+          error = SELECT_ERROR;
+          failf(data, "Proxy CONNECT aborted due to select/poll error");
+          break;
+        case 0: /* timeout */
+          break;
+        default:
+          DEBUGASSERT(ptr+BUFSIZE-nread <= data->state.buffer+BUFSIZE+1);
+          result = Curl_read(conn, tunnelsocket, ptr, BUFSIZE-nread,
+                             &gotbytes);
+          if(result==CURLE_AGAIN)
+            continue; /* go loop yourself */
+          else if(result)
+            keepon = FALSE;
+          else if(gotbytes <= 0) {
+            keepon = FALSE;
+            if(data->set.proxyauth && data->state.authproxy.avail) {
+              /* proxy auth was requested and there was proxy auth available,
+                 then deem this as "mere" proxy disconnect */
+              conn->bits.proxy_connect_closed = TRUE;
+              infof(data, "Proxy CONNECT connection closed\n");
+            }
+            else {
+              error = SELECT_ERROR;
+              failf(data, "Proxy CONNECT aborted");
+            }
+          }
+          else {
+            /*
+             * We got a whole chunk of data, which can be anything from one
+             * byte to a set of lines and possibly just a piece of the last
+             * line.
+             */
+            int i;
+
+            nread += gotbytes;
+
+            if(keepon > TRUE) {
+              /* This means we are currently ignoring a response-body */
+
+              nread = 0; /* make next read start over in the read buffer */
+              ptr=data->state.buffer;
+              if(cl) {
+                /* A Content-Length based body: simply count down the counter
+                   and make sure to break out of the loop when we're done! */
+                cl -= gotbytes;
+                if(cl<=0) {
+                  keepon = FALSE;
+                  break;
+                }
               }
-          default:
-            this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-              "Only libraries may be used as try_compile or try_run IMPORTED "
-              "LINK_LIBRARIES.  Got " + std::string(tgt->GetName()) + " of "
-              "type " + cmState::GetTargetTypeName(tgt->GetType()) + ".");
-            return -1;
+              else {
+                /* chunked-encoded body, so we need to do the chunked dance
+                   properly to know when the end of the body is reached */
+                CHUNKcode r;
+                ssize_t tookcareof=0;
+
+                /* now parse the chunked piece of data so that we can
+                   properly tell when the stream ends */
+                r = Curl_httpchunk_read(conn, ptr, gotbytes, &tookcareof);
+                if(r == CHUNKE_STOP) {
+                  /* we're done reading chunks! */
+                  infof(data, "chunk reading DONE\n");
+                  keepon = FALSE;
+                  /* we did the full CONNECT treatment, go COMPLETE */
+                  conn->tunnel_state[sockindex] = TUNNEL_COMPLETE;
+                }
+                else
+                  infof(data, "Read %zd bytes of chunk, continue\n",
+                        tookcareof);
+              }
+            }
+            else
+              for(i = 0; i < gotbytes; ptr++, i++) {
+                perline++; /* amount of bytes in this line so far */
+                if(*ptr == 0x0a) {
+                  char letter;
+                  int writetype;
+
+                  /* convert from the network encoding */
+                  result = Curl_convert_from_network(data, line_start,
+                                                     perline);
+                  /* Curl_convert_from_network calls failf if unsuccessful */
+                  if(result)
+                    return result;
+
+                  /* output debug if that is requested */
+                  if(data->set.verbose)
+                    Curl_debug(data, CURLINFO_HEADER_IN,
+                               line_start, (size_t)perline, conn);
+
+                  /* send the header to the callback */
+                  writetype = CLIENTWRITE_HEADER;
+                  if(data->set.include_header)
+                    writetype |= CLIENTWRITE_BODY;
+
+                  result = Curl_client_write(conn, writetype, line_start,
+                                             perline);
+
+                  data->info.header_size += (long)perline;
+                  data->req.headerbytecount += (long)perline;
+
+                  if(result)
+                    return result;
+
+                  /* Newlines are CRLF, so the CR is ignored as the line isn't
+                     really terminated until the LF comes. Treat a following CR
+                     as end-of-headers as well.*/
+
+                  if(('\r' == line_start[0]) ||
+                     ('\n' == line_start[0])) {
+                    /* end of response-headers from the proxy */
+                    nread = 0; /* make next read start over in the read
+                                  buffer */
+                    ptr=data->state.buffer;
+                    if((407 == k->httpcode) && !data->state.authproblem) {
+                      /* If we get a 407 response code with content length
+                         when we have no auth problem, we must ignore the
+                         whole response-body */
+                      keepon = 2;
+
+                      if(cl) {
+                        infof(data, "Ignore %" CURL_FORMAT_CURL_OFF_T
+                              " bytes of response-body\n", cl);
+
+                        /* remove the remaining chunk of what we already
+                           read */
+                        cl -= (gotbytes - i);
+
+                        if(cl<=0)
+                          /* if the whole thing was already read, we are done!
+                           */
+                          keepon=FALSE;
+                      }
+                      else if(chunked_encoding) {
+                        CHUNKcode r;
+                        /* We set ignorebody true here since the chunked
+                           decoder function will acknowledge that. Pay
+                           attention so that this is cleared again when this
+                           function returns! */
+                        k->ignorebody = TRUE;
+                        infof(data, "%zd bytes of chunk left\n", gotbytes-i);
+
+                        if(line_start[1] == '\n') {
+                          /* this can only be a LF if the letter at index 0
+                             was a CR */
+                          line_start++;
+                          i++;
+                        }
+
+                        /* now parse the chunked piece of data so that we can
+                           properly tell when the stream ends */
+                        r = Curl_httpchunk_read(conn, line_start+1,
+                                                  gotbytes -i, &gotbytes);
+                        if(r == CHUNKE_STOP) {
+                          /* we're done reading chunks! */
+                          infof(data, "chunk reading DONE\n");
+                          keepon = FALSE;
+                          /* we did the full CONNECT treatment, go to
+                             COMPLETE */
+                          conn->tunnel_state[sockindex] = TUNNEL_COMPLETE;
+                        }
+                        else
+                          infof(data, "Read %zd bytes of chunk, continue\n",
+                                gotbytes);
+                      }
+                      else {
+                        /* without content-length or chunked encoding, we
+                           can't keep the connection alive since the close is
+                           the end signal so we bail out at once instead */
+                        keepon=FALSE;
+                      }
+                    }
+                    else {
+                      keepon = FALSE;
+                      if(200 == data->info.httpproxycode) {
+                        if(gotbytes - (i+1))
+                          failf(data, "Proxy CONNECT followed by %zd bytes "
+                                "of opaque data. Data ignored (known bug #39)",
+                                gotbytes - (i+1));
+                      }
+                    }
+                    /* we did the full CONNECT treatment, go to COMPLETE */
+                    conn->tunnel_state[sockindex] = TUNNEL_COMPLETE;
+                    break; /* breaks out of for-loop, not switch() */
+                  }
+
+                  /* keep a backup of the position we are about to blank */
+                  letter = line_start[perline];
+                  line_start[perline]=0; /* zero terminate the buffer */
+                  if((checkprefix("WWW-Authenticate:", line_start) &&
+                      (401 == k->httpcode)) ||
+                     (checkprefix("Proxy-authenticate:", line_start) &&
+                      (407 == k->httpcode))) {
+
+                    bool proxy = (k->httpcode == 407) ? TRUE : FALSE;
+                    char *auth = Curl_copy_header_value(line_start);
+                    if(!auth)
+                      return CURLE_OUT_OF_MEMORY;
+
+                    result = Curl_http_input_auth(conn, proxy, auth);
+
+                    free(auth);
+
+                    if(result)
+                      return result;
+                  }
+                  else if(checkprefix("Content-Length:", line_start)) {
+                    cl = curlx_strtoofft(line_start +
+                                         strlen("Content-Length:"), NULL, 10);
+                  }
+                  else if(Curl_compareheader(line_start,
+                                             "Connection:", "close"))
+                    closeConnection = TRUE;
+                  else if(Curl_compareheader(line_start,
+                                             "Transfer-Encoding:",
+                                             "chunked")) {
+                    infof(data, "CONNECT responded chunked\n");
+                    chunked_encoding = TRUE;
+                    /* init our chunky engine */
+                    Curl_httpchunk_init(conn);
+                  }
+                  else if(Curl_compareheader(line_start,
+                                             "Proxy-Connection:", "close"))
+                    closeConnection = TRUE;
+                  else if(2 == sscanf(line_start, "HTTP/1.%d %d",
+                                      &subversion,
+                                      &k->httpcode)) {
+                    /* store the HTTP code from the proxy */
+                    data->info.httpproxycode = k->httpcode;
+                  }
+                  /* put back the letter we blanked out before */
+                  line_start[perline]= letter;
+
+                  perline=0; /* line starts over here */
+                  line_start = ptr+1; /* this skips the zero byte we wrote */
+                }
+              }
           }
-        if (tgt->IsImported())
-          {
-          targets.push_back(argv[i]);
-          }
-        }
-      }
-    else if(doing == DoingOutputVariable)
-      {
-      outputVariable = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingCopyFile)
-      {
-      copyFile = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingCopyFileError)
-      {
-      copyFileError = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingSources)
-      {
-      sources.push_back(argv[i]);
-      }
-    else if(i == 3)
-      {
-      this->SrcFileSignature = false;
-      projectName = argv[i].c_str();
-      }
-    else if(i == 4 && !this->SrcFileSignature)
-      {
-      targetName = argv[i].c_str();
-      }
-    else
-      {
-      std::ostringstream m;
-      m << "try_compile given unknown argument \"" << argv[i] << "\".";
-      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, m.str());
-      }
-    }
+          break;
+        } /* switch */
+        if(Curl_pgrsUpdate(conn))
+          return CURLE_ABORTED_BY_CALLBACK;
+      } /* while there's buffer left and loop is requested */
 
-  if(didCopyFile && copyFile.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE must be followed by a file path");
-    return -1;
-    }
+      if(error)
+        return CURLE_RECV_ERROR;
 
-  if(didCopyFileError && copyFileError.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE_ERROR must be followed by a variable name");
-    return -1;
-    }
+      if(data->info.httpproxycode != 200) {
+        /* Deal with the possibly already received authenticate
+           headers. 'newurl' is set to a new URL if we must loop. */
+        result = Curl_http_auth_act(conn);
+        if(result)
+          return result;
 
-  if(didCopyFileError && !didCopyFile)
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE_ERROR may be used only with COPY_FILE");
-    return -1;
-    }
-
-  if(didOutputVariable && outputVariable.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "OUTPUT_VARIABLE must be followed by a variable name");
-    return -1;
-    }
-
-  if(useSources && sources.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "SOURCES must be followed by at least one source file");
-    return -1;
-    }
-
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (this->SrcFileSignature)
-    {
-    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
-    this->BinaryDirectory += "/CMakeTmp";
-    }
-  else
-    {
-    // only valid for srcfile signatures
-    if (!compileDefs.empty())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    if (!copyFile.empty())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COPY_FILE specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
-
-  // do not allow recursive try Compiles
-  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory())
-    {
-    std::ostringstream e;
-    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
-      << "  " << this->BinaryDirectory << "\n";
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-    return -1;
-    }
-
-  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (this->SrcFileSignature)
-    {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile);
-
-    // Choose sources.
-    if(!useSources)
-      {
-      sources.push_back(argv[2]);
+        if(conn->bits.close)
+          /* the connection has been marked for closure, most likely in the
+             Curl_http_auth_act() function and thus we can kill it at once
+             below
+          */
+          closeConnection = TRUE;
       }
 
-    // Detect languages to enable.
-    cmGlobalGenerator* gg = this->Makefile->GetGlobalGenerator();
-    std::set<std::string> testLangs;
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
-      std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
-      std::string lang = gg->GetLanguageFromExtension(ext.c_str());
-      if(!lang.empty())
-        {
-        testLangs.insert(lang);
-        }
-      else
-        {
-        std::ostringstream err;
-        err << "Unknown extension \"" << ext << "\" for file\n"
-            << "  " << *si << "\n"
-            << "try_compile() works only for enabled languages.  "
-            << "Currently these are:\n  ";
-        std::vector<std::string> langs;
-        gg->GetEnabledLanguages(langs);
-        err << cmJoin(langs, " ");
-        err << "\nSee project() command to enable other languages.";
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
-        return -1;
-        }
-      }
-
-    // we need to create a directory and CMakeLists file etc...
-    // first create the directories
-    sourceDirectory = this->BinaryDirectory.c_str();
-
-    // now create a CMakeLists.txt file in that directory
-    FILE *fout = cmsys::SystemTools::Fopen(outFileName,"w");
-    if (!fout)
-      {
-      std::ostringstream e;
-      e << "Failed to open\n"
-        << "  " << outFileName << "\n"
-        << cmSystemTools::GetLastSystemError();
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-      return -1;
-      }
-
-    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
-    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
-            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
-            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
-    if(def)
-      {
-      fprintf(fout, "set(CMAKE_MODULE_PATH \"%s\")\n", def);
-      }
-
-    std::string projectLangs;
-    for(std::set<std::string>::iterator li = testLangs.begin();
-        li != testLangs.end(); ++li)
-      {
-      projectLangs += " " + *li;
-      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
-      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
-      if(const char* rulesOverridePath =
-         this->Makefile->GetDefinition(rulesOverrideLang))
-        {
-        fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideLang.c_str(), rulesOverridePath);
-        }
-      else if(const char* rulesOverridePath2 =
-              this->Makefile->GetDefinition(rulesOverrideBase))
-        {
-        fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideBase.c_str(), rulesOverridePath2);
-        }
-      }
-    fprintf(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
-    fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");
-    for(std::set<std::string>::iterator li = testLangs.begin();
-        li != testLangs.end(); ++li)
-      {
-      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
-      const char* flags = this->Makefile->GetDefinition(langFlags);
-      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-              cmOutputConverter::EscapeForCMake(flags?flags:"").c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
-              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
-      }
-    switch(this->Makefile->GetPolicyStatus(cmPolicies::CMP0056))
-      {
-      case cmPolicies::WARN:
-        if(this->Makefile->PolicyOptionalWarningEnabled(
-             "CMAKE_POLICY_WARNING_CMP0056"))
-          {
-          std::ostringstream w;
-          w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0056) << "\n"
-            "For compatibility with older versions of CMake, try_compile "
-            "is not honoring caller link flags (e.g. CMAKE_EXE_LINKER_FLAGS) "
-            "in the test project."
-            ;
-          this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, w.str());
-          }
-      case cmPolicies::OLD:
-        // OLD behavior is to do nothing.
+      if(closeConnection && data->req.newurl) {
+        /* Connection closed by server. Don't use it anymore */
+        Curl_closesocket(conn, conn->sock[sockindex]);
+        conn->sock[sockindex] = CURL_SOCKET_BAD;
         break;
-      case cmPolicies::REQUIRED_IF_USED:
-      case cmPolicies::REQUIRED_ALWAYS:
-        this->Makefile->IssueMessage(
-          cmake::FATAL_ERROR,
-          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0056)
-          );
-      case cmPolicies::NEW:
-        // NEW behavior is to pass linker flags.
-        {
-        const char* exeLinkFlags =
-          this->Makefile->GetDefinition("CMAKE_EXE_LINKER_FLAGS");
-        fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS %s)\n",
-                cmOutputConverter::EscapeForCMake(
-                    exeLinkFlags ? exeLinkFlags : "").c_str());
-        } break;
       }
-    fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS \"${CMAKE_EXE_LINKER_FLAGS}"
-            " ${EXE_LINKER_FLAGS}\")\n");
-    fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");
-    fprintf(fout, "link_directories(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (!compileDefs.empty())
-      {
-      fprintf(fout, "add_definitions(%s)\n", cmJoin(compileDefs, " ").c_str());
-      }
+    } /* END READING RESPONSE PHASE */
 
-    /* Use a random file name to avoid rapid creation and deletion
-       of the same executable name (some filesystems fail on that).  */
-    sprintf(targetNameBuf, "cmTC_%05x",
-            cmSystemTools::RandomSeed() & 0xFFFFF);
-    targetName = targetNameBuf;
-
-    if (!targets.empty())
-      {
-      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
-      cmExportTryCompileFileGenerator tcfg(gg, targets, this->Makefile);
-      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
-      tcfg.SetConfig(this->Makefile->GetSafeDefinition(
-                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
-
-      if(!tcfg.GenerateImportFile())
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-                                     "could not write export file.");
-        fclose(fout);
-        return -1;
-        }
-      fprintf(fout,
-              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
-              fname.c_str());
-      }
-
-    /* for the TRY_COMPILEs we want to be able to specify the architecture.
-      So the user can set CMAKE_OSX_ARCHITECTURES to i386;ppc and then set
-      CMAKE_TRY_COMPILE_OSX_ARCHITECTURES first to i386 and then to ppc to
-      have the tests run for each specific architecture. Since
-      cmLocalGenerator doesn't allow building for "the other"
-      architecture only via CMAKE_OSX_ARCHITECTURES.
-      */
-    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition(
-                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_SYSROOT=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *cxxDef
-              = this->Makefile->GetDefinition("CMAKE_CXX_COMPILER_TARGET"))
-      {
-      std::string flag="-DCMAKE_CXX_COMPILER_TARGET=";
-      flag += cxxDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *cDef
-                = this->Makefile->GetDefinition("CMAKE_C_COMPILER_TARGET"))
-      {
-      std::string flag="-DCMAKE_C_COMPILER_TARGET=";
-      flag += cDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *tcxxDef = this->Makefile->GetDefinition(
-                                  "CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN"))
-      {
-      std::string flag="-DCMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN=";
-      flag += tcxxDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *tcDef = this->Makefile->GetDefinition(
-                                    "CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN"))
-      {
-      std::string flag="-DCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN=";
-      flag += tcDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *rootDef
-              = this->Makefile->GetDefinition("CMAKE_SYSROOT"))
-      {
-      std::string flag="-DCMAKE_SYSROOT=";
-      flag += rootDef;
-      cmakeFlags.push_back(flag);
-      }
-    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
-      {
-      fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
-      }
-    if (const char *lssDef = this->Makefile->GetDefinition(
-        "CMAKE_LINK_SEARCH_START_STATIC"))
-      {
-      fprintf(fout, "set(CMAKE_LINK_SEARCH_START_STATIC \"%s\")\n", lssDef);
-      }
-    if (const char *lssDef = this->Makefile->GetDefinition(
-        "CMAKE_LINK_SEARCH_END_STATIC"))
-      {
-      fprintf(fout, "set(CMAKE_LINK_SEARCH_END_STATIC \"%s\")\n", lssDef);
-      }
-
-    /* Set the appropriate policy information for ENABLE_EXPORTS */
-    fprintf(fout, "cmake_policy(SET CMP0065 %s)\n",
-       this->Makefile->GetPolicyStatus(cmPolicies::CMP0065) ==
-         cmPolicies::NEW ? "NEW" : "OLD");
-    if(const char *ee = this->Makefile->GetDefinition(
-        "CMAKE_ENABLE_EXPORTS"))
-      {
-      fprintf(fout, "set(CMAKE_ENABLE_EXPORTS %s)\n", ee);
-      }
-
-    /* Put the executable at a known location (for COPY_FILE).  */
-    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-            this->BinaryDirectory.c_str());
-    /* Create the actual executable.  */
-    fprintf(fout, "add_executable(%s", targetName.c_str());
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
-      fprintf(fout, " \"%s\"", si->c_str());
-
-      // Add dependencies on any non-temporary sources.
-      if(si->find("CMakeTmp") == si->npos)
-        {
-        this->Makefile->AddCMakeDependFile(*si);
-        }
-      }
-    fprintf(fout, ")\n");
-    if (useOldLinkLibs)
-      {
-      fprintf(fout,
-              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
-              targetName.c_str());
-      }
-    else
-      {
-      fprintf(fout, "target_link_libraries(%s %s)\n",
-              targetName.c_str(),
-              libsToLink.c_str());
-      }
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
+    /* If we are supposed to continue and request a new URL, which basically
+     * means the HTTP authentication is still going on so if the tunnel
+     * is complete we start over in INIT state */
+    if(data->req.newurl &&
+       (TUNNEL_COMPLETE == conn->tunnel_state[sockindex])) {
+      conn->tunnel_state[sockindex] = TUNNEL_INIT;
+      infof(data, "TUNNEL_STATE switched to: %d\n",
+            conn->tunnel_state[sockindex]);
     }
 
-  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
-  cmSystemTools::ResetErrorOccuredFlag();
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = this->Makefile->TryCompile(sourceDirectory,
-                                       this->BinaryDirectory,
-                                       projectName,
-                                       targetName,
-                                       this->SrcFileSignature,
-                                       &cmakeFlags,
-                                       output);
-  if ( erroroc )
-    {
-    cmSystemTools::SetErrorOccured();
+  } while(data->req.newurl);
+
+  if(200 != data->req.httpcode) {
+    if(closeConnection && data->req.newurl) {
+      conn->bits.proxy_connect_closed = TRUE;
+      infof(data, "Connect me again please\n");
+    }
+    else {
+      free(data->req.newurl);
+      data->req.newurl = NULL;
+      /* failure, close this connection to avoid re-use */
+      connclose(conn, "proxy CONNECT failure");
+      Curl_closesocket(conn, conn->sock[sockindex]);
+      conn->sock[sockindex] = CURL_SOCKET_BAD;
     }
 
-  // set the result var to the return value to indicate success or failure
-  this->Makefile->AddCacheDefinition(argv[0],
-                                     (res == 0 ? "TRUE" : "FALSE"),
-                                     "Result of TRY_COMPILE",
-                                     cmState::INTERNAL);
+    /* to back to init state */
+    conn->tunnel_state[sockindex] = TUNNEL_INIT;
 
-  if (!outputVariable.empty())
-    {
-    this->Makefile->AddDefinition(outputVariable, output.c_str());
+    if(conn->bits.proxy_connect_closed)
+      /* this is not an error, just part of the connection negotiation */
+      return CURLE_OK;
+    else {
+      failf(data, "Received HTTP code %d from proxy after CONNECT",
+            data->req.httpcode);
+      return CURLE_RECV_ERROR;
     }
+  }
 
-  if (this->SrcFileSignature)
-    {
-    std::string copyFileErrorMessage;
-    this->FindOutputFile(targetName);
+  conn->tunnel_state[sockindex] = TUNNEL_COMPLETE;
 
-    if ((res==0) && !copyFile.empty())
-      {
-      if(this->OutputFile.empty() ||
-         !cmSystemTools::CopyFileAlways(this->OutputFile,
-                                        copyFile))
-        {
-        std::ostringstream emsg;
-        emsg << "Cannot copy output executable\n"
-             << "  '" << this->OutputFile << "'\n"
-             << "to destination specified by COPY_FILE:\n"
-             << "  '" << copyFile << "'\n";
-        if(!this->FindErrorMessage.empty())
-          {
-          emsg << this->FindErrorMessage.c_str();
-          }
-        if(copyFileError.empty())
-          {
-          this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
-          return -1;
-          }
-        else
-          {
-          copyFileErrorMessage = emsg.str();
-          }
-        }
-      }
+  /* If a proxy-authorization header was used for the proxy, then we should
+     make sure that it isn't accidentally used for the document request
+     after we've connected. So let's free and clear it here. */
+  Curl_safefree(conn->allocptr.proxyuserpwd);
+  conn->allocptr.proxyuserpwd = NULL;
 
-    if(!copyFileError.empty())
-      {
-      this->Makefile->AddDefinition(copyFileError,
-                                    copyFileErrorMessage.c_str());
-      }
-    }
-  return res;
+  data->state.authproxy.done = TRUE;
+
+  infof (data, "Proxy replied OK to CONNECT request\n");
+  data->req.ignorebody = FALSE; /* put it (back) to non-ignore state */
+  conn->bits.rewindaftersend = FALSE; /* make sure this isn't set for the
+                                         document request  */
+  return CURLE_OK;
 }

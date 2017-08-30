@@ -1,1 +1,2 @@
-printf(" %s", pathname);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Reading file truncated");

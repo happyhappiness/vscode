@@ -1,1 +1,1 @@
-argcDefStream << expandedArguments.size();
+archive_set_error(&a->archive, errno, "fchdir failed");

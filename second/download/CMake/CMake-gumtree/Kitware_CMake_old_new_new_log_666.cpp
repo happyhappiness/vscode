@@ -1,1 +1,1 @@
-std::cerr << "No current working directory" << std::endl;
+sprintf(buf, "%s*", name.c_str());

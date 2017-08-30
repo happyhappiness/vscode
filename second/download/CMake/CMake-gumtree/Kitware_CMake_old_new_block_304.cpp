@@ -1,5 +1,9 @@
 {
-			archive_set_error(f->archive, EIO,
-			    "Can't write to filter");
-			return (ARCHIVE_FATAL);
-		}
+    /* Append the algorithm */
+    tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
+    free(response);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    response = tmp;
+  }

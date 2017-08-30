@@ -1,1 +1,2 @@
-snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
+fprintf(stderr,
+		    "Extra data field contents do not match reported size!\n");

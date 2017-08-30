@@ -1,1 +1,2 @@
-sprintf(buffer, "&gt;&lt;");
+archive_set_error(&a->archive, GetLastError(),
+			    "Can't GetFileInformationByHandle");

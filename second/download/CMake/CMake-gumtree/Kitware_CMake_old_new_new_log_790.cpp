@@ -1,2 +1,2 @@
-printf("tar_extract_file(): calling libtar_hash_add(): key=\"%s\", "
-         "value=\"%s\"\n", pathname, realname);
+archive_set_error(&a->archive, errno,
+			    "CreateEvent failed");

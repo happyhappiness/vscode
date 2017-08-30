@@ -1,2 +1,2 @@
-userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
-                  encoded);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Invalid empty pathname");

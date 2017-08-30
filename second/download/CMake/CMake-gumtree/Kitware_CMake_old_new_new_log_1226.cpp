@@ -1,0 +1,1 @@
+ostr << graphNodePrefix << cnt++;

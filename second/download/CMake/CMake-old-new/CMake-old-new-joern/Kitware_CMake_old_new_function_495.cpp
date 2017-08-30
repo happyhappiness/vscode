@@ -1,27 +1,38 @@
-int
-archive_read_disk_descend(struct archive *_a)
+static int
+archive_read_format_lha_read_data(struct archive_read *a,
+    const void **buff, size_t *size, int64_t *offset)
 {
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	struct tree *t = a->tree;
+	struct lha *lha = (struct lha *)(a->format->data);
+	int r;
 
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
-	    "archive_read_disk_descend");
+	if (lha->entry_unconsumed) {
+		/* Consume as much as the decompressor actually used. */
+		__archive_read_consume(a, lha->entry_unconsumed);
+		lha->entry_unconsumed = 0;
+	}
+	if (lha->end_of_entry) {
+		if (!lha->end_of_entry_cleanup) {
+			if ((lha->setflag & CRC_IS_SET) &&
+			    lha->crc != lha->entry_crc_calculated) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "LHa data CRC error");
+				return (ARCHIVE_WARN);
+			}
 
-	if (t->visit_type != TREE_REGULAR || !t->descend) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Ignored the request descending the current object");
-		return (ARCHIVE_WARN);
+			/* End-of-entry cleanup done. */
+			lha->end_of_entry_cleanup = 1;
+		}
+		*offset = lha->entry_offset;
+		*size = 0;
+		*buff = NULL;
+		return (ARCHIVE_EOF);
 	}
 
-	if (tree_current_is_physical_dir(t)) {
-		tree_push(t, t->basename, t->current_filesystem_id,
-		    t->lst.st_dev, t->lst.st_ino, &t->restore_time);
-		t->stack->flags |= isDir;
-	} else if (tree_current_is_dir(t)) {
-		tree_push(t, t->basename, t->current_filesystem_id,
-		    t->st.st_dev, t->st.st_ino, &t->restore_time);
-		t->stack->flags |= isDirLink;
-	}
-	t->descend = 0;
-	return (ARCHIVE_OK);
+	if (lha->entry_is_compressed)
+		r =  lha_read_data_lzh(a, buff, size, offset);
+	else
+		/* No compression. */
+		r =  lha_read_data_none(a, buff, size, offset);
+	return (r);
 }

@@ -1,1 +1,1 @@
-sprintf(buf, "%u", this->VersionMajor);
+archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino);

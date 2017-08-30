@@ -1,1 +1,1 @@
-sprintf(help,"%127s", helpString);
+zip->header_bytes_remaining -= bytes;

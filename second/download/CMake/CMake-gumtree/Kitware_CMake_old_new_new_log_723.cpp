@@ -1,1 +1,1 @@
-fprintf(ofp, "#else\n");
+fprintf(stderr, "  target [%s]\n", lei->Target->GetName().c_str());

@@ -1,191 +1,103 @@
-static void kwsysProcessSetExitException(kwsysProcess* cp, int sig)
+static CURLcode ftp_state_mdtm_resp(struct connectdata *conn,
+                                    int ftpcode)
 {
-  switch (sig) {
-#ifdef SIGSEGV
-    case SIGSEGV:
-      KWSYSPE_CASE(Fault, "Segmentation fault");
-      break;
+  CURLcode result = CURLE_OK;
+  struct Curl_easy *data=conn->data;
+  struct FTP *ftp = data->req.protop;
+  struct ftp_conn *ftpc = &conn->proto.ftpc;
+
+  switch(ftpcode) {
+  case 213:
+    {
+      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
+         last .sss part is optional and means fractions of a second */
+      int year, month, day, hour, minute, second;
+      char *buf = data->state.buffer;
+      if(6 == sscanf(buf+4, "%04d%02d%02d%02d%02d%02d",
+                     &year, &month, &day, &hour, &minute, &second)) {
+        /* we have a time, reformat it */
+        time_t secs=time(NULL);
+        /* using the good old yacc/bison yuck */
+        snprintf(buf, CURL_BUFSIZE(conn->data->set.buffer_size),
+                 "%04d%02d%02d %02d:%02d:%02d GMT",
+                 year, month, day, hour, minute, second);
+        /* now, convert this into a time() value: */
+        data->info.filetime = (long)curl_getdate(buf, &secs);
+      }
+
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
+      /* If we asked for a time of the file and we actually got one as well,
+         we "emulate" a HTTP-style header in our output. */
+
+      if(data->set.opt_no_body &&
+         ftpc->file &&
+         data->set.get_filetime &&
+         (data->info.filetime>=0) ) {
+        time_t filetime = (time_t)data->info.filetime;
+        struct tm buffer;
+        const struct tm *tm = &buffer;
+
+        result = Curl_gmtime(filetime, &buffer);
+        if(result)
+          return result;
+
+        /* format: "Tue, 15 Nov 1994 12:45:26" */
+        snprintf(buf, BUFSIZE-1,
+                 "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+                 Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+                 tm->tm_mday,
+                 Curl_month[tm->tm_mon],
+                 tm->tm_year + 1900,
+                 tm->tm_hour,
+                 tm->tm_min,
+                 tm->tm_sec);
+        result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+        if(result)
+          return result;
+      } /* end of a ridiculous amount of conditionals */
 #endif
-#ifdef SIGBUS
-#if !defined(SIGSEGV) || SIGBUS != SIGSEGV
-    case SIGBUS:
-      KWSYSPE_CASE(Fault, "Bus error");
-      break;
-#endif
-#endif
-#ifdef SIGFPE
-    case SIGFPE:
-      KWSYSPE_CASE(Numerical, "Floating-point exception");
-      break;
-#endif
-#ifdef SIGILL
-    case SIGILL:
-      KWSYSPE_CASE(Illegal, "Illegal instruction");
-      break;
-#endif
-#ifdef SIGINT
-    case SIGINT:
-      KWSYSPE_CASE(Interrupt, "User interrupt");
-      break;
-#endif
-#ifdef SIGABRT
-    case SIGABRT:
-      KWSYSPE_CASE(Other, "Child aborted");
-      break;
-#endif
-#ifdef SIGKILL
-    case SIGKILL:
-      KWSYSPE_CASE(Other, "Child killed");
-      break;
-#endif
-#ifdef SIGTERM
-    case SIGTERM:
-      KWSYSPE_CASE(Other, "Child terminated");
-      break;
-#endif
-#ifdef SIGHUP
-    case SIGHUP:
-      KWSYSPE_CASE(Other, "SIGHUP");
-      break;
-#endif
-#ifdef SIGQUIT
-    case SIGQUIT:
-      KWSYSPE_CASE(Other, "SIGQUIT");
-      break;
-#endif
-#ifdef SIGTRAP
-    case SIGTRAP:
-      KWSYSPE_CASE(Other, "SIGTRAP");
-      break;
-#endif
-#ifdef SIGIOT
-#if !defined(SIGABRT) || SIGIOT != SIGABRT
-    case SIGIOT:
-      KWSYSPE_CASE(Other, "SIGIOT");
-      break;
-#endif
-#endif
-#ifdef SIGUSR1
-    case SIGUSR1:
-      KWSYSPE_CASE(Other, "SIGUSR1");
-      break;
-#endif
-#ifdef SIGUSR2
-    case SIGUSR2:
-      KWSYSPE_CASE(Other, "SIGUSR2");
-      break;
-#endif
-#ifdef SIGPIPE
-    case SIGPIPE:
-      KWSYSPE_CASE(Other, "SIGPIPE");
-      break;
-#endif
-#ifdef SIGALRM
-    case SIGALRM:
-      KWSYSPE_CASE(Other, "SIGALRM");
-      break;
-#endif
-#ifdef SIGSTKFLT
-    case SIGSTKFLT:
-      KWSYSPE_CASE(Other, "SIGSTKFLT");
-      break;
-#endif
-#ifdef SIGCHLD
-    case SIGCHLD:
-      KWSYSPE_CASE(Other, "SIGCHLD");
-      break;
-#elif defined(SIGCLD)
-    case SIGCLD:
-      KWSYSPE_CASE(Other, "SIGCLD");
-      break;
-#endif
-#ifdef SIGCONT
-    case SIGCONT:
-      KWSYSPE_CASE(Other, "SIGCONT");
-      break;
-#endif
-#ifdef SIGSTOP
-    case SIGSTOP:
-      KWSYSPE_CASE(Other, "SIGSTOP");
-      break;
-#endif
-#ifdef SIGTSTP
-    case SIGTSTP:
-      KWSYSPE_CASE(Other, "SIGTSTP");
-      break;
-#endif
-#ifdef SIGTTIN
-    case SIGTTIN:
-      KWSYSPE_CASE(Other, "SIGTTIN");
-      break;
-#endif
-#ifdef SIGTTOU
-    case SIGTTOU:
-      KWSYSPE_CASE(Other, "SIGTTOU");
-      break;
-#endif
-#ifdef SIGURG
-    case SIGURG:
-      KWSYSPE_CASE(Other, "SIGURG");
-      break;
-#endif
-#ifdef SIGXCPU
-    case SIGXCPU:
-      KWSYSPE_CASE(Other, "SIGXCPU");
-      break;
-#endif
-#ifdef SIGXFSZ
-    case SIGXFSZ:
-      KWSYSPE_CASE(Other, "SIGXFSZ");
-      break;
-#endif
-#ifdef SIGVTALRM
-    case SIGVTALRM:
-      KWSYSPE_CASE(Other, "SIGVTALRM");
-      break;
-#endif
-#ifdef SIGPROF
-    case SIGPROF:
-      KWSYSPE_CASE(Other, "SIGPROF");
-      break;
-#endif
-#ifdef SIGWINCH
-    case SIGWINCH:
-      KWSYSPE_CASE(Other, "SIGWINCH");
-      break;
-#endif
-#ifdef SIGPOLL
-    case SIGPOLL:
-      KWSYSPE_CASE(Other, "SIGPOLL");
-      break;
-#endif
-#ifdef SIGIO
-#if !defined(SIGPOLL) || SIGIO != SIGPOLL
-    case SIGIO:
-      KWSYSPE_CASE(Other, "SIGIO");
-      break;
-#endif
-#endif
-#ifdef SIGPWR
-    case SIGPWR:
-      KWSYSPE_CASE(Other, "SIGPWR");
-      break;
-#endif
-#ifdef SIGSYS
-    case SIGSYS:
-      KWSYSPE_CASE(Other, "SIGSYS");
-      break;
-#endif
-#ifdef SIGUNUSED
-#if !defined(SIGSYS) || SIGUNUSED != SIGSYS
-    case SIGUNUSED:
-      KWSYSPE_CASE(Other, "SIGUNUSED");
-      break;
-#endif
-#endif
-    default:
-      cp->ExitException = kwsysProcess_Exception_Other;
-      sprintf(cp->ExitExceptionString, "Signal %d", sig);
-      break;
+    }
+    break;
+  default:
+    infof(data, "unsupported MDTM reply format\n");
+    break;
+  case 550: /* "No such file or directory" */
+    failf(data, "Given file does not exist");
+    result = CURLE_FTP_COULDNT_RETR_FILE;
+    break;
   }
+
+  if(data->set.timecondition) {
+    if((data->info.filetime > 0) && (data->set.timevalue > 0)) {
+      switch(data->set.timecondition) {
+      case CURL_TIMECOND_IFMODSINCE:
+      default:
+        if(data->info.filetime <= data->set.timevalue) {
+          infof(data, "The requested document is not new enough\n");
+          ftp->transfer = FTPTRANSFER_NONE; /* mark to not transfer data */
+          data->info.timecond = TRUE;
+          state(conn, FTP_STOP);
+          return CURLE_OK;
+        }
+        break;
+      case CURL_TIMECOND_IFUNMODSINCE:
+        if(data->info.filetime > data->set.timevalue) {
+          infof(data, "The requested document is not old enough\n");
+          ftp->transfer = FTPTRANSFER_NONE; /* mark to not transfer data */
+          data->info.timecond = TRUE;
+          state(conn, FTP_STOP);
+          return CURLE_OK;
+        }
+        break;
+      } /* switch */
+    }
+    else {
+      infof(data, "Skipping time comparison\n");
+    }
+  }
+
+  if(!result)
+    result = ftp_state_type(conn);
+
+  return result;
 }

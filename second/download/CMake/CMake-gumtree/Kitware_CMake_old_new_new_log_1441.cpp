@@ -1,0 +1,1 @@
+printf("NETRC: overridden .netrc file: %s\n", home);

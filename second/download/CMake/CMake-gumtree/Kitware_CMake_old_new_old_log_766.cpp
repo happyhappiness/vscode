@@ -1,1 +1,0 @@
-fprintf(stream, "%d.%02d%%", q / 100, q % 100);

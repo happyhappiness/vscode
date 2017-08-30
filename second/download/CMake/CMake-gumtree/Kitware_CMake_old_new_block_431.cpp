@@ -1,6 +1,6 @@
 {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate zip header data");
-		free(l);
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
+		    "Internal error: "
+		    "No format_read_data_block function registered");
 		return (ARCHIVE_FATAL);
 	}

@@ -1,2 +1,4 @@
-fprintf(fout, "SET(%s \"%s\")\n",
-                rulesOverrideBase.c_str(), rulesOverridePath2);
+_snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  "Process execution failed with error 0x%X.  "
+                  "WideCharToMultiByte failed with error 0x%X",
+                  error, GetLastError());

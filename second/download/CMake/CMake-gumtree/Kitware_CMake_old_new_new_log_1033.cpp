@@ -1,0 +1,1 @@
+sprintf(tz, " +%04ld", person.TimeZone);

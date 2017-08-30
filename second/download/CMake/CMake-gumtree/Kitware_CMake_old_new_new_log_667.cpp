@@ -1,1 +1,1 @@
-fprintf(stderr, "  followed by Component (%d)\n", i);
+sprintf(buf, "%s\\*", name.c_str());

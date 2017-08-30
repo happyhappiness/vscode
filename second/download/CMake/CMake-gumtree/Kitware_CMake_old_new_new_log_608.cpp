@@ -1,1 +1,1 @@
-fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
+fprintf(stderr, "Output on stderr after grandchild test.\n");

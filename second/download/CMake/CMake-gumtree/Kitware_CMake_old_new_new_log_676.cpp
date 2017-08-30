@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-            "Can't translate gname '%s' to UTF-8", gname);
+fprintf(out, "%s", cm_archive_entry_pathname(entry).c_str());

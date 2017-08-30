@@ -1,2 +1,3 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external gzip program");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Decryption is unsupported due to lack of "
+			    "crypto library");
