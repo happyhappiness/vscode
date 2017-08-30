@@ -1,2 +1,2 @@
-archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "%s", error);
+fprintf(stderr, "Header id 0x%04x, length %d\n",
+		    headerid, datasize);

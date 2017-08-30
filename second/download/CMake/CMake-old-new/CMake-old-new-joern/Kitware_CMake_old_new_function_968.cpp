@@ -1,74 +1,97 @@
-BOOL CMakeSetupDialog::OnInitDialog()
+static int
+xar_options(struct archive_write *a, const char *key, const char *value)
 {
-  CDialog::OnInitDialog();
-  this->DragAcceptFiles(true);
+	struct xar *xar;
 
-  // Add "Create shortcut" menu item to system menu.
+	xar = (struct xar *)a->format_data;
 
-  // IDM_CREATESHORTCUT must be in the system command range.
-  ASSERT((IDM_CREATESHORTCUT & 0xFFF0) == IDM_CREATESHORTCUT);
-  ASSERT(IDM_CREATESHORTCUT < 0xF000);
+	if (strcmp(key, "checksum") == 0) {
+		if (value == NULL)
+			xar->opt_sumalg = CKSUM_NONE;
+		else if (strcmp(value, "sha1") == 0)
+			xar->opt_sumalg = CKSUM_SHA1;
+		else if (strcmp(value, "md5") == 0)
+			xar->opt_sumalg = CKSUM_MD5;
+		else {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unkonwn checksum name: `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
+		}
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "compression") == 0) {
+		const char *name = NULL;
 
-  // Add "About..." menu item to system menu.
+		if (value == NULL)
+			xar->opt_compression = NONE;
+		else if (strcmp(value, "gzip") == 0)
+			xar->opt_compression = GZIP;
+		else if (strcmp(value, "bzip2") == 0)
+#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
+			xar->opt_compression = BZIP2;
+#else
+			name = "bzip2";
+#endif
+		else if (strcmp(value, "lzma") == 0)
+#if HAVE_LZMA_H
+			xar->opt_compression = LZMA;
+#else
+			name = "lzma";
+#endif
+		else if (strcmp(value, "xz") == 0)
+#if HAVE_LZMA_H
+			xar->opt_compression = XZ;
+#else
+			name = "xz";
+#endif
+		else {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unkonwn compression name: `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
+		}
+		if (name != NULL) {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "`%s' compression not supported "
+			    "on this platform",
+			    name);
+			return (ARCHIVE_FAILED);
+		}
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "compression-level") == 0) {
+		if (value == NULL ||
+		    !(value[0] >= '0' && value[0] <= '9') ||
+		    value[1] != '\0') {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Illeagal value `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
+		}
+		xar->opt_compression_level = value[0] - '0';
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "toc-checksum") == 0) {
+		if (value == NULL)
+			xar->opt_toc_sumalg = CKSUM_NONE;
+		else if (strcmp(value, "sha1") == 0)
+			xar->opt_toc_sumalg = CKSUM_SHA1;
+		else if (strcmp(value, "md5") == 0)
+			xar->opt_toc_sumalg = CKSUM_MD5;
+		else {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unkonwn checksum name: `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
+		}
+		return (ARCHIVE_OK);
+	}
 
-  // IDM_ABOUTBOX must be in the system command range.
-  ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
-  ASSERT(IDM_ABOUTBOX < 0xF000);
-
-  CMenu* pSysMenu = GetSystemMenu(FALSE);
-  if (pSysMenu != NULL)
-    {
-    CString strCreateShortcutMenu;
-    strCreateShortcutMenu.LoadString(IDS_CREATESHORTCUT);
-    if (!strCreateShortcutMenu.IsEmpty())
-      {
-      pSysMenu->AppendMenu(MF_SEPARATOR);
-      pSysMenu->AppendMenu(MF_STRING, 
-                           IDM_CREATESHORTCUT, 
-                           strCreateShortcutMenu);
-      }
-
-    CString strAboutMenu;
-    strAboutMenu.LoadString(IDS_ABOUTBOX);
-    if (!strAboutMenu.IsEmpty())
-      {
-      pSysMenu->AppendMenu(MF_SEPARATOR);
-      pSysMenu->AppendMenu(MF_STRING, 
-                           IDM_ABOUTBOX, 
-                           strAboutMenu);
-      }
-    }
-
-  // Set the icon for this dialog.  The framework does this automatically
-  //  when the application's main window is not a dialog
-  SetIcon(m_hIcon, TRUE);			// Set big icon
-  SetIcon(m_hIcon, FALSE);		// Set small icon
-  // Load source and build dirs from registry
-  this->LoadFromRegistry();
-  this->m_CMakeInstance = new cmake;
-  std::vector<std::string> names;
-  this->m_CMakeInstance->GetRegisteredGenerators(names);
-  for(std::vector<std::string>::iterator i = names.begin();
-      i != names.end(); ++i)
-    {
-    m_GeneratorChoice.AddString(i->c_str());
-    }
-  if (m_GeneratorChoiceString == _T("")) 
-    {
-    m_GeneratorChoiceString = "Visual Studio 6";
-    }
-
-  // try to load the cmake cache from disk
-  this->LoadCacheFromDiskToGUI();
-  m_WhereBuildControl.LimitText(2048);
-  m_WhereSourceControl.LimitText(2048);
-  m_GeneratorChoice.LimitText(2048);
-    
-  // Set the version number
-  char tmp[1024];
-  sprintf(tmp,"Version %d.%d - %s", cmMakefile::GetMajorVersion(),
-          cmMakefile::GetMinorVersion(), cmMakefile::GetReleaseVersion());
-  SetDlgItemText(IDC_CMAKE_VERSION, tmp);
-  this->UpdateData(FALSE);
-  return TRUE;  // return TRUE  unless you set the focus to a control
+	return (ARCHIVE_FAILED);
 }

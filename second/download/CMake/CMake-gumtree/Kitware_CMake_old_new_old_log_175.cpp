@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Invalid empty pathname");
+archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for "
+				    "ACL.default");

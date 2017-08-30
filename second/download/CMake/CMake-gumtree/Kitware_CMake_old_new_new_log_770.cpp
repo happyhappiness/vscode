@@ -1,1 +1,5 @@
-yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" );
+archive_set_error(
+						    &filter->archive->archive,
+						    ENOMEM,
+						    "Unable to allocate copy"
+						    " buffer");

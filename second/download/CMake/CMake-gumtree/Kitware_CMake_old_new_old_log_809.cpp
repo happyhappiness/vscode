@@ -1,1 +1,2 @@
-fprintf(stderr, "JPError: %s (%lu / Line: %d)\n", str, pos, this->CurrentLine);
+archive_set_error(&a->archive, GetLastError(),
+			    "Can't GetFileInformationByHandle");

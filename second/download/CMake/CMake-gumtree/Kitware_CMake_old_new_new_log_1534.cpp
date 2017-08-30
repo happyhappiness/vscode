@@ -1,0 +1,1 @@
+sprintf(firstLine,  "Editing option, press [enter] to leave edit.");

@@ -1,24 +1,45 @@
 static int
-get_gss_name(struct connectdata *conn, bool proxy, gss_name_t *server)
+copy_from_lzss_window(struct archive_read *a, const void **buffer,
+                        int64_t startpos, int length)
 {
-  OM_uint32 major_status, minor_status;
-  gss_buffer_desc token = GSS_C_EMPTY_BUFFER;
-  char name[2048];
-  const char* service = "HTTP";
+  int windowoffs, firstpart;
+  struct rar *rar = (struct rar *)(a->format->data);
 
-  token.length = strlen(service) + 1 + strlen(proxy ? conn->proxy.name :
-                                              conn->host.name) + 1;
-  if(token.length + 1 > sizeof(name))
-    return EMSGSIZE;
+  if (!rar->unp_buffer)
+  {
+    if ((rar->unp_buffer = malloc(rar->unp_buffer_size)) == NULL)
+    {
+      archive_set_error(&a->archive, ENOMEM,
+                        "Unable to allocate memory for uncompressed data.");
+      return (ARCHIVE_FATAL);
+    }
+  }
 
-  snprintf(name, sizeof(name), "%s@%s", service, proxy ? conn->proxy.name :
-           conn->host.name);
-
-  token.value = (void *) name;
-  major_status = gss_import_name(&minor_status,
-                                 &token,
-                                 GSS_C_NT_HOSTBASED_SERVICE,
-                                 server);
-
-  return GSS_ERROR(major_status) ? -1 : 0;
+  windowoffs = lzss_offset_for_position(&rar->lzss, startpos);
+  if(windowoffs + length <= lzss_size(&rar->lzss))
+    memcpy(&rar->unp_buffer[rar->unp_offset], &rar->lzss.window[windowoffs],
+           length);
+  else
+  {
+    firstpart = lzss_size(&rar->lzss) - windowoffs;
+    if (firstpart < 0) {
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Bad RAR file data");
+      return (ARCHIVE_FATAL);
+    }
+    if (firstpart < length) {
+      memcpy(&rar->unp_buffer[rar->unp_offset],
+             &rar->lzss.window[windowoffs], firstpart);
+      memcpy(&rar->unp_buffer[rar->unp_offset + firstpart],
+             &rar->lzss.window[0], length - firstpart);
+    } else
+      memcpy(&rar->unp_buffer[rar->unp_offset],
+             &rar->lzss.window[windowoffs], length);
+  }
+  rar->unp_offset += length;
+  if (rar->unp_offset >= rar->unp_buffer_size)
+    *buffer = rar->unp_buffer;
+  else
+    *buffer = NULL;
+  return (ARCHIVE_OK);
 }

@@ -1,95 +1,98 @@
 static int
-cleanup_pathname(struct archive_write_disk *a)
+setup_mac_metadata(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-	char *dest, *src;
-	char separator = '\0';
+	int tempfd = -1;
+	int copyfile_flags = COPYFILE_NOFOLLOW | COPYFILE_ACL | COPYFILE_XATTR;
+	struct stat copyfile_stat;
+	int ret = ARCHIVE_OK;
+	void *buff = NULL;
+	int have_attrs;
+	const char *name, *tempdir;
+	struct archive_string tempfile;
 
-	dest = src = a->name;
-	if (*src == '\0') {
+	(void)fd; /* UNUSED */
+	name = archive_entry_sourcepath(entry);
+	if (name == NULL)
+		name = archive_entry_pathname(entry);
+	if (name == NULL) {
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Invalid empty pathname");
-		return (ARCHIVE_FAILED);
+		    "Can't open file to read extended attributes: No name");
+		return (ARCHIVE_WARN);
 	}
 
-#if defined(__CYGWIN__)
-	cleanup_pathname_win(a);
-#endif
-	/* Skip leading '/'. */
-	if (*src == '/') {
-		if (a->flags & ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			                  "Path is absolute");
-			return (ARCHIVE_FAILED);
+	if (a->tree != NULL) {
+		if (a->tree_enter_working_dir(a->tree) != 0) {
+			archive_set_error(&a->archive, errno,
+				    "Couldn't change dir");
+				return (ARCHIVE_FAILED);
 		}
-
-		separator = *src++;
 	}
 
-	/* Scan the pathname one element at a time. */
-	for (;;) {
-		/* src points to first char after '/' */
-		if (src[0] == '\0') {
-			break;
-		} else if (src[0] == '/') {
-			/* Found '//', ignore second one. */
-			src++;
-			continue;
-		} else if (src[0] == '.') {
-			if (src[1] == '\0') {
-				/* Ignore trailing '.' */
-				break;
-			} else if (src[1] == '/') {
-				/* Skip './'. */
-				src += 2;
-				continue;
-			} else if (src[1] == '.') {
-				if (src[2] == '/' || src[2] == '\0') {
-					/* Conditionally warn about '..' */
-					if (a->flags & ARCHIVE_EXTRACT_SECURE_NODOTDOT) {
-						archive_set_error(&a->archive,
-						    ARCHIVE_ERRNO_MISC,
-						    "Path contains '..'");
-						return (ARCHIVE_FAILED);
-					}
-				}
-				/*
-				 * Note: Under no circumstances do we
-				 * remove '..' elements.  In
-				 * particular, restoring
-				 * '/foo/../bar/' should create the
-				 * 'foo' dir as a side-effect.
-				 */
-			}
-		}
-
-		/* Copy current element, including leading '/'. */
-		if (separator)
-			*dest++ = '/';
-		while (*src != '\0' && *src != '/') {
-			*dest++ = *src++;
-		}
-
-		if (*src == '\0')
-			break;
-
-		/* Skip '/' separator. */
-		separator = *src++;
+	/* Short-circuit if there's nothing to do. */
+	have_attrs = copyfile(name, NULL, 0, copyfile_flags | COPYFILE_CHECK);
+	if (have_attrs == -1) {
+		archive_set_error(&a->archive, errno,
+			"Could not check extended attributes");
+		return (ARCHIVE_WARN);
 	}
-	/*
-	 * We've just copied zero or more path elements, not including the
-	 * final '/'.
-	 */
-	if (dest == a->name) {
-		/*
-		 * Nothing got copied.  The path must have been something
-		 * like '.' or '/' or './' or '/././././/./'.
-		 */
-		if (separator)
-			*dest++ = '/';
-		else
-			*dest++ = '.';
+	if (have_attrs == 0)
+		return (ARCHIVE_OK);
+
+	tempdir = NULL;
+	if (issetugid() == 0)
+		tempdir = getenv("TMPDIR");
+	if (tempdir == NULL)
+		tempdir = _PATH_TMP;
+	archive_string_init(&tempfile);
+	archive_strcpy(&tempfile, tempdir);
+	archive_strcat(&tempfile, "tar.md.XXXXXX");
+	tempfd = mkstemp(tempfile.s);
+	if (tempfd < 0) {
+		archive_set_error(&a->archive, errno,
+		    "Could not open extended attribute file");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
 	}
-	/* Terminate the result. */
-	*dest = '\0';
-	return (ARCHIVE_OK);
+	__archive_ensure_cloexec_flag(tempfd);
+
+	/* XXX I wish copyfile() could pack directly to a memory
+	 * buffer; that would avoid the temp file here.  For that
+	 * matter, it would be nice if fcopyfile() actually worked,
+	 * that would reduce the many open/close races here. */
+	if (copyfile(name, tempfile.s, 0, copyfile_flags | COPYFILE_PACK)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not pack extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	if (fstat(tempfd, &copyfile_stat)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not check size of extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	buff = malloc(copyfile_stat.st_size);
+	if (buff == NULL) {
+		archive_set_error(&a->archive, errno,
+		    "Could not allocate memory for extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	if (copyfile_stat.st_size != read(tempfd, buff, copyfile_stat.st_size)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not read extended attributes into memory");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	archive_entry_copy_mac_metadata(entry, buff, copyfile_stat.st_size);
+
+cleanup:
+	if (tempfd >= 0) {
+		close(tempfd);
+		unlink(tempfile.s);
+	}
+	archive_string_free(&tempfile);
+	free(buff);
+	return (ret);
 }

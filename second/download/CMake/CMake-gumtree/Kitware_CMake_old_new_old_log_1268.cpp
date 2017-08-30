@@ -1,0 +1,1 @@
+fprintf(stderr, "tar_append_eof(): %s\n", strerror(errno));

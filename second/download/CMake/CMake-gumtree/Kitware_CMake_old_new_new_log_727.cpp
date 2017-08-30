@@ -1,1 +1,2 @@
-fprintf(ofp, "static void kwsys_unlink(const char* fname)\n");
+fprintf(stderr, "  contains target %d [%s]\n",
+              i, this->Targets[i]->GetName().c_str());

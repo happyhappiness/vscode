@@ -1,0 +1,1 @@
+f(fout, "ADD_EXECUTABLE(cmTryCompileExec \"%s\")\n",source.c_str());

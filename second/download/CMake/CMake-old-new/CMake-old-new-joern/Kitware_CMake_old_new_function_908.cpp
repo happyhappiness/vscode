@@ -1,93 +1,36 @@
-int GetWebFile(void)
+int
+archive_read_open_filename_w(struct archive *a, const wchar_t *wfilename,
+    size_t block_size)
 {
-  int retVal = 0;
-  CURL *curl;
-  CURLcode res;
+	enum fnt_e filename_type;
 
-  char proxy[1024];
-  int proxy_type = 0;
+	if (wfilename == NULL || wfilename[0] == L'\0') {
+		filename_type = FNT_STDIN;
+	} else {
+#if defined(_WIN32) && !defined(__CYGWIN__)
+		filename_type = FNT_WCS;
+#else
+		/*
+		 * POSIX system does not support a wchar_t interface for
+		 * open() system call, so we have to translate a whcar_t
+		 * filename to multi-byte one and use it.
+		 */
+		struct archive_string fn;
+		int r;
 
-  if ( getenv("HTTP_PROXY") )
-    {
-    proxy_type = 1;
-    if (getenv("HTTP_PROXY_PORT") )
-      {
-      sprintf("%s:%s", getenv("HTTP_PROXY"), getenv("HTTP_PROXY_PORT"));
-      }
-    else
-      {
-      sprintf("%s", getenv("HTTP_PROXY"));
-      }
-    if ( getenv("HTTP_PROXY_TYPE") )
-      {
-      // HTTP/SOCKS4/SOCKS5
-      if ( strcmp(getenv("HTTP_PROXY_TYPE"), "HTTP") == 0 )
-        {
-        proxy_type = 1;
-        }
-      else if ( strcmp(getenv("HTTP_PROXY_TYPE"), "SOCKS4") == 0 )
-        {
-        proxy_type = 2;
-        }
-      else if ( strcmp(getenv("HTTP_PROXY_TYPE"), "SOCKS5") == 0 )
-        {
-        proxy_type = 3;
-        }
-      }
-    }
-
-  curl = curl_easy_init();
-  if(curl) 
-    {
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-    curl_easy_setopt(curl, CURLOPT_HEADER, 1);
-
-    // Using proxy
-    if ( proxy_type > 0 )
-      {
-      curl_easy_setopt(curl, CURLOPT_PROXY, proxy); 
-      switch (proxy_type)
-        {
-        case 2:
-          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS4);
-          break;
-        case 3:
-          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5);
-          break;
-        default:
-          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);           
-        }
-      }
-
-    /* get the first document */
-    curl_easy_setopt(curl, CURLOPT_URL, "http://www.cmake.org/page1.html");
-    res = curl_easy_perform(curl);
-    if ( res != 0 )
-      {
-      printf("Error fetching: http://www.cmake.org/page1.html\n");
-      retVal = 1;
-      }
-
-    /* get another document from the same server using the same
-       connection */
-    /*
-      curl_easy_setopt(curl, CURLOPT_URL, "http://www.cmake.org/page2.html");
-      res = curl_easy_perform(curl);
-      if ( res != 0 )
-      {
-      printf("Error fetching: http://www.cmake.org/page2.html\n");
-      retVal = 1;
-      }
-    */
-
-    /* always cleanup */
-    curl_easy_cleanup(curl);
-    }
-  else
-    {
-    printf("Cannot create curl object\n");
-    retVal = 1;
-    }
-
-  return retVal;
+		archive_string_init(&fn);
+		if (archive_string_append_from_wcs(&fn, wfilename,
+		    wcslen(wfilename)) != 0) {
+			archive_set_error(a, EINVAL,
+			    "Failed to convert a wide-character filename to"
+			    " a multi-byte filename");
+			archive_string_free(&fn);
+			return (ARCHIVE_FATAL);
+		}
+		r = file_open_filename(a, FNT_MBS, fn.s, block_size);
+		archive_string_free(&fn);
+		return (r);
+#endif
+	}
+	return (file_open_filename(a, filename_type, wfilename, block_size));
 }

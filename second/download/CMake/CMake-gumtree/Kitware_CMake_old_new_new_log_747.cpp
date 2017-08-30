@@ -1,1 +1,1 @@
-host = aprintf("Host: %s\r\n", host_port);
+fprintf(fout, "set(CMAKE_MODULE_PATH %s)\n", def);

@@ -1,1 +1,0 @@
-sprintf(buffer, "%c", ch);

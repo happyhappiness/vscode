@@ -1,2 +1,1 @@
-_snprintf(cp->ProcessResults[idx].ExitExceptionString,
-                KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);
+vsnprintf(error, CURL_ERROR_SIZE, fmt, ap);

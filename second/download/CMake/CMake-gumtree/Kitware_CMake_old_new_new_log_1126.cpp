@@ -1,0 +1,1 @@
+fprintf(ofp, "#if defined(_WIN32)\n");

@@ -1,1 +1,2 @@
-printf("%d - %s: %s (%d)\n",line,str,msg, lastmsg);
+fprintf(fout, "SET(%s \"%s\")\n",
+              rulesOverrideBase, rulesOverridePath2);

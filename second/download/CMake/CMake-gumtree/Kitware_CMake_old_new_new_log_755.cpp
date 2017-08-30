@@ -1,1 +1,1 @@
-y(buf, filename, sizeof(buf)-1);
+fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");

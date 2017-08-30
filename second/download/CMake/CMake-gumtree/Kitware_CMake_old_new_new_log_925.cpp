@@ -1,1 +1,2 @@
-vsnprintf(print_buffer, 1024, fmt, ap);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "RAR encryption support unavailable.");

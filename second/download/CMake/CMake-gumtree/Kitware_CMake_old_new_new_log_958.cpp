@@ -1,1 +1,0 @@
-fprintf(fout, "ENDIF (CMAKE_ANSI_CFLAGS)\n");

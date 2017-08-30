@@ -1,1 +1,1 @@
-yy_fatal_error( "cmListFileLexer_yyset_column called with no buffer" , yyscanner);
+snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);

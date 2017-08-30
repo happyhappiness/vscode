@@ -1,1 +1,3 @@
-fprintf(stdout, "%s\n", base64);
+fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
+              targetName.c_str());

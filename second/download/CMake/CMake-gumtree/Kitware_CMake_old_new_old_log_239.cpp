@@ -1,1 +1,3 @@
-md5this = (unsigned char *)aprintf("%s:%s", request, uripath);
+archive_set_error(&a->archive, errno,
+					    "Could not remove symlink %s",
+					    a->name);

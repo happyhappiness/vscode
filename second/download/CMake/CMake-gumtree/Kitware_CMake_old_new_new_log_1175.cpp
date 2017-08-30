@@ -1,0 +1,1 @@
+fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM_KEY ");

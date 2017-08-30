@@ -1,2 +1,2 @@
-fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-              this->BinaryDirectory.c_str());
+userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
+                  base64);

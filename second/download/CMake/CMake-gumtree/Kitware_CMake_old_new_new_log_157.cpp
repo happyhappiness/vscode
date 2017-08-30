@@ -1,2 +1,3 @@
-archive_string_sprintf(&w->sver,
-			"WARC/%u.%u", ver / 10000, (ver % 10000) / 100);
+fsobj_error(a_eno, a_estr, 0,
+					    "Cannot remove intervening "
+					    "symlink %s", path);

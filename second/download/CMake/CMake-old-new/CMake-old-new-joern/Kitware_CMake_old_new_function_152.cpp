@@ -1,262 +1,133 @@
 static int
-pax_attribute(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const char *key, const char *value)
+zip_read_data_none(struct archive_read *a, const void **_buff,
+    size_t *size, int64_t *offset)
 {
-	int64_t s;
-	long n;
-	int err = ARCHIVE_OK, r;
+	struct zip *zip;
+	const char *buff;
+	ssize_t bytes_avail;
+	int r;
 
-	if (value == NULL)
-		value = "";	/* Disable compiler warning; do not pass
-				 * NULL pointer to strlen().  */
-	switch (key[0]) {
-	case 'G':
-		/* GNU "0.0" sparse pax format. */
-		if (strcmp(key, "GNU.sparse.numblocks") == 0) {
-			tar->sparse_offset = -1;
-			tar->sparse_numbytes = -1;
-			tar->sparse_gnu_major = 0;
-			tar->sparse_gnu_minor = 0;
-		}
-		if (strcmp(key, "GNU.sparse.offset") == 0) {
-			tar->sparse_offset = tar_atol10(value, strlen(value));
-			if (tar->sparse_numbytes != -1) {
-				if (gnu_add_sparse_entry(a, tar,
-				    tar->sparse_offset, tar->sparse_numbytes)
-				    != ARCHIVE_OK)
-					return (ARCHIVE_FATAL);
-				tar->sparse_offset = -1;
-				tar->sparse_numbytes = -1;
-			}
-		}
-		if (strcmp(key, "GNU.sparse.numbytes") == 0) {
-			tar->sparse_numbytes = tar_atol10(value, strlen(value));
-			if (tar->sparse_numbytes != -1) {
-				if (gnu_add_sparse_entry(a, tar,
-				    tar->sparse_offset, tar->sparse_numbytes)
-				    != ARCHIVE_OK)
-					return (ARCHIVE_FATAL);
-				tar->sparse_offset = -1;
-				tar->sparse_numbytes = -1;
-			}
-		}
-		if (strcmp(key, "GNU.sparse.size") == 0) {
-			tar->realsize = tar_atol10(value, strlen(value));
-			archive_entry_set_size(entry, tar->realsize);
-		}
+	(void)offset; /* UNUSED */
 
-		/* GNU "0.1" sparse pax format. */
-		if (strcmp(key, "GNU.sparse.map") == 0) {
-			tar->sparse_gnu_major = 0;
-			tar->sparse_gnu_minor = 1;
-			if (gnu_sparse_01_parse(a, tar, value) != ARCHIVE_OK)
-				return (ARCHIVE_WARN);
-		}
+	zip = (struct zip *)(a->format->data);
 
-		/* GNU "1.0" sparse pax format */
-		if (strcmp(key, "GNU.sparse.major") == 0) {
-			tar->sparse_gnu_major = (int)tar_atol10(value, strlen(value));
-			tar->sparse_gnu_pending = 1;
-		}
-		if (strcmp(key, "GNU.sparse.minor") == 0) {
-			tar->sparse_gnu_minor = (int)tar_atol10(value, strlen(value));
-			tar->sparse_gnu_pending = 1;
-		}
-		if (strcmp(key, "GNU.sparse.name") == 0) {
-			/*
-			 * The real filename; when storing sparse
-			 * files, GNU tar puts a synthesized name into
-			 * the regular 'path' attribute in an attempt
-			 * to limit confusion. ;-)
-			 */
-			archive_strcpy(&(tar->entry_pathname_override), value);
-		}
-		if (strcmp(key, "GNU.sparse.realsize") == 0) {
-			tar->realsize = tar_atol10(value, strlen(value));
-			archive_entry_set_size(entry, tar->realsize);
-		}
-		break;
-	case 'L':
-		/* Our extensions */
-/* TODO: Handle arbitrary extended attributes... */
-/*
-		if (strcmp(key, "LIBARCHIVE.xxxxxxx") == 0)
-			archive_entry_set_xxxxxx(entry, value);
-*/
-		if (strcmp(key, "LIBARCHIVE.creationtime") == 0) {
-			pax_time(value, &s, &n);
-			archive_entry_set_birthtime(entry, s, n);
-		}
-		if (memcmp(key, "LIBARCHIVE.xattr.", 17) == 0)
-			pax_attribute_xattr(entry, key, value);
-		break;
-	case 'S':
-		/* We support some keys used by the "star" archiver */
-		if (strcmp(key, "SCHILY.acl.access") == 0) {
-			if (tar->sconv_acl == NULL) {
-				tar->sconv_acl =
-				    archive_string_conversion_from_charset(
-					&(a->archive), "UTF-8", 1);
-				if (tar->sconv_acl == NULL)
-					return (ARCHIVE_FATAL);
-			}
+	if (zip->entry->zip_flags & ZIP_LENGTH_AT_END) {
+		const char *p;
+		ssize_t grabbing_bytes = 24;
 
-			r = archive_acl_parse_l(archive_entry_acl(entry),
-			    value, ARCHIVE_ENTRY_ACL_TYPE_ACCESS,
-			    tar->sconv_acl);
-			if (r != ARCHIVE_OK) {
-				err = r;
-				if (err == ARCHIVE_FATAL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.access");
-					return (err);
-				}
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.access");
+		if (zip->hctx_valid)
+			grabbing_bytes += AUTH_CODE_SIZE;
+		/* Grab at least 24 bytes. */
+		buff = __archive_read_ahead(a, grabbing_bytes, &bytes_avail);
+		if (bytes_avail < grabbing_bytes) {
+			/* Zip archives have end-of-archive markers
+			   that are longer than this, so a failure to get at
+			   least 24 bytes really does indicate a truncated
+			   file. */
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file data");
+			return (ARCHIVE_FATAL);
+		}
+		/* Check for a complete PK\007\010 signature, followed
+		 * by the correct 4-byte CRC. */
+		p = buff;
+		if (zip->hctx_valid)
+			p += AUTH_CODE_SIZE;
+		if (p[0] == 'P' && p[1] == 'K'
+		    && p[2] == '\007' && p[3] == '\010'
+		    && (archive_le32dec(p + 4) == zip->entry_crc32
+			|| zip->ignore_crc32
+			|| (zip->hctx_valid
+			 && zip->entry->aes_extra.vendor == AES_VENDOR_AE_2))) {
+			if (zip->entry->flags & LA_USED_ZIP64) {
+				zip->entry->crc32 = archive_le32dec(p + 4);
+				zip->entry->compressed_size =
+					archive_le64dec(p + 8);
+				zip->entry->uncompressed_size =
+					archive_le64dec(p + 16);
+				zip->unconsumed = 24;
+			} else {
+				zip->entry->crc32 = archive_le32dec(p + 4);
+				zip->entry->compressed_size =
+					archive_le32dec(p + 8);
+				zip->entry->uncompressed_size =
+					archive_le32dec(p + 12);
+				zip->unconsumed = 16;
 			}
-		} else if (strcmp(key, "SCHILY.acl.default") == 0) {
-			if (tar->sconv_acl == NULL) {
-				tar->sconv_acl =
-				    archive_string_conversion_from_charset(
-					&(a->archive), "UTF-8", 1);
-				if (tar->sconv_acl == NULL)
-					return (ARCHIVE_FATAL);
-			}
-
-			r = archive_acl_parse_l(archive_entry_acl(entry),
-			    value, ARCHIVE_ENTRY_ACL_TYPE_DEFAULT,
-			    tar->sconv_acl);
-			if (r != ARCHIVE_OK) {
-				err = r;
-				if (err == ARCHIVE_FATAL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.default");
-					return (err);
-				}
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.default");
-			}
-		} else if (strcmp(key, "SCHILY.devmajor") == 0) {
-			archive_entry_set_rdevmajor(entry,
-			    (dev_t)tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "SCHILY.devminor") == 0) {
-			archive_entry_set_rdevminor(entry,
-			    (dev_t)tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "SCHILY.fflags") == 0) {
-			archive_entry_copy_fflags_text(entry, value);
-		} else if (strcmp(key, "SCHILY.dev") == 0) {
-			archive_entry_set_dev(entry,
-			    (dev_t)tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "SCHILY.ino") == 0) {
-			archive_entry_set_ino(entry,
-			    tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "SCHILY.nlink") == 0) {
-			archive_entry_set_nlink(entry, (unsigned)
-			    tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "SCHILY.realsize") == 0) {
-			tar->realsize = tar_atol10(value, strlen(value));
-			archive_entry_set_size(entry, tar->realsize);
-		} else if (strcmp(key, "SUN.holesdata") == 0) {
-			/* A Solaris extension for sparse. */
-			r = solaris_sparse_parse(a, tar, entry, value);
-			if (r < err) {
-				if (r == ARCHIVE_FATAL)
+			if (zip->hctx_valid) {
+				r = check_authentication_code(a, buff);
+				if (r != ARCHIVE_OK)
 					return (r);
-				err = r;
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SUN.holesdata");
 			}
+			zip->end_of_entry = 1;
+			return (ARCHIVE_OK);
 		}
-		break;
-	case 'a':
-		if (strcmp(key, "atime") == 0) {
-			pax_time(value, &s, &n);
-			archive_entry_set_atime(entry, s, n);
+		/* If not at EOF, ensure we consume at least one byte. */
+		++p;
+
+		/* Scan forward until we see where a PK\007\010 signature
+		 * might be. */
+		/* Return bytes up until that point.  On the next call,
+		 * the code above will verify the data descriptor. */
+		while (p < buff + bytes_avail - 4) {
+			if (p[3] == 'P') { p += 3; }
+			else if (p[3] == 'K') { p += 2; }
+			else if (p[3] == '\007') { p += 1; }
+			else if (p[3] == '\010' && p[2] == '\007'
+			    && p[1] == 'K' && p[0] == 'P') {
+				if (zip->hctx_valid)
+					p -= AUTH_CODE_SIZE;
+				break;
+			} else { p += 4; }
 		}
-		break;
-	case 'c':
-		if (strcmp(key, "ctime") == 0) {
-			pax_time(value, &s, &n);
-			archive_entry_set_ctime(entry, s, n);
-		} else if (strcmp(key, "charset") == 0) {
-			/* TODO: Publish charset information in entry. */
-		} else if (strcmp(key, "comment") == 0) {
-			/* TODO: Publish comment in entry. */
-		}
-		break;
-	case 'g':
-		if (strcmp(key, "gid") == 0) {
-			archive_entry_set_gid(entry,
-			    tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "gname") == 0) {
-			archive_strcpy(&(tar->entry_gname), value);
-		}
-		break;
-	case 'h':
-		if (strcmp(key, "hdrcharset") == 0) {
-			if (strcmp(value, "BINARY") == 0)
-				/* Binary  mode. */
-				tar->pax_hdrcharset_binary = 1;
-			else if (strcmp(value, "ISO-IR 10646 2000 UTF-8") == 0)
-				tar->pax_hdrcharset_binary = 0;
-		}
-		break;
-	case 'l':
-		/* pax interchange doesn't distinguish hardlink vs. symlink. */
-		if (strcmp(key, "linkpath") == 0) {
-			archive_strcpy(&(tar->entry_linkpath), value);
-		}
-		break;
-	case 'm':
-		if (strcmp(key, "mtime") == 0) {
-			pax_time(value, &s, &n);
-			archive_entry_set_mtime(entry, s, n);
-		}
-		break;
-	case 'p':
-		if (strcmp(key, "path") == 0) {
-			archive_strcpy(&(tar->entry_pathname), value);
-		}
-		break;
-	case 'r':
-		/* POSIX has reserved 'realtime.*' */
-		break;
-	case 's':
-		/* POSIX has reserved 'security.*' */
-		/* Someday: if (strcmp(key, "security.acl") == 0) { ... } */
-		if (strcmp(key, "size") == 0) {
-			/* "size" is the size of the data in the entry. */
-			tar->entry_bytes_remaining
-			    = tar_atol10(value, strlen(value));
-			/*
-			 * But, "size" is not necessarily the size of
-			 * the file on disk; if this is a sparse file,
-			 * the disk size may have already been set from
-			 * GNU.sparse.realsize or GNU.sparse.size or
-			 * an old GNU header field or SCHILY.realsize
-			 * or ....
-			 */
-			if (tar->realsize < 0) {
-				archive_entry_set_size(entry,
-				    tar->entry_bytes_remaining);
-				tar->realsize
-				    = tar->entry_bytes_remaining;
+		bytes_avail = p - buff;
+	} else {
+		if (zip->entry_bytes_remaining == 0) {
+			zip->end_of_entry = 1;
+			if (zip->hctx_valid) {
+				r = check_authentication_code(a, NULL);
+				if (r != ARCHIVE_OK)
+					return (r);
 			}
+			return (ARCHIVE_OK);
 		}
-		break;
-	case 'u':
-		if (strcmp(key, "uid") == 0) {
-			archive_entry_set_uid(entry,
-			    tar_atol10(value, strlen(value)));
-		} else if (strcmp(key, "uname") == 0) {
-			archive_strcpy(&(tar->entry_uname), value);
+		/* Grab a bunch of bytes. */
+		buff = __archive_read_ahead(a, 1, &bytes_avail);
+		if (bytes_avail <= 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file data");
+			return (ARCHIVE_FATAL);
 		}
-		break;
+		if (bytes_avail > zip->entry_bytes_remaining)
+			bytes_avail = (ssize_t)zip->entry_bytes_remaining;
 	}
-	return (err);
+	if (zip->tctx_valid || zip->cctx_valid) {
+		size_t dec_size = bytes_avail;
+
+		if (dec_size > zip->decrypted_buffer_size)
+			dec_size = zip->decrypted_buffer_size;
+		if (zip->tctx_valid) {
+			trad_enc_decrypt_update(&zip->tctx,
+			    (const uint8_t *)buff, dec_size,
+			    zip->decrypted_buffer, dec_size);
+		} else {
+			size_t dsize = dec_size;
+			archive_hmac_sha1_update(&zip->hctx,
+			    (const uint8_t *)buff, dec_size);
+			archive_decrypto_aes_ctr_update(&zip->cctx,
+			    (const uint8_t *)buff, dec_size,
+			    zip->decrypted_buffer, &dsize);
+		}
+		bytes_avail = dec_size;
+		buff = (const char *)zip->decrypted_buffer;
+	}
+	*size = bytes_avail;
+	zip->entry_bytes_remaining -= bytes_avail;
+	zip->entry_uncompressed_bytes_read += bytes_avail;
+	zip->entry_compressed_bytes_read += bytes_avail;
+	zip->unconsumed += bytes_avail;
+	*_buff = buff;
+	return (ARCHIVE_OK);
 }

@@ -1,5 +1,8 @@
 {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "RAR encryption support unavailable.");
-        return (ARCHIVE_FATAL);
-      }
+    /* append opaque */
+    tmp = aprintf("%s, opaque=\"%s\"", *allocuserpwd, d->opaque);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+    free(*allocuserpwd);
+    *allocuserpwd = tmp;
+  }

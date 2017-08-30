@@ -1,10 +1,17 @@
 {
-            symbol = stringTable + pSymbolTable->N.Name.Long;
-            while (isspace(symbol[0]))  symbol.erase(0,1);
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (!fImportFlag) {
-               fImportFlag = 1;
-               fprintf(fout,"IMPORTS \n");
-            }
-            fprintf(fout, "\t%s DATA \n", symbol.c_str()+1);
-         }
+	struct unknown_tag *tag;
+
+#if DEBUG
+	fprintf(stderr, "unknowntag_end:%s\n", name);
+#endif
+	tag = xar->unknowntags;
+	if (tag == NULL || name == NULL)
+		return;
+	if (strcmp(tag->name.s, name) == 0) {
+		xar->unknowntags = tag->next;
+		archive_string_free(&(tag->name));
+		free(tag);
+		if (xar->unknowntags == NULL)
+			xar->xmlsts = xar->xmlsts_unknown;
+	}
+}

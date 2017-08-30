@@ -1,1 +1,1 @@
-snprintf(buf, sizeof(buf), "%d", state->retry_time);
+aprintf("%s:%d", hostname, conn->port);

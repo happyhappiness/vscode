@@ -1,8 +1,17 @@
 {
-      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
-      const char* flags = this->Makefile->GetDefinition(langFlags);
-      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-              lg->EscapeForCMake(flags?flags:"").c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
-              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
-      }
+	struct unknown_tag *tag;
+
+#if DEBUG
+	fprintf(stderr, "unknowntag_end:%s\n", name);
+#endif
+	tag = xar->unknowntags;
+	if (tag == NULL || name == NULL)
+		return;
+	if (strcmp(tag->name.s, name) == 0) {
+		xar->unknowntags = tag->next;
+		archive_string_free(&(tag->name));
+		free(tag);
+		if (xar->unknowntags == NULL)
+			xar->xmlsts = xar->xmlsts_unknown;
+	}
+}

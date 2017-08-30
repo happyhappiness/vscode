@@ -1,160 +1,68 @@
-CURLcode Curl_sasl_create_digest_md5_message(struct SessionHandle *data,
-                                             const char *chlg64,
-                                             const char *userp,
-                                             const char *passwdp,
-                                             const char *service,
-                                             char **outptr, size_t *outlen)
+static int
+lzma_bidder_init(struct archive_read_filter *self)
 {
-  CURLcode result = CURLE_OK;
-  size_t i;
-  MD5_context *ctxt;
-  char *response = NULL;
-  unsigned char digest[MD5_DIGEST_LEN];
-  char HA1_hex[2 * MD5_DIGEST_LEN + 1];
-  char HA2_hex[2 * MD5_DIGEST_LEN + 1];
-  char resp_hash_hex[2 * MD5_DIGEST_LEN + 1];
-  char nonce[64];
-  char realm[128];
-  char algorithm[64];
-  char qop_options[64];
-  int qop_values;
-  char cnonce[33];
-  unsigned int entropy[4];
-  char nonceCount[] = "00000001";
-  char method[]     = "AUTHENTICATE";
-  char qop[]        = DIGEST_QOP_VALUE_STRING_AUTH;
-  char *spn         = NULL;
+	static const size_t out_block_size = 64 * 1024;
+	void *out_block;
+	struct private_data *state;
+	ssize_t ret, avail_in;
 
-  /* Decode the challange message */
-  result = sasl_decode_digest_md5_message(chlg64, nonce, sizeof(nonce),
-                                          realm, sizeof(realm),
-                                          algorithm, sizeof(algorithm),
-                                          qop_options, sizeof(qop_options));
-  if(result)
-    return result;
+	self->code = ARCHIVE_FILTER_LZMA;
+	self->name = "lzma";
 
-  /* We only support md5 sessions */
-  if(strcmp(algorithm, "md5-sess") != 0)
-    return CURLE_BAD_CONTENT_ENCODING;
+	state = (struct private_data *)calloc(sizeof(*state), 1);
+	out_block = (unsigned char *)malloc(out_block_size);
+	if (state == NULL || out_block == NULL) {
+		archive_set_error(&self->archive->archive, ENOMEM,
+		    "Can't allocate data for lzma decompression");
+		free(out_block);
+		free(state);
+		return (ARCHIVE_FATAL);
+	}
 
-  /* Get the qop-values from the qop-options */
-  result = sasl_digest_get_qop_values(qop_options, &qop_values);
-  if(result)
-    return result;
+	self->data = state;
+	state->out_block_size = out_block_size;
+	state->out_block = out_block;
+	self->read = lzma_filter_read;
+	self->skip = NULL; /* not supported */
+	self->close = lzma_filter_close;
 
-  /* We only support auth quality-of-protection */
-  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
-    return CURLE_BAD_CONTENT_ENCODING;
+	/* Prime the lzma library with 18 bytes of input. */
+	state->stream.next_in = (unsigned char *)(uintptr_t)
+	    __archive_read_filter_ahead(self->upstream, 18, &avail_in);
+	if (state->stream.next_in == NULL)
+		return (ARCHIVE_FATAL);
+	state->stream.avail_in = avail_in;
+	state->stream.next_out = state->out_block;
+	state->stream.avail_out = state->out_block_size;
 
-  /* Generate 16 bytes of random data */
-  entropy[0] = Curl_rand(data);
-  entropy[1] = Curl_rand(data);
-  entropy[2] = Curl_rand(data);
-  entropy[3] = Curl_rand(data);
+	/* Initialize compression library. */
+	ret = lzmadec_init(&(state->stream));
+	__archive_read_filter_consume(self->upstream,
+	    avail_in - state->stream.avail_in);
+	if (ret == LZMADEC_OK)
+		return (ARCHIVE_OK);
 
-  /* Convert the random data into a 32 byte hex string */
-  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
-           entropy[0], entropy[1], entropy[2], entropy[3]);
+	/* Library setup failed: Clean up. */
+	archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+	    "Internal error initializing lzma library");
 
-  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt)
-    return CURLE_OUT_OF_MEMORY;
+	/* Override the error message if we know what really went wrong. */
+	switch (ret) {
+	case LZMADEC_HEADER_ERROR:
+		archive_set_error(&self->archive->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library: "
+		    "invalid header");
+		break;
+	case LZMADEC_MEM_ERROR:
+		archive_set_error(&self->archive->archive, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "out of memory");
+		break;
+	}
 
-  Curl_MD5_update(ctxt, (const unsigned char *) userp,
-                  curlx_uztoui(strlen(userp)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) realm,
-                  curlx_uztoui(strlen(realm)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) passwdp,
-                  curlx_uztoui(strlen(passwdp)));
-  Curl_MD5_final(ctxt, digest);
-
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt)
-    return CURLE_OUT_OF_MEMORY;
-
-  Curl_MD5_update(ctxt, (const unsigned char *) digest, MD5_DIGEST_LEN);
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
-                  curlx_uztoui(strlen(nonce)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
-                  curlx_uztoui(strlen(cnonce)));
-  Curl_MD5_final(ctxt, digest);
-
-  /* Convert calculated 16 octet hex into 32 bytes string */
-  for(i = 0; i < MD5_DIGEST_LEN; i++)
-    snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);
-
-  /* Generate our SPN */
-  spn = Curl_sasl_build_spn(service, realm);
-  if(!spn)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Calculate H(A2) */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt) {
-    free(spn);
-
-    return CURLE_OUT_OF_MEMORY;
-  }
-
-  Curl_MD5_update(ctxt, (const unsigned char *) method,
-                  curlx_uztoui(strlen(method)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) spn,
-                  curlx_uztoui(strlen(spn)));
-  Curl_MD5_final(ctxt, digest);
-
-  for(i = 0; i < MD5_DIGEST_LEN; i++)
-    snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);
-
-  /* Now calculate the response hash */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt) {
-    free(spn);
-
-    return CURLE_OUT_OF_MEMORY;
-  }
-
-  Curl_MD5_update(ctxt, (const unsigned char *) HA1_hex, 2 * MD5_DIGEST_LEN);
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
-                  curlx_uztoui(strlen(nonce)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-
-  Curl_MD5_update(ctxt, (const unsigned char *) nonceCount,
-                  curlx_uztoui(strlen(nonceCount)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
-                  curlx_uztoui(strlen(cnonce)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) qop,
-                  curlx_uztoui(strlen(qop)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-
-  Curl_MD5_update(ctxt, (const unsigned char *) HA2_hex, 2 * MD5_DIGEST_LEN);
-  Curl_MD5_final(ctxt, digest);
-
-  for(i = 0; i < MD5_DIGEST_LEN; i++)
-    snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
-
-  /* Generate the response */
-  response = aprintf("username=\"%s\",realm=\"%s\",nonce=\"%s\","
-                     "cnonce=\"%s\",nc=\"%s\",digest-uri=\"%s\",response=%s,"
-                     "qop=%s",
-                     userp, realm, nonce,
-                     cnonce, nonceCount, spn, resp_hash_hex, qop);
-  free(spn);
-  if(!response)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Base64 encode the response */
-  result = Curl_base64_encode(data, response, 0, outptr, outlen);
-
-  free(response);
-
-  return result;
+	free(state->out_block);
+	free(state);
+	self->data = NULL;
+	return (ARCHIVE_FATAL);
 }

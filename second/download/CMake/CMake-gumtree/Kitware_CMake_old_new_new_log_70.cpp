@@ -1,1 +1,1 @@
-snprintf(buf, len, "%ld%s", conn->port, hostname);
+strcpy(data->set.errorbuffer, error);

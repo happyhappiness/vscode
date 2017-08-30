@@ -1,6 +1,5 @@
 {
-    va_start(ap, fmt);
-    fputs("* ", data->set.err);
-    vfprintf(data->set.err, fmt, ap);
-    va_end(ap);
-  }
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "RAR encryption support unavailable.");
+        return (ARCHIVE_FATAL);
+      }

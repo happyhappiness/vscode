@@ -1,2 +1,2 @@
-snprintf(realpath, TAR_MAXPATHLEN, "%s/%s", realdir,
-       dent->d_name);
+archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));

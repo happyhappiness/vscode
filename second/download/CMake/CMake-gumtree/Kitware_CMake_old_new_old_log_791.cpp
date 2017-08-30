@@ -1,1 +1,0 @@
-printf("### done extracting %s\n", filename);

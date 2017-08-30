@@ -1,2 +1,4 @@
-sprintf(tmp,"Version %d.%d - %s", cmMakefile::GetMajorVersion(),
-          cmMakefile::GetMinorVersion(), cmMakefile::GetReleaseVersion());
+archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unkonwn checksum name: `%s'",
+			    value);

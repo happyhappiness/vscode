@@ -1,1 +1,3 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_scan_bytes()" );
+archive_set_error(&self->archive->archive, EINVAL,
+		    "Can't initialize filter; unable to run program \"%s\"",
+		    cmd);

@@ -1,1 +1,2 @@
-fout << "    printf(\"%d is an invalid test number.\\n\", testNum);\n";
+sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%ld_%p.exe",
+            GetCurrentProcessId(), cp);

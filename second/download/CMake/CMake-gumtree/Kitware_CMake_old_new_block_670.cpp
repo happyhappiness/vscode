@@ -1,4 +1,4 @@
 {
-        targetDeps[realTargetName] = DOT_DEP_TARGET;
-        fprintf(stderr, " + %s\n", realTargetName);
-        }
+    buf = new char[n + 2 + 1];
+    sprintf(buf, "%s/*", name);
+    }

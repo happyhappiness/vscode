@@ -1,1 +1,3 @@
-_snprintf(cp->ExitExceptionString, KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "encryption not supported");

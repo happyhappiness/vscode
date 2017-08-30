@@ -1,84 +1,84 @@
-static int
-archive_read_format_zip_read_data(struct archive_read *a,
-    const void **buff, size_t *size, int64_t *offset)
+void cmGlobalGenerator::Configure()
 {
-	int r;
-	struct zip *zip = (struct zip *)(a->format->data);
+  this->FirstTimeProgress = 0.0f;
+  this->ClearGeneratorMembers();
 
-	*offset = zip->entry_uncompressed_bytes_read;
-	*size = 0;
-	*buff = NULL;
+  // start with this directory
+  cmLocalGenerator *lg = this->MakeLocalGenerator();
+  this->Makefiles.push_back(lg->GetMakefile());
+  this->LocalGenerators.push_back(lg);
 
-	/* If we hit end-of-entry last time, return ARCHIVE_EOF. */
-	if (zip->end_of_entry)
-		return (ARCHIVE_EOF);
+  // set the Start directories
+  lg->GetMakefile()->SetCurrentSourceDirectory
+    (this->CMakeInstance->GetHomeDirectory());
+  lg->GetMakefile()->SetCurrentBinaryDirectory
+    (this->CMakeInstance->GetHomeOutputDirectory());
 
-	/* Return EOF immediately if this is a non-regular file. */
-	if (AE_IFREG != (zip->entry->mode & AE_IFMT))
-		return (ARCHIVE_EOF);
+  this->BinaryDirectories.insert(
+      this->CMakeInstance->GetHomeOutputDirectory());
 
-	if (zip->entry->flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Encrypted file is unsupported");
-		return (ARCHIVE_FAILED);
-	}
+  // now do it
+  lg->GetMakefile()->Configure();
+  lg->GetMakefile()->EnforceDirectoryLevelRules();
 
-	__archive_read_consume(a, zip->unconsumed);
-	zip->unconsumed = 0;
+  // update the cache entry for the number of local generators, this is used
+  // for progress
+  char num[100];
+  sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
+  this->GetCMakeInstance()->AddCacheEntry
+    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
+     "number of local generators", cmState::INTERNAL);
 
-	switch(zip->entry->compression) {
-	case 0:  /* No compression. */
-		r =  zip_read_data_none(a, buff, size, offset);
-		break;
-#ifdef HAVE_ZLIB_H
-	case 8: /* Deflate compression. */
-		r =  zip_read_data_deflate(a, buff, size, offset);
-		break;
-#endif
-	default: /* Unsupported compression. */
-		/* Return a warning. */
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unsupported ZIP compression method (%s)",
-		    compression_name(zip->entry->compression));
-		/* We can't decompress this entry, but we will
-		 * be able to skip() it and try the next entry. */
-		return (ARCHIVE_FAILED);
-		break;
-	}
-	if (r != ARCHIVE_OK)
-		return (r);
-	/* Update checksum */
-	if (*size)
-		zip->entry_crc32 = crc32(zip->entry_crc32, *buff, *size);
-	/* If we hit the end, swallow any end-of-data marker. */
-	if (zip->end_of_entry) {
-		/* Check file size, CRC against these values. */
-		if (zip->entry->compressed_size != zip->entry_compressed_bytes_read) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP compressed data is wrong size (read %jd, expected %jd)",
-			    (intmax_t)zip->entry_compressed_bytes_read,
-			    (intmax_t)zip->entry->compressed_size);
-			return (ARCHIVE_WARN);
-		}
-		/* Size field only stores the lower 32 bits of the actual
-		 * size. */
-		if ((zip->entry->uncompressed_size & UINT32_MAX)
-		    != (zip->entry_uncompressed_bytes_read & UINT32_MAX)) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP uncompressed data is wrong size (read %jd, expected %jd)",
-			    (intmax_t)zip->entry_uncompressed_bytes_read,
-			    (intmax_t)zip->entry->uncompressed_size);
-			return (ARCHIVE_WARN);
-		}
-		/* Check computed CRC against header */
-		if (zip->entry->crc32 != zip->entry_crc32) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP bad CRC: 0x%lx should be 0x%lx",
-			    (unsigned long)zip->entry_crc32,
-			    (unsigned long)zip->entry->crc32);
-			return (ARCHIVE_WARN);
-		}
-	}
+  // check for link libraries and include directories containing "NOTFOUND"
+  // and for infinite loops
+  this->CheckLocalGenerators();
 
-	return (ARCHIVE_OK);
+  // at this point this->LocalGenerators has been filled,
+  // so create the map from project name to vector of local generators
+  this->FillProjectMap();
+
+  if ( this->CMakeInstance->GetWorkingMode() == cmake::NORMAL_MODE)
+    {
+    std::ostringstream msg;
+    if(cmSystemTools::GetErrorOccuredFlag())
+      {
+      msg << "Configuring incomplete, errors occurred!";
+      const char* logs[] = {"CMakeOutput.log", "CMakeError.log", 0};
+      for(const char** log = logs; *log; ++log)
+        {
+        std::string f = this->CMakeInstance->GetHomeOutputDirectory();
+        f += this->CMakeInstance->GetCMakeFilesDirectory();
+        f += "/";
+        f += *log;
+        if(cmSystemTools::FileExists(f.c_str()))
+          {
+          msg << "\nSee also \"" << f << "\".";
+          }
+        }
+      }
+    else
+      {
+      msg << "Configuring done";
+      }
+    this->CMakeInstance->UpdateProgress(msg.str().c_str(), -1);
+    }
+
+  unsigned int i;
+
+  // Put a copy of each global target in every directory.
+  cmTargets globalTargets;
+  this->CreateDefaultGlobalTargets(&globalTargets);
+
+  for (i = 0; i < this->LocalGenerators.size(); ++i)
+    {
+    cmMakefile* mf = this->LocalGenerators[i]->GetMakefile();
+    cmTargets* targets = &(mf->GetTargets());
+    cmTargets::iterator tit;
+    for ( tit = globalTargets.begin(); tit != globalTargets.end(); ++ tit )
+      {
+      (*targets)[tit->first] = tit->second;
+      (*targets)[tit->first].SetMakefile(mf);
+      }
+    }
+
 }

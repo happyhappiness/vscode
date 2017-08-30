@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, errno,
-					    "Failed to check flag in a NFSv4 "
-					    "ACL flagset");
+archive_set_error(&a->archive, errno, "Failed "
+				    "to get ACL type from a NFSv4 ACL entry");

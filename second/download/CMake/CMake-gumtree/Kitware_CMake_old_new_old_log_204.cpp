@@ -1,1 +1,2 @@
-snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);
+archive_set_error(&self->archive->archive, ENOMEM,
+		    "Can't allocate data for lzma decompression");

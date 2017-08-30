@@ -1,2 +1,2 @@
-fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-	  kitName);
+archive_set_error(&a->archive, ENOMEM,
+				    "No memory for 7-Zip decompression");

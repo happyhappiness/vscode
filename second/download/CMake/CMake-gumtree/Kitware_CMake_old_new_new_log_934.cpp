@@ -1,1 +1,3 @@
-fprintf(fout,"#define VTK_TCL_TO_STRING(x) VTK_TCL_TO_STRING0(x)\n");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Mac metadata is too large: %jd > 128K bytes",
+		    (intmax_t)rsrc->uncompressed_size);

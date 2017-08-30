@@ -1,68 +1,79 @@
 static int
-lzma_bidder_init(struct archive_read_filter *self)
+setup_acls(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-	static const size_t out_block_size = 64 * 1024;
-	void *out_block;
-	struct private_data *state;
-	ssize_t ret, avail_in;
+	const char	*accpath;
+	acl_t		 acl;
+#if HAVE_ACL_IS_TRIVIAL_NP
+	int		r;
+#endif
 
-	self->code = ARCHIVE_FILTER_LZMA;
-	self->name = "lzma";
+	accpath = archive_entry_sourcepath(entry);
+	if (accpath == NULL)
+		accpath = archive_entry_pathname(entry);
 
-	state = (struct private_data *)calloc(sizeof(*state), 1);
-	out_block = (unsigned char *)malloc(out_block_size);
-	if (state == NULL || out_block == NULL) {
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for lzma decompression");
-		free(out_block);
-		free(state);
-		return (ARCHIVE_FATAL);
+	archive_entry_acl_clear(entry);
+
+#ifdef ACL_TYPE_NFS4
+	/* Try NFS4 ACL first. */
+	if (*fd >= 0)
+		acl = acl_get_fd(*fd);
+#if HAVE_ACL_GET_LINK_NP
+	else if (!a->follow_symlinks)
+		acl = acl_get_link_np(accpath, ACL_TYPE_NFS4);
+#else
+	else if ((!a->follow_symlinks)
+	    && (archive_entry_filetype(entry) == AE_IFLNK))
+		/* We can't get the ACL of a symlink, so we assume it can't
+		   have one. */
+		acl = NULL;
+#endif
+	else
+		acl = acl_get_file(accpath, ACL_TYPE_NFS4);
+#if HAVE_ACL_IS_TRIVIAL_NP
+	/* Ignore "trivial" ACLs that just mirror the file mode. */
+	acl_is_trivial_np(acl, &r);
+	if (r) {
+		acl_free(acl);
+		acl = NULL;
 	}
-
-	self->data = state;
-	state->out_block_size = out_block_size;
-	state->out_block = out_block;
-	self->read = lzma_filter_read;
-	self->skip = NULL; /* not supported */
-	self->close = lzma_filter_close;
-
-	/* Prime the lzma library with 18 bytes of input. */
-	state->stream.next_in = (unsigned char *)(uintptr_t)
-	    __archive_read_filter_ahead(self->upstream, 18, &avail_in);
-	if (state->stream.next_in == NULL)
-		return (ARCHIVE_FATAL);
-	state->stream.avail_in = avail_in;
-	state->stream.next_out = state->out_block;
-	state->stream.avail_out = state->out_block_size;
-
-	/* Initialize compression library. */
-	ret = lzmadec_init(&(state->stream));
-	__archive_read_filter_consume(self->upstream,
-	    avail_in - state->stream.avail_in);
-	if (ret == LZMADEC_OK)
+#endif
+	if (acl != NULL) {
+		translate_acl(a, entry, acl, ARCHIVE_ENTRY_ACL_TYPE_NFS4);
+		acl_free(acl);
 		return (ARCHIVE_OK);
+	}
+#endif
 
-	/* Library setup failed: Clean up. */
-	archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-	    "Internal error initializing lzma library");
-
-	/* Override the error message if we know what really went wrong. */
-	switch (ret) {
-	case LZMADEC_HEADER_ERROR:
-		archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Internal error initializing compression library: "
-		    "invalid header");
-		break;
-	case LZMADEC_MEM_ERROR:
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Internal error initializing compression library: "
-		    "out of memory");
-		break;
+	/* Retrieve access ACL from file. */
+	if (*fd >= 0)
+		acl = acl_get_fd(*fd);
+#if HAVE_ACL_GET_LINK_NP
+	else if (!a->follow_symlinks)
+		acl = acl_get_link_np(accpath, ACL_TYPE_ACCESS);
+#else
+	else if ((!a->follow_symlinks)
+	    && (archive_entry_filetype(entry) == AE_IFLNK))
+		/* We can't get the ACL of a symlink, so we assume it can't
+		   have one. */
+		acl = NULL;
+#endif
+	else
+		acl = acl_get_file(accpath, ACL_TYPE_ACCESS);
+	if (acl != NULL) {
+		translate_acl(a, entry, acl,
+		    ARCHIVE_ENTRY_ACL_TYPE_ACCESS);
+		acl_free(acl);
 	}
 
-	free(state->out_block);
-	free(state);
-	self->data = NULL;
-	return (ARCHIVE_FATAL);
+	/* Only directories can have default ACLs. */
+	if (S_ISDIR(archive_entry_mode(entry))) {
+		acl = acl_get_file(accpath, ACL_TYPE_DEFAULT);
+		if (acl != NULL) {
+			translate_acl(a, entry, acl,
+			    ARCHIVE_ENTRY_ACL_TYPE_DEFAULT);
+			acl_free(acl);
+		}
+	}
+	return (ARCHIVE_OK);
 }

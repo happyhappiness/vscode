@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "No memory for 7-Zip decompression");
+fprintf(fout,
+      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
+      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");

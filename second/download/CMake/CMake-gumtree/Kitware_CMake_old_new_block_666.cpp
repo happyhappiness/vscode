@@ -1,4 +1,4 @@
 {
-    fprintf(stderr, "No current working directory\n");
-    abort();
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
     }

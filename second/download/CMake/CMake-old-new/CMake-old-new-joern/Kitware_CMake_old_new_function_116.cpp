@@ -1,305 +1,225 @@
-static void
-process_extra(const char *p, size_t extra_length, struct zip_entry* zip_entry)
+static int
+next_entry(struct archive_read_disk *a, struct tree *t,
+    struct archive_entry *entry)
 {
-	unsigned offset = 0;
+	const struct stat *st; /* info to use for this entry */
+	const struct stat *lst;/* lstat() information */
+	const char *name;
+	int descend, r;
 
-	while (offset < extra_length - 4) {
-		unsigned short headerid = archive_le16dec(p + offset);
-		unsigned short datasize = archive_le16dec(p + offset + 2);
+	st = NULL;
+	lst = NULL;
+	t->descend = 0;
+	do {
+		switch (tree_next(t)) {
+		case TREE_ERROR_FATAL:
+			archive_set_error(&a->archive, t->tree_errno,
+			    "%s: Unable to continue traversing directory tree",
+			    tree_current_path(t));
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			tree_enter_initial_dir(t);
+			return (ARCHIVE_FATAL);
+		case TREE_ERROR_DIR:
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%s: Couldn't visit directory",
+			    tree_current_path(t));
+			tree_enter_initial_dir(t);
+			return (ARCHIVE_FAILED);
+		case 0:
+			tree_enter_initial_dir(t);
+			return (ARCHIVE_EOF);
+		case TREE_POSTDESCENT:
+		case TREE_POSTASCENT:
+			break;
+		case TREE_REGULAR:
+			lst = tree_current_lstat(t);
+			if (lst == NULL) {
+				archive_set_error(&a->archive, errno,
+				    "%s: Cannot stat",
+				    tree_current_path(t));
+				tree_enter_initial_dir(t);
+				return (ARCHIVE_FAILED);
+			}
+			break;
+		}	
+	} while (lst == NULL);
 
-		offset += 4;
-		if (offset + datasize > extra_length) {
-			break;
-		}
-#ifdef DEBUG
-		fprintf(stderr, "Header id 0x%04x, length %d\n",
-		    headerid, datasize);
-#endif
-		switch (headerid) {
-		case 0x0001:
-			/* Zip64 extended information extra field. */
-			zip_entry->flags |= LA_USED_ZIP64;
-			if (zip_entry->uncompressed_size == 0xffffffff) {
-				if (datasize < 8)
-					break;
-				zip_entry->uncompressed_size =
-				    archive_le64dec(p + offset);
-				offset += 8;
-				datasize -= 8;
-			}
-			if (zip_entry->compressed_size == 0xffffffff) {
-				if (datasize < 8)
-					break;
-				zip_entry->compressed_size =
-				    archive_le64dec(p + offset);
-				offset += 8;
-				datasize -= 8;
-			}
-			if (zip_entry->local_header_offset == 0xffffffff) {
-				if (datasize < 8)
-					break;
-				zip_entry->local_header_offset =
-				    archive_le64dec(p + offset);
-				offset += 8;
-				datasize -= 8;
-			}
-			/* archive_le32dec(p + offset) gives disk
-			 * on which file starts, but we don't handle
-			 * multi-volume Zip files. */
-			break;
-#ifdef DEBUG
-		case 0x0017:
-		{
-			/* Strong encryption field. */
-			if (archive_le16dec(p + offset) == 2) {
-				unsigned algId =
-					archive_le16dec(p + offset + 2);
-				unsigned bitLen =
-					archive_le16dec(p + offset + 4);
-				int	 flags =
-					archive_le16dec(p + offset + 6);
-				fprintf(stderr, "algId=0x%04x, bitLen=%u, "
-				    "flgas=%d\n", algId, bitLen,flags);
-			}
-			break;
-		}
-#endif
-		case 0x5455:
-		{
-			/* Extended time field "UT". */
-			int flags = p[offset];
-			offset++;
-			datasize--;
-			/* Flag bits indicate which dates are present. */
-			if (flags & 0x01)
-			{
-#ifdef DEBUG
-				fprintf(stderr, "mtime: %lld -> %d\n",
-				    (long long)zip_entry->mtime,
-				    archive_le32dec(p + offset));
-#endif
-				if (datasize < 4)
-					break;
-				zip_entry->mtime = archive_le32dec(p + offset);
-				offset += 4;
-				datasize -= 4;
-			}
-			if (flags & 0x02)
-			{
-				if (datasize < 4)
-					break;
-				zip_entry->atime = archive_le32dec(p + offset);
-				offset += 4;
-				datasize -= 4;
-			}
-			if (flags & 0x04)
-			{
-				if (datasize < 4)
-					break;
-				zip_entry->ctime = archive_le32dec(p + offset);
-				offset += 4;
-				datasize -= 4;
-			}
-			break;
-		}
-		case 0x5855:
-		{
-			/* Info-ZIP Unix Extra Field (old version) "UX". */
-			if (datasize >= 8) {
-				zip_entry->atime = archive_le32dec(p + offset);
-				zip_entry->mtime =
-				    archive_le32dec(p + offset + 4);
-			}
-			if (datasize >= 12) {
-				zip_entry->uid =
-				    archive_le16dec(p + offset + 8);
-				zip_entry->gid =
-				    archive_le16dec(p + offset + 10);
-			}
-			break;
-		}
-		case 0x6c78:
-		{
-			/* Experimental 'xl' field */
-			/*
-			 * Introduced Dec 2013 to provide a way to
-			 * include external file attributes (and other
-			 * fields that ordinarily appear only in
-			 * central directory) in local file header.
-			 * This provides file type and permission
-			 * information necessary to support full
-			 * streaming extraction.  Currently being
-			 * discussed with other Zip developers
-			 * ... subject to change.
-			 *
-			 * Format:
-			 *  The field starts with a bitmap that specifies
-			 *  which additional fields are included.  The
-			 *  bitmap is variable length and can be extended in
-			 *  the future.
-			 *
-			 *  n bytes - feature bitmap: first byte has low-order
-			 *    7 bits.  If high-order bit is set, a subsequent
-			 *    byte holds the next 7 bits, etc.
-			 *
-			 *  if bitmap & 1, 2 byte "version made by"
-			 *  if bitmap & 2, 2 byte "internal file attributes"
-			 *  if bitmap & 4, 4 byte "external file attributes"
-			 *  if bitmap & 8, 2 byte comment length + n byte comment
-			 */
-			int bitmap, bitmap_last;
-
-			if (datasize < 1)
-				break;
-			bitmap_last = bitmap = 0xff & p[offset];
-			offset += 1;
-			datasize -= 1;
-
-			/* We only support first 7 bits of bitmap; skip rest. */
-			while ((bitmap_last & 0x80) != 0
-			    && datasize >= 1) {
-				bitmap_last = p[offset];
-				offset += 1;
-				datasize -= 1;
-			}
-
-			if (bitmap & 1) {
-				/* 2 byte "version made by" */
-				if (datasize < 2)
-					break;
-				zip_entry->system
-				    = archive_le16dec(p + offset) >> 8;
-				offset += 2;
-				datasize -= 2;
-			}
-			if (bitmap & 2) {
-				/* 2 byte "internal file attributes" */
-				uint32_t internal_attributes;
-				if (datasize < 2)
-					break;
-				internal_attributes
-				    = archive_le16dec(p + offset);
-				/* Not used by libarchive at present. */
-				(void)internal_attributes; /* UNUSED */
-				offset += 2;
-				datasize -= 2;
-			}
-			if (bitmap & 4) {
-				/* 4 byte "external file attributes" */
-				uint32_t external_attributes;
-				if (datasize < 4)
-					break;
-				external_attributes
-				    = archive_le32dec(p + offset);
-				if (zip_entry->system == 3) {
-					zip_entry->mode
-					    = external_attributes >> 16;
-				} else if (zip_entry->system == 0) {
-					// Interpret MSDOS directory bit
-					if (0x10 == (external_attributes & 0x10)) {
-						zip_entry->mode = AE_IFDIR | 0775;
-					} else {
-						zip_entry->mode = AE_IFREG | 0664;
-					}
-					if (0x01 == (external_attributes & 0x01)) {
-						// Read-only bit; strip write permissions
-						zip_entry->mode &= 0555;
-					}
-				} else {
-					zip_entry->mode = 0;
-				}
-				offset += 4;
-				datasize -= 4;
-			}
-			if (bitmap & 8) {
-				/* 2 byte comment length + comment */
-				uint32_t comment_length;
-				if (datasize < 2)
-					break;
-				comment_length
-				    = archive_le16dec(p + offset);
-				offset += 2;
-				datasize -= 2;
-
-				if (datasize < comment_length)
-					break;
-				/* Comment is not supported by libarchive */
-				offset += comment_length;
-				datasize -= comment_length;
-			}
-			break;
-		}
-		case 0x7855:
-			/* Info-ZIP Unix Extra Field (type 2) "Ux". */
-#ifdef DEBUG
-			fprintf(stderr, "uid %d gid %d\n",
-			    archive_le16dec(p + offset),
-			    archive_le16dec(p + offset + 2));
-#endif
-			if (datasize >= 2)
-				zip_entry->uid = archive_le16dec(p + offset);
-			if (datasize >= 4)
-				zip_entry->gid =
-				    archive_le16dec(p + offset + 2);
-			break;
-		case 0x7875:
-		{
-			/* Info-Zip Unix Extra Field (type 3) "ux". */
-			int uidsize = 0, gidsize = 0;
-
-			/* TODO: support arbitrary uidsize/gidsize. */
-			if (datasize >= 1 && p[offset] == 1) {/* version=1 */
-				if (datasize >= 4) {
-					/* get a uid size. */
-					uidsize = 0xff & (int)p[offset+1];
-					if (uidsize == 2)
-						zip_entry->uid =
-						    archive_le16dec(
-						        p + offset + 2);
-					else if (uidsize == 4 && datasize >= 6)
-						zip_entry->uid =
-						    archive_le32dec(
-						        p + offset + 2);
-				}
-				if (datasize >= (2 + uidsize + 3)) {
-					/* get a gid size. */
-					gidsize = 0xff & (int)p[offset+2+uidsize];
-					if (gidsize == 2)
-						zip_entry->gid =
-						    archive_le16dec(
-						        p+offset+2+uidsize+1);
-					else if (gidsize == 4 &&
-					    datasize >= (2 + uidsize + 5))
-						zip_entry->gid =
-						    archive_le32dec(
-						        p+offset+2+uidsize+1);
-				}
-			}
-			break;
-		}
-		case 0x9901:
-			/* WinZIp AES extra data field. */
-			if (p[offset + 2] == 'A' && p[offset + 3] == 'E') {
-				/* Vendor version. */
-				zip_entry->aes_extra.vendor =
-				    archive_le16dec(p + offset);
-				/* AES encryption strength. */
-				zip_entry->aes_extra.strength = p[offset + 4];
-				/* Actual compression method. */
-				zip_entry->aes_extra.compression =
-				    p[offset + 5];
-			}
-			break;
-		default:
-			break;
-		}
-		offset += datasize;
-	}
-#ifdef DEBUG
-	if (offset != extra_length)
-	{
-		fprintf(stderr,
-		    "Extra data field contents do not match reported size!\n");
+#ifdef __APPLE__
+	if (a->enable_copyfile) {
+		/* If we're using copyfile(), ignore "._XXX" files. */
+		const char *bname = strrchr(tree_current_path(t), '/');
+		if (bname == NULL)
+			bname = tree_current_path(t);
+		else
+			++bname;
+		if (bname[0] == '.' && bname[1] == '_')
+			return (ARCHIVE_RETRY);
 	}
 #endif
+
+	archive_entry_copy_pathname(entry, tree_current_path(t));
+	/*
+	 * Perform path matching.
+	 */
+	if (a->matching) {
+		r = archive_match_path_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
+	}
+
+	/*
+	 * Distinguish 'L'/'P'/'H' symlink following.
+	 */
+	switch(t->symlink_mode) {
+	case 'H':
+		/* 'H': After the first item, rest like 'P'. */
+		t->symlink_mode = 'P';
+		/* 'H': First item (from command line) like 'L'. */
+		/* FALLTHROUGH */
+	case 'L':
+		/* 'L': Do descend through a symlink to dir. */
+		descend = tree_current_is_dir(t);
+		/* 'L': Follow symlinks to files. */
+		a->symlink_mode = 'L';
+		a->follow_symlinks = 1;
+		/* 'L': Archive symlinks as targets, if we can. */
+		st = tree_current_stat(t);
+		if (st != NULL && !tree_target_is_same_as_parent(t, st))
+			break;
+		/* If stat fails, we have a broken symlink;
+		 * in that case, don't follow the link. */
+		/* FALLTHROUGH */
+	default:
+		/* 'P': Don't descend through a symlink to dir. */
+		descend = tree_current_is_physical_dir(t);
+		/* 'P': Don't follow symlinks to files. */
+		a->symlink_mode = 'P';
+		a->follow_symlinks = 0;
+		/* 'P': Archive symlinks as symlinks. */
+		st = lst;
+		break;
+	}
+
+	if (update_current_filesystem(a, st->st_dev) != ARCHIVE_OK) {
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		tree_enter_initial_dir(t);
+		return (ARCHIVE_FATAL);
+	}
+	if (t->initial_filesystem_id == -1)
+		t->initial_filesystem_id = t->current_filesystem_id;
+	if (!a->traverse_mount_points) {
+		if (t->initial_filesystem_id != t->current_filesystem_id)
+			descend = 0;
+	}
+	t->descend = descend;
+
+	/*
+	 * Honor nodump flag.
+	 * If the file is marked with nodump flag, do not return this entry.
+	 */
+	if (a->honor_nodump) {
+#if defined(HAVE_STRUCT_STAT_ST_FLAGS) && defined(UF_NODUMP)
+		if (st->st_flags & UF_NODUMP)
+			return (ARCHIVE_RETRY);
+#elif defined(EXT2_IOC_GETFLAGS) && defined(EXT2_NODUMP_FL) &&\
+      defined(HAVE_WORKING_EXT2_IOC_GETFLAGS)
+		if (S_ISREG(st->st_mode) || S_ISDIR(st->st_mode)) {
+			int stflags;
+
+			t->entry_fd = open_on_current_dir(t,
+			    tree_current_access_path(t),
+			    O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+			__archive_ensure_cloexec_flag(t->entry_fd);
+			if (t->entry_fd >= 0) {
+				r = ioctl(t->entry_fd, EXT2_IOC_GETFLAGS,
+					&stflags);
+				if (r == 0 && (stflags & EXT2_NODUMP_FL) != 0)
+					return (ARCHIVE_RETRY);
+			}
+		}
+#endif
+	}
+
+	archive_entry_copy_stat(entry, st);
+
+	/* Save the times to be restored. This must be in before
+	 * calling archive_read_disk_descend() or any chance of it,
+	 * especially, invokng a callback. */
+	t->restore_time.mtime = archive_entry_mtime(entry);
+	t->restore_time.mtime_nsec = archive_entry_mtime_nsec(entry);
+	t->restore_time.atime = archive_entry_atime(entry);
+	t->restore_time.atime_nsec = archive_entry_atime_nsec(entry);
+	t->restore_time.filetype = archive_entry_filetype(entry);
+	t->restore_time.noatime = t->current_filesystem->noatime;
+
+	/*
+	 * Perform time matching.
+	 */
+	if (a->matching) {
+		r = archive_match_time_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
+	}
+
+	/* Lookup uname/gname */
+	name = archive_read_disk_uname(&(a->archive), archive_entry_uid(entry));
+	if (name != NULL)
+		archive_entry_copy_uname(entry, name);
+	name = archive_read_disk_gname(&(a->archive), archive_entry_gid(entry));
+	if (name != NULL)
+		archive_entry_copy_gname(entry, name);
+
+	/*
+	 * Perform owner matching.
+	 */
+	if (a->matching) {
+		r = archive_match_owner_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
+	}
+
+	/*
+	 * Invoke a meta data filter callback.
+	 */
+	if (a->metadata_filter_func) {
+		if (!a->metadata_filter_func(&(a->archive),
+		    a->metadata_filter_data, entry))
+			return (ARCHIVE_RETRY);
+	}
+
+	/*
+	 * Populate the archive_entry with metadata from the disk.
+	 */
+	archive_entry_copy_sourcepath(entry, tree_current_access_path(t));
+	r = archive_read_disk_entry_from_file(&(a->archive), entry,
+		t->entry_fd, st);
+
+	return (r);
 }

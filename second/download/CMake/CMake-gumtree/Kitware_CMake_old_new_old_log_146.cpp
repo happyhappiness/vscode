@@ -1,3 +1,4 @@
-archive_set_error(&self->archive->archive,
+archive_set_error(&(a->archive),
 			    ARCHIVE_ERRNO_MISC,
-			    "Lzma decompression failed");
+			    "lzmadec decompression failed(%d)",
+			    r);

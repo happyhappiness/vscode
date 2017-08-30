@@ -1,2 +1,1 @@
-fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
+fprintf(this->FileOut, "\t%s \t DATA\n", symbol.c_str());

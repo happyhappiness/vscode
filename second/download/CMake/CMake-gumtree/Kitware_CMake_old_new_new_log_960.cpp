@@ -1,1 +1,1 @@
-fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
+fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");

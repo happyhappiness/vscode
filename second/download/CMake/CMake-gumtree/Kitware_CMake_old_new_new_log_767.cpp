@@ -1,1 +1,2 @@
-yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" , yyscanner);
+archive_set_error(&a->archive, EINVAL,
+			"Invalid index specified.");

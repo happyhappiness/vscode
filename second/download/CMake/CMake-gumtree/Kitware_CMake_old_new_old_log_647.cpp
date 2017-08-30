@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, -1, "Header CRC error");
+fprintf(fout, "\t%s\n", symbol.c_str()+1);

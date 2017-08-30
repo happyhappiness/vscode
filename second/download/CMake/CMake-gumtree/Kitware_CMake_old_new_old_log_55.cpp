@@ -1,2 +1,2 @@
-f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
-           "%s:%s", user, pwd);
+snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
+           entropy[0], entropy[1], entropy[2], entropy[3]);

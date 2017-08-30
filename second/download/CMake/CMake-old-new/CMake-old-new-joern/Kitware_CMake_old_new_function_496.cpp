@@ -1,26 +1,101 @@
-int
-archive_read_disk_open_w(struct archive *_a, const wchar_t *pathname)
+static int
+lha_read_data_lzh(struct archive_read *a, const void **buff,
+    size_t *size, int64_t *offset)
 {
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	struct archive_string path;
-	int ret;
+	struct lha *lha = (struct lha *)(a->format->data);
+	ssize_t bytes_avail;
+	int r;
 
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_NEW | ARCHIVE_STATE_CLOSED,
-	    "archive_read_disk_open_w");
-	archive_clear_error(&a->archive);
+	/* If the buffer hasn't been allocated, allocate it now. */
+	if (lha->uncompressed_buffer == NULL) {
+		lha->uncompressed_buffer_size = 64 * 1024;
+		lha->uncompressed_buffer
+		    = (unsigned char *)malloc(lha->uncompressed_buffer_size);
+		if (lha->uncompressed_buffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for lzh decompression");
+			return (ARCHIVE_FATAL);
+		}
+	}
 
-	/* Make a char string from a wchar_t string. */
-	archive_string_init(&path);
-	if (archive_string_append_from_wcs(&path, pathname,
-	    wcslen(pathname)) != 0) {
+	/* If we haven't yet read any data, initialize the decompressor. */
+	if (!lha->decompress_init) {
+		r = lzh_decode_init(&(lha->strm), lha->method);
+		switch (r) {
+		case ARCHIVE_OK:
+			break;
+		case ARCHIVE_FAILED:
+        		/* Unsupported compression. */
+			*buff = NULL;
+			*size = 0;
+			*offset = 0;
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Unsupported lzh compression method -%c%c%c-",
+			    lha->method[0], lha->method[1], lha->method[2]);
+			/* We know compressed size; just skip it. */
+			archive_read_format_lha_read_data_skip(a);
+			return (ARCHIVE_WARN);
+		default:
+			archive_set_error(&a->archive, ENOMEM,
+			    "Couldn't allocate memory "
+			    "for lzh decompression");
+			return (ARCHIVE_FATAL);
+		}
+		/* We've initialized decompression for this stream. */
+		lha->decompress_init = 1;
+		lha->strm.avail_out = 0;
+		lha->strm.total_out = 0;
+	}
+
+	/*
+	 * Note: '1' here is a performance optimization.
+	 * Recall that the decompression layer returns a count of
+	 * available bytes; asking for more than that forces the
+	 * decompressor to combine reads by copying data.
+	 */
+	lha->strm.next_in = __archive_read_ahead(a, 1, &bytes_avail);
+	if (bytes_avail <= 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated LHa file body");
+		return (ARCHIVE_FATAL);
+	}
+	if (bytes_avail > lha->entry_bytes_remaining)
+		bytes_avail = (ssize_t)lha->entry_bytes_remaining;
+
+	lha->strm.avail_in = bytes_avail;
+	lha->strm.total_in = 0;
+	if (lha->strm.avail_out == 0) {
+		lha->strm.next_out = lha->uncompressed_buffer;
+		lha->strm.avail_out = lha->uncompressed_buffer_size;
+	}
+
+	r = lzh_decode(&(lha->strm), bytes_avail == lha->entry_bytes_remaining);
+	switch (r) {
+	case ARCHIVE_OK:
+		break;
+	case ARCHIVE_EOF:
+		lha->end_of_entry = 1;
+		break;
+	default:
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Can't convert a path to a char string");
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		ret = ARCHIVE_FATAL;
-	} else
-		ret = _archive_read_disk_open(_a, path.s);
+		    "Bad lzh data");
+		return (ARCHIVE_FAILED);
+	}
+	lha->entry_unconsumed = lha->strm.total_in;
+	lha->entry_bytes_remaining -= lha->strm.total_in;
 
-	archive_string_free(&path);
-	return (ret);
+	if (lha->strm.avail_out == 0 || lha->end_of_entry) {
+		*offset = lha->entry_offset;
+		*size = lha->strm.next_out - lha->uncompressed_buffer;
+		*buff = lha->uncompressed_buffer;
+		lha->entry_crc_calculated =
+		    lha_crc16(lha->entry_crc_calculated, *buff, *size);
+		lha->entry_offset += *size;
+	} else {
+		*offset = lha->entry_offset;
+		*size = 0;
+		*buff = NULL;
+	}
+	return (ARCHIVE_OK);
 }

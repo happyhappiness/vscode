@@ -1,1 +1,2 @@
-printf("Error fetching: http://www.cmake.org/page2.html\n");
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external bunzip2 program");

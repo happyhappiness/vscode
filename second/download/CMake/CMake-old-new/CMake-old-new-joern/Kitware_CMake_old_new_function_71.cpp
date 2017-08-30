@@ -1,176 +1,159 @@
-static CURLcode file_do(struct connectdata *conn, bool *done)
+CURLcode Curl_auth_create_digest_md5_message(struct Curl_easy *data,
+                                             const char *chlg64,
+                                             const char *userp,
+                                             const char *passwdp,
+                                             const char *service,
+                                             char **outptr, size_t *outlen)
 {
-  /* This implementation ignores the host name in conformance with
-     RFC 1738. Only local files (reachable via the standard file system)
-     are supported. This means that files on remotely mounted directories
-     (via NFS, Samba, NT sharing) can be accessed through a file:// URL
-  */
   CURLcode result = CURLE_OK;
-  struct_stat statbuf; /* struct_stat instead of struct stat just to allow the
-                          Windows version to have a different struct without
-                          having to redefine the simple word 'stat' */
-  curl_off_t expected_size=0;
-  bool size_known;
-  bool fstated=FALSE;
-  ssize_t nread;
-  struct Curl_easy *data = conn->data;
-  char *buf = data->state.buffer;
-  curl_off_t bytecount = 0;
-  int fd;
-  struct timeval now = Curl_tvnow();
-  struct FILEPROTO *file;
+  size_t i;
+  MD5_context *ctxt;
+  char *response = NULL;
+  unsigned char digest[MD5_DIGEST_LEN];
+  char HA1_hex[2 * MD5_DIGEST_LEN + 1];
+  char HA2_hex[2 * MD5_DIGEST_LEN + 1];
+  char resp_hash_hex[2 * MD5_DIGEST_LEN + 1];
+  char nonce[64];
+  char realm[128];
+  char algorithm[64];
+  char qop_options[64];
+  int qop_values;
+  char cnonce[33];
+  unsigned int entropy[4];
+  char nonceCount[] = "00000001";
+  char method[]     = "AUTHENTICATE";
+  char qop[]        = DIGEST_QOP_VALUE_STRING_AUTH;
+  char *spn         = NULL;
 
-  *done = TRUE; /* unconditionally */
-
-  Curl_initinfo(data);
-  Curl_pgrsStartNow(data);
-
-  if(data->set.upload)
-    return file_upload(conn);
-
-  file = conn->data->req.protop;
-
-  /* get the fd from the connection phase */
-  fd = file->fd;
-
-  /* VMS: This only works reliable for STREAMLF files */
-  if(-1 != fstat(fd, &statbuf)) {
-    /* we could stat it, then read out the size */
-    expected_size = statbuf.st_size;
-    /* and store the modification time */
-    data->info.filetime = (long)statbuf.st_mtime;
-    fstated = TRUE;
-  }
-
-  if(fstated && !data->state.range && data->set.timecondition) {
-    if(!Curl_meets_timecondition(data, (time_t)data->info.filetime)) {
-      *done = TRUE;
-      return CURLE_OK;
-    }
-  }
-
-  /* If we have selected NOBODY and HEADER, it means that we only want file
-     information. Which for FILE can't be much more than the file size and
-     date. */
-  if(data->set.opt_no_body && data->set.include_header && fstated) {
-    time_t filetime;
-    struct tm buffer;
-    const struct tm *tm = &buffer;
-    snprintf(buf, sizeof(data->state.buffer),
-             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-    if(result)
-      return result;
-
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH,
-                               (char *)"Accept-ranges: bytes\r\n", 0);
-    if(result)
-      return result;
-
-    filetime = (time_t)statbuf.st_mtime;
-    result = Curl_gmtime(filetime, &buffer);
-    if(result)
-      return result;
-
-    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-    snprintf(buf, BUFSIZE-1,
-             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-             tm->tm_mday,
-             Curl_month[tm->tm_mon],
-             tm->tm_year + 1900,
-             tm->tm_hour,
-             tm->tm_min,
-             tm->tm_sec);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-    if(!result)
-      /* set the file size to make it available post transfer */
-      Curl_pgrsSetDownloadSize(data, expected_size);
+  /* Decode the challenge message */
+  result = auth_decode_digest_md5_message(chlg64, nonce, sizeof(nonce),
+                                          realm, sizeof(realm),
+                                          algorithm, sizeof(algorithm),
+                                          qop_options, sizeof(qop_options));
+  if(result)
     return result;
+
+  /* We only support md5 sessions */
+  if(strcmp(algorithm, "md5-sess") != 0)
+    return CURLE_BAD_CONTENT_ENCODING;
+
+  /* Get the qop-values from the qop-options */
+  result = auth_digest_get_qop_values(qop_options, &qop_values);
+  if(result)
+    return result;
+
+  /* We only support auth quality-of-protection */
+  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
+    return CURLE_BAD_CONTENT_ENCODING;
+
+  /* Generate 16 bytes of random data */
+  result = Curl_rand(data, &entropy[0], 4);
+  if(result)
+    return result;
+
+  /* Convert the random data into a 32 byte hex string */
+  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
+           entropy[0], entropy[1], entropy[2], entropy[3]);
+
+  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
+
+  Curl_MD5_update(ctxt, (const unsigned char *) userp,
+                  curlx_uztoui(strlen(userp)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) realm,
+                  curlx_uztoui(strlen(realm)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) passwdp,
+                  curlx_uztoui(strlen(passwdp)));
+  Curl_MD5_final(ctxt, digest);
+
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
+
+  Curl_MD5_update(ctxt, (const unsigned char *) digest, MD5_DIGEST_LEN);
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
+                  curlx_uztoui(strlen(nonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
+                  curlx_uztoui(strlen(cnonce)));
+  Curl_MD5_final(ctxt, digest);
+
+  /* Convert calculated 16 octet hex into 32 bytes string */
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Generate our SPN */
+  spn = Curl_auth_build_spn(service, realm, NULL);
+  if(!spn)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Calculate H(A2) */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt) {
+    free(spn);
+
+    return CURLE_OUT_OF_MEMORY;
   }
 
-  /* Check whether file range has been specified */
-  file_range(conn);
+  Curl_MD5_update(ctxt, (const unsigned char *) method,
+                  curlx_uztoui(strlen(method)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) spn,
+                  curlx_uztoui(strlen(spn)));
+  Curl_MD5_final(ctxt, digest);
 
-  /* Adjust the start offset in case we want to get the N last bytes
-   * of the stream iff the filesize could be determined */
-  if(data->state.resume_from < 0) {
-    if(!fstated) {
-      failf(data, "Can't get the size of file.");
-      return CURLE_READ_ERROR;
-    }
-    else
-      data->state.resume_from += (curl_off_t)statbuf.st_size;
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Now calculate the response hash */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt) {
+    free(spn);
+
+    return CURLE_OUT_OF_MEMORY;
   }
 
-  if(data->state.resume_from <= expected_size)
-    expected_size -= data->state.resume_from;
-  else {
-    failf(data, "failed to resume file:// transfer");
-    return CURLE_BAD_DOWNLOAD_RESUME;
-  }
+  Curl_MD5_update(ctxt, (const unsigned char *) HA1_hex, 2 * MD5_DIGEST_LEN);
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
+                  curlx_uztoui(strlen(nonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
 
-  /* A high water mark has been specified so we obey... */
-  if(data->req.maxdownload > 0)
-    expected_size = data->req.maxdownload;
+  Curl_MD5_update(ctxt, (const unsigned char *) nonceCount,
+                  curlx_uztoui(strlen(nonceCount)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
+                  curlx_uztoui(strlen(cnonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) qop,
+                  curlx_uztoui(strlen(qop)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
 
-  if(!fstated || (expected_size == 0))
-    size_known = FALSE;
-  else
-    size_known = TRUE;
+  Curl_MD5_update(ctxt, (const unsigned char *) HA2_hex, 2 * MD5_DIGEST_LEN);
+  Curl_MD5_final(ctxt, digest);
 
-  /* The following is a shortcut implementation of file reading
-     this is both more efficient than the former call to download() and
-     it avoids problems with select() and recv() on file descriptors
-     in Winsock */
-  if(fstated)
-    Curl_pgrsSetDownloadSize(data, expected_size);
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
 
-  if(data->state.resume_from) {
-    if(data->state.resume_from !=
-       lseek(fd, data->state.resume_from, SEEK_SET))
-      return CURLE_BAD_DOWNLOAD_RESUME;
-  }
+  /* Generate the response */
+  response = aprintf("username=\"%s\",realm=\"%s\",nonce=\"%s\","
+                     "cnonce=\"%s\",nc=\"%s\",digest-uri=\"%s\",response=%s,"
+                     "qop=%s",
+                     userp, realm, nonce,
+                     cnonce, nonceCount, spn, resp_hash_hex, qop);
+  free(spn);
+  if(!response)
+    return CURLE_OUT_OF_MEMORY;
 
-  Curl_pgrsTime(data, TIMER_STARTTRANSFER);
+  /* Base64 encode the response */
+  result = Curl_base64_encode(data, response, 0, outptr, outlen);
 
-  while(!result) {
-    /* Don't fill a whole buffer if we want less than all data */
-    size_t bytestoread;
-
-    if(size_known) {
-      bytestoread =
-        (expected_size < CURL_OFF_T_C(BUFSIZE) - CURL_OFF_T_C(1)) ?
-        curlx_sotouz(expected_size) : BUFSIZE - 1;
-    }
-    else
-      bytestoread = BUFSIZE-1;
-
-    nread = read(fd, buf, bytestoread);
-
-    if(nread > 0)
-      buf[nread] = 0;
-
-    if(nread <= 0 || (size_known && (expected_size == 0)))
-      break;
-
-    bytecount += nread;
-    if(size_known)
-      expected_size -= nread;
-
-    result = Curl_client_write(conn, CLIENTWRITE_BODY, buf, nread);
-    if(result)
-      return result;
-
-    Curl_pgrsSetDownloadCounter(data, bytecount);
-
-    if(Curl_pgrsUpdate(conn))
-      result = CURLE_ABORTED_BY_CALLBACK;
-    else
-      result = Curl_speedcheck(data, now);
-  }
-  if(Curl_pgrsUpdate(conn))
-    result = CURLE_ABORTED_BY_CALLBACK;
+  free(response);
 
   return result;
 }

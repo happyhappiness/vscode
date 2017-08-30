@@ -1,40 +1,46 @@
-unsigned long Directory::GetNumberOfFilesInDirectory(const char* name)
+int
+__archive_write_program_open(struct archive_write_filter *f,
+    struct archive_write_program_data *data, const char *cmd)
 {
-#if _MSC_VER < 1300
-  long srchHandle;
+	pid_t child;
+	int ret;
+
+	ret = __archive_write_open_filter(f->next_filter);
+	if (ret != ARCHIVE_OK)
+		return (ret);
+
+	if (data->child_buf == NULL) {
+		data->child_buf_len = 65536;
+		data->child_buf_avail = 0;
+		data->child_buf = malloc(data->child_buf_len);
+
+		if (data->child_buf == NULL) {
+			archive_set_error(f->archive, ENOMEM,
+			    "Can't allocate compression buffer");
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	child = __archive_create_child(cmd, &data->child_stdin,
+		    &data->child_stdout);
+	if (child == -1) {
+		archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter");
+		return (ARCHIVE_FATAL);
+	}
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	data->child = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, child);
+	if (data->child == NULL) {
+		close(data->child_stdin);
+		data->child_stdin = -1;
+		close(data->child_stdout);
+		data->child_stdout = -1;
+		archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter");
+		return (ARCHIVE_FATAL);
+	}
 #else
-  intptr_t srchHandle;
+	data->child = child;
 #endif
-  char* buf;
-  size_t n = strlen(name);
-  if ( name[n - 1] == '/' )
-    {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name);
-    }
-  else
-    {
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name);
-    }
-  struct _wfinddata_t data;      // data of current file
-
-  // Now put them into the file array
-  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
-  delete [] buf;
-
-  if ( srchHandle == -1 )
-    {
-    return 0;
-    }
-
-  // Loop through names
-  unsigned long count = 0;
-  do
-    {
-    count++;
-    }
-  while ( _wfindnext(srchHandle, &data) != -1 );
-  _findclose(srchHandle);
-  return count;
+	return (ARCHIVE_OK);
 }

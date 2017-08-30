@@ -1,304 +1,279 @@
-static int
-archive_read_format_iso9660_read_header(struct archive_read *a,
-    struct archive_entry *entry)
+CURLcode Curl_output_digest(struct connectdata *conn,
+                            bool proxy,
+                            const unsigned char *request,
+                            const unsigned char *uripath)
 {
-	struct iso9660 *iso9660;
-	struct file_info *file;
-	int r, rd_r = ARCHIVE_OK;
+  /* We have a Digest setup for this, use it!  Now, to get all the details for
+     this sorted out, I must urge you dear friend to read up on the RFC2617
+     section 3.2.2, */
+  size_t urilen;
+  unsigned char md5buf[16]; /* 16 bytes/128 bits */
+  unsigned char request_digest[33];
+  unsigned char *md5this;
+  unsigned char ha1[33];/* 32 digits and 1 zero byte */
+  unsigned char ha2[33];/* 32 digits and 1 zero byte */
+  char cnoncebuf[33];
+  char *cnonce = NULL;
+  size_t cnonce_sz = 0;
+  char *tmp = NULL;
+  char **allocuserpwd;
+  size_t userlen;
+  const char *userp;
+  char *userp_quoted;
+  const char *passwdp;
+  struct auth *authp;
 
-	iso9660 = (struct iso9660 *)(a->format->data);
+  struct SessionHandle *data = conn->data;
+  struct digestdata *d;
+  CURLcode rc;
+/* The CURL_OUTPUT_DIGEST_CONV macro below is for non-ASCII machines.
+   It converts digest text to ASCII so the MD5 will be correct for
+   what ultimately goes over the network.
+*/
+#define CURL_OUTPUT_DIGEST_CONV(a, b) \
+  rc = Curl_convert_to_network(a, (char *)b, strlen((const char*)b)); \
+  if(rc != CURLE_OK) { \
+    free(b); \
+    return rc; \
+  }
 
-	if (!a->archive.archive_format) {
-		a->archive.archive_format = ARCHIVE_FORMAT_ISO9660;
-		a->archive.archive_format_name = "ISO9660";
-	}
+  if(proxy) {
+    d = &data->state.proxydigest;
+    allocuserpwd = &conn->allocptr.proxyuserpwd;
+    userp = conn->proxyuser;
+    passwdp = conn->proxypasswd;
+    authp = &data->state.authproxy;
+  }
+  else {
+    d = &data->state.digest;
+    allocuserpwd = &conn->allocptr.userpwd;
+    userp = conn->user;
+    passwdp = conn->passwd;
+    authp = &data->state.authhost;
+  }
 
-	if (iso9660->current_position == 0) {
-		int64_t skipsize;
-		struct vd *vd;
-		const void *block;
-		char seenJoliet;
+  Curl_safefree(*allocuserpwd);
 
-		vd = &(iso9660->primary);
-		if (!iso9660->opt_support_joliet)
-			iso9660->seenJoliet = 0;
-		if (iso9660->seenJoliet &&
-			vd->location > iso9660->joliet.location)
-			/* This condition is unlikely; by way of caution. */
-			vd = &(iso9660->joliet);
+  /* not set means empty */
+  if(!userp)
+    userp="";
 
-		skipsize = LOGICAL_BLOCK_SIZE * vd->location;
-		skipsize = __archive_read_consume(a, skipsize);
-		if (skipsize < 0)
-			return ((int)skipsize);
-		iso9660->current_position = skipsize;
+  if(!passwdp)
+    passwdp="";
 
-		block = __archive_read_ahead(a, vd->size, NULL);
-		if (block == NULL) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Failed to read full block when scanning "
-			    "ISO9660 directory list");
-			return (ARCHIVE_FATAL);
-		}
+  if(!d->nonce) {
+    authp->done = FALSE;
+    return CURLE_OK;
+  }
+  authp->done = TRUE;
 
-		/*
-		 * While reading Root Directory, flag seenJoliet
-		 * must be zero to avoid converting special name
-		 * 0x00(Current Directory) and next byte to UCS2.
-		 */
-		seenJoliet = iso9660->seenJoliet;/* Save flag. */
-		iso9660->seenJoliet = 0;
-		file = parse_file_info(a, NULL, block);
-		if (file == NULL)
-			return (ARCHIVE_FATAL);
-		iso9660->seenJoliet = seenJoliet;
-		if (vd == &(iso9660->primary) && iso9660->seenRockridge
-		    && iso9660->seenJoliet)
-			/*
-			 * If iso image has RockRidge and Joliet,
-			 * we use RockRidge Extensions.
-			 */
-			iso9660->seenJoliet = 0;
-		if (vd == &(iso9660->primary) && !iso9660->seenRockridge
-		    && iso9660->seenJoliet) {
-			/* Switch reading data from primary to joliet. */ 
-			vd = &(iso9660->joliet);
-			skipsize = LOGICAL_BLOCK_SIZE * vd->location;
-			skipsize -= iso9660->current_position;
-			skipsize = __archive_read_consume(a, skipsize);
-			if (skipsize < 0)
-				return ((int)skipsize);
-			iso9660->current_position += skipsize;
+  if(!d->nc)
+    d->nc = 1;
 
-			block = __archive_read_ahead(a, vd->size, NULL);
-			if (block == NULL) {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Failed to read full block when scanning "
-				    "ISO9660 directory list");
-				return (ARCHIVE_FATAL);
-			}
-			iso9660->seenJoliet = 0;
-			file = parse_file_info(a, NULL, block);
-			if (file == NULL)
-				return (ARCHIVE_FATAL);
-			iso9660->seenJoliet = seenJoliet;
-		}
-		/* Store the root directory in the pending list. */
-		if (add_entry(a, iso9660, file) != ARCHIVE_OK)
-			return (ARCHIVE_FATAL);
-		if (iso9660->seenRockridge) {
-			a->archive.archive_format =
-			    ARCHIVE_FORMAT_ISO9660_ROCKRIDGE;
-			a->archive.archive_format_name =
-			    "ISO9660 with Rockridge extensions";
-		}
-	}
+  if(!d->cnonce) {
+    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+             Curl_rand(data), Curl_rand(data),
+             Curl_rand(data), Curl_rand(data));
+    rc = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
+                            &cnonce, &cnonce_sz);
+    if(rc)
+      return rc;
+    d->cnonce = cnonce;
+  }
 
-	file = NULL;/* Eliminate a warning. */
-	/* Get the next entry that appears after the current offset. */
-	r = next_entry_seek(a, iso9660, &file);
-	if (r != ARCHIVE_OK)
-		return (r);
+  /*
+    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
 
-	if (iso9660->seenJoliet) {
-		/*
-		 * Convert UTF-16BE of a filename to local locale MBS
-		 * and store the result into a filename field.
-		 */
-		if (iso9660->sconv_utf16be == NULL) {
-			iso9660->sconv_utf16be =
-			    archive_string_conversion_from_charset(
-				&(a->archive), "UTF-16BE", 1);
-			if (iso9660->sconv_utf16be == NULL)
-				/* Coundn't allocate memory */
-				return (ARCHIVE_FATAL);
-		}
-		if (iso9660->utf16be_path == NULL) {
-			iso9660->utf16be_path = malloc(UTF16_NAME_MAX);
-			if (iso9660->utf16be_path == NULL) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "No memory");
-				return (ARCHIVE_FATAL);
-			}
-		}
-		if (iso9660->utf16be_previous_path == NULL) {
-			iso9660->utf16be_previous_path = malloc(UTF16_NAME_MAX);
-			if (iso9660->utf16be_previous_path == NULL) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "No memory");
-				return (ARCHIVE_FATAL);
-			}
-		}
+    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
 
-		iso9660->utf16be_path_len = 0;
-		if (build_pathname_utf16be(iso9660->utf16be_path,
-		    UTF16_NAME_MAX, &(iso9660->utf16be_path_len), file) != 0) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Pathname is too long");
-		}
+    if the algorithm is "MD5-sess" then:
 
-		r = archive_entry_copy_pathname_l(entry,
-		    (const char *)iso9660->utf16be_path,
-		    iso9660->utf16be_path_len,
-		    iso9660->sconv_utf16be);
-		if (r != 0) {
-			if (errno == ENOMEM) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "No memory for Pathname");
-				return (ARCHIVE_FATAL);
-			}
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Pathname cannot be converted "
-			    "from %s to current locale.",
-			    archive_string_conversion_charset_name(
-			      iso9660->sconv_utf16be));
+    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
+         ":" unq(nonce-value) ":" unq(cnonce-value)
+  */
 
-			rd_r = ARCHIVE_WARN;
-		}
-	} else {
-		archive_string_empty(&iso9660->pathname);
-		archive_entry_set_pathname(entry,
-		    build_pathname(&iso9660->pathname, file));
-	}
+  md5this = (unsigned char *)
+    aprintf("%s:%s:%s", userp, d->realm, passwdp);
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
 
-	iso9660->entry_bytes_remaining = file->size;
-	iso9660->entry_sparse_offset = 0; /* Offset for sparse-file-aware clients. */
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  Curl_safefree(md5this);
+  md5_to_ascii(md5buf, ha1);
 
-	if (file->offset + file->size > iso9660->volume_size) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "File is beyond end-of-media: %s",
-		    archive_entry_pathname(entry));
-		iso9660->entry_bytes_remaining = 0;
-		iso9660->entry_sparse_offset = 0;
-		return (ARCHIVE_WARN);
-	}
+  if(d->algo == CURLDIGESTALGO_MD5SESS) {
+    /* nonce and cnonce are OUTSIDE the hash */
+    tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
+    Curl_md5it(md5buf, (unsigned char *)tmp);
+    Curl_safefree(tmp);
+    md5_to_ascii(md5buf, ha1);
+  }
 
-	/* Set up the entry structure with information about this entry. */
-	archive_entry_set_mode(entry, file->mode);
-	archive_entry_set_uid(entry, file->uid);
-	archive_entry_set_gid(entry, file->gid);
-	archive_entry_set_nlink(entry, file->nlinks);
-	if (file->birthtime_is_set)
-		archive_entry_set_birthtime(entry, file->birthtime, 0);
-	else
-		archive_entry_unset_birthtime(entry);
-	archive_entry_set_mtime(entry, file->mtime, 0);
-	archive_entry_set_ctime(entry, file->ctime, 0);
-	archive_entry_set_atime(entry, file->atime, 0);
-	/* N.B.: Rock Ridge supports 64-bit device numbers. */
-	archive_entry_set_rdev(entry, (dev_t)file->rdev);
-	archive_entry_set_size(entry, iso9660->entry_bytes_remaining);
-	if (file->symlink.s != NULL)
-		archive_entry_copy_symlink(entry, file->symlink.s);
+  /*
+    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
 
-	/* Note: If the input isn't seekable, we can't rewind to
-	 * return the same body again, so if the next entry refers to
-	 * the same data, we have to return it as a hardlink to the
-	 * original entry. */
-	if (file->number != -1 &&
-	    file->number == iso9660->previous_number) {
-		if (iso9660->seenJoliet) {
-			r = archive_entry_copy_hardlink_l(entry,
-			    (const char *)iso9660->utf16be_previous_path,
-			    iso9660->utf16be_previous_path_len,
-			    iso9660->sconv_utf16be);
-			if (r != 0) {
-				if (errno == ENOMEM) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "No memory for Linkname");
-					return (ARCHIVE_FATAL);
-				}
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Linkname cannot be converted "
-				    "from %s to current locale.",
-				    archive_string_conversion_charset_name(
-				      iso9660->sconv_utf16be));
-				rd_r = ARCHIVE_WARN;
-			}
-		} else
-			archive_entry_set_hardlink(entry,
-			    iso9660->previous_pathname.s);
-		archive_entry_unset_size(entry);
-		iso9660->entry_bytes_remaining = 0;
-		iso9660->entry_sparse_offset = 0;
-		return (rd_r);
-	}
+      A2       = Method ":" digest-uri-value
 
-	/* Except for the hardlink case above, if the offset of the
-	 * next entry is before our current position, we can't seek
-	 * backwards to extract it, so issue a warning.  Note that
-	 * this can only happen if this entry was added to the heap
-	 * after we passed this offset, that is, only if the directory
-	 * mentioning this entry is later than the body of the entry.
-	 * Such layouts are very unusual; most ISO9660 writers lay out
-	 * and record all directory information first, then store
-	 * all file bodies. */
-	/* TODO: Someday, libarchive's I/O core will support optional
-	 * seeking.  When that day comes, this code should attempt to
-	 * seek and only return the error if the seek fails.  That
-	 * will give us support for whacky ISO images that require
-	 * seeking while retaining the ability to read almost all ISO
-	 * images in a streaming fashion. */
-	if ((file->mode & AE_IFMT) != AE_IFDIR &&
-	    file->offset < iso9660->current_position) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Ignoring out-of-order file @%jx (%s) %jd < %jd",
-		    (intmax_t)file->number,
-		    iso9660->pathname.s,
-		    (intmax_t)file->offset,
-		    (intmax_t)iso9660->current_position);
-		iso9660->entry_bytes_remaining = 0;
-		iso9660->entry_sparse_offset = 0;
-		return (ARCHIVE_WARN);
-	}
+          If the "qop" value is "auth-int", then A2 is:
 
-	/* Initialize zisofs variables. */
-	iso9660->entry_zisofs.pz = file->pz;
-	if (file->pz) {
-#ifdef HAVE_ZLIB_H
-		struct zisofs  *zisofs;
+      A2       = Method ":" digest-uri-value ":" H(entity-body)
 
-		zisofs = &iso9660->entry_zisofs;
-		zisofs->initialized = 0;
-		zisofs->pz_log2_bs = file->pz_log2_bs;
-		zisofs->pz_uncompressed_size = file->pz_uncompressed_size;
-		zisofs->pz_offset = 0;
-		zisofs->header_avail = 0;
-		zisofs->header_passed = 0;
-		zisofs->block_pointers_avail = 0;
-#endif
-		archive_entry_set_size(entry, file->pz_uncompressed_size);
-	}
+    (The "Method" value is the HTTP request method as specified in section
+    5.1.1 of RFC 2616)
+  */
 
-	iso9660->previous_number = file->number;
-	if (iso9660->seenJoliet) {
-		memcpy(iso9660->utf16be_previous_path, iso9660->utf16be_path,
-		    iso9660->utf16be_path_len);
-		iso9660->utf16be_previous_path_len = iso9660->utf16be_path_len;
-	} else
-		archive_strcpy(
-		    &iso9660->previous_pathname, iso9660->pathname.s);
+  /* So IE browsers < v7 cut off the URI part at the query part when they
+     evaluate the MD5 and some (IIS?) servers work with them so we may need to
+     do the Digest IE-style. Note that the different ways cause different MD5
+     sums to get sent.
 
-	/* Reset entry_bytes_remaining if the file is multi extent. */
-	iso9660->entry_content = file->contents.first;
-	if (iso9660->entry_content != NULL)
-		iso9660->entry_bytes_remaining = iso9660->entry_content->size;
+     Apache servers can be set to do the Digest IE-style automatically using
+     the BrowserMatch feature:
+     http://httpd.apache.org/docs/2.2/mod/mod_auth_digest.html#msie
 
-	if (archive_entry_filetype(entry) == AE_IFDIR) {
-		/* Overwrite nlinks by proper link number which is
-		 * calculated from number of sub directories. */
-		archive_entry_set_nlink(entry, 2 + file->subdirs);
-		/* Directory data has been read completely. */
-		iso9660->entry_bytes_remaining = 0;
-		iso9660->entry_sparse_offset = 0;
-	}
+     Further details on Digest implementation differences:
+     http://www.fngtps.com/2006/09/http-authentication
+  */
 
-	if (rd_r != ARCHIVE_OK)
-		return (rd_r);
-	return (ARCHIVE_OK);
+  if(authp->iestyle && ((tmp = strchr((char *)uripath, '?')) != NULL))
+    urilen = tmp - (char *)uripath;
+  else
+    urilen = strlen((char *)uripath);
+
+  md5this = (unsigned char *)aprintf("%s:%.*s", request, urilen, uripath);
+
+  if(d->qop && Curl_raw_equal(d->qop, "auth-int")) {
+    /* We don't support auth-int for PUT or POST at the moment.
+       TODO: replace md5 of empty string with entity-body for PUT/POST */
+    unsigned char *md5this2 = (unsigned char *)
+      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
+    Curl_safefree(md5this);
+    md5this = md5this2;
+  }
+
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  Curl_safefree(md5this);
+  md5_to_ascii(md5buf, ha2);
+
+  if(d->qop) {
+    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
+                                       ha1,
+                                       d->nonce,
+                                       d->nc,
+                                       d->cnonce,
+                                       d->qop,
+                                       ha2);
+  }
+  else {
+    md5this = (unsigned char *)aprintf("%s:%s:%s",
+                                       ha1,
+                                       d->nonce,
+                                       ha2);
+  }
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  Curl_safefree(md5this);
+  md5_to_ascii(md5buf, request_digest);
+
+  /* for test case 64 (snooped from a Mozilla 1.3a request)
+
+    Authorization: Digest username="testuser", realm="testrealm", \
+    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
+
+    Digest parameters are all quoted strings.  Username which is provided by
+    the user will need double quotes and backslashes within it escaped.  For
+    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
+    are copied as is from the server, escapes and all.  cnonce is generated
+    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
+    characters.  algorithm and qop with standard values only contain web-safe
+    chracters.
+  */
+  userp_quoted = string_quoted(userp);
+  if(!userp_quoted)
+    return CURLE_OUT_OF_MEMORY;
+
+  if(d->qop) {
+    *allocuserpwd =
+      aprintf( "%sAuthorization: Digest "
+               "username=\"%s\", "
+               "realm=\"%s\", "
+               "nonce=\"%s\", "
+               "uri=\"%.*s\", "
+               "cnonce=\"%s\", "
+               "nc=%08x, "
+               "qop=%s, "
+               "response=\"%s\"",
+               proxy?"Proxy-":"",
+               userp_quoted,
+               d->realm,
+               d->nonce,
+               urilen, uripath, /* this is the PATH part of the URL */
+               d->cnonce,
+               d->nc,
+               d->qop,
+               request_digest);
+
+    if(Curl_raw_equal(d->qop, "auth"))
+      d->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0 padded
+                  which tells to the server how many times you are using the
+                  same nonce in the qop=auth mode. */
+  }
+  else {
+    *allocuserpwd =
+      aprintf( "%sAuthorization: Digest "
+               "username=\"%s\", "
+               "realm=\"%s\", "
+               "nonce=\"%s\", "
+               "uri=\"%.*s\", "
+               "response=\"%s\"",
+               proxy?"Proxy-":"",
+               userp_quoted,
+               d->realm,
+               d->nonce,
+               urilen, uripath, /* this is the PATH part of the URL */
+               request_digest);
+  }
+  Curl_safefree(userp_quoted);
+  if(!*allocuserpwd)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Add optional fields */
+  if(d->opaque) {
+    /* append opaque */
+    tmp = aprintf("%s, opaque=\"%s\"", *allocuserpwd, d->opaque);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+    free(*allocuserpwd);
+    *allocuserpwd = tmp;
+  }
+
+  if(d->algorithm) {
+    /* append algorithm */
+    tmp = aprintf("%s, algorithm=\"%s\"", *allocuserpwd, d->algorithm);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+    free(*allocuserpwd);
+    *allocuserpwd = tmp;
+  }
+
+  /* append CRLF + zero (3 bytes) to the userpwd header */
+  userlen = strlen(*allocuserpwd);
+  tmp = realloc(*allocuserpwd, userlen + 3);
+  if(!tmp)
+    return CURLE_OUT_OF_MEMORY;
+  strcpy(&tmp[userlen], "\r\n"); /* append the data */
+  *allocuserpwd = tmp;
+
+  return CURLE_OK;
 }

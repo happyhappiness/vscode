@@ -1,16 +1,8 @@
-{
-    struct tm* t = cmCTest::GetNightlyTime(m_CTest->GetDartConfiguration("NightlyStartTime"),
-      m_Verbose, m_CTest->GetTomorrowTag());
-    char current_time[1024];
-    sprintf(current_time, "%04d-%02d-%02d %02d:%02d:%02d UTC",
-      t->tm_year + 1900,
-      t->tm_mon + 1,
-      t->tm_mday,
-      t->tm_hour,
-      t->tm_min,
-      t->tm_sec);
-    std::string today_update_date = current_time;
-   
-    extra_update_opts += "-D \"" + today_update_date +"\"";
-    //std::cout << "Update: " << extra_update_opts << std::endl;
-    }
+(archive_string_append_from_wcs(&fn, wfilename,
+		    wcslen(wfilename)) != 0) {
+			archive_set_error(a, EINVAL,
+			    "Failed to convert a wide-character filename to"
+			    " a multi-byte filename");
+			archive_string_free(&fn);
+			return (ARCHIVE_FATAL);
+		}

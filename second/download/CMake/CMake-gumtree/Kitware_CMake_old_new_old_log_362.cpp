@@ -1,2 +1,1 @@
-snprintf(name, sizeof(name), "%s@%s", service, proxy ? conn->proxy.name :
-           conn->host.name);
+tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);

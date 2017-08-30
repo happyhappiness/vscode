@@ -1,60 +1,32 @@
-void kwsysProcessCleanup(kwsysProcess* cp, int error)
+static int
+setup_current_filesystem(struct archive_read_disk *a)
 {
-  int i;
-  
-  /* If this is an error case, report the error.  */
-  if(error)
-    {
-    /* Format the error message.  */
-    DWORD original = GetLastError();
-    DWORD length = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                                 FORMAT_MESSAGE_IGNORE_INSERTS, 0, original,
-                                 MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                                 cp->ErrorMessage, CMPE_PIPE_BUFFER_SIZE, 0);
-    
-    if(length > 0)
-      {
-      /* Remove trailing period and newline, if any.  */
-      if(cp->ErrorMessage[length-1] == '\n')
-        {
-        cp->ErrorMessage[length-1] = 0;
-        --length;
-        if(length > 0 && cp->ErrorMessage[length-1] == '\r')
-          {
-          cp->ErrorMessage[length-1] = 0;
-          --length;
-          }
-        }
-      if(cp->ErrorMessage[length-1] == '.')
-        {
-        cp->ErrorMessage[length-1] = 0;
-        --length;
-        }
-      }
-    else
-      {
-      /* FormatMessage failed.  Use a default message.  */
-      _snprintf(cp->ErrorMessage, CMPE_PIPE_BUFFER_SIZE,
-                "Process execution failed with error 0x%X.  "
-                "FormatMessage failed with error 0x%X.",
-                original, GetLastError());
-      }
-    
-    /* Set the error state.  */
-    cp->State = kwsysProcess_State_Error;
-    }
-  
-  /* Free memory.  */
-  if(cp->RealCommand)
-    {
-    free(cp->RealCommand);
-    cp->RealCommand = 0;
-    }
+	struct tree *t = a->tree;
+	wchar_t vol[256];
+	wchar_t *path;
 
-  /* Close each pipe.  */
-  for(i=0; i < cp->PipeCount; ++i)
-    {
-    kwsysProcessCleanupHandle(&cp->Pipe[i].Write);
-    kwsysProcessCleanupHandle(&cp->Pipe[i].Read);
-    }  
+	t->current_filesystem->synthetic = -1;/* Not supported */
+	path = safe_path_for_statfs(t);
+	if (!GetVolumePathNameW(path, vol, sizeof(vol)/sizeof(vol[0]))) {
+		free(path);
+		t->current_filesystem->remote = -1;
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+                        "GetVolumePathName failed: %d", (int)GetLastError());
+		return (ARCHIVE_FAILED);
+	}
+	free(path);
+	switch (GetDriveTypeW(vol)) {
+	case DRIVE_UNKNOWN:
+	case DRIVE_NO_ROOT_DIR:
+		t->current_filesystem->remote = -1;
+		break;
+	case DRIVE_REMOTE:
+		t->current_filesystem->remote = 1;
+		break;
+	default:
+		t->current_filesystem->remote = 0;
+		break;
+	}
+
+	return (ARCHIVE_OK);
 }

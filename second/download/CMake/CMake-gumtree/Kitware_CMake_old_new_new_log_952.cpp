@@ -1,1 +1,1 @@
-fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE C)\n");
+fprintf(fout,"%s ",compileDefs[i].c_str());

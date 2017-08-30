@@ -1,2 +1,3 @@
-sprintf(vertmp,"CMake Version %d.%d - %s", cmake::GetMajorVersion(),
-	  cmake::GetMinorVersion(),cmake::GetReleaseVersion());
+fprintf(fout,
+              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
+              fname.c_str());

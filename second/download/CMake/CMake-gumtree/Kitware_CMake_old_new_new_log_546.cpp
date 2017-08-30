@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-			    "Can't open `%s'", path);
+sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
+          target.GetName().c_str(), count);

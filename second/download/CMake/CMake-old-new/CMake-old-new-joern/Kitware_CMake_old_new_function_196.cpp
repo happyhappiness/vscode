@@ -1,56 +1,81 @@
-CURLcode Curl_ftpsendf(struct connectdata *conn,
-                       const char *fmt, ...)
+int
+setup_xattrs(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-  ssize_t bytes_written;
-#define SBUF_SIZE 1024
-  char s[SBUF_SIZE];
-  size_t write_len;
-  char *sptr=s;
-  CURLcode result = CURLE_OK;
-#ifdef HAVE_GSSAPI
-  enum protection_level data_sec = conn->data_prot;
-#endif
+	char buff[512];
+	char *list, *p;
+	ssize_t list_size;
+	const char *path;
+	int namespace = EXTATTR_NAMESPACE_USER;
 
-  va_list ap;
-  va_start(ap, fmt);
-  write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap);
-  va_end(ap);
+	path = archive_entry_sourcepath(entry);
+	if (path == NULL)
+		path = archive_entry_pathname(entry);
 
-  strcpy(&s[write_len], "\r\n"); /* append a trailing CRLF */
-  write_len +=2;
+	if (*fd < 0 && a->tree != NULL) {
+		if (a->follow_symlinks ||
+		    archive_entry_filetype(entry) != AE_IFLNK)
+			*fd = a->open_on_current_dir(a->tree, path,
+				O_RDONLY | O_NONBLOCK);
+		if (*fd < 0) {
+			if (a->tree_enter_working_dir(a->tree) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Couldn't access %s", path);
+				return (ARCHIVE_FAILED);
+			}
+		}
+	}
 
-  bytes_written=0;
+	if (*fd >= 0)
+		list_size = extattr_list_fd(*fd, namespace, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = extattr_list_link(path, namespace, NULL, 0);
+	else
+		list_size = extattr_list_file(path, namespace, NULL, 0);
 
-  result = Curl_convert_to_network(conn->data, s, write_len);
-  /* Curl_convert_to_network calls failf if unsuccessful */
-  if(result)
-    return result;
+	if (list_size == -1 && errno == EOPNOTSUPP)
+		return (ARCHIVE_OK);
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't list extended attributes");
+		return (ARCHIVE_WARN);
+	}
 
-  for(;;) {
-#ifdef HAVE_GSSAPI
-    conn->data_prot = PROT_CMD;
-#endif
-    result = Curl_write(conn, conn->sock[FIRSTSOCKET], sptr, write_len,
-                        &bytes_written);
-#ifdef HAVE_GSSAPI
-    DEBUGASSERT(data_sec > PROT_NONE && data_sec < PROT_LAST);
-    conn->data_prot = data_sec;
-#endif
+	if (list_size == 0)
+		return (ARCHIVE_OK);
 
-    if(result)
-      break;
+	if ((list = malloc(list_size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
 
-    if(conn->data->set.verbose)
-      Curl_debug(conn->data, CURLINFO_HEADER_OUT,
-                 sptr, (size_t)bytes_written, conn);
+	if (*fd >= 0)
+		list_size = extattr_list_fd(*fd, namespace, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = extattr_list_link(path, namespace, list, list_size);
+	else
+		list_size = extattr_list_file(path, namespace, list, list_size);
 
-    if(bytes_written != (ssize_t)write_len) {
-      write_len -= bytes_written;
-      sptr += bytes_written;
-    }
-    else
-      break;
-  }
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't retrieve extended attributes");
+		free(list);
+		return (ARCHIVE_WARN);
+	}
 
-  return result;
+	p = list;
+	while ((p - list) < list_size) {
+		size_t len = 255 & (int)*p;
+		char *name;
+
+		strcpy(buff, "user.");
+		name = buff + strlen(buff);
+		memcpy(name, p + 1, len);
+		name[len] = '\0';
+		setup_xattr(a, entry, namespace, name, buff, *fd);
+		p += 1 + len;
+	}
+
+	free(list);
+	return (ARCHIVE_OK);
 }

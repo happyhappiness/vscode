@@ -1,209 +1,124 @@
-CURLcode Curl_sasl_create_digest_http_message(struct SessionHandle *data,
-                                              const char *userp,
-                                              const char *passwdp,
-                                              const unsigned char *request,
-                                              const unsigned char *uripath,
-                                              struct digestdata *digest,
-                                              char **outptr, size_t *outlen)
+static int yy_get_next_buffer (yyscan_t yyscanner)
 {
-  CURLcode result;
-  unsigned char md5buf[16]; /* 16 bytes/128 bits */
-  unsigned char request_digest[33];
-  unsigned char *md5this;
-  unsigned char ha1[33];/* 32 digits and 1 zero byte */
-  unsigned char ha2[33];/* 32 digits and 1 zero byte */
-  char cnoncebuf[33];
-  char *cnonce = NULL;
-  size_t cnonce_sz = 0;
-  char *userp_quoted;
-  char *response = NULL;
-  char *tmp = NULL;
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+  char *dest = YY_CURRENT_BUFFER_LVALUE->yy_ch_buf;
+  char *source = yyg->yytext_ptr;
+  int number_to_move, i;
+  int ret_val;
 
-  if(!digest->nc)
-    digest->nc = 1;
+  if ( yyg->yy_c_buf_p > &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars + 1] )
+    YY_FATAL_ERROR(
+    "fatal flex scanner internal error--end of buffer missed" );
 
-  if(!digest->cnonce) {
-    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
+  if ( YY_CURRENT_BUFFER_LVALUE->yy_fill_buffer == 0 )
+    { /* Don't try to fill the buffer, so this is an EOF. */
+    if ( yyg->yy_c_buf_p - yyg->yytext_ptr - YY_MORE_ADJ == 1 )
+      {
+      /* We matched a single character, the EOB, so
+       * treat this as a final EOF.
+       */
+      return EOB_ACT_END_OF_FILE;
+      }
 
-    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
-                                &cnonce, &cnonce_sz);
-    if(result)
-      return result;
+    else
+      {
+      /* We matched some text prior to the EOB, first
+       * process it.
+       */
+      return EOB_ACT_LAST_MATCH;
+      }
+    }
 
-    digest->cnonce = cnonce;
-  }
+  /* Try to read more data. */
 
-  /*
-    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
+  /* First move last chars to start of buffer. */
+  number_to_move = (int) (yyg->yy_c_buf_p - yyg->yytext_ptr) - 1;
 
-    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
+  for ( i = 0; i < number_to_move; ++i )
+    *(dest++) = *(source++);
 
-    if the algorithm is "MD5-sess" then:
+  if ( YY_CURRENT_BUFFER_LVALUE->yy_buffer_status == YY_BUFFER_EOF_PENDING )
+    /* don't do the read, it's not guaranteed to return an EOF,
+     * just force an EOF
+     */
+    YY_CURRENT_BUFFER_LVALUE->yy_n_chars = yyg->yy_n_chars = 0;
 
-    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
-         ":" unq(nonce-value) ":" unq(cnonce-value)
-  */
+  else
+    {
+      size_t nuto_read =
+      YY_CURRENT_BUFFER_LVALUE->yy_buf_size - number_to_move - 1;
 
-  md5this = (unsigned char *)
-    aprintf("%s:%s:%s", userp, digest->realm, passwdp);
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
+    while ( nuto_read <= 0 )
+      { /* Not enough room in the buffer - grow it. */
 
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, ha1);
+      /* just a shorter name for the current buffer */
+      YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
 
-  if(digest->algo == CURLDIGESTALGO_MD5SESS) {
-    /* nonce and cnonce are OUTSIDE the hash */
-    tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
+      int yy_c_buf_p_offset =
+        (int) (yyg->yy_c_buf_p - b->yy_ch_buf);
 
-    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
-    Curl_md5it(md5buf, (unsigned char *)tmp);
-    free(tmp);
-    sasl_digest_md5_to_ascii(md5buf, ha1);
-  }
+      if ( b->yy_is_our_buffer )
+        {
+        int new_size = b->yy_buf_size * 2;
 
-  /*
-    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
+        if ( new_size <= 0 )
+          b->yy_buf_size += b->yy_buf_size / 8;
+        else
+          b->yy_buf_size *= 2;
 
-      A2       = Method ":" digest-uri-value
+        b->yy_ch_buf = (char *)
+          /* Include room in for 2 EOB chars. */
+          cmExpr_yyrealloc((void *) b->yy_ch_buf,b->yy_buf_size + 2 ,yyscanner );
+        }
+      else
+        /* Can't grow it, we don't own it. */
+        b->yy_ch_buf = 0;
 
-          If the "qop" value is "auth-int", then A2 is:
+      if ( ! b->yy_ch_buf )
+        YY_FATAL_ERROR(
+        "fatal error - scanner input buffer overflow" );
 
-      A2       = Method ":" digest-uri-value ":" H(entity-body)
+      yyg->yy_c_buf_p = &b->yy_ch_buf[yy_c_buf_p_offset];
 
-    (The "Method" value is the HTTP request method as specified in section
-    5.1.1 of RFC 2616)
-  */
+      nuto_read = YY_CURRENT_BUFFER_LVALUE->yy_buf_size -
+            number_to_move - 1;
 
-  md5this = (unsigned char *)aprintf("%s:%s", request, uripath);
+      }
 
-  if(digest->qop && Curl_raw_equal(digest->qop, "auth-int")) {
-    /* We don't support auth-int for PUT or POST at the moment.
-       TODO: replace md5 of empty string with entity-body for PUT/POST */
-    unsigned char *md5this2 = (unsigned char *)
-      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
-    free(md5this);
-    md5this = md5this2;
-  }
+    if ( nuto_read > YY_READ_BUF_SIZE )
+      nuto_read = YY_READ_BUF_SIZE;
 
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
+    /* Read in more data. */
+    YY_INPUT( (&YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[number_to_move]),
+      yyg->yy_n_chars, nuto_read );
 
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, ha2);
+    YY_CURRENT_BUFFER_LVALUE->yy_n_chars = yyg->yy_n_chars;
+    }
 
-  if(digest->qop) {
-    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       digest->nc,
-                                       digest->cnonce,
-                                       digest->qop,
-                                       ha2);
-  }
-  else {
-    md5this = (unsigned char *)aprintf("%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       ha2);
-  }
+  if ( yyg->yy_n_chars == 0 )
+    {
+    if ( number_to_move == YY_MORE_ADJ )
+      {
+      ret_val = EOB_ACT_END_OF_FILE;
+      cmExpr_yyrestart(yyin  ,yyscanner);
+      }
 
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
+    else
+      {
+      ret_val = EOB_ACT_LAST_MATCH;
+      YY_CURRENT_BUFFER_LVALUE->yy_buffer_status =
+        YY_BUFFER_EOF_PENDING;
+      }
+    }
 
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, request_digest);
+  else
+    ret_val = EOB_ACT_CONTINUE_SCAN;
 
-  /* for test case 64 (snooped from a Mozilla 1.3a request)
+  yyg->yy_n_chars += number_to_move;
+  YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars] = YY_END_OF_BUFFER_CHAR;
+  YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars + 1] = YY_END_OF_BUFFER_CHAR;
 
-    Authorization: Digest username="testuser", realm="testrealm", \
-    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
+  yyg->yytext_ptr = &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[0];
 
-    Digest parameters are all quoted strings.  Username which is provided by
-    the user will need double quotes and backslashes within it escaped.  For
-    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
-    are copied as is from the server, escapes and all.  cnonce is generated
-    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
-    characters.  algorithm and qop with standard values only contain web-safe
-    chracters.
-  */
-  userp_quoted = sasl_digest_string_quoted(userp);
-  if(!userp_quoted)
-    return CURLE_OUT_OF_MEMORY;
-
-  if(digest->qop) {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "cnonce=\"%s\", "
-                       "nc=%08x, "
-                       "qop=%s, "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       digest->cnonce,
-                       digest->nc,
-                       digest->qop,
-                       request_digest);
-
-    if(Curl_raw_equal(digest->qop, "auth"))
-      digest->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0
-                       padded which tells to the server how many times you are
-                       using the same nonce in the qop=auth mode */
-  }
-  else {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       request_digest);
-  }
-  free(userp_quoted);
-  if(!response)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Add the optional fields */
-  if(digest->opaque) {
-    /* Append the opaque */
-    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    response = tmp;
-  }
-
-  if(digest->algorithm) {
-    /* Append the algorithm */
-    tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    response = tmp;
-  }
-
-  /* Return the output */
-  *outptr = response;
-  *outlen = strlen(response);
-
-  return CURLE_OK;
+  return ret_val;
 }

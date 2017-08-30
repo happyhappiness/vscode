@@ -1,82 +1,154 @@
 {
-  this->FirstTimeProgress = 0.0f;
-  this->ClearGeneratorMembers();
+  CURLcode result = CURLE_OK;
+  size_t i;
+  MD5_context *ctxt;
+  char *response = NULL;
+  unsigned char digest[MD5_DIGEST_LEN];
+  char HA1_hex[2 * MD5_DIGEST_LEN + 1];
+  char HA2_hex[2 * MD5_DIGEST_LEN + 1];
+  char resp_hash_hex[2 * MD5_DIGEST_LEN + 1];
+  char nonce[64];
+  char realm[128];
+  char algorithm[64];
+  char qop_options[64];
+  int qop_values;
+  char cnonce[33];
+  unsigned int entropy[4];
+  char nonceCount[] = "00000001";
+  char method[]     = "AUTHENTICATE";
+  char qop[]        = DIGEST_QOP_VALUE_STRING_AUTH;
+  char *spn         = NULL;
 
-  // start with this directory
-  cmLocalGenerator *lg = this->MakeLocalGenerator();
-  this->LocalGenerators.push_back(lg);
+  /* Decode the challange message */
+  result = sasl_decode_digest_md5_message(chlg64, nonce, sizeof(nonce),
+                                          realm, sizeof(realm),
+                                          algorithm, sizeof(algorithm),
+                                          qop_options, sizeof(qop_options));
+  if(result)
+    return result;
 
-  // set the Start directories
-  lg->GetMakefile()->SetCurrentSourceDirectory
-    (this->CMakeInstance->GetHomeDirectory());
-  lg->GetMakefile()->SetCurrentBinaryDirectory
-    (this->CMakeInstance->GetHomeOutputDirectory());
+  /* We only support md5 sessions */
+  if(strcmp(algorithm, "md5-sess") != 0)
+    return CURLE_BAD_CONTENT_ENCODING;
 
-  this->BinaryDirectories.insert(
-      this->CMakeInstance->GetHomeOutputDirectory());
+  /* Get the qop-values from the qop-options */
+  result = sasl_digest_get_qop_values(qop_options, &qop_values);
+  if(result)
+    return result;
 
-  // now do it
-  lg->GetMakefile()->Configure();
-  lg->GetMakefile()->EnforceDirectoryLevelRules();
+  /* We only support auth quality-of-protection */
+  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
+    return CURLE_BAD_CONTENT_ENCODING;
 
-  // update the cache entry for the number of local generators, this is used
-  // for progress
-  char num[100];
-  sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
-  this->GetCMakeInstance()->AddCacheEntry
-    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
-     "number of local generators", cmState::INTERNAL);
+  /* Generate 16 bytes of random data */
+  entropy[0] = Curl_rand(data);
+  entropy[1] = Curl_rand(data);
+  entropy[2] = Curl_rand(data);
+  entropy[3] = Curl_rand(data);
 
-  // check for link libraries and include directories containing "NOTFOUND"
-  // and for infinite loops
-  this->CheckLocalGenerators();
+  /* Convert the random data into a 32 byte hex string */
+  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
+           entropy[0], entropy[1], entropy[2], entropy[3]);
 
-  // at this point this->LocalGenerators has been filled,
-  // so create the map from project name to vector of local generators
-  this->FillProjectMap();
+  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
 
-  if ( this->CMakeInstance->GetWorkingMode() == cmake::NORMAL_MODE)
-    {
-    std::ostringstream msg;
-    if(cmSystemTools::GetErrorOccuredFlag())
-      {
-      msg << "Configuring incomplete, errors occurred!";
-      const char* logs[] = {"CMakeOutput.log", "CMakeError.log", 0};
-      for(const char** log = logs; *log; ++log)
-        {
-        std::string f = this->CMakeInstance->GetHomeOutputDirectory();
-        f += this->CMakeInstance->GetCMakeFilesDirectory();
-        f += "/";
-        f += *log;
-        if(cmSystemTools::FileExists(f.c_str()))
-          {
-          msg << "\nSee also \"" << f << "\".";
-          }
-        }
-      }
-    else
-      {
-      msg << "Configuring done";
-      }
-    this->CMakeInstance->UpdateProgress(msg.str().c_str(), -1);
-    }
+  Curl_MD5_update(ctxt, (const unsigned char *) userp,
+                  curlx_uztoui(strlen(userp)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) realm,
+                  curlx_uztoui(strlen(realm)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) passwdp,
+                  curlx_uztoui(strlen(passwdp)));
+  Curl_MD5_final(ctxt, digest);
 
-  unsigned int i;
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
 
-  // Put a copy of each global target in every directory.
-  cmTargets globalTargets;
-  this->CreateDefaultGlobalTargets(&globalTargets);
+  Curl_MD5_update(ctxt, (const unsigned char *) digest, MD5_DIGEST_LEN);
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
+                  curlx_uztoui(strlen(nonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
+                  curlx_uztoui(strlen(cnonce)));
+  Curl_MD5_final(ctxt, digest);
 
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    cmMakefile* mf = this->LocalGenerators[i]->GetMakefile();
-    cmTargets* targets = &(mf->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = globalTargets.begin(); tit != globalTargets.end(); ++ tit )
-      {
-      (*targets)[tit->first] = tit->second;
-      (*targets)[tit->first].SetMakefile(mf);
-      }
-    }
+  /* Convert calculated 16 octet hex into 32 bytes string */
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);
 
+  /* Generate our SPN */
+  spn = Curl_sasl_build_spn(service, realm);
+  if(!spn)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Calculate H(A2) */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt) {
+    free(spn);
+
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  Curl_MD5_update(ctxt, (const unsigned char *) method,
+                  curlx_uztoui(strlen(method)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) spn,
+                  curlx_uztoui(strlen(spn)));
+  Curl_MD5_final(ctxt, digest);
+
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Now calculate the response hash */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt) {
+    free(spn);
+
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  Curl_MD5_update(ctxt, (const unsigned char *) HA1_hex, 2 * MD5_DIGEST_LEN);
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
+                  curlx_uztoui(strlen(nonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+
+  Curl_MD5_update(ctxt, (const unsigned char *) nonceCount,
+                  curlx_uztoui(strlen(nonceCount)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
+                  curlx_uztoui(strlen(cnonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) qop,
+                  curlx_uztoui(strlen(qop)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+
+  Curl_MD5_update(ctxt, (const unsigned char *) HA2_hex, 2 * MD5_DIGEST_LEN);
+  Curl_MD5_final(ctxt, digest);
+
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Generate the response */
+  response = aprintf("username=\"%s\",realm=\"%s\",nonce=\"%s\","
+                     "cnonce=\"%s\",nc=\"%s\",digest-uri=\"%s\",response=%s,"
+                     "qop=%s",
+                     userp, realm, nonce,
+                     cnonce, nonceCount, spn, resp_hash_hex, qop);
+  free(spn);
+  if(!response)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Base64 encode the response */
+  result = Curl_base64_encode(data, response, 0, outptr, outlen);
+
+  free(response);
+
+  return result;
 }

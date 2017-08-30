@@ -1,29 +1,45 @@
-static void
-log_gss_error(struct connectdata *conn, OM_uint32 error_status,
-              const char *prefix)
+static int
+copy_from_lzss_window(struct archive_read *a, const void **buffer,
+                        int64_t startpos, int length)
 {
-  OM_uint32 maj_stat, min_stat;
-  OM_uint32 msg_ctx = 0;
-  gss_buffer_desc status_string;
-  char buf[1024];
-  size_t len;
+  int windowoffs, firstpart;
+  struct rar *rar = (struct rar *)(a->format->data);
 
-  snprintf(buf, sizeof(buf), "%s", prefix);
-  len = strlen(buf);
-  do {
-    maj_stat = gss_display_status(&min_stat,
-                                  error_status,
-                                  GSS_C_MECH_CODE,
-                                  GSS_C_NO_OID,
-                                  &msg_ctx,
-                                  &status_string);
-      if(sizeof(buf) > len + status_string.length + 1) {
-        snprintf(buf + len, sizeof(buf) - len,
-                 ": %s", (char*) status_string.value);
-      len += status_string.length;
+  if (!rar->unp_buffer)
+  {
+    if ((rar->unp_buffer = malloc(rar->unp_buffer_size)) == NULL)
+    {
+      archive_set_error(&a->archive, ENOMEM,
+                        "Unable to allocate memory for uncompressed data.");
+      return (ARCHIVE_FATAL);
     }
-    gss_release_buffer(&min_stat, &status_string);
-  } while(!GSS_ERROR(maj_stat) && msg_ctx != 0);
+  }
 
-  infof(conn->data, "%s\n", buf);
+  windowoffs = lzss_offset_for_position(&rar->lzss, startpos);
+  if(windowoffs + length <= lzss_size(&rar->lzss))
+    memcpy(&rar->unp_buffer[rar->unp_offset], &rar->lzss.window[windowoffs],
+           length);
+  else
+  {
+    firstpart = lzss_size(&rar->lzss) - windowoffs;
+    if (firstpart < 0) {
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Bad RAR file data");
+      return (ARCHIVE_FATAL);
+    }
+    if (firstpart < length) {
+      memcpy(&rar->unp_buffer[rar->unp_offset],
+             &rar->lzss.window[windowoffs], firstpart);
+      memcpy(&rar->unp_buffer[rar->unp_offset + firstpart],
+             &rar->lzss.window[0], length - firstpart);
+    } else
+      memcpy(&rar->unp_buffer[rar->unp_offset],
+             &rar->lzss.window[windowoffs], length);
+  }
+  rar->unp_offset += length;
+  if (rar->unp_offset >= rar->unp_buffer_size)
+    *buffer = rar->unp_buffer;
+  else
+    *buffer = NULL;
+  return (ARCHIVE_OK);
 }

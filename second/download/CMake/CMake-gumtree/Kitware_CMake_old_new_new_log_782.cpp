@@ -1,2 +1,1 @@
-fprintf(fout,"extern \"C\"\n{\nvoid "
-            "vtkCommonDeleteAssocData(ClientData cd)\n");
+archive_set_error(&a->archive, errno, "fchdir failed");

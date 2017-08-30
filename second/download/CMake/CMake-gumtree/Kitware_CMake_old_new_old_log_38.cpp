@@ -1,5 +1,3 @@
-archive_set_error(&a->archive,
+fsobj_error(a_eno, a_estr,
 						    errno,
-						    "Cannot restore extended "
-						    "attributes on this file "
-						    "system");
+						    "Could not chdir %s", path);

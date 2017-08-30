@@ -1,1 +1,2 @@
-cmCTestLog(m_CTest, HANDLER_OUTPUT, "\t" << std::setw(3) << ftit->m_TestCount << " - " << ftit->m_Name.c_str() << " (" << this->GetTestStatus(ftit->m_Status) << ")" << std::endl);
+archive_set_error(&a->archive, ENOMEM,
+					    "Couldn't allocate memory");

@@ -1,1 +1,3 @@
-DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Parse error: SCHILY.acl.access");

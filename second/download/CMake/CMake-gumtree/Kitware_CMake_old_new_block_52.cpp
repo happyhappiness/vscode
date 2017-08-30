@@ -1,36 +1,42 @@
 {
-    time_t filetime;
-    struct tm buffer;
-    const struct tm *tm = &buffer;
-    snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
-             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-    if(result)
-      return result;
+  size_t size = 0;
+  char *authorization = NULL;
+  struct Curl_easy *data = conn->data;
+  char **userp;
+  const char *user;
+  const char *pwd;
+  CURLcode result;
 
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH,
-                               (char *)"Accept-ranges: bytes\r\n", 0);
-    if(result)
-      return result;
-
-    filetime = (time_t)statbuf.st_mtime;
-    result = Curl_gmtime(filetime, &buffer);
-    if(result)
-      return result;
-
-    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-    snprintf(buf, BUFSIZE-1,
-             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-             tm->tm_mday,
-             Curl_month[tm->tm_mon],
-             tm->tm_year + 1900,
-             tm->tm_hour,
-             tm->tm_min,
-             tm->tm_sec);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-    if(!result)
-      /* set the file size to make it available post transfer */
-      Curl_pgrsSetDownloadSize(data, expected_size);
-    return result;
+  if(proxy) {
+    userp = &conn->allocptr.proxyuserpwd;
+    user = conn->http_proxy.user;
+    pwd = conn->http_proxy.passwd;
   }
+  else {
+    userp = &conn->allocptr.userpwd;
+    user = conn->user;
+    pwd = conn->passwd;
+  }
+
+  snprintf(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
+           "%s:%s", user, pwd);
+
+  result = Curl_base64_encode(data,
+                              data->state.buffer, strlen(data->state.buffer),
+                              &authorization, &size);
+  if(result)
+    return result;
+
+  if(!authorization)
+    return CURLE_REMOTE_ACCESS_DENIED;
+
+  free(*userp);
+  *userp = aprintf("%sAuthorization: Basic %s\r\n",
+                   proxy ? "Proxy-" : "",
+                   authorization);
+  free(authorization);
+  if(!*userp)
+    return CURLE_OUT_OF_MEMORY;
+
+  return CURLE_OK;
+}

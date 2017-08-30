@@ -1,1 +1,1 @@
-sprintf(buffer, "&lt;%d&gt;", (int)ch);
+fprintf(fout, "add_executable(%s", targetName);

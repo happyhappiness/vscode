@@ -1,209 +1,170 @@
-CURLcode Curl_sasl_create_digest_http_message(struct SessionHandle *data,
-                                              const char *userp,
-                                              const char *passwdp,
-                                              const unsigned char *request,
-                                              const unsigned char *uripath,
-                                              struct digestdata *digest,
-                                              char **outptr, size_t *outlen)
+static int
+header_common(struct archive_read *a, struct tar *tar,
+    struct archive_entry *entry, const void *h)
 {
-  CURLcode result;
-  unsigned char md5buf[16]; /* 16 bytes/128 bits */
-  unsigned char request_digest[33];
-  unsigned char *md5this;
-  unsigned char ha1[33];/* 32 digits and 1 zero byte */
-  unsigned char ha2[33];/* 32 digits and 1 zero byte */
-  char cnoncebuf[33];
-  char *cnonce = NULL;
-  size_t cnonce_sz = 0;
-  char *userp_quoted;
-  char *response = NULL;
-  char *tmp = NULL;
+	const struct archive_entry_header_ustar	*header;
+	char	tartype;
+	int     err = ARCHIVE_OK;
 
-  if(!digest->nc)
-    digest->nc = 1;
+	header = (const struct archive_entry_header_ustar *)h;
+	if (header->linkname[0])
+		archive_strncpy(&(tar->entry_linkpath),
+		    header->linkname, sizeof(header->linkname));
+	else
+		archive_string_empty(&(tar->entry_linkpath));
 
-  if(!digest->cnonce) {
-    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
+	/* Parse out the numeric fields (all are octal) */
+	archive_entry_set_mode(entry,
+		(mode_t)tar_atol(header->mode, sizeof(header->mode)));
+	archive_entry_set_uid(entry, tar_atol(header->uid, sizeof(header->uid)));
+	archive_entry_set_gid(entry, tar_atol(header->gid, sizeof(header->gid)));
+	tar->entry_bytes_remaining = tar_atol(header->size, sizeof(header->size));
+	if (tar->entry_bytes_remaining < 0) {
+		tar->entry_bytes_remaining = 0;
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Tar entry has negative size?");
+		err = ARCHIVE_WARN;
+	}
+	tar->realsize = tar->entry_bytes_remaining;
+	archive_entry_set_size(entry, tar->entry_bytes_remaining);
+	archive_entry_set_mtime(entry, tar_atol(header->mtime, sizeof(header->mtime)), 0);
 
-    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
-                                &cnonce, &cnonce_sz);
-    if(result)
-      return result;
+	/* Handle the tar type flag appropriately. */
+	tartype = header->typeflag[0];
 
-    digest->cnonce = cnonce;
-  }
+	switch (tartype) {
+	case '1': /* Hard link */
+		if (archive_entry_copy_hardlink_l(entry, tar->entry_linkpath.s,
+		    archive_strlen(&(tar->entry_linkpath)), tar->sconv) != 0) {
+			err = set_conversion_failed_error(a, tar->sconv,
+			    "Linkname");
+			if (err == ARCHIVE_FATAL)
+				return (err);
+		}
+		/*
+		 * The following may seem odd, but: Technically, tar
+		 * does not store the file type for a "hard link"
+		 * entry, only the fact that it is a hard link.  So, I
+		 * leave the type zero normally.  But, pax interchange
+		 * format allows hard links to have data, which
+		 * implies that the underlying entry is a regular
+		 * file.
+		 */
+		if (archive_entry_size(entry) > 0)
+			archive_entry_set_filetype(entry, AE_IFREG);
 
-  /*
-    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
-
-    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
-
-    if the algorithm is "MD5-sess" then:
-
-    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
-         ":" unq(nonce-value) ":" unq(cnonce-value)
-  */
-
-  md5this = (unsigned char *)
-    aprintf("%s:%s:%s", userp, digest->realm, passwdp);
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, ha1);
-
-  if(digest->algo == CURLDIGESTALGO_MD5SESS) {
-    /* nonce and cnonce are OUTSIDE the hash */
-    tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
-    Curl_md5it(md5buf, (unsigned char *)tmp);
-    free(tmp);
-    sasl_digest_md5_to_ascii(md5buf, ha1);
-  }
-
-  /*
-    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
-
-      A2       = Method ":" digest-uri-value
-
-          If the "qop" value is "auth-int", then A2 is:
-
-      A2       = Method ":" digest-uri-value ":" H(entity-body)
-
-    (The "Method" value is the HTTP request method as specified in section
-    5.1.1 of RFC 2616)
-  */
-
-  md5this = (unsigned char *)aprintf("%s:%s", request, uripath);
-
-  if(digest->qop && Curl_raw_equal(digest->qop, "auth-int")) {
-    /* We don't support auth-int for PUT or POST at the moment.
-       TODO: replace md5 of empty string with entity-body for PUT/POST */
-    unsigned char *md5this2 = (unsigned char *)
-      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
-    free(md5this);
-    md5this = md5this2;
-  }
-
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, ha2);
-
-  if(digest->qop) {
-    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       digest->nc,
-                                       digest->cnonce,
-                                       digest->qop,
-                                       ha2);
-  }
-  else {
-    md5this = (unsigned char *)aprintf("%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       ha2);
-  }
-
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, request_digest);
-
-  /* for test case 64 (snooped from a Mozilla 1.3a request)
-
-    Authorization: Digest username="testuser", realm="testrealm", \
-    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
-
-    Digest parameters are all quoted strings.  Username which is provided by
-    the user will need double quotes and backslashes within it escaped.  For
-    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
-    are copied as is from the server, escapes and all.  cnonce is generated
-    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
-    characters.  algorithm and qop with standard values only contain web-safe
-    chracters.
-  */
-  userp_quoted = sasl_digest_string_quoted(userp);
-  if(!userp_quoted)
-    return CURLE_OUT_OF_MEMORY;
-
-  if(digest->qop) {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "cnonce=\"%s\", "
-                       "nc=%08x, "
-                       "qop=%s, "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       digest->cnonce,
-                       digest->nc,
-                       digest->qop,
-                       request_digest);
-
-    if(Curl_raw_equal(digest->qop, "auth"))
-      digest->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0
-                       padded which tells to the server how many times you are
-                       using the same nonce in the qop=auth mode */
-  }
-  else {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       request_digest);
-  }
-  free(userp_quoted);
-  if(!response)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Add the optional fields */
-  if(digest->opaque) {
-    /* Append the opaque */
-    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    response = tmp;
-  }
-
-  if(digest->algorithm) {
-    /* Append the algorithm */
-    tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    response = tmp;
-  }
-
-  /* Return the output */
-  *outptr = response;
-  *outlen = strlen(response);
-
-  return CURLE_OK;
+		/*
+		 * A tricky point: Traditionally, tar readers have
+		 * ignored the size field when reading hardlink
+		 * entries, and some writers put non-zero sizes even
+		 * though the body is empty.  POSIX blessed this
+		 * convention in the 1988 standard, but broke with
+		 * this tradition in 2001 by permitting hardlink
+		 * entries to store valid bodies in pax interchange
+		 * format, but not in ustar format.  Since there is no
+		 * hard and fast way to distinguish pax interchange
+		 * from earlier archives (the 'x' and 'g' entries are
+		 * optional, after all), we need a heuristic.
+		 */
+		if (archive_entry_size(entry) == 0) {
+			/* If the size is already zero, we're done. */
+		}  else if (a->archive.archive_format
+		    == ARCHIVE_FORMAT_TAR_PAX_INTERCHANGE) {
+			/* Definitely pax extended; must obey hardlink size. */
+		} else if (a->archive.archive_format == ARCHIVE_FORMAT_TAR
+		    || a->archive.archive_format == ARCHIVE_FORMAT_TAR_GNUTAR)
+		{
+			/* Old-style or GNU tar: we must ignore the size. */
+			archive_entry_set_size(entry, 0);
+			tar->entry_bytes_remaining = 0;
+		} else if (archive_read_format_tar_bid(a, 50) > 50) {
+			/*
+			 * We don't know if it's pax: If the bid
+			 * function sees a valid ustar header
+			 * immediately following, then let's ignore
+			 * the hardlink size.
+			 */
+			archive_entry_set_size(entry, 0);
+			tar->entry_bytes_remaining = 0;
+		}
+		/*
+		 * TODO: There are still two cases I'd like to handle:
+		 *   = a ustar non-pax archive with a hardlink entry at
+		 *     end-of-archive.  (Look for block of nulls following?)
+		 *   = a pax archive that has not seen any pax headers
+		 *     and has an entry which is a hardlink entry storing
+		 *     a body containing an uncompressed tar archive.
+		 * The first is worth addressing; I don't see any reliable
+		 * way to deal with the second possibility.
+		 */
+		break;
+	case '2': /* Symlink */
+		archive_entry_set_filetype(entry, AE_IFLNK);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		if (archive_entry_copy_symlink_l(entry, tar->entry_linkpath.s,
+		    archive_strlen(&(tar->entry_linkpath)), tar->sconv) != 0) {
+			err = set_conversion_failed_error(a, tar->sconv,
+			    "Linkname");
+			if (err == ARCHIVE_FATAL)
+				return (err);
+		}
+		break;
+	case '3': /* Character device */
+		archive_entry_set_filetype(entry, AE_IFCHR);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		break;
+	case '4': /* Block device */
+		archive_entry_set_filetype(entry, AE_IFBLK);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		break;
+	case '5': /* Dir */
+		archive_entry_set_filetype(entry, AE_IFDIR);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		break;
+	case '6': /* FIFO device */
+		archive_entry_set_filetype(entry, AE_IFIFO);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		break;
+	case 'D': /* GNU incremental directory type */
+		/*
+		 * No special handling is actually required here.
+		 * It might be nice someday to preprocess the file list and
+		 * provide it to the client, though.
+		 */
+		archive_entry_set_filetype(entry, AE_IFDIR);
+		break;
+	case 'M': /* GNU "Multi-volume" (remainder of file from last archive)*/
+		/*
+		 * As far as I can tell, this is just like a regular file
+		 * entry, except that the contents should be _appended_ to
+		 * the indicated file at the indicated offset.  This may
+		 * require some API work to fully support.
+		 */
+		break;
+	case 'N': /* Old GNU "long filename" entry. */
+		/* The body of this entry is a script for renaming
+		 * previously-extracted entries.  Ugh.  It will never
+		 * be supported by libarchive. */
+		archive_entry_set_filetype(entry, AE_IFREG);
+		break;
+	case 'S': /* GNU sparse files */
+		/*
+		 * Sparse files are really just regular files with
+		 * sparse information in the extended area.
+		 */
+		/* FALLTHROUGH */
+	default: /* Regular file  and non-standard types */
+		/*
+		 * Per POSIX: non-recognized types should always be
+		 * treated as regular files.
+		 */
+		archive_entry_set_filetype(entry, AE_IFREG);
+		break;
+	}
+	return (err);
 }

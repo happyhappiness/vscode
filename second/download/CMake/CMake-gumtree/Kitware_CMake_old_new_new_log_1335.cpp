@@ -1,0 +1,1 @@
+YYDPRINTF ((stderr, "Now at end of input.\n"));

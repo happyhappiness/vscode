@@ -1,24 +1,63 @@
-static ssize_t
-_archive_write_disk_data_block(struct archive *_a,
-    const void *buff, size_t size, int64_t offset)
+CURLcode curl_global_init(long flags)
 {
-	struct archive_write_disk *a = (struct archive_write_disk *)_a;
-	ssize_t r;
+  if(initialized++)
+    return CURLE_OK;
 
-	archive_check_magic(&a->archive, ARCHIVE_WRITE_DISK_MAGIC,
-	    ARCHIVE_STATE_DATA, "archive_write_data_block");
+  /* Setup the default memory functions here (again) */
+  Curl_cmalloc = (curl_malloc_callback)malloc;
+  Curl_cfree = (curl_free_callback)free;
+  Curl_crealloc = (curl_realloc_callback)realloc;
+  Curl_cstrdup = (curl_strdup_callback)system_strdup;
+  Curl_ccalloc = (curl_calloc_callback)calloc;
+#if defined(WIN32) && defined(UNICODE)
+  Curl_cwcsdup = (curl_wcsdup_callback)_wcsdup;
+#endif
 
-	a->offset = offset;
-	if (a->todo & TODO_HFS_COMPRESSION)
-		r = hfs_write_data_block(a, buff, size);
-	else
-		r = write_data_block(a, buff, size);
-	if (r < ARCHIVE_OK)
-		return (r);
-	if ((size_t)r < size) {
-		archive_set_error(&a->archive, 0,
-		    "Write request too large");
-		return (ARCHIVE_WARN);
-	}
-	return (ARCHIVE_OK);
+  if(flags & CURL_GLOBAL_SSL)
+    if(!Curl_ssl_init()) {
+      DEBUGF(fprintf(stderr, "Error: Curl_ssl_init failed\n"));
+      return CURLE_FAILED_INIT;
+    }
+
+  if(flags & CURL_GLOBAL_WIN32)
+    if(win32_init()) {
+      DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));
+      return CURLE_FAILED_INIT;
+    }
+
+#ifdef __AMIGA__
+  if(!Curl_amiga_init()) {
+    DEBUGF(fprintf(stderr, "Error: Curl_amiga_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }
+#endif
+
+#ifdef NETWARE
+  if(netware_init()) {
+    DEBUGF(fprintf(stderr, "Warning: LONG namespace not available\n"));
+  }
+#endif
+
+#ifdef USE_LIBIDN
+  idna_init();
+#endif
+
+  if(Curl_resolver_global_init()) {
+    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }
+
+#if defined(USE_LIBSSH2) && defined(HAVE_LIBSSH2_INIT)
+  if(libssh2_init(0)) {
+    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }
+#endif
+
+  if(flags & CURL_GLOBAL_ACK_EINTR)
+    Curl_ack_eintr = 1;
+
+  init_flags  = flags;
+
+  return CURLE_OK;
 }

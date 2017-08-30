@@ -1,1 +1,2 @@
-fprintf(out, "%s", cm_archive_entry_pathname(entry).c_str());
+fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+              this->BinaryDirectory.c_str());

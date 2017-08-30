@@ -1,53 +1,38 @@
-void
-DumpSymbolTable(PIMAGE_SYMBOL pSymbolTable, PIMAGE_SECTION_HEADER pSectionHeaders, FILE *fout, unsigned cSymbols)
+static int
+archive_filter_lz4_options(struct archive_write_filter *f,
+    const char *key, const char *value)
 {
-   unsigned i;
-   PSTR stringTable;
-   std::string sectionName;
-   std::string sectionCharacter;
-   int iSectNum;
+	struct private_data *data = (struct private_data *)f->data;
 
-   fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
-      cSymbols);
+	if (strcmp(key, "compression-level") == 0) {
+		if (value == NULL || !(value[0] >= '1' && value[0] <= '9') ||
+		    value[1] != '\0')
+			return (ARCHIVE_WARN);
+		data->compression_level = value[0] - '0';
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "stream-checksum") == 0) {
+		data->stream_checksum = value != NULL;
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "block-checksum") == 0) {
+		data->block_checksum = value != NULL;
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "block-size") == 0) {
+		if (value == NULL || !(value[0] >= '4' && value[0] <= '7') ||
+		    value[1] != '\0')
+			return (ARCHIVE_WARN);
+		data->block_maximum_size = value[0] - '0';
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "block-dependence") == 0) {
+		data->block_independence = value == NULL;
+		return (ARCHIVE_OK);
+	}
 
-   fprintf(fout,
-      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
-      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");
-
-   /*
-   * The string table apparently starts right after the symbol table
-   */
-   stringTable = (PSTR)&pSymbolTable[cSymbols];
-
-   for ( i=0; i < cSymbols; i++ ) {
-      fprintf(fout, "%04X ", i);
-      if ( pSymbolTable->N.Name.Short != 0 )
-         fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
-      else
-         fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);
-
-      fprintf(fout, " %08X", pSymbolTable->Value);
-
-      iSectNum = pSymbolTable->SectionNumber;
-      GetSectionName(pSymbolTable, sectionName);
-      fprintf(fout, " sect:%s aux:%X type:%02X st:%s",
-         sectionName.c_str(),
-         pSymbolTable->NumberOfAuxSymbols,
-         pSymbolTable->Type,
-         GetSZStorageClass(pSymbolTable->StorageClass) );
-
-      GetSectionCharacteristics(pSectionHeaders,iSectNum,sectionCharacter);
-      fprintf(fout," hc: %s \n",sectionCharacter.c_str());
-#if 0
-      if ( pSymbolTable->NumberOfAuxSymbols )
-         DumpAuxSymbols(pSymbolTable);
-#endif
-
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-   }
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
 }

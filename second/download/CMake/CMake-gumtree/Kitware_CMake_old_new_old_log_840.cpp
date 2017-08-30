@@ -1,1 +1,2 @@
-f(newhost, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "tar: unknown keyword ``%s''", key);

@@ -1,1 +1,0 @@
-fprintf(fout,"%s\n",(*d)->m_FullPath.c_str());

@@ -1,1 +1,1 @@
-= aprintf("%s:%s", user, pwd);
+strcpy(data->set.errorbuffer, error);

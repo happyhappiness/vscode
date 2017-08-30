@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "flex scanner push-back overflow" );
+fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);

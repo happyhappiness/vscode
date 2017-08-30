@@ -1,0 +1,1 @@
+sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));

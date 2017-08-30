@@ -1,1 +1,1 @@
-fprintf(out, "#\n# Fatal libcurl error\n");
+_snprintf(cp->ExitExceptionString, KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);

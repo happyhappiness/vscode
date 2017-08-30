@@ -1,2 +1,1 @@
-fprintf(fout,
-              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);
+fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);

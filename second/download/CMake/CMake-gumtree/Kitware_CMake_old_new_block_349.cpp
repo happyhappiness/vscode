@@ -1,5 +1,1 @@
-{
-		archive_set_error(&a->archive, 0,
-		    "Write request too large");
-		return (ARCHIVE_WARN);
-	}
+snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i])

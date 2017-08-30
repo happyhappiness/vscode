@@ -1,1 +1,0 @@
-fprintf(progFile,"%i\n",count);

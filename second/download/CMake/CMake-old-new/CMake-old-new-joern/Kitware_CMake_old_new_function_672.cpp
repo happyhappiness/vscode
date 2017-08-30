@@ -1,93 +1,49 @@
-int GetWebFile(void)
+bool Directory::Load(const char* name)
 {
-  int retVal = 0;
-  CURL *curl;
-  CURLcode res;
-
-  char proxy[1024];
-  int proxy_type = 0;
-
-  if ( getenv("HTTP_PROXY") )
+  this->Clear();
+#if _MSC_VER < 1300
+  long srchHandle;
+#else
+  intptr_t srchHandle;
+#endif
+  char* buf;
+  size_t n = strlen(name);
+  if ( name[n - 1] == '/' || name[n - 1] == '\\' )
     {
-    proxy_type = 1;
-    if (getenv("HTTP_PROXY_PORT") )
-      {
-      sprintf(proxy, "%s:%s", getenv("HTTP_PROXY"), getenv("HTTP_PROXY_PORT"));
-      }
-    else
-      {
-      sprintf(proxy, "%s", getenv("HTTP_PROXY"));
-      }
-    if ( getenv("HTTP_PROXY_TYPE") )
-      {
-      /* HTTP/SOCKS4/SOCKS5 */
-      if ( strcmp(getenv("HTTP_PROXY_TYPE"), "HTTP") == 0 )
-        {
-        proxy_type = 1;
-        }
-      else if ( strcmp(getenv("HTTP_PROXY_TYPE"), "SOCKS4") == 0 )
-        {
-        proxy_type = 2;
-        }
-      else if ( strcmp(getenv("HTTP_PROXY_TYPE"), "SOCKS5") == 0 )
-        {
-        proxy_type = 3;
-        }
-      }
-    }
-
-  curl = curl_easy_init();
-  if(curl) 
-    {
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-    curl_easy_setopt(curl, CURLOPT_HEADER, 1);
-
-    /* Using proxy */
-    if ( proxy_type > 0 )
-      {
-      curl_easy_setopt(curl, CURLOPT_PROXY, proxy); 
-      switch (proxy_type)
-        {
-        case 2:
-          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS4);
-          break;
-        case 3:
-          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5);
-          break;
-        default:
-          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);           
-        }
-      }
-
-    /* get the first document */
-    curl_easy_setopt(curl, CURLOPT_URL, "http://www.cmake.org/page1.html");
-    res = curl_easy_perform(curl);
-    if ( res != 0 )
-      {
-      printf("Error fetching: http://www.cmake.org/page1.html\n");
-      retVal = 1;
-      }
-
-    /* get another document from the same server using the same
-       connection */
-    /*
-      curl_easy_setopt(curl, CURLOPT_URL, "http://www.cmake.org/page2.html");
-      res = curl_easy_perform(curl);
-      if ( res != 0 )
-      {
-      printf("Error fetching: http://www.cmake.org/page2.html\n");
-      retVal = 1;
-      }
-    */
-
-    /* always cleanup */
-    curl_easy_cleanup(curl);
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
     }
   else
     {
-    printf("Cannot create curl object\n");
-    retVal = 1;
+    // Make sure the slashes in the wildcard suffix are consistent with the
+    // rest of the path
+    buf = new char[n + 2 + 1];
+    if ( strchr(name, '\\') )
+      {
+      sprintf(buf, "%s\\*", name);
+      }
+    else
+      {
+      sprintf(buf, "%s/*", name);
+      }
+    }
+  struct _wfinddata_t data;      // data of current file
+
+  // Now put them into the file array
+  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
+  delete [] buf;
+
+  if ( srchHandle == -1 )
+    {
+    return 0;
     }
 
-  return retVal;
+  // Loop through names
+  do
+    {
+    this->Internal->Files.push_back(Encoding::ToNarrow(data.name));
+    }
+  while ( _wfindnext(srchHandle, &data) != -1 );
+  this->Internal->Path = name;
+  return _findclose(srchHandle) != -1;
 }

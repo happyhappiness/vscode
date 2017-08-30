@@ -1,1 +1,2 @@
-fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE FORTRAN)\n");
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory");

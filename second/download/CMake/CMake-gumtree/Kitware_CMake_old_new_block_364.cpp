@@ -1,5 +1,4 @@
 {
-        snprintf(buf + len, sizeof(buf) - len,
-                 ": %s", (char*) status_string.value);
-      len += status_string.length;
-    }
+    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }

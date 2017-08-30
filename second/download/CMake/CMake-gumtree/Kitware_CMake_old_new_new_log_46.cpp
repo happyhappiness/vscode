@@ -1,3 +1,3 @@
-snprintf(timebuf, sizeof(timebuf),
-                 "%04d%02d%02d %02d:%02d:%02d GMT",
-                 year, month, day, hour, minute, second);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Cannot restore extended "
+			    "attributes on this file system.");

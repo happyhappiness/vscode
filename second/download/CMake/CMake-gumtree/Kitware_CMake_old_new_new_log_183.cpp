@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "flex scanner push-back overflow" );
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Invalid ACL entry type for POSIX.1e ACL");

@@ -1,2 +1,6 @@
-snprintf(service.value, service.length+1, "%s@%s",
-             serviceptr, conn->socks_proxy.host.name);
+archive_set_error(&a->archive, errno,
+			    "Couldn't translate "
+#if !HAVE_SUN_ACL
+			    "NFSv4 "
+#endif
+			    "ACLs");

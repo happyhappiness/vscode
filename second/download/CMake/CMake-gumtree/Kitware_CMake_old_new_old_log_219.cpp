@@ -1,1 +1,3 @@
-xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer);
+archive_set_error(&a->archive, ENOMEM,
+					    "Can't allocate memory for "
+					    "SCHILY.acl.access");

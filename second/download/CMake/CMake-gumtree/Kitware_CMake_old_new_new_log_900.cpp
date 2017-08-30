@@ -1,2 +1,2 @@
-log << FIXNUM(cper) << "</PercentCoverage>\n"
-      << "\t\t<CoverageMetric>";;
+archive_set_error(&a->archive, errno,
+				    "Can't CreateFileW");

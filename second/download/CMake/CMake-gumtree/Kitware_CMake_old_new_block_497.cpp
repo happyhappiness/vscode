@@ -1,13 +1,7 @@
 {
-			DWORD lasterr;
-
-			lasterr = GetLastError();
-			if (lasterr == ERROR_ACCESS_DENIED)
-				errno = EBADF;
-			else
-				la_dosmaperr(lasterr);
-			archive_set_error(&a->archive, errno, "Seek error");
-			r = ARCHIVE_FATAL;
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			goto abort_read_data;
-		}
+							archive_set_error(&a->archive,
+									ARCHIVE_ERRNO_MISC,
+									"mtree specification has different type for %s",
+									archive_entry_pathname(entry));
+							r = ARCHIVE_WARN;
+						}

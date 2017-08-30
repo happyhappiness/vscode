@@ -1,1 +1,1 @@
-ch = tolower(ch);
+YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yyensure_buffer_stack()" );

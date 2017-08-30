@@ -1,168 +1,70 @@
-kwsysProcess* kwsysProcess_New()
+static int
+setup_current_filesystem(struct archive_read_disk *a)
 {
-  int i;
+	struct tree *t = a->tree;
+	struct statvfs sfs;
+	int r, xr = 0;
 
-  /* Process control structure.  */
-  kwsysProcess* cp;
+	t->current_filesystem->synthetic = -1;/* Not supported */
+	t->current_filesystem->remote = -1;/* Not supported */
+	if (tree_current_is_symblic_link_target(t)) {
+#if defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR)
+		/*
+		 * Get file system statistics on any directory
+		 * where current is.
+		 */
+		int fd = openat(tree_current_dir_fd(t),
+		    tree_current_access_path(t), O_RDONLY);
+		if (fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "openat failed");
+			return (ARCHIVE_FAILED);
+		}
+		r = fstatvfs(fd, &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, fd, NULL);
+		close(fd);
+#else
+		r = statvfs(tree_current_access_path(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, tree_current_access_path(t));
+#endif
+	} else {
+#ifdef HAVE_FSTATVFS
+		r = fstatvfs(tree_current_dir_fd(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
+#elif defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR)
+#error "Unexpected case. Please tell us about this error."
+#else
+		r = statvfs(".", &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, ".");
+#endif
+	}
+	if (r == -1 || xr == -1) {
+		t->current_filesystem->synthetic = -1;
+		t->current_filesystem->remote = -1;
+		archive_set_error(&a->archive, errno, "statvfs failed");
+		return (ARCHIVE_FAILED);
+	} else if (xr == 1) {
+		/* pathconf(_PC_REX_*) operations are not supported. */
+		t->current_filesystem->xfer_align = sfs.f_frsize;
+		t->current_filesystem->max_xfer_size = -1;
+		t->current_filesystem->min_xfer_size = sfs.f_bsize;
+		t->current_filesystem->incr_xfer_size = sfs.f_bsize;
+	}
 
-  /* Path to Win9x forwarding executable.  */
-  char* win9x = 0;
+#if defined(ST_NOATIME)
+	if (sfs.f_flag & ST_NOATIME)
+		t->current_filesystem->noatime = 1;
+	else
+#endif
+		t->current_filesystem->noatime = 0;
 
-  /* Windows version number data.  */
-  OSVERSIONINFO osv;
-
-  /* Allocate a process control structure.  */
-  cp = (kwsysProcess*)malloc(sizeof(kwsysProcess));
-  if(!cp)
-    {
-    /* Could not allocate memory for the control structure.  */
-    return 0;
-    }
-  ZeroMemory(cp, sizeof(*cp));
-
-  /* Set initial status.  */
-  cp->State = kwsysProcess_State_Starting;
-
-  /* Choose a method of running the child based on version of
-     windows.  */
-  ZeroMemory(&osv, sizeof(osv));
-  osv.dwOSVersionInfoSize = sizeof(osv);
-  GetVersionEx(&osv);
-  if(osv.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS)
-    {
-    /* This is Win9x.  We need the console forwarding executable to
-       work-around a Windows 9x bug.  */
-    char fwdName[_MAX_FNAME+1] = "";
-    char tempDir[_MAX_PATH+1] = "";
-
-    /* We will try putting the executable in the system temp
-       directory.  Note that the returned path already has a trailing
-       slash.  */
-    DWORD length = GetTempPath(_MAX_PATH+1, tempDir);
-
-    /* Construct the executable name from the process id and kwsysProcess
-       instance.  This should be unique.  */
-    sprintf(fwdName, "cmw9xfwd_%u_%p.exe", GetCurrentProcessId(), cp);
-
-    /* If we have a temp directory, use it.  */
-    if(length > 0 && length <= _MAX_PATH)
-      {
-      /* Allocate a buffer to hold the forwarding executable path.  */
-      size_t tdlen = strlen(tempDir);
-      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
-      if(!win9x)
-        {
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
-
-      /* Construct the full path to the forwarding executable.  */
-      sprintf(win9x, "%s%s", tempDir, fwdName);
-      }
-
-    /* If we found a place to put the forwarding executable, try to
-       write it. */
-    if(win9x)
-      {
-      if(!kwsysEncodedWriteArrayProcessFwd9x(win9x))
-        {
-        /* Failed to create forwarding executable.  Give up.  */
-        free(win9x);
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
-      }
-    else
-      {
-      /* Failed to find a place to put forwarding executable.  */
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    }
-
-  /* Save the path to the forwarding executable.  */
-  cp->Win9x = win9x;
-
-  /* Initially no thread owns the mutex.  Initialize semaphore to 1.  */
-  if(!(cp->SharedIndexMutex = CreateSemaphore(0, 1, 1, 0)))
-    {
-    kwsysProcess_Delete(cp);
-    return 0;
-    }
-
-  /* Initially no data are available.  Initialize semaphore to 0.  */
-  if(!(cp->Full = CreateSemaphore(0, 0, 1, 0)))
-    {
-    kwsysProcess_Delete(cp);
-    return 0;
-    }
-
-  if(cp->Win9x)
-    {
-    SECURITY_ATTRIBUTES sa;
-    ZeroMemory(&sa, sizeof(sa));
-    sa.nLength = sizeof(sa);
-    sa.bInheritHandle = TRUE;
-
-    /* Create an event to tell the forwarding executable to resume the
-       child.  */
-    if(!(cp->Win9xResumeEvent = CreateEvent(&sa, TRUE, 0, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-
-    /* Create an event to tell the forwarding executable to kill the
-       child.  */
-    if(!(cp->Win9xKillEvent = CreateEvent(&sa, TRUE, 0, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    }
-
-  /* Create the thread to read each pipe.  */
-  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
-    {
-    DWORD dummy=0;
-
-    /* Assign the thread its index.  */
-    cp->Pipe[i].Index = i;
-
-    /* Give the thread a pointer back to the kwsysProcess instance.  */
-    cp->Pipe[i].Process = cp;
-
-    /* The pipe is not yet ready to read.  Initialize semaphore to 0.  */
-    if(!(cp->Pipe[i].Ready = CreateSemaphore(0, 0, 1, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-
-    /* The pipe is not yet reset.  Initialize semaphore to 0.  */
-    if(!(cp->Pipe[i].Reset = CreateSemaphore(0, 0, 1, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-
-    /* The thread's buffer is initially empty.  Initialize semaphore to 1.  */
-    if(!(cp->Pipe[i].Empty = CreateSemaphore(0, 1, 1, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-
-    /* Create the thread.  It will block immediately.  The thread will
-       not make deeply nested calls, so we need only a small
-       stack.  */
-    if(!(cp->Pipe[i].Thread = CreateThread(0, 1024, kwsysProcessPipeThread,
-                                           &cp->Pipe[i], 0, &dummy)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    }
-
-  return cp;
+#if defined(HAVE_READDIR_R)
+	/* Set maximum filename length. */
+	t->current_filesystem->name_max = sfs.f_namemax;
+#endif
+	return (ARCHIVE_OK);
 }

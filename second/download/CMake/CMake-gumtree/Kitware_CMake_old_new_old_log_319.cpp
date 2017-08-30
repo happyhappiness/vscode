@@ -1,2 +1,1 @@
-sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
-          target.GetName().c_str(), count);
+snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);

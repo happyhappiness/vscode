@@ -1,0 +1,1 @@
+::sprintf(newkey, "%s\\%s", this->m_SubKey.c_str(), key);

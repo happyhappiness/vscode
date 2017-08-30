@@ -1,2 +1,2 @@
-fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-              lg->EscapeForCMake(flags?flags:"").c_str());
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Encryption needs passphrase");

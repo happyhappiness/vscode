@@ -1,11 +1,8 @@
 {
-  cmCPackGenericGenerator* gen = this->NewGeneratorInternal(name);
-  fprintf(stderr, "********* NewGen %s\n", name);
-  if ( !gen )
-    {
-    return 0;
+    fprintf(stderr,
+            "---------------------------------------"
+            "---------------------------------------\n");
+    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
+            this->Target->GetName(), this->Config?this->Config:"noconfig");
+    this->DisplayConstraintGraph();
     }
-  this->Generators.push_back(gen);
-  gen->SetLogger(this->Logger);
-  return gen;
-}

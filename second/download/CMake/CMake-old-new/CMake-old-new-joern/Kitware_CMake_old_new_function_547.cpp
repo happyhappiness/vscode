@@ -1,27 +1,83 @@
-int
-archive_read_disk_descend(struct archive *_a)
+void cmGlobalGenerator::Configure()
 {
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	struct tree *t = a->tree;
+  this->FirstTimeProgress = 0.0f;
+  this->ClearGeneratorMembers();
 
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
-	    "archive_read_disk_descend");
+  // start with this directory
+  cmLocalGenerator *lg = this->MakeLocalGenerator();
+  this->LocalGenerators.push_back(lg);
 
-	if (t->visit_type != TREE_REGULAR || !t->descend) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Ignored the request descending the current object");
-		return (ARCHIVE_WARN);
-	}
+  // set the Start directories
+  lg->GetMakefile()->SetCurrentSourceDirectory
+    (this->CMakeInstance->GetHomeDirectory());
+  lg->GetMakefile()->SetCurrentBinaryDirectory
+    (this->CMakeInstance->GetHomeOutputDirectory());
 
-	if (tree_current_is_physical_dir(t)) {
-		tree_push(t, t->basename, t->current_filesystem_id,
-		    t->lst.st_dev, t->lst.st_ino, &t->restore_time);
-		t->stack->flags |= isDir;
-	} else if (tree_current_is_dir(t)) {
-		tree_push(t, t->basename, t->current_filesystem_id,
-		    t->st.st_dev, t->st.st_ino, &t->restore_time);
-		t->stack->flags |= isDirLink;
-	}
-	t->descend = 0;
-	return (ARCHIVE_OK);
+  this->BinaryDirectories.insert(
+      this->CMakeInstance->GetHomeOutputDirectory());
+
+  // now do it
+  lg->GetMakefile()->Configure();
+  lg->GetMakefile()->EnforceDirectoryLevelRules();
+
+  // update the cache entry for the number of local generators, this is used
+  // for progress
+  char num[100];
+  sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
+  this->GetCMakeInstance()->AddCacheEntry
+    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
+     "number of local generators", cmState::INTERNAL);
+
+  // check for link libraries and include directories containing "NOTFOUND"
+  // and for infinite loops
+  this->CheckLocalGenerators();
+
+  // at this point this->LocalGenerators has been filled,
+  // so create the map from project name to vector of local generators
+  this->FillProjectMap();
+
+  if ( this->CMakeInstance->GetWorkingMode() == cmake::NORMAL_MODE)
+    {
+    std::ostringstream msg;
+    if(cmSystemTools::GetErrorOccuredFlag())
+      {
+      msg << "Configuring incomplete, errors occurred!";
+      const char* logs[] = {"CMakeOutput.log", "CMakeError.log", 0};
+      for(const char** log = logs; *log; ++log)
+        {
+        std::string f = this->CMakeInstance->GetHomeOutputDirectory();
+        f += this->CMakeInstance->GetCMakeFilesDirectory();
+        f += "/";
+        f += *log;
+        if(cmSystemTools::FileExists(f.c_str()))
+          {
+          msg << "\nSee also \"" << f << "\".";
+          }
+        }
+      }
+    else
+      {
+      msg << "Configuring done";
+      }
+    this->CMakeInstance->UpdateProgress(msg.str().c_str(), -1);
+    }
+
+  unsigned int i;
+
+  // Put a copy of each global target in every directory.
+  cmTargets globalTargets;
+  this->CreateDefaultGlobalTargets(&globalTargets);
+
+  for (i = 0; i < this->LocalGenerators.size(); ++i)
+    {
+    cmMakefile* mf = this->LocalGenerators[i]->GetMakefile();
+    cmTargets* targets = &(mf->GetTargets());
+    cmTargets::iterator tit;
+    for ( tit = globalTargets.begin(); tit != globalTargets.end(); ++ tit )
+      {
+      (*targets)[tit->first] = tit->second;
+      (*targets)[tit->first].SetMakefile(mf);
+      }
+    }
+
 }

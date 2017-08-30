@@ -1,2 +1,1 @@
-f(targetNameBuf, "cmTryCompileExec%u",
-            cmSystemTools::RandomSeed());
+fprintf(stderr, "Output on stderr before grandchild test.\n");

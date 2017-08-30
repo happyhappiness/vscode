@@ -1,1 +1,1 @@
-fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
+fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());

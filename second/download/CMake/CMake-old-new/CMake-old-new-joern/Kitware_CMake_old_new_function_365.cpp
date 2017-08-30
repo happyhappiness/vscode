@@ -1,190 +1,168 @@
-static CURLcode ftp_state_pasv_resp(struct connectdata *conn,
-                                    int ftpcode)
+static CURLcode file_do(struct connectdata *conn, bool *done)
 {
-  struct ftp_conn *ftpc = &conn->proto.ftpc;
-  CURLcode result;
-  struct SessionHandle *data=conn->data;
-  struct Curl_dns_entry *addr=NULL;
-  int rc;
-  unsigned short connectport; /* the local port connect() should use! */
-  char *str=&data->state.buffer[4];  /* start on the first letter */
+  /* This implementation ignores the host name in conformance with
+     RFC 1738. Only local files (reachable via the standard file system)
+     are supported. This means that files on remotely mounted directories
+     (via NFS, Samba, NT sharing) can be accessed through a file:// URL
+  */
+  CURLcode result = CURLE_OK;
+  struct_stat statbuf; /* struct_stat instead of struct stat just to allow the
+                          Windows version to have a different struct without
+                          having to redefine the simple word 'stat' */
+  curl_off_t expected_size=0;
+  bool fstated=FALSE;
+  ssize_t nread;
+  struct SessionHandle *data = conn->data;
+  char *buf = data->state.buffer;
+  curl_off_t bytecount = 0;
+  int fd;
+  struct timeval now = Curl_tvnow();
+  struct FILEPROTO *file;
 
-  if((ftpc->count1 == 0) &&
-     (ftpcode == 229)) {
-    /* positive EPSV response */
-    char *ptr = strchr(str, '(');
-    if(ptr) {
-      unsigned int num;
-      char separator[4];
-      ptr++;
-      if(5  == sscanf(ptr, "%c%c%c%u%c",
-                      &separator[0],
-                      &separator[1],
-                      &separator[2],
-                      &num,
-                      &separator[3])) {
-        const char sep1 = separator[0];
-        int i;
+  *done = TRUE; /* unconditionally */
 
-        /* The four separators should be identical, or else this is an oddly
-           formatted reply and we bail out immediately. */
-        for(i=1; i<4; i++) {
-          if(separator[i] != sep1) {
-            ptr=NULL; /* set to NULL to signal error */
-            break;
-          }
-        }
-        if(num > 0xffff) {
-          failf(data, "Illegal port number in EPSV reply");
-          return CURLE_FTP_WEIRD_PASV_REPLY;
-        }
-        if(ptr) {
-          ftpc->newport = (unsigned short)(num & 0xffff);
+  Curl_initinfo(data);
+  Curl_pgrsStartNow(data);
 
-          if(conn->bits.tunnel_proxy ||
-             conn->proxytype == CURLPROXY_SOCKS5 ||
-             conn->proxytype == CURLPROXY_SOCKS5_HOSTNAME ||
-             conn->proxytype == CURLPROXY_SOCKS4 ||
-             conn->proxytype == CURLPROXY_SOCKS4A)
-            /* proxy tunnel -> use other host info because ip_addr_str is the
-               proxy address not the ftp host */
-            snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
-                     conn->host.name);
-          else
-            /* use the same IP we are already connected to */
-            snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str);
-        }
-      }
-      else
-        ptr=NULL;
-    }
-    if(!ptr) {
-      failf(data, "Weirdly formatted EPSV reply");
-      return CURLE_FTP_WEIRD_PASV_REPLY;
-    }
-  }
-  else if((ftpc->count1 == 1) &&
-          (ftpcode == 227)) {
-    /* positive PASV response */
-    int ip[4];
-    int port[2];
+  if(data->set.upload)
+    return file_upload(conn);
 
-    /*
-     * Scan for a sequence of six comma-separated numbers and use them as
-     * IP+port indicators.
-     *
-     * Found reply-strings include:
-     * "227 Entering Passive Mode (127,0,0,1,4,51)"
-     * "227 Data transfer will passively listen to 127,0,0,1,4,51"
-     * "227 Entering passive mode. 127,0,0,1,4,51"
-     */
-    while(*str) {
-      if(6 == sscanf(str, "%d,%d,%d,%d,%d,%d",
-                      &ip[0], &ip[1], &ip[2], &ip[3],
-                      &port[0], &port[1]))
-        break;
-      str++;
-    }
+  file = conn->data->req.protop;
 
-    if(!*str) {
-      failf(data, "Couldn't interpret the 227-response");
-      return CURLE_FTP_WEIRD_227_FORMAT;
-    }
+  /* get the fd from the connection phase */
+  fd = file->fd;
 
-    /* we got OK from server */
-    if(data->set.ftp_skip_ip) {
-      /* told to ignore the remotely given IP but instead use the one we used
-         for the control connection */
-      infof(data, "Skips %d.%d.%d.%d for data connection, uses %s instead\n",
-            ip[0], ip[1], ip[2], ip[3],
-            conn->ip_addr_str);
-      if(conn->bits.tunnel_proxy ||
-         conn->proxytype == CURLPROXY_SOCKS5 ||
-         conn->proxytype == CURLPROXY_SOCKS5_HOSTNAME ||
-         conn->proxytype == CURLPROXY_SOCKS4 ||
-         conn->proxytype == CURLPROXY_SOCKS4A)
-        /* proxy tunnel -> use other host info because ip_addr_str is the
-           proxy address not the ftp host */
-        snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s", conn->host.name);
-      else
-        snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
-                 conn->ip_addr_str);
-    }
-    else
-      snprintf(ftpc->newhost, sizeof(ftpc->newhost),
-               "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-    ftpc->newport = (unsigned short)(((port[0]<<8) + port[1]) & 0xffff);
-  }
-  else if(ftpc->count1 == 0) {
-    /* EPSV failed, move on to PASV */
-    return ftp_epsv_disable(conn);
-  }
-  else {
-    failf(data, "Bad PASV/EPSV response: %03d", ftpcode);
-    return CURLE_FTP_WEIRD_PASV_REPLY;
+  /* VMS: This only works reliable for STREAMLF files */
+  if(-1 != fstat(fd, &statbuf)) {
+    /* we could stat it, then read out the size */
+    expected_size = statbuf.st_size;
+    /* and store the modification time */
+    data->info.filetime = (long)statbuf.st_mtime;
+    fstated = TRUE;
   }
 
-  if(conn->bits.proxy) {
-    /*
-     * This connection uses a proxy and we need to connect to the proxy again
-     * here. We don't want to rely on a former host lookup that might've
-     * expired now, instead we remake the lookup here and now!
-     */
-    rc = Curl_resolv(conn, conn->proxy.name, (int)conn->port, &addr);
-    if(rc == CURLRESOLV_PENDING)
-      /* BLOCKING, ignores the return code but 'addr' will be NULL in
-         case of failure */
-      (void)Curl_resolver_wait_resolv(conn, &addr);
-
-    connectport =
-      (unsigned short)conn->port; /* we connect to the proxy's port */
-
-    if(!addr) {
-      failf(data, "Can't resolve proxy host %s:%hu",
-            conn->proxy.name, connectport);
-      return CURLE_FTP_CANT_GET_HOST;
-    }
-  }
-  else {
-    /* normal, direct, ftp connection */
-    rc = Curl_resolv(conn, ftpc->newhost, ftpc->newport, &addr);
-    if(rc == CURLRESOLV_PENDING)
-      /* BLOCKING */
-      (void)Curl_resolver_wait_resolv(conn, &addr);
-
-    connectport = ftpc->newport; /* we connect to the remote port */
-
-    if(!addr) {
-      failf(data, "Can't resolve new host %s:%hu", ftpc->newhost, connectport);
-      return CURLE_FTP_CANT_GET_HOST;
+  if(fstated && !data->state.range && data->set.timecondition) {
+    if(!Curl_meets_timecondition(data, (time_t)data->info.filetime)) {
+      *done = TRUE;
+      return CURLE_OK;
     }
   }
 
-  conn->bits.tcpconnect[SECONDARYSOCKET] = FALSE;
-  result = Curl_connecthost(conn, addr);
+  /* If we have selected NOBODY and HEADER, it means that we only want file
+     information. Which for FILE can't be much more than the file size and
+     date. */
+  if(data->set.opt_no_body && data->set.include_header && fstated) {
+    snprintf(buf, sizeof(data->state.buffer),
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+    if(result)
+      return result;
 
-  Curl_resolv_unlock(data, addr); /* we're done using this address */
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH,
+                               (char *)"Accept-ranges: bytes\r\n", 0);
+    if(result)
+      return result;
 
-  if(result) {
-    if(ftpc->count1 == 0 && ftpcode == 229)
-      return ftp_epsv_disable(conn);
+    if(fstated) {
+      time_t filetime = (time_t)statbuf.st_mtime;
+      struct tm buffer;
+      const struct tm *tm = &buffer;
+      result = Curl_gmtime(filetime, &buffer);
+      if(result)
+        return result;
 
+      /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+      snprintf(buf, BUFSIZE-1,
+               "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+               Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+               tm->tm_mday,
+               Curl_month[tm->tm_mon],
+               tm->tm_year + 1900,
+               tm->tm_hour,
+               tm->tm_min,
+               tm->tm_sec);
+      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+    }
+    /* if we fstat()ed the file, set the file size to make it available post-
+       transfer */
+    if(fstated)
+      Curl_pgrsSetDownloadSize(data, expected_size);
     return result;
   }
 
+  /* Check whether file range has been specified */
+  file_range(conn);
 
-  /*
-   * When this is used from the multi interface, this might've returned with
-   * the 'connected' set to FALSE and thus we are now awaiting a non-blocking
-   * connect to connect.
-   */
+  /* Adjust the start offset in case we want to get the N last bytes
+   * of the stream iff the filesize could be determined */
+  if(data->state.resume_from < 0) {
+    if(!fstated) {
+      failf(data, "Can't get the size of file.");
+      return CURLE_READ_ERROR;
+    }
+    else
+      data->state.resume_from += (curl_off_t)statbuf.st_size;
+  }
 
-  if(data->set.verbose)
-    /* this just dumps information about this second connection */
-    ftp_pasv_verbose(conn, conn->ip_addr, ftpc->newhost, connectport);
+  if(data->state.resume_from <= expected_size)
+    expected_size -= data->state.resume_from;
+  else {
+    failf(data, "failed to resume file:// transfer");
+    return CURLE_BAD_DOWNLOAD_RESUME;
+  }
 
-  conn->bits.do_more = TRUE;
-  state(conn, FTP_STOP); /* this phase is completed */
+  /* A high water mark has been specified so we obey... */
+  if(data->req.maxdownload > 0)
+    expected_size = data->req.maxdownload;
+
+  if(fstated && (expected_size == 0))
+    return CURLE_OK;
+
+  /* The following is a shortcut implementation of file reading
+     this is both more efficient than the former call to download() and
+     it avoids problems with select() and recv() on file descriptors
+     in Winsock */
+  if(fstated)
+    Curl_pgrsSetDownloadSize(data, expected_size);
+
+  if(data->state.resume_from) {
+    if(data->state.resume_from !=
+       lseek(fd, data->state.resume_from, SEEK_SET))
+      return CURLE_BAD_DOWNLOAD_RESUME;
+  }
+
+  Curl_pgrsTime(data, TIMER_STARTTRANSFER);
+
+  while(!result) {
+    /* Don't fill a whole buffer if we want less than all data */
+    size_t bytestoread =
+      (expected_size < CURL_OFF_T_C(BUFSIZE) - CURL_OFF_T_C(1)) ?
+      curlx_sotouz(expected_size) : BUFSIZE - 1;
+
+    nread = read(fd, buf, bytestoread);
+
+    if(nread > 0)
+      buf[nread] = 0;
+
+    if(nread <= 0 || expected_size == 0)
+      break;
+
+    bytecount += nread;
+    expected_size -= nread;
+
+    result = Curl_client_write(conn, CLIENTWRITE_BODY, buf, nread);
+    if(result)
+      return result;
+
+    Curl_pgrsSetDownloadCounter(data, bytecount);
+
+    if(Curl_pgrsUpdate(conn))
+      result = CURLE_ABORTED_BY_CALLBACK;
+    else
+      result = Curl_speedcheck(data, now);
+  }
+  if(Curl_pgrsUpdate(conn))
+    result = CURLE_ABORTED_BY_CALLBACK;
 
   return result;
 }

@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "bad buffer in cmListFileLexer_yy_scan_bytes()" );
+uudecode->state = ST_IGNORE;

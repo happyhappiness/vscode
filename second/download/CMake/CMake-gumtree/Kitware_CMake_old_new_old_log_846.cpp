@@ -1,1 +1,0 @@
-fprintf(stderr, "Now at end of input.\n");

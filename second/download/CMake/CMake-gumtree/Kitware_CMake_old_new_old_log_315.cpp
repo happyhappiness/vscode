@@ -1,1 +1,1 @@
-fprintf(this->FileOut,"IMPORTS \n");
+aprintf("%s/%s", service, host);

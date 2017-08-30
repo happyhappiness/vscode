@@ -1,94 +1,160 @@
-static int
-archive_read_format_zip_read_data(struct archive_read *a,
-    const void **buff, size_t *size, int64_t *offset)
+CURLcode Curl_sasl_create_digest_md5_message(struct SessionHandle *data,
+                                             const char *chlg64,
+                                             const char *userp,
+                                             const char *passwdp,
+                                             const char *service,
+                                             char **outptr, size_t *outlen)
 {
-	int r;
-	struct zip *zip = (struct zip *)(a->format->data);
+  CURLcode result = CURLE_OK;
+  size_t i;
+  MD5_context *ctxt;
+  char *response = NULL;
+  unsigned char digest[MD5_DIGEST_LEN];
+  char HA1_hex[2 * MD5_DIGEST_LEN + 1];
+  char HA2_hex[2 * MD5_DIGEST_LEN + 1];
+  char resp_hash_hex[2 * MD5_DIGEST_LEN + 1];
+  char nonce[64];
+  char realm[128];
+  char algorithm[64];
+  char qop_options[64];
+  int qop_values;
+  char cnonce[33];
+  unsigned int entropy[4];
+  char nonceCount[] = "00000001";
+  char method[]     = "AUTHENTICATE";
+  char qop[]        = DIGEST_QOP_VALUE_STRING_AUTH;
+  char *spn         = NULL;
 
-	if (zip->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
-		zip->has_encrypted_entries = 0;
-	}
+  /* Decode the challange message */
+  result = sasl_decode_digest_md5_message(chlg64, nonce, sizeof(nonce),
+                                          realm, sizeof(realm),
+                                          algorithm, sizeof(algorithm),
+                                          qop_options, sizeof(qop_options));
+  if(result)
+    return result;
 
-	*offset = zip->entry_uncompressed_bytes_read;
-	*size = 0;
-	*buff = NULL;
+  /* We only support md5 sessions */
+  if(strcmp(algorithm, "md5-sess") != 0)
+    return CURLE_BAD_CONTENT_ENCODING;
 
-	/* If we hit end-of-entry last time, return ARCHIVE_EOF. */
-	if (zip->end_of_entry)
-		return (ARCHIVE_EOF);
+  /* Get the qop-values from the qop-options */
+  result = sasl_digest_get_qop_values(qop_options, &qop_values);
+  if(result)
+    return result;
 
-	/* Return EOF immediately if this is a non-regular file. */
-	if (AE_IFREG != (zip->entry->mode & AE_IFMT))
-		return (ARCHIVE_EOF);
+  /* We only support auth quality-of-protection */
+  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
+    return CURLE_BAD_CONTENT_ENCODING;
 
-	if (zip->entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
-		zip->has_encrypted_entries = 1;
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Encrypted file is unsupported");
-		return (ARCHIVE_FAILED);
-	}
+  /* Generate 16 bytes of random data */
+  entropy[0] = Curl_rand(data);
+  entropy[1] = Curl_rand(data);
+  entropy[2] = Curl_rand(data);
+  entropy[3] = Curl_rand(data);
 
-	__archive_read_consume(a, zip->unconsumed);
-	zip->unconsumed = 0;
+  /* Convert the random data into a 32 byte hex string */
+  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
+           entropy[0], entropy[1], entropy[2], entropy[3]);
 
-	switch(zip->entry->compression) {
-	case 0:  /* No compression. */
-		r =  zip_read_data_none(a, buff, size, offset);
-		break;
-#ifdef HAVE_ZLIB_H
-	case 8: /* Deflate compression. */
-		r =  zip_read_data_deflate(a, buff, size, offset);
-		break;
-#endif
-	default: /* Unsupported compression. */
-		/* Return a warning. */
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unsupported ZIP compression method (%s)",
-		    compression_name(zip->entry->compression));
-		/* We can't decompress this entry, but we will
-		 * be able to skip() it and try the next entry. */
-		return (ARCHIVE_FAILED);
-		break;
-	}
-	if (r != ARCHIVE_OK)
-		return (r);
-	/* Update checksum */
-	if (*size)
-		zip->entry_crc32 = zip->crc32func(zip->entry_crc32, *buff,
-		    (unsigned)*size);
-	/* If we hit the end, swallow any end-of-data marker. */
-	if (zip->end_of_entry) {
-		/* Check file size, CRC against these values. */
-		if (zip->entry->compressed_size !=
-		    zip->entry_compressed_bytes_read) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP compressed data is wrong size "
-			    "(read %jd, expected %jd)",
-			    (intmax_t)zip->entry_compressed_bytes_read,
-			    (intmax_t)zip->entry->compressed_size);
-			return (ARCHIVE_WARN);
-		}
-		/* Size field only stores the lower 32 bits of the actual
-		 * size. */
-		if ((zip->entry->uncompressed_size & UINT32_MAX)
-		    != (zip->entry_uncompressed_bytes_read & UINT32_MAX)) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP uncompressed data is wrong size "
-			    "(read %jd, expected %jd)\n",
-			    (intmax_t)zip->entry_uncompressed_bytes_read,
-			    (intmax_t)zip->entry->uncompressed_size);
-			return (ARCHIVE_WARN);
-		}
-		/* Check computed CRC against header */
-		if (zip->entry->crc32 != zip->entry_crc32
-		    && !zip->ignore_crc32) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP bad CRC: 0x%lx should be 0x%lx",
-			    (unsigned long)zip->entry_crc32,
-			    (unsigned long)zip->entry->crc32);
-			return (ARCHIVE_WARN);
-		}
-	}
+  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
 
-	return (ARCHIVE_OK);
+  Curl_MD5_update(ctxt, (const unsigned char *) userp,
+                  curlx_uztoui(strlen(userp)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) realm,
+                  curlx_uztoui(strlen(realm)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) passwdp,
+                  curlx_uztoui(strlen(passwdp)));
+  Curl_MD5_final(ctxt, digest);
+
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
+
+  Curl_MD5_update(ctxt, (const unsigned char *) digest, MD5_DIGEST_LEN);
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
+                  curlx_uztoui(strlen(nonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
+                  curlx_uztoui(strlen(cnonce)));
+  Curl_MD5_final(ctxt, digest);
+
+  /* Convert calculated 16 octet hex into 32 bytes string */
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Generate our SPN */
+  spn = Curl_sasl_build_spn(service, realm);
+  if(!spn)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Calculate H(A2) */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt) {
+    free(spn);
+
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  Curl_MD5_update(ctxt, (const unsigned char *) method,
+                  curlx_uztoui(strlen(method)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) spn,
+                  curlx_uztoui(strlen(spn)));
+  Curl_MD5_final(ctxt, digest);
+
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Now calculate the response hash */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt) {
+    free(spn);
+
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  Curl_MD5_update(ctxt, (const unsigned char *) HA1_hex, 2 * MD5_DIGEST_LEN);
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
+                  curlx_uztoui(strlen(nonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+
+  Curl_MD5_update(ctxt, (const unsigned char *) nonceCount,
+                  curlx_uztoui(strlen(nonceCount)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
+                  curlx_uztoui(strlen(cnonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) qop,
+                  curlx_uztoui(strlen(qop)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+
+  Curl_MD5_update(ctxt, (const unsigned char *) HA2_hex, 2 * MD5_DIGEST_LEN);
+  Curl_MD5_final(ctxt, digest);
+
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Generate the response */
+  response = aprintf("username=\"%s\",realm=\"%s\",nonce=\"%s\","
+                     "cnonce=\"%s\",nc=\"%s\",digest-uri=\"%s\",response=%s,"
+                     "qop=%s",
+                     userp, realm, nonce,
+                     cnonce, nonceCount, spn, resp_hash_hex, qop);
+  free(spn);
+  if(!response)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Base64 encode the response */
+  result = Curl_base64_encode(data, response, 0, outptr, outlen);
+
+  free(response);
+
+  return result;
 }

@@ -1,1 +1,1 @@
-f(fout, "PROJECT(CMAKE_TRY_COMPILE)\n");
+fprintf(fout, "SET(CMAKE_%s_FLAGS \"", lang);

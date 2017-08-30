@@ -1,4 +1,6 @@
-f(!hostheader) {
-          Curl_add_buffer_free(req_buffer);
-          return CURLE_OUT_OF_MEMORY;
-        }
+{
+						archive_set_error(&a->archive,
+						    ARCHIVE_ERRNO_MISC,
+						    "Path contains '..'");
+						return (ARCHIVE_FAILED);
+					}

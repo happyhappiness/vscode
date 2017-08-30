@@ -1,1 +1,1 @@
-sprintf(temp,"%d",this->ChipID.Revision);
+fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());

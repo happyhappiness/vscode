@@ -1,13 +1,10 @@
 {
-      /* Allocate a buffer to hold the forwarding executable path.  */
-      size_t tdlen = strlen(tempDir);
-      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
-      if(!win9x)
-        {
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
-
-      /* Construct the full path to the forwarding executable.  */
-      sprintf(win9x, "%s%s", tempDir, fwdName);
-      }
+            symbol = stringTable + pSymbolTable->N.Name.Long;
+            while (isspace(symbol[0]))  symbol.erase(0,1);
+            if (symbol[0] == '_') symbol.erase(0,1);
+            if (!fImportFlag) {
+               fImportFlag = 1;
+               fprintf(fout,"IMPORTS \n");
+            }
+            fprintf(fout, "\t%s DATA \n", symbol.c_str()+1);
+         }

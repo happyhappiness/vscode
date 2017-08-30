@@ -1,0 +1,1 @@
+fprintf(stderr, "Reading a token: ")

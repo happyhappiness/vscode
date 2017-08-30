@@ -1,49 +1,38 @@
-bool Directory::Load(const char* name)
+static int
+archive_filter_lz4_options(struct archive_write_filter *f,
+    const char *key, const char *value)
 {
-  this->Clear();
-#if _MSC_VER < 1300
-  long srchHandle;
-#else
-  intptr_t srchHandle;
-#endif
-  char* buf;
-  size_t n = strlen(name);
-  if ( name[n - 1] == '/' || name[n - 1] == '\\' )
-    {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name);
-    }
-  else
-    {
-    // Make sure the slashes in the wildcard suffix are consistent with the
-    // rest of the path
-    buf = new char[n + 2 + 1];
-    if ( strchr(name, '\\') )
-      {
-      sprintf(buf, "%s\\*", name);
-      }
-    else
-      {
-      sprintf(buf, "%s/*", name);
-      }
-    }
-  struct _wfinddata_t data;      // data of current file
+	struct private_data *data = (struct private_data *)f->data;
 
-  // Now put them into the file array
-  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
-  delete [] buf;
+	if (strcmp(key, "compression-level") == 0) {
+		if (value == NULL || !(value[0] >= '1' && value[0] <= '9') ||
+		    value[1] != '\0')
+			return (ARCHIVE_WARN);
+		data->compression_level = value[0] - '0';
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "stream-checksum") == 0) {
+		data->stream_checksum = value != NULL;
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "block-checksum") == 0) {
+		data->block_checksum = value != NULL;
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "block-size") == 0) {
+		if (value == NULL || !(value[0] >= '4' && value[0] <= '7') ||
+		    value[1] != '\0')
+			return (ARCHIVE_WARN);
+		data->block_maximum_size = value[0] - '0';
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "block-dependence") == 0) {
+		data->block_independence = value == NULL;
+		return (ARCHIVE_OK);
+	}
 
-  if ( srchHandle == -1 )
-    {
-    return 0;
-    }
-
-  // Loop through names
-  do
-    {
-    this->Internal->Files.push_back(Encoding::ToNarrow(data.name));
-    }
-  while ( _wfindnext(srchHandle, &data) != -1 );
-  this->Internal->Path = name;
-  return _findclose(srchHandle) != -1;
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
 }

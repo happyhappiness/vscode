@@ -1,1 +1,2 @@
-sprintf(argvName,"${ARGV%i}",t);
+archive_set_error(&a->archive, GetLastError(),
+				    "Can't FindFirstFileW");

@@ -1,0 +1,1 @@
+fprintf(fout, "IF (CMAKE_ANSI_CXXFLAGS)\n");

@@ -1,1 +1,1 @@
-sprintf(format, "%%%ds  ", static_cast<unsigned int>(maxlen-2));
+archive_set_error(&a->archive, -1, "Damaged Zip archive");

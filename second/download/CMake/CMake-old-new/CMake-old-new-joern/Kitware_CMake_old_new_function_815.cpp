@@ -1,91 +1,36 @@
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int output, int delay, double timeout)
+int
+archive_read_open_filename_w(struct archive *a, const wchar_t *wfilename,
+    size_t block_size)
 {
-  int result = 0;
-  char* data = 0;
-  int length = 0;
-  kwsysProcess* kp = kwsysProcess_New();
-  if(!kp)
-    {
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
-    }
-  
-  kwsysProcess_SetCommand(kp, cmd);
-  kwsysProcess_SetTimeout(kp, timeout);
-  if(share)
-    {
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
-    }
-  kwsysProcess_Execute(kp);
+	enum fnt_e filename_type;
 
-  if(!share)
-    {
-    while(kwsysProcess_WaitForData(kp, &data, &length, 0))
-      {
-      if(output)
-        {
-        fwrite(data, 1, length, stdout);
-        fflush(stdout);
-        }
-      if(delay)
-        {
-        /* Purposely sleeping only on Win32 to let pipe fill up.  */
-#if defined(_WIN32)
-        Sleep(100);
+	if (wfilename == NULL || wfilename[0] == L'\0') {
+		filename_type = FNT_STDIN;
+	} else {
+#if defined(_WIN32) && !defined(__CYGWIN__)
+		filename_type = FNT_WCS;
+#else
+		/*
+		 * POSIX system does not support a wchar_t interface for
+		 * open() system call, so we have to translate a whcar_t
+		 * filename to multi-byte one and use it.
+		 */
+		struct archive_string fn;
+		int r;
+
+		archive_string_init(&fn);
+		if (archive_string_append_from_wcs(&fn, wfilename,
+		    wcslen(wfilename)) != 0) {
+			archive_set_error(a, EINVAL,
+			    "Failed to convert a wide-character filename to"
+			    " a multi-byte filename");
+			archive_string_free(&fn);
+			return (ARCHIVE_FATAL);
+		}
+		r = file_open_filename(a, FNT_MBS, fn.s, block_size);
+		archive_string_free(&fn);
+		return (r);
 #endif
-        }
-      }
-    }
-  
-  kwsysProcess_WaitForExit(kp, 0);
-  
-  switch (kwsysProcess_GetState(kp))
-    {
-    case kwsysProcess_State_Starting:
-      printf("No process has been executed.\n"); break;
-    case kwsysProcess_State_Executing:
-      printf("The process is still executing.\n"); break;
-    case kwsysProcess_State_Expired:
-      printf("Child was killed when timeout expired.\n"); break;
-    case kwsysProcess_State_Exited:
-      printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Killed:
-      printf("Child was killed by parent.\n"); break;
-    case kwsysProcess_State_Exception:
-      printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Error:
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
-  
-  if(result)
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
-      {
-      fprintf(stderr, "Mismatch in exit exception.  Should have been %d.\n",
-              exception);
-      }
-    if(value != kwsysProcess_GetExitValue(kp))
-      {
-      fprintf(stderr, "Mismatch in exit value.  Should have been %d.\n",
-              value);
-      }
-    }
-  
-  if(kwsysProcess_GetState(kp) != state)
-    {
-    fprintf(stderr, "Mismatch in state.  Should have been %d.\n", state);
-    result = 1;
-    }
-  
-  kwsysProcess_Delete(kp);
-  return result;
+	}
+	return (file_open_filename(a, filename_type, wfilename, block_size));
 }

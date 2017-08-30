@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);

@@ -1,1 +1,0 @@
-sprintf(firstLine,  "Press [e] to exit help");

@@ -1,31 +1,9 @@
 {
-      fprintf(fout, "%04X ", i);
-      if ( pSymbolTable->N.Name.Short != 0 )
-         fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
-      else
-         fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);
-
-      fprintf(fout, " %08X", pSymbolTable->Value);
-
-      iSectNum = pSymbolTable->SectionNumber;
-      GetSectionName(pSymbolTable, sectionName);
-      fprintf(fout, " sect:%s aux:%X type:%02X st:%s",
-         sectionName.c_str(),
-         pSymbolTable->NumberOfAuxSymbols,
-         pSymbolTable->Type,
-         GetSZStorageClass(pSymbolTable->StorageClass) );
-
-      GetSectionCharacteristics(pSectionHeaders,iSectNum,sectionCharacter);
-      fprintf(fout," hc: %s \n",sectionCharacter.c_str());
-#if 0
-      if ( pSymbolTable->NumberOfAuxSymbols )
-         DumpAuxSymbols(pSymbolTable);
-#endif
-
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-   }
+		close(data->child_stdin);
+		data->child_stdin = -1;
+		close(data->child_stdout);
+		data->child_stdout = -1;
+		archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter");
+		return (ARCHIVE_FATAL);
+	}

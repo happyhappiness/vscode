@@ -1,6 +1,4 @@
 {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.access");
-					return (err);
-				}
+		fprintf(stderr,
+		    "Extra data field contents do not match reported size!\n");
+	}

@@ -1,196 +1,64 @@
-static int
-next_entry(struct archive_read_disk *a, struct tree *t,
-    struct archive_entry *entry)
+CURLcode Curl_open(struct Curl_easy **curl)
 {
-	const BY_HANDLE_FILE_INFORMATION *st;
-	const BY_HANDLE_FILE_INFORMATION *lst;
-	const char*name;
-	int descend, r;
+  CURLcode result;
+  struct Curl_easy *data;
 
-	st = NULL;
-	lst = NULL;
-	t->descend = 0;
-	do {
-		switch (tree_next(t)) {
-		case TREE_ERROR_FATAL:
-			archive_set_error(&a->archive, t->tree_errno,
-			    "%ls: Unable to continue traversing directory tree",
-			    tree_current_path(t));
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			return (ARCHIVE_FATAL);
-		case TREE_ERROR_DIR:
-			archive_set_error(&a->archive, t->tree_errno,
-			    "%ls: Couldn't visit directory",
-			    tree_current_path(t));
-			return (ARCHIVE_FAILED);
-		case 0:
-			return (ARCHIVE_EOF);
-		case TREE_POSTDESCENT:
-		case TREE_POSTASCENT:
-			break;
-		case TREE_REGULAR:
-			lst = tree_current_lstat(t);
-			if (lst == NULL) {
-				archive_set_error(&a->archive, t->tree_errno,
-				    "%ls: Cannot stat",
-				    tree_current_path(t));
-				return (ARCHIVE_FAILED);
-			}
-			break;
-		}	
-	} while (lst == NULL);
+  /* Very simple start-up: alloc the struct, init it with zeroes and return */
+  data = calloc(1, sizeof(struct Curl_easy));
+  if(!data) {
+    /* this is a very serious error */
+    DEBUGF(fprintf(stderr, "Error: calloc of Curl_easy failed\n"));
+    return CURLE_OUT_OF_MEMORY;
+  }
 
-	archive_entry_copy_pathname_w(entry, tree_current_path(t));
+  data->magic = CURLEASY_MAGIC_NUMBER;
 
-	/*
-	 * Perform path matching.
-	 */
-	if (a->matching) {
-		r = archive_match_path_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
+  result = Curl_resolver_init(&data->state.resolver);
+  if(result) {
+    DEBUGF(fprintf(stderr, "Error: resolver_init failed\n"));
+    free(data);
+    return result;
+  }
 
-	/*
-	 * Distinguish 'L'/'P'/'H' symlink following.
-	 */
-	switch(t->symlink_mode) {
-	case 'H':
-		/* 'H': After the first item, rest like 'P'. */
-		t->symlink_mode = 'P';
-		/* 'H': First item (from command line) like 'L'. */
-		/* FALLTHROUGH */
-	case 'L':
-		/* 'L': Do descend through a symlink to dir. */
-		descend = tree_current_is_dir(t);
-		/* 'L': Follow symlinks to files. */
-		a->symlink_mode = 'L';
-		a->follow_symlinks = 1;
-		/* 'L': Archive symlinks as targets, if we can. */
-		st = tree_current_stat(t);
-		if (st != NULL && !tree_target_is_same_as_parent(t, st))
-			break;
-		/* If stat fails, we have a broken symlink;
-		 * in that case, don't follow the link. */
-		/* FALLTHROUGH */
-	default:
-		/* 'P': Don't descend through a symlink to dir. */
-		descend = tree_current_is_physical_dir(t);
-		/* 'P': Don't follow symlinks to files. */
-		a->symlink_mode = 'P';
-		a->follow_symlinks = 0;
-		/* 'P': Archive symlinks as symlinks. */
-		st = lst;
-		break;
-	}
+  /* We do some initial setup here, all those fields that can't be just 0 */
 
-	if (update_current_filesystem(a, bhfi_dev(st)) != ARCHIVE_OK) {
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		return (ARCHIVE_FATAL);
-	}
-	if (t->initial_filesystem_id == -1)
-		t->initial_filesystem_id = t->current_filesystem_id;
-	if (!a->traverse_mount_points) {
-		if (t->initial_filesystem_id != t->current_filesystem_id)
-			return (ARCHIVE_RETRY);
-	}
-	t->descend = descend;
+  data->state.headerbuff = malloc(HEADERSIZE);
+  if(!data->state.headerbuff) {
+    DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"));
+    result = CURLE_OUT_OF_MEMORY;
+  }
+  else {
+    result = Curl_init_userdefined(&data->set);
 
-	tree_archive_entry_copy_bhfi(entry, t, st);
+    data->state.headersize=HEADERSIZE;
 
-	/* Save the times to be restored. This must be in before
-	 * calling archive_read_disk_descend() or any chance of it,
-	 * especially, invokng a callback. */
-	t->restore_time.lastWriteTime = st->ftLastWriteTime;
-	t->restore_time.lastAccessTime = st->ftLastAccessTime;
-	t->restore_time.filetype = archive_entry_filetype(entry);
+    Curl_convert_init(data);
 
-	/*
-	 * Perform time matching.
-	 */
-	if (a->matching) {
-		r = archive_match_time_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
+    Curl_initinfo(data);
 
-	/* Lookup uname/gname */
-	name = archive_read_disk_uname(&(a->archive), archive_entry_uid(entry));
-	if (name != NULL)
-		archive_entry_copy_uname(entry, name);
-	name = archive_read_disk_gname(&(a->archive), archive_entry_gid(entry));
-	if (name != NULL)
-		archive_entry_copy_gname(entry, name);
+    /* most recent connection is not yet defined */
+    data->state.lastconnect = NULL;
 
-	/*
-	 * Perform owner matching.
-	 */
-	if (a->matching) {
-		r = archive_match_owner_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
+    data->progress.flags |= PGRS_HIDE;
+    data->state.current_speed = -1; /* init to negative == impossible */
 
-	/*
-	 * Invoke a meta data filter callback.
-	 */
-	if (a->metadata_filter_func) {
-		if (!a->metadata_filter_func(&(a->archive),
-		    a->metadata_filter_data, entry))
-			return (ARCHIVE_RETRY);
-	}
+    data->wildcard.state = CURLWC_INIT;
+    data->wildcard.filelist = NULL;
+    data->set.fnmatch = ZERO_NULL;
+    data->set.maxconnects = DEFAULT_CONNCACHE_SIZE; /* for easy handles */
 
-	archive_entry_copy_sourcepath_w(entry, tree_current_access_path(t));
+    Curl_http2_init_state(&data->state);
+  }
 
-	r = ARCHIVE_OK;
-	if (archive_entry_filetype(entry) == AE_IFREG &&
-	    archive_entry_size(entry) > 0) {
-		DWORD flags = FILE_FLAG_BACKUP_SEMANTICS;
-		if (t->async_io)
-			flags |= FILE_FLAG_OVERLAPPED;
-		if (t->direct_io)
-			flags |= FILE_FLAG_NO_BUFFERING;
-		else
-			flags |= FILE_FLAG_SEQUENTIAL_SCAN;
-		t->entry_fh = CreateFileW(tree_current_access_path(t),
-		    GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, flags, NULL);
-		if (t->entry_fh == INVALID_HANDLE_VALUE) {
-			archive_set_error(&a->archive, errno,
-			    "Couldn't open %ls", tree_current_path(a->tree));
-			return (ARCHIVE_FAILED);
-		}
+  if(result) {
+    Curl_resolver_cleanup(data->state.resolver);
+    free(data->state.headerbuff);
+    Curl_freeset(data);
+    free(data);
+    data = NULL;
+  }
+  else
+    *curl = data;
 
-		/* Find sparse data from the disk. */
-		if (archive_entry_hardlink(entry) == NULL &&
-		    (st->dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0)
-			r = setup_sparse_from_disk(a, entry, t->entry_fh);
-	}
-	return (r);
+  return result;
 }

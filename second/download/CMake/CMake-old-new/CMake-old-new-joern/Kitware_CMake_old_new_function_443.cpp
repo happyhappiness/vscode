@@ -1,255 +1,265 @@
 static int
-archive_write_zip_header(struct archive_write *a, struct archive_entry *entry)
+zip_read_local_file_header(struct archive_read *a, struct archive_entry *entry,
+    struct zip *zip)
 {
-	struct zip *zip;
-	uint8_t h[SIZE_LOCAL_FILE_HEADER];
-	uint8_t e[SIZE_EXTRA_DATA_LOCAL];
-	uint8_t *d;
-	struct zip_file_header_link *l;
+	const char *p;
+	const void *h;
+	const wchar_t *wp;
+	const char *cp;
+	size_t len, filename_length, extra_length;
 	struct archive_string_conv *sconv;
-	int ret, ret2 = ARCHIVE_OK;
-	int64_t size;
-	mode_t type;
+	struct zip_entry *zip_entry = zip->entry;
+	struct zip_entry zip_entry_central_dir;
+	int ret = ARCHIVE_OK;
+	char version;
 
-	/* Entries other than a regular file or a folder are skipped. */
-	type = archive_entry_filetype(entry);
-	if (type != AE_IFREG && type != AE_IFDIR && type != AE_IFLNK) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Filetype not supported");
-		return ARCHIVE_FAILED;
-	};
+	/* Save a copy of the original for consistency checks. */
+	zip_entry_central_dir = *zip_entry;
 
-	/* Directory entries should have a size of 0. */
-	if (type == AE_IFDIR)
-		archive_entry_set_size(entry, 0);
+	zip->decompress_init = 0;
+	zip->end_of_entry = 0;
+	zip->entry_uncompressed_bytes_read = 0;
+	zip->entry_compressed_bytes_read = 0;
+	zip->entry_crc32 = zip->crc32func(0, NULL, 0);
 
-	zip = a->format_data;
 	/* Setup default conversion. */
-	if (zip->opt_sconv == NULL && !zip->init_default_conversion) {
+	if (zip->sconv == NULL && !zip->init_default_conversion) {
 		zip->sconv_default =
-		    archive_string_default_conversion_for_write(&(a->archive));
+		    archive_string_default_conversion_for_read(&(a->archive));
 		zip->init_default_conversion = 1;
 	}
 
-	if (zip->flags == 0) {
-		/* Initialize the general purpose flags. */
-		zip->flags = ZIP_FLAGS;
-		if (zip->opt_sconv != NULL) {
-			if (strcmp(archive_string_conversion_charset_name(
-			    zip->opt_sconv), "UTF-8") == 0)
-				zip->flags |= ZIP_FLAGS_UTF8_NAME;
-#if HAVE_NL_LANGINFO
-		} else if (strcmp(nl_langinfo(CODESET), "UTF-8") == 0) {
-			zip->flags |= ZIP_FLAGS_UTF8_NAME;
-#endif
+	if ((p = __archive_read_ahead(a, 30, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (memcmp(p, "PK\003\004", 4) != 0) {
+		archive_set_error(&a->archive, -1, "Damaged Zip archive");
+		return ARCHIVE_FATAL;
+	}
+	version = p[4];
+	zip_entry->system = p[5];
+	zip_entry->zip_flags = archive_le16dec(p + 6);
+	if (zip_entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
+		zip->has_encrypted_entries = 1;
+		archive_entry_set_is_data_encrypted(entry, 1);
+		if (zip_entry->zip_flags & ZIP_CENTRAL_DIRECTORY_ENCRYPTED &&
+			zip_entry->zip_flags & ZIP_ENCRYPTED &&
+			zip_entry->zip_flags & ZIP_STRONG_ENCRYPTED) {
+			archive_entry_set_is_metadata_encrypted(entry, 1);
+			return ARCHIVE_FATAL;
 		}
 	}
-	d = zip->data_descriptor;
-	size = archive_entry_size(entry);
-	zip->remaining_data_bytes = size;
+	zip_entry->compression = (char)archive_le16dec(p + 8);
+	zip_entry->mtime = zip_time(p + 10);
+	zip_entry->crc32 = archive_le32dec(p + 14);
+	zip_entry->compressed_size = archive_le32dec(p + 18);
+	zip_entry->uncompressed_size = archive_le32dec(p + 22);
+	filename_length = archive_le16dec(p + 26);
+	extra_length = archive_le16dec(p + 28);
 
-	/* Append archive entry to the central directory data. */
-	l = (struct zip_file_header_link *) malloc(sizeof(*l));
-	if (l == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate zip header data");
+	__archive_read_consume(a, 30);
+
+	/* Read the filename. */
+	if ((h = __archive_read_ahead(a, filename_length, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
 		return (ARCHIVE_FATAL);
 	}
-#if defined(_WIN32) && !defined(__CYGWIN__)
-	/* Make sure the path separators in pahtname, hardlink and symlink
-	 * are all slash '/', not the Windows path separator '\'. */
-	l->entry = __la_win_entry_in_posix_pathseparator(entry);
-	if (l->entry == entry)
-		l->entry = archive_entry_clone(entry);
-#else
-	l->entry = archive_entry_clone(entry);
-#endif
-	if (l->entry == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate zip header data");
-		free(l);
-		return (ARCHIVE_FATAL);
-	}
-	l->flags = zip->flags;
-	if (zip->opt_sconv != NULL)
-		sconv = zip->opt_sconv;
+	if (zip_entry->zip_flags & ZIP_UTF8_NAME) {
+		/* The filename is stored to be UTF-8. */
+		if (zip->sconv_utf8 == NULL) {
+			zip->sconv_utf8 =
+			    archive_string_conversion_from_charset(
+				&a->archive, "UTF-8", 1);
+			if (zip->sconv_utf8 == NULL)
+				return (ARCHIVE_FATAL);
+		}
+		sconv = zip->sconv_utf8;
+	} else if (zip->sconv != NULL)
+		sconv = zip->sconv;
 	else
 		sconv = zip->sconv_default;
-	if (sconv != NULL) {
-		const char *p;
-		size_t len;
 
-		if (archive_entry_pathname_l(entry, &p, &len, sconv) != 0) {
-			if (errno == ENOMEM) {
-				archive_entry_free(l->entry);
-				free(l);
-				archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate memory for Pathname");
-				return (ARCHIVE_FATAL);
-			}
+	if (archive_entry_copy_pathname_l(entry,
+	    h, filename_length, sconv) != 0) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Pathname");
+			return (ARCHIVE_FATAL);
+		}
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Pathname cannot be converted "
+		    "from %s to current locale.",
+		    archive_string_conversion_charset_name(sconv));
+		ret = ARCHIVE_WARN;
+	}
+	__archive_read_consume(a, filename_length);
+
+	/* Work around a bug in Info-Zip: When reading from a pipe, it
+	 * stats the pipe instead of synthesizing a file entry. */
+	if ((zip_entry->mode & AE_IFMT) == AE_IFIFO) {
+		zip_entry->mode &= ~ AE_IFMT;
+		zip_entry->mode |= AE_IFREG;
+	}
+
+	if ((zip_entry->mode & AE_IFMT) == 0) {
+		/* Especially in streaming mode, we can end up
+		   here without having seen proper mode information.
+		   Guess from the filename. */
+		wp = archive_entry_pathname_w(entry);
+		if (wp != NULL) {
+			len = wcslen(wp);
+			if (len > 0 && wp[len - 1] == L'/')
+				zip_entry->mode |= AE_IFDIR;
+			else
+				zip_entry->mode |= AE_IFREG;
+		} else {
+			cp = archive_entry_pathname(entry);
+			len = (cp != NULL)?strlen(cp):0;
+			if (len > 0 && cp[len - 1] == '/')
+				zip_entry->mode |= AE_IFDIR;
+			else
+				zip_entry->mode |= AE_IFREG;
+		}
+		if (zip_entry->mode == AE_IFDIR) {
+			zip_entry->mode |= 0775;
+		} else if (zip_entry->mode == AE_IFREG) {
+			zip_entry->mode |= 0664;
+		}
+	}
+
+	/* Read the extra data. */
+	if ((h = __archive_read_ahead(a, extra_length, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
+	}
+
+	process_extra(h, extra_length, zip_entry);
+	__archive_read_consume(a, extra_length);
+
+	if (zip_entry->flags & LA_FROM_CENTRAL_DIRECTORY) {
+		/* If this came from the central dir, it's size info
+		 * is definitive, so ignore the length-at-end flag. */
+		zip_entry->zip_flags &= ~ZIP_LENGTH_AT_END;
+		/* If local header is missing a value, use the one from
+		   the central directory.  If both have it, warn about
+		   mismatches. */
+		if (zip_entry->crc32 == 0) {
+			zip_entry->crc32 = zip_entry_central_dir.crc32;
+		} else if (!zip->ignore_crc32
+		    && zip_entry->crc32 != zip_entry_central_dir.crc32) {
 			archive_set_error(&a->archive,
 			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Can't translate Pathname '%s' to %s",
-			    archive_entry_pathname(entry),
-			    archive_string_conversion_charset_name(sconv));
-			ret2 = ARCHIVE_WARN;
+			    "Inconsistent CRC32 values");
+			ret = ARCHIVE_WARN;
 		}
-		if (len > 0)
-			archive_entry_set_pathname(l->entry, p);
-
-		/*
-		 * Although there is no character-set regulation for Symlink,
-		 * it is suitable to convert a character-set of Symlinke to
-		 * what those of the Pathname has been converted to.
-		 */
-		if (type == AE_IFLNK) {
-			if (archive_entry_symlink_l(entry, &p, &len, sconv)) {
-				if (errno == ENOMEM) {
-					archive_entry_free(l->entry);
-					free(l);
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory "
-					    " for Symlink");
-					return (ARCHIVE_FATAL);
-				}
-				/*
-				 * Even if the strng conversion failed,
-				 * we should not report the error since
-				 * thre is no regulation for.
-				 */
-			} else if (len > 0)
-				archive_entry_set_symlink(l->entry, p);
+		if (zip_entry->compressed_size == 0) {
+			zip_entry->compressed_size
+			    = zip_entry_central_dir.compressed_size;
+		} else if (zip_entry->compressed_size
+		    != zip_entry_central_dir.compressed_size) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Inconsistent compressed size: "
+			    "%jd in central directory, %jd in local header",
+			    (intmax_t)zip_entry_central_dir.compressed_size,
+			    (intmax_t)zip_entry->compressed_size);
+			ret = ARCHIVE_WARN;
+		}
+		if (zip_entry->uncompressed_size == 0) {
+			zip_entry->uncompressed_size
+			    = zip_entry_central_dir.uncompressed_size;
+		} else if (zip_entry->uncompressed_size
+		    != zip_entry_central_dir.uncompressed_size) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Inconsistent uncompressed size: "
+			    "%jd in central directory, %jd in local header",
+			    (intmax_t)zip_entry_central_dir.uncompressed_size,
+			    (intmax_t)zip_entry->uncompressed_size);
+			ret = ARCHIVE_WARN;
 		}
 	}
-	/* If all characters in a filename are ASCII, Reset UTF-8 Name flag. */
-	if ((l->flags & ZIP_FLAGS_UTF8_NAME) != 0 &&
-	    is_all_ascii(archive_entry_pathname(l->entry)))
-		l->flags &= ~ZIP_FLAGS_UTF8_NAME;
 
-	/* Initialize the CRC variable and potentially the local crc32(). */
-	l->crc32 = crc32(0, NULL, 0);
-	if (type == AE_IFLNK) {
-		const char *p = archive_entry_symlink(l->entry);
-		if (p != NULL)
-			size = strlen(p);
-		else
-			size = 0;
-		zip->remaining_data_bytes = 0;
-		archive_entry_set_size(l->entry, size);
-		l->compression = COMPRESSION_STORE;
-		l->compressed_size = size;
-	} else {
-		l->compression = zip->compression;
-		l->compressed_size = 0;
-	}
-	l->next = NULL;
-	if (zip->central_directory == NULL) {
-		zip->central_directory = l;
-	} else {
-		zip->central_directory_end->next = l;
-	}
-	zip->central_directory_end = l;
+	/* Populate some additional entry fields: */
+	archive_entry_set_mode(entry, zip_entry->mode);
+	archive_entry_set_uid(entry, zip_entry->uid);
+	archive_entry_set_gid(entry, zip_entry->gid);
+	archive_entry_set_mtime(entry, zip_entry->mtime, 0);
+	archive_entry_set_ctime(entry, zip_entry->ctime, 0);
+	archive_entry_set_atime(entry, zip_entry->atime, 0);
 
-	/* Store the offset of this header for later use in central
-	 * directory. */
-	l->offset = zip->written_bytes;
+	if ((zip->entry->mode & AE_IFMT) == AE_IFLNK) {
+		size_t linkname_length = zip_entry->compressed_size;
 
-	memset(h, 0, sizeof(h));
-	archive_le32enc(&h[LOCAL_FILE_HEADER_SIGNATURE],
-		ZIP_SIGNATURE_LOCAL_FILE_HEADER);
-	archive_le16enc(&h[LOCAL_FILE_HEADER_VERSION], ZIP_VERSION_EXTRACT);
-	archive_le16enc(&h[LOCAL_FILE_HEADER_FLAGS], l->flags);
-	archive_le16enc(&h[LOCAL_FILE_HEADER_COMPRESSION], l->compression);
-	archive_le32enc(&h[LOCAL_FILE_HEADER_TIMEDATE],
-		dos_time(archive_entry_mtime(entry)));
-	archive_le16enc(&h[LOCAL_FILE_HEADER_FILENAME_LENGTH],
-		(uint16_t)path_length(l->entry));
-
-	switch (l->compression) {
-	case COMPRESSION_STORE:
-		/* Setting compressed and uncompressed sizes even when
-		 * specification says to set to zero when using data
-		 * descriptors. Otherwise the end of the data for an
-		 * entry is rather difficult to find. */
-		archive_le32enc(&h[LOCAL_FILE_HEADER_COMPRESSED_SIZE],
-		    (uint32_t)size);
-		archive_le32enc(&h[LOCAL_FILE_HEADER_UNCOMPRESSED_SIZE],
-		    (uint32_t)size);
-		break;
-#ifdef HAVE_ZLIB_H
-	case COMPRESSION_DEFLATE:
-		archive_le32enc(&h[LOCAL_FILE_HEADER_UNCOMPRESSED_SIZE],
-		    (uint32_t)size);
-
-		zip->stream.zalloc = Z_NULL;
-		zip->stream.zfree = Z_NULL;
-		zip->stream.opaque = Z_NULL;
-		zip->stream.next_out = zip->buf;
-		zip->stream.avail_out = (uInt)zip->len_buf;
-		if (deflateInit2(&zip->stream, Z_DEFAULT_COMPRESSION,
-		    Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't init deflate compressor");
-			return (ARCHIVE_FATAL);
+		archive_entry_set_size(entry, 0);
+		p = __archive_read_ahead(a, linkname_length, NULL);
+		if (p == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated Zip file");
+			return ARCHIVE_FATAL;
 		}
-		break;
-#endif
+		if (__archive_read_consume(a, linkname_length) < 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Read error skipping symlink target name");
+			return ARCHIVE_FATAL;
+		}
+
+		sconv = zip->sconv;
+		if (sconv == NULL && (zip->entry->zip_flags & ZIP_UTF8_NAME))
+			sconv = zip->sconv_utf8;
+		if (sconv == NULL)
+			sconv = zip->sconv_default;
+		if (archive_entry_copy_symlink_l(entry, p, linkname_length,
+		    sconv) != 0) {
+			if (errno != ENOMEM && sconv == zip->sconv_utf8 &&
+			    (zip->entry->zip_flags & ZIP_UTF8_NAME))
+			    archive_entry_copy_symlink_l(entry, p,
+				linkname_length, NULL);
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Symlink");
+				return (ARCHIVE_FATAL);
+			}
+			/*
+			 * Since there is no character-set regulation for
+			 * symlink name, do not report the conversion error
+			 * in an automatic conversion.
+			 */
+			if (sconv != zip->sconv_utf8 ||
+			    (zip->entry->zip_flags & ZIP_UTF8_NAME) == 0) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Symlink cannot be converted "
+				    "from %s to current locale.",
+				    archive_string_conversion_charset_name(
+					sconv));
+				ret = ARCHIVE_WARN;
+			}
+		}
+		zip_entry->uncompressed_size = zip_entry->compressed_size = 0;
+	} else if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
+	    || zip_entry->uncompressed_size > 0) {
+		/* Set the size only if it's meaningful. */
+		archive_entry_set_size(entry, zip_entry->uncompressed_size);
 	}
+	zip->entry_bytes_remaining = zip_entry->compressed_size;
 
-	/* Formatting extra data. */
-	archive_le16enc(&h[LOCAL_FILE_HEADER_EXTRA_LENGTH], sizeof(e));
-	archive_le16enc(&e[EXTRA_DATA_LOCAL_TIME_ID],
-		ZIP_SIGNATURE_EXTRA_TIMESTAMP);
-	archive_le16enc(&e[EXTRA_DATA_LOCAL_TIME_SIZE], 1 + 4 * 3);
-	e[EXTRA_DATA_LOCAL_TIME_FLAG] = 0x07;
-	archive_le32enc(&e[EXTRA_DATA_LOCAL_MTIME],
-	    (uint32_t)archive_entry_mtime(entry));
-	archive_le32enc(&e[EXTRA_DATA_LOCAL_ATIME],
-	    (uint32_t)archive_entry_atime(entry));
-	archive_le32enc(&e[EXTRA_DATA_LOCAL_CTIME],
-	    (uint32_t)archive_entry_ctime(entry));
+	/* If there's no body, force read_data() to return EOF immediately. */
+	if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
+	    && zip->entry_bytes_remaining < 1)
+		zip->end_of_entry = 1;
 
-	archive_le16enc(&e[EXTRA_DATA_LOCAL_UNIX_ID],
-		ZIP_SIGNATURE_EXTRA_NEW_UNIX);
-	archive_le16enc(&e[EXTRA_DATA_LOCAL_UNIX_SIZE], 1 + (1 + 4) * 2);
-	e[EXTRA_DATA_LOCAL_UNIX_VERSION] = 1;
-	e[EXTRA_DATA_LOCAL_UNIX_UID_SIZE] = 4;
-	archive_le32enc(&e[EXTRA_DATA_LOCAL_UNIX_UID],
-		(uint32_t)archive_entry_uid(entry));
-	e[EXTRA_DATA_LOCAL_UNIX_GID_SIZE] = 4;
-	archive_le32enc(&e[EXTRA_DATA_LOCAL_UNIX_GID],
-		(uint32_t)archive_entry_gid(entry));
+	/* Set up a more descriptive format name. */
+	snprintf(zip->format_name, sizeof(zip->format_name), "ZIP %d.%d (%s)",
+	    version / 10, version % 10,
+	    compression_name(zip->entry->compression));
+	a->archive.archive_format_name = zip->format_name;
 
-	archive_le32enc(&d[DATA_DESCRIPTOR_UNCOMPRESSED_SIZE],
-	    (uint32_t)size);
-
-	ret = __archive_write_output(a, h, sizeof(h));
-	if (ret != ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
-	zip->written_bytes += sizeof(h);
-
-	ret = write_path(l->entry, a);
-	if (ret <= ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
-	zip->written_bytes += ret;
-
-	ret = __archive_write_output(a, e, sizeof(e));
-	if (ret != ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
-	zip->written_bytes += sizeof(e);
-
-	if (type == AE_IFLNK) {
-		const unsigned char *p;
-
-		p = (const unsigned char *)archive_entry_symlink(l->entry);
-		ret = __archive_write_output(a, p, (size_t)size);
-		if (ret != ARCHIVE_OK)
-			return (ARCHIVE_FATAL);
-		zip->written_bytes += size;
-		l->crc32 = crc32(l->crc32, p, (unsigned)size);
-	}
-
-	if (ret2 != ARCHIVE_OK)
-		return (ret2);
-	return (ARCHIVE_OK);
+	return (ret);
 }

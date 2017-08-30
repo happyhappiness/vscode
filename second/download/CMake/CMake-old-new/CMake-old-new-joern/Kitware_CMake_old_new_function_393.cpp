@@ -1,53 +1,46 @@
-void
-DumpSymbolTable(PIMAGE_SYMBOL pSymbolTable, PIMAGE_SECTION_HEADER pSectionHeaders, FILE *fout, unsigned cSymbols)
+int
+__archive_write_program_open(struct archive_write_filter *f,
+    struct archive_write_program_data *data, const char *cmd)
 {
-   unsigned i;
-   PSTR stringTable;
-   std::string sectionName;
-   std::string sectionCharacter;
-   int iSectNum;
+	pid_t child;
+	int ret;
 
-   fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
-      cSymbols);
+	ret = __archive_write_open_filter(f->next_filter);
+	if (ret != ARCHIVE_OK)
+		return (ret);
 
-   fprintf(fout,
-      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
-      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");
+	if (data->child_buf == NULL) {
+		data->child_buf_len = 65536;
+		data->child_buf_avail = 0;
+		data->child_buf = malloc(data->child_buf_len);
 
-   /*
-   * The string table apparently starts right after the symbol table
-   */
-   stringTable = (PSTR)&pSymbolTable[cSymbols];
+		if (data->child_buf == NULL) {
+			archive_set_error(f->archive, ENOMEM,
+			    "Can't allocate compression buffer");
+			return (ARCHIVE_FATAL);
+		}
+	}
 
-   for ( i=0; i < cSymbols; i++ ) {
-      fprintf(fout, "%04X ", i);
-      if ( pSymbolTable->N.Name.Short != 0 )
-         fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
-      else
-         fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);
-
-      fprintf(fout, " %08X", pSymbolTable->Value);
-
-      iSectNum = pSymbolTable->SectionNumber;
-      GetSectionName(pSymbolTable, sectionName);
-      fprintf(fout, " sect:%s aux:%X type:%02X st:%s",
-         sectionName.c_str(),
-         pSymbolTable->NumberOfAuxSymbols,
-         pSymbolTable->Type,
-         GetSZStorageClass(pSymbolTable->StorageClass) );
-
-      GetSectionCharacteristics(pSectionHeaders,iSectNum,sectionCharacter);
-      fprintf(fout," hc: %s \n",sectionCharacter.c_str());
-#if 0
-      if ( pSymbolTable->NumberOfAuxSymbols )
-         DumpAuxSymbols(pSymbolTable);
+	child = __archive_create_child(cmd, &data->child_stdin,
+		    &data->child_stdout);
+	if (child == -1) {
+		archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter");
+		return (ARCHIVE_FATAL);
+	}
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	data->child = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, child);
+	if (data->child == NULL) {
+		close(data->child_stdin);
+		data->child_stdin = -1;
+		close(data->child_stdout);
+		data->child_stdout = -1;
+		archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter");
+		return (ARCHIVE_FATAL);
+	}
+#else
+	data->child = child;
 #endif
-
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-   }
+	return (ARCHIVE_OK);
 }

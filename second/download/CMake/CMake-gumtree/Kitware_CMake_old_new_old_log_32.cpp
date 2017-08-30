@@ -1,3 +1,3 @@
-fsobj_error(a_eno, a_estr, errno,
-					    "Could not remove symlink %s",
-					    path);
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Symbolic mode \"%s\" unsupported", val);

@@ -1,1 +1,1 @@
-conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n", data->reqdata.range);
+f(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());

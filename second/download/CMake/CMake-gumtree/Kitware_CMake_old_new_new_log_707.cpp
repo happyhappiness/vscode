@@ -1,1 +1,2 @@
-fprintf(stderr, "DIRECTORY_DEF_DEBUG should be defined in C\n");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Archives > 4GB require Zip64 extensions");

@@ -1,0 +1,1 @@
+f(stderr, "Writing %s...\n", currentFilename.c_str());

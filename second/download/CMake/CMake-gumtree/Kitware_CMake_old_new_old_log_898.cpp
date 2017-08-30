@@ -1,1 +1,3 @@
-sprintf(fwdName, "cmw9xfwd_%u_%p.exe", _getpid(), cp);
+archive_set_error(&a->archive,
+				    GetLastError(),
+				    "Can't CreateFileW");

@@ -1,2 +1,1 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external gunzip program");
+snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s", conn->host.name);

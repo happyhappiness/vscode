@@ -1,2 +1,3 @@
-fprintf(stderr, "Header id 0x%x, length %d\n",
-		    headerid, datasize);
+aprintf("%s:%d",
+                 conn->bits.proxy?conn->proxy.name:conn->host.name,
+                 conn->localport);

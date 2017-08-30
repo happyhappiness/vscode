@@ -1,2 +1,1 @@
-archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Too many arguments");
+YY_FATAL_ERROR( "cmFortran_yyset_column called with no buffer" );

@@ -1,2 +1,2 @@
-sprintf(tmp,"CMake %d.%d - %s", cmake::GetMajorVersion(),
-          cmake::GetMinorVersion(), cmake::GetReleaseVersion());
+archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Symlink");

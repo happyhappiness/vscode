@@ -1,109 +1,84 @@
-int cmCTestTestHandler::ProcessHandler()
+static int
+setup_sparse_from_disk(struct archive_read_disk *a,
+    struct archive_entry *entry, HANDLE handle)
 {
-  // Update internal data structure from generic one
-  this->SetTestsToRunInformation(this->GetOption("TestsToRunInformation"));
-  this->SetUseUnion(cmSystemTools::IsOn(this->GetOption("UseUnion")));
-  const char* val;
-  val = this->GetOption("IncludeRegularExpression");
-  if ( val )
-    {
-    this->UseIncludeRegExp();
-    this->SetIncludeRegExp(val);
-    }
-  val = this->GetOption("ExcludeRegularExpression");
-  if ( val )
-    {
-    this->UseExcludeRegExp();
-    this->SetExcludeRegExp(val);
-    }
+	FILE_ALLOCATED_RANGE_BUFFER range, *outranges = NULL;
+	size_t outranges_size;
+	int64_t entry_size = archive_entry_size(entry);
+	int exit_sts = ARCHIVE_OK;
 
-  m_TestResults.clear();
+	range.FileOffset.QuadPart = 0;
+	range.Length.QuadPart = entry_size;
+	outranges_size = 2048;
+	outranges = (FILE_ALLOCATED_RANGE_BUFFER *)malloc(outranges_size);
+	if (outranges == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			"Couldn't allocate memory");
+		exit_sts = ARCHIVE_FATAL;
+		goto exit_setup_sparse;
+	}
 
-  std::cout << (m_MemCheck ? "Memory check" : "Test") << " project" << std::endl;
-  if ( ! this->PreProcessHandler() )
-    {
-    return -1;
-    }
+	for (;;) {
+		DWORD retbytes;
+		BOOL ret;
 
-  std::vector<cmStdString> passed;
-  std::vector<cmStdString> failed;
-  int total;
+		for (;;) {
+			ret = DeviceIoControl(handle,
+			    FSCTL_QUERY_ALLOCATED_RANGES,
+			    &range, sizeof(range), outranges,
+			    outranges_size, &retbytes, NULL);
+			if (ret == 0 && GetLastError() == ERROR_MORE_DATA) {
+				free(outranges);
+				outranges_size *= 2;
+				outranges = (FILE_ALLOCATED_RANGE_BUFFER *)
+				    malloc(outranges_size);
+				if (outranges == NULL) {
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    "Couldn't allocate memory");
+					exit_sts = ARCHIVE_FATAL;
+					goto exit_setup_sparse;
+				}
+				continue;
+			} else
+				break;
+		}
+		if (ret != 0) {
+			if (retbytes > 0) {
+				DWORD i, n;
 
-  this->ProcessDirectory(passed, failed);
+				n = retbytes / sizeof(outranges[0]);
+				if (n == 1 &&
+				    outranges[0].FileOffset.QuadPart == 0 &&
+				    outranges[0].Length.QuadPart == entry_size)
+					break;/* This is not sparse. */
+				for (i = 0; i < n; i++)
+					archive_entry_sparse_add_entry(entry,
+					    outranges[i].FileOffset.QuadPart,
+						outranges[i].Length.QuadPart);
+				range.FileOffset.QuadPart =
+				    outranges[n-1].FileOffset.QuadPart
+				    + outranges[n-1].Length.QuadPart;
+				range.Length.QuadPart =
+				    entry_size - range.FileOffset.QuadPart;
+				if (range.Length.QuadPart > 0)
+					continue;
+			} else {
+				/* The remaining data is hole. */
+				archive_entry_sparse_add_entry(entry,
+				    range.FileOffset.QuadPart,
+				    range.Length.QuadPart);
+			}
+			break;
+		} else {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "DeviceIoControl Failed: %lu", GetLastError());
+			exit_sts = ARCHIVE_FAILED;
+			goto exit_setup_sparse;
+		}
+	}
+exit_setup_sparse:
+	free(outranges);
 
-  total = int(passed.size()) + int(failed.size());
-
-  if (total == 0)
-    {
-    if ( !m_CTest->GetShowOnly() )
-      {
-      std::cerr << "No tests were found!!!\n";
-      }
-    }
-  else
-    {
-    if (m_Verbose && passed.size() && 
-      (m_UseIncludeRegExp || m_UseExcludeRegExp)) 
-      {
-      std::cerr << "\nThe following tests passed:\n";
-      for(std::vector<cmStdString>::iterator j = passed.begin();
-          j != passed.end(); ++j)
-        {   
-        std::cerr << "\t" << *j << "\n";
-        }
-      }
-
-    float percent = float(passed.size()) * 100.0f / total;
-    if ( failed.size() > 0 &&  percent > 99)
-      {
-      percent = 99;
-      }
-    fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
-      percent, int(failed.size()), total);
-
-    if (failed.size()) 
-      {
-      cmGeneratedFileStream ofs;
-
-      std::cerr << "\nThe following tests FAILED:\n";
-      m_CTest->OpenOutputFile("Temporary", "LastTestsFailed.log", ofs);
-
-      std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;
-      for(ftit = m_TestResults.begin();
-        ftit != m_TestResults.end(); ++ftit)
-        {
-        if ( ftit->m_Status != cmCTestTestHandler::COMPLETED )
-          {
-          ofs << ftit->m_TestCount << ":" << ftit->m_Name << std::endl;
-          fprintf(stderr, "\t%3d - %s (%s)\n", ftit->m_TestCount, ftit->m_Name.c_str(),
-            this->GetTestStatus(ftit->m_Status));
-          }
-        }
-
-      }
-    }
-
-  if ( m_CTest->GetProduceXML() )
-    {
-    cmGeneratedFileStream xmlfile;
-    if( !m_CTest->OpenOutputFile(m_CTest->GetCurrentTag(), 
-        (m_MemCheck ? "DynamicAnalysis.xml" : "Test.xml"), xmlfile, true) )
-      {
-      std::cerr << "Cannot create " << (m_MemCheck ? "memory check" : "testing")
-        << " XML file" << std::endl;
-      return 1;
-      }
-    this->GenerateDartOutput(xmlfile);
-    }
-
-  if ( ! this->PostProcessHandler() )
-    {
-    return -1;
-    }
-
-  if ( !failed.empty() )
-    {
-    return -1;
-    }
-  return 0;
+	return (exit_sts);
 }

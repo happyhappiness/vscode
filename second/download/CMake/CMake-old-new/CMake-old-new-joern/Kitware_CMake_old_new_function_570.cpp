@@ -1,36 +1,29 @@
-int
-archive_read_open_filename_w(struct archive *a, const wchar_t *wfilename,
-    size_t block_size)
+static void
+log_gss_error(struct connectdata *conn, OM_uint32 error_status,
+              const char *prefix)
 {
-	enum fnt_e filename_type;
+  OM_uint32 maj_stat, min_stat;
+  OM_uint32 msg_ctx = 0;
+  gss_buffer_desc status_string;
+  char buf[1024];
+  size_t len;
 
-	if (wfilename == NULL || wfilename[0] == L'\0') {
-		filename_type = FNT_STDIN;
-	} else {
-#if defined(_WIN32) && !defined(__CYGWIN__)
-		filename_type = FNT_WCS;
-#else
-		/*
-		 * POSIX system does not support a wchar_t interface for
-		 * open() system call, so we have to translate a whcar_t
-		 * filename to multi-byte one and use it.
-		 */
-		struct archive_string fn;
-		int r;
+  snprintf(buf, sizeof(buf), "%s", prefix);
+  len = strlen(buf);
+  do {
+    maj_stat = gss_display_status(&min_stat,
+                                  error_status,
+                                  GSS_C_MECH_CODE,
+                                  GSS_C_NO_OID,
+                                  &msg_ctx,
+                                  &status_string);
+      if(sizeof(buf) > len + status_string.length + 1) {
+        snprintf(buf + len, sizeof(buf) - len,
+                 ": %s", (char*) status_string.value);
+      len += status_string.length;
+    }
+    gss_release_buffer(&min_stat, &status_string);
+  } while(!GSS_ERROR(maj_stat) && msg_ctx != 0);
 
-		archive_string_init(&fn);
-		if (archive_string_append_from_wcs(&fn, wfilename,
-		    wcslen(wfilename)) != 0) {
-			archive_set_error(a, EINVAL,
-			    "Failed to convert a wide-character filename to"
-			    " a multi-byte filename");
-			archive_string_free(&fn);
-			return (ARCHIVE_FATAL);
-		}
-		r = file_open_filename(a, FNT_MBS, fn.s, block_size);
-		archive_string_free(&fn);
-		return (r);
-#endif
-	}
-	return (file_open_filename(a, filename_type, wfilename, block_size));
+  infof(conn->data, "%s\n", buf);
 }

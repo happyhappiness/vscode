@@ -1,2 +1,6 @@
-archive_set_error(&a->archive, GetLastError(),
-				    "Can't CreateFileW");
+"%sAuthorization: Digest "
+               "username=\"%s\", "
+               "realm=\"%s\", "
+               "nonce=\"%s\", "
+               "uri=\"%.*s\", "
+               "response=\"%s\"";

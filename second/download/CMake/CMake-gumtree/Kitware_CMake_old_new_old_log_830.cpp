@@ -1,5 +1,2 @@
-sprintf(output, "%c%c%c%c", 
-              table64[obuf[0]],
-              table64[obuf[1]],
-              table64[obuf[2]],
-              table64[obuf[3]] );
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+        "rar: unknown keyword ``%s''", key);

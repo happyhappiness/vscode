@@ -1,1 +1,2 @@
-fprintf(ofp, "#include <stdio.h>\n\n");
+archive_set_error(&a->archive, errno,
+				    "Can't FindFirstFileW");

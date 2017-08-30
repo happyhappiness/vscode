@@ -1,1 +1,2 @@
-snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str);
+userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
+                  encoded);

@@ -1,2 +1,3 @@
-archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
+archive_string_sprintf(&zip->format_name, "ZIP %d.%d (%s)",
+	    version / 10, version % 10,
+	    compression_name(zip->entry->compression));

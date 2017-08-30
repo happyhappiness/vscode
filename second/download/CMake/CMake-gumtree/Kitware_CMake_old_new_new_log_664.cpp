@@ -1,0 +1,1 @@
+snprintf(addr, MAX_IPADR_LEN, "%s", su->sun_path);

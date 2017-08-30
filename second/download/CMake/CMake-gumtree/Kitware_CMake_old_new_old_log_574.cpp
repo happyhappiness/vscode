@@ -1,2 +1,2 @@
-archive_set_error(_a, -1,
-	    "External compression programs not supported on this platform");
+snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+                 conn->ip_addr_str);

@@ -1,1 +1,1 @@
-sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
+fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");

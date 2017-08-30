@@ -1,1 +1,1 @@
-snprintf((char*)(h->h_name), 16, "%s", hostname);
+fprintf(progFile,"empty");

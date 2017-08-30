@@ -1,21 +1,6 @@
-{
-          case cmsysProcess_Exception_Fault:
-            fprintf(stderr,"SegFault");
-            cres.m_Status = cmCTest::SEGFAULT;
-            break;
-          case cmsysProcess_Exception_Illegal:
-            fprintf(stderr,"Illegal");
-            cres.m_Status = cmCTest::ILLEGAL;
-            break;
-          case cmsysProcess_Exception_Interrupt:
-            fprintf(stderr,"Interrupt");
-            cres.m_Status = cmCTest::INTERRUPT;
-            break;
-          case cmsysProcess_Exception_Numerical:
-            fprintf(stderr,"Numerical");
-            cres.m_Status = cmCTest::NUMERICAL;
-            break;
-          default:
-            fprintf(stderr,"Other");
-            cres.m_Status = cmCTest::OTHER_FAULT;
-            }
+(fd >= 0)
+		list_size = extattr_list_fd(fd, namespace, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = extattr_list_link(path, namespace, NULL, 0);
+	else
+		list_size = extattr_list_file(path, namespace, NULL, 0)

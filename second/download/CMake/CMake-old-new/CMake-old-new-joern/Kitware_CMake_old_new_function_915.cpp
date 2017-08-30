@@ -1,33 +1,25 @@
 int
-Curl_sec_vfprintf(struct connectdata *conn, FILE *f, const char *fmt, va_list ap)
+archive_read_support_filter_xz(struct archive *_a)
 {
-    int ret = 0;
-    char *buf;
-    void *enc;
-    int len;
-    if(!conn->sec_complete)
-        return vfprintf(f, fmt, ap);
-    
-    buf = aprintf(fmt, ap);
-    len = (conn->mech->encode)(conn->app_data, buf, strlen(buf),
-                               conn->command_prot, &enc,
-                               conn);
-    free(buf);
-    if(len < 0) {
-        failf(conn->data, "Failed to encode command.");
-        return -1;
-    }
-    if(Curl_base64_encode(enc, len, &buf) < 0){
-      failf(conn->data, "Out of memory base64-encoding.");
-      return -1;
-    }
-    if(conn->command_prot == prot_safe)
-        ret = fprintf(f, "MIC %s", buf);
-    else if(conn->command_prot == prot_private)
-        ret = fprintf(f, "ENC %s", buf);
-    else if(conn->command_prot == prot_confidential)
-        ret = fprintf(f, "CONF %s", buf);
+	struct archive_read *a = (struct archive_read *)_a;
+	struct archive_read_filter_bidder *bidder;
 
-    free(buf);
-    return ret;
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_filter_xz");
+
+	if (__archive_read_get_bidder(a, &bidder) != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	bidder->data = NULL;
+	bidder->bid = xz_bidder_bid;
+	bidder->init = xz_bidder_init;
+	bidder->options = NULL;
+	bidder->free = NULL;
+#if HAVE_LZMA_H && HAVE_LIBLZMA
+	return (ARCHIVE_OK);
+#else
+	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external unxz program for xz decompression");
+	return (ARCHIVE_WARN);
+#endif
 }

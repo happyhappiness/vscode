@@ -1,2 +1,2 @@
-snprintf(service.value, service.length+1, "%s@%s",
-             serviceptr, conn->socks_proxy.host.name);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Couldn't determine file path to read ACLs");

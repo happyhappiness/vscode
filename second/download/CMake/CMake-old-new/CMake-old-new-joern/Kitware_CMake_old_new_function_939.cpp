@@ -1,74 +1,57 @@
-BOOL CMakeSetupDialog::OnInitDialog()
+static int
+archive_read_format_zip_seekable_read_header(struct archive_read *a,
+	struct archive_entry *entry)
 {
-  CDialog::OnInitDialog();
-  this->DragAcceptFiles(true);
+	struct zip *zip = (struct zip *)a->format->data;
+	int r;
 
-  // Add "Create shortcut" menu item to system menu.
+	a->archive.archive_format = ARCHIVE_FORMAT_ZIP;
+	if (a->archive.archive_format_name == NULL)
+		a->archive.archive_format_name = "ZIP";
 
-  // IDM_CREATESHORTCUT must be in the system command range.
-  ASSERT((IDM_CREATESHORTCUT & 0xFFF0) == IDM_CREATESHORTCUT);
-  ASSERT(IDM_CREATESHORTCUT < 0xF000);
+	if (zip->zip_entries == NULL) {
+		r = slurp_central_directory(a, zip);
+		zip->entries_remaining = zip->central_directory_entries;
+		if (r != ARCHIVE_OK)
+			return r;
+		zip->entry = zip->zip_entries;
+	} else {
+		++zip->entry;
+	}
 
-  // Add "About..." menu item to system menu.
+	if (zip->entries_remaining <= 0)
+		return ARCHIVE_EOF;
+	--zip->entries_remaining;
 
-  // IDM_ABOUTBOX must be in the system command range.
-  ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
-  ASSERT(IDM_ABOUTBOX < 0xF000);
+	/* TODO: If entries are sorted by offset within the file, we
+	   should be able to skip here instead of seeking.  Skipping is
+	   typically faster (easier for I/O layer to optimize). */
+	__archive_read_seek(a, zip->entry->local_header_offset, SEEK_SET);
+	zip->unconsumed = 0;
+	r = zip_read_local_file_header(a, entry, zip);
+	if (r != ARCHIVE_OK)
+		return r;
+	if ((zip->entry->mode & AE_IFMT) == AE_IFLNK) {
+		const void *p;
+		size_t linkname_length = archive_entry_size(entry);
 
-  CMenu* pSysMenu = GetSystemMenu(FALSE);
-  if (pSysMenu != NULL)
-    {
-    CString strCreateShortcutMenu;
-    strCreateShortcutMenu.LoadString(IDS_CREATESHORTCUT);
-    if (!strCreateShortcutMenu.IsEmpty())
-      {
-      pSysMenu->AppendMenu(MF_SEPARATOR);
-      pSysMenu->AppendMenu(MF_STRING, 
-                           IDM_CREATESHORTCUT, 
-                           strCreateShortcutMenu);
-      }
+		archive_entry_set_size(entry, 0);
+		p = __archive_read_ahead(a, linkname_length, NULL);
+		if (p == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated Zip file");
+			return ARCHIVE_FATAL;
+		}
 
-    CString strAboutMenu;
-    strAboutMenu.LoadString(IDS_ABOUTBOX);
-    if (!strAboutMenu.IsEmpty())
-      {
-      pSysMenu->AppendMenu(MF_SEPARATOR);
-      pSysMenu->AppendMenu(MF_STRING, 
-                           IDM_ABOUTBOX, 
-                           strAboutMenu);
-      }
-    }
-
-  // Set the icon for this dialog.  The framework does this automatically
-  //  when the application's main window is not a dialog
-  SetIcon(m_hIcon, TRUE);			// Set big icon
-  SetIcon(m_hIcon, FALSE);		// Set small icon
-  // Load source and build dirs from registry
-  this->LoadFromRegistry();
-  std::vector<std::string> names;
-  this->m_CMakeInstance->GetRegisteredGenerators(names);
-  for(std::vector<std::string>::iterator i = names.begin();
-      i != names.end(); ++i)
-    {
-    m_GeneratorChoice.AddString(i->c_str());
-    }
-  if (m_GeneratorChoiceString == _T("")) 
-    {
-    m_GeneratorChoiceString = "Visual Studio 6";
-    }
-
-  // try to load the cmake cache from disk
-  this->LoadCacheFromDiskToGUI();
-  m_WhereBuildControl.LimitText(2048);
-  m_WhereSourceControl.LimitText(2048);
-  m_GeneratorChoice.LimitText(2048);
-    
-  // Set the version number
-  char tmp[1024];
-  sprintf(tmp,"Version %d.%d - %s", cmake::GetMajorVersion(),
-          cmake::GetMinorVersion(), cmake::GetReleaseVersion());
-  SetDlgItemText(IDC_CMAKE_VERSION, tmp);
-  SetDlgItemText(IDC_PROGRESS, "");
-  this->UpdateData(FALSE);
-  return TRUE;  // return TRUE  unless you set the focus to a control
+		if (archive_entry_copy_symlink_l(entry, p, linkname_length,
+		    NULL) != 0) {
+			/* NOTE: If the last argument is NULL, this will
+			 * fail only by memeory allocation failure. */
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Symlink");
+			return (ARCHIVE_FATAL);
+		}
+		/* TODO: handle character-set issues? */
+	}
+	return ARCHIVE_OK;
 }

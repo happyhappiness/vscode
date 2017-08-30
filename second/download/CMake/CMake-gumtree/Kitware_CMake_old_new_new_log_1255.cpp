@@ -1,0 +1,1 @@
+f(fout,"  char pkgName[]=\"%s\";\n", this->LibraryName.c_str());

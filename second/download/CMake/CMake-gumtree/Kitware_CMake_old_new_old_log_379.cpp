@@ -1,4 +1,1 @@
-_snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
-                  "Process execution failed with error 0x%X.  "
-                  "FormatMessage failed with error 0x%X",
-                  original, GetLastError());
+fprintf(fout, "set(CMAKE_LINK_SEARCH_START_STATIC \"%s\")\n", lssDef);

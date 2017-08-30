@@ -1,1 +1,2 @@
-sprintf(cpbuff, "%.2f", cper);
+archive_set_error(&a->archive, GetLastError(),
+				    "Can't CreateFileW");

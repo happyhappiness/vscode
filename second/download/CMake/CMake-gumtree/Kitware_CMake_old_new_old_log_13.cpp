@@ -1,2 +1,6 @@
 archive_set_error(&a->archive, errno,
-		    "Failed to read ACL brand");
+			    "Couldn't translate "
+#if !HAVE_SUN_ACL
+			    "NFSv4 "
+#endif
+			    "ACLs");

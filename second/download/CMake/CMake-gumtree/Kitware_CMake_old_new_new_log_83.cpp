@@ -1,1 +1,1 @@
-snprintf(buffer, size, "wolfSSL/%s", wolfSSL_lib_version());
+DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"));

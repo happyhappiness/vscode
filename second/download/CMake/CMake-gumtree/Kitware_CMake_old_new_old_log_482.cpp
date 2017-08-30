@@ -1,1 +1,0 @@
-fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");

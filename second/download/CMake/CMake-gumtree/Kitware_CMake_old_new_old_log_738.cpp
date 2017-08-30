@@ -1,1 +1,1 @@
-fprintf(ofp, "#endif\n");
+fprintf(fout, "add_executable(%s", targetName);

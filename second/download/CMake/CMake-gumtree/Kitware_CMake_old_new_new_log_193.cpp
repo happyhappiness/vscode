@@ -1,3 +1,2 @@
-f(Curl_resolver_global_init()) {
-    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
-    return CURLE_FAILED_INIT;;
+archive_set_error(&a->archive, errno,
+				    "Failed to check permission in an ACL permission set");

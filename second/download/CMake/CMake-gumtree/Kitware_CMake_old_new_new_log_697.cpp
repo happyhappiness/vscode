@@ -1,1 +1,2 @@
-fprintf(stderr, "  followed by Component (%d)\n", *oi);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Invalid ZIP compression type");

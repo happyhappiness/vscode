@@ -1,2 +1,1 @@
-sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
-            cmVersion::GetMinorVersion());
+fprintf(fout, "add_definitions( ");

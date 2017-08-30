@@ -1,0 +1,1 @@
+sprintf(hex, "%%%02X", (int)c);

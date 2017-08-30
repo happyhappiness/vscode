@@ -1,3 +1,35 @@
-{
-      fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
-      }
+(zip->entry_compression) {
+	case COMPRESSION_STORE:
+		ret = __archive_write_output(a, buff, s);
+		if (ret != ARCHIVE_OK)
+			return (ret);
+		zip->written_bytes += s;
+		zip->entry_compressed_written += s;
+		break;
+#if HAVE_ZLIB_H
+	case COMPRESSION_DEFLATE:
+		zip->stream.next_in = (unsigned char*)(uintptr_t)buff;
+		zip->stream.avail_in = (uInt)s;
+		do {
+			ret = deflate(&zip->stream, Z_NO_FLUSH);
+			if (ret == Z_STREAM_ERROR)
+				return (ARCHIVE_FATAL);
+			if (zip->stream.avail_out == 0) {
+				ret = __archive_write_output(a, zip->buf,
+					zip->len_buf);
+				if (ret != ARCHIVE_OK)
+					return (ret);
+				zip->entry_compressed_written += zip->len_buf;
+				zip->written_bytes += zip->len_buf;
+				zip->stream.next_out = zip->buf;
+				zip->stream.avail_out = (uInt)zip->len_buf;
+			}
+		} while (zip->stream.avail_in != 0);
+		break;
+#endif
+
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Invalid ZIP compression type");
+		return ARCHIVE_FATAL;
+	}

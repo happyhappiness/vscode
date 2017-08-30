@@ -1,152 +1,98 @@
 static int
-_warc_rdhdr(struct archive_read *a, struct archive_entry *entry)
+check_symlinks(struct archive_write_disk *a)
 {
-#define HDR_PROBE_LEN		(12U)
-	struct warc_s *w = a->format->data;
-	unsigned int ver;
-	const char *buf;
-	ssize_t nrd;
-	const char *eoh;
-	/* for the file name, saves some strndup()'ing */
-	warc_string_t fnam;
-	/* warc record type, not that we really use it a lot */
-	warc_type_t ftyp;
-	/* content-length+error monad */
-	ssize_t cntlen;
-	/* record time is the WARC-Date time we reinterpret it as ctime */
-	time_t rtime;
-	/* mtime is the Last-Modified time which will be the entry's mtime */
-	time_t mtime;
-
-start_over:
-	/* just use read_ahead() they keep track of unconsumed
-	 * bits and bobs for us; no need to put an extra shift in
-	 * and reproduce that functionality here */
-	buf = __archive_read_ahead(a, HDR_PROBE_LEN, &nrd);
-
-	if (nrd < 0) {
-		/* no good */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Bad record header");
-		return (ARCHIVE_FATAL);
-	} else if (buf == NULL) {
-		/* there should be room for at least WARC/bla\r\n
-		 * must be EOF therefore */
-		return (ARCHIVE_EOF);
-	}
- 	/* looks good so far, try and find the end of the header now */
-	eoh = _warc_find_eoh(buf, nrd);
-	if (eoh == NULL) {
-		/* still no good, the header end might be beyond the
-		 * probe we've requested, but then again who'd cram
-		 * so much stuff into the header *and* be 28500-compliant */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Bad record header");
-		return (ARCHIVE_FATAL);
-	} else if ((ver = _warc_rdver(buf, eoh - buf)) > 10000U) {
-		/* nawww, I wish they promised backward compatibility
-		 * anyhoo, in their infinite wisdom the 28500 guys might
-		 * come up with something we can't possibly handle so
-		 * best end things here */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Unsupported record version");
-		return (ARCHIVE_FATAL);
-	} else if ((cntlen = _warc_rdlen(buf, eoh - buf)) < 0) {
-		/* nightmare!  the specs say content-length is mandatory
-		 * so I don't feel overly bad stopping the reader here */
-		archive_set_error(
-			&a->archive, EINVAL,
-			"Bad content length");
-		return (ARCHIVE_FATAL);
-	} else if ((rtime = _warc_rdrtm(buf, eoh - buf)) == (time_t)-1) {
-		/* record time is mandatory as per WARC/1.0,
-		 * so just barf here, fast and loud */
-		archive_set_error(
-			&a->archive, EINVAL,
-			"Bad record time");
-		return (ARCHIVE_FATAL);
-	}
-
-	/* let the world know we're a WARC archive */
-	a->archive.archive_format = ARCHIVE_FORMAT_WARC;
-	if (ver != w->pver) {
-		/* stringify this entry's version */
-		archive_string_sprintf(&w->sver,
-			"WARC/%u.%u", ver / 10000, ver % 10000);
-		/* remember the version */
-		w->pver = ver;
-	}
-	/* start off with the type */
-	ftyp = _warc_rdtyp(buf, eoh - buf);
-	/* and let future calls know about the content */
-	w->cntlen = cntlen;
-	w->cntoff = 0U;
-	mtime = 0;/* Avoid compiling error on some platform. */
-
-	switch (ftyp) {
-	case WT_RSRC:
-	case WT_RSP:
-		/* only try and read the filename in the cases that are
-		 * guaranteed to have one */
-		fnam = _warc_rduri(buf, eoh - buf);
-		/* check the last character in the URI to avoid creating
-		 * directory endpoints as files, see Todo above */
-		if (fnam.len == 0 || fnam.str[fnam.len - 1] == '/') {
-			/* break here for now */
-			fnam.len = 0U;
-			fnam.str = NULL;
-			break;
-		}
-		/* bang to our string pool, so we save a
-		 * malloc()+free() roundtrip */
-		if (fnam.len + 1U > w->pool.len) {
-			w->pool.len = ((fnam.len + 64U) / 64U) * 64U;
-			w->pool.str = realloc(w->pool.str, w->pool.len);
-		}
-		memcpy(w->pool.str, fnam.str, fnam.len);
-		w->pool.str[fnam.len] = '\0';
-		/* let noone else know about the pool, it's a secret, shhh */
-		fnam.str = w->pool.str;
-
-		/* snarf mtime or deduce from rtime
-		 * this is a custom header added by our writer, it's quite
-		 * hard to believe anyone else would go through with it
-		 * (apart from being part of some http responses of course) */
-		if ((mtime = _warc_rdmtm(buf, eoh - buf)) == (time_t)-1) {
-			mtime = rtime;
-		}
-		break;
-	default:
-		fnam.len = 0U;
-		fnam.str = NULL;
-		break;
-	}
-
-	/* now eat some of those delicious buffer bits */
-	__archive_read_consume(a, eoh - buf);
-
-	switch (ftyp) {
-	case WT_RSRC:
-	case WT_RSP:
-		if (fnam.len > 0U) {
-			/* populate entry object */
-			archive_entry_set_filetype(entry, AE_IFREG);
-			archive_entry_copy_pathname(entry, fnam.str);
-			archive_entry_set_size(entry, cntlen);
-			archive_entry_set_perm(entry, 0644);
-			/* rtime is the new ctime, mtime stays mtime */
-			archive_entry_set_ctime(entry, rtime, 0L);
-			archive_entry_set_mtime(entry, mtime, 0L);
-			break;
-		}
-		/* FALLTHROUGH */
-	default:
-		/* consume the content and start over */
-		_warc_skip(a);
-		goto start_over;
-	}
+#if !defined(HAVE_LSTAT)
+	/* Platform doesn't have lstat, so we can't look for symlinks. */
+	(void)a; /* UNUSED */
 	return (ARCHIVE_OK);
+#else
+	char *pn;
+	char c;
+	int r;
+	struct stat st;
+
+	/*
+	 * Guard against symlink tricks.  Reject any archive entry whose
+	 * destination would be altered by a symlink.
+	 */
+	/* Whatever we checked last time doesn't need to be re-checked. */
+	pn = a->name;
+	if (archive_strlen(&(a->path_safe)) > 0) {
+		char *p = a->path_safe.s;
+		while ((*pn != '\0') && (*p == *pn))
+			++p, ++pn;
+	}
+	/* Skip the root directory if the path is absolute. */
+	if(pn == a->name && pn[0] == '/')
+		++pn;
+	c = pn[0];
+	/* Keep going until we've checked the entire name. */
+	while (pn[0] != '\0' && (pn[0] != '/' || pn[1] != '\0')) {
+		/* Skip the next path element. */
+		while (*pn != '\0' && *pn != '/')
+			++pn;
+		c = pn[0];
+		pn[0] = '\0';
+		/* Check that we haven't hit a symlink. */
+		r = lstat(a->name, &st);
+		if (r != 0) {
+			/* We've hit a dir that doesn't exist; stop now. */
+			if (errno == ENOENT)
+				break;
+		} else if (S_ISLNK(st.st_mode)) {
+			if (c == '\0') {
+				/*
+				 * Last element is symlink; remove it
+				 * so we can overwrite it with the
+				 * item being extracted.
+				 */
+				if (unlink(a->name)) {
+					archive_set_error(&a->archive, errno,
+					    "Could not remove symlink %s",
+					    a->name);
+					pn[0] = c;
+					return (ARCHIVE_FAILED);
+				}
+				a->pst = NULL;
+				/*
+				 * Even if we did remove it, a warning
+				 * is in order.  The warning is silly,
+				 * though, if we're just replacing one
+				 * symlink with another symlink.
+				 */
+				if (!S_ISLNK(a->mode)) {
+					archive_set_error(&a->archive, 0,
+					    "Removing symlink %s",
+					    a->name);
+				}
+				/* Symlink gone.  No more problem! */
+				pn[0] = c;
+				return (0);
+			} else if (a->flags & ARCHIVE_EXTRACT_UNLINK) {
+				/* User asked us to remove problems. */
+				if (unlink(a->name) != 0) {
+					archive_set_error(&a->archive, 0,
+					    "Cannot remove intervening symlink %s",
+					    a->name);
+					pn[0] = c;
+					return (ARCHIVE_FAILED);
+				}
+				a->pst = NULL;
+			} else {
+				archive_set_error(&a->archive, 0,
+				    "Cannot extract through symlink %s",
+				    a->name);
+				pn[0] = c;
+				return (ARCHIVE_FAILED);
+			}
+		}
+		pn[0] = c;
+		if (pn[0] != '\0')
+			pn++; /* Advance to the next segment. */
+	}
+	pn[0] = c;
+	/* We've checked and/or cleaned the whole path, so remember it. */
+	archive_strcpy(&a->path_safe, a->name);
+	return (ARCHIVE_OK);
+#endif
 }

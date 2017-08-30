@@ -1,1 +1,2 @@
-fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());
+archive_set_error(&a->archive, ENOMEM,
+				    "Out of memory for ZIP decompression");

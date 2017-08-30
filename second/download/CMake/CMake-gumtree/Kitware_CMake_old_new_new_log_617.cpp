@@ -1,3 +1,1 @@
-fprintf(fout,
-              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
-              fname.c_str());
+fprintf(stdout, "Output on stdout after grandchild test.\n");

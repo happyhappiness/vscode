@@ -1,4 +1,6 @@
 {
-  fprintf(stderr, "FILE_DEF_RELEASE should not be defined in C\n");
-  result = 0;
-  }
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate zip header data");
+		free(l);
+		return (ARCHIVE_FATAL);
+	}

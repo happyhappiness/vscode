@@ -1,1 +1,1 @@
-fprintf(stderr,"***Bad command %d\n", res);
+archive_set_error(&a->archive, errno, "fchdir failed");

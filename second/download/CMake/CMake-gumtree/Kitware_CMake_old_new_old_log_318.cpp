@@ -1,1 +1,1 @@
-yy_fatal_error( "cmFortran_yyset_column called with no buffer" , yyscanner);
+snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);

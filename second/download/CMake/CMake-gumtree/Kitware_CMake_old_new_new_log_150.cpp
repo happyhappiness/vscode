@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Tar entry size overflow");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+					    "Malformed 64-bit local header offset");

@@ -1,2 +1,1 @@
-fprintf(fout, "SET(%s \"%s\")\n",
-                rulesOverrideBase.c_str(), rulesOverridePath2);
+fprintf(stdout, "Output on stdout before grandchild test.\n");

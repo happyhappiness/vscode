@@ -1,208 +1,279 @@
-static int
-next_cache_entry(struct archive_read *a, struct iso9660 *iso9660,
-    struct file_info **pfile)
+CURLcode Curl_output_digest(struct connectdata *conn,
+                            bool proxy,
+                            const unsigned char *request,
+                            const unsigned char *uripath)
 {
-	struct file_info *file;
-	struct {
-		struct file_info	*first;
-		struct file_info	**last;
-	}	empty_files;
-	int64_t number;
-	int count;
+  /* We have a Digest setup for this, use it!  Now, to get all the details for
+     this sorted out, I must urge you dear friend to read up on the RFC2617
+     section 3.2.2, */
+  size_t urilen;
+  unsigned char md5buf[16]; /* 16 bytes/128 bits */
+  unsigned char request_digest[33];
+  unsigned char *md5this;
+  unsigned char ha1[33];/* 32 digits and 1 zero byte */
+  unsigned char ha2[33];/* 32 digits and 1 zero byte */
+  char cnoncebuf[33];
+  char *cnonce = NULL;
+  size_t cnonce_sz = 0;
+  char *tmp = NULL;
+  char **allocuserpwd;
+  size_t userlen;
+  const char *userp;
+  char *userp_quoted;
+  const char *passwdp;
+  struct auth *authp;
 
-	file = cache_get_entry(iso9660);
-	if (file != NULL) {
-		*pfile = file;
-		return (ARCHIVE_OK);
-	}
+  struct SessionHandle *data = conn->data;
+  struct digestdata *d;
+  CURLcode rc;
+/* The CURL_OUTPUT_DIGEST_CONV macro below is for non-ASCII machines.
+   It converts digest text to ASCII so the MD5 will be correct for
+   what ultimately goes over the network.
+*/
+#define CURL_OUTPUT_DIGEST_CONV(a, b) \
+  rc = Curl_convert_to_network(a, (char *)b, strlen((const char*)b)); \
+  if(rc != CURLE_OK) { \
+    free(b); \
+    return rc; \
+  }
 
-	for (;;) {
-		struct file_info *re, *d;
+  if(proxy) {
+    d = &data->state.proxydigest;
+    allocuserpwd = &conn->allocptr.proxyuserpwd;
+    userp = conn->proxyuser;
+    passwdp = conn->proxypasswd;
+    authp = &data->state.authproxy;
+  }
+  else {
+    d = &data->state.digest;
+    allocuserpwd = &conn->allocptr.userpwd;
+    userp = conn->user;
+    passwdp = conn->passwd;
+    authp = &data->state.authhost;
+  }
 
-		*pfile = file = next_entry(iso9660);
-		if (file == NULL) {
-			/*
-			 * If directory entries all which are descendant of
-			 * rr_moved are stil remaning, expose their. 
-			 */
-			if (iso9660->re_files.first != NULL && 
-			    iso9660->rr_moved != NULL &&
-			    iso9660->rr_moved->rr_moved_has_re_only)
-				/* Expose "rr_moved" entry. */
-				cache_add_entry(iso9660, iso9660->rr_moved);
-			while ((re = re_get_entry(iso9660)) != NULL) {
-				/* Expose its descendant dirs. */
-				while ((d = rede_get_entry(re)) != NULL)
-					cache_add_entry(iso9660, d);
-			}
-			if (iso9660->cache_files.first != NULL)
-				return (next_cache_entry(a, iso9660, pfile));
-			return (ARCHIVE_EOF);
-		}
+  Curl_safefree(*allocuserpwd);
 
-		if (file->cl_offset) {
-			struct file_info *first_re = NULL;
-			int nexted_re = 0;
+  /* not set means empty */
+  if(!userp)
+    userp="";
 
-			/*
-			 * Find "RE" dir for the current file, which
-			 * has "CL" flag.
-			 */
-			while ((re = re_get_entry(iso9660))
-			    != first_re) {
-				if (first_re == NULL)
-					first_re = re;
-				if (re->offset == file->cl_offset) {
-					re->parent->subdirs--;
-					re->parent = file->parent;
-					re->re = 0;
-					if (re->parent->re_descendant) {
-						nexted_re = 1;
-						re->re_descendant = 1;
-						if (rede_add_entry(re) < 0)
-							goto fatal_rr;
-						/* Move a list of descendants
-						 * to a new ancestor. */
-						while ((d = rede_get_entry(
-						    re)) != NULL)
-							if (rede_add_entry(d)
-							    < 0)
-								goto fatal_rr;
-						break;
-					}
-					/* Replace the current file
-					 * with "RE" dir */
-					*pfile = file = re;
-					/* Expose its descendant */
-					while ((d = rede_get_entry(
-					    file)) != NULL)
-						cache_add_entry(
-						    iso9660, d);
-					break;
-				} else
-					re_add_entry(iso9660, re);
-			}
-			if (nexted_re) {
-				/*
-				 * Do not expose this at this time
-				 * because we have not gotten its full-path
-				 * name yet.
-				 */
-				continue;
-			}
-		} else if ((file->mode & AE_IFMT) == AE_IFDIR) {
-			int r;
+  if(!passwdp)
+    passwdp="";
 
-			/* Read file entries in this dir. */
-			r = read_children(a, file);
-			if (r != ARCHIVE_OK)
-				return (r);
+  if(!d->nonce) {
+    authp->done = FALSE;
+    return CURLE_OK;
+  }
+  authp->done = TRUE;
 
-			/*
-			 * Handle a special dir of Rockridge extensions,
-			 * "rr_moved".
-			 */
-			if (file->rr_moved) {
-				/*
-				 * If this has only the subdirectories which
-				 * have "RE" flags, do not expose at this time.
-				 */
-				if (file->rr_moved_has_re_only)
-					continue;
-				/* Otherwise expose "rr_moved" entry. */
-			} else if (file->re) {
-				/*
-				 * Do not expose this at this time
-				 * because we have not gotten its full-path
-				 * name yet.
-				 */
-				re_add_entry(iso9660, file);
-				continue;
-			} else if (file->re_descendant) {
-				/*
-				 * If the top level "RE" entry of this entry
-				 * is not exposed, we, accordingly, should not
-				 * expose this entry at this time because
-				 * we cannot make its proper full-path name.
-				 */
-				if (rede_add_entry(file) == 0)
-					continue;
-				/* Otherwise we can expose this entry because
-				 * it seems its top level "RE" has already been
-				 * exposed. */
-			}
-		}
-		break;
-	}
+  if(!d->nc)
+    d->nc = 1;
 
-	if ((file->mode & AE_IFMT) != AE_IFREG || file->number == -1)
-		return (ARCHIVE_OK);
+  if(!d->cnonce) {
+    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+             Curl_rand(data), Curl_rand(data),
+             Curl_rand(data), Curl_rand(data));
+    rc = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
+                            &cnonce, &cnonce_sz);
+    if(rc)
+      return rc;
+    d->cnonce = cnonce;
+  }
 
-	count = 0;
-	number = file->number;
-	iso9660->cache_files.first = NULL;
-	iso9660->cache_files.last = &(iso9660->cache_files.first);
-	empty_files.first = NULL;
-	empty_files.last = &empty_files.first;
-	/* Collect files which has the same file serial number.
-	 * Peek pending_files so that file which number is different
-	 * is not put bak. */
-	while (iso9660->pending_files.used > 0 &&
-	    (iso9660->pending_files.files[0]->number == -1 ||
-	     iso9660->pending_files.files[0]->number == number)) {
-		if (file->number == -1) {
-			/* This file has the same offset
-			 * but it's wrong offset which empty files
-			 * and symlink files have.
-			 * NOTE: This wrong offse was recorded by
-			 * old mkisofs utility. If ISO images is
-			 * created by latest mkisofs, this does not
-			 * happen.
-			 */
-			file->next = NULL;
-			*empty_files.last = file;
-			empty_files.last = &(file->next);
-		} else {
-			count++;
-			cache_add_entry(iso9660, file);
-		}
-		file = next_entry(iso9660);
-	}
+  /*
+    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
 
-	if (count == 0) {
-		*pfile = file;
-		return ((file == NULL)?ARCHIVE_EOF:ARCHIVE_OK);
-	}
-	if (file->number == -1) {
-		file->next = NULL;
-		*empty_files.last = file;
-		empty_files.last = &(file->next);
-	} else {
-		count++;
-		cache_add_entry(iso9660, file);
-	}
+    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
 
-	if (count > 1) {
-		/* The count is the same as number of hardlink,
-		 * so much so that each nlinks of files in cache_file
-		 * is overwritten by value of the count.
-		 */
-		for (file = iso9660->cache_files.first;
-		    file != NULL; file = file->next)
-			file->nlinks = count;
-	}
-	/* If there are empty files, that files are added
-	 * to the tail of the cache_files. */
-	if (empty_files.first != NULL) {
-		*iso9660->cache_files.last = empty_files.first;
-		iso9660->cache_files.last = empty_files.last;
-	}
-	*pfile = cache_get_entry(iso9660);
-	return ((*pfile == NULL)?ARCHIVE_EOF:ARCHIVE_OK);
+    if the algorithm is "MD5-sess" then:
 
-fatal_rr:
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-	    "Failed to connect 'CL' pointer to 'RE' rr_moved pointer of"
-	    "Rockridge extensions");
-	return (ARCHIVE_FATAL);
+    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
+         ":" unq(nonce-value) ":" unq(cnonce-value)
+  */
+
+  md5this = (unsigned char *)
+    aprintf("%s:%s:%s", userp, d->realm, passwdp);
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  Curl_safefree(md5this);
+  md5_to_ascii(md5buf, ha1);
+
+  if(d->algo == CURLDIGESTALGO_MD5SESS) {
+    /* nonce and cnonce are OUTSIDE the hash */
+    tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
+    Curl_md5it(md5buf, (unsigned char *)tmp);
+    Curl_safefree(tmp);
+    md5_to_ascii(md5buf, ha1);
+  }
+
+  /*
+    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
+
+      A2       = Method ":" digest-uri-value
+
+          If the "qop" value is "auth-int", then A2 is:
+
+      A2       = Method ":" digest-uri-value ":" H(entity-body)
+
+    (The "Method" value is the HTTP request method as specified in section
+    5.1.1 of RFC 2616)
+  */
+
+  /* So IE browsers < v7 cut off the URI part at the query part when they
+     evaluate the MD5 and some (IIS?) servers work with them so we may need to
+     do the Digest IE-style. Note that the different ways cause different MD5
+     sums to get sent.
+
+     Apache servers can be set to do the Digest IE-style automatically using
+     the BrowserMatch feature:
+     http://httpd.apache.org/docs/2.2/mod/mod_auth_digest.html#msie
+
+     Further details on Digest implementation differences:
+     http://www.fngtps.com/2006/09/http-authentication
+  */
+
+  if(authp->iestyle && ((tmp = strchr((char *)uripath, '?')) != NULL))
+    urilen = tmp - (char *)uripath;
+  else
+    urilen = strlen((char *)uripath);
+
+  md5this = (unsigned char *)aprintf("%s:%.*s", request, urilen, uripath);
+
+  if(d->qop && Curl_raw_equal(d->qop, "auth-int")) {
+    /* We don't support auth-int for PUT or POST at the moment.
+       TODO: replace md5 of empty string with entity-body for PUT/POST */
+    unsigned char *md5this2 = (unsigned char *)
+      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
+    Curl_safefree(md5this);
+    md5this = md5this2;
+  }
+
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  Curl_safefree(md5this);
+  md5_to_ascii(md5buf, ha2);
+
+  if(d->qop) {
+    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
+                                       ha1,
+                                       d->nonce,
+                                       d->nc,
+                                       d->cnonce,
+                                       d->qop,
+                                       ha2);
+  }
+  else {
+    md5this = (unsigned char *)aprintf("%s:%s:%s",
+                                       ha1,
+                                       d->nonce,
+                                       ha2);
+  }
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  Curl_safefree(md5this);
+  md5_to_ascii(md5buf, request_digest);
+
+  /* for test case 64 (snooped from a Mozilla 1.3a request)
+
+    Authorization: Digest username="testuser", realm="testrealm", \
+    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
+
+    Digest parameters are all quoted strings.  Username which is provided by
+    the user will need double quotes and backslashes within it escaped.  For
+    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
+    are copied as is from the server, escapes and all.  cnonce is generated
+    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
+    characters.  algorithm and qop with standard values only contain web-safe
+    chracters.
+  */
+  userp_quoted = string_quoted(userp);
+  if(!userp_quoted)
+    return CURLE_OUT_OF_MEMORY;
+
+  if(d->qop) {
+    *allocuserpwd =
+      aprintf( "%sAuthorization: Digest "
+               "username=\"%s\", "
+               "realm=\"%s\", "
+               "nonce=\"%s\", "
+               "uri=\"%.*s\", "
+               "cnonce=\"%s\", "
+               "nc=%08x, "
+               "qop=%s, "
+               "response=\"%s\"",
+               proxy?"Proxy-":"",
+               userp_quoted,
+               d->realm,
+               d->nonce,
+               urilen, uripath, /* this is the PATH part of the URL */
+               d->cnonce,
+               d->nc,
+               d->qop,
+               request_digest);
+
+    if(Curl_raw_equal(d->qop, "auth"))
+      d->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0 padded
+                  which tells to the server how many times you are using the
+                  same nonce in the qop=auth mode. */
+  }
+  else {
+    *allocuserpwd =
+      aprintf( "%sAuthorization: Digest "
+               "username=\"%s\", "
+               "realm=\"%s\", "
+               "nonce=\"%s\", "
+               "uri=\"%.*s\", "
+               "response=\"%s\"",
+               proxy?"Proxy-":"",
+               userp_quoted,
+               d->realm,
+               d->nonce,
+               urilen, uripath, /* this is the PATH part of the URL */
+               request_digest);
+  }
+  Curl_safefree(userp_quoted);
+  if(!*allocuserpwd)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Add optional fields */
+  if(d->opaque) {
+    /* append opaque */
+    tmp = aprintf("%s, opaque=\"%s\"", *allocuserpwd, d->opaque);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+    free(*allocuserpwd);
+    *allocuserpwd = tmp;
+  }
+
+  if(d->algorithm) {
+    /* append algorithm */
+    tmp = aprintf("%s, algorithm=\"%s\"", *allocuserpwd, d->algorithm);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+    free(*allocuserpwd);
+    *allocuserpwd = tmp;
+  }
+
+  /* append CRLF + zero (3 bytes) to the userpwd header */
+  userlen = strlen(*allocuserpwd);
+  tmp = realloc(*allocuserpwd, userlen + 3);
+  if(!tmp)
+    return CURLE_OUT_OF_MEMORY;
+  strcpy(&tmp[userlen], "\r\n"); /* append the data */
+  *allocuserpwd = tmp;
+
+  return CURLE_OK;
 }

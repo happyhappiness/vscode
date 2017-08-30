@@ -1,2 +1,5 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "cpio: unknown keyword ``%s''", key)
+{
+		archive_set_error(&a->archive, 0,
+		    "Write request too large");
+		return (ARCHIVE_WARN);
+	}

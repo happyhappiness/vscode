@@ -1,1 +1,1 @@
-snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i])
+yy_fatal_error( "cmCommandArgument_yyset_lineno called with no buffer" , yyscanner)

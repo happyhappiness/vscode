@@ -1,4 +1,4 @@
 {
-    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
-    return CURLE_FAILED_INIT;
+    snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);
+    putenv(buf);
   }

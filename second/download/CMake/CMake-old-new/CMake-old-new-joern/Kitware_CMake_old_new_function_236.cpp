@@ -1,209 +1,178 @@
-CURLcode Curl_sasl_create_digest_http_message(struct SessionHandle *data,
-                                              const char *userp,
-                                              const char *passwdp,
-                                              const unsigned char *request,
-                                              const unsigned char *uripath,
-                                              struct digestdata *digest,
-                                              char **outptr, size_t *outlen)
+static int
+zip_read_data_deflate(struct archive_read *a, const void **buff,
+    size_t *size, int64_t *offset)
 {
-  CURLcode result;
-  unsigned char md5buf[16]; /* 16 bytes/128 bits */
-  unsigned char request_digest[33];
-  unsigned char *md5this;
-  unsigned char ha1[33];/* 32 digits and 1 zero byte */
-  unsigned char ha2[33];/* 32 digits and 1 zero byte */
-  char cnoncebuf[33];
-  char *cnonce = NULL;
-  size_t cnonce_sz = 0;
-  char *userp_quoted;
-  char *response = NULL;
-  char *tmp = NULL;
+	struct zip *zip;
+	ssize_t bytes_avail;
+	const void *compressed_buff, *sp;
+	int r;
 
-  if(!digest->nc)
-    digest->nc = 1;
+	(void)offset; /* UNUSED */
 
-  if(!digest->cnonce) {
-    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
+	zip = (struct zip *)(a->format->data);
 
-    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
-                                &cnonce, &cnonce_sz);
-    if(result)
-      return result;
+	/* If the buffer hasn't been allocated, allocate it now. */
+	if (zip->uncompressed_buffer == NULL) {
+		zip->uncompressed_buffer_size = 256 * 1024;
+		zip->uncompressed_buffer
+		    = (unsigned char *)malloc(zip->uncompressed_buffer_size);
+		if (zip->uncompressed_buffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for ZIP decompression");
+			return (ARCHIVE_FATAL);
+		}
+	}
 
-    digest->cnonce = cnonce;
-  }
+	r = zip_deflate_init(a, zip);
+	if (r != ARCHIVE_OK)
+		return (r);
 
-  /*
-    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
+	/*
+	 * Note: '1' here is a performance optimization.
+	 * Recall that the decompression layer returns a count of
+	 * available bytes; asking for more than that forces the
+	 * decompressor to combine reads by copying data.
+	 */
+	compressed_buff = sp = __archive_read_ahead(a, 1, &bytes_avail);
+	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
+	    && bytes_avail > zip->entry_bytes_remaining) {
+		bytes_avail = (ssize_t)zip->entry_bytes_remaining;
+	}
+	if (bytes_avail <= 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file body");
+		return (ARCHIVE_FATAL);
+	}
 
-    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
+	if (zip->tctx_valid || zip->cctx_valid) {
+		if (zip->decrypted_bytes_remaining < (size_t)bytes_avail) {
+			size_t buff_remaining =
+			    (zip->decrypted_buffer + zip->decrypted_buffer_size)
+			    - (zip->decrypted_ptr + zip->decrypted_bytes_remaining);
 
-    if the algorithm is "MD5-sess" then:
+			if (buff_remaining > (size_t)bytes_avail)
+				buff_remaining = (size_t)bytes_avail;
 
-    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
-         ":" unq(nonce-value) ":" unq(cnonce-value)
-  */
+			if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END) &&
+			      zip->entry_bytes_remaining > 0) {
+				if ((int64_t)(zip->decrypted_bytes_remaining
+				    + buff_remaining)
+				      > zip->entry_bytes_remaining) {
+					if (zip->entry_bytes_remaining <
+					      (int64_t)zip->decrypted_bytes_remaining)
+						buff_remaining = 0;
+					else
+						buff_remaining =
+						    (size_t)zip->entry_bytes_remaining
+						      - zip->decrypted_bytes_remaining;
+				}
+			}
+			if (buff_remaining > 0) {
+				if (zip->tctx_valid) {
+					trad_enc_decrypt_update(&zip->tctx,
+					    compressed_buff, buff_remaining,
+					    zip->decrypted_ptr
+					      + zip->decrypted_bytes_remaining,
+					    buff_remaining);
+				} else {
+					size_t dsize = buff_remaining;
+					archive_decrypto_aes_ctr_update(
+					    &zip->cctx,
+					    compressed_buff, buff_remaining,
+					    zip->decrypted_ptr
+					      + zip->decrypted_bytes_remaining,
+					    &dsize);
+				}
+				zip->decrypted_bytes_remaining += buff_remaining;
+			}
+		}
+		bytes_avail = zip->decrypted_bytes_remaining;
+		compressed_buff = (const char *)zip->decrypted_ptr;
+	}
 
-  md5this = (unsigned char *)
-    aprintf("%s:%s:%s", userp, digest->realm, passwdp);
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
+	/*
+	 * A bug in zlib.h: stream.next_in should be marked 'const'
+	 * but isn't (the library never alters data through the
+	 * next_in pointer, only reads it).  The result: this ugly
+	 * cast to remove 'const'.
+	 */
+	zip->stream.next_in = (Bytef *)(uintptr_t)(const void *)compressed_buff;
+	zip->stream.avail_in = (uInt)bytes_avail;
+	zip->stream.total_in = 0;
+	zip->stream.next_out = zip->uncompressed_buffer;
+	zip->stream.avail_out = (uInt)zip->uncompressed_buffer_size;
+	zip->stream.total_out = 0;
 
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, ha1);
+	r = inflate(&zip->stream, 0);
+	switch (r) {
+	case Z_OK:
+		break;
+	case Z_STREAM_END:
+		zip->end_of_entry = 1;
+		break;
+	case Z_MEM_ERROR:
+		archive_set_error(&a->archive, ENOMEM,
+		    "Out of memory for ZIP decompression");
+		return (ARCHIVE_FATAL);
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "ZIP decompression failed (%d)", r);
+		return (ARCHIVE_FATAL);
+	}
 
-  if(digest->algo == CURLDIGESTALGO_MD5SESS) {
-    /* nonce and cnonce are OUTSIDE the hash */
-    tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
+	/* Consume as much as the compressor actually used. */
+	bytes_avail = zip->stream.total_in;
+	if (zip->tctx_valid || zip->cctx_valid) {
+		zip->decrypted_bytes_remaining -= bytes_avail;
+		if (zip->decrypted_bytes_remaining == 0)
+			zip->decrypted_ptr = zip->decrypted_buffer;
+		else
+			zip->decrypted_ptr += bytes_avail;
+	}
+	/* Calculate compressed data as much as we used.*/
+	if (zip->hctx_valid)
+		archive_hmac_sha1_update(&zip->hctx, sp, bytes_avail);
+	__archive_read_consume(a, bytes_avail);
+	zip->entry_bytes_remaining -= bytes_avail;
+	zip->entry_compressed_bytes_read += bytes_avail;
 
-    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
-    Curl_md5it(md5buf, (unsigned char *)tmp);
-    free(tmp);
-    sasl_digest_md5_to_ascii(md5buf, ha1);
-  }
+	*size = zip->stream.total_out;
+	zip->entry_uncompressed_bytes_read += zip->stream.total_out;
+	*buff = zip->uncompressed_buffer;
 
-  /*
-    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
+	if (zip->end_of_entry && zip->hctx_valid) {
+		r = check_authentication_code(a, NULL);
+		if (r != ARCHIVE_OK)
+			return (r);
+	}
 
-      A2       = Method ":" digest-uri-value
+	if (zip->end_of_entry && (zip->entry->zip_flags & ZIP_LENGTH_AT_END)) {
+		const char *p;
 
-          If the "qop" value is "auth-int", then A2 is:
+		if (NULL == (p = __archive_read_ahead(a, 24, NULL))) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP end-of-file record");
+			return (ARCHIVE_FATAL);
+		}
+		/* Consume the optional PK\007\010 marker. */
+		if (p[0] == 'P' && p[1] == 'K' &&
+		    p[2] == '\007' && p[3] == '\010') {
+			p += 4;
+			zip->unconsumed = 4;
+		}
+		if (zip->entry->flags & LA_USED_ZIP64) {
+			zip->entry->crc32 = archive_le32dec(p);
+			zip->entry->compressed_size = archive_le64dec(p + 4);
+			zip->entry->uncompressed_size = archive_le64dec(p + 12);
+			zip->unconsumed += 20;
+		} else {
+			zip->entry->crc32 = archive_le32dec(p);
+			zip->entry->compressed_size = archive_le32dec(p + 4);
+			zip->entry->uncompressed_size = archive_le32dec(p + 8);
+			zip->unconsumed += 12;
+		}
+	}
 
-      A2       = Method ":" digest-uri-value ":" H(entity-body)
-
-    (The "Method" value is the HTTP request method as specified in section
-    5.1.1 of RFC 2616)
-  */
-
-  md5this = (unsigned char *)aprintf("%s:%s", request, uripath);
-
-  if(digest->qop && Curl_raw_equal(digest->qop, "auth-int")) {
-    /* We don't support auth-int for PUT or POST at the moment.
-       TODO: replace md5 of empty string with entity-body for PUT/POST */
-    unsigned char *md5this2 = (unsigned char *)
-      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
-    free(md5this);
-    md5this = md5this2;
-  }
-
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, ha2);
-
-  if(digest->qop) {
-    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       digest->nc,
-                                       digest->cnonce,
-                                       digest->qop,
-                                       ha2);
-  }
-  else {
-    md5this = (unsigned char *)aprintf("%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       ha2);
-  }
-
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, request_digest);
-
-  /* for test case 64 (snooped from a Mozilla 1.3a request)
-
-    Authorization: Digest username="testuser", realm="testrealm", \
-    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
-
-    Digest parameters are all quoted strings.  Username which is provided by
-    the user will need double quotes and backslashes within it escaped.  For
-    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
-    are copied as is from the server, escapes and all.  cnonce is generated
-    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
-    characters.  algorithm and qop with standard values only contain web-safe
-    chracters.
-  */
-  userp_quoted = sasl_digest_string_quoted(userp);
-  if(!userp_quoted)
-    return CURLE_OUT_OF_MEMORY;
-
-  if(digest->qop) {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "cnonce=\"%s\", "
-                       "nc=%08x, "
-                       "qop=%s, "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       digest->cnonce,
-                       digest->nc,
-                       digest->qop,
-                       request_digest);
-
-    if(Curl_raw_equal(digest->qop, "auth"))
-      digest->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0
-                       padded which tells to the server how many times you are
-                       using the same nonce in the qop=auth mode */
-  }
-  else {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       request_digest);
-  }
-  free(userp_quoted);
-  if(!response)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Add the optional fields */
-  if(digest->opaque) {
-    /* Append the opaque */
-    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    response = tmp;
-  }
-
-  if(digest->algorithm) {
-    /* Append the algorithm */
-    tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    response = tmp;
-  }
-
-  /* Return the output */
-  *outptr = response;
-  *outlen = strlen(response);
-
-  return CURLE_OK;
+	return (ARCHIVE_OK);
 }

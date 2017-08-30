@@ -1,8 +1,4 @@
 {
-    if(*userp)
-      free(*userp);
-    *userp = aprintf( "%sAuthorization: Basic %s\015\012",
-                      proxy?"Proxy-":"",
-                      authorization);
-    free(authorization);
-  }
+        // print the progress
+        fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
+        }

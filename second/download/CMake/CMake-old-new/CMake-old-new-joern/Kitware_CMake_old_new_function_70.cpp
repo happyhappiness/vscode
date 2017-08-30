@@ -1,15 +1,23 @@
-static char *hashkey(struct connectdata *conn)
+void Curl_failf(struct Curl_easy *data, const char *fmt, ...)
 {
-  const char *hostname;
+  va_list ap;
+  size_t len;
+  va_start(ap, fmt);
 
-  if(conn->bits.socksproxy)
-    hostname = conn->socks_proxy.host.name;
-  else if(conn->bits.httpproxy)
-    hostname = conn->http_proxy.host.name;
-  else if(conn->bits.conn_to_host)
-    hostname = conn->conn_to_host.name;
-  else
-    hostname = conn->host.name;
+  vsnprintf(data->state.buffer, BUFSIZE, fmt, ap);
 
-  return aprintf("%s:%d", hostname, conn->port);
+  if(data->set.errorbuffer && !data->state.errorbuf) {
+    snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer);
+    data->state.errorbuf = TRUE; /* wrote error string */
+  }
+  if(data->set.verbose) {
+    len = strlen(data->state.buffer);
+    if(len < BUFSIZE - 1) {
+      data->state.buffer[len] = '\n';
+      data->state.buffer[++len] = '\0';
+    }
+    Curl_debug(data, CURLINFO_TEXT, data->state.buffer, len, NULL);
+  }
+
+  va_end(ap);
 }

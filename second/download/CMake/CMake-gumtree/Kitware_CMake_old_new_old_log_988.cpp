@@ -1,1 +1,2 @@
-sprintf(secondLine, "Q)uit Without Generating   T)oggle Advanced Mode (On)");
+sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%ld_%p.exe",
+            GetCurrentProcessId(), cp);

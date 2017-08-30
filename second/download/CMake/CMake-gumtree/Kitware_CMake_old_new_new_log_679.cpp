@@ -1,1 +1,1 @@
-sprintf(buf, "%6.2f sec", this->TestProcess->GetTotalTime());
+fprintf(stderr, "  target [%s]\n", lei->Target->GetName().c_str());

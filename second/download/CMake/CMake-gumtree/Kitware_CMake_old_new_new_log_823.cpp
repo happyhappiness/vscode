@@ -1,1 +1,2 @@
-yy_fatal_error( "cmListFileLexer_yyset_lineno called with no buffer" , yyscanner);
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external xz program for xz decompression");

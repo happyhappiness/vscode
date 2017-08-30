@@ -1,140 +1,75 @@
-static int
-write_mtree_entry(struct archive_write *a, struct mtree_entry *me)
+ssize_t
+archive_read_data(struct archive *_a, void *buff, size_t s)
 {
-	struct mtree_writer *mtree = a->format_data;
-	struct archive_string *str;
-	int keys, ret;
+	struct archive_read *a = (struct archive_read *)_a;
+	char	*dest;
+	const void *read_buf;
+	size_t	 bytes_read;
+	size_t	 len;
+	int	 r;
 
-	if (me->dir_info) {
-		if (mtree->classic) {
+	bytes_read = 0;
+	dest = (char *)buff;
+
+	while (s > 0) {
+		if (a->read_data_remaining == 0) {
+			read_buf = a->read_data_block;
+			a->read_data_is_posix_read = 1;
+			a->read_data_requested = s;
+			r = _archive_read_data_block(&a->archive, &read_buf,
+			    &a->read_data_remaining, &a->read_data_offset);
+			a->read_data_block = read_buf;
+			if (r == ARCHIVE_EOF)
+				return (bytes_read);
 			/*
-			 * Output a comment line to describe the full
-			 * pathname of the entry as mtree utility does
-			 * while generating classic format.
+			 * Error codes are all negative, so the status
+			 * return here cannot be confused with a valid
+			 * byte count.  (ARCHIVE_OK is zero.)
 			 */
-			if (!mtree->dironly)
-				archive_strappend_char(&mtree->buf, '\n');
-			if (me->parentdir.s)
-				archive_string_sprintf(&mtree->buf,
-				    "# %s/%s\n",
-				    me->parentdir.s, me->basename.s);
-			else
-				archive_string_sprintf(&mtree->buf,
-				    "# %s\n",
-				    me->basename.s);
+			if (r < ARCHIVE_OK)
+				return (r);
 		}
-		if (mtree->output_global_set)
-			write_global(mtree);
-	}
-	archive_string_empty(&mtree->ebuf);
-	str = (mtree->indent || mtree->classic)? &mtree->ebuf : &mtree->buf;
 
-	if (!mtree->classic && me->parentdir.s) {
-		/*
-		 * If generating format is not classic one(v1), output
-		 * a full pathname.
-		 */
-		mtree_quote(str, me->parentdir.s);
-		archive_strappend_char(str, '/');
-	}
-	mtree_quote(str, me->basename.s);
-
-	keys = get_global_set_keys(mtree, me);
-	if ((keys & F_NLINK) != 0 &&
-	    me->nlink != 1 && me->filetype != AE_IFDIR)
-		archive_string_sprintf(str, " nlink=%u", me->nlink);
-
-	if ((keys & F_GNAME) != 0 && archive_strlen(&me->gname) > 0) {
-		archive_strcat(str, " gname=");
-		mtree_quote(str, me->gname.s);
-	}
-	if ((keys & F_UNAME) != 0 && archive_strlen(&me->uname) > 0) {
-		archive_strcat(str, " uname=");
-		mtree_quote(str, me->uname.s);
-	}
-	if ((keys & F_FLAGS) != 0) {
-		if (archive_strlen(&me->fflags_text) > 0) {
-			archive_strcat(str, " flags=");
-			mtree_quote(str, me->fflags_text.s);
-		} else if (mtree->set.processing &&
-		    (mtree->set.keys & F_FLAGS) != 0)
-			/* Overwrite the global parameter. */
-			archive_strcat(str, " flags=none");
-	}
-	if ((keys & F_TIME) != 0)
-		archive_string_sprintf(str, " time=%jd.%jd",
-		    (intmax_t)me->mtime, (intmax_t)me->mtime_nsec);
-	if ((keys & F_MODE) != 0)
-		archive_string_sprintf(str, " mode=%o", (unsigned int)me->mode);
-	if ((keys & F_GID) != 0)
-		archive_string_sprintf(str, " gid=%jd", (intmax_t)me->gid);
-	if ((keys & F_UID) != 0)
-		archive_string_sprintf(str, " uid=%jd", (intmax_t)me->uid);
-
-	switch (me->filetype) {
-	case AE_IFLNK:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=link");
-		if ((keys & F_SLINK) != 0) {
-			archive_strcat(str, " link=");
-			mtree_quote(str, me->symlink.s);
+		if (a->read_data_offset < a->read_data_output_offset) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Encountered out-of-order sparse blocks");
+			return (ARCHIVE_RETRY);
 		}
-		break;
-	case AE_IFSOCK:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=socket");
-		break;
-	case AE_IFCHR:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=char");
-		if ((keys & F_DEV) != 0) {
-			archive_string_sprintf(str,
-			    " device=native,%ju,%ju",
-			    (uintmax_t)me->rdevmajor,
-			    (uintmax_t)me->rdevminor);
+
+		/* Compute the amount of zero padding needed. */
+		if (a->read_data_output_offset + (int64_t)s <
+		    a->read_data_offset) {
+			len = s;
+		} else if (a->read_data_output_offset <
+		    a->read_data_offset) {
+			len = (size_t)(a->read_data_offset -
+			    a->read_data_output_offset);
+		} else
+			len = 0;
+
+		/* Add zeroes. */
+		memset(dest, 0, len);
+		s -= len;
+		a->read_data_output_offset += len;
+		dest += len;
+		bytes_read += len;
+
+		/* Copy data if there is any space left. */
+		if (s > 0) {
+			len = a->read_data_remaining;
+			if (len > s)
+				len = s;
+			memcpy(dest, a->read_data_block, len);
+			s -= len;
+			a->read_data_block += len;
+			a->read_data_remaining -= len;
+			a->read_data_output_offset += len;
+			a->read_data_offset += len;
+			dest += len;
+			bytes_read += len;
 		}
-		break;
-	case AE_IFBLK:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=block");
-		if ((keys & F_DEV) != 0) {
-			archive_string_sprintf(str,
-			    " device=native,%ju,%ju",
-			    (uintmax_t)me->rdevmajor,
-			    (uintmax_t)me->rdevminor);
-		}
-		break;
-	case AE_IFDIR:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=dir");
-		break;
-	case AE_IFIFO:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=fifo");
-		break;
-	case AE_IFREG:
-	default:	/* Handle unknown file types as regular files. */
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=file");
-		if ((keys & F_SIZE) != 0)
-			archive_string_sprintf(str, " size=%jd",
-			    (intmax_t)me->size);
-		break;
 	}
-
-	/* Write a bunch of sum. */
-	if (me->reg_info)
-		sum_write(str, me->reg_info);
-
-	archive_strappend_char(str, '\n');
-	if (mtree->indent || mtree->classic)
-		mtree_indent(mtree);
-
-	if (mtree->buf.length > 32768) {
-		ret = __archive_write_output(
-			a, mtree->buf.s, mtree->buf.length);
-		archive_string_empty(&mtree->buf);
-	} else
-		ret = ARCHIVE_OK;
-	return (ret);
+	a->read_data_is_posix_read = 0;
+	a->read_data_requested = 0;
+	return (bytes_read);
 }

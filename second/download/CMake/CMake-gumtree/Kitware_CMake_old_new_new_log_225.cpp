@@ -1,4 +1,2 @@
-the project that
- * took on from here is named 'Trio' and you find more details on the trio web
- * page at https://daniel.haxx.se/projects/trio/
- */;
+archive_string_sprintf(&w->sver,
+			"WARC/%u.%u", ver / 10000, (ver % 10000) / 100);

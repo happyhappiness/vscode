@@ -1,0 +1,3 @@
+{
+      sprintf("%s", getenv("HTTP_PROXY"));
+      }

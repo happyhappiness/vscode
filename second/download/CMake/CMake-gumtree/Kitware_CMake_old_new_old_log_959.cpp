@@ -1,0 +1,1 @@
+fprintf(fout, "SET(CMAKE_%s_FLAGS \"", lang);

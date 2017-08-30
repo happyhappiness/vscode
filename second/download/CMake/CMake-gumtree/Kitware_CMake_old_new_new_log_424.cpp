@@ -1,2 +1,1 @@
-archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Unknown format `%s'", val);
+fprintf(file, "\t%s\n", i->c_str());

@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "out of dynamic memory in yy_get_next_buffer()" );
+archive_set_error(&a->archive, errno,
+		    "Failed to read ACL brand");

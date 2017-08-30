@@ -1,4 +1,5 @@
-f(!hostheader) {
-          Curl_add_buffer_free(req_buffer);
-          return CURLE_OUT_OF_MEMORY;
-        }
+{
+    len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL));
+    left -= len;
+    ptr += len;
+  }

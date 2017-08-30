@@ -1,0 +1,1 @@
+str << this->ChipID.Revision;

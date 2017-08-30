@@ -1,9 +1,6 @@
 {
-    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       digest->nc,
-                                       digest->cnonce,
-                                       digest->qop,
-                                       ha2);
-  }
+		tar->entry_bytes_remaining = 0;
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Tar entry has negative size?");
+		err = ARCHIVE_WARN;
+	}

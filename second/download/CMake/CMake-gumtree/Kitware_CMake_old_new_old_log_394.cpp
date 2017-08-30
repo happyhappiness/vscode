@@ -1,1 +1,2 @@
-fprintf(fout, " %08X", pSymbolTable->Value);
+archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter");

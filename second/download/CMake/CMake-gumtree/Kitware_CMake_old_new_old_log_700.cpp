@@ -1,1 +1,2 @@
-sprintf(buffer, "%d", osvi.dwMinorVersion);
+archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Malformed device attribute");

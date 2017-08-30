@@ -1,160 +1,133 @@
-CURLcode Curl_sasl_create_digest_md5_message(struct SessionHandle *data,
-                                             const char *chlg64,
-                                             const char *userp,
-                                             const char *passwdp,
-                                             const char *service,
-                                             char **outptr, size_t *outlen)
+static int
+zip_read_data_none(struct archive_read *a, const void **_buff,
+    size_t *size, int64_t *offset)
 {
-  CURLcode result = CURLE_OK;
-  size_t i;
-  MD5_context *ctxt;
-  char *response = NULL;
-  unsigned char digest[MD5_DIGEST_LEN];
-  char HA1_hex[2 * MD5_DIGEST_LEN + 1];
-  char HA2_hex[2 * MD5_DIGEST_LEN + 1];
-  char resp_hash_hex[2 * MD5_DIGEST_LEN + 1];
-  char nonce[64];
-  char realm[128];
-  char algorithm[64];
-  char qop_options[64];
-  int qop_values;
-  char cnonce[33];
-  unsigned int entropy[4];
-  char nonceCount[] = "00000001";
-  char method[]     = "AUTHENTICATE";
-  char qop[]        = DIGEST_QOP_VALUE_STRING_AUTH;
-  char *spn         = NULL;
+	struct zip *zip;
+	const char *buff;
+	ssize_t bytes_avail;
+	int r;
 
-  /* Decode the challange message */
-  result = sasl_decode_digest_md5_message(chlg64, nonce, sizeof(nonce),
-                                          realm, sizeof(realm),
-                                          algorithm, sizeof(algorithm),
-                                          qop_options, sizeof(qop_options));
-  if(result)
-    return result;
+	(void)offset; /* UNUSED */
 
-  /* We only support md5 sessions */
-  if(strcmp(algorithm, "md5-sess") != 0)
-    return CURLE_BAD_CONTENT_ENCODING;
+	zip = (struct zip *)(a->format->data);
 
-  /* Get the qop-values from the qop-options */
-  result = sasl_digest_get_qop_values(qop_options, &qop_values);
-  if(result)
-    return result;
+	if (zip->entry->zip_flags & ZIP_LENGTH_AT_END) {
+		const char *p;
+		ssize_t grabbing_bytes = 24;
 
-  /* We only support auth quality-of-protection */
-  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
-    return CURLE_BAD_CONTENT_ENCODING;
+		if (zip->hctx_valid)
+			grabbing_bytes += AUTH_CODE_SIZE;
+		/* Grab at least 24 bytes. */
+		buff = __archive_read_ahead(a, grabbing_bytes, &bytes_avail);
+		if (bytes_avail < grabbing_bytes) {
+			/* Zip archives have end-of-archive markers
+			   that are longer than this, so a failure to get at
+			   least 24 bytes really does indicate a truncated
+			   file. */
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file data");
+			return (ARCHIVE_FATAL);
+		}
+		/* Check for a complete PK\007\010 signature, followed
+		 * by the correct 4-byte CRC. */
+		p = buff;
+		if (zip->hctx_valid)
+			p += AUTH_CODE_SIZE;
+		if (p[0] == 'P' && p[1] == 'K'
+		    && p[2] == '\007' && p[3] == '\010'
+		    && (archive_le32dec(p + 4) == zip->entry_crc32
+			|| zip->ignore_crc32
+			|| (zip->hctx_valid
+			 && zip->entry->aes_extra.vendor == AES_VENDOR_AE_2))) {
+			if (zip->entry->flags & LA_USED_ZIP64) {
+				zip->entry->crc32 = archive_le32dec(p + 4);
+				zip->entry->compressed_size =
+					archive_le64dec(p + 8);
+				zip->entry->uncompressed_size =
+					archive_le64dec(p + 16);
+				zip->unconsumed = 24;
+			} else {
+				zip->entry->crc32 = archive_le32dec(p + 4);
+				zip->entry->compressed_size =
+					archive_le32dec(p + 8);
+				zip->entry->uncompressed_size =
+					archive_le32dec(p + 12);
+				zip->unconsumed = 16;
+			}
+			if (zip->hctx_valid) {
+				r = check_authentication_code(a, buff);
+				if (r != ARCHIVE_OK)
+					return (r);
+			}
+			zip->end_of_entry = 1;
+			return (ARCHIVE_OK);
+		}
+		/* If not at EOF, ensure we consume at least one byte. */
+		++p;
 
-  /* Generate 16 bytes of random data */
-  entropy[0] = Curl_rand(data);
-  entropy[1] = Curl_rand(data);
-  entropy[2] = Curl_rand(data);
-  entropy[3] = Curl_rand(data);
+		/* Scan forward until we see where a PK\007\010 signature
+		 * might be. */
+		/* Return bytes up until that point.  On the next call,
+		 * the code above will verify the data descriptor. */
+		while (p < buff + bytes_avail - 4) {
+			if (p[3] == 'P') { p += 3; }
+			else if (p[3] == 'K') { p += 2; }
+			else if (p[3] == '\007') { p += 1; }
+			else if (p[3] == '\010' && p[2] == '\007'
+			    && p[1] == 'K' && p[0] == 'P') {
+				if (zip->hctx_valid)
+					p -= AUTH_CODE_SIZE;
+				break;
+			} else { p += 4; }
+		}
+		bytes_avail = p - buff;
+	} else {
+		if (zip->entry_bytes_remaining == 0) {
+			zip->end_of_entry = 1;
+			if (zip->hctx_valid) {
+				r = check_authentication_code(a, NULL);
+				if (r != ARCHIVE_OK)
+					return (r);
+			}
+			return (ARCHIVE_OK);
+		}
+		/* Grab a bunch of bytes. */
+		buff = __archive_read_ahead(a, 1, &bytes_avail);
+		if (bytes_avail <= 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file data");
+			return (ARCHIVE_FATAL);
+		}
+		if (bytes_avail > zip->entry_bytes_remaining)
+			bytes_avail = (ssize_t)zip->entry_bytes_remaining;
+	}
+	if (zip->tctx_valid || zip->cctx_valid) {
+		size_t dec_size = bytes_avail;
 
-  /* Convert the random data into a 32 byte hex string */
-  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
-           entropy[0], entropy[1], entropy[2], entropy[3]);
-
-  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt)
-    return CURLE_OUT_OF_MEMORY;
-
-  Curl_MD5_update(ctxt, (const unsigned char *) userp,
-                  curlx_uztoui(strlen(userp)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) realm,
-                  curlx_uztoui(strlen(realm)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) passwdp,
-                  curlx_uztoui(strlen(passwdp)));
-  Curl_MD5_final(ctxt, digest);
-
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt)
-    return CURLE_OUT_OF_MEMORY;
-
-  Curl_MD5_update(ctxt, (const unsigned char *) digest, MD5_DIGEST_LEN);
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
-                  curlx_uztoui(strlen(nonce)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
-                  curlx_uztoui(strlen(cnonce)));
-  Curl_MD5_final(ctxt, digest);
-
-  /* Convert calculated 16 octet hex into 32 bytes string */
-  for(i = 0; i < MD5_DIGEST_LEN; i++)
-    snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);
-
-  /* Generate our SPN */
-  spn = Curl_sasl_build_spn(service, realm);
-  if(!spn)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Calculate H(A2) */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt) {
-    free(spn);
-
-    return CURLE_OUT_OF_MEMORY;
-  }
-
-  Curl_MD5_update(ctxt, (const unsigned char *) method,
-                  curlx_uztoui(strlen(method)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) spn,
-                  curlx_uztoui(strlen(spn)));
-  Curl_MD5_final(ctxt, digest);
-
-  for(i = 0; i < MD5_DIGEST_LEN; i++)
-    snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);
-
-  /* Now calculate the response hash */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt) {
-    free(spn);
-
-    return CURLE_OUT_OF_MEMORY;
-  }
-
-  Curl_MD5_update(ctxt, (const unsigned char *) HA1_hex, 2 * MD5_DIGEST_LEN);
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
-                  curlx_uztoui(strlen(nonce)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-
-  Curl_MD5_update(ctxt, (const unsigned char *) nonceCount,
-                  curlx_uztoui(strlen(nonceCount)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
-                  curlx_uztoui(strlen(cnonce)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) qop,
-                  curlx_uztoui(strlen(qop)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-
-  Curl_MD5_update(ctxt, (const unsigned char *) HA2_hex, 2 * MD5_DIGEST_LEN);
-  Curl_MD5_final(ctxt, digest);
-
-  for(i = 0; i < MD5_DIGEST_LEN; i++)
-    snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
-
-  /* Generate the response */
-  response = aprintf("username=\"%s\",realm=\"%s\",nonce=\"%s\","
-                     "cnonce=\"%s\",nc=\"%s\",digest-uri=\"%s\",response=%s,"
-                     "qop=%s",
-                     userp, realm, nonce,
-                     cnonce, nonceCount, spn, resp_hash_hex, qop);
-  free(spn);
-  if(!response)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Base64 encode the response */
-  result = Curl_base64_encode(data, response, 0, outptr, outlen);
-
-  free(response);
-
-  return result;
+		if (dec_size > zip->decrypted_buffer_size)
+			dec_size = zip->decrypted_buffer_size;
+		if (zip->tctx_valid) {
+			trad_enc_decrypt_update(&zip->tctx,
+			    (const uint8_t *)buff, dec_size,
+			    zip->decrypted_buffer, dec_size);
+		} else {
+			size_t dsize = dec_size;
+			archive_hmac_sha1_update(&zip->hctx,
+			    (const uint8_t *)buff, dec_size);
+			archive_decrypto_aes_ctr_update(&zip->cctx,
+			    (const uint8_t *)buff, dec_size,
+			    zip->decrypted_buffer, &dsize);
+		}
+		bytes_avail = dec_size;
+		buff = (const char *)zip->decrypted_buffer;
+	}
+	*size = bytes_avail;
+	zip->entry_bytes_remaining -= bytes_avail;
+	zip->entry_uncompressed_bytes_read += bytes_avail;
+	zip->entry_compressed_bytes_read += bytes_avail;
+	zip->unconsumed += bytes_avail;
+	*_buff = buff;
+	return (ARCHIVE_OK);
 }

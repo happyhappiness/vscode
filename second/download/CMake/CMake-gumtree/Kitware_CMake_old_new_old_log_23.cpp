@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, errno,
-			    "Failed to get ACL permission set");
+				    "Invalid NFSv4 ACL entry type");

@@ -1,107 +1,159 @@
 {
-  int x,y;
-  getmaxyx(stdscr, y, x);
-  // If window size is too small, display error and return
-  if ( x < cmCursesMainForm::MIN_WIDTH  || 
-       x < m_InitialWidth               ||
-       y < cmCursesMainForm::MIN_HEIGHT )
-    {
-    curses_clear();
-    curses_move(0,0);
-    char fmt[] = "Window is too small. A size of at least %dx%d is required.";
-    printw(fmt,
-	   (cmCursesMainForm::MIN_WIDTH < m_InitialWidth ?
-	    m_InitialWidth : cmCursesMainForm::MIN_WIDTH), 
-	   cmCursesMainForm::MIN_HEIGHT);
-    touchwin(stdscr); 
-    wrefresh(stdscr); 
-    return;
-    }
+    // remove any CMakeCache.txt files so we will have a clean test
+    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
+    cmSystemTools::RemoveFile(ccFile.c_str());
 
-  // Get the key of the current entry
-  FIELD* cur = current_field(m_Form);
-  int index = field_index(cur);
-  cmCursesWidget* lbl = reinterpret_cast<cmCursesWidget*>(field_userptr(
-    m_Fields[index-2]));
-  const char* curField = lbl->GetValue();
+    // we need to create a directory and CMakeLists file etc...
+    // first create the directories
+    sourceDirectory = this->BinaryDirectory.c_str();
 
-  // Get the help string of the current entry
-  // and add it to the help string
-  char help[128];
-  const char* helpString;
-  cmCacheManager::CacheEntry *entry = 
-    this->m_CMakeInstance->GetCacheManager()->GetCacheEntry(curField);
-  if (entry)
-    {
-    helpString = entry->m_HelpString.c_str();
-    strncpy(help, helpString, 127);
-    help[127] = '\0';
-    }
-  else
-    {
-    sprintf(help," ");
-    }
-
-
-  // Join the key, help string and pad with spaces
-  // (or truncate) as necessary
-  char bar[cmCursesMainForm::MAX_WIDTH];
-  int i, curFieldLen = strlen(curField);
-  int helpLen = strlen(help);
-
-  int width;
-  if (x < cmCursesMainForm::MAX_WIDTH )
-    {
-    width = x;
-    }
-  else
-    {
-    width = cmCursesMainForm::MAX_WIDTH;
-    }
-
-  if (curFieldLen >= width)
-    {
-    strncpy(bar, curField, width);
-    }
-  else
-    {
-    strcpy(bar, curField);
-    bar[curFieldLen] = ':';
-    bar[curFieldLen+1] = ' ';
-    if (curFieldLen + helpLen + 2 >= width)
+    // now create a CMakeLists.txt file in that directory
+    FILE *fout = fopen(outFileName.c_str(),"w");
+    if (!fout)
       {
-      strncpy(bar+curFieldLen+2, help, width
-	- curFieldLen - 2);
+      cmOStringStream e;
+      e << "Failed to open\n"
+        << "  " << outFileName.c_str() << "\n"
+        << cmSystemTools::GetLastSystemError();
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+      return -1;
+      }
+
+    std::string source = argv[2];
+    std::string ext = cmSystemTools::GetFilenameLastExtension(source);
+    const char* lang =(this->Makefile->GetCMakeInstance()->GetGlobalGenerator()
+                        ->GetLanguageFromExtension(ext.c_str()));
+    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
+    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
+            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
+            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
+    if(def)
+      {
+      fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
+      }
+
+    const char* rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
+    std::string rulesOverrideLang =
+      rulesOverrideBase + (lang ? std::string("_") + lang : std::string(""));
+    if(const char* rulesOverridePath =
+       this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
+      {
+      fprintf(fout, "SET(%s \"%s\")\n",
+              rulesOverrideLang.c_str(), rulesOverridePath);
+      }
+    else if(const char* rulesOverridePath2 =
+            this->Makefile->GetDefinition(rulesOverrideBase))
+      {
+      fprintf(fout, "SET(%s \"%s\")\n",
+              rulesOverrideBase, rulesOverridePath2);
+      }
+
+    if(lang)
+      {
+      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE %s)\n", lang);
       }
     else
       {
-      strcpy(bar+curFieldLen+2, help);
-      for(i=curFieldLen+helpLen+2; i < width; ++i) 
-	{ 
-	bar[i] = ' '; 
-	}
+      fclose(fout);
+      cmOStringStream err;
+      err << "Unknown extension \"" << ext << "\" for file\n"
+          << "  " << source << "\n"
+          << "try_compile() works only for enabled languages.  "
+          << "Currently these are:\n ";
+      std::vector<std::string> langs;
+      this->Makefile->GetCMakeInstance()->GetGlobalGenerator()->
+        GetEnabledLanguages(langs);
+      for(std::vector<std::string>::iterator l = langs.begin();
+          l != langs.end(); ++l)
+        {
+        err << " " << *l;
+        }
+      err << "\nSee project() command to enable other languages.";
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
+      return -1;
       }
+    std::string langFlags = "CMAKE_";
+    langFlags +=  lang;
+    langFlags += "_FLAGS";
+    fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");
+    fprintf(fout, "SET(CMAKE_%s_FLAGS \"", lang);
+    const char* flags = this->Makefile->GetDefinition(langFlags.c_str());
+    if(flags)
+      {
+      fprintf(fout, " %s ", flags);
+      }
+    fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
+    fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
+    fprintf(fout, "SET(CMAKE_SUPPRESS_REGENERATION 1)\n");
+    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
+    // handle any compile flags we need to pass on
+    if (compileFlags.size())
+      {
+      fprintf(fout, "ADD_DEFINITIONS( ");
+      for (i = 0; i < compileFlags.size(); ++i)
+        {
+        fprintf(fout,"%s ",compileFlags[i].c_str());
+        }
+      fprintf(fout, ")\n");
+      }
+
+    /* for the TRY_COMPILEs we want to be able to specify the architecture.
+      So the user can set CMAKE_OSX_ARCHITECTURE to i386;ppc and then set
+      CMAKE_TRY_COMPILE_OSX_ARCHITECTURE first to i386 and then to ppc to
+      have the tests run for each specific architecture. Since
+      cmLocalGenerator doesn't allow building for "the other"
+      architecture only via CMAKE_OSX_ARCHITECTURES.
+      */
+    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition(
+                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+      }
+    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+      }
+    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
+    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_SYSROOT=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
+      cmakeFlags.push_back(flag);
+      }
+    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
+    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
+      cmakeFlags.push_back(flag);
+      }
+    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
+      {
+      fprintf(fout, "SET(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
+      }
+
+    /* Use a random file name to avoid rapid creation and deletion
+       of the same executable name (some filesystems fail on that).  */
+    sprintf(targetNameBuf, "cmTryCompileExec%u",
+            cmSystemTools::RandomSeed());
+    targetName = targetNameBuf;
+
+    /* Put the executable at a known location (for COPY_FILE).  */
+    fprintf(fout, "SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+            this->BinaryDirectory.c_str());
+    /* Create the actual executable.  */
+    fprintf(fout, "ADD_EXECUTABLE(%s \"%s\")\n", targetName, source.c_str());
+    fprintf(fout, "TARGET_LINK_LIBRARIES(%s ${LINK_LIBRARIES})\n",targetName);
+    fclose(fout);
+    projectName = "CMAKE_TRY_COMPILE";
+    // if the source is not in CMakeTmp
+    if(source.find("CMakeTmp") == source.npos)
+      {
+      this->Makefile->AddCMakeDependFile(source.c_str());
+      }
+
     }
-
-  bar[width] = '\0';
-
-  // Display CMake version info on the next line
-  // We want to display this on the right
-  char version[cmCursesMainForm::MAX_WIDTH];
-  char vertmp[128];
-  sprintf(vertmp,"CMake Version %d.%d - %s", cmMakefile::GetMajorVersion(),
-	  cmMakefile::GetMinorVersion(),cmMakefile::GetReleaseVersion());
-  int sideSpace = (width-strlen(vertmp));
-  for(i=0; i<sideSpace; i++) { version[i] = ' '; }
-  sprintf(version+sideSpace, "%s", vertmp);
-  version[width] = '\0';
-
-  // Now print both lines
-  curses_move(y-5,0);
-  attron(A_STANDOUT);
-  printw(bar);
-  attroff(A_STANDOUT);  
-  curses_move(y-4,0);
-  printw(version);
-  pos_form_cursor(m_Form);
-}

@@ -1,1 +1,3 @@
-fprintf(fout, "set(CMAKE_MODULE_PATH %s)\n", def);
+archive_set_error(&a->archive,
+						    ARCHIVE_ERRNO_MISC,
+						    "Failed to encrypt file");

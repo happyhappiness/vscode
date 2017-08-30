@@ -1,1 +1,1 @@
-snprintf(buffer, size, "wolfSSL/%s", wolfSSL_lib_version());
+sprintf(cp->ProcessResults[idx].ExitExceptionString, "Signal %d", sig);

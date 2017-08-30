@@ -1,35 +1,32 @@
-int main(int argc, char **argv, char **envp)
+void
+cmLocalVisualStudio6Generator
+::AddUtilityCommandHack(cmTarget& target, int count,
+                        std::vector<std::string>& depends,
+                        const cmCustomCommand& origCommand)
 {
-  char *base64;
-  int base64Len;
-  unsigned char *data;
-  int dataLen;
-  int i, j;
+  // Create a fake output that forces the rule to run.
+  char* output = new char[(strlen(this->Makefile->GetStartOutputDirectory()) +
+                           strlen(target.GetName()) + 30)];
+  sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
+          target.GetName(), count);
+  std::string comment = this->ConstructComment(origCommand, "<hack>");
 
-  base64 = (char *)suck(&base64Len);
-  data = (unsigned char *)malloc(base64Len * 3/4 + 8);
-  dataLen = Curl_base64_decode(base64, data);
+  // Add the rule with the given dependencies and commands.
+  const char* no_main_dependency = 0;
+  if(cmSourceFile* outsf =
+     this->Makefile->AddCustomCommandToOutput(
+       output, depends, no_main_dependency,
+       origCommand.GetCommandLines(), comment.c_str(),
+       origCommand.GetWorkingDirectory()))
+    {
+    target.AddSourceFile(outsf);
+    }
 
-  fprintf(stderr, "%d\n", dataLen);
+  // Replace the dependencies with the output of this rule so that the
+  // next rule added will run after this one.
+  depends.clear();
+  depends.push_back(output);
 
-  for(i=0; i < dataLen; i+=0x10) {
-    printf("0x%02x: ", i);
-    for(j=0; j < 0x10; j++)
-      if((j+i) < dataLen)
-        printf("%02x ", data[i+j]);
-      else
-        printf("   ");
-
-    printf(" | ");
-
-    for(j=0; j < 0x10; j++)
-      if((j+i) < dataLen)
-        printf("%c", isgraph(data[i+j])?data[i+j]:'.');
-      else
-        break;
-    puts("");
-  }
-
-  free(base64); free(data);
-  return 0;
+  // Free the fake output name.
+  delete [] output;
 }

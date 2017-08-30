@@ -1,9 +1,9 @@
 {
-    /* Append the opaque */
-    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
+  char s[4096];
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(s, sizeof(s), fmt, ap);
+  va_end(ap);
 
-    response = tmp;
-  }
+  return AddFormData(formp, FORM_DATA, s, 0, size);
+}

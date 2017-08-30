@@ -1,0 +1,1 @@
+sprintf(tmp,"Version %s", cmVersion::GetCMakeVersion());

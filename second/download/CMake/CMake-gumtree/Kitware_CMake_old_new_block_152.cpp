@@ -1,12 +1,8 @@
 {
-				err = r;
-				if (err == ARCHIVE_FATAL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.access");
-					return (err);
-				}
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.access");
+				zip->entry->crc32 = archive_le32dec(p + 4);
+				zip->entry->compressed_size =
+					archive_le64dec(p + 8);
+				zip->entry->uncompressed_size =
+					archive_le64dec(p + 16);
+				zip->unconsumed = 24;
 			}

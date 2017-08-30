@@ -1,1 +1,2 @@
-fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Can't generate random number for encryption");

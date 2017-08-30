@@ -1,2 +1,1 @@
-archive_set_error(f->archive, EIO,
-			    "Can't write to filter");
+md5this = (unsigned char *)aprintf("%s:%s", request, uripath);

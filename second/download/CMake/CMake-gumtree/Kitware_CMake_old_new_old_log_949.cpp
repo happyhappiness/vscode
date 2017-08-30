@@ -1,1 +1,1 @@
-printf("%s",buf);
+fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE %s)\n", lang);

@@ -1,145 +1,64 @@
 {
-  if (argsIn.size() < 3)
-    {
-      this->SetError("called with wrong number of arguments.");
-      return false;
+    /* This is Win9x.  We need the console forwarding executable to
+       work-around a Windows 9x bug.  */
+    char fwdName[_MAX_FNAME+1] = "";
+    char tempDir[_MAX_PATH+1] = "";
+
+    /* We will try putting the executable in the system temp
+       directory.  Note that the returned path already has a trailing
+       slash.  */
+    DWORD length = GetTempPath(_MAX_PATH+1, tempDir);
+
+    /* Construct the executable name from the process id and kwsysProcess
+       instance.  This should be unique.  */
+    sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%ld_%p.exe",
+            GetCurrentProcessId(), cp);
+
+    /* If we have a temp directory, use it.  */
+    if(length > 0 && length <= _MAX_PATH)
+      {
+      /* Allocate a buffer to hold the forwarding executable path.  */
+      size_t tdlen = strlen(tempDir);
+      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
+      if(!win9x)
+        {
+        kwsysProcess_Delete(cp);
+        return 0;
+        }
+
+      /* Construct the full path to the forwarding executable.  */
+      sprintf(win9x, "%s%s", tempDir, fwdName);
+      }
+
+    /* If we found a place to put the forwarding executable, try to
+       write it. */
+    if(win9x)
+      {
+      if(!kwsysEncodedWriteArrayProcessFwd9x(win9x))
+        {
+        /* Failed to create forwarding executable.  Give up.  */
+        free(win9x);
+        kwsysProcess_Delete(cp);
+        return 0;
+        }
+
+      /* Get a handle to the file that will delete it when closed.  */
+      cp->Win9xHandle = CreateFile(win9x, GENERIC_READ, FILE_SHARE_READ, 0,
+                                   OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
+      if(cp->Win9xHandle == INVALID_HANDLE_VALUE)
+        {
+        /* We were not able to get a read handle for the forwarding
+           executable.  It will not be deleted properly.  Give up.  */
+        _unlink(win9x);
+        free(win9x);
+        kwsysProcess_Delete(cp);
+        return 0;
+        }
+      }
+    else
+      {
+      /* Failed to find a place to put forwarding executable.  */
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
     }
-
-  std::vector<std::string> args;
-  cmSystemTools::ExpandListArguments(argsIn, args, true);
-  
-  std::vector<std::string>::iterator i = args.begin();
-
-  // Name of the source list
-
-  const char* sourceList = i->c_str();
-  ++i;
-
-  // Name of the test driver
-
-  std::string driver = m_Makefile->GetCurrentOutputDirectory();
-  driver += "/";
-  driver += *i;
-  driver += ".cxx";
-  ++i;
-
-  std::ofstream fout(driver.c_str());
-  if(!fout)
-    {
-    std::string err = "Could not create file ";
-    err += driver;
-    err += " for cmCreateTestSourceList command.";
-    this->SetError(err.c_str());
-    return false;
-    }
-
-  // Create the test driver file
-
-  fout << "#include <stdio.h>\n";
-  fout << "#include <string.h>\n";
-  fout << "// forward declare test functions\n";
-
-  std::vector<std::string>::iterator testsBegin = i;
-  std::vector<std::string> tests_filename;
-
-  // The rest of the arguments consist of a list of test source files.
-  // Sadly, they can be in directories. Let's modify each arg to get
-  // a unique function name for the corresponding test, and push the 
-  // real source filename to the tests_filename var (used at the end). 
-  // For the moment:
-  //   - replace spaces ' ', ':' and '/' with underscores '_'
-
-  for(i = testsBegin; i != args.end(); ++i)
-    {
-    tests_filename.push_back(*i);
-    cmSystemTools::ConvertToUnixSlashes(*i);
-    cmSystemTools::ReplaceString(*i, " ", "_");
-    cmSystemTools::ReplaceString(*i, "/", "_");
-    cmSystemTools::ReplaceString(*i, ":", "_");
-    fout << "int " << *i << "(int, char**);\n";
-    }
-
-  fout << "// Create map \n";
-  fout << "typedef int (*MainFuncPointer)(int , char**);\n";
-  fout << "struct functionMapEntry\n"
-       << "{\n"
-       << "const char* name;\n"
-       << "MainFuncPointer func;\n"
-       << "};\n\n";
-  fout << "functionMapEntry cmakeGeneratedFunctionMapEntries[] = {\n";
-
-  int numTests = 0;
-  for(i = testsBegin; i != args.end(); ++i)
-    {
-    fout << "{\"" << *i << "\", " << *i << "},\n";
-    numTests++;
-    }
-
-  fout << "};\n";
-  fout << "int main(int ac, char** av)\n"
-       << "{\n";
-  fout << "  int NumTests = " << numTests << ";\n";
-  fout << "  int i;\n";
-  fout << "  if(ac < 2)\n";
-  fout << "    {\n";
-  fout << "    // if there is only one test, then run it with the arguments\n";
-  fout << "    if(NumTests == 1)\n";
-  fout << "      { return (*cmakeGeneratedFunctionMapEntries[0].func)(ac, av); }\n";
-  fout << "    printf(\"Available tests:\\n\");\n";
-  fout << "    for(i =0; i < NumTests; ++i)\n";
-  fout << "      {\n";
-  fout << "      printf(\"%d. %s\\n\", i, cmakeGeneratedFunctionMapEntries[i].name);\n";
-  fout << "      }\n";
-  fout << "    printf(\"To run a test, enter the test number: \");\n";
-  fout << "    int testNum = 0;\n";
-  fout << "    scanf(\"%d\", &testNum);\n";
-  fout << "    if(testNum >= NumTests)\n";
-  fout << "    {\n";
-  fout << "    printf(\"%d is an invalid test number.\\n\", testNum);\n";
-  fout << "    return -1;\n";
-  fout << "    }\n";
-  fout << "    return (*cmakeGeneratedFunctionMapEntries[testNum].func)(ac-1, av+1);\n";
-  fout << "    }\n";
-  fout << "  for(i =0; i < NumTests; ++i)\n";
-  fout << "    {\n";
-  fout << "    if(strcmp(cmakeGeneratedFunctionMapEntries[i].name, av[1]) == 0)\n";
-  fout << "      {\n";
-  fout << "      return (*cmakeGeneratedFunctionMapEntries[i].func)(ac-1, av+1);\n";
-  fout << "      }\n";
-  fout << "    }\n";
-  fout << "  // if there is only one test, then run it with the arguments\n";
-  fout << "  if(NumTests == 1)\n";
-  fout << "    { return (*cmakeGeneratedFunctionMapEntries[0].func)(ac, av); }\n";
-  fout << "  printf(\"Available tests:\\n\");\n";
-  fout << "  for(i =0; i < NumTests; ++i)\n";
-  fout << "    {\n";
-  fout << "    printf(\"%d. %s\\n\", i, cmakeGeneratedFunctionMapEntries[i].name);\n";
-  fout << "    }\n";
-  fout << "  printf(\"Failed: %s is an invalid test name.\\n\", av[1]);\n";
-  fout << "  return -1;\n";
-  fout << "}\n";
-  fout.close();
-
-  // Create the source list
-
-  cmSourceFile cfile;
-  cfile.SetIsAnAbstractClass(false);
-  cfile.SetName(args[1].c_str(), 
-                m_Makefile->GetCurrentOutputDirectory(),
-                "cxx", 
-                false);
-  m_Makefile->AddSource(cfile, sourceList);
-  
-  for(i = tests_filename.begin(); i != tests_filename.end(); ++i)
-    {
-    cmSourceFile cfile;
-    cfile.SetIsAnAbstractClass(false);
-    cfile.SetName(i->c_str(), 
-                  m_Makefile->GetCurrentDirectory(),
-                  "cxx", 
-                  false);
-    m_Makefile->AddSource(cfile, sourceList);
-    }
-
-  return true;
-}

@@ -1,1 +1,7 @@
-YY_FATAL_ERROR( "bad buffer in yy_scan_bytes()" )
+{
+			/* Non-ascii character is found. */
+			archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "Insufficient compressed data");
+			return (ARCHIVE_FATAL);
+		}

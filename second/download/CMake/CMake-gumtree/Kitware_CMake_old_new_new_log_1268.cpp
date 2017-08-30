@@ -1,0 +1,1 @@
+cmSystemTools::Error("Problem with tar_append_eof(): ", strerror(errno));

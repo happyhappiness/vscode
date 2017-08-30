@@ -1,1 +1,2 @@
-fprintf(ofp, "#endif\n");
+fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName().c_str());

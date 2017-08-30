@@ -1,39 +1,63 @@
-void
-DumpExternals(PIMAGE_SYMBOL pSymbolTable, FILE *fout, unsigned cSymbols)
+int
+__archive_write_program_close(struct archive_write_filter *f,
+    struct archive_write_program_data *data)
 {
-   unsigned i;
-   PSTR stringTable;
-   std::string symbol;
+	int ret, r1, status;
+	ssize_t bytes_read;
 
-   /*
-   * The string table apparently starts right after the symbol table
-   */
-   stringTable = (PSTR)&pSymbolTable[cSymbols];
+	if (data->child == 0)
+		return __archive_write_close_filter(f->next_filter);
 
-   for ( i=0; i < cSymbols; i++ ) {
-      if (pSymbolTable->SectionNumber > 0 && pSymbolTable->Type == 0x20) {
-         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
-            if (pSymbolTable->N.Name.Short != 0) {
-               symbol = "";
-               symbol.insert(0, (const char *)(pSymbolTable->N.ShortName), 8);
-            } else {
-               symbol = stringTable + pSymbolTable->N.Name.Long;
-            }
-            std::string::size_type posAt = symbol.find('@');
-            if (posAt != std::string::npos) symbol.erase(posAt);
-#ifndef _MSC_VER
-            fprintf(fout, "\t%s\n", symbol.c_str());
-#else
-            fprintf(fout, "\t%s\n", symbol.c_str()+1);
+	ret = 0;
+	close(data->child_stdin);
+	data->child_stdin = -1;
+	fcntl(data->child_stdout, F_SETFL, 0);
+
+	for (;;) {
+		do {
+			bytes_read = read(data->child_stdout,
+			    data->child_buf + data->child_buf_avail,
+			    data->child_buf_len - data->child_buf_avail);
+		} while (bytes_read == -1 && errno == EINTR);
+
+		if (bytes_read == 0 || (bytes_read == -1 && errno == EPIPE))
+			break;
+
+		if (bytes_read == -1) {
+			archive_set_error(f->archive, errno,
+			    "Read from filter failed unexpectedly.");
+			ret = ARCHIVE_FATAL;
+			goto cleanup;
+		}
+		data->child_buf_avail += bytes_read;
+
+		ret = __archive_write_filter(f->next_filter,
+		    data->child_buf, data->child_buf_avail);
+		if (ret != ARCHIVE_OK) {
+			ret = ARCHIVE_FATAL;
+			goto cleanup;
+		}
+		data->child_buf_avail = 0;
+	}
+
+cleanup:
+	/* Shut down the child. */
+	if (data->child_stdin != -1)
+		close(data->child_stdin);
+	if (data->child_stdout != -1)
+		close(data->child_stdout);
+	while (waitpid(data->child, &status, 0) == -1 && errno == EINTR)
+		continue;
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	CloseHandle(data->child);
 #endif
-         }
-      }
+	data->child = 0;
 
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-   }
+	if (status != 0) {
+		archive_set_error(f->archive, EIO,
+		    "Filter exited with failure.");
+		ret = ARCHIVE_FATAL;
+	}
+	r1 = __archive_write_close_filter(f->next_filter);
+	return (r1 < ret ? r1 : ret);
 }

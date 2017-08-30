@@ -1,0 +1,1 @@
+sprintf(firstLine,  "O)k");

@@ -1,1 +1,0 @@
-vsprintf(s, fmt, ap);

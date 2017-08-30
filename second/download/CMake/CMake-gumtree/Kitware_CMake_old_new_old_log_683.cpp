@@ -1,1 +1,2 @@
-sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+fprintf(stderr, "  contains target %d [%s]\n",
+              i, this->Targets[i]->GetName());

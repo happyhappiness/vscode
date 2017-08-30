@@ -1,20 +1,13 @@
 {
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl
-                 << static_cast<int>(percent + .5) << "% tests passed, "
-                 << failed.size() << " tests failed out of " 
-                 << total << std::endl); 
-      double totalTestTime = 0;
-
-      for(cmCTestTestHandler::TestResultsVector::size_type cc = 0;
-          cc < this->TestResults.size(); cc ++ )
-        {
-        cmCTestTestResult *result = &this->TestResults[cc];
-        totalTestTime += result->ExecutionTime;
-        }
-      
-      char buf[1024];
-      sprintf(buf, "%6.2f sec", totalTestTime); 
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time = " 
-                 <<  buf << "\n" );
-      
+    EdgeList const& nl = graph[depender_index];
+    cmTarget const* depender = this->Targets[depender_index];
+    fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int dependee_index = *ni;
+      cmTarget const* dependee = this->Targets[dependee_index];
+      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
       }
+    }

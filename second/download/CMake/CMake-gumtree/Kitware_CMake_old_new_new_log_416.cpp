@@ -1,1 +1,1 @@
-fprintf(stderr, "  target [%s]\n", lei->Target->GetName().c_str());
+fprintf(fout, "add_library(%s STATIC", targetName.c_str());

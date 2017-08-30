@@ -1,1 +1,1 @@
-sprintf(cp->ProcessResults[idx].ExitExceptionString, "Signal %d", sig);
+= aprintf("%s:%s", user, pwd);

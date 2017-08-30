@@ -1,0 +1,1 @@
+sprintf(secondLine, "Q)uit                  H)elp");

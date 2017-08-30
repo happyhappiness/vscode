@@ -1,1 +1,0 @@
-sprintf(num,"%d",static_cast<int>(m_LocalGenerators.size()));

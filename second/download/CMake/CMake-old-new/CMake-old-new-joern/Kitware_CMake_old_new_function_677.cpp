@@ -1,170 +1,60 @@
-int cmCTestTestHandler::ProcessHandler()
+std::vector<cmComputeLinkDepends::LinkEntry> const&
+cmComputeLinkDepends::Compute()
 {
-  // Update internal data structure from generic one
-  this->SetTestsToRunInformation(this->GetOption("TestsToRunInformation"));
-  this->SetUseUnion(cmSystemTools::IsOn(this->GetOption("UseUnion"))); 
-  if(this->GetOption("ParallelLevel"))
-    {
-    this->CTest->SetParallelLevel(atoi(this->GetOption("ParallelLevel")));
-    }
-  const char* val;
-  val = this->GetOption("LabelRegularExpression");
-  if ( val )
-    {
-    this->UseIncludeLabelRegExpFlag = true;
-    this->IncludeLabelRegExp = val;
-    }
-  val = this->GetOption("ExcludeLabelRegularExpression");
-  if ( val )
-    {
-    this->UseExcludeLabelRegExpFlag = true;
-    this->ExcludeLabelRegularExpression = val;
-    }
-  val = this->GetOption("IncludeRegularExpression");
-  if ( val )
-    {
-    this->UseIncludeRegExp();
-    this->SetIncludeRegExp(val);
-    }
-  val = this->GetOption("ExcludeRegularExpression");
-  if ( val )
-    {
-    this->UseExcludeRegExp();
-    this->SetExcludeRegExp(val);
-    }
-  
-  this->TestResults.clear();
+  // Follow the link dependencies of the target to be linked.
+  this->AddDirectLinkEntries();
 
-  cmCTestLog(this->CTest, HANDLER_OUTPUT,
-             (this->MemCheck ? "Memory check" : "Test")
-             << " project " << cmSystemTools::GetCurrentWorkingDirectory()
-             << std::endl);
-  if ( ! this->PreProcessHandler() )
+  // Complete the breadth-first search of dependencies.
+  while(!this->BFSQueue.empty())
     {
-    return -1;
+    // Get the next entry.
+    BFSEntry qe = this->BFSQueue.front();
+    this->BFSQueue.pop();
+
+    // Follow the entry's dependencies.
+    this->FollowLinkEntry(qe);
     }
 
-  cmGeneratedFileStream mLogFile;
-  this->StartLogFile((this->MemCheck ? "DynamicAnalysis" : "Test"), mLogFile);
-  this->LogFile = &mLogFile;
-
-  std::vector<cmStdString> passed;
-  std::vector<cmStdString> failed;
-  int total;
-
-  //start the real time clock
-  double clock_start, clock_finish;
-  clock_start = cmSystemTools::GetTime();
-
-  this->ProcessDirectory(passed, failed);
-
-  clock_finish = cmSystemTools::GetTime();
-
-  total = int(passed.size()) + int(failed.size());
-
-  if (total == 0)
+  // Complete the search of shared library dependencies.
+  while(!this->SharedDepQueue.empty())
     {
-    if ( !this->CTest->GetShowOnly() )
-      {
-      cmCTestLog(this->CTest, ERROR_MESSAGE, "No tests were found!!!"
-        << std::endl);
-      }
-    }
-  else
-    {
-    if (this->HandlerVerbose && passed.size() &&
-      (this->UseIncludeRegExpFlag || this->UseExcludeRegExpFlag))
-      {
-      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
-        << "The following tests passed:" << std::endl);
-      for(std::vector<cmStdString>::iterator j = passed.begin();
-          j != passed.end(); ++j)
-        {
-        cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "\t" << *j
-          << std::endl);
-        }
-      }
-
-    float percent = float(passed.size()) * 100.0f / total;
-    if ( failed.size() > 0 &&  percent > 99)
-      {
-      percent = 99;
-      }
-    
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl
-               << static_cast<int>(percent + .5) << "% tests passed, "
-               << failed.size() << " tests failed out of " 
-               << total << std::endl); 
-    double totalTestTime = 0;
-
-    for(cmCTestTestHandler::TestResultsVector::size_type cc = 0;
-        cc < this->TestResults.size(); cc ++ )
-      {
-      cmCTestTestResult *result = &this->TestResults[cc];
-      totalTestTime += result->ExecutionTime;
-      }
-    
-    char realBuf[1024];
-    sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (real) = "
-               << realBuf << "\n" );
-
-    char totalBuf[1024];
-    sprintf(totalBuf, "%6.2f sec", totalTestTime); 
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (parallel) = "
-               <<  totalBuf << "\n" );
-
-    if (failed.size())
-      {
-      cmGeneratedFileStream ofs;
-      cmCTestLog(this->CTest, ERROR_MESSAGE, std::endl
-                 << "The following tests FAILED:" << std::endl);
-      this->StartLogFile("TestsFailed", ofs);
-      
-      std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;
-      for(ftit = this->TestResults.begin();
-          ftit != this->TestResults.end(); ++ftit)
-        {
-        if ( ftit->Status != cmCTestTestHandler::COMPLETED )
-          {
-          ofs << ftit->TestCount << ":" << ftit->Name << std::endl;
-          cmCTestLog(this->CTest, HANDLER_OUTPUT, "\t" << std::setw(3)
-                     << ftit->TestCount << " - " 
-                     << ftit->Name.c_str() << " ("
-                     << this->GetTestStatus(ftit->Status) << ")" 
-                     << std::endl);
-          }
-        }
-      }
+    // Handle the next entry.
+    this->HandleSharedDependency(this->SharedDepQueue.front());
+    this->SharedDepQueue.pop();
     }
 
-  if ( this->CTest->GetProduceXML() )
+  // Infer dependencies of targets for which they were not known.
+  this->InferDependencies();
+
+  // Cleanup the constraint graph.
+  this->CleanConstraintGraph();
+
+  // Display the constraint graph.
+  if(this->DebugMode)
     {
-    cmGeneratedFileStream xmlfile;
-    if( !this->StartResultingXML(
-          (this->MemCheck ? cmCTest::PartMemCheck : cmCTest::PartTest),
-        (this->MemCheck ? "DynamicAnalysis" : "Test"), xmlfile) )
-      {
-      cmCTestLog(this->CTest, ERROR_MESSAGE, "Cannot create "
-        << (this->MemCheck ? "memory check" : "testing")
-        << " XML file" << std::endl);
-      this->LogFile = 0;
-      return 1;
-      }
-    this->GenerateDartOutput(xmlfile);
+    fprintf(stderr,
+            "---------------------------------------"
+            "---------------------------------------\n");
+    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
+            this->Target->GetName(), this->Config?this->Config:"noconfig");
+    this->DisplayConstraintGraph();
     }
 
-  if ( ! this->PostProcessHandler() )
+  // Compute the final ordering.
+  this->OrderLinkEntires();
+
+  // Compute the final set of link entries.
+  for(std::vector<int>::const_iterator li = this->FinalLinkOrder.begin();
+      li != this->FinalLinkOrder.end(); ++li)
     {
-    this->LogFile = 0;
-    return -1;
+    this->FinalLinkEntries.push_back(this->EntryList[*li]);
     }
 
-  if ( !failed.empty() )
+  // Display the final set.
+  if(this->DebugMode)
     {
-    this->LogFile = 0;
-    return -1;
+    this->DisplayFinalEntries();
     }
-  this->LogFile = 0;
-  return 0;
+
+  return this->FinalLinkEntries;
 }

@@ -1,1 +1,1 @@
-printf("Error fetching: %s\n", url1);
+sprintf(buf, "%s\\*", name.c_str());

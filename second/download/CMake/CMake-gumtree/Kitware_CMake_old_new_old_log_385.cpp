@@ -1,1 +1,1 @@
-fprintf(fout, "\t%s\n", symbol.c_str());
+fprintf(stderr, "unknowntag_start:%s\n", name);

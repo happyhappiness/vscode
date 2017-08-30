@@ -1,2 +1,1 @@
-snprintf(buf + len, sizeof(buf) - len,
-                 ": %s", (char*) status_string.value);
+DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));

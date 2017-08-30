@@ -1,113 +1,158 @@
-int Curl_parsenetrc(char *host,
-                    char *login,
-                    char *password)
+static int
+archive_read_format_rar_read_header(struct archive_read *a,
+                                    struct archive_entry *entry)
 {
-  FILE *file;
-  char netrcbuffer[256];
-  int retcode=1;
-  
-  char *home = NULL; 
-  int state=NOTHING;
+  const void *h;
+  const char *p;
+  struct rar *rar;
+  size_t skip;
+  char head_type;
+  int ret;
+  unsigned flags;
 
-  char state_login=0;
-  char state_password=0;
+  a->archive.archive_format = ARCHIVE_FORMAT_RAR;
+  if (a->archive.archive_format_name == NULL)
+    a->archive.archive_format_name = "RAR";
 
-#define NETRC DOT_CHAR "netrc"
+  rar = (struct rar *)(a->format->data);
 
-#if defined(HAVE_GETPWUID) && defined(HAVE_GETEUID)
-  struct passwd *pw;
-  pw= getpwuid(geteuid());
-  if (pw) {
-#ifdef  VMS
-    home = decc$translate_vms(pw->pw_dir);
-#else
-    home = pw->pw_dir;
-#endif
+  /* RAR files can be generated without EOF headers, so return ARCHIVE_EOF if
+  * this fails.
+  */
+  if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
+    return (ARCHIVE_EOF);
+
+  p = h;
+  if (rar->found_first_header == 0 &&
+     ((p[0] == 'M' && p[1] == 'Z') || memcmp(p, "\x7F\x45LF", 4) == 0)) {
+    /* This is an executable ? Must be self-extracting... */
+    ret = skip_sfx(a);
+    if (ret < ARCHIVE_WARN)
+      return (ret);
   }
-#else
-  void *pw=NULL;
-#endif
-  
-  if(NULL == pw) {
-    home = curl_getenv("HOME"); /* portable environment reader */
-    if(!home) {
-      return -1;
+  rar->found_first_header = 1;
+
+  while (1)
+  {
+    unsigned long crc32_val;
+
+    if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
+      return (ARCHIVE_FATAL);
+    p = h;
+
+    head_type = p[2];
+    switch(head_type)
+    {
+    case MARK_HEAD:
+      if (memcmp(p, RAR_SIGNATURE, 7) != 0) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid marker header");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_read_consume(a, 7);
+      break;
+
+    case MAIN_HEAD:
+      rar->main_flags = archive_le16dec(p + 3);
+      skip = archive_le16dec(p + 5);
+      if (skip < 7 + sizeof(rar->reserved1) + sizeof(rar->reserved2)) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid header size");
+        return (ARCHIVE_FATAL);
+      }
+      if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
+        return (ARCHIVE_FATAL);
+      p = h;
+      memcpy(rar->reserved1, p + 7, sizeof(rar->reserved1));
+      memcpy(rar->reserved2, p + 7 + sizeof(rar->reserved1),
+             sizeof(rar->reserved2));
+      if (rar->main_flags & MHD_ENCRYPTVER) {
+        if (skip < 7 + sizeof(rar->reserved1) + sizeof(rar->reserved2)+1) {
+          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+            "Invalid header size");
+          return (ARCHIVE_FATAL);
+        }
+        rar->encryptver = *(p + 7 + sizeof(rar->reserved1) +
+                            sizeof(rar->reserved2));
+      }
+
+      if (rar->main_flags & MHD_VOLUME ||
+          rar->main_flags & MHD_FIRSTVOLUME)
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "RAR volume support unavailable.");
+        return (ARCHIVE_FATAL);
+      }
+      if (rar->main_flags & MHD_PASSWORD)
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "RAR encryption support unavailable.");
+        return (ARCHIVE_FATAL);
+      }
+
+      crc32_val = crc32(0, (const unsigned char *)p + 2, skip - 2);
+      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Header CRC error");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_read_consume(a, skip);
+      break;
+
+    case FILE_HEAD:
+      return read_header(a, entry, head_type);
+
+    case COMM_HEAD:
+    case AV_HEAD:
+    case SUB_HEAD:
+    case PROTECT_HEAD:
+    case SIGN_HEAD:
+      flags = archive_le16dec(p + 3);
+      skip = archive_le16dec(p + 5);
+      if (skip < 7) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid header size");
+        return (ARCHIVE_FATAL);
+      }
+      if (skip > 7) {
+        if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
+          return (ARCHIVE_FATAL);
+        p = h;
+      }
+      if (flags & HD_ADD_SIZE_PRESENT)
+      {
+        if (skip < 7 + 4) {
+          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+            "Invalid header size");
+          return (ARCHIVE_FATAL);
+        }
+        skip += archive_le32dec(p + 7);
+        if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
+          return (ARCHIVE_FATAL);
+        p = h;
+      }
+
+      crc32_val = crc32(0, (const unsigned char *)p + 2, skip - 2);
+      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Header CRC error");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_read_consume(a, skip);
+      break;
+
+    case NEWSUB_HEAD:
+      if ((ret = read_header(a, entry, head_type)) < ARCHIVE_WARN)
+        return ret;
+      break;
+
+    case ENDARC_HEAD:
+      return (ARCHIVE_EOF);
+
+    default:
+      archive_set_error(&a->archive,  ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Bad RAR file");
+      return (ARCHIVE_FATAL);
     }
   }
-
-  if(strlen(home)>(sizeof(netrcbuffer)-strlen(NETRC))) {
-    if(NULL==pw)
-      free(home);
-    return -1;
-  }
-
-  sprintf(netrcbuffer, "%s%s%s", home, DIR_CHAR, NETRC);
-
-  file = fopen(netrcbuffer, "r");
-  if(file) {
-    char *tok;
-        char *tok_buf;
-    while(fgets(netrcbuffer, sizeof(netrcbuffer), file)) {
-      tok=strtok_r(netrcbuffer, " \t\n", &tok_buf);
-      while(tok) {
-        switch(state) {
-        case NOTHING:
-          if(strequal("machine", tok)) {
-            /* the next tok is the machine name, this is in itself the
-               delimiter that starts the stuff entered for this machine,
-               after this we need to search for 'login' and
-               'password'. */
-            state=HOSTFOUND;
-          }
-          break;
-        case HOSTFOUND:
-          if(strequal(host, tok)) {
-            /* and yes, this is our host! */
-            state=HOSTVALID;
-#ifdef _NETRC_DEBUG
-            printf("HOST: %s\n", tok);
-#endif
-            retcode=0; /* we did find our host */
-          }
-          else
-            /* not our host */
-            state=NOTHING;
-          break;
-        case HOSTVALID:
-          /* we are now parsing sub-keywords concerning "our" host */
-          if(state_login) {
-            strncpy(login, tok, LOGINSIZE-1);
-#ifdef _NETRC_DEBUG
-            printf("LOGIN: %s\n", login);
-#endif
-            state_login=0;
-          }
-          else if(state_password) {
-            strncpy(password, tok, PASSWORDSIZE-1);
-#ifdef _NETRC_DEBUG
-            printf("PASSWORD: %s\n", password);
-#endif
-            state_password=0;
-          }
-          else if(strequal("login", tok))
-            state_login=1;
-          else if(strequal("password", tok))
-            state_password=1;
-          else if(strequal("machine", tok)) {
-            /* ok, there's machine here go => */
-            state = HOSTFOUND;
-          }
-          break;
-        } /* switch (state) */
-        tok = strtok_r(NULL, " \t\n", &tok_buf);
-      } /* while (tok) */
-    } /* while fgets() */
-
-    fclose(file);
-  }
-
-  if(NULL==pw)
-    free(home);
-
-  return retcode;
 }

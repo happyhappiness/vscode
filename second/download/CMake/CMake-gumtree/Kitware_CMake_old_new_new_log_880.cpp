@@ -1,1 +1,1 @@
-fprintf(stderr,"Illegal");
+archive_set_error(&a->archive, errno, "fchdir failed");

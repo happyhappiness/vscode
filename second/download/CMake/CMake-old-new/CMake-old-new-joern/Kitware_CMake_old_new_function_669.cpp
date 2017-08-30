@@ -1,38 +1,40 @@
-void cmGraphVizWriter::WritePerTargetFiles(const char* fileName)
+unsigned long Directory::GetNumberOfFilesInDirectory(const char* name)
 {
-  for(std::map<cmStdString, const cmTarget*>::const_iterator ptrIt =
-                                                      this->TargetPtrs.begin();
-      ptrIt != this->TargetPtrs.end();
-      ++ptrIt)
+#if _MSC_VER < 1300
+  long srchHandle;
+#else
+  intptr_t srchHandle;
+#endif
+  char* buf;
+  size_t n = strlen(name);
+  if ( name[n - 1] == '/' )
     {
-    if (ptrIt->second == NULL)
-      {
-      continue;
-      }
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
+    }
+  else
+    {
+    buf = new char[n + 2 + 1];
+    sprintf(buf, "%s/*", name);
+    }
+  struct _wfinddata_t data;      // data of current file
 
-    if (this->GenerateForTargetType(ptrIt->second->GetType()) == false)
-      {
-      continue;
-      }
+  // Now put them into the file array
+  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
+  delete [] buf;
 
-    std::set<std::string> insertedConnections;
-    std::set<std::string> insertedNodes;
-
-    std::string currentFilename = fileName;
-    currentFilename += ".";
-    currentFilename += ptrIt->first;
-    cmGeneratedFileStream str(currentFilename.c_str());
-    if ( !str )
-      {
-      return;
-      }
-
-    fprintf(stderr, "Writing %s...\n", currentFilename.c_str());
-    this->WriteHeader(str);
-
-    this->WriteConnections(ptrIt->first.c_str(),
-                              insertedNodes, insertedConnections, str);
-    this->WriteFooter(str);
+  if ( srchHandle == -1 )
+    {
+    return 0;
     }
 
+  // Loop through names
+  unsigned long count = 0;
+  do
+    {
+    count++;
+    }
+  while ( _wfindnext(srchHandle, &data) != -1 );
+  _findclose(srchHandle);
+  return count;
 }

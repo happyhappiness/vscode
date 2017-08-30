@@ -1,1 +1,1 @@
-std::cerr << "No current working directory." << std::endl;
+snprintf(addr, MAX_IPADR_LEN, "%s", su->sun_path);

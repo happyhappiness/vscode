@@ -1,1 +1,1 @@
-sprintf(tmp,"Version %s", cmVersion::GetCMakeVersion());
+sprintf(buf, "%s/*", name);

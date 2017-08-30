@@ -1,7 +1,9 @@
 {
-      /* if a line like this was already allocated, free the previous one */
-      if(conn->allocptr.rangeline)
-        free(conn->allocptr.rangeline);
-      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
-                                         data->state.range);
-    }
+    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       digest->nc,
+                                       digest->cnonce,
+                                       digest->qop,
+                                       ha2);
+  }

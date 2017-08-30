@@ -1,2 +1,1 @@
-(name != NULL)
-		archive_entry_copy_uname(entry, name)
+snprintf((char *)&dest[i*2], 3, "%02x", source[i])

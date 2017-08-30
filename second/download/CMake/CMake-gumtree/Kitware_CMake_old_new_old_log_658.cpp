@@ -1,1 +1,2 @@
-sprintf(this->ChipID.ProcessorName,"%s",this->ParseValueFromKStat("-s cpu_type").c_str());
+fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              lg->EscapeForCMake(flags?flags:"").c_str());

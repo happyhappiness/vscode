@@ -1,0 +1,1 @@
+strncpy(buffer, strerror(errno), KWSYSPE_PIPE_BUFFER_SIZE);

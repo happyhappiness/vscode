@@ -1,1 +1,2 @@
-fprintf(out, "%s: \\\n", objfile.c_str());
+fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
+      cSymbols);

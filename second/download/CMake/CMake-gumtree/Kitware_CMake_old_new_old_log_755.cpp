@@ -1,2 +1,1 @@
-f("  ==> extracting: %s (mode %04o, directory)\n", filename,
-         mode);
+fprintf(fout, "SET(CMAKE_SUPPRESS_REGENERATION 1)\n");

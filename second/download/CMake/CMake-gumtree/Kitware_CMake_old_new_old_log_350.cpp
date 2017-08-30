@@ -1,2 +1,1 @@
-sprintf(output,"%s/%s_force_%i", this->Makefile->GetCurrentBinaryDirectory(),
-          target.GetName().c_str(), count);
+snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);

@@ -1,1 +1,3 @@
-snprintf( buf, sizeof(buf), "%d", state->requested_blksize );
+aprintf("%s:%d",
+                 conn->bits.proxy?conn->proxy.name:conn->host.name,
+                 conn->localport);

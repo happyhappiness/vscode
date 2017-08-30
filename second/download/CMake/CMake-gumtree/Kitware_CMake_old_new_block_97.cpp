@@ -1,6 +1,5 @@
 {
-			archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "truncated lzma input");
-			return (ARCHIVE_FATAL);
-		}
+		translate_acl(a, entry, acl,
+		    ARCHIVE_ENTRY_ACL_TYPE_ACCESS);
+		acl_free(acl);
+	}

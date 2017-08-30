@@ -1,56 +1,6 @@
 {
-    /* This is Win9x.  We need the console forwarding executable to
-       work-around a Windows 9x bug.  */
-    char fwdName[_MAX_FNAME+1] = "";
-    char tempDir[_MAX_PATH+1] = "";
-    
-    /* We will try putting the executable in the system temp
-       directory.  */
-    DWORD length = GetEnvironmentVariable("TEMP", tempDir, _MAX_PATH);
-    
-    /* Construct the executable name from the process id and kwsysProcess
-       instance.  This should be unique.  */
-    sprintf(fwdName, "cmw9xfwd_%u_%p.exe", _getpid(), cp);
-    
-    /* If the environment variable "TEMP" gave us a directory, use it.  */
-    if(length > 0 && length <= _MAX_PATH)
-      {
-      /* Make sure there is no trailing slash.  */
-      size_t tdlen = strlen(tempDir);
-      if(tempDir[tdlen-1] == '/' || tempDir[tdlen-1] == '\\')
-        {
-        tempDir[tdlen-1] = 0;
-        --tdlen;
-        }
-      
-      /* Allocate a buffer to hold the forwarding executable path.  */
-      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
-      if(!win9x)
-        {
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
-      
-      /* Construct the full path to the forwarding executable.  */
-      sprintf(win9x, "%s/%s", tempDir, fwdName);
-      }
-    
-    /* If we found a place to put the forwarding executable, try to
-       write it. */
-    if(win9x)
-      {
-      if(!kwsysEncodedWriteArrayProcessFwd9x(win9x))
-        {
-        /* Failed to create forwarding executable.  Give up.  */
-        free(win9x);
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
-      }
-    else
-      {
-      /* Failed to find a place to put forwarding executable.  */
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    }
+				archive_set_error(&a->archive,
+				    GetLastError(),
+				    "Can't CreateFileW");
+				return (ARCHIVE_FAILED);
+			}

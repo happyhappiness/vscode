@@ -1,1 +1,1 @@
-cmCursesForm::CurrentForm->AddError(message, title);
+fprintf(fout,"%s ",compileFlags[i].c_str());
