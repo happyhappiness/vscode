@@ -1,8 +1,12 @@
-			return (ARCHIVE_FATAL);
-	}
-	archive_strncpy(&(tar->localname), acl, p - acl);
-	err = archive_acl_from_text_l(archive_entry_acl(entry),
-	    tar->localname.s, acl_type, tar->sconv_acl);
-	if (err != ARCHIVE_OK) {
-		if (errno == ENOMEM) {
-			archive_set_error(&a->archive, ENOMEM,
+	bidder->free = NULL;
+
+#if HAVE_LZMA_H && HAVE_LIBLZMA
+
+	return (ARCHIVE_OK);
+
+#else
+
+	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+
+	    "Using external lzma program for lzma decompression");
+

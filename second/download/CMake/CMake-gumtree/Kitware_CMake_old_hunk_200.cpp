@@ -1,13 +1,52 @@
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_ar");
+ * is set) if the path is absolute.
 
-	ar = (struct ar *)malloc(sizeof(*ar));
-	if (ar == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate ar data");
-		return (ARCHIVE_FATAL);
+ */
+
+static int
+
+cleanup_pathname(struct archive_write_disk *a)
+
+{
+
+	char *dest, *src;
+
+	char separator = '\0';
+
+
+
+	dest = src = a->name;
+
+	if (*src == '\0') {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "Invalid empty pathname");
+
+		return (ARCHIVE_FAILED);
+
 	}
-	memset(ar, 0, sizeof(*ar));
-	ar->strtab = NULL;
 
-	r = __archive_read_register_format(a,
+
+
+#if defined(__CYGWIN__)
+
+	cleanup_pathname_win(a);
+
+#endif
+
+	/* Skip leading '/'. */
+
+	if (*src == '/') {
+
+		if (a->flags & ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			                  "Path is absolute");
+
+			return (ARCHIVE_FAILED);
+
+		}
+
+
+

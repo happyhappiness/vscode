@@ -1,7 +1,26 @@
-}
-inline const char* Getcwd(char* buf, unsigned int len)
-{
-  return getcwd(buf, len);
+			else
+
+				ret = ARCHIVE_FATAL;
+
+		}
+
+		return (ret);
+
+	}
+
+
+
+	/* Note: The "warn" return is just to inform the options
+
+	 * supervisor that we didn't handle it.  It will generate
+
+	 * a suitable error if no one used this option. */
+
+	return (ARCHIVE_WARN);
+
 }
 
-inline int Chdir(const char* dir)
+
+
+static int
+

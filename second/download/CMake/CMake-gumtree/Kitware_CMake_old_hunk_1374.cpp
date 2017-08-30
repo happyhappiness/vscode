@@ -1,8 +1,13 @@
-      {
-      /* Select returned an error.  Leave the error description in the
-         pipe buffer.  */
-      snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
-               "%s", strerror(errno));
-      
-      /* Kill the child now.  */
-      kwsysProcess_Kill(cp);
+            argv[4], i, argv[4], i, argv[4], i);
+
+    fprintf(ofp, "    {\n");
+
+    fprintf(ofp, "    fclose(ofp);\n");
+
+    fprintf(ofp, "    _unlink(fname);\n");
+
+    fprintf(ofp, "    return 0;\n");
+
+    fprintf(ofp, "    }\n");
+
+    }

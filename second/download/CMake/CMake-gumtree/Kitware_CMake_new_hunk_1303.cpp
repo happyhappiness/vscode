@@ -1,35 +1,19 @@
- * @param yyscanner The scanner object.
- * @return the allocated buffer state.
- */
-    YY_BUFFER_STATE cmListFileLexer_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
-{
-        YY_BUFFER_STATE b;
-    
-        b = (YY_BUFFER_STATE) cmListFileLexer_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
-        if ( ! b )
-                YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_create_buffer()" );
+    char buf[1024];
 
-        b->yy_buf_size = size;
+    sprintf(buf, "%6.2f sec", cres.ExecutionTime);
 
-        /* yy_ch_buf has to be 2 characters longer than the size given because
-         * we need to put in 2 end-of-buffer characters.
-         */
-        b->yy_ch_buf = (char *) cmListFileLexer_yyalloc(b->yy_buf_size + 2 ,yyscanner );
-        if ( ! b->yy_ch_buf )
-                YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_create_buffer()" );
+    cmCTestLog(this->CTest, HANDLER_OUTPUT, buf << "\n" );
 
-        b->yy_is_our_buffer = 1;
+    if ( this->LogFile )
 
-        cmListFileLexer_yy_init_buffer(b,file ,yyscanner);
+      {
 
-        return b;
-}
+      *this->LogFile << "\nTest time = " << buf << std::endl;
 
-/** Destroy the buffer.
- * @param b a buffer created with cmListFileLexer_yy_create_buffer()
- * @param yyscanner The scanner object.
- */
-    void cmListFileLexer_yy_delete_buffer (YY_BUFFER_STATE  b , yyscan_t yyscanner)
-{
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+      }
 
+    if (!output.empty() && output.find("<DartMeasurement") != output.npos)
+
+      {
+
+      if (this->DartStuff.find(output.c_str()))

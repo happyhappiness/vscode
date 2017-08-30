@@ -1,7 +1,16 @@
+	cleanup_pathname_win(a);
 
-}
+#endif
 
-void CMakeErrorHandler(const char* message, const char* title, bool&, void* clientData)
-{
-  cmCursesForm* self = static_cast<cmCursesForm*>( clientData );
-  self->AddError(message, title);
+	/* Skip leading '/'. */
+
+	if (*src == '/')
+
+		separator = *src++;
+
+
+
+	/* Scan the pathname one element at a time. */
+
+	for (;;) {
+

@@ -1,10 +1,12 @@
-    sprintf(argvName,"${ARGV%i}",j);
-    argVs.push_back(argvName);
-    }
-  if(!this->Functions.empty())
-    {
-    this->FilePath = this->Functions[0].FilePath;
-    }
-  // Invoke all the functions that were collected in the block.
-  cmListFileFunction newLFF;
-  // for each function
+		return (NULL);
+
+	}
+
+
+
+	/* Create a new file entry and copy data from the ISO dir record. */
+
+	file = (struct file_info *)calloc(1, sizeof(*file));
+
+	if (file == NULL) {
+

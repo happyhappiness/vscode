@@ -1,31 +1,36 @@
-    this->PrintKeys();
-    int key = getch();
 
-    getmaxyx(stdscr, y, x);
-    // If window too small, handle 'q' only
-    if ( x < cmCursesMainForm::MIN_WIDTH  || 
-	 y < cmCursesMainForm::MIN_HEIGHT )
-      {
-      // quit
-      if ( key == 'q' )
-	{
-	break;
-	}
-      else
-	{
-	continue;
-	}
-      }
 
-    currentField = current_field(m_Form);
-    currentWidget = reinterpret_cast<cmCursesWidget*>(field_userptr(
-      currentField));
+  FORM* form = fm->GetForm();
 
-    // Ask the current widget if it wants to handle input
-    if (!currentWidget || !currentWidget->HandleInput(key, this, stdscr))
-      {
-      // If the current widget does not want to handle input, 
-      // we handle it.
-      sprintf(debugMessage, "Main form handling input, key: %d", key);
-      cmCursesForm::LogMessage(debugMessage);
-      // quit
+  // 10 == enter
+
+  if (!this->InEdit && ( key != 10 && key != KEY_ENTER ) )
+
+    {
+
+    return false;
+
+    }
+
+
+
+  this->OriginalString=0;
+
+  this->Done = false;
+
+
+
+  char debugMessage[128];
+
+
+
+  // <Enter> is used to change edit mode (like <Esc> in vi).
+
+  while(!this->Done)
+
+    {
+
+    sprintf(debugMessage, "String widget handling input, key: %d", key);
+
+    cmCursesForm::LogMessage(debugMessage);
+

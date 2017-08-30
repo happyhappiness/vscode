@@ -1,14 +1,28 @@
-		return (r);
-	if ((size_t)r < size) {
-		archive_set_error(&a->archive, 0,
-		    "Too much data: Truncating file at %ju bytes", (uintmax_t)a->filesize);
-		return (ARCHIVE_WARN);
-	}
-#if ARCHIVE_VERSION_NUMBER < 3999000
-	return (ARCHIVE_OK);
-#else
-	return (size);
-#endif
-}
+	while (off_s < size) {
 
-static ssize_t
+		off_s = lseek(*fd, off_s, SEEK_DATA);
+
+		if (off_s == (off_t)-1) {
+
+			if (errno == ENXIO) {
+
+				/* no more hole */
+
+				if (archive_entry_sparse_count(entry) == 0) {
+
+					/* Potentially a fully-sparse file. */
+
+					check_fully_sparse = 1;
+
+				}
+
+				break;
+
+			}
+
+			archive_set_error(&a->archive, errno,
+
+			    "lseek(SEEK_HOLE) failed");
+
+			exit_sts = ARCHIVE_FAILED;
+

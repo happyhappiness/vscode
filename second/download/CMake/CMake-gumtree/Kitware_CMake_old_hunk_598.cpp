@@ -1,11 +1,26 @@
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 1 second.  */
-#if defined(_WIN32)
-  Sleep(1000);
-#else
-  sleep(1);
-#endif
-  fprintf(stdout, "Output on stdout after sleep.\n");
-  fprintf(stderr, "Output on stderr after sleep.\n");
-  fflush(stdout);
+
+
+	if (s == 0) return 0;
+
+
+
+	switch (zip->entry_compression) {
+
+	case COMPRESSION_STORE:
+
+		ret = __archive_write_output(a, buff, s);
+
+		if (ret != ARCHIVE_OK)
+
+			return (ret);
+
+		zip->written_bytes += s;
+
+		zip->entry_compressed_written += s;
+
+		break;
+
+#if HAVE_ZLIB_H
+
+	case COMPRESSION_DEFLATE:
+

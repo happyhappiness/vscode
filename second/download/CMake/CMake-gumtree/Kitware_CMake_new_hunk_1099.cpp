@@ -1,8 +1,26 @@
+			else
 
-        /* lineno is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" , yyscanner); 
-    
-    yylineno = line_number;
+				ret = ARCHIVE_FATAL;
+
+		}
+
+		return (ret);
+
+	}
+
+
+
+	/* Note: The "warn" return is just to inform the options
+
+	 * supervisor that we didn't handle it.  It will generate
+
+	 * a suitable error if no one used this option. */
+
+	return (ARCHIVE_WARN);
+
 }
+
+
+
+/* utility function- this exists to centralize the logic of tracking
 

@@ -1,8 +1,18 @@
-	while (off_s < size) {
-		off_s = lseek(*fd, off_s, SEEK_DATA);
-		if (off_s == (off_t)-1) {
-			if (errno == ENXIO)
-				break;/* no more hole */
-			archive_set_error(&a->archive, errno,
-			    "lseek(SEEK_HOLE) failed");
-			exit_sts = ARCHIVE_FAILED;
+/* returns an allocated key to find a bundle for this connection */
+
+static char *hashkey(struct connectdata *conn)
+
+{
+
+  return aprintf("%s:%d",
+
+                 conn->bits.proxy?conn->proxy.name:conn->host.name,
+
+                 conn->localport);
+
+}
+
+
+
+/* Look up the bundle with all the connections to the same host this
+

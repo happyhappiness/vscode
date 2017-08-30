@@ -1,10 +1,13 @@
-        char *buf;
-        yy_size_t n;
-        int i;
+    fprintf(stderr, "Output on stderr after test %d.\n", n);
 
-        /* Get memory for full buffer, including space for trailing EOB's. */
-        n = len + 2;
-        buf = (char *) cmDependsFortran_yyalloc(n ,yyscanner );
-        if ( ! buf )
-                YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yy_scan_bytes()" );
+    fflush(stdout);
 
+    fflush(stderr);
+
+#if _WIN32
+
+    if(argv0) { free(argv0); }
+
+#endif
+
+    return r;

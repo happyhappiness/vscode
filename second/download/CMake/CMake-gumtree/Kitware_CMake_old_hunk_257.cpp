@@ -1,10 +1,16 @@
-    return CURLE_BAD_CONTENT_ENCODING;
+			return (ARCHIVE_FATAL);
 
-  /* Generate 16 bytes of random data */
-  entropy[0] = Curl_rand(data);
-  entropy[1] = Curl_rand(data);
-  entropy[2] = Curl_rand(data);
-  entropy[3] = Curl_rand(data);
+	}
 
-  /* Convert the random data into a 32 byte hex string */
-  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
+	archive_strncpy(&(tar->localname), acl, p - acl);
+
+	err = archive_acl_parse_l(archive_entry_acl(entry),
+
+	    tar->localname.s, ARCHIVE_ENTRY_ACL_TYPE_ACCESS, tar->sconv_acl);
+
+	if (err != ARCHIVE_OK) {
+
+		if (errno == ENOMEM) {
+
+			archive_set_error(&a->archive, ENOMEM,
+

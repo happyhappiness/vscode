@@ -1,13 +1,36 @@
-void cmCTestCoverageHandler::EndCoverageLogFile(cmGeneratedFileStream& ostr,
-  int logFileCount)
-{
-  std::string local_end_time = this->CTest->CurrentTime();
-  ostr << "\t<EndDateTime>" << local_end_time << "</EndDateTime>" << std::endl
-    << "</CoverageLog>" << std::endl;
-  this->CTest->EndXML(ostr);
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-  cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Close file: "
-    << covLogFilename << std::endl);
-  ostr.Close();
-}
+				    "Damaged 7-Zip archive");
+
+			return (ARCHIVE_FATAL);
+
+		}
+
+
+
+		/*
+
+		 *  Must be kEnd.
+
+		 */
+
+		if ((p = header_bytes(a, 1)) == NULL ||*p != kEnd) {
+
+			archive_set_error(&a->archive, -1,
+
+			    "Malformed 7-Zip archive");
+
+			return (ARCHIVE_FATAL);
+
+		}
+
+
+
+		/* Check the Header CRC.*/
+
+		if (check_header_crc && zip->header_crc32 != next_header_crc) {
+
+			archive_set_error(&a->archive, -1,
+
+			    "Malformed 7-Zip archive");
+
+			return (ARCHIVE_FATAL);
+

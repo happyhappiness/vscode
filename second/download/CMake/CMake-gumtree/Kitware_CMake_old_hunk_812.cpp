@@ -1,7 +1,18 @@
-		if ((zip->entry->uncompressed_size & UINT32_MAX)
-		    != (zip->entry_uncompressed_bytes_read & UINT32_MAX)) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP uncompressed data is wrong size (read %jd, expected %jd)",
-			    (intmax_t)zip->entry_uncompressed_bytes_read,
-			    (intmax_t)zip->entry->uncompressed_size);
-			return (ARCHIVE_WARN);
+                            sizeof(rar->reserved2));
+
+      }
+
+
+
+      if (rar->main_flags & MHD_PASSWORD)
+
+      {
+
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+                          "RAR encryption support unavailable.");
+
+        return (ARCHIVE_FATAL);
+
+      }
+

@@ -1,24 +1,28 @@
-  return _findclose(srchHandle) != -1;
+		return (r);
+
+	if ((size_t)r < size) {
+
+		archive_set_error(&a->archive, 0,
+
+		    "Too much data: Truncating file at %ju bytes", (uintmax_t)a->filesize);
+
+		return (ARCHIVE_WARN);
+
+	}
+
+#if ARCHIVE_VERSION_NUMBER < 3999000
+
+	return (ARCHIVE_OK);
+
+#else
+
+	return (size);
+
+#endif
+
 }
 
-unsigned long Directory::GetNumberOfFilesInDirectory(const kwsys_stl::string& name)
-{
-#if _MSC_VER < 1300
-  long srchHandle;
-#else
-  intptr_t srchHandle;
-#endif
-  char* buf;
-  size_t n = name.size();
-  if ( *name.rbegin() == '/' )
-    {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name.c_str());
-    }
-  else
-    {
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name.c_str());
-    }
-  struct _wfinddata_t data;      // data of current file
+
+
+static ssize_t
 

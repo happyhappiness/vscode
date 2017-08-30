@@ -1,41 +1,34 @@
+  for(std::vector<cmStdString>::iterator i = originalLinkItems.begin();
 
-  sprintf(netrcbuffer, "%s%s%s", home, DIR_CHAR, NETRC);
+      i != originalLinkItems.end(); ++i)
 
-#ifdef MALLOCDEBUG
-  {
-    /* This is a hack to allow testing.
-     * If compiled with --enable-debug and CURL_DEBUG_NETRC is defined,
-     * then it's the path to a substitute .netrc for testing purposes *only* */
+    {
 
-    char *override = curl_getenv("CURL_DEBUG_NETRC");
+    // Parse out the prefix, base, and suffix components of the
 
-    if (override != NULL) {
-      printf("NETRC: overridden .netrc file: %s\n", home);
+    // library name.  If the name matches that of a shared or static
 
-      if (strlen(override)+1 > sizeof(netrcbuffer)) {
-        free(override);
-        if(NULL==pw)
-          free(home);
+    // library then set the link type accordingly.
 
-        return -1;
-      }
-      strcpy(netrcbuffer, override);
-      free(override);
-    }
-  }
-#endif /* MALLOCDEBUG */
+    //
 
-  file = fopen(netrcbuffer, "r");
-  if(file) {
-    char *tok;
-        char *tok_buf;
-    while(fgets(netrcbuffer, sizeof(netrcbuffer), file)) {
-      tok=strtok_r(netrcbuffer, " \t\n", &tok_buf);
-      while(tok) {
+    // Search for shared library names first because some platforms
 
-        if (login[0] && password[0])
-          goto done;
+    // have shared libraries with names that match the static library
 
-        switch(state) {
-        case NOTHING:
-          if(strequal("machine", tok)) {
+    // pattern.  For example cygwin and msys use the convention
+
+    // libfoo.dll.a for import libraries and libfoo.a for static
+
+    // libraries.  On AIX a library with the name libfoo.a can be
+
+    // shared!
+
+    if(this->ExtractSharedLibraryName.find(*i))
+
+      {
+
+#ifdef CM_ORDER_LINK_DIRECTORIES_DEBUG
+
+      fprintf(stderr, "shared regex matched [%s] [%s] [%s]\n",
+

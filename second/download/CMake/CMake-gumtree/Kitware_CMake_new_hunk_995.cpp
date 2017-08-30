@@ -1,58 +1,72 @@
+			if (r != ARCHIVE_OK)
 
-	/* If the buffer hasn't been allocated, allocate it now. */
-	if (zip->uncompressed_buffer == NULL) {
-		zip->uncompressed_buffer_size = UBUFF_SIZE;
-		if (zip->uncompressed_buffer_size < minimum) {
-			zip->uncompressed_buffer_size = minimum + 1023;
-			zip->uncompressed_buffer_size &= ~0x3ff;
+				return (r);
+
 		}
-		zip->uncompressed_buffer =
-		    malloc(zip->uncompressed_buffer_size);
-		if (zip->uncompressed_buffer == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "No memory for 7-Zip decompression");
-			return (ARCHIVE_FATAL);
-		}
-		zip->uncompressed_buffer_bytes_remaining = 0;
-	} else if (zip->uncompressed_buffer_size < minimum ||
-	    zip->uncompressed_buffer_bytes_remaining < minimum) {
-		/*
-		 * Make sure the uncompressed buffer can have bytes
-		 * at least `minimum' bytes.
-		 * NOTE: This case happen when reading the header.
-		 */
-		size_t used;
-		if (zip->uncompressed_buffer_pointer != 0)
-			used = zip->uncompressed_buffer_pointer -
-				zip->uncompressed_buffer;
-		else
-			used = 0;
-		if (zip->uncompressed_buffer_size < minimum) {
-			/*
-			 * Expand the uncompressed buffer up to
-			 * the minimum size.
-			 */
-			zip->uncompressed_buffer_size = minimum + 1023;
-			zip->uncompressed_buffer_size &= ~0x3ff;
-			zip->uncompressed_buffer =
-			    realloc(zip->uncompressed_buffer,
-				zip->uncompressed_buffer_size);
-			if (zip->uncompressed_buffer == NULL) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "No memory for 7-Zip decompression");
+
+		return ARCHIVE_OK;
+
+#endif
+
+	default: /* Uncompressed or unknown. */
+
+		/* Scan for a PK\007\010 signature. */
+
+		zip_read_consume(a, zip->unconsumed);
+
+		zip->unconsumed = 0;
+
+		for (;;) {
+
+			const char *p, *buff;
+
+			ssize_t bytes_avail;
+
+			buff = __archive_read_ahead(a, 16, &bytes_avail);
+
+			if (bytes_avail < 16) {
+
+				archive_set_error(&a->archive,
+
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+
+				    "Truncated ZIP file data");
+
 				return (ARCHIVE_FATAL);
+
 			}
+
+			p = buff;
+
+			while (p <= buff + bytes_avail - 16) {
+
+				if (p[3] == 'P') { p += 3; }
+
+				else if (p[3] == 'K') { p += 2; }
+
+				else if (p[3] == '\007') { p += 1; }
+
+				else if (p[3] == '\010' && p[2] == '\007'
+
+				    && p[1] == 'K' && p[0] == 'P') {
+
+					zip_read_consume(a, p - buff + 16);
+
+					return ARCHIVE_OK;
+
+				} else { p += 4; }
+
+			}
+
+			zip_read_consume(a, p - buff);
+
 		}
-		/*
-		 * Move unconsumed bytes to the head.
-		 */
-		if (used) {
-			memmove(zip->uncompressed_buffer,
-				zip->uncompressed_buffer + used,
-				zip->uncompressed_buffer_bytes_remaining);
-		}
-	} else
-		zip->uncompressed_buffer_bytes_remaining = 0;
-	zip->uncompressed_buffer_pointer = NULL;
-	for (;;) {
-		size_t bytes_in, bytes_out;
+
+	}
+
+}
+
+
+
+static int
+

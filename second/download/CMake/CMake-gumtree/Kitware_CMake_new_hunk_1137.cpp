@@ -1,15 +1,24 @@
-      // is this test in the list of tests to run? If not then skip it
-      if ((this->TestsToRun.size() &&
-           std::find(this->TestsToRun.begin(),
-                     this->TestsToRun.end(), inREcnt)
-           == this->TestsToRun.end()) || !it->IsInBasedOnREOptions)
-        {
-        continue;
-        }
-      }
-    
-    // process this one test
-    this->ProcessOneTest(&(*it), passed, failed, cnt, tmsize);
-    }
+    fprintf(fout, "SET(CMAKE_SUPPRESS_REGENERATION 1)\n");
 
-  this->EndTest = this->CTest->CurrentTime();
+    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
+
+    // handle any compile flags we need to pass on
+
+    if (compileDefs.size())
+
+      {
+
+      fprintf(fout, "ADD_DEFINITIONS( ");
+
+      for (size_t i = 0; i < compileDefs.size(); ++i)
+
+        {
+
+        fprintf(fout,"%s ",compileDefs[i].c_str());
+
+        }
+
+      fprintf(fout, ")\n");
+
+      }
+

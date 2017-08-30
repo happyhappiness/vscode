@@ -1,29 +1,102 @@
-#endif
-  char* buf;
-  size_t n = name.size();
-  if (*name.rbegin() == '/') {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name.c_str());
-  } else {
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name.c_str());
-  }
-  struct _wfinddata_t data; // data of current file
-
-  // Now put them into the file array
-  srchHandle =
-    _wfindfirst_func((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
-  delete[] buf;
-
-  if (srchHandle == -1) {
-    return 0;
-  }
-
-  // Loop through names
-  unsigned long count = 0;
-  do {
-    count++;
-  } while (_wfindnext_func(srchHandle, &data) != -1);
-  _findclose(srchHandle);
-  return count;
 }
+
+
+
+/** Set the current line number.
+
+ * @param _line_number line number
+
+ * @param yyscanner The scanner object.
+
+ */
+
+void cmCommandArgument_yyset_lineno (int  _line_number , yyscan_t yyscanner)
+
+{
+
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+
+
+
+        /* lineno is only valid if an input buffer exists. */
+
+        if (! YY_CURRENT_BUFFER )
+
+           YY_FATAL_ERROR( "cmCommandArgument_yyset_lineno called with no buffer" );
+
+
+
+    yylineno = _line_number;
+
+}
+
+
+
+/** Set the current column.
+
+ * @param _column_no column number
+
+ * @param yyscanner The scanner object.
+
+ */
+
+void cmCommandArgument_yyset_column (int  _column_no , yyscan_t yyscanner)
+
+{
+
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+
+
+
+        /* column is only valid if an input buffer exists. */
+
+        if (! YY_CURRENT_BUFFER )
+
+           YY_FATAL_ERROR( "cmCommandArgument_yyset_column called with no buffer" );
+
+
+
+    yycolumn = _column_no;
+
+}
+
+
+
+/** Set the input stream. This does not discard the current
+
+ * input buffer.
+
+ * @param _in_str A readable stream.
+
+ * @param yyscanner The scanner object.
+
+ * @see cmCommandArgument_yy_switch_to_buffer
+
+ */
+
+void cmCommandArgument_yyset_in (FILE *  _in_str , yyscan_t yyscanner)
+
+{
+
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+
+    yyin = _in_str ;
+
+}
+
+
+
+void cmCommandArgument_yyset_out (FILE *  _out_str , yyscan_t yyscanner)
+
+{
+
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+
+    yyout = _out_str ;
+
+}
+
+
+
+int cmCommandArgument_yyget_debug  (yyscan_t yyscanner)
+

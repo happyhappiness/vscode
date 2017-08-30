@@ -1,22 +1,16 @@
-		lha->entry_unconsumed = 0;
-	}
-	if (lha->end_of_entry) {
-		if (!lha->end_of_entry_cleanup) {
-			if ((lha->setflag & CRC_IS_SET) &&
-			    lha->crc != lha->entry_crc_calculated) {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "LHa data CRC error");
-				return (ARCHIVE_WARN);
-			}
+		unsigned short datasize = archive_le16dec(p + offset + 2);
 
-			/* End-of-entry cleanup done. */
-			lha->end_of_entry_cleanup = 1;
-		}
-		*offset = lha->entry_offset;
-		*size = 0;
-		*buff = NULL;
-		return (ARCHIVE_EOF);
-	}
 
-	if (lha->entry_is_compressed)
+
+		offset += 4;
+
+		if (offset + datasize > extra_length)
+
+			break;
+
+#ifdef DEBUG
+
+		fprintf(stderr, "Header id 0x%04x, length %d\n",
+
+		    headerid, datasize);
+

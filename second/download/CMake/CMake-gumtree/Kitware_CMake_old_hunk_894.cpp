@@ -1,19 +1,12 @@
-            break;
-          case 3:
-          {
-            length = *(p + offset++);
-            while (length)
-            {
-	          if (filename_size >= end)
-			    break;
-              filename[filename_size++] = *(p + offset);
-              length--;
-            }
-          }
-          break;
-        }
-      }
-      if (filename_size >= end) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Invalid filename");
-        return (ARCHIVE_FATAL);
+			xr = get_xfer_size(t, fd, NULL);
+
+		close(fd);
+
+#else
+
+		r = statfs(tree_current_access_path(t), &sfs);
+
+		if (r == 0)
+
+			xr = get_xfer_size(t, -1, tree_current_access_path(t));
+

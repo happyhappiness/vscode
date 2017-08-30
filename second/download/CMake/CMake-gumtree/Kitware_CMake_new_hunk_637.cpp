@@ -1,24 +1,26 @@
-  intptr_t srchHandle;
-#endif
-  char* buf;
-  size_t n = name.size();
-  if ( *name.rbegin() == '/' || *name.rbegin() == '\\' )
-    {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name.c_str());
-    }
-  else
-    {
-    // Make sure the slashes in the wildcard suffix are consistent with the
-    // rest of the path
-    buf = new char[n + 2 + 1];
-    if ( name.find('\\') != name.npos )
-      {
-      sprintf(buf, "%s\\*", name.c_str());
-      }
-    else
-      {
-      sprintf(buf, "%s/*", name.c_str());
-      }
-    }
-  struct _wfinddata_t data;      // data of current file
+		en = create_filesystem_object(a);
+
+	}
+
+
+
+	if ((en == ENOENT) && (archive_entry_hardlink(a->entry) != NULL)) {
+
+		archive_set_error(&a->archive, en,
+
+		    "Hard-link target '%s' does not exist.",
+
+		    archive_entry_hardlink(a->entry));
+
+		return (ARCHIVE_FAILED);
+
+	}
+
+
+
+	if ((en == EISDIR || en == EEXIST)
+
+	    && (a->flags & ARCHIVE_EXTRACT_NO_OVERWRITE)) {
+
+		/* If we're not overwriting, we're done. */
+

@@ -1,23 +1,26 @@
-             int share, int output, int delay, double timeout, int poll,
-             int repeat, int disown);
+			else
 
-static int test1(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 0.\n");
-  fprintf(stderr, "Output on stderr from test returning 0.\n");
-  return 0;
+				ret = ARCHIVE_FATAL;
+
+		}
+
+		return (ret);
+
+	}
+
+
+
+	/* Note: The "warn" return is just to inform the options
+
+	 * supervisor that we didn't handle it.  It will generate
+
+	 * a suitable error if no one used this option. */
+
+	return (ARCHIVE_WARN);
+
 }
 
-static int test2(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 123.\n");
-  fprintf(stderr, "Output on stderr from test returning 123.\n");
-  return 123;
-}
 
-static int test3(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before sleep on stdout from timeout test.\n");
+
+static int
+

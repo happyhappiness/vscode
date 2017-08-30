@@ -1,26 +1,20 @@
-     * The application kindly asks for a differently sized receive buffer.
-     * If it seems reasonable, we'll use it.
-     */
-    arg = va_arg(param, long);
+  if(instate == FTP_SIZE) {
 
-    if(arg > READBUFFER_MAX)
-      arg = READBUFFER_MAX;
-    else if(arg < 1)
-      arg = READBUFFER_SIZE;
-    else if(arg < READBUFFER_MIN)
-      arg = READBUFFER_MIN;
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
 
-    /* Resize if new size */
-    if(arg != data->set.buffer_size) {
-      char *newbuff = realloc(data->state.buffer, arg + 1);
-      if(!newbuff) {
-        DEBUGF(fprintf(stderr, "Error: realloc of buffer failed\n"));
-        result = CURLE_OUT_OF_MEMORY;
-      }
-      else
-        data->state.buffer = newbuff;
+    if(-1 != filesize) {
+
+      char clbuf[128];
+
+      snprintf(clbuf, sizeof(clbuf),
+
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);
+
+      result = Curl_client_write(conn, CLIENTWRITE_BOTH, clbuf, 0);
+
+      if(result)
+
+        return result;
+
     }
-    data->set.buffer_size = arg;
-
-    break;
 

@@ -1,9 +1,14 @@
-    m_cmGeneratorChoice->SetStringSelection(generator);
-    
-    wxString str;
-    str.Printf("CMake %d.%d - %s", cmVersion::GetMajorVersion(),
-               cmVersion::GetMinorVersion(), 
-               cmVersion::GetReleaseVersion().c_str());
-    str.Printf("CMakeSetup v%i.%i%s", CMAKEGUI_MAJORVER, CMAKEGUI_MINORVER, CMAKEGUI_ADDVER);
+	if (strcmp(key, "compat-2x")  == 0) {
 
-    SetTitle(str);
+		/* Handle filnames as libarchive 2.x */
+
+		cpio->init_default_conversion = (val != NULL)?1:0;
+
+		ret = ARCHIVE_OK;
+
+	} else if (strcmp(key, "hdrcharset")  == 0) {
+
+		if (val == NULL || val[0] == 0)
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+

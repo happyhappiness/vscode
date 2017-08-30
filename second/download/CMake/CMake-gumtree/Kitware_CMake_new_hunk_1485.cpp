@@ -1,82 +1,50 @@
-    return;
-    }
+  // update the cache entry for the number of local generators, this is used
 
-  height -= 6;
-  m_Height = height;
+  // for progress
 
-  if (m_AdvancedMode)
+  char num[100];
+
+  sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
+
+  this->GetCMakeInstance()->AddCacheEntry
+
+    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
+
+     "number of local generators", cmCacheManager::INTERNAL);
+
+  
+
+  std::set<cmStdString> notFoundMap;
+
+  // after it is all done do a ConfigureFinalPass
+
+  cmCacheManager* manager = 0;
+
+  for (i = 0; i < this->LocalGenerators.size(); ++i)
+
     {
-    m_NumberOfVisibleEntries = m_Entries->size();
-    }
-  else
-    {
-    m_NumberOfVisibleEntries = 0;
-    std::vector<cmCursesCacheEntryComposite*>::iterator it;
-    for (it = m_Entries->begin(); it != m_Entries->end(); ++it)
+
+    manager = this->LocalGenerators[i]->GetMakefile()->GetCacheManager();
+
+    this->LocalGenerators[i]->ConfigureFinalPass();
+
+    cmTargets & targets = 
+
+      this->LocalGenerators[i]->GetMakefile()->GetTargets(); 
+
+    for (cmTargets::iterator l = targets.begin();
+
+         l != targets.end(); l++)
+
       {
-      if (!m_AdvancedMode && cmCacheManager::GetInstance()->IsAdvanced(
-	(*it)->GetValue()))
-	{
-	continue;
-	}
-      m_NumberOfVisibleEntries++;
-      }
-    }
 
-  bool isNewPage;
-  int i=0;
-  std::vector<cmCursesCacheEntryComposite*>::iterator it;
-  for (it = m_Entries->begin(); it != m_Entries->end(); ++it)
-    {
-    if (!m_AdvancedMode && cmCacheManager::GetInstance()->IsAdvanced(
-      (*it)->GetValue()))
-      {
-      continue;
-      }
-    int row = (i % height) + 1;  
-    int page = (i / height) + 1;
-    isNewPage = ( page > 1 ) && ( row == 1 );
+      cmTarget::LinkLibraryVectorType libs = l->second.GetLinkLibraries();
 
-    (*it)->m_Label->Move(left, top+row-1, isNewPage);
-    (*it)->m_IsNewLabel->Move(left+32, top+row-1, false);
-    (*it)->m_Entry->Move(left+33, top+row-1, false);
-    i++;
-    }
+      for(cmTarget::LinkLibraryVectorType::iterator lib = libs.begin();
 
-  m_Form = new_form(m_Fields);
-  post_form(m_Form);
-  this->UpdateStatusBar();
-  this->PrintKeys();
-  touchwin(stdscr); 
-  refresh();
-}
+          lib != libs.end(); ++lib)
 
-void cmCursesMainForm::PrintKeys()
-{
-  int x,y;
-  getmaxyx(stdscr, y, x);
-  if ( x < cmCursesMainForm::MIN_WIDTH  || 
-       y < cmCursesMainForm::MIN_HEIGHT )
-    {
-    return;
-    }
-  char firstLine[512], secondLine[512];
-  if (m_OkToGenerate)
-    {
-    sprintf(firstLine,  "C)onfigure                 G)enerate and Exit            H)elp");
-    }
-  else
-    {
-    sprintf(firstLine,  "C)onfigure                                               H)elp");
-    }
-  if (m_AdvancedMode)
-    {
-    sprintf(secondLine, "Q)uit Without Generating   T)oggle Advanced Mode (On)");
-    }
-  else
-    {
-    sprintf(secondLine, "Q)uit Without Generating   T)oggle Advanced Mode (Off)");
-    }
+        {
 
-  curses_move(y-2,0);
-  printw(firstLine);
+        if(lib->first.size() > 9 && 
+

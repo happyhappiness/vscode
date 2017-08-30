@@ -1,20 +1,84 @@
     }
-  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
-  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
 
-  for (i = 0; i < m_Commands.size(); i++)
+  if ( !res )
+
     {
-    fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-            capcommands[i].c_str());
-    }
-  
-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n",
-	  kitName);
-  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-	  kitName);
-  
-  /* create an extern ref to the generic delete function */
-  fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
 
-  /* the main declaration */
-  fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
+    this->CacheManager->AddCacheEntry
+
+      ("CMAKE_HOME_DIRECTORY", 
+
+       this->GetHomeDirectory(),
+
+       "Start directory with the top level CMakeLists.txt file for this "
+
+       "project",
+
+       cmCacheManager::INTERNAL);
+
+    }
+
+
+
+  // set the default BACKWARDS compatibility to the current version
+
+  if(!this->CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
+
+    {
+
+    char ver[256];
+
+    sprintf(ver,"%i.%i",cmMakefile::GetMajorVersion(),
+
+            cmMakefile::GetMinorVersion());
+
+    this->CacheManager->AddCacheEntry
+
+      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
+
+       "For backwards compatibility, what version of CMake commands and "
+
+       "syntax should this version of CMake allow.",
+
+       cmCacheManager::STRING);
+
+    }
+
+
+
+  // no generator specified on the command line
+
+  if(!this->GlobalGenerator)
+
+    {
+
+    const char* genName = this->CacheManager->GetCacheValue("CMAKE_GENERATOR");
+
+    if(genName)
+
+      {
+
+      this->GlobalGenerator = this->CreateGlobalGenerator(genName);
+
+      }
+
+    if(this->GlobalGenerator)
+
+      {
+
+      // set the global flag for unix style paths on cmSystemTools as
+
+      // soon as the generator is set.  This allows gmake to be used
+
+      // on windows.
+
+      cmSystemTools::SetForceUnixPaths
+
+        (this->GlobalGenerator->GetForceUnixPaths());
+
+      }
+
+    else
+
+      {
+

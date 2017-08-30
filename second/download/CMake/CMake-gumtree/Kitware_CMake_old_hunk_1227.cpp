@@ -1,11 +1,36 @@
-          sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
-          targetDeps[libName] = 2;
-          targetNamesNodes[libName] = tgtName;
-          //str << "    \"" << tgtName << "\" [ label=\"" << libName <<  "\" shape=\"ellipse\"];" << std::endl;
-          }
-        else
-          {
-          std::map<cmStdString, int>::iterator depIt = targetDeps.find(libName);
-          if ( depIt == targetDeps.end() )
-            {
-            targetDeps[libName] = 1;
+  char thirdLine[512]="";
+
+  if (process)
+
+    {
+
+    sprintf(firstLine, 
+
+            "                                                               ");  
+
+    sprintf(secondLine, 
+
+            "                                                               ");  
+
+    sprintf(thirdLine, 
+
+            "                                                               ");  
+
+    }
+
+  else
+
+    {
+
+    if (this->OkToGenerate)
+
+      {
+
+      sprintf(firstLine,  
+
+              "Press [c] to configure     Press [g] to generate and exit");
+
+      }
+
+    else
+

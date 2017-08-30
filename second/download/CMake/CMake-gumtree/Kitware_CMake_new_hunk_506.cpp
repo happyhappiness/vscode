@@ -1,10 +1,18 @@
-		lha->entry_unconsumed = 0;
-	}
-	if (lha->end_of_entry) {
-		*offset = lha->entry_offset;
-		*size = 0;
-		*buff = NULL;
-		return (lha_end_of_entry(a));
-	}
+		unsigned short datasize = archive_le16dec(p + offset + 2);
 
-	if (lha->entry_is_compressed)
+
+
+		offset += 4;
+
+		if (offset + datasize > extra_length) {
+
+			break;
+
+		}
+
+#ifdef DEBUG
+
+		fprintf(stderr, "Header id 0x%04x, length %d\n",
+
+		    headerid, datasize);
+

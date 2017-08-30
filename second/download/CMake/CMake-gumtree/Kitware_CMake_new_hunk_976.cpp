@@ -1,10 +1,14 @@
-    std::string includes = mf->GetSafeDefinition("PACKAGE_INCLUDE_DIRS");
-    std::vector<std::string> includeDirs;
-    cmSystemTools::ExpandListArgument(includes, includeDirs);
+		/* Handle UTF-8 filnames as libarchive 2.x */
 
-    std::string includeFlags = lg->GetIncludeFlags(includeDirs,
-                                                   language.c_str(), false);
+		tar->compat_2x = (val != NULL)?1:0;
 
-    std::string definitions = mf->GetSafeDefinition("PACKAGE_DEFINITIONS");
-    printf("%s %s\n", includeFlags.c_str(), definitions.c_str());
-    }
+		tar->init_default_conversion = tar->compat_2x;
+
+		return (ARCHIVE_OK);
+
+	} else if (strcmp(key, "hdrcharset")  == 0) {
+
+		if (val == NULL || val[0] == 0)
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+

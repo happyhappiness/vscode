@@ -1,11 +1,46 @@
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_warc");
+	const char *path;
 
-	if ((w = calloc(1, sizeof(*w))) == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate warc data");
-		return (ARCHIVE_FATAL);
+	int namespace = EXTATTR_NAMESPACE_USER;
+
+
+
+	path = NULL;
+
+
+
+	if (*fd < 0) {
+
+		path = archive_entry_sourcepath(entry);
+
+		if (path == NULL || (a->tree != NULL &&
+
+		    a->tree_enter_working_dir(a->tree) != 0))
+
+			path = archive_entry_pathname(entry);
+
+		if (path == NULL) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "Couldn't determine file path to read "
+
+			    "extended attributes");
+
+			return (ARCHIVE_WARN);
+
+		}
+
+		if (a->tree != NULL && (a->follow_symlinks ||
+
+		    archive_entry_filetype(entry) != AE_IFLNK)) {
+
+			*fd = a->open_on_current_dir(a->tree,
+
+			    path, O_RDONLY | O_NONBLOCK);
+
+		}
+
 	}
 
-	r = __archive_read_register_format(
-		a, w, "warc",
+
+

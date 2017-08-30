@@ -1,7 +1,12 @@
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Disowned, kwsysProcess_Exception_None,
-               1, 1, 1, 0, 10, 0, 1, 1);
-  fprintf(stdout, "Output on stdout after grandchild test.\n");
-  fprintf(stderr, "Output on stderr after grandchild test.\n");
-  fflush(stdout);
+			en = create_filesystem_object(a);
+
+		} else if (!S_ISDIR(a->mode)) {
+
+			/* A dir is in the way of a non-dir, rmdir it. */
+
+			if (rmdir(a->name) != 0) {
+
+				archive_set_error(&a->archive, errno,
+
+				    "Can't replace existing directory with non-directory");
+

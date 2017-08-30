@@ -1,7 +1,24 @@
-	outranges_size = 2048;
-	outranges = (FILE_ALLOCATED_RANGE_BUFFER *)malloc(outranges_size);
-	if (outranges == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-			"Couldn't allocate memory");
-		exit_sts = ARCHIVE_FATAL;
-		goto exit_setup_sparse;
+  // do not check the return value here
+
+  // if the list var is not found varArgsExpanded will have size 0
+
+  // and we will return 0
+
+  this->GetList(varArgsExpanded, listName);
+
+  size_t length = varArgsExpanded.size();
+
+  char buffer[1024];
+
+  sprintf(buffer, "%d", static_cast<int>(length));
+
+
+
+  this->Makefile->AddDefinition(variableName, buffer);
+
+  return true;
+
+}
+
+
+

@@ -1,7 +1,14 @@
-		if (bytes_read < 0) {
-			if (errno == EINTR)
-				continue;
-			archive_set_error(a, errno, "Error reading fd %d", mine->fd);
-		}
-		return (bytes_read);
-	}
+  char buffer[1024];
+
+  sprintf(buffer, "%d", static_cast<int>(length));
+
+
+
+  this->Makefile->AddDefinition(variableName.c_str(), buffer);
+
+  return true;
+
+}
+
+
+

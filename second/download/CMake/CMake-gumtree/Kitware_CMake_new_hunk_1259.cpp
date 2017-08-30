@@ -1,23 +1,22 @@
-{
-  char realpath[TAR_MAXPATHLEN];
-  char savepath[TAR_MAXPATHLEN];
-  size_t plen;
-#if defined(HAVE_DIRENT_H)
-  struct dirent *dent;
-  DIR *dp;
-#else  
-  kwDirEntry * dent;
-  kwDirectory *dp;
-#endif  
-  struct stat s;
-  strncpy(realpath, realdir, sizeof(realpath));
-  realpath[sizeof(realpath)-1] = 0;
-  plen = strlen(realpath);
-  if ( realpath[plen-1] == '/' )
-    {
-    realpath[plen-1] = 0;
-    }
-  
+      fprintf(stderr, "  item %d [%s]\n", i,
 
-#ifdef DEBUG
-  printf("==> tar_append_tree(0x%lx, \"%s\", \"%s\")\n",
+              this->EntryList[i].Item.c_str());
+
+      }
+
+    EdgeList const& ol = this->CCG->GetComponentGraphEdges(c);
+
+    for(EdgeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
+
+      {
+
+      int i = *oi;
+
+      fprintf(stderr, "  followed by Component (%d)\n", i);
+
+      }
+
+    fprintf(stderr, "  topo order index %d\n",
+
+            this->ComponentOrder[c]);
+

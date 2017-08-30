@@ -1,7 +1,14 @@
-  char version[cmCursesMainForm::MAX_WIDTH];
-  char vertmp[128];
-  sprintf(vertmp,"CMake Version %d.%d - %s", cmake::GetMajorVersion(),
-          cmake::GetMinorVersion(),cmake::GetReleaseVersion());
-  int sideSpace = (width-strlen(vertmp));
-  for(i=0; i<sideSpace; i++) { version[i] = ' '; }
-  sprintf(version+sideSpace, "%s", vertmp);
+#define YY_EXIT_FAILURE 2
+
+#endif
+
+
+
+static void yy_fatal_error (yyconst char* msg )
+
+{
+
+        (void) fprintf( stderr, "%s\n", msg );
+
+        exit( YY_EXIT_FAILURE );
+

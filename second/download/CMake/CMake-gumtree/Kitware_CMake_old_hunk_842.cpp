@@ -1,7 +1,26 @@
-			h = (HANDLE)_get_osfhandle(fd);
-			r = GetFileInformationByHandle(h, &bhfi);
-			if (r == 0) {
-				archive_set_error(&a->archive, GetLastError(),
-				    "Can't GetFileInformationByHandle");
-				return (ARCHIVE_FAILED);
-			}
+      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
+
+      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
+
+      if(const char* rulesOverridePath =
+
+         this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
+
+        {
+
+        fprintf(fout, "set(%s \"%s\")\n",
+
+                rulesOverrideLang.c_str(), rulesOverridePath);
+
+        }
+
+      else if(const char* rulesOverridePath2 =
+
+              this->Makefile->GetDefinition(rulesOverrideBase.c_str()))
+
+        {
+
+        fprintf(fout, "set(%s \"%s\")\n",
+
+                rulesOverrideBase.c_str(), rulesOverridePath2);
+

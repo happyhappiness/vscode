@@ -1,13 +1,18 @@
-	int r, vr = 0, xr = 0;
+               }
 
-	if (tree_current_is_symblic_link_target(t)) {
-#if defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR)
-		/*
-		 * Get file system statistics on any directory
-		 * where current is.
-		 */
-		int fd = openat(tree_current_dir_fd(t),
-		    tree_current_access_path(t), O_RDONLY);
-		if (fd < 0) {
-			archive_set_error(&a->archive, errno,
-			    "openat failed");
+            }
+
+            if (symbol[0] == '_') symbol.erase(0,1);
+
+            if (fImportFlag) {
+
+               fImportFlag = 0;
+
+               fprintf(fout,"EXPORTS \n");
+
+            }
+
+            /*
+
+            Check whether it is "Scalar deleting destructor" and
+

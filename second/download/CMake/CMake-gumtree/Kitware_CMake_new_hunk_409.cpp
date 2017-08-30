@@ -1,10 +1,70 @@
+               table64[obuf[0]],
+
+               table64[obuf[1]]);
+
+      break;
+
+
+
+    case 2: /* two bytes read */
+
+      snprintf(output, 5, "%c%c%c=",
+
+               table64[obuf[0]],
+
+               table64[obuf[1]],
+
+               table64[obuf[2]]);
+
+      break;
+
+
+
+    default:
+
+      snprintf(output, 5, "%c%c%c%c",
+
+               table64[obuf[0]],
+
+               table64[obuf[1]],
+
+               table64[obuf[2]],
+
+               table64[obuf[3]]);
+
+      break;
+
+    }
+
+    output += 4;
+
   }
 
-  windowoffs = lzss_offset_for_position(&rar->lzss, startpos);
-  if(windowoffs + length <= lzss_size(&rar->lzss)) {
-    memcpy(&rar->unp_buffer[rar->unp_offset], &rar->lzss.window[windowoffs],
-           length);
-  } else if (length <= lzss_size(&rar->lzss)) {
-    firstpart = lzss_size(&rar->lzss) - windowoffs;
-    if (firstpart < 0) {
-      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+
+  /* Zero terminate */
+
+  *output = '\0';
+
+
+
+  /* Return the pointer to the new data (allocated memory) */
+
+  *outptr = base64data;
+
+
+
+  free(convbuf);
+
+
+
+  /* Return the length of the new data */
+
+  *outlen = strlen(base64data);
+
+
+
+  return CURLE_OK;
+
+}
+

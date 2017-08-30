@@ -1,35 +1,38 @@
-}
+            break;
 
-/** Return the type ID of the CPU */
-const char * SystemInformation::GetTypeID()
-{
-  char * temp = new char[32];
-  sprintf(temp,"%d",this->ChipID.Type);
-  return temp;
-}
+          case 3:
 
-/** Return the family of the CPU present */
-const char * SystemInformation::GetFamilyID()
-{
-  char * temp = new char[32];
-  sprintf(temp,"%d",this->ChipID.Family);
-  return temp;
-}
+          {
 
-// Return the model of CPU present */
-const char * SystemInformation::GetModelID()
-{
-  char * temp = new char[32];
-  sprintf(temp,"%d",this->ChipID.Model);
-  return temp;
-}
+            length = *(p + offset++);
 
-/** Return the stepping code of the CPU present. */
-const char * SystemInformation::GetSteppingCode()
-{
-  char * temp = new char[32];
-  sprintf(temp,"%d",this->ChipID.Revision);
-  return temp;
-}
+            while (length)
 
-/** Return the stepping code of the CPU present. */
+            {
+
+	          if (filename_size >= end)
+
+			    break;
+
+              filename[filename_size++] = *(p + offset);
+
+              length--;
+
+            }
+
+          }
+
+          break;
+
+        }
+
+      }
+
+      if (filename_size >= end) {
+
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+          "Invalid filename");
+
+        return (ARCHIVE_FATAL);
+

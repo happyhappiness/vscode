@@ -1,12 +1,28 @@
-    conn->allocptr.cookie = aprintf("Cookie: %s\015\012", data->set.cookie);
-  }
+#else
 
-  if(conn->bits.upload_chunky) {
-    if(!checkheaders(data, "Transfer-Encoding:")) {
-      te = "Transfer-Encoding: chunked\r\n";
+        char *ip = (char *)inet_ntoa(natAddr);
+
+#endif
+
+        Curl_infof(data, "Using NAT IP address (%s) for kerberos 4\n", ip);
+
+        localaddr->sin_addr = natAddr;
+
+      }
+
     }
-    /* else
-       our header was already added, what to do now? */
+
   }
 
-  if(data->cookies) {
+#endif
+
+
+
+  if(Curl_base64_encode((char *)adat.dat, adat.length, &p) < 1) {
+
+    Curl_failf(data, "Out of memory base64-encoding");
+
+    return AUTH_CONTINUE;
+
+  }
+

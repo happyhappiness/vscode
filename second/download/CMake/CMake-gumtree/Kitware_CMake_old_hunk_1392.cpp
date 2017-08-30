@@ -1,28 +1,54 @@
-      {
-      local_end_time = ::CurrentTime();
-      cfileoutput << "\t<EndDateTime>" << local_end_time << "</EndDateTime>\n"
-                  << "</CoverageLog>\n"
-                  << "</Site>" << std::endl;
-      cfileoutput.close();
-      sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);
-      if (!this->OpenOutputFile(m_CurrentTag, cfileoutputname, cfileoutput))
-        {
-        std::cout << "Cannot open log file" << std::endl;
-        return 1;
-        }
-      ccount = 0;
+      /* if a line like this was already allocated, free the previous one */
+
+      if(conn->allocptr.rangeline)
+
+        free(conn->allocptr.rangeline);
+
+      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n", conn->range);
+
+    }
+
+    else if((httpreq != HTTPREQ_GET) &&
+
+            !checkheaders(data, "Content-Range:")) {
+
+
+
+      if(conn->resume_from) {
+
+        /* This is because "resume" was selected */
+
+        curl_off_t total_expected_size=
+
+          conn->resume_from + data->set.infilesize;
+
+        conn->allocptr.rangeline =
+
+            aprintf("Content-Range: bytes %s%" FORMAT_OFF_T
+
+                    "/%" FORMAT_OFF_T "\r\n",
+
+                    conn->range, total_expected_size-1,
+
+                    total_expected_size);
+
       }
 
-    if ( ccount == 0 )
-      {
-      local_start_time = ::CurrentTime();
-      cfileoutput << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                  << "<Site BuildName=\"" << m_DartConfiguration["BuildName"]
-                  << "\" BuildStamp=\"" << m_CurrentTag << "-"
-                  << this->GetTestModelString() << "\" Name=\""
-                  << m_DartConfiguration["Site"] << "\">\n"
-                  << "<CoverageLog>\n"
-                  << "\t<StartDateTime>" << local_start_time << "</StartDateTime>" << std::endl;
+      else {
+
+        /* Range was selected and then we just pass the incoming range and
+
+           append total size */
+
+        conn->allocptr.rangeline =
+
+            aprintf("Content-Range: bytes %s/%" FORMAT_OFF_T "\r\n",
+
+                    conn->range, data->set.infilesize);
+
       }
 
-    //std::cerr << "Final process of Source file: " << cit->first << std::endl;
+    }
+
+  }
+

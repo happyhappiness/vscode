@@ -1,12 +1,26 @@
-    if (useOldLinkLibs)
-      {
-      fprintf(fout,
-              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);
-      }
-    else
-      {
-      fprintf(fout, "target_link_libraries(%s %s)\n",
-              targetName,
-              libsToLink.c_str());
-      }
-    fclose(fout);
+
+
+	if (s == 0) return 0;
+
+
+
+	switch (zip->entry_compression) {
+
+	case COMPRESSION_STORE:
+
+		ret = __archive_write_output(a, buff, s);
+
+		if (ret != ARCHIVE_OK)
+
+			return (ret);
+
+		zip->written_bytes += s;
+
+		zip->entry_compressed_written += s;
+
+		break;
+
+#if HAVE_ZLIB_H
+
+	case COMPRESSION_DEFLATE:
+

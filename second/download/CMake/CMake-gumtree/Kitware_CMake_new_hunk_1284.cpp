@@ -1,11 +1,20 @@
-{
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Open file: " << covLogFilename << std::endl);
-  if (!m_CTest->OpenOutputFile(m_CTest->GetCurrentTag(), 
-      covLogFilename, covLogFile, true))
+  printf("Current Value: %s\n", iter.GetValue());
+
+  printf("New Value (Enter to keep current value): ");
+
+  char buffer[4096];
+
+  if(!fgets(buffer, sizeof(buffer)-1, stdin))
+
     {
-    cmCTestLog(m_CTest, ERROR, "Cannot open log file: " << covLogFilename << std::endl);
-    return false;
+
+    buffer[0] = 0;
+
     }
-  std::string local_start_time = m_CTest->CurrentTime();
+
+
+
+  if(strlen(buffer) > 0)
+
+    {
+

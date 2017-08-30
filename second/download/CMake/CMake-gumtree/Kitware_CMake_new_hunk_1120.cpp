@@ -1,13 +1,14 @@
-  return TRUE; /* OK, proceed */
-}
+    {
 
-#ifdef CURLRES_SYNCH /* the functions below are for synchronous resolves */
+    std::string reg_shared = reg;
 
-/*
- * Curl_getaddrinfo() - the ipv4 synchronous version.
- *
- * The original code to this function was from the Dancer source code, written
- * by Bjorn Reese, it has since been patched and modified considerably.
- *
- * gethostbyname_r() is the thread-safe version of the gethostbyname()
- * function. When we build for plain IPv4, we attempt to use this
+    this->SharedRegexString =
+
+      this->CreateExtensionRegex(this->SharedLinkExtensions, LinkShared);
+
+    reg_shared += this->SharedRegexString;
+
+#ifdef CM_COMPUTE_LINK_INFO_DEBUG
+
+  fprintf(stderr, "shared regex [%s]\n", reg_shared.c_str());
+

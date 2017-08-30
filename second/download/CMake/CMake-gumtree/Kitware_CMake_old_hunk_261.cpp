@@ -1,22 +1,106 @@
-  return strdup(*beg? "TRUE": "FALSE");
-}
+	case 'S':
 
-static const char * octet2str(const char * beg, const char * end)
-{
-  size_t n = end - beg;
-  char * buf;
+		/* We support some keys used by the "star" archiver */
 
-  /* Convert an ASN.1 octet string to a printable string.
-     Return the dynamically allocated string, or NULL if an error occurs. */
+		if (strcmp(key, "SCHILY.acl.access") == 0) {
 
-  buf = malloc(3 * n + 1);
-  if(buf)
-    for(n = 0; beg < end; n += 3)
-      snprintf(buf + n, 4, "%02x:", *(const unsigned char *) beg++);
-  return buf;
-}
+			if (tar->sconv_acl == NULL) {
 
-static const char * bit2str(const char * beg, const char * end)
-{
-  /* Convert an ASN.1 bit string to a printable string.
-     Return the dynamically allocated string, or NULL if an error occurs. */
+				tar->sconv_acl =
+
+				    archive_string_conversion_from_charset(
+
+					&(a->archive), "UTF-8", 1);
+
+				if (tar->sconv_acl == NULL)
+
+					return (ARCHIVE_FATAL);
+
+			}
+
+
+
+			r = archive_acl_parse_l(archive_entry_acl(entry),
+
+			    value, ARCHIVE_ENTRY_ACL_TYPE_ACCESS,
+
+			    tar->sconv_acl);
+
+			if (r != ARCHIVE_OK) {
+
+				err = r;
+
+				if (err == ARCHIVE_FATAL) {
+
+					archive_set_error(&a->archive, ENOMEM,
+
+					    "Can't allocate memory for "
+
+					    "SCHILY.acl.access");
+
+					return (err);
+
+				}
+
+				archive_set_error(&a->archive,
+
+				    ARCHIVE_ERRNO_MISC,
+
+				    "Parse error: SCHILY.acl.access");
+
+			}
+
+		} else if (strcmp(key, "SCHILY.acl.default") == 0) {
+
+			if (tar->sconv_acl == NULL) {
+
+				tar->sconv_acl =
+
+				    archive_string_conversion_from_charset(
+
+					&(a->archive), "UTF-8", 1);
+
+				if (tar->sconv_acl == NULL)
+
+					return (ARCHIVE_FATAL);
+
+			}
+
+
+
+			r = archive_acl_parse_l(archive_entry_acl(entry),
+
+			    value, ARCHIVE_ENTRY_ACL_TYPE_DEFAULT,
+
+			    tar->sconv_acl);
+
+			if (r != ARCHIVE_OK) {
+
+				err = r;
+
+				if (err == ARCHIVE_FATAL) {
+
+					archive_set_error(&a->archive, ENOMEM,
+
+					    "Can't allocate memory for "
+
+					    "SCHILY.acl.default");
+
+					return (err);
+
+				}
+
+				archive_set_error(&a->archive,
+
+				    ARCHIVE_ERRNO_MISC,
+
+				    "Parse error: SCHILY.acl.default");
+
+			}
+
+		} else if (strcmp(key, "SCHILY.devmajor") == 0) {
+
+			archive_entry_set_rdevmajor(entry,
+
+			    (dev_t)tar_atol10(value, strlen(value)));
+

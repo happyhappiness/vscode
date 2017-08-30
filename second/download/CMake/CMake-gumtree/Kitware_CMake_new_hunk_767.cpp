@@ -1,8 +1,30 @@
-	}
+static char *get_netscape_format(const struct Cookie *co)
 
-	/* CRC check. */
-	if (crc32(0, (const unsigned char *)p + 12, 20)
-	    != archive_le32dec(p + 8)) {
-		archive_set_error(&a->archive, -1, "Header CRC error");
-		return (ARCHIVE_FATAL);
-	}
+{
+
+  return aprintf(
+
+    "%s"     /* httponly preamble */
+
+    "%s%s\t" /* domain */
+
+    "%s\t"   /* tailmatch */
+
+    "%s\t"   /* path */
+
+    "%s\t"   /* secure */
+
+    "%" CURL_FORMAT_CURL_OFF_T "\t"   /* expires */
+
+    "%s\t"   /* name */
+
+    "%s",    /* value */
+
+    co->httponly?"#HttpOnly_":"",
+
+    /* Make sure all domains are prefixed with a dot if they allow
+
+       tailmatching. This is Mozilla-style. */
+
+    (co->tailmatch && co->domain && co->domain[0] != '.')? ".":"",
+

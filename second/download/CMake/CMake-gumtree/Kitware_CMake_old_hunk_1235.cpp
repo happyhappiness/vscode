@@ -1,16 +1,14 @@
-      {
-      percent = 99;
-      }
-    cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl << static_cast<int>(percent + .5) << "% tests passed, "
-      << failed.size() << " tests failed out of " << total << std::endl);
-    //fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
-    //  percent, int(failed.size()), total);
+    YY_BUFFER_STATE cmDependsJava_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
 
-    if (failed.size()) 
-      {
-      cmGeneratedFileStream ofs;
+{
 
-      cmCTestLog(m_CTest, ERROR_MESSAGE, std::endl << "The following tests FAILED:" << std::endl);
-      this->StartLogFile("TestsFailed", ofs);
+  YY_BUFFER_STATE b;
 
-      std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;
+    
+
+  b = (YY_BUFFER_STATE) cmDependsJava_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
+
+  if ( ! b )
+
+    YY_FATAL_ERROR( "out of dynamic memory in cmDependsJava_yy_create_buffer()" );
+

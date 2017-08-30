@@ -1,7 +1,22 @@
-		archive_entry_set_filetype(entry, AE_IFREG);
-		/* Get the size of the filename table. */
-		number = ar_atol10(h + AR_size_offset, AR_size_size);
-		if (number > SIZE_MAX || number > 1024 * 1024 * 1024) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Filename table too large");
-			return (ARCHIVE_FATAL);
+			} else if (src[1] == '.') {
+
+				if (src[2] == '/' || src[2] == '\0') {
+
+					/* Conditionally warn about '..' */
+
+					if (flags
+
+					    & ARCHIVE_EXTRACT_SECURE_NODOTDOT) {
+
+						fsobj_error(a_eno, a_estr,
+
+						    ARCHIVE_ERRNO_MISC,
+
+						    "Path contains ", "'..'");
+
+						return (ARCHIVE_FAILED);
+
+					}
+
+				}
+

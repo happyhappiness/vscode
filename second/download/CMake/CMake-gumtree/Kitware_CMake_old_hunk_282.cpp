@@ -1,7 +1,12 @@
-        sshc->acceptfail = TRUE;
-      }
+#if !HAVE_LINK
 
-      if(curl_strequal("pwd", cmd)) {
-        /* output debug output if that is requested */
-        char *tmp = aprintf("257 \"%s\" is current directory.\n",
-                            sftp_scp->path);
+		return (EPERM);
+
+#else
+
+		r = link(linkname, a->name) ? errno : 0;
+
+		/*
+
+		 * New cpio and pax formats allow hardlink entries
+

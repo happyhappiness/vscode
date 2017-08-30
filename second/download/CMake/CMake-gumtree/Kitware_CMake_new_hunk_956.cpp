@@ -1,11 +1,14 @@
-  GetVersionEx(&osv);
-  if(osv.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS)
-    {
-    /* Win9x no longer supported.  */
-    kwsysProcess_Delete(cp);
-    return 0;
-    }
+	    offset >= file->offset) ||
 
-  /* Initially no thread owns the mutex.  Initialize semaphore to 1.  */
-  if(!(cp->SharedIndexMutex = CreateSemaphore(0, 1, 1, 0)))
-    {
+	    offset < iso9660->current_position ||
+
+	    (((uint64_t)file->ce_offset) + file->ce_size)
+
+	      > (uint64_t)iso9660->logical_block_size ||
+
+	    offset + file->ce_offset + file->ce_size
+
+		  > iso9660->volume_size) {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+

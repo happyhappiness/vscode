@@ -1,12 +1,14 @@
-    fprintf(stderr, "\n****\n");
-    fprintf(stderr, "**** Header %s\n ", header);
-  });
 
-  free(type2);
 
-  return result;
-}
+		if (bytes_read == -1) {
 
-/* copy the source to the destination and fill in zeroes in every
-   other destination byte! */
-static void unicodecpy(unsigned char *dest, const char *src, size_t length)
+			archive_set_error(f->archive, errno,
+
+			    "Error reading from program: %s", data->program_name);
+
+			ret = ARCHIVE_FATAL;
+
+			goto cleanup;
+
+		}
+

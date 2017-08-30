@@ -1,10 +1,14 @@
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name);
-    }
-  struct _finddata_t data;      // data of current file
+  fflush(stdout);
 
-  // Now put them into the file array
-  srchHandle = _findfirst(buf, &data);
-  delete [] buf;
+  fflush(stderr);
 
-  if ( srchHandle == -1 )
+  r = runChild(cmd, kwsysProcess_State_Exception,
+
+               kwsysProcess_Exception_Fault, 1, 1, 1, 0, 15, 0, 1, 0);
+
+  fprintf(stdout, "Output on stdout after recursive test.\n");
+
+  fprintf(stderr, "Output on stderr after recursive test.\n");
+
+  fflush(stdout);
+

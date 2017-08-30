@@ -1,7 +1,14 @@
+          return result;
 
-  /* We do some initial setup here, all those fields that can't be just 0 */
 
-  data->state.buffer = malloc(READBUFFER_SIZE + 1);
-  if(!data->state.buffer) {
-    DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"));
-    result = CURLE_OUT_OF_MEMORY;
+
+        /* format: "Tue, 15 Nov 1994 12:45:26" */
+
+        snprintf(headerbuf, sizeof(headerbuf),
+
+                 "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+
+                 Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+
+                 tm->tm_mday,
+

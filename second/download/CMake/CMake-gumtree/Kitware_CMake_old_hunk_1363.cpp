@@ -1,15 +1,34 @@
-            << "Can not locate '" << modulepath
-            << "' which is needed "
-            "for popen to work with your shell "
-            "or platform." << std::endl;
-          return FALSE;
-          }
-        }
-      x = i + (int)strlen(s3) + (int)strlen(cmdstring) + 1 +
-        (int)strlen(modulepath) + 
-        (int)strlen(szConsoleSpawn) + 1;
+         */
 
-      s2 = (char *)_alloca(x);
-      ZeroMemory(s2, x);
-      sprintf(
-        s2,
+        fprintf(s->file, "%c%c%c%c%c%c%c%c%c%c", gz_magic[0], gz_magic[1],
+
+             Z_DEFLATED, 0 /*flags*/, 0,0,0,0 /*time*/, 0 /*xflags*/, OS_CODE);
+
+        s->startpos = 10L;
+
+        /* We use 10L instead of ftell(s->file) to because ftell causes an
+
+         * fflush on some systems. This version of the library doesn't use
+
+         * startpos anyway in write mode, so this initialization is not
+
+         * necessary.
+
+         */
+
+    } else {
+
+        check_header(s); /* skip the .gz header */
+
+        s->startpos = (ftell(s->file) - s->stream.avail_in);
+
+    }
+
+    
+
+    return (gzFile)s;
+
+}
+
+
+

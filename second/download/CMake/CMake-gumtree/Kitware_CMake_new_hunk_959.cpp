@@ -1,13 +1,23 @@
-      }
-    }
+	fprintf(out, " ilv %d,",
 
-  /* Create the child in a suspended state so we can wait until all
-     children have been created before running any one.  */
-  if(!CreateProcess(0, cp->Commands[index], 0, 0, TRUE, CREATE_SUSPENDED, 0,
-                    0, &si->StartupInfo, &cp->ProcessInformation[index]))
-    {
-    return 0;
-    }
+	    toi(isodirrec + DR_interleave_offset, DR_interleave_size));
 
-  /* Successfully created this child process.  Close the current
-     process's copies of the inherited stdout and stdin handles.  The
+	fprintf(out, " seq %d,",
+
+	    toi(isodirrec + DR_volume_sequence_number_offset,
+
+		DR_volume_sequence_number_size));
+
+	fprintf(out, " nl %d:",
+
+	    toi(isodirrec + DR_name_len_offset, DR_name_len_size));
+
+	fprintf(out, " `%.*s'",
+
+	    toi(isodirrec + DR_name_len_offset, DR_name_len_size),
+
+		isodirrec + DR_name_offset);
+
+}
+
+#endif

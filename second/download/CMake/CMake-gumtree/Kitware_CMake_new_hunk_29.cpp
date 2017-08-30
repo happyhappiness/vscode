@@ -1,18 +1,62 @@
-	off_t off_s, off_e;
-	int exit_sts = ARCHIVE_OK;
-	int check_fully_sparse = 0;
-	const char *path;
+		return (ARCHIVE_FATAL);
 
-	if (archive_entry_filetype(entry) != AE_IFREG
-	    || archive_entry_size(entry) <= 0
-	    || archive_entry_hardlink(entry) != NULL)
-		return (ARCHIVE_OK);
+	}
 
-	/* Does filesystem support the reporting of hole ? */
-	if (*fd < 0)
-		path = archive_read_disk_entry_setup_path(a, entry, fd);
-	else
-		path = NULL;
+
 
 	if (*fd >= 0) {
-#ifdef _PC_MIN_HOLE_SIZE
+
+#if ARCHIVE_XATTR_LINUX
+
+		list_size = flistxattr(*fd, list, list_size);
+
+#elif ARCHIVE_XATTR_DARWIN
+
+		list_size = flistxattr(*fd, list, list_size, 0);
+
+#elif ARCHIVE_XATTR_AIX
+
+		list_size = flistea(*fd, list, list_size);
+
+#endif
+
+	} else if (!a->follow_symlinks) {
+
+#if ARCHIVE_XATTR_LINUX
+
+		list_size = llistxattr(path, list, list_size);
+
+#elif ARCHIVE_XATTR_DARWIN
+
+		list_size = listxattr(path, list, list_size, XATTR_NOFOLLOW);
+
+#elif ARCHIVE_XATTR_AIX
+
+		list_size = llistea(path, list, list_size);
+
+#endif
+
+	} else {
+
+#if ARCHIVE_XATTR_LINUX
+
+		list_size = listxattr(path, list, list_size);
+
+#elif ARCHIVE_XATTR_DARWIN
+
+		list_size = listxattr(path, list, list_size, 0);
+
+#elif ARCHIVE_XATTR_AIX
+
+		list_size = listea(path, list, list_size);
+
+#endif
+
+	}
+
+
+
+	if (list_size == -1) {
+
+		archive_set_error(&a->archive, errno,
+

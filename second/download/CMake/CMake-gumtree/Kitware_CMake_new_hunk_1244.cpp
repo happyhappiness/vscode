@@ -1,34 +1,14 @@
-    {
-      if (k != -1)
-        errno = EINVAL;
-      if (pathname)
-        {
-        free(pathname);
-        }
-      return -1;
-    }
+    const std::string &absFilename = *it;
 
-    /* write block to output file */
-    if (write(fdout, buf,
-        ((i > T_BLOCKSIZE) ? T_BLOCKSIZE : i)) == -1)
+    if (this->Verbose)
+
       {
-      if (pathname)
-        {
-        free(pathname);
-        }
-      return -1;
-      }
-  }
 
-  /* close output file */
-  if (close(fdout) == -1)
-    {
-    if (pathname)
-      {
-      free(pathname);
-      }
-    return -1;
-    }
+      std::cout << "AUTOMOC: Checking " << absFilename << std::endl;
 
-#ifdef DEBUG
-  printf("### done extracting %s\n", filename);
+      }
+
+    if (includedMocs.find(absFilename) == includedMocs.end()
+
+              && notIncludedMocs.find(absFilename) == notIncludedMocs.end())
+

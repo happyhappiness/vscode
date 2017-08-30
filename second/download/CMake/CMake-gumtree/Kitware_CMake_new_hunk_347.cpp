@@ -1,26 +1,20 @@
- */
-    YY_BUFFER_STATE cmFortran_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
-{
-	YY_BUFFER_STATE b;
+    /* As RFC3617 describes the separator slash is not actually part of the
 
-	b = (YY_BUFFER_STATE) cmFortran_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
-	if ( ! b )
-		YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yy_create_buffer()" );
+       file name so we skip the always-present first letter of the path
 
-	b->yy_buf_size = (yy_size_t)size;
+       string. */
 
-	/* yy_ch_buf has to be 2 characters longer than the size given because
-	 * we need to put in 2 end-of-buffer characters.
-	 */
-	b->yy_ch_buf = (char *) cmFortran_yyalloc(b->yy_buf_size + 2 ,yyscanner );
-	if ( ! b->yy_ch_buf )
-		YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yy_create_buffer()" );
+    result = Curl_urldecode(data, &state->conn->data->state.path[1], 0,
 
-	b->yy_is_our_buffer = 1;
+                            &filename, NULL, FALSE);
 
-	cmFortran_yy_init_buffer(b,file ,yyscanner);
+    if(result)
 
-	return b;
-}
+      return result;
 
-/** Destroy the buffer.
+
+
+    snprintf((char *)state->spacket.data+2,
+
+             state->blksize,
+

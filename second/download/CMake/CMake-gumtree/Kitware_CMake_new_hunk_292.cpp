@@ -1,7 +1,28 @@
-        sshc->acceptfail = TRUE;
-      }
+	if (a->format_free != NULL)
 
-      if(strcasecompare("pwd", cmd)) {
-        /* output debug output if that is requested */
-        char *tmp = aprintf("257 \"%s\" is current directory.\n",
-                            sftp_scp->path);
+		(a->format_free)(a);
+
+
+
+	pax = (struct pax *)calloc(1, sizeof(*pax));
+
+	if (pax == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM,
+
+		    "Can't allocate pax data");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+	pax->flags = WRITE_LIBARCHIVE_XATTR | WRITE_SCHILY_XATTR;
+
+
+
+	a->format_data = pax;
+
+	a->format_name = "pax";
+
+	a->format_options = archive_write_pax_options;
+

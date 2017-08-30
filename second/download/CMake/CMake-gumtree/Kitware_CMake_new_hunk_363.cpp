@@ -1,34 +1,64 @@
-  return snprintf(p, len, " nghttp2/%s", h2->version_str);
+  fprintf(stderr, "Output on stderr before recursive test.\n");
+
+  fflush(stdout);
+
+  fflush(stderr);
+
+  r = runChild(cmd, kwsysProcess_State_Exception, kwsysProcess_Exception_Fault,
+
+               1, 1, 1, 0, 15, 0, 1, 0, 0, 0);
+
+  fprintf(stdout, "Output on stdout after recursive test.\n");
+
+  fprintf(stderr, "Output on stderr after recursive test.\n");
+
+  fflush(stdout);
+
+  fflush(stderr);
+
+  return r;
+
 }
 
-/* HTTP/2 error code to name based on the Error Code Registry.
-https://tools.ietf.org/html/rfc7540#page-77
-nghttp2_error_code enums are identical.
-*/
-const char *Curl_http2_strerror(uint32_t err) {
-#ifndef NGHTTP2_HAS_HTTP2_STRERROR
-  const char *str[] = {
-    "NO_ERROR",             /* 0x0 */
-    "PROTOCOL_ERROR",       /* 0x1 */
-    "INTERNAL_ERROR",       /* 0x2 */
-    "FLOW_CONTROL_ERROR",   /* 0x3 */
-    "SETTINGS_TIMEOUT",     /* 0x4 */
-    "STREAM_CLOSED",        /* 0x5 */
-    "FRAME_SIZE_ERROR",     /* 0x6 */
-    "REFUSED_STREAM",       /* 0x7 */
-    "CANCEL",               /* 0x8 */
-    "COMPRESSION_ERROR",    /* 0x9 */
-    "CONNECT_ERROR",        /* 0xA */
-    "ENHANCE_YOUR_CALM",    /* 0xB */
-    "INADEQUATE_SECURITY",  /* 0xC */
-    "HTTP_1_1_REQUIRED"     /* 0xD */
-  };
-  return (err < sizeof str / sizeof str[0]) ? str[err] : "unknown";
-#else
-  return nghttp2_http2_strerror(err);
-#endif
+
+
+#define TEST6_SIZE (4096 * 2)
+
+static void test6(int argc, const char* argv[])
+
+{
+
+  int i;
+
+  char runaway[TEST6_SIZE + 1];
+
+  (void)argc;
+
+  (void)argv;
+
+  for (i = 0; i < TEST6_SIZE; ++i) {
+
+    runaway[i] = '.';
+
+  }
+
+  runaway[TEST6_SIZE] = '\n';
+
+
+
+  /* Generate huge amounts of output to test killing.  */
+
+  for (;;) {
+
+    fwrite(runaway, 1, TEST6_SIZE + 1, stdout);
+
+    fflush(stdout);
+
+  }
+
 }
 
-/*
- * The implementation of nghttp2_send_callback type. Here we write |data| with
- * size |length| to the network and return the number of bytes actually
+
+
+/* Define MINPOLL to be one more than the number of times output is
+

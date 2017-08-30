@@ -1,11 +1,12 @@
-        case ' ':
-        case '=':
-        case '%':
-          sprintf(hexCh, "%%%02X", (int)c);
-          ofile.append(hexCh);
-          break;
-        default: 
-          ofile.append(hexCh);
-          }
-        }
-      cmStdString turl 
+  return this->CacheManager->GetCacheValue(name);
+
+}
+
+
+
+void cmake::AddDefaultCommands()
+
+{
+
+  std::list<cmCommand*> commands;
+

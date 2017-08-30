@@ -1,18 +1,12 @@
-  char thirdLine[512]="";
-  if (process)
-    {
-    sprintf(firstLine, 
-            "                                                               ");  
-    sprintf(secondLine, 
-            "                                                               ");  
-    sprintf(thirdLine, 
-            "                                                               ");  
-    }
-  else
-    {
-    if (this->OkToGenerate)
-      {
-      sprintf(firstLine,  
-              "Press [c] to configure     Press [g] to generate and exit");
-      }
-    else
+		size = extattr_get_file(accpath, namespace, name, value, size);
+
+
+
+	if (size == -1) {
+
+		archive_set_error(&a->archive, errno,
+
+		    "Couldn't read extended attribute");
+
+		return (ARCHIVE_WARN);
+

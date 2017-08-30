@@ -1,49 +1,18 @@
-  char *filename;
-  char buf[TAR_MAXPATHLEN];
-  int i;
-  char *pathname = 0;
+    const char* lang =(this->Makefile->GetCMakeInstance()->GetGlobalGenerator()
 
-  while ((i = th_read(t)) == 0)
-  {
-    pathname = th_get_pathname(t);
-    filename = pathname;
+                        ->GetLanguageFromExtension(ext.c_str()));
 
-    if (fnmatch(globname, filename, FNM_PATHNAME | FNM_PERIOD))
-    {
-      if (pathname)
-        {
-        free(pathname);
-        pathname = 0;
-        }
+    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
 
-      if (TH_ISREG(t) && tar_skip_regfile(t))
-        return -1;
-      continue;
-    }
+    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
 
-    if (t->options & TAR_VERBOSE)
-      th_print_long_ls(t);
+            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
 
-    if (prefix != NULL)
-      snprintf(buf, sizeof(buf), "%s/%s", prefix, filename);
-    else
-      strlcpy(buf, filename, sizeof(buf));
+            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
 
-    if (tar_extract_file(t, filename) != 0)
+    if(def)
+
       {
-      if (pathname)
-        {
-        free(pathname);
-        pathname = 0;
-        }
-      return -1;
-      }
 
-    if (pathname)
-      {
-      free(pathname);
-      pathname = 0;
-      }
-  }
+      fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
 
-  return (i == 1 ? 0 : -1);

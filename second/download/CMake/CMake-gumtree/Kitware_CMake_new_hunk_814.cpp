@@ -1,13 +1,28 @@
-		/* Grab a bunch of bytes. */
-		buff = __archive_read_ahead(a, 1, &bytes_avail);
-		if (bytes_avail <= 0) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file data");
-			return (ARCHIVE_FATAL);
-		}
-		if (bytes_avail > zip->entry_bytes_remaining)
-			bytes_avail = (ssize_t)zip->entry_bytes_remaining;
-	}
-	*size = bytes_avail;
-	zip->entry_bytes_remaining -= bytes_avail;
+
+
+  if (rar->file_flags & FHD_PASSWORD)
+
+  {
+
+	archive_entry_set_is_data_encrypted(entry, 1);
+
+	rar->has_encrypted_entries = 1;
+
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+                      "RAR encryption support unavailable.");
+
+    /* Since it is only the data part itself that is encrypted we can at least
+
+       extract information about the currently processed entry and don't need
+
+       to return ARCHIVE_FATAL here. */
+
+    /*return (ARCHIVE_FATAL);*/
+
+  }
+
+
+
+  if (rar->file_flags & FHD_LARGE)
+

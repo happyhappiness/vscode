@@ -1,8 +1,14 @@
-  char buf[1024];
-  // add todays year day and month to the time in str because
-  // curl_getdate no longer assumes the day is today
-  sprintf(buf, "%d%02d%02d %s",
-          lctime->tm_year+1900,
-          lctime->tm_mon +1,
-          lctime->tm_mday,
-          str.c_str());
+			if (val[0] >= '0' && val[0] <= '9') {
+
+				*parsed_kws |= MTREE_HAS_PERM;
+
+				archive_entry_set_perm(entry,
+
+				    (mode_t)mtree_atol8(&val));
+
+			} else {
+
+				archive_set_error(&a->archive,
+
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+

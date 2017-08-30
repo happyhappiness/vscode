@@ -1,7 +1,16 @@
-	return (ARCHIVE_OK);
-#else
-	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external bzip2 program");
-	return (ARCHIVE_WARN);
-#endif
-}
+      }
+
+    char realBuf[1024];
+
+    sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
+
+    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT,
+
+      "\nTotal Test time (real) = " << realBuf << "\n", this->Quiet );
+
+
+
+    if (!failed.empty())
+
+      {
+

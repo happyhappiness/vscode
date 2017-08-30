@@ -1,7 +1,16 @@
-    {
-    std::string reg_shared = reg;
-    this->SharedRegexString =
-      this->CreateExtensionRegex(this->SharedLinkExtensions, LinkShared);
-    reg_shared += this->SharedRegexString;
-#ifdef CM_COMPUTE_LINK_INFO_DEBUG
-  fprintf(stderr, "shared regex [%s]\n", reg_shared.c_str());
+			h = (HANDLE)_get_osfhandle(fd);
+
+			r = GetFileInformationByHandle(h, &bhfi);
+
+			if (r == 0) {
+
+				la_dosmaperr(GetLastError());
+
+				archive_set_error(&a->archive, errno,
+
+				    "Can't GetFileInformationByHandle");
+
+				return (ARCHIVE_FAILED);
+
+			}
+

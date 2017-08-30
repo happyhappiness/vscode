@@ -1,21 +1,14 @@
-{
-  va_list ap;
-  size_t len;
-  va_start(ap, fmt);
+          return result;
 
-  vsnprintf(data->state.buffer, BUFSIZE, fmt, ap);
 
-  if(data->set.errorbuffer && !data->state.errorbuf) {
-    snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer);
-    data->state.errorbuf = TRUE; /* wrote error string */
-  }
-  if(data->set.verbose) {
-    len = strlen(data->state.buffer);
-    if(len < BUFSIZE - 1) {
-      data->state.buffer[len] = '\n';
-      data->state.buffer[++len] = '\0';
-    }
-    Curl_debug(data, CURLINFO_TEXT, data->state.buffer, len, NULL);
-  }
 
-  va_end(ap);
+        /* format: "Tue, 15 Nov 1994 12:45:26" */
+
+        snprintf(buf, BUFSIZE-1,
+
+                 "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+
+                 Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+
+                 tm->tm_mday,
+

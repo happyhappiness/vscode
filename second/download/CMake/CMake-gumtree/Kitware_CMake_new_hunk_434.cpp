@@ -1,48 +1,48 @@
-	*last_entry = entry;
+    if(result)
 
-	if (is_form_d) {
-		/* Filename is last item on line. */
-		/* Adjust line_len to trim trailing whitespace */
-		while (line_len > 0) {
-			char last_character = line[line_len - 1];
-			if (last_character == '\r'
-			    || last_character == '\n'
-			    || last_character == '\t'
-			    || last_character == ' ') {
-				line_len--;
-			} else {
-				break;
-			}
-		}
-		/* Name starts after the last whitespace separator */
-		name = line;
-		for (i = 0; i < line_len; i++) {
-			if (line[i] == '\r'
-			    || line[i] == '\n'
-			    || line[i] == '\t'
-			    || line[i] == ' ') {
-				name = line + i + 1;
-			}
-		}
-		name_len = line + line_len - name;
-		end = name;
-	} else {
-		/* Filename is first item on line */
-		name_len = strcspn(line, " \t\r\n");
-		name = line;
-		line += name_len;
-		end = line + line_len;
-	}
-	/* name/name_len is the name within the line. */
-	/* line..end brackets the entire line except the name */
+      return result;
 
-	if ((entry->name = malloc(name_len + 1)) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
 
-	memcpy(entry->name, name, name_len);
-	entry->name[name_len] = '\0';
-	parse_escapes(entry->name, entry);
 
-	for (iter = *global; iter != NULL; iter = iter->next) {
+    filetime = (time_t)statbuf.st_mtime;
+
+    result = Curl_gmtime(filetime, &buffer);
+
+    if(result)
+
+      return result;
+
+
+
+    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+
+    snprintf(buf, BUFSIZE-1,
+
+             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+
+             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+
+             tm->tm_mday,
+
+             Curl_month[tm->tm_mon],
+
+             tm->tm_year + 1900,
+
+             tm->tm_hour,
+
+             tm->tm_min,
+
+             tm->tm_sec);
+
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+
+    if(!result)
+
+      /* set the file size to make it available post transfer */
+
+      Curl_pgrsSetDownloadSize(data, expected_size);
+
+    return result;
+
+  }
+

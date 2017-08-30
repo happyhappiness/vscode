@@ -1,6 +1,14 @@
-      sprintf(buffer, "&gt;%d&lt;", (int)ch);
-      //sprintf(buffer, "&#x%0x;", (unsigned int)ch);
-      ost << buffer;
-      }
-    else
-      {
+    fprintf(stdout, "%s\n", message.c_str());
+
+#endif
+
+
+
+    return this->ScanDependencies(tgtInfo);
+
+    }
+
+  else
+
+    {
+

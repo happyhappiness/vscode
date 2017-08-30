@@ -1,7 +1,14 @@
-				 * with the deep-directory editing.
-				 */
-				fsobj_error(a_eno, a_estr, errno,
-				    "Could not stat %s", path);
-				res = ARCHIVE_FAILED;
-				break;
-			}
+	if (a_eno)
+
+		*a_eno = err;
+
+	if (a_estr)
+
+		archive_string_sprintf(a_estr, errstr, path);
+
+}
+
+
+
+/*
+

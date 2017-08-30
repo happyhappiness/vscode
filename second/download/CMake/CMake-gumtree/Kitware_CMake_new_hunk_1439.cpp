@@ -1,13 +1,16 @@
-    return false;
-    }
 
-  m_OriginalString=0;
-  m_Done = false;
 
-  char debugMessage[128];
+        /* column is only valid if an input buffer exists. */
 
-  // <Enter> is used to change edit mode (like <Esc> in vi).
-  while(!m_Done)
-    {
-    sprintf(debugMessage, "String widget handling input, key: %d", key);
-    cmCursesForm::LogMessage(debugMessage);
+        if (! YY_CURRENT_BUFFER )
+
+           yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" , yyscanner);
+
+
+
+    yycolumn = column_no;
+
+}
+
+
+

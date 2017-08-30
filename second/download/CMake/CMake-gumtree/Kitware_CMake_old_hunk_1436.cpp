@@ -1,8 +1,20 @@
-      return -1;
-      }
+        char *buf;
 
-    fprintf(fout, "SET(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} ${COMPILE_DEFINITIONS})\n");
-    fprintf(fout, "SET(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${COMPILE_DEFINITIONS})\n");
-    fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
+        yy_size_t n;
+
+        int i;
+
+    
+
+        /* Get memory for full buffer, including space for trailing EOB's. */
+
+        n = len + 2;
+
+        buf = (char *) cmDependsFortran_yyalloc(n  );
+
+        if ( ! buf )
+
+                YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yy_scan_bytes()" );
+
+
+

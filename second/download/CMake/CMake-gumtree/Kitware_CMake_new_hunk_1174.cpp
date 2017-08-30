@@ -1,12 +1,16 @@
-        fprintf(progFile,"%i\n",count);
-        fclose(progFile);
-        }
-      return 0;
+                  (long long)sb->st_size + lname, ARFMAG);
+
+    else {
+
+      lname = 0;
+
+      (void)sprintf(ar_hb, HDR2, name,
+
+                    (long int)sb->st_mtime, uid, gid, sb->st_mode,
+
+                    (long long)sb->st_size, ARFMAG);
+
       }
 
-    // Command to report progress for a build
-    else if (args[1] == "cmake_progress_report" && args.size() >= 4)
-      {
-      std::string dirName = args[2];
-      dirName += "/Progress";
-      std::string fName;
+    off_t size = sb->st_size;
+

@@ -1,7 +1,16 @@
-  vsnprintf(print_buffer, sizeof(print_buffer), message, args);
-  va_end(args);
 
-  if(Curl_ftpsendf(conn, print_buffer)) {
-    ftp_code = -1;
-  }
-  else {
+
+	if (en) {
+
+		/* Everything failed; give up here. */
+
+		archive_set_error(&a->archive, en, "Can't create '%s'",
+
+		    a->name);
+
+		return (ARCHIVE_FAILED);
+
+	}
+
+
+

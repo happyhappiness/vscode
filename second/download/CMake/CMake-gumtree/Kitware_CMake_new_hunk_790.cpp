@@ -1,13 +1,34 @@
-  struct rar *rar = (struct rar *)(a->format->data);
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
 
-  if (rar->bytes_remaining > 0) {
-    br->next_in = rar_read_ahead(a, 1, &(br->avail_in));
-    if (br->next_in == NULL) {
-      archive_set_error(&a->archive,
-          ARCHIVE_ERRNO_FILE_FORMAT,
-          "Truncated RAR file data");
-      return (ARCHIVE_FATAL);
-    }
-    if (br->cache_avail == 0)
-      (void)rar_br_fillup(a, br);
-  }
+		    "Unexpected codec ID: %lX", zip->codec);
+
+		return (ARCHIVE_FAILED);
+
+	case _7Z_CRYPTO_MAIN_ZIP:
+
+	case _7Z_CRYPTO_RAR_29:
+
+	case _7Z_CRYPTO_AES_256_SHA_256:
+
+		if (a->entry) {
+
+			archive_entry_set_is_metadata_encrypted(a->entry, 1);
+
+			archive_entry_set_is_data_encrypted(a->entry, 1);
+
+			zip->has_encrypted_entries = 1;
+
+		}
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "Crypto codec not supported yet (ID: 0x%lX)", zip->codec);
+
+		return (ARCHIVE_FAILED);
+
+	default:
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "Unknown codec ID: %lX", zip->codec);
+

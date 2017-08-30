@@ -1,7 +1,41 @@
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			return (ARCHIVE_FATAL);
-		case TREE_ERROR_DIR:
-			archive_set_error(&a->archive, t->tree_errno,
-			    "%ls: Couldn't visit directory",
-			    tree_current_path(t));
-			return (ARCHIVE_FAILED);
+      * really checking for IMAGE_FILE_HEADER.Machine == i386 (0x14C)
+
+      * and IMAGE_FILE_HEADER.SizeOfOptionalHeader == 0;
+
+      */
+
+      DumpSymbols<IMAGE_FILE_HEADER, IMAGE_SYMBOL>
+
+        symbolDumper((PIMAGE_FILE_HEADER) lpFileBase, fout);
+
+      symbolDumper.DumpObjFile();
+
+   } else {
+
+      // check for /bigobj format
+
+      cmANON_OBJECT_HEADER_BIGOBJ* h =
+
+        (cmANON_OBJECT_HEADER_BIGOBJ*) lpFileBase;
+
+      if(h->Sig1 == 0x0 && h->Sig2 == 0xffff) {
+
+         DumpSymbols<cmANON_OBJECT_HEADER_BIGOBJ, cmIMAGE_SYMBOL_EX>
+
+           symbolDumper((cmANON_OBJECT_HEADER_BIGOBJ*) lpFileBase, fout);
+
+         symbolDumper.DumpObjFile();
+
+      } else {
+
+         printf("unrecognized file format in '%s'\n", filename);
+
+         return false;
+
+      }
+
+   }
+
+   UnmapViewOfFile(lpFileBase);
+
+   CloseHandle(hFileMapping);

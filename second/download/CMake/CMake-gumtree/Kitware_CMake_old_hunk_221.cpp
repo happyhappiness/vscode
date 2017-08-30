@@ -1,12 +1,42 @@
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_warc");
+	const char *path;
 
-	if ((w = malloc(sizeof(*w))) == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate warc data");
-		return (ARCHIVE_FATAL);
+	int namespace = EXTATTR_NAMESPACE_USER;
+
+
+
+	path = archive_entry_sourcepath(entry);
+
+	if (path == NULL)
+
+		path = archive_entry_pathname(entry);
+
+
+
+	if (*fd < 0 && a->tree != NULL) {
+
+		if (a->follow_symlinks ||
+
+		    archive_entry_filetype(entry) != AE_IFLNK)
+
+			*fd = a->open_on_current_dir(a->tree, path,
+
+				O_RDONLY | O_NONBLOCK);
+
+		if (*fd < 0) {
+
+			if (a->tree_enter_working_dir(a->tree) != 0) {
+
+				archive_set_error(&a->archive, errno,
+
+				    "Couldn't access %s", path);
+
+				return (ARCHIVE_FAILED);
+
+			}
+
+		}
+
 	}
-	memset(w, 0, sizeof(*w));
 
-	r = __archive_read_register_format(
-		a, w, "warc",
+
+

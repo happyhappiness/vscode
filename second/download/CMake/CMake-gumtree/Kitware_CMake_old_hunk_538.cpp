@@ -1,6 +1,66 @@
+	struct private_data *data = (struct private_data *)f->data;
 
-static int test1(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 0.\n");
-  fprintf(stderr, "Output on stderr from test returning 0.\n");
+	int outsize;
+
+
+
+	if (data->compression_level < 3) {
+
+		if (data->lz4_stream == NULL) {
+
+			data->lz4_stream = LZ4_createStream();
+
+			if (data->lz4_stream == NULL) {
+
+				archive_set_error(f->archive, ENOMEM,
+
+				    "Can't allocate data for compression"
+
+				    " buffer");
+
+				return (ARCHIVE_FATAL);
+
+			}
+
+		}
+
+		outsize = LZ4_compress_limitedOutput_continue(
+
+		    data->lz4_stream, p, data->out + 4, (int)length,
+
+		    (int)data->block_size);
+
+	} else {
+
+		if (data->lz4_stream == NULL) {
+
+			data->lz4_stream =
+
+			    LZ4_createHC(data->in_buffer_allocated);
+
+			if (data->lz4_stream == NULL) {
+
+				archive_set_error(f->archive, ENOMEM,
+
+				    "Can't allocate data for compression"
+
+				    " buffer");
+
+				return (ARCHIVE_FATAL);
+
+			}
+
+		}
+
+		outsize = LZ4_compressHC2_limitedOutput_continue(
+
+		    data->lz4_stream, p, data->out + 4, (int)length,
+
+		    (int)data->block_size, data->compression_level);
+
+	}
+
+
+
+	if (outsize) {
+

@@ -1,8 +1,12 @@
-    tmp = *i;
-    doEscape(tmp, "\\", "/");
-    doEscape(tmp, " ", "\\ ");
-    //doEscape(tmp, "(", "("); // TODO ninja cant read ( and )
-    //doEscape(tmp, ")", ")");
-    fprintf(out, "%s \\\n", tmp.c_str());
+    p += filename_size;
+
   }
+
+
+
+  if (rar->file_flags & FHD_SALT)
+
+  {
+
+    if (p + 8 > endp) {
 

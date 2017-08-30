@@ -1,7 +1,14 @@
-		yy_cp += (int) (dest - source);
-		yy_bp += (int) (dest - source);
-		YY_CURRENT_BUFFER_LVALUE->yy_n_chars =
-			yyg->yy_n_chars = YY_CURRENT_BUFFER_LVALUE->yy_buf_size;
+	case 0x6720:/* Blowfish */
 
-		if ( yy_cp < YY_CURRENT_BUFFER_LVALUE->yy_ch_buf + 2 )
-			YY_FATAL_ERROR( "flex scanner push-back overflow" );
+	case 0x6721:/* Twofish */
+
+	case 0x6801:/* RC4 */
+
+		/* Suuported encryption algorithm. */
+
+		break;
+
+	default:
+
+		archive_set_error(&a->archive,
+

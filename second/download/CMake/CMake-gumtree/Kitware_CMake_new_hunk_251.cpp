@@ -1,7 +1,18 @@
-    else
-      tls_rt_name = "";
+	/* Get a real compressed file size. */
 
-    msg_type = *(char *)buf;
-    msg_name = ssl_msg_type(ssl_ver, msg_type);
+	lha->compsize -= extdsize - 2;
 
-    txt_len = snprintf(ssl_buf, sizeof(ssl_buf), "%s (%s), %s, %s (%d):\n",
+
+
+	if (lha->compsize < 0)
+
+		goto invalid;	/* Invalid compressed file size */
+
+
+
+	if (sum_calculated != headersum) {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "LHa header sum error");
+

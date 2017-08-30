@@ -1,54 +1,70 @@
-		if ((r = seek_pack(a)) < 0)
-			return (r);
-		zip->pack_stream_bytes_unconsumed =
-		    (size_t)zip->pack_stream_inbytes_remaining;
-		read_consume(a);
+      if(const char* rulesOverridePath =
 
-		/* Read following three sub streams. */
-		for (i = 0; i < 3; i++) {
-			const struct _7z_coder *coder = scoder[i];
+         this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
 
-			if ((r = seek_pack(a)) < 0) {
-				free(b[0]); free(b[1]); free(b[2]);
-				return (r);
-			}
+        {
 
-			if (sunpack[i] == (uint64_t)-1)
-				zip->folder_outbytes_remaining =
-				    zip->pack_stream_inbytes_remaining;
-			else
-				zip->folder_outbytes_remaining = sunpack[i];
+        fprintf(fout, "set(%s \"%s\")\n",
 
-			r = init_decompression(a, zip, coder, NULL);
-			if (r != ARCHIVE_OK) {
-				free(b[0]); free(b[1]); free(b[2]);
-				return (ARCHIVE_FATAL);
-			}
+                rulesOverrideLang.c_str(), rulesOverridePath);
 
-			/* Allocate memory for the decorded data of a sub
-			 * stream. */
-			b[i] = malloc((size_t)zip->folder_outbytes_remaining);
-			if (b[i] == NULL) {
-				free(b[0]); free(b[1]); free(b[2]);
-				archive_set_error(&a->archive, ENOMEM,
-				    "No memory for 7-Zip decompression");
-				return (ARCHIVE_FATAL);
-			}
+        }
 
-			/* Extract a sub stream. */
-			while (zip->pack_stream_inbytes_remaining > 0) {
-				r = (int)extract_pack_stream(a, 0);
-				if (r < 0) {
-					free(b[0]); free(b[1]); free(b[2]);
-					return (r);
-				}
-				bytes = get_uncompressed_data(a, &buff,
-				    zip->uncompressed_buffer_bytes_remaining,
-				    0);
-				if (bytes < 0) {
-					free(b[0]); free(b[1]); free(b[2]);
-					return ((int)bytes);
-				}
-				memcpy(b[i]+s[i], buff, bytes);
-				s[i] += bytes;
-				if (zip->pack_stream_bytes_unconsumed)
+      else if(const char* rulesOverridePath2 =
+
+              this->Makefile->GetDefinition(rulesOverrideBase.c_str()))
+
+        {
+
+        fprintf(fout, "set(%s \"%s\")\n",
+
+                rulesOverrideBase.c_str(), rulesOverridePath2);
+
+        }
+
+      }
+
+    fprintf(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
+
+    fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");
+
+    for(std::set<std::string>::iterator li = testLangs.begin();
+
+        li != testLangs.end(); ++li)
+
+      {
+
+      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
+
+      const char* flags = this->Makefile->GetDefinition(langFlags.c_str());
+
+      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+
+              lg->EscapeForCMake(flags?flags:"").c_str());
+
+      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
+
+              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
+
+      }
+
+    fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");
+
+    fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");
+
+    fprintf(fout, "link_directories(${LINK_DIRECTORIES})\n");
+
+    // handle any compile flags we need to pass on
+
+    if (compileDefs.size())
+
+      {
+
+      fprintf(fout, "add_definitions( ");
+
+      for (size_t i = 0; i < compileDefs.size(); ++i)
+
+        {
+
+        fprintf(fout,"%s ",compileDefs[i].c_str());
+

@@ -1,7 +1,22 @@
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Invalid Rockridge RE");
-				goto fail;
-			}
-		} else if (parent != NULL && parent->rr_moved)
-			file->rr_moved_has_re_only = 0;
+	if (a->format_free != NULL)
+
+		(a->format_free)(a);
+
+
+
+	cpio = (struct cpio *)calloc(1, sizeof(*cpio));
+
+	if (cpio == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+	a->format_data = cpio;
+
+	a->format_name = "cpio";
+
+	a->format_options = archive_write_newc_options;
+

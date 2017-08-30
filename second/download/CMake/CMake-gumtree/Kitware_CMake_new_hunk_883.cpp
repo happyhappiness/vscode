@@ -1,13 +1,14 @@
-			else
-				ret = ARCHIVE_FATAL;
-		}
-		return (ret);
-	}
+		size = extattr_get_file(accpath, namespace, name, value, size);
 
-	/* Note: The "warn" return is just to inform the options
-	 * supervisor that we didn't handle it.  It will generate
-	 * a suitable error if no one used this option. */
-	return (ARCHIVE_WARN);
-}
 
-static int
+
+	if (size == -1) {
+
+		free(value);
+
+		archive_set_error(&a->archive, errno,
+
+		    "Couldn't read extended attribute");
+
+		return (ARCHIVE_WARN);
+

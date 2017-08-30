@@ -1,16 +1,71 @@
-	if (zip->zip_entries == NULL) {
-		zip->zip_entries = malloc(sizeof(struct zip_entry));
-		if (zip->zip_entries == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Out  of memory");
-			return ARCHIVE_FATAL;
-		}
-	}
-	zip->entry = zip->zip_entries;
-	memset(zip->entry, 0, sizeof(struct zip_entry));
+	 * Check coder types.
 
-	/* Search ahead for the next local file header. */
-	zip_read_consume(a, zip->unconsumed);
-	zip->unconsumed = 0;
-	for (;;) {
-		int64_t skipped = 0;
+	 */
+
+	for (i = 0; i < folder->numCoders; i++) {
+
+		switch(folder->coders[i].codec) {
+
+			case _7Z_CRYPTO_MAIN_ZIP:
+
+			case _7Z_CRYPTO_RAR_29:
+
+			case _7Z_CRYPTO_AES_256_SHA_256: {
+
+				/* For entry that is associated with this folder, mark
+
+				   it as encrypted (data+metadata). */
+
+				zip->has_encrypted_entries = 1;
+
+				if (a->entry) {
+
+					archive_entry_set_is_data_encrypted(a->entry, 1);
+
+					archive_entry_set_is_metadata_encrypted(a->entry, 1);
+
+				}
+
+				archive_set_error(&(a->archive),
+
+					ARCHIVE_ERRNO_MISC,
+
+					"The %s is encrypted, "
+
+					"but currently not supported", cname);
+
+				return (ARCHIVE_FATAL);
+
+			}
+
+			case _7Z_X86_BCJ2: {
+
+				found_bcj2++;
+
+				break;
+
+			}
+
+		}
+
+	}
+
+	/* Now that we've checked for encryption, if there were still no
+
+	 * encrypted entries found we can say for sure that there are none.
+
+	 */
+
+	if (zip->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
+
+		zip->has_encrypted_entries = 0;
+
+	}
+
+
+
+	if ((folder->numCoders > 2 && !found_bcj2) || found_bcj2 > 1) {
+
+		archive_set_error(&(a->archive),
+
+		    ARCHIVE_ERRNO_MISC,

@@ -1,15 +1,16 @@
-  sprintf(temp, "%d", cmVersion::GetMinorVersion());
-  this->AddCacheEntry("CMAKE_CACHE_MINOR_VERSION", temp,
-                      "Minor version of cmake used to create the "
-                      "current loaded cache", cmState::INTERNAL);
-  sprintf(temp, "%d", cmVersion::GetMajorVersion());
-  this->AddCacheEntry("CMAKE_CACHE_MAJOR_VERSION", temp,
-                      "Major version of cmake used to create the "
-                      "current loaded cache", cmState::INTERNAL);
-  sprintf(temp, "%d", cmVersion::GetPatchVersion());
-  this->AddCacheEntry("CMAKE_CACHE_PATCH_VERSION", temp,
-                      "Patch version of cmake used to create the "
-                      "current loaded cache", cmState::INTERNAL);
+			mtree->fd = open(path, O_RDONLY | O_BINARY | O_CLOEXEC);
 
-  // Let us store the current working directory so that if somebody
-  // Copies it, he will not be surprised
+			__archive_ensure_cloexec_flag(mtree->fd);
+
+			if (mtree->fd == -1 &&
+
+				(errno != ENOENT ||
+
+				 archive_strlen(&mtree->contents_name) > 0)) {
+
+				archive_set_error(&a->archive, errno,
+
+						"Can't open %s", path);
+
+				r = ARCHIVE_WARN;
+

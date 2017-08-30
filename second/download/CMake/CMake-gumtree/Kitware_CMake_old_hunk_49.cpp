@@ -1,27 +1,34 @@
-    pwd = conn->passwd;
-  }
+      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
 
-  snprintf(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
-           "%s:%s", user, pwd);
+         last .sss part is optional and means fractions of a second */
 
-  result = Curl_base64_encode(data,
-                              data->state.buffer, strlen(data->state.buffer),
-                              &authorization, &size);
-  if(result)
-    return result;
+      int year, month, day, hour, minute, second;
 
-  if(!authorization)
-    return CURLE_REMOTE_ACCESS_DENIED;
+      char *buf = data->state.buffer;
 
-  free(*userp);
-  *userp = aprintf("%sAuthorization: Basic %s\r\n",
-                   proxy ? "Proxy-" : "",
-                   authorization);
-  free(authorization);
-  if(!*userp)
-    return CURLE_OUT_OF_MEMORY;
+      if(6 == sscanf(buf+4, "%04d%02d%02d%02d%02d%02d",
 
-  return CURLE_OK;
-}
+                     &year, &month, &day, &hour, &minute, &second)) {
 
-/* pickoneauth() selects the most favourable authentication method from the
+        /* we have a time, reformat it */
+
+        time_t secs=time(NULL);
+
+        /* using the good old yacc/bison yuck */
+
+        snprintf(buf, CURL_BUFSIZE(conn->data->set.buffer_size),
+
+                 "%04d%02d%02d %02d:%02d:%02d GMT",
+
+                 year, month, day, hour, minute, second);
+
+        /* now, convert this into a time() value: */
+
+        data->info.filetime = (long)curl_getdate(buf, &secs);
+
+      }
+
+
+
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
+

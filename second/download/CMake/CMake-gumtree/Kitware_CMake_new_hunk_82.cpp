@@ -1,9 +1,52 @@
+     * The application kindly asks for a differently sized receive buffer.
 
-    case STATUS_NO_MEMORY:
-    default:
-      cp->ProcessResults[idx].ExitException = kwsysProcess_Exception_Other;
-      _snprintf(cp->ProcessResults[idx].ExitExceptionString,
-                KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);
-      break;
-  }
-}
+     * If it seems reasonable, we'll use it.
+
+     */
+
+    arg = va_arg(param, long);
+
+
+
+    if(arg > READBUFFER_MAX)
+
+      arg = READBUFFER_MAX;
+
+    else if(arg < 1)
+
+      arg = READBUFFER_SIZE;
+
+    else if(arg < READBUFFER_MIN)
+
+      arg = READBUFFER_MIN;
+
+
+
+    /* Resize if new size */
+
+    if(arg != data->set.buffer_size) {
+
+      char *newbuff = realloc(data->state.buffer, arg + 1);
+
+      if(!newbuff) {
+
+        DEBUGF(fprintf(stderr, "Error: realloc of buffer failed\n"));
+
+        result = CURLE_OUT_OF_MEMORY;
+
+      }
+
+      else
+
+        data->state.buffer = newbuff;
+
+    }
+
+    data->set.buffer_size = arg;
+
+
+
+    break;
+
+
+

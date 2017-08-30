@@ -1,12 +1,20 @@
+  else
 
-  /* We do some initial setup here, all those fields that can't be just 0 */
+    hostname = conn->host.name;
 
-  data->state.buffer = malloc(BUFSIZE + 1);
-  if(!data->state.buffer) {
-    DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"));
-    result = CURLE_OUT_OF_MEMORY;
-  }
 
-  data->state.headerbuff = malloc(HEADERSIZE);
-  if(!data->state.headerbuff) {
-    DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"));
+
+  DEBUGASSERT(len > 32);
+
+
+
+  /* put the number first so that the hostname gets cut off if too long */
+
+  snprintf(buf, len, "%ld%s", conn->port, hostname);
+
+}
+
+
+
+/* Look up the bundle with all the connections to the same host this
+

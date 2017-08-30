@@ -1,7 +1,18 @@
-	if (strncmp(h + AR_fmag_offset, "`\n", 2) != 0) {
-		archive_set_error(&a->archive, EINVAL,
-		    "Incorrect file header signature");
-		return (ARCHIVE_WARN);
-	}
+{
 
-	/* Copy filename into work buffer. */
+	struct unknown_tag *tag;
+
+
+
+#if DEBUG
+
+	fprintf(stderr, "unknowntag_start:%s\n", name);
+
+#endif
+
+	tag = malloc(sizeof(*tag));
+
+	if (tag == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+

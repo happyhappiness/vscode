@@ -1,50 +1,96 @@
-	return (archive_read_support_filter_program_signature(a, cmd, NULL, 0));
-}
+    // Command to report progress for a build
+
+    else if (args[1] == "cmake_progress_report" && args.size() >= 3)
+
+      {
+
+      std::string dirName = args[2];
+
+      dirName += "/Progress";
+
+      std::string fName;
+
+      FILE *progFile;
 
 
-/* This capability is only available on POSIX systems. */
-#if (!defined(HAVE_PIPE) || !defined(HAVE_FCNTL) || \
-    !(defined(HAVE_FORK) || defined(HAVE_VFORK))) && (!defined(_WIN32) || defined(__CYGWIN__))
 
-/*
- * On non-Posix systems, allow the program to build, but choke if
- * this function is actually invoked.
- */
-int
-archive_read_support_filter_program_signature(struct archive *_a,
-    const char *cmd, const void *signature, size_t signature_len)
-{
-	(void)_a; /* UNUSED */
-	(void)cmd; /* UNUSED */
-	(void)signature; /* UNUSED */
-	(void)signature_len; /* UNUSED */
+      // read the count
 
-	archive_set_error(_a, -1,
-	    "External compression programs not supported on this platform");
-	return (ARCHIVE_FATAL);
-}
+      fName = dirName;
 
-int
-__archive_read_program(struct archive_read_filter *self, const char *cmd)
-{
-	(void)self; /* UNUSED */
-	(void)cmd; /* UNUSED */
+      fName += "/count.txt";
 
-	archive_set_error(&self->archive->archive, -1,
-	    "External compression programs not supported on this platform");
-	return (ARCHIVE_FATAL);
-}
+      progFile = cmsys::SystemTools::Fopen(fName,"r");
 
-#else
+      int count = 0;
 
-#include "filter_fork.h"
+      if (!progFile)
 
-/*
- * The bidder object stores the command and the signature to watch for.
- * The 'inhibit' entry here is used to ensure that unchecked filters never
- * bid twice in the same pipeline.
- */
-struct program_bidder {
-	char *cmd;
-	void *signature;
-	size_t signature_len;
+        {
+
+        return 0;
+
+        }
+
+      else
+
+        {
+
+        if (1!=fscanf(progFile,"%i",&count))
+
+          {
+
+          cmSystemTools::Message("Could not read from progress file.");
+
+          }
+
+        fclose(progFile);
+
+        }
+
+      unsigned int i;
+
+      for (i = 3; i < args.size(); ++i)
+
+        {
+
+        fName = dirName;
+
+        fName += "/";
+
+        fName += args[i];
+
+        progFile = cmsys::SystemTools::Fopen(fName,"w");
+
+        if (progFile)
+
+          {
+
+          fprintf(progFile,"empty");
+
+          fclose(progFile);
+
+          }
+
+        }
+
+      int fileNum = static_cast<int>
+
+        (cmsys::Directory::GetNumberOfFilesInDirectory(dirName));
+
+      if (count > 0)
+
+        {
+
+        // print the progress
+
+        fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
+
+        }
+
+      return 0;
+
+      }
+
+
+

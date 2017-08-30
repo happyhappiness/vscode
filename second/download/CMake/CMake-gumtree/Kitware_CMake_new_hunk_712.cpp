@@ -1,10 +1,18 @@
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name);
-    }
-  struct _wfinddata_t data;      // data of current file
+  // update the cache entry for the number of local generators, this is used
 
-  // Now put them into the file array
-  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
-  delete [] buf;
+  // for progress
 
-  if ( srchHandle == -1 )
+  char num[100];
+
+  sprintf(num,"%d",static_cast<int>(this->Makefiles.size()));
+
+  this->GetCMakeInstance()->AddCacheEntry
+
+    ("CMAKE_NUMBER_OF_MAKEFILES", num,
+
+     "number of local generators", cmState::INTERNAL);
+
+
+
+  // check for link libraries and include directories containing "NOTFOUND"
+

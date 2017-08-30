@@ -1,11 +1,14 @@
-{
-	struct sparse_block *p;
+		archive_entry_set_filetype(entry, AE_IFREG);
 
-	p = (struct sparse_block *)calloc(1, sizeof(*p));
-	if (p == NULL) {
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
-	if (tar->sparse_last != NULL)
-		tar->sparse_last->next = p;
-	else
+		/* Get the size of the filename table. */
+
+		number = ar_atol10(h + AR_size_offset, AR_size_size);
+
+		if (number > SIZE_MAX || number > 1024 * 1024 * 1024) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "Filename table too large");
+
+			return (ARCHIVE_FATAL);
+

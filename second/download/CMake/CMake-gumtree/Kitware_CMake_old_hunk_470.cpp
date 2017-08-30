@@ -1,7 +1,17 @@
-		}
+             &rar->lzss.window[windowoffs], firstpart);
 
-		if (a->read_data_offset < a->read_data_output_offset) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Encountered out-of-order sparse blocks");
-			return (ARCHIVE_RETRY);
-		}
+      memcpy(&rar->unp_buffer[rar->unp_offset + firstpart],
+
+             &rar->lzss.window[0], length - firstpart);
+
+    } else
+
+      memcpy(&rar->unp_buffer[rar->unp_offset],
+
+             &rar->lzss.window[windowoffs], length);
+
+  }
+
+  rar->unp_offset += length;
+
+  if (rar->unp_offset >= rar->unp_buffer_size)

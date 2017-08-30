@@ -1,6 +1,18 @@
-    return CURLE_FAILED_INIT;
-  }
+    case kwsysTerminal_Color_ForegroundWhite:
 
-#if defined(USE_LIBSSH2) && defined(HAVE_LIBSSH2_INIT)
-  if(libssh2_init(0)) {
-    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+      fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_WHITE);
+
+      break;
+
+    }
+
+  switch(color & kwsysTerminal_Color_BackgroundMask)
+
+    {
+
+    case kwsysTerminal_Color_BackgroundBlack:
+
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_BLACK);
+
+      break;
+

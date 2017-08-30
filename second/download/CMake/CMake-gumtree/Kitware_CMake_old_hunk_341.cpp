@@ -1,17 +1,56 @@
-  this->AddCacheEntry("CMAKE_CACHE_MINOR_VERSION", temp,
-                      "Minor version of cmake used to create the "
-                      "current loaded cache",
-                      cmState::INTERNAL);
-  sprintf(temp, "%d", cmVersion::GetMajorVersion());
-  this->AddCacheEntry("CMAKE_CACHE_MAJOR_VERSION", temp,
-                      "Major version of cmake used to create the "
-                      "current loaded cache",
-                      cmState::INTERNAL);
-  sprintf(temp, "%d", cmVersion::GetPatchVersion());
-  this->AddCacheEntry("CMAKE_CACHE_PATCH_VERSION", temp,
-                      "Patch version of cmake used to create the "
-                      "current loaded cache",
-                      cmState::INTERNAL);
+  return CURLE_OK;
 
-  // Let us store the current working directory so that if somebody
-  // Copies it, he will not be surprised
+}
+
+
+
+#ifdef USE_LIBIDN
+
+/*
+
+ * Initialise use of IDNA library.
+
+ * It falls back to ASCII if $CHARSET isn't defined. This doesn't work for
+
+ * idna_to_ascii_lz().
+
+ */
+
+static void idna_init (void)
+
+{
+
+#ifdef WIN32
+
+  char buf[60];
+
+  UINT cp = GetACP();
+
+
+
+  if(!getenv("CHARSET") && cp > 0) {
+
+    snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);
+
+    putenv(buf);
+
+  }
+
+#else
+
+  /* to do? */
+
+#endif
+
+}
+
+#endif  /* USE_LIBIDN */
+
+
+
+/* true globals -- for curl_global_init() and curl_global_cleanup() */
+
+static unsigned int  initialized;
+
+static long          init_flags;
+

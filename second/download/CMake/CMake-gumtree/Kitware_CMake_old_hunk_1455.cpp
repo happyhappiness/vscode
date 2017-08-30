@@ -1,25 +1,66 @@
-  return this->PrivateClose(timeout);
+  return 0;
+
 }
 
-#define PERROR(str) //::ErrorMessage(__LINE__, str)
-static void ErrorMessage(int line, char *str)  //display detailed error info
+
+
+/* Quick hack to test grandchild killing.  */
+
+/*#define TEST5_GRANDCHILD_KILL*/
+
+#ifdef TEST5_GRANDCHILD_KILL
+
+# define TEST5_TIMEOUT 10
+
+#else
+
+# define TEST5_TIMEOUT 30
+
+#endif
+
+
+
+int test5(int argc, const char* argv[])
+
 {
-  DWORD lastmsg = GetLastError();
-  LPVOID msg;
-  FormatMessage(
-    FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
-    NULL,
-    lastmsg,
-    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
-    (LPTSTR) &msg,
-    0,
-    NULL
-  );
-  printf("%d - %s: %s (%d)\n",line,str,msg, lastmsg);
-  LocalFree(msg);
-  ::SetLastError(ERROR_SUCCESS);
-}
 
-/*
- * Internal dictionary mapping popen* file pointers to process handles,
- * for use when retrieving the process exit code.  See _PyPclose() below
+  int r;
+
+  const char* cmd[4];
+
+  (void)argc;
+
+  cmd[0] = argv[0];
+
+  cmd[1] = "run";
+
+#ifdef TEST5_GRANDCHILD_KILL
+
+  cmd[2] = "3";
+
+#else
+
+  cmd[2] = "4";
+
+#endif
+
+  cmd[3] = 0;
+
+  fprintf(stdout, "Output on stdout before recursive test.\n");
+
+  fprintf(stderr, "Output on stderr before recursive test.\n");
+
+  fflush(stdout);
+
+  fflush(stderr);
+
+  r = runChild(cmd, kwsysProcess_State_Exception,
+
+               kwsysProcess_Exception_Fault, 1, 1, 1, 0, 15, 0, 1);
+
+  fprintf(stdout, "Output on stdout after recursive test.\n");
+
+  fprintf(stderr, "Output on stderr after recursive test.\n");
+
+  fflush(stdout);
+

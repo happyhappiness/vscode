@@ -1,13 +1,13 @@
-    {
-    return false;
+    fprintf(fout,"                  %sCommand);\n",classes[i].c_str());
+
     }
 
-  // capitalized commands just once
-  std::vector<std::string> capcommands;
-  for (i = 0; i < m_Commands.size(); i++)
-    {
-    capcommands.push_back(cmSystemTools::Capitalized(m_Commands[i]));
-    }
   
-  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
-  
+
+  fprintf(fout,"  char pkgName[]=\"%s\";\n", this->LibraryName.c_str());
+
+  fprintf(fout,"  char pkgVers[]=VTK_TCL_TO_STRING(VTK_MAJOR_VERSION)"
+
+               " \".\" "
+
+               "VTK_TCL_TO_STRING(VTK_MINOR_VERSION);\n");

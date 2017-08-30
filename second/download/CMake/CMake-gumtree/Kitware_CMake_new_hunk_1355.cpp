@@ -1,12 +1,18 @@
-      }
-    if ( tag.size() == 0 || m_Tests[cmCTest::START_TEST] || m_Tests[ALL_TEST])
-      {
-      //std::cout << "TestModel: " << this->GetTestModelString() << std::endl;
-      //std::cout << "TestModel: " << m_TestModel << std::endl;
-      if ( m_TestModel == cmCTest::NIGHTLY )
-        {
-        lctime = ::GetNightlyTime(m_DartConfiguration["NightlyStartTime"]);
-        }
-      char datestring[100];
-      sprintf(datestring, "%04d%02d%02d-%02d%02d",
-              lctime->tm_year + 1900,
+    m_cmGeneratorChoice->SetStringSelection(generator);
+
+    
+
+    wxString str;
+
+    str.Printf("CMake %d.%d - %s", cmVersion::GetMajorVersion(),
+
+               cmVersion::GetMinorVersion(), 
+
+               cmVersion::GetReleaseVersion().c_str());
+
+    str.Printf("CMakeSetup v%i.%i%s", CMAKEGUI_MAJORVER, CMAKEGUI_MINORVER, CMAKEGUI_ADDVER);
+
+
+
+    SetTitle(str);
+

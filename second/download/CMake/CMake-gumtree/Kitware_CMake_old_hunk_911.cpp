@@ -1,23 +1,32 @@
-		}
-	}
+	fid = t->max_filesystem_id++;
 
-	/* If we haven't yet read any data, initialize the decompressor. */
-	if (!zip->decompress_init) {
-		if (zip->stream_valid)
-			r = inflateReset(&zip->stream);
-		else
-			r = inflateInit2(&zip->stream,
-			    -15 /* Don't check for zlib header */);
-		if (r != Z_OK) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Can't initialize ZIP decompression.");
+	if (t->max_filesystem_id > t->allocated_filesytem) {
+
+		size_t s;
+
+
+
+		s = t->max_filesystem_id * 2;
+
+		t->filesystem_table = realloc(t->filesystem_table,
+
+		    s * sizeof(*t->filesystem_table));
+
+		if (t->filesystem_table == NULL) {
+
+			archive_set_error(&a->archive, ENOMEM,
+
+			    "Can't allocate tar data");
+
 			return (ARCHIVE_FATAL);
+
 		}
-		/* Stream structure has been set up. */
-		zip->stream_valid = 1;
-		/* We've initialized decompression for this stream. */
-		zip->decompress_init = 1;
+
+		t->allocated_filesytem = s;
+
 	}
 
-	/*
-	 * Note: '1' here is a performance optimization.
+	t->current_filesystem_id = fid;
+
+	t->current_filesystem = &(t->filesystem_table[fid]);
+

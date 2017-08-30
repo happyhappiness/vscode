@@ -1,8 +1,24 @@
-      //std::cout << "TestModel: " << m_TestModel << std::endl;
-      if ( m_TestModel == cmCTest::NIGHTLY )
-        {
-        lctime = ::GetNightlyTime(m_DartConfiguration["NightlyStartTime"],
-          m_TomorrowTag);
-        }
-      char datestring[100];
-      sprintf(datestring, "%04d%02d%02d-%02d%02d",
+  result = 0;
+
+  }
+
+# endif
+
+# ifndef DIRECTORY_DEF_DEBUG
+
+  {
+
+  fprintf(stderr, "DIRECTORY_DEF_DEBUG should be defined in C\n");
+
+  result = 0;
+
+  }
+
+# endif
+
+# ifdef FILE_DEF_RELEASE
+
+  {
+
+  fprintf(stderr, "FILE_DEF_RELEASE should not be defined in C\n");
+

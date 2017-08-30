@@ -1,18 +1,14 @@
-  return 1;
-}
 
-static void showtime(struct Curl_easy *data,
-                     const char *text,
-                     time_t stamp)
-{
-  struct tm buffer;
-  const struct tm *tm = &buffer;
-  CURLcode result = Curl_gmtime(stamp, &buffer);
-  if(result)
-    return;
 
-  snprintf(data->state.buffer,
-           BUFSIZE,
-           "\t %s: %s, %02d %s %4d %02d:%02d:%02d GMT",
-           text,
-           Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+  /* We do some initial setup here, all those fields that can't be just 0 */
+
+
+
+  data->state.buffer = malloc(BUFSIZE + 1);
+
+  if(!data->state.buffer) {
+
+    DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"));
+
+    result = CURLE_OUT_OF_MEMORY;
+

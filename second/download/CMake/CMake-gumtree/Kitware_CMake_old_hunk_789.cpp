@@ -1,7 +1,14 @@
-			if (val[0] >= '0' && val[0] <= '9') {
-				*parsed_kws |= MTREE_HAS_PERM;
-				archive_entry_set_perm(entry,
-				    mtree_atol8(&val));
-			} else {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
+		else
+
+			flags |= FILE_FLAG_SEQUENTIAL_SCAN;
+
+		t->entry_fh = CreateFileW(tree_current_access_path(t),
+
+		    GENERIC_READ, 0, NULL, OPEN_EXISTING, flags, NULL);
+
+		if (t->entry_fh == INVALID_HANDLE_VALUE) {
+
+			archive_set_error(&a->archive, errno,
+
+			    "Couldn't open %ls", tree_current_path(a->tree));
+

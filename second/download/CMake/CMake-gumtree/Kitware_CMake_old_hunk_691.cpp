@@ -1,22 +1,64 @@
+    fprintf(stderr, "\n****\n");
 
-//----------------------------------------------------------------------------
-void
-cmComputeTargetDepends::DisplayGraph(Graph const& graph, const char* name)
+    fprintf(stderr, "**** Header %s\n ", header);
+
+  });
+
+#endif
+
+  free(buffer);
+
+
+
+  return CURLE_OK;
+
+}
+
+
+
+#ifdef USE_WINDOWS_SSPI
+
+void Curl_ntlm_sspi_cleanup(struct ntlmdata *ntlm)
+
 {
-  fprintf(stderr, "The %s target dependency graph is:\n", name);
-  int n = static_cast<int>(graph.size());
-  for(int depender_index = 0; depender_index < n; ++depender_index)
-    {
-    EdgeList const& nl = graph[depender_index];
-    cmTarget const* depender = this->Targets[depender_index];
-    fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
-    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int dependee_index = *ni;
-      cmTarget const* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
-      }
-    }
-  fprintf(stderr, "\n");
+
+  Curl_safefree(ntlm->type_2);
+
+
+
+  if(ntlm->has_handles) {
+
+    s_pSecFn->DeleteSecurityContext(&ntlm->c_handle);
+
+    s_pSecFn->FreeCredentialsHandle(&ntlm->handle);
+
+    ntlm->has_handles = 0;
+
+  }
+
+
+
+  ntlm->max_token_length = 0;
+
+  Curl_safefree(ntlm->output_token);
+
+
+
+  Curl_sspi_free_identity(ntlm->p_identity);
+
+  ntlm->p_identity = NULL;
+
+}
+
+#endif
+
+
+
+#ifndef USE_WINDOWS_SSPI
+
+/* copy the source to the destination and fill in zeroes in every
+
+   other destination byte! */
+
+static void unicodecpy(unsigned char *dest, const char *src, size_t length)
+

@@ -1,13 +1,14 @@
-		}
-		offset += datasize;
-	}
-	if (offset != extra_length) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Malformed extra data: Consumed %d bytes of %d bytes",
-		    (int)offset, (int)extra_length);
-		return ARCHIVE_FAILED;
-	}
-	return ARCHIVE_OK;
-}
+				archive_set_error(&a->archive,
 
-/*
+				    ARCHIVE_ERRNO_MISC,
+
+				    "Invalid Rockridge RE");
+
+				goto fail;
+
+			}
+
+		} else if (parent != NULL && parent->rr_moved)
+
+			file->rr_moved_has_re_only = 0;
+

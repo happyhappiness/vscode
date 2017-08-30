@@ -1,6 +1,14 @@
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Pathname is too long");
-		}
 
-		r = archive_entry_copy_pathname_l(entry,
+
+		/* If a length of full-pathname is longer than 240 bytes,
+
+		 * it violates Joliet extensions regulation. */
+
+		if (parent_len + np->mb_len > 240) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "The regulation of Joliet extensions;"
+
+			    " A length of a full-pathname of `%s' is "
+

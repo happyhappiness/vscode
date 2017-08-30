@@ -1,7 +1,14 @@
-    case STATUS_NO_MEMORY:
-    default:
-      cp->ExitException = kwsysProcess_Exception_Other;
-      _snprintf(cp->ExitExceptionString, KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);
-      break;
-    }
-}
+  fprintf(stderr, "Output before sleep on stderr from timeout test.\n");
+
+  fflush(stdout);
+
+  fflush(stderr);
+
+  testProcess_sleep(15);
+
+  fprintf(stdout, "Output after sleep on stdout from timeout test.\n");
+
+  fprintf(stderr, "Output after sleep on stderr from timeout test.\n");
+
+  return 0;
+

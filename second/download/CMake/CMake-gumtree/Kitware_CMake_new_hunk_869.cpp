@@ -1,13 +1,28 @@
-			else
-				ret = ARCHIVE_FATAL;
-		}
-		return (ret);
-	}
+      }
 
-	/* Note: The "warn" return is just to inform the options
-	 * supervisor that we didn't handle it.  It will generate
-	 * a suitable error if no one used this option. */
-	return (ARCHIVE_WARN);
-}
+    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
 
-static int
+      {
+
+      fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
+
+      }
+
+
+
+    /* Put the executable at a known location (for COPY_FILE).  */
+
+    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+
+            this->BinaryDirectory.c_str());
+
+    /* Create the actual executable.  */
+
+    fprintf(fout, "add_executable(%s", targetName);
+
+    for(std::vector<std::string>::iterator si = sources.begin();
+
+        si != sources.end(); ++si)
+
+      {
+

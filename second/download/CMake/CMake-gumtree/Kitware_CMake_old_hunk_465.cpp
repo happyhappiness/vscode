@@ -1,11 +1,14 @@
-                 SectionHeaders[pSymbolTable->SectionNumber-1].Characteristics;
-               if (!pSymbolTable->Type  && (SectChar & IMAGE_SCN_MEM_WRITE)) {
-                  // Read only (i.e. constants) must be excluded
-                  fprintf(this->FileOut, "\t%s \t DATA\n", symbol.c_str());
-               } else {
-                  if ( pSymbolTable->Type  ||
-                       !(SectChar & IMAGE_SCN_MEM_READ)) {
-                     fprintf(this->FileOut, "\t%s\n", symbol.c_str());
-                  } else {
-                     // printf(" strange symbol: %s \n",symbol.c_str());
-                  }
+
+
+  /* Use uname if it's present, else uid. */
+
+  p = archive_entry_uname(entry);
+
+  if ((p == NULL) || (*p == '\0')) {
+
+    sprintf(tmp, "%lu ", (unsigned long)archive_entry_uid(entry));
+
+    p = tmp;
+
+  }
+

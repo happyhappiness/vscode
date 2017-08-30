@@ -1,11 +1,14 @@
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_warc");
+		 * If we can't look up the real name, warn and return
 
-	if ((w = calloc(1, sizeof(*w))) == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate warc data");
-		return (ARCHIVE_FATAL);
-	}
+		 * the entry with the wrong name.
 
-	r = __archive_read_register_format(
-		a, w, "warc",
+		 */
+
+		if (ar->strtab == NULL || number >= ar->strtab_size) {
+
+			archive_set_error(&a->archive, EINVAL,
+
+			    "Can't find long filename for GNU/SVR4 archive entry");
+
+			archive_entry_copy_pathname(entry, filename);
+

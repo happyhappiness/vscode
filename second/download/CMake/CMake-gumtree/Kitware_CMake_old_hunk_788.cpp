@@ -1,17 +1,24 @@
-		(*last_entry)->next = entry;
-	*last_entry = entry;
+    if (useOldLinkLibs)
 
-	len = strcspn(line, " \t\r\n");
-	if ((entry->name = malloc(len + 1)) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
+      {
 
-	memcpy(entry->name, line, len);
-	entry->name[len] = '\0';
-	parse_escapes(entry->name, entry);
+      fprintf(fout,
 
-	line += len;
-	for (iter = *global; iter != NULL; iter = iter->next) {
-		r = add_option(a, &entry->options, iter->value,
-		    strlen(iter->value));
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);
+
+      }
+
+    else
+
+      {
+
+      fprintf(fout, "target_link_libraries(%s %s)\n",
+
+              targetName,
+
+              libsToLink.c_str());
+
+      }
+
+    fclose(fout);
+

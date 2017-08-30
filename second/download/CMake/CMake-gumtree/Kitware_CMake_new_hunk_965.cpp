@@ -1,13 +1,28 @@
-  vfprintf(stderr, msg, ap);
-  va_end(ap);
-  fprintf(stderr, "\n");
-  // On Windows, some tools may inject extra threads.
-  // exit() may block on locks held by those threads, so forcibly exit.
-  fflush(stderr);
-  fflush(stdout);
-  ExitProcess(1);
-}
+                            sizeof(rar->reserved2));
 
-static void usage(const char* msg) {
-  Fatal("%s\n\nusage:\n    "
-          "cmcldeps "
+      }
+
+
+
+      if (rar->main_flags & MHD_PASSWORD)
+
+      {
+
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+                          "RAR encryption support unavailable.");
+
+        return (ARCHIVE_FATAL);
+
+      }
+
+
+
+      crc32_val = crc32(0, (const unsigned char *)p + 2, (unsigned)skip - 2);
+
+      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
+
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+          "Header CRC error");
+

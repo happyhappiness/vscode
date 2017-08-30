@@ -1,7 +1,14 @@
-	case 0x6720:/* Blowfish */
-	case 0x6721:/* Twofish */
-	case 0x6801:/* RC4 */
-		/* Suuported encryption algorithm. */
-		break;
-	default:
-		archive_set_error(&a->archive,
+				archive_set_error(&a->archive,
+
+				    ARCHIVE_ERRNO_MISC,
+
+				    "Invalid Rockridge CL");
+
+				return (NULL);
+
+			}
+
+			parent->subdirs++;
+
+			/* Overwrite an offset and a number of this "CL" entry
+

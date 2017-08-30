@@ -1,17 +1,23 @@
-      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
-         last .sss part is optional and means fractions of a second */
-      int year, month, day, hour, minute, second;
-      char *buf = data->state.buffer;
-      if(6 == sscanf(buf+4, "%04d%02d%02d%02d%02d%02d",
-                     &year, &month, &day, &hour, &minute, &second)) {
-        /* we have a time, reformat it */
-        time_t secs=time(NULL);
-        /* using the good old yacc/bison yuck */
-        snprintf(buf, CURL_BUFSIZE(conn->data->set.buffer_size),
-                 "%04d%02d%02d %02d:%02d:%02d GMT",
-                 year, month, day, hour, minute, second);
-        /* now, convert this into a time() value: */
-        data->info.filetime = (long)curl_getdate(buf, &secs);
-      }
+    digest->nc = 1;
 
-#ifdef CURL_FTP_HTTPSTYLE_HEAD
+
+
+  if(!digest->cnonce) {
+
+    unsigned int rnd[4];
+
+    result = Curl_rand(data, &rnd[0], 4);
+
+    if(result)
+
+      return result;
+
+    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+
+             rnd[0], rnd[1], rnd[2], rnd[3]);
+
+
+
+    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
+
+                                &cnonce, &cnonce_sz);

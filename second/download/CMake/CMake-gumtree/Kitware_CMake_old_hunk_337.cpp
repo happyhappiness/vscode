@@ -1,7 +1,20 @@
-static int test10_grandchild(int argc, const char* argv[])
-{
-  /* The grandchild just sleeps for a few seconds and handles signals.  */
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
+    /* As RFC3617 describes the separator slash is not actually part of the
+
+       file name so we skip the always-present first letter of the path
+
+       string. */
+
+    filename = curl_easy_unescape(data, &state->conn->data->state.path[1], 0,
+
+                                  NULL);
+
+    if(!filename)
+
+      return CURLE_OUT_OF_MEMORY;
+
+
+
+    snprintf((char *)state->spacket.data+2,
+
+             state->blksize,
+

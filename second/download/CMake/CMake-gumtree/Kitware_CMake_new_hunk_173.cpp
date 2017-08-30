@@ -1,11 +1,16 @@
-			} else if (src[1] == '.') {
-				if (src[2] == '/' || src[2] == '\0') {
-					/* Conditionally warn about '..' */
-					if (flags
-					    & ARCHIVE_EXTRACT_SECURE_NODOTDOT) {
-						fsobj_error(a_eno, a_estr,
-						    ARCHIVE_ERRNO_MISC,
-						    "Path contains ", "'..'");
-						return (ARCHIVE_FAILED);
-					}
-				}
+			return (ARCHIVE_FATAL);
+
+	}
+
+	archive_strncpy(&(tar->localname), acl, p - acl);
+
+	err = archive_acl_from_text_l(archive_entry_acl(entry),
+
+	    tar->localname.s, acl_type, tar->sconv_acl);
+
+	if (err != ARCHIVE_OK) {
+
+		if (errno == ENOMEM) {
+
+			archive_set_error(&a->archive, ENOMEM,
+

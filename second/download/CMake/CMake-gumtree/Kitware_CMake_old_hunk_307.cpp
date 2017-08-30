@@ -1,23 +1,44 @@
-     If you have problems with this test timing out on your system, or want to
-     run more than 257 iterations, you can change the number of iterations by
-     setting the KWSYS_TEST_PROCESS_1_COUNT environment variable.  */
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 0.\n");
-  fprintf(stderr, "Output on stderr from test returning 0.\n");
-  return 0;
-}
 
-static int test2(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 123.\n");
-  fprintf(stderr, "Output on stderr from test returning 123.\n");
-  return 123;
-}
 
-static int test3(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output before sleep on stderr from timeout test.\n");
-  fflush(stdout);
+  /* prepare service name */
+
+  if(strchr(serviceptr, '/')) {
+
+    service.value = malloc(strlen(serviceptr));
+
+    if(!service.value)
+
+      return CURLE_OUT_OF_MEMORY;
+
+    service.length = strlen(serviceptr);
+
+    memcpy(service.value, serviceptr, service.length);
+
+
+
+    gss_major_status = gss_import_name(&gss_minor_status, &service,
+
+                                       (gss_OID) GSS_C_NULL_OID, &server);
+
+  }
+
+  else {
+
+    service.value = malloc(strlen(serviceptr) +strlen(conn->proxy.name)+2);
+
+    if(!service.value)
+
+      return CURLE_OUT_OF_MEMORY;
+
+    service.length = strlen(serviceptr) +strlen(conn->proxy.name)+1;
+
+    snprintf(service.value, service.length+1, "%s@%s",
+
+             serviceptr, conn->proxy.name);
+
+
+
+    gss_major_status = gss_import_name(&gss_minor_status, &service,
+
+                                       GSS_C_NT_HOSTBASED_SERVICE, &server);
+

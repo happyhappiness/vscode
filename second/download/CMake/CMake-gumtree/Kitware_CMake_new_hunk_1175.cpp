@@ -1,14 +1,16 @@
-        fprintf(progFile,"%i\n",count);
-        fclose(progFile);
-        }
-#endif
-      return 0;
-      }
+  char buf[1024];
 
-    // Command to report progress for a build
-    else if (args[1] == "cmake_progress_report" && args.size() >= 4)
-      {
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-      std::string dirName = args[2];
-      dirName += "/Progress";
-      std::string fName;
+  // add todays year day and month to the time in str because
+
+  // curl_getdate no longer assumes the day is today
+
+  sprintf(buf, "%d%02d%02d %s",
+
+          lctime->tm_year+1900,
+
+          lctime->tm_mon +1,
+
+          lctime->tm_mday,
+
+          str.c_str());
+

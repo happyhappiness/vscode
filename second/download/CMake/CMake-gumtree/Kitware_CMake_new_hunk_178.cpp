@@ -1,11 +1,22 @@
-	if (a->format_free != NULL)
-		(a->format_free)(a);
+{
 
-	cpio = (struct cpio *)calloc(1, sizeof(*cpio));
-	if (cpio == NULL) {
-		archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");
+	struct sparse_block *p;
+
+
+
+	p = (struct sparse_block *)calloc(1, sizeof(*p));
+
+	if (p == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+
 		return (ARCHIVE_FATAL);
+
 	}
-	a->format_data = cpio;
-	a->format_name = "cpio";
-	a->format_options = archive_write_newc_options;
+
+	if (tar->sparse_last != NULL)
+
+		tar->sparse_last->next = p;
+
+	else
+

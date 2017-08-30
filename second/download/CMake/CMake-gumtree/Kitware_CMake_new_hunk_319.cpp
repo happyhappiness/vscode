@@ -1,69 +1,62 @@
-  maxlen += 4; // For the space before and after the option
+ */
 
-  // Print help for each option
-  for (mpit = mp.begin(); mpit != mp.end(); mpit++) {
-    CommandLineArguments::Internal::SetOfStrings::iterator sit;
-    for (sit = mpit->second.begin(); sit != mpit->second.end(); sit++) {
-      str << std::endl;
-      char argument[100];
-      sprintf(argument, "%s", sit->c_str());
-      switch (this->Internals->Callbacks[*sit].ArgumentType) {
-        case CommandLineArguments::NO_ARGUMENT:
-          break;
-        case CommandLineArguments::CONCAT_ARGUMENT:
-          strcat(argument, "opt");
-          break;
-        case CommandLineArguments::SPACE_ARGUMENT:
-          strcat(argument, " opt");
-          break;
-        case CommandLineArguments::EQUAL_ARGUMENT:
-          strcat(argument, "=opt");
-          break;
-        case CommandLineArguments::MULTI_ARGUMENT:
-          strcat(argument, " opt opt ...");
-          break;
-      }
-      char buffer[80];
-      sprintf(buffer, format, argument);
-      str << buffer;
-    }
-    const char* ptr = this->Internals->Callbacks[mpit->first].Help;
-    size_t len = strlen(ptr);
-    int cnt = 0;
-    while (len > 0) {
-      // If argument with help is longer than line length, split it on previous
-      // space (or tab) and continue on the next line
-      CommandLineArguments::Internal::String::size_type cc;
-      for (cc = 0; ptr[cc]; cc++) {
-        if (*ptr == ' ' || *ptr == '\t') {
-          ptr++;
-          len--;
-        }
-      }
-      if (cnt > 0) {
-        for (cc = 0; cc < maxlen; cc++) {
-          str << " ";
-        }
-      }
-      CommandLineArguments::Internal::String::size_type skip = len;
-      if (skip > this->LineLength - maxlen) {
-        skip = this->LineLength - maxlen;
-        for (cc = skip - 1; cc > 0; cc--) {
-          if (ptr[cc] == ' ' || ptr[cc] == '\t') {
-            break;
-          }
-        }
-        if (cc != 0) {
-          skip = cc;
-        }
-      }
-      str.write(ptr, static_cast<std::streamsize>(skip));
-      str << std::endl;
-      ptr += skip;
-      len -= skip;
-      cnt++;
-    }
-  }
-  /*
-  // This can help debugging help string
-  str << endl;
+YY_BUFFER_STATE cmCommandArgument_yy_scan_buffer  (char * base, yy_size_t  size , yyscan_t yyscanner)
+
+{
+
+	YY_BUFFER_STATE b;
+
+
+
+	if ( size < 2 ||
+
+	     base[size-2] != YY_END_OF_BUFFER_CHAR ||
+
+	     base[size-1] != YY_END_OF_BUFFER_CHAR )
+
+		/* They forgot to leave room for the EOB's. */
+
+		return NULL;
+
+
+
+	b = (YY_BUFFER_STATE) cmCommandArgument_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
+
+	if ( ! b )
+
+		YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_scan_buffer()" );
+
+
+
+	b->yy_buf_size = size - 2;	/* "- 2" to take care of EOB's */
+
+	b->yy_buf_pos = b->yy_ch_buf = base;
+
+	b->yy_is_our_buffer = 0;
+
+	b->yy_input_file = NULL;
+
+	b->yy_n_chars = b->yy_buf_size;
+
+	b->yy_is_interactive = 0;
+
+	b->yy_at_bol = 1;
+
+	b->yy_fill_buffer = 0;
+
+	b->yy_buffer_status = YY_BUFFER_NEW;
+
+
+
+	cmCommandArgument_yy_switch_to_buffer(b ,yyscanner );
+
+
+
+	return b;
+
+}
+
+
+
+/** Setup the input buffer state to scan a string. The next call to cmCommandArgument_yylex() will
+

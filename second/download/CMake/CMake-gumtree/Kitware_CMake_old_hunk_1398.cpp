@@ -1,16 +1,34 @@
-      retVal = 1;
-      }
+         (40)    Target Information  (optional) security buffer(*)
+
+         32 (48) start of data block
+
+      */
 
 
-    /* get another document from the same server using the same
-       connection */
-    curl_easy_setopt(curl, CURLOPT_URL, "http://www.cmake.org/page2.html");
-    res = curl_easy_perform(curl);
-    if ( res != 0 )
-      {
-      printf("Error fetching: http://www.cmake.org/page2.html\n");
-      retVal = 1;
-      }
 
-    /* always cleanup */
-    curl_easy_cleanup(curl);
+      size_t size = Curl_base64_decode(header, (char *)buffer);
+
+
+
+      ntlm->state = NTLMSTATE_TYPE2; /* we got a type-2 */
+
+
+
+      if(size >= 48)
+
+        /* the nonce of interest is index [24 .. 31], 8 bytes */
+
+        memcpy(ntlm->nonce, &buffer[24], 8);
+
+
+
+      /* at index decimal 20, there's a 32bit NTLM flag field */
+
+
+
+    }
+
+    else {
+
+      if(ntlm->state >= NTLMSTATE_TYPE1)
+

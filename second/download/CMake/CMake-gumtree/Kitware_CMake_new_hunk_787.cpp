@@ -1,13 +1,14 @@
-			else
-				ret = ARCHIVE_FATAL;
-		}
-		return (ret);
-	}
+    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
 
-	/* Note: The "warn" return is just to inform the options
-	 * supervisor that we didn't handle it.  It will generate
-	 * a suitable error if no one used this option. */
-	return (ARCHIVE_WARN);
-}
+            this->BinaryDirectory.c_str());
 
-static int
+    /* Create the actual executable.  */
+
+    fprintf(fout, "add_executable(%s", targetName.c_str());
+
+    for(std::vector<std::string>::iterator si = sources.begin();
+
+        si != sources.end(); ++si)
+
+      {
+

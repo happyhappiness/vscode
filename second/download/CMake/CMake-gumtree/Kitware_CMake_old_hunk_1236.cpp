@@ -1,9 +1,16 @@
-        if ( ftit->m_Status != cmCTestTestHandler::COMPLETED )
-          {
-          ofs << ftit->m_TestCount << ":" << ftit->m_Name << std::endl;
-          cmCTestLog(m_CTest, HANDLER_OUTPUT, "\t" << std::setw(3) << ftit->m_TestCount << " - " << ftit->m_Name.c_str() << " (" << this->GetTestStatus(ftit->m_Status) << ")" << std::endl);
-          //fprintf(stderr, "\t%3d - %s (%s)\n", ftit->m_TestCount, ftit->m_Name.c_str(),
-          //  this->GetTestStatus(ftit->m_Status));
-          }
-        }
+
+
+        /* lineno is only valid if an input buffer exists. */
+
+        if (! YY_CURRENT_BUFFER )
+
+           yy_fatal_error( "cmDependsJava_yyset_lineno called with no buffer" , yyscanner); 
+
+    
+
+    yylineno = line_number;
+
+}
+
+
 

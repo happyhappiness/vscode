@@ -1,7 +1,50 @@
-  printf("md5sum 2: expected [%s]\n"
-         "               got [%s]\n",
-         testMD5output2, md5out);
-  return (strcmp(md5out, testMD5output2) != 0) ? 1 : 0;
-}
+        *fptr = 0;
 
-int testEncode(int argc, char* argv[])
+
+
+        if(width >= 0) {
+
+          if(width >= (long)sizeof(work))
+
+            width = sizeof(work)-1;
+
+          /* RECURSIVE USAGE */
+
+          len = curl_msnprintf(fptr, left, "%ld", width);
+
+          fptr += len;
+
+          left -= len;
+
+        }
+
+        if(prec >= 0) {
+
+          /* for each digit in the integer part, we can have one less
+
+             precision */
+
+          size_t maxprec = sizeof(work) - 2;
+
+          double val = p->data.dnum;
+
+          while(val >= 10.0) {
+
+            val /= 10;
+
+            maxprec--;
+
+          }
+
+
+
+          if(prec > (long)maxprec)
+
+            prec = (long)maxprec-1;
+
+          /* RECURSIVE USAGE */
+
+          len = curl_msnprintf(fptr, left, ".%ld", prec);
+
+          fptr += len;
+

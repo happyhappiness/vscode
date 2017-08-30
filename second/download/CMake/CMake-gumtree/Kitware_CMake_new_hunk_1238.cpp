@@ -1,8 +1,14 @@
-  std::string extra_update_opts;
-  if ( m_CTest->GetTestModel() == cmCTest::NIGHTLY )
-    {
-    struct tm* t = m_CTest->GetNightlyTime(
-      m_CTest->GetCTestConfiguration("NightlyStartTime"),
-      m_CTest->GetTomorrowTag());
-    char current_time[1024];
-    sprintf(current_time, "%04d-%02d-%02d %02d:%02d:%02d",
+    YY_BUFFER_STATE cmExpr_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
+
+{
+
+  YY_BUFFER_STATE b;
+
+
+
+  b = (YY_BUFFER_STATE) cmExpr_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
+
+  if ( ! b )
+
+    YY_FATAL_ERROR( "out of dynamic memory in cmExpr_yy_create_buffer()" );
+

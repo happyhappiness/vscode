@@ -1,7 +1,14 @@
-		return (r);
-	if ((size_t)r < size) {
-		archive_set_error(&a->archive, 0,
-		    "Too much data: Truncating file at %ju bytes", (uintmax_t)a->filesize);
-		return (ARCHIVE_WARN);
+#endif
+
 	}
-#if ARCHIVE_VERSION_NUMBER < 3999000
+
+
+
+	/* Check if an error happend in decompression process. */
+
+	if (uncompressed_size < 0) {
+
+		archive_set_error(&(self->archive->archive),
+
+		    ARCHIVE_ERRNO_MISC, "lz4 decompression failed");
+

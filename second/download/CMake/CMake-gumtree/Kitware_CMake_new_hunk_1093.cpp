@@ -1,12 +1,34 @@
-  result = 0;
+      "Invalid filename size");
+
+    return (ARCHIVE_FATAL);
+
   }
-# endif
-# ifndef DIRECTORY_DEF_DEBUG
-  {
-  fprintf(stderr, "DIRECTORY_DEF_DEBUG should be defined in CXX\n");
-  result = 0;
+
+  if (rar->filename_allocated < filename_size * 2 + 2) {
+
+    char *newptr;
+
+    size_t newsize = filename_size * 2 + 2;
+
+    newptr = realloc(rar->filename, newsize);
+
+    if (newptr == NULL) {
+
+      archive_set_error(&a->archive, ENOMEM,
+
+                        "Couldn't allocate memory.");
+
+      return (ARCHIVE_FATAL);
+
+    }
+
+    rar->filename = newptr;
+
+    rar->filename_allocated = newsize;
+
   }
-# endif
-# ifdef FILE_DEF_RELEASE
-  {
-  fprintf(stderr, "FILE_DEF_RELEASE should not be defined in CXX\n");
+
+  filename = rar->filename;
+
+  memcpy(filename, p, filename_size);
+

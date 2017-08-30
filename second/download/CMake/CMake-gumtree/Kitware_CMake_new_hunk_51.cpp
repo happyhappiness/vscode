@@ -1,20 +1,20 @@
-{
-  va_list ap;
-  size_t len;
-  char error[CURL_ERROR_SIZE + 2];
-  va_start(ap, fmt);
+  if(instate == FTP_SIZE) {
 
-  vsnprintf(error, CURL_ERROR_SIZE, fmt, ap);
-  len = strlen(error);
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
 
-  if(data->set.errorbuffer && !data->state.errorbuf) {
-    strcpy(data->set.errorbuffer, error);
-    data->state.errorbuf = TRUE; /* wrote error string */
-  }
-  if(data->set.verbose) {
-    error[len] = '\n';
-    error[++len] = '\0';
-    Curl_debug(data, CURLINFO_TEXT, error, len, NULL);
-  }
+    if(-1 != filesize) {
 
-  va_end(ap);
+      char clbuf[128];
+
+      snprintf(clbuf, sizeof(clbuf),
+
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);
+
+      result = Curl_client_write(conn, CLIENTWRITE_BOTH, clbuf, 0);
+
+      if(result)
+
+        return result;
+
+    }
+

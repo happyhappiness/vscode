@@ -1,172 +1,288 @@
-       */
+void cmCommandArgument_yypop_buffer_state (yyscan_t yyscanner)
 
-      if((res == CURLE_OK) && newurl) {
-        /* Location: redirect
- 
-           This is assumed to happen for HTTP(S) only!
-        */
-        char prot[16]; /* URL protocol string storage */
-        char letter;   /* used for a silly sscanf */
+{
 
-        if (data->set.maxredirs && (data->set.followlocation >= data->set.maxredirs)) {
-          failf(data,"Maximum (%d) redirects followed", data->set.maxredirs);
-          res=CURLE_TOO_MANY_REDIRECTS;
-          break;
-        }
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
 
-        /* mark the next request as a followed location: */
-        data->state.this_is_a_follow = TRUE;
+  if (!YY_CURRENT_BUFFER)
 
-        data->set.followlocation++; /* count location-followers */
+    return;
 
-        if(data->set.http_auto_referer) {
-          /* We are asked to automatically set the previous URL as the
-             referer when we get the next URL. We pick the ->url field,
-             which may or may not be 100% correct */
 
-          if(data->change.referer_alloc)
-            /* If we already have an allocated referer, free this first */
-            free(data->change.referer);
 
-          data->change.referer = strdup(data->change.url);
-          data->change.referer_alloc = TRUE; /* yes, free this later */
-        }
+  cmCommandArgument_yy_delete_buffer(YY_CURRENT_BUFFER ,yyscanner);
 
-        if(2 != sscanf(newurl, "%15[^?&/:]://%c", prot, &letter)) {
-          /***
-           *DANG* this is an RFC 2068 violation. The URL is supposed
-           to be absolute and this doesn't seem to be that!
-           ***
-           Instead, we have to TRY to append this new path to the old URL
-           to the right of the host part. Oh crap, this is doomed to cause
-           problems in the future...
-          */
-          char *protsep;
-          char *pathsep;
-          char *newest;
+  YY_CURRENT_BUFFER_LVALUE = NULL;
 
-          /* we must make our own copy of the URL to play with, as it may
-             point to read-only data */
-          char *url_clone=strdup(data->change.url);
+  if (yyg->yy_buffer_stack_top > 0)
 
-          if(!url_clone) {
-            res = CURLE_OUT_OF_MEMORY;
-            break; /* skip out of this loop NOW */
-          }
+    --yyg->yy_buffer_stack_top;
 
-          /* protsep points to the start of the host name */
-          protsep=strstr(url_clone, "//");
-          if(!protsep)
-            protsep=url_clone;
-          else
-            protsep+=2; /* pass the slashes */
 
-          if('/' != newurl[0]) {
-            /* First we need to find out if there's a ?-letter in the URL,
-               and cut it and the right-side of that off */
-            pathsep = strrchr(protsep, '?');
-            if(pathsep)
-              *pathsep=0;
 
-            /* we have a relative path to append to the last slash if
-               there's one available */
-            pathsep = strrchr(protsep, '/');
-            if(pathsep)
-              *pathsep=0;
-          }
-          else {
-            /* We got a new absolute path for this server, cut off from the
-               first slash */
-            pathsep = strchr(protsep, '/');
-            if(pathsep)
-              *pathsep=0;
-          }
+  if (YY_CURRENT_BUFFER) {
 
-          newest=(char *)malloc( strlen(url_clone) +
-                                 1 + /* possible slash */
-                                 strlen(newurl) + 1/* zero byte */);
+    cmCommandArgument_yy_load_buffer_state(yyscanner );
 
-          if(!newest) {
-            res = CURLE_OUT_OF_MEMORY;
-            break; /* go go go out from this loop */
-          }
-          sprintf(newest, "%s%s%s", url_clone, ('/' == newurl[0])?"":"/",
-                  newurl);
-          free(newurl);
-          free(url_clone);
-          newurl = newest;
-        }
-        else
-          /* This is an absolute URL, don't allow the custom port number */
-          data->state.allow_port = FALSE;
+    yyg->yy_did_buffer_switch_on_eof = 1;
 
-        if(data->change.url_alloc)
-          free(data->change.url);
-        else
-          data->change.url_alloc = TRUE; /* the URL is allocated */
-      
-        /* TBD: set the URL with curl_setopt() */
-        data->change.url = newurl;
-        newurl = NULL; /* don't free! */
+  }
 
-        infof(data, "Follows Location: to new URL: '%s'\n", data->change.url);
+}
 
-        /*
-         * We get here when the HTTP code is 300-399. We need to perform
-         * differently based on exactly what return code there was.
-         * Discussed on the curl mailing list and posted about on the 26th
-         * of January 2001.
+
+
+/* Allocates the stack if it does not exist.
+
+ *  Guarantees space for at least one push.
+
+ */
+
+static void cmCommandArgument_yyensure_buffer_stack (yyscan_t yyscanner)
+
+{
+
+  int nuto_alloc;
+
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+
+
+
+  if (!yyg->yy_buffer_stack) {
+
+
+
+    /* First allocation is just for 2 elements, since we don't know if this
+
+     * scanner will even need a stack. We use 2 instead of 1 to avoid an
+
+     * immediate realloc on the next call.
+
          */
-        switch(data->info.httpcode) {
-        case 300: /* Multiple Choices */
-        case 301: /* Moved Permanently */
-        case 306: /* Not used */
-        case 307: /* Temporary Redirect */
-        default:  /* for all unknown ones */
-          /* These are explicitly mention since I've checked RFC2616 and they
-           * seem to be OK to POST to.
-           */
-          break;
-        case 302: /* Found */
-          /* (From 10.3.3)
 
-            Note: RFC 1945 and RFC 2068 specify that the client is not allowed
-            to change the method on the redirected request.  However, most
-            existing user agent implementations treat 302 as if it were a 303
-            response, performing a GET on the Location field-value regardless
-            of the original request method. The status codes 303 and 307 have
-            been added for servers that wish to make unambiguously clear which
-            kind of reaction is expected of the client.
+    nuto_alloc = 1;
 
-            (From 10.3.4)
+    yyg->yy_buffer_stack = (struct yy_buffer_state**)cmCommandArgument_yyalloc
 
-            Note: Many pre-HTTP/1.1 user agents do not understand the 303
-            status. When interoperability with such clients is a concern, the
-            302 status code may be used instead, since most user agents react
-            to a 302 response as described here for 303.             
-          */
-        case 303: /* See Other */
-          /* Disable both types of POSTs, since doing a second POST when
-           * following isn't what anyone would want! */
-          data->set.httpreq = HTTPREQ_GET; /* enforce GET request */
-          infof(data, "Disables POST, goes with GET\n");
-          break;
-        case 304: /* Not Modified */
-          /* 304 means we did a conditional request and it was "Not modified".
-           * We shouldn't get any Location: header in this response!
-           */
-          break;
-        case 305: /* Use Proxy */
-          /* (quote from RFC2616, section 10.3.6):
-           * "The requested resource MUST be accessed through the proxy given
-           * by the Location field. The Location field gives the URI of the
-           * proxy.  The recipient is expected to repeat this single request
-           * via the proxy. 305 responses MUST only be generated by origin
-           * servers."
-           */
-          break;
-        }
-        continue;
-      }
-    }
-    break; /* it only reaches here when this shouldn't loop */
+                (nuto_alloc * sizeof(struct yy_buffer_state*)
+
+                , yyscanner);
+
+    
+
+    memset(yyg->yy_buffer_stack, 0, nuto_alloc * sizeof(struct yy_buffer_state*));
+
+        
+
+    yyg->yy_buffer_stack_max = nuto_alloc;
+
+    yyg->yy_buffer_stack_top = 0;
+
+    return;
+
+  }
+
+
+
+  if (yyg->yy_buffer_stack_top >= (yyg->yy_buffer_stack_max) - 1){
+
+
+
+    /* Increase the buffer to prepare for a possible push. */
+
+    int grow_size = 8 /* arbitrary grow size */;
+
+
+
+    nuto_alloc = yyg->yy_buffer_stack_max + grow_size;
+
+    yyg->yy_buffer_stack = (struct yy_buffer_state**)cmCommandArgument_yyrealloc
+
+                (yyg->yy_buffer_stack,
+
+                nuto_alloc * sizeof(struct yy_buffer_state*)
+
+                , yyscanner);
+
+
+
+    /* zero only the new slots.*/
+
+    memset(yyg->yy_buffer_stack + yyg->yy_buffer_stack_max, 0, grow_size * sizeof(struct yy_buffer_state*));
+
+    yyg->yy_buffer_stack_max = nuto_alloc;
+
+  }
+
+}
+
+
+
+/** Setup the input buffer state to scan directly from a user-specified
+
+ * character buffer.  @param base the character buffer @param size the size
+
+ * in bytes of the character buffer @param yyscanner The scanner object.
+
+ * @return the newly allocated buffer state object.
+
+ */
+
+YY_BUFFER_STATE cmCommandArgument_yy_scan_buffer  (char * base, yy_size_t  size , yyscan_t yyscanner)
+
+{
+
+  YY_BUFFER_STATE b;
+
+    
+
+  if ( size < 2 ||
+
+       base[size-2] != YY_END_OF_BUFFER_CHAR ||
+
+       base[size-1] != YY_END_OF_BUFFER_CHAR )
+
+    /* They forgot to leave room for the EOB's. */
+
+    return 0;
+
+
+
+  b = (YY_BUFFER_STATE) cmCommandArgument_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
+
+  if ( ! b )
+
+    YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_scan_buffer()" );
+
+
+
+  b->yy_buf_size = size - 2;  /* "- 2" to take care of EOB's */
+
+  b->yy_buf_pos = b->yy_ch_buf = base;
+
+  b->yy_is_our_buffer = 0;
+
+  b->yy_input_file = 0;
+
+  b->yy_n_chars = b->yy_buf_size;
+
+  b->yy_is_interactive = 0;
+
+  b->yy_at_bol = 1;
+
+  b->yy_fill_buffer = 0;
+
+  b->yy_buffer_status = YY_BUFFER_NEW;
+
+
+
+  cmCommandArgument_yy_switch_to_buffer(b ,yyscanner );
+
+
+
+  return b;
+
+}
+
+
+
+/** Setup the input buffer state to scan a string. The next call to
+
+ * cmCommandArgument_yylex() will scan from a @e copy of @a str.  @param str
+
+ * a NUL-terminated string to scan @param yyscanner The scanner object.
+
+ * @return the newly allocated buffer state object.  @note If you want to
+
+ * scan bytes that may contain NUL values, then use
+
+ * cmCommandArgument_yy_scan_bytes() instead.
+
+ */
+
+YY_BUFFER_STATE cmCommandArgument_yy_scan_string (yyconst char * yy_str , yyscan_t yyscanner)
+
+{
+
+    
+
+  return cmCommandArgument_yy_scan_bytes(yy_str,strlen(yy_str) ,yyscanner);
+
+}
+
+
+
+/** Setup the input buffer state to scan the given bytes. The next call to
+
+ * cmCommandArgument_yylex() will scan from a @e copy of @a bytes.  @param
+
+ * bytes the byte buffer to scan @param len the number of bytes in the buffer
+
+ * pointed to by @a bytes.  @param yyscanner The scanner object.  @return the
+
+ * newly allocated buffer state object.
+
+ */
+
+YY_BUFFER_STATE cmCommandArgument_yy_scan_bytes  (yyconst char * bytes, int  len , yyscan_t yyscanner)
+
+{
+
+  YY_BUFFER_STATE b;
+
+  char *buf;
+
+  yy_size_t n;
+
+  int i;
+
+    
+
+  /* Get memory for full buffer, including space for trailing EOB's. */
+
+  n = len + 2;
+
+  buf = (char *) cmCommandArgument_yyalloc(n ,yyscanner );
+
+  if ( ! buf )
+
+    YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_scan_bytes()" );
+
+
+
+  for ( i = 0; i < len; ++i )
+
+    buf[i] = bytes[i];
+
+
+
+  buf[len] = buf[len+1] = YY_END_OF_BUFFER_CHAR;
+
+
+
+  b = cmCommandArgument_yy_scan_buffer(buf,n ,yyscanner);
+
+  if ( ! b )
+
+    YY_FATAL_ERROR( "bad buffer in cmCommandArgument_yy_scan_bytes()" );
+
+
+
+  /* It's okay to grow etc. this buffer, and we should throw it
+
+   * away when we're done.
+
+   */
+
+  b->yy_is_our_buffer = 1;
+
+
+
+  return b;
+
+}
+
+
+
+#ifndef YY_EXIT_FAILURE
+

@@ -1,7 +1,18 @@
+/* returns an allocated key to find a bundle for this connection */
 
-		/* If a length of full-pathname is longer than 240 bytes,
-		 * it violates Joliet extensions regulation. */
-		if (parent_len + np->mb_len > 240) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "The regulation of Joliet extensions;"
-			    " A length of a full-pathname of `%s' is "
+static char *hashkey(struct connectdata *conn)
+
+{
+
+  return aprintf("%s:%d",
+
+                 conn->bits.proxy?conn->proxy.name:conn->host.name,
+
+                 conn->localport);
+
+}
+
+
+
+/* Look up the bundle with all the connections to the same host this
+

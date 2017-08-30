@@ -1,7 +1,13 @@
+              statename[data->mstate], data->numsocks);
 
-		if (bytes_read == -1) {
-			archive_set_error(f->archive, errno,
-			    "Error reading from program: %s", data->program_name);
-			ret = ARCHIVE_FATAL;
-			goto cleanup;
-		}
+      for(i=0; i < data->numsocks; i++) {
+
+        curl_socket_t s = data->sockets[i];
+
+        struct Curl_sh_entry *entry = sh_getentry(&multi->sockhash, s);
+
+
+
+        fprintf(stderr, "%d ", (int)s);
+
+        if(!entry) {

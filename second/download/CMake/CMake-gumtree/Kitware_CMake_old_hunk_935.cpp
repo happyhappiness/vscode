@@ -1,7 +1,14 @@
-		else {
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Unkonwn compression name: `%s'",
-			    value);
-			return (ARCHIVE_FAILED);
-		}
+	return (ARCHIVE_OK);
+
+#else
+
+	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+
+	    "Using external unxz program for xz decompression");
+
+	return (ARCHIVE_WARN);
+
+#endif
+
+}
+

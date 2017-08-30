@@ -1,13 +1,20 @@
-      << covLogFilename << std::endl);
-    return false;
-    }
-  return true;
-}
+		lha->entry_unconsumed = 0;
 
-//----------------------------------------------------------------------
-void cmCTestCoverageHandler::EndCoverageLogFile(cmGeneratedFileStream& ostr,
-  int logFileCount)
-{
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-  cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Close file: "
+	}
+
+	if (lha->end_of_entry) {
+
+		*offset = lha->entry_offset;
+
+		*size = 0;
+
+		*buff = NULL;
+
+		return (lha_end_of_entry(a));
+
+	}
+
+
+
+	if (lha->entry_is_compressed)
+

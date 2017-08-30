@@ -1,7 +1,30 @@
-    cmSystemTools::ExpandListArgument(includes, includeDirs);
+    if(((httpreq == HTTPREQ_GET) || (httpreq == HTTPREQ_HEAD)) &&
 
-    std::string includeFlags = lg->GetIncludeFlags(includeDirs, 0,
-                                                   language, false);
+       !Curl_checkheaders(conn, "Range:")) {
 
-    std::string definitions = mf->GetSafeDefinition("PACKAGE_DEFINITIONS");
-    printf("%s %s\n", includeFlags.c_str(), definitions.c_str());
+      /* if a line like this was already allocated, free the previous one */
+
+      free(conn->allocptr.rangeline);
+
+      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
+
+                                         data->state.range);
+
+    }
+
+    else if((httpreq != HTTPREQ_GET) &&
+
+            !Curl_checkheaders(conn, "Content-Range:")) {
+
+
+
+      /* if a line like this was already allocated, free the previous one */
+
+      free(conn->allocptr.rangeline);
+
+
+
+      if(data->set.set_resume_from < 0) {
+
+        /* Upload resume was asked for, but we don't know the size of the
+

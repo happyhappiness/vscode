@@ -1,13 +1,18 @@
-	return (archive_read_support_filter_program_signature(a, cmd, NULL, 0));
-}
+    // Command to report progress for a build
 
-/*
- * The bidder object stores the command and the signature to watch for.
- * The 'inhibit' entry here is used to ensure that unchecked filters never
- * bid twice in the same pipeline.
- */
-struct program_bidder {
-	char *description;
-	char *cmd;
-	void *signature;
-	size_t signature_len;
+    else if (args[1] == "cmake_progress_report" && args.size() >= 3)
+
+      {
+
+      // This has been superseded by cmake_echo_color --progress-*
+
+      // options.  We leave it here to avoid errors if somehow this
+
+      // is invoked by an existing makefile without regenerating.
+
+      return 0;
+
+      }
+
+
+

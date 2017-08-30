@@ -1,36 +1,62 @@
-             "%s%c%s%c", filename, '\0',  mode, '\0');
-    sbytes = 4 + strlen(filename) + strlen(mode);
+ */
 
-    /* optional addition of TFTP options */
-    if(!data->set.tftp_no_options) {
-      /* add tsize option */
-      if(data->set.upload && (data->state.infilesize != -1))
-        snprintf(buf, sizeof(buf), "%" CURL_FORMAT_CURL_OFF_T,
-                 data->state.infilesize);
-      else
-        strcpy(buf, "0"); /* the destination is large enough */
+YY_BUFFER_STATE cmFortran_yy_scan_buffer  (char * base, yy_size_t  size , yyscan_t yyscanner)
 
-      sbytes += tftp_option_add(state, sbytes,
-                                (char *)state->spacket.data+sbytes,
-                                TFTP_OPTION_TSIZE);
-      sbytes += tftp_option_add(state, sbytes,
-                                (char *)state->spacket.data+sbytes, buf);
-      /* add blksize option */
-      snprintf(buf, sizeof(buf), "%d", state->requested_blksize);
-      sbytes += tftp_option_add(state, sbytes,
-                                (char *)state->spacket.data+sbytes,
-                                TFTP_OPTION_BLKSIZE);
-      sbytes += tftp_option_add(state, sbytes,
-                                (char *)state->spacket.data+sbytes, buf);
+{
 
-      /* add timeout option */
-      snprintf(buf, sizeof(buf), "%d", state->retry_time);
-      sbytes += tftp_option_add(state, sbytes,
-                                (char *)state->spacket.data+sbytes,
-                                TFTP_OPTION_INTERVAL);
-      sbytes += tftp_option_add(state, sbytes,
-                                (char *)state->spacket.data+sbytes, buf);
-    }
+	YY_BUFFER_STATE b;
 
-    /* the typecase for the 3rd argument is mostly for systems that do
-       not have a size_t argument, like older unixes that want an 'int' */
+
+
+	if ( size < 2 ||
+
+	     base[size-2] != YY_END_OF_BUFFER_CHAR ||
+
+	     base[size-1] != YY_END_OF_BUFFER_CHAR )
+
+		/* They forgot to leave room for the EOB's. */
+
+		return NULL;
+
+
+
+	b = (YY_BUFFER_STATE) cmFortran_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
+
+	if ( ! b )
+
+		YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yy_scan_buffer()" );
+
+
+
+	b->yy_buf_size = size - 2;	/* "- 2" to take care of EOB's */
+
+	b->yy_buf_pos = b->yy_ch_buf = base;
+
+	b->yy_is_our_buffer = 0;
+
+	b->yy_input_file = NULL;
+
+	b->yy_n_chars = b->yy_buf_size;
+
+	b->yy_is_interactive = 0;
+
+	b->yy_at_bol = 1;
+
+	b->yy_fill_buffer = 0;
+
+	b->yy_buffer_status = YY_BUFFER_NEW;
+
+
+
+	cmFortran_yy_switch_to_buffer(b ,yyscanner );
+
+
+
+	return b;
+
+}
+
+
+
+/** Setup the input buffer state to scan a string. The next call to cmFortran_yylex() will
+

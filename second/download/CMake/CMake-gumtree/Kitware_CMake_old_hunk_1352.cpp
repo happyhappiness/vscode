@@ -1,7 +1,11 @@
-            }
-          else if ( res == cmsysProcess_State_Error )
-            {
-            fprintf(stderr,"***Bad command\n");
-            cres.m_Status = cmCTest::BAD_COMMAND;
-            }
-          else
+  result = 0;
+
+  }
+
+#endif
+
+#ifndef OLD_DEF
+
+  {
+
+  fprintf(stderr, "OLD_DEF not defined in CXX\n");

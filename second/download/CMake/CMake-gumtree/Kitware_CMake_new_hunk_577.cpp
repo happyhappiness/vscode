@@ -1,21 +1,24 @@
+			}
 
-  /* not set means empty */
-  if(!userp)
-    userp = "";
+		}
 
-  if(!passwdp)
-    passwdp = "";
+		zip_entry->uncompressed_size = zip_entry->compressed_size = 0;
 
-#if defined(USE_WINDOWS_SSPI)
-  have_chlg = digest->input_token ? TRUE : FALSE;
-#else
-  have_chlg = digest->nonce ? TRUE : FALSE;
-#endif
 
-  if(!have_chlg) {
-    authp->done = FALSE;
-    return CURLE_OK;
-  }
 
-  /* So IE browsers < v7 cut off the URI part at the query part when they
-     evaluate the MD5 and some (IIS?) servers work with them so we may need to
+		if (__archive_read_consume(a, linkname_length) < 0) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "Read error skipping symlink target name");
+
+			return ARCHIVE_FATAL;
+
+		}
+
+	} else if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
+
+	    || zip_entry->uncompressed_size > 0) {
+
+		/* Set the size only if it's meaningful. */
+

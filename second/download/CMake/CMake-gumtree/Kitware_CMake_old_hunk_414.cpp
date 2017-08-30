@@ -1,7 +1,14 @@
+    if(0 == pollrc) {
 
-		/* If a length of full-pathname is longer than 240 bytes,
-		 * it violates Joliet extensions regulation. */
-		if (parent_len + np->mb_len > 240) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "The regulation of Joliet extensions;"
-			    " A length of a full-pathname of `%s' is "
+      /* timeout! */
+
+      ev->ms = 0;
+
+      /* fprintf(stderr, "call curl_multi_socket_action( TIMEOUT )\n"); */
+
+      mcode = curl_multi_socket_action(multi, CURL_SOCKET_TIMEOUT, 0,
+
+                                       &ev->running_handles);
+
+    }
+

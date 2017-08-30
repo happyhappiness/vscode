@@ -1,7 +1,12 @@
-		zip->stream.opaque = Z_NULL;
-		zip->stream.next_out = zip->buf;
-		zip->stream.avail_out = (uInt)zip->len_buf;
-		if (deflateInit2(&zip->stream, zip->deflate_compression_level,
-		    Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't init deflate compressor");
+{
+
+	struct unknown_tag *tag;
+
+
+
+	tag = malloc(sizeof(*tag));
+
+	if (tag == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+

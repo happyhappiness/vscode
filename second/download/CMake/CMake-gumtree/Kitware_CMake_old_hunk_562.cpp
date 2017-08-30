@@ -1,7 +1,18 @@
-      }
-      fprintf(out, "%s\n", format_ptr);
-      free(format_ptr);
-      co=co->next;
-    }
-  }
+			rd_r = ARCHIVE_WARN;
+
+		}
+
+	} else {
+
+		archive_string_empty(&iso9660->pathname);
+
+		archive_entry_set_pathname(entry,
+
+		    build_pathname(&iso9660->pathname, file));
+
+	}
+
+
+
+	iso9660->entry_bytes_remaining = file->size;
 

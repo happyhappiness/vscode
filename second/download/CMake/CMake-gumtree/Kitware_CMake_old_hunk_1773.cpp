@@ -1,0 +1,13 @@
+    "    }\n"
+
+    "  free(arg);\n"
+
+    "  \n"
+
+    "  // Nothing was run, display the test names\n"
+
+    "  printf(\"Available tests:\\n\");\n"
+
+    "  for (i =0; i < NumTests; ++i)\n"
+
+    "    {\n"

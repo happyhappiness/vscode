@@ -1,9 +1,16 @@
-    fprintf(stderr, "Output on stderr before test %d.\n", n);
-    fflush(stdout);
-    fflush(stderr);
-    r = runChild(cmd, states[n-1], exceptions[n-1], values[n-1], 0,
-                 outputs[n-1], delays[n-1], timeouts[n-1],
-                 polls[n-1], repeat[n-1], 0);
-    fprintf(stdout, "Output on stdout after test %d.\n", n);
-    fprintf(stderr, "Output on stderr after test %d.\n", n);
-    fflush(stdout);
+	 * other libarchive code that assumes a successful forward
+
+	 * seek means it can also seek backwards.
+
+	 */
+
+	if (self->archive->client.seeker == NULL)
+
+		return (ARCHIVE_FAILED);
+
+	return (self->archive->client.seeker)(&self->archive->archive,
+
+	    self->data, offset, whence);
+
+}
+

@@ -1,26 +1,18 @@
-    }
-  if ( !res )
-    {
-    m_CacheManager->AddCacheEntry("CMAKE_HOME_DIRECTORY",
-      this->GetHomeDirectory(),
-      "Start directory with the top level CMakeLists.txt file for this "
-      "project",
-      cmCacheManager::INTERNAL);
-    }
+  snprintf(resolved_path, maxlen, "%s", path);
 
-  // set the default BACKWARDS compatibility to the current version
-  if(!m_CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
-    {
-    char ver[256];
-    sprintf(ver,"%i.%i",cmMakefile::GetMajorVersion(),
-            cmMakefile::GetMinorVersion());
-    this->m_CacheManager->AddCacheEntry
-      ("CMAKE_BACKWARDS_COMPATIBILITY",ver,
-       "For backwards compatibility, what version of CMake commands and "
-       "syntax should this version of CMake allow.",
-       cmCacheManager::STRING);
-    }
+  BPath normalized(resolved_path, NULL, true);
 
-  // no generator specified on the command line
-  if(!m_GlobalGenerator)
+  const char *resolved = normalized.Path();
+
+  if (resolved != NULL)   // NULL == No such file.
+
     {
+
+    if (snprintf(resolved_path, maxlen, "%s", resolved) < maxlen)
+
+      {
+
+      return resolved_path;
+
+      }
+

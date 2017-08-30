@@ -1,6 +1,24 @@
-     */
-    if((data->set.httpreq == HTTPREQ_GET) &&
-       !checkheaders(data, "Range:")) {
-      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n", conn->range);
+
+
+static int SystemToolsDebugReport(int, char* message, int*)
+
+{
+
+  fprintf(stderr, message);
+
+  exit(1);
+
+}
+
+void SystemTools::EnableMSVCDebugHook()
+
+{
+
+  if(getenv("DART_TEST_FROM_DART"))
+
+    {
+
+    _CrtSetReportHook(SystemToolsDebugReport);
+
     }
-    else if((data->set.httpreq != HTTPREQ_GET) &&
+

@@ -1,32 +1,20 @@
-    pwd = conn->passwd;
-  }
+    time_t filetime;
 
-  out = aprintf("%s:%s", user, pwd);
-  if(!out)
-    return CURLE_OUT_OF_MEMORY;
+    struct tm buffer;
 
-  result = Curl_base64_encode(data, out, strlen(out), &authorization, &size);
-  if(result)
-    goto fail;
+    const struct tm *tm = &buffer;
 
-  if(!authorization) {
-    result = CURLE_REMOTE_ACCESS_DENIED;
-    goto fail;
-  }
+    char header[80];
 
-  free(*userp);
-  *userp = aprintf("%sAuthorization: Basic %s\r\n",
-                   proxy ? "Proxy-" : "",
-                   authorization);
-  free(authorization);
-  if(!*userp) {
-    result = CURLE_OUT_OF_MEMORY;
-    goto fail;
-  }
+    snprintf(header, sizeof(header),
 
-  fail:
-  free(out);
-  return result;
-}
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
 
-/* pickoneauth() selects the most favourable authentication method from the
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, header, 0);
+
+    if(result)
+
+      return result;
+
+
+

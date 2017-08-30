@@ -1,43 +1,53 @@
-{
-  ssize_t bytes_written;
-  char s[256];
-  ssize_t write_len;
-  char *sptr=s;
-  CURLcode res = CURLE_OK;
+    this->Makefile->AddDefinition(ver.c_str(), this->VersionFound.c_str());
 
-  va_list ap;
-  va_start(ap, fmt);
-  vsnprintf(s, 250, fmt, ap);
-  va_end(ap);
-  
-  strcat(s, "\r\n"); /* append a trailing CRLF */
-
-  bytes_written=0;
-  write_len = (int)strlen(s);
-
-  do {
-    res = Curl_write(conn, conn->firstsocket, sptr, write_len,
-                     &bytes_written);
-
-    if(CURLE_OK != res)
-      break;
-
-    if(conn->data->set.verbose)
-      Curl_debug(conn->data, CURLINFO_HEADER_OUT, sptr, bytes_written);
-
-    if(bytes_written != write_len) {
-      write_len -= bytes_written;
-      sptr += bytes_written;
     }
-    else
-      break;
-  } while(1);
 
-  return res;
+
+
+  // Store the portions that could be parsed.
+
+  char buf[64];
+
+  switch(this->VersionFoundCount)
+
+    {
+
+    case 3:
+
+      {
+
+      sprintf(buf, "%u", this->VersionFoundPatch);
+
+      this->Makefile->AddDefinition((ver+"_PATCH").c_str(), buf);
+
+      } // no break
+
+    case 2:
+
+      {
+
+      sprintf(buf, "%u", this->VersionFoundMinor);
+
+      this->Makefile->AddDefinition((ver+"_MINOR").c_str(), buf);
+
+      } // no break
+
+    case 1:
+
+      {
+
+      sprintf(buf, "%u", this->VersionFoundMajor);
+
+      this->Makefile->AddDefinition((ver+"_MAJOR").c_str(), buf);
+
+      } // no break
+
+    default: break;
+
+    }
+
 }
 
-/***********************************************************************
- *
- * Curl_ftp_disconnect()
- *
- * Disconnect from an FTP server. Cleanup protocol-specific per-connection
+
+
+//----------------------------------------------------------------------------

@@ -1,9 +1,26 @@
-  left -= len;
-  ptr += len;
-#endif
-#ifdef USE_LIBIDN
-  if(stringprep_check_version(LIBIDN_REQUIRED_VERSION)) {
-    len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL));
-    left -= len;
-    ptr += len;
-  }
+		return (ARCHIVE_FATAL);
+
+	}
+
+
+
+	ustar = (struct ustar *)malloc(sizeof(*ustar));
+
+	if (ustar == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM,
+
+		    "Can't allocate ustar data");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+	memset(ustar, 0, sizeof(*ustar));
+
+	a->format_data = ustar;
+
+	a->format_name = "ustar";
+
+	a->format_options = archive_write_ustar_options;
+

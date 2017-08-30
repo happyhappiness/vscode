@@ -1,7 +1,16 @@
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
-  
-  if(result)
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
+	cleanup_pathname_win(a);
+
+#endif
+
+	/* Skip leading '/'. */
+
+	if (*src == '/')
+
+		separator = *src++;
+
+
+
+	/* Scan the pathname one element at a time. */
+
+	for (;;) {
+

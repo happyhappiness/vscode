@@ -1,15 +1,58 @@
-  struct rar *rar = (struct rar *)(a->format->data);
+	for (;;) {
 
-  if (rar->bytes_remaining > 0) {
-    br->next_in = __archive_read_ahead(a, 1, &(br->avail_in));
-    if (br->next_in == NULL) {
-      archive_set_error(&a->archive,
-          ARCHIVE_ERRNO_FILE_FORMAT,
-          "Truncated RAR file data");
-      return (ARCHIVE_FATAL);
-    }
-    if (br->avail_in > rar->bytes_remaining)
-      br->avail_in = rar->bytes_remaining;
-    if (br->cache_avail == 0)
-      (void)rar_br_fillup(a, br);
-  }
+		int i, r;
+
+
+
+		r = ioctl(fd, FS_IOC_FIEMAP, fm); 
+
+		if (r < 0) {
+
+			/* When errno is ENOTTY, it is better we should
+
+			 * return ARCHIVE_OK because an earlier version
+
+			 *(<2.6.28) cannot perfom FS_IOC_FIEMAP.
+
+			 * We should also check if errno is EOPNOTSUPP,
+
+			 * it means "Operation not supported". */
+
+			if (errno != ENOTTY && errno != EOPNOTSUPP) {
+
+				archive_set_error(&a->archive, errno,
+
+				    "FIEMAP failed");
+
+				exit_sts = ARCHIVE_FAILED;
+
+			}
+
+			goto exit_setup_sparse;
+
+		}
+
+		if (fm->fm_mapped_extents == 0)
+
+			break;
+
+		fe = fm->fm_extents;
+
+		for (i = 0; i < fm->fm_mapped_extents; i++, fe++) {
+
+			if (!(fe->fe_flags & FIEMAP_EXTENT_UNWRITTEN)) {
+
+				/* The fe_length of the last block does not
+
+				 * adjust itself to its size files. */
+
+				int64_t length = fe->fe_length;
+
+				if (fe->fe_logical + length > size)
+
+					length -= fe->fe_logical + length - size;
+
+				if (fe->fe_logical == 0 && length == size) {
+
+					/* This is not sparse. */
+

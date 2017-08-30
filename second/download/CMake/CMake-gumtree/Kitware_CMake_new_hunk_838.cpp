@@ -1,7 +1,14 @@
-		a->tree = tree_open(pathname, a->symlink_mode, a->restore_time);
-	if (a->tree == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate directory traversal data");
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		return (ARCHIVE_FATAL);
-	}
+        li != testLangs.end(); ++li)
+
+      {
+
+      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
+
+      const char* flags = this->Makefile->GetDefinition(langFlags);
+
+      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+
+              lg->EscapeForCMake(flags?flags:"").c_str());
+
+      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
+

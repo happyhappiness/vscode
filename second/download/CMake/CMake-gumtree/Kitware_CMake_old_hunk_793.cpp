@@ -1,23 +1,66 @@
-        p = h;
-      }
 
-      crc32_val = crc32(0, (const unsigned char *)p + 2, skip - 2);
-      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Header CRC error");
-        return (ARCHIVE_FATAL);
-      }
-      __archive_read_consume(a, skip);
-      break;
 
-    case NEWSUB_HEAD:
-      if ((ret = read_header(a, entry, head_type)) < ARCHIVE_WARN)
-        return ret;
-      break;
+/*
 
-    case ENDARC_HEAD:
-      return (ARCHIVE_EOF);
+ * Device entries have one of the following forms:
 
-    default:
-      archive_set_error(&a->archive,  ARCHIVE_ERRNO_FILE_FORMAT,
-                        "Bad RAR file");
+ * raw dev_t
+
+ * format,major,minor[,subdevice]
+
+ *
+
+ * Just use major and minor, no translation etc is done
+
+ * between formats.
+
+ */
+
+static int
+
+parse_device(struct archive *a, struct archive_entry *entry, char *val)
+
+{
+
+	char *comma1, *comma2;
+
+
+
+	comma1 = strchr(val, ',');
+
+	if (comma1 == NULL) {
+
+		archive_entry_set_dev(entry, (dev_t)mtree_atol10(&val));
+
+		return (ARCHIVE_OK);
+
+	}
+
+	++comma1;
+
+	comma2 = strchr(comma1, ',');
+
+	if (comma2 == NULL) {
+
+		archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+
+		    "Malformed device attribute");
+
+		return (ARCHIVE_WARN);
+
+	}
+
+	++comma2;
+
+	archive_entry_set_rdevmajor(entry, (dev_t)mtree_atol(&comma1));
+
+	archive_entry_set_rdevminor(entry, (dev_t)mtree_atol(&comma2));
+
+	return (ARCHIVE_OK);
+
+}
+
+
+
+/*
+

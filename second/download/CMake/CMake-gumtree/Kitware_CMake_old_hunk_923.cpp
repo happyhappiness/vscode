@@ -1,8 +1,14 @@
-    {
-    char name[128];
-    sprintf(name, "CMAKE_MATCH_%d", i);
-    mf->AddDefinition(name, "");
-    mf->MarkVariableAsUsed(name);
-    }
-}
+		if (bytes_read < 0) {
+
+			if (errno == EINTR)
+
+				continue;
+
+			archive_set_error(a, errno, "Error reading fd %d", mine->fd);
+
+		}
+
+		return (bytes_read);
+
+	}
 

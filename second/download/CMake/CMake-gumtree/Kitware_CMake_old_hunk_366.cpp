@@ -1,15 +1,18 @@
- *
- * If you ever want truly portable and good *printf() clones, the project that
- * took on from here is named 'Trio' and you find more details on the trio web
- * page at http://daniel.haxx.se/trio/
- */
+  fprintf(stderr, "Output on stderr before grandchild test.\n");
 
-#include "curl_setup.h"
+  fflush(stdout);
 
-#if defined(DJGPP) && (DJGPP_MINOR < 4)
-#undef _MPRINTF_REPLACE /* don't use x_was_used() here */
-#endif
+  fflush(stderr);
 
-#include <curl/mprintf.h>
+  r = runChild(cmd, kwsysProcess_State_Exited,
 
-#include "curl_memory.h"
+               kwsysProcess_Exception_None,
+
+               0, 1, 1, 0, 30, 0, 1, 0, 0, 0);
+
+  /* This sleep will avoid a race condition between this function exiting
+
+     normally and our Ctrl+C handler exiting abnormally after the process
+
+     exits.  */
+

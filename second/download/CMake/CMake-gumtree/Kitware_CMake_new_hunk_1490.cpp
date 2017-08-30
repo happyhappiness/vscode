@@ -1,22 +1,40 @@
-         */
-        std::string output;
-        int retVal;
+  // add info to the visited set
 
-        if (!cmSystemTools::RunCommand(testCommand.c_str(), output, 
-                                       retVal, false) || retVal != 0)
+  visited->insert(info);
+
+  // now recurse with info's dependencies
+
+  for(cmDependInformation::DependencySetType::const_iterator d = 
+
+        info->DependencySet.begin();
+
+      d != info->DependencySet.end(); ++d)
+
+    {
+
+    if (visited->find(*d) == visited->end())
+
+      {
+
+      if(info->FullPath != "")
+
+        {
+
+        std::string tmp = (*d)->FullPath;
+
+        std::string::size_type pos = tmp.rfind('.');
+
+        if(pos != std::string::npos && (tmp.substr(pos) != ".h"))
+
           {
-          fprintf(stderr,"***Failed\n");
-          if (output != "")
-            {
-            if (dartStuff.find(output.c_str()))
-              {
-              cmSystemTools::ReplaceString(output,
-                                           dartStuff.match(1).c_str(),"");
-              }
-            if (output != "")
-              {
-              std::cerr << output.c_str() << "\n";
-              }
-            }
-          failed++;
+
+          tmp = tmp.substr(0, pos);
+
+          fprintf(fout,"%s\n",(*d)->FullPath.c_str());
+
           }
+
+        }
+
+      this->ListDependencies(*d,fout,visited);
+

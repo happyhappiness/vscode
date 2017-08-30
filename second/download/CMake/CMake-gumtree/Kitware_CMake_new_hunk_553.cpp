@@ -1,15 +1,22 @@
-    if(((httpreq == HTTPREQ_GET) || (httpreq == HTTPREQ_HEAD)) &&
-       !Curl_checkheaders(conn, "Range:")) {
-      /* if a line like this was already allocated, free the previous one */
-      free(conn->allocptr.rangeline);
-      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
-                                         data->state.range);
-    }
-    else if((httpreq != HTTPREQ_GET) &&
-            !Curl_checkheaders(conn, "Content-Range:")) {
+	 * other libarchive code that assumes a successful forward
 
-      /* if a line like this was already allocated, free the previous one */
-      free(conn->allocptr.rangeline);
+	 * seek means it can also seek backwards.
 
-      if(data->set.set_resume_from < 0) {
-        /* Upload resume was asked for, but we don't know the size of the
+	 */
+
+	if (self->archive->client.seeker == NULL) {
+
+		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+
+		    "Current client reader does not support seeking a device");
+
+		return (ARCHIVE_FAILED);
+
+	}
+
+	return (self->archive->client.seeker)(&self->archive->archive,
+
+	    self->data, offset, whence);
+
+}
+

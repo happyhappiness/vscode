@@ -1,7 +1,40 @@
-  case CURLWC_DOWNLOADING: {
-    /* filelist has at least one file, lets get first one */
-    struct ftp_conn *ftpc = &conn->proto.ftpc;
-    struct curl_fileinfo *finfo = wildcard->filelist.head->ptr;
+     */
 
-    char *tmp_path = aprintf("%s%s", wildcard->path, finfo->filename);
-    if(!tmp_path)
+    data->set.buffer_size = va_arg(param, long);
+
+
+
+    if(data->set.buffer_size > MAX_BUFSIZE)
+
+      data->set.buffer_size = MAX_BUFSIZE; /* huge internal default */
+
+    else if(data->set.buffer_size < 1)
+
+      data->set.buffer_size = BUFSIZE;
+
+
+
+    /* Resize only if larger than default buffer size. */
+
+    if(data->set.buffer_size > BUFSIZE) {
+
+      data->state.buffer = realloc(data->state.buffer,
+
+                                   data->set.buffer_size + 1);
+
+      if(!data->state.buffer) {
+
+        DEBUGF(fprintf(stderr, "Error: realloc of buffer failed\n"));
+
+        result = CURLE_OUT_OF_MEMORY;
+
+      }
+
+    }
+
+
+
+    break;
+
+
+

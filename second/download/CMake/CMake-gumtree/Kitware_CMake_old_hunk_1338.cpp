@@ -1,10 +1,37 @@
-      {
-      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE CXX)\n");      
-      }
-    else
-      {
-      cmSystemTools::Error("Unknown file format for file: ", source.c_str(), 
-                           "; TRY_COMPILE only works for C and CXX files");
-      return -1;
-      }
-    const char* cflags = mf->GetDefinition("CMAKE_C_FLAGS"); 
+    return -3;
+
+    }
+
+
+
+  // set the default BACKWARDS compatibility to the current version
+
+  if(!this->CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
+
+    {
+
+    char ver[256];
+
+    sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
+
+            cmVersion::GetMinorVersion());
+
+    this->CacheManager->AddCacheEntry
+
+      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
+
+       "For backwards compatibility, what version of CMake commands and "
+
+       "syntax should this version of CMake allow.",
+
+       cmCacheManager::STRING);
+
+    }
+
+
+
+  return 0;
+
+}
+
+

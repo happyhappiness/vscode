@@ -1,7 +1,12 @@
-    }
-  strftime(tmp, sizeof(tmp), fmt, localtime(&tim));
-  fprintf(out, " %s ", tmp);
-  fprintf(out, "%s", archive_entry_pathname(entry));
+			en = create_filesystem_object(a);
 
-  /* Extra information for links. */
-  if (archive_entry_hardlink(entry)) /* Hard link */
+		} else if (!S_ISDIR(a->mode)) {
+
+			/* A dir is in the way of a non-dir, rmdir it. */
+
+			if (rmdir(a->name) != 0) {
+
+				archive_set_error(&a->archive, errno,
+
+				    "Can't replace existing directory with non-directory");
+

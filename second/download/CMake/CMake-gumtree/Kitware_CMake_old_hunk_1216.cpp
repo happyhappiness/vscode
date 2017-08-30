@@ -1,68 +1,74 @@
-    int retVal = 0;
+}
 
 
-    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, std::endl
-      << (m_MemCheck?"MemCheck":"Test") << " command: " << testCommand
-      << std::endl);
-    *m_LogFile << cnt << "/" << tmsize
-      << " Test: " << testname.c_str() << std::endl;
-    *m_LogFile << "Command: ";
-    std::vector<cmStdString>::size_type ll;
-    for ( ll = 0; ll < arguments.size()-1; ll ++ )
-      {
-      *m_LogFile << "\"" << arguments[ll] << "\" ";
-      }
-    *m_LogFile
-      << std::endl
-      << "Directory: " << it->m_Directory << std::endl
-      << "\"" << testname.c_str() << "\" start time: "
-      << m_CTest->CurrentTime() << std::endl
-      << "Output:" << std::endl
-      << "----------------------------------------------------------"
-      << std::endl;
-    int res = 0;
-    double clock_start, clock_finish;
-    clock_start = cmSystemTools::GetTime();
 
-    if ( !m_CTest->GetShowOnly() )
-      {
-      res = m_CTest->RunTest(arguments, &output, &retVal, m_LogFile);
-      }
+static ssize_t
 
-    clock_finish = cmSystemTools::GetTime();
+read_stream(struct archive_read *a, const void **buff, size_t size)
 
-    if ( m_LogFile )
-      {
-      double ttime = clock_finish - clock_start;
-      int hours = static_cast<int>(ttime / (60 * 60));
-      int minutes = static_cast<int>(ttime / 60) % 60;
-      int seconds = static_cast<int>(ttime) % 60;
-      char buffer[100];
-      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
-      *m_LogFile
-        << "----------------------------------------------------------"
-        << std::endl
-        << "\"" << testname.c_str() << "\" end time: "
-        << m_CTest->CurrentTime() << std::endl
-        << "\"" << testname.c_str() << "\" time elapsed: "
-        << buffer << std::endl
-        << "----------------------------------------------------------"
-        << std::endl << std::endl;
-      }
+{
 
-    cres.m_ExecutionTime = (double)(clock_finish - clock_start);
-    cres.m_FullCommandLine = testCommand;
+	struct _7zip *zip = (struct _7zip *)a->format->data;
 
-    if ( !m_CTest->GetShowOnly() )
-      {
-      bool testFailed = false;
-      std::vector<cmsys::RegularExpression>::iterator passIt;
-      bool forceFail = false;
-      if ( it->m_RequiredRegularExpressions.size() > 0 )
-        {
-        bool found = false;
-        for ( passIt = it->m_RequiredRegularExpressions.begin();
-          passIt != it->m_RequiredRegularExpressions.end();
-          ++ passIt )
-          {
-          if ( passIt->find(output.c_str()) )
+	uint64_t skip_bytes = 0;
+
+	int r;
+
+
+
+	if (zip->uncompressed_buffer_bytes_remaining == 0) {
+
+		if (zip->pack_stream_inbytes_remaining > 0) {
+
+			r = extract_pack_stream(a);
+
+			if (r < 0)
+
+				return (r);
+
+			return (get_uncompressed_data(a, buff, size));
+
+		} else if (zip->folder_outbytes_remaining > 0) {
+
+			/* Extract a remaining pack stream. */
+
+			r = extract_pack_stream(a);
+
+			if (r < 0)
+
+				return (r);
+
+			return (get_uncompressed_data(a, buff, size));
+
+		}
+
+	} else
+
+		return (get_uncompressed_data(a, buff, size));
+
+
+
+	/*
+
+	 * Current pack stream has been consumed.
+
+	 */
+
+	if (zip->pack_stream_remaining == 0) {
+
+		/*
+
+		 * All current folder's pack streams have been
+
+		 * consumed. Switch to next folder.
+
+		 */
+
+
+
+		if (zip->folder_index == 0 &&
+
+		    (zip->si.ci.folders[zip->entry->folderIndex].skipped_bytes
+
+		     || zip->folder_index != zip->entry->folderIndex)) {
+

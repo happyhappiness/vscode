@@ -1,8 +1,36 @@
-    YY_BUFFER_STATE cmDependsFortran_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
+}
+
+inline const char* Getcwd(char* buf, unsigned int len)
+
 {
-        YY_BUFFER_STATE b;
-    
-        b = (YY_BUFFER_STATE) cmDependsFortran_yyalloc(sizeof( struct yy_buffer_state ) );
-        if ( ! b )
-                YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yy_create_buffer()" );
+
+  const char* ret = _getcwd(buf, len);
+
+  if(!ret)
+
+    {
+
+    fprintf(stderr, "No current working directory.\n");
+
+    abort();
+
+    }
+
+  // make sure the drive letter is capital
+
+  if(strlen(buf) > 1 && buf[1] == ':')
+
+    {
+
+    buf[0] = toupper(buf[0]);
+
+    }
+
+  return ret;
+
+}
+
+inline int Chdir(const char* dir)
+
+{
 

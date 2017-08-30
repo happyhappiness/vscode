@@ -1,7 +1,14 @@
-                  << "</Site>" << std::endl;
-      cfileoutput.close();
-      sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);
-      if (!this->OpenOutputFile("", cfileoutputname, cfileoutput))
-        {
-        std::cout << "Cannot open log file" << std::endl;
-        return 1;
+    /* Generate a cnonce */
+
+    now = Curl_tvnow();
+
+    snprintf(cnoncebuf, sizeof(cnoncebuf), "%06ld", now.tv_sec);
+
+    if(Curl_base64_encode(cnoncebuf, strlen(cnoncebuf), &cnonce))
+
+      d->cnonce = cnonce;
+
+    else
+
+      return CURLE_OUT_OF_MEMORY;
+

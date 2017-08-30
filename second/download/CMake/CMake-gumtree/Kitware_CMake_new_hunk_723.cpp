@@ -1,12 +1,20 @@
-#define	__LA_PRINTF(fmtarg, firstvararg)	/* nothing */
-#endif
+    fprintf(stderr, "Output on stderr before test %d.\n", n);
 
-#if defined(__GNUC__) && __GNUC__ >= 3 && __GNUC_MINOR__ >= 1
-# define __LA_DEPRECATED __attribute__((deprecated))
-#else
-# define __LA_DEPRECATED
-#endif
+    fflush(stdout);
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+    fflush(stderr);
+
+    r = runChild(cmd, states[n-1], exceptions[n-1], values[n-1], shares[n-1],
+
+                 outputs[n-1], delays[n-1], timeouts[n-1],
+
+                 polls[n-1], repeat[n-1], 0, createNewGroups[n-1],
+
+                 interruptDelays[n-1]);
+
+    fprintf(stdout, "Output on stdout after test %d.\n", n);
+
+    fprintf(stderr, "Output on stderr after test %d.\n", n);
+
+    fflush(stdout);
+

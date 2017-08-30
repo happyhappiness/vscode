@@ -1,11 +1,64 @@
-  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
-    return CURLE_BAD_CONTENT_ENCODING;
+    pwd = conn->passwd;
 
-  /* Generate 32 random hex chars, 32 bytes + 1 zero termination */
-  result = Curl_rand_hex(data, (unsigned char *)cnonce, sizeof(cnonce));
+  }
+
+
+
+  out = aprintf("%s:%s", user, pwd);
+
+  if(!out)
+
+    return CURLE_OUT_OF_MEMORY;
+
+
+
+  result = Curl_base64_encode(data, out, strlen(out), &authorization, &size);
+
   if(result)
-    return result;
 
-  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt)
+    goto fail;
+
+
+
+  if(!authorization) {
+
+    result = CURLE_REMOTE_ACCESS_DENIED;
+
+    goto fail;
+
+  }
+
+
+
+  free(*userp);
+
+  *userp = aprintf("%sAuthorization: Basic %s\r\n",
+
+                   proxy ? "Proxy-" : "",
+
+                   authorization);
+
+  free(authorization);
+
+  if(!*userp) {
+
+    result = CURLE_OUT_OF_MEMORY;
+
+    goto fail;
+
+  }
+
+
+
+  fail:
+
+  free(out);
+
+  return result;
+
+}
+
+
+
+/* pickoneauth() selects the most favourable authentication method from the
+

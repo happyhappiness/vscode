@@ -1,15 +1,16 @@
-                  hostname, conn->bits.ipv6_ip?"]":"",
-                  remote_port);
-        if(!hostheader) {
-          free(req_buffer);
-          return CURLE_OUT_OF_MEMORY;
-        }
+	 * and are not terminated in '/', so we don't trim anything
 
-        if(!Curl_checkProxyheaders(conn, "Host:")) {
-          host = aprintf("Host: %s\r\n", hostheader);
-          if(!host) {
-            free(hostheader);
-            free(req_buffer);
-            return CURLE_OUT_OF_MEMORY;
-          }
-        }
+	 * that starts with '/'.)
+
+	 */
+
+	if (filename[0] != '/' && *p == '/')
+
+		*p = '\0';
+
+
+
+	/*
+
+	 * '//' is the GNU filename table.
+

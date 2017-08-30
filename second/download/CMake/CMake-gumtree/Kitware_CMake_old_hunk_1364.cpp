@@ -1,6 +1,14 @@
-            }
-          else
-            {
-            if ( res == cmsysProcess_State_Expired )
-              {
-              fprintf(stderr,"***Timeout\n");
+    int fd;
+
+    const char *mode;
+
+{
+
+    char name[20];
+
+
+
+    if (fd < 0) return (gzFile)Z_NULL;
+
+    sprintf(name, "<fd:%d>", fd); /* for debugging */
+

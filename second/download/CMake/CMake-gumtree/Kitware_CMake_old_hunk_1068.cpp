@@ -1,7 +1,14 @@
-int check_defines_CXX()
-{
-  int result = 1;
-#ifndef PREPROCESS_VS6
-  if(strcmp(FILE_STRING, STRING_VALUE) != 0)
-    {
-    fprintf(stderr,
+			return (NULL);
+
+		}
+
+	}
+
+	uavail = cab->stream.total_out;
+
+
+
+	if (uavail < cfdata->uncompressed_size) {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+

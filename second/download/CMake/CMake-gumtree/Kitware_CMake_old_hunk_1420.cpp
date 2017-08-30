@@ -1,13 +1,38 @@
+  for(std::vector<cmStdString>::iterator i = originalLinkItems.begin();
 
-  sprintf(netrcbuffer, "%s%s%s", home, DIR_CHAR, NETRC);
+      i != originalLinkItems.end(); ++i)
 
-  file = fopen(netrcbuffer, "r");
-  if(file) {
-    char *tok;
-        char *tok_buf;
-    while(fgets(netrcbuffer, sizeof(netrcbuffer), file)) {
-      tok=strtok_r(netrcbuffer, " \t\n", &tok_buf);
-      while(tok) {
-        switch(state) {
-        case NOTHING:
-          if(strequal("machine", tok)) {
+    {
+
+    // separate the library name from libfoo.a or foo.a
+
+    if(this->ExtractStaticLibraryName.find(*i))
+
+      {
+
+#ifdef CM_ORDER_LINK_DIRECTORIES_DEBUG
+
+      fprintf(stderr, "static regex matched [%s] [%s] [%s]\n",
+
+              this->ExtractStaticLibraryName.match(1).c_str(),
+
+              this->ExtractStaticLibraryName.match(2).c_str(),
+
+              this->ExtractStaticLibraryName.match(3).c_str());
+
+#endif
+
+      this->SetCurrentLinkType(LinkStatic);
+
+      this->LinkItems.push_back(this->ExtractStaticLibraryName.match(2));
+
+      }
+
+    else if(this->ExtractSharedLibraryName.find(*i))
+
+      {
+
+#ifdef CM_ORDER_LINK_DIRECTORIES_DEBUG
+
+      fprintf(stderr, "shared regex matched [%s] [%s] [%s]\n",
+

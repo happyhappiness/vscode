@@ -1,13 +1,28 @@
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_zip");
+	if (zip->flags & ZIP_FLAG_AVOID_ZIP64) {
 
-	zip = (struct zip *)malloc(sizeof(*zip));
-	if (zip == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate zip data");
-		return (ARCHIVE_FATAL);
-	}
-	memset(zip, 0, sizeof(*zip));
+		/* Reject entries over 4GB. */
 
-	/* Streamable reader doesn't support mac extensions. */
-	zip->process_mac_extensions = 0;
+		if (archive_entry_size_is_set(entry)
+
+		    && (archive_entry_size(entry) >
+
+			ARCHIVE_LITERAL_LL(0xffffffff))) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "Files > 4GB require Zip64 extensions");
+
+			return ARCHIVE_FAILED;
+
+		}
+
+		/* Reject entries if archive is > 4GB. */
+
+		if (zip->written_bytes > ARCHIVE_LITERAL_LL(0xffffffff)) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "Archives > 4GB require Zip64 extensions");
+
+			return ARCHIVE_FAILED;
+

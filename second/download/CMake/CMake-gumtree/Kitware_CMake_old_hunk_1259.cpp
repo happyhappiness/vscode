@@ -1,14 +1,20 @@
-{
-  char realpath[TAR_MAXPATHLEN];
-  char savepath[TAR_MAXPATHLEN];
-#if !defined(_WIN32) || defined(__CYGWIN__)
-  struct dirent *dent;
-  DIR *dp;
-#else  
-  kwDirEntry * dent;
-  kwDirectory *dp;
-#endif  
-  struct stat s;
+      fprintf(stderr, "  item %d [%s]\n", i,
 
-#ifdef DEBUG
-  printf("==> tar_append_tree(0x%lx, \"%s\", \"%s\")\n",
+              this->EntryList[i].Item.c_str());
+
+      }
+
+    NodeList const& ol = this->CCG->GetComponentGraphEdges(c);
+
+    for(NodeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
+
+      {
+
+      fprintf(stderr, "  followed by Component (%d)\n", *oi);
+
+      }
+
+    fprintf(stderr, "  topo order index %d\n",
+
+            this->ComponentOrder[c]);
+

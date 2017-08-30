@@ -1,7 +1,12 @@
-	zip->len_buf = 65536;
-	zip->buf = malloc(zip->len_buf);
-	if (zip->buf == NULL) {
-		archive_set_error(&a->archive, ENOMEM, "Can't allocate compression buffer");
-		return (ARCHIVE_FATAL);
-	}
-#else
+	return (r);
+
+}
+
+
+
+/*
+
+ * Read the next block of entry data from the archive.
+
+ * This is a zero-copy interface; the client receives a pointer,
+

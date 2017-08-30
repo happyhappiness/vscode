@@ -1,22 +1,14 @@
-//----------------------------------------------------------------------------
-Glob::Glob()
-{
-  m_Internals = new GlobInternals;
-  m_Recurse = false;
-}
+  // the same command line verbatim.
 
-//----------------------------------------------------------------------------
-Glob::~Glob()
-{
-  delete m_Internals;
-}
 
-//----------------------------------------------------------------------------
-void Glob::Escape(int ch, char* buffer)
-{
-  if (! (
-      'a' <= ch && ch <= 'z' || 
-      'A' <= ch && ch <= 'Z' || 
-      '0' <= ch && ch <= '9') )
-    {
-    sprintf(buffer, "\\%c", ch);
+
+  string srcfile, dfile, objfile, prefix, clpath, rest;
+
+  parseCommandLine(GetCommandLine(), srcfile, dfile, objfile, prefix, clpath, rest);
+
+
+
+#if 0
+
+  fprintf(stderr, "\n\ncmcldebug:\n");
+

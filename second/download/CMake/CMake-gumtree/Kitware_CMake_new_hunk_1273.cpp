@@ -1,16 +1,48 @@
-  return 0;
-}
+      }
 
-int runChild2(kwsysProcess* kp,
-              const char* cmd[], int state, int exception, int value,
-              int share, int output, int delay, double timeout,
-              int poll)
-{
-  int result = 0;
-  char* data = 0;
-  int length = 0;
-  double userTimeout = 0;
-  double* pUserTimeout = 0;
-  kwsysProcess_SetCommand(kp, cmd);
-  if(timeout >= 0)
-    {
+
+
+    /* get the first document */
+
+    curl_easy_setopt(curl, CURLOPT_URL, url1);
+
+    res = curl_easy_perform(curl);
+
+    if ( res != 0 )
+
+      {
+
+      printf("Error fetching: %s\n", url1);
+
+      retVal = 1;
+
+      }
+
+
+
+    /* get another document from the same server using the same
+
+       connection */
+
+    /* avoid warnings about url2 since below block is commented out: */
+
+    (void) url2;
+
+    /*
+
+      curl_easy_setopt(curl, CURLOPT_URL, url2);
+
+      res = curl_easy_perform(curl);
+
+      if ( res != 0 )
+
+      {
+
+      printf("Error fetching: %s\n", url2);
+
+      retVal = 1;
+
+      }
+
+    */
+

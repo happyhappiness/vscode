@@ -1,7 +1,16 @@
-        /* we have a time, reformat it */
-        time_t secs=time(NULL);
-        /* using the good old yacc/bison yuck */
-        snprintf(buf, sizeof(conn->data->state.buffer),
-                 "%04d%02d%02d %02d:%02d:%02d GMT",
-                 year, month, day, hour, minute, second);
-        /* now, convert this into a time() value: */
+    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
+
+    return info.buffer;
+
+  }
+
+  else
+
+    return strdup("");
+
+}
+
+
+
+char *curl_mvaprintf(const char *format, va_list ap_save)
+

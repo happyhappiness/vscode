@@ -1,20 +1,14 @@
-}
+  memcpy(&rar_header, p, sizeof(rar_header));
 
-//----------------------------------------------------------------------------
-void
-cmComputeTargetDepends
-::DisplayComponents(cmComputeComponentGraph const& ccg)
-{
-  fprintf(stderr, "The strongly connected components are:\n");
-  std::vector<NodeList> const& components = ccg.GetComponents();
-  int n = static_cast<int>(components.size());
-  for(int c = 0; c < n; ++c)
-    {
-    NodeList const& nl = components[c];
-    fprintf(stderr, "Component (%d):\n", c);
-    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int i = *ni;
-      fprintf(stderr, "  contains target %d [%s]\n",
-              i, this->Targets[i]->GetName());
-      }
+  rar->file_flags = archive_le16dec(rar_header.flags);
+
+  header_size = archive_le16dec(rar_header.size);
+
+  if (header_size < (int64_t)sizeof(file_header) + 7) {
+
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+      "Invalid header size");
+
+    return (ARCHIVE_FATAL);
+

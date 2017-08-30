@@ -1,11 +1,12 @@
-			else
-				ret = ARCHIVE_FATAL;
-		}
-	} else
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "cpio: unknown keyword ``%s''", key);
+                yyg->yy_buffer_stack = (struct yy_buffer_state**)cmListFileLexer_yyalloc
 
-	return (ret);
-}
+                                                                (num_to_alloc * sizeof(struct yy_buffer_state*)
 
-static int
+                                                                , yyscanner);
+
+
+
+                memset(yyg->yy_buffer_stack, 0, num_to_alloc * sizeof(struct yy_buffer_state*));
+
+
+

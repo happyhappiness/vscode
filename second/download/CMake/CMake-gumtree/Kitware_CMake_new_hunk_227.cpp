@@ -1,13 +1,14 @@
-		}
-		offset += datasize;
-	}
-	if (offset != extra_length) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Malformed extra data: Consumed %d bytes of %d bytes",
-		    (int)offset, (int)extra_length);
-		return ARCHIVE_FAILED;
-	}
-	return ARCHIVE_OK;
-}
+		r = archive_match_path_excluded(a->matching, entry);
 
-/*
+		if (r < 0) {
+
+			archive_set_error(&(a->archive), errno,
+
+			    "Failed : %s", archive_error_string(a->matching));
+
+			return (r);
+
+		}
+
+		if (r) {
+

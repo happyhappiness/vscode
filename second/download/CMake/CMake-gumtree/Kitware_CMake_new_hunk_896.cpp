@@ -1,21 +1,20 @@
-    /* Seems as though dictionary sizes are not used. Even so, minimize
-     * memory usage as much as possible.
-     */
-    void *new_window;
-    unsigned int new_size;
+	int r, xr = 0;
 
-    if (rar->unp_size >= DICTIONARY_MAX_SIZE)
-      new_size = DICTIONARY_MAX_SIZE;
-    else
-      new_size = rar_fls((unsigned int)rar->unp_size) << 1;
-    new_window = realloc(rar->lzss.window, new_size);
-    if (new_window == NULL) {
-      archive_set_error(&a->archive, ENOMEM,
-                        "Unable to allocate memory for uncompressed data.");
-      return (ARCHIVE_FATAL);
-    }
-    rar->lzss.window = (unsigned char *)new_window;
-    rar->dictionary_size = new_size;
-    memset(rar->lzss.window, 0, rar->dictionary_size);
-    rar->lzss.mask = rar->dictionary_size - 1;
-  }
+
+
+	t->current_filesystem->synthetic = -1;
+
+	if (tree_enter_working_dir(t) != 0) {
+
+		archive_set_error(&a->archive, errno, "fchdir failed");
+
+		return (ARCHIVE_FAILED);
+
+	}
+
+	if (tree_current_is_symblic_link_target(t)) {
+
+		r = statvfs(tree_current_access_path(t), &sfs);
+
+		if (r == 0)
+

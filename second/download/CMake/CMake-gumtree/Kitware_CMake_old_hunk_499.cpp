@@ -1,7 +1,14 @@
-			archive_le64enc(z, zip->entry_offset);
-			z += 8;
+			archive_set_error(&a->archive, errno, "fchdir failed");
+
+			return (ARCHIVE_FAILED);
+
 		}
-		archive_le16enc(zip64 + 2, z - (zip64 + 4));
-		zd = cd_alloc(zip, z - zip64);
-		if (zd == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
+
+		vr = statvfs(".", &svfs);
+
+		r = statfs(".", &sfs);
+
+		if (r == 0)
+
+			xr = get_xfer_size(t, -1, ".");
+

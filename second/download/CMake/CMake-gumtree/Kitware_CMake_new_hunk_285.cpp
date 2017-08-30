@@ -1,9 +1,22 @@
-  left -= len;
-  ptr += len;
-#endif
-#ifdef USE_LIBIDN2
-  if(idn2_check_version(IDN2_VERSION)) {
-    len = snprintf(ptr, left, " libidn2/%s", idn2_check_version(NULL));
-    left -= len;
-    ptr += len;
-  }
+			} else if (src[1] == '.') {
+
+				if (src[2] == '/' || src[2] == '\0') {
+
+					/* Conditionally warn about '..' */
+
+					if (flags
+
+					    & ARCHIVE_EXTRACT_SECURE_NODOTDOT) {
+
+						fsobj_error(a_eno, a_estr,
+
+						    ARCHIVE_ERRNO_MISC,
+
+						    "Path contains ", "'..'");
+
+						return (ARCHIVE_FAILED);
+
+					}
+
+				}
+

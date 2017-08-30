@@ -1,33 +1,36 @@
-		return (ARCHIVE_OK);
+     implemented.  */
 
-	/* Does filesystem support the reporting of hole ? */
-	if (fd >= 0) {
-		if (fpathconf(fd, _PC_MIN_HOLE_SIZE) <= 0)
-			return (ARCHIVE_OK);
-		initial_off = lseek(fd, 0, SEEK_CUR);
-		if (initial_off != 0)
-			lseek(fd, 0, SEEK_SET);
-	} else {
-		const char *path;
+  fclose(stdout);
 
-		path = archive_entry_sourcepath(entry);
-		if (path == NULL)
-			path = archive_entry_pathname(entry);
-		if (pathconf(path, _PC_MIN_HOLE_SIZE) <= 0)
-			return (ARCHIVE_OK);
-		fd = open(path, O_RDONLY | O_NONBLOCK);
-		if (fd < 0) {
-			archive_set_error(&a->archive, errno,
-			    "Can't open `%s'", path);
-			return (ARCHIVE_FAILED);
-		}
-		initial_off = 0;
-	}
+  fclose(stderr);
 
-	off_s = 0;
-	size = archive_entry_size(entry);
-	while (off_s < size) {
-		off_s = lseek(fd, off_s, SEEK_DATA);
-		if (off_s == (off_t)-1) {
-			if (errno == ENXIO)
-				break;/* no more hole */
+#if defined(_WIN32)
+
+  Sleep(15000);
+
+#else
+
+  sleep(15);
+
+#endif
+
+  return 0;
+
+}
+
+
+
+static int runChild2(kwsysProcess* kp,
+
+              const char* cmd[], int state, int exception, int value,
+
+              int share, int output, int delay, double timeout,
+
+              int poll, int disown)
+
+{
+
+  int result = 0;
+
+  char* data = 0;
+

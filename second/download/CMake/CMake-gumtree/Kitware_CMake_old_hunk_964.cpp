@@ -1,7 +1,22 @@
-      includes.push_back(inc);
-    } else {
-      if (!isFirstLine || !startsWith(line, srcfilename)) {
-        if (!quiet) {
-          fprintf(stdout, "%s\n", line.c_str());
-        }
-      } else {
+      else
+
+        ret = ARCHIVE_FATAL;
+
+    }
+
+  } else
+
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+        "rar: unknown keyword ``%s''", key);
+
+                
+
+  return (ret);
+
+}
+
+
+
+static int
+

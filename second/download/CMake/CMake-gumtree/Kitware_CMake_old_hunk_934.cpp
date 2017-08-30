@@ -1,7 +1,14 @@
-		else {
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Unkonwn checksum name: `%s'",
-			    value);
-			return (ARCHIVE_FAILED);
-		}
+			break;
+
+		case ST_READ_UU:
+
+			if (total + len * 2 > OUT_BUFF_SIZE)
+
+				break;
+
+			body = len - nl;
+
+			if (!uuchar[*b] || body <= 0) {
+
+				archive_set_error(&self->archive->archive,
+

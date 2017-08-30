@@ -1,11 +1,16 @@
-        {
-        while (bread >= 1023) 
-          {
-          //std::cout << "Read data..." << std::endl;
-          ReadFile(read_stdout,buf,1023,&bread,NULL);
- 
-          //read the stdout pipe 
-          std::cout << buf << std::flush;
-          memset(buf, 0, sizeof(buf));
- 
-          }
+             kwsysProcess_GetExceptionString(kp));
+
+      result = ((exception != kwsysProcess_GetExitException(kp)) ||
+
+                (value != kwsysProcess_GetExitValue(kp))); break;
+
+    case kwsysProcess_State_Disowned:
+
+      printf("Child was disowned.\n"); break;
+
+    case kwsysProcess_State_Error:
+
+      printf("Error in administrating child process: [%s]\n",
+
+             kwsysProcess_GetErrorString(kp)); break;
+

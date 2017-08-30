@@ -1,16 +1,22 @@
+	if (strcmp(key, "compat-2x")  == 0) {
 
-	/* If the buffer hasn't been allocated, allocate it now. */
-	if (zip->uncompressed_buffer == NULL) {
-		zip->uncompressed_buffer_size = 64 * 1024;
-		zip->uncompressed_buffer =
-		    malloc(zip->uncompressed_buffer_size);
-		if (zip->uncompressed_buffer == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "No memory for 7-Zip decompression");
-			return (ARCHIVE_FATAL);
-		}
-	}
-	zip->uncompressed_buffer_bytes_remaining = 0;
-	zip->uncompressed_buffer_pointer = NULL;
-	for (;;) {
-		size_t bytes_in, bytes_out;
+		/* Handle filnames as libarchive 2.x */
+
+		zip->init_default_conversion = (val != NULL) ? 1 : 0;
+
+		ret = ARCHIVE_OK;
+
+	} else if (strcmp(key, "hdrcharset")  == 0) {
+
+		if (val == NULL || val[0] == 0)
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "zip: hdrcharset option needs a character-set name");
+
+		else {
+
+			zip->sconv = archive_string_conversion_from_charset(
+
+			    &a->archive, val, 0);
+

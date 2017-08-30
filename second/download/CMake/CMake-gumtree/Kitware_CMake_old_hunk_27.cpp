@@ -1,21 +1,42 @@
 		return (ARCHIVE_FATAL);
+
 	}
 
-#if HAVE_FLISTXATTR
-	if (*fd >= 0)
-		list_size = flistxattr(*fd, list, list_size);
+
+
+#if HAVE_FGETXATTR
+
+	if (fd >= 0)
+
+		size = fgetxattr(fd, name, value, size);
+
 	else if (!a->follow_symlinks)
-		list_size = llistxattr(path, list, list_size);
+
+		size = lgetxattr(accpath, name, value, size);
+
 	else
-		list_size = listxattr(path, list, list_size);
-#elif HAVE_FLISTEA
-	if (*fd >= 0)
-		list_size = flistea(*fd, list, list_size);
+
+		size = getxattr(accpath, name, value, size);
+
+#elif HAVE_FGETEA
+
+	if (fd >= 0)
+
+		size = fgetea(fd, name, value, size);
+
 	else if (!a->follow_symlinks)
-		list_size = llistea(path, list, list_size);
+
+		size = lgetea(accpath, name, value, size);
+
 	else
-		list_size = listea(path, list, list_size);
+
+		size = getea(accpath, name, value, size);
+
 #endif
 
-	if (list_size == -1) {
+
+
+	if (size == -1) {
+
 		archive_set_error(&a->archive, errno,
+

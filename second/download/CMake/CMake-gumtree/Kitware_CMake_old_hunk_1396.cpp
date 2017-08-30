@@ -1,6 +1,20 @@
-      }
-    if ( tag.size() == 0 )
-      {
-      char datestring[100];
-      sprintf(datestring, "%04d%02d%02d-%02d%02d",
-              lctime->tm_year + 1900,
+  if(d->algo == CURLDIGESTALGO_MD5SESS) {
+
+    /* nonce and cnonce are OUTSIDE the hash */
+
+    tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);
+
+    free(ha1);
+
+    if(!tmp)
+
+      return CURLE_OUT_OF_MEMORY;
+
+    ha1 = (unsigned char *)tmp;
+
+  }
+
+
+
+  /*
+

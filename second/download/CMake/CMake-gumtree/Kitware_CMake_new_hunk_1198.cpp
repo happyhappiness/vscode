@@ -1,24 +1,32 @@
-      std::string tagmode;
-      if ( cmSystemTools::GetLineFromStream(tfin, tagmode) )
-        {
-        if ( tagmode.size() > 4 && !( this->Tests[cmCTest::START_TEST] ||
-            this->Tests[ALL_TEST] ))
-          {
-          this->TestModel = cmCTest::GetTestModelFromString(tagmode.c_str());
-          }
-        }
-      tfin.close();
-      }
-    if ( tag.size() == 0 || new_tag || this->Tests[cmCTest::START_TEST] ||
-      this->Tests[ALL_TEST])
-      {
-      cmCTestLog(this, DEBUG, "TestModel: " << this->GetTestModelString()
-        << std::endl);
-      cmCTestLog(this, DEBUG, "TestModel: " << this->TestModel << std::endl);
-      if ( this->TestModel == cmCTest::NIGHTLY )
-        {
-        lctime = this->GetNightlyTime(
-          this->GetCTestConfiguration("NightlyStartTime"), this->TomorrowTag);
-        }
-      char datestring[100];
-      sprintf(datestring, "%04d%02d%02d-%02d%02d",
+}
+
+
+
+static ssize_t
+
+extract_pack_stream(struct archive_read *a, size_t minimum)
+
+{
+
+	struct _7zip *zip = (struct _7zip *)a->format->data;
+
+	ssize_t bytes_avail;
+
+	int r;
+
+
+
+	if (zip->codec == _7Z_COPY && zip->codec2 == -1) {
+
+		if (minimum == 0)
+
+			minimum = 1;
+
+		if (__archive_read_ahead(a, minimum, &bytes_avail) == NULL
+
+		    || bytes_avail <= 0) {
+
+			archive_set_error(&a->archive,
+
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+

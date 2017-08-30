@@ -1,7 +1,14 @@
-  /* Avoid error diagnostic popups since we are crashing on purpose.  */
-  disable_debugger(1);
-#endif
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before crash on stdout from crash test.\n");
-  fprintf(stderr, "Output before crash on stderr from crash test.\n");
-  fflush(stdout);
+  struct TELNET *tn = (struct TELNET *)data->req.protop;
+
+
+
+  printsub(data, '<', (unsigned char *)tn->subbuffer, CURL_SB_LEN(tn)+2);
+
+  switch (CURL_SB_GET(tn)) {
+
+    case CURL_TELOPT_TTYPE:
+
+      len = strlen(tn->subopt_ttype) + 4 + 2;
+
+      snprintf((char *)temp, sizeof(temp),
+

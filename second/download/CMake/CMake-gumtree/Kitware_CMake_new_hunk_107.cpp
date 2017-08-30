@@ -1,9 +1,14 @@
+    time_t filetime;
 
-size_t Curl_cyassl_version(char *buffer, size_t size)
-{
-#if LIBCYASSL_VERSION_HEX >= 0x03006000
-  return snprintf(buffer, size, "wolfSSL/%s", wolfSSL_lib_version());
-#elif defined(WOLFSSL_VERSION)
-  return snprintf(buffer, size, "wolfSSL/%s", WOLFSSL_VERSION);
-#elif defined(CYASSL_VERSION)
-  return snprintf(buffer, size, "CyaSSL/%s", CYASSL_VERSION);
+    struct tm buffer;
+
+    const struct tm *tm = &buffer;
+
+    snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+
+    if(result)
+

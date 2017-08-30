@@ -1,43 +1,58 @@
-	*last_entry = entry;
+    if(result)
 
-	if (is_form_d) {
-		/*
-		 * This form places the file name as last parameter.
-		 */
-		name = line + line_len -1;
-		while (line_len > 0) {
-			if (*name != '\r' && *name != '\n' &&
-			    *name != '\t' && *name != ' ')
-				break;
-			name--;
-			line_len--;
-		}
-		len = 0;
-		while (line_len > 0) {
-			if (*name == '\r' || *name == '\n' ||
-			    *name == '\t' || *name == ' ') {
-				name++;
-				break;
-			}
-			name--;
-			line_len--;
-			len++;
-		}
-		end = name;
-	} else {
-		len = strcspn(line, " \t\r\n");
-		name = line;
-		line += len;
-		end = line + line_len;
-	}
+      return result;
 
-	if ((entry->name = malloc(len + 1)) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
 
-	memcpy(entry->name, name, len);
-	entry->name[len] = '\0';
-	parse_escapes(entry->name, entry);
 
-	for (iter = *global; iter != NULL; iter = iter->next) {
+    if(fstated) {
+
+      time_t filetime = (time_t)statbuf.st_mtime;
+
+      struct tm buffer;
+
+      const struct tm *tm = &buffer;
+
+      result = Curl_gmtime(filetime, &buffer);
+
+      if(result)
+
+        return result;
+
+
+
+      /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+
+      snprintf(buf, BUFSIZE-1,
+
+               "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+
+               Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+
+               tm->tm_mday,
+
+               Curl_month[tm->tm_mon],
+
+               tm->tm_year + 1900,
+
+               tm->tm_hour,
+
+               tm->tm_min,
+
+               tm->tm_sec);
+
+      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+
+    }
+
+    /* if we fstat()ed the file, set the file size to make it available post-
+
+       transfer */
+
+    if(fstated)
+
+      Curl_pgrsSetDownloadSize(data, expected_size);
+
+    return result;
+
+  }
+

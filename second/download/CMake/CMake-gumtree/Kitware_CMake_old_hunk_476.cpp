@@ -1,22 +1,12 @@
-		lha->entry_unconsumed = 0;
-	}
-	if (lha->end_of_entry) {
-		if (!lha->end_of_entry_cleanup) {
-			if ((lha->setflag & CRC_IS_SET) &&
-			    lha->crc != lha->entry_crc_calculated) {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "LHa data CRC error");
-				return (ARCHIVE_WARN);
-			}
+      rar->range_dec.Stream = &rar->bytein;
 
-			/* End-of-entry cleanup done. */
-			lha->end_of_entry_cleanup = 1;
-		}
-		*offset = lha->entry_offset;
-		*size = 0;
-		*buff = NULL;
-		return (ARCHIVE_EOF);
-	}
+      __archive_ppmd7_functions.Ppmd7_Construct(&rar->ppmd7_context);
 
-	if (lha->entry_is_compressed)
+
+
+      if (!__archive_ppmd7_functions.Ppmd7_Alloc(&rar->ppmd7_context,
+
+        rar->dictionary_size, &g_szalloc))
+
+      {
+

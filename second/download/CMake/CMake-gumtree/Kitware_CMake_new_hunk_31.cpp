@@ -1,14 +1,36 @@
-		if (strcmp(key, "md5") == 0 || strcmp(key, "md5digest") == 0)
-			break;
-		if (strcmp(key, "mode") == 0) {
-			if (val[0] >= '0' && val[0] <= '7') {
-				*parsed_kws |= MTREE_HAS_PERM;
-				archive_entry_set_perm(entry,
-				    (mode_t)mtree_atol(&val, 8));
-			} else {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Symbolic or non-octal mode \"%s\" unsupported", val);
-				return ARCHIVE_WARN;
-			}
-			break;
+	off_t off_s, off_e;
+
+	int exit_sts = ARCHIVE_OK;
+
+	int check_fully_sparse = 0;
+
+	const char *path;
+
+
+
+	if (archive_entry_filetype(entry) != AE_IFREG
+
+	    || archive_entry_size(entry) <= 0
+
+	    || archive_entry_hardlink(entry) != NULL)
+
+		return (ARCHIVE_OK);
+
+
+
+	/* Does filesystem support the reporting of hole ? */
+
+	if (*fd < 0)
+
+		path = archive_read_disk_entry_setup_path(a, entry, fd);
+
+	else
+
+		path = NULL;
+
+
+
+	if (*fd >= 0) {
+
+#ifdef _PC_MIN_HOLE_SIZE
+

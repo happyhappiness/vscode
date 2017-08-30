@@ -1,13 +1,26 @@
-	t->current_filesystem->synthetic = -1;
-	t->current_filesystem->remote = -1;
-	if (tree_current_is_symblic_link_target(t)) {
-#if defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR)
-		/*
-		 * Get file system statistics on any directory
-		 * where current is.
-		 */
-		int fd = openat(tree_current_dir_fd(t),
-		    tree_current_access_path(t), O_RDONLY);
-		if (fd < 0) {
-			archive_set_error(&a->archive, errno,
-			    "openat failed");
+      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
+
+      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
+
+      if(const char* rulesOverridePath =
+
+         this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
+
+        {
+
+        fprintf(fout, "set(%s \"%s\")\n",
+
+                rulesOverrideLang.c_str(), rulesOverridePath);
+
+        }
+
+      else if(const char* rulesOverridePath2 =
+
+              this->Makefile->GetDefinition(rulesOverrideBase.c_str()))
+
+        {
+
+        fprintf(fout, "set(%s \"%s\")\n",
+
+                rulesOverrideBase.c_str(), rulesOverridePath2);
+

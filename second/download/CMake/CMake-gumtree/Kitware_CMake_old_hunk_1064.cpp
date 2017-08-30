@@ -1,7 +1,14 @@
-        cmCTestTestResult *result = &this->TestResults[cc];
-        totalTestTime += result->ExecutionTime;
-        }
-      
-      char buf[1024];
-      sprintf(buf, "%6.2f sec", totalTestTime); 
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time = " 
+seek_pack(struct archive_read *a)
+
+{
+
+	struct _7zip *zip = (struct _7zip *)a->format->data;
+
+	uint64_t pack_offset;
+
+
+
+	if (zip->pack_stream_remaining <= 0) {
+
+		archive_set_error(&(a->archive),
+

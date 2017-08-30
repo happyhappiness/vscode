@@ -1,26 +1,20 @@
-            break;
-          case 3:
-          {
-            char extra, high;
-            uint8_t length = *(p + offset++);
+			xr = get_xfer_size(t, fd, NULL);
 
-            if (length & 0x80) {
-              extra = *(p + offset++);
-              high = (char)highbyte;
-            } else
-              extra = high = 0;
-            length = (length & 0x7f) + 2;
-            while (length && filename_size < fn_end) {
-              unsigned cp = filename_size >> 1;
-              filename[filename_size++] = high;
-              filename[filename_size++] = p[cp] + extra;
-              length--;
-            }
-          }
-          break;
-        }
-      }
-      if (filename_size > fn_end) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Invalid filename");
-        return (ARCHIVE_FATAL);
+		close(fd);
+
+#else
+
+		if (tree_enter_working_dir(t) != 0) {
+
+			archive_set_error(&a->archive, errno, "fchdir failed");
+
+			return (ARCHIVE_FAILED);
+
+		}
+
+		r = statfs(tree_current_access_path(t), &sfs);
+
+		if (r == 0)
+
+			xr = get_xfer_size(t, -1, tree_current_access_path(t));
+

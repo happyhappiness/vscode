@@ -1,7 +1,14 @@
-    CommandLineArguments::Internal::SetOfStrings::iterator sit;
-    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
-      {
-      str << endl;
-      char argument[100];
-      sprintf(argument, sit->c_str());
-      switch ( this->Internals->Callbacks[*sit].ArgumentType )
+    YY_BUFFER_STATE cmDependsFortran_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
+
+{
+
+        YY_BUFFER_STATE b;
+
+    
+
+        b = (YY_BUFFER_STATE) cmDependsFortran_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
+
+        if ( ! b )
+
+                YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yy_create_buffer()" );
+

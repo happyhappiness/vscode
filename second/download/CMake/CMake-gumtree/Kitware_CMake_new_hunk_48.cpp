@@ -1,10 +1,14 @@
-  if(instate == FTP_SIZE) {
-#ifdef CURL_FTP_HTTPSTYLE_HEAD
-    if(-1 != filesize) {
-      char clbuf[128];
-      snprintf(clbuf, sizeof(clbuf),
-               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);
-      result = Curl_client_write(conn, CLIENTWRITE_BOTH, clbuf, 0);
-      if(result)
-        return result;
-    }
+      return result;
+
+
+
+    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+
+    snprintf(header, sizeof(header),
+
+             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+
+             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+
+             tm->tm_mday,
+

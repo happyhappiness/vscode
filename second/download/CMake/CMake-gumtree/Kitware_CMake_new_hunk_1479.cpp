@@ -1,7 +1,26 @@
 
-  if (!strcmp(kitName,"Vtkcommontcl"))
+
+  if (cw)
+
     {
-    fprintf(fout,"void vtkCommonDeleteAssocData(ClientData cd)\n");
-    fprintf(fout,"  {\n");
-    fprintf(fout,"  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n");
-    fprintf(fout,"  delete tis;\n  }\n");
+
+    sprintf(firstLine, "Page %d of %d", cw->GetPage(), this->NumberOfPages);
+
+    curses_move(0,65-strlen(firstLine)-1);
+
+    printw(firstLine);
+
+    }
+
+//    }
+
+
+
+  pos_form_cursor(this->Form);
+
+  
+
+}
+
+
+

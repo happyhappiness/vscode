@@ -1,9 +1,24 @@
-	/* Get a real compressed file size. */
-	lha->compsize -= extdsize - 2;
+		return (ARCHIVE_FATAL);
 
-	if (lha->compsize < 0)
-		goto invalid;	/* Invalid compressed file size */
+	}
 
-	if (sum_calculated != headersum) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "LHa header sum error");
+
+
+	ustar = (struct ustar *)calloc(1, sizeof(*ustar));
+
+	if (ustar == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM,
+
+		    "Can't allocate ustar data");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+	a->format_data = ustar;
+
+	a->format_name = "ustar";
+
+	a->format_options = archive_write_ustar_options;
+

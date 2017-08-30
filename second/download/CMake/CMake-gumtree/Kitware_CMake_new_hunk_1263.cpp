@@ -1,11 +1,12 @@
-  printf("### done extracting %s\n", filename);
-#endif
+        }
 
-  (void)filename;
-  (void)gid;
-  (void)uid;
-  (void)mode;
+      const cmTarget::LinkLibraryVectorType* ll =
 
-  return 0;
-}
+                                     &(tit->second.GetOriginalLinkLibraries());
+
+      for (cmTarget::LinkLibraryVectorType::const_iterator llit = ll->begin();
+
+           llit != ll->end();
+
+           ++ llit )
 

@@ -1,9 +1,30 @@
-    // Command to report progress for a build
-    else if (args[1] == "cmake_progress_report" && args.size() >= 3)
-      {
-      // This has been superseded by cmake_echo_color --progress-*
-      // options.  We leave it here to avoid errors if somehow this
-      // is invoked by an existing makefile without regenerating.
-      return 0;
-      }
+{
+
+	unsigned offset = 0;
+
+
+
+	while (offset < extra_length - 4) {
+
+		unsigned short headerid = archive_le16dec(p + offset);
+
+		unsigned short datasize = archive_le16dec(p + offset + 2);
+
+
+
+		offset += 4;
+
+		if (offset + datasize > extra_length)
+
+			break;
+
+#ifdef DEBUG
+
+		fprintf(stderr, "Header id 0x%04x, length %d\n",
+
+		    headerid, datasize);
+
+#endif
+
+		switch (headerid) {
 

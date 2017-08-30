@@ -1,8 +1,12 @@
-  return 0;
-}
+  result = 0;
 
-int test4()
-{
-  fprintf(stdout, "Output before crash on stdout from crash test.\n");
-  fprintf(stderr, "Output before crash on stderr from crash test.\n");  
-  fflush(stdout);
+  }
+
+# endif
+
+#endif
+
+#if defined(FILE_DEF_DEBUG) || defined(TARGET_DEF_DEBUG)
+
+# if !defined(FILE_DEF_DEBUG) || !defined(TARGET_DEF_DEBUG)
+

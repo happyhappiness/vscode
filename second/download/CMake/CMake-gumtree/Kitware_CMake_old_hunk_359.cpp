@@ -1,6 +1,14 @@
-     information. Which for FILE can't be much more than the file size and
-     date. */
-  if(data->set.opt_no_body && data->set.include_header && fstated) {
-    snprintf(buf, sizeof(data->state.buffer),
-             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+  printf("md5sum 1: expected [%s]\n"
+
+         "               got [%s]\n",
+
+         testMD5output1, md5out);
+
+  return (strcmp(md5out, testMD5output1) != 0)? 1:0;
+
+}
+
+
+
+static int testMD5_2(kwsysMD5* md5)
+

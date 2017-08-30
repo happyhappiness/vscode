@@ -1,8 +1,16 @@
+static int test10_grandchild(int argc, const char* argv[])
 
-CURLcode Curl_sendf(curl_socket_t sockfd, struct connectdata *,
-                    const char *fmt, ...);
-void Curl_infof(struct Curl_easy *, const char *fmt, ...);
-void Curl_failf(struct Curl_easy *, const char *fmt, ...);
+{
 
-#if defined(CURL_DISABLE_VERBOSE_STRINGS)
+  /* The grandchild just sleeps for a few seconds and handles signals.  */
+
+  (void)argc;
+
+  (void)argv;
+
+  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
+
+  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
+
+  fflush(stdout);
 

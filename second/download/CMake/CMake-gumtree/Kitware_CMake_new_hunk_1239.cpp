@@ -1,26 +1,16 @@
-  return 0;
+
+
+        /* lineno is only valid if an input buffer exists. */
+
+        if (! YY_CURRENT_BUFFER )
+
+           yy_fatal_error( "cmExpr_yyset_lineno called with no buffer" , yyscanner);
+
+
+
+    yylineno = line_number;
+
 }
 
-/* Quick hack to test grandchild killing.  */
-/*#define TEST5_GRANDCHILD_KILL*/
-#ifdef TEST5_GRANDCHILD_KILL
-# define TEST5_TIMEOUT 10
-#else
-# define TEST5_TIMEOUT 30
-#endif
 
-int test5(int argc, const char* argv[])
-{
-  int r;
-  const char* cmd[4];
-  (void)argc;
-  cmd[0] = argv[0];
-  cmd[1] = "run";
-#ifdef TEST5_GRANDCHILD_KILL
-  cmd[2] = "3";
-#else
-  cmd[2] = "4";
-#endif
-  cmd[3] = 0;
-  fprintf(stdout, "Output on stdout before recursive test.\n");
-  fprintf(stderr, "Output on stderr before recursive test.\n");
+

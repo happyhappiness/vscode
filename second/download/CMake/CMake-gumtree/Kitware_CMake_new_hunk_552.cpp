@@ -1,16 +1,30 @@
 
-  snprintf(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
 
-  result = Curl_base64_encode(data,
-                              data->state.buffer, strlen(data->state.buffer),
-                              &authorization, &size);
-  if(result)
-    return result;
+void
 
-  if(!authorization)
-    return CURLE_REMOTE_ACCESS_DENIED;
+cmLocalVisualStudio6Generator
 
-  free(*userp);
-  *userp = aprintf("%sAuthorization: Basic %s\r\n",
-                   proxy?"Proxy-":"",
-                   authorization);
+::AddUtilityCommandHack(cmGeneratorTarget *target, int count,
+
+                        std::vector<std::string>& depends,
+
+                        const cmCustomCommand& origCommand)
+
+{
+
+  // Create a fake output that forces the rule to run.
+
+  char* output = new char[(strlen(this->GetCurrentBinaryDirectory())
+
+                           + target->GetName().size() + 30)];
+
+  sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
+
+          target->GetName().c_str(), count);
+
+  const char* comment = origCommand.GetComment();
+
+  if(!comment && origCommand.GetOutputs().empty())
+
+    {
+

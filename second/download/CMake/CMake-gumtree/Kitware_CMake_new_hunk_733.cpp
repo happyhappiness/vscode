@@ -1,17 +1,38 @@
-	fid = t->max_filesystem_id++;
-	if (t->max_filesystem_id > t->allocated_filesytem) {
-		size_t s;
-		void *p;
+      case 6: test6(argc, argv); return 0;
 
-		s = t->max_filesystem_id * 2;
-		p = realloc(t->filesystem_table,
-		        s * sizeof(*t->filesystem_table));
-		if (p == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate tar data");
-			return (ARCHIVE_FATAL);
-		}
-		t->filesystem_table = (struct filesystem *)p;
-		t->allocated_filesytem = s;
-	}
-	t->current_filesystem_id = fid;
+      case 7: return test7(argc, argv);
+
+      case 8: return test8(argc, argv);
+
+      case 9: return test9(argc, argv);
+
+      case 10: return test10(argc, argv);
+
+      case 108: return test8_grandchild(argc, argv);
+
+      case 109: return test9_grandchild(argc, argv);
+
+      case 110: return test10_grandchild(argc, argv);
+
+      }
+
+    fprintf(stderr, "Invalid test number %d.\n", n);
+
+    return 1;
+
+    }
+
+  else if(n >= 1 && n <= 10)
+
+    {
+
+    /* This is the parent process for a requested test number.  */
+
+    int states[10] =
+
+    {
+
+      kwsysProcess_State_Exited,
+
+      kwsysProcess_State_Exited,
+

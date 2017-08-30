@@ -1,7 +1,18 @@
-    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
-    return info.buffer;
-  }
-  return strdup("");
-}
 
-char *curl_mvaprintf(const char *format, va_list ap_save)
+
+size_t Curl_cyassl_version(char *buffer, size_t size)
+
+{
+
+#if LIBCYASSL_VERSION_HEX >= 0x03006000
+
+  return snprintf(buffer, size, "wolfSSL/%s", wolfSSL_lib_version());
+
+#elif defined(WOLFSSL_VERSION)
+
+  return snprintf(buffer, size, "wolfSSL/%s", WOLFSSL_VERSION);
+
+#elif defined(CYASSL_VERSION)
+
+  return snprintf(buffer, size, "CyaSSL/%s", CYASSL_VERSION);
+

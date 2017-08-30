@@ -1,19 +1,14 @@
-         */
-        std::string output;
-        int retVal;
+// CMakeSetupDialog dialog
 
-        clock_t clock_start, clock_finish;
-        double clocks_per_sec = (double)CLOCKS_PER_SEC;
-        clock_start = clock();
+void updateProgress(const char *msg, float prog, void *cd)
 
-        bool res = cmSystemTools::RunCommand(testCommand.c_str(), output, 
-                                             retVal, 0, false);
-        clock_finish = clock();
+{
 
-        cres.m_ExecutionTime = (double)(clock_finish - clock_start) / clocks_per_sec;
-        cres.m_FullCommandLine = testCommand;
+  char* tmp = new char[strlen(msg) + 40];
 
-        if (!res || retVal != 0)
-          {
-          fprintf(stderr,"***Failed\n");
-          if (output != "")
+  if (prog >= 0)
+
+    {
+
+    sprintf(tmp,"%s %i%%",msg,(int)(100*prog));
+

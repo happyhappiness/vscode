@@ -1,53 +1,26 @@
-	case 'S':
-		/* We support some keys used by the "star" archiver */
-		if (strcmp(key, "SCHILY.acl.access") == 0) {
-			if (tar->sconv_acl == NULL) {
-				tar->sconv_acl =
-				    archive_string_conversion_from_charset(
-					&(a->archive), "UTF-8", 1);
-				if (tar->sconv_acl == NULL)
-					return (ARCHIVE_FATAL);
-			}
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
 
-			r = archive_acl_parse_l(archive_entry_acl(entry),
-			    value, ARCHIVE_ENTRY_ACL_TYPE_ACCESS,
-			    tar->sconv_acl);
-			if (r != ARCHIVE_OK) {
-				err = r;
-				if (err == ARCHIVE_FATAL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.access");
-					return (err);
-				}
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.access");
-			}
-		} else if (strcmp(key, "SCHILY.acl.default") == 0) {
-			if (tar->sconv_acl == NULL) {
-				tar->sconv_acl =
-				    archive_string_conversion_from_charset(
-					&(a->archive), "UTF-8", 1);
-				if (tar->sconv_acl == NULL)
-					return (ARCHIVE_FATAL);
-			}
+	    ARCHIVE_STATE_NEW, "archive_read_support_format_ar");
 
-			r = archive_acl_parse_l(archive_entry_acl(entry),
-			    value, ARCHIVE_ENTRY_ACL_TYPE_DEFAULT,
-			    tar->sconv_acl);
-			if (r != ARCHIVE_OK) {
-				err = r;
-				if (err == ARCHIVE_FATAL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.default");
-					return (err);
-				}
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.default");
-			}
-		} else if (strcmp(key, "SCHILY.devmajor") == 0) {
-			archive_entry_set_rdevmajor(entry,
-			    (dev_t)tar_atol10(value, strlen(value)));
+
+
+	ar = (struct ar *)malloc(sizeof(*ar));
+
+	if (ar == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM,
+
+		    "Can't allocate ar data");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+	memset(ar, 0, sizeof(*ar));
+
+	ar->strtab = NULL;
+
+
+
+	r = __archive_read_register_format(a,
+

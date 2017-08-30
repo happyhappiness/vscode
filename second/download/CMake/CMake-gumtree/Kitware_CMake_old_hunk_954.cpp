@@ -1,73 +1,72 @@
-  GetVersionEx(&osv);
-  if(osv.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS)
-    {
-    /* This is Win9x.  We need the console forwarding executable to
-       work-around a Windows 9x bug.  */
-    char fwdName[_MAX_FNAME+1] = "";
-    char tempDir[_MAX_PATH+1] = "";
+			    iso9660->previous_pathname.s);
 
-    /* We will try putting the executable in the system temp
-       directory.  Note that the returned path already has a trailing
-       slash.  */
-    DWORD length = GetTempPath(_MAX_PATH+1, tempDir);
+		archive_entry_unset_size(entry);
 
-    /* Construct the executable name from the process id and kwsysProcess
-       instance.  This should be unique.  */
-    sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%ld_%p.exe",
-            GetCurrentProcessId(), cp);
+		iso9660->entry_bytes_remaining = 0;
 
-    /* If we have a temp directory, use it.  */
-    if(length > 0 && length <= _MAX_PATH)
-      {
-      /* Allocate a buffer to hold the forwarding executable path.  */
-      size_t tdlen = strlen(tempDir);
-      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
-      if(!win9x)
-        {
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
+		iso9660->entry_sparse_offset = 0;
 
-      /* Construct the full path to the forwarding executable.  */
-      sprintf(win9x, "%s%s", tempDir, fwdName);
-      }
+		return (rd_r);
 
-    /* If we found a place to put the forwarding executable, try to
-       write it. */
-    if(win9x)
-      {
-      if(!kwsysEncodedWriteArrayProcessFwd9x(win9x))
-        {
-        /* Failed to create forwarding executable.  Give up.  */
-        free(win9x);
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
+	}
 
-      /* Get a handle to the file that will delete it when closed.  */
-      cp->Win9xHandle = CreateFile(win9x, GENERIC_READ, FILE_SHARE_READ, 0,
-                                   OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
-      if(cp->Win9xHandle == INVALID_HANDLE_VALUE)
-        {
-        /* We were not able to get a read handle for the forwarding
-           executable.  It will not be deleted properly.  Give up.  */
-        _unlink(win9x);
-        free(win9x);
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
-      }
-    else
-      {
-      /* Failed to find a place to put forwarding executable.  */
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    }
 
-  /* Save the path to the forwarding executable.  */
-  cp->Win9x = win9x;
 
-  /* Initially no thread owns the mutex.  Initialize semaphore to 1.  */
-  if(!(cp->SharedIndexMutex = CreateSemaphore(0, 1, 1, 0)))
-    {
+	/* Except for the hardlink case above, if the offset of the
+
+	 * next entry is before our current position, we can't seek
+
+	 * backwards to extract it, so issue a warning.  Note that
+
+	 * this can only happen if this entry was added to the heap
+
+	 * after we passed this offset, that is, only if the directory
+
+	 * mentioning this entry is later than the body of the entry.
+
+	 * Such layouts are very unusual; most ISO9660 writers lay out
+
+	 * and record all directory information first, then store
+
+	 * all file bodies. */
+
+	/* TODO: Someday, libarchive's I/O core will support optional
+
+	 * seeking.  When that day comes, this code should attempt to
+
+	 * seek and only return the error if the seek fails.  That
+
+	 * will give us support for whacky ISO images that require
+
+	 * seeking while retaining the ability to read almost all ISO
+
+	 * images in a streaming fashion. */
+
+	if ((file->mode & AE_IFMT) != AE_IFDIR &&
+
+	    file->offset < iso9660->current_position) {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "Ignoring out-of-order file @%jx (%s) %jd < %jd",
+
+		    (intmax_t)file->number,
+
+		    iso9660->pathname.s,
+
+		    (intmax_t)file->offset,
+
+		    (intmax_t)iso9660->current_position);
+
+		iso9660->entry_bytes_remaining = 0;
+
+		iso9660->entry_sparse_offset = 0;
+
+		return (ARCHIVE_WARN);
+
+	}
+
+
+
+	/* Initialize zisofs variables. */
+

@@ -1,16 +1,46 @@
-/* returns an allocated key to find a bundle for this connection */
-static char *hashkey(struct connectdata *conn)
+ *                  BEFORE any reading/polling of pipes occurs and before any
+
+ *                  detachment occurs.
+
+ */
+
+int runChild(const char* cmd[], int state, int exception, int value, int share,
+
+             int output, int delay, double timeout, int poll, int repeat,
+
+             int disown, int createNewGroup, unsigned int interruptDelay)
+
 {
-  const char *hostname;
 
-  if(conn->bits.proxy)
-    hostname = conn->proxy.name;
-  else if(conn->bits.conn_to_host)
-    hostname = conn->conn_to_host.name;
-  else
-    hostname = conn->host.name;
+  int result = 1;
 
-  return aprintf("%s:%d", hostname, conn->port);
+  kwsysProcess* kp = kwsysProcess_New();
+
+  if (!kp) {
+
+    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
+
+    return 1;
+
+  }
+
+  while (repeat-- > 0) {
+
+    result = runChild2(kp, cmd, state, exception, value, share, output, delay,
+
+                       timeout, poll, disown, createNewGroup, interruptDelay);
+
+    if (result) {
+
+      break;
+
+    }
+
+  }
+
+  kwsysProcess_Delete(kp);
+
+  return result;
+
 }
 
-/* Look up the bundle with all the connections to the same host this

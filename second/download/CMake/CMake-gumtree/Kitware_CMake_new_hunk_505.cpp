@@ -1,7 +1,17 @@
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Pathname is too long");
-			return (ARCHIVE_FATAL);
-		}
+#if DEBUG
 
-		r = archive_entry_copy_pathname_l(entry,
+	{
+
+		char buff[1024];
+
+		if (len > (int)(sizeof(buff)-1))
+
+			len = (int)(sizeof(buff)-1);
+
+		strncpy(buff, s, len);
+
+		buff[len] = 0;
+
+		fprintf(stderr, "\tlen=%d:\"%s\"\n", len, buff);
+
+	}

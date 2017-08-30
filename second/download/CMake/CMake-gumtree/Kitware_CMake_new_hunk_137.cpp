@@ -1,7 +1,46 @@
-		archive_entry_set_filetype(entry, AE_IFREG);
-		/* Get the size of the filename table. */
-		number = ar_atol10(h + AR_size_offset, AR_size_size);
-		if (number > SIZE_MAX || number > 1024 * 1024 * 1024) {
+	const char *path;
+
+	int namespace = EXTATTR_NAMESPACE_USER;
+
+
+
+	path = NULL;
+
+
+
+	if (*fd < 0) {
+
+		path = archive_entry_sourcepath(entry);
+
+		if (path == NULL || (a->tree != NULL &&
+
+		    a->tree_enter_working_dir(a->tree) != 0))
+
+			path = archive_entry_pathname(entry);
+
+		if (path == NULL) {
+
 			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Filename table too large");
-			return (ARCHIVE_FATAL);
+
+			    "Couldn't determine file path to read "
+
+			    "extended attributes");
+
+			return (ARCHIVE_WARN);
+
+		}
+
+		if (a->tree != NULL && (a->follow_symlinks ||
+
+		    archive_entry_filetype(entry) != AE_IFLNK)) {
+
+			*fd = a->open_on_current_dir(a->tree,
+
+			    path, O_RDONLY | O_NONBLOCK);
+
+		}
+
+	}
+
+
+

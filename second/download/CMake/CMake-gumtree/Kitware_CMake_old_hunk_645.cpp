@@ -1,7 +1,22 @@
-        li != testLangs.end(); ++li)
-      {
-      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
-      const char* flags = this->Makefile->GetDefinition(langFlags.c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-              lg->EscapeForCMake(flags?flags:"").c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
+			ret = ARCHIVE_OK;
+
+		}
+
+		return (ret);
+
+	} else if (strcmp(key, "experimental") == 0) {
+
+		if (val == NULL || val[0] == 0) {
+
+			zip->flags &= ~ ZIP_FLAG_EXPERIMENT_EL;
+
+		} else {
+
+			zip->flags |= ZIP_FLAG_EXPERIMENT_EL;
+
+		}
+
+		return (ARCHIVE_OK);
+
+	} else if (strcmp(key, "fakecrc32") == 0) {
+

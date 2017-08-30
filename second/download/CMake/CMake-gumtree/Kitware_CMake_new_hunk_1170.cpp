@@ -1,9 +1,26 @@
-        continue;
-        }
-      //std::cout << "Found target: " << tit->first.c_str() << std::endl;
-      cmOStringStream ostr;
-      ostr << graphNodePrefix << cnt++;
-      targetNamesNodes[realTargetName] = ostr.str();
-      targetPtrs[realTargetName] = &tit->second;
       }
+
     }
+
+
+
+  /* Create the child in a suspended state so we can wait until all
+
+     children have been created before running any one.  */
+
+  if(!CreateProcess(0, cp->Commands[index], 0, 0, TRUE, CREATE_SUSPENDED, 0,
+
+                    0, &si->StartupInfo, &cp->ProcessInformation[index]))
+
+    {
+
+    return 0;
+
+    }
+
+
+
+  /* Successfully created this child process.  Close the current
+
+     process's copies of the inherited stdout and stdin handles.  The
+

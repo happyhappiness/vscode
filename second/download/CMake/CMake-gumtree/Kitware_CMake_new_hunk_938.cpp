@@ -1,13 +1,14 @@
-      }
-    }
+		uint64_t flush_bytes;
 
-  /* Create the child in a suspended state so we can wait until all
-     children have been created before running any one.  */
-  if(!CreateProcess(0, cp->Commands[index], 0, 0, TRUE, CREATE_SUSPENDED, 0,
-                    0, &si->StartupInfo, &cp->ProcessInformation[index]))
-    {
-    return 0;
-    }
 
-  /* Successfully created this child process.  Close the current
-     process's copies of the inherited stdout and stdin handles.  The
+
+		if (!zip->ppmd7_valid || zip->ppmd7_stat < 0 ||
+
+		    t_avail_out <= 0) {
+
+			archive_set_error(&(a->archive),
+
+			    ARCHIVE_ERRNO_MISC,
+
+			    "Decompression internal error");
+

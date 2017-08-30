@@ -1,14 +1,22 @@
-                  symbol.erase(posAt);
-               }
-            }
-            // For 64 bit builds we don't need to remove _
-            if(!this->Is64Bit)
-              {
-              if (symbol[0] == '_')
-                {
-                symbol.erase(0,1);
-                }
-              }
-            if (this->ImportFlag) {
-               this->ImportFlag = false;
-               fprintf(this->FileOut,"EXPORTS \n");
+
+
+	switch(rsrc->compression) {
+
+	case 0:  /* No compression. */
+
+		if (rsrc->uncompressed_size != rsrc->compressed_size) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+			    "Malformed OS X metadata entry: inconsistent size");
+
+			return (ARCHIVE_FATAL);
+
+		}
+
+#ifdef HAVE_ZLIB_H
+
+	case 8: /* Deflate compression. */
+
+#endif
+

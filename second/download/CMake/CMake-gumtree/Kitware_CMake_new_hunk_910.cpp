@@ -1,13 +1,24 @@
-		/* Grab a bunch of bytes. */
-		buff = __archive_read_ahead(a, 1, &bytes_avail);
-		if (bytes_avail <= 0) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file data");
-			return (ARCHIVE_FATAL);
-		}
-		if (bytes_avail > zip->entry_bytes_remaining)
-			bytes_avail = (ssize_t)zip->entry_bytes_remaining;
-	}
-	*size = bytes_avail;
-	zip->entry_bytes_remaining -= bytes_avail;
+	archive_string_init(&wpath);
+
+	if (archive_wstring_append_from_mbs(&wpath, pathname,
+
+	    strlen(pathname)) != 0) {
+
+		if (errno == ENOMEM)
+
+			archive_set_error(&a->archive, ENOMEM,
+
+			    "Can't allocate memory");
+
+		else
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "Can't convert a path to a wchar_t string");
+
+		a->archive.state = ARCHIVE_STATE_FATAL;
+
+		ret = ARCHIVE_FATAL;
+
+	} else
+

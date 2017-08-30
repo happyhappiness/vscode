@@ -1,11 +1,11 @@
-	switch ((int)type & ~0777777) {
-	case 01000000:
-		/* POSIX.1e ACL */
-		break;
-	case 03000000:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Solaris NFSv4 ACLs not supported");
-		return (ARCHIVE_WARN);
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Malformed Solaris ACL attribute (unsupported type %o)",
+	if (state->child == NULL) {
+
+		child_stop(self, state);
+
+		free(state->out_buf);
+
+		free(state);
+
+		archive_set_error(&self->archive->archive, EINVAL,
+
+		    "Can't initialize filter; unable to run program \"%s\"",

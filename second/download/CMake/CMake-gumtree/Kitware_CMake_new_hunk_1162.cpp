@@ -1,7 +1,13 @@
+    fprintf(stderr, "Output on stderr after test %d.\n", n);
 
-/* Report a fatal error. */
-#ifndef YY_FATAL_ERROR
-#define YY_FATAL_ERROR(msg) yy_fatal_error( msg )
+    fflush(stdout);
+
+    fflush(stderr);
+
+#if defined(_WIN32)
+
+    if(argv0) { free(argv0); }
+
 #endif
 
-/* end tables serialization structures and prototypes */
+    return r;

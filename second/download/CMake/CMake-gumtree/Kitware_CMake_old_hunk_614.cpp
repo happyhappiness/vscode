@@ -1,7 +1,12 @@
-      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
-      const char* flags = this->Makefile->GetDefinition(langFlags);
-      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-              cmLocalGenerator::EscapeForCMake(flags?flags:"").c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
-              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
-      }
+}
+
+
+
+static int
+
+archive_read_format_lha_read_data(struct archive_read *a,
+
+    const void **buff, size_t *size, int64_t *offset)
+
+{
+

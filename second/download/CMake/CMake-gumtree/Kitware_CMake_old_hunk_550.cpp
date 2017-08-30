@@ -1,19 +1,26 @@
-        }
-        if(ptr) {
-          ftpc->newport = (unsigned short)(num & 0xffff);
 
-          if(conn->bits.tunnel_proxy ||
-             conn->proxytype == CURLPROXY_SOCKS5 ||
-             conn->proxytype == CURLPROXY_SOCKS5_HOSTNAME ||
-             conn->proxytype == CURLPROXY_SOCKS4 ||
-             conn->proxytype == CURLPROXY_SOCKS4A)
-            /* proxy tunnel -> use other host info because ip_addr_str is the
-               proxy address not the ftp host */
-            snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
-                     conn->host.name);
-          else
-            /* use the same IP we are already connected to */
-            snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str);
-        }
-      }
-      else
+
+        /* lineno is only valid if an input buffer exists. */
+
+        if (! YY_CURRENT_BUFFER )
+
+           yy_fatal_error( "cmFortran_yyset_lineno called with no buffer" , yyscanner);
+
+
+
+    yylineno = line_number;
+
+}
+
+
+
+/** Set the current column.
+
+ * @param column_no The column number to set.
+
+ * @param yyscanner The scanner object.
+
+ */
+
+void cmFortran_yyset_column (int  column_no , yyscan_t yyscanner)
+

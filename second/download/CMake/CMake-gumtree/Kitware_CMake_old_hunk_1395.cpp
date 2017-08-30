@@ -1,15 +1,12 @@
-#include <stdio.h>
-#include "DumpInformation.h"
+    aprintf("%s:%s:%s", userp, d->realm, passwdp);
 
-int main(int, char*[])
-{
-  FILE* file = fopen(CMAKE_DUMP_FILE, "r");
-  if(!file)
-    {
-    printf("Error, could not open file %s\n", CMAKE_DUMP_FILE);
-    return -1;
-    }
-  printf("#CMake System Variables are:");
-  while(!feof(file))
-    {
-    int ch = fgetc(file);
+  if(!md5this)
+
+    return CURLE_OUT_OF_MEMORY;
+
+  Curl_md5it(md5buf, md5this);
+
+  free(md5this); /* free this again */
+
+
+

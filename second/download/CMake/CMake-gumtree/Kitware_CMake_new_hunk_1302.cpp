@@ -1,13 +1,20 @@
-}
+      sprintf(buf, "%6.2f sec", totalTestTime); 
 
-//----------------------------------------------------------------------
-bool cmCTestCoverageHandler::StartLogFile(cmGeneratedFileStream& covLogFile, int logFileCount)
-{
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-  std::cout << "Open file: " << covLogFilename << std::endl;
-  if (!m_CTest->OpenOutputFile(m_CTest->GetCurrentTag(), 
-      covLogFilename, covLogFile, true))
-    {
-    std::cerr << "Cannot open log file: " << covLogFilename << std::endl;
-    return false;
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time = " 
+
+                 <<  buf << "\n" );
+
+      if ( this->LogFile )
+
+        {
+
+        *this->LogFile << "\nTotal Test time = " << buf << std::endl;
+
+        }
+
+      }
+
+
+
+    if (failed.size())
+

@@ -1,12 +1,16 @@
-        cmCTestTestResult *result = &this->TestResults[cc];
-        totalTestTime += result->ExecutionTime;
-        }
-      
-      char buf[1024];
-      sprintf(buf, "%6.2f sec", totalTestTime); 
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time = " 
-                 <<  buf << "\n" );
-      
-      }
+	}
 
-    if (failed.size())
+
+
+	/* CRC check. */
+
+	if (crc32(0, (const unsigned char *)p + 12, 20)
+
+	    != archive_le32dec(p + 8)) {
+
+		archive_set_error(&a->archive, -1, "Header CRC error");
+
+		return (ARCHIVE_FATAL);
+
+	}
+

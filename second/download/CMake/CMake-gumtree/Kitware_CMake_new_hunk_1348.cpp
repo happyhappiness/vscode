@@ -1,25 +1,24 @@
-            fprintf(stderr,"***Exception: ");
-            switch ( retVal )
-              {
-            case cmsysProcess_Exception_Fault:
-              fprintf(stderr,"SegFault");
-              cres.m_Status = cmCTest::SEGFAULT;
-              break;
-            case cmsysProcess_Exception_Illegal:
-              fprintf(stderr,"Illegal");
-              cres.m_Status = cmCTest::ILLEGAL;
-              break;
-            case cmsysProcess_Exception_Interrupt:
-              fprintf(stderr,"Interrupt");
-              cres.m_Status = cmCTest::INTERRUPT;
-              break;
-            case cmsysProcess_Exception_Numerical:
-              fprintf(stderr,"Numerical");
-              cres.m_Status = cmCTest::NUMERICAL;
-              break;
-            default:
-              fprintf(stderr,"Other");
-              cres.m_Status = cmCTest::OTHER_FAULT;
-              }
-            fprintf(stderr,"\n");
-            }
+  result = 0;
+
+  }
+
+# endif
+
+# ifdef DIRECTORY_DEF_DEBUG
+
+  {
+
+  fprintf(stderr, "DIRECTORY_DEF_DEBUG should not be defined in CXX\n");
+
+  result = 0;
+
+  }
+
+# endif
+
+# ifndef FILE_DEF_RELEASE
+
+#  ifndef PREPROCESS_XCODE
+
+  {
+

@@ -1,14 +1,16 @@
-#include "memdebug.h"
-#endif
+  if(!this->CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
 
-/* no perror? make an fprintf! */
-#ifndef HAVE_PERROR
-#  define perror(x) fprintf(stderr, "Error in: %s\n", x)
-#endif
+    {
 
-char *getpass_r(const char *prompt, char *buffer, size_t buflen)
-{
-  FILE *infp;
-  FILE *outfp;
-  RETSIGTYPE (*sigint)();
-#ifndef __EMX__
+    char ver[256];
+
+    sprintf(ver,"%i.%i",cmMakefile::GetMajorVersion(),
+
+            cmMakefile::GetMinorVersion());
+
+    this->CacheManager->AddCacheEntry
+
+      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
+
+       "For backwards compatibility, what version of CMake commands and "
+

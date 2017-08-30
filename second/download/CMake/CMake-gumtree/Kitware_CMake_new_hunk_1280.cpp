@@ -1,7 +1,14 @@
-    n = atoi(argv[2]);
+    gs_width = w+strlen(tmp)+1;
+
     }
-  /* Check arguments.  */
-  if(n < 1 || n > 7 || (argc == 3 && strcmp(argv[1], "run") != 0))
-    {
-    fprintf(stdout, "Usage: %s <test number>\n", argv[0]);
-    return 1;
+
+  fprintf(out, "%*s", (int)(gs_width - w), tmp);
+
+
+
+  /* Format the time using 'ls -l' conventions. */
+
+  tim = archive_entry_mtime(entry);
+
+#define HALF_YEAR (time_t)365 * 86400 / 2
+

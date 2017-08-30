@@ -1,9 +1,18 @@
-/* returns an allocated key to find a bundle for this connection */
-static char *hashkey(struct connectdata *conn)
-{
-  return aprintf("%s:%d",
-                 conn->bits.proxy?conn->proxy.name:conn->host.name,
-                 conn->localport);
-}
+  fprintf(stderr, "Output on stderr before grandchild test.\n");
 
-/* Look up the bundle with all the connections to the same host this
+  fflush(stdout);
+
+  fflush(stderr);
+
+  r = runChild(cmd, kwsysProcess_State_Exited,
+
+               kwsysProcess_Exception_None,
+
+               0, 1, 1, 0, 30, 0, 1, 0, 0, 0);
+
+  /* This sleep will avoid a race condition between this function exiting
+
+     normally and our Ctrl+C handler exiting abnormally after the process
+
+     exits.  */
+

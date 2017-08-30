@@ -1,7 +1,18 @@
-        /* we have a time, reformat it */
-        time_t secs=time(NULL);
-        /* using the good old yacc/bison yuck */
-        snprintf(buf, CURL_BUFSIZE(conn->data->set.buffer_size),
-                 "%04d%02d%02d %02d:%02d:%02d GMT",
-                 year, month, day, hour, minute, second);
-        /* now, convert this into a time() value: */
+
+
+    case STATUS_NO_MEMORY:
+
+    default:
+
+      cp->ProcessResults[idx].ExitException = kwsysProcess_Exception_Other;
+
+      _snprintf(cp->ProcessResults[idx].ExitExceptionString,
+
+                KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);
+
+      break;
+
+  }
+
+}
+

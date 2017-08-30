@@ -1,8 +1,15 @@
-		if (bytes_read < 0) {
-			if (errno == EINTR)
-				continue;
-			archive_set_error(a, errno, "Error reading fd %d",
-			    mine->fd);
-		}
-		return (bytes_read);
-	}
+        const char* exeLinkFlags =
+
+          this->Makefile->GetDefinition("CMAKE_EXE_LINKER_FLAGS");
+
+        fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS %s)\n",
+
+                cmLocalGenerator::EscapeForCMake(
+
+                    exeLinkFlags ? exeLinkFlags : "").c_str());
+
+        } break;
+
+      }
+
+    fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS \"${CMAKE_EXE_LINKER_FLAGS}"

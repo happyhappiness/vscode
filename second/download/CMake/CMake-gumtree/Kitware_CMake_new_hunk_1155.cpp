@@ -1,8 +1,32 @@
-    YY_BUFFER_STATE cmDependsFortran_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
-{
-        YY_BUFFER_STATE b;
+}
 
-        b = (YY_BUFFER_STATE) cmDependsFortran_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
-        if ( ! b )
-                YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yy_create_buffer()" );
+inline const char* Getcwd(char* buf, unsigned int len)
+
+{
+
+  if(const char* ret = _getcwd(buf, len))
+
+    {
+
+    // make sure the drive letter is capital
+
+    if(strlen(buf) > 1 && buf[1] == ':')
+
+      {
+
+      buf[0] = toupper(buf[0]);
+
+      }
+
+    return ret;
+
+    }
+
+  return 0;
+
+}
+
+inline int Chdir(const char* dir)
+
+{
 

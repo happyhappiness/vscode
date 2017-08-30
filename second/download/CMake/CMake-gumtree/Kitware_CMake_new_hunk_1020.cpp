@@ -1,7 +1,22 @@
-      {
-      printf("Checking -%s-\n", absFilename.c_str());
-      }
-    this->ParseCppFile(absFilename, includedMocs, notIncludedMocs);
-    }
+		r = fstatfs(tree_current_dir_fd(t), &sfs);
 
-  std::vector<std::string> headerFiles;
+		if (r == 0)
+
+			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
+
+#else
+
+		if (tree_enter_working_dir(t) != 0) {
+
+			archive_set_error(&a->archive, errno, "fchdir failed");
+
+			return (ARCHIVE_FAILED);
+
+		}
+
+		vr = statvfs(".", &svfs);
+
+		r = statfs(".", &sfs);
+
+		if (r == 0)
+

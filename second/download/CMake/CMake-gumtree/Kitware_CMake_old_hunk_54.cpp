@@ -1,15 +1,42 @@
-  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
-    return CURLE_BAD_CONTENT_ENCODING;
+{
 
-  /* Generate 16 bytes of random data */
-  result = Curl_rand(data, &entropy[0], 4);
-  if(result)
-    return result;
+  va_list ap;
 
-  /* Convert the random data into a 32 byte hex string */
-  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
-           entropy[0], entropy[1], entropy[2], entropy[3]);
+  size_t len;
 
-  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt)
+  va_start(ap, fmt);
+
+
+
+  vsnprintf(data->state.buffer, BUFSIZE, fmt, ap);
+
+
+
+  if(data->set.errorbuffer && !data->state.errorbuf) {
+
+    snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer);
+
+    data->state.errorbuf = TRUE; /* wrote error string */
+
+  }
+
+  if(data->set.verbose) {
+
+    len = strlen(data->state.buffer);
+
+    if(len < BUFSIZE - 1) {
+
+      data->state.buffer[len] = '\n';
+
+      data->state.buffer[++len] = '\0';
+
+    }
+
+    Curl_debug(data, CURLINFO_TEXT, data->state.buffer, len, NULL);
+
+  }
+
+
+
+  va_end(ap);
+

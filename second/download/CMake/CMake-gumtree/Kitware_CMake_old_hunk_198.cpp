@@ -1,8 +1,12 @@
-	bidder->free = NULL;
-#if HAVE_LZMA_H && HAVE_LIBLZMA
-	return (ARCHIVE_OK);
-#elif HAVE_LZMADEC_H && HAVE_LIBLZMADEC
-	return (ARCHIVE_OK);
+#if !HAVE_LINK
+
+		return (EPERM);
+
 #else
-	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external lzma program for lzma decompression");
+
+		r = link(linkname, a->name) ? errno : 0;
+
+		/*
+
+		 * New cpio and pax formats allow hardlink entries
+

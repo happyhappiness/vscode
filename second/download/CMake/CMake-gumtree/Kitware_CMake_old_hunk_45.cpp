@@ -1,7 +1,18 @@
-      return result;
+                 << static_cast<int>(percent + .5f) << "% tests passed, "
 
-    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-    snprintf(buf, BUFSIZE-1,
-             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-             tm->tm_mday,
+                 << failed.size() << " tests failed out of " << total
+
+                 << std::endl);
+
+    if (this->CTest->GetLabelSummary()) {
+
+      this->PrintLabelSummary();
+
+    }
+
+    char realBuf[1024];
+
+    sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
+
+    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT,
+

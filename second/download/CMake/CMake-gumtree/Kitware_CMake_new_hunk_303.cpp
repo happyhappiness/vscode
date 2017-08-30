@@ -1,8 +1,14 @@
-    case kwsysTerminal_Color_ForegroundWhite:
-      fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_WHITE);
-      break;
-  }
-  switch (color & kwsysTerminal_Color_BackgroundMask) {
-    case kwsysTerminal_Color_BackgroundBlack:
-      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_BLACK);
-      break;
+    else
+
+      tls_rt_name = "";
+
+
+
+    msg_type = *(char *)buf;
+
+    msg_name = ssl_msg_type(ssl_ver, msg_type);
+
+
+
+    txt_len = snprintf(ssl_buf, sizeof(ssl_buf), "%s (%s), %s, %s (%d):\n",
+

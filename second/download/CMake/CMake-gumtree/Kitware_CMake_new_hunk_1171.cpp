@@ -1,7 +1,22 @@
-        case CommandLineArguments::CONCAT_ARGUMENT: strcat(argument, "opt"); break;
-        case CommandLineArguments::SPACE_ARGUMENT:  strcat(argument, " opt"); break;
-        case CommandLineArguments::EQUAL_ARGUMENT:  strcat(argument, "=opt"); break;
-        case CommandLineArguments::MULTI_ARGUMENT:  strcat(argument, " opt opt ..."); break;
-        }
-      char buffer[80];
-      sprintf(buffer, format, argument);
+  GetVersionEx(&osv);
+
+  if(osv.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS)
+
+    {
+
+    /* Win9x no longer supported.  */
+
+    kwsysProcess_Delete(cp);
+
+    return 0;
+
+    }
+
+
+
+  /* Initially no thread owns the mutex.  Initialize semaphore to 1.  */
+
+  if(!(cp->SharedIndexMutex = CreateSemaphore(0, 1, 1, 0)))
+
+    {
+

@@ -1,32 +1,37 @@
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Bad record header");
-		return (ARCHIVE_FATAL);
-	}
-	ver = _warc_rdver(buf, eoh - buf);
-	/* we currently support WARC 0.12 to 1.0 */
-	if (ver == 0U) {
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Invalid record version");
-		return (ARCHIVE_FATAL);
-	} else if (ver < 1200U || ver > 10000U) {
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Unsupported record version: %u.%u",
-			ver / 10000, (ver % 10000) / 100);
-		return (ARCHIVE_FATAL);
-	}
-	cntlen = _warc_rdlen(buf, eoh - buf);
-	if (cntlen < 0) {
-		/* nightmare!  the specs say content-length is mandatory
-		 * so I don't feel overly bad stopping the reader here */
-		archive_set_error(
-			&a->archive, EINVAL,
-			"Bad content length");
-		return (ARCHIVE_FATAL);
-	}
-	rtime = _warc_rdrtm(buf, eoh - buf);
-	if (rtime == (time_t)-1) {
-		/* record time is mandatory as per WARC/1.0,
-		 * so just barf here, fast and loud */
-		archive_set_error(
+
+
+		/* Parse the size of the name, adjust the file size. */
+
+		number = ar_atol10(h + AR_name_offset + 3, AR_name_size - 3);
+
+		/* Sanity check the filename length:
+
+		 *   = Must be <= SIZE_MAX - 1
+
+		 *   = Must be <= 1MB
+
+		 *   = Cannot be bigger than the entire entry
+
+		 */
+
+		if (number > SIZE_MAX - 1
+
+		    || number > 1024 * 1024
+
+		    || (int64_t)number > ar->entry_bytes_remaining) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "Bad input file size");
+
+			return (ARCHIVE_FATAL);
+
+		}
+
+		bsd_name_length = (size_t)number;
+
+		ar->entry_bytes_remaining -= bsd_name_length;
+
+		/* Adjust file size reported to client. */
+
+		archive_entry_set_size(entry, ar->entry_bytes_remaining);

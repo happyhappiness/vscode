@@ -1,7 +1,22 @@
-    fprintf(stderr,"*** Failed LOADED COMMAND Final Pass\n");
-    }
-}
-static void CCONV Destructor(void *inf) 
-{
-  cmLoadedCommandInfo *info = (cmLoadedCommandInfo *)inf;
-  /* get our client data from initial pass */
+  this->ChipID.Family = 0; 
+
+ 
+
+  // Chip Vendor
+
+  this->ChipID.Vendor = "Sun";
+
+  this->FindManufacturer();
+
+  
+
+  // Chip Model
+
+  this->ChipID.ProcessorName = this->ParseValueFromKStat("-s cpu_type");
+
+  this->ChipID.Model = 0;
+
+
+
+  // Cache size
+

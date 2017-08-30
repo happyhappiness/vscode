@@ -1,46 +1,26 @@
-		(*last_entry)->next = entry;
-	*last_entry = entry;
+    if (useOldLinkLibs)
 
-	if (is_form_d) {
-		/*
-		 * This form places the file name as last parameter.
-		 */
-		name = line + line_len -1;
-		while (line_len > 0) {
-			if (*name != '\r' && *name != '\n' &&
-			    *name != '\t' && *name != ' ')
-				break;
-			name--;
-			line_len--;
-		}
-		len = 0;
-		while (line_len > 0) {
-			if (*name == '\r' || *name == '\n' ||
-			    *name == '\t' || *name == ' ') {
-				name++;
-				break;
-			}
-			name--;
-			line_len--;
-			len++;
-		}
-		end = name;
-	} else {
-		len = strcspn(line, " \t\r\n");
-		name = line;
-		line += len;
-		end = line + line_len;
-	}
+      {
 
-	if ((entry->name = malloc(len + 1)) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
+      fprintf(fout,
 
-	memcpy(entry->name, name, len);
-	entry->name[len] = '\0';
-	parse_escapes(entry->name, entry);
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
 
-	for (iter = *global; iter != NULL; iter = iter->next) {
-		r = add_option(a, &entry->options, iter->value,
-		    strlen(iter->value));
+              targetName.c_str());
+
+      }
+
+    else
+
+      {
+
+      fprintf(fout, "target_link_libraries(%s %s)\n",
+
+              targetName.c_str(),
+
+              libsToLink.c_str());
+
+      }
+
+    fclose(fout);
+

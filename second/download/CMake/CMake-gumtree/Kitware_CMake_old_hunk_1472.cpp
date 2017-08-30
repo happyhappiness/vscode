@@ -1,6 +1,28 @@
-  
-  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
-  
-  for (i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
+                           strlen(target.GetName()) + 30)];
+
+  sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
+
+          target.GetName(), count);
+
+
+
+  // Add the rule with the given dependencies and commands.
+
+  const char* no_main_dependency = 0;
+
+  this->Makefile->AddCustomCommandToOutput(output,
+
+                                       depends,
+
+                                       no_main_dependency,
+
+                                       origCommand.GetCommandLines(),
+
+                                       origCommand.GetComment(),
+
+                                       origCommand.GetWorkingDirectory());
+
+
+
+  // Replace the dependencies with the output of this rule so that the
+

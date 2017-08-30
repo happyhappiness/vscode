@@ -1,9 +1,14 @@
+    }
 
-  if (rar->file_flags & FHD_PASSWORD)
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "RAR encryption support unavailable.");
-    return (ARCHIVE_FATAL);
-  }
 
-  if (rar->file_flags & FHD_LARGE)
+
+  if(flags & CURL_GLOBAL_WIN32)
+
+    if(win32_init() != CURLE_OK) {
+
+      DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));
+
+      return CURLE_FAILED_INIT;
+
+    }
+

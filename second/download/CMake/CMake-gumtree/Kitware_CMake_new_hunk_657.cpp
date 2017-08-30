@@ -1,15 +1,50 @@
-	if ((keys & F_UID) != 0)
-		archive_string_sprintf(str, " uid=%jd", (intmax_t)me->uid);
+    }
 
-	if ((keys & F_INO) != 0)
-		archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino);
-	if ((keys & F_RESDEV) != 0) {
-		archive_string_sprintf(str,
-		    " resdevice=native,%ju,%ju",
-		    (uintmax_t)me->devmajor,
-		    (uintmax_t)me->devminor);
-	}
 
-	switch (me->filetype) {
-	case AE_IFLNK:
-		if ((keys & F_TYPE) != 0)
+
+  curses_move(y-4,0);
+
+  char fmt_s[] = "%s";
+
+  char fmt[512] = "Press [enter] to edit option";
+
+  if ( process )
+
+    {
+
+    strcpy(fmt, "                           ");
+
+    }
+
+  printw(fmt_s, fmt);
+
+  curses_move(y-3,0);
+
+  printw(fmt_s, firstLine);
+
+  curses_move(y-2,0);
+
+  printw(fmt_s, secondLine);
+
+  curses_move(y-1,0);
+
+  printw(fmt_s, thirdLine);
+
+
+
+  if (cw)
+
+    {
+
+    sprintf(firstLine, "Page %d of %d", cw->GetPage(), this->NumberOfPages);
+
+    curses_move(0,65-static_cast<unsigned int>(strlen(firstLine))-1);
+
+    printw(fmt_s, firstLine);
+
+    }
+
+//    }
+
+
+

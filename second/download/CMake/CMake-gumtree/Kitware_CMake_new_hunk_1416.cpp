@@ -1,22 +1,20 @@
-    if(conn->allocptr.host)
-      free(conn->allocptr.host);
+#ifdef CM_ORDER_LINK_DIRECTORIES_DEBUG
 
-    /* When building Host: headers, we must put the host name within
-       [brackets] if the host name is a plain IPv6-address. RFC2732-style. */
-       
-    if(((conn->protocol&PROT_HTTPS) && (conn->remote_port == PORT_HTTPS)) ||
-       (!(conn->protocol&PROT_HTTPS) && (conn->remote_port == PORT_HTTP)) )
-      /* If (HTTPS on port 443) OR (non-HTTPS on port 80) then don't include
-         the port number in the host string */
-      conn->allocptr.host = aprintf("Host: %s%s%s\r\n",
-                                    conn->bits.ipv6_ip?"[":"",
-                                    host,
-                                    conn->bits.ipv6_ip?"]":"");
-    else
-      conn->allocptr.host = aprintf("Host: %s%s%s:%d\r\n",
-                                    conn->bits.ipv6_ip?"[":"",
-                                    host,
-                                    conn->bits.ipv6_ip?"]":"",
-                                    conn->remote_port);
-  }
+    fprintf(stderr, "Raw link item [%s]\n", this->RawLinkItems[i].c_str());
+
+#endif
+
+    // check to see if the file is a full path or just contains 
+
+    // a / in it and is a path to something
+
+    if(cmSystemTools::FileIsFullPath(this->RawLinkItems[i].c_str())
+
+      || this->RawLinkItems[i].find("/") != cmStdString.npos)
+
+      {
+
+      if(cmSystemTools::FileIsDirectory(this->RawLinkItems[i].c_str()))
+
+        {
 

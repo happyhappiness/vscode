@@ -1,7 +1,30 @@
-	__archive_read_consume(a, 4);
+					archive_set_error(&a->archive,
 
-	/*return (ARCHIVE_OK);
-	 * This is not fully implemnted yet.*/
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-	    "Encrypted file is unsupported");
-	return (ARCHIVE_FAILED);
+					    ARCHIVE_ERRNO_MISC,
+
+					    "Invalid Rockridge CL");
+
+					return (NULL);
+
+				}
+
+			}
+
+			if (file->cl_offset == file->offset ||
+
+			    parent->rr_moved) {
+
+				archive_set_error(&a->archive,
+
+				    ARCHIVE_ERRNO_MISC,
+
+				    "Invalid Rockridge CL");
+
+				return (NULL);
+
+			}
+
+		}
+
+	}
+

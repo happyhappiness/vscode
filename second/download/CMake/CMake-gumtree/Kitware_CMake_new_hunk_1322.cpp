@@ -1,96 +1,110 @@
-     so that they stay on the same level as the state stack.
-     The wasted elements are never initialized.  */
+  // the same order in which the items were originally discovered in
 
-  yyssp = yyss;
-  yyvsp = yyvs;
+  // the BFS.  This should preserve the original order when no
 
-  goto yysetstate;
+  // constraints disallow it.
 
-/*------------------------------------------------------------.
-| yynewstate -- Push a new state, which is found in yystate.  |
-`------------------------------------------------------------*/
- yynewstate:
-  /* In all cases, when you get here, the value and location stacks
-     have just been pushed. so pushing a state here evens the stacks.
-     */
-  yyssp++;
+  this->CCG = new cmComputeComponentGraph(this->EntryConstraintGraph);
 
- yysetstate:
-  *yyssp = yystate;
 
-  if (yyss + yystacksize - 1 <= yyssp)
+
+  // The component graph is guaranteed to be acyclic.  Start a DFS
+
+  // from every entry to compute a topological order for the
+
+  // components.
+
+  Graph const& cgraph = this->CCG->GetComponentGraph();
+
+  int n = static_cast<int>(cgraph.size());
+
+  this->ComponentVisited.resize(cgraph.size(), 0);
+
+  this->ComponentOrder.resize(cgraph.size(), n);
+
+  this->ComponentOrderId = n;
+
+  // Run in reverse order so the topological order will preserve the
+
+  // original order where there are no constraints.
+
+  for(int c = n-1; c >= 0; --c)
+
     {
-      /* Get the current used size of the three stacks, in elements.  */
-      YYSIZE_T yysize = yyssp - yyss + 1;
 
-#ifdef yyoverflow
-      {
-        /* Give user a chance to reallocate the stack. Use copies of
-           these so that the &'s don't force the real ones into
-           memory.  */
-        YYSTYPE *yyvs1 = yyvs;
-        short *yyss1 = yyss;
+    this->VisitComponent(c);
 
-
-        /* Each stack pointer address is followed by the size of the
-           data in use in that stack, in bytes.  This used to be a
-           conditional around just the two extra args, but that might
-           be undefined if yyoverflow is a macro.  */
-        yyoverflow ("parser stack overflow",
-                    &yyss1, yysize * sizeof (*yyssp),
-                    &yyvs1, yysize * sizeof (*yyvsp),
-
-                    &yystacksize);
-
-        yyss = yyss1;
-        yyvs = yyvs1;
-      }
-#else /* no yyoverflow */
-# ifndef YYSTACK_RELOCATE
-      goto yyoverflowlab;
-# else
-      /* Extend the stack our own way.  */
-      if (YYMAXDEPTH <= yystacksize)
-        goto yyoverflowlab;
-      yystacksize *= 2;
-      if (YYMAXDEPTH < yystacksize)
-        yystacksize = YYMAXDEPTH;
-
-      {
-        short *yyss1 = yyss;
-        union yyalloc *yyptr =
-          (union yyalloc *) YYSTACK_ALLOC (YYSTACK_BYTES (yystacksize));
-        if (! yyptr)
-          goto yyoverflowlab;
-        YYSTACK_RELOCATE (yyss);
-        YYSTACK_RELOCATE (yyvs);
-
-#  undef YYSTACK_RELOCATE
-        if (yyss1 != yyssa)
-          YYSTACK_FREE (yyss1);
-      }
-# endif
-#endif /* no yyoverflow */
-
-      yyssp = yyss + yysize - 1;
-      yyvsp = yyvs + yysize - 1;
-
-
-      YYDPRINTF ((stderr, "Stack size increased to %lu\n",
-                  (unsigned long int) yystacksize));
-
-      if (yyss + yystacksize - 1 <= yyssp)
-        YYABORT;
     }
 
-  YYDPRINTF ((stderr, "Entering state %d\n", yystate));
 
-  goto yybackup;
 
-/*-----------.
-| yybackup.  |
-`-----------*/
-yybackup:
+  // Display the component graph.
 
-/* Do appropriate processing given the current state.  */
-/* Read a lookahead token if we need one and don't already have one.  */
+  if(this->DebugMode)
+
+    {
+
+    this->DisplayComponents();
+
+    }
+
+
+
+  // Start with the original link line.
+
+  for(std::vector<int>::const_iterator i = this->OriginalEntries.begin();
+
+      i != this->OriginalEntries.end(); ++i)
+
+    {
+
+    this->VisitEntry(*i);
+
+    }
+
+
+
+  // Now explore anything left pending.  Since the component graph is
+
+  // guaranteed to be acyclic we know this will terminate.
+
+  while(!this->PendingComponents.empty())
+
+    {
+
+    // Visit one entry from the first pending component.  The visit
+
+    // logic will update the pending components accordingly.  Since
+
+    // the pending components are kept in topological order this will
+
+    // not repeat one.
+
+    int e = *this->PendingComponents.begin()->second.Entries.begin();
+
+    this->VisitEntry(e);
+
+    }
+
+}
+
+
+
+//----------------------------------------------------------------------------
+
+void
+
+cmComputeLinkDepends::DisplayComponents()
+
+{
+
+  fprintf(stderr, "The strongly connected components are:\n");
+
+  std::vector<NodeList> const& components = this->CCG->GetComponents();
+
+  for(unsigned int c=0; c < components.size(); ++c)
+
+    {
+
+    fprintf(stderr, "Component (%u):\n", c);
+

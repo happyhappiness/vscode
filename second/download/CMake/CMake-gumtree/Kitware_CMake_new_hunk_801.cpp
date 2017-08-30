@@ -1,7 +1,18 @@
-		/* Handle UTF-8 filnames as libarchive 2.x */
-		tar->compat_2x = (val != NULL)?1:0;
-		tar->init_default_conversion = tar->compat_2x;
-		return (ARCHIVE_OK);
-	} else if (strcmp(key, "hdrcharset")  == 0) {
-		if (val == NULL || val[0] == 0)
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+{
+
+	struct archive_write *a = (struct archive_write *)_a;
+
+	int ret = ARCHIVE_FAILED;
+
+
+
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+
+		ARCHIVE_STATE_NEW | ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
+
+		"archive_write_zip_set_compression_deflate");
+
+	if (a->archive.archive_format != ARCHIVE_FORMAT_ZIP) {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+

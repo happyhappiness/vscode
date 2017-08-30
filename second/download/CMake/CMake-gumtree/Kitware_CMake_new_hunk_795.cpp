@@ -1,11 +1,26 @@
-    return (ARCHIVE_FATAL);
+    ret = read_data_compressed(a, buff, size, offset);
+
+    if (ret != ARCHIVE_OK && ret != ARCHIVE_WARN)
+
+      __archive_ppmd7_functions.Ppmd7_Free(&rar->ppmd7_context, &g_szalloc);
+
+    break;
+
+
+
+  default:
+
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+                      "Unsupported compression method for RAR file.");
+
+    ret = ARCHIVE_FATAL;
+
+    break;
+
   }
 
-  if ((h = __archive_read_ahead(a, (size_t)header_size - 7, NULL)) == NULL)
-    return (ARCHIVE_FATAL);
+  return (ret);
 
-  /* File Header CRC check. */
-  crc32_val = crc32(crc32_val, h, (unsigned)(header_size - 7));
-  if ((crc32_val & 0xffff) != archive_le16dec(rar_header.crc)) {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-      "Header CRC error");
+}
+

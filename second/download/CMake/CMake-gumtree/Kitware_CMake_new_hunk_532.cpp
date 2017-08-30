@@ -1,13 +1,32 @@
-  sprintf(version+sideSpace, "%s", vertmp);
-  version[width] = '\0';
+	}
 
-  char fmt_s[] = "%s";
-  curses_move(y-4,0);
-  attron(A_STANDOUT);
-  printw(fmt_s, bar);
-  attroff(A_STANDOUT);
-  curses_move(y-3,0);
-  printw(fmt_s, version);
-  pos_form_cursor(this->Form);
-}
+	__archive_read_consume(a, filename_length);
+
+
+
+	/* Read the extra data. */
+
+	if ((h = __archive_read_ahead(a, extra_length, NULL)) == NULL) {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+		    "Truncated ZIP file header");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+
+
+	process_extra(h, extra_length, zip_entry);
+
+	__archive_read_consume(a, extra_length);
+
+
+
+	/* Work around a bug in Info-Zip: When reading from a pipe, it
+
+	 * stats the pipe instead of synthesizing a file entry. */
+
+	if ((zip_entry->mode & AE_IFMT) == AE_IFIFO) {
 

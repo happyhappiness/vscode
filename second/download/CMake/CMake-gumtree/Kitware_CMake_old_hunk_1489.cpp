@@ -1,6 +1,28 @@
-  /* create an extern ref to the generic delete function */
-  fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
+                        const cmCustomCommand& origCommand)
 
-  /* the main declaration */
-  fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
-  fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
+{
+
+  // Create a fake output that forces the rule to run.
+
+  char* output = new char[(strlen(m_Makefile->GetStartOutputDirectory()) +
+
+                           strlen(target.GetName()) + 30)];
+
+  sprintf(output,"%s/%s_force_%i", m_Makefile->GetStartOutputDirectory(),
+
+          target.GetName(), count);
+
+
+
+  // Add the rule with the given dependencies and commands.
+
+  const char* no_main_dependency = 0;
+
+  m_Makefile->AddCustomCommandToOutput(output,
+
+                                       depends,
+
+                                       no_main_dependency,
+
+                                       origCommand.GetCommandLines(),
+

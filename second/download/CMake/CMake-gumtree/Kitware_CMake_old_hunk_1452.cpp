@@ -1,8 +1,14 @@
-         */
-        std::string output;
-        int retVal;
-        if (!cmSystemTools::RunCommand(testCommand.c_str(), output, 
-                                       retVal, 0, false) || retVal != 0)
-          {
-          fprintf(stderr,"***Failed\n");
-          if (output != "")
+// CMakeSetupDialog dialog
+
+void updateProgress(const char *msg, float prog, void *cd)
+
+{
+
+  char tmp[1024];
+
+  if (prog >= 0)
+
+    {
+
+    sprintf(tmp,"%s %i%%",msg,(int)(100*prog));
+

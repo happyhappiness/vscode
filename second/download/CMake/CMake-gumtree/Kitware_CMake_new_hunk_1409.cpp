@@ -1,19 +1,30 @@
-    vsnprintf(data->set.errorbuffer, CURL_ERROR_SIZE, fmt, ap);
-    data->state.errorbuf = TRUE; /* wrote error string */
+      // is this test in the list of tests to run? If not then skip it
 
-    if(data->set.verbose) {
-      int len = strlen(data->set.errorbuffer);
-      bool doneit=FALSE;
-      if(len < CURL_ERROR_SIZE) {
-        doneit = TRUE;
-        data->set.errorbuffer[len] = '\n';
-        data->set.errorbuffer[++len] = '\0';
+      if ((this->TestsToRun.size() &&
+
+           std::find(this->TestsToRun.begin(),
+
+                     this->TestsToRun.end(), inREcnt)
+
+           == this->TestsToRun.end()) || !it->IsInBasedOnREOptions)
+
+        {
+
+        continue;
+
+        }
+
       }
-      Curl_debug(data, CURLINFO_TEXT, data->set.errorbuffer, len);
-      if(doneit)
-        /* cut off the newline again */
-        data->set.errorbuffer[--len]=0;
+
+    
+
+    // process this one test
+
+    this->ProcessOneTest(&(*it), passed, failed, cnt, tmsize);
+
     }
-  }
-  va_end(ap);
-}
+
+
+
+  this->EndTest = this->CTest->CurrentTime();
+

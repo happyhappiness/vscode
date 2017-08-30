@@ -1,6 +1,20 @@
-	ssize_t bytes_avail;
-	int r;
+  }
 
-	/* If we haven't yet read any data, initialize the decompressor. */
-	if (!lha->decompress_init) {
-		r = lzh_decode_init(&(lha->strm), lha->method);
+
+
+  windowoffs = lzss_offset_for_position(&rar->lzss, startpos);
+
+  if(windowoffs + length <= lzss_size(&rar->lzss)) {
+
+    memcpy(&rar->unp_buffer[rar->unp_offset], &rar->lzss.window[windowoffs],
+
+           length);
+
+  } else if (length <= lzss_size(&rar->lzss)) {
+
+    firstpart = lzss_size(&rar->lzss) - windowoffs;
+
+    if (firstpart < 0) {
+
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+

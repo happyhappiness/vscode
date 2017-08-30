@@ -1,8 +1,12 @@
-    label.resize(maxlen +3, ' ');
-    char buf[1024];
-    sprintf(buf, "%6.2f sec", labelTimes[*i]);
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\n"
-               << label << " = " << buf );
-    if ( this->LogFile )
-      {
-      *this->LogFile << "\n" << *i << " = "
+{
+
+  int i, j, codebits = 0, symbolsleft = numsymbols;
+
+
+
+  if (new_node(code) < 0) {
+
+    archive_set_error(&a->archive, ENOMEM,
+
+                      "Unable to allocate memory for node data.");
+

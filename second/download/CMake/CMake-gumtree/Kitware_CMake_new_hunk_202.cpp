@@ -1,7 +1,46 @@
-		 * If we can't look up the real name, warn and return
-		 * the entry with the wrong name.
-		 */
-		if (ar->strtab == NULL || number >= ar->strtab_size) {
-			archive_set_error(&a->archive, EINVAL,
-			    "Can't find long filename for GNU/SVR4 archive entry");
-			archive_entry_copy_pathname(entry, filename);
+	return (ARCHIVE_OK);
+
+}
+
+
+
+static int
+
+cleanup_pathname(struct archive_write_disk *a)
+
+{
+
+	struct archive_string error_string;
+
+	int error_number;
+
+	int rc;
+
+	archive_string_init(&error_string);
+
+	rc = cleanup_pathname_fsobj(a->name, &error_number, &error_string,
+
+	    a->flags);
+
+	if (rc != ARCHIVE_OK) {
+
+		archive_set_error(&a->archive, error_number, "%s",
+
+		    error_string.s);
+
+	}
+
+	archive_string_free(&error_string);
+
+	return rc;
+
+}
+
+
+
+/*
+
+ * Create the parent directory of the specified path, assuming path
+
+ * is already in mutable storage.
+

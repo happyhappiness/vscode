@@ -1,11 +1,20 @@
-			return (0);
-		if (bytes_read < 0)
-			return (ARCHIVE_FATAL);
-		s = t;  /* Start of line? */
-		p = memchr(t, '\n', bytes_read);
-		/* If we found '\n', trim the read. */
-		if (p != NULL) {
-			bytes_read = 1 + ((const char *)p) - s;
-		}
-		if (total_size + bytes_read + 1 > limit) {
-			archive_set_error(&a->archive,
+	struct private_data *data = (struct private_data *)f->data;
+
+
+
+	if (strcmp(key, "compression-level") == 0) {
+
+		if (value == NULL || !(value[0] >= '1' && value[0] <= '9') ||
+
+		    value[1] != '\0')
+
+			return (ARCHIVE_WARN);
+
+		data->compression_level = value[0] - '0';
+
+		return (ARCHIVE_OK);
+
+	}
+
+	if (strcmp(key, "stream-checksum") == 0) {
+

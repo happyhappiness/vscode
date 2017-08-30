@@ -1,70 +1,194 @@
-{
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+      }
 
-  /* TODO. We should be able to replace this entire function body
-   * with
-   *    cmCommandArgument_yypop_buffer_state();
-   *    cmCommandArgument_yypush_buffer_state(new_buffer);
-     */
-  cmCommandArgument_yyensure_buffer_stack (yyscanner);
-  if ( YY_CURRENT_BUFFER == new_buffer )
-    return;
-
-  if ( YY_CURRENT_BUFFER )
-    {
-    /* Flush out information for old buffer. */
-    *yyg->yy_c_buf_p = yyg->yy_hold_char;
-    YY_CURRENT_BUFFER_LVALUE->yy_buf_pos = yyg->yy_c_buf_p;
-    YY_CURRENT_BUFFER_LVALUE->yy_n_chars = yyg->yy_n_chars;
     }
 
-  YY_CURRENT_BUFFER_LVALUE = new_buffer;
-  cmCommandArgument_yy_load_buffer_state(yyscanner );
 
-  /* We don't actually know whether we did this switch during EOF
-   * (cmCommandArgument_yywrap()) processing, but the only time this flag is
-   * looked at is after cmCommandArgument_yywrap() is called, so it's safe to
-   * go ahead and always set it.
-   */
-  yyg->yy_did_buffer_switch_on_eof = 1;
-}
 
-static void cmCommandArgument_yy_load_buffer_state  (yyscan_t yyscanner)
-{
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
-  yyg->yy_n_chars = YY_CURRENT_BUFFER_LVALUE->yy_n_chars;
-  yyg->yytext_ptr = yyg->yy_c_buf_p = YY_CURRENT_BUFFER_LVALUE->yy_buf_pos;
-  yyin = YY_CURRENT_BUFFER_LVALUE->yy_input_file;
-  yyg->yy_hold_char = *yyg->yy_c_buf_p;
-}
+  /* Create the child process.  */
 
-/** Allocate and initialize an input buffer state.  @param file A readable
- * stream.  @param size The character buffer size in bytes. When in doubt,
- * use @c YY_BUF_SIZE.  @param yyscanner The scanner object.  @return the
- * allocated buffer state.
- */
-    YY_BUFFER_STATE cmCommandArgument_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
-{
-  YY_BUFFER_STATE b;
-    
-  b = (YY_BUFFER_STATE) cmCommandArgument_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
-  if ( ! b )
-    YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_create_buffer()" );
+  {
 
-  b->yy_buf_size = size;
+  BOOL r;
 
-  /* yy_ch_buf has to be 2 characters longer than the size given because
-   * we need to put in 2 end-of-buffer characters.
-   */
-  b->yy_ch_buf = (char *) cmCommandArgument_yyalloc(b->yy_buf_size + 2 ,yyscanner );
-  if ( ! b->yy_ch_buf )
-    YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_create_buffer()" );
+  char* realCommand;
 
-  b->yy_is_our_buffer = 1;
+  if(cp->Win9x)
 
-  cmCommandArgument_yy_init_buffer(b,file ,yyscanner);
+    {
 
-  return b;
-}
+    /* Create an error reporting pipe for the forwarding executable.
 
-/** Destroy the buffer.
+       Neither end is directly inherited.  */
+
+    if(!CreatePipe(&si->ErrorPipeRead, &si->ErrorPipeWrite, 0, 0))
+
+      {
+
+      return 0;
+
+      }
+
+
+
+    /* Create an inherited duplicate of the write end.  This also closes
+
+       the non-inherited version. */
+
+    if(!DuplicateHandle(GetCurrentProcess(), si->ErrorPipeWrite,
+
+                        GetCurrentProcess(), &si->ErrorPipeWrite,
+
+                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
+
+                                  DUPLICATE_SAME_ACCESS)))
+
+      {
+
+      return 0;
+
+      }
+
+
+
+    /* The forwarding executable is given a handle to the error pipe
+
+       and resume and kill events.  */
+
+    realCommand = (char*)malloc(strlen(cp->Win9x)+strlen(cp->Commands[index])+100);
+
+    if(!realCommand)
+
+      {
+
+      return 0;
+
+      }
+
+    sprintf(realCommand, "%s %p %p %p %d %s", cp->Win9x,
+
+            si->ErrorPipeWrite, cp->Win9xResumeEvent, cp->Win9xKillEvent,
+
+            cp->HideWindow, cp->Commands[index]);
+
+    }
+
+  else
+
+    {
+
+    realCommand = cp->Commands[index];
+
+    }
+
+
+
+  /* Create the child in a suspended state so we can wait until all
+
+     children have been created before running any one.  */
+
+  r = CreateProcess(0, realCommand, 0, 0, TRUE,
+
+                    cp->Win9x? 0 : CREATE_SUSPENDED, 0, 0,
+
+                    &si->StartupInfo, &cp->ProcessInformation[index]);
+
+  if(cp->Win9x)
+
+    {
+
+    /* Free memory.  */
+
+    free(realCommand);
+
+
+
+    /* Close the error pipe write end so we can detect when the
+
+       forwarding executable closes it.  */
+
+    kwsysProcessCleanupHandle(&si->ErrorPipeWrite);
+
+    if(r)
+
+      {
+
+      /* Wait for the forwarding executable to report an error or
+
+         close the error pipe to report success.  */
+
+      DWORD total = 0;
+
+      DWORD n = 1;
+
+      while(total < KWSYSPE_PIPE_BUFFER_SIZE && n > 0)
+
+        {
+
+        if(ReadFile(si->ErrorPipeRead, cp->ErrorMessage+total,
+
+                    KWSYSPE_PIPE_BUFFER_SIZE-total, &n, 0))
+
+          {
+
+          total += n;
+
+          }
+
+        else
+
+          {
+
+          n = 0;
+
+          }
+
+        }
+
+      if(total > 0 || GetLastError() != ERROR_BROKEN_PIPE)
+
+        {
+
+        /* The forwarding executable could not run the process, or
+
+           there was an error reading from its error pipe.  Preserve
+
+           the last error while cleaning up the forwarding executable
+
+           so the cleanup our caller does reports the proper error.  */
+
+        DWORD error = GetLastError();
+
+        kwsysProcessCleanupHandle(&cp->ProcessInformation[index].hThread);
+
+        kwsysProcessCleanupHandle(&cp->ProcessInformation[index].hProcess);
+
+        SetLastError(error);
+
+        return 0;
+
+        }
+
+      }
+
+    kwsysProcessCleanupHandle(&si->ErrorPipeRead);
+
+    }
+
+
+
+  if(!r)
+
+    {
+
+    return 0;
+
+    }
+
+  }
+
+
+
+  /* Successfully created this child process.  Close the current
+
+     process's copies of the inherited stdout and stdin handles.  The
+

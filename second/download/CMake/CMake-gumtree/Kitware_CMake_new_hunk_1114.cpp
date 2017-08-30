@@ -1,17 +1,62 @@
-  unsigned char *data;
-  int dataLen;
-  int i, j;
-#ifdef CURL_DOES_CONVERSIONS
-  /* get a Curl handle so main can translate properly */
-  struct SessionHandle *handle = curl_easy_init();
-  if(handle == NULL) {
-    fprintf(stderr, "Error: curl_easy_init failed\n");
-    return 0;
-  }
-#endif
 
-  base64 = (char *)suck(&base64Len);
-  dataLen = Curl_base64_decode(base64, &data);
 
-  fprintf(stderr, "%d\n", dataLen);
+#ifdef HAVE_ZLIB_H
+
+static int
+
+zip_deflate_init(struct archive_read *a, struct zip *zip)
+
+{
+
+	int r;
+
+
+
+	/* If we haven't yet read any data, initialize the decompressor. */
+
+	if (!zip->decompress_init) {
+
+		if (zip->stream_valid)
+
+			r = inflateReset(&zip->stream);
+
+		else
+
+			r = inflateInit2(&zip->stream,
+
+			    -15 /* Don't check for zlib header */);
+
+		if (r != Z_OK) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "Can't initialize ZIP decompression.");
+
+			return (ARCHIVE_FATAL);
+
+		}
+
+		/* Stream structure has been set up. */
+
+		zip->stream_valid = 1;
+
+		/* We've initialized decompression for this stream. */
+
+		zip->decompress_init = 1;
+
+	}
+
+	return (ARCHIVE_OK);
+
+}
+
+
+
+static int
+
+zip_read_data_deflate(struct archive_read *a, const void **buff,
+
+    size_t *size, int64_t *offset)
+
+{
 

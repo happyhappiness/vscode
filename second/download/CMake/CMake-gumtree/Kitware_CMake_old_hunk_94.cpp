@@ -1,6 +1,14 @@
+  else
 
-  /* We do some initial setup here, all those fields that can't be just 0 */
+    hostname = conn->host.name;
 
-  data->state.headerbuff = malloc(HEADERSIZE);
-  if(!data->state.headerbuff) {
-    DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"));
+
+
+  return aprintf("%s:%d", hostname, conn->port);
+
+}
+
+
+
+/* Look up the bundle with all the connections to the same host this
+

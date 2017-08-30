@@ -1,26 +1,64 @@
-     * The application kindly asks for a differently sized receive buffer.
-     * If it seems reasonable, we'll use it.
-     */
-    arg = va_arg(param, long);
+    pwd = conn->passwd;
 
-    if(arg > READBUFFER_MAX)
-      arg = READBUFFER_MAX;
-    else if(arg < 1)
-      arg = READBUFFER_SIZE;
-    else if(arg < READBUFFER_MIN)
-      arg = READBUFFER_MIN;
+  }
 
-    /* Resize if new size */
-    if(arg != data->set.buffer_size) {
-      char *newbuff = realloc(data->state.buffer, arg + 1);
-      if(!newbuff) {
-        DEBUGF(fprintf(stderr, "Error: realloc of buffer failed\n"));
-        result = CURLE_OUT_OF_MEMORY;
-      }
-      else
-        data->state.buffer = newbuff;
-    }
-    data->set.buffer_size = arg;
 
-    break;
+
+  out = aprintf("%s:%s", user, pwd);
+
+  if(!out)
+
+    return CURLE_OUT_OF_MEMORY;
+
+
+
+  result = Curl_base64_encode(data, out, strlen(out), &authorization, &size);
+
+  if(result)
+
+    goto fail;
+
+
+
+  if(!authorization) {
+
+    result = CURLE_REMOTE_ACCESS_DENIED;
+
+    goto fail;
+
+  }
+
+
+
+  free(*userp);
+
+  *userp = aprintf("%sAuthorization: Basic %s\r\n",
+
+                   proxy ? "Proxy-" : "",
+
+                   authorization);
+
+  free(authorization);
+
+  if(!*userp) {
+
+    result = CURLE_OUT_OF_MEMORY;
+
+    goto fail;
+
+  }
+
+
+
+  fail:
+
+  free(out);
+
+  return result;
+
+}
+
+
+
+/* pickoneauth() selects the most favourable authentication method from the
 

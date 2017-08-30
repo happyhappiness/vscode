@@ -1,7 +1,22 @@
-	if (ver != w->pver) {
-		/* stringify this entry's version */
-		archive_string_sprintf(&w->sver,
-			"WARC/%u.%u", ver / 10000, ver % 10000);
-		/* remember the version */
-		w->pver = ver;
-	}
+			    "Rejecting malformed cpio archive: symlink contents exceed 1 megabyte");
+
+			return (ARCHIVE_FATAL);
+
+		}
+
+		h = __archive_read_ahead(a,
+
+			(size_t)cpio->entry_bytes_remaining, NULL);
+
+		if (h == NULL)
+
+			return (ARCHIVE_FATAL);
+
+		if (archive_entry_copy_symlink_l(entry, (const char *)h,
+
+		    (size_t)cpio->entry_bytes_remaining, sconv) != 0) {
+
+			if (errno == ENOMEM) {
+
+				archive_set_error(&a->archive, ENOMEM,
+

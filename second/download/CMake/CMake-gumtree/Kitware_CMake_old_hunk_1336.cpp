@@ -1,7 +1,39 @@
-      {
-      if (res == cmsysProcess_State_Exited && retVal == 0)
-        {
-        fprintf(stderr,"   Passed\n");
-        passed.push_back(testname);
-        cres.m_Status = cmCTest::COMPLETED;
-        }
+    {
+
+    return -3;
+
+    }
+
+
+
+  // set the default BACKWARDS compatibility to the current version
+
+  if(!this->CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
+
+    {
+
+    char ver[256];
+
+    sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
+
+            cmVersion::GetMinorVersion());
+
+    this->CacheManager->AddCacheEntry
+
+      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
+
+       "For backwards compatibility, what version of CMake commands and "
+
+       "syntax should this version of CMake allow.",
+
+       cmCacheManager::INTERNAL);
+
+    }
+
+
+
+  return 0;
+
+}
+
+

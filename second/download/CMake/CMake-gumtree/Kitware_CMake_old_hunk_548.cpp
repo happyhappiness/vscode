@@ -1,22 +1,22 @@
- */
-CURL *curl_easy_init(void)
-{
-  CURLcode res;
-  struct SessionHandle *data;
+            symbol = stringTable + pSymbolTable->N.Name.Long;
 
-  /* Make sure we inited the global SSL stuff */
-  if(!initialized) {
-    res = curl_global_init(CURL_GLOBAL_DEFAULT);
-    if(res) {
-      /* something in the global init failed, return nothing */
-      DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"));
-      return NULL;
-    }
-  }
+            while (isspace(symbol[0]))  symbol.erase(0,1);
 
-  /* We use curl_open() with undefined URL so far */
-  res = Curl_open(&data);
-  if(res != CURLE_OK) {
-    DEBUGF(fprintf(stderr, "Error: Curl_open failed\n"));
-    return NULL;
-  }
+            if (symbol[0] == '_') symbol.erase(0,1);
+
+            if (!this->ImportFlag) {
+
+               this->ImportFlag = true;
+
+               fprintf(this->FileOut,"IMPORTS \n");
+
+            }
+
+            fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);
+
+         }
+
+      }
+
+
+

@@ -1,21 +1,29 @@
-	const char *path;
-	ssize_t list_size;
+    */
 
-	path = archive_entry_sourcepath(entry);
-	if (path == NULL)
-		path = archive_entry_pathname(entry);
+    DumpSymbols<IMAGE_FILE_HEADER, IMAGE_SYMBOL> symbolDumper(
 
-	if (*fd < 0 && a->tree != NULL) {
-		if (a->follow_symlinks ||
-		    archive_entry_filetype(entry) != AE_IFLNK)
-			*fd = a->open_on_current_dir(a->tree, path,
-				O_RDONLY | O_NONBLOCK);
-		if (*fd < 0) {
-			if (a->tree_enter_working_dir(a->tree) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Couldn't access %s", path);
-				return (ARCHIVE_FAILED);
-			}
-		}
-	}
+      (PIMAGE_FILE_HEADER)lpFileBase, symbols, dataSymbols,
 
+      (dosHeader->e_magic == IMAGE_FILE_MACHINE_AMD64));
+
+    symbolDumper.DumpObjFile();
+
+  } else {
+
+    // check for /bigobj format
+
+    cmANON_OBJECT_HEADER_BIGOBJ* h = (cmANON_OBJECT_HEADER_BIGOBJ*)lpFileBase;
+
+    if (h->Sig1 == 0x0 && h->Sig2 == 0xffff) {
+
+      DumpSymbols<cmANON_OBJECT_HEADER_BIGOBJ, cmIMAGE_SYMBOL_EX> symbolDumper(
+
+        (cmANON_OBJECT_HEADER_BIGOBJ*)lpFileBase, symbols, dataSymbols,
+
+        (h->Machine == IMAGE_FILE_MACHINE_AMD64));
+
+      symbolDumper.DumpObjFile();
+
+    } else {
+
+      printf("unrecognized file format in '%s'\n", filename);

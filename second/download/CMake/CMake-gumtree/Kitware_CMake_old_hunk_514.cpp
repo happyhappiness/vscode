@@ -1,15 +1,14 @@
-{
-	unsigned offset = 0;
+		    &data->child_stdout);
 
-	while (offset < extra_length - 4)
-	{
-		unsigned short headerid = archive_le16dec(p + offset);
-		unsigned short datasize = archive_le16dec(p + offset + 2);
-		offset += 4;
-		if (offset + datasize > extra_length)
-			break;
-#ifdef DEBUG
-		fprintf(stderr, "Header id 0x%x, length %d\n",
-		    headerid, datasize);
-#endif
-		switch (headerid) {
+	if (child == -1) {
+
+		archive_set_error(f->archive, EINVAL,
+
+		    "Can't initialise filter");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+#if defined(_WIN32) && !defined(__CYGWIN__)
+

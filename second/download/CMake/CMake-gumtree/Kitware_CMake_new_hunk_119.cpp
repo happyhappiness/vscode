@@ -1,23 +1,29 @@
-	const char *path;
-	ssize_t list_size;
+    */
 
-	path = NULL;
+    DumpSymbols<IMAGE_FILE_HEADER, IMAGE_SYMBOL> symbolDumper(
 
-	if (*fd < 0) {
-		path = archive_entry_sourcepath(entry);
-		if (path == NULL || (a->tree != NULL &&
-		    a->tree_enter_working_dir(a->tree) != 0))
-			path = archive_entry_pathname(entry);
-		if (path == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Couldn't determine file path to read "
-			    "extended attributes");
-			return (ARCHIVE_WARN);
-		}
-		if (a->tree != NULL && (a->follow_symlinks ||
-		    archive_entry_filetype(entry) != AE_IFLNK)) {
-			*fd = a->open_on_current_dir(a->tree,
-			    path, O_RDONLY | O_NONBLOCK);
-		}
-	}
+      (PIMAGE_FILE_HEADER)lpFileBase, symbols, dataSymbols,
 
+      (dosHeader->e_magic == IMAGE_FILE_MACHINE_I386));
+
+    symbolDumper.DumpObjFile();
+
+  } else {
+
+    // check for /bigobj format
+
+    cmANON_OBJECT_HEADER_BIGOBJ* h = (cmANON_OBJECT_HEADER_BIGOBJ*)lpFileBase;
+
+    if (h->Sig1 == 0x0 && h->Sig2 == 0xffff) {
+
+      DumpSymbols<cmANON_OBJECT_HEADER_BIGOBJ, cmIMAGE_SYMBOL_EX> symbolDumper(
+
+        (cmANON_OBJECT_HEADER_BIGOBJ*)lpFileBase, symbols, dataSymbols,
+
+        (h->Machine == IMAGE_FILE_MACHINE_I386));
+
+      symbolDumper.DumpObjFile();
+
+    } else {
+
+      printf("unrecognized file format in '%s'\n", filename);

@@ -1,7 +1,14 @@
-  char buffer[1024];
-  sprintf(buffer, "%d", static_cast<int>(length));
+    }
 
-  this->Makefile->AddDefinition(variableName.c_str(), buffer);
-  return true;
-}
+#endif
+
+
+
+    conn->allocptr.host = NULL;
+
+  }
+
+  else {
+
+    /* When building Host: headers, we must put the host name within
 

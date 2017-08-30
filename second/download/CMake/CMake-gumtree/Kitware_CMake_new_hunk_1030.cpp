@@ -1,11 +1,24 @@
-      fprintf(stderr, "  item %d [%s]\n", i,
-              this->EntryList[i].Item.c_str());
-      }
-    EdgeList const& ol = this->CCG->GetComponentGraphEdges(c);
-    for(EdgeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
-      {
-      int i = *oi;
-      fprintf(stderr, "  followed by Component (%d)\n", i);
-      }
-    fprintf(stderr, "  topo order index %d\n",
-            this->ComponentOrder[c]);
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+
+	struct tree *t = a->tree;
+
+
+
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+
+	    ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
+
+	    "archive_read_disk_descend");
+
+
+
+	if (t->visit_type != TREE_REGULAR || !t->descend)
+
+		return (ARCHIVE_OK);
+
+
+
+	if (tree_current_is_physical_dir(t)) {
+
+		tree_push(t, t->basename, t->full_path.s,
+

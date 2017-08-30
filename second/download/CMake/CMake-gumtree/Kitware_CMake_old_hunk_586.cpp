@@ -1,7 +1,20 @@
-#endif
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before crash on stdout from crash test.\n");
-  fprintf(stderr, "Output before crash on stderr from crash test.\n");  
-  fflush(stdout);
-  fflush(stderr);
-  assert(invalidAddress); /* Quiet Clang scan-build. */
+		return (r);
+
+	if ((size_t)r < size) {
+
+		archive_set_error(&a->archive, 0,
+
+		    "Write request too large");
+
+		return (ARCHIVE_WARN);
+
+	}
+
+	return (ARCHIVE_OK);
+
+}
+
+
+
+static ssize_t
+

@@ -1,17 +1,12 @@
-  this->AddCacheEntry("CMAKE_CACHE_MINOR_VERSION", temp,
-                      "Minor version of cmake used to create the "
-                      "current loaded cache",
-                      cmStateEnums::INTERNAL);
-  sprintf(temp, "%d", cmVersion::GetMajorVersion());
-  this->AddCacheEntry("CMAKE_CACHE_MAJOR_VERSION", temp,
-                      "Major version of cmake used to create the "
-                      "current loaded cache",
-                      cmStateEnums::INTERNAL);
-  sprintf(temp, "%d", cmVersion::GetPatchVersion());
-  this->AddCacheEntry("CMAKE_CACHE_PATCH_VERSION", temp,
-                      "Patch version of cmake used to create the "
-                      "current loaded cache",
-                      cmStateEnums::INTERNAL);
+  return CURLE_OK;
 
-  // Let us store the current working directory so that if somebody
-  // Copies it, he will not be surprised
+}
+
+
+
+/* true globals -- for curl_global_init() and curl_global_cleanup() */
+
+static unsigned int  initialized;
+
+static long          init_flags;
+

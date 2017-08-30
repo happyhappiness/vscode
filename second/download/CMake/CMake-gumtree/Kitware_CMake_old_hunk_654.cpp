@@ -1,9 +1,18 @@
+  // update the cache entry for the number of local generators, this is used
 
-  if (rar->file_flags & FHD_PASSWORD)
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "RAR encryption support unavailable.");
-    return (ARCHIVE_FATAL);
-  }
+  // for progress
 
-  if (rar->file_flags & FHD_LARGE)
+  char num[100];
+
+  sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
+
+  this->GetCMakeInstance()->AddCacheEntry
+
+    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
+
+     "number of local generators", cmState::INTERNAL);
+
+
+
+  // check for link libraries and include directories containing "NOTFOUND"
+

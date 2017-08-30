@@ -1,8 +1,18 @@
-    pwd = conn->passwd;
-  }
+  return snprintf(buffer, size, "axTLS/%s", ssl_version());
 
-  snprintf(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
-           "%s:%s", user, pwd);
+}
 
-  result = Curl_base64_encode(data,
-                              data->state.buffer, strlen(data->state.buffer),
+
+
+CURLcode Curl_axtls_random(struct Curl_easy *data,
+
+                           unsigned char *entropy,
+
+                           size_t length)
+
+{
+
+  static bool ssl_seeded = FALSE;
+
+  (void)data;
+

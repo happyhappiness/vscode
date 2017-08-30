@@ -1,9 +1,12 @@
-{
-	struct unknown_tag *tag;
+     information. Which for FILE can't be much more than the file size and
 
-#if DEBUG
-	fprintf(stderr, "unknowntag_start:%s\n", name);
-#endif
-	tag = malloc(sizeof(*tag));
-	if (tag == NULL) {
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+     date. */
+
+  if(data->set.opt_no_body && data->set.include_header && fstated) {
+
+    snprintf(buf, sizeof(data->state.buffer),
+
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+

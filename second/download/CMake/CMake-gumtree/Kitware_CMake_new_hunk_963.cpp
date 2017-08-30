@@ -1,11 +1,26 @@
-void cmDependsJavaParserHelper::Error(const char* str)
-{
-  unsigned long pos = static_cast<unsigned long>(this->InputBufferPos);
-  fprintf(stderr, "JPError: %s (%lu / Line: %d)\n",
-          str, pos, this->CurrentLine);
-  int cc;
-  std::cerr << "String: [";
-  for ( cc = 0;
-        cc < 30 && *(this->InputBuffer.c_str() + this->InputBufferPos + cc);
-        cc ++ )
-    {
+  struct rar *rar = (struct rar *)(a->format->data);
+
+
+
+  if (rar->bytes_remaining > 0) {
+
+    br->next_in = rar_read_ahead(a, 1, &(br->avail_in));
+
+    if (br->next_in == NULL) {
+
+      archive_set_error(&a->archive,
+
+          ARCHIVE_ERRNO_FILE_FORMAT,
+
+          "Truncated RAR file data");
+
+      return (ARCHIVE_FATAL);
+
+    }
+
+    if (br->cache_avail == 0)
+
+      (void)rar_br_fillup(a, br);
+
+  }
+

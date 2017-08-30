@@ -1,9 +1,16 @@
+	zip->len_buf = 65536;
 
-  // capitalized commands just once
-  std::vector<std::string> capcommands;
-  for (i = 0; i < this->Commands.size(); i++)
-    {
-    capcommands.push_back(cmSystemTools::Capitalized(this->Commands[i]));
-    }
-  
-  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
+	zip->buf = malloc(zip->len_buf);
+
+	if (zip->buf == NULL) {
+
+		archive_set_error(&a->archive, ENOMEM,
+
+		    "Can't allocate compression buffer");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+#else
+

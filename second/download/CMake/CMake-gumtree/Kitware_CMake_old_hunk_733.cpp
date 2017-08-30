@@ -1,15 +1,30 @@
-	fid = t->max_filesystem_id++;
-	if (t->max_filesystem_id > t->allocated_filesytem) {
-		size_t s;
+      case 6: test6(argc, argv); return 0;
 
-		s = t->max_filesystem_id * 2;
-		t->filesystem_table = realloc(t->filesystem_table,
-		    s * sizeof(*t->filesystem_table));
-		if (t->filesystem_table == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate tar data");
-			return (ARCHIVE_FATAL);
-		}
-		t->allocated_filesytem = s;
-	}
-	t->current_filesystem_id = fid;
+      case 7: return test7(argc, argv);
+
+      case 8: return test8(argc, argv);
+
+      case 108: return test8_grandchild(argc, argv);
+
+      }
+
+    fprintf(stderr, "Invalid test number %d.\n", n);
+
+    return 1;
+
+    }
+
+  else if(n >= 1 && n <= 8)
+
+    {
+
+    /* This is the parent process for a requested test number.  */
+
+    int states[8] =
+
+    {
+
+      kwsysProcess_State_Exited,
+
+      kwsysProcess_State_Exited,
+

@@ -1,7 +1,26 @@
-        if (lRet == ERROR_SUCCESS)
-          {
-          res += " Service Pack 6a (Build ";
-          sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF);
-          res += buffer;
-          res += ")";
-          }
+			else
+
+				ret = ARCHIVE_FATAL;
+
+		}
+
+		return (ret);
+
+	}
+
+
+
+	/* Note: The "warn" return is just to inform the options
+
+	 * supervisor that we didn't handle it.  It will generate
+
+	 * a suitable error if no one used this option. */
+
+	return (ARCHIVE_WARN);
+
+}
+
+
+
+static int
+

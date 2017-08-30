@@ -1,7 +1,14 @@
-		ret = child_write(f, data, buf, length);
-		if (ret == -1 || ret == 0) {
-			archive_set_error(f->archive, EIO,
-			    "Can't write to program: %s", data->program_name);
-			return (ARCHIVE_FATAL);
-		}
-		length -= ret;
+ * The message SHALL NOT include any LF or CR.
+
+ */
+
+
+
+void Curl_failf(struct Curl_easy *data, const char *fmt, ...)
+
+{
+
+  va_list ap;
+
+  size_t len;
+

@@ -1,9 +1,18 @@
-                            sizeof(rar->reserved2));
-      }
+                        const cmCustomCommand& origCommand)
 
-      if (rar->main_flags & MHD_PASSWORD)
-      {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "RAR encryption support unavailable.");
-        return (ARCHIVE_FATAL);
-      }
+{
+
+  // Create a fake output that forces the rule to run.
+
+  char* output = new char[(strlen(this->Makefile->GetCurrentBinaryDirectory())
+
+                           + target.GetName().size() + 30)];
+
+  sprintf(output,"%s/%s_force_%i", this->Makefile->GetCurrentBinaryDirectory(),
+
+          target.GetName().c_str(), count);
+
+  const char* comment = origCommand.GetComment();
+
+  if(!comment && origCommand.GetOutputs().empty())
+

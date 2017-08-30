@@ -1,35 +1,22 @@
+  fflush(stdout);
 
-static int
-setup_sparse(struct archive_read_disk *a,
-    struct archive_entry *entry, int fd)
-{
-	char buff[4096];
-	struct fiemap *fm;
-	struct fiemap_extent *fe;
-	int64_t size;
-	int count, do_fiemap;
-	int initial_fd = fd;
-	int exit_sts = ARCHIVE_OK;
+  fflush(stderr);
 
-	if (archive_entry_filetype(entry) != AE_IFREG
-	    || archive_entry_size(entry) <= 0
-	    || archive_entry_hardlink(entry) != NULL)
-		return (ARCHIVE_OK);
+  /* Sleep for 1 second.  */
 
-	if (fd < 0) {
-		const char *path;
+#if defined(_WIN32)
 
-		path = archive_entry_sourcepath(entry);
-		if (path == NULL)
-			path = archive_entry_pathname(entry);
-		fd = open(path, O_RDONLY | O_NONBLOCK);
-		if (fd < 0) {
-			archive_set_error(&a->archive, errno,
-			    "Can't open `%s'", path);
-			return (ARCHIVE_FAILED);
-		}
-	}
+  Sleep(1000);
 
-	count = (sizeof(buff) - sizeof(*fm))/sizeof(*fe);
-	fm = (struct fiemap *)buff;
-	fm->fm_start = 0;
+#else
+
+  sleep(1);
+
+#endif
+
+  fprintf(stdout, "Output on stdout after sleep.\n");
+
+  fprintf(stderr, "Output on stderr after sleep.\n");
+
+  fflush(stdout);
+

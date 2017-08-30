@@ -1,17 +1,48 @@
-    /* Seems as though dictionary sizes are not used. Even so, minimize
-     * memory usage as much as possible.
-     */
-    if (rar->unp_size >= DICTIONARY_MAX_SIZE)
-      rar->dictionary_size = DICTIONARY_MAX_SIZE;
-    else
-      rar->dictionary_size = rar_fls(rar->unp_size) << 1;
-    rar->lzss.window = (unsigned char *)realloc(rar->lzss.window,
-                                                rar->dictionary_size);
-    if (rar->lzss.window == NULL) {
-      archive_set_error(&a->archive, ENOMEM,
-                        "Unable to allocate memory for uncompressed data.");
-      return (ARCHIVE_FATAL);
-    }
-    memset(rar->lzss.window, 0, rar->dictionary_size);
-    rar->lzss.mask = rar->dictionary_size - 1;
-  }
+	int ret = ARCHIVE_FAILED;
+
+
+
+	if (strcmp(key, "compression") == 0) {
+
+		if (val == NULL || val[0] == 0) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "%s: compression option needs a compression name",
+
+			    a->format_name);
+
+		} else if (strcmp(val, "deflate") == 0) {
+
+#ifdef HAVE_ZLIB_H
+
+			zip->compression = COMPRESSION_DEFLATE;
+
+			ret = ARCHIVE_OK;
+
+#else
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "deflate compression not supported");
+
+#endif
+
+		} else if (strcmp(val, "store") == 0) {
+
+			zip->compression = COMPRESSION_STORE;
+
+			ret = ARCHIVE_OK;
+
+		}
+
+		return (ret);
+
+	} else if (strcmp(key, "hdrcharset")  == 0) {
+
+		if (val == NULL || val[0] == 0) {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+			    "%s: hdrcharset option needs a character-set name",
+

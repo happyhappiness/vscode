@@ -1,23 +1,24 @@
-	const char *path;
-	ssize_t list_size;
+		*used = avail_in - xar->lzstream.avail_in;
 
-	path = NULL;
+		*outbytes = avail_out - xar->lzstream.avail_out;
 
-	if (*fd < 0) {
-		path = archive_entry_sourcepath(entry);
-		if (path == NULL || (a->tree != NULL &&
-		    a->tree_enter_working_dir(a->tree) != 0))
-			path = archive_entry_pathname(entry);
-		if (path == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Couldn't determine file path to read "
-			    "extended attributes");
-			return (ARCHIVE_WARN);
-		}
-		if (a->tree != NULL && (a->follow_symlinks ||
-		    archive_entry_filetype(entry) != AE_IFLNK)) {
-			*fd = a->open_on_current_dir(a->tree,
-			    path, O_RDONLY | O_NONBLOCK);
-		}
-	}
+		break;
+
+#endif
+
+#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR)
+
+	case BZIP2:
+
+#endif
+
+#if !defined(HAVE_LZMA_H) || !defined(HAVE_LIBLZMA)
+
+	case LZMA:
+
+	case XZ:
+
+#endif
+
+	case NONE:
 

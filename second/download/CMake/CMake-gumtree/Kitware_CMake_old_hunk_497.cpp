@@ -1,13 +1,16 @@
-	if (zip->flags & ZIP_FLAG_AVOID_ZIP64) {
-		/* Reject entries over 4GB. */
-		if (archive_entry_size_is_set(entry)
-		    && (archive_entry_size(entry) > 0xffffffff)) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Files > 4GB require Zip64 extensions");
-			return ARCHIVE_FAILED;
-		}
-		/* Reject entries if archive is > 4GB. */
-		if (zip->written_bytes > 0xffffffff) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Archives > 4GB require Zip64 extensions");
-			return ARCHIVE_FAILED;
+	while (off_s < size) {
+
+		off_s = lseek(*fd, off_s, SEEK_DATA);
+
+		if (off_s == (off_t)-1) {
+
+			if (errno == ENXIO)
+
+				break;/* no more hole */
+
+			archive_set_error(&a->archive, errno,
+
+			    "lseek(SEEK_HOLE) failed");
+
+			exit_sts = ARCHIVE_FAILED;
+

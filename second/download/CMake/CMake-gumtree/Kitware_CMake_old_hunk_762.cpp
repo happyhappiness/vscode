@@ -1,7 +1,24 @@
-			break;
-		case ST_READ_UU:
-			if (total + len * 2 > OUT_BUFF_SIZE)
-				break;
-			body = len - nl;
-			if (!uuchar[*b] || body <= 0) {
-				archive_set_error(&self->archive->archive,
+    fprintf(stderr, "[%s]\n", i->c_str());
+
+    }
+
+#endif
+
+
+
+  // Short-circuit if there is nothing to do.
+
+  if(this->FindRootPathMode == RootPathModeNever)
+
+    {
+
+    return;
+
+    }
+
+  const char* sysroot =
+
+    this->Makefile->GetDefinition("CMAKE_SYSROOT");
+
+  const char* rootPath =
+

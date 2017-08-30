@@ -1,20 +1,36 @@
-	case 'S':
-		/* We support some keys used by the "star" archiver */
-		if (strcmp(key, "SCHILY.acl.access") == 0) {
-			r = pax_attribute_acl(a, tar, entry, value,
-			    ARCHIVE_ENTRY_ACL_TYPE_ACCESS);
-			if (r == ARCHIVE_FATAL)
-				return (r);
-		} else if (strcmp(key, "SCHILY.acl.default") == 0) {
-			r = pax_attribute_acl(a, tar, entry, value,
-			    ARCHIVE_ENTRY_ACL_TYPE_DEFAULT);
-			if (r == ARCHIVE_FATAL)
-				return (r);
-		} else if (strcmp(key, "SCHILY.acl.ace") == 0) {
-			r = pax_attribute_acl(a, tar, entry, value,
-			    ARCHIVE_ENTRY_ACL_TYPE_NFS4);
-			if (r == ARCHIVE_FATAL)
-				return (r);
-		} else if (strcmp(key, "SCHILY.devmajor") == 0) {
-			archive_entry_set_rdevmajor(entry,
-			    (dev_t)tar_atol10(value, strlen(value)));
+					    ae_id, ae_name);
+
+
+
+		s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+
+#if !HAVE_DARWIN_ACL
+
+		if (s == -1) {
+
+			archive_set_error(&a->archive, errno,
+
+			    "Failed to get next ACL entry");
+
+			return (ARCHIVE_WARN);
+
+		}
+
+#endif
+
+	}
+
+	return (ARCHIVE_OK);
+
+}
+
+#endif	/* !HAVE_SUN_ACL */
+
+#else	/* !HAVE_POSIX_ACL && !HAVE_NFS4_ACL */
+
+static int
+
+setup_acls(struct archive_read_disk *a,
+
+    struct archive_entry *entry, int *fd)
+

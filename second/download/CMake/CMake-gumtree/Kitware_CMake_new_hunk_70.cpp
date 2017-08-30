@@ -1,17 +1,22 @@
-      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
-         last .sss part is optional and means fractions of a second */
-      int year, month, day, hour, minute, second;
-      if(6 == sscanf(&data->state.buffer[4], "%04d%02d%02d%02d%02d%02d",
-                     &year, &month, &day, &hour, &minute, &second)) {
-        /* we have a time, reformat it */
-        char timebuf[24];
-        time_t secs=time(NULL);
+  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
 
-        snprintf(timebuf, sizeof(timebuf),
-                 "%04d%02d%02d %02d:%02d:%02d GMT",
-                 year, month, day, hour, minute, second);
-        /* now, convert this into a time() value: */
-        data->info.filetime = (long)curl_getdate(timebuf, &secs);
-      }
+    return CURLE_BAD_CONTENT_ENCODING;
 
-#ifdef CURL_FTP_HTTPSTYLE_HEAD
+
+
+  /* Generate 32 random hex chars, 32 bytes + 1 zero termination */
+
+  result = Curl_rand_hex(data, (unsigned char *)cnonce, sizeof(cnonce));
+
+  if(result)
+
+    return result;
+
+
+
+  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
+
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+
+  if(!ctxt)
+

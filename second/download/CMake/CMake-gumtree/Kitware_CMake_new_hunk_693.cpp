@@ -1,7 +1,24 @@
-        li != testLangs.end(); ++li)
-      {
-      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
-      const char* flags = this->Makefile->GetDefinition(langFlags);
-      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-              lg->EscapeForCMake(flags?flags:"").c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
+    if(res)
+
+      return res;
+
+
+
+    free(*allocuserpwd);
+
+    *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
+
+                            proxy ? "Proxy-" : "",
+
+                            conn->response_header);
+
+    DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
+
+    free(conn->response_header);
+
+    conn->response_header = NULL;
+
+    break;
+
+  case NTLMSTATE_TYPE2:
+

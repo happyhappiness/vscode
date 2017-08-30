@@ -1,57 +1,22 @@
+		r = fstatfs(tree_current_dir_fd(t), &sfs);
 
-	tar = (struct tar *)(a->format->data);
+		if (r == 0)
 
-	for (;;) {
-		/* Remove exhausted entries from sparse list. */
-		while (tar->sparse_list != NULL &&
-		    tar->sparse_list->remaining == 0) {
-			p = tar->sparse_list;
-			tar->sparse_list = p->next;
-			free(p);
+			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
+
+#else
+
+		if (tree_enter_working_dir(t) != 0) {
+
+			archive_set_error(&a->archive, errno, "fchdir failed");
+
+			return (ARCHIVE_FAILED);
+
 		}
 
-		if (tar->entry_bytes_unconsumed) {
-			__archive_read_consume(a, tar->entry_bytes_unconsumed);
-			tar->entry_bytes_unconsumed = 0;
-		}
+		vr = statvfs(".", &svfs);
 
-		/* If we're at end of file, return EOF. */
-		if (tar->sparse_list == NULL ||
-		    tar->entry_bytes_remaining == 0) {
-			if (__archive_read_consume(a, tar->entry_padding) < 0)
-				return (ARCHIVE_FATAL);
-			tar->entry_padding = 0;
-			*buff = NULL;
-			*size = 0;
-			*offset = tar->realsize;
-			return (ARCHIVE_EOF);
-		}
+		r = statfs(".", &sfs);
 
-		*buff = __archive_read_ahead(a, 1, &bytes_read);
-		if (bytes_read < 0)
-			return (ARCHIVE_FATAL);
-		if (*buff == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Truncated tar archive");
-			return (ARCHIVE_FATAL);
-		}
-		if (bytes_read > tar->entry_bytes_remaining)
-			bytes_read = (ssize_t)tar->entry_bytes_remaining;
-		/* Don't read more than is available in the
-		 * current sparse block. */
-		if (tar->sparse_list->remaining < bytes_read)
-			bytes_read = (ssize_t)tar->sparse_list->remaining;
-		*size = bytes_read;
-		*offset = tar->sparse_list->offset;
-		tar->sparse_list->remaining -= bytes_read;
-		tar->sparse_list->offset += bytes_read;
-		tar->entry_bytes_remaining -= bytes_read;
-		tar->entry_bytes_unconsumed = bytes_read;
+		if (r == 0)
 
-		if (!tar->sparse_list->hole)
-			return (ARCHIVE_OK);
-		/* Current is hole data and skip this. */
-	}
-}
-
-static int

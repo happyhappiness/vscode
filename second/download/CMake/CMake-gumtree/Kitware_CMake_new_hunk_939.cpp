@@ -1,11 +1,16 @@
-  GetVersionEx(&osv);
-  if(osv.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS)
-    {
-    /* Win9x no longer supported.  */
-    kwsysProcess_Delete(cp);
-    return 0;
-    }
+	}
 
-  /* Initially no thread owns the mutex.  Initialize semaphore to 1.  */
-  if(!(cp->SharedIndexMutex = CreateSemaphore(0, 1, 1, 0)))
-    {
+
+
+	/* CRC check. */
+
+	if (crc32(0, (const unsigned char *)p + 12, 20)
+
+	    != archive_le32dec(p + 8)) {
+
+		archive_set_error(&a->archive, -1, "Header CRC error");
+
+		return (ARCHIVE_FATAL);
+
+	}
+

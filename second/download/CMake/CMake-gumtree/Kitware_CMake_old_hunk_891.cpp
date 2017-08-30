@@ -1,11 +1,16 @@
-    return (ARCHIVE_FATAL);
-  }
+	archive_string_init(&path);
 
-  if ((h = __archive_read_ahead(a, header_size - 7, NULL)) == NULL)
-    return (ARCHIVE_FATAL);
+	if (archive_string_append_from_wcs(&path, pathname,
 
-  /* File Header CRC check. */
-  crc32_val = crc32(crc32_val, h, header_size - 7);
-  if ((crc32_val & 0xffff) != archive_le16dec(rar_header.crc)) {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-      "Header CRC error");
+	    wcslen(pathname)) != 0) {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "Can't convert a path to a char string");
+
+		a->archive.state = ARCHIVE_STATE_FATAL;
+
+		ret = ARCHIVE_FATAL;
+
+	} else
+

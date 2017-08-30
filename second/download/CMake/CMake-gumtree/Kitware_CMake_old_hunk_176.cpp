@@ -1,7 +1,12 @@
-				ret = ARCHIVE_WARN;
-			}
-		} else {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Invalid extended attribute encountered");
-			ret = ARCHIVE_WARN;
-		}
+				 * NULL pointer to strlen().  */
+
+	switch (key[0]) {
+
+	case 'G':
+
+		/* GNU "0.0" sparse pax format. */
+
+		if (strcmp(key, "GNU.sparse.numblocks") == 0) {
+
+			tar->sparse_offset = -1;
+

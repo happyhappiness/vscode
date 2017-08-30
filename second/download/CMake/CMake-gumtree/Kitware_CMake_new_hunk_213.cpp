@@ -1,12 +1,34 @@
-    struct mtree_option **global, const char *line, ssize_t line_len,
-    struct mtree_entry **last_entry, int is_form_d)
-{
-	struct mtree_entry *entry, *ht_iter;
-	struct mtree_option *iter;
-	const char *next, *eq, *name, *end;
-	size_t name_len, len;
-	int r, i;
-	unsigned int ht_idx;
+	name = archive_entry_sourcepath(entry);
 
-	if ((entry = malloc(sizeof(*entry))) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
+	if (name == NULL)
+
+		name = archive_entry_pathname(entry);
+
+	else if (a->tree != NULL && a->tree_enter_working_dir(a->tree) != 0) {
+
+		archive_set_error(&a->archive, errno,
+
+			    "Can't change dir to read extended attributes");
+
+			return (ARCHIVE_FAILED);
+
+	}
+
+	if (name == NULL) {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "Can't open file to read extended attributes: No name");
+
+		return (ARCHIVE_WARN);
+
+	}
+
+
+
+	/* Short-circuit if there's nothing to do. */
+
+	have_attrs = copyfile(name, NULL, 0, copyfile_flags | COPYFILE_CHECK);
+
+	if (have_attrs == -1) {
+

@@ -1,16 +1,20 @@
-      {
-      percent = 99;
-      }
-    cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl << std::setprecision(0) << percent << "% tests passed, "
-      << failed.size() << " tests failed out of " << total << std::endl);
-    //fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
-    //  percent, int(failed.size()), total);
+  printf("Current Value: %s\n", iter.GetValue());
 
-    if (failed.size()) 
-      {
-      cmGeneratedFileStream ofs;
+  printf("New Value (Enter to keep current value): ");
 
-      cmCTestLog(m_CTest, ERROR, std::endl << "The following tests FAILED:" << std::endl);
-      m_CTest->OpenOutputFile("Temporary", "LastTestsFailed.log", ofs);
+  char buffer[4096];
 
-      std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;
+  if(!fgets(buffer, sizeof(buffer)-1, stdin))
+
+    {
+
+    buffer[0] = 0;
+
+    }
+
+
+
+  if(strlen(buffer) > 0)
+
+    {
+

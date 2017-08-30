@@ -1,18 +1,42 @@
-  return 1;
-}
-
-static void showtime(struct Curl_easy *data,
-                     const char *text,
-                     time_t stamp)
 {
-  struct tm buffer;
-  const struct tm *tm = &buffer;
-  CURLcode result = Curl_gmtime(stamp, &buffer);
-  if(result)
-    return;
 
-  snprintf(data->state.buffer,
-           BUFSIZE,
-           "\t %s: %s, %02d %s %4d %02d:%02d:%02d GMT",
-           text,
-           Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+  va_list ap;
+
+  size_t len;
+
+  va_start(ap, fmt);
+
+
+
+  vsnprintf(data->state.buffer, BUFSIZE, fmt, ap);
+
+
+
+  if(data->set.errorbuffer && !data->state.errorbuf) {
+
+    snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer);
+
+    data->state.errorbuf = TRUE; /* wrote error string */
+
+  }
+
+  if(data->set.verbose) {
+
+    len = strlen(data->state.buffer);
+
+    if(len < BUFSIZE - 1) {
+
+      data->state.buffer[len] = '\n';
+
+      data->state.buffer[++len] = '\0';
+
+    }
+
+    Curl_debug(data, CURLINFO_TEXT, data->state.buffer, len, NULL);
+
+  }
+
+
+
+  va_end(ap);
+

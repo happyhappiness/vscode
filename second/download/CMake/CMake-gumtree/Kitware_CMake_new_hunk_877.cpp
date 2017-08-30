@@ -1,14 +1,46 @@
+	return (r);
+
+}
+
+
+
+int64_t
+
+archive_seek_data(struct archive *_a, int64_t offset, int whence)
+
+{
+
+	struct archive_read *a = (struct archive_read *)_a;
+
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC, ARCHIVE_STATE_DATA,
+
+	    "archive_seek_data_block");
+
+
+
+	if (a->format->seek_data == NULL) {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
+
+		    "Internal error: "
+
+		    "No format_seek_data_block function registered");
+
+		return (ARCHIVE_FATAL);
+
 	}
 
-	iso9660->entry_bytes_remaining = file->size;
-	/* Offset for sparse-file-aware clients. */
-	iso9660->entry_sparse_offset = 0;
 
-	if (file->offset + file->size > iso9660->volume_size) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "File is beyond end-of-media: %s",
-		    archive_entry_pathname(entry));
-		iso9660->entry_bytes_remaining = 0;
-		return (ARCHIVE_WARN);
-	}
+
+	return (a->format->seek_data)(a, offset, whence);
+
+}
+
+
+
+/*
+
+ * Read the next block of entry data from the archive.
+
+ * This is a zero-copy interface; the client receives a pointer,
 

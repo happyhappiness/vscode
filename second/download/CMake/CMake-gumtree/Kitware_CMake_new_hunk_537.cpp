@@ -1,16 +1,40 @@
+	struct private_data *data = (struct private_data *)f->data;
 
-static int test1(int argc, const char* argv[])
-{
-  /* This is a very basic functional test of kwsysProcess.  It is repeated
-     numerous times to verify that there are no resource leaks in kwsysProcess
-     that eventually lead to an error.  Many versions of OS X will fail after
-     256 leaked file handles, so 257 iterations seems to be a good test.  On
-     the other hand, too many iterations will cause the test to time out -
-     especially if the test is instrumented with e.g. valgrind.
 
-     If you have problems with this test timing out on your system, or want to
-     run more than 257 iterations, you can change the number of iterations by
-     setting the KWSYS_TEST_PROCESS_1_COUNT environment variable.  */
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 0.\n");
-  fprintf(stderr, "Output on stderr from test returning 0.\n");
+
+	if (strcmp(key, "compression-level") == 0) {
+
+		int val;
+
+		if (value == NULL || !((val = value[0] - '0') >= 1 && val <= 9) ||
+
+		    value[1] != '\0')
+
+			return (ARCHIVE_WARN);
+
+
+
+#ifndef HAVE_LZ4HC_H
+
+		if(val >= 3)
+
+		{
+
+			archive_set_error(f->archive, ARCHIVE_ERRNO_PROGRAMMER,
+
+				"High compression not included in this build");
+
+			return (ARCHIVE_FATAL);
+
+		}
+
+#endif
+
+		data->compression_level = val;
+
+		return (ARCHIVE_OK);
+
+	}
+
+	if (strcmp(key, "stream-checksum") == 0) {
+

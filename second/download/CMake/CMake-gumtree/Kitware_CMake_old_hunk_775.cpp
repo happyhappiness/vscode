@@ -1,7 +1,48 @@
-	if (strcmp(key, "compat-2x")  == 0) {
-		/* Handle filnames as libarchive 2.x */
-		cpio->init_default_conversion = (val != NULL)?1:0;
-		ret = ARCHIVE_OK;
-	} else if (strcmp(key, "hdrcharset")  == 0) {
-		if (val == NULL || val[0] == 0)
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+  intptr_t srchHandle;
+
+#endif
+
+  char* buf;
+
+  size_t n = strlen(name);
+
+  if ( name[n - 1] == '/' || name[n - 1] == '\\' )
+
+    {
+
+    buf = new char[n + 1 + 1];
+
+    sprintf(buf, "%s*", name);
+
+    }
+
+  else
+
+    {
+
+    // Make sure the slashes in the wildcard suffix are consistent with the
+
+    // rest of the path
+
+    buf = new char[n + 2 + 1];
+
+    if ( strchr(name, '\\') )
+
+      {
+
+      sprintf(buf, "%s\\*", name);
+
+      }
+
+    else
+
+      {
+
+      sprintf(buf, "%s/*", name);
+
+      }
+
+    }
+
+  struct _wfinddata_t data;      // data of current file
+

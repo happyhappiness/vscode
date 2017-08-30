@@ -1,8 +1,24 @@
-		iso9660->current_position = parent->offset;
-	}
+#define	__LA_PRINTF(fmtarg, firstvararg)	/* nothing */
 
-	step = (size_t)(((parent->size + iso9660->logical_block_size -1) /
-	    iso9660->logical_block_size) * iso9660->logical_block_size);
-	b = __archive_read_ahead(a, step, NULL);
-	if (b == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+#endif
+
+
+
+#if defined(__GNUC__) && __GNUC__ >= 3 && __GNUC_MINOR__ >= 1
+
+# define __LA_DEPRECATED __attribute__((deprecated))
+
+#else
+
+# define __LA_DEPRECATED
+
+#endif
+
+
+
+#ifdef __cplusplus
+
+extern "C" {
+
+#endif
+

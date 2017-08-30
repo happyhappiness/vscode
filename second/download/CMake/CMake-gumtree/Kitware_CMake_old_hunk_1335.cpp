@@ -1,13 +1,38 @@
+       cmCacheManager::INTERNAL);
 
-    if ( m_ShowOnly )
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s\n", cnt, (int)tmsize, testname.c_str());
-      }
-    else
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s ", cnt, (int)tmsize, testname.c_str());
-      fflush(stderr);
-      }
-    //std::cerr << "Testing " << args[0] << " ... ";
-    // find the test executable
-    std::string actualCommand = this->FindTheExecutable(args[1].Value.c_str());
+    }
+
+
+
+  // set the default BACKWARDS compatibility to the current version
+
+  if(!this->CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
+
+    {
+
+    char ver[256];
+
+    sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
+
+            cmVersion::GetMinorVersion());
+
+    this->CacheManager->AddCacheEntry
+
+      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
+
+       "For backwards compatibility, what version of CMake commands and "
+
+       "syntax should this version of CMake allow.",
+
+       cmCacheManager::INTERNAL);
+
+    }
+
+
+
+  // no generator specified on the command line
+
+  if(!this->GlobalGenerator)
+
+    {
+

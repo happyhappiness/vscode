@@ -1,18 +1,14 @@
-    case kwsysTerminal_Color_BackgroundWhite:
-      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_WHITE);
-      break;
-  }
-  if (color & kwsysTerminal_Color_ForegroundBold) {
-    fprintf(stream, KWSYS_TERMINAL_VT100_BOLD);
-  }
-}
 
-/*--------------------------------------------------------------------------*/
-#if defined(KWSYS_TERMINAL_SUPPORT_CONSOLE)
 
-#define KWSYS_TERMINAL_MASK_FOREGROUND                                        \
-  (FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_RED | FOREGROUND_INTENSITY)
-#define KWSYS_TERMINAL_MASK_BACKGROUND                                        \
-  (BACKGROUND_BLUE | BACKGROUND_GREEN | BACKGROUND_RED | BACKGROUND_INTENSITY)
+        lerr = SSL_get_verify_result(connssl->handle);
 
-/* Get the Windows handle for a FILE stream.  */
+        if(lerr != X509_V_OK) {
+
+          *certverifyresult = lerr;
+
+          snprintf(error_buffer, sizeof(error_buffer),
+
+                   "SSL certificate problem: %s",
+
+                   X509_verify_cert_error_string(lerr));
+

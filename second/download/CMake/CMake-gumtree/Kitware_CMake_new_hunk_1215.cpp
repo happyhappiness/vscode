@@ -1,7 +1,22 @@
-      {
-      percent = 99;
-      }
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl
-      << static_cast<int>(percent + .5) << "% tests passed, "
-      << failed.size() << " tests failed out of " << total << std::endl);
-    //fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
+		}
+
+		read_consume(a);
+
+	}
+
+	if (zip->uncompressed_buffer_bytes_remaining < minimum) {
+
+		archive_set_error(&(a->archive),
+
+		    ARCHIVE_ERRNO_MISC, "Damaged 7-Zip archive");
+
+		return (ARCHIVE_FATAL);
+
+	}
+
+	zip->uncompressed_buffer_pointer = zip->uncompressed_buffer;
+
+	return (ARCHIVE_OK);
+
+}
+

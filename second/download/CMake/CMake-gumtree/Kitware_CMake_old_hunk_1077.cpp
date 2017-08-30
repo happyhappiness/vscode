@@ -1,7 +1,14 @@
-    e << "item " << i << " is [" << this->EntryList[i].Item << "]\n";
-    for(NodeList::const_iterator j = nl.begin(); j != nl.end(); ++j)
-      {
-      e << "  item " << *j << " must precede it\n";
-      }
-    }
-  fprintf(stderr, "%s\n", e.str().c_str());
+	 */
+
+	if (location > 0 &&
+
+	    (location + ((fsize + iso9660->logical_block_size -1)
+
+	       / iso9660->logical_block_size)) > iso9660->volume_block) {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "Invalid location of extent of file");
+
+		return (NULL);
+

@@ -1,7 +1,12 @@
-	if (a->restore_pwd >= 0) {
-		r = fchdir(a->restore_pwd);
-		if (r != 0) {
-			archive_set_error(&a->archive, errno, "chdir() failure");
-			ret = ARCHIVE_FATAL;
-		}
-		close(a->restore_pwd);
+	/* Get a real compressed file size. */
+
+	lha->compsize -= extdsize - 2;
+
+
+
+	if (sum_calculated != headersum) {
+
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+
+		    "LHa header sum error");
+

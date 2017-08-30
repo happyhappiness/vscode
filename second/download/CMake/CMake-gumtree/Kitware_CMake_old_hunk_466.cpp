@@ -1,11 +1,14 @@
-            symbol = stringTable + pSymbolTable->N.Name.Long;
-            while (isspace(symbol[0]))  symbol.erase(0,1);
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (!this->ImportFlag) {
-               this->ImportFlag = true;
-               fprintf(this->FileOut,"IMPORTS \n");
-            }
-            fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);
-         }
-      }
+  fprintf(out, "%-*s ", (int)u_width, p);
+
+  /* Use gname if it's present, else gid. */
+
+  p = archive_entry_gname(entry);
+
+  if (p != NULL && p[0] != '\0') {
+
+    fprintf(out, "%s", p);
+
+    w = strlen(p);
+
+  } else {
 

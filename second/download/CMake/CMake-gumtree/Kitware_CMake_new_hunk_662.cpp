@@ -1,86 +1,32 @@
-static int
-archive_write_zip_header(struct archive_write *a, struct archive_entry *entry)
+
+
+static int test1(int argc, const char* argv[])
+
 {
-	unsigned char local_header[32];
-	unsigned char local_extra[128];
-	struct zip *zip = a->format_data;
-	unsigned char *e;
-	unsigned char *cd_extra;
-	size_t filename_length;
-	const char *symlink = NULL;
-	size_t symlink_size = 0;
-	struct archive_string_conv *sconv = get_sconv(a, zip);
-	int ret, ret2 = ARCHIVE_OK;
-	int64_t size;
-	mode_t type;
-	int version_needed = 10;
 
-	/* Ignore types of entries that we don't support. */
-	type = archive_entry_filetype(entry);
-	if (type != AE_IFREG && type != AE_IFDIR && type != AE_IFLNK) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Filetype not supported");
-		return ARCHIVE_FAILED;
-	};
+  /* This is a very basic functional test of kwsysProcess.  It is repeated
 
-	/* If we're not using Zip64, reject large files. */
-	if (zip->flags & ZIP_FLAG_AVOID_ZIP64) {
-		/* Reject entries over 4GB. */
-		if (archive_entry_size_is_set(entry)
-		    && (archive_entry_size(entry) > 0xffffffff)) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Files > 4GB require Zip64 extensions");
-			return ARCHIVE_FAILED;
-		}
-		/* Reject entries if archive is > 4GB. */
-		if (zip->written_bytes > 0xffffffff) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Archives > 4GB require Zip64 extensions");
-			return ARCHIVE_FAILED;
-		}
-	}
+     numerous times to verify that there are no resource leaks in kwsysProcess
 
-	/* Only regular files can have size > 0. */
-	if (type != AE_IFREG)
-		archive_entry_set_size(entry, 0);
+     that eventually lead to an error.  Many versions of OS X will fail after
+
+     256 leaked file handles, so 257 iterations seems to be a good test.  On
+
+     the other hand, too many iterations will cause the test to time out -
+
+     especially if the test is instrumented with e.g. valgrind.
 
 
-	/* Reset information from last entry. */
-	zip->entry_offset = zip->written_bytes;
-	zip->entry_uncompressed_limit = INT64_MAX;
-	zip->entry_compressed_size = 0;
-	zip->entry_uncompressed_size = 0;
-	zip->entry_compressed_written = 0;
-	zip->entry_uncompressed_written = 0;
-	zip->entry_flags = 0;
-	zip->entry_uses_zip64 = 0;
-	zip->entry_crc32 = zip->crc32func(0, NULL, 0);
-	if (zip->entry != NULL) {
-		archive_entry_free(zip->entry);
-		zip->entry = NULL;
-	}
 
-#if defined(_WIN32) && !defined(__CYGWIN__)
-	/* Make sure the path separators in pahtname, hardlink and symlink
-	 * are all slash '/', not the Windows path separator '\'. */
-	zip->entry = __la_win_entry_in_posix_pathseparator(entry);
-	if (zip->entry == entry)
-		zip->entry = archive_entry_clone(entry);
-#else
-	zip->entry = archive_entry_clone(entry);
-#endif
-	if (zip->entry == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate zip header data");
-		return (ARCHIVE_FATAL);
-	}
+     If you have problems with this test timing out on your system, or want to
 
-	if (sconv != NULL) {
-		const char *p;
-		size_t len;
+     run more than 257 iterations, you can change the number of iterations by
 
-		if (archive_entry_pathname_l(entry, &p, &len, sconv) != 0) {
-			if (errno == ENOMEM) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate memory for Pathname");
-				return (ARCHIVE_FATAL);
+     setting the KWSYS_TEST_PROCESS_1_COUNT environment variable.  */
+
+  (void)argc; (void)argv;
+
+  fprintf(stdout, "Output on stdout from test returning 0.\n");
+
+  fprintf(stderr, "Output on stderr from test returning 0.\n");
+

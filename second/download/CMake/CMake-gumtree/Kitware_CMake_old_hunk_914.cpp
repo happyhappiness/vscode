@@ -1,16 +1,16 @@
-  // FIXME should this be fatal or not? delete obj? delete d?
-  if (!out)
-    return;
 
-  std::string tmp = objfile;
-  doEscape(tmp, " ", "\\ ");
-  fprintf(out, "%s: \\\n", tmp.c_str());
 
-  std::vector<std::string>::iterator it = incs.begin();
-  for (; it != incs.end(); ++it) {
-    tmp = *it;
-    doEscape(tmp, "\\", "/");
-    doEscape(tmp, " ", "\\ ");
-    fprintf(out, "%s \\\n", tmp.c_str());
-  }
+	/* First item is set up a lot like a symlink traversal. */
+
+	/* printf("Looking for wildcard in %s\n", path); */
+
+	/* TODO: wildcard detection here screws up on \\?\c:\ UNC names */
+
+	if (wcschr(base, L'*') || wcschr(base, L'?')) {
+
+		// It has a wildcard in it...
+
+		// Separate the last element.
+
+		p = wcsrchr(base, L'/');
 

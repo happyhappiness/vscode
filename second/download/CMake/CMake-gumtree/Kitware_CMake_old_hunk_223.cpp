@@ -1,7 +1,14 @@
-	if (ver != w->pver) {
-		/* stringify this entry's version */
-		archive_string_sprintf(&w->sver,
-			"WARC/%u.%u", ver / 10000, ver % 10000);
-		/* remember the version */
-		w->pver = ver;
-	}
+		r = archive_match_path_excluded(a->matching, entry);
+
+		if (r < 0) {
+
+			archive_set_error(&(a->archive), errno,
+
+			    "Faild : %s", archive_error_string(a->matching));
+
+			return (r);
+
+		}
+
+		if (r) {
+

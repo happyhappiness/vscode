@@ -1,45 +1,29 @@
-//----------------------------------------------------------------------
-std::string cmCTest::MakeXMLSafe(const std::string& str)
-{
-  cmOStringStream ost;
-  // By uncommenting the lcnt code, it will put newline every 120 characters
-  //int lcnt = 0;
-  for (std::string::size_type  pos = 0; pos < str.size(); pos ++ )
-    {
-    unsigned char ch = str[pos];
-    if ( ch == '\r' )
-      {
-      // Ignore extra CR characters.
-      }
-    else if ( (ch > 126 || ch < 32) && ch != 9  && ch != 10 && ch != 13 )
-      {
-      char buffer[33];
-      sprintf(buffer, "&lt;%d&gt;", (int)ch);
-      //sprintf(buffer, "&#x%0x;", (unsigned int)ch);
-      ost << buffer;
-      //lcnt += 4;
-      }
-    else
-      {
-      switch ( ch )
-        {
-        case '&': ost << "&amp;"; break;
-        case '<': ost << "&lt;"; break;
-        case '>': ost << "&gt;"; break;
-        case '\n': ost << "\n"; 
-          //lcnt = 0; 
-          break;
-        default: ost << ch;
-        }
-      //lcnt ++;
-      }
-    //if ( lcnt > 120 )
-    //  {
-    //  ost << "\n";
-    //  lcnt = 0;
-    //  }
-    }
-  return ost.str();
+  return retVal;
+
 }
 
-//----------------------------------------------------------------------
+
+
+int main(/*int argc, char **argv*/)
+
+{
+
+  int retVal = 0;
+
+  curl_global_init(CURL_GLOBAL_DEFAULT);
+
+  retVal += GetWebFile();
+
+
+
+  /* Do not check the output of FTP socks5 cannot handle FTP yet */
+
+  /* GetFtpFile(); */
+
+  /* do not test ftp right now because we don't enable that port */
+
+  curl_global_cleanup();
+
+  return retVal;
+
+}

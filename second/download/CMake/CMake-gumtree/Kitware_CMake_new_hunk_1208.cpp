@@ -1,42 +1,32 @@
-    }
-  if ( !res )
-    {
-    this->CacheManager->AddCacheEntry
-      ("CMAKE_HOME_DIRECTORY", 
-       this->GetHomeDirectory(),
-       "Start directory with the top level CMakeLists.txt file for this "
-       "project",
-       cmCacheManager::INTERNAL);
-    }
+ * easy to compare versions at build time: for version a.b.c, the
 
-  // set the default BACKWARDS compatibility to the current version
-  if(!this->CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
-    {
-    char ver[256];
-    sprintf(ver,"%i.%i",cmMakefile::GetMajorVersion(),
-            cmMakefile::GetMinorVersion());
-    this->CacheManager->AddCacheEntry
-      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
-       "For backwards compatibility, what version of CMake commands and "
-       "syntax should this version of CMake allow.",
-       cmCacheManager::STRING);
-    }
+ * version number is printf("%d%03d%03d",a,b,c).  For example, if you
 
-  // no generator specified on the command line
-  if(!this->GlobalGenerator)
-    {
-    const char* genName = this->CacheManager->GetCacheValue("CMAKE_GENERATOR");
-    if(genName)
-      {
-      this->GlobalGenerator = this->CreateGlobalGenerator(genName);
-      }
-    if(this->GlobalGenerator)
-      {
-      // set the global flag for unix style paths on cmSystemTools as
-      // soon as the generator is set.  This allows gmake to be used
-      // on windows.
-      cmSystemTools::SetForceUnixPaths
-        (this->GlobalGenerator->GetForceUnixPaths());
-      }
-    else
-      {
+ * know your application requires version 2.12.108 or later, you can
+
+ * assert that ARCHIVE_VERSION_NUMBER >= 2012108.
+
+ */
+
+/* Note: Compiler will complain if this does not match archive_entry.h! */
+
+#define	ARCHIVE_VERSION_NUMBER 3000002
+
+__LA_DECL int		archive_version_number(void);
+
+
+
+/*
+
+ * Textual name/version of the library, useful for version displays.
+
+ */
+
+#define	ARCHIVE_VERSION_STRING "libarchive 3.0.2"
+
+__LA_DECL const char *	archive_version_string(void);
+
+
+
+/* Declare our basic types. */
+

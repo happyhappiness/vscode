@@ -1,29 +1,38 @@
-  return str.find(what) != std::string::npos;
-}
+            break;
 
-int main() {
+          case 3:
 
-  // Use the Win32 api instead of argc/argv so we can avoid interpreting the
-  // rest of command line after the .d and .obj. Custom parsing seemed
-  // preferable to the ugliness you get into in trying to re-escape quotes for
-  // subprocesses, so by avoiding argc/argv, the subprocess is called with
-  // the same command line verbatim.
+          {
 
-  string srcfile, dfile, objfile, prefix, clpath, rest;
-  parseCommandLine(GetCommandLine(), srcfile, dfile, objfile,
-                                     prefix, clpath, rest);
+            length = *(p + offset++);
 
-#if 0
-  fprintf(stderr, "\n\ncmcldebug:\n");
-  fprintf(stderr, ".d  : %s\n", dfile.c_str());
-  fprintf(stderr, "OBJ : %s\n", objfile.c_str());
-  fprintf(stderr, "CL  : %s\n", clpath.c_str());
-  fprintf(stderr, "REST: %s\n", rest.c_str());
-  fprintf(stderr, "\n\n");
-#endif
+            while (length)
 
-  SubprocessSet subprocs;
-  Subprocess* subproc = subprocs.Add(clpath + " /showIncludes " + rest);
-  if(!subproc)
-    return 2;
+            {
+
+	          if (filename_size >= end)
+
+			    break;
+
+              filename[filename_size++] = *(p + offset);
+
+              length--;
+
+            }
+
+          }
+
+          break;
+
+        }
+
+      }
+
+      if (filename_size >= end) {
+
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+          "Invalid filename");
+
+        return (ARCHIVE_FATAL);
 

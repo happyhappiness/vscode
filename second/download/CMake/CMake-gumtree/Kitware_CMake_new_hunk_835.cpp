@@ -1,90 +1,46 @@
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		return (ARCHIVE_FATAL);
-	}
-	if (t->initial_filesystem_id == -1)
-		t->initial_filesystem_id = t->current_filesystem_id;
-	if (!a->traverse_mount_points) {
-		if (t->initial_filesystem_id != t->current_filesystem_id)
-			return (ARCHIVE_RETRY);
-	}
-	t->descend = descend;
 
-	tree_archive_entry_copy_bhfi(entry, t, st);
 
-	/* Save the times to be restored. This must be in before
-	 * calling archive_read_disk_descend() or any chance of it,
-	 * especially, invokng a callback. */
-	t->restore_time.lastWriteTime = st->ftLastWriteTime;
-	t->restore_time.lastAccessTime = st->ftLastAccessTime;
-	t->restore_time.filetype = archive_entry_filetype(entry);
+//----------------------------------------------------------------------------
 
-	/*
-	 * Perform time matching.
-	 */
-	if (a->matching) {
-		r = archive_match_time_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
+void
 
-	/* Lookup uname/gname */
-	name = archive_read_disk_uname(&(a->archive), archive_entry_uid(entry));
-	if (name != NULL)
-		archive_entry_copy_uname(entry, name);
-	name = archive_read_disk_gname(&(a->archive), archive_entry_gid(entry));
-	if (name != NULL)
-		archive_entry_copy_gname(entry, name);
+cmComputeTargetDepends::DisplayGraph(Graph const& graph,
 
-	/*
-	 * Perform owner matching.
-	 */
-	if (a->matching) {
-		r = archive_match_owner_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
+                                     const std::string& name)
 
-	/*
-	 * Invoke a meta data filter callback.
-	 */
-	if (a->metadata_filter_func) {
-		if (!a->metadata_filter_func(&(a->archive),
-		    a->metadata_filter_data, entry))
-			return (ARCHIVE_RETRY);
-	}
+{
 
-	archive_entry_copy_sourcepath_w(entry, tree_current_access_path(t));
+  fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());
 
-	r = ARCHIVE_OK;
-	if (archive_entry_filetype(entry) == AE_IFREG &&
-	    archive_entry_size(entry) > 0) {
-		DWORD flags = FILE_FLAG_BACKUP_SEMANTICS;
-		if (t->async_io)
-			flags |= FILE_FLAG_OVERLAPPED;
-		if (t->direct_io)
-			flags |= FILE_FLAG_NO_BUFFERING;
-		else
-			flags |= FILE_FLAG_SEQUENTIAL_SCAN;
-		t->entry_fh = CreateFileW(tree_current_access_path(t),
-		    GENERIC_READ, 0, NULL, OPEN_EXISTING, flags, NULL);
-		if (t->entry_fh == INVALID_HANDLE_VALUE) {
-			archive_set_error(&a->archive, errno,
-			    "Couldn't open %ls", tree_current_path(a->tree));
+  int n = static_cast<int>(graph.size());
+
+  for(int depender_index = 0; depender_index < n; ++depender_index)
+
+    {
+
+    EdgeList const& nl = graph[depender_index];
+
+    cmTarget const* depender = this->Targets[depender_index];
+
+    fprintf(stderr, "target %d is [%s]\n",
+
+            depender_index, depender->GetName().c_str());
+
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+
+      {
+
+      int dependee_index = *ni;
+
+      cmTarget const* dependee = this->Targets[dependee_index];
+
+      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+
+              dependee->GetName().c_str(), ni->IsStrong()? "strong" : "weak");
+
+      }
+
+    }
+
+  fprintf(stderr, "\n");
+

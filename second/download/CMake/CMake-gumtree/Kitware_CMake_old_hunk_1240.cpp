@@ -1,10 +1,15 @@
-    cmTargets::iterator tit;
-    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
-      {
-      //std::cout << "Found target: " << tit->first.c_str() << std::endl;
-      sprintf(tgtName, "node%d", cnt++);
-      targetNamesNodes[tit->first.c_str()] = tgtName;
-      targetPtrs[tit->first.c_str()] = &tit->second;
-      //str << "    \"" << tgtName << "\" [ label=\"" << tit->first.c_str() <<  "\" shape=\"box\"];" << std::endl;
-      }
-    }
+
+
+        /* column is only valid if an input buffer exists. */
+
+        if (! YY_CURRENT_BUFFER )
+
+           yy_fatal_error( "cmExpr_yyset_column called with no buffer" , yyscanner); 
+
+    
+
+    yycolumn = column_no;
+
+}
+
+

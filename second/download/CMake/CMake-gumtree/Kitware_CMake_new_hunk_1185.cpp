@@ -1,12 +1,14 @@
+    //doEscape(tmp, "(", "\\("); // TODO ninja can't read ( and )
 
-        /* column is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-          {
-          yy_fatal_error
-            ("cmCommandArgument_yyset_column called with no buffer" , 
-             yyscanner); 
-          }
-        
-    
-    yycolumn = column_no;
-}
+    //doEscape(tmp, ")", "\\)");
+
+    fprintf(out, "%s \\\n", tmp.c_str());
+
+    //printf("include: %s \n", tmp.c_str());
+
+  }
+
+
+
+  fprintf(out, "\n");
+

@@ -1,7 +1,26 @@
+                             curl_off_t *size,
 
-static int test8_grandchild(int argc, const char* argv[])
+                             const char *fmt, ...)
+
 {
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
+
+  char s[4096];
+
+  va_list ap;
+
+  va_start(ap, fmt);
+
+  vsnprintf(s, sizeof(s), fmt, ap);
+
+  va_end(ap);
+
+
+
+  return AddFormData(formp, FORM_DATA, s, 0, size);
+
+}
+
+
+
+/*
+

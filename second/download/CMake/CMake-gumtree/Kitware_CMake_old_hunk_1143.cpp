@@ -1,12 +1,14 @@
+		else {
 
-static int SystemToolsDebugReport(int, char* message, int*)
-{
-  fprintf(stderr, message);
-  exit(1);
-}
-void SystemTools::EnableMSVCDebugHook()
-{
-  if(getenv("DART_TEST_FROM_DART"))
-    {
-    _CrtSetReportHook(SystemToolsDebugReport);
-    }
+			archive_set_error(&(a->archive),
+
+			    ARCHIVE_ERRNO_MISC,
+
+			    "Unkonwn compression name: `%s'",
+
+			    value);
+
+			return (ARCHIVE_FAILED);
+
+		}
+

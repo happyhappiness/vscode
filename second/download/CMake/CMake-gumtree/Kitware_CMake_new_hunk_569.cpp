@@ -1,7 +1,14 @@
-  idna_init();
-#endif
+				    "Missing number");
 
-  if(Curl_resolver_global_init()) {
-    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
-    return CURLE_FAILED_INIT;
-  }
+				return ARCHIVE_WARN;
+
+			}
+
+			numbers[argc++] = (unsigned long)mtree_atol(&p);
+
+			if (argc > MAX_PACK_ARGS) {
+
+				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+
+				    "Too many arguments");
+

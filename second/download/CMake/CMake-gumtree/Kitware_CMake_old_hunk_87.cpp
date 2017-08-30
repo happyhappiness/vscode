@@ -1,7 +1,11 @@
-  else
-    hostname = conn->host.name;
+        break;
 
-  return aprintf("%s:%d", hostname, conn->port);
-}
+    }
 
-/* Look up the bundle with all the connections to the same host this
+  }
+
+
+
+  // Delete the process instance.
+
+  cmsysProcess_Delete(cp);

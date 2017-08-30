@@ -1,6 +1,14 @@
-  return snprintf(p, len, " nghttp2/%s", h2->version_str);
-}
+  sprintf(num, "%d", static_cast<int>(this->Makefiles.size()));
 
-/*
- * The implementation of nghttp2_send_callback type. Here we write |data| with
- * size |length| to the network and return the number of bytes actually
+  this->GetCMakeInstance()->AddCacheEntry("CMAKE_NUMBER_OF_MAKEFILES", num,
+
+                                          "number of local generators",
+
+                                          cmState::INTERNAL);
+
+
+
+  // check for link libraries and include directories containing "NOTFOUND"
+
+  // and for infinite loops
+

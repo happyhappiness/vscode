@@ -1,16 +1,12 @@
+			 * on which file starts, but we don't handle
 
-  snprintf(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
+			 * multi-volume Zip files. */
 
-  error = Curl_base64_encode(data,
-                             data->state.buffer, strlen(data->state.buffer),
-                             &authorization, &size);
-  if(error)
-    return error;
+			break;
 
-  if(!authorization)
-    return CURLE_REMOTE_ACCESS_DENIED;
+		case 0x5455:
 
-  Curl_safefree(*userp);
-  *userp = aprintf("%sAuthorization: Basic %s\r\n",
-                   proxy?"Proxy-":"",
-                   authorization);
+		{
+
+			/* Extended time field "UT". */
+

@@ -1,16 +1,15 @@
-    cmTargets::iterator tit;
-    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
-      {
-      const char* realTargetName = tit->first.c_str();
-      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
-        {
-        // Skip ignored targets
-        continue;
-        }
-      //std::cout << "Found target: " << tit->first.c_str() << std::endl;
-      sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
-      targetNamesNodes[realTargetName] = tgtName;
-      targetPtrs[realTargetName] = &tit->second;
-      //str << "    \"" << tgtName << "\" [ label=\"" << tit->first.c_str() <<  "\" shape=\"box\"];" << std::endl;
-      }
-    }
+
+
+        /* column is only valid if an input buffer exists. */
+
+        if (! YY_CURRENT_BUFFER )
+
+           yy_fatal_error( "cmExpr_yyset_column called with no buffer" , yyscanner);
+
+
+
+    yycolumn = column_no;
+
+}
+
+

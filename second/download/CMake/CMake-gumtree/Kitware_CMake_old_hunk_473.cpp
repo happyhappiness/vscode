@@ -1,12 +1,22 @@
-		if (entry_size == 0) {
-			archive_set_error(&a->archive, EINVAL,
-			    "Invalid string table");
-			return (ARCHIVE_WARN);
-		}
-		if (ar->strtab != NULL) {
-			archive_set_error(&a->archive, EINVAL,
-			    "More than one string tables exist");
-			return (ARCHIVE_WARN);
-		}
+  }
 
-		/* Read the filename table into memory. */
+
+
+  windowoffs = lzss_offset_for_position(&rar->lzss, startpos);
+
+  if(windowoffs + length <= lzss_size(&rar->lzss))
+
+    memcpy(&rar->unp_buffer[rar->unp_offset], &rar->lzss.window[windowoffs],
+
+           length);
+
+  else
+
+  {
+
+    firstpart = lzss_size(&rar->lzss) - windowoffs;
+
+    if (firstpart < 0) {
+
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+

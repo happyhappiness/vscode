@@ -1,10 +1,16 @@
-        strcmp(dent->d_name, "..") == 0)
-      continue;
+      {
 
-    snprintf(realpath, MAXPATHLEN, "%s/%s", realdir,
-       dent->d_name);
-    if (savedir)
-      snprintf(savepath, MAXPATHLEN, "%s/%s", savedir,
-         dent->d_name);
+      int dependee_index = *ni;
 
-#ifndef WIN32
+      cmTarget* dependee = this->Targets[dependee_index];
+
+      fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
+
+              dependee->GetName());
+
+      }
+
+    }
+
+  fprintf(stderr, "\n");
+

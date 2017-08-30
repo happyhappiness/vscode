@@ -1,9 +1,18 @@
-               }
-            }
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (this->ImportFlag) {
-               this->ImportFlag = false;
-               fprintf(this->FileOut,"EXPORTS \n");
-            }
-            /*
-            Check whether it is "Scalar deleting destructor" and
+			return (ARCHIVE_FATAL);
+
+		}
+
+	}
+
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+	    "Input requires too many filters for decoding");
+
+	return (ARCHIVE_FATAL);
+
+}
+
+
+
+/*
+

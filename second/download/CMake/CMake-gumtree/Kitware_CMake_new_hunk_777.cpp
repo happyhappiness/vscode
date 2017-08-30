@@ -1,12 +1,48 @@
+  intptr_t srchHandle;
 
-	/* If this is a symlink, read the link contents. */
-	if (archive_entry_filetype(entry) == AE_IFLNK) {
-		h = __archive_read_ahead(a,
-			(size_t)cpio->entry_bytes_remaining, NULL);
-		if (h == NULL)
-			return (ARCHIVE_FATAL);
-		if (archive_entry_copy_symlink_l(entry, (const char *)h,
-		    (size_t)cpio->entry_bytes_remaining, sconv) != 0) {
-			if (errno == ENOMEM) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate memory for Linkname");
+#endif
+
+  char* buf;
+
+  size_t n = name.size();
+
+  if ( *name.rbegin() == '/' || *name.rbegin() == '\\' )
+
+    {
+
+    buf = new char[n + 1 + 1];
+
+    sprintf(buf, "%s*", name.c_str());
+
+    }
+
+  else
+
+    {
+
+    // Make sure the slashes in the wildcard suffix are consistent with the
+
+    // rest of the path
+
+    buf = new char[n + 2 + 1];
+
+    if ( name.find('\\') != name.npos )
+
+      {
+
+      sprintf(buf, "%s\\*", name.c_str());
+
+      }
+
+    else
+
+      {
+
+      sprintf(buf, "%s/*", name.c_str());
+
+      }
+
+    }
+
+  struct _wfinddata_t data;      // data of current file
+

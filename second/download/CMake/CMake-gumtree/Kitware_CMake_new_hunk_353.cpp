@@ -1,35 +1,58 @@
-               table64[obuf[0]],
-               table64[obuf[1]]);
-      break;
+#endif
 
-    case 2: /* two bytes read */
-      snprintf(output, 5, "%c%c%c=",
-               table64[obuf[0]],
-               table64[obuf[1]],
-               table64[obuf[2]]);
-      break;
+  char* buf;
 
-    default:
-      snprintf(output, 5, "%c%c%c%c",
-               table64[obuf[0]],
-               table64[obuf[1]],
-               table64[obuf[2]],
-               table64[obuf[3]]);
-      break;
-    }
-    output += 4;
+  size_t n = name.size();
+
+  if (*name.rbegin() == '/') {
+
+    buf = new char[n + 1 + 1];
+
+    sprintf(buf, "%s*", name.c_str());
+
+  } else {
+
+    buf = new char[n + 2 + 1];
+
+    sprintf(buf, "%s/*", name.c_str());
+
   }
 
-  /* Zero terminate */
-  *output = '\0';
+  struct _wfinddata_t data; // data of current file
 
-  /* Return the pointer to the new data (allocated memory) */
-  *outptr = base64data;
 
-  free(convbuf);
 
-  /* Return the length of the new data */
-  *outlen = strlen(base64data);
+  // Now put them into the file array
 
-  return CURLE_OK;
+  srchHandle =
+
+    _wfindfirst_func((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
+
+  delete[] buf;
+
+
+
+  if (srchHandle == -1) {
+
+    return 0;
+
+  }
+
+
+
+  // Loop through names
+
+  unsigned long count = 0;
+
+  do {
+
+    count++;
+
+  } while (_wfindnext_func(srchHandle, &data) != -1);
+
+  _findclose(srchHandle);
+
+  return count;
+
 }
+

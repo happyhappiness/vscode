@@ -1,26 +1,69 @@
-    total_untested += cov.m_UnTested;
-    float cper = 0;
-    float cmet = 0;
-    if ( total_tested + total_untested > 0 && (cov.m_Tested + cov.m_UnTested) > 0)
-      {
-      cper = (100 * static_cast<float>(cov.m_Tested)/
-        static_cast<float>(cov.m_Tested + cov.m_UnTested));
-      cmet = ( static_cast<float>(cov.m_Tested + 10) /
-        static_cast<float>(cov.m_Tested + cov.m_UnTested + 10));
-      }
+      break;
 
-    log << "\t<File Name=\"" << cit->first << "\" FullPath=\"" << cov.m_FullPath
-      << "\" Covered=\"" << (cmet>0?"true":"false") << "\">\n"
-      << "\t\t<LOCTested>" << cov.m_Tested << "</LOCTested>\n"
-      << "\t\t<LOCUnTested>" << cov.m_UnTested << "</LOCUnTested>\n"
-      << "\t\t<PercentCoverage>";
-    log.setf(std::ios::fixed, std::ios::floatfield);
-    log.precision(2);
-    log << FIXNUM(cper) << "</PercentCoverage>\n"
-      << "\t\t<CoverageMetric>";
-    log.setf(std::ios::fixed, std::ios::floatfield);
-    log.precision(2);
-    log << FIXNUM(cmet) << "</CoverageMetric>\n"
-      << "\t</File>" << std::endl;
-    ccount ++;
     }
+
+  }
+
+
+
+  memset(&hints, 0, sizeof(hints));
+
+  hints.ai_family = pf;
+
+  hints.ai_socktype = conn->socktype;
+
+
+
+  if((1 == Curl_inet_pton(AF_INET, hostname, addrbuf)) ||
+
+     (1 == Curl_inet_pton(AF_INET6, hostname, addrbuf))) {
+
+    /* the given address is numerical only, prevent a reverse lookup */
+
+    hints.ai_flags = AI_NUMERICHOST;
+
+  }
+
+#if 0 /* removed nov 8 2005 before 7.15.1 */
+
+  else
+
+    hints.ai_flags = AI_CANONNAME;
+
+#endif
+
+
+
+  if(port) {
+
+    snprintf(sbuf, sizeof(sbuf), "%d", port);
+
+    sbufptr=sbuf;
+
+  }
+
+  error = getaddrinfo(hostname, sbufptr, &hints, &res);
+
+  if (error) {
+
+    infof(data, "getaddrinfo(3) failed for %s:%d\n", hostname, port);
+
+    return NULL;
+
+  }
+
+
+
+  dump_addrinfo(conn, res);
+
+
+
+  return res;
+
+}
+
+#endif /* !USE_THREADING_GETADDRINFO && !CURLRES_ARES */
+
+#endif /* ipv6 */
+
+

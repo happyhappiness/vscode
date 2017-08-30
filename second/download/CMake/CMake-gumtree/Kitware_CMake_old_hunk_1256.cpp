@@ -1,11 +1,14 @@
-#endif
+  const char* ret = _getcwd(buf, len);
 
-  filename = (realname ? realname : th_get_pathname(t));
-  if (mkdirhier(dirname(filename)) == -1)
-    return -1;
+  if(!ret)
 
-  if (unlink(filename) == -1 && errno != ENOENT)
-    return -1;
+    {
 
-#ifdef DEBUG
-  printf("  ==> extracting: %s (symlink to %s)\n",
+    fprintf(stderr, "No current working directory.\n");
+
+    abort();
+
+    }
+
+  // make sure the drive letter is capital
+

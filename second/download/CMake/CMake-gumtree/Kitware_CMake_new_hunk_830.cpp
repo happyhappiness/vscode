@@ -1,14 +1,14 @@
-	int r, vr = 0, xr = 0;
+        li != testLangs.end(); ++li)
 
-	if (tree_current_is_symblic_link_target(t)) {
-#if defined(HAVE_OPENAT)
-		/*
-		 * Get file system statistics on any directory
-		 * where current is.
-		 */
-		int fd = openat(tree_current_dir_fd(t),
-		    tree_current_access_path(t), O_RDONLY | O_CLOEXEC);
-		__archive_ensure_cloexec_flag(fd);
-		if (fd < 0) {
-			archive_set_error(&a->archive, errno,
-			    "openat failed");
+      {
+
+      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
+
+      const char* flags = this->Makefile->GetDefinition(langFlags);
+
+      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+
+              lg->EscapeForCMake(flags?flags:"").c_str());
+
+      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
+

@@ -1,9 +1,45 @@
-  fflush(stdout);
-  fflush(stderr);
-#if defined(_WIN32)
-  Sleep(5000);
-#else
-  sleep(5);
-#endif
-  fprintf(stdout, "Output after sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output after sleep on stderr from timeout test.\n");
+      {
+
+      for(std::vector<std::string>::iterator l = p.Labels.begin();
+
+          l !=  p.Labels.end(); ++l)
+
+        {
+
+        labelTimes[*l] += result.ExecutionTime;
+
+        }
+
+      }
+
+    }
+
+  // now print times
+
+  for(std::set<cmStdString>::const_iterator i = labels.begin();
+
+      i != labels.end(); ++i)
+
+    {
+
+    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTime in "
+
+               << *i << " = " << labelTimes[*i] << " sec" );
+
+    if ( this->LogFile )
+
+        {
+
+        *this->LogFile << "\nTime in " << *i << " = "
+
+                       << labelTimes[*i] << " sec"  << std::endl;
+
+        }
+
+    }
+
+}
+
+
+
+//----------------------------------------------------------------------

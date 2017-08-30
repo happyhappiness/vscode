@@ -1,6 +1,14 @@
-		xar->lzstream.total_in = 0;
-		xar->lzstream.total_out = 0;
-		break;
-#endif
-	/*
-	 * Unsupported compression.
+		r = archive_match_time_excluded(a->matching, entry);
+
+		if (r < 0) {
+
+			archive_set_error(&(a->archive), errno,
+
+			    "Failed : %s", archive_error_string(a->matching));
+
+			return (r);
+
+		}
+
+		if (r) {
+

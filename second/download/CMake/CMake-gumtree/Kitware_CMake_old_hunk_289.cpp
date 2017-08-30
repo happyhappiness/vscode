@@ -1,13 +1,14 @@
-                             curl_off_t *size,
-                             const char *fmt, ...)
-{
-  char s[4096];
-  va_list ap;
-  va_start(ap, fmt);
-  vsnprintf(s, sizeof(s), fmt, ap);
-  va_end(ap);
+				ret = ARCHIVE_WARN;
 
-  return AddFormData(formp, FORM_DATA, s, 0, size);
-}
+			}
 
-/*
+		} else {
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+			    "Invalid extended attribute encountered");
+
+			ret = ARCHIVE_WARN;
+
+		}
+

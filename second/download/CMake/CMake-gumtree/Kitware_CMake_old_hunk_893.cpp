@@ -1,13 +1,26 @@
-      "Invalid filename size");
-    return (ARCHIVE_FATAL);
-  }
-  if (rar->filename_allocated < filename_size+2) {
-    rar->filename = realloc(rar->filename, filename_size+2);
-    if (rar->filename == NULL) {
-      archive_set_error(&a->archive, ENOMEM,
-                        "Couldn't allocate memory.");
-      return (ARCHIVE_FATAL);
-    }
-  }
-  filename = rar->filename;
-  memcpy(filename, p, filename_size);
+	t->current_filesystem->synthetic = -1;
+
+	t->current_filesystem->remote = -1;
+
+	if (tree_current_is_symblic_link_target(t)) {
+
+#if defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR)
+
+		/*
+
+		 * Get file system statistics on any directory
+
+		 * where current is.
+
+		 */
+
+		int fd = openat(tree_current_dir_fd(t),
+
+		    tree_current_access_path(t), O_RDONLY);
+
+		if (fd < 0) {
+
+			archive_set_error(&a->archive, errno,
+
+			    "openat failed");
+

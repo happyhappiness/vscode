@@ -1,17 +1,18 @@
-			return ARCHIVE_FATAL;
-		}
+		r = fstatvfs(tree_current_dir_fd(t), &sfs);
 
-		if (archive_entry_copy_symlink_l(entry, p, linkname_length,
-		    NULL) != 0) {
-			/* NOTE: If the last argument is NULL, this will
-			 * fail only by memeory allocation failure. */
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Symlink");
-			return (ARCHIVE_FATAL);
-		}
-		/* TODO: handle character-set issues? */
-	}
-	return ARCHIVE_OK;
-}
+		if (r == 0)
 
-static int
+			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
+
+#elif defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR)
+
+#error "Unexpected case. Please tell us about this error."
+
+#else
+
+		r = statvfs(".", &sfs);
+
+		if (r == 0)
+
+			xr = get_xfer_size(t, -1, ".");
+

@@ -1,24 +1,38 @@
-	int ret = ARCHIVE_FAILED;
+        }
 
-	if (strcmp(key, "compression") == 0) {
-		if (val == NULL || val[0] == 0) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "%s: compression option needs a compression name",
-			    a->format_name);
-		} else if (strcmp(val, "deflate") == 0) {
-#ifdef HAVE_ZLIB_H
-			zip->compression = COMPRESSION_DEFLATE;
-			ret = ARCHIVE_OK;
-#else
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "deflate compression not supported");
-#endif
-		} else if (strcmp(val, "store") == 0) {
-			zip->compression = COMPRESSION_STORE;
-			ret = ARCHIVE_OK;
-		}
-		return (ret);
-	} else if (strcmp(key, "hdrcharset")  == 0) {
-		if (val == NULL || val[0] == 0) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "%s: hdrcharset option needs a character-set name",
+        if(ptr) {
+
+          ftpc->newport = (unsigned short)(num & 0xffff);
+
+
+
+          if(conn->bits.tunnel_proxy ||
+
+             conn->proxytype == CURLPROXY_SOCKS5 ||
+
+             conn->proxytype == CURLPROXY_SOCKS5_HOSTNAME ||
+
+             conn->proxytype == CURLPROXY_SOCKS4 ||
+
+             conn->proxytype == CURLPROXY_SOCKS4A)
+
+            /* proxy tunnel -> use other host info because ip_addr_str is the
+
+               proxy address not the ftp host */
+
+            snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+
+                     conn->host.name);
+
+          else
+
+            /* use the same IP we are already connected to */
+
+            snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str);
+
+        }
+
+      }
+
+      else
+

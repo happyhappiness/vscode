@@ -1,8 +1,16 @@
-    return CURLE_FAILED_INIT;
-  }
+static int test10_grandchild(int argc, const char* argv[])
 
-  (void)Curl_ipv6works();
+{
 
-#if defined(USE_LIBSSH2) && defined(HAVE_LIBSSH2_INIT)
-  if(libssh2_init(0)) {
-    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+  /* The grandchild just sleeps for a few seconds and handles signals.  */
+
+  (void)argc;
+
+  (void)argv;
+
+  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
+
+  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
+
+  fflush(stdout);
+

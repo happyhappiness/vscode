@@ -1,9 +1,63 @@
-    fprintf(stderr, "Invalid test number %d.\n", n);
-    return 1;
+      }
+
+    this->Rev.Log += "\n";
+
     }
-  else if(n >= 1 && n <= 7)
+
+
+
+  std::string FormatDateTime(Person const& person)
+
     {
-    /* This is the parent process for a requested test number.  */
-    int states[7] =
-    {
-      kwsysProcess_State_Exited,
+
+    // Convert the time to a human-readable format that is also easy
+
+    // to machine-parse: "CCYY-MM-DD hh:mm:ss".
+
+    time_t seconds = static_cast<time_t>(person.Time);
+
+    struct tm* t = gmtime(&seconds);
+
+    char dt[1024];
+
+    sprintf(dt, "%04d-%02d-%02d %02d:%02d:%02d",
+
+            t->tm_year+1900, t->tm_mon+1, t->tm_mday,
+
+            t->tm_hour, t->tm_min, t->tm_sec);
+
+    std::string out = dt;
+
+
+
+    // Add the time-zone field "+zone" or "-zone".
+
+    char tz[32];
+
+    if(person.TimeZone >= 0)
+
+      {
+
+      sprintf(tz, " +%04ld", person.TimeZone);
+
+      }
+
+    else
+
+      {
+
+      sprintf(tz, " -%04ld", -person.TimeZone);
+
+      }
+
+    out += tz;
+
+    return out;
+
+    }
+
+};
+
+
+
+char const cmCTestGIT::CommitParser::SectionSep[SectionCount] =

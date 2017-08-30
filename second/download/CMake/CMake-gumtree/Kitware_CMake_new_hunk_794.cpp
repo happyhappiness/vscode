@@ -1,7 +1,28 @@
-  memcpy(&rar_header, p, sizeof(rar_header));
-  rar->file_flags = archive_le16dec(rar_header.flags);
-  header_size = archive_le16dec(rar_header.size);
-  if (header_size < (int64_t)sizeof(file_header) + 7) {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-      "Invalid header size");
-    return (ARCHIVE_FATAL);
+                            sizeof(rar->reserved2));
+
+      }
+
+
+
+      /* Main header is password encrytped, so we cannot read any
+
+         file names or any other info about files from the header. */
+
+      if (rar->main_flags & MHD_PASSWORD)
+
+      {
+
+        archive_entry_set_is_metadata_encrypted(entry, 1);
+
+        archive_entry_set_is_data_encrypted(entry, 1);
+
+        rar->has_encrypted_entries = 1;
+
+         archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+
+                          "RAR encryption support unavailable.");
+
+        return (ARCHIVE_FATAL);
+
+      }
+

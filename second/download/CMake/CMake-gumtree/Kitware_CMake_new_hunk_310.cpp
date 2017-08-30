@@ -1,8 +1,23 @@
-#define MAXPOLL 20
-static int test7(int argc, const char* argv[])
-{
-  (void)argc;
-  (void)argv;
-  fprintf(stdout, "Output on stdout before sleep.\n");
-  fprintf(stderr, "Output on stderr before sleep.\n");
-  fflush(stdout);
+    digest->nc = 1;
+
+
+
+  if(!digest->cnonce) {
+
+    unsigned int rnd[4];
+
+    result = Curl_rand(data, &rnd[0], 4);
+
+    if(result)
+
+      return result;
+
+    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+
+             rnd[0], rnd[1], rnd[2], rnd[3]);
+
+
+
+    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
+
+                                &cnonce, &cnonce_sz);

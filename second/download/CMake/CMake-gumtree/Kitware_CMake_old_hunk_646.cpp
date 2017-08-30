@@ -1,7 +1,14 @@
-    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-            this->BinaryDirectory.c_str());
-    /* Create the actual executable.  */
-    fprintf(fout, "add_executable(%s", targetName);
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
+		zip->stream.opaque = Z_NULL;
+
+		zip->stream.next_out = zip->buf;
+
+		zip->stream.avail_out = (uInt)zip->len_buf;
+
+		if (deflateInit2(&zip->stream, Z_DEFAULT_COMPRESSION,
+
+		    Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+
+			archive_set_error(&a->archive, ENOMEM,
+
+			    "Can't init deflate compressor");
+

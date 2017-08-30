@@ -1,8 +1,22 @@
-    fprintf(stderr,"*** Failed LOADED COMMAND Final Pass\n");
-    }
-}
+  this->ChipID.Family = 0; 
 
-static void Destructor(void *inf) 
-{
-  cmLoadedCommandInfo *info = (cmLoadedCommandInfo *)inf;
-  /* get our client data from initial pass */
+ 
+
+  // Chip Vendor
+
+  strcpy(this->ChipID.Vendor,"Sun");
+
+  this->FindManufacturer();
+
+  
+
+  // Chip Model
+
+  sprintf(this->ChipID.ProcessorName,"%s",this->ParseValueFromKStat("-s cpu_type").c_str());
+
+  this->ChipID.Model = 0;
+
+
+
+  // Cache size
+

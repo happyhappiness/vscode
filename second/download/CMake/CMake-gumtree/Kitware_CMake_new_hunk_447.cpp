@@ -1,14 +1,32 @@
-	while (off_s < size) {
-		off_s = lseek(*fd, off_s, SEEK_DATA);
-		if (off_s == (off_t)-1) {
-			if (errno == ENXIO) {
-				/* no more hole */
-				if (archive_entry_sparse_count(entry) == 0) {
-					/* Potentially a fully-sparse file. */
-					check_fully_sparse = 1;
-				}
-				break;
-			}
-			archive_set_error(&a->archive, errno,
-			    "lseek(SEEK_HOLE) failed");
-			exit_sts = ARCHIVE_FAILED;
+/* returns an allocated key to find a bundle for this connection */
+
+static char *hashkey(struct connectdata *conn)
+
+{
+
+  const char *hostname;
+
+
+
+  if(conn->bits.proxy)
+
+    hostname = conn->proxy.name;
+
+  else if(conn->bits.conn_to_host)
+
+    hostname = conn->conn_to_host.name;
+
+  else
+
+    hostname = conn->host.name;
+
+
+
+  return aprintf("%s:%d", hostname, conn->port);
+
+}
+
+
+
+/* Look up the bundle with all the connections to the same host this
+

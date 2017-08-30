@@ -1,36 +1,52 @@
-    }
-  }
 
-  if(data->set.encoding) {
-    if(conn->allocptr.accept_encoding)
-      free(conn->allocptr.accept_encoding);
-    conn->allocptr.accept_encoding =
-      aprintf("Accept-Encoding: %s\015\012", data->set.encoding);
-  }
 
-  conn->bytecount = 0;
-  conn->headerbytecount = 0;
-  
-  if(-1 == conn->firstsocket) {
-    bool connected;
+static void yy_fatal_error (yyconst char* msg , yyscan_t)
 
-    /* Connect only if not already connected! */
-    result = ConnectPlease(conn, hostaddr, &connected);
+{
 
-    if(connected)
-      result = Curl_protocol_connect(conn, hostaddr);
+        (void) fprintf( stderr, "%s\n", msg );
 
-    if(CURLE_OK != result)
-      return result;
-  }
-  else {
-    Curl_pgrsTime(data, TIMER_CONNECT); /* we're connected already */
-    if(data->set.verbose)
-      verboseconnect(conn, hostaddr);
-  }
+        exit( YY_EXIT_FAILURE );
 
-  conn->now = Curl_tvnow(); /* time this *after* the connect is done, we
-                               set this here perhaps a second time */
+}
 
-#ifdef __EMX__
-  /* 20000330 mgs
+
+
+/* Redefine yyless() so it works in section 3 code. */
+
+
+
+#undef yyless
+
+#define yyless(n) \
+
+        do \
+
+                { \
+
+                /* Undo effects of setting up yytext. */ \
+
+        int yyless_macro_arg = (n); \
+
+        YY_LESS_LINENO(yyless_macro_arg);\
+
+                yytext[yyleng] = yyg->yy_hold_char; \
+
+                yyg->yy_c_buf_p = yytext + yyless_macro_arg; \
+
+                yyg->yy_hold_char = *yyg->yy_c_buf_p; \
+
+                *yyg->yy_c_buf_p = '\0'; \
+
+                yyleng = yyless_macro_arg; \
+
+                } \
+
+        while ( 0 )
+
+
+
+/* Accessor  methods (get/set functions) to struct members. */
+
+
+
