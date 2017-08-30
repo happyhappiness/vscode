@@ -1,4 +1,4 @@
-static int
+int
 set_xattrs(struct archive_write_disk *a)
 {
 	struct archive_entry *entry = a->entry;
@@ -11,37 +11,29 @@ set_xattrs(struct archive_write_disk *a)
 		const void *value;
 		size_t size;
 		archive_entry_xattr_next(entry, &name, &value, &size);
-		if (name != NULL) {
+		if (name != NULL &&
+				strncmp(name, "xfsroot.", 8) != 0 &&
+				strncmp(name, "system.", 7) != 0) {
 			int e;
-			int namespace;
-
-			if (strncmp(name, "user.", 5) == 0) {
-				/* "user." attributes go to user namespace */
-				name += 5;
-				namespace = EXTATTR_NAMESPACE_USER;
-			} else {
-				/* Warn about other extended attributes. */
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Can't restore extended attribute ``%s''",
-				    name);
-				ret = ARCHIVE_WARN;
-				continue;
-			}
-			errno = 0;
-#if HAVE_EXTATTR_SET_FD
+#if HAVE_FSETXATTR
 			if (a->fd >= 0)
-				e = extattr_set_fd(a->fd, namespace, name,
-				    value, size);
+				e = fsetxattr(a->fd, name, value, size, 0);
+			else
+#elif HAVE_FSETEA
+			if (a->fd >= 0)
+				e = fsetea(a->fd, name, value, size, 0);
 			else
 #endif
-			/* TODO: should we use extattr_set_link() instead? */
 			{
-				e = extattr_set_file(
-				    archive_entry_pathname(entry), namespace,
-				    name, value, size);
+#if HAVE_LSETXATTR
+				e = lsetxattr(archive_entry_pathname(entry),
+				    name, value, size, 0);
+#elif HAVE_LSETEA
+				e = lsetea(archive_entry_pathname(entry),
+				    name, value, size, 0);
+#endif
 			}
-			if (e != (int)size) {
+			if (e == -1) {
 				if (errno == ENOTSUP || errno == ENOSYS) {
 					if (!warning_done) {
 						warning_done = 1;
@@ -51,13 +43,16 @@ set_xattrs(struct archive_write_disk *a)
 						    "attributes on this file "
 						    "system");
 					}
-				} else {
+				} else
 					archive_set_error(&a->archive, errno,
 					    "Failed to set extended attribute");
-				}
-
 				ret = ARCHIVE_WARN;
 			}
+		} else {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Invalid extended attribute encountered");
+			ret = ARCHIVE_WARN;
 		}
 	}
 	return (ret);

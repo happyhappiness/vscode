@@ -2,6 +2,7 @@ import re
 from joern.all import JoernSteps
 from py2neo.packages.httpstream import http
 import my_constant
+import myUtil
 
 class Joern_api:
     joern_instance = None
@@ -270,7 +271,7 @@ class Joern_api:
     @ involve identify var type based on node type(bool, memeber, constants, func, variable)
     """
     def __get_var_type_for_operation(self, node, depended_var_dict):
-        node_code = node[my_constant.JOERN_CODE]
+        node_code = myUtil.remove_name_space_and_caller(node[my_constant.JOERN_CODE])
         node_type = node[my_constant.JOERN_TYPE]
         var_type = self.__get_var_type_for_node_except_identifier(node)
         if var_type is None and node_type == 'Identifier':
@@ -292,7 +293,7 @@ class Joern_api:
         if operations is not None:
             for operation in operations:
                 var_type = self.__get_var_type_for_operation(operation[my_constant.JOERN_DEFALUT], depended_var)
-                if var_type is not None and not var_type.endswith(my_constant.JOERN_CALLEE_FLAG):
+                if var_type is not None: #and not var_type.endswith(my_constant.JOERN_CALLEE_FLAG):
                     break
         return var_type
 
@@ -401,7 +402,7 @@ class Joern_api:
         if operations is not None:
             for operation in operations:
                 var_type = self.__get_var_type_for_node_except_identifier(operation[my_constant.JOERN_DEFALUT])
-                if var_type is not None and not var_type.endswith(my_constant.JOERN_CALLEE_FLAG):
+                if var_type is not None: #and not var_type.endswith(my_constant.JOERN_CALLEE_FLAG):
                     break
         return var_type
 
@@ -412,7 +413,7 @@ class Joern_api:
     """
     def __get_var_type_for_node_except_identifier(self, node):        
         node_id = str(node[my_constant.JOERN_ID])
-        node_code = node[my_constant.JOERN_CODE]
+        node_code = myUtil.remove_name_space_and_caller(node[my_constant.JOERN_CODE])
         node_type = node[my_constant.JOERN_TYPE]
         var_type = None
         # bool operator
@@ -568,7 +569,7 @@ class Joern_api:
             for data in ddg_list:
                 var = data[0]
                 node_id = str(data[1][my_constant.JOERN_ID])
-                node_code = data[1][my_constant.JOERN_CODE]
+                node_code = myUtil.remove_name_space_and_caller(data[1][my_constant.JOERN_CODE])
                 node_type = data[1][my_constant.JOERN_TYPE]
                 depended_nodes.append([node_id, node_code, node_type, var])
         return depended_nodes

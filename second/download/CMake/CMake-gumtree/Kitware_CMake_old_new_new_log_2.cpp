@@ -1,1 +1,1 @@
-archive_strappend_char(&errlist, ' ');
+archive_strcat(&errlist, name);
