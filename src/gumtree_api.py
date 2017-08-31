@@ -200,7 +200,7 @@ class Gumtree:
     """
     def get_word_edit(self, old_log_file, new_log_file):
         Gumtree.gumtree.setOldAndNewFile(old_log_file, new_log_file)
-        edit_elements = set(Gumtree.gumtree.getWordEdit())
+        edit_elements = list(Gumtree.gumtree.getWordEdit())
         edit_words = []
         edit_feature = []
         for edit_element in edit_elements:
