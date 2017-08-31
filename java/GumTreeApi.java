@@ -89,9 +89,9 @@ public class GumTreeApi {
 		
 
 		 String oldFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_33.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_2.cpp";
 		 String newFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_33.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_2.cpp";
 		 GumTreeApi g = new GumTreeApi();
 		 g.setOldAndNewFile(oldFile, newFile);
 		 Iterator<String[]> iter = g.getWordEdit().iterator();
@@ -587,29 +587,58 @@ public class GumTreeApi {
 		Action action;
 		String new_element = "";
 		String old_element = "";
+
+		LinkedList<ITree> edit_nodes = new LinkedList<ITree>();
+		ITree currNode, historyNode;
+		boolean isNew;
 		while(actionIter.hasNext())
 		{
 			action = actionIter.next();
 			if(!isActionOfComment(action))
 			{
-//				System.out.println(action.getName());
-				switch(action.getName())
+				currNode = action.getNode();
+//				System.out.println(this.getValue(currNode, this.oldFile));
+				isNew = true;
+				for(int i = 0; i < edit_nodes.size(); i++)
 				{
-				case "INS":
-					old_element = "";
-					new_element = this.getValue(action.getNode(), this.newFile);
-					break;
-				case "DEL":
-					old_element = this.getValue(action.getNode(), this.oldFile);
-					new_element = "";
-					break;
-				case "UPD":
-					old_element = this.getValue(action.getNode(), this.oldFile);
-					new_element = ((Update)action).getValue();
-					break;
+					historyNode = edit_nodes.get(i);
+					// currNode is children -> ignore
+					if(this.isChildrenOf(currNode, historyNode))
+					{
+						isNew = false;
+						break;
+					}
+					// historyNode is children -> remove children, keep parent
+					if(this.isChildrenOf(historyNode, currNode))
+					{
+						int index = edit_nodes.indexOf(historyNode);
+						edit_nodes.remove(historyNode);
+						i--;
+						edit_elements.remove(index);
+					}
 				}
-				String edit_element[] = {old_element, new_element};
-				edit_elements.add(edit_element);
+				if(isNew)
+				{
+//					System.out.println(this.getType(currNode, this.oldTreeContext));
+					edit_nodes.add(currNode);
+					switch(action.getName())
+					{
+					case "INS":
+						old_element = "";
+						new_element = this.getValue(action.getNode(), this.newFile);
+						break;
+					case "DEL":
+						old_element = this.getValue(action.getNode(), this.oldFile);
+						new_element = "";
+						break;
+					case "UPD":
+						old_element = this.getValue(action.getNode(), this.oldFile);
+						new_element = ((Update)action).getValue();
+						break;
+					}
+					String edit_element[] = {old_element, new_element};
+					edit_elements.add(edit_element);
+				}				
 			}
 		}
 		
@@ -760,6 +789,12 @@ public class GumTreeApi {
 
 	// is parentNode is one of the parents of node[include node itself]
 	private boolean isChildrenOf(ITree child, ITree parentNode) {
+//		children size must less than parent
+		if(child.getSize() > parentNode.getSize())
+		{
+			return false;
+		}
+//		compare
 		boolean isChildren = parentNode.equals(child);
 		Iterator<ITree> parents = child.getParents().iterator();
 		ITree tempNode;
