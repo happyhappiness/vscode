@@ -55,6 +55,7 @@ ANALYZE_OLD_NEW_JOERN_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new
 ANALYZE_CLONE_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_seek_clone.csv'
 STATISTICS_CLONE_NUM_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_clone_statistics.csv'
 STATISTICS_OLD_NEW_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_statistics.csv'
+STATISTICS_OLD_NEW_TEMP_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_statistics_temp.csv'
 CLUSTER_REPOS_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_cluster.csv'
 ANALYZE_REPOS_CLASS_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_class.csv'
 REPOS_SIMILARITY_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_similarity.csv'

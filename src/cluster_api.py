@@ -142,7 +142,7 @@ def compute_equality(vec_a, vec_b, z3_api):
     if z3_api:
         return z3_api.judge_equality_for_statments(vec_a, vec_b)
     else:
-        return myUtil.compute_similarity == 1
+        return vec_a == vec_b
 
 """
 @ param cluster a and b for comparing, similarity_dic
@@ -196,7 +196,7 @@ def cluster_record_with_equality(feature_lists, z3_api):
 
                     # compute similaritys by calling computeSim on (vector a, vector b)
                     similarity_dic[(myclusters[i].id, myclusters[j].id)] =\
-                        compute_similarity_for_cluster(myclusters[i], myclusters[j], similarity_dic)
+                        compute_equality_for_cluster(myclusters[i], myclusters[j], similarity_dic, z3_api)
                     # record symmetrical record
                     similarity_dic[(myclusters[j].id, myclusters[i].id)] =\
                                 similarity_dic[(myclusters[i].id, myclusters[j].id)]

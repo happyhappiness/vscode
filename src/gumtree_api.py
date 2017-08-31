@@ -211,36 +211,43 @@ class Gumtree:
 
         return edit_words, edit_feature
 
-    """ 
+    """
+    @ param old and new log
+    @ return list of edited word pair
+    @ involve ast node edition -> word edition(literal split with space)
+    """
+    def get_word_edit_from_log(self, old_log, new_log):
+
         # split to get list of words
-        log_spliter = r'[^\w%]'
+        log_spliter = r'[^\w%&""\*]'
         old_log = myUtil.remove_given_element('', re.split(log_spliter, old_log))
         new_log = myUtil.remove_given_element('', re.split(log_spliter, new_log))
-        # get edit
+        # print old_log
+        # print new_log
+        # get edition(match and compute delta)
         edit_words = []
         edit_feature = []
-        length_old = len(old_log)
-        length_new = len(new_log)
-        length = max(length_old, *)
-        for i in range(length):
-            if i < length_old and i < length_new and old_log[i] == new_log[i]:
-                continue
-
-            if i < length_old:
-                old_element = old_log[i]
-            else:
-                old_element = ''
-            if i < length_new:
-                new_element = new_log[i]
-            else:
-                new_element = ''
-
-            edit_words.append([old_element, new_element])
-            edit_feature.append(abs(hash(new_element.lower()) - hash(old_element.lower())))
-
-        print edit_words
-        print edit_feature 
-    """
+        is_continue = True
+        # stop if can not find new exact match
+        while is_continue:
+            is_continue = False
+            for old_element in old_log:
+                # exact match and remove both
+                if old_element in new_log:
+                    new_log.remove(old_element)
+                    old_log.remove(old_element)
+                    is_continue = True
+                    break
+        edit_words.append(old_log)
+        edit_words.append(new_log)
+        old_feature = 0
+        for old_element in old_log:
+            old_feature += hash(old_element.lower())
+        new_feature = 0
+        for new_element in new_log:
+            new_feature += hash(new_element.lower())
+        edit_feature.append(new_feature - old_feature)
+        return edit_words, edit_feature
 
     """
     @ param 
@@ -260,9 +267,7 @@ if __name__ == "__main__":
     gumtree = Gumtree()
     # gumtree.set_old_loc(7)
     # gumtree.get_new_log()
-    gumtree.get_word_edit('printf("unknown")', 'printf("unkonwn")')
-    gumtree.get_word_edit('printf("unkonwn")', 'printf("unknown")')
-    gumtree.get_word_edit('archive_string_sprintf(a_estr, errstr, path);', 'archive_string_sprintf(a_estr, "%s%s", errstr, path);')
+    gumtree.get_word_edit_from_log('archive_string_sprintf(a_estr, errstr, path);', 'archive_string_sprintf(a_estr, "%s%s", errstr, path);')
     
 
 
