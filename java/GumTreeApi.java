@@ -89,9 +89,9 @@ public class GumTreeApi {
 		
 
 		 String oldFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_2.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_79.cpp";
 		 String newFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_2.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_79.cpp";
 		 GumTreeApi g = new GumTreeApi();
 		 g.setOldAndNewFile(oldFile, newFile);
 		 Iterator<String[]> iter = g.getWordEdit().iterator();
@@ -583,14 +583,15 @@ public class GumTreeApi {
 	{
 //		System.out.println(actions.size());
 		Iterator<Action> actionIter = actions.iterator();
-		LinkedList<String[]> edit_elements = new LinkedList<String[]>();
+		LinkedList<String[]> editElements = new LinkedList<String[]>();
 		Action action;
-		String new_element = "";
-		String old_element = "";
+		String newElement = "";
+		String oldElement = "";
 
-		LinkedList<ITree> edit_nodes = new LinkedList<ITree>();
-		ITree currNode, historyNode;
-		boolean isNew;
+		ITree currNode;
+//		LinkedList<ITree> edit_nodes = new LinkedList<ITree>();
+//		ITree historyNode;
+//		boolean isNew;
 		while(actionIter.hasNext())
 		{
 			action = actionIter.next();
@@ -598,51 +599,51 @@ public class GumTreeApi {
 			{
 				currNode = action.getNode();
 //				System.out.println(this.getValue(currNode, this.oldFile));
-				isNew = true;
-				for(int i = 0; i < edit_nodes.size(); i++)
-				{
-					historyNode = edit_nodes.get(i);
-					// currNode is children -> ignore
-					if(this.isChildrenOf(currNode, historyNode))
-					{
-						isNew = false;
-						break;
-					}
-					// historyNode is children -> remove children, keep parent
-					if(this.isChildrenOf(historyNode, currNode))
-					{
-						int index = edit_nodes.indexOf(historyNode);
-						edit_nodes.remove(historyNode);
-						i--;
-						edit_elements.remove(index);
-					}
-				}
-				if(isNew)
+//				isNew = true;
+//				for(int i = 0; i < edit_nodes.size(); i++)
+//				{
+//					historyNode = edit_nodes.get(i);
+//					// currNode is children -> ignore
+//					if(this.isChildrenOf(currNode, historyNode))
+//					{
+//						isNew = false;
+//						break;
+//					}
+//					// historyNode is children -> remove children, keep parent
+//					if(this.isChildrenOf(historyNode, currNode))
+//					{
+//						int index = edit_nodes.indexOf(historyNode);
+//						edit_nodes.remove(historyNode);
+//						i--;
+//						editElements.remove(index);
+//					}
+//				}
+				if(currNode.isLeaf())
 				{
 //					System.out.println(this.getType(currNode, this.oldTreeContext));
-					edit_nodes.add(currNode);
+//					edit_nodes.add(currNode);
 					switch(action.getName())
 					{
 					case "INS":
-						old_element = "";
-						new_element = this.getValue(action.getNode(), this.newFile);
+						oldElement = "";
+						newElement = this.getValue(action.getNode(), this.newFile);
 						break;
 					case "DEL":
-						old_element = this.getValue(action.getNode(), this.oldFile);
-						new_element = "";
+						oldElement = this.getValue(action.getNode(), this.oldFile);
+						newElement = "";
 						break;
 					case "UPD":
-						old_element = this.getValue(action.getNode(), this.oldFile);
-						new_element = ((Update)action).getValue();
+						oldElement = this.getValue(action.getNode(), this.oldFile);
+						newElement = ((Update)action).getValue();
 						break;
 					}
-					String edit_element[] = {old_element, new_element};
-					edit_elements.add(edit_element);
+					String edit_element[] = {oldElement, newElement};
+					editElements.add(edit_element);
 				}				
 			}
 		}
 		
-		return edit_elements;
+		return editElements;
 	}
 	
 	public boolean isMatchWithEdit(String reposFile)

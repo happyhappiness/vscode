@@ -235,11 +235,11 @@ def get_tuple_from_list(tuple_list):
     return tuple_tuple
 
 """
-@ param  cond_list of a and b to compute, func_similarity_dic
+@ param list of a and b to compute
 @ return lenth of common substring / min length
-@ involve compute the longgest common string (continuous) of two cond_list
+@ involve compute the longgest common string (continuous) of two list
 """
-def longestCommon(list_a, list_b):
+def longest_common_sub(list_a, list_b):
 
     # if just one element, then compare that
     len_a = len(list_a)
@@ -272,7 +272,7 @@ def longestCommon(list_a, list_b):
                 memory[i][j] = 0
 
     len_common = first_len_common
-    # filter the totally different and equal condition
+    # filter the totally different and equal
     if len_common in range(1, min(len_a, len_b)):
         curr_a = 0
         curr_b = 0
@@ -294,8 +294,6 @@ def longestCommon(list_a, list_b):
                 (curr_a == len_a - 1 or curr_b == len_b - 1 or memory[curr_a + 1][curr_b + 1] == 0):
                 len_common += memory[curr_a][curr_b]
 
-    # simlarity value with common length / min length (0, 1)
-    # return float(len_common)/min(len_a, len_b)
     return  len_common
 
 
