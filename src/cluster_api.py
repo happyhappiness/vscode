@@ -176,7 +176,7 @@ def compute_equality_for_cluster(cluster_a, cluster_b, similarity_dic, z3_api):
 @involve: cluster entities based on equality(true/false)
 """
 def cluster_record_with_equality(feature_lists, z3_api):
-   
+
     # initialize the custers to consist of each entity
     myclusters = [mycluster(children=[], vec=feature_lists[i], id=i) for i in range(len(feature_lists))]
     flag = None

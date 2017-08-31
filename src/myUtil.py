@@ -47,11 +47,9 @@ def remove_name_space_and_caller(name):
 """
 @ param  element and in_list
 @ return in_list
-@ callee ...
-@ caller cluster_control
 @ involve remove given element in in_list
 """
-def removeGivenElement(element, in_list):
+def remove_given_element(element, in_list):
     # remove element in in_list
     while element in in_list:
         in_list.remove(element)

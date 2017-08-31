@@ -11,7 +11,7 @@ REPOS = 'CMake'
 stroed file name prefix
 """
 # parent
-BASE_DIR = '/usr/info/code/cpp/LogMonitor/LogMonitor'
+BASE_DIR = '/usr/info/code/cpp/LogMonitor/LogMonitor/'
 OLD_NEW_PARENT_DIR = 'second/download/' + REPOS + '/' + REPOS + '-old-new/'
 REPOS_PARENT_DIR = 'second/download/' + REPOS + '/' + REPOS + '/'
 # old new
@@ -126,7 +126,7 @@ ANALYZE_OLD_NEW_OLD_LOG = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_log')
 ANALYZE_OLD_NEW_NEW_LOG = ANALYZE_OLD_NEW_JOERN_TITLE.index('new_log')
 
 
-STATISTICS_OLD_NEW_TITLE = ANALYZE_OLD_NEW_JOERN_TITLE + ['old_log_type', 'old_log_time', 'old_log_author', 'cluster']
+STATISTICS_OLD_NEW_TITLE = ANALYZE_OLD_NEW_JOERN_TITLE + ['edit', 'old_log_time', 'old_log_author', 'cluster']
 
 
 """

@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
@@ -87,19 +88,18 @@ public class GumTreeApi {
 		// System.out.println("hello I am gumtree api");
 		
 
-//		 String oldFile =
-//		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_236.cpp";
-//		 String newFile =
-//		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_236.cpp";
-//		 GumTreeApi g = new GumTreeApi();
-//		 g.setOldAndNewFile(oldFile, newFile);
-//		 g.setOldLoc(8);
-//		 System.out.println(g.getOldLog());
-//		 System.out.println(g.getNewLog());
-//		 g.addLogNode(8);
-////		 g.addLogNode(3);
-////		 g.getDeltaBlockfeature();
-//		 System.out.println(g.getActionType());
+		 String oldFile =
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_33.cpp";
+		 String newFile =
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_33.cpp";
+		 GumTreeApi g = new GumTreeApi();
+		 g.setOldAndNewFile(oldFile, newFile);
+		 Iterator<String[]> iter = g.getWordEdit().iterator();
+		 while(iter.hasNext())
+		 {
+			 String edit_element[] = iter.next();
+			 System.out.printf("(%s, %s)\n", edit_element[0], edit_element[1]);
+		 }
 		
 		
 ////		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
@@ -119,18 +119,18 @@ public class GumTreeApi {
 //		System.out.println(g.getFunctionLoc());
 	
 		
-		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_94.cpp";
-		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_94.cpp";
-		GumTreeApi g = new GumTreeApi();
-		g.setOldAndNewFile(oldFile, newFile);
-		g.addNewLogNode(5);		
-		g.addNewLogNode(11);
-		g.addOldLogNode(5);
-		g.setOldLoc(5);
-		System.out.println(g.getNewLoc());
-		g.setNewLoc(5);
-		System.out.println(g.getOldLoc());
-		System.out.println(g.getActionType());
+//		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_94.cpp";
+//		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_94.cpp";
+//		GumTreeApi g = new GumTreeApi();
+//		g.setOldAndNewFile(oldFile, newFile);
+//		g.addNewLogNode(5);		
+//		g.addNewLogNode(11);
+//		g.addOldLogNode(5);
+//		g.setOldLoc(5);
+//		System.out.println(g.getNewLoc());
+//		g.setNewLoc(5);
+//		System.out.println(g.getOldLoc());
+//		System.out.println(g.getActionType());
 		
 		
 //		GumTreeApi g = new GumTreeApi();
@@ -577,6 +577,43 @@ public class GumTreeApi {
 //				printNode(action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode(), this.oldTreeContext, this.oldFile);
 			}
 		}
+	}
+	
+	public LinkedList<String[]> getWordEdit()
+	{
+//		System.out.println(actions.size());
+		Iterator<Action> actionIter = actions.iterator();
+		LinkedList<String[]> edit_elements = new LinkedList<String[]>();
+		Action action;
+		String new_element = "";
+		String old_element = "";
+		while(actionIter.hasNext())
+		{
+			action = actionIter.next();
+			if(!isActionOfComment(action))
+			{
+//				System.out.println(action.getName());
+				switch(action.getName())
+				{
+				case "INS":
+					old_element = "";
+					new_element = this.getValue(action.getNode(), this.newFile);
+					break;
+				case "DEL":
+					old_element = this.getValue(action.getNode(), this.oldFile);
+					new_element = "";
+					break;
+				case "UPD":
+					old_element = this.getValue(action.getNode(), this.oldFile);
+					new_element = ((Update)action).getValue();
+					break;
+				}
+				String edit_element[] = {old_element, new_element};
+				edit_elements.add(edit_element);
+			}
+		}
+		
+		return edit_elements;
 	}
 	
 	public boolean isMatchWithEdit(String reposFile)
