@@ -1,6 +1,8 @@
 #-*-coding: utf-8 -*-
 from jpype import *
 import my_constant
+import myUtil
+import re
 
 class Gumtree:  
     gumtree = None
@@ -190,6 +192,56 @@ class Gumtree:
         Gumtree.gumtree.setOldAndNewFile(old_log_file, new_log_file)
         Gumtree.gumtree.getEditedNodes()
         return Gumtree.gumtree.isMatchWithEdit(repos_log_file)
+
+    """
+    @ param old and new log file
+    @ return list of edited word pair
+    @ involve ast node edition -> word edition(literal split with space)
+    """
+    def get_word_edit(self, old_log_file, new_log_file):
+        Gumtree.gumtree.setOldAndNewFile(old_log_file, new_log_file)
+        edit_elements = set(Gumtree.gumtree.getWordEdit())
+        edit_words = []
+        edit_feature = []
+        for edit_element in edit_elements:
+            old_element = edit_element[0]
+            new_element = edit_element[1]
+            edit_words.append([old_element, new_element])
+            edit_feature.append(abs(hash(new_element.lower()) - hash(old_element.lower())))
+
+        return edit_words, edit_feature
+
+    """ 
+        # split to get list of words
+        log_spliter = r'[^\w%]'
+        old_log = myUtil.remove_given_element('', re.split(log_spliter, old_log))
+        new_log = myUtil.remove_given_element('', re.split(log_spliter, new_log))
+        # get edit
+        edit_words = []
+        edit_feature = []
+        length_old = len(old_log)
+        length_new = len(new_log)
+        length = max(length_old, *)
+        for i in range(length):
+            if i < length_old and i < length_new and old_log[i] == new_log[i]:
+                continue
+
+            if i < length_old:
+                old_element = old_log[i]
+            else:
+                old_element = ''
+            if i < length_new:
+                new_element = new_log[i]
+            else:
+                new_element = ''
+
+            edit_words.append([old_element, new_element])
+            edit_feature.append(abs(hash(new_element.lower()) - hash(old_element.lower())))
+
+        print edit_words
+        print edit_feature 
+    """
+
     """
     @ param 
     @ return
@@ -206,6 +258,12 @@ if __name__ == "__main__":
     old_file = 'second/gumtree/c/old.cpp'
     new_file = 'second/gumtree/c/new.cpp'
     gumtree = Gumtree()
-    gumtree.set_old_loc(7)
-    gumtree.get_new_log()
+    # gumtree.set_old_loc(7)
+    # gumtree.get_new_log()
+    gumtree.get_word_edit('printf("unknown")', 'printf("unkonwn")')
+    gumtree.get_word_edit('printf("unkonwn")', 'printf("unknown")')
+    gumtree.get_word_edit('archive_string_sprintf(a_estr, errstr, path);', 'archive_string_sprintf(a_estr, "%s%s", errstr, path);')
+    
+
+
   

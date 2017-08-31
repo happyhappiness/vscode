@@ -1,0 +1,776 @@
+#
+# A fatal error has been detected by the Java Runtime Environment:
+#
+#  SIGSEGV (0xb) at pc=0x00007fcb50332948, pid=5245, tid=0x00007fcb508ab740
+#
+# JRE version: Java(TM) SE Runtime Environment (8.0_121-b13) (build 1.8.0_121-b13)
+# Java VM: Java HotSpot(TM) 64-Bit Server VM (25.121-b13 mixed mode linux-amd64 compressed oops)
+# Problematic frame:
+# C  [libpython2.7.so.1.0+0x78948]  PyFrame_LocalsToFast+0x38
+#
+# Failed to write core dump. Core dumps have been disabled. To enable core dumping, try "ulimit -c unlimited" before starting Java again
+#
+# If you would like to submit a bug report, please visit:
+#   http://bugreport.java.com/bugreport/crash.jsp
+# The crash happened outside the Java Virtual Machine in native code.
+# See problematic frame for where to report the bug.
+#
+
+---------------  T H R E A D  ---------------
+
+Current thread (0x00000000018ea800):  JavaThread "main" [_thread_in_native, id=5245, stack(0x00007ffd67e95000,0x00007ffd67f95000)]
+
+siginfo: si_signo: 11 (SIGSEGV), si_code: 1 (SEGV_MAPERR), si_addr: 0x000000000000003b
+
+Registers:
+RAX=0x0000000000000000, RBX=0x00007fcb3af75290, RCX=0x00000000014b8d10, RDX=0x0000000000000001
+RSP=0x00007ffd67f90eb0, RBP=0x0000000000000003, RSI=0x0000000000000001, RDI=0x00007fcb3af75290
+R8 =0x00000000013f1158, R9 =0x00007fcb506ae6c0, R10=0x00007ffd67f90e60, R11=0x00007fcb50332910
+R12=0xffffffffffffffff, R13=0x0000000000000001, R14=0x0000000000000001, R15=0x0000000000000004
+RIP=0x00007fcb50332948, EFLAGS=0x0000000000010286, CSGSFS=0x0000000000000033, ERR=0x0000000000000004
+  TRAPNO=0x000000000000000e
+
+Top of Stack: (sp=0x00007ffd67f90eb0)
+0x00007ffd67f90eb0:   00000000014b8d10 00007fcb3af75650
+0x00007ffd67f90ec0:   00000000013f1158 00007fcb4ed0a1bd
+0x00007ffd67f90ed0:   00007fcb3af75530 00007ffd67f91120
+0x00007ffd67f90ee0:   00007ffd67f90f10 0000000000000010
+0x00007ffd67f90ef0:   00007ffd67f90fc0 0000000000000001
+0x00007ffd67f90f00:   0000000000000004 00007fcb4ed0f31c
+0x00007ffd67f90f10:   000000000000000a 00007ffd67f91050
+0x00007ffd67f90f20:   00007ffd67f91000 00007fcb4ed0ea75
+0x00007ffd67f90f30:   0000000001e31560 00007fcb50364f44
+0x00007ffd67f90f40:   00007fcb00000000 00007fcb00000000
+0x00007ffd67f90f50:   00007ffd67f90e60 00007ffd67f91080
+0x00007ffd67f90f60:   00007ffd00000000 00007ffd67f91120
+0x00007ffd67f90f70:   00007fcb50332910 000000004ed0ed00
+0x00007ffd67f90f80:   00007ffd67f90e60 0000000267f91070
+0x00007ffd67f90f90:   00007ffd67f91050 00007ffd67f91030
+0x00007ffd67f90fa0:   0000000200000002 00007ffd67f90f10
+0x00007ffd67f90fb0:   00007ffd67f90e60 0000000200000002
+0x00007ffd67f90fc0:   00007ffd00000002 00007ffd67f91050
+0x00007ffd67f90fd0:   0000000000000003 0000000000000002
+0x00007ffd67f90fe0:   00007ffd67f91050 0000000000000000
+0x00007ffd67f90ff0:   00007ffd67f91090 0000000000000004
+0x00007ffd67f91000:   00007ffd67f91180 00007fcb4ed06126
+0x00007ffd67f91010:   00007fcb4ef17e70 00007fcb4ef17db0
+0x00007ffd67f91020:   00000000ffffffff 00007fcb5030697c
+0x00007ffd67f91030:   00007ffd67f91080 00007ffd67f910a0
+0x00007ffd67f91040:   00007fcb5034cf90 00007fcb3b356f38
+0x00007ffd67f91050:   0000000000000002 00007fcb4ed048fe
+0x00007ffd67f91060:   0000000000000001 00007fcb4ed05f14
+0x00007ffd67f91070:   00007fcb4ef17e70 00007fcb3af75530
+0x00007ffd67f91080:   00007fcb3af75290 0000000000000000
+0x00007ffd67f91090:   00007fcb4ef17db0 00007fcb3af75630
+0x00007ffd67f910a0:   0000000000000001 0000000000000000 
+
+Instructions: (pc=0x00007fcb50332948)
+0x00007fcb50332928:   89 f5 4c 89 74 24 f0 4c 89 7c 24 f8 48 83 ec 58
+0x00007fcb50332938:   48 85 ff 74 1e 4c 8b 67 38 48 8b 6f 20 4d 85 e4
+0x00007fcb50332948:   4c 8b 75 38 74 0d 49 8b 46 08 f6 80 ab 00 00 00
+0x00007fcb50332958:   04 75 25 48 8b 5c 24 28 48 8b 6c 24 30 4c 8b 64 
+
+Register to memory mapping:
+
+RAX=0x0000000000000000 is an unknown value
+RBX=0x00007fcb3af75290 is an unknown value
+RCX=0x00000000014b8d10 is an unknown value
+RDX=0x0000000000000001 is an unknown value
+RSP=0x00007ffd67f90eb0 is pointing into the stack for thread: 0x00000000018ea800
+RBP=0x0000000000000003 is an unknown value
+RSI=0x0000000000000001 is an unknown value
+RDI=0x00007fcb3af75290 is an unknown value
+R8 =0x00000000013f1158 is an unknown value
+R9 =0x00007fcb506ae6c0: _PyThreadState_Current+0 in /opt/anaconda2/bin/../lib/libpython2.7.so.1.0 at 0x00007fcb502ba000
+R10=0x00007ffd67f90e60 is pointing into the stack for thread: 0x00000000018ea800
+R11=0x00007fcb50332910: PyFrame_LocalsToFast+0 in /opt/anaconda2/bin/../lib/libpython2.7.so.1.0 at 0x00007fcb502ba000
+R12=0xffffffffffffffff is an unknown value
+R13=0x0000000000000001 is an unknown value
+R14=0x0000000000000001 is an unknown value
+R15=0x0000000000000004 is an unknown value
+
+
+Stack: [0x00007ffd67e95000,0x00007ffd67f95000],  sp=0x00007ffd67f90eb0,  free space=1007k
+Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+C  [libpython2.7.so.1.0+0x78948]  PyFrame_LocalsToFast+0x38
+
+
+---------------  P R O C E S S  ---------------
+
+Java Threads: ( => current thread )
+  0x0000000001a99000 JavaThread "Thread-0" [_thread_blocked, id=5283, stack(0x00007fcb1e9ea000,0x00007fcb1eaeb000)]
+  0x0000000001a62000 JavaThread "Service Thread" daemon [_thread_blocked, id=5281, stack(0x00007fcb1ebec000,0x00007fcb1eced000)]
+  0x0000000001a5f000 JavaThread "C1 CompilerThread2" daemon [_thread_blocked, id=5280, stack(0x00007fcb1eced000,0x00007fcb1edee000)]
+  0x0000000001a5d000 JavaThread "C2 CompilerThread1" daemon [_thread_blocked, id=5279, stack(0x00007fcb1edee000,0x00007fcb1eeef000)]
+  0x0000000001a5a800 JavaThread "C2 CompilerThread0" daemon [_thread_blocked, id=5278, stack(0x00007fcb1eeef000,0x00007fcb1eff0000)]
+  0x0000000001a59000 JavaThread "Signal Dispatcher" daemon [_thread_blocked, id=5277, stack(0x00007fcb1eff0000,0x00007fcb1f0f1000)]
+  0x0000000001a27000 JavaThread "Finalizer" daemon [_thread_blocked, id=5276, stack(0x00007fcb1f0f1000,0x00007fcb1f1f2000)]
+  0x0000000001a22800 JavaThread "Reference Handler" daemon [_thread_blocked, id=5275, stack(0x00007fcb1f1f2000,0x00007fcb1f2f3000)]
+=>0x00000000018ea800 JavaThread "main" [_thread_in_native, id=5245, stack(0x00007ffd67e95000,0x00007ffd67f95000)]
+
+Other Threads:
+  0x0000000001a1a800 VMThread [stack: 0x00007fcb1f2f3000,0x00007fcb1f3f4000] [id=5274]
+  0x0000000001a65000 WatcherThread [stack: 0x00007fcb1eaeb000,0x00007fcb1ebec000] [id=5282]
+
+VM state:not at safepoint (normal execution)
+
+VM Mutex/Monitor currently owned by a thread: None
+
+Heap:
+ PSYoungGen      total 36864K, used 4170K [0x00000000d6c00000, 0x00000000d9500000, 0x0000000100000000)
+  eden space 31744K, 13% used [0x00000000d6c00000,0x00000000d7012820,0x00000000d8b00000)
+  from space 5120K, 0% used [0x00000000d9000000,0x00000000d9000000,0x00000000d9500000)
+  to   space 5120K, 0% used [0x00000000d8b00000,0x00000000d8b00000,0x00000000d9000000)
+ ParOldGen       total 84992K, used 0K [0x0000000084400000, 0x0000000089700000, 0x00000000d6c00000)
+  object space 84992K, 0% used [0x0000000084400000,0x0000000084400000,0x0000000089700000)
+ Metaspace       used 3103K, capacity 4558K, committed 4864K, reserved 1056768K
+  class space    used 333K, capacity 390K, committed 512K, reserved 1048576K
+
+Card table byte_map: [0x00007fcb2973b000,0x00007fcb29b1a000] byte_map_base: 0x00007fcb29319000
+
+Marking Bits: (ParMarkBitMap*) 0x00007fcb3af36c80
+ Begin Bits: [0x00007fcb252c3000, 0x00007fcb271b3000)
+ End Bits:   [0x00007fcb271b3000, 0x00007fcb290a3000)
+
+Polling page: 0x00007fcb508d2000
+
+CodeCache: size=245760Kb used=1278Kb max_used=1278Kb free=244481Kb
+ bounds [0x00007fcb29eda000, 0x00007fcb2a14a000, 0x00007fcb38eda000]
+ total_blobs=346 nmethods=114 adapters=146
+ compilation: enabled
+
+Compilation events (10 events):
+Event: 0.087 Thread 0x0000000001a5f000  110   !   3       java.lang.StringCoding$StringEncoder::encode (179 bytes)
+Event: 0.088 Thread 0x0000000001a5f000 nmethod 110 0x00007fcb2a012210 code [0x00007fcb2a012580, 0x00007fcb2a014198]
+Event: 0.088 Thread 0x0000000001a5f000  112       3       java.util.zip.ZipCoder::getBytes (192 bytes)
+Event: 0.089 Thread 0x0000000001a5f000 nmethod 112 0x00007fcb2a0152d0 code [0x00007fcb2a015680, 0x00007fcb2a017898]
+Event: 0.089 Thread 0x0000000001a5f000  113  s    3       sun.misc.URLClassPath::getNextLoader (88 bytes)
+Event: 0.089 Thread 0x0000000001a5f000 nmethod 113 0x00007fcb2a0189d0 code [0x00007fcb2a018bc0, 0x00007fcb2a019428]
+Event: 0.089 Thread 0x0000000001a5f000  111       1       java.nio.charset.Charset::name (5 bytes)
+Event: 0.089 Thread 0x0000000001a5f000 nmethod 111 0x00007fcb2a019890 code [0x00007fcb2a0199e0, 0x00007fcb2a019af0]
+Event: 0.089 Thread 0x0000000001a5f000  114       1       java.net.URL::getPort (5 bytes)
+Event: 0.089 Thread 0x0000000001a5f000 nmethod 114 0x00007fcb2a019b50 code [0x00007fcb2a019ca0, 0x00007fcb2a019db0]
+
+GC Heap History (0 events):
+No events
+
+Deoptimization events (0 events):
+No events
+
+Internal exceptions (4 events):
+Event: 0.016 Thread 0x00000000018ea800 Exception <a 'java/lang/NoSuchMethodError': Method sun.misc.Unsafe.defineClass(Ljava/lang/String;[BII)Ljava/lang/Class; name or signature does not match> (0x00000000d6c07ca8) thrown at [/HUDSON3/workspace/8-2-build-linux-amd64/jdk8u121/8372/hotspot/src/sh
+Event: 0.016 Thread 0x00000000018ea800 Exception <a 'java/lang/NoSuchMethodError': Method sun.misc.Unsafe.prefetchRead(Ljava/lang/Object;J)V name or signature does not match> (0x00000000d6c07f90) thrown at [/HUDSON3/workspace/8-2-build-linux-amd64/jdk8u121/8372/hotspot/src/share/vm/prims/jni.c
+Event: 0.086 Thread 0x00000000018ea800 Exception <a 'java/lang/NoClassDefFoundError': Ljavax/__iter__;> (0x00000000d6f6b920) thrown at [/HUDSON3/workspace/8-2-build-linux-amd64/jdk8u121/8372/hotspot/src/share/vm/classfile/systemDictionary.cpp, line 199]
+Event: 0.088 Thread 0x00000000018ea800 Exception <a 'java/lang/NoClassDefFoundError': Ljava/__iter__;> (0x00000000d6f741e0) thrown at [/HUDSON3/workspace/8-2-build-linux-amd64/jdk8u121/8372/hotspot/src/share/vm/classfile/systemDictionary.cpp, line 199]
+
+Events (10 events):
+Event: 0.071 loading class java/util/Arrays$ArrayList
+Event: 0.071 loading class java/util/Arrays$ArrayList done
+Event: 0.071 loading class javax/__iter__
+Event: 0.071 loading class javax/__iter__ done
+Event: 0.075 Thread 0x00000000018ea800 DEOPT PACKING pc=0x00007fcb29fdbb70 sp=0x00007ffd67f8ccb0
+Event: 0.075 Thread 0x00000000018ea800 DEOPT UNPACKING pc=0x00007fcb29f21633 sp=0x00007ffd67f8c9d0 mode 0
+Event: 0.088 loading class java/__iter__
+Event: 0.088 loading class java/__iter__ done
+Event: 4.049 Executing VM operation: EnableBiasedLocking
+Event: 4.049 Executing VM operation: EnableBiasedLocking done
+
+
+Dynamic libraries:
+00400000-00401000 r-xp 00000000 08:02 6308735                            /opt/anaconda2/bin/python2.7
+00600000-00601000 rw-p 00000000 08:02 6308735                            /opt/anaconda2/bin/python2.7
+013d9000-01e58000 rw-p 00000000 00:00 0                                  [heap]
+84400000-89700000 rw-p 00000000 00:00 0 
+89700000-d6c00000 ---p 00000000 00:00 0 
+d6c00000-d9500000 rw-p 00000000 00:00 0 
+d9500000-100000000 ---p 00000000 00:00 0 
+100000000-100080000 rw-p 00000000 00:00 0 
+100080000-140000000 ---p 00000000 00:00 0 
+7fcae0000000-7fcae0021000 rw-p 00000000 00:00 0 
+7fcae0021000-7fcae4000000 ---p 00000000 00:00 0 
+7fcae8000000-7fcae8021000 rw-p 00000000 00:00 0 
+7fcae8021000-7fcaec000000 ---p 00000000 00:00 0 
+7fcaec000000-7fcaec021000 rw-p 00000000 00:00 0 
+7fcaec021000-7fcaf0000000 ---p 00000000 00:00 0 
+7fcaf0000000-7fcaf0021000 rw-p 00000000 00:00 0 
+7fcaf0021000-7fcaf4000000 ---p 00000000 00:00 0 
+7fcaf4000000-7fcaf4177000 rw-p 00000000 00:00 0 
+7fcaf4177000-7fcaf8000000 ---p 00000000 00:00 0 
+7fcaf8000000-7fcaf8021000 rw-p 00000000 00:00 0 
+7fcaf8021000-7fcafc000000 ---p 00000000 00:00 0 
+7fcafc000000-7fcafc058000 rw-p 00000000 00:00 0 
+7fcafc058000-7fcb00000000 ---p 00000000 00:00 0 
+7fcb00000000-7fcb00021000 rw-p 00000000 00:00 0 
+7fcb00021000-7fcb04000000 ---p 00000000 00:00 0 
+7fcb04000000-7fcb04021000 rw-p 00000000 00:00 0 
+7fcb04021000-7fcb08000000 ---p 00000000 00:00 0 
+7fcb08000000-7fcb08021000 rw-p 00000000 00:00 0 
+7fcb08021000-7fcb0c000000 ---p 00000000 00:00 0 
+7fcb0c000000-7fcb0c021000 rw-p 00000000 00:00 0 
+7fcb0c021000-7fcb10000000 ---p 00000000 00:00 0 
+7fcb10000000-7fcb10021000 rw-p 00000000 00:00 0 
+7fcb10021000-7fcb14000000 ---p 00000000 00:00 0 
+7fcb18000000-7fcb18021000 rw-p 00000000 00:00 0 
+7fcb18021000-7fcb1c000000 ---p 00000000 00:00 0 
+7fcb1e94b000-7fcb1e94c000 r--s 00004000 08:02 6438481                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/websocket-servlet-9.3.6.v20151106.jar
+7fcb1e94c000-7fcb1e94e000 r--s 00008000 08:02 6438480                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/websocket-server-9.3.6.v20151106.jar
+7fcb1e94e000-7fcb1e952000 r--s 0002a000 08:02 6438504                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/websocket-common-9.3.6.v20151106.jar
+7fcb1e952000-7fcb1e953000 r--s 00008000 08:02 6438505                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/websocket-client-9.3.6.v20151106.jar
+7fcb1e953000-7fcb1e97b000 r--s 00241000 08:02 6438462                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/trove4j-3.0.3.jar
+7fcb1e97b000-7fcb1e97f000 r--s 00037000 08:02 6438490                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/ST4-4.0.8.jar
+7fcb1e97f000-7fcb1e98e000 r--s 000b0000 08:02 6438485                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/spring-webmvc-4.1.6.RELEASE.jar
+7fcb1e98e000-7fcb1e99e000 r--s 000a0000 08:02 6438511                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/spring-web-4.1.6.RELEASE.jar
+7fcb1e99e000-7fcb1e9a3000 r--s 0003b000 08:02 6438510                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/spring-expression-4.1.6.RELEASE.jar
+7fcb1e9a3000-7fcb1e9b8000 r--s 000e2000 08:02 6438509                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/spring-core-4.1.6.RELEASE.jar
+7fcb1e9b8000-7fcb1e9d0000 r--s 000e3000 08:02 6438508                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/spring-context-4.1.6.RELEASE.jar
+7fcb1e9d0000-7fcb1e9dd000 r--s 000a0000 08:02 6438507                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/spring-beans-4.1.6.RELEASE.jar
+7fcb1e9dd000-7fcb1e9e6000 r--s 0004f000 08:02 6438517                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/spring-aop-4.1.6.RELEASE.jar
+7fcb1e9e6000-7fcb1e9ea000 r--s 00020000 08:02 6438465                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/spark-core-2.5.2.jar
+7fcb1e9ea000-7fcb1e9ed000 ---p 00000000 00:00 0 
+7fcb1e9ed000-7fcb1eaeb000 rw-p 00000000 00:00 0                          [stack:5283]
+7fcb1eaeb000-7fcb1eaec000 ---p 00000000 00:00 0 
+7fcb1eaec000-7fcb1ebec000 rw-p 00000000 00:00 0                          [stack:5282]
+7fcb1ebec000-7fcb1ebef000 ---p 00000000 00:00 0 
+7fcb1ebef000-7fcb1eced000 rw-p 00000000 00:00 0                          [stack:5281]
+7fcb1eced000-7fcb1ecf0000 ---p 00000000 00:00 0 
+7fcb1ecf0000-7fcb1edee000 rw-p 00000000 00:00 0                          [stack:5280]
+7fcb1edee000-7fcb1edf1000 ---p 00000000 00:00 0 
+7fcb1edf1000-7fcb1eeef000 rw-p 00000000 00:00 0                          [stack:5279]
+7fcb1eeef000-7fcb1eef2000 ---p 00000000 00:00 0 
+7fcb1eef2000-7fcb1eff0000 rw-p 00000000 00:00 0                          [stack:5278]
+7fcb1eff0000-7fcb1eff3000 ---p 00000000 00:00 0 
+7fcb1eff3000-7fcb1f0f1000 rw-p 00000000 00:00 0                          [stack:5277]
+7fcb1f0f1000-7fcb1f0f4000 ---p 00000000 00:00 0 
+7fcb1f0f4000-7fcb1f1f2000 rw-p 00000000 00:00 0                          [stack:5276]
+7fcb1f1f2000-7fcb1f1f5000 ---p 00000000 00:00 0 
+7fcb1f1f5000-7fcb1f2f3000 rw-p 00000000 00:00 0                          [stack:5275]
+7fcb1f2f3000-7fcb1f2f4000 ---p 00000000 00:00 0 
+7fcb1f2f4000-7fcb20000000 rw-p 00000000 00:00 0                          [stack:5274]
+7fcb20000000-7fcb20021000 rw-p 00000000 00:00 0 
+7fcb20021000-7fcb24000000 ---p 00000000 00:00 0 
+7fcb24000000-7fcb24003000 r--s 00009000 08:02 6438506                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/websocket-api-9.3.6.v20151106.jar
+7fcb24003000-7fcb24005000 r--s 00009000 08:02 6438520                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/slf4j-api-1.7.21.jar
+7fcb24005000-7fcb24009000 r--s 00015000 08:02 6438461                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/simmetrics-core-3.2.3.jar
+7fcb24009000-7fcb2400b000 r--s 00011000 08:02 6438471                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/runtime-3.10.0-v20140318-2214.jar
+7fcb2400b000-7fcb24018000 r--s 00126000 08:02 6438473                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/rhino-1.7.7.jar
+7fcb24018000-7fcb2401b000 r--s 00012000 08:02 6438466                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/rendersnake-1.9.0.jar
+7fcb2401b000-7fcb2401f000 r--s 00029000 08:02 6438495                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/registry-3.5.400-v20140428-1507.jar
+7fcb2401f000-7fcb24022000 r--s 0001d000 08:02 6438464                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/reflections-0.9.10.jar
+7fcb24022000-7fcb24026000 r--s 0001c000 08:02 6438496                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/preferences-3.5.200-v20140224-1527.jar
+7fcb24026000-7fcb2402c000 r--s 00073000 08:02 6438469                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/ph-css-5.0.1.jar
+7fcb2402c000-7fcb24048000 r--s 0012f000 08:02 6438491                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/ph-commons-8.3.0.jar
+7fcb24048000-7fcb2405c000 r--s 00121000 08:02 6438492                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/osgi-3.10.0-v20140606-1445.jar
+7fcb2405c000-7fcb2408c000 r--s 00544000 08:02 6438470                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/org.eclipse.jdt.core-3.11.0.v20150602-1242.jar
+7fcb2408c000-7fcb24097000 r--s 000cd000 08:02 6438472                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/org.eclipse.core.resources-3.10.0.v20150423-0755.jar
+7fcb24097000-7fcb2409d000 r--s 00034000 08:02 6438482                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/junit-4.8.2.jar
+7fcb2409d000-7fcb240a1000 r--s 0003a000 08:02 6438486                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/jtidy-r938.jar
+7fcb240a1000-7fcb240a3000 r--s 00003000 08:02 6438514                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/jsr305-3.0.1.jar
+7fcb240a3000-7fcb240c3000 r--s 00167000 08:02 6438468                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/jrubyparser-0.5.3.jar
+7fcb240c3000-7fcb240c5000 r--s 00016000 08:02 6438494                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/jobs-3.6.0-v20140424-0053.jar
+7fcb240c5000-7fcb240c7000 r--s 0000b000 08:02 6438502                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/jetty-xml-9.3.6.v20151106.jar
+7fcb240c7000-7fcb240ca000 r--s 00019000 08:02 6438479                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/jetty-webapp-9.3.6.v20151106.jar
+7fcb240ca000-7fcb240d1000 r--s 0005f000 08:02 6438515                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/jetty-util-9.3.6.v20151106.jar
+7fcb240d1000-7fcb240d3000 r--s 0001a000 08:02 6438503                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/jetty-servlet-9.3.6.v20151106.jar
+7fcb240d3000-7fcb240da000 r--s 0006f000 08:02 6438478                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/jetty-server-9.3.6.v20151106.jar
+7fcb240da000-7fcb240e9000 r--s 0009f000 08:02 6438487                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/guice-3.0.jar
+7fcb240e9000-7fcb2443b000 rw-p 00000000 00:00 0 
+7fcb2443b000-7fcb24614000 r--s 03d3e000 08:02 4204757                    /opt/jdk1.8.0_121/jre/lib/rt.jar
+7fcb24614000-7fcb24b25000 rw-p 00000000 00:00 0 
+7fcb24b25000-7fcb24ee5000 ---p 00000000 00:00 0 
+7fcb24ee5000-7fcb290a3000 rw-p 00000000 00:00 0 
+7fcb290a3000-7fcb290a4000 ---p 00000000 00:00 0 
+7fcb290a4000-7fcb291a4000 rw-p 00000000 00:00 0                          [stack:5273]
+7fcb291a4000-7fcb291a5000 ---p 00000000 00:00 0 
+7fcb291a5000-7fcb292a5000 rw-p 00000000 00:00 0                          [stack:5272]
+7fcb292a5000-7fcb292a6000 ---p 00000000 00:00 0 
+7fcb292a6000-7fcb293a6000 rw-p 00000000 00:00 0                          [stack:5271]
+7fcb293a6000-7fcb293a7000 ---p 00000000 00:00 0 
+7fcb293a7000-7fcb294d1000 rw-p 00000000 00:00 0                          [stack:5270]
+7fcb294d1000-7fcb2973b000 ---p 00000000 00:00 0 
+7fcb2973b000-7fcb29765000 rw-p 00000000 00:00 0 
+7fcb29765000-7fcb299cf000 ---p 00000000 00:00 0 
+7fcb299cf000-7fcb299e4000 rw-p 00000000 00:00 0 
+7fcb299e4000-7fcb29b19000 ---p 00000000 00:00 0 
+7fcb29b19000-7fcb29b24000 rw-p 00000000 00:00 0 
+7fcb29b24000-7fcb29eda000 ---p 00000000 00:00 0 
+7fcb29eda000-7fcb2a14a000 rwxp 00000000 00:00 0 
+7fcb2a14a000-7fcb38eda000 ---p 00000000 00:00 0 
+7fcb38eda000-7fcb38ef4000 r-xp 00000000 08:02 4204788                    /opt/jdk1.8.0_121/jre/lib/amd64/libzip.so
+7fcb38ef4000-7fcb390f4000 ---p 0001a000 08:02 4204788                    /opt/jdk1.8.0_121/jre/lib/amd64/libzip.so
+7fcb390f4000-7fcb390f5000 rw-p 0001a000 08:02 4204788                    /opt/jdk1.8.0_121/jre/lib/amd64/libzip.so
+7fcb390f5000-7fcb390ff000 r-xp 00000000 08:02 5249375                    /lib/x86_64-linux-gnu/libnss_files-2.19.so
+7fcb390ff000-7fcb392fe000 ---p 0000a000 08:02 5249375                    /lib/x86_64-linux-gnu/libnss_files-2.19.so
+7fcb392fe000-7fcb392ff000 r--p 00009000 08:02 5249375                    /lib/x86_64-linux-gnu/libnss_files-2.19.so
+7fcb392ff000-7fcb39300000 rw-p 0000a000 08:02 5249375                    /lib/x86_64-linux-gnu/libnss_files-2.19.so
+7fcb39300000-7fcb3930b000 r-xp 00000000 08:02 5249367                    /lib/x86_64-linux-gnu/libnss_nis-2.19.so
+7fcb3930b000-7fcb3950a000 ---p 0000b000 08:02 5249367                    /lib/x86_64-linux-gnu/libnss_nis-2.19.so
+7fcb3950a000-7fcb3950b000 r--p 0000a000 08:02 5249367                    /lib/x86_64-linux-gnu/libnss_nis-2.19.so
+7fcb3950b000-7fcb3950c000 rw-p 0000b000 08:02 5249367                    /lib/x86_64-linux-gnu/libnss_nis-2.19.so
+7fcb3950c000-7fcb39523000 r-xp 00000000 08:02 5249363                    /lib/x86_64-linux-gnu/libnsl-2.19.so
+7fcb39523000-7fcb39722000 ---p 00017000 08:02 5249363                    /lib/x86_64-linux-gnu/libnsl-2.19.so
+7fcb39722000-7fcb39723000 r--p 00016000 08:02 5249363                    /lib/x86_64-linux-gnu/libnsl-2.19.so
+7fcb39723000-7fcb39724000 rw-p 00017000 08:02 5249363                    /lib/x86_64-linux-gnu/libnsl-2.19.so
+7fcb39724000-7fcb39726000 rw-p 00000000 00:00 0 
+7fcb39726000-7fcb3972f000 r-xp 00000000 08:02 5249362                    /lib/x86_64-linux-gnu/libnss_compat-2.19.so
+7fcb3972f000-7fcb3992e000 ---p 00009000 08:02 5249362                    /lib/x86_64-linux-gnu/libnss_compat-2.19.so
+7fcb3992e000-7fcb3992f000 r--p 00008000 08:02 5249362                    /lib/x86_64-linux-gnu/libnss_compat-2.19.so
+7fcb3992f000-7fcb39930000 rw-p 00009000 08:02 5249362                    /lib/x86_64-linux-gnu/libnss_compat-2.19.so
+7fcb39930000-7fcb3995b000 r-xp 00000000 08:02 4204815                    /opt/jdk1.8.0_121/jre/lib/amd64/libjava.so
+7fcb3995b000-7fcb39b5a000 ---p 0002b000 08:02 4204815                    /opt/jdk1.8.0_121/jre/lib/amd64/libjava.so
+7fcb39b5a000-7fcb39b5c000 rw-p 0002a000 08:02 4204815                    /opt/jdk1.8.0_121/jre/lib/amd64/libjava.so
+7fcb39b5c000-7fcb39b69000 r-xp 00000000 08:02 4204766                    /opt/jdk1.8.0_121/jre/lib/amd64/libverify.so
+7fcb39b69000-7fcb39d68000 ---p 0000d000 08:02 4204766                    /opt/jdk1.8.0_121/jre/lib/amd64/libverify.so
+7fcb39d68000-7fcb39d6a000 rw-p 0000c000 08:02 4204766                    /opt/jdk1.8.0_121/jre/lib/amd64/libverify.so
+7fcb39d6a000-7fcb39d71000 r-xp 00000000 08:02 5249371                    /lib/x86_64-linux-gnu/librt-2.19.so
+7fcb39d71000-7fcb39f70000 ---p 00007000 08:02 5249371                    /lib/x86_64-linux-gnu/librt-2.19.so
+7fcb39f70000-7fcb39f71000 r--p 00006000 08:02 5249371                    /lib/x86_64-linux-gnu/librt-2.19.so
+7fcb39f71000-7fcb39f72000 rw-p 00007000 08:02 5249371                    /lib/x86_64-linux-gnu/librt-2.19.so
+7fcb39f72000-7fcb3ac40000 r-xp 00000000 08:02 4204819                    /opt/jdk1.8.0_121/jre/lib/amd64/server/libjvm.so
+7fcb3ac40000-7fcb3ae40000 ---p 00cce000 08:02 4204819                    /opt/jdk1.8.0_121/jre/lib/amd64/server/libjvm.so
+7fcb3ae40000-7fcb3af19000 rw-p 00cce000 08:02 4204819                    /opt/jdk1.8.0_121/jre/lib/amd64/server/libjvm.so
+7fcb3af19000-7fcb3b024000 rw-p 00000000 00:00 0 
+7fcb3b024000-7fcb3b027000 r--s 00014000 08:02 6438516                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/jetty-security-9.3.6.v20151106.jar
+7fcb3b027000-7fcb3b02a000 r--s 00017000 08:02 6438501                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/jetty-io-9.3.6.v20151106.jar
+7fcb3b02a000-7fcb3b02d000 r--s 0001a000 08:02 6438500                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/jetty-http-9.3.6.v20151106.jar
+7fcb3b02d000-7fcb3b030000 r--s 00015000 08:02 6438499                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/javax.servlet-api-3.1.0.jar
+7fcb3b030000-7fcb3b05b000 r--s 001fc000 08:02 6438474                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/guava-18.0.jar
+7fcb3b05b000-7fcb3b106000 r-xp 00000000 08:02 6308263                    /opt/anaconda2/lib/python2.7/site-packages/numpy/random/mtrand.so
+7fcb3b106000-7fcb3b305000 ---p 000ab000 08:02 6308263                    /opt/anaconda2/lib/python2.7/site-packages/numpy/random/mtrand.so
+7fcb3b305000-7fcb3b326000 rw-p 000aa000 08:02 6308263                    /opt/anaconda2/lib/python2.7/site-packages/numpy/random/mtrand.so
+7fcb3b326000-7fcb3b368000 rw-p 00000000 00:00 0 
+7fcb3b368000-7fcb3b371000 r-xp 00000000 08:02 6326262                    /opt/anaconda2/lib/python2.7/site-packages/numpy/fft/fftpack_lite.so
+7fcb3b371000-7fcb3b570000 ---p 00009000 08:02 6326262                    /opt/anaconda2/lib/python2.7/site-packages/numpy/fft/fftpack_lite.so
+7fcb3b570000-7fcb3b571000 rw-p 00008000 08:02 6326262                    /opt/anaconda2/lib/python2.7/site-packages/numpy/fft/fftpack_lite.so
+7fcb3b571000-7fcb3b572000 r-xp 00000000 08:02 6432953                    /opt/anaconda2/lib/python2.7/lib-dynload/future_builtins.so
+7fcb3b572000-7fcb3b772000 ---p 00001000 08:02 6432953                    /opt/anaconda2/lib/python2.7/lib-dynload/future_builtins.so
+7fcb3b772000-7fcb3b773000 rw-p 00001000 08:02 6432953                    /opt/anaconda2/lib/python2.7/lib-dynload/future_builtins.so
+7fcb3b773000-7fcb3b7b3000 rw-p 00000000 00:00 0 
+7fcb3b7b3000-7fcb3b7dc000 r-xp 00000000 08:02 6305577                    /opt/anaconda2/lib/python2.7/site-packages/numpy/linalg/_umath_linalg.so
+7fcb3b7dc000-7fcb3b9db000 ---p 00029000 08:02 6305577                    /opt/anaconda2/lib/python2.7/site-packages/numpy/linalg/_umath_linalg.so
+7fcb3b9db000-7fcb3b9dd000 rw-p 00028000 08:02 6305577                    /opt/anaconda2/lib/python2.7/site-packages/numpy/linalg/_umath_linalg.so
+7fcb3b9dd000-7fcb3b9df000 rw-p 000c4000 08:02 6305577                    /opt/anaconda2/lib/python2.7/site-packages/numpy/linalg/_umath_linalg.so
+7fcb3b9df000-7fcb3b9e3000 r-xp 00000000 08:02 6305573                    /opt/anaconda2/lib/python2.7/site-packages/numpy/linalg/lapack_lite.so
+7fcb3b9e3000-7fcb3bbe3000 ---p 00004000 08:02 6305573                    /opt/anaconda2/lib/python2.7/site-packages/numpy/linalg/lapack_lite.so
+7fcb3bbe3000-7fcb3bbe4000 rw-p 00004000 08:02 6305573                    /opt/anaconda2/lib/python2.7/site-packages/numpy/linalg/lapack_lite.so
+7fcb3bbe4000-7fcb3bbe6000 rw-p 00019000 08:02 6305573                    /opt/anaconda2/lib/python2.7/site-packages/numpy/linalg/lapack_lite.so
+7fcb3bbe6000-7fcb3bc26000 rw-p 00000000 00:00 0 
+7fcb3bc26000-7fcb3bc29000 r-xp 00000000 08:02 6432952                    /opt/anaconda2/lib/python2.7/lib-dynload/fcntl.so
+7fcb3bc29000-7fcb3be28000 ---p 00003000 08:02 6432952                    /opt/anaconda2/lib/python2.7/lib-dynload/fcntl.so
+7fcb3be28000-7fcb3be2a000 rw-p 00002000 08:02 6432952                    /opt/anaconda2/lib/python2.7/lib-dynload/fcntl.so
+7fcb3be2a000-7fcb3be6a000 rw-p 00000000 00:00 0 
+7fcb3be6a000-7fcb3be88000 r-xp 00000000 08:02 6432930                    /opt/anaconda2/lib/python2.7/lib-dynload/_io.so
+7fcb3be88000-7fcb3c087000 ---p 0001e000 08:02 6432930                    /opt/anaconda2/lib/python2.7/lib-dynload/_io.so
+7fcb3c087000-7fcb3c091000 rw-p 0001d000 08:02 6432930                    /opt/anaconda2/lib/python2.7/lib-dynload/_io.so
+7fcb3c091000-7fcb3c093000 r-xp 00000000 08:02 6432954                    /opt/anaconda2/lib/python2.7/lib-dynload/grp.so
+7fcb3c093000-7fcb3c292000 ---p 00002000 08:02 6432954                    /opt/anaconda2/lib/python2.7/lib-dynload/grp.so
+7fcb3c292000-7fcb3c293000 rw-p 00001000 08:02 6432954                    /opt/anaconda2/lib/python2.7/lib-dynload/grp.so
+7fcb3c293000-7fcb3c313000 rw-p 00000000 00:00 0 
+7fcb3c313000-7fcb3c326000 r-xp 00000000 08:02 6432947                    /opt/anaconda2/lib/python2.7/lib-dynload/cPickle.so
+7fcb3c326000-7fcb3c525000 ---p 00013000 08:02 6432947                    /opt/anaconda2/lib/python2.7/lib-dynload/cPickle.so
+7fcb3c525000-7fcb3c527000 rw-p 00012000 08:02 6432947                    /opt/anaconda2/lib/python2.7/lib-dynload/cPickle.so
+7fcb3c527000-7fcb3c5f5000 r-xp 00000000 08:02 6326065                    /opt/anaconda2/lib/python2.7/site-packages/numpy/core/umath.so
+7fcb3c5f5000-7fcb3c7f5000 ---p 000ce000 08:02 6326065                    /opt/anaconda2/lib/python2.7/site-packages/numpy/core/umath.so
+7fcb3c7f5000-7fcb3c7fb000 rw-p 000ce000 08:02 6326065                    /opt/anaconda2/lib/python2.7/site-packages/numpy/core/umath.so
+7fcb3c7fb000-7fcb3c7fd000 rw-p 00000000 00:00 0 
+7fcb3c7fd000-7fcb3e7fd000 rw-p 00000000 00:00 0 
+7fcb3e7fd000-7fcb407fd000 rw-p 00000000 00:00 0 
+7fcb407fd000-7fcb427fd000 rw-p 00000000 00:00 0 
+7fcb427fd000-7fcb427fe000 ---p 00000000 00:00 0 
+7fcb427fe000-7fcb42ffe000 rw-p 00000000 00:00 0                          [stack:5264]
+7fcb42ffe000-7fcb42fff000 ---p 00000000 00:00 0 
+7fcb42fff000-7fcb437ff000 rw-p 00000000 00:00 0                          [stack:5263]
+7fcb437ff000-7fcb43800000 ---p 00000000 00:00 0 
+7fcb43800000-7fcb44000000 rw-p 00000000 00:00 0                          [stack:5262]
+7fcb44000000-7fcb44021000 rw-p 00000000 00:00 0 
+7fcb44021000-7fcb48000000 ---p 00000000 00:00 0 
+7fcb48000000-7fcb48001000 r--s 00000000 08:02 6438488                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/javax.inject-1.jar
+7fcb48001000-7fcb4800b000 r--s 000a5000 08:02 6438476                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/javassist-3.18.2-GA.jar
+7fcb4800b000-7fcb48010000 r--s 0002f000 08:02 6438463                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/gson-2.4.jar
+7fcb48010000-7fcb48011000 r--s 00001000 08:02 6438460                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/gen.srcml-2.1.0-SNAPSHOT.jar
+7fcb48011000-7fcb48012000 r--s 00000000 08:02 6438459                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/gen.ruby-2.1.0-SNAPSHOT.jar
+7fcb48012000-7fcb48013000 r--s 00000000 08:02 6438458                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/gen.js-2.1.0-SNAPSHOT.jar
+7fcb48013000-7fcb48014000 r--s 00004000 08:02 6438457                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/gen.jdt-2.1.0-SNAPSHOT.jar
+7fcb48014000-7fcb48015000 r--s 00001000 08:02 6438456                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/gen.css-2.1.0-SNAPSHOT.jar
+7fcb48015000-7fcb48016000 r--s 00000000 08:02 6438455                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/gen.c-2.1.0-SNAPSHOT.jar
+7fcb48016000-7fcb48018000 r--s 00004000 08:02 6438454                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/gen.antlr3-xml-2.1.0-SNAPSHOT.jar
+7fcb48018000-7fcb4801a000 r--s 00018000 08:02 6438453                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/gen.antlr3-r-2.1.0-SNAPSHOT.jar
+7fcb4801a000-7fcb4809a000 rw-p 00000000 00:00 0 
+7fcb4809a000-7fcb4818a000 r-xp 00000000 08:02 6307995                    /opt/anaconda2/lib/python2.7/site-packages/numpy/.libs/libgfortran-ed201abd.so.3.0.0
+7fcb4818a000-7fcb48389000 ---p 000f0000 08:02 6307995                    /opt/anaconda2/lib/python2.7/site-packages/numpy/.libs/libgfortran-ed201abd.so.3.0.0
+7fcb48389000-7fcb4838b000 rw-p 000ef000 08:02 6307995                    /opt/anaconda2/lib/python2.7/site-packages/numpy/.libs/libgfortran-ed201abd.so.3.0.0
+7fcb4838b000-7fcb4838c000 rw-p 00000000 00:00 0 
+7fcb4838c000-7fcb48393000 rw-p 000f2000 08:02 6307995                    /opt/anaconda2/lib/python2.7/site-packages/numpy/.libs/libgfortran-ed201abd.so.3.0.0
+7fcb48393000-7fcb4a6a7000 r-xp 00000000 08:02 6307994                    /opt/anaconda2/lib/python2.7/site-packages/numpy/.libs/libopenblasp-r0-39a31c03.2.18.so
+7fcb4a6a7000-7fcb4a8a6000 ---p 02314000 08:02 6307994                    /opt/anaconda2/lib/python2.7/site-packages/numpy/.libs/libopenblasp-r0-39a31c03.2.18.so
+7fcb4a8a6000-7fcb4a8c5000 rw-p 02313000 08:02 6307994                    /opt/anaconda2/lib/python2.7/site-packages/numpy/.libs/libopenblasp-r0-39a31c03.2.18.so
+7fcb4a8c5000-7fcb4a928000 rw-p 00000000 00:00 0 
+7fcb4a928000-7fcb4a9a4000 rw-p 02425000 08:02 6307994                    /opt/anaconda2/lib/python2.7/site-packages/numpy/.libs/libopenblasp-r0-39a31c03.2.18.so
+7fcb4a9a4000-7fcb4ab6d000 r-xp 00000000 08:02 6326039                    /opt/anaconda2/lib/python2.7/site-packages/numpy/core/multiarray.so
+7fcb4ab6d000-7fcb4ad6d000 ---p 001c9000 08:02 6326039                    /opt/anaconda2/lib/python2.7/site-packages/numpy/core/multiarray.so
+7fcb4ad6d000-7fcb4ad7c000 rw-p 001c9000 08:02 6326039                    /opt/anaconda2/lib/python2.7/site-packages/numpy/core/multiarray.so
+7fcb4ad7c000-7fcb4ad8e000 rw-p 00000000 00:00 0 
+7fcb4ad8e000-7fcb4ad94000 rw-p 00902000 08:02 6326039                    /opt/anaconda2/lib/python2.7/site-packages/numpy/core/multiarray.so
+7fcb4ad94000-7fcb4add4000 rw-p 00000000 00:00 0 
+7fcb4add4000-7fcb4adea000 r-xp 00000000 08:02 1312988                    /opt/anaconda2/lib/libgcc_s.so.1
+7fcb4adea000-7fcb4afe9000 ---p 00016000 08:02 1312988                    /opt/anaconda2/lib/libgcc_s.so.1
+7fcb4afe9000-7fcb4afea000 rw-p 00015000 08:02 1312988                    /opt/anaconda2/lib/libgcc_s.so.1
+7fcb4afea000-7fcb4b0e1000 r-xp 00000000 08:02 1312985                    /opt/anaconda2/lib/libstdc++.so.6.0.19
+7fcb4b0e1000-7fcb4b2e1000 ---p 000f7000 08:02 1312985                    /opt/anaconda2/lib/libstdc++.so.6.0.19
+7fcb4b2e1000-7fcb4b2e8000 r--p 000f7000 08:02 1312985                    /opt/anaconda2/lib/libstdc++.so.6.0.19
+7fcb4b2e8000-7fcb4b2eb000 rw-p 000fe000 08:02 1312985                    /opt/anaconda2/lib/libstdc++.so.6.0.19
+7fcb4b2eb000-7fcb4b300000 rw-p 00000000 00:00 0 
+7fcb4b300000-7fcb4b389000 r-xp 00000000 08:02 6319494                    /opt/anaconda2/lib/python2.7/site-packages/_jpype.so
+7fcb4b389000-7fcb4b588000 ---p 00089000 08:02 6319494                    /opt/anaconda2/lib/python2.7/site-packages/_jpype.so
+7fcb4b588000-7fcb4b58b000 r--p 00088000 08:02 6319494                    /opt/anaconda2/lib/python2.7/site-packages/_jpype.so
+7fcb4b58b000-7fcb4b58f000 rw-p 0008b000 08:02 6319494                    /opt/anaconda2/lib/python2.7/site-packages/_jpype.so
+7fcb4b58f000-7fcb4b5cf000 rw-p 00000000 00:00 0 
+7fcb4b5cf000-7fcb4b5d0000 ---p 00000000 00:00 0 
+7fcb4b5d0000-7fcb4be10000 rw-p 00000000 00:00 0                          [stack:5246]
+7fcb4be10000-7fcb4be13000 r-xp 00000000 08:02 6432936                    /opt/anaconda2/lib/python2.7/lib-dynload/_random.so
+7fcb4be13000-7fcb4c012000 ---p 00003000 08:02 6432936                    /opt/anaconda2/lib/python2.7/lib-dynload/_random.so
+7fcb4c012000-7fcb4c013000 rw-p 00002000 08:02 6432936                    /opt/anaconda2/lib/python2.7/lib-dynload/_random.so
+7fcb4c013000-7fcb4c017000 r-xp 00000000 08:02 6432927                    /opt/anaconda2/lib/python2.7/lib-dynload/_hashlib.so
+7fcb4c017000-7fcb4c217000 ---p 00004000 08:02 6432927                    /opt/anaconda2/lib/python2.7/lib-dynload/_hashlib.so
+7fcb4c217000-7fcb4c218000 rw-p 00004000 08:02 6432927                    /opt/anaconda2/lib/python2.7/lib-dynload/_hashlib.so
+7fcb4c218000-7fcb4c220000 r-xp 00000000 08:02 6432957                    /opt/anaconda2/lib/python2.7/lib-dynload/math.so
+7fcb4c220000-7fcb4c41f000 ---p 00008000 08:02 6432957                    /opt/anaconda2/lib/python2.7/lib-dynload/math.so
+7fcb4c41f000-7fcb4c421000 rw-p 00007000 08:02 6432957                    /opt/anaconda2/lib/python2.7/lib-dynload/math.so
+7fcb4c421000-7fcb4c425000 r-xp 00000000 08:02 6432971                    /opt/anaconda2/lib/python2.7/lib-dynload/time.so
+7fcb4c425000-7fcb4c624000 ---p 00004000 08:02 6432971                    /opt/anaconda2/lib/python2.7/lib-dynload/time.so
+7fcb4c624000-7fcb4c626000 rw-p 00003000 08:02 6432971                    /opt/anaconda2/lib/python2.7/lib-dynload/time.so
+7fcb4c626000-7fcb4c62a000 r-xp 00000000 08:02 6432966                    /opt/anaconda2/lib/python2.7/lib-dynload/select.so
+7fcb4c62a000-7fcb4c82a000 ---p 00004000 08:02 6432966                    /opt/anaconda2/lib/python2.7/lib-dynload/select.so
+7fcb4c82a000-7fcb4c82c000 rw-p 00004000 08:02 6432966                    /opt/anaconda2/lib/python2.7/lib-dynload/select.so
+7fcb4c82c000-7fcb4c842000 r-xp 00000000 08:02 1708445                    /opt/anaconda2/lib/libz.so.1.2.8
+7fcb4c842000-7fcb4ca41000 ---p 00016000 08:02 1708445                    /opt/anaconda2/lib/libz.so.1.2.8
+7fcb4ca41000-7fcb4ca42000 rw-p 00015000 08:02 1708445                    /opt/anaconda2/lib/libz.so.1.2.8
+7fcb4ca42000-7fcb4ca46000 r-xp 00000000 08:02 6432945                    /opt/anaconda2/lib/python2.7/lib-dynload/binascii.so
+7fcb4ca46000-7fcb4cc46000 ---p 00004000 08:02 6432945                    /opt/anaconda2/lib/python2.7/lib-dynload/binascii.so
+7fcb4cc46000-7fcb4cc47000 rw-p 00004000 08:02 6432945                    /opt/anaconda2/lib/python2.7/lib-dynload/binascii.so
+7fcb4cc47000-7fcb4cc4c000 r-xp 00000000 08:02 6432968                    /opt/anaconda2/lib/python2.7/lib-dynload/strop.so
+7fcb4cc4c000-7fcb4ce4b000 ---p 00005000 08:02 6432968                    /opt/anaconda2/lib/python2.7/lib-dynload/strop.so
+7fcb4ce4b000-7fcb4ce4d000 rw-p 00004000 08:02 6432968                    /opt/anaconda2/lib/python2.7/lib-dynload/strop.so
+7fcb4ce4d000-7fcb4ce8d000 rw-p 00000000 00:00 0 
+7fcb4ce8d000-7fcb4ce90000 r-xp 00000000 08:02 6432928                    /opt/anaconda2/lib/python2.7/lib-dynload/_heapq.so
+7fcb4ce90000-7fcb4d090000 ---p 00003000 08:02 6432928                    /opt/anaconda2/lib/python2.7/lib-dynload/_heapq.so
+7fcb4d090000-7fcb4d092000 rw-p 00003000 08:02 6432928                    /opt/anaconda2/lib/python2.7/lib-dynload/_heapq.so
+7fcb4d092000-7fcb4d153000 rw-p 00000000 00:00 0 
+7fcb4d153000-7fcb4d15d000 r-xp 00000000 08:02 6432955                    /opt/anaconda2/lib/python2.7/lib-dynload/itertools.so
+7fcb4d15d000-7fcb4d35d000 ---p 0000a000 08:02 6432955                    /opt/anaconda2/lib/python2.7/lib-dynload/itertools.so
+7fcb4d35d000-7fcb4d362000 rw-p 0000a000 08:02 6432955                    /opt/anaconda2/lib/python2.7/lib-dynload/itertools.so
+7fcb4d362000-7fcb4d3a2000 rw-p 00000000 00:00 0 
+7fcb4d3a2000-7fcb4d3aa000 r-xp 00000000 08:02 6432960                    /opt/anaconda2/lib/python2.7/lib-dynload/operator.so
+7fcb4d3aa000-7fcb4d5aa000 ---p 00008000 08:02 6432960                    /opt/anaconda2/lib/python2.7/lib-dynload/operator.so
+7fcb4d5aa000-7fcb4d5ac000 rw-p 00008000 08:02 6432960                    /opt/anaconda2/lib/python2.7/lib-dynload/operator.so
+7fcb4d5ac000-7fcb4d5b3000 r-xp 00000000 08:02 6432919                    /opt/anaconda2/lib/python2.7/lib-dynload/_collections.so
+7fcb4d5b3000-7fcb4d7b2000 ---p 00007000 08:02 6432919                    /opt/anaconda2/lib/python2.7/lib-dynload/_collections.so
+7fcb4d7b2000-7fcb4d7b4000 rw-p 00006000 08:02 6432919                    /opt/anaconda2/lib/python2.7/lib-dynload/_collections.so
+7fcb4d7b4000-7fcb4d7c6000 r-xp 00000000 08:02 6432951                    /opt/anaconda2/lib/python2.7/lib-dynload/datetime.so
+7fcb4d7c6000-7fcb4d9c5000 ---p 00012000 08:02 6432951                    /opt/anaconda2/lib/python2.7/lib-dynload/datetime.so
+7fcb4d9c5000-7fcb4d9c9000 rw-p 00011000 08:02 6432951                    /opt/anaconda2/lib/python2.7/lib-dynload/datetime.so
+7fcb4d9c9000-7fcb4d9cb000 r-xp 00000000 08:02 6432912                    /opt/anaconda2/lib/python2.7/lib-dynload/_bisect.so
+7fcb4d9cb000-7fcb4dbca000 ---p 00002000 08:02 6432912                    /opt/anaconda2/lib/python2.7/lib-dynload/_bisect.so
+7fcb4dbca000-7fcb4dbcb000 rw-p 00001000 08:02 6432912                    /opt/anaconda2/lib/python2.7/lib-dynload/_bisect.so
+7fcb4dbcb000-7fcb4dc0b000 rw-p 00000000 00:00 0 
+7fcb4dc0b000-7fcb4dc0f000 r-xp 00000000 08:02 6432948                    /opt/anaconda2/lib/python2.7/lib-dynload/cStringIO.so
+7fcb4dc0f000-7fcb4de0e000 ---p 00004000 08:02 6432948                    /opt/anaconda2/lib/python2.7/lib-dynload/cStringIO.so
+7fcb4de0e000-7fcb4de10000 rw-p 00003000 08:02 6432948                    /opt/anaconda2/lib/python2.7/lib-dynload/cStringIO.so
+7fcb4de10000-7fcb4e01c000 r-xp 00000000 08:02 6310592                    /opt/anaconda2/lib/libcrypto.so.1.0.0
+7fcb4e01c000-7fcb4e21c000 ---p 0020c000 08:02 6310592                    /opt/anaconda2/lib/libcrypto.so.1.0.0
+7fcb4e21c000-7fcb4e243000 rw-p 0020c000 08:02 6310592                    /opt/anaconda2/lib/libcrypto.so.1.0.0
+7fcb4e243000-7fcb4e247000 rw-p 00000000 00:00 0 
+7fcb4e247000-7fcb4e2b4000 r-xp 00000000 08:02 1444868                    /opt/anaconda2/lib/libssl.so.1.0.0
+7fcb4e2b4000-7fcb4e4b3000 ---p 0006d000 08:02 1444868                    /opt/anaconda2/lib/libssl.so.1.0.0
+7fcb4e4b3000-7fcb4e4be000 rw-p 0006c000 08:02 1444868                    /opt/anaconda2/lib/libssl.so.1.0.0
+7fcb4e4be000-7fcb4e4d2000 r-xp 00000000 08:02 6432939                    /opt/anaconda2/lib/python2.7/lib-dynload/_ssl.so
+7fcb4e4d2000-7fcb4e6d1000 ---p 00014000 08:02 6432939                    /opt/anaconda2/lib/python2.7/lib-dynload/_ssl.so
+7fcb4e6d1000-7fcb4e6d5000 rw-p 00013000 08:02 6432939                    /opt/anaconda2/lib/python2.7/lib-dynload/_ssl.so
+7fcb4e6d5000-7fcb4e6d8000 r-xp 00000000 08:02 6432926                    /opt/anaconda2/lib/python2.7/lib-dynload/_functools.so
+7fcb4e6d8000-7fcb4e8d7000 ---p 00003000 08:02 6432926                    /opt/anaconda2/lib/python2.7/lib-dynload/_functools.so
+7fcb4e8d7000-7fcb4e8d8000 rw-p 00002000 08:02 6432926                    /opt/anaconda2/lib/python2.7/lib-dynload/_functools.so
+7fcb4e8d8000-7fcb4e8e6000 r-xp 00000000 08:02 6432937                    /opt/anaconda2/lib/python2.7/lib-dynload/_socket.so
+7fcb4e8e6000-7fcb4eae6000 ---p 0000e000 08:02 6432937                    /opt/anaconda2/lib/python2.7/lib-dynload/_socket.so
+7fcb4eae6000-7fcb4eaeb000 rw-p 0000e000 08:02 6432937                    /opt/anaconda2/lib/python2.7/lib-dynload/_socket.so
+7fcb4eaeb000-7fcb4eaf2000 r-xp 00000000 08:02 6432940                    /opt/anaconda2/lib/python2.7/lib-dynload/_struct.so
+7fcb4eaf2000-7fcb4ecf2000 ---p 00007000 08:02 6432940                    /opt/anaconda2/lib/python2.7/lib-dynload/_struct.so
+7fcb4ecf2000-7fcb4ecf4000 rw-p 00007000 08:02 6432940                    /opt/anaconda2/lib/python2.7/lib-dynload/_struct.so
+7fcb4ecf4000-7fcb4ed15000 r-xp 00000000 08:02 6432921                    /opt/anaconda2/lib/python2.7/lib-dynload/_ctypes.so
+7fcb4ed15000-7fcb4ef14000 ---p 00021000 08:02 6432921                    /opt/anaconda2/lib/python2.7/lib-dynload/_ctypes.so
+7fcb4ef14000-7fcb4ef19000 rw-p 00020000 08:02 6432921                    /opt/anaconda2/lib/python2.7/lib-dynload/_ctypes.so
+7fcb4ef19000-7fcb4ef59000 rw-p 00000000 00:00 0 
+7fcb4ef59000-7fcb4f3c5000 r--p 00000000 08:02 4987890                    /usr/lib/locale/locale-archive
+7fcb4f3c5000-7fcb4f3c9000 r-xp 00000000 08:02 6432932                    /opt/anaconda2/lib/python2.7/lib-dynload/_locale.so
+7fcb4f3c9000-7fcb4f5c9000 ---p 00004000 08:02 6432932                    /opt/anaconda2/lib/python2.7/lib-dynload/_locale.so
+7fcb4f5c9000-7fcb4f5ca000 rw-p 00004000 08:02 6432932                    /opt/anaconda2/lib/python2.7/lib-dynload/_locale.so
+7fcb4f5ca000-7fcb4f784000 r-xp 00000000 08:02 5249372                    /lib/x86_64-linux-gnu/libc-2.19.so
+7fcb4f784000-7fcb4f984000 ---p 001ba000 08:02 5249372                    /lib/x86_64-linux-gnu/libc-2.19.so
+7fcb4f984000-7fcb4f988000 r--p 001ba000 08:02 5249372                    /lib/x86_64-linux-gnu/libc-2.19.so
+7fcb4f988000-7fcb4f98a000 rw-p 001be000 08:02 5249372                    /lib/x86_64-linux-gnu/libc-2.19.so
+7fcb4f98a000-7fcb4f98f000 rw-p 00000000 00:00 0 
+7fcb4f98f000-7fcb4fa94000 r-xp 00000000 08:02 5249348                    /lib/x86_64-linux-gnu/libm-2.19.so
+7fcb4fa94000-7fcb4fc93000 ---p 00105000 08:02 5249348                    /lib/x86_64-linux-gnu/libm-2.19.so
+7fcb4fc93000-7fcb4fc94000 r--p 00104000 08:02 5249348                    /lib/x86_64-linux-gnu/libm-2.19.so
+7fcb4fc94000-7fcb4fc95000 rw-p 00105000 08:02 5249348                    /lib/x86_64-linux-gnu/libm-2.19.so
+7fcb4fc95000-7fcb4fc97000 r-xp 00000000 08:02 5249374                    /lib/x86_64-linux-gnu/libutil-2.19.so
+7fcb4fc97000-7fcb4fe96000 ---p 00002000 08:02 5249374                    /lib/x86_64-linux-gnu/libutil-2.19.so
+7fcb4fe96000-7fcb4fe97000 r--p 00001000 08:02 5249374                    /lib/x86_64-linux-gnu/libutil-2.19.so
+7fcb4fe97000-7fcb4fe98000 rw-p 00002000 08:02 5249374                    /lib/x86_64-linux-gnu/libutil-2.19.so
+7fcb4fe98000-7fcb4fe9b000 r-xp 00000000 08:02 5249352                    /lib/x86_64-linux-gnu/libdl-2.19.so
+7fcb4fe9b000-7fcb5009a000 ---p 00003000 08:02 5249352                    /lib/x86_64-linux-gnu/libdl-2.19.so
+7fcb5009a000-7fcb5009b000 r--p 00002000 08:02 5249352                    /lib/x86_64-linux-gnu/libdl-2.19.so
+7fcb5009b000-7fcb5009c000 rw-p 00003000 08:02 5249352                    /lib/x86_64-linux-gnu/libdl-2.19.so
+7fcb5009c000-7fcb500b5000 r-xp 00000000 08:02 5249364                    /lib/x86_64-linux-gnu/libpthread-2.19.so
+7fcb500b5000-7fcb502b4000 ---p 00019000 08:02 5249364                    /lib/x86_64-linux-gnu/libpthread-2.19.so
+7fcb502b4000-7fcb502b5000 r--p 00018000 08:02 5249364                    /lib/x86_64-linux-gnu/libpthread-2.19.so
+7fcb502b5000-7fcb502b6000 rw-p 00019000 08:02 5249364                    /lib/x86_64-linux-gnu/libpthread-2.19.so
+7fcb502b6000-7fcb502ba000 rw-p 00000000 00:00 0 
+7fcb502ba000-7fcb50454000 r-xp 00000000 08:02 6309091                    /opt/anaconda2/lib/libpython2.7.so.1.0
+7fcb50454000-7fcb50653000 ---p 0019a000 08:02 6309091                    /opt/anaconda2/lib/libpython2.7.so.1.0
+7fcb50653000-7fcb50693000 rw-p 00199000 08:02 6309091                    /opt/anaconda2/lib/libpython2.7.so.1.0
+7fcb50693000-7fcb506b4000 rw-p 00000000 00:00 0 
+7fcb506b4000-7fcb506d7000 r-xp 00000000 08:02 5249365                    /lib/x86_64-linux-gnu/ld-2.19.so
+7fcb506d7000-7fcb506da000 r--s 0002b000 08:02 6438452                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/gen.antlr3-php-2.1.0-SNAPSHOT.jar
+7fcb506da000-7fcb506db000 r--s 00005000 08:02 6438451                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/gen.antlr3-json-2.1.0-SNAPSHOT.jar
+7fcb506db000-7fcb506de000 r--s 00019000 08:02 6438450                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/gen.antlr3-antlr-2.1.0-SNAPSHOT.jar
+7fcb506de000-7fcb506e3000 r--s 0002a000 08:02 6438446                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/core-2.1.0-SNAPSHOT.jar
+7fcb506e3000-7fcb506e5000 r--s 00015000 08:02 6438497                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/contenttype-3.4.200-v20140207-1251.jar
+7fcb506e5000-7fcb506e7000 r--s 0000e000 08:02 6438518                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/commons-logging-1.2.jar
+7fcb506e7000-7fcb506ed000 r--s 00048000 08:02 6438483                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/commons-lang3-3.1.jar
+7fcb506ed000-7fcb506f0000 r--s 00024000 08:02 6438484                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/commons-io-2.0.1.jar
+7fcb506f0000-7fcb506f7000 r--s 0003f000 08:02 6438475                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/commons-codec-1.10.jar
+7fcb506f7000-7fcb506fa000 r--s 00018000 08:02 6438493                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/common-3.6.200-v20130402-1505.jar
+7fcb506fa000-7fcb507ba000 rw-p 00000000 00:00 0 
+7fcb507ba000-7fcb507bb000 r--s 00000000 08:02 6438449                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/gen.antlr3-2.1.0-SNAPSHOT.jar
+7fcb507bb000-7fcb507bd000 r--s 00006000 08:02 6438447                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/client-2.1.0-SNAPSHOT.jar
+7fcb507bd000-7fcb507c4000 r--s 0003e000 08:02 6438513                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/cglib-2.2.1-v20090111.jar
+7fcb507c4000-7fcb508b0000 rw-p 00000000 00:00 0 
+7fcb508b0000-7fcb508b2000 r--s 00046000 08:02 6438448                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/client.diff-2.1.0-SNAPSHOT.jar
+7fcb508b2000-7fcb508b3000 r--s 0000a000 08:02 6438519                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/asm-3.1.jar
+7fcb508b3000-7fcb508b6000 r--s 00013000 08:02 6438498                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/app-1.3.200-v20130910-1609.jar
+7fcb508b6000-7fcb508b8000 r--s 00000000 08:02 6438512                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/aopalliance-1.0.jar
+7fcb508b8000-7fcb508bb000 r--s 00026000 08:02 6438489                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/antlr-runtime-3.5.2.jar
+7fcb508bb000-7fcb508c5000 r--s 00110000 08:02 6438467                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/antlr-3.5.2.jar
+7fcb508c5000-7fcb508c9000 r--s 0000f000 08:02 6438477                    /opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/annotations-2.0.1.jar
+7fcb508c9000-7fcb508d1000 rw-s 00000000 08:02 4065149                    /tmp/hsperfdata_root/5245
+7fcb508d1000-7fcb508d2000 rw-p 00000000 00:00 0 
+7fcb508d2000-7fcb508d3000 r--p 00000000 00:00 0 
+7fcb508d3000-7fcb508d4000 rwxp 00000000 00:00 0 
+7fcb508d4000-7fcb508d6000 rw-p 00000000 00:00 0 
+7fcb508d6000-7fcb508d7000 r--p 00022000 08:02 5249365                    /lib/x86_64-linux-gnu/ld-2.19.so
+7fcb508d7000-7fcb508d8000 rw-p 00023000 08:02 5249365                    /lib/x86_64-linux-gnu/ld-2.19.so
+7fcb508d8000-7fcb508d9000 rw-p 00000000 00:00 0 
+7ffd67e95000-7ffd67e98000 ---p 00000000 00:00 0 
+7ffd67e99000-7ffd67f95000 rw-p 00000000 00:00 0                          [stack]
+7ffd67fc8000-7ffd67fca000 r--p 00000000 00:00 0                          [vvar]
+7ffd67fca000-7ffd67fcc000 r-xp 00000000 00:00 0                          [vdso]
+ffffffffff600000-ffffffffff601000 r-xp 00000000 00:00 0                  [vsyscall]
+
+VM Arguments:
+jvm_args: -d64 
+java_command: <unknown>
+java_class_path (initial): .:/usr/info/code/cpp/LogMonitor/LogMonitor/java:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/annotations-2.0.1.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/antlr-3.5.2.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/antlr-runtime-3.5.2.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/aopalliance-1.0.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/app-1.3.200-v20130910-1609.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/asm-3.1.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/cglib-2.2.1-v20090111.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/client.diff-2.1.0-SNAPSHOT.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/client-2.1.0-SNAPSHOT.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/common-3.6.200-v20130402-1505.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/commons-codec-1.10.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/commons-io-2.0.1.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/commons-lang3-3.1.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/commons-logging-1.2.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/contenttype-3.4.200-v20140207-1251.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/core-2.1.0-SNAPSHOT.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/gen.antlr3-2.1.0-SNAPSHOT.jar:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/gen.antlr3-antlr-2.1.0
+Launcher Type: generic
+
+Environment Variables:
+CLASSPATH=.:/opt/gumtree/gumtree/dist/build/distributions/gumtree-20170703-2.1.0-SNAPSHOT/lib/*:/usr/info/code/cpp/LogMonitor/LogMonitor/java/*
+PATH=/opt/llvm-build/bin:/opt/anaconda2/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games
+USERNAME=sarah
+SHELL=/bin/bash
+DISPLAY=:0
+
+Signal Handlers:
+SIGSEGV: [libjvm.so+0xac78c0], sa_mask[0]=11111111011111111101111111111110, sa_flags=SA_RESTART|SA_SIGINFO
+SIGBUS: [libjvm.so+0xac78c0], sa_mask[0]=11111111011111111101111111111110, sa_flags=SA_RESTART|SA_SIGINFO
+SIGFPE: [libjvm.so+0x920ac0], sa_mask[0]=11111111011111111101111111111110, sa_flags=SA_RESTART|SA_SIGINFO
+SIGPIPE: [libjvm.so+0x920ac0], sa_mask[0]=11111111011111111101111111111110, sa_flags=SA_RESTART|SA_SIGINFO
+SIGXFSZ: [libjvm.so+0x920ac0], sa_mask[0]=11111111011111111101111111111110, sa_flags=SA_RESTART|SA_SIGINFO
+SIGILL: [libjvm.so+0x920ac0], sa_mask[0]=11111111011111111101111111111110, sa_flags=SA_RESTART|SA_SIGINFO
+SIGUSR1: SIG_DFL, sa_mask[0]=00000000000000000000000000000000, sa_flags=none
+SIGUSR2: [libjvm.so+0x922300], sa_mask[0]=00000000000000000000000000000000, sa_flags=SA_RESTART|SA_SIGINFO
+SIGHUP: [libjvm.so+0x923700], sa_mask[0]=11111111011111111101111111111110, sa_flags=SA_RESTART|SA_SIGINFO
+SIGINT: SIG_IGN, sa_mask[0]=00000000000000000000000000000000, sa_flags=none
+SIGTERM: [libjvm.so+0x923700], sa_mask[0]=11111111011111111101111111111110, sa_flags=SA_RESTART|SA_SIGINFO
+SIGQUIT: [libjvm.so+0x923700], sa_mask[0]=11111111011111111101111111111110, sa_flags=SA_RESTART|SA_SIGINFO
+
+
+---------------  S Y S T E M  ---------------
+
+OS:DISTRIB_ID=LinuxMint
+DISTRIB_RELEASE=17.3
+DISTRIB_CODENAME=rosa
+DISTRIB_DESCRIPTION="Linux Mint 17.3 Rosa"
+
+uname:Linux 3.19.0-32-generic #37~14.04.1-Ubuntu SMP Thu Oct 22 09:41:40 UTC 2015 x86_64
+libc:glibc 2.19 NPTL 2.19 
+rlimit: STACK 8192k, CORE 0k, NPROC 30734, NOFILE 40000, AS infinity
+load average:0.34 0.15 0.15
+
+/proc/meminfo:
+MemTotal:        8106964 kB
+MemFree:         3387200 kB
+MemAvailable:    5214668 kB
+Buffers:          262648 kB
+Cached:          1605044 kB
+SwapCached:            0 kB
+Active:          3275268 kB
+Inactive:         986776 kB
+Active(anon):    2401964 kB
+Inactive(anon):    41936 kB
+Active(file):     873304 kB
+Inactive(file):   944840 kB
+Unevictable:         144 kB
+Mlocked:             144 kB
+SwapTotal:       8317948 kB
+SwapFree:        8317948 kB
+Dirty:                92 kB
+Writeback:             0 kB
+AnonPages:       2394828 kB
+Mapped:           496172 kB
+Shmem:             49564 kB
+Slab:             302328 kB
+SReclaimable:     262740 kB
+SUnreclaim:        39588 kB
+KernelStack:       10096 kB
+PageTables:        40388 kB
+NFS_Unstable:          0 kB
+Bounce:                0 kB
+WritebackTmp:          0 kB
+CommitLimit:    12371428 kB
+Committed_AS:    5836644 kB
+VmallocTotal:   34359738367 kB
+VmallocUsed:      122212 kB
+VmallocChunk:   34359612540 kB
+HardwareCorrupted:     0 kB
+AnonHugePages:    561152 kB
+CmaTotal:              0 kB
+CmaFree:               0 kB
+HugePages_Total:       0
+HugePages_Free:        0
+HugePages_Rsvd:        0
+HugePages_Surp:        0
+Hugepagesize:       2048 kB
+DirectMap4k:      211524 kB
+DirectMap2M:     4962304 kB
+DirectMap1G:     4194304 kB
+
+
+CPU:total 4 (4 cores per cpu, 1 threads per core) family 6 model 60 stepping 3, cmov, cx8, fxsr, mmx, sse, sse2, sse3, ssse3, sse4.1, sse4.2, popcnt, avx, avx2, aes, clmul, erms, lzcnt, tsc, tscinvbit, bmi1, bmi2
+
+/proc/cpuinfo:
+processor	: 0
+vendor_id	: GenuineIntel
+cpu family	: 6
+model		: 60
+model name	: Intel(R) Core(TM) i5-4590 CPU @ 3.30GHz
+stepping	: 3
+microcode	: 0x1d
+cpu MHz		: 3529.066
+cache size	: 6144 KB
+physical id	: 0
+siblings	: 4
+core id		: 0
+cpu cores	: 4
+apicid		: 0
+initial apicid	: 0
+fpu		: yes
+fpu_exception	: yes
+cpuid level	: 13
+wp		: yes
+flags		: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc aperfmperf eagerfpu pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm ida arat epb pln pts dtherm tpr_shadow vnmi flexpriority ept vpid fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid xsaveopt
+bugs		:
+bogomips	: 6585.16
+clflush size	: 64
+cache_alignment	: 64
+address sizes	: 39 bits physical, 48 bits virtual
+power management:
+
+processor	: 1
+vendor_id	: GenuineIntel
+cpu family	: 6
+model		: 60
+model name	: Intel(R) Core(TM) i5-4590 CPU @ 3.30GHz
+stepping	: 3
+microcode	: 0x1d
+cpu MHz		: 3557.167
+cache size	: 6144 KB
+physical id	: 0
+siblings	: 4
+core id		: 1
+cpu cores	: 4
+apicid		: 2
+initial apicid	: 2
+fpu		: yes
+fpu_exception	: yes
+cpuid level	: 13
+wp		: yes
+flags		: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc aperfmperf eagerfpu pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm ida arat epb pln pts dtherm tpr_shadow vnmi flexpriority ept vpid fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid xsaveopt
+bugs		:
+bogomips	: 6585.16
+clflush size	: 64
+cache_alignment	: 64
+address sizes	: 39 bits physical, 48 bits virtual
+power management:
+
+processor	: 2
+vendor_id	: GenuineIntel
+cpu family	: 6
+model		: 60
+model name	: Intel(R) Core(TM) i5-4590 CPU @ 3.30GHz
+stepping	: 3
+microcode	: 0x1d
+cpu MHz		: 3677.179
+cache size	: 6144 KB
+physical id	: 0
+siblings	: 4
+core id		: 2
+cpu cores	: 4
+apicid		: 4
+initial apicid	: 4
+fpu		: yes
+fpu_exception	: yes
+cpuid level	: 13
+wp		: yes
+flags		: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc aperfmperf eagerfpu pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm ida arat epb pln pts dtherm tpr_shadow vnmi flexpriority ept vpid fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid xsaveopt
+bugs		:
+bogomips	: 6585.16
+clflush size	: 64
+cache_alignment	: 64
+address sizes	: 39 bits physical, 48 bits virtual
+power management:
+
+processor	: 3
+vendor_id	: GenuineIntel
+cpu family	: 6
+model		: 60
+model name	: Intel(R) Core(TM) i5-4590 CPU @ 3.30GHz
+stepping	: 3
+microcode	: 0x1d
+cpu MHz		: 3545.566
+cache size	: 6144 KB
+physical id	: 0
+siblings	: 4
+core id		: 3
+cpu cores	: 4
+apicid		: 6
+initial apicid	: 6
+fpu		: yes
+fpu_exception	: yes
+cpuid level	: 13
+wp		: yes
+flags		: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc aperfmperf eagerfpu pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm ida arat epb pln pts dtherm tpr_shadow vnmi flexpriority ept vpid fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid xsaveopt
+bugs		:
+bogomips	: 6585.16
+clflush size	: 64
+cache_alignment	: 64
+address sizes	: 39 bits physical, 48 bits virtual
+power management:
+
+
+
+Memory: 4k page, physical 8106964k(3387200k free), swap 8317948k(8317948k free)
+
+vm_info: Java HotSpot(TM) 64-Bit Server VM (25.121-b13) for linux-amd64 JRE (1.8.0_121-b13), built on Dec 12 2016 16:36:53 by "java_re" with gcc 4.3.0 20080428 (Red Hat 4.3.0-8)
+
+time: Thu Aug 31 09:09:33 2017
+elapsed time: 4 seconds (0d 0h 0m 4s)
+
