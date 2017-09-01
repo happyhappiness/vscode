@@ -219,7 +219,7 @@ class Gumtree:
     def get_word_edit_from_log(self, old_log, new_log):
 
         # split to get list of words
-        log_spliter = r'[^\w%&""\*]'
+        log_spliter = r'[^\w%&/\[\]\*\\]'
         old_log = myUtil.remove_given_element('', re.split(log_spliter, old_log))
         new_log = myUtil.remove_given_element('', re.split(log_spliter, new_log))
         # print old_log

@@ -127,7 +127,7 @@ ANALYZE_OLD_NEW_OLD_LOG = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_log')
 ANALYZE_OLD_NEW_NEW_LOG = ANALYZE_OLD_NEW_JOERN_TITLE.index('new_log')
 
 
-STATISTICS_OLD_NEW_TITLE = ANALYZE_OLD_NEW_JOERN_TITLE + ['edit', 'old_log_time', 'old_log_author', 'cluster']
+STATISTICS_OLD_NEW_TITLE = ANALYZE_OLD_NEW_JOERN_TITLE + ['edit_words', 'old_log_time', 'old_log_author', 'edit_feature','cluster']
 
 
 """
