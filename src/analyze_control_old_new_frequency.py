@@ -49,7 +49,8 @@ def cluster(is_rebuild, z3_api):
             new_log = record[my_constant.ANALYZE_OLD_NEW_NEW_LOG]
             edit_word, edit_feature = gumtree.get_word_edit_from_log(old_log, new_log)
             old_log_time = get_time_for_sha(record[my_constant.ANALYZE_OLD_NEW_SHA], gh)
-            record = record + edit_word + old_log_time + edit_feature
+            record.append(edit_word)
+            record = record + old_log_time + edit_feature
             write_file_writer.writerow(record)
             print 'now processing %d file' %(index)
             index += 1
@@ -95,6 +96,6 @@ main function
 """
 if __name__ == "__main__":
 
-    cluster(False, None)
+    cluster(True, None)
     # z3_api = Z3_api()
     # cluster(z3_api)
