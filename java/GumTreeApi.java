@@ -37,7 +37,7 @@ public class GumTreeApi {
 	// application specific info for compare two file
 	private int oldLoc, newLoc;
 	private ITree oldLogNode, newLogNode;
-	private List<ITree> oldLogs, newLogs;
+	private List<ITree> oldLogs, newLogs, ddgNodes;
 //	have not modify this log
 	final int IS_LOG = 1;
 	final int IS_LOGS = 2;
@@ -70,6 +70,7 @@ public class GumTreeApi {
 			// initialize application specific info
 			oldLogs = new ArrayList<ITree>();
 			newLogs = new ArrayList<ITree>();
+			ddgNodes = new ArrayList<ITree>();
 			editedNodes = new ArrayList<ITree>(); 
 		} catch (Exception e) {
 			// e.printStackTrace();
@@ -89,17 +90,20 @@ public class GumTreeApi {
 		
 
 		 String oldFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_79.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_32.cpp";
 		 String newFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_79.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_32.cpp";
 		 GumTreeApi g = new GumTreeApi();
-		 g.setOldAndNewFile(oldFile, newFile);
-		 Iterator<String[]> iter = g.getWordEdit().iterator();
-		 while(iter.hasNext())
-		 {
-			 String edit_element[] = iter.next();
-			 System.out.printf("(%s, %s)\n", edit_element[0], edit_element[1]);
-		 }
+		 g.setOldAndNewFile(newFile, oldFile);
+		 g.addDDGNode(28);
+		 g.addDDGNode(35);
+		 System.out.println(g.isDDGModified());
+//		 Iterator<String[]> iter = g.getWordEdit().iterator();
+//		 while(iter.hasNext())
+//		 {
+//			 String edit_element[] = iter.next();
+//			 System.out.printf("(%s, %s)\n", edit_element[0], edit_element[1]);
+//		 }
 		
 		
 ////		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
@@ -241,6 +245,12 @@ public class GumTreeApi {
 			this.newLogs.add(logNode);
 	}
 	
+	public void addDDGNode(int line) {
+		ITree ddgNode = this.getTopNodeOfLine(line, this.oldTree, this.oldTreeContext, this.oldFile);
+		if (ddgNode != null)
+			this.ddgNodes.add(ddgNode);
+	}
+	
 	public int isOldLogEdited()
 	{
 		Iterator<Action> actionIter = this.actions.iterator();
@@ -309,6 +319,34 @@ public class GumTreeApi {
 		
 		return (isLogs + isFeature);
 	}
+	
+	// judge edition type based on ddg locations
+	public boolean isDDGModified() {
+		
+		Iterator<Action> actionIter = actions.iterator();
+		Action action;
+		ITree tempNode;
+		while (actionIter.hasNext()) {
+			action = actionIter.next();
+			// do not deal with comment modification
+			if(this.isActionOfComment(action))
+			{
+				continue;
+			}
+//	 		judge if leaf edition is edition of logs
+			tempNode = action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode();
+//			decide whether is edition on ddgs in(old file[new function]) delete/update
+			Iterator<ITree> ddgIter = this.ddgNodes.iterator();
+			while (ddgIter.hasNext()) {
+//				edited part is children of ddgNodes
+				if (isChildrenOf(tempNode, ddgIter.next())) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 
 	public void setFile(String filename) {
 		Run.initGenerators();

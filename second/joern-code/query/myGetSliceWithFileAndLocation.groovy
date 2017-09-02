@@ -174,6 +174,19 @@ Gremlin.defineStep('getDefDependence', [Vertex,Pipe], { startV -> // int, int
 	}
 });
 
+// input: log id
+// output: ddg code(log -> cdg -> ddg)
+Gremlin.defineStep('getDDGForLogAndCDG', [Vertex,Pipe], { log_id -> // int, int 
+ 	_().transform{
+		g.V[log_id].as("log")
+		.in("REACHES").as("log_ddg")
+		.back("log")
+		.in("CONTROLS").in("REACHES").as("cdg_ddg")
+		.select(["log_ddg","cdg_ddg"])
+		{ [it.id, it.code, it.type, it.location] }{ [it.id, it.code, it.type, it.location] } // select type, id, code, type
+	}.scatter()
+});
+
 // input node id [parameter or identifier decl]
 // output var type
 Gremlin.defineStep('getVarTypeForParaOrDecl', [Vertex,Pipe], { node_id ->

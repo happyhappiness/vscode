@@ -103,10 +103,20 @@ class Gumtree:
     """
     @ param 
     @ return
-    @ involve get action type
+    @ involve get action type for hunk
     """
     def get_hunk_edited_type(self):
         return Gumtree.gumtree.getActionType()
+
+    """
+    @ param ddg locations(index from 0)
+    @ return
+    @ involve get action type for function
+    """
+    def get_function_edited_type(self, ddg_locs):
+        for ddg_loc in ddg_locs:
+            Gumtree.gumtree.addDDGNode(int(ddg_loc))
+        return Gumtree.gumtree.isDDGModified()
 
     """
     @ param filename

@@ -111,6 +111,8 @@ class Joern_api:
     @ involve query log node of given file in given location
     """
     def set_log(self, file_name, log_loc):
+        if log_loc == -1:
+            return False
         log_loc = str(log_loc + 1) + ':'
         base_query = '_().getLogByFileAndLoc("' + file_name + '","' + log_loc + '")'
         log_result = Joern_api.joern_instance.runGremlinQuery(base_query)
@@ -133,10 +135,10 @@ class Joern_api:
 
     """
     @ param
-    @ return data dependence of given log node
+    @ return normalized control dependence of given log node
     @ involve get control statement and identified variable type
     """
-    def get_control_dependence_for_patch(self):
+    def get_normalized_control_dependence(self):
         condition_info = self.__get_control_dependence_for_node(self.log_id)
         normalized_condition = []
         for condition in condition_info:
@@ -146,8 +148,26 @@ class Joern_api:
             else:
                 normalized_condition = node_std_code + normalized_condition + ['&&']
         return normalized_condition
-        
-
+      
+    """
+    @ param
+    @ return data dependence of given log node
+    @ involve get cdg and ddg of both cdg and log
+    """
+    def get_data_dependence_for_cdg_and_log(self):
+        ddg_query = '_().getDDGForLogAndCDG(' + self.log_id + ')'
+        ddg_result = Joern_api.joern_instance.runGremlinQuery(ddg_query)
+        ddg_codes = set()
+        ddg_locations = set()
+        if ddg_result is not None and len(ddg_result) != 0:
+            ddgs = ddg_result[0] + ddg_result[1]
+            for ddg in ddgs:
+                ddg_codes.add(ddg[my_constant.JOERN_CODE])
+                loc = ddg[my_constant.JOERN_LOCATION]
+                loc = loc[0:loc.index(':')]
+                # index from 0
+                ddg_locations.add(loc - 1)
+        return ddg_codes, ddg_locations
 
     """
     @ param condition node id and condition label(true or false)
@@ -591,10 +611,11 @@ class Joern_api:
         return label
 
 if __name__ == "__main__":
-    filename = 'function_29.cpp'
+    filename = 'new_function_32.cpp'
     joern_api = Joern_api()
-    print joern_api.get_all_condition()
-    # joern_api.set_log(filename, 65)
+    # print joern_api.get_all_condition()
+    if joern_api.set_log(filename, 97):
+        joern_api.get_data_dependence_for_cdg_and_log()
     # print joern_api.get_control_dependence()
     # print joern_api.get_argument_type()
     # if re.match(r'^[A-Z0-9_]+$', 'BZ2_bzlibVersion'):
