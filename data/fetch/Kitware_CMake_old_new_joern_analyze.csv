@@ -1,1 +1,96 @@
 sha,message,issue,file_name,old_file,new_file,patch_file,old_hunk_file,new_hunk_file,old_hunk_loc,new_hunk_loc,old_loc,new_loc,old_log,new_log,action_type,old_log_file,new_log_file,old_function_file,old_fucntion_loc,new_function_file,new_function_loc,old_ddg_feature,old_cdg_feature,new_ddg_codes,new_ddg_loc
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_21.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_21.cpp,4044,4083,4090,4125,"archive_set_error(&a->archive,
+						    errno,
+						    ""Cannot restore extended ""
+						    ""attributes on this file ""
+						    ""system"");","archive_strcat(&errlist, name);",3,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_2.cpp,39,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_2.cpp,35,[],"[""int"", ""!""]",set([u'const char * name ;']),set([12])
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_21.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_21.cpp,4044,4083,4097,4168,"archive_set_error(&a->archive, errno,
+					    ""Failed to set extended attribute"");","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Cannot restore extended ""
+			    ""attributes on this file system."");",3,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_3.cpp,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_3.cpp,46,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_3.cpp,78,"[""member"", ""unkown"", ""string""]","[""unkown"", ""macro"", ""=="", ""unkown"", ""macro"", ""=="", ""||"", ""!""]","set([u'ret = ARCHIVE_WARN', u'int ret = ARCHIVE_OK ;'])","set([5, 62])"
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_21.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_21.cpp,4044,4083,4102,4154,"archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    ""Invalid extended attribute encountered"");","archive_strappend_char(&errlist, ' ');",7,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_4.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_4.cpp,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_4.cpp,51,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_4.cpp,64,"[""member"", ""macro"", ""string""]","[""const char *"", ""null"", ""!="", ""strncmp_ret"", ""null"", ""!="", ""strncmp_ret"", ""null"", ""!="", ""&&"", ""&&"", ""!""]","set([u'e = fsetxattr ( a -> fd , name , value , size , 0 )', u'e = lsetxattr ( archive_entry_pathname ( entry ) , name , value , size , 0 )'])","set([51, 43])"
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_21.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_21.cpp,4044,4083,4108,4164,,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Cannot restore extended attributes: %s"",
+			    errlist.s);",7,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_5.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_5.cpp,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_5.cpp,57,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_5.cpp,74,[],[],"set([u'fail = 1', u'errlist . length --', u'short fail = 0 ;', u'struct archive_write_disk * a', u'struct archive_string errlist ;'])","set([1, 66, 4, 7, 72, 34])"
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_22.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_22.cpp,4134,4203,4137,4207,"archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    ""Can't restore extended attribute ``%s''"",
+				    name);","archive_strappend_char(&errlist, ' ');",3,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_6.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_6.cpp,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_6.cpp,23,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_6.cpp,27,"[""member"", ""macro"", ""string"", ""const char *""]","[""strncmp_ret"", ""null"", ""=="", ""!""]",set([u'const char * name ;']),set([12])
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_22.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_22.cpp,4134,4203,4161,4240,"archive_set_error(&a->archive,
+						    errno,
+						    ""Cannot restore extended ""
+						    ""attributes on this file ""
+						    ""system"");","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Cannot restore extended ""
+			    ""attributes on this file system."");",7,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_7.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_7.cpp,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_7.cpp,47,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_7.cpp,60,[],"[""int"", ""!""]","set([u'ret = ARCHIVE_WARN', u'int ret = ARCHIVE_OK ;'])","set([44, 29, 5])"
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_22.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_22.cpp,4134,4203,4168,4236,"archive_set_error(&a->archive, errno,
+					    ""Failed to set extended attribute"");","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Cannot restore extended attributes: %s"",
+			    errlist.s);",7,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_8.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_8.cpp,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_8.cpp,54,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_8.cpp,56,"[""member"", ""null"", ""string""]","[""null"", ""macro"", ""=="", ""null"", ""macro"", ""=="", ""||"", ""!""]","set([u'fail = 1', u'errlist . length --', u'short fail = 0 ;', u'struct archive_write_disk * a', u'struct archive_string errlist ;'])","set([1, 4, 7, 46, 53, 28])"
+11f3dcb04887fccf38a8eda19d498bf7a5060486,"LibArchive 2017-07-09 (98a69539)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 98a695399e8e7420635a5448aecde8b0a82fb83a (v3.3.2).",[],libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_3.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_3.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_24.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_24.cpp,328,334,334,-1,"archive_set_error(&a->archive, errno,
+			    ""Can't change dir to read extended attributes"");",,7,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_10.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_10.cpp,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_10.cpp,18,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_10.cpp,-1,"[""member"", ""unkown"", ""string""]","[""member"", ""null"", ""!="", ""a -> tree_enter_working_dir_ret"", ""null"", ""!="", ""&&""]","set([u'fail = 1', u'errlist . length --', u'short fail = 0 ;', u'struct archive_write_disk * a', u'struct archive_string errlist ;'])","set([1, 4, 7, 46, 53, 28])"
+11f3dcb04887fccf38a8eda19d498bf7a5060486,"LibArchive 2017-07-09 (98a69539)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 98a695399e8e7420635a5448aecde8b0a82fb83a (v3.3.2).",[],libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_3.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_3.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_24.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_24.cpp,328,334,339,-1,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Can't open file to read extended attributes: No name"");",,7,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_11.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_11.cpp,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_11.cpp,23,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_11.cpp,-1,"[""member"", ""macro"", ""string""]","[""archive_entry_pathname_ret"", ""null"", ""==""]","set([u'fail = 1', u'errlist . length --', u'short fail = 0 ;', u'struct archive_write_disk * a', u'struct archive_string errlist ;'])","set([1, 4, 7, 46, 53, 28])"
+11f3dcb04887fccf38a8eda19d498bf7a5060486,"LibArchive 2017-07-09 (98a69539)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 98a695399e8e7420635a5448aecde8b0a82fb83a (v3.3.2).",[],libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_3.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_3.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_25.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_25.cpp,426,423,476,-1,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Couldn't determine file path to read ACLs"");",,7,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_12.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_12.cpp,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_12.cpp,26,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_12.cpp,-1,"[""member"", ""macro"", ""string""]","[""archive_entry_sourcepath_ret"", ""null"", ""==""]","set([u'fail = 1', u'errlist . length --', u'short fail = 0 ;', u'struct archive_write_disk * a', u'struct archive_string errlist ;'])","set([1, 4, 7, 46, 53, 28])"
+11f3dcb04887fccf38a8eda19d498bf7a5060486,"LibArchive 2017-07-09 (98a69539)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 98a695399e8e7420635a5448aecde8b0a82fb83a (v3.3.2).",[],libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_3.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_3.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_25.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_25.cpp,426,423,549,-1,"archive_set_error(&a->archive, errno,
+			    ""Couldn't translate ""
+#if !HAVE_SUN_ACL
+			    ""NFSv4 ""
+#endif
+			    ""ACLs"");",,7,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_13.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_13.cpp,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_13.cpp,99,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_13.cpp,-1,[],"[""translate_acl_ret"", ""macro"", ""!=""]","set([u'fail = 1', u'errlist . length --', u'short fail = 0 ;', u'struct archive_write_disk * a', u'struct archive_string errlist ;'])","set([1, 4, 7, 46, 53, 28])"
+11f3dcb04887fccf38a8eda19d498bf7a5060486,"LibArchive 2017-07-09 (98a69539)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 98a695399e8e7420635a5448aecde8b0a82fb83a (v3.3.2).",[],libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_3.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_3.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_25.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_25.cpp,426,423,605,-1,"archive_set_error(&a->archive, errno,
+			    ""Couldn't translate access ACLs"");",,7,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_14.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_14.cpp,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_14.cpp,155,second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_14.cpp,-1,"[""member"", ""unkown"", ""string""]","[""translate_acl_ret"", ""macro"", ""!=""]","set([u'fail = 1', u'errlist . length --', u'short fail = 0 ;', u'struct archive_write_disk * a', u'struct archive_string

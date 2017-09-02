@@ -160,13 +160,12 @@ class Joern_api:
         ddg_codes = set()
         ddg_locations = set()
         if ddg_result is not None and len(ddg_result) != 0:
-            ddgs = ddg_result[0] + ddg_result[1]
-            for ddg in ddgs:
+            for ddg in ddg_result:
                 ddg_codes.add(ddg[my_constant.JOERN_CODE])
                 loc = ddg[my_constant.JOERN_LOCATION]
                 loc = loc[0:loc.index(':')]
                 # index from 0
-                ddg_locations.add(loc - 1)
+                ddg_locations.add(int(loc) - 1)
         return ddg_codes, ddg_locations
 
     """
@@ -611,10 +610,10 @@ class Joern_api:
         return label
 
 if __name__ == "__main__":
-    filename = 'new_function_32.cpp'
+    filename = 'new_function_427.cpp'
     joern_api = Joern_api()
     # print joern_api.get_all_condition()
-    if joern_api.set_log(filename, 97):
+    if joern_api.set_log(filename, 9):
         joern_api.get_data_dependence_for_cdg_and_log()
     # print joern_api.get_control_dependence()
     # print joern_api.get_argument_type()

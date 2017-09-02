@@ -178,12 +178,11 @@ Gremlin.defineStep('getDefDependence', [Vertex,Pipe], { startV -> // int, int
 // output: ddg code(log -> cdg -> ddg)
 Gremlin.defineStep('getDDGForLogAndCDG', [Vertex,Pipe], { log_id -> // int, int 
  	_().transform{
-		g.V[log_id].as("log")
-		.in("REACHES").as("log_ddg")
-		.back("log")
-		.in("CONTROLS").in("REACHES").as("cdg_ddg")
-		.select(["log_ddg","cdg_ddg"])
-		{ [it.id, it.code, it.type, it.location] }{ [it.id, it.code, it.type, it.location] } // select type, id, code, type
+		g.V[log_id].transform{it.in("CONTROLS").toList() + it}
+		.scatter().in("REACHES")//.as("result")
+		.transform{[it.id, it.code, it.type, it.location]}.toSet()
+		// .select(["result"])
+		// { [it.id, it.code, it.type, it.location] }
 	}.scatter()
 });
 
