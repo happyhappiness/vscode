@@ -2572,7 +2572,7 @@ Code extracted from:
 
     https://github.com/curl/curl.git
 
-at commit d957e2189fdc73cef0ff3d1fb58043d354754449 (curl-7_54_0).",[],lib/url.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_49.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_49.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_49.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_113.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_113.cpp,641,644,644,648,,"DEBUGF(fprintf(stderr, ""Error: malloc of buffer failed\n""));",7,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_91.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_91.cpp,"f(!data->state.headerbuff) {
+at commit d957e2189fdc73cef0ff3d1fb58043d354754449 (curl-7_54_0).",[],lib/url.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_49.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_49.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_49.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_113.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_113.cpp,641,644,644,648,,"DEBUGF(fprintf(stderr, ""Error: malloc of buffer failed\n""));",7,second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_old_log_91.cpp,second/download/ad/CMake/CMake-gumtree/Kitware_CMake_old_new_new_log_91.cpp,"f(!data->state.headerbuff) {
     DEBUGF(fprintf(stderr, ""Error: malloc of headerbuff failed\n""));
     result = CURLE_OUT_OF_MEMORY;
   }
@@ -2597,8 +2597,8 @@ at commit d957e2189fdc73cef0ff3d1fb58043d354754449 (curl-7_54_0).",[],lib/url.c,
     data->set.maxconnects = DEFAULT_CONNCACHE_SIZE; /* for easy handles */
 
     Curl_http2_init_state(&data->state);
-  }",second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_block_91.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 58, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 31, 0, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 7, 0, 0, 14, 0, 8, 0, 0, 0, 1, 0, 0]",second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_function_91.cpp,25,[],"[""Curl_resolver_init_ret"", ""!""]","[[], ['DEBUGF', 'fprintf', 'stderr', 'Error', 'malloc', 'of', 'buffer', 'failed\\n']]",2017-05-11T15:26:45,Brad King,-8490730468436362984
-fd7d521c9d70655618db8232d45e5aaf81700f91,"curl 2017-04-19 (d957e218)
+  }",second/download/CMake/CMake-gumtree/Kitware_CMake_old_new_block_91.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 58, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 31, 0, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 7, 0, 0, 14, 0, 8, 0, 0, 0, 1, 0, 0]",second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_function_91.cpp,25,[],"[""Curl_resolver_init_ret"", ""!""]","[[], ['DEBUGF', 'fprintf', 'stderr', 'Error', 'malloc', 'of', 'buffer', 'failed', 'n']]",2017-05-11T15:26:45,Brad King,-12825957742942680533
+1c9d70655618db8232d45e5aaf81700f91,"curl 2017-04-19 (d957e218)
 
 Code extracted from:
 

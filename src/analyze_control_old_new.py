@@ -23,6 +23,33 @@ reload(sys);
 sys.setdefaultencoding('utf8')
 
 """
+@ param file, location and gumtree object
+@ return function and location in function
+@ involve get function and log location in function from file and log location in file
+"""
+def get_function(file_name, loc, gumtree):
+    gumtree.set_file(file_name)
+    old_function = ''
+    old_function_loc = -1
+    gumtree.set_file(file_name)
+    if gumtree.set_loc(int(loc)):
+        # block = gumtree.get_block()
+        # myUtil.save_file(block, block_file_name)
+        # get function
+        old_function = gumtree.get_function()
+        if old_function == '':
+            old_function = open(file_name).read()
+            old_function_loc = loc
+        else:
+            old_function_loc = gumtree.get_function_loc()
+
+    return old_function, old_function_loc
+        # get block feature
+        # gumtree.set_file(block_file_name)
+        # block_feature = gumtree.get_block_feature()
+        # block_feature = json.dumps(block_feature)
+
+"""
 @ param log record, log function, old new writer, gumtree object and log counter
 @ return total_log
 @ involve deal with each old new log and save info
@@ -33,6 +60,8 @@ def deal_log( log_record, writer, gumtree, total_log):
     new_log = log_record[my_constant.FETCH_LOG_NEW_LOG]
     old_file_name = log_record[my_constant.FETCH_LOG_OLD_FILE]
     old_loc = log_record[my_constant.FETCH_LOG_OLD_LOC]
+    new_file_name = log_record[my_constant.FETCH_LOG_NEW_FILE]
+    new_loc = log_record[my_constant.FETCH_LOG_NEW_LOC]
     # do not deal with LOG_NO_MODIFY
     action_type = log_record[my_constant.FETCH_LOG_ACTION_TYPE]
     # no modification of this log statement
@@ -48,28 +77,18 @@ def deal_log( log_record, writer, gumtree, total_log):
     log_file.write(new_log)
     log_file.close()
     # write block file
-    gumtree.set_file(old_file_name)
-    block = ""
-    block_file_name = my_constant.SAVE_OLD_NEW_BLOCK + str(total_log) + '.cpp'
-    function_file_name = my_constant.SAVE_OLD_NEW_FUNCTION + str(total_log) + '.cpp'
-    block_feature = []
-    function_loc = 0
-    if gumtree.set_loc(int(old_loc)):
-        block = gumtree.get_block()
-        myUtil.save_file(block, block_file_name)
-        # get function
-        function = gumtree.get_function()
-        if function == '':
-            function = open(old_file_name).read()
-            function_loc = old_loc
-        else:
-            function_loc = gumtree.get_function_loc()
-        myUtil.save_file(function, function_file_name)
-        # get block feature
-        gumtree.set_file(block_file_name)
-        block_feature = gumtree.get_block_feature()
-        block_feature = json.dumps(block_feature)
-    writer.writerow(log_record + [old_log_file_name, new_log_file_name, block, block_file_name, block_feature, function_file_name, function_loc])
+    # block = ""
+    # block_file_name = my_constant.SAVE_OLD_NEW_BLOCK + str(total_log) + '.cpp'
+    # block_feature = []
+    old_function_file_name = my_constant.SAVE_OLD_NEW_OLD_FUNCTION + str(total_log) + '.cpp'
+    new_function_file_name = my_constant.SAVE_OLD_NEW_NEW_FUNCTION + str(total_log) + '.cpp'
+    old_function, old_function_loc = get_function(old_file_name, old_loc, gumtree)
+    new_function, new_function_loc = get_function(new_file_name, new_loc, gumtree)
+    myUtil.save_file(old_function, old_function_file_name)
+    myUtil.save_file(new_function, new_function_file_name)
+    writer.writerow(log_record + [old_log_file_name, new_log_file_name] + \
+                     # block, block_file_name, block_feature]
+                    [old_function_file_name, old_function_loc, new_function_file_name, new_function_loc])
     total_log += 1
 
     return total_log
