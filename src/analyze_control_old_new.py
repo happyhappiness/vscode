@@ -145,9 +145,9 @@ def analyze_old_new_joern(is_rebuild = False):
     # get ddg and cdg with joern
     for record in islice(old_new_gumtree_records, 1, None):
         old_function_file = record[my_constant.ANALYZE_OLD_NEW_OLD_FUNCTION_FILE]
-        old_loc = record[my_constant.ANALYZE_OLD_NEW_OLD_LOG]
+        old_loc = record[my_constant.ANALYZE_OLD_NEW_OLD_FUNCTION_LOC]
         new_function_file = record[my_constant.ANALYZE_OLD_NEW_NEW_FUNCTION_FILE]
-        new_loc = record[my_constant.ANALYZE_OLD_NEW_NEW_LOG]
+        new_loc = record[my_constant.ANALYZE_OLD_NEW_NEW_FUNCTION_LOC]
         # fetch old and new cdg, ddg
         if joern.set_log(old_function_file, int(old_loc)):
             ddg = json.dumps(joern.get_argument_type())
@@ -164,13 +164,14 @@ def analyze_old_new_joern(is_rebuild = False):
             # if miss new log then keep original type
             # else:
             #     record[my_constant.FETCH_LOG_ACTION_TYPE] = my_constant.LOG_LOG_MODIFY
-            old_new_joern_writer.writerow(record + [ddg, cdg, json.dumps(ddg_codes), json.dumps(ddg_locs)])
+            old_new_joern_writer.writerow(record + [ddg, cdg, ddg_codes, ddg_locs])
             total_log += 1
         print 'have dealed with %d record; %d log' %(total_record, total_log)
         total_record += 1
 
     old_new_gumtree_file.close()
     old_new_joern_file.close()
+    gumtree.close()
 
 
 """
