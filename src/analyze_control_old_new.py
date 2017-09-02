@@ -156,8 +156,14 @@ def analyze_old_new_joern(is_rebuild = False):
                 ddg_codes, ddg_locs = joern.get_data_dependence_for_cdg_and_log()
                 # check if ddg is edited with gumtree
                 gumtree.set_old_new_file(old_function_file, new_function_file)
-                gumtree.get_function_edited_type(ddg_locs)
-            record[my_constant.FETCH_LOG_ACTION_TYPE] = my_constant.LOG_LOG_MODIFY
+                is_ddg_modified = gumtree.get_function_edited_type(ddg_locs)
+                if is_ddg_modified:
+                    record[my_constant.FETCH_LOG_ACTION_TYPE] = my_constant.LOG_LOG_FEATURE_MODIFY
+                else:
+                    record[my_constant.FETCH_LOG_ACTION_TYPE] = my_constant.LOG_LOG_MODIFY
+            # if miss new log then keep original type
+            # else:
+            #     record[my_constant.FETCH_LOG_ACTION_TYPE] = my_constant.LOG_LOG_MODIFY
             old_new_joern_writer.writerow(record + [ddg, cdg, json.dumps(ddg_codes), json.dumps(ddg_locs)])
             total_log += 1
         print 'have dealed with %d record; %d log' %(total_record, total_log)
@@ -171,6 +177,6 @@ def analyze_old_new_joern(is_rebuild = False):
 main function
 """
 if __name__ == "__main__":
-    # analyze_old_new_joern(False)
+    analyze_old_new_joern(False)
 
-    analyze_old_new_joern(True)
+    # analyze_old_new_joern(True)
