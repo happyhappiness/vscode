@@ -90,13 +90,12 @@ public class GumTreeApi {
 		
 
 		 String oldFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_32.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_666.cpp";
 		 String newFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_32.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_666.cpp";
 		 GumTreeApi g = new GumTreeApi();
 		 g.setOldAndNewFile(newFile, oldFile);
-		 g.addDDGNode(28);
-		 g.addDDGNode(35);
+		 g.addDDGNode(0);
 		 System.out.println(g.isDDGModified());
 //		 Iterator<String[]> iter = g.getWordEdit().iterator();
 //		 while(iter.hasNext())
@@ -246,7 +245,7 @@ public class GumTreeApi {
 	}
 	
 	public void addDDGNode(int line) {
-		ITree ddgNode = this.getTopNodeOfLine(line, this.oldTree, this.oldTreeContext, this.oldFile);
+		ITree ddgNode = this.getDDGNodeOfLine(line, this.oldTree, this.oldTreeContext, this.oldFile);
 		if (ddgNode != null)
 			this.ddgNodes.add(ddgNode);
 	}
@@ -825,7 +824,34 @@ public class GumTreeApi {
 		// printNode(largestNode, isOld);
 		return largestNode;
 	}
+	
+	// one line to src node, may be parameter
+	private ITree getDDGNodeOfLine(int line, ITree rootNode, TreeContext treeContext, String filename) {
+		// ITree topNode = isOld ? oldTree : newTree;
+		line = line + 1;
+//		Iterator<ITree> allNodesIter = rootNode.getDescendants().iterator();
+		// bread first, so the first one from this line is top one from this line
+		Iterator<ITree> allNodesIter = rootNode.breadthFirst().iterator();
+//		ignore the toppest level
+		allNodesIter.next();
+		ITree tempNode, largestNode = null;
 
+		while (allNodesIter.hasNext()) {
+			tempNode = allNodesIter.next();
+			// the node with most children in given line [!block fault!]
+			if (getLineNumber(tempNode, filename, true) == line && 
+//					!this.isBlock(tempNode, treeContext, filename)){
+					this.isDDG(tempNode, treeContext, filename)) {
+				largestNode = tempNode;
+				break;
+			}
+		}
+
+		// printNode(largestNode, isOld);
+		return largestNode;
+	}
+
+	
 	// is parentNode is one of the parents of node[include node itself]
 	private boolean isChildrenOf(ITree child, ITree parentNode) {
 //		children size must less than parent
@@ -967,6 +993,17 @@ public class GumTreeApi {
 		String statement = filename.endsWith(".cpp") ? "stmt" : "Statement";
 		String type = getType(node, treeContext);
 		if(type.endsWith(statement) || type.equals("expr"))
+			return true;
+		else
+			return false;
+	}
+	
+	private boolean isDDG(ITree node, TreeContext treeContext, String filename)
+	{
+		String statement = filename.endsWith(".cpp") ? "stmt" : "Statement";
+		String parameter = "parameter";
+		String type = getType(node, treeContext);
+		if(type.endsWith(statement) || type.equals("expr") || type.equals(parameter))
 			return true;
 		else
 			return false;
