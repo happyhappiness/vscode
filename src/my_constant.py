@@ -33,12 +33,13 @@ SAVE_REPOS_LOG = GUMTREE_DIR + USER + '_' + REPOS + '_repos_log_'
 SAVE_OLD_NEW_OLD_LOG = GUMTREE_DIR + USER + '_' + REPOS + '_old_new_old_log_'
 SAVE_OLD_NEW_NEW_LOG = GUMTREE_DIR + USER + '_' + REPOS + '_old_new_new_log_'
 # block
-SAVE_REPOS_BASIC_BLOCK_BLOCK = GUMTREE_DIR + USER + '_' + REPOS + '_repos_basic_block_block_'
-SAVE_REPOS_LOG_BLOCK = GUMTREE_DIR + USER + '_' + REPOS + '_repos_log_block_'
-SAVE_OLD_NEW_BLOCK = GUMTREE_DIR + USER + '_' + REPOS + '_old_new_block_'
+# SAVE_REPOS_BASIC_BLOCK_BLOCK = GUMTREE_DIR + USER + '_' + REPOS + '_repos_basic_block_block_'
+# SAVE_REPOS_LOG_BLOCK = GUMTREE_DIR + USER + '_' + REPOS + '_repos_log_block_'
+# SAVE_OLD_NEW_BLOCK = GUMTREE_DIR + USER + '_' + REPOS + '_old_new_block_'
 # function
 SAVE_REPOS_FUNCTION = REPOS_JOERN_DIR + USER + '_' + REPOS + '_repos_function_'
-SAVE_OLD_NEW_FUNCTION = OLD_NEW_JOERN_DIR + USER + '_' + REPOS + '_old_new_function_'
+SAVE_OLD_NEW_OLD_FUNCTION = OLD_NEW_JOERN_DIR + USER + '_' + REPOS + '_old_new_old_function_'
+SAVE_OLD_NEW_NEW_FUNCTION = OLD_NEW_JOERN_DIR + USER + '_' + REPOS + '_old_new_new_function_'
 
 """
 file name
@@ -94,14 +95,19 @@ FETCH_LOG_NEW_LOC = FETCH_LOG_TITLE.index('new_loc')
 FETCH_LOG_OLD_LOG = FETCH_LOG_TITLE.index('old_log')
 FETCH_LOG_NEW_LOG = FETCH_LOG_TITLE.index('new_log')
 FETCH_LOG_OLD_FILE = FETCH_LOG_TITLE.index('old_file')
+FETCH_LOG_NEW_FILE = FETCH_LOG_TITLE.index('new_file')
 FETCH_LOG_ACTION_TYPE = FETCH_LOG_TITLE.index('action_type')
 
 """
 analyze old new title and index
 """
-ANALYZE_OLD_NEW_GUMTREE_TITLE = FETCH_LOG_TITLE + ['old_log_file', 'new_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'old_function_file', 'old_fucntion_loc']
+# 'old_block', 'old_block_file', 'old_block_feature',
+ANALYZE_OLD_NEW_GUMTREE_TITLE = FETCH_LOG_TITLE + ['old_log_file', 'new_log_file', \
+                                        'old_function_file', 'old_fucntion_loc', 'new_function_file', 'new_function_loc']
 ANALYZE_OLD_NEW_OLD_FUNCTION_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_function_file')
 ANALYZE_OLD_NEW_OLD_FUNCTION_LOC = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_fucntion_loc')
+ANALYZE_OLD_NEW_NEW_FUNCTION_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('new_function_file')
+ANALYZE_OLD_NEW_NEW_FUNCTION_LOC = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('new_function_loc')
 # ANALYZE_OLD_NEW_SHA = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('sha')
 # ANALYZE_OLD_NEW_OLD_LOG_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_log_file')
 # ANALYZE_OLD_NEW_NEW_LOG_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('new_log_file')
@@ -114,14 +120,15 @@ ANALYZE_OLD_NEW_OLD_FUNCTION_LOC = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_fucn
 """
 analyze old new title and index
 """
-ANALYZE_OLD_NEW_JOERN_TITLE = ANALYZE_OLD_NEW_GUMTREE_TITLE + ['old_ddg_feature', 'old_cdg_feature']
+ANALYZE_OLD_NEW_JOERN_TITLE = ANALYZE_OLD_NEW_GUMTREE_TITLE + ['old_ddg_feature', 'old_cdg_feature', 'new_ddg']
 ANALYZE_OLD_NEW_SHA = ANALYZE_OLD_NEW_JOERN_TITLE.index('sha')
 ANALYZE_OLD_NEW_OLD_LOG_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_log_file')
 ANALYZE_OLD_NEW_NEW_LOG_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('new_log_file')
-ANALYZE_OLD_NEW_OLD_BLOCK_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_block_file')
-ANALYZE_OLD_NEW_OLD_BLOCK_FEATURE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_block_feature')
+# ANALYZE_OLD_NEW_OLD_BLOCK_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_block_file')
+# ANALYZE_OLD_NEW_OLD_BLOCK_FEATURE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_block_feature')
 ANALYZE_OLD_NEW_OLD_DDG_FEATURE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_ddg_feature')
 ANALYZE_OLD_NEW_OLD_CDG_FEATURE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_cdg_feature')
+ANALYZE_OLD_NEW_NEW_DDG = ANALYZE_OLD_NEW_JOERN_TITLE.index('new_ddg')
 ANALYZE_OLD_NEW_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('file_name')
 ANALYZE_OLD_NEW_OLD_LOG = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_log')
 ANALYZE_OLD_NEW_NEW_LOG = ANALYZE_OLD_NEW_JOERN_TITLE.index('new_log')
@@ -133,12 +140,13 @@ STATISTICS_OLD_NEW_TITLE = ANALYZE_OLD_NEW_JOERN_TITLE + ['edit_words', 'old_log
 """
 analyze repos / cluster repos title and index
 """
-ANALYZE_REPOS_LOG_TITLE = ['file', 'loc', 'block', 'block_file', 'block_feature',\
+#'block', 'block_file', 'block_feature',
+ANALYZE_REPOS_LOG_TITLE = ['file', 'loc',\
                              'log', 'log_file', 'ddg_feature', 'condition_info', \
                              'normalized_condition', 'cdg_z3_feature', 'class_index']
 ANALYZE_REPOS_LOG_FILE = ANALYZE_REPOS_LOG_TITLE.index('log_file')
-ANALYZE_REPOS_BLOCK_FILE = ANALYZE_REPOS_LOG_TITLE.index('block_file')
-ANALYZE_REPOS_BLOCK_FEATURE = ANALYZE_REPOS_LOG_TITLE.index('block_feature')
+# ANALYZE_REPOS_BLOCK_FILE = ANALYZE_REPOS_LOG_TITLE.index('block_file')
+# ANALYZE_REPOS_BLOCK_FEATURE = ANALYZE_REPOS_LOG_TITLE.index('block_feature')
 ANALYZE_REPOS_CONDITION_INFO = ANALYZE_REPOS_LOG_TITLE.index('condition_info')
 # ANALYZE_REPOS_LOG_FILE = ANALYZE_REPOS_TITLE.index('log_file')
 # ANALYZE_REPOS_BLOCK_FILE = ANALYZE_REPOS_TITLE.index('block_file')
@@ -149,7 +157,8 @@ ANALYZE_REPOS_CONDITION_INFO = ANALYZE_REPOS_LOG_TITLE.index('condition_info')
 """
 analyze repos / cluster repos title and index
 """
-ANALYZE_REPOS_BASIC_BLOCK_TITLE = ['file', 'loc', 'block', 'block_file', 'block_feature', \
+# 'block', 'block_file', 'block_feature'
+ANALYZE_REPOS_BASIC_BLOCK_TITLE = ['file', 'loc',\
                 'condition_info', 'normalized_condition']
 ANALYZE_REPOS_BASIC_BLOCK_FILE = ANALYZE_REPOS_BASIC_BLOCK_TITLE.index('file')
 ANALYZE_REPOS_BASIC_BLOCK_LOC = ANALYZE_REPOS_BASIC_BLOCK_TITLE.index('loc')
