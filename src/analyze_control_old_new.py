@@ -28,9 +28,11 @@ sys.setdefaultencoding('utf8')
 @ involve get function and log location in function from file and log location in file
 """
 def get_function(file_name, loc, gumtree):
-    gumtree.set_file(file_name)
     old_function = ''
     old_function_loc = -1
+    if loc == '-1':
+        return old_function, old_function_loc
+    gumtree.set_file(file_name)
     gumtree.set_file(file_name)
     if gumtree.set_loc(int(loc)):
         # block = gumtree.get_block()
@@ -139,12 +141,24 @@ def analyze_old_new_joern(is_rebuild = False):
 
     total_record = 0
     total_log = 0
+    gumtree = Gumtree()
     # get ddg and cdg with joern
     for record in islice(old_new_gumtree_records, 1, None):
-        if joern.set_log(record[my_constant.ANALYZE_OLD_NEW_OLD_FUNCTION_FILE], int(record[my_constant.ANALYZE_OLD_NEW_OLD_FUNCTION_LOC])):
+        old_function_file = record[my_constant.ANALYZE_OLD_NEW_OLD_FUNCTION_FILE]
+        old_loc = record[my_constant.ANALYZE_OLD_NEW_OLD_LOG]
+        new_function_file = record[my_constant.ANALYZE_OLD_NEW_NEW_FUNCTION_FILE]
+        new_loc = record[my_constant.ANALYZE_OLD_NEW_NEW_LOG]
+        # fetch old and new cdg, ddg
+        if joern.set_log(old_function_file, int(old_loc)):
             ddg = json.dumps(joern.get_argument_type())
-            cdg = json.dumps(joern.get_control_dependence_for_patch())
-            old_new_joern_writer.writerow(record + [ddg, cdg])
+            cdg = json.dumps(joern.get_normalized_control_dependence())
+            if joern.set_log(new_function_file, int(new_loc)):
+                ddg_codes, ddg_locs = joern.get_data_dependence_for_cdg_and_log()
+                # check if ddg is edited with gumtree
+                gumtree.set_old_new_file(old_function_file, new_function_file)
+                gumtree.get_function_edited_type(ddg_locs)
+            record[my_constant.FETCH_LOG_ACTION_TYPE] = my_constant.LOG_LOG_MODIFY
+            old_new_joern_writer.writerow(record + [ddg, cdg, json.dumps(ddg_codes), json.dumps(ddg_locs)])
             total_log += 1
         print 'have dealed with %d record; %d log' %(total_record, total_log)
         total_record += 1
