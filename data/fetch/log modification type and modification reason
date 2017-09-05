@@ -1,0 +1,34 @@
+log function update
+log insert
+log delete
+log move
+verbosity level
+variable add
+variable delete
+variable update
+content  update
+content format
+content typo
+log move + content format
+
+
+modify of others
+add cdg
+remove cdg
+add cdg + modify of others
+remove cdg + modify of others
+move
+insert multi
+intsert one
+add info
+remove verbose info
+function refactor
+class refactor
+function refactor
+variable refactor
+split long string
+variable format%
+case
+spell
+symbol(mark)
+move + case

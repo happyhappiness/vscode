@@ -88,14 +88,16 @@ public class GumTreeApi {
 	public static void main(String args[]) {
 		// System.out.println("hello I am gumtree api");
 		
-
+		 String counter = "680";
 		 String oldFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_666.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_" + counter + ".cpp";
 		 String newFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_666.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_" + counter + ".cpp";
 		 GumTreeApi g = new GumTreeApi();
 		 g.setOldAndNewFile(newFile, oldFile);
-		 g.addDDGNode(0);
+		 g.addDDGNode(2);
+//		 g.addDDGNode(5);
+//		 g.addDDGNode(6);
 		 System.out.println(g.isDDGModified());
 //		 Iterator<String[]> iter = g.getWordEdit().iterator();
 //		 while(iter.hasNext())

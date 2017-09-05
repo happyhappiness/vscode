@@ -115,7 +115,7 @@ class Gumtree:
     """
     def get_function_edited_type(self, ddg_locs):
         for ddg_loc in ddg_locs:
-            Gumtree.gumtree.addDDGNode(int(ddg_loc))
+            Gumtree.gumtree.addDDGNode(ddg_loc)
         return Gumtree.gumtree.isDDGModified()
 
     """
