@@ -425,9 +425,9 @@ class Joern_api:
         if operands is not None:
             for operand in operands:
                 curr_var_type = self.__get_var_type_for_node_except_identifier(operand[my_constant.JOERN_DEFALUT])
-                if self.__get_priority_for_type(var_type) > self.__get_priority_for_type(var_type): #var_type is not None: #and not var_type.endswith(my_constant.JOERN_CALLEE_FLAG):
+                if self.__get_priority_for_type(curr_var_type) > self.__get_priority_for_type(var_type): #var_type is not None: #and not var_type.endswith(my_constant.JOERN_CALLEE_FLAG):
                     var_type = curr_var_type
-                return var_type
+            return var_type
 
     """
     @ param node info[id, code, type(,operator)]
@@ -619,10 +619,10 @@ class Joern_api:
         return label
 
 if __name__ == "__main__":
-    filename = 'old_function_554.cpp'
+    filename = 'old_function_810.cpp'
     joern_api = Joern_api()
     # print joern_api.get_all_condition()
-    if joern_api.set_log(filename, 444):
+    if joern_api.set_log(filename, 14):
         # joern_api.get_data_dependence_for_cdg_and_log()
         print joern_api.get_normalized_control_dependence()
     # print joern_api.get_control_dependence()
