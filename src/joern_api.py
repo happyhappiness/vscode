@@ -183,7 +183,7 @@ class Joern_api:
             if var_type is None:
                 var_type = my_constant.JOERN_UNKNOWN
             if var_type != my_constant.JOERN_UNARY_OPERATOR:
-                std_condition.append(var_type)
+                std_condition.append(myUtil.remove_name_space_and_caller(var_type))
         # condition structure normalization
         if condition_label == 'False':
             std_condition.append('!')
@@ -205,7 +205,7 @@ class Joern_api:
             if var_type is None:
                 var_type = my_constant.JOERN_UNKNOWN
             if var_type != my_constant.JOERN_UNARY_OPERATOR:
-                self.argument.append(var_type)
+                self.argument.append(myUtil.remove_name_space_and_caller(var_type))
         # print self.argument
         return self.argument
 
@@ -225,7 +225,10 @@ class Joern_api:
             var = data[3]
             var_type = self.__get_var_type_for_statment(node_id, node_type, var, 0)
             if not depended_var.has_key(var) or self.__get_priority_for_type(var_type) > self.__get_priority_for_type(depended_var[var]):
-                depended_var[var] = var_type     
+                if var_type is None:
+                    depended_var[var] = var_type
+                else:    
+                    depended_var[var] = myUtil.remove_name_space_and_caller(var_type)
         return depended_var
 
     """
@@ -236,14 +239,12 @@ class Joern_api:
     def __get_priority_for_type(self, var_type):
         if var_type is None:
             order = 0
-        elif var_type == my_constant.JOERN_NULL:
+        elif var_type in my_constant.JOERN_DEFINED:
             order = 1
-        elif var_type == my_constant.JOERN_MEMEBER:
-            order = 2
         elif var_type.endswith(my_constant.JOERN_CALLEE_FLAG):
-            order = 4
-        else:
             order = 3
+        else:
+            order = 2
         return order
         
     """
@@ -278,7 +279,7 @@ class Joern_api:
     """
     def __get_var_type_for_node(self, node, depended_var_dict):
         node_id = str(node[my_constant.JOERN_ID])
-        var_type = self.__get_var_type_for_operation(node, depended_var_dict)
+        var_type = self.__get_var_type_for_operand(node, depended_var_dict)
         if var_type is None:
             var_type = self.__get_var_type_for_children(node_id, depended_var_dict)
         
@@ -289,12 +290,14 @@ class Joern_api:
     @ return var type
     @ involve identify var type based on node type(bool, memeber, constants, func, variable)
     """
-    def __get_var_type_for_operation(self, node, depended_var_dict):
-        node_code = myUtil.remove_name_space_and_caller(node[my_constant.JOERN_CODE])
+    def __get_var_type_for_operand(self, node, depended_var_dict):
+        node_code = node[my_constant.JOERN_CODE]
         node_type = node[my_constant.JOERN_TYPE]
         var_type = self.__get_var_type_for_node_except_identifier(node)
-        if var_type is None and node_type == 'Identifier':
-            var_type = self.__get_var_type_for_variable(node_code, depended_var_dict)
+        if self.__get_priority_for_type(var_type) <= 1 and node_type == 'Identifier':
+            curr_var_type = self.__get_var_type_for_variable(node_code, depended_var_dict)
+            if self.__get_priority_for_type(curr_var_type) > self.__get_priority_for_type(var_type):
+                var_type = curr_var_type
 
         return var_type
 
@@ -302,18 +305,18 @@ class Joern_api:
     """
     @ param node id
     @ return node type
-    @ involve get children of argument and deal with each operation
+    @ involve get children of argument and deal with each operand
     """
     def __get_var_type_for_children(self, node_id, depended_var):
         var_type = None
         # get right children
-        operations_query = '_().getOperations(' + node_id + ')'
-        operations = Joern_api.joern_instance.runGremlinQuery(operations_query)
-        if operations is not None:
-            for operation in operations:
-                var_type = self.__get_var_type_for_operation(operation[my_constant.JOERN_DEFALUT], depended_var)
-                if var_type is not None: #and not var_type.endswith(my_constant.JOERN_CALLEE_FLAG):
-                    break
+        operands_query = '_().getOperations(' + node_id + ')'
+        operands = Joern_api.joern_instance.runGremlinQuery(operands_query)
+        if operands is not None:
+            for operand in operands:
+                curr_var_type = self.__get_var_type_for_operand(operand[my_constant.JOERN_DEFALUT], depended_var)
+                if self.__get_priority_for_type(curr_var_type) > self.__get_priority_for_type(var_type):
+                    var_type = curr_var_type
         return var_type
 
     """
@@ -330,16 +333,17 @@ class Joern_api:
             # get type if type is parameter or declaration
             var_type = self.__get_var_type_with_statemtnt_type(node_id, node_type)
             if var_type is None:
-                # get type if right value is decidable(call, bool, member, primary)
+                # get type if right value is decidable
                 var_type = self.__get_var_type_with_right_value(node_id)
-                if var_type is None:
+                # if it is not function call or operator
+                if self.__get_priority_for_type(var_type) <= 1:
                     # get type from depended node
                     depended_nodes = self.__get_data_dependence_for_node(node_id)
                     depth += 1
                     for node in depended_nodes:
-                        var_type = self.__get_var_type_for_statment(node[0], node[2], node[3], depth)
-                        if var_type is not None:
-                            break
+                        curr_var_type = self.__get_var_type_for_statment(node[0], node[2], node[3], depth)
+                        if self.__get_priority_for_type(curr_var_type) > self.__get_priority_for_type(var_type):
+                            var_type = curr_var_type
             # update var type dict if found(may be None)
             self.var_type_dict[node_id] = [var_type, var]
 
@@ -410,29 +414,29 @@ class Joern_api:
     """
     @ param node info[id, code, type(,operator)]
     @ return var type
-    @ involve identify var type based on children operations except identifier
+    @ involve identify var type based on children operands except identifier
     """
     def __get_var_type_for_right_value_children(self, node_id):
         # get sub operation
         var_type = None
         # get right children
-        operations_query = '_().getOperations(' + node_id + ')'
-        operations = Joern_api.joern_instance.runGremlinQuery(operations_query)
-        if operations is not None:
-            for operation in operations:
-                var_type = self.__get_var_type_for_node_except_identifier(operation[my_constant.JOERN_DEFALUT])
-                if var_type is not None: #and not var_type.endswith(my_constant.JOERN_CALLEE_FLAG):
-                    break
-        return var_type
+        operands_query = '_().getOperations(' + node_id + ')'
+        operands = Joern_api.joern_instance.runGremlinQuery(operands_query)
+        if operands is not None:
+            for operand in operands:
+                curr_var_type = self.__get_var_type_for_node_except_identifier(operand[my_constant.JOERN_DEFALUT])
+                if self.__get_priority_for_type(var_type) > self.__get_priority_for_type(var_type): #var_type is not None: #and not var_type.endswith(my_constant.JOERN_CALLEE_FLAG):
+                    var_type = curr_var_type
+                return var_type
 
     """
     @ param node info[id, code, type(,operator)]
     @ return var type
-    @ involve identify var type based on func, bool, memeber, constants
+    @ involve identify var type based on node type
     """
     def __get_var_type_for_node_except_identifier(self, node):        
         node_id = str(node[my_constant.JOERN_ID])
-        node_code = myUtil.remove_name_space_and_caller(node[my_constant.JOERN_CODE])
+        node_code = node[my_constant.JOERN_CODE]
         node_type = node[my_constant.JOERN_TYPE]
         var_type = None
         # bool operator
@@ -441,15 +445,20 @@ class Joern_api:
                 var_type = node[my_constant.JOERN_OPERATOR]
             else:
                 var_type = my_constant.JOERN_BOOL
+        # unary operator
         elif node_type == my_constant.JOERN_UNARY_OPERATOR:
             if node_code[0] == '!':
+                # for argument
                 if len(node) == my_constant.JOERN_OPERATOR:
                     var_type = my_constant.JOERN_BOOL
+                # for condition
                 else:
                     var_type = node_code[0]
-            # condition do not need unary operator(already have children) while argument need their children
+            # - ...
+            # condition do not need unary operator(already have children since argument need their children)
             elif len(node) > my_constant.JOERN_OPERATOR:
                 var_type = my_constant.JOERN_UNARY_OPERATOR
+        # address operator -> .
         elif node_type in my_constant.JOERN_ADDRESS_OPERATOR:
             var_type = my_constant.JOERN_MEMEBER
         elif node_type in my_constant.JOERN_BIT_OPERATOR:
@@ -538,7 +547,7 @@ class Joern_api:
         if re.match(r'^(null)$', constant, re.I):
             var_type = my_constant.JOERN_NULL
         elif re.match(r'^[A-Z0-9_]+$', constant):
-            var_type = 'macro'
+            var_type = my_constant.JOERN_MACRO
         return var_type
         
     """
@@ -549,16 +558,16 @@ class Joern_api:
     def __get_var_type_for_constant(self, constant):
         var_type = None
         if re.match(r'^"(.|\n)*"$', constant, re.I | re.M):
-            var_type = 'string'
+            var_type = my_constant.JOERN_STRING
         elif re.match(r'^\'[\\]*\S\'$', constant, re.I):
-            var_type = 'char'
+            var_type =  my_constant.JOERN_CHAR
         elif re.match(r'^[0-9]+$', constant, re.I):
             if constant == '0':
                 var_type = my_constant.JOERN_NULL
             else:
-                var_type = 'int'
+                var_type = my_constant.JOERN_INT
         else:
-            var_type = 'constant'
+            var_type = my_constant.JOERN_CONSTANT
 
         return var_type
 
@@ -588,7 +597,7 @@ class Joern_api:
             for data in ddg_list:
                 var = data[0]
                 node_id = str(data[1][my_constant.JOERN_ID])
-                node_code = myUtil.remove_name_space_and_caller(data[1][my_constant.JOERN_CODE])
+                node_code = data[1][my_constant.JOERN_CODE]
                 node_type = data[1][my_constant.JOERN_TYPE]
                 depended_nodes.append([node_id, node_code, node_type, var])
         return depended_nodes
@@ -610,11 +619,12 @@ class Joern_api:
         return label
 
 if __name__ == "__main__":
-    filename = 'new_function_427.cpp'
+    filename = 'old_function_554.cpp'
     joern_api = Joern_api()
     # print joern_api.get_all_condition()
-    if joern_api.set_log(filename, 9):
-        joern_api.get_data_dependence_for_cdg_and_log()
+    if joern_api.set_log(filename, 444):
+        # joern_api.get_data_dependence_for_cdg_and_log()
+        print joern_api.get_normalized_control_dependence()
     # print joern_api.get_control_dependence()
     # print joern_api.get_argument_type()
     # if re.match(r'^[A-Z0-9_]+$', 'BZ2_bzlibVersion'):

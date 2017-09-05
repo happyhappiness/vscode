@@ -229,6 +229,13 @@ JOERN_NULL = 'null'
 JOERN_UNKNOWN = 'unkown'
 JOERN_MEMEBER = 'member'
 JOERN_BOOL = 'bool'
+JOERN_MACRO = 'macro'
+JOERN_STRING = 'string'
+JOERN_INT = 'int'
+JOERN_CHAR = 'char'
+JOERN_CONSTANT = 'constant'
+JOERN_DEFINED = [JOERN_NULL, JOERN_UNKNOWN, JOERN_MEMEBER, JOERN_BOOL, JOERN_MACRO,\
+ JOERN_STRING, JOERN_INT, JOERN_CHAR, JOERN_CONSTANT]
 
 """
 split string for statement to get tokens

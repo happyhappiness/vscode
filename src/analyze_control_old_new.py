@@ -155,7 +155,7 @@ def analyze_old_new_joern(is_rebuild = False):
             if joern.set_log(new_function_file, int(new_loc)):
                 ddg_codes, ddg_locs = joern.get_data_dependence_for_cdg_and_log()
                 # check if ddg is edited with gumtree
-                gumtree.set_old_new_file(old_function_file, new_function_file)
+                gumtree.set_old_new_file(new_function_file, old_function_file)
                 is_ddg_modified = gumtree.get_function_edited_type(ddg_locs)
                 if is_ddg_modified:
                     record[my_constant.FETCH_LOG_ACTION_TYPE] = my_constant.LOG_LOG_FEATURE_MODIFY
