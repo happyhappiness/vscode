@@ -15,19 +15,18 @@ log move + content format
 modify of others
 add cdg
 remove cdg
-add cdg + modify of others
-remove cdg + modify of others
 move
 insert multi
 intsert one
 add info
 remove verbose info
-function refactor
 class refactor
 function refactor
+log refactor
 variable refactor
 split long string
 variable format%
+macro update
 case
 spell
 symbol(mark)
