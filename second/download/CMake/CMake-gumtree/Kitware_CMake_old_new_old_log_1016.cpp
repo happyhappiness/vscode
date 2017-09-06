@@ -1,1 +1,1 @@
-printf("%s ", command[i].c_str());
+sprintf(win9x, "%s%s", tempDir, fwdName);

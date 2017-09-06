@@ -1,1 +1,0 @@
-fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");

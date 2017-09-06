@@ -1,1 +1,1 @@
-DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
+fprintf(handle, "NTLMFLAG_NEGOTIATE_SIGN ");

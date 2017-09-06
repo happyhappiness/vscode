@@ -1,1 +1,2 @@
-sprintf(firstLine,  "C)onfigure                                               H)elp");
+sprintf(vertmp,"CMake Version %d.%d - %s", cmake::GetMajorVersion(),
+	  cmake::GetMinorVersion(),cmake::GetReleaseVersion());

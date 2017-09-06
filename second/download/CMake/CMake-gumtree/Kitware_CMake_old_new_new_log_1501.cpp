@@ -1,1 +1,2 @@
-fprintf(fout, ")\n");
+sprintf(thirdLine, 
+            "                                                               ");

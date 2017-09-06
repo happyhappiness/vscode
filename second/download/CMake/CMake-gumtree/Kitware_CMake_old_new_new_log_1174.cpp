@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_NETWARE ");
+fprintf(ofp, "    kwsys_unlink(fname);\n");

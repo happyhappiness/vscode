@@ -1,18 +1,2 @@
-aprintf(
-    "%s%s\t" /* domain */
-    "%s\t"   /* tailmatch */
-    "%s\t"   /* path */
-    "%s\t"   /* secure */
-    "%" FORMAT_OFF_T "\t"   /* expires */
-    "%s\t"   /* name */
-    "%s",    /* value */
-    /* Make sure all domains are prefixed with a dot if they allow
-       tailmatching. This is Mozilla-style. */
-    (co->tailmatch && co->domain && co->domain[0] != '.')? ".":"",
-    co->domain?co->domain:"unknown",
-    co->tailmatch?"TRUE":"FALSE",
-    co->path?co->path:"/",
-    co->secure?"TRUE":"FALSE",
-    co->expires,
-    co->name,
-    co->value?co->value:"");
+sprintf(buf, format, a1, a2, a3, a4, a5, a6, a7, a8,
+            a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20);

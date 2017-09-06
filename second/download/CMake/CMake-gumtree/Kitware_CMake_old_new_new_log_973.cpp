@@ -1,2 +1,1 @@
-fprintf(fout,
-              "TARGET_LINK_LIBRARIES(%s ${LINK_LIBRARIES})\n",targetName);
+archive_set_error(&a->archive, -1, "Damaged Zip archive");

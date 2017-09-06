@@ -1,1 +1,1 @@
-fprintf(stderr, "Shifting token %d (%s), ", yychar, yytname[yychar1]);
+YY_FATAL_ERROR( "out of dynamic memory in yy_scan_buffer()" );

@@ -1,1 +1,3 @@
-YY_FATAL_ERROR( "cmCommandArgument_yyset_lineno called with no buffer" );
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Malformed extra data: Consumed %d bytes of %d bytes",
+		    (int)offset, (int)extra_length);

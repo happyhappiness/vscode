@@ -1,1 +1,1 @@
-fprintf(stderr,"***Bad command\n");
+argcDefStream << expandedArguments.size();

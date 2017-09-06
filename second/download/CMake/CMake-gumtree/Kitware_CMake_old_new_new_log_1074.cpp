@@ -1,1 +1,1 @@
-sprintf(buf, "%u", this->VersionFoundMajor);
+printf("Error fetching: %s\n", url1);

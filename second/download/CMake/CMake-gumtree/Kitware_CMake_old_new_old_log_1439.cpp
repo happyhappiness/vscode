@@ -1,1 +1,1 @@
-conn->allocptr.host = aprintf("Host: %s\r\n", host);
+sprintf(buffer, "%.2f", percent_coverage);

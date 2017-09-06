@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-				"Can't allocate zip data");
+sprintf(buf, "%s/*", name.c_str());

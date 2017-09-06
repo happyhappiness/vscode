@@ -1,1 +1,0 @@
-fprintf(stderr, "Writing %s...\n", fileName);

@@ -1,3 +1,1 @@
-fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",\n"
-                 "                    reinterpret_cast<vtkTclCommandType>(vtkCommandForward),\n"
-                 "                    (ClientData *)NULL, NULL);\n\n");
+fprintf(stream, "%d.%02d%%", q / 100, q % 100);

@@ -1,5 +1,6 @@
-char *Curl_sasl_build_spn(const char *service, const char *host)
+static char *hashkey(struct connectdata *conn)
 {
-  /* Generate and return our SPN */
-  return aprintf("%s/%s", service, host);
+  return aprintf("%s:%d",
+                 conn->bits.proxy?conn->proxy.name:conn->host.name,
+                 conn->localport);
 }

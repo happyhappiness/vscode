@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr before sleep.\n");
+fprintf(fout,"%s\n",(*d)->FullPath.c_str());

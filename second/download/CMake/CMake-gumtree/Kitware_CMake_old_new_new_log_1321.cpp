@@ -1,1 +1,1 @@
-printf("%c", isgraph(data[i+j])?data[i+j]:'.');
+fprintf(stderr, "Argument Parser Error: %s (%lu / Line: %d)\n", str, pos, this->CurrentLine);

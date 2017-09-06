@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Crypto codec not supported yet (ID: 0x%lX)", zip->codec);
+fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS %s)\n",
+                cmOutputConverter::EscapeForCMake(
+                    exeLinkFlags ? exeLinkFlags : "").c_str());

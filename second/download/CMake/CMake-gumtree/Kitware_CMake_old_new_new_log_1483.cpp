@@ -1,5 +1,1 @@
-sprintf(
-	s2,
-	"%s \"%s\"",
-	modulepath,
-	cmdstring);
+getssl_version(ptr, &num);

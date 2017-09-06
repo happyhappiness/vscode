@@ -1,19 +1,28 @@
-int test7(int argc, const char* argv[])
+void cmOutputRequiredFilesCommand::
+ListDependencies(cmDependInformation const *info,
+                 FILE *fout,
+                 std::set<cmDependInformation const*> *visited)
 {
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout before sleep.\n");
-  fprintf(stderr, "Output on stderr before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 1 second.  */
-#if defined(_WIN32)
-  Sleep(1000);
-#else
-  usleep(1000000);
-#endif
-  fprintf(stdout, "Output on stdout after sleep.\n");
-  fprintf(stderr, "Output on stderr after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return 0;
+  // add info to the visited set
+  visited->insert(info);
+  // now recurse with info's dependencies
+  for(cmDependInformation::DependencySetType::const_iterator d = 
+        info->DependencySet.begin();
+      d != info->DependencySet.end(); ++d)
+    {
+    if (visited->find(*d) == visited->end())
+      {
+      if(info->FullPath != "")
+        {
+        std::string tmp = (*d)->FullPath;
+        std::string::size_type pos = tmp.rfind('.');
+        if(pos != std::string::npos && (tmp.substr(pos) != ".h"))
+          {
+          tmp = tmp.substr(0, pos);
+          fprintf(fout,"%s\n",(*d)->FullPath.c_str());
+          }
+        }
+      this->ListDependencies(*d,fout,visited);
+      }
+    }
 }

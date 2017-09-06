@@ -1,2 +1,2 @@
-fprintf(stderr, "  contains target %d [%s]\n",
-              i, this->Targets[i]->GetName());
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate zip header data");

@@ -1,1 +1,1 @@
-sprintf(buf, "%s\\*", name);
+fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);

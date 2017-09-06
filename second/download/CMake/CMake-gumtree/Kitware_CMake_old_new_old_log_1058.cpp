@@ -1,1 +1,1 @@
-sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+sprintf(tz, " -%04ld", -author.TimeZone);

@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in yy_get_next_buffer()" );
+fprintf(stderr, "target [%s] links to:\n", this->Target->GetName().c_str());

@@ -1,1 +1,1 @@
-sprintf(buffer, "&lt;%d&gt;", (int)ch);
+sprintf(tz, " +%04ld", committer.TimeZone);

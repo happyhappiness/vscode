@@ -1,1 +1,1 @@
-YY_STACK_PRINT (yyss, yyssp);
+YY_FATAL_ERROR( "bad buffer in cmListFileLexer_yy_scan_bytes()" );

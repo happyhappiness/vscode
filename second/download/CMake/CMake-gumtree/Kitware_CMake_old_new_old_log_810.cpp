@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			"Couldn't allocate memory");
+		    "Ignored the request descending the current object");

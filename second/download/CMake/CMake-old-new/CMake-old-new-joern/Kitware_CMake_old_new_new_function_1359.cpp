@@ -1,281 +1,164 @@
-void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed, 
-                             cmCTest::tm_VectorOfStrings &failed,
-                             bool memcheck)
+static
+CURLcode ftp_perform(struct connectdata *conn,
+                     bool *connected)  /* for the TCP connect status after
+                                          PASV / PORT */
 {
-  std::string current_dir = cmSystemTools::GetCurrentWorkingDirectory();
-  cmsys::RegularExpression dartStuff("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
-  tm_ListOfTests testlist;
-  this->GetListOfTests(&testlist, memcheck);
-  tm_ListOfTests::size_type tmsize = testlist.size();
+  /* this is FTP and no proxy */
+  CURLcode result=CURLE_OK;
+  struct SessionHandle *data=conn->data;
+  char *buf = data->state.buffer; /* this is our buffer */
 
-  std::ofstream ofs;
-  std::ofstream *olog = 0;
-  if ( !m_ShowOnly && tmsize > 0 && 
-    this->OpenOutputFile("Temporary", 
-      (memcheck?"LastMemCheck.log":"LastTest.log"), ofs) )
-    {
-    olog = &ofs;
+  /* the ftp struct is already inited in Curl_ftp_connect() */
+  struct FTP *ftp = conn->proto.ftp;
+
+  /* Send any QUOTE strings? */
+  if(data->set.quote) {
+    if ((result = ftp_sendquote(conn, data->set.quote)) != CURLE_OK)
+      return result;
+  }
+
+  /* This is a re-used connection. Since we change directory to where the
+     transfer is taking place, we must now get back to the original dir
+     where we ended up after login: */
+  if (conn->bits.reuse && ftp->entrypath) {
+    if ((result = ftp_cwd_and_mkd(conn, ftp->entrypath)) != CURLE_OK)
+      return result;
+  }
+
+  {
+    int i; /* counter for loop */
+    for (i=0; i < ftp->dirdepth; i++) {
+      /* RFC 1738 says empty components should be respected too, but
+         that is plain stupid since CWD can't be used with an empty argument */
+      if ((result = ftp_cwd_and_mkd(conn, ftp->dirs[i])) != CURLE_OK)
+        return result;
+    }
+  }
+
+  /* Requested time of file or time-depended transfer? */
+  if((data->set.get_filetime || data->set.timecondition) &&
+     ftp->file) {
+    result = ftp_getfiletime(conn, ftp->file);
+    switch( result )
+      {
+      case CURLE_FTP_COULDNT_RETR_FILE:
+      case CURLE_OK:
+        if(data->set.timecondition) {
+          if((data->info.filetime > 0) && (data->set.timevalue > 0)) {
+            switch(data->set.timecondition) {
+            case CURL_TIMECOND_IFMODSINCE:
+            default:
+              if(data->info.filetime < data->set.timevalue) {
+                infof(data, "The requested document is not new enough\n");
+                ftp->no_transfer = TRUE; /* mark this to not transfer data */
+                return CURLE_OK;
+              }
+              break;
+            case CURL_TIMECOND_IFUNMODSINCE:
+              if(data->info.filetime > data->set.timevalue) {
+                infof(data, "The requested document is not old enough\n");
+                ftp->no_transfer = TRUE; /* mark this to not transfer data */
+                return CURLE_OK;
+              }
+              break;
+            } /* switch */
+          }
+          else {
+            infof(data, "Skipping time comparison\n");
+          }
+        }
+        break;
+      default:
+        return result;
+      } /* switch */
+  }
+
+  /* If we have selected NOBODY and HEADER, it means that we only want file
+     information. Which in FTP can't be much more than the file size and
+     date. */
+  if(conn->bits.no_body && data->set.include_header && ftp->file) {
+    /* The SIZE command is _not_ RFC 959 specified, and therefor many servers
+       may not support it! It is however the only way we have to get a file's
+       size! */
+    curl_off_t filesize;
+    ssize_t nread;
+    int ftpcode;
+
+    ftp->no_transfer = TRUE; /* this means no actual transfer is made */
+
+    /* Some servers return different sizes for different modes, and thus we
+       must set the proper type before we check the size */
+    result = ftp_transfertype(conn, data->set.ftp_ascii);
+    if(result)
+      return result;
+
+    /* failing to get size is not a serious error */
+    result = ftp_getsize(conn, ftp->file, &filesize);
+
+    if(CURLE_OK == result) {
+      snprintf(buf, sizeof(data->state.buffer),
+               "Content-Length: %" FORMAT_OFF_T "\r\n", filesize);
+      result = Curl_client_write(data, CLIENTWRITE_BOTH, buf, 0);
+      if(result)
+        return result;
     }
 
-  m_StartTest = this->CurrentTime();
-  double elapsed_time_start = cmSystemTools::GetTime();
+    /* Determine if server can respond to REST command and therefore
+       whether it can do a range */
+    FTPSENDF(conn, "REST 0", NULL);
+    result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
 
-  if ( olog )
-    {
-    *olog << "Start testing: " << m_StartTest << std::endl
-      << "----------------------------------------------------------"
-      << std::endl;
+    if ((CURLE_OK == result) && (ftpcode == 350)) {
+      result = Curl_client_write(data, CLIENTWRITE_BOTH,
+                                 (char *)"Accept-ranges: bytes\r\n", 0);
+      if(result)
+        return result;
     }
 
-  // expand the test list
-  this->ExpandTestsToRunInformation((int)tmsize);
-  
-  int cnt = 0;
-  tm_ListOfTests::iterator it;
-  std::string last_directory = "";
-  for ( it = testlist.begin(); it != testlist.end(); it ++ )
-    {
-    cnt ++;
-    const std::string& testname = it->m_Name;
-    tm_VectorOfListFileArgs& args = it->m_Args;
-    cmCTestTestResult cres;
-    cres.m_Status = cmCTest::NOT_RUN;
-    cres.m_TestCount = cnt;
+    /* If we asked for a time of the file and we actually got one as
+       well, we "emulate" a HTTP-style header in our output. */
 
-    if (!(last_directory == it->m_Directory))
-      {
-      if ( m_Verbose )
-        {
-        std::cerr << "Changing directory into " 
-          << it->m_Directory.c_str() << "\n";
-        }
-      last_directory = it->m_Directory;
-      cmSystemTools::ChangeDirectory(it->m_Directory.c_str());
-      }
-    cres.m_Name = testname;
-    if(m_TestsToRun.size() && 
-       std::find(m_TestsToRun.begin(), m_TestsToRun.end(), cnt) == m_TestsToRun.end())
-      {
-      continue;
-      }
-
-    if ( m_ShowOnly )
-      {
-      std::cerr.width(3);
-      std::cerr.setf(std::ios_base::right);
-      std::cerr << cnt << "/";
-      std::cerr.width(3);
-      std::cerr << tmsize << " Testing ";
-      std::string outname = testname;
-      outname.resize(30, ' ');
-      std::cerr << outname.c_str() << "\n";
-     }
-    else
-      {
-      std::cerr.width(3);
-      std::cerr << cnt << "/";
-      std::cerr.width(3);
-      std::cerr << tmsize << " Testing ";
-      std::string outname = testname;
-      outname.resize(30, ' ');
-      std::cerr << outname.c_str();
-      std::cerr.flush();
-      }
-    
-    //std::cerr << "Testing " << args[0] << " ... ";
-    // find the test executable
-    std::string actualCommand = this->FindTheExecutable(args[1].Value.c_str());
-    std::string testCommand = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
-    std::string memcheckcommand = "";
-
-    // continue if we did not find the executable
-    if (testCommand == "")
-      {
-      std::cerr << "Unable to find executable: " <<
-        args[1].Value.c_str() << "\n";
-      if ( !m_ShowOnly )
-        {
-        m_TestResults.push_back( cres ); 
-        failed.push_back(testname);
-        continue;
-        }
-      }
-
-    // add the arguments
-    tm_VectorOfListFileArgs::const_iterator j = args.begin();
-    ++j;
-    ++j;
-    std::vector<const char*> arguments;
-    if ( memcheck )
-      {
-      cmCTest::tm_VectorOfStrings::size_type pp;
-      arguments.push_back(m_MemoryTester.c_str());
-      memcheckcommand = m_MemoryTester;
-      for ( pp = 0; pp < m_MemoryTesterOptionsParsed.size(); pp ++ )
-        {
-        arguments.push_back(m_MemoryTesterOptionsParsed[pp].c_str());
-        memcheckcommand += " ";
-        memcheckcommand += cmSystemTools::EscapeSpaces(m_MemoryTesterOptionsParsed[pp].c_str());
-        }
-      }
-    arguments.push_back(actualCommand.c_str());
-    for(;j != args.end(); ++j)
-      {
-      testCommand += " ";
-      testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
-      arguments.push_back(j->Value.c_str());
-      }
-    arguments.push_back(0);
-
-    /**
-     * Run an executable command and put the stdout in output.
-     */
-    std::string output;
-    int retVal = 0;
-
-
-    if ( m_Verbose )
-      {
-      std::cout << std::endl << (memcheck?"MemCheck":"Test") << " command: " << testCommand << std::endl;
-      if ( memcheck )
-        {
-        std::cout << "Memory check command: " << memcheckcommand << std::endl;
-        }
-      }
-    if ( olog )
-      {
-      *olog << cnt << "/" << tmsize 
-        << " Test: " << testname.c_str() << std::endl;
-      *olog << "Command: ";
-      tm_VectorOfStrings::size_type ll;
-      for ( ll = 0; ll < arguments.size()-1; ll ++ )
-        {
-        *olog << "\"" << arguments[ll] << "\" ";
-        }
-      *olog 
-        << std::endl 
-        << "Directory: " << it->m_Directory << std::endl 
-        << "\"" << testname.c_str() << "\" start time: " 
-        << this->CurrentTime() << std::endl
-        << "Output:" << std::endl 
-        << "----------------------------------------------------------"
-        << std::endl;
-      }
-    int res = 0;
-    double clock_start, clock_finish;
-    clock_start = cmSystemTools::GetTime();
-
-    if ( !m_ShowOnly )
-      {
-      res = this->RunTest(arguments, &output, &retVal, olog);
-      }
-
-    clock_finish = cmSystemTools::GetTime();
-
-    if ( olog )
-      {
-      double ttime = clock_finish - clock_start;
-      int hours = static_cast<int>(ttime / (60 * 60));
-      int minutes = static_cast<int>(ttime / 60) % 60;
-      int seconds = static_cast<int>(ttime) % 60;
-      char buffer[100];
-      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
-      *olog 
-        << "----------------------------------------------------------"
-        << std::endl
-        << "\"" << testname.c_str() << "\" end time: " 
-        << this->CurrentTime() << std::endl
-        << "\"" << testname.c_str() << "\" time elapsed: " 
-        << buffer << std::endl
-        << "----------------------------------------------------------"
-        << std::endl << std::endl;
-      }
-
-    cres.m_ExecutionTime = (double)(clock_finish - clock_start);
-    cres.m_FullCommandLine = testCommand;
-
-    if ( !m_ShowOnly )
-      {
-      if (res == cmsysProcess_State_Exited && retVal == 0)
-        {
-        std::cerr <<   "   Passed\n";
-        passed.push_back(testname);
-        cres.m_Status = cmCTest::COMPLETED;
-        }
-      else
-        {
-        cres.m_Status = cmCTest::FAILED;
-        if ( res == cmsysProcess_State_Expired )
-          {
-          std::cerr << "***Timeout\n";
-          cres.m_Status = cmCTest::TIMEOUT;
-          }
-        else if ( res == cmsysProcess_State_Exception )
-          {
-          std::cerr << "***Exception: ";
-          switch ( retVal )
-            {
-          case cmsysProcess_Exception_Fault:
-            std::cerr << "SegFault";
-            cres.m_Status = cmCTest::SEGFAULT;
-            break;
-          case cmsysProcess_Exception_Illegal:
-            std::cerr << "Illegal";
-            cres.m_Status = cmCTest::ILLEGAL;
-            break;
-          case cmsysProcess_Exception_Interrupt:
-            std::cerr << "Interrupt";
-            cres.m_Status = cmCTest::INTERRUPT;
-            break;
-          case cmsysProcess_Exception_Numerical:
-            std::cerr << "Numerical";
-            cres.m_Status = cmCTest::NUMERICAL;
-            break;
-          default:
-            std::cerr << "Other";
-            cres.m_Status = cmCTest::OTHER_FAULT;
-            }
-           std::cerr << "\n";
-          }
-        else if ( res == cmsysProcess_State_Error )
-          {
-          std::cerr << "***Bad command " << res << "\n";
-          cres.m_Status = cmCTest::BAD_COMMAND;
-          }
-        else
-          {
-          std::cerr << "***Failed\n";
-          }
-        failed.push_back(testname);
-        }
-      if (output != "")
-        {
-        if (dartStuff.find(output.c_str()))
-          {
-          std::string dartString = dartStuff.match(1);
-          cmSystemTools::ReplaceString(output, dartString.c_str(),"");
-          cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
-          }
-        }
-      }
-    cres.m_Output = output;
-    cres.m_ReturnValue = retVal;
-    std::string nwd = it->m_Directory;
-    if ( nwd.size() > m_ToplevelPath.size() )
-      {
-      nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
-      }
-    cmSystemTools::ReplaceString(nwd, "\\", "/");
-    cres.m_Path = nwd;
-    cres.m_CompletionStatus = "Completed";
-    m_TestResults.push_back( cres );
+#ifdef HAVE_STRFTIME
+    if(data->set.get_filetime && (data->info.filetime>=0) ) {
+      struct tm *tm;
+      time_t clock = (time_t)data->info.filetime;
+#ifdef HAVE_GMTIME_R
+      struct tm buffer;
+      tm = (struct tm *)gmtime_r(&clock, &buffer);
+#else
+      tm = gmtime(&clock);
+#endif
+      /* format: "Tue, 15 Nov 1994 12:45:26" */
+      strftime(buf, BUFSIZE-1, "Last-Modified: %a, %d %b %Y %H:%M:%S GMT\r\n",
+               tm);
+      result = Curl_client_write(data, CLIENTWRITE_BOTH, buf, 0);
+      if(result)
+        return result;
     }
+#endif
 
-  m_EndTest = this->CurrentTime();
-  m_ElapsedTestingTime = cmSystemTools::GetTime() - elapsed_time_start;
-  if ( olog )
-    {
-    *olog << "End testing: " << m_EndTest << std::endl;
+    return CURLE_OK;
+  }
+
+  if(conn->bits.no_body)
+    /* doesn't really transfer any data */
+    ftp->no_transfer = TRUE;
+  /* Get us a second connection up and connected */
+  else if(data->set.ftp_use_port) {
+    /* We have chosen to use the PORT command */
+    result = ftp_use_port(conn);
+    if(CURLE_OK == result) {
+      /* we have the data connection ready */
+      infof(data, "Ordered connect of the data stream with PORT!\n");
+      *connected = TRUE; /* mark us "still connected" */
     }
-  cmSystemTools::ChangeDirectory(current_dir.c_str());
+  }
+  else {
+    /* We have chosen (this is default) to use the PASV command */
+    result = ftp_use_pasv(conn, connected);
+    if(CURLE_OK == result && *connected)
+      infof(data, "Connected the data stream with PASV!\n");
+  }
+
+  return result;
 }

@@ -1,142 +1,146 @@
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int output, int delay, double timeout,
-             int poll)
+bool cmVTKWrapTclCommand::WriteInit(const char *kitName, 
+                                    std::string& outFileName,
+                                    std::vector<std::string>& classes)
 {
-  int result = 0;
-  char* data = 0;
-  int length = 0;
-  double userTimeout = 0;
-  double* pUserTimeout = 0;
-  kwsysProcess* kp = kwsysProcess_New();
-  if(!kp)
+  unsigned int i;
+  std::string tempOutputFile = outFileName + ".tmp";
+  FILE *fout = fopen(tempOutputFile.c_str(),"w");
+  if (!fout)
     {
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
-    }
-  
-  kwsysProcess_SetCommand(kp, cmd);
-  if(timeout >= 0)
-    {
-    kwsysProcess_SetTimeout(kp, timeout);
-    }
-  if(share)
-    {
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
-    }
-  kwsysProcess_Execute(kp);
-
-  if(poll)
-    {
-    pUserTimeout = &userTimeout;
+    cmSystemTools::Error("Failed to open TclInit file for ",
+                         tempOutputFile.c_str());
+    cmSystemTools::ReportLastSystemError("");
+    return false;
     }
 
-  if(!share)
+  // capitalized commands just once
+  std::vector<std::string> capcommands;
+  for (i = 0; i < this->Commands.size(); i++)
     {
-    int p;
-    while((p = kwsysProcess_WaitForData(kp, &data, &length, pUserTimeout)))
-      {
-      if(output)
-        {
-        if(poll && p == kwsysProcess_Pipe_Timeout)
-          {
-          fprintf(stdout, "WaitForData timeout reached.\n");
-          fflush(stdout);
+    capcommands.push_back(cmSystemTools::Capitalized(this->Commands[i]));
+    }
+  
+  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
+  fprintf(fout,"#include \"vtkVersion.h\"\n");
+  fprintf(fout,"#define VTK_TCL_TO_STRING(x) VTK_TCL_TO_STRING0(x)\n");
+  fprintf(fout,"#define VTK_TCL_TO_STRING0(x) #x\n");
+  
+  fprintf(fout,
+          "extern \"C\"\n"
+          "{\n"
+          "#if (TCL_MAJOR_VERSION == 8) && (TCL_MINOR_VERSION >= 4) && (TCL_RELEASE_LEVEL >= TCL_FINAL_RELEASE)\n"
+          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, CONST84 char *[]);\n"
+          "#else\n"
+          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, char *[]);\n"
+          "#endif\n"
+          "}\n"
+          "\n");
 
-          /* Count the number of times we polled without getting data.
-             If it is excessive then kill the child and fail.  */
-          if(++poll >= MAXPOLL)
-            {
-            fprintf(stdout, "Poll count reached limit %d.\n",
-                    MAXPOLL);
-            kwsysProcess_Kill(kp);
-            }
-          }
-        else
-          {
-          fwrite(data, 1, length, stdout);
-          fflush(stdout);
-          }
-        }
-      if(poll)
-        {
-        /* Delay to avoid busy loop during polling.  */
-#if defined(_WIN32)
-        Sleep(100);
-#else
-        usleep(100000);
-#endif
-        }
-      if(delay)
-        {
-        /* Purposely sleeping only on Win32 to let pipe fill up.  */
-#if defined(_WIN32)
-        Sleep(100);
-#endif
-        }
-      }
+  for (i = 0; i < classes.size(); i++)
+    {
+    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
+    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
     }
   
-  kwsysProcess_WaitForExit(kp, 0);
+  if (!strcmp(kitName,"Vtkcommontcl"))
+    {
+    fprintf(fout,"int vtkCommand(ClientData cd, Tcl_Interp *interp,\n"
+                 "               int argc, char *argv[]);\n");
+    fprintf(fout,"\nTcl_HashTable vtkInstanceLookup;\n");
+    fprintf(fout,"Tcl_HashTable vtkPointerLookup;\n");
+    fprintf(fout,"Tcl_HashTable vtkCommandLookup;\n");
+    fprintf(fout,"int vtkCommandForward(ClientData cd, Tcl_Interp *interp,\n"
+                 "                      int argc, char *argv[]){\n"
+                 "  return vtkCommand(cd, interp, argc, argv);\n"
+                 "}\n");
+    }
+  else
+    {
+    fprintf(fout,"\nextern Tcl_HashTable vtkInstanceLookup;\n");
+    fprintf(fout,"extern Tcl_HashTable vtkPointerLookup;\n");
+    fprintf(fout,"extern Tcl_HashTable vtkCommandLookup;\n");
+    }
+  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
+  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
 
-  switch (kwsysProcess_GetState(kp))
+  for (i = 0; i < this->Commands.size(); i++)
     {
-    case kwsysProcess_State_Starting:
-      printf("No process has been executed.\n"); break;
-    case kwsysProcess_State_Executing:
-      printf("The process is still executing.\n"); break;
-    case kwsysProcess_State_Expired:
-      printf("Child was killed when timeout expired.\n"); break;
-    case kwsysProcess_State_Exited:
-      printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Killed:
-      printf("Child was killed by parent.\n"); break;
-    case kwsysProcess_State_Exception:
-      printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Error:
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
-  
-  if(result)
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
-      {
-      fprintf(stderr, "Mismatch in exit exception.  "
-              "Should have been %d, was %d.\n",
-              exception, kwsysProcess_GetExitException(kp));
-      }
-    if(value != kwsysProcess_GetExitValue(kp))
-      {
-      fprintf(stderr, "Mismatch in exit value.  "
-              "Should have been %d, was %d.\n",
-              value, kwsysProcess_GetExitValue(kp));
-      }
+    fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
+            capcommands[i].c_str());
     }
   
-  if(kwsysProcess_GetState(kp) != state)
-    {
-    fprintf(stderr, "Mismatch in state.  "
-            "Should have been %d, was %d.\n",
-            state, kwsysProcess_GetState(kp));
-    result = 1;
-    }
+  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n",
+          kitName);
+  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
+          kitName);
+  
+  /* create an extern ref to the generic delete function */
+  fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
 
-  /* We should have polled more times than there were data if polling
-     was enabled.  */
-  if(poll && poll < MINPOLL)
+  if (!strcmp(kitName,"Vtkcommontcl"))
     {
-    fprintf(stderr, "Poll count is %d, which is less than %d.\n",
-            poll, MINPOLL);
-    result = 1;
+    fprintf(fout,"extern \"C\"\n{\nvoid vtkCommonDeleteAssocData(ClientData cd)\n");
+    fprintf(fout,"  {\n");
+    fprintf(fout,"  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n");
+    fprintf(fout,"  delete tis;\n  }\n}\n");
+    }
+    
+  /* the main declaration */
+  fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
+  fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
+  
+  fprintf(fout,"\n\nint VTK_EXPORT %s_Init(Tcl_Interp *interp)\n{\n",
+          kitName);
+  if (!strcmp(kitName,"Vtkcommontcl"))
+    {
+    fprintf(fout,
+            "  vtkTclInterpStruct *info = new vtkTclInterpStruct;\n");
+    fprintf(fout,
+            "  info->Number = 0; info->InDelete = 0; info->DebugOn = 0;\n");
+    fprintf(fout,"\n");
+    fprintf(fout,"\n");
+    fprintf(fout,
+            "  Tcl_InitHashTable(&info->InstanceLookup, TCL_STRING_KEYS);\n");
+    fprintf(fout,
+            "  Tcl_InitHashTable(&info->PointerLookup, TCL_STRING_KEYS);\n");
+    fprintf(fout,
+            "  Tcl_InitHashTable(&info->CommandLookup, TCL_STRING_KEYS);\n");
+    fprintf(fout,
+            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");
+    fprintf(fout,
+            "  Tcl_CreateExitHandler(vtkCommonDeleteAssocData,(ClientData *)info);\n");
+
+    /* create special vtkCommand command */
+    fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",\n"
+                 "                    reinterpret_cast<vtkTclCommandType>(vtkCommandForward),\n"
+                 "                    (ClientData *)NULL, NULL);\n\n");
     }
   
-  kwsysProcess_Delete(kp);
-  return result;
+  for (i = 0; i < this->Commands.size(); i++)
+    {
+    fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
+    }
+  fprintf(fout,"\n");
+
+  for (i = 0; i < classes.size(); i++)
+    {
+    fprintf(fout,"  vtkTclCreateNew(interp,(char *) \"%s\", %sNewCommand,\n",
+            classes[i].c_str(), classes[i].c_str());
+    fprintf(fout,"                  %sCommand);\n",classes[i].c_str());
+    }
+  
+  fprintf(fout,"  char pkgName[]=\"%s\";\n", this->LibraryName.c_str());
+  fprintf(fout,"  char pkgVers[]=VTK_TCL_TO_STRING(VTK_MAJOR_VERSION)"
+               " \".\" "
+               "VTK_TCL_TO_STRING(VTK_MINOR_VERSION);\n");
+  fprintf(fout,"  Tcl_PkgProvide(interp, pkgName, pkgVers);\n");
+  fprintf(fout,"  return TCL_OK;\n}\n");
+  fclose(fout);
+
+  // copy the file if different
+  cmSystemTools::CopyFileIfDifferent(tempOutputFile.c_str(),
+                                     outFileName.c_str());
+  cmSystemTools::RemoveFile(tempOutputFile.c_str());
+
+  return true;
 }

@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, errno,
-				    "Couldn't translate default ACLs");
+				    "Failed to get flagset from a NFSv4 ACL entry");

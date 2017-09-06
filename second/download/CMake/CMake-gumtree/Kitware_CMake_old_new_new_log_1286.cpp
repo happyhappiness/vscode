@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr after sleep.\n");
+sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);

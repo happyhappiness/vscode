@@ -1,1 +1,1 @@
-fprintf(fout,"void vtkCommonDeleteAssocData(ClientData cd)\n");
+fprintf(fout, "ADD_DEFINITIONS(${COMPILE_DEFINITIONS})\n");

@@ -1,1 +1,1 @@
-sprintf(buf, "%u", this->VersionMinor);
+sprintf(tz, " +%04ld", person.TimeZone);

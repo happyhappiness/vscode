@@ -1,71 +1,151 @@
-int runChild(const char* cmd[], int state, int exception, int value)
+void CommandLineArguments::GenerateHelp()
 {
-  int result = 0;
-  char* data = 0;
-  int length = 0;
-  kwsysProcess* kp = kwsysProcess_New();
-  if(!kp)
+  kwsys_ios::ostringstream str;
+
+  // Collapse all arguments into the map of vectors of all arguments that do
+  // the same thing.
+  CommandLineArguments::Internal::CallbacksMap::iterator it;
+  typedef kwsys_stl::map<CommandLineArguments::Internal::String, 
+     CommandLineArguments::Internal::SetOfStrings > MapArgs;
+  MapArgs mp;
+  MapArgs::iterator mpit, smpit;
+  for ( it = this->Internals->Callbacks.begin();
+    it != this->Internals->Callbacks.end();
+    it ++ )
     {
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
-    }
-  
-  kwsysProcess_SetCommand(kp, cmd);
-  kwsysProcess_SetTimeout(kp, 3);
-  kwsysProcess_Execute(kp);
-  
-  while(kwsysProcess_WaitForData(kp, &data, &length, 0))
-    {
-    fwrite(data, 1, length, stdout);
-    fflush(stdout);
-    }
-  
-  kwsysProcess_WaitForExit(kp, 0);
-  
-  switch (kwsysProcess_GetState(kp))
-    {
-    case kwsysProcess_State_Starting:
-      printf("No process has been executed.\n"); break;
-    case kwsysProcess_State_Executing:
-      printf("The process is still executing.\n"); break;
-    case kwsysProcess_State_Expired:
-      printf("Child was killed when timeout expired.\n"); break;
-    case kwsysProcess_State_Exited:
-      printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Killed:
-      printf("Child was killed by parent.\n"); break;
-    case kwsysProcess_State_Exception:
-      printf("Child terminated abnormally.\n");
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Error:
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
-  
-  if(result)
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
+    CommandLineArgumentsCallbackStructure *cs = &(it->second);
+    mpit = mp.find(cs->Help);
+    if ( mpit != mp.end() )
       {
-      fprintf(stderr, "Mismatch in exit exception.  Should have been %d.\n",
-              exception);
+      mpit->second.insert(it->first);
+      mp[it->first].insert(it->first);
       }
-    if(value != kwsysProcess_GetExitValue(kp))
+    else
       {
-      fprintf(stderr, "Mismatch in exit value.  Should have been %d.\n",
-              value);
+      mp[it->first].insert(it->first);
       }
     }
-  
-  if(kwsysProcess_GetState(kp) != state)
+  for ( it = this->Internals->Callbacks.begin();
+    it != this->Internals->Callbacks.end();
+    it ++ )
     {
-    fprintf(stderr, "Mismatch in state.  Should have been %d.\n", state);
-    result = 1;
+    CommandLineArgumentsCallbackStructure *cs = &(it->second);
+    mpit = mp.find(cs->Help);
+    if ( mpit != mp.end() )
+      {
+      mpit->second.insert(it->first);
+      smpit = mp.find(it->first);
+      CommandLineArguments::Internal::SetOfStrings::iterator sit;
+      for ( sit = smpit->second.begin(); sit != smpit->second.end(); sit++ )
+        {
+        mpit->second.insert(*sit);
+        }
+      mp.erase(smpit);
+      }
+    else
+      {
+      mp[it->first].insert(it->first);
+      }
     }
-  
-  kwsysProcess_Delete(kp);
-  return result;
+ 
+  // Find the length of the longest string
+  CommandLineArguments::Internal::String::size_type maxlen = 0;
+  for ( mpit = mp.begin();
+    mpit != mp.end();
+    mpit ++ )
+    {
+    CommandLineArguments::Internal::SetOfStrings::iterator sit;
+    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
+      {
+      CommandLineArguments::Internal::String::size_type clen = sit->size();
+      switch ( this->Internals->Callbacks[*sit].ArgumentType )
+        {
+        case CommandLineArguments::NO_ARGUMENT:     clen += 0; break;
+        case CommandLineArguments::CONCAT_ARGUMENT: clen += 6; break;
+        case CommandLineArguments::SPACE_ARGUMENT:  clen += 7; break;
+        case CommandLineArguments::EQUAL_ARGUMENT:  clen += 7; break;
+        }
+      if ( clen > maxlen )
+        {
+        maxlen = clen;
+        }
+      }
+    }
+
+  // Create format for that string
+  char format[80];
+  sprintf(format, "%%%ds", static_cast<unsigned int>(maxlen));
+
+
+  // Print help for each option
+  for ( mpit = mp.begin();
+    mpit != mp.end();
+    mpit ++ )
+    {
+    CommandLineArguments::Internal::SetOfStrings::iterator sit;
+    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
+      {
+      str << kwsys_ios::endl;
+      char argument[100];
+      sprintf(argument, sit->c_str());
+      switch ( this->Internals->Callbacks[*sit].ArgumentType )
+        {
+        case CommandLineArguments::NO_ARGUMENT: break;
+        case CommandLineArguments::CONCAT_ARGUMENT: strcat(argument, "option"); break;
+        case CommandLineArguments::SPACE_ARGUMENT:  strcat(argument, " option"); break;
+        case CommandLineArguments::EQUAL_ARGUMENT:  strcat(argument, "=option"); break;
+        }
+      char buffer[80];
+      sprintf(buffer, format, argument);
+      str << buffer;
+      }
+    str << "\t";
+    const char* ptr = this->Internals->Callbacks[mpit->first].Help;
+    int len = strlen(ptr);
+    int cnt = 0;
+    while ( len > 0)
+      {
+      // If argument with help is longer than line length, split it on previous
+      // space (or tab) and continue on the next line
+      CommandLineArguments::Internal::String::size_type cc;
+      for ( cc = 0; ptr[cc]; cc ++ )
+        {
+        if ( *ptr == ' ' || *ptr == '\t' )
+          {
+          ptr ++;
+          len --;
+          }
+        }
+      if ( cnt > 0 )
+        {
+        for ( cc = 0; cc < maxlen; cc ++ )
+          {
+          str << " ";
+          }
+        str << "\t";
+        }
+      CommandLineArguments::Internal::String::size_type skip = len;
+      if ( skip > this->LineLength - maxlen )
+        {
+        skip = this->LineLength - maxlen;
+        for ( cc = skip-1; cc > 0; cc -- )
+          {
+          if ( ptr[cc] == ' ' || ptr[cc] == '\t' )
+            {
+            break;
+            }
+          }
+        if ( cc != 0 )
+          {
+          skip = cc;
+          }
+        }
+      str.write(ptr, skip);
+      str << kwsys_ios::endl;
+      ptr += skip;
+      len -= skip;
+      cnt ++;
+      }
+    }
+  this->Help = str.str();
 }

@@ -1,2 +1,1 @@
-archive_set_error(f->archive, EIO,
-		    "Filter exited with failure.");
+fprintf(fout, "set(CMAKE_LINK_SEARCH_END_STATIC \"%s\")\n", lssDef);

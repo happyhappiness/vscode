@@ -1,1 +1,1 @@
-fprintf(ofp, "#else\n");
+sprintf(buf, "%u", this->VersionFoundMinor);

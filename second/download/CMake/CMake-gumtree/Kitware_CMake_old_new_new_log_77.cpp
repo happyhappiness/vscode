@@ -1,2 +1,3 @@
-_snprintf(cp->ProcessResults[idx].ExitExceptionString,
-                KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Cannot restore extended attributes: %s",
+			    errlist.s);

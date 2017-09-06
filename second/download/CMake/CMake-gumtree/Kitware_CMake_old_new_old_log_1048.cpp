@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, EILSEQ,
-            "Can't translate uname '%s' to UTF-8", uname);
+fprintf(fout, "cmake_minimum_required(VERSION %u.%u)\n",
+            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion());

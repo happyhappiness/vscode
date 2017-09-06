@@ -1,66 +1,91 @@
-int
-__archive_read_program(struct archive_read_filter *self, const char *cmd)
+static int
+start_next_async_read(struct archive_read_disk *a, struct tree *t)
 {
-	struct program_filter	*state;
-	static const size_t out_buf_len = 65536;
-	char *out_buf;
-	const char *prefix = "Program: ";
-	pid_t child;
-	size_t l;
+	struct la_overlapped *olp;
+	DWORD buffbytes, rbytes;
 
-	l = strlen(prefix) + strlen(cmd) + 1;
-	state = (struct program_filter *)calloc(1, sizeof(*state));
-	out_buf = (char *)malloc(out_buf_len);
-	if (state == NULL || out_buf == NULL ||
-	    archive_string_ensure(&state->description, l) == NULL) {
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate input data");
-		if (state != NULL) {
-			archive_string_free(&state->description);
-			free(state);
+	if (t->ol_remaining_bytes == 0)
+		return (ARCHIVE_EOF);
+
+	olp = &(t->ol[t->ol_idx_doing]);
+	t->ol_idx_doing = (t->ol_idx_doing + 1) % MAX_OVERLAPPED;
+
+	/* Allocate read buffer. */
+	if (olp->buff == NULL) {
+		void *p;
+		size_t s = (size_t)align_num_per_sector(t, BUFFER_SIZE);
+		p = VirtualAlloc(NULL, s, MEM_COMMIT, PAGE_READWRITE);
+		if (p == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Couldn't allocate memory");
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			return (ARCHIVE_FATAL);
 		}
-		free(out_buf);
-		return (ARCHIVE_FATAL);
+		olp->buff = p;
+		olp->buff_size = s;
+		olp->_a = &a->archive;
+		olp->ol.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+		if (olp->ol.hEvent == NULL) {
+			la_dosmaperr(GetLastError());
+			archive_set_error(&a->archive, errno,
+			    "CreateEvent failed");
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			return (ARCHIVE_FATAL);
+		}
+	} else
+		ResetEvent(olp->ol.hEvent);
+
+	buffbytes = (DWORD)olp->buff_size;
+	if (buffbytes > t->current_sparse->length)
+		buffbytes = (DWORD)t->current_sparse->length;
+
+	/* Skip hole. */
+	if (t->current_sparse->offset > t->ol_total) {
+		t->ol_remaining_bytes -=
+			t->current_sparse->offset - t->ol_total;
 	}
-	archive_strcpy(&state->description, prefix);
-	archive_strcat(&state->description, cmd);
 
-	self->code = ARCHIVE_FILTER_PROGRAM;
-	self->name = state->description.s;
+	olp->offset = t->current_sparse->offset;
+	olp->ol.Offset = (DWORD)(olp->offset & 0xffffffff);
+	olp->ol.OffsetHigh = (DWORD)(olp->offset >> 32);
 
-	state->out_buf = out_buf;
-	state->out_buf_len = out_buf_len;
-
-	child = __archive_create_child(cmd, &state->child_stdin,
-	    &state->child_stdout);
-	if (child == -1) {
-		free(state->out_buf);
-		free(state);
-		archive_set_error(&self->archive->archive, EINVAL,
-		    "Can't initialize filter; unable to run program \"%s\"",
-		    cmd);
-		return (ARCHIVE_FATAL);
+	if (t->ol_remaining_bytes > buffbytes) {
+		olp->bytes_expected = buffbytes;
+		t->ol_remaining_bytes -= buffbytes;
+	} else {
+		olp->bytes_expected = (size_t)t->ol_remaining_bytes;
+		t->ol_remaining_bytes = 0;
 	}
-#if defined(_WIN32) && !defined(__CYGWIN__)
-	state->child = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, child);
-	if (state->child == NULL) {
-		child_stop(self, state);
-		free(state->out_buf);
-		free(state);
-		archive_set_error(&self->archive->archive, EINVAL,
-		    "Can't initialize filter; unable to run program \"%s\"",
-		    cmd);
-		return (ARCHIVE_FATAL);
-	}
-#else
-	state->child = child;
-#endif
+	olp->bytes_transferred = 0;
+	t->current_sparse->offset += buffbytes;
+	t->current_sparse->length -= buffbytes;
+	t->ol_total = t->current_sparse->offset;
+	if (t->current_sparse->length == 0 && t->ol_remaining_bytes > 0)
+		t->current_sparse++;
 
-	self->data = state;
-	self->read = program_filter_read;
-	self->skip = NULL;
-	self->close = program_filter_close;
+	if (!ReadFile(t->entry_fh, olp->buff, buffbytes, &rbytes, &(olp->ol))) {
+		DWORD lasterr;
 
-	/* XXX Check that we can read at least one byte? */
-	return (ARCHIVE_OK);
+		lasterr = GetLastError();
+		if (lasterr == ERROR_HANDLE_EOF) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Reading file truncated");
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			return (ARCHIVE_FATAL);
+		} else if (lasterr != ERROR_IO_PENDING) {
+			if (lasterr == ERROR_NO_DATA)
+				errno = EAGAIN;
+			else if (lasterr == ERROR_ACCESS_DENIED)
+				errno = EBADF;
+			else
+				la_dosmaperr(lasterr);
+			archive_set_error(&a->archive, errno, "Read error");
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			return (ARCHIVE_FATAL);
+		}
+	} else
+		olp->bytes_transferred = rbytes;
+	t->ol_num_doing++;
+
+	return (t->ol_remaining_bytes == 0)? ARCHIVE_EOF: ARCHIVE_OK;
 }

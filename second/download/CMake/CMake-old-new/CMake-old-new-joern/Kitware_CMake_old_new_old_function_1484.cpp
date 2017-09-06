@@ -1,148 +1,82 @@
-bool WindowsRunCommand(const char* command, const char* dir, 
-                       std::string& output, int& retVal, bool verbose) 
+char *curl_version(void)
 {
-  //verbose = true;
-  std::cerr << std::endl 
-	    << "WindowsRunCommand(" << command << ")" << std::endl 
-	    << std::flush;
-  const int BUFFER_SIZE = 4096;
-  char buf[BUFFER_SIZE];
- 
-//i/o buffer 
-  STARTUPINFO si;
-  SECURITY_ATTRIBUTES sa;
-  SECURITY_DESCRIPTOR sd;
- 
-//security information for pipes 
-  PROCESS_INFORMATION pi;
-  HANDLE newstdin,newstdout,read_stdout,write_stdin;
- 
-//pipe handles 
-  if (IsWinNT()) 
-//initialize security descriptor (Windows NT) 
-    {
-    InitializeSecurityDescriptor(&sd,SECURITY_DESCRIPTOR_REVISION);
-    SetSecurityDescriptorDacl(&sd, true, NULL, false);
-    sa.lpSecurityDescriptor = &sd;
- 
-    }
-  else sa.lpSecurityDescriptor = NULL;
+  static char version[200];
+  char *ptr;
+  strcpy(version, LIBCURL_NAME " " LIBCURL_VERSION );
+  ptr=strchr(version, '\0');
 
-  sa.nLength = sizeof(SECURITY_ATTRIBUTES);
-  sa.bInheritHandle = true;
- 
-//allow inheritable handles 
-  if (!CreatePipe(&newstdin,&write_stdin,&sa,0)) 
-//create stdin pipe 
-    {
-    std::cerr << "CreatePipe" << std::endl;
-    return false;
- 
+#ifdef USE_SSLEAY
+
+#if (SSLEAY_VERSION_NUMBER >= 0x905000)
+  {
+    char sub[2];
+    unsigned long ssleay_value;
+    sub[1]='\0';
+    ssleay_value=SSLeay();
+    if(ssleay_value < 0x906000) {
+      ssleay_value=SSLEAY_VERSION_NUMBER;
+      sub[0]='\0';
     }
-  if (!CreatePipe(&read_stdout,&newstdout,&sa,0)) 
-//create stdout pipe 
-    {
-    std::cerr << "CreatePipe" << std::endl;
-    CloseHandle(newstdin);
-    CloseHandle(write_stdin);
-    return false;
- 
-    }
-  GetStartupInfo(&si);
- 
-//set startupinfo for the spawned process 
-  /* The dwFlags member tells CreateProcess how to make the
-   * process. STARTF_USESTDHANDLES validates the hStd*
-   * members. STARTF_USESHOWWINDOW validates the wShowWindow
-   * member. */ 
-  
-  si.dwFlags = STARTF_USESTDHANDLES|STARTF_USESHOWWINDOW;
-  si.wShowWindow = SW_HIDE;
-  si.hStdOutput = newstdout;
-  si.hStdError = newstdout;
- 
-//set the new handles for the child process si.hStdInput = newstdin;
-  char* commandAndArgs = strcpy(new char[strlen(command)+1], command);
-  if (!CreateProcess(NULL,commandAndArgs,NULL,NULL,TRUE,CREATE_NEW_CONSOLE, 
-                     NULL,dir,&si,&pi)) 
-    {
-    std::cerr << "CreateProcess failed " << commandAndArgs << std::endl;
-    CloseHandle(newstdin);
-    CloseHandle(newstdout);
-    CloseHandle(read_stdout);
-    CloseHandle(write_stdin);
-    delete [] commandAndArgs;
-    return false;
- 
-    }
-  delete [] commandAndArgs;
-  unsigned long exit=0;
- 
-//process exit code unsigned 
-  unsigned long bread;
- 
-//bytes read unsigned 
-  unsigned long avail;
- 
-//bytes available 
-  memset(buf, 0, sizeof(buf));
-  for(;;) 
-//main program loop 
-    {
-    Sleep(10);
-    //std::cout << "Check for process..." << std::endl;
-    GetExitCodeProcess(pi.hProcess,&exit);
- 
-//while the process is running 
-    if (exit != STILL_ACTIVE) break;
- 
-//check to see if there is any data to read from stdout 
-    //std::cout << "Peek for data..." << std::endl;
-    PeekNamedPipe(read_stdout,buf,1023,&bread,&avail,NULL);
-    if (bread != 0) 
-      {
-      memset(buf, 0, sizeof(buf));
-      if (avail > 1023) 
-        {
-        while (bread >= 1023) 
-          {
-	  //std::cout << "Read data..." << std::endl;
-          ReadFile(read_stdout,buf,1023,&bread,NULL);
- 
-//read the stdout pipe 
-          printf("%s",buf);
-          memset(buf, 0, sizeof(buf));
- 
-          }
- 
-        }
-      else 
-        {
-        ReadFile(read_stdout,buf,1023,&bread,NULL);
-        output += buf;
-        output += "\n";
-        if(verbose) 
-          {
-          std::cerr << verbose << " [{" << buf << "}]" 
-		    << std::endl << std::flush;
- 
-          }
- 
-        }
- 
+    else {
+      if(ssleay_value&0xff0) {
+        sub[0]=((ssleay_value>>4)&0xff) + 'a' -1;
       }
- 
+      else
+        sub[0]='\0';
     }
-  CloseHandle(pi.hThread);
-  CloseHandle(pi.hProcess);
-  CloseHandle(newstdin);
- 
-//clean stuff up 
-  CloseHandle(newstdout);
-  CloseHandle(read_stdout);
-  CloseHandle(write_stdin);
-  retVal = exit;
-  std::cerr << std::endl << "End of WindowsRunCommand(" << command << ")" << std::endl << std::flush;
-  return true;
- 
+
+    sprintf(ptr, " (OpenSSL %lx.%lx.%lx%s)",
+            (ssleay_value>>28)&0xf,
+            (ssleay_value>>20)&0xff,
+            (ssleay_value>>12)&0xff,
+            sub);
+  }
+
+#else
+#if (SSLEAY_VERSION_NUMBER >= 0x900000)
+  sprintf(ptr, " (SSL %lx.%lx.%lx)",
+          (SSLEAY_VERSION_NUMBER>>28)&0xff,
+          (SSLEAY_VERSION_NUMBER>>20)&0xff,
+          (SSLEAY_VERSION_NUMBER>>12)&0xf);
+#else
+  {
+    char sub[2];
+    sub[1]='\0';
+    if(SSLEAY_VERSION_NUMBER&0x0f) {
+      sub[0]=(SSLEAY_VERSION_NUMBER&0x0f) + 'a' -1;
+    }
+    else
+      sub[0]='\0';
+
+    sprintf(ptr, " (SSL %x.%x.%x%s)",
+            (SSLEAY_VERSION_NUMBER>>12)&0xff,
+            (SSLEAY_VERSION_NUMBER>>8)&0xf,
+            (SSLEAY_VERSION_NUMBER>>4)&0xf, sub);
+  }
+#endif
+#endif
+  ptr=strchr(ptr, '\0');
+#endif
+
+#if defined(KRB4) || defined(ENABLE_IPV6)
+  strcat(ptr, " (");
+  ptr+=2;
+#ifdef KRB4
+  sprintf(ptr, "krb4 ");
+  ptr += strlen(ptr);
+#endif
+#ifdef ENABLE_IPV6
+  sprintf(ptr, "ipv6 ");
+  ptr += strlen(ptr);
+#endif
+  sprintf(ptr, "enabled)");
+  ptr += strlen(ptr);
+#endif
+
+#ifdef USE_ZLIB
+  sprintf(ptr, " (zlib %s)", zlibVersion());
+  ptr += strlen(ptr);
+#endif
+
+  return version;
 }

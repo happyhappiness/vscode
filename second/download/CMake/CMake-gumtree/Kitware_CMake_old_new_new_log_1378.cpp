@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr after test %d.\n", n);
+fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE Fortran)\n");

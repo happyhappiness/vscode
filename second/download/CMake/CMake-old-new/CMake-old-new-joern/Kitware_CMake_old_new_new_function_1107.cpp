@@ -1,192 +1,25 @@
-int check_defines_CXX()
+void
+cmComputeLinkDepends::DisplayComponents()
 {
-  int result = 1;
-#ifndef PREPROCESS_VS6
-  if(strcmp(FILE_STRING, STRING_VALUE) != 0)
+  fprintf(stderr, "The strongly connected components are:\n");
+  std::vector<NodeList> const& components = this->CCG->GetComponents();
+  for(unsigned int c=0; c < components.size(); ++c)
     {
-    fprintf(stderr,
-            "FILE_STRING has wrong value in CXX [%s]\n", FILE_STRING);
-    result = 0;
+    fprintf(stderr, "Component (%u):\n", c);
+    NodeList const& nl = components[c];
+    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int i = *ni;
+      fprintf(stderr, "  item %d [%s]\n", i,
+              this->EntryList[i].Item.c_str());
+      }
+    NodeList const& ol = this->CCG->GetComponentGraphEdges(c);
+    for(NodeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
+      {
+      fprintf(stderr, "  followed by Component (%d)\n", *oi);
+      }
+    fprintf(stderr, "  topo order index %d\n",
+            this->ComponentOrder[c]);
     }
-  if(strcmp(TARGET_STRING, STRING_VALUE) != 0)
-    {
-    fprintf(stderr,
-            "TARGET_STRING has wrong value in CXX [%s]\n", TARGET_STRING);
-    result = 0;
-    }
-  {
-  int x = 2;
-  int y = 3;
-  if((FILE_EXPR) != (EXPR))
-    {
-    fprintf(stderr, "FILE_EXPR did not work in CXX [%s]\n",
-            TO_STRING(FILE_EXPR));
-    result = 0;
-    }
-  if((TARGET_EXPR) != (EXPR))
-    {
-    fprintf(stderr, "TARGET_EXPR did not work in CXX [%s]\n",
-            TO_STRING(FILE_EXPR));
-    result = 0;
-    }
-  }
-#endif
-#ifdef NDEBUG
-# ifdef FILE_DEF_DEBUG
-  {
-  fprintf(stderr, "FILE_DEF_DEBUG should not be defined in CXX\n");
-  result = 0;
-  }
-# endif
-# ifdef TARGET_DEF_DEBUG
-  {
-  fprintf(stderr, "TARGET_DEF_DEBUG should not be defined in CXX\n");
-  result = 0;
-  }
-# endif
-# ifdef DIRECTORY_DEF_DEBUG
-  {
-  fprintf(stderr, "DIRECTORY_DEF_DEBUG should not be defined in CXX\n");
-  result = 0;
-  }
-# endif
-# ifndef FILE_DEF_RELEASE
-#  ifndef PREPROCESS_XCODE
-  {
-  fprintf(stderr, "FILE_DEF_RELEASE should be defined in CXX\n");
-  result = 0;
-  }
-#  endif
-# endif
-# ifndef TARGET_DEF_RELEASE
-  {
-  fprintf(stderr, "TARGET_DEF_RELEASE should be defined in CXX\n");
-  result = 0;
-  }
-# endif
-# ifndef DIRECTORY_DEF_RELEASE
-  {
-  fprintf(stderr, "DIRECTORY_DEF_RELEASE should be defined in CXX\n");
-  result = 0;
-  }
-# endif
-#endif
-#ifdef PREPROCESS_DEBUG
-# ifndef FILE_DEF_DEBUG
-#  ifndef PREPROCESS_XCODE
-  {
-  fprintf(stderr, "FILE_DEF_DEBUG should be defined in CXX\n");
-  result = 0;
-  }
-#  endif
-# endif
-# ifndef TARGET_DEF_DEBUG
-  {
-  fprintf(stderr, "TARGET_DEF_DEBUG should be defined in CXX\n");
-  result = 0;
-  }
-# endif
-# ifndef DIRECTORY_DEF_DEBUG
-  {
-  fprintf(stderr, "DIRECTORY_DEF_DEBUG should be defined in CXX\n");
-  result = 0;
-  }
-# endif
-# ifdef FILE_DEF_RELEASE
-  {
-  fprintf(stderr, "FILE_DEF_RELEASE should not be defined in CXX\n");
-  result = 0;
-  }
-# endif
-# ifdef TARGET_DEF_RELEASE
-  {
-  fprintf(stderr, "TARGET_DEF_RELEASE should not be defined in CXX\n");
-  result = 0;
-  }
-# endif
-# ifdef DIRECTORY_DEF_RELEASE
-  {
-  fprintf(stderr, "DIRECTORY_DEF_RELEASE should not be defined in CXX\n");
-  result = 0;
-  }
-# endif
-#endif
-#if defined(FILE_DEF_DEBUG) || defined(TARGET_DEF_DEBUG)
-# if !defined(FILE_DEF_DEBUG) || !defined(TARGET_DEF_DEBUG)
-#  ifndef PREPROCESS_XCODE
-  {
-  fprintf(stderr,
-          "FILE_DEF_DEBUG and TARGET_DEF_DEBUG inconsistent in CXX\n");
-  result = 0;
-  }
-#  endif
-# endif
-# if defined(FILE_DEF_RELEASE) || defined(TARGET_DEF_RELEASE)
-  {
-  fprintf(stderr, "DEBUG and RELEASE definitions inconsistent in CXX\n");
-  result = 0;
-  }
-# endif
-#endif
-#if defined(FILE_DEF_RELEASE) || defined(TARGET_DEF_RELEASE)
-# if !defined(FILE_DEF_RELEASE) || !defined(TARGET_DEF_RELEASE)
-#  ifndef PREPROCESS_XCODE
-  {
-  fprintf(stderr,
-          "FILE_DEF_RELEASE and TARGET_DEF_RELEASE inconsistent in CXX\n");
-  result = 0;
-  }
-#  endif
-# endif
-# if defined(FILE_DEF_DEBUG) || defined(TARGET_DEF_DEBUG)
-  {
-  fprintf(stderr, "RELEASE and DEBUG definitions inconsistent in CXX\n");
-  result = 0;
-  }
-# endif
-#endif
-#ifndef FILE_PATH_DEF
-  {
-  fprintf(stderr, "FILE_PATH_DEF not defined in CXX\n");
-  result = 0;
-  }
-#endif
-#ifndef TARGET_PATH_DEF
-  {
-  fprintf(stderr, "TARGET_PATH_DEF not defined in CXX\n");
-  result = 0;
-  }
-#endif
-#ifndef FILE_DEF
-  {
-  fprintf(stderr, "FILE_DEF not defined in CXX\n");
-  result = 0;
-  }
-#endif
-#ifndef TARGET_DEF
-  {
-  fprintf(stderr, "TARGET_DEF not defined in CXX\n");
-  result = 0;
-  }
-#endif
-#ifndef DIRECTORY_DEF
-  {
-  fprintf(stderr, "DIRECTORY_DEF not defined in CXX\n");
-  result = 0;
-  }
-#endif
-#ifndef OLD_DEF
-  {
-  fprintf(stderr, "OLD_DEF not defined in CXX\n");
-  result = 0;
-  }
-#endif
-#if !defined(OLD_EXPR) || OLD_EXPR != 2
-  {
-  fprintf(stderr, "OLD_EXPR id not work in C [%s]\n",
-          TO_STRING(OLD_EXPR));
-  result = 0;
-  }
-#endif
-  return result;
+  fprintf(stderr, "\n");
 }

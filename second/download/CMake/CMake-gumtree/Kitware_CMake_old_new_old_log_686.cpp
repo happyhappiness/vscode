@@ -1,3 +1,2 @@
-fprintf(fout, "target_link_libraries(%s %s)\n",
-              targetName,
-              libsToLink.c_str());
+fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              cmLocalGenerator::EscapeForCMake(flags?flags:"").c_str());

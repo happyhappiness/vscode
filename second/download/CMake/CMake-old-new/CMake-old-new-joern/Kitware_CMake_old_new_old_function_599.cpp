@@ -1,20 +1,29 @@
-static int test8_grandchild(int argc, const char* argv[])
+static void
+log_gss_error(struct connectdata *conn, OM_uint32 error_status,
+              const char *prefix)
 {
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* TODO: Instead of closing pipes here leave them open to make sure
-     the grandparent can stop listening when the parent exits.  This
-     part of the test cannot be enabled until the feature is
-     implemented.  */
-  fclose(stdout);
-  fclose(stderr);
-#if defined(_WIN32)
-  Sleep(15000);
-#else
-  sleep(15);
-#endif
-  return 0;
+  OM_uint32 maj_stat, min_stat;
+  OM_uint32 msg_ctx = 0;
+  gss_buffer_desc status_string;
+  char buf[1024];
+  size_t len;
+
+  snprintf(buf, sizeof(buf), "%s", prefix);
+  len = strlen(buf);
+  do {
+    maj_stat = gss_display_status(&min_stat,
+                                  error_status,
+                                  GSS_C_MECH_CODE,
+                                  GSS_C_NO_OID,
+                                  &msg_ctx,
+                                  &status_string);
+      if(sizeof(buf) > len + status_string.length + 1) {
+        snprintf(buf + len, sizeof(buf) - len,
+                 ": %s", (char*) status_string.value);
+      len += status_string.length;
+    }
+    gss_release_buffer(&min_stat, &status_string);
+  } while(!GSS_ERROR(maj_stat) && msg_ctx != 0);
+
+  infof(conn->data, "%s\n", buf);
 }

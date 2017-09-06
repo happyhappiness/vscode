@@ -1,67 +1,33 @@
-static void print_flags(FILE *handle, unsigned long flags)
+Curl_addrinfo *Curl_ip2addr(in_addr_t num, const char *hostname, int port)
 {
-  if(flags & NTLMFLAG_NEGOTIATE_UNICODE)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_UNICODE ");
-  if(flags & NTLMFLAG_NEGOTIATE_OEM)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_OEM ");
-  if(flags & NTLMFLAG_REQUEST_TARGET)
-    fprintf(handle, "NTLMFLAG_REQUEST_TARGET ");
-  if(flags & (1<<3))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_3 ");
-  if(flags & NTLMFLAG_NEGOTIATE_SIGN)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_SIGN ");
-  if(flags & NTLMFLAG_NEGOTIATE_SEAL)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_SEAL ");
-  if(flags & NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE ");
-  if(flags & NTLMFLAG_NEGOTIATE_LM_KEY)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_LM_KEY ");
-  if(flags & NTLMFLAG_NEGOTIATE_NETWARE)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_NETWARE ");
-  if(flags & NTLMFLAG_NEGOTIATE_NTLM_KEY)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM_KEY ");
-  if(flags & (1<<10))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_10 ");
-  if(flags & (1<<11))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_11 ");
-  if(flags & NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED ");
-  if(flags & NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED ");
-  if(flags & NTLMFLAG_NEGOTIATE_LOCAL_CALL)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_LOCAL_CALL ");
-  if(flags & NTLMFLAG_NEGOTIATE_ALWAYS_SIGN)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_ALWAYS_SIGN ");
-  if(flags & NTLMFLAG_TARGET_TYPE_DOMAIN)
-    fprintf(handle, "NTLMFLAG_TARGET_TYPE_DOMAIN ");
-  if(flags & NTLMFLAG_TARGET_TYPE_SERVER)
-    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SERVER ");
-  if(flags & NTLMFLAG_TARGET_TYPE_SHARE)
-    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SHARE ");
-  if(flags & NTLMFLAG_NEGOTIATE_NTLM2_KEY)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM2_KEY ");
-  if(flags & NTLMFLAG_REQUEST_INIT_RESPONSE)
-    fprintf(handle, "NTLMFLAG_REQUEST_INIT_RESPONSE ");
-  if(flags & NTLMFLAG_REQUEST_ACCEPT_RESPONSE)
-    fprintf(handle, "NTLMFLAG_REQUEST_ACCEPT_RESPONSE ");
-  if(flags & NTLMFLAG_REQUEST_NONNT_SESSION_KEY)
-    fprintf(handle, "NTLMFLAG_REQUEST_NONNT_SESSION_KEY ");
-  if(flags & NTLMFLAG_NEGOTIATE_TARGET_INFO)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_TARGET_INFO ");
-  if(flags & (1<<24))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_24 ");
-  if(flags & (1<<25))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_25 ");
-  if(flags & (1<<26))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_26 ");
-  if(flags & (1<<27))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_27 ");
-  if(flags & (1<<28))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_28 ");
-  if(flags & NTLMFLAG_NEGOTIATE_128)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_128 ");
-  if(flags & NTLMFLAG_NEGOTIATE_KEY_EXCHANGE)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_KEY_EXCHANGE ");
-  if(flags & NTLMFLAG_NEGOTIATE_56)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_56 ");
+  Curl_addrinfo *ai;
+  struct hostent *h;
+  struct in_addr *addrentry;
+  struct namebuf buffer;
+  struct namebuf *buf = &buffer;
+
+  h = &buf->hostentry;
+  h->h_addr_list = &buf->h_addr_list[0];
+  addrentry = &buf->addrentry;
+#ifdef _CRAYC
+  /* On UNICOS, s_addr is a bit field and for some reason assigning to it
+   * doesn't work.  There must be a better fix than this ugly hack.
+   */
+  memcpy(addrentry, &num, SIZEOF_in_addr);
+#else
+  addrentry->s_addr = num;
+#endif
+  h->h_addr_list[0] = (char*)addrentry;
+  h->h_addr_list[1] = NULL;
+  h->h_addrtype = AF_INET;
+  h->h_length = sizeof(*addrentry);
+  h->h_name = &buf->h_name[0];
+  h->h_aliases = NULL;
+
+  /* Now store the dotted version of the address */
+  snprintf((char *)h->h_name, 16, "%s", hostname);
+
+  ai = Curl_he2ai(h, port);
+
+  return ai;
 }

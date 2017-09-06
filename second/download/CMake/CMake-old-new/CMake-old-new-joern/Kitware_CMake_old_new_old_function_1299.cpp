@@ -1,41 +1,55 @@
-int 
-main(int           const argc, 
-     const char ** const argv ATTR_UNUSED) {
+bool cmSystemTools::CreateTar(const char* outFileName, const std::vector<cmStdString>& files)
+{
+#if defined(CMAKE_BUILD_WITH_CMAKE)
+  TAR *t;
+  char buf[TAR_MAXPATHLEN];
+  char pathname[TAR_MAXPATHLEN];
 
-    xmlrpc_env env;
-    xmlrpc_value *result;
-    char *state_name;
-
-    if (argc-1 > 0) {
-        fprintf(stderr, "No arguments");
-        exit(0);
+  // Ok, this libtar is not const safe. for now use auto_ptr hack
+  char* realName = new char[ strlen(outFileName) + 1 ];
+  std::auto_ptr<char> realNamePtr(realName);
+  strcpy(realName, outFileName);
+  if (tar_open(&t, realName,
+      NULL,
+      O_WRONLY | O_CREAT, 0644,
+      TAR_VERBOSE
+      | 0) == -1)
+    {
+    fprintf(stderr, "tar_open(): %s\n", strerror(errno));
+    return false;
     }
 
-    /* Start up our XML-RPC client library. */
-    xmlrpc_client_init(XMLRPC_CLIENT_NO_FLAGS, NAME, VERSION);
+  std::vector<cmStdString>::const_iterator it;
+  for (it = files.begin(); it != files.end(); ++ it )
+    {
+    strncpy(pathname, it->c_str(), sizeof(pathname));
+    pathname[sizeof(pathname)-1] = 0;
+    strncpy(buf, pathname, sizeof(buf));
+    buf[sizeof(buf)-1] = 0;
+    if (tar_append_tree(t, buf, pathname) != 0)
+      {
+      fprintf(stderr,
+        "tar_append_tree(\"%s\", \"%s\"): %s\n", buf,
+        pathname, strerror(errno));
+      tar_close(t);
+      return false;
+      }
+    }
 
-    /* Initialize our error-handling environment. */
-    xmlrpc_env_init(&env);
+  if (tar_append_eof(t) != 0)
+    {
+    fprintf(stderr, "tar_append_eof(): %s\n", strerror(errno));
+    tar_close(t);
+    return false;
+    }
 
-    /* Call the famous server at UserLand. */
-    result = xmlrpc_client_call(&env, "http://betty.userland.com/RPC2",
-        "examples.getStateName",
-        "(i)", (xmlrpc_int32) 41);
-    die_if_fault_occurred(&env);
-    
-    /* Get our state name and print it out. */
-    xmlrpc_parse_value(&env, result, "s", &state_name);
-    die_if_fault_occurred(&env);
-    printf("%s\n", state_name);
-    
-    /* Dispose of our result value. */
-    xmlrpc_DECREF(result);
-
-    /* Clean up our error-handling environment. */
-    xmlrpc_env_clean(&env);
-  
-    /* Shutdown our XML-RPC client library. */
-    xmlrpc_client_cleanup();
-
-    return 0;
+  if (tar_close(t) != 0)
+    {
+    fprintf(stderr, "tar_close(): %s\n", strerror(errno));
+    return false;
+    }
+  return true;
+#else
+  return false;
+#endif
 }

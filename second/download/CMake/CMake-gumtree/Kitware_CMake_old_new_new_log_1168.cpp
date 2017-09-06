@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_REQUEST_TARGET ");
+fprintf(ofp, "#endif\n");

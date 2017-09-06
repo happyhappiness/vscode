@@ -1,13 +1,23 @@
-static int64_t
-client_seek_proxy(struct archive_read_filter *self, int64_t offset, int whence)
+static int
+unknowntag_start(struct archive_read *a, struct xar *xar, const char *name)
 {
-	/* DO NOT use the skipper here!  If we transparently handled
-	 * forward seek here by using the skipper, that will break
-	 * other libarchive code that assumes a successful forward
-	 * seek means it can also seek backwards.
-	 */
-	if (self->archive->client.seeker == NULL)
-		return (ARCHIVE_FAILED);
-	return (self->archive->client.seeker)(&self->archive->archive,
-	    self->data, offset, whence);
+	struct unknown_tag *tag;
+
+#if DEBUG
+	fprintf(stderr, "unknowntag_start:%s\n", name);
+#endif
+	tag = malloc(sizeof(*tag));
+	if (tag == NULL) {
+		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+	tag->next = xar->unknowntags;
+	archive_string_init(&(tag->name));
+	archive_strcpy(&(tag->name), name);
+	if (xar->unknowntags == NULL) {
+		xar->xmlsts_unknown = xar->xmlsts;
+		xar->xmlsts = UNKNOWN;
+	}
+	xar->unknowntags = tag;
+	return (ARCHIVE_OK);
 }

@@ -1,1 +1,1 @@
-sprintf(win9x, "%s%s", tempDir, fwdName);
+fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE %s)\n", lang);

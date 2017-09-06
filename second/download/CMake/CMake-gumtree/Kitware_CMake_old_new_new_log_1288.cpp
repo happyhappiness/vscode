@@ -1,2 +1,2 @@
-fprintf(stdout, "Poll count reached limit %d.\n",
-                    MAXPOLL);
+printf("tar_extract_file(): calling libtar_hash_add(): key=\"%s\", "
+         "value=\"%s\"\n", pathname, realname);

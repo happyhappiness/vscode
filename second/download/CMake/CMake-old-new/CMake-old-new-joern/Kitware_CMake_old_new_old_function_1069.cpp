@@ -1,85 +1,21 @@
-bool cmFindPackageCommand::CheckVersionFile(std::string const& version_file)
+void
+cmComputeTargetDepends::DisplayGraph(Graph const& graph, const char* name)
 {
-  // The version file will be loaded in an isolated scope.
-  this->Makefile->PushScope();
-
-  // Clear the output variables.
-  this->Makefile->RemoveDefinition("PACKAGE_VERSION");
-  this->Makefile->RemoveDefinition("PACKAGE_VERSION_COMPATIBLE");
-  this->Makefile->RemoveDefinition("PACKAGE_VERSION_EXACT");
-
-  // Set the input variables.
-  this->Makefile->AddDefinition("PACKAGE_FIND_NAME", this->Name.c_str());
-  this->Makefile->AddDefinition("PACKAGE_FIND_VERSION",
-                                this->Version.c_str());
-  if(this->VersionCount >= 3)
+  fprintf(stderr, "The %s target dependency graph is:\n", name);
+  int n = static_cast<int>(graph.size());
+  for(int depender_index = 0; depender_index < n; ++depender_index)
     {
-    char buf[64];
-    sprintf(buf, "%u", this->VersionPatch);
-    this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_PATCH", buf);
-    }
-  else
-    {
-    this->Makefile->RemoveDefinition("PACKAGE_FIND_VERSION_PATCH");
-    }
-  if(this->VersionCount >= 2)
-    {
-    char buf[64];
-    sprintf(buf, "%u", this->VersionMinor);
-    this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_MINOR", buf);
-    }
-  else
-    {
-    this->Makefile->RemoveDefinition("PACKAGE_FIND_VERSION_MINOR");
-    }
-  if(this->VersionCount >= 1)
-    {
-    char buf[64];
-    sprintf(buf, "%u", this->VersionMajor);
-    this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_MAJOR", buf);
-    }
-  else
-    {
-    this->Makefile->RemoveDefinition("PACKAGE_FIND_VERSION_MAJOR");
-    }
-
-  // Load the version check file.
-  bool found = false;
-  if(this->ReadListFile(version_file.c_str()))
-    {
-    // Check the output variables.
-    found = this->Makefile->IsOn("PACKAGE_VERSION_EXACT");
-    if(!found && !this->VersionExact)
+    NodeList const& nl = graph[depender_index];
+    cmTarget* depender = this->Targets[depender_index];
+    fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());
+    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
       {
-      found = this->Makefile->IsOn("PACKAGE_VERSION_COMPATIBLE");
-      }
-    if(found || this->Version.empty())
-      {
-      // Get the version found.
-      this->VersionFound =
-        this->Makefile->GetSafeDefinition("PACKAGE_VERSION");
-
-      // Try to parse the version number and store the results that were
-      // successfully parsed.
-      unsigned int parsed_major;
-      unsigned int parsed_minor;
-      unsigned int parsed_patch;
-      this->VersionFoundCount =
-        sscanf(this->VersionFound.c_str(), "%u.%u.%u",
-               &parsed_major, &parsed_minor, &parsed_patch);
-      switch(this->VersionFoundCount)
-        {
-        case 3: this->VersionFoundPatch = parsed_patch; // no break!
-        case 2: this->VersionFoundMinor = parsed_minor; // no break!
-        case 1: this->VersionFoundMajor = parsed_major; // no break!
-        default: break;
-        }
+      int dependee_index = *ni;
+      cmTarget* dependee = this->Targets[dependee_index];
+      fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
+              dependee->GetName());
       }
     }
-
-  // Restore the original scope.
-  this->Makefile->PopScope();
-
-  // Succeed if the version was found or no version was requested.
-  return found || this->Version.empty();
+  fprintf(stderr, "\n");
 }

@@ -1,3 +1,1 @@
-snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
+yy_fatal_error( "cmCommandArgument_yyset_lineno called with no buffer" , yyscanner);

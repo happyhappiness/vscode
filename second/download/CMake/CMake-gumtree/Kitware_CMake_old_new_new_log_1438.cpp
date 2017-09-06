@@ -1,1 +1,2 @@
-snprintf(sbuf, sizeof(sbuf), "%d", port);
+log << FIXNUM(cper) << "</PercentCoverage>\n"
+      << "\t\t<CoverageMetric>";;

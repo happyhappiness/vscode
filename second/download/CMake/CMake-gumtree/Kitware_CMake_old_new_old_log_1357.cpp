@@ -1,1 +1,1 @@
-fprintf(stderr,"Interrupt");
+snprintf(sbuf, sizeof(sbuf), "?");

@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr before grandchild test.\n");
+sprintf(num,"%d",static_cast<int>(this->Makefiles.size()));

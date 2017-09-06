@@ -1,171 +1,109 @@
-int cmTryCompileCommand::CoreTryCompileCode(
-  cmMakefile *mf, std::vector<std::string> const& argv, bool clean)
+void cmCTest::Initialize()
 {
-  // which signature were we called with ?
-  bool srcFileSignature = false;
-  unsigned int i;
-  
-  // where will the binaries be stored
-  const char* binaryDirectory = argv[1].c_str();
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  const char* targetName = 0;
-  std::string tmpString;
-
-  // do we have a srcfile signature
-  if (argv.size() == 3 || argv[3] == "CMAKE_FLAGS" || argv[3] == "COMPILE_DEFINITIONS" ||
-      argv[3] == "OUTPUT_VARIABLE")
+  m_ToplevelPath = cmSystemTools::GetCurrentWorkingDirectory();
+  // parse the dart test file
+  std::ifstream fin("DartConfiguration.tcl");
+  if(!fin)
     {
-    srcFileSignature = true;
+    return;
     }
 
-  // look for CMAKE_FLAGS and store them
-  std::vector<std::string> cmakeFlags;
-  for (i = 3; i < argv.size(); ++i)
+  char buffer[1024];
+  while ( fin )
     {
-    if (argv[i] == "CMAKE_FLAGS")
+    buffer[0] = 0;
+    fin.getline(buffer, 1023);
+    buffer[1023] = 0;
+    std::string line = ::CleanString(buffer);
+    if(line.size() == 0)
       {
-      for (; i < argv.size() && argv[i] != "COMPILE_DEFINITIONS" && 
-             argv[i] != "OUTPUT_VARIABLE"; 
-           ++i)
+      continue;
+      }
+    while ( fin && (line[line.size()-1] == '\\') )
+      {
+      line = line.substr(0, line.size()-1);
+      buffer[0] = 0;
+      fin.getline(buffer, 1023);
+      buffer[1023] = 0;
+      line += ::CleanString(buffer);
+      }
+    if ( line[0] == '#' )
+      {
+      continue;
+      }
+    std::string::size_type cpos = line.find_first_of(":");
+    if ( cpos == line.npos )
+      {
+      continue;
+      }
+    std::string key = line.substr(0, cpos);
+    std::string value = ::CleanString(line.substr(cpos+1, line.npos));
+    m_DartConfiguration[key] = value;
+    }
+  fin.close();
+  if ( m_DartMode )
+    {
+    std::string testingDir = m_ToplevelPath + "/Testing/CDart";
+    if ( cmSystemTools::FileExists(testingDir.c_str()) )
+      {
+      if ( !cmSystemTools::FileIsDirectory(testingDir.c_str()) )
         {
-        cmakeFlags.push_back(argv[i]);
+        std::cerr << "File " << testingDir << " is in the place of the testing directory"
+                  << std::endl;
+        return;
         }
-      break;
       }
-    }
-
-  // look for OUTPUT_VARIABLE and store them
-  std::string outputVariable;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "OUTPUT_VARIABLE")
+    else
       {
-      if ( argv.size() <= (i+1) )
+      if ( !cmSystemTools::MakeDirectory(testingDir.c_str()) )
         {
-        cmSystemTools::Error(
-          "OUTPUT_VARIABLE specified but there is no variable");
-        return -1;
+        std::cerr << "Cannot create directory " << testingDir
+                  << std::endl;
+        return;
         }
-      outputVariable = argv[i+1];
-      break;
       }
-    }
-
-  // look for COMPILE_DEFINITIONS and store them
-  std::vector<std::string> compileFlags;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "COMPILE_DEFINITIONS")
+    std::string tagfile = testingDir + "/TAG";
+    std::ifstream tfin(tagfile.c_str());
+    std::string tag;
+    time_t tctime = time(0);
+    struct tm *lctime = gmtime(&tctime);
+    if ( tfin )
       {
-      // only valid for srcfile signatures
-      if (!srcFileSignature)
+      tfin >> tag;
+      tfin.close();
+      int year = 0;
+      int mon = 0;
+      int day = 0;
+      int hour = 0;
+      int min = 0;
+      sscanf(tag.c_str(), "%04d%02d%02d-%02d%02d",
+             &year, &mon, &day, &hour, &min);
+      if ( year != lctime->tm_year + 1900 ||
+           mon != lctime->tm_mon ||
+           day != lctime->tm_mday )
         {
-        cmSystemTools::Error(
-          "COMPILE_FLAGS specified on a srcdir type TRY_COMPILE");
-        return -1;
+        tag = "";
         }
-      for (i = i + 1; i < argv.size() && argv[i] != "CMAKE_FLAGS" && 
-             argv[i] != "OUTPUT_VARIABLE"; 
-           ++i)
+
+      }
+    if ( tag.size() == 0 )
+      {
+      char datestring[100];
+      sprintf(datestring, "%04d%02d%02d-%02d%02d",
+              lctime->tm_year + 1900,
+              lctime->tm_mon,
+              lctime->tm_mday,
+              lctime->tm_hour,
+              lctime->tm_min);
+      tag = datestring;
+      std::ofstream ofs(tagfile.c_str());
+      if ( ofs )
         {
-        compileFlags.push_back(argv[i]);
+        ofs << tag << std::endl;
         }
-      break;
+      ofs.close();
+      std::cout << "Create new tag: " << tag << std::endl;
       }
+    m_CurrentTag = tag;
     }
-
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (srcFileSignature)
-    {
-    tmpString = argv[1] + "/CMakeTmp";
-    binaryDirectory = tmpString.c_str();
-    }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(binaryDirectory);
-  
-  // do not allow recursive try Compiles
-  if (!strcmp(binaryDirectory,mf->GetHomeOutputDirectory()))
-    {
-    cmSystemTools::Error("Attempt at a recursive or nested TRY_COMPILE", 
-                         binaryDirectory);
-    return -1;
-    }
-  
-  std::string outFileName = tmpString + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (srcFileSignature)
-    {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = tmpString + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile.c_str());
-    
-    // we need to create a directory and CMakeList file etc...
-    // first create the directories
-    sourceDirectory = binaryDirectory;
-
-    // now create a CMakeList.txt file in that directory
-    FILE *fout = fopen(outFileName.c_str(),"w");
-    if (!fout)
-      {
-      cmSystemTools::Error("Failed to create CMakeList file for ", 
-                           outFileName.c_str());
-      return -1;
-      }
-    fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE)\n");
-    fprintf(fout, "IF (CMAKE_ANSI_CXXFLAGS)\n");
-    fprintf(fout, "  SET(CMAKE_CXX_FLAGS \"${CMAKE_CXX_FLAGS} ${CMAKE_ANSI_CXXFLAGS}\")\n");
-    fprintf(fout, "  SET(CMAKE_C_FLAGS \"${CMAKE_C_FLAGS} ${CMAKE_ANSI_CFLAGS}\")\n");
-    fprintf(fout, "ENDIF (CMAKE_ANSI_CXXFLAGS)\n");
-    // handle any compile flags we need to pass on
-    if (compileFlags.size())
-      {
-      fprintf(fout, "ADD_DEFINITIONS( ");
-      for (i = 0; i < compileFlags.size(); ++i)
-        {
-        fprintf(fout,"%s ",compileFlags[i].c_str());
-        }
-      fprintf(fout, ")\n");
-      }
-    
-    fprintf(fout, "ADD_EXECUTABLE(cmTryCompileExec \"%s\")\n",argv[2].c_str());
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
-    targetName = "cmTryCompileExec";
-    }
-  // else the srcdir bindir project target signature
-  else
-    {
-    projectName = argv[3].c_str();
-    
-    if (argv.size() == 5)
-      {
-      targetName = argv[4].c_str();
-      }
-    }
-  
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = mf->TryCompile(sourceDirectory, binaryDirectory,
-                           projectName, targetName, &cmakeFlags, &output);
-  
-  // set the result var to the return value to indicate success or failure
-  mf->AddCacheDefinition(argv[0].c_str(), (res == 0 ? "TRUE" : "FALSE"),
-                         "Result of TRY_COMPILE",
-                         cmCacheManager::INTERNAL);
-
-  if ( outputVariable.size() > 0 )
-    {
-    mf->AddDefinition(outputVariable.c_str(), output.c_str());
-    }
-  
-  // if They specified clean then we clean up what we can
-  if (srcFileSignature && clean)
-    {    
-    cmListFileCache::GetInstance()->FlushCache(outFileName.c_str());
-    cmTryCompileCommand::CleanupFiles(binaryDirectory);
-    }
-  
-  return res;
 }

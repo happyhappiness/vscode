@@ -1,41 +1,98 @@
 static int
-setup_current_filesystem(struct archive_read_disk *a)
+setup_mac_metadata(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-	struct tree *t = a->tree;
-	wchar_t vol[256];
-	wchar_t *path;
+	int tempfd = -1;
+	int copyfile_flags = COPYFILE_NOFOLLOW | COPYFILE_ACL | COPYFILE_XATTR;
+	struct stat copyfile_stat;
+	int ret = ARCHIVE_OK;
+	void *buff = NULL;
+	int have_attrs;
+	const char *name, *tempdir;
+	struct archive_string tempfile;
 
-	t->current_filesystem->synthetic = -1;/* Not supported */
-	path = safe_path_for_statfs(t);
-	if (!GetVolumePathNameW(path, vol, sizeof(vol)/sizeof(vol[0]))) {
-		free(path);
-		t->current_filesystem->remote = -1;
-		t->current_filesystem->bytesPerSector = 0;
+	(void)fd; /* UNUSED */
+	name = archive_entry_sourcepath(entry);
+	if (name == NULL)
+		name = archive_entry_pathname(entry);
+	if (name == NULL) {
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-                        "GetVolumePathName failed: %d", (int)GetLastError());
-		return (ARCHIVE_FAILED);
-	}
-	free(path);
-	switch (GetDriveTypeW(vol)) {
-	case DRIVE_UNKNOWN:
-	case DRIVE_NO_ROOT_DIR:
-		t->current_filesystem->remote = -1;
-		break;
-	case DRIVE_REMOTE:
-		t->current_filesystem->remote = 1;
-		break;
-	default:
-		t->current_filesystem->remote = 0;
-		break;
+		    "Can't open file to read extended attributes: No name");
+		return (ARCHIVE_WARN);
 	}
 
-	if (!GetDiskFreeSpaceW(vol, NULL,
-	    &(t->current_filesystem->bytesPerSector), NULL, NULL)) {
-		t->current_filesystem->bytesPerSector = 0;
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-                        "GetDiskFreeSpace failed: %d", (int)GetLastError());
-		return (ARCHIVE_FAILED);
+	if (a->tree != NULL) {
+		if (a->tree_enter_working_dir(a->tree) != 0) {
+			archive_set_error(&a->archive, errno,
+				    "Couldn't change dir");
+				return (ARCHIVE_FAILED);
+		}
 	}
 
-	return (ARCHIVE_OK);
+	/* Short-circuit if there's nothing to do. */
+	have_attrs = copyfile(name, NULL, 0, copyfile_flags | COPYFILE_CHECK);
+	if (have_attrs == -1) {
+		archive_set_error(&a->archive, errno,
+			"Could not check extended attributes");
+		return (ARCHIVE_WARN);
+	}
+	if (have_attrs == 0)
+		return (ARCHIVE_OK);
+
+	tempdir = NULL;
+	if (issetugid() == 0)
+		tempdir = getenv("TMPDIR");
+	if (tempdir == NULL)
+		tempdir = _PATH_TMP;
+	archive_string_init(&tempfile);
+	archive_strcpy(&tempfile, tempdir);
+	archive_strcat(&tempfile, "tar.md.XXXXXX");
+	tempfd = mkstemp(tempfile.s);
+	if (tempfd < 0) {
+		archive_set_error(&a->archive, errno,
+		    "Could not open extended attribute file");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	__archive_ensure_cloexec_flag(tempfd);
+
+	/* XXX I wish copyfile() could pack directly to a memory
+	 * buffer; that would avoid the temp file here.  For that
+	 * matter, it would be nice if fcopyfile() actually worked,
+	 * that would reduce the many open/close races here. */
+	if (copyfile(name, tempfile.s, 0, copyfile_flags | COPYFILE_PACK)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not pack extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	if (fstat(tempfd, &copyfile_stat)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not check size of extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	buff = malloc(copyfile_stat.st_size);
+	if (buff == NULL) {
+		archive_set_error(&a->archive, errno,
+		    "Could not allocate memory for extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	if (copyfile_stat.st_size != read(tempfd, buff, copyfile_stat.st_size)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not read extended attributes into memory");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	archive_entry_copy_mac_metadata(entry, buff, copyfile_stat.st_size);
+
+cleanup:
+	if (tempfd >= 0) {
+		close(tempfd);
+		unlink(tempfile.s);
+	}
+	archive_string_free(&tempfile);
+	free(buff);
+	return (ret);
 }

@@ -1,1 +1,2 @@
-yy_fatal_error( "cmCommandArgument_yyset_lineno called with no buffer" , yyscanner);
+fprintf(stderr,
+		    "Extra data field contents do not match reported size!\n");

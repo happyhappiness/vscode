@@ -1,84 +1,71 @@
-void cmGlobalGenerator::Configure()
+static int
+init_traditional_PKWARE_decryption(struct archive_read *a)
 {
-  this->FirstTimeProgress = 0.0f;
-  this->ClearGeneratorMembers();
+	struct zip *zip = (struct zip *)(a->format->data);
+	const void *p;
+	int retry;
+	int r;
 
-  // start with this directory
-  cmLocalGenerator *lg = this->MakeLocalGenerator();
-  this->Makefiles.push_back(lg->GetMakefile());
-  this->LocalGenerators.push_back(lg);
+	if (zip->tctx_valid)
+		return (ARCHIVE_OK);
 
-  // set the Start directories
-  lg->GetMakefile()->SetCurrentSourceDirectory
-    (this->CMakeInstance->GetHomeDirectory());
-  lg->GetMakefile()->SetCurrentBinaryDirectory
-    (this->CMakeInstance->GetHomeOutputDirectory());
+	/*
+	   Read the 12 bytes encryption header stored at
+	   the start of the data area.
+	 */
+#define ENC_HEADER_SIZE	12
+	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
+	    && zip->entry_bytes_remaining < ENC_HEADER_SIZE) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated Zip encrypted body: only %jd bytes available",
+		    (intmax_t)zip->entry_bytes_remaining);
+		return (ARCHIVE_FATAL);
+	}
 
-  this->BinaryDirectories.insert(
-      this->CMakeInstance->GetHomeOutputDirectory());
+	p = __archive_read_ahead(a, ENC_HEADER_SIZE, NULL);
+	if (p == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file data");
+		return (ARCHIVE_FATAL);
+	}
 
-  // now do it
-  lg->GetMakefile()->Configure();
-  lg->GetMakefile()->EnforceDirectoryLevelRules();
+	for (retry = 0;; retry++) {
+		const char *passphrase;
+		uint8_t crcchk;
 
-  // update the cache entry for the number of local generators, this is used
-  // for progress
-  char num[100];
-  sprintf(num,"%d",static_cast<int>(this->Makefiles.size()));
-  this->GetCMakeInstance()->AddCacheEntry
-    ("CMAKE_NUMBER_OF_MAKEFILES", num,
-     "number of local generators", cmState::INTERNAL);
+		passphrase = __archive_read_next_passphrase(a);
+		if (passphrase == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    (retry > 0)?
+				"Incorrect passphrase":
+				"Passphrase required for this entry");
+			return (ARCHIVE_FAILED);
+		}
 
-  // check for link libraries and include directories containing "NOTFOUND"
-  // and for infinite loops
-  this->CheckLocalGenerators();
+		/*
+		 * Initialize ctx for Traditional PKWARE Decyption.
+		 */
+		r = trad_enc_init(&zip->tctx, passphrase, strlen(passphrase),
+			p, ENC_HEADER_SIZE, &crcchk);
+		if (r == 0 && crcchk == zip->entry->decdat)
+			break;/* The passphrase is OK. */
+		if (retry > 10000) {
+			/* Avoid infinity loop. */
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Too many incorrect passphrases");
+			return (ARCHIVE_FAILED);
+		}
+	}
 
-  // at this point this->LocalGenerators has been filled,
-  // so create the map from project name to vector of local generators
-  this->FillProjectMap();
+	__archive_read_consume(a, ENC_HEADER_SIZE);
+	zip->tctx_valid = 1;
+	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)) {
+	    zip->entry_bytes_remaining -= ENC_HEADER_SIZE;
+	}
+	/*zip->entry_uncompressed_bytes_read += ENC_HEADER_SIZE;*/
+	zip->entry_compressed_bytes_read += ENC_HEADER_SIZE;
+	zip->decrypted_bytes_remaining = 0;
 
-  if ( this->CMakeInstance->GetWorkingMode() == cmake::NORMAL_MODE)
-    {
-    std::ostringstream msg;
-    if(cmSystemTools::GetErrorOccuredFlag())
-      {
-      msg << "Configuring incomplete, errors occurred!";
-      const char* logs[] = {"CMakeOutput.log", "CMakeError.log", 0};
-      for(const char** log = logs; *log; ++log)
-        {
-        std::string f = this->CMakeInstance->GetHomeOutputDirectory();
-        f += this->CMakeInstance->GetCMakeFilesDirectory();
-        f += "/";
-        f += *log;
-        if(cmSystemTools::FileExists(f.c_str()))
-          {
-          msg << "\nSee also \"" << f << "\".";
-          }
-        }
-      }
-    else
-      {
-      msg << "Configuring done";
-      }
-    this->CMakeInstance->UpdateProgress(msg.str().c_str(), -1);
-    }
-
-  unsigned int i;
-
-  // Put a copy of each global target in every directory.
-  cmTargets globalTargets;
-  this->CreateDefaultGlobalTargets(&globalTargets);
-
-  for (i = 0; i < this->Makefiles.size(); ++i)
-    {
-    cmMakefile* mf = this->Makefiles[i];
-    cmTargets* targets = &(mf->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = globalTargets.begin(); tit != globalTargets.end(); ++ tit )
-      {
-      (*targets)[tit->first] = tit->second;
-      (*targets)[tit->first].SetMakefile(mf);
-      }
-    }
-
+	return (zip_alloc_decryption_buffer(a));
+#undef ENC_HEADER_SIZE
 }

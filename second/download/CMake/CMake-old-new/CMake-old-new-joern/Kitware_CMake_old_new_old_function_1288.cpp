@@ -1,95 +1,63 @@
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int output, int delay, double timeout)
+int
+tar_extract_file(TAR *t, char *realname)
 {
-  int result = 0;
-  char* data = 0;
-  int length = 0;
-  kwsysProcess* kp = kwsysProcess_New();
-  if(!kp)
-    {
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
-    }
-  
-  kwsysProcess_SetCommand(kp, cmd);
-  kwsysProcess_SetTimeout(kp, timeout);
-  if(share)
-    {
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
-    }
-  kwsysProcess_Execute(kp);
+  int i;
+  linkname_t *lnp;
 
-  if(!share)
-    {
-    while(kwsysProcess_WaitForData(kp, &data, &length, 0))
-      {
-      if(output)
-        {
-        fwrite(data, 1, length, stdout);
-        fflush(stdout);
-        }
-      if(delay)
-        {
-        /* Purposely sleeping only on Win32 to let pipe fill up.  */
-#if defined(_WIN32)
-        Sleep(100);
+  if (t->options & TAR_NOOVERWRITE)
+  {
+    struct stat s;
+
+#ifdef WIN32
+    if (stat(realname, &s) == 0 || errno != ENOENT)
+#else
+    if (lstat(realname, &s) == 0 || errno != ENOENT)
 #endif
-        }
-      }
-    }
-  
-  kwsysProcess_WaitForExit(kp, 0);
-  
-  switch (kwsysProcess_GetState(kp))
     {
-    case kwsysProcess_State_Starting:
-      printf("No process has been executed.\n"); break;
-    case kwsysProcess_State_Executing:
-      printf("The process is still executing.\n"); break;
-    case kwsysProcess_State_Expired:
-      printf("Child was killed when timeout expired.\n"); break;
-    case kwsysProcess_State_Exited:
-      printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Killed:
-      printf("Child was killed by parent.\n"); break;
-    case kwsysProcess_State_Exception:
-      printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Error:
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
-  
-  if(result)
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
-      {
-      fprintf(stderr, "Mismatch in exit exception.  "
-              "Should have been %d, was %d.\n",
-              exception, kwsysProcess_GetExitException(kp));
-      }
-    if(value != kwsysProcess_GetExitValue(kp))
-      {
-      fprintf(stderr, "Mismatch in exit value.  "
-              "Should have been %d, was %d.\n",
-              value, kwsysProcess_GetExitValue(kp));
-      }
+      errno = EEXIST;
+      return -1;
     }
-  
-  if(kwsysProcess_GetState(kp) != state)
-    {
-    fprintf(stderr, "Mismatch in state.  "
-            "Should have been %d, was %d.\n",
-            state, kwsysProcess_GetState(kp));
-    result = 1;
-    }
-  
-  kwsysProcess_Delete(kp);
-  return result;
+  }
+
+  if (TH_ISDIR(t))
+  {
+    i = tar_extract_dir(t, realname);
+    if (i == 1)
+      i = 0;
+  }
+#ifndef _WIN32
+  else if (TH_ISLNK(t))
+    i = tar_extract_hardlink(t, realname);
+  else if (TH_ISSYM(t))
+    i = tar_extract_symlink(t, realname);
+  else if (TH_ISCHR(t))
+    i = tar_extract_chardev(t, realname);
+  else if (TH_ISBLK(t))
+    i = tar_extract_blockdev(t, realname);
+  else if (TH_ISFIFO(t))
+    i = tar_extract_fifo(t, realname);
+#endif
+  else /* if (TH_ISREG(t)) */
+    i = tar_extract_regfile(t, realname);
+
+  if (i != 0)
+    return i;
+
+  i = tar_set_file_perms(t, realname);
+  if (i != 0)
+    return i;
+
+  lnp = (linkname_t *)calloc(1, sizeof(linkname_t));
+  if (lnp == NULL)
+    return -1;
+  strlcpy(lnp->ln_save, th_get_pathname(t), sizeof(lnp->ln_save));
+  strlcpy(lnp->ln_real, realname, sizeof(lnp->ln_real));
+#ifdef DEBUG
+  printf("tar_extract_file(): calling libtar_hash_add(): key=\"%s\", "
+         "value=\"%s\"\n", th_get_pathname(t), realname);
+#endif
+  if (libtar_hash_add(t->h, lnp) != 0)
+    return -1;
+
+  return 0;
 }

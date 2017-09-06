@@ -1,1 +1,1 @@
-strncpy(buffer, strerror(errno), KWSYSPE_PIPE_BUFFER_SIZE);
+fprintf(stderr, "Output on stderr before recursive test.\n");

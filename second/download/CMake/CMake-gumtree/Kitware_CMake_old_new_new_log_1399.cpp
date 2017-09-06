@@ -1,1 +1,1 @@
-sprintf(buffer, "%c", tolower(ch));
+fprintf(stderr,"%3d/%3d Testing %-30s\n", cnt, tmsize, testname.c_str());

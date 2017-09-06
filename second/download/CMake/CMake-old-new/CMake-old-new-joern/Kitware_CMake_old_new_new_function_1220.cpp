@@ -1,39 +1,67 @@
-int cmcompress_compress_start(struct cmcompress_stream* cdata)
+static void print_flags(FILE *handle, unsigned long flags)
 {
-#ifndef COMPATIBLE
-  if (cdata->nomagic == 0)
-    {
-    char headLast = (char)(cdata->maxbits | cdata->block_compress);
-    cdata->output_stream(cdata, (const char*)magic_header, 2);
-    cdata->output_stream(cdata, &headLast, 1);
-    if(ferror(stdout))
-      {
-      printf("Error...\n");
-      }
-    }
-#endif /* COMPATIBLE */
-
-  cdata->offset = 0;
-  cdata->bytes_out = 3;    /* includes 3-byte header mojo */
-  cdata->out_count = 0;
-  cdata->clear_flg = 0;
-  cdata->ratio = 0;
-  cdata->in_count = 1;
-  cdata->checkpoint = CHECK_GAP;
-  cdata->maxcode = MAXCODE(cdata->n_bits = INIT_BITS);
-  cdata->free_ent = ((cdata->block_compress) ? FIRST : 256 );
-
-  cdata->first_pass = 1;
-
-  cdata->hshift = 0;
-  for ( cdata->fcode = (long) cdata->hsize;  cdata->fcode < 65536L; cdata->fcode *= 2L )
-    {
-    cdata->hshift++;
-    }
-  cdata->hshift = 8 - cdata->hshift;    /* set hash code range bound */
-
-  cdata->hsize_reg = cdata->hsize;
-  cl_hash(cdata, (count_int) cdata->hsize_reg);    /* clear hash table */
-
-  return 1;
+  if(flags & NTLMFLAG_NEGOTIATE_UNICODE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_UNICODE ");
+  if(flags & NTLMFLAG_NEGOTIATE_OEM)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_OEM ");
+  if(flags & NTLMFLAG_REQUEST_TARGET)
+    fprintf(handle, "NTLMFLAG_REQUEST_TARGET ");
+  if(flags & (1<<3))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_3 ");
+  if(flags & NTLMFLAG_NEGOTIATE_SIGN)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_SIGN ");
+  if(flags & NTLMFLAG_NEGOTIATE_SEAL)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_SEAL ");
+  if(flags & NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE ");
+  if(flags & NTLMFLAG_NEGOTIATE_LM_KEY)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_LM_KEY ");
+  if(flags & NTLMFLAG_NEGOTIATE_NETWARE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_NETWARE ");
+  if(flags & NTLMFLAG_NEGOTIATE_NTLM_KEY)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM_KEY ");
+  if(flags & (1<<10))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_10 ");
+  if(flags & (1<<11))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_11 ");
+  if(flags & NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED ");
+  if(flags & NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED ");
+  if(flags & NTLMFLAG_NEGOTIATE_LOCAL_CALL)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_LOCAL_CALL ");
+  if(flags & NTLMFLAG_NEGOTIATE_ALWAYS_SIGN)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_ALWAYS_SIGN ");
+  if(flags & NTLMFLAG_TARGET_TYPE_DOMAIN)
+    fprintf(handle, "NTLMFLAG_TARGET_TYPE_DOMAIN ");
+  if(flags & NTLMFLAG_TARGET_TYPE_SERVER)
+    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SERVER ");
+  if(flags & NTLMFLAG_TARGET_TYPE_SHARE)
+    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SHARE ");
+  if(flags & NTLMFLAG_NEGOTIATE_NTLM2_KEY)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM2_KEY ");
+  if(flags & NTLMFLAG_REQUEST_INIT_RESPONSE)
+    fprintf(handle, "NTLMFLAG_REQUEST_INIT_RESPONSE ");
+  if(flags & NTLMFLAG_REQUEST_ACCEPT_RESPONSE)
+    fprintf(handle, "NTLMFLAG_REQUEST_ACCEPT_RESPONSE ");
+  if(flags & NTLMFLAG_REQUEST_NONNT_SESSION_KEY)
+    fprintf(handle, "NTLMFLAG_REQUEST_NONNT_SESSION_KEY ");
+  if(flags & NTLMFLAG_NEGOTIATE_TARGET_INFO)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_TARGET_INFO ");
+  if(flags & (1<<24))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_24 ");
+  if(flags & (1<<25))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_25 ");
+  if(flags & (1<<26))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_26 ");
+  if(flags & (1<<27))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_27 ");
+  if(flags & (1<<28))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_28 ");
+  if(flags & NTLMFLAG_NEGOTIATE_128)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_128 ");
+  if(flags & NTLMFLAG_NEGOTIATE_KEY_EXCHANGE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_KEY_EXCHANGE ");
+  if(flags & NTLMFLAG_NEGOTIATE_56)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_56 ");
 }

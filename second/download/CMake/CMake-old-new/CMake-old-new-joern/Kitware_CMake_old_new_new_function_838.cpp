@@ -1,433 +1,144 @@
-static int
-read_header(struct archive_read *a, struct archive_entry *entry,
-            char head_type)
+int
+archive_read_disk_entry_from_file(struct archive *_a,
+    struct archive_entry *entry, int fd, const struct stat *st)
 {
-  const void *h;
-  const char *p, *endp;
-  struct rar *rar;
-  struct rar_header rar_header;
-  struct rar_file_header file_header;
-  int64_t header_size;
-  unsigned filename_size, end;
-  char *filename;
-  char *strp;
-  char packed_size[8];
-  char unp_size[8];
-  int ttime;
-  struct archive_string_conv *sconv, *fn_sconv;
-  unsigned long crc32_val;
-  int ret = (ARCHIVE_OK), ret2;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	const wchar_t *path;
+	const wchar_t *wname;
+	const char *name;
+	HANDLE h;
+	BY_HANDLE_FILE_INFORMATION bhfi;
+	DWORD fileAttributes = 0;
+	int r;
 
-  rar = (struct rar *)(a->format->data);
+	archive_clear_error(_a);
+	wname = archive_entry_sourcepath_w(entry);
+	if (wname == NULL)
+		wname = archive_entry_pathname_w(entry);
+	if (wname == NULL) {
+		archive_set_error(&a->archive, EINVAL,
+		    "Can't get a wide character version of the path");
+		return (ARCHIVE_FAILED);
+	}
+	path = __la_win_permissive_name_w(wname);
 
-  /* Setup a string conversion object for non-rar-unicode filenames. */
-  sconv = rar->opt_sconv;
-  if (sconv == NULL) {
-    if (!rar->init_default_conversion) {
-      rar->sconv_default =
-          archive_string_default_conversion_for_read(
-            &(a->archive));
-      rar->init_default_conversion = 1;
-    }
-    sconv = rar->sconv_default;
-  }
-
-
-  if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
-    return (ARCHIVE_FATAL);
-  p = h;
-  memcpy(&rar_header, p, sizeof(rar_header));
-  rar->file_flags = archive_le16dec(rar_header.flags);
-  header_size = archive_le16dec(rar_header.size);
-  if (header_size < (int64_t)sizeof(file_header) + 7) {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-      "Invalid header size");
-    return (ARCHIVE_FATAL);
-  }
-  crc32_val = crc32(0, (const unsigned char *)p + 2, 7 - 2);
-  __archive_read_consume(a, 7);
-
-  if (!(rar->file_flags & FHD_SOLID))
-  {
-    rar->compression_method = 0;
-    rar->packed_size = 0;
-    rar->unp_size = 0;
-    rar->mtime = 0;
-    rar->ctime = 0;
-    rar->atime = 0;
-    rar->arctime = 0;
-    rar->mode = 0;
-    memset(&rar->salt, 0, sizeof(rar->salt));
-    rar->atime = 0;
-    rar->ansec = 0;
-    rar->ctime = 0;
-    rar->cnsec = 0;
-    rar->mtime = 0;
-    rar->mnsec = 0;
-    rar->arctime = 0;
-    rar->arcnsec = 0;
-  }
-  else
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "RAR solid archive support unavailable.");
-    return (ARCHIVE_FATAL);
-  }
-
-  if ((h = __archive_read_ahead(a, (size_t)header_size - 7, NULL)) == NULL)
-    return (ARCHIVE_FATAL);
-
-  /* File Header CRC check. */
-  crc32_val = crc32(crc32_val, h, (unsigned)(header_size - 7));
-  if ((crc32_val & 0xffff) != archive_le16dec(rar_header.crc)) {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-      "Header CRC error");
-    return (ARCHIVE_FATAL);
-  }
-  /* If no CRC error, Go on parsing File Header. */
-  p = h;
-  endp = p + header_size - 7;
-  memcpy(&file_header, p, sizeof(file_header));
-  p += sizeof(file_header);
-
-  rar->compression_method = file_header.method;
-
-  ttime = archive_le32dec(file_header.file_time);
-  rar->mtime = get_time(ttime);
-
-  rar->file_crc = archive_le32dec(file_header.file_crc);
-
-  if (rar->file_flags & FHD_PASSWORD)
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "RAR encryption support unavailable.");
-    return (ARCHIVE_FATAL);
-  }
-
-  if (rar->file_flags & FHD_LARGE)
-  {
-    memcpy(packed_size, file_header.pack_size, 4);
-    memcpy(packed_size + 4, p, 4); /* High pack size */
-    p += 4;
-    memcpy(unp_size, file_header.unp_size, 4);
-    memcpy(unp_size + 4, p, 4); /* High unpack size */
-    p += 4;
-    rar->packed_size = archive_le64dec(&packed_size);
-    rar->unp_size = archive_le64dec(&unp_size);
-  }
-  else
-  {
-    rar->packed_size = archive_le32dec(file_header.pack_size);
-    rar->unp_size = archive_le32dec(file_header.unp_size);
-  }
-
-  if (rar->packed_size < 0 || rar->unp_size < 0)
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Invalid sizes specified.");
-    return (ARCHIVE_FATAL);
-  }
-
-  rar->bytes_remaining = rar->packed_size;
-
-  /* TODO: RARv3 subblocks contain comments. For now the complete block is
-   * consumed at the end.
-   */
-  if (head_type == NEWSUB_HEAD) {
-    size_t distance = p - (const char *)h;
-    header_size += rar->packed_size;
-    /* Make sure we have the extended data. */
-    if ((h = __archive_read_ahead(a, (size_t)header_size - 7, NULL)) == NULL)
-        return (ARCHIVE_FATAL);
-    p = h;
-    endp = p + header_size - 7;
-    p += distance;
-  }
-
-  filename_size = archive_le16dec(file_header.name_size);
-  if (p + filename_size > endp) {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-      "Invalid filename size");
-    return (ARCHIVE_FATAL);
-  }
-  if (rar->filename_allocated < filename_size * 2 + 2) {
-    char *newptr;
-    size_t newsize = filename_size * 2 + 2;
-    newptr = realloc(rar->filename, newsize);
-    if (newptr == NULL) {
-      archive_set_error(&a->archive, ENOMEM,
-                        "Couldn't allocate memory.");
-      return (ARCHIVE_FATAL);
-    }
-    rar->filename = newptr;
-    rar->filename_allocated = newsize;
-  }
-  filename = rar->filename;
-  memcpy(filename, p, filename_size);
-  filename[filename_size] = '\0';
-  if (rar->file_flags & FHD_UNICODE)
-  {
-    if (filename_size != strlen(filename))
-    {
-      unsigned char highbyte, flagbits, flagbyte;
-      unsigned fn_end, offset;
-
-      end = filename_size;
-      fn_end = filename_size * 2;
-      filename_size = 0;
-      offset = (unsigned)strlen(filename) + 1;
-      highbyte = *(p + offset++);
-      flagbits = 0;
-      flagbyte = 0;
-      while (offset < end && filename_size < fn_end)
-      {
-        if (!flagbits)
-        {
-          flagbyte = *(p + offset++);
-          flagbits = 8;
-        }
+	if (st == NULL) {
+		/*
+		 * Get metadata through GetFileInformationByHandle().
+		 */
+		if (fd >= 0) {
+			h = (HANDLE)_get_osfhandle(fd);
+			r = GetFileInformationByHandle(h, &bhfi);
+			if (r == 0) {
+				la_dosmaperr(GetLastError());
+				archive_set_error(&a->archive, errno,
+				    "Can't GetFileInformationByHandle");
+				return (ARCHIVE_FAILED);
+			}
+			entry_copy_bhfi(entry, path, NULL, &bhfi);
+		} else {
+			WIN32_FIND_DATAW findData;
+			DWORD flag, desiredAccess;
 	
-        flagbits -= 2;
-        switch((flagbyte >> flagbits) & 3)
-        {
-          case 0:
-            filename[filename_size++] = '\0';
-            filename[filename_size++] = *(p + offset++);
-            break;
-          case 1:
-            filename[filename_size++] = highbyte;
-            filename[filename_size++] = *(p + offset++);
-            break;
-          case 2:
-            filename[filename_size++] = *(p + offset + 1);
-            filename[filename_size++] = *(p + offset);
-            offset += 2;
-            break;
-          case 3:
-          {
-            char extra, high;
-            uint8_t length = *(p + offset++);
+			h = FindFirstFileW(path, &findData);
+			if (h == INVALID_HANDLE_VALUE) {
+				la_dosmaperr(GetLastError());
+				archive_set_error(&a->archive, errno,
+				    "Can't FindFirstFileW");
+				return (ARCHIVE_FAILED);
+			}
+			FindClose(h);
 
-            if (length & 0x80) {
-              extra = *(p + offset++);
-              high = (char)highbyte;
-            } else
-              extra = high = 0;
-            length = (length & 0x7f) + 2;
-            while (length && filename_size < fn_end) {
-              unsigned cp = filename_size >> 1;
-              filename[filename_size++] = high;
-              filename[filename_size++] = p[cp] + extra;
-              length--;
-            }
-          }
-          break;
-        }
-      }
-      if (filename_size > fn_end) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Invalid filename");
-        return (ARCHIVE_FATAL);
-      }
-      filename[filename_size++] = '\0';
-      filename[filename_size++] = '\0';
+			flag = FILE_FLAG_BACKUP_SEMANTICS;
+			if (!a->follow_symlinks &&
+			    (findData.dwFileAttributes
+			      & FILE_ATTRIBUTE_REPARSE_POINT) &&
+				  (findData.dwReserved0 == IO_REPARSE_TAG_SYMLINK)) {
+				flag |= FILE_FLAG_OPEN_REPARSE_POINT;
+				desiredAccess = 0;
+			} else if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+				desiredAccess = 0;
+			} else
+				desiredAccess = GENERIC_READ;
 
-      /* Decoded unicode form is UTF-16BE, so we have to update a string
-       * conversion object for it. */
-      if (rar->sconv_utf16be == NULL) {
-        rar->sconv_utf16be = archive_string_conversion_from_charset(
-           &a->archive, "UTF-16BE", 1);
-        if (rar->sconv_utf16be == NULL)
-          return (ARCHIVE_FATAL);
-      }
-      fn_sconv = rar->sconv_utf16be;
+			h = CreateFileW(path, desiredAccess, 0, NULL,
+			    OPEN_EXISTING, flag, NULL);
+			if (h == INVALID_HANDLE_VALUE) {
+				la_dosmaperr(GetLastError());
+				archive_set_error(&a->archive, errno,
+				    "Can't CreateFileW");
+				return (ARCHIVE_FAILED);
+			}
+			r = GetFileInformationByHandle(h, &bhfi);
+			if (r == 0) {
+				la_dosmaperr(GetLastError());
+				archive_set_error(&a->archive, errno,
+				    "Can't GetFileInformationByHandle");
+				CloseHandle(h);
+				return (ARCHIVE_FAILED);
+			}
+			entry_copy_bhfi(entry, path, &findData, &bhfi);
+		}
+		fileAttributes = bhfi.dwFileAttributes;
+	} else {
+		archive_entry_copy_stat(entry, st);
+		h = INVALID_HANDLE_VALUE;
+	}
 
-      strp = filename;
-      while (memcmp(strp, "\x00\x00", 2))
-      {
-        if (!memcmp(strp, "\x00\\", 2))
-          *(strp + 1) = '/';
-        strp += 2;
-      }
-      p += offset;
-    } else {
-      /*
-       * If FHD_UNICODE is set but no unicode data, this file name form
-       * is UTF-8, so we have to update a string conversion object for
-       * it accordingly.
-       */
-      if (rar->sconv_utf8 == NULL) {
-        rar->sconv_utf8 = archive_string_conversion_from_charset(
-           &a->archive, "UTF-8", 1);
-        if (rar->sconv_utf8 == NULL)
-          return (ARCHIVE_FATAL);
-      }
-      fn_sconv = rar->sconv_utf8;
-      while ((strp = strchr(filename, '\\')) != NULL)
-        *strp = '/';
-      p += filename_size;
-    }
-  }
-  else
-  {
-    fn_sconv = sconv;
-    while ((strp = strchr(filename, '\\')) != NULL)
-      *strp = '/';
-    p += filename_size;
-  }
+	/* Lookup uname/gname */
+	name = archive_read_disk_uname(_a, archive_entry_uid(entry));
+	if (name != NULL)
+		archive_entry_copy_uname(entry, name);
+	name = archive_read_disk_gname(_a, archive_entry_gid(entry));
+	if (name != NULL)
+		archive_entry_copy_gname(entry, name);
 
-  /* Split file in multivolume RAR. No more need to process header. */
-  if (rar->filename_save &&
-    !memcmp(rar->filename, rar->filename_save, filename_size + 1))
-  {
-    __archive_read_consume(a, header_size - 7);
-    rar->cursor++;
-    if (rar->cursor >= rar->nodes)
-    {
-      rar->nodes++;
-      if ((rar->dbo =
-        realloc(rar->dbo, sizeof(*rar->dbo) * rar->nodes)) == NULL)
-      {
-        archive_set_error(&a->archive, ENOMEM, "Couldn't allocate memory.");
-        return (ARCHIVE_FATAL);
-      }
-      rar->dbo[rar->cursor].header_size = header_size;
-      rar->dbo[rar->cursor].start_offset = -1;
-      rar->dbo[rar->cursor].end_offset = -1;
-    }
-    if (rar->dbo[rar->cursor].start_offset < 0)
-    {
-      rar->dbo[rar->cursor].start_offset = a->filter->position;
-      rar->dbo[rar->cursor].end_offset = rar->dbo[rar->cursor].start_offset +
-        rar->packed_size;
-    }
-    return ret;
-  }
+	/*
+	 * Can this file be sparse file ?
+	 */
+	if (archive_entry_filetype(entry) != AE_IFREG
+	    || archive_entry_size(entry) <= 0
+		|| archive_entry_hardlink(entry) != NULL) {
+		if (h != INVALID_HANDLE_VALUE && fd < 0)
+			CloseHandle(h);
+		return (ARCHIVE_OK);
+	}
 
-  rar->filename_save = (char*)realloc(rar->filename_save,
-                                      filename_size + 1);
-  memcpy(rar->filename_save, rar->filename, filename_size + 1);
+	if (h == INVALID_HANDLE_VALUE) {
+		if (fd >= 0) {
+			h = (HANDLE)_get_osfhandle(fd);
+		} else {
+			h = CreateFileW(path, GENERIC_READ, 0, NULL,
+			    OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+			if (h == INVALID_HANDLE_VALUE) {
+				la_dosmaperr(GetLastError());
+				archive_set_error(&a->archive, errno,
+				    "Can't CreateFileW");
+				return (ARCHIVE_FAILED);
+			}
+		}
+		r = GetFileInformationByHandle(h, &bhfi);
+		if (r == 0) {
+			la_dosmaperr(GetLastError());
+			archive_set_error(&a->archive, errno,
+			    "Can't GetFileInformationByHandle");
+			if (h != INVALID_HANDLE_VALUE && fd < 0)
+				CloseHandle(h);
+			return (ARCHIVE_FAILED);
+		}
+		fileAttributes = bhfi.dwFileAttributes;
+	}
 
-  /* Set info for seeking */
-  free(rar->dbo);
-  if ((rar->dbo = calloc(1, sizeof(*rar->dbo))) == NULL)
-  {
-    archive_set_error(&a->archive, ENOMEM, "Couldn't allocate memory.");
-    return (ARCHIVE_FATAL);
-  }
-  rar->dbo[0].header_size = header_size;
-  rar->dbo[0].start_offset = -1;
-  rar->dbo[0].end_offset = -1;
-  rar->cursor = 0;
-  rar->nodes = 1;
+	/* Sparse file must be set a mark, FILE_ATTRIBUTE_SPARSE_FILE */
+	if ((fileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) == 0) {
+		if (fd < 0)
+			CloseHandle(h);
+		return (ARCHIVE_OK);
+	}
 
-  if (rar->file_flags & FHD_SALT)
-  {
-    if (p + 8 > endp) {
-      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-        "Invalid header size");
-      return (ARCHIVE_FATAL);
-    }
-    memcpy(rar->salt, p, 8);
-    p += 8;
-  }
+	r = setup_sparse_from_disk(a, entry, h);
+	if (fd < 0)
+		CloseHandle(h);
 
-  if (rar->file_flags & FHD_EXTTIME) {
-    if (read_exttime(p, rar, endp) < 0) {
-      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-        "Invalid header size");
-      return (ARCHIVE_FATAL);
-    }
-  }
-
-  __archive_read_consume(a, header_size - 7);
-  rar->dbo[0].start_offset = a->filter->position;
-  rar->dbo[0].end_offset = rar->dbo[0].start_offset + rar->packed_size;
-
-  switch(file_header.host_os)
-  {
-  case OS_MSDOS:
-  case OS_OS2:
-  case OS_WIN32:
-    rar->mode = archive_le32dec(file_header.file_attr);
-    if (rar->mode & FILE_ATTRIBUTE_DIRECTORY)
-      rar->mode = AE_IFDIR | S_IXUSR | S_IXGRP | S_IXOTH;
-    else
-      rar->mode = AE_IFREG;
-    rar->mode |= S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-    break;
-
-  case OS_UNIX:
-  case OS_MAC_OS:
-  case OS_BEOS:
-    rar->mode = archive_le32dec(file_header.file_attr);
-    break;
-
-  default:
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Unknown file attributes from RAR file's host OS");
-    return (ARCHIVE_FATAL);
-  }
-
-  rar->bytes_uncopied = rar->bytes_unconsumed = 0;
-  rar->lzss.position = rar->offset = 0;
-  rar->offset_seek = 0;
-  rar->dictionary_size = 0;
-  rar->offset_outgoing = 0;
-  rar->br.cache_avail = 0;
-  rar->br.avail_in = 0;
-  rar->crc_calculated = 0;
-  rar->entry_eof = 0;
-  rar->valid = 1;
-  rar->is_ppmd_block = 0;
-  rar->start_new_table = 1;
-  free(rar->unp_buffer);
-  rar->unp_buffer = NULL;
-  rar->unp_offset = 0;
-  rar->unp_buffer_size = UNP_BUFFER_SIZE;
-  memset(rar->lengthtable, 0, sizeof(rar->lengthtable));
-  __archive_ppmd7_functions.Ppmd7_Free(&rar->ppmd7_context, &g_szalloc);
-  rar->ppmd_valid = rar->ppmd_eod = 0;
-
-  /* Don't set any archive entries for non-file header types */
-  if (head_type == NEWSUB_HEAD)
-    return ret;
-
-  archive_entry_set_mtime(entry, rar->mtime, rar->mnsec);
-  archive_entry_set_ctime(entry, rar->ctime, rar->cnsec);
-  archive_entry_set_atime(entry, rar->atime, rar->ansec);
-  archive_entry_set_size(entry, rar->unp_size);
-  archive_entry_set_mode(entry, rar->mode);
-
-  if (archive_entry_copy_pathname_l(entry, filename, filename_size, fn_sconv))
-  {
-    if (errno == ENOMEM)
-    {
-      archive_set_error(&a->archive, ENOMEM,
-                        "Can't allocate memory for Pathname");
-      return (ARCHIVE_FATAL);
-    }
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Pathname cannot be converted from %s to current locale.",
-                      archive_string_conversion_charset_name(fn_sconv));
-    ret = (ARCHIVE_WARN);
-  }
-
-  if (((rar->mode) & AE_IFMT) == AE_IFLNK)
-  {
-    /* Make sure a symbolic-link file does not have its body. */
-    rar->bytes_remaining = 0;
-    archive_entry_set_size(entry, 0);
-
-    /* Read a symbolic-link name. */
-    if ((ret2 = read_symlink_stored(a, entry, sconv)) < (ARCHIVE_WARN))
-      return ret2;
-    if (ret > ret2)
-      ret = ret2;
-  }
-
-  if (rar->bytes_remaining == 0)
-    rar->entry_eof = 1;
-
-  return ret;
+	return (r);
 }

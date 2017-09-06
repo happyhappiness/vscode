@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-	    "No memory for ZIP decryption");
+fprintf(file, "\t%s\n", i->c_str());

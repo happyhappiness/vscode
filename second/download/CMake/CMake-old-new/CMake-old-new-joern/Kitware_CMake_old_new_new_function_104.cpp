@@ -1,237 +1,192 @@
-static int
-translate_acl(struct archive_read_disk *a,
-    struct archive_entry *entry, acl_t acl, int default_entry_acl_type)
+static void kwsysProcessSetExitExceptionByIndex(kwsysProcess* cp, int sig,
+                                                int idx)
 {
-	acl_tag_t	 acl_tag;
-#if HAVE_ACL_TYPE_NFS4
-	acl_entry_type_t acl_type;
-	int brand;
+  switch (sig) {
+#ifdef SIGSEGV
+    case SIGSEGV:
+      KWSYSPE_CASE(Fault, "Segmentation fault");
+      break;
 #endif
-#if HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL
-	acl_flagset_t	 acl_flagset;
+#ifdef SIGBUS
+#if !defined(SIGSEGV) || SIGBUS != SIGSEGV
+    case SIGBUS:
+      KWSYSPE_CASE(Fault, "Bus error");
+      break;
 #endif
-	acl_entry_t	 acl_entry;
-	acl_permset_t	 acl_permset;
-	int		 i, entry_acl_type;
-	int		 r, s, ae_id, ae_tag, ae_perm;
-#if !HAVE_DARWIN_ACL
-	void		*q;
 #endif
-	const char	*ae_name;
-
-#if HAVE_ACL_TYPE_NFS4
-	// FreeBSD "brands" ACLs as POSIX.1e or NFSv4
-	// Make sure the "brand" on this ACL is consistent
-	// with the default_entry_acl_type bits provided.
-	if (acl_get_brand_np(acl, &brand) != 0) {
-		archive_set_error(&a->archive, errno,
-		    "Failed to read ACL brand");
-		return (ARCHIVE_WARN);
-	}
-	switch (brand) {
-	case ACL_BRAND_POSIX:
-		switch (default_entry_acl_type) {
-		case ARCHIVE_ENTRY_ACL_TYPE_ACCESS:
-		case ARCHIVE_ENTRY_ACL_TYPE_DEFAULT:
-			break;
-		default:
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Invalid ACL entry type for POSIX.1e ACL");
-			return (ARCHIVE_WARN);
-		}
-		break;
-	case ACL_BRAND_NFS4:
-		if (default_entry_acl_type & ~ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Invalid ACL entry type for NFSv4 ACL");
-			return (ARCHIVE_WARN);
-		}
-		break;
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Unknown ACL brand");
-		return (ARCHIVE_WARN);
-	}
+#ifdef SIGFPE
+    case SIGFPE:
+      KWSYSPE_CASE(Numerical, "Floating-point exception");
+      break;
 #endif
-
-	s = acl_get_entry(acl, ACL_FIRST_ENTRY, &acl_entry);
-	if (s == -1) {
-		archive_set_error(&a->archive, errno,
-		    "Failed to get first ACL entry");
-		return (ARCHIVE_WARN);
-	}
-
-#if HAVE_DARWIN_ACL
-	while (s == 0)
-#else	/* FreeBSD, Linux */
-	while (s == 1)
+#ifdef SIGILL
+    case SIGILL:
+      KWSYSPE_CASE(Illegal, "Illegal instruction");
+      break;
 #endif
-	{
-		ae_id = -1;
-		ae_name = NULL;
-		ae_perm = 0;
-
-		if (acl_get_tag_type(acl_entry, &acl_tag) != 0) {
-			archive_set_error(&a->archive, errno,
-			    "Failed to get ACL tag type");
-			return (ARCHIVE_WARN);
-		}
-		switch (acl_tag) {
-#if !HAVE_DARWIN_ACL	/* FreeBSD, Linux */
-		case ACL_USER:
-			q = acl_get_qualifier(acl_entry);
-			if (q != NULL) {
-				ae_id = (int)*(uid_t *)q;
-				acl_free(q);
-				ae_name = archive_read_disk_uname(&a->archive,
-				    ae_id);
-			}
-			ae_tag = ARCHIVE_ENTRY_ACL_USER;
-			break;
-		case ACL_GROUP:
-			q = acl_get_qualifier(acl_entry);
-			if (q != NULL) {
-				ae_id = (int)*(gid_t *)q;
-				acl_free(q);
-				ae_name = archive_read_disk_gname(&a->archive,
-				    ae_id);
-			}
-			ae_tag = ARCHIVE_ENTRY_ACL_GROUP;
-			break;
-		case ACL_MASK:
-			ae_tag = ARCHIVE_ENTRY_ACL_MASK;
-			break;
-		case ACL_USER_OBJ:
-			ae_tag = ARCHIVE_ENTRY_ACL_USER_OBJ;
-			break;
-		case ACL_GROUP_OBJ:
-			ae_tag = ARCHIVE_ENTRY_ACL_GROUP_OBJ;
-			break;
-		case ACL_OTHER:
-			ae_tag = ARCHIVE_ENTRY_ACL_OTHER;
-			break;
-#if HAVE_ACL_TYPE_NFS4
-		case ACL_EVERYONE:
-			ae_tag = ARCHIVE_ENTRY_ACL_EVERYONE;
-			break;
+#ifdef SIGINT
+    case SIGINT:
+      KWSYSPE_CASE(Interrupt, "User interrupt");
+      break;
 #endif
-#else	/* HAVE_DARWIN_ACL */
-		case ACL_EXTENDED_ALLOW:
-			entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
-			r = translate_guid(&a->archive, acl_entry, &ae_id,
-			    &ae_tag, &ae_name);
-			break;
-		case ACL_EXTENDED_DENY:
-			entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
-			r = translate_guid(&a->archive, acl_entry, &ae_id,
-			    &ae_tag, &ae_name);
-			break;
-#endif	/* HAVE_DARWIN_ACL */
-		default:
-			/* Skip types that libarchive can't support. */
-			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
-			continue;
-		}
-
-#if HAVE_DARWIN_ACL
-		/* Skip if translate_guid() above failed */
-		if (r != 0) {
-			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
-			continue;
-		}
+#ifdef SIGABRT
+    case SIGABRT:
+      KWSYSPE_CASE(Other, "Child aborted");
+      break;
 #endif
-
-#if !HAVE_DARWIN_ACL
-		// XXX acl_type maps to allow/deny/audit/YYYY bits
-		entry_acl_type = default_entry_acl_type;
+#ifdef SIGKILL
+    case SIGKILL:
+      KWSYSPE_CASE(Other, "Child killed");
+      break;
 #endif
-#if HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL
-		if (default_entry_acl_type & ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
-#if HAVE_ACL_TYPE_NFS4
-			/*
-			 * acl_get_entry_type_np() fails with non-NFSv4 ACLs
-			 */
-			if (acl_get_entry_type_np(acl_entry, &acl_type) != 0) {
-				archive_set_error(&a->archive, errno, "Failed "
-				    "to get ACL type from a NFSv4 ACL entry");
-				return (ARCHIVE_WARN);
-			}
-			switch (acl_type) {
-			case ACL_ENTRY_TYPE_ALLOW:
-				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
-				break;
-			case ACL_ENTRY_TYPE_DENY:
-				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
-				break;
-			case ACL_ENTRY_TYPE_AUDIT:
-				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_AUDIT;
-				break;
-			case ACL_ENTRY_TYPE_ALARM:
-				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALARM;
-				break;
-			default:
-				archive_set_error(&a->archive, errno,
-				    "Invalid NFSv4 ACL entry type");
-				return (ARCHIVE_WARN);
-			}
-#endif	/* HAVE_ACL_TYPE_NFS4 */
-
-			/*
-			 * Libarchive stores "flag" (NFSv4 inheritance bits)
-			 * in the ae_perm bitmap.
-			 *
-			 * acl_get_flagset_np() fails with non-NFSv4 ACLs
-			 */
-			if (acl_get_flagset_np(acl_entry, &acl_flagset) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Failed to get flagset from a NFSv4 ACL entry");
-				return (ARCHIVE_WARN);
-			}
-			for (i = 0; i < (int)(sizeof(acl_inherit_map) / sizeof(acl_inherit_map[0])); ++i) {
-				r = acl_get_flag_np(acl_flagset,
-				    acl_inherit_map[i].platform_inherit);
-				if (r == -1) {
-					archive_set_error(&a->archive, errno,
-					    "Failed to check flag in a NFSv4 "
-					    "ACL flagset");
-					return (ARCHIVE_WARN);
-				} else if (r)
-					ae_perm |= acl_inherit_map[i].archive_inherit;
-			}
-		}
-#endif	/* HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL */
-
-		if (acl_get_permset(acl_entry, &acl_permset) != 0) {
-			archive_set_error(&a->archive, errno,
-			    "Failed to get ACL permission set");
-			return (ARCHIVE_WARN);
-		}
-		for (i = 0; i < (int)(sizeof(acl_perm_map) / sizeof(acl_perm_map[0])); ++i) {
-			/*
-			 * acl_get_perm() is spelled differently on different
-			 * platforms; see above.
-			 */
-			r = ACL_GET_PERM(acl_permset, acl_perm_map[i].platform_perm);
-			if (r == -1) {
-				archive_set_error(&a->archive, errno,
-				    "Failed to check permission in an ACL permission set");
-				return (ARCHIVE_WARN);
-			} else if (r)
-				ae_perm |= acl_perm_map[i].archive_perm;
-		}
-
-		archive_entry_acl_add_entry(entry, entry_acl_type,
-					    ae_perm, ae_tag,
-					    ae_id, ae_name);
-
-		s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
-#if !HAVE_DARWIN_ACL
-		if (s == -1) {
-			archive_set_error(&a->archive, errno,
-			    "Failed to get next ACL entry");
-			return (ARCHIVE_WARN);
-		}
+#ifdef SIGTERM
+    case SIGTERM:
+      KWSYSPE_CASE(Other, "Child terminated");
+      break;
 #endif
-	}
-	return (ARCHIVE_OK);
+#ifdef SIGHUP
+    case SIGHUP:
+      KWSYSPE_CASE(Other, "SIGHUP");
+      break;
+#endif
+#ifdef SIGQUIT
+    case SIGQUIT:
+      KWSYSPE_CASE(Other, "SIGQUIT");
+      break;
+#endif
+#ifdef SIGTRAP
+    case SIGTRAP:
+      KWSYSPE_CASE(Other, "SIGTRAP");
+      break;
+#endif
+#ifdef SIGIOT
+#if !defined(SIGABRT) || SIGIOT != SIGABRT
+    case SIGIOT:
+      KWSYSPE_CASE(Other, "SIGIOT");
+      break;
+#endif
+#endif
+#ifdef SIGUSR1
+    case SIGUSR1:
+      KWSYSPE_CASE(Other, "SIGUSR1");
+      break;
+#endif
+#ifdef SIGUSR2
+    case SIGUSR2:
+      KWSYSPE_CASE(Other, "SIGUSR2");
+      break;
+#endif
+#ifdef SIGPIPE
+    case SIGPIPE:
+      KWSYSPE_CASE(Other, "SIGPIPE");
+      break;
+#endif
+#ifdef SIGALRM
+    case SIGALRM:
+      KWSYSPE_CASE(Other, "SIGALRM");
+      break;
+#endif
+#ifdef SIGSTKFLT
+    case SIGSTKFLT:
+      KWSYSPE_CASE(Other, "SIGSTKFLT");
+      break;
+#endif
+#ifdef SIGCHLD
+    case SIGCHLD:
+      KWSYSPE_CASE(Other, "SIGCHLD");
+      break;
+#elif defined(SIGCLD)
+    case SIGCLD:
+      KWSYSPE_CASE(Other, "SIGCLD");
+      break;
+#endif
+#ifdef SIGCONT
+    case SIGCONT:
+      KWSYSPE_CASE(Other, "SIGCONT");
+      break;
+#endif
+#ifdef SIGSTOP
+    case SIGSTOP:
+      KWSYSPE_CASE(Other, "SIGSTOP");
+      break;
+#endif
+#ifdef SIGTSTP
+    case SIGTSTP:
+      KWSYSPE_CASE(Other, "SIGTSTP");
+      break;
+#endif
+#ifdef SIGTTIN
+    case SIGTTIN:
+      KWSYSPE_CASE(Other, "SIGTTIN");
+      break;
+#endif
+#ifdef SIGTTOU
+    case SIGTTOU:
+      KWSYSPE_CASE(Other, "SIGTTOU");
+      break;
+#endif
+#ifdef SIGURG
+    case SIGURG:
+      KWSYSPE_CASE(Other, "SIGURG");
+      break;
+#endif
+#ifdef SIGXCPU
+    case SIGXCPU:
+      KWSYSPE_CASE(Other, "SIGXCPU");
+      break;
+#endif
+#ifdef SIGXFSZ
+    case SIGXFSZ:
+      KWSYSPE_CASE(Other, "SIGXFSZ");
+      break;
+#endif
+#ifdef SIGVTALRM
+    case SIGVTALRM:
+      KWSYSPE_CASE(Other, "SIGVTALRM");
+      break;
+#endif
+#ifdef SIGPROF
+    case SIGPROF:
+      KWSYSPE_CASE(Other, "SIGPROF");
+      break;
+#endif
+#ifdef SIGWINCH
+    case SIGWINCH:
+      KWSYSPE_CASE(Other, "SIGWINCH");
+      break;
+#endif
+#ifdef SIGPOLL
+    case SIGPOLL:
+      KWSYSPE_CASE(Other, "SIGPOLL");
+      break;
+#endif
+#ifdef SIGIO
+#if !defined(SIGPOLL) || SIGIO != SIGPOLL
+    case SIGIO:
+      KWSYSPE_CASE(Other, "SIGIO");
+      break;
+#endif
+#endif
+#ifdef SIGPWR
+    case SIGPWR:
+      KWSYSPE_CASE(Other, "SIGPWR");
+      break;
+#endif
+#ifdef SIGSYS
+    case SIGSYS:
+      KWSYSPE_CASE(Other, "SIGSYS");
+      break;
+#endif
+#ifdef SIGUNUSED
+#if !defined(SIGSYS) || SIGUNUSED != SIGSYS
+    case SIGUNUSED:
+      KWSYSPE_CASE(Other, "SIGUNUSED");
+      break;
+#endif
+#endif
+    default:
+      cp->ProcessResults[idx].ExitException = kwsysProcess_Exception_Other;
+      sprintf(cp->ProcessResults[idx].ExitExceptionString, "Signal %d", sig);
+      break;
+  }
 }

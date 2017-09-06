@@ -56,7 +56,7 @@ static CURLcode file_do(struct connectdata *conn, bool *done)
     time_t filetime;
     struct tm buffer;
     const struct tm *tm = &buffer;
-    snprintf(buf, sizeof(data->state.buffer),
+    snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
              "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
     result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
     if(result)
@@ -99,8 +99,7 @@ static CURLcode file_do(struct connectdata *conn, bool *done)
       failf(data, "Can't get the size of file.");
       return CURLE_READ_ERROR;
     }
-    else
-      data->state.resume_from += (curl_off_t)statbuf.st_size;
+    data->state.resume_from += (curl_off_t)statbuf.st_size;
   }
 
   if(data->state.resume_from <= expected_size)

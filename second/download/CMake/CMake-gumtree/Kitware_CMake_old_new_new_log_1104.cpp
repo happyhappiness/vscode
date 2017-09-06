@@ -1,1 +1,1 @@
-fprintf(stderr, "DIRECTORY_DEF not defined in C\n");
+sprintf(buf, "%u", this->VersionFoundMajor);

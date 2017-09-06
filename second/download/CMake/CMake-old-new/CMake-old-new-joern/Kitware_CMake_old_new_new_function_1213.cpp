@@ -1,62 +1,67 @@
-void cmOrderLinkDirectories::PrepareLinkTargets()
+static void print_flags(FILE *handle, unsigned long flags)
 {
-  std::vector<cmStdString> originalLinkItems = this->LinkItems;
-  this->LinkItems.clear();
-  this->CurrentLinkType = this->StartLinkType;
-  for(std::vector<cmStdString>::iterator i = originalLinkItems.begin();
-      i != originalLinkItems.end(); ++i)
-    {
-    // Parse out the prefix, base, and suffix components of the
-    // library name.  If the name matches that of a shared or static
-    // library then set the link type accordingly.
-    //
-    // Search for shared library names first because some platforms
-    // have shared libraries with names that match the static library
-    // pattern.  For example cygwin and msys use the convention
-    // libfoo.dll.a for import libraries and libfoo.a for static
-    // libraries.  On AIX a library with the name libfoo.a can be
-    // shared!
-    if(this->ExtractSharedLibraryName.find(*i))
-      {
-#ifdef CM_ORDER_LINK_DIRECTORIES_DEBUG
-      fprintf(stderr, "shared regex matched [%s] [%s] [%s]\n",
-              this->ExtractSharedLibraryName.match(1).c_str(),
-              this->ExtractSharedLibraryName.match(2).c_str(),
-              this->ExtractSharedLibraryName.match(3).c_str());
-#endif
-      this->SetCurrentLinkType(LinkShared);
-      this->LinkItems.push_back(this->ExtractSharedLibraryName.match(2));
-      }
-    else if(this->ExtractStaticLibraryName.find(*i))
-      {
-#ifdef CM_ORDER_LINK_DIRECTORIES_DEBUG
-      fprintf(stderr, "static regex matched [%s] [%s] [%s]\n",
-              this->ExtractStaticLibraryName.match(1).c_str(),
-              this->ExtractStaticLibraryName.match(2).c_str(),
-              this->ExtractStaticLibraryName.match(3).c_str());
-#endif
-      this->SetCurrentLinkType(LinkStatic);
-      this->LinkItems.push_back(this->ExtractStaticLibraryName.match(2));
-      }
-    else if(this->ExtractAnyLibraryName.find(*i))
-      {
-#ifdef CM_ORDER_LINK_DIRECTORIES_DEBUG
-      fprintf(stderr, "any regex matched [%s] [%s] [%s]\n",
-              this->ExtractAnyLibraryName.match(1).c_str(),
-              this->ExtractAnyLibraryName.match(2).c_str(),
-              this->ExtractAnyLibraryName.match(3).c_str());
-#endif
-      this->SetCurrentLinkType(this->StartLinkType);
-      this->LinkItems.push_back(this->ExtractAnyLibraryName.match(2));
-      }
-    else
-      {
-      this->SetCurrentLinkType(this->StartLinkType);
-      this->LinkItems.push_back(*i);
-      }
-    }
-
-  // Restore the original linking type so system runtime libraries are
-  // linked properly.
-  this->SetCurrentLinkType(this->StartLinkType);
+  if(flags & NTLMFLAG_NEGOTIATE_UNICODE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_UNICODE ");
+  if(flags & NTLMFLAG_NEGOTIATE_OEM)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_OEM ");
+  if(flags & NTLMFLAG_REQUEST_TARGET)
+    fprintf(handle, "NTLMFLAG_REQUEST_TARGET ");
+  if(flags & (1<<3))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_3 ");
+  if(flags & NTLMFLAG_NEGOTIATE_SIGN)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_SIGN ");
+  if(flags & NTLMFLAG_NEGOTIATE_SEAL)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_SEAL ");
+  if(flags & NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE ");
+  if(flags & NTLMFLAG_NEGOTIATE_LM_KEY)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_LM_KEY ");
+  if(flags & NTLMFLAG_NEGOTIATE_NETWARE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_NETWARE ");
+  if(flags & NTLMFLAG_NEGOTIATE_NTLM_KEY)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM_KEY ");
+  if(flags & (1<<10))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_10 ");
+  if(flags & (1<<11))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_11 ");
+  if(flags & NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED ");
+  if(flags & NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED ");
+  if(flags & NTLMFLAG_NEGOTIATE_LOCAL_CALL)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_LOCAL_CALL ");
+  if(flags & NTLMFLAG_NEGOTIATE_ALWAYS_SIGN)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_ALWAYS_SIGN ");
+  if(flags & NTLMFLAG_TARGET_TYPE_DOMAIN)
+    fprintf(handle, "NTLMFLAG_TARGET_TYPE_DOMAIN ");
+  if(flags & NTLMFLAG_TARGET_TYPE_SERVER)
+    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SERVER ");
+  if(flags & NTLMFLAG_TARGET_TYPE_SHARE)
+    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SHARE ");
+  if(flags & NTLMFLAG_NEGOTIATE_NTLM2_KEY)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM2_KEY ");
+  if(flags & NTLMFLAG_REQUEST_INIT_RESPONSE)
+    fprintf(handle, "NTLMFLAG_REQUEST_INIT_RESPONSE ");
+  if(flags & NTLMFLAG_REQUEST_ACCEPT_RESPONSE)
+    fprintf(handle, "NTLMFLAG_REQUEST_ACCEPT_RESPONSE ");
+  if(flags & NTLMFLAG_REQUEST_NONNT_SESSION_KEY)
+    fprintf(handle, "NTLMFLAG_REQUEST_NONNT_SESSION_KEY ");
+  if(flags & NTLMFLAG_NEGOTIATE_TARGET_INFO)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_TARGET_INFO ");
+  if(flags & (1<<24))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_24 ");
+  if(flags & (1<<25))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_25 ");
+  if(flags & (1<<26))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_26 ");
+  if(flags & (1<<27))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_27 ");
+  if(flags & (1<<28))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_28 ");
+  if(flags & NTLMFLAG_NEGOTIATE_128)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_128 ");
+  if(flags & NTLMFLAG_NEGOTIATE_KEY_EXCHANGE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_KEY_EXCHANGE ");
+  if(flags & NTLMFLAG_NEGOTIATE_56)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_56 ");
 }

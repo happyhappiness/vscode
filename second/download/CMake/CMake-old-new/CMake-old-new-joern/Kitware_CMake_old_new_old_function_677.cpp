@@ -1,60 +1,39 @@
-std::vector<cmComputeLinkDepends::LinkEntry> const&
-cmComputeLinkDepends::Compute()
+void
+DumpExternals(PIMAGE_SYMBOL pSymbolTable, FILE *fout, unsigned cSymbols)
 {
-  // Follow the link dependencies of the target to be linked.
-  this->AddDirectLinkEntries();
+   unsigned i;
+   PSTR stringTable;
+   std::string symbol;
 
-  // Complete the breadth-first search of dependencies.
-  while(!this->BFSQueue.empty())
-    {
-    // Get the next entry.
-    BFSEntry qe = this->BFSQueue.front();
-    this->BFSQueue.pop();
+   /*
+   * The string table apparently starts right after the symbol table
+   */
+   stringTable = (PSTR)&pSymbolTable[cSymbols];
 
-    // Follow the entry's dependencies.
-    this->FollowLinkEntry(qe);
-    }
+   for ( i=0; i < cSymbols; i++ ) {
+      if (pSymbolTable->SectionNumber > 0 && pSymbolTable->Type == 0x20) {
+         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
+            if (pSymbolTable->N.Name.Short != 0) {
+               symbol = "";
+               symbol.insert(0, (const char *)(pSymbolTable->N.ShortName), 8);
+            } else {
+               symbol = stringTable + pSymbolTable->N.Name.Long;
+            }
+            std::string::size_type posAt = symbol.find('@');
+            if (posAt != std::string::npos) symbol.erase(posAt);
+#ifndef _MSC_VER
+            fprintf(fout, "\t%s\n", symbol.c_str());
+#else
+            fprintf(fout, "\t%s\n", symbol.c_str()+1);
+#endif
+         }
+      }
 
-  // Complete the search of shared library dependencies.
-  while(!this->SharedDepQueue.empty())
-    {
-    // Handle the next entry.
-    this->HandleSharedDependency(this->SharedDepQueue.front());
-    this->SharedDepQueue.pop();
-    }
-
-  // Infer dependencies of targets for which they were not known.
-  this->InferDependencies();
-
-  // Cleanup the constraint graph.
-  this->CleanConstraintGraph();
-
-  // Display the constraint graph.
-  if(this->DebugMode)
-    {
-    fprintf(stderr,
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName(), this->Config?this->Config:"noconfig");
-    this->DisplayConstraintGraph();
-    }
-
-  // Compute the final ordering.
-  this->OrderLinkEntires();
-
-  // Compute the final set of link entries.
-  for(std::vector<int>::const_iterator li = this->FinalLinkOrder.begin();
-      li != this->FinalLinkOrder.end(); ++li)
-    {
-    this->FinalLinkEntries.push_back(this->EntryList[*li]);
-    }
-
-  // Display the final set.
-  if(this->DebugMode)
-    {
-    this->DisplayFinalEntries();
-    }
-
-  return this->FinalLinkEntries;
+      /*
+      * Take into account any aux symbols
+      */
+      i += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable++;
+   }
 }

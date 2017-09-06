@@ -1,46 +1,49 @@
-int
-__archive_write_program_open(struct archive_write_filter *f,
-    struct archive_write_program_data *data, const char *cmd)
+static int
+copy_from_lzss_window(struct archive_read *a, const void **buffer,
+                        int64_t startpos, int length)
 {
-	pid_t child;
-	int ret;
+  int windowoffs, firstpart;
+  struct rar *rar = (struct rar *)(a->format->data);
 
-	ret = __archive_write_open_filter(f->next_filter);
-	if (ret != ARCHIVE_OK)
-		return (ret);
+  if (!rar->unp_buffer)
+  {
+    if ((rar->unp_buffer = malloc(rar->unp_buffer_size)) == NULL)
+    {
+      archive_set_error(&a->archive, ENOMEM,
+                        "Unable to allocate memory for uncompressed data.");
+      return (ARCHIVE_FATAL);
+    }
+  }
 
-	if (data->child_buf == NULL) {
-		data->child_buf_len = 65536;
-		data->child_buf_avail = 0;
-		data->child_buf = malloc(data->child_buf_len);
-
-		if (data->child_buf == NULL) {
-			archive_set_error(f->archive, ENOMEM,
-			    "Can't allocate compression buffer");
-			return (ARCHIVE_FATAL);
-		}
-	}
-
-	child = __archive_create_child(cmd, &data->child_stdin,
-		    &data->child_stdout);
-	if (child == -1) {
-		archive_set_error(f->archive, EINVAL,
-		    "Can't launch external program: %s", cmd);
-		return (ARCHIVE_FATAL);
-	}
-#if defined(_WIN32) && !defined(__CYGWIN__)
-	data->child = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, child);
-	if (data->child == NULL) {
-		close(data->child_stdin);
-		data->child_stdin = -1;
-		close(data->child_stdout);
-		data->child_stdout = -1;
-		archive_set_error(f->archive, EINVAL,
-		    "Can't launch external program: %s", cmd);
-		return (ARCHIVE_FATAL);
-	}
-#else
-	data->child = child;
-#endif
-	return (ARCHIVE_OK);
+  windowoffs = lzss_offset_for_position(&rar->lzss, startpos);
+  if(windowoffs + length <= lzss_size(&rar->lzss)) {
+    memcpy(&rar->unp_buffer[rar->unp_offset], &rar->lzss.window[windowoffs],
+           length);
+  } else if (length <= lzss_size(&rar->lzss)) {
+    firstpart = lzss_size(&rar->lzss) - windowoffs;
+    if (firstpart < 0) {
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Bad RAR file data");
+      return (ARCHIVE_FATAL);
+    }
+    if (firstpart < length) {
+      memcpy(&rar->unp_buffer[rar->unp_offset],
+             &rar->lzss.window[windowoffs], firstpart);
+      memcpy(&rar->unp_buffer[rar->unp_offset + firstpart],
+             &rar->lzss.window[0], length - firstpart);
+    } else {
+      memcpy(&rar->unp_buffer[rar->unp_offset],
+             &rar->lzss.window[windowoffs], length);
+    }
+  } else {
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Bad RAR file data");
+      return (ARCHIVE_FATAL);
+  }
+  rar->unp_offset += length;
+  if (rar->unp_offset >= rar->unp_buffer_size)
+    *buffer = rar->unp_buffer;
+  else
+    *buffer = NULL;
+  return (ARCHIVE_OK);
 }

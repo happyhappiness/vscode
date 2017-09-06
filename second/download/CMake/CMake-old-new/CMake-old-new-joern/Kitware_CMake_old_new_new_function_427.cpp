@@ -1,36 +1,63 @@
-void
-cmLocalVisualStudio6Generator
-::AddUtilityCommandHack(cmGeneratorTarget *target, int count,
-                        std::vector<std::string>& depends,
-                        const cmCustomCommand& origCommand)
+int
+__archive_write_program_close(struct archive_write_filter *f,
+    struct archive_write_program_data *data)
 {
-  // Create a fake output that forces the rule to run.
-  char* output = new char[(strlen(this->GetCurrentBinaryDirectory())
-                           + target->GetName().size() + 30)];
-  sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
-          target->GetName().c_str(), count);
-  const char* comment = origCommand.GetComment();
-  if(!comment && origCommand.GetOutputs().empty())
-    {
-    comment = "<hack>";
-    }
+	int ret, r1, status;
+	ssize_t bytes_read;
 
-  // Add the rule with the given dependencies and commands.
-  std::string no_main_dependency = "";
-  if(cmSourceFile* outsf =
-     this->Makefile->AddCustomCommandToOutput(
-       output, depends, no_main_dependency,
-       origCommand.GetCommandLines(), comment,
-       origCommand.GetWorkingDirectory().c_str()))
-    {
-    target->AddSource(outsf->GetFullPath());
-    }
+	if (data->child == 0)
+		return __archive_write_close_filter(f->next_filter);
 
-  // Replace the dependencies with the output of this rule so that the
-  // next rule added will run after this one.
-  depends.clear();
-  depends.push_back(output);
+	ret = 0;
+	close(data->child_stdin);
+	data->child_stdin = -1;
+	fcntl(data->child_stdout, F_SETFL, 0);
 
-  // Free the fake output name.
-  delete [] output;
+	for (;;) {
+		do {
+			bytes_read = read(data->child_stdout,
+			    data->child_buf + data->child_buf_avail,
+			    data->child_buf_len - data->child_buf_avail);
+		} while (bytes_read == -1 && errno == EINTR);
+
+		if (bytes_read == 0 || (bytes_read == -1 && errno == EPIPE))
+			break;
+
+		if (bytes_read == -1) {
+			archive_set_error(f->archive, errno,
+			    "Error reading from program: %s", data->program_name);
+			ret = ARCHIVE_FATAL;
+			goto cleanup;
+		}
+		data->child_buf_avail += bytes_read;
+
+		ret = __archive_write_filter(f->next_filter,
+		    data->child_buf, data->child_buf_avail);
+		if (ret != ARCHIVE_OK) {
+			ret = ARCHIVE_FATAL;
+			goto cleanup;
+		}
+		data->child_buf_avail = 0;
+	}
+
+cleanup:
+	/* Shut down the child. */
+	if (data->child_stdin != -1)
+		close(data->child_stdin);
+	if (data->child_stdout != -1)
+		close(data->child_stdout);
+	while (waitpid(data->child, &status, 0) == -1 && errno == EINTR)
+		continue;
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	CloseHandle(data->child);
+#endif
+	data->child = 0;
+
+	if (status != 0) {
+		archive_set_error(f->archive, EIO,
+		    "Error closing program: %s", data->program_name);
+		ret = ARCHIVE_FATAL;
+	}
+	r1 = __archive_write_close_filter(f->next_filter);
+	return (r1 < ret ? r1 : ret);
 }

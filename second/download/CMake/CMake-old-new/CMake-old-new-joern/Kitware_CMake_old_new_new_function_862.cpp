@@ -1,142 +1,151 @@
-int
-archive_read_disk_entry_from_file(struct archive *_a,
-    struct archive_entry *entry,
-    int fd,
-    const struct stat *st)
+static int
+archive_read_format_rar_read_header(struct archive_read *a,
+                                    struct archive_entry *entry)
 {
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	const char *path, *name;
-	struct stat s;
-	int initial_fd = fd;
-	int r, r1;
+  const void *h;
+  const char *p;
+  struct rar *rar;
+  size_t skip;
+  char head_type;
+  int ret;
+  unsigned flags;
 
-	archive_clear_error(_a);
-	path = archive_entry_sourcepath(entry);
-	if (path == NULL)
-		path = archive_entry_pathname(entry);
+  a->archive.archive_format = ARCHIVE_FORMAT_RAR;
+  if (a->archive.archive_format_name == NULL)
+    a->archive.archive_format_name = "RAR";
 
-	if (a->tree == NULL) {
-		if (st == NULL) {
-#if HAVE_FSTAT
-			if (fd >= 0) {
-				if (fstat(fd, &s) != 0) {
-					archive_set_error(&a->archive, errno,
-					    "Can't fstat");
-					return (ARCHIVE_FAILED);
-				}
-			} else
-#endif
-#if HAVE_LSTAT
-			if (!a->follow_symlinks) {
-				if (lstat(path, &s) != 0) {
-					archive_set_error(&a->archive, errno,
-					    "Can't lstat %s", path);
-					return (ARCHIVE_FAILED);
-				}
-			} else
-#endif
-			if (stat(path, &s) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Can't stat %s", path);
-				return (ARCHIVE_FAILED);
-			}
-			st = &s;
-		}
-		archive_entry_copy_stat(entry, st);
-	}
+  rar = (struct rar *)(a->format->data);
 
-	/* Lookup uname/gname */
-	name = archive_read_disk_uname(_a, archive_entry_uid(entry));
-	if (name != NULL)
-		archive_entry_copy_uname(entry, name);
-	name = archive_read_disk_gname(_a, archive_entry_gid(entry));
-	if (name != NULL)
-		archive_entry_copy_gname(entry, name);
+  /* RAR files can be generated without EOF headers, so return ARCHIVE_EOF if
+  * this fails.
+  */
+  if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
+    return (ARCHIVE_EOF);
 
-#ifdef HAVE_STRUCT_STAT_ST_FLAGS
-	/* On FreeBSD, we get flags for free with the stat. */
-	/* TODO: Does this belong in copy_stat()? */
-	if (st->st_flags != 0)
-		archive_entry_set_fflags(entry, st->st_flags, 0);
-#endif
+  p = h;
+  if (rar->found_first_header == 0 &&
+     ((p[0] == 'M' && p[1] == 'Z') || memcmp(p, "\x7F\x45LF", 4) == 0)) {
+    /* This is an executable ? Must be self-extracting... */
+    ret = skip_sfx(a);
+    if (ret < ARCHIVE_WARN)
+      return (ret);
+  }
+  rar->found_first_header = 1;
 
-#if defined(EXT2_IOC_GETFLAGS) && defined(HAVE_WORKING_EXT2_IOC_GETFLAGS)
-	/* Linux requires an extra ioctl to pull the flags.  Although
-	 * this is an extra step, it has a nice side-effect: We get an
-	 * open file descriptor which we can use in the subsequent lookups. */
-	if ((S_ISREG(st->st_mode) || S_ISDIR(st->st_mode))) {
-		if (fd < 0) {
-			if (a->tree != NULL)
-				fd = a->open_on_current_dir(a->tree, path,
-					O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-			else
-				fd = open(path, O_RDONLY | O_NONBLOCK |
-						O_CLOEXEC);
-			__archive_ensure_cloexec_flag(fd);
-		}
-		if (fd >= 0) {
-			int stflags;
-			r = ioctl(fd, EXT2_IOC_GETFLAGS, &stflags);
-			if (r == 0 && stflags != 0)
-				archive_entry_set_fflags(entry, stflags, 0);
-		}
-	}
-#endif
+  while (1)
+  {
+    unsigned long crc32_val;
 
-#if defined(HAVE_READLINK) || defined(HAVE_READLINKAT)
-	if (S_ISLNK(st->st_mode)) {
-		size_t linkbuffer_len = st->st_size + 1;
-		char *linkbuffer;
-		int lnklen;
+    if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
+      return (ARCHIVE_FATAL);
+    p = h;
 
-		linkbuffer = malloc(linkbuffer_len);
-		if (linkbuffer == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Couldn't read link data");
-			return (ARCHIVE_FAILED);
-		}
-		if (a->tree != NULL) {
-#ifdef HAVE_READLINKAT
-			lnklen = readlinkat(a->tree_current_dir_fd(a->tree),
-			    path, linkbuffer, linkbuffer_len);
-#else
-			if (a->tree_enter_working_dir(a->tree) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Couldn't read link data");
-				free(linkbuffer);
-				return (ARCHIVE_FAILED);
-			}
-			lnklen = readlink(path, linkbuffer, linkbuffer_len);
-#endif /* HAVE_READLINKAT */
-		} else
-			lnklen = readlink(path, linkbuffer, linkbuffer_len);
-		if (lnklen < 0) {
-			archive_set_error(&a->archive, errno,
-			    "Couldn't read link data");
-			free(linkbuffer);
-			return (ARCHIVE_FAILED);
-		}
-		linkbuffer[lnklen] = 0;
-		archive_entry_set_symlink(entry, linkbuffer);
-		free(linkbuffer);
-	}
-#endif /* HAVE_READLINK || HAVE_READLINKAT */
+    head_type = p[2];
+    switch(head_type)
+    {
+    case MARK_HEAD:
+      if (memcmp(p, RAR_SIGNATURE, 7) != 0) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid marker header");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_read_consume(a, 7);
+      break;
 
-	r = setup_acls(a, entry, &fd);
-	r1 = setup_xattrs(a, entry, &fd);
-	if (r1 < r)
-		r = r1;
-	if (a->enable_copyfile) {
-		r1 = setup_mac_metadata(a, entry, &fd);
-		if (r1 < r)
-			r = r1;
-	}
-	r1 = setup_sparse(a, entry, &fd);
-	if (r1 < r)
-		r = r1;
+    case MAIN_HEAD:
+      rar->main_flags = archive_le16dec(p + 3);
+      skip = archive_le16dec(p + 5);
+      if (skip < 7 + sizeof(rar->reserved1) + sizeof(rar->reserved2)) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid header size");
+        return (ARCHIVE_FATAL);
+      }
+      if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
+        return (ARCHIVE_FATAL);
+      p = h;
+      memcpy(rar->reserved1, p + 7, sizeof(rar->reserved1));
+      memcpy(rar->reserved2, p + 7 + sizeof(rar->reserved1),
+             sizeof(rar->reserved2));
+      if (rar->main_flags & MHD_ENCRYPTVER) {
+        if (skip < 7 + sizeof(rar->reserved1) + sizeof(rar->reserved2)+1) {
+          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+            "Invalid header size");
+          return (ARCHIVE_FATAL);
+        }
+        rar->encryptver = *(p + 7 + sizeof(rar->reserved1) +
+                            sizeof(rar->reserved2));
+      }
 
-	/* If we opened the file earlier in this function, close it. */
-	if (initial_fd != fd)
-		close(fd);
-	return (r);
+      if (rar->main_flags & MHD_PASSWORD)
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "RAR encryption support unavailable.");
+        return (ARCHIVE_FATAL);
+      }
+
+      crc32_val = crc32(0, (const unsigned char *)p + 2, (unsigned)skip - 2);
+      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Header CRC error");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_read_consume(a, skip);
+      break;
+
+    case FILE_HEAD:
+      return read_header(a, entry, head_type);
+
+    case COMM_HEAD:
+    case AV_HEAD:
+    case SUB_HEAD:
+    case PROTECT_HEAD:
+    case SIGN_HEAD:
+    case ENDARC_HEAD:
+      flags = archive_le16dec(p + 3);
+      skip = archive_le16dec(p + 5);
+      if (skip < 7) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid header size");
+        return (ARCHIVE_FATAL);
+      }
+      if (skip > 7) {
+        if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
+          return (ARCHIVE_FATAL);
+        p = h;
+      }
+      if (flags & HD_ADD_SIZE_PRESENT)
+      {
+        if (skip < 7 + 4) {
+          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+            "Invalid header size");
+          return (ARCHIVE_FATAL);
+        }
+        skip += archive_le32dec(p + 7);
+        if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
+          return (ARCHIVE_FATAL);
+        p = h;
+      }
+
+      crc32_val = crc32(0, (const unsigned char *)p + 2, (unsigned)skip - 2);
+      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Header CRC error");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_read_consume(a, skip);
+      if (head_type == ENDARC_HEAD)
+        return (ARCHIVE_EOF);
+      break;
+
+    case NEWSUB_HEAD:
+      if ((ret = read_header(a, entry, head_type)) < ARCHIVE_WARN)
+        return ret;
+      break;
+
+    default:
+      archive_set_error(&a->archive,  ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Bad RAR file");
+      return (ARCHIVE_FATAL);
+    }
+  }
 }

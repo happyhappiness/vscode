@@ -1,1 +1,1 @@
-sprintf(buf, "%u", this->VersionCount);
+std::cerr << "No current working directory" << std::endl;

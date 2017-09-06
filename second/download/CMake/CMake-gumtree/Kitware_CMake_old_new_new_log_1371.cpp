@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout before recursive test.\n");
+sprintf(format, "%%%ds  ", static_cast<unsigned int>(maxlen-2));

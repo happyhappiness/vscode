@@ -1,1 +1,2 @@
-fprintf(stderr, "  target [%s]\n", lei->Target->GetName().c_str());
+archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Not enough arguments");

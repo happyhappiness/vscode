@@ -1,1 +1,1 @@
-fprintf(ofp, "#include <stdio.h>\n\n");
+fprintf(stderr, "Output on stderr after recursive test.\n");

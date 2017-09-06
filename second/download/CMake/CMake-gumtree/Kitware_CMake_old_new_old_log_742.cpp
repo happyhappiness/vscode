@@ -1,1 +1,1 @@
-sprintf(cp->ExitExceptionString, "Exit code 0x%x\n", code);
+fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());

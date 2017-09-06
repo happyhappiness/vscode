@@ -1,1 +1,1 @@
-sprintf(this->ChipID.ProcessorName,"%s",this->ParseValueFromKStat("-s cpu_type").c_str());
+fprintf(out, "%s: \\\n", objfile.c_str());

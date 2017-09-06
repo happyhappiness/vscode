@@ -1,1 +1,0 @@
-sprintf(fwdName, "cmw9xfwd_%u_%p.exe", _getpid(), cp);

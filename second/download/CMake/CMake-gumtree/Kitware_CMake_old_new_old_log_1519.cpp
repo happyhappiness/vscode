@@ -1,1 +1,1 @@
-fout << "  printf(\"Available tests:\\n\");\n";
+fprintf(fout, "ENDIF (CMAKE_ANSI_CXXFLAGS)\n");

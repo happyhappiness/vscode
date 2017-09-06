@@ -1,1 +1,1 @@
-fprintf(ofp, "\n");
+str << this->ChipID.Type;

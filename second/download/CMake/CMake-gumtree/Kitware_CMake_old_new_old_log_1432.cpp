@@ -1,1 +1,1 @@
-printf("Error fetching: http://www.cmake.org/\n");
+snprintf(buffer, KWSYSPE_PIPE_BUFFER_SIZE, "%s", strerror(errno));

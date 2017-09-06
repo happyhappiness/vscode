@@ -1,1 +1,1 @@
-sprintf(buf, "%s\\*", name);
+printf("unrecognized file format\n");

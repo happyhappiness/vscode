@@ -1,2 +1,3 @@
-sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
-          target.GetName().c_str(), count);
+fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
+            this->Target->GetName().c_str(),
+            this->HasConfig?this->Config.c_str():"noconfig");

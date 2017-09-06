@@ -1,1 +1,1 @@
-fprintf(ofp, "}\n");
+fprintf(stderr, "DIRECTORY_DEF not defined in CXX\n");

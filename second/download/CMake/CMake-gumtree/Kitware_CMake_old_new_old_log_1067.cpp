@@ -1,1 +1,1 @@
-sprintf(buf, "%u", this->VersionPatch);
+fprintf(stdout, "Working directory: -->%s<--", cwd);

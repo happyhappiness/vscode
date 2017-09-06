@@ -1,1 +1,1 @@
-snprintf(hbuf, sizeof(hbuf), "?");
+printf("Error, could not open file %s\n", filename);

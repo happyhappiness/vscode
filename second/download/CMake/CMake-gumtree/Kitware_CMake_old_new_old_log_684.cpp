@@ -1,1 +1,1 @@
-fprintf(fout, "add_executable(%s", targetName);
+fprintf(stderr, "%s\n", line.c_str());

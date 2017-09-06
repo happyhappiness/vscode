@@ -1,18 +1,10 @@
-static int
-zip_alloc_decryption_buffer(struct archive_read *a)
+void cmFortran_yyset_lineno (int  line_number , yyscan_t yyscanner)
 {
-	struct zip *zip = (struct zip *)(a->format->data);
-	size_t bs = 256 * 1024;
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
 
-	if (zip->decrypted_buffer == NULL) {
-		zip->decrypted_buffer_size = bs;
-		zip->decrypted_buffer = malloc(bs);
-		if (zip->decrypted_buffer == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "No memory for ZIP decryption");
-			return (ARCHIVE_FATAL);
-		}
-	}
-	zip->decrypted_ptr = zip->decrypted_buffer;
-	return (ARCHIVE_OK);
+        /* lineno is only valid if an input buffer exists. */
+        if (! YY_CURRENT_BUFFER )
+           YY_FATAL_ERROR( "cmFortran_yyset_lineno called with no buffer" );
+
+    yylineno = line_number;
 }

@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, -1,
-				    "Malformed 7-Zip archive file");
+sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%ld_%p.exe",
+            GetCurrentProcessId(), cp);

@@ -1,1 +1,1 @@
-fprintf(stderr, "Now at end of input.\n");
+YY_FATAL_ERROR( "out of dynamic memory in yy_create_buffer()" );

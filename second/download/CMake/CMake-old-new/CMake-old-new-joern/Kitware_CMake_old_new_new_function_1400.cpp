@@ -1,199 +1,252 @@
-int kwsysProcess_WaitForData(kwsysProcess* cp, int pipes, char** data, int* length,
-                          double* userTimeout)
+void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed, 
+                             cmCTest::tm_VectorOfStrings &failed,
+                             bool memcheck)
 {
-  int i;
-  int max = -1;
-  kwsysProcessTime* timeout = 0;
-  kwsysProcessTime timeoutLength;
-  kwsysProcessTime timeoutTime;
-  kwsysProcessTime userStartTime;
-  int user = 0;
-  int expired = 0;
-  int pipeId = 0;
-  int numReady = 0;
-  
-  /* Record the time at which user timeout period starts.  */
-  if(userTimeout)
+  cmsys::RegularExpression dartStuff("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
+  tm_ListOfTests testlist;
+  this->GetListOfTests(&testlist, memcheck);
+  tm_ListOfTests::size_type tmsize = testlist.size();
+
+  std::ofstream ofs;
+  std::ofstream *olog = 0;
+  if ( !m_ShowOnly && tmsize > 0 && 
+    this->OpenOutputFile("Temporary", 
+      (memcheck?"LastMemCheck.xml":"LastTest.log"), ofs) )
     {
-    userStartTime = kwsysProcessTimeGetCurrent();
+    olog = &ofs;
     }
-  
-  /* Calculate the time at which a timeout will expire, and whether it
-     is the user or process timeout.  */
-  user = kwsysProcessGetTimeoutTime(cp, userTimeout, &timeoutTime);
-  
-  /* Data can only be available when pipes are open.  If the process
-     is not running, cp->PipesLeft will be 0.  */
-  while(cp->PipesLeft > 0)
+
+  m_StartTest = ::CurrentTime();
+
+  if ( olog )
     {
-    /* Check for any open pipes with data reported ready by the last
-       call to select.  */
-    for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
+    *olog << "Start testing: " << m_StartTest << std::endl
+      << "----------------------------------------------------------"
+      << std::endl;
+    }
+
+  int cnt = 0;
+  tm_ListOfTests::iterator it;
+  std::string last_directory = "";
+  for ( it = testlist.begin(); it != testlist.end(); it ++ )
+    {
+    cnt ++;
+    const std::string& testname = it->Name;
+    tm_VectorOfListFileArgs& args = it->Args;
+    cmCTestTestResult cres;
+    cres.m_Status = cmCTest::NOT_RUN;
+
+    if (last_directory != it->Directory)
       {
-      if(cp->PipeReadEnds[i] >= 0 &&
-         FD_ISSET(cp->PipeReadEnds[i], &cp->PipeSet))
+      if ( m_Verbose )
         {
-        int n;
-        
-        /* We are handling this pipe now.  Remove it from the set.  */
-        FD_CLR(cp->PipeReadEnds[i], &cp->PipeSet);
-        
-        /* The pipe is ready to read without blocking.  Keep trying to
-           read until the operation is not interrupted.  */
-        while(((n = read(cp->PipeReadEnds[i], cp->PipeBuffer,
-                         KWSYSPE_PIPE_BUFFER_SIZE)) < 0) && (errno == EINTR));
-        if(n > 0)
+        std::cerr << "Changing directory into " 
+          << it->Directory.c_str() << "\n";
+        }
+      last_directory = it->Directory;
+      }
+    cres.m_Name = testname;
+    if ( m_ShowOnly )
+      {
+      fprintf(stderr,"%3d/%3d Testing %-30s\n", cnt, tmsize, testname.c_str());
+      }
+    else
+      {
+      fprintf(stderr,"%3d/%3d Testing %-30s ", cnt, tmsize, testname.c_str());
+      fflush(stderr);
+      }
+    //std::cerr << "Testing " << args[0] << " ... ";
+    // find the test executable
+    std::string actualCommand = this->FindTheExecutable(args[1].Value.c_str());
+    std::string testCommand = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
+    std::string memcheckcommand = "";
+
+    // continue if we did not find the executable
+    if (testCommand == "")
+      {
+      std::cerr << "Unable to find executable: " <<
+        args[1].Value.c_str() << "\n";
+      if ( !m_ShowOnly )
+        {
+        m_TestResults.push_back( cres ); 
+        failed.push_back(testname);
+        continue;
+        }
+      }
+
+    // add the arguments
+    tm_VectorOfListFileArgs::const_iterator j = args.begin();
+    ++j;
+    ++j;
+    std::vector<const char*> arguments;
+    if ( memcheck )
+      {
+      cmCTest::tm_VectorOfStrings::size_type pp;
+      arguments.push_back(m_MemoryTester.c_str());
+      memcheckcommand = m_MemoryTester;
+      for ( pp = 0; pp < m_MemoryTesterOptionsParsed.size(); pp ++ )
+        {
+        arguments.push_back(m_MemoryTesterOptionsParsed[pp].c_str());
+        memcheckcommand += " ";
+        memcheckcommand += cmSystemTools::EscapeSpaces(m_MemoryTesterOptionsParsed[pp].c_str());
+        }
+      }
+    arguments.push_back(actualCommand.c_str());
+    for(;j != args.end(); ++j)
+      {
+      testCommand += " ";
+      testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
+      arguments.push_back(j->Value.c_str());
+      }
+    arguments.push_back(0);
+
+    /**
+     * Run an executable command and put the stdout in output.
+     */
+    std::string output;
+    int retVal = 0;
+
+
+    if ( m_Verbose )
+      {
+      std::cout << std::endl << (memcheck?"MemCheck":"Test") << " command: " << testCommand << std::endl;
+      if ( memcheck )
+        {
+        std::cout << "Memory check command: " << memcheckcommand << std::endl;
+        }
+      }
+    if ( olog )
+      {
+      *olog << cnt << "/" << tmsize 
+        << " Test: " << testname.c_str() << std::endl;
+      *olog << "Command: ";
+      tm_VectorOfStrings::size_type ll;
+      for ( ll = 0; ll < arguments.size()-1; ll ++ )
+        {
+        *olog << "\"" << arguments[ll] << "\" ";
+        }
+      *olog 
+        << std::endl 
+        << "Directory: " << it->Directory << std::endl 
+        << "\"" << testname.c_str() << "\" start time: " 
+        << ::CurrentTime() << std::endl
+        << "Output:" << std::endl 
+        << "----------------------------------------------------------"
+        << std::endl;
+      }
+    int res = 0;
+    double clock_start, clock_finish;
+    clock_start = cmSystemTools::GetTime();
+
+    if ( !m_ShowOnly )
+      {
+      res = this->RunTest(arguments, &output, &retVal, olog);
+      }
+
+    clock_finish = cmSystemTools::GetTime();
+
+    if ( olog )
+      {
+      double ttime = clock_finish - clock_start;
+      int hours = static_cast<int>(ttime / (60 * 60));
+      int minutes = static_cast<int>(ttime / 60) % 60;
+      int seconds = static_cast<int>(ttime) % 60;
+      char buffer[100];
+      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+      *olog 
+        << "----------------------------------------------------------"
+        << std::endl
+        << "\"" << testname.c_str() << "\" end time: " 
+        << ::CurrentTime() << std::endl
+        << "\"" << testname.c_str() << "\" time elapsed: " 
+        << buffer << std::endl
+        << "----------------------------------------------------------"
+        << std::endl << std::endl;
+      }
+
+    cres.m_ExecutionTime = (double)(clock_finish - clock_start);
+    cres.m_FullCommandLine = testCommand;
+
+    if ( !m_ShowOnly )
+      {
+      if (res == cmsysProcess_State_Exited && retVal == 0)
+        {
+        fprintf(stderr,"   Passed\n");
+        passed.push_back(testname);
+        cres.m_Status = cmCTest::COMPLETED;
+        }
+      else
+        {
+        cres.m_Status = cmCTest::FAILED;
+        if ( res == cmsysProcess_State_Expired )
           {
-          /* We have data on this pipe.  */
-          if(i == KWSYSPE_PIPE_ERROR)
+          fprintf(stderr,"***Timeout\n");
+          cres.m_Status = cmCTest::TIMEOUT;
+          }
+        else if ( res == cmsysProcess_State_Exception )
+          {
+          fprintf(stderr,"***Exception: ");
+          switch ( retVal )
             {
-            /* This is data on the special error reporting pipe.  The
-               child process failed to execute the program.  */
-            cp->ChildError = 1;
-            if(n > KWSYSPE_PIPE_BUFFER_SIZE - cp->ErrorMessageLength)
-              {
-              n = KWSYSPE_PIPE_BUFFER_SIZE - cp->ErrorMessageLength;
-              }
-            if(n > 0)
-              {
-              memcpy(cp->ErrorMessage+cp->ErrorMessageLength,
-                     cp->PipeBuffer, n);
-              cp->ErrorMessageLength += n;
-              cp->ErrorMessage[cp->ErrorMessageLength] = 0;
-              }
-            }
-          else if(pipes & (1 << i))
-            {
-            /* Caller wants this data.  Report it.  */
-            *data = cp->PipeBuffer;
-            *length = n;
-            pipeId = (1 << i);
+          case cmsysProcess_Exception_Fault:
+            fprintf(stderr,"SegFault");
+            cres.m_Status = cmCTest::SEGFAULT;
             break;
+          case cmsysProcess_Exception_Illegal:
+            fprintf(stderr,"Illegal");
+            cres.m_Status = cmCTest::ILLEGAL;
+            break;
+          case cmsysProcess_Exception_Interrupt:
+            fprintf(stderr,"Interrupt");
+            cres.m_Status = cmCTest::INTERRUPT;
+            break;
+          case cmsysProcess_Exception_Numerical:
+            fprintf(stderr,"Numerical");
+            cres.m_Status = cmCTest::NUMERICAL;
+            break;
+          default:
+            fprintf(stderr,"Other");
+            cres.m_Status = cmCTest::OTHER_FAULT;
             }
+          fprintf(stderr,"\n");
+          }
+        else if ( res == cmsysProcess_State_Error )
+          {
+          fprintf(stderr,"***Bad command %d\n", res);
+          cres.m_Status = cmCTest::BAD_COMMAND;
           }
         else
           {
-          /* We are done reading from this pipe.  */
-          kwsysProcessCleanupDescriptor(&cp->PipeReadEnds[i]);
-          --cp->PipesLeft;
+          fprintf(stderr,"***Failed\n");
           }
+        failed.push_back(testname);
         }
-      }
-    
-    /* If we have data, break early.  */
-    if(pipeId)
-      {
-      break;
-      }
-    
-    /* Make sure the set is empty (it should always be empty here
-       anyway).  */
-    FD_ZERO(&cp->PipeSet);
-    
-    /* Add the pipe reading ends that are still open.  */
-    max = -1;
-    for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
-      {
-      if(cp->PipeReadEnds[i] >= 0)
+      if (output != "")
         {
-        FD_SET(cp->PipeReadEnds[i], &cp->PipeSet);
-        if(cp->PipeReadEnds[i] > max)
+        if (dartStuff.find(output.c_str()))
           {
-          max = cp->PipeReadEnds[i];
+          std::string dartString = dartStuff.match(1);
+          cmSystemTools::ReplaceString(output, dartString.c_str(),"");
+          cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
           }
         }
       }
-  
-    /* Make sure we have a non-empty set.  */
-    if(max < 0)
+    cres.m_Output = output;
+    cres.m_ReturnValue = retVal;
+    std::string nwd = cmSystemTools::GetCurrentWorkingDirectory();
+    if ( nwd.size() > m_ToplevelPath.size() )
       {
-      /* All pipes have closed.  Child has terminated.  */
-      break;
+      nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
       }
-    
-    /* Setup a timeout if required.  */
-    if(timeoutTime.tv_sec < 0)
-      {
-      timeout = 0;
-      }
-    else
-      {
-      timeout = &timeoutLength;
-      }
-    if(kwsysProcessGetTimeoutLeft(&timeoutTime, &timeoutLength))
-      {
-      /* Timeout has already expired.  */
-      expired = 1;
-      break;
-      }
-    
-    /* Run select to block until data are available.  Repeat call
-       until it is not interrupted.  */
-    while(((numReady = select(max+1, &cp->PipeSet, 0, 0, timeout)) < 0) &&
-          (errno == EINTR));
-    
-    /* Check result of select.  */
-    if(numReady == 0)
-      {
-      /* Select's timeout expired.  */
-      expired = 1;
-      break;
-      }
-    else if(numReady < 0)
-      {
-      /* Select returned an error.  Leave the error description in the
-         pipe buffer.  */
-      strncpy(cp->ErrorMessage, strerror(errno), KWSYSPE_PIPE_BUFFER_SIZE);
-      
-      /* Kill the child now.  */
-      kwsysProcess_Kill(cp);
-      cp->Killed = 0;
-      cp->ChildError = 1;
-      cp->PipesLeft = 0;
-      }
+    cmSystemTools::ReplaceString(nwd, "\\", "/");
+    cres.m_Path = nwd;
+    cres.m_CompletionStatus = "Completed";
+    m_TestResults.push_back( cres );
     }
-  
-  /* Update the user timeout.  */
-  if(userTimeout)
+
+  m_EndTest = ::CurrentTime();
+  if ( olog )
     {
-    kwsysProcessTime userEndTime = kwsysProcessTimeGetCurrent();
-    kwsysProcessTime difference = kwsysProcessTimeSubtract(userEndTime,
-                                                     userStartTime);
-    double d = kwsysProcessTimeToDouble(difference);
-    *userTimeout -= d;
-    if(*userTimeout < 0)
-      {
-      *userTimeout = 0;
-      }
-    }
-  
-  /* Check what happened.  */
-  if(pipeId)
-    {
-    /* Data are ready on a pipe.  */
-    return pipeId;
-    }
-  else if(expired)
-    {
-    /* A timeout has expired.  */
-    if(user)
-      {
-      /* The user timeout has expired.  It has no time left.  */
-      return kwsysProcess_Pipe_Timeout;
-      }
-    else
-      {
-      /* The process timeout has expired.  Kill the child now.  */
-      kwsysProcess_Kill(cp);
-      cp->Killed = 0;
-      cp->TimeoutExpired = 1;
-      cp->PipesLeft = 0;
-      return 0;
-      }
-    }
-  else
-    {
-    /* No pipes are left open.  */
-    return 0;
+    *olog << "End testing: " << m_EndTest << std::endl;
     }
 }

@@ -1,1 +1,1 @@
-yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" , yyscanner);
+fprintf(handle, "NTLMFLAG_UNKNOWN_27 ");

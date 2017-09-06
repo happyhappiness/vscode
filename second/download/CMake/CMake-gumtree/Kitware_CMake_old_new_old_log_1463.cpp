@@ -1,1 +1,1 @@
-fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());
+printf("Error fetching: http://www.cmake.org/\n");

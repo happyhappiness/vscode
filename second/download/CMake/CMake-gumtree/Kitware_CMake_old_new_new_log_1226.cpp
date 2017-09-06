@@ -1,1 +1,1 @@
-ostr << graphNodePrefix << cnt++;
+fprintf(handle, "NTLMFLAG_NEGOTIATE_KEY_EXCHANGE ");

@@ -1,1 +1,2 @@
-fprintf(stderr, "tar_append_eof(): %s\n", strerror(errno));
+fprintf(fout,"  if (!d) Py_FatalError(\"can't get dictionary for module %s!\");\n\n",
+          kitName);

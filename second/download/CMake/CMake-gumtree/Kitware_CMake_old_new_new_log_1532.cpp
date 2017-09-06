@@ -1,1 +1,1 @@
-sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently Off)");
+self->AddError(message, title);

@@ -1,80 +1,135 @@
-void
-th_print_long_ls(TAR *t)
+int runChild2(kwsysProcess* kp,
+              const char* cmd[], int state, int exception, int value,
+              int share, int output, int delay, double timeout,
+              int poll)
 {
-  char modestring[12];
-#ifndef WIN32
-  struct passwd *pw;
-  struct group *gr;
-#endif
-  uid_t uid;
-  gid_t gid;
-  char username[_POSIX_LOGIN_NAME_MAX];
-  char groupname[_POSIX_LOGIN_NAME_MAX];
-  time_t mtime;
-  struct tm *mtm;
+  int result = 0;
+  char* data = 0;
+  int length = 0;
+  double userTimeout = 0;
+  double* pUserTimeout = 0;
+  kwsysProcess_SetCommand(kp, cmd);
+  if(timeout >= 0)
+    {
+    kwsysProcess_SetTimeout(kp, timeout);
+    }
+  if(share)
+    {
+    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
+    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
+    }
+  kwsysProcess_Execute(kp);
 
-#ifdef HAVE_STRFTIME
-  char timebuf[18];
+  if(poll)
+    {
+    pUserTimeout = &userTimeout;
+    }
+
+  if(!share)
+    {
+    int p;
+    while((p = kwsysProcess_WaitForData(kp, &data, &length, pUserTimeout)))
+      {
+      if(output)
+        {
+        if(poll && p == kwsysProcess_Pipe_Timeout)
+          {
+          fprintf(stdout, "WaitForData timeout reached.\n");
+          fflush(stdout);
+
+          /* Count the number of times we polled without getting data.
+             If it is excessive then kill the child and fail.  */
+          if(++poll >= MAXPOLL)
+            {
+            fprintf(stdout, "Poll count reached limit %d.\n",
+                    MAXPOLL);
+            kwsysProcess_Kill(kp);
+            }
+          }
+        else
+          {
+          fwrite(data, 1, length, stdout);
+          fflush(stdout);
+          }
+        }
+      if(poll)
+        {
+        /* Delay to avoid busy loop during polling.  */
+#if defined(_WIN32)
+        Sleep(100);
 #else
-  const char *months[] = {
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-  };
+        usleep(100000);
 #endif
-
-  uid = th_get_uid(t);
-#ifndef WIN32
-  pw = getpwuid(uid);
-  if (pw != NULL)
-    strlcpy(username, pw->pw_name, sizeof(username));
-  else
+        }
+      if(delay)
+        {
+        /* Purposely sleeping only on Win32 to let pipe fill up.  */
+#if defined(_WIN32)
+        Sleep(100);
 #endif
-    snprintf(username, sizeof(username), "%d", uid);
-  gid = th_get_gid(t);
-#ifndef WIN32
-  gr = getgrgid(gid);
-  if (gr != NULL)
-    strlcpy(groupname, gr->gr_name, sizeof(groupname));
-  else
-#endif
-    snprintf(groupname, sizeof(groupname), "%d", gid);
-    
-  strmode(th_get_mode(t), modestring);
-  printf("%.10s %-8.8s %-8.8s ", modestring, username, groupname);
+        }
+      }
+    }
+  
+  kwsysProcess_WaitForExit(kp, 0);
 
-#ifndef WIN32
-  if (TH_ISCHR(t) || TH_ISBLK(t))
-    printf(" %3d, %3d ", th_get_devmajor(t), th_get_devminor(t));
-  else
-    printf("%9ld ", (long)th_get_size(t));
-#endif
+  switch (kwsysProcess_GetState(kp))
+    {
+    case kwsysProcess_State_Starting:
+      printf("No process has been executed.\n"); break;
+    case kwsysProcess_State_Executing:
+      printf("The process is still executing.\n"); break;
+    case kwsysProcess_State_Expired:
+      printf("Child was killed when timeout expired.\n"); break;
+    case kwsysProcess_State_Exited:
+      printf("Child exited with value = %d\n",
+             kwsysProcess_GetExitValue(kp));
+      result = ((exception != kwsysProcess_GetExitException(kp)) ||
+                (value != kwsysProcess_GetExitValue(kp))); break;
+    case kwsysProcess_State_Killed:
+      printf("Child was killed by parent.\n"); break;
+    case kwsysProcess_State_Exception:
+      printf("Child terminated abnormally: %s\n",
+             kwsysProcess_GetExceptionString(kp));
+      result = ((exception != kwsysProcess_GetExitException(kp)) ||
+                (value != kwsysProcess_GetExitValue(kp))); break;
+    case kwsysProcess_State_Error:
+      printf("Error in administrating child process: [%s]\n",
+             kwsysProcess_GetErrorString(kp)); break;
+    };
+  
+  if(result)
+    {
+    if(exception != kwsysProcess_GetExitException(kp))
+      {
+      fprintf(stderr, "Mismatch in exit exception.  "
+              "Should have been %d, was %d.\n",
+              exception, kwsysProcess_GetExitException(kp));
+      }
+    if(value != kwsysProcess_GetExitValue(kp))
+      {
+      fprintf(stderr, "Mismatch in exit value.  "
+              "Should have been %d, was %d.\n",
+              value, kwsysProcess_GetExitValue(kp));
+      }
+    }
+  
+  if(kwsysProcess_GetState(kp) != state)
+    {
+    fprintf(stderr, "Mismatch in state.  "
+            "Should have been %d, was %d.\n",
+            state, kwsysProcess_GetState(kp));
+    result = 1;
+    }
 
-  mtime = th_get_mtime(t);
-  mtm = localtime(&mtime);
-#ifdef HAVE_STRFTIME
-  strftime(timebuf, sizeof(timebuf), "%h %e %H:%M %Y", mtm);
-  printf("%s", timebuf);
-#else
-  printf("%.3s %2d %2d:%02d %4d",
-         months[mtm->tm_mon],
-         mtm->tm_mday, mtm->tm_hour, mtm->tm_min, mtm->tm_year + 1900);
-#endif
+  /* We should have polled more times than there were data if polling
+     was enabled.  */
+  if(poll && poll < MINPOLL)
+    {
+    fprintf(stderr, "Poll count is %d, which is less than %d.\n",
+            poll, MINPOLL);
+    result = 1;
+    }
 
-  printf(" %s", th_get_pathname(t));
-
-#ifndef _WIN32
-  if (TH_ISSYM(t) || TH_ISLNK(t))
-  {
-    if (TH_ISSYM(t))
-      printf(" -> ");
-    else
-      printf(" link to ");
-    if ((t->options & TAR_GNU) && t->th_buf.gnu_longlink != NULL)
-      printf("%s", t->th_buf.gnu_longlink);
-    else
-      printf("%.100s", t->th_buf.linkname);
-  }
-#endif
-
-  putchar('\n');
+  return result;
 }

@@ -1,74 +1,39 @@
-BOOL CMakeSetupDialog::OnInitDialog()
+CURLcode Curl_ftpsendf(struct connectdata *conn,
+                       const char *fmt, ...)
 {
-  CDialog::OnInitDialog();
-  this->DragAcceptFiles(true);
+  ssize_t bytes_written;
+  char s[256];
+  ssize_t write_len;
+  char *sptr=s;
+  CURLcode res = CURLE_OK;
 
-  // Add "Create shortcut" menu item to system menu.
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(s, 250, fmt, ap);
+  va_end(ap);
 
-  // IDM_CREATESHORTCUT must be in the system command range.
-  ASSERT((IDM_CREATESHORTCUT & 0xFFF0) == IDM_CREATESHORTCUT);
-  ASSERT(IDM_CREATESHORTCUT < 0xF000);
+  if(conn->data->set.verbose)
+    fprintf(conn->data->set.err, "> %s\n", s);
 
-  // Add "About..." menu item to system menu.
+  strcat(s, "\r\n"); /* append a trailing CRLF */
 
-  // IDM_ABOUTBOX must be in the system command range.
-  ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
-  ASSERT(IDM_ABOUTBOX < 0xF000);
+  bytes_written=0;
+  write_len = strlen(s);
 
-  CMenu* pSysMenu = GetSystemMenu(FALSE);
-  if (pSysMenu != NULL)
-    {
-    CString strCreateShortcutMenu;
-    strCreateShortcutMenu.LoadString(IDS_CREATESHORTCUT);
-    if (!strCreateShortcutMenu.IsEmpty())
-      {
-      pSysMenu->AppendMenu(MF_SEPARATOR);
-      pSysMenu->AppendMenu(MF_STRING, 
-                           IDM_CREATESHORTCUT, 
-                           strCreateShortcutMenu);
-      }
+  do {
+    res = Curl_write(conn, conn->firstsocket, sptr, write_len,
+                     &bytes_written);
 
-    CString strAboutMenu;
-    strAboutMenu.LoadString(IDS_ABOUTBOX);
-    if (!strAboutMenu.IsEmpty())
-      {
-      pSysMenu->AppendMenu(MF_SEPARATOR);
-      pSysMenu->AppendMenu(MF_STRING, 
-                           IDM_ABOUTBOX, 
-                           strAboutMenu);
-      }
+    if(CURLE_OK != res)
+      break;
+
+    if(bytes_written != write_len) {
+      write_len -= bytes_written;
+      sptr += bytes_written;
     }
+    else
+      break;
+  } while(1);
 
-  // Set the icon for this dialog.  The framework does this automatically
-  //  when the application's main window is not a dialog
-  SetIcon(m_hIcon, TRUE);			// Set big icon
-  SetIcon(m_hIcon, FALSE);		// Set small icon
-  // Load source and build dirs from registry
-  this->LoadFromRegistry();
-  std::vector<std::string> names;
-  this->m_CMakeInstance->GetRegisteredGenerators(names);
-  for(std::vector<std::string>::iterator i = names.begin();
-      i != names.end(); ++i)
-    {
-    m_GeneratorChoice.AddString(i->c_str());
-    }
-  if (m_GeneratorChoiceString == _T("")) 
-    {
-    m_GeneratorChoiceString = "Visual Studio 6";
-    }
-
-  // try to load the cmake cache from disk
-  this->LoadCacheFromDiskToGUI();
-  m_WhereBuildControl.LimitText(2048);
-  m_WhereSourceControl.LimitText(2048);
-  m_GeneratorChoice.LimitText(2048);
-    
-  // Set the version number
-  char tmp[1024];
-  sprintf(tmp,"Version %d.%d - %s", cmake::GetMajorVersion(),
-          cmake::GetMinorVersion(), cmake::GetReleaseVersion());
-  SetDlgItemText(IDC_CMAKE_VERSION, tmp);
-  SetDlgItemText(IDC_PROGRESS, "");
-  this->UpdateData(FALSE);
-  return TRUE;  // return TRUE  unless you set the focus to a control
+  return res;
 }

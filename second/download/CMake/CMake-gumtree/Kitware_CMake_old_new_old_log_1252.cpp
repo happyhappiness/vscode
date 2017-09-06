@@ -1,1 +1,1 @@
-sprintf(num,"%d",static_cast<int>(m_LocalGenerators.size()));
+yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" );

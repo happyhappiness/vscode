@@ -1,1 +1,1 @@
-fout << "    printf(\"Available tests:\\n\");\n";
+f(fout, "PROJECT(CMAKE_TRY_COMPILE)\n");

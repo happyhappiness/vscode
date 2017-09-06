@@ -1,1 +1,1 @@
-fprintf(stderr, "The strongly connected components are:\n");
+sprintf(buf, "%u", this->VersionMinor);

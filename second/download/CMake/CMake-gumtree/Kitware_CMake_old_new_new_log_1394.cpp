@@ -1,1 +1,1 @@
-fprintf(stderr,"SegFault");
+fprintf(fout, "SET(CMAKE_FORTRAN_FLAGS \"${CMAKE_FORTRAN_FLAGS} ");

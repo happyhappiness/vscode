@@ -1,0 +1,1 @@
+sprintf(version+sideSpace, "%s", vertmp);

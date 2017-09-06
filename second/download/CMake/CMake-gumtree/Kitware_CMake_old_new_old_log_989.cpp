@@ -1,1 +1,1 @@
-sprintf(win9x, "%s%s", tempDir, fwdName);
+fprintf(fout, "SET(CMAKE_%s_FLAGS \"", lang);

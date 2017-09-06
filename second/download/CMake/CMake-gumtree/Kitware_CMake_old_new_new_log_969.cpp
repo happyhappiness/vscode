@@ -1,2 +1,2 @@
-f(targetNameBuf, "cmTryCompileExec%u",
-            cmSystemTools::RandomSeed());
+archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Symlink");

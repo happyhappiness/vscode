@@ -1,155 +1,144 @@
-static int64_t
-archive_read_format_rar_seek_data(struct archive_read *a, int64_t offset,
-    int whence)
+int
+archive_read_disk_entry_from_file(struct archive *_a,
+    struct archive_entry *entry, int fd, const struct stat *st)
 {
-  int64_t client_offset, ret;
-  unsigned int i;
-  struct rar *rar = (struct rar *)(a->format->data);
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	const wchar_t *path;
+	const wchar_t *wname;
+	const char *name;
+	HANDLE h;
+	BY_HANDLE_FILE_INFORMATION bhfi;
+	DWORD fileAttributes = 0;
+	int r;
 
-  if (rar->compression_method == COMPRESS_METHOD_STORE)
-  {
-    /* Modify the offset for use with SEEK_SET */
-    switch (whence)
-    {
-      case SEEK_CUR:
-        client_offset = rar->offset_seek;
-        break;
-      case SEEK_END:
-        client_offset = rar->unp_size;
-        break;
-      case SEEK_SET:
-      default:
-        client_offset = 0;
-    }
-    client_offset += offset;
-    if (client_offset < 0)
-    {
-      /* Can't seek past beginning of data block */
-      return -1;
-    }
-    else if (client_offset > rar->unp_size)
-    {
-      /*
-       * Set the returned offset but only seek to the end of
-       * the data block.
-       */
-      rar->offset_seek = client_offset;
-      client_offset = rar->unp_size;
-    }
+	archive_clear_error(_a);
+	wname = archive_entry_sourcepath_w(entry);
+	if (wname == NULL)
+		wname = archive_entry_pathname_w(entry);
+	if (wname == NULL) {
+		archive_set_error(&a->archive, EINVAL,
+		    "Can't get a wide character version of the path");
+		return (ARCHIVE_FAILED);
+	}
+	path = __la_win_permissive_name_w(wname);
 
-    client_offset += rar->dbo[0].start_offset;
-    i = 0;
-    while (i < rar->cursor)
-    {
-      i++;
-      client_offset += rar->dbo[i].start_offset - rar->dbo[i-1].end_offset;
-    }
-    if (rar->main_flags & MHD_VOLUME)
-    {
-      /* Find the appropriate offset among the multivolume archive */
-      while (1)
-      {
-        if (client_offset < rar->dbo[rar->cursor].start_offset &&
-          rar->file_flags & FHD_SPLIT_BEFORE)
-        {
-          /* Search backwards for the correct data block */
-          if (rar->cursor == 0)
-          {
-            archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-              "Attempt to seek past beginning of RAR data block");
-            return (ARCHIVE_FAILED);
-          }
-          rar->cursor--;
-          client_offset -= rar->dbo[rar->cursor+1].start_offset -
-            rar->dbo[rar->cursor].end_offset;
-          if (client_offset < rar->dbo[rar->cursor].start_offset)
-            continue;
-          ret = __archive_read_seek(a, rar->dbo[rar->cursor].start_offset -
-            rar->dbo[rar->cursor].header_size, SEEK_SET);
-          if (ret < (ARCHIVE_OK))
-            return ret;
-          ret = archive_read_format_rar_read_header(a, a->entry);
-          if (ret != (ARCHIVE_OK))
-          {
-            archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-              "Error during seek of RAR file");
-            return (ARCHIVE_FAILED);
-          }
-          rar->cursor--;
-          break;
-        }
-        else if (client_offset > rar->dbo[rar->cursor].end_offset &&
-          rar->file_flags & FHD_SPLIT_AFTER)
-        {
-          /* Search forward for the correct data block */
-          rar->cursor++;
-          if (rar->cursor < rar->nodes &&
-            client_offset > rar->dbo[rar->cursor].end_offset)
-          {
-            client_offset += rar->dbo[rar->cursor].start_offset -
-              rar->dbo[rar->cursor-1].end_offset;
-            continue;
-          }
-          rar->cursor--;
-          ret = __archive_read_seek(a, rar->dbo[rar->cursor].end_offset,
-                                    SEEK_SET);
-          if (ret < (ARCHIVE_OK))
-            return ret;
-          ret = archive_read_format_rar_read_header(a, a->entry);
-          if (ret == (ARCHIVE_EOF))
-          {
-            rar->has_endarc_header = 1;
-            ret = archive_read_format_rar_read_header(a, a->entry);
-          }
-          if (ret != (ARCHIVE_OK))
-          {
-            archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-              "Error during seek of RAR file");
-            return (ARCHIVE_FAILED);
-          }
-          client_offset += rar->dbo[rar->cursor].start_offset -
-            rar->dbo[rar->cursor-1].end_offset;
-          continue;
-        }
-        break;
-      }
-    }
+	if (st == NULL) {
+		/*
+		 * Get metadata through GetFileInformationByHandle().
+		 */
+		if (fd >= 0) {
+			h = (HANDLE)_get_osfhandle(fd);
+			r = GetFileInformationByHandle(h, &bhfi);
+			if (r == 0) {
+				la_dosmaperr(GetLastError());
+				archive_set_error(&a->archive, errno,
+				    "Can't GetFileInformationByHandle");
+				return (ARCHIVE_FAILED);
+			}
+			entry_copy_bhfi(entry, path, NULL, &bhfi);
+		} else {
+			WIN32_FIND_DATAW findData;
+			DWORD flag, desiredAccess;
+	
+			h = FindFirstFileW(path, &findData);
+			if (h == INVALID_HANDLE_VALUE) {
+				la_dosmaperr(GetLastError());
+				archive_set_error(&a->archive, errno,
+				    "Can't FindFirstFileW");
+				return (ARCHIVE_FAILED);
+			}
+			FindClose(h);
 
-    ret = __archive_read_seek(a, client_offset, SEEK_SET);
-    if (ret < (ARCHIVE_OK))
-      return ret;
-    rar->bytes_remaining = rar->dbo[rar->cursor].end_offset - ret;
-    i = rar->cursor;
-    while (i > 0)
-    {
-      i--;
-      ret -= rar->dbo[i+1].start_offset - rar->dbo[i].end_offset;
-    }
-    ret -= rar->dbo[0].start_offset;
+			flag = FILE_FLAG_BACKUP_SEMANTICS;
+			if (!a->follow_symlinks &&
+			    (findData.dwFileAttributes
+			      & FILE_ATTRIBUTE_REPARSE_POINT) &&
+				  (findData.dwReserved0 == IO_REPARSE_TAG_SYMLINK)) {
+				flag |= FILE_FLAG_OPEN_REPARSE_POINT;
+				desiredAccess = 0;
+			} else if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+				desiredAccess = 0;
+			} else
+				desiredAccess = GENERIC_READ;
 
-    /* Always restart reading the file after a seek */
-    a->read_data_block = NULL;
-    a->read_data_offset = 0;
-    a->read_data_output_offset = 0;
-    a->read_data_remaining = 0;
-    rar->bytes_unconsumed = 0;
-    rar->offset = 0;
+			h = CreateFileW(path, desiredAccess, 0, NULL,
+			    OPEN_EXISTING, flag, NULL);
+			if (h == INVALID_HANDLE_VALUE) {
+				la_dosmaperr(GetLastError());
+				archive_set_error(&a->archive, errno,
+				    "Can't CreateFileW");
+				return (ARCHIVE_FAILED);
+			}
+			r = GetFileInformationByHandle(h, &bhfi);
+			if (r == 0) {
+				la_dosmaperr(GetLastError());
+				archive_set_error(&a->archive, errno,
+				    "Can't GetFileInformationByHandle");
+				CloseHandle(h);
+				return (ARCHIVE_FAILED);
+			}
+			entry_copy_bhfi(entry, path, &findData, &bhfi);
+		}
+		fileAttributes = bhfi.dwFileAttributes;
+	} else {
+		archive_entry_copy_stat(entry, st);
+		h = INVALID_HANDLE_VALUE;
+	}
 
-    /*
-     * If a seek past the end of file was requested, return the requested
-     * offset.
-     */
-    if (ret == rar->unp_size && rar->offset_seek > rar->unp_size)
-      return rar->offset_seek;
+	/* Lookup uname/gname */
+	name = archive_read_disk_uname(_a, archive_entry_uid(entry));
+	if (name != NULL)
+		archive_entry_copy_uname(entry, name);
+	name = archive_read_disk_gname(_a, archive_entry_gid(entry));
+	if (name != NULL)
+		archive_entry_copy_gname(entry, name);
 
-    /* Return the new offset */
-    rar->offset_seek = ret;
-    return rar->offset_seek;
-  }
-  else
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-      "Seeking of compressed RAR files is unsupported");
-  }
-  return (ARCHIVE_FAILED);
+	/*
+	 * Can this file be sparse file ?
+	 */
+	if (archive_entry_filetype(entry) != AE_IFREG
+	    || archive_entry_size(entry) <= 0
+		|| archive_entry_hardlink(entry) != NULL) {
+		if (h != INVALID_HANDLE_VALUE && fd < 0)
+			CloseHandle(h);
+		return (ARCHIVE_OK);
+	}
+
+	if (h == INVALID_HANDLE_VALUE) {
+		if (fd >= 0) {
+			h = (HANDLE)_get_osfhandle(fd);
+		} else {
+			h = CreateFileW(path, GENERIC_READ, 0, NULL,
+			    OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+			if (h == INVALID_HANDLE_VALUE) {
+				la_dosmaperr(GetLastError());
+				archive_set_error(&a->archive, errno,
+				    "Can't CreateFileW");
+				return (ARCHIVE_FAILED);
+			}
+		}
+		r = GetFileInformationByHandle(h, &bhfi);
+		if (r == 0) {
+			la_dosmaperr(GetLastError());
+			archive_set_error(&a->archive, errno,
+			    "Can't GetFileInformationByHandle");
+			if (h != INVALID_HANDLE_VALUE && fd < 0)
+				CloseHandle(h);
+			return (ARCHIVE_FAILED);
+		}
+		fileAttributes = bhfi.dwFileAttributes;
+	}
+
+	/* Sparse file must be set a mark, FILE_ATTRIBUTE_SPARSE_FILE */
+	if ((fileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) == 0) {
+		if (fd < 0)
+			CloseHandle(h);
+		return (ARCHIVE_OK);
+	}
+
+	r = setup_sparse_from_disk(a, entry, h);
+	if (fd < 0)
+		CloseHandle(h);
+
+	return (r);
 }

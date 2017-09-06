@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in yy_create_buffer()" );
+fprintf(stderr, "kwsysProcess_New returned NULL!\n");

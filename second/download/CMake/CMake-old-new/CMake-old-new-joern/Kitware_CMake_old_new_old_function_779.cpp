@@ -1,178 +1,489 @@
-static int
-_archive_read_next_header2(struct archive *_a, struct archive_entry *entry)
+int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
 {
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	struct tree *t;
-	const struct stat *st; /* info to use for this entry */
-	const struct stat *lst;/* lstat() information */
-	int descend, fd = -1, r;
+  this->BinaryDirectory = argv[1].c_str();
+  this->OutputFile = "";
+  // which signature were we called with ?
+  this->SrcFileSignature = true;
 
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
-	    "archive_read_next_header2");
+  const char* sourceDirectory = argv[2].c_str();
+  const char* projectName = 0;
+  const char* targetName = 0;
+  std::vector<std::string> cmakeFlags;
+  std::vector<std::string> compileDefs;
+  std::string outputVariable;
+  std::string copyFile;
+  std::string copyFileError;
+  std::vector<cmTarget*> targets;
+  std::string libsToLink = " ";
+  bool useOldLinkLibs = true;
+  char targetNameBuf[64];
+  bool didOutputVariable = false;
+  bool didCopyFile = false;
+  bool didCopyFileError = false;
+  bool useSources = argv[2] == "SOURCES";
+  std::vector<std::string> sources;
 
-	t = a->tree;
-	if (t->entry_fd >= 0) {
-		close_and_restore_time(t->entry_fd, t, &t->restore_time);
-		t->entry_fd = -1;
-	}
-#if !(defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR))
-	/* Restore working directory. */
-	tree_enter_working_dir(t);
-#endif
-	st = NULL;
-	lst = NULL;
-	do {
-		switch (tree_next(t)) {
-		case TREE_ERROR_FATAL:
-			archive_set_error(&a->archive, t->tree_errno,
-			    "%s: Unable to continue traversing directory tree",
-			    tree_current_path(t));
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			tree_enter_initial_dir(t);
-			return (ARCHIVE_FATAL);
-		case TREE_ERROR_DIR:
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "%s: Couldn't visit directory",
-			    tree_current_path(t));
-			tree_enter_initial_dir(t);
-			return (ARCHIVE_FAILED);
-		case 0:
-			tree_enter_initial_dir(t);
-			return (ARCHIVE_EOF);
-		case TREE_POSTDESCENT:
-		case TREE_POSTASCENT:
-			break;
-		case TREE_REGULAR:
-			lst = tree_current_lstat(t);
-			if (lst == NULL) {
-				archive_set_error(&a->archive, errno,
-				    "%s: Cannot stat",
-				    tree_current_path(t));
-				tree_enter_initial_dir(t);
-				return (ARCHIVE_FAILED);
-			}
-			break;
-		}	
-	} while (lst == NULL);
+  enum Doing { DoingNone, DoingCMakeFlags, DoingCompileDefinitions,
+               DoingLinkLibraries, DoingOutputVariable, DoingCopyFile,
+               DoingCopyFileError, DoingSources };
+  Doing doing = useSources? DoingSources : DoingNone;
+  for(size_t i=3; i < argv.size(); ++i)
+    {
+    if(argv[i] == "CMAKE_FLAGS")
+      {
+      doing = DoingCMakeFlags;
+      // CMAKE_FLAGS is the first argument because we need an argv[0] that
+      // is not used, so it matches regular command line parsing which has
+      // the program name as arg 0
+      cmakeFlags.push_back(argv[i]);
+      }
+    else if(argv[i] == "COMPILE_DEFINITIONS")
+      {
+      doing = DoingCompileDefinitions;
+      }
+    else if(argv[i] == "LINK_LIBRARIES")
+      {
+      doing = DoingLinkLibraries;
+      useOldLinkLibs = false;
+      }
+    else if(argv[i] == "OUTPUT_VARIABLE")
+      {
+      doing = DoingOutputVariable;
+      didOutputVariable = true;
+      }
+    else if(argv[i] == "COPY_FILE")
+      {
+      doing = DoingCopyFile;
+      didCopyFile = true;
+      }
+    else if(argv[i] == "COPY_FILE_ERROR")
+      {
+      doing = DoingCopyFileError;
+      didCopyFileError = true;
+      }
+    else if(doing == DoingCMakeFlags)
+      {
+      cmakeFlags.push_back(argv[i]);
+      }
+    else if(doing == DoingCompileDefinitions)
+      {
+      compileDefs.push_back(argv[i]);
+      }
+    else if(doing == DoingLinkLibraries)
+      {
+      libsToLink += "\"" + cmSystemTools::TrimWhitespace(argv[i]) + "\" ";
+      if(cmTarget *tgt = this->Makefile->FindTargetToUse(argv[i].c_str()))
+        {
+        switch(tgt->GetType())
+          {
+          case cmTarget::SHARED_LIBRARY:
+          case cmTarget::STATIC_LIBRARY:
+          case cmTarget::UNKNOWN_LIBRARY:
+            break;
+          case cmTarget::EXECUTABLE:
+            if (tgt->IsExecutableWithExports())
+              {
+              break;
+              }
+          default:
+            this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+              "Only libraries may be used as try_compile IMPORTED "
+              "LINK_LIBRARIES.  Got " + std::string(tgt->GetName()) + " of "
+              "type " + tgt->GetTargetTypeName(tgt->GetType()) + ".");
+            return -1;
+          }
+        if (tgt->IsImported())
+          {
+          targets.push_back(tgt);
+          }
+        }
+      }
+    else if(doing == DoingOutputVariable)
+      {
+      outputVariable = argv[i].c_str();
+      doing = DoingNone;
+      }
+    else if(doing == DoingCopyFile)
+      {
+      copyFile = argv[i].c_str();
+      doing = DoingNone;
+      }
+    else if(doing == DoingCopyFileError)
+      {
+      copyFileError = argv[i].c_str();
+      doing = DoingNone;
+      }
+    else if(doing == DoingSources)
+      {
+      sources.push_back(argv[i]);
+      }
+    else if(i == 3)
+      {
+      this->SrcFileSignature = false;
+      projectName = argv[i].c_str();
+      }
+    else if(i == 4 && !this->SrcFileSignature)
+      {
+      targetName = argv[i].c_str();
+      }
+    else
+      {
+      cmOStringStream m;
+      m << "try_compile given unknown argument \"" << argv[i] << "\".";
+      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, m.str());
+      }
+    }
 
-	/*
-	 * Distinguish 'L'/'P'/'H' symlink following.
-	 */
-	switch(t->symlink_mode) {
-	case 'H':
-		/* 'H': After the first item, rest like 'P'. */
-		t->symlink_mode = 'P';
-		/* 'H': First item (from command line) like 'L'. */
-		/* FALLTHROUGH */
-	case 'L':
-		/* 'L': Do descend through a symlink to dir. */
-		descend = tree_current_is_dir(t);
-		/* 'L': Follow symlinks to files. */
-		a->symlink_mode = 'L';
-		a->follow_symlinks = 1;
-		/* 'L': Archive symlinks as targets, if we can. */
-		st = tree_current_stat(t);
-		if (st != NULL && !tree_target_is_same_as_parent(t, st))
-			break;
-		/* If stat fails, we have a broken symlink;
-		 * in that case, don't follow the link. */
-		/* FALLTHROUGH */
-	default:
-		/* 'P': Don't descend through a symlink to dir. */
-		descend = tree_current_is_physical_dir(t);
-		/* 'P': Don't follow symlinks to files. */
-		a->symlink_mode = 'P';
-		a->follow_symlinks = 0;
-		/* 'P': Archive symlinks as symlinks. */
-		st = lst;
-		break;
-	}
+  if(didCopyFile && copyFile.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "COPY_FILE must be followed by a file path");
+    return -1;
+    }
 
-	if (update_current_filesystem(a, st->st_dev) != ARCHIVE_OK) {
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		tree_enter_initial_dir(t);
-		return (ARCHIVE_FATAL);
-	}
-	t->descend = descend;
+  if(didCopyFileError && copyFileError.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "COPY_FILE_ERROR must be followed by a variable name");
+    return -1;
+    }
 
-	archive_entry_set_pathname(entry, tree_current_path(t));
-	archive_entry_copy_sourcepath(entry, tree_current_access_path(t));
-	archive_entry_copy_stat(entry, st);
+  if(didCopyFileError && !didCopyFile)
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "COPY_FILE_ERROR may be used only with COPY_FILE");
+    return -1;
+    }
 
-	/* Save the times to be restored. */
-	t->restore_time.mtime = archive_entry_mtime(entry);
-	t->restore_time.mtime_nsec = archive_entry_mtime_nsec(entry);
-	t->restore_time.atime = archive_entry_atime(entry);
-	t->restore_time.atime_nsec = archive_entry_atime_nsec(entry);
-	t->restore_time.filetype = archive_entry_filetype(entry);
-	t->restore_time.noatime = t->current_filesystem->noatime;
+  if(didOutputVariable && outputVariable.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "OUTPUT_VARIABLE must be followed by a variable name");
+    return -1;
+    }
 
-#if defined(HAVE_OPENAT) && defined(HAVE_FSTATAT) && defined(HAVE_FDOPENDIR)
-	/*
-	 * Open the current file to freely gather its metadata anywhere in
-	 * working directory.
-	 * Note: A symbolic link file cannot be opened with O_NOFOLLOW.
-	 */
-	if (a->follow_symlinks || archive_entry_filetype(entry) != AE_IFLNK)
-		fd = openat(tree_current_dir_fd(t), tree_current_access_path(t),
-		    O_RDONLY | O_NONBLOCK);
-	/* Restore working directory if openat() operation failed or
-	 * the file is a symbolic link. */
-	if (fd < 0)
-		tree_enter_working_dir(t);
+  if(useSources && sources.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "SOURCES must be followed by at least one source file");
+    return -1;
+    }
 
-	/* The current directory fd is needed at
-	 * archive_read_disk_entry_from_file() function to read link data
-	 * with readlinkat(). */
-	a->entry_wd_fd = tree_current_dir_fd(t);
-#endif
+  // compute the binary dir when TRY_COMPILE is called with a src file
+  // signature
+  if (this->SrcFileSignature)
+    {
+    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
+    this->BinaryDirectory += "/CMakeTmp";
+    }
+  else
+    {
+    // only valid for srcfile signatures
+    if (compileDefs.size())
+      {
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
+      return -1;
+      }
+    if (copyFile.size())
+      {
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+        "COPY_FILE specified on a srcdir type TRY_COMPILE");
+      return -1;
+      }
+    }
+  // make sure the binary directory exists
+  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
 
-	/*
-	 * Populate the archive_entry with metadata from the disk.
-	 */
-	r = archive_read_disk_entry_from_file(&(a->archive), entry, fd, st);
+  // do not allow recursive try Compiles
+  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory())
+    {
+    cmOStringStream e;
+    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
+      << "  " << this->BinaryDirectory << "\n";
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+    return -1;
+    }
 
-	/* Close the file descriptor used for reding the current file
-	 * metadata at archive_read_disk_entry_from_file(). */
-	if (fd >= 0)
-		close(fd);
+  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
+  // which signature are we using? If we are using var srcfile bindir
+  if (this->SrcFileSignature)
+    {
+    // remove any CMakeCache.txt files so we will have a clean test
+    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
+    cmSystemTools::RemoveFile(ccFile.c_str());
 
-	/* Return to the initial directory. */
-	tree_enter_initial_dir(t);
-	archive_entry_copy_sourcepath(entry, tree_current_path(t));
+    // Choose sources.
+    if(!useSources)
+      {
+      sources.push_back(argv[2]);
+      }
 
-	/*
-	 * EOF and FATAL are persistent at this layer.  By
-	 * modifying the state, we guarantee that future calls to
-	 * read a header or read data will fail.
-	 */
-	switch (r) {
-	case ARCHIVE_EOF:
-		a->archive.state = ARCHIVE_STATE_EOF;
-		break;
-	case ARCHIVE_OK:
-	case ARCHIVE_WARN:
-		t->entry_total = 0;
-		if (archive_entry_filetype(entry) == AE_IFREG) {
-			t->nlink = archive_entry_nlink(entry);
-			t->entry_remaining_bytes = archive_entry_size(entry);
-			t->entry_eof = (t->entry_remaining_bytes == 0)? 1: 0;
-			if (!t->entry_eof &&
-			    setup_sparse(a, entry) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-		} else {
-			t->entry_remaining_bytes = 0;
-			t->entry_eof = 1;
-		}
-		a->archive.state = ARCHIVE_STATE_DATA;
-		break;
-	case ARCHIVE_RETRY:
-		break;
-	case ARCHIVE_FATAL:
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		break;
-	}
+    // Detect languages to enable.
+    cmLocalGenerator* lg = this->Makefile->GetLocalGenerator();
+    cmGlobalGenerator* gg = lg->GetGlobalGenerator();
+    std::set<std::string> testLangs;
+    for(std::vector<std::string>::iterator si = sources.begin();
+        si != sources.end(); ++si)
+      {
+      std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
+      if(const char* lang = gg->GetLanguageFromExtension(ext.c_str()))
+        {
+        testLangs.insert(lang);
+        }
+      else
+        {
+        cmOStringStream err;
+        err << "Unknown extension \"" << ext << "\" for file\n"
+            << "  " << *si << "\n"
+            << "try_compile() works only for enabled languages.  "
+            << "Currently these are:\n ";
+        std::vector<std::string> langs;
+        gg->GetEnabledLanguages(langs);
+        for(std::vector<std::string>::iterator l = langs.begin();
+            l != langs.end(); ++l)
+          {
+          err << " " << *l;
+          }
+        err << "\nSee project() command to enable other languages.";
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
+        return -1;
+        }
+      }
 
-	return (r);
+    // we need to create a directory and CMakeLists file etc...
+    // first create the directories
+    sourceDirectory = this->BinaryDirectory.c_str();
+
+    // now create a CMakeLists.txt file in that directory
+    FILE *fout = fopen(outFileName.c_str(),"w");
+    if (!fout)
+      {
+      cmOStringStream e;
+      e << "Failed to open\n"
+        << "  " << outFileName.c_str() << "\n"
+        << cmSystemTools::GetLastSystemError();
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+      return -1;
+      }
+
+    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
+    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
+            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
+            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
+    if(def)
+      {
+      fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
+      }
+
+    std::string projectLangs;
+    for(std::set<std::string>::iterator li = testLangs.begin();
+        li != testLangs.end(); ++li)
+      {
+      projectLangs += " " + *li;
+      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
+      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
+      if(const char* rulesOverridePath =
+         this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
+        {
+        fprintf(fout, "SET(%s \"%s\")\n",
+                rulesOverrideLang.c_str(), rulesOverridePath);
+        }
+      else if(const char* rulesOverridePath2 =
+              this->Makefile->GetDefinition(rulesOverrideBase.c_str()))
+        {
+        fprintf(fout, "SET(%s \"%s\")\n",
+                rulesOverrideBase.c_str(), rulesOverridePath2);
+        }
+      }
+    fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
+    fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");
+    for(std::set<std::string>::iterator li = testLangs.begin();
+        li != testLangs.end(); ++li)
+      {
+      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
+      const char* flags = this->Makefile->GetDefinition(langFlags.c_str());
+      fprintf(fout, "SET(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              lg->EscapeForCMake(flags?flags:"").c_str());
+      fprintf(fout, "SET(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
+              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
+      }
+    fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
+    fprintf(fout, "SET(CMAKE_SUPPRESS_REGENERATION 1)\n");
+    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
+    // handle any compile flags we need to pass on
+    if (compileDefs.size())
+      {
+      fprintf(fout, "ADD_DEFINITIONS( ");
+      for (size_t i = 0; i < compileDefs.size(); ++i)
+        {
+        fprintf(fout,"%s ",compileDefs[i].c_str());
+        }
+      fprintf(fout, ")\n");
+      }
+
+    /* Use a random file name to avoid rapid creation and deletion
+       of the same executable name (some filesystems fail on that).  */
+    sprintf(targetNameBuf, "cmTryCompileExec%u",
+            cmSystemTools::RandomSeed());
+    targetName = targetNameBuf;
+
+    if (!targets.empty())
+      {
+      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
+      cmExportTryCompileFileGenerator tcfg;
+      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
+      tcfg.SetExports(targets);
+      tcfg.SetConfig(this->Makefile->GetDefinition(
+                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
+
+      if(!tcfg.GenerateImportFile())
+        {
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+                                     "could not write export file.");
+        fclose(fout);
+        return -1;
+        }
+      fprintf(fout,
+              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
+              fname.c_str());
+      }
+
+    /* for the TRY_COMPILEs we want to be able to specify the architecture.
+      So the user can set CMAKE_OSX_ARCHITECTURE to i386;ppc and then set
+      CMAKE_TRY_COMPILE_OSX_ARCHITECTURE first to i386 and then to ppc to
+      have the tests run for each specific architecture. Since
+      cmLocalGenerator doesn't allow building for "the other"
+      architecture only via CMAKE_OSX_ARCHITECTURES.
+      */
+    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition(
+                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+      }
+    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+      }
+    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
+    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_SYSROOT=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
+      cmakeFlags.push_back(flag);
+      }
+    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
+    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
+      cmakeFlags.push_back(flag);
+      }
+    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
+      {
+      fprintf(fout, "SET(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
+      }
+
+    /* Put the executable at a known location (for COPY_FILE).  */
+    fprintf(fout, "SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+            this->BinaryDirectory.c_str());
+    /* Create the actual executable.  */
+    fprintf(fout, "ADD_EXECUTABLE(%s", targetName);
+    for(std::vector<std::string>::iterator si = sources.begin();
+        si != sources.end(); ++si)
+      {
+      fprintf(fout, " \"%s\"", si->c_str());
+
+      // Add dependencies on any non-temporary sources.
+      if(si->find("CMakeTmp") == si->npos)
+        {
+        this->Makefile->AddCMakeDependFile(*si);
+        }
+      }
+    fprintf(fout, ")\n");
+    if (useOldLinkLibs)
+      {
+      fprintf(fout,
+              "TARGET_LINK_LIBRARIES(%s ${LINK_LIBRARIES})\n",targetName);
+      }
+    else
+      {
+      fprintf(fout, "TARGET_LINK_LIBRARIES(%s %s)\n",
+              targetName,
+              libsToLink.c_str());
+      }
+    fclose(fout);
+    projectName = "CMAKE_TRY_COMPILE";
+    }
+
+  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
+  cmSystemTools::ResetErrorOccuredFlag();
+  std::string output;
+  // actually do the try compile now that everything is setup
+  int res = this->Makefile->TryCompile(sourceDirectory,
+                                       this->BinaryDirectory.c_str(),
+                                       projectName,
+                                       targetName,
+                                       this->SrcFileSignature,
+                                       &cmakeFlags,
+                                       &output);
+  if ( erroroc )
+    {
+    cmSystemTools::SetErrorOccured();
+    }
+
+  // set the result var to the return value to indicate success or failure
+  this->Makefile->AddCacheDefinition(argv[0].c_str(),
+                                     (res == 0 ? "TRUE" : "FALSE"),
+                                     "Result of TRY_COMPILE",
+                                     cmCacheManager::INTERNAL);
+
+  if ( outputVariable.size() > 0 )
+    {
+    this->Makefile->AddDefinition(outputVariable.c_str(), output.c_str());
+    }
+
+  if (this->SrcFileSignature)
+    {
+    std::string copyFileErrorMessage;
+    this->FindOutputFile(targetName);
+
+    if ((res==0) && (copyFile.size()))
+      {
+      if(this->OutputFile.empty() ||
+         !cmSystemTools::CopyFileAlways(this->OutputFile.c_str(),
+                                        copyFile.c_str()))
+        {
+        cmOStringStream emsg;
+        emsg << "Cannot copy output executable\n"
+             << "  '" << this->OutputFile.c_str() << "'\n"
+             << "to destination specified by COPY_FILE:\n"
+             << "  '" << copyFile.c_str() << "'\n";
+        if(!this->FindErrorMessage.empty())
+          {
+          emsg << this->FindErrorMessage.c_str();
+          }
+        if(copyFileError.empty())
+          {
+          this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
+          return -1;
+          }
+        else
+          {
+          copyFileErrorMessage = emsg.str();
+          }
+        }
+      }
+
+    if(!copyFileError.empty())
+      {
+      this->Makefile->AddDefinition(copyFileError.c_str(),
+                                    copyFileErrorMessage.c_str());
+      }
+    }
+  return res;
 }

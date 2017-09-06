@@ -1,2 +1,1 @@
-sprintf(tmp,"Version %d.%d", cmMakefile::GetMajorVersion(),
-          cmMakefile::GetMinorVersion());
+sprintf(s2, "%s%s%s", s1, s3, cmdstring);

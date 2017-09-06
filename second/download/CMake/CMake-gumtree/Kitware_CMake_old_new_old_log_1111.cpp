@@ -1,1 +1,1 @@
-sprintf(temp,"%d",this->ChipID.Family);
+sprintf(buffer, "%d", osvi.dwMinorVersion);

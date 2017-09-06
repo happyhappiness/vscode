@@ -1,1 +1,2 @@
-fprintf(stdout, "Output on stdout after grandchild test.\n");
+conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
+                                         data->state.range);

@@ -1,2 +1,2 @@
-fprintf(stderr, "Header id 0x%x, length %d\n",
-		    headerid, datasize);
+archive_set_error(f->archive, EIO,
+		    "Filter exited with failure.");

@@ -1,74 +1,54 @@
-BOOL CMakeSetupDialog::OnInitDialog()
+void ctest::GenerateDartBuildOutput(std::ostream& os, 
+                                    std::vector<cmCTestBuildErrorWarning> ew)
 {
-  CDialog::OnInitDialog();
-  this->DragAcceptFiles(true);
+  time_t tctime = time(0);
+  struct tm *lctime = gmtime(&tctime);
+  char datestring[100];
+  sprintf(datestring, "%4d%02d%02d-%d%d",
+          lctime->tm_year + 1900,
+          lctime->tm_mon,
+          lctime->tm_mday,
+          lctime->tm_hour,
+          lctime->tm_min);
 
-  // Add "Create shortcut" menu item to system menu.
-
-  // IDM_CREATESHORTCUT must be in the system command range.
-  ASSERT((IDM_CREATESHORTCUT & 0xFFF0) == IDM_CREATESHORTCUT);
-  ASSERT(IDM_CREATESHORTCUT < 0xF000);
-
-  // Add "About..." menu item to system menu.
-
-  // IDM_ABOUTBOX must be in the system command range.
-  ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
-  ASSERT(IDM_ABOUTBOX < 0xF000);
-
-  CMenu* pSysMenu = GetSystemMenu(FALSE);
-  if (pSysMenu != NULL)
-    {
-    CString strCreateShortcutMenu;
-    strCreateShortcutMenu.LoadString(IDS_CREATESHORTCUT);
-    if (!strCreateShortcutMenu.IsEmpty())
-      {
-      pSysMenu->AppendMenu(MF_SEPARATOR);
-      pSysMenu->AppendMenu(MF_STRING, 
-                           IDM_CREATESHORTCUT, 
-                           strCreateShortcutMenu);
-      }
-
-    CString strAboutMenu;
-    strAboutMenu.LoadString(IDS_ABOUTBOX);
-    if (!strAboutMenu.IsEmpty())
-      {
-      pSysMenu->AppendMenu(MF_SEPARATOR);
-      pSysMenu->AppendMenu(MF_STRING, 
-                           IDM_ABOUTBOX, 
-                           strAboutMenu);
-      }
-    }
-
-  // Set the icon for this dialog.  The framework does this automatically
-  //  when the application's main window is not a dialog
-  SetIcon(m_hIcon, TRUE);			// Set big icon
-  SetIcon(m_hIcon, FALSE);		// Set small icon
-  // Load source and build dirs from registry
-  this->LoadFromRegistry();
-  this->m_CMakeInstance = new cmake;
-  std::vector<std::string> names;
-  this->m_CMakeInstance->GetRegisteredGenerators(names);
-  for(std::vector<std::string>::iterator i = names.begin();
-      i != names.end(); ++i)
-    {
-    m_GeneratorChoice.AddString(i->c_str());
-    }
-  if (m_GeneratorChoiceString == _T("")) 
-    {
-    m_GeneratorChoiceString = "Visual Studio 6";
-    }
-
-  // try to load the cmake cache from disk
-  this->LoadCacheFromDiskToGUI();
-  m_WhereBuildControl.LimitText(2048);
-  m_WhereSourceControl.LimitText(2048);
-  m_GeneratorChoice.LimitText(2048);
+  os << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+     << "<Site BuildName=\"" << m_DartConfiguration["BuildName"]
+     << "\" BuildStamp=\"" << datestring << "-Experimental\" Name=\""
+     << m_DartConfiguration["Site"] << "\">\n"
+     << "<Build>\n"
+     << "  <StartDateTime>" << ::CurrentTime() << "</StartDateTime>\n"
+     << "  <BuildCommand>" << m_DartConfiguration["MakeCommand"]
+     << "</BuildCommand>" << std::endl;
     
-  // Set the version number
-  char tmp[1024];
-  sprintf(tmp,"Version %d.%d - %s", cmMakefile::GetMajorVersion(),
-          cmMakefile::GetMinorVersion(), cmMakefile::GetReleaseVersion());
-  SetDlgItemText(IDC_CMAKE_VERSION, tmp);
-  this->UpdateData(FALSE);
-  return TRUE;  // return TRUE  unless you set the focus to a control
+  std::vector<cmCTestBuildErrorWarning>::iterator it;
+  for ( it = ew.begin(); it != ew.end(); it++ )
+    {
+    cmCTestBuildErrorWarning *cm = &(*it);
+    os << "  <" << (cm->m_Error ? "Error" : "Warning") << ">\n"
+       << "    <BuildLogLine>" << cm->m_LogLine << "</BuildLogLine>\n"
+       << "    <Text>" << cm->m_Text << "</Text>" << std::endl;
+    if ( cm->m_SourceFile.size() > 0 )
+      {
+      os << "    <SourceFile>" << cm->m_SourceFile << "</SourceFile>" 
+         << std::endl;
+      }
+    if ( cm->m_SourceFileTail.size() > 0 )
+      {
+      os << "    <SourceFileTail>" << cm->m_SourceFileTail 
+         << "</SourceFileTail>" << std::endl;
+      }
+    if ( cm->m_LineNumber >= 0 )
+      {
+      os << "    <SourceLineNumber>" << cm->m_LineNumber 
+         << "</SourceLineNumber>" << std::endl;
+      }
+    os << "    <PreContext>" << cm->m_PreContext << "</PreContext>\n"
+       << "    <PostContext>" << cm->m_PostContext << "</PostContext>\n"
+       << "  </" << (cm->m_Error ? "Error" : "Warning") << ">" 
+       << std::endl;
+    }
+  os << "  <Log Encoding=\"base64\" Compression=\"/bin/gzip\">\n    </Log>\n"
+     << "  <EndDateTime>" << ::CurrentTime() << "</EndDateTime>\n"
+     << "</Build>\n"
+     << "</Site>" << std::endl;
 }

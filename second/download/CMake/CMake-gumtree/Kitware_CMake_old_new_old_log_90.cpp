@@ -1,1 +1,2 @@
-f(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
+f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
+           "%s:%s", user, pwd);

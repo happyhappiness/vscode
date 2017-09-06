@@ -1,1 +1,1 @@
-fprintf(stderr, "%02.2x", (unsigned int)*p++);
+fprintf(handle, "NTLMFLAG_UNKNOWN_3 ");

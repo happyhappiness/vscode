@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_TARGET_INFO ");
+snprintf(sbuf, sizeof(sbuf), "%d", port);

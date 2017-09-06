@@ -1,20 +1,74 @@
-void cmCursesMainForm::PrintKeys()
+BOOL CMakeSetupDialog::OnInitDialog()
 {
-  int x,y;
-  getmaxyx(m_Window, y, x);
-  if ( x < cmCursesMainForm::MIN_WIDTH  || 
-       y < cmCursesMainForm::MIN_HEIGHT )
-    {
-    return;
-    }
-  char firstLine[512], secondLine[512];
-  sprintf(firstLine,  "C)onfigure             G)enerate and Exit");
-  sprintf(secondLine, "Q)uit                  H)elp");
+  CDialog::OnInitDialog();
+  this->DragAcceptFiles(true);
 
-  curses_move(y-2,0);
-  printw(firstLine);
-  curses_move(y-1,0);
-  printw(secondLine);
-  pos_form_cursor(m_Form);
-  
+  // Add "Create shortcut" menu item to system menu.
+
+  // IDM_CREATESHORTCUT must be in the system command range.
+  ASSERT((IDM_CREATESHORTCUT & 0xFFF0) == IDM_CREATESHORTCUT);
+  ASSERT(IDM_CREATESHORTCUT < 0xF000);
+
+  // Add "About..." menu item to system menu.
+
+  // IDM_ABOUTBOX must be in the system command range.
+  ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
+  ASSERT(IDM_ABOUTBOX < 0xF000);
+
+  CMenu* pSysMenu = GetSystemMenu(FALSE);
+  if (pSysMenu != NULL)
+    {
+    CString strCreateShortcutMenu;
+    strCreateShortcutMenu.LoadString(IDS_CREATESHORTCUT);
+    if (!strCreateShortcutMenu.IsEmpty())
+      {
+      pSysMenu->AppendMenu(MF_SEPARATOR);
+      pSysMenu->AppendMenu(MF_STRING, 
+                           IDM_CREATESHORTCUT, 
+                           strCreateShortcutMenu);
+      }
+
+    CString strAboutMenu;
+    strAboutMenu.LoadString(IDS_ABOUTBOX);
+    if (!strAboutMenu.IsEmpty())
+      {
+      pSysMenu->AppendMenu(MF_SEPARATOR);
+      pSysMenu->AppendMenu(MF_STRING, 
+                           IDM_ABOUTBOX, 
+                           strAboutMenu);
+      }
+    }
+
+  // Set the icon for this dialog.  The framework does this automatically
+  //  when the application's main window is not a dialog
+  SetIcon(m_hIcon, TRUE);			// Set big icon
+  SetIcon(m_hIcon, FALSE);		// Set small icon
+  // Load source and build dirs from registry
+  this->LoadFromRegistry();
+  this->m_CMakeInstance = new cmake;
+  std::vector<std::string> names;
+  this->m_CMakeInstance->GetRegisteredGenerators(names);
+  for(std::vector<std::string>::iterator i = names.begin();
+      i != names.end(); ++i)
+    {
+    m_GeneratorChoice.AddString(i->c_str());
+    }
+  if (m_GeneratorChoiceString == _T("")) 
+    {
+    m_GeneratorChoiceString = "Visual Studio 6";
+    }
+
+  // try to load the cmake cache from disk
+  this->LoadCacheFromDiskToGUI();
+  m_WhereBuildControl.LimitText(2048);
+  m_WhereSourceControl.LimitText(2048);
+  m_GeneratorChoice.LimitText(2048);
+    
+  // Set the version number
+  char tmp[1024];
+  sprintf(tmp,"Version %d.%d - %s", cmMakefile::GetMajorVersion(),
+          cmMakefile::GetMinorVersion(), cmMakefile::GetReleaseVersion());
+  SetDlgItemText(IDC_CMAKE_VERSION, tmp);
+  this->UpdateData(FALSE);
+  return TRUE;  // return TRUE  unless you set the focus to a control
 }

@@ -1,1 +1,1 @@
-printf("%c", ISGRAPH(data[i+j])?data[i+j]:'.');
+len = vsnprintf(buf, sizeof(buf), format, va);

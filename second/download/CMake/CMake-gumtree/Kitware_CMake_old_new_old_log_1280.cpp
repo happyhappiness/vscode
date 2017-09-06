@@ -1,1 +1,1 @@
-sprintf(argvName,"${ARGV%i}",t);
+f("Foo: %s\n", foo);

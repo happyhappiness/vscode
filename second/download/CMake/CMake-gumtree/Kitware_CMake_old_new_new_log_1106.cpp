@@ -1,1 +1,1 @@
-fprintf(stderr, "DIRECTORY_DEF_RELEASE should be defined in CXX\n");
+sprintf(buf, "%u", this->VersionFoundCount);

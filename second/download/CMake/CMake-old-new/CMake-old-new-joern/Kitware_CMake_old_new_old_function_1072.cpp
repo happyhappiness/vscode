@@ -1,36 +1,70 @@
-void cmFindPackageCommand::StoreVersionFound()
+int cmake::getAllExternalLibs(const std::set<cmStdString>& ignoreTargetsSet,
+                          std::map<cmStdString, cmStdString>& targetNamesNodes,
+                          std::map<cmStdString, const cmTarget*>& targetPtrs,
+                          std::map<cmStdString, int>& targetDeps,
+                          const char* graphNodePrefix) const
 {
-  // Store the whole version string.
-  std::string ver = this->Name;
-  ver += "_VERSION";
-  if(this->VersionFound.empty())
-    {
-    this->Makefile->RemoveDefinition(ver.c_str());
-    }
-  else
-    {
-    this->Makefile->AddDefinition(ver.c_str(), this->VersionFound.c_str());
-    }
+  int cnt = 0;
 
-  // Store the portions that could be parsed.
-  char buf[64];
-  switch(this->VersionFoundCount)
+  const std::vector<cmLocalGenerator*>& localGenerators =
+                              this->GetGlobalGenerator()->GetLocalGenerators();
+  // Ok, now find all the stuff we link to that is not in cmake
+  for (std::vector<cmLocalGenerator*>::const_iterator lit =
+                                                       localGenerators.begin();
+       lit != localGenerators.end();
+       ++ lit )
     {
-    case 3:
+    const cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
+    for ( cmTargets::const_iterator tit = targets->begin();
+          tit != targets->end();
+          ++ tit )
       {
-      sprintf(buf, "%u", this->VersionFoundPatch);
-      this->Makefile->AddDefinition((ver+"_PATCH").c_str(), buf);
-      } // no break
-    case 2:
-      {
-      sprintf(buf, "%u", this->VersionFoundMinor);
-      this->Makefile->AddDefinition((ver+"_MINOR").c_str(), buf);
-      } // no break
-    case 1:
-      {
-      sprintf(buf, "%u", this->VersionFoundMajor);
-      this->Makefile->AddDefinition((ver+"_MAJOR").c_str(), buf);
-      } // no break
-    default: break;
+      const char* realTargetName = tit->first.c_str();
+      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
+        {
+        // Skip ignored targets
+        continue;
+        }
+      const cmTarget::LinkLibraryVectorType* ll =
+                                     &(tit->second.GetOriginalLinkLibraries());
+      if ( ll->size() > 0 )
+        {
+        targetDeps[realTargetName] = DOT_DEP_TARGET;
+        fprintf(stderr, " + %s\n", realTargetName);
+        }
+      for (cmTarget::LinkLibraryVectorType::const_iterator llit = ll->begin();
+           llit != ll->end();
+           ++ llit )
+        {
+        const char* libName = llit->first.c_str();
+        if ( ignoreTargetsSet.find(libName) != ignoreTargetsSet.end() )
+          {
+          // Skip ignored targets
+          continue;
+          }
+
+        std::map<cmStdString, cmStdString>::const_iterator tarIt =
+                                                targetNamesNodes.find(libName);
+        if ( tarIt == targetNamesNodes.end() )
+          {
+          cmOStringStream ostr;
+          ostr << graphNodePrefix << cnt++;
+          targetDeps[libName] = DOT_DEP_EXTERNAL;
+          targetNamesNodes[libName] = ostr.str();
+          //str << "    \"" << ostr.c_str() << "\" [ label=\"" << libName
+          //<<  "\" shape=\"ellipse\"];" << std::endl;
+          }
+        else
+          {
+          std::map<cmStdString, int>::const_iterator depIt =
+                                                      targetDeps.find(libName);
+          if ( depIt == targetDeps.end() )
+            {
+            targetDeps[libName] = DOT_DEP_TARGET;
+            }
+          }
+        }
+      }
     }
+   return cnt;
 }

@@ -1,2 +1,2 @@
-fsobj_error(a_eno, a_estr, errno,
-			    "chdir() failure", "");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Non-regular file cannot be sparse");

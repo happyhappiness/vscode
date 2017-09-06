@@ -1,1 +1,2 @@
-fprintf(stderr, "target [%s] links to:\n", this->Target->GetName().c_str());
+archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "%s", error);

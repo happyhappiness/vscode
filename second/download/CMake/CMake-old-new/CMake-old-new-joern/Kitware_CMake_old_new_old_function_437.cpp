@@ -1,101 +1,46 @@
-static int
-lha_read_data_lzh(struct archive_read *a, const void **buff,
-    size_t *size, int64_t *offset)
+int
+__archive_write_program_open(struct archive_write_filter *f,
+    struct archive_write_program_data *data, const char *cmd)
 {
-	struct lha *lha = (struct lha *)(a->format->data);
-	ssize_t bytes_avail;
-	int r;
+	pid_t child;
+	int ret;
 
-	/* If the buffer hasn't been allocated, allocate it now. */
-	if (lha->uncompressed_buffer == NULL) {
-		lha->uncompressed_buffer_size = 64 * 1024;
-		lha->uncompressed_buffer
-		    = (unsigned char *)malloc(lha->uncompressed_buffer_size);
-		if (lha->uncompressed_buffer == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "No memory for lzh decompression");
+	ret = __archive_write_open_filter(f->next_filter);
+	if (ret != ARCHIVE_OK)
+		return (ret);
+
+	if (data->child_buf == NULL) {
+		data->child_buf_len = 65536;
+		data->child_buf_avail = 0;
+		data->child_buf = malloc(data->child_buf_len);
+
+		if (data->child_buf == NULL) {
+			archive_set_error(f->archive, ENOMEM,
+			    "Can't allocate compression buffer");
 			return (ARCHIVE_FATAL);
 		}
 	}
 
-	/* If we haven't yet read any data, initialize the decompressor. */
-	if (!lha->decompress_init) {
-		r = lzh_decode_init(&(lha->strm), lha->method);
-		switch (r) {
-		case ARCHIVE_OK:
-			break;
-		case ARCHIVE_FAILED:
-        		/* Unsupported compression. */
-			*buff = NULL;
-			*size = 0;
-			*offset = 0;
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Unsupported lzh compression method -%c%c%c-",
-			    lha->method[0], lha->method[1], lha->method[2]);
-			/* We know compressed size; just skip it. */
-			archive_read_format_lha_read_data_skip(a);
-			return (ARCHIVE_WARN);
-		default:
-			archive_set_error(&a->archive, ENOMEM,
-			    "Couldn't allocate memory "
-			    "for lzh decompression");
-			return (ARCHIVE_FATAL);
-		}
-		/* We've initialized decompression for this stream. */
-		lha->decompress_init = 1;
-		lha->strm.avail_out = 0;
-		lha->strm.total_out = 0;
-	}
-
-	/*
-	 * Note: '1' here is a performance optimization.
-	 * Recall that the decompression layer returns a count of
-	 * available bytes; asking for more than that forces the
-	 * decompressor to combine reads by copying data.
-	 */
-	lha->strm.next_in = __archive_read_ahead(a, 1, &bytes_avail);
-	if (bytes_avail <= 0) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated LHa file body");
+	child = __archive_create_child(cmd, &data->child_stdin,
+		    &data->child_stdout);
+	if (child == -1) {
+		archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter");
 		return (ARCHIVE_FATAL);
 	}
-	if (bytes_avail > lha->entry_bytes_remaining)
-		bytes_avail = (ssize_t)lha->entry_bytes_remaining;
-
-	lha->strm.avail_in = bytes_avail;
-	lha->strm.total_in = 0;
-	if (lha->strm.avail_out == 0) {
-		lha->strm.next_out = lha->uncompressed_buffer;
-		lha->strm.avail_out = lha->uncompressed_buffer_size;
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	data->child = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, child);
+	if (data->child == NULL) {
+		close(data->child_stdin);
+		data->child_stdin = -1;
+		close(data->child_stdout);
+		data->child_stdout = -1;
+		archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter");
+		return (ARCHIVE_FATAL);
 	}
-
-	r = lzh_decode(&(lha->strm), bytes_avail == lha->entry_bytes_remaining);
-	switch (r) {
-	case ARCHIVE_OK:
-		break;
-	case ARCHIVE_EOF:
-		lha->end_of_entry = 1;
-		break;
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Bad lzh data");
-		return (ARCHIVE_FAILED);
-	}
-	lha->entry_unconsumed = lha->strm.total_in;
-	lha->entry_bytes_remaining -= lha->strm.total_in;
-
-	if (lha->strm.avail_out == 0 || lha->end_of_entry) {
-		*offset = lha->entry_offset;
-		*size = lha->strm.next_out - lha->uncompressed_buffer;
-		*buff = lha->uncompressed_buffer;
-		lha->entry_crc_calculated =
-		    lha_crc16(lha->entry_crc_calculated, *buff, *size);
-		lha->entry_offset += *size;
-	} else {
-		*offset = lha->entry_offset;
-		*size = 0;
-		*buff = NULL;
-	}
+#else
+	data->child = child;
+#endif
 	return (ARCHIVE_OK);
 }

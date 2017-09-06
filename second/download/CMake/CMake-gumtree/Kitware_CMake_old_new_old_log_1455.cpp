@@ -1,1 +1,1 @@
-sprintf(ptr, "enabled)");
+buf = aprintf(fmt, ap);

@@ -1,47 +1,37 @@
-int cmake::LoadCache()
+static void yyunput (int c, register char * yy_bp , yyscan_t yyscanner)
 {
-  // could we not read the cache
-  if (!this->CacheManager->LoadCache(this->GetHomeOutputDirectory()))
-    {
-    // if it does exist, but isn;t readable then warn the user
-    std::string cacheFile = this->GetHomeOutputDirectory();
-    cacheFile += "/CMakeCache.txt";
-    if(cmSystemTools::FileExists(cacheFile.c_str()))
-      {
-      cmSystemTools::Error(
-        "There is a CMakeCache.txt file for the current binary tree but "
-        "cmake does not have permission to read it. Please check the "
-        "permissions of the directory you are trying to run CMake on.");
-      return -1;
-      }
-    }
+        register char *yy_cp;
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
 
-  if (this->CMakeCommand.size() < 2)
-    {
-    cmSystemTools::Error(
-      "cmake command was not specified prior to loading the cache in "
-      "cmake.cxx");
-    return -1;
-    }
+    yy_cp = yyg->yy_c_buf_p;
 
-  // setup CMAKE_ROOT and CMAKE_COMMAND
-  if(!this->AddCMakePaths())
-    {
-    return -3;
-    }
+        /* undo effects of setting up yytext */
+        *yy_cp = yyg->yy_hold_char;
 
-  // set the default BACKWARDS compatibility to the current version
-  if(!this->CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
-    {
-    char ver[256];
-    sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
-            cmVersion::GetMinorVersion());
-    this->CacheManager->AddCacheEntry
-      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
-       "For backwards compatibility, what version of CMake commands and "
-       "syntax should this version of CMake allow.",
-       cmCacheManager::STRING);
-    }
+        if ( yy_cp < YY_CURRENT_BUFFER_LVALUE->yy_ch_buf + 2 )
+                { /* need to shift things up to make room */
+                /* +2 for EOB chars. */
+                register int number_to_move = yyg->yy_n_chars + 2;
+                register char *dest = &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[
+                                        YY_CURRENT_BUFFER_LVALUE->yy_buf_size + 2];
+                register char *source =
+                                &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[number_to_move];
 
-  return 0;
+                while ( source > YY_CURRENT_BUFFER_LVALUE->yy_ch_buf )
+                        *--dest = *--source;
+
+                yy_cp += (int) (dest - source);
+                yy_bp += (int) (dest - source);
+                YY_CURRENT_BUFFER_LVALUE->yy_n_chars =
+                        yyg->yy_n_chars = YY_CURRENT_BUFFER_LVALUE->yy_buf_size;
+
+                if ( yy_cp < YY_CURRENT_BUFFER_LVALUE->yy_ch_buf + 2 )
+                        YY_FATAL_ERROR( "flex scanner push-back overflow" );
+                }
+
+        *--yy_cp = (char) c;
+
+        yyg->yytext_ptr = yy_bp;
+        yyg->yy_hold_char = *yy_cp;
+        yyg->yy_c_buf_p = yy_cp;
 }

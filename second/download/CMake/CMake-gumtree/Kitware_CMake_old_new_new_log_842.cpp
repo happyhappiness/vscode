@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Mac metadata is too large: %jd > 128K bytes",
-		    (intmax_t)rsrc->uncompressed_size);
+archive_set_error(&a->archive, errno,
+			    "DeviceIoControl Failed: %lu", GetLastError());

@@ -1,1 +1,0 @@
-tmp = aprintf("%s, opaque=\"%s\"", *allocuserpwd, d->opaque);

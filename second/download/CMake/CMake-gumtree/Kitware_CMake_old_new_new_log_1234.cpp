@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
+sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);

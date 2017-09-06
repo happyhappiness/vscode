@@ -1,1 +1,2 @@
-printf("%d: %s\n", cc, state_name);
+snprintf(realpath, TAR_MAXPATHLEN, "%s/%s", realdir,
+       dent->d_name);

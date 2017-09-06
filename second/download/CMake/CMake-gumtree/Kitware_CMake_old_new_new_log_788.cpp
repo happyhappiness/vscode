@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, errno, "fchdir failed");
+fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");

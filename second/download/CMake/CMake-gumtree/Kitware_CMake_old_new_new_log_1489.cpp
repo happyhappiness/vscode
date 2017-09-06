@@ -1,1 +1,1 @@
-fprintf(fout, "ENDIF (CMAKE_ANSI_CXXFLAGS)\n");
+fprintf(fout,"#define VTK_TCL_TO_STRING(x) VTK_TCL_TO_STRING0(x)\n");

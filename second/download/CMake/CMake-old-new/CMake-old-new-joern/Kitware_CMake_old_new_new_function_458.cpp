@@ -1,71 +1,16 @@
-static int
-init_traditional_PKWARE_decryption(struct archive_read *a)
+static int64_t
+client_seek_proxy(struct archive_read_filter *self, int64_t offset, int whence)
 {
-	struct zip *zip = (struct zip *)(a->format->data);
-	const void *p;
-	int retry;
-	int r;
-
-	if (zip->tctx_valid)
-		return (ARCHIVE_OK);
-
-	/*
-	   Read the 12 bytes encryption header stored at
-	   the start of the data area.
+	/* DO NOT use the skipper here!  If we transparently handled
+	 * forward seek here by using the skipper, that will break
+	 * other libarchive code that assumes a successful forward
+	 * seek means it can also seek backwards.
 	 */
-#define ENC_HEADER_SIZE	12
-	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
-	    && zip->entry_bytes_remaining < ENC_HEADER_SIZE) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated Zip encrypted body: only %jd bytes available",
-		    (intmax_t)zip->entry_bytes_remaining);
-		return (ARCHIVE_FATAL);
+	if (self->archive->client.seeker == NULL) {
+		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+		    "Current client reader does not support seeking a device");
+		return (ARCHIVE_FAILED);
 	}
-
-	p = __archive_read_ahead(a, ENC_HEADER_SIZE, NULL);
-	if (p == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file data");
-		return (ARCHIVE_FATAL);
-	}
-
-	for (retry = 0;; retry++) {
-		const char *passphrase;
-		uint8_t crcchk;
-
-		passphrase = __archive_read_next_passphrase(a);
-		if (passphrase == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    (retry > 0)?
-				"Incorrect passphrase":
-				"Passphrase required for this entry");
-			return (ARCHIVE_FAILED);
-		}
-
-		/*
-		 * Initialize ctx for Traditional PKWARE Decyption.
-		 */
-		r = trad_enc_init(&zip->tctx, passphrase, strlen(passphrase),
-			p, ENC_HEADER_SIZE, &crcchk);
-		if (r == 0 && crcchk == zip->entry->decdat)
-			break;/* The passphrase is OK. */
-		if (retry > 10000) {
-			/* Avoid infinity loop. */
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Too many incorrect passphrases");
-			return (ARCHIVE_FAILED);
-		}
-	}
-
-	__archive_read_consume(a, ENC_HEADER_SIZE);
-	zip->tctx_valid = 1;
-	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)) {
-	    zip->entry_bytes_remaining -= ENC_HEADER_SIZE;
-	}
-	/*zip->entry_uncompressed_bytes_read += ENC_HEADER_SIZE;*/
-	zip->entry_compressed_bytes_read += ENC_HEADER_SIZE;
-	zip->decrypted_bytes_remaining = 0;
-
-	return (zip_alloc_decryption_buffer(a));
-#undef ENC_HEADER_SIZE
+	return (self->archive->client.seeker)(&self->archive->archive,
+	    self->data, offset, whence);
 }

@@ -1,3 +1,1 @@
-fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS %s)\n",
-                cmOutputConverter::EscapeForCMake(
-                    exeLinkFlags ? exeLinkFlags : "").c_str());
+fprintf(stdout, "Output on stdout from grandchild before sleep.\n");

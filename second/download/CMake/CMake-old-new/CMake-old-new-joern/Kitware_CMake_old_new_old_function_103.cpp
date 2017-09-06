@@ -1,142 +1,287 @@
-static int
-translate_acl(struct archive_read_disk *a,
-    struct archive_entry *entry, acl_t acl, int default_entry_acl_type)
+bool cmExecuteProcessCommand::InitialPass(std::vector<std::string> const& args,
+                                          cmExecutionStatus&)
 {
-	acl_tag_t	 acl_tag;
-#ifdef ACL_TYPE_NFS4
-	acl_entry_type_t acl_type;
-	acl_flagset_t	 acl_flagset;
-	int brand, r;
-#endif
-	acl_entry_t	 acl_entry;
-	acl_permset_t	 acl_permset;
-	int		 i, entry_acl_type;
-	int		 s, ae_id, ae_tag, ae_perm;
-	const char	*ae_name;
+  if (args.empty()) {
+    this->SetError("called with incorrect number of arguments");
+    return false;
+  }
+  std::vector<std::vector<const char*> > cmds;
+  std::string arguments;
+  bool doing_command = false;
+  size_t command_index = 0;
+  bool output_quiet = false;
+  bool error_quiet = false;
+  bool output_strip_trailing_whitespace = false;
+  bool error_strip_trailing_whitespace = false;
+  std::string timeout_string;
+  std::string input_file;
+  std::string output_file;
+  std::string error_file;
+  std::string output_variable;
+  std::string error_variable;
+  std::string result_variable;
+  std::string working_directory;
+  cmProcessOutput::Encoding encoding = cmProcessOutput::None;
+  for (size_t i = 0; i < args.size(); ++i) {
+    if (args[i] == "COMMAND") {
+      doing_command = true;
+      command_index = cmds.size();
+      cmds.push_back(std::vector<const char*>());
+    } else if (args[i] == "OUTPUT_VARIABLE") {
+      doing_command = false;
+      if (++i < args.size()) {
+        output_variable = args[i];
+      } else {
+        this->SetError(" called with no value for OUTPUT_VARIABLE.");
+        return false;
+      }
+    } else if (args[i] == "ERROR_VARIABLE") {
+      doing_command = false;
+      if (++i < args.size()) {
+        error_variable = args[i];
+      } else {
+        this->SetError(" called with no value for ERROR_VARIABLE.");
+        return false;
+      }
+    } else if (args[i] == "RESULT_VARIABLE") {
+      doing_command = false;
+      if (++i < args.size()) {
+        result_variable = args[i];
+      } else {
+        this->SetError(" called with no value for RESULT_VARIABLE.");
+        return false;
+      }
+    } else if (args[i] == "WORKING_DIRECTORY") {
+      doing_command = false;
+      if (++i < args.size()) {
+        working_directory = args[i];
+      } else {
+        this->SetError(" called with no value for WORKING_DIRECTORY.");
+        return false;
+      }
+    } else if (args[i] == "INPUT_FILE") {
+      doing_command = false;
+      if (++i < args.size()) {
+        input_file = args[i];
+      } else {
+        this->SetError(" called with no value for INPUT_FILE.");
+        return false;
+      }
+    } else if (args[i] == "OUTPUT_FILE") {
+      doing_command = false;
+      if (++i < args.size()) {
+        output_file = args[i];
+      } else {
+        this->SetError(" called with no value for OUTPUT_FILE.");
+        return false;
+      }
+    } else if (args[i] == "ERROR_FILE") {
+      doing_command = false;
+      if (++i < args.size()) {
+        error_file = args[i];
+      } else {
+        this->SetError(" called with no value for ERROR_FILE.");
+        return false;
+      }
+    } else if (args[i] == "TIMEOUT") {
+      doing_command = false;
+      if (++i < args.size()) {
+        timeout_string = args[i];
+      } else {
+        this->SetError(" called with no value for TIMEOUT.");
+        return false;
+      }
+    } else if (args[i] == "OUTPUT_QUIET") {
+      doing_command = false;
+      output_quiet = true;
+    } else if (args[i] == "ERROR_QUIET") {
+      doing_command = false;
+      error_quiet = true;
+    } else if (args[i] == "OUTPUT_STRIP_TRAILING_WHITESPACE") {
+      doing_command = false;
+      output_strip_trailing_whitespace = true;
+    } else if (args[i] == "ERROR_STRIP_TRAILING_WHITESPACE") {
+      doing_command = false;
+      error_strip_trailing_whitespace = true;
+    } else if (args[i] == "ENCODING") {
+      doing_command = false;
+      if (++i < args.size()) {
+        encoding = cmProcessOutput::FindEncoding(args[i]);
+      } else {
+        this->SetError(" called with no value for ENCODING.");
+        return false;
+      }
+    } else if (doing_command) {
+      cmds[command_index].push_back(args[i].c_str());
+    } else {
+      std::ostringstream e;
+      e << " given unknown argument \"" << args[i] << "\".";
+      this->SetError(e.str());
+      return false;
+    }
+  }
 
+  if (!this->Makefile->CanIWriteThisFile(output_file.c_str())) {
+    std::string e = "attempted to output into a file: " + output_file +
+      " into a source directory.";
+    this->SetError(e);
+    cmSystemTools::SetFatalErrorOccured();
+    return false;
+  }
 
-#ifdef ACL_TYPE_NFS4
-	// FreeBSD "brands" ACLs as POSIX.1e or NFSv4
-	// Make sure the "brand" on this ACL is consistent
-	// with the default_entry_acl_type bits provided.
-	acl_get_brand_np(acl, &brand);
-	switch (brand) {
-	case ACL_BRAND_POSIX:
-		switch (default_entry_acl_type) {
-		case ARCHIVE_ENTRY_ACL_TYPE_ACCESS:
-		case ARCHIVE_ENTRY_ACL_TYPE_DEFAULT:
-			break;
-		default:
-			// XXX set warning message?
-			return ARCHIVE_FAILED;
-		}
-		break;
-	case ACL_BRAND_NFS4:
-		if (default_entry_acl_type & ~ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
-			// XXX set warning message?
-			return ARCHIVE_FAILED;
-		}
-		break;
-	default:
-		// XXX set warning message?
-		return ARCHIVE_FAILED;
-		break;
-	}
-#endif
+  // Check for commands given.
+  if (cmds.empty()) {
+    this->SetError(" called with no COMMAND argument.");
+    return false;
+  }
+  for (unsigned int i = 0; i < cmds.size(); ++i) {
+    if (cmds[i].empty()) {
+      this->SetError(" given COMMAND argument with no value.");
+      return false;
+    }
+    // Add the null terminating pointer to the command argument list.
+    cmds[i].push_back(CM_NULLPTR);
+  }
 
+  // Parse the timeout string.
+  double timeout = -1;
+  if (!timeout_string.empty()) {
+    if (sscanf(timeout_string.c_str(), "%lg", &timeout) != 1) {
+      this->SetError(" called with TIMEOUT value that could not be parsed.");
+      return false;
+    }
+  }
 
-	s = acl_get_entry(acl, ACL_FIRST_ENTRY, &acl_entry);
-	while (s == 1) {
-		ae_id = -1;
-		ae_name = NULL;
-		ae_perm = 0;
+  // Create a process instance.
+  cmsysProcess* cp = cmsysProcess_New();
 
-		acl_get_tag_type(acl_entry, &acl_tag);
-		switch (acl_tag) {
-		case ACL_USER:
-			ae_id = (int)*(uid_t *)acl_get_qualifier(acl_entry);
-			ae_name = archive_read_disk_uname(&a->archive, ae_id);
-			ae_tag = ARCHIVE_ENTRY_ACL_USER;
-			break;
-		case ACL_GROUP:
-			ae_id = (int)*(gid_t *)acl_get_qualifier(acl_entry);
-			ae_name = archive_read_disk_gname(&a->archive, ae_id);
-			ae_tag = ARCHIVE_ENTRY_ACL_GROUP;
-			break;
-		case ACL_MASK:
-			ae_tag = ARCHIVE_ENTRY_ACL_MASK;
-			break;
-		case ACL_USER_OBJ:
-			ae_tag = ARCHIVE_ENTRY_ACL_USER_OBJ;
-			break;
-		case ACL_GROUP_OBJ:
-			ae_tag = ARCHIVE_ENTRY_ACL_GROUP_OBJ;
-			break;
-		case ACL_OTHER:
-			ae_tag = ARCHIVE_ENTRY_ACL_OTHER;
-			break;
-#ifdef ACL_TYPE_NFS4
-		case ACL_EVERYONE:
-			ae_tag = ARCHIVE_ENTRY_ACL_EVERYONE;
-			break;
-#endif
-		default:
-			/* Skip types that libarchive can't support. */
-			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
-			continue;
-		}
+  // Set the command sequence.
+  for (unsigned int i = 0; i < cmds.size(); ++i) {
+    cmsysProcess_AddCommand(cp, &*cmds[i].begin());
+  }
 
-		// XXX acl type maps to allow/deny/audit/YYYY bits
-		// XXX acl_get_entry_type_np on FreeBSD returns EINVAL for
-		// non-NFSv4 ACLs
-		entry_acl_type = default_entry_acl_type;
-#ifdef ACL_TYPE_NFS4
-		r = acl_get_entry_type_np(acl_entry, &acl_type);
-		if (r == 0) {
-			switch (acl_type) {
-			case ACL_ENTRY_TYPE_ALLOW:
-				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
-				break;
-			case ACL_ENTRY_TYPE_DENY:
-				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
-				break;
-			case ACL_ENTRY_TYPE_AUDIT:
-				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_AUDIT;
-				break;
-			case ACL_ENTRY_TYPE_ALARM:
-				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALARM;
-				break;
-			}
-		}
+  // Set the process working directory.
+  if (!working_directory.empty()) {
+    cmsysProcess_SetWorkingDirectory(cp, working_directory.c_str());
+  }
 
-		/*
-		 * Libarchive stores "flag" (NFSv4 inheritance bits)
-		 * in the ae_perm bitmap.
-		 */
-		acl_get_flagset_np(acl_entry, &acl_flagset);
-                for (i = 0; i < (int)(sizeof(acl_inherit_map) / sizeof(acl_inherit_map[0])); ++i) {
-			if (acl_get_flag_np(acl_flagset,
-					    acl_inherit_map[i].platform_inherit))
-				ae_perm |= acl_inherit_map[i].archive_inherit;
+  // Always hide the process window.
+  cmsysProcess_SetOption(cp, cmsysProcess_Option_HideWindow, 1);
 
-                }
-#endif
+  // Check the output variables.
+  bool merge_output = false;
+  if (!input_file.empty()) {
+    cmsysProcess_SetPipeFile(cp, cmsysProcess_Pipe_STDIN, input_file.c_str());
+  }
+  if (!output_file.empty()) {
+    cmsysProcess_SetPipeFile(cp, cmsysProcess_Pipe_STDOUT,
+                             output_file.c_str());
+  }
+  if (!error_file.empty()) {
+    if (error_file == output_file) {
+      merge_output = true;
+    } else {
+      cmsysProcess_SetPipeFile(cp, cmsysProcess_Pipe_STDERR,
+                               error_file.c_str());
+    }
+  }
+  if (!output_variable.empty() && output_variable == error_variable) {
+    merge_output = true;
+  }
+  if (merge_output) {
+    cmsysProcess_SetOption(cp, cmsysProcess_Option_MergeOutput, 1);
+  }
 
-		acl_get_permset(acl_entry, &acl_permset);
-		for (i = 0; i < (int)(sizeof(acl_perm_map) / sizeof(acl_perm_map[0])); ++i) {
-			/*
-			 * acl_get_perm() is spelled differently on different
-			 * platforms; see above.
-			 */
-			if (ACL_GET_PERM(acl_permset, acl_perm_map[i].platform_perm))
-				ae_perm |= acl_perm_map[i].archive_perm;
-		}
+  // Set the timeout if any.
+  if (timeout >= 0) {
+    cmsysProcess_SetTimeout(cp, timeout);
+  }
 
-		archive_entry_acl_add_entry(entry, entry_acl_type,
-					    ae_perm, ae_tag,
-					    ae_id, ae_name);
+  // Start the process.
+  cmsysProcess_Execute(cp);
 
-		s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
-	}
-	return (ARCHIVE_OK);
+  // Read the process output.
+  std::vector<char> tempOutput;
+  std::vector<char> tempError;
+  int length;
+  char* data;
+  int p;
+  cmProcessOutput processOutput(encoding);
+  std::string strdata;
+  while ((p = cmsysProcess_WaitForData(cp, &data, &length, CM_NULLPTR), p)) {
+    // Put the output in the right place.
+    if (p == cmsysProcess_Pipe_STDOUT && !output_quiet) {
+      if (output_variable.empty()) {
+        processOutput.DecodeText(data, length, strdata, 1);
+        cmSystemTools::Stdout(strdata.c_str(), strdata.size());
+      } else {
+        cmExecuteProcessCommandAppend(tempOutput, data, length);
+      }
+    } else if (p == cmsysProcess_Pipe_STDERR && !error_quiet) {
+      if (error_variable.empty()) {
+        processOutput.DecodeText(data, length, strdata, 2);
+        cmSystemTools::Stderr(strdata.c_str(), strdata.size());
+      } else {
+        cmExecuteProcessCommandAppend(tempError, data, length);
+      }
+    }
+  }
+  if (!output_quiet && output_variable.empty()) {
+    processOutput.DecodeText(std::string(), strdata, 1);
+    if (!strdata.empty()) {
+      cmSystemTools::Stdout(strdata.c_str(), strdata.size());
+    }
+  }
+  if (!error_quiet && error_variable.empty()) {
+    processOutput.DecodeText(std::string(), strdata, 2);
+    if (!strdata.empty()) {
+      cmSystemTools::Stderr(strdata.c_str(), strdata.size());
+    }
+  }
+
+  // All output has been read.  Wait for the process to exit.
+  cmsysProcess_WaitForExit(cp, CM_NULLPTR);
+  processOutput.DecodeText(tempOutput, tempOutput);
+  processOutput.DecodeText(tempError, tempError);
+
+  // Fix the text in the output strings.
+  cmExecuteProcessCommandFixText(tempOutput, output_strip_trailing_whitespace);
+  cmExecuteProcessCommandFixText(tempError, error_strip_trailing_whitespace);
+
+  // Store the output obtained.
+  if (!output_variable.empty() && !tempOutput.empty()) {
+    this->Makefile->AddDefinition(output_variable, &*tempOutput.begin());
+  }
+  if (!merge_output && !error_variable.empty() && !tempError.empty()) {
+    this->Makefile->AddDefinition(error_variable, &*tempError.begin());
+  }
+
+  // Store the result of running the process.
+  if (!result_variable.empty()) {
+    switch (cmsysProcess_GetState(cp)) {
+      case cmsysProcess_State_Exited: {
+        int v = cmsysProcess_GetExitValue(cp);
+        char buf[100];
+        sprintf(buf, "%d", v);
+        this->Makefile->AddDefinition(result_variable, buf);
+      } break;
+      case cmsysProcess_State_Exception:
+        this->Makefile->AddDefinition(result_variable,
+                                      cmsysProcess_GetExceptionString(cp));
+        break;
+      case cmsysProcess_State_Error:
+        this->Makefile->AddDefinition(result_variable,
+                                      cmsysProcess_GetErrorString(cp));
+        break;
+      case cmsysProcess_State_Expired:
+        this->Makefile->AddDefinition(result_variable,
+                                      "Process terminated due to timeout");
+        break;
+    }
+  }
+
+  // Delete the process instance.
+  cmsysProcess_Delete(cp);
+
+  return true;
 }

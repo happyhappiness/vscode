@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, ENOMEM, "Couldn't allocate memory.");
+archive_set_error(&a->archive, errno,
+				    "Can't CreateFileW");

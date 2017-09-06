@@ -1,1 +1,1 @@
-fprintf(ofp, "  unlink(fname);\n");
+fprintf(stderr, "DIRECTORY_DEF_DEBUG should not be defined in CXX\n");

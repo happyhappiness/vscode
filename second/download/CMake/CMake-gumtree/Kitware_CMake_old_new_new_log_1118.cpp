@@ -1,1 +1,0 @@
-len = vsnprintf(buf, sizeof(buf), format, va);

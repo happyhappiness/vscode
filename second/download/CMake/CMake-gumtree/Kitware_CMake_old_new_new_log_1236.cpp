@@ -1,1 +1,1 @@
-printf("Child was disowned.\n");
+y(buf, filename, sizeof(buf)-1);

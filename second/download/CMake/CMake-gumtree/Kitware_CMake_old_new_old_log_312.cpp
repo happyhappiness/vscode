@@ -1,3 +1,1 @@
-aprintf("%s:%d",
-                 conn->bits.proxy?conn->proxy.name:conn->host.name,
-                 conn->localport);
+write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap);

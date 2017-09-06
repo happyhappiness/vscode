@@ -1,1 +1,2 @@
-fprintf(stderr, "target [%s] links to:\n", this->Target->GetName().c_str());
+fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName().c_str(), ni->IsStrong()? "strong" : "weak");

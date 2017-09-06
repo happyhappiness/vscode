@@ -1,1 +1,1 @@
-sprintf(buf, "%d", exitCode);
+archive_strappend_char(&errlist, ' ');

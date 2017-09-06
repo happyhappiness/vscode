@@ -1,1 +1,1 @@
-fprintf(stderr, "********* NewGen %s\n", name);
+fprintf(stderr, "The strongly connected components are:\n");

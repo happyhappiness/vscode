@@ -1,196 +1,43 @@
-static int
-next_entry(struct archive_read_disk *a, struct tree *t,
-    struct archive_entry *entry)
+static void cmListFileLexer_yyensure_buffer_stack (yyscan_t yyscanner)
 {
-	const BY_HANDLE_FILE_INFORMATION *st;
-	const BY_HANDLE_FILE_INFORMATION *lst;
-	const char*name;
-	int descend, r;
+        int num_to_alloc;
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
 
-	st = NULL;
-	lst = NULL;
-	t->descend = 0;
-	do {
-		switch (tree_next(t)) {
-		case TREE_ERROR_FATAL:
-			archive_set_error(&a->archive, t->tree_errno,
-			    "%ls: Unable to continue traversing directory tree",
-			    tree_current_path(t));
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			return (ARCHIVE_FATAL);
-		case TREE_ERROR_DIR:
-			archive_set_error(&a->archive, t->tree_errno,
-			    "%ls: Couldn't visit directory",
-			    tree_current_path(t));
-			return (ARCHIVE_FAILED);
-		case 0:
-			return (ARCHIVE_EOF);
-		case TREE_POSTDESCENT:
-		case TREE_POSTASCENT:
-			break;
-		case TREE_REGULAR:
-			lst = tree_current_lstat(t);
-			if (lst == NULL) {
-				archive_set_error(&a->archive, t->tree_errno,
-				    "%ls: Cannot stat",
-				    tree_current_path(t));
-				return (ARCHIVE_FAILED);
-			}
-			break;
-		}	
-	} while (lst == NULL);
+        if (!yyg->yy_buffer_stack) {
 
-	archive_entry_copy_pathname_w(entry, tree_current_path(t));
+                /* First allocation is just for 2 elements, since we don't know if this
+                 * scanner will even need a stack. We use 2 instead of 1 to avoid an
+                 * immediate realloc on the next call.
+         */
+                num_to_alloc = 1;
+                yyg->yy_buffer_stack = (struct yy_buffer_state**)cmListFileLexer_yyalloc
+                                                                (num_to_alloc * sizeof(struct yy_buffer_state*)
+                                                                , yyscanner);
+                if ( ! yyg->yy_buffer_stack )
+                        YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yyensure_buffer_stack()" );
 
-	/*
-	 * Perform path matching.
-	 */
-	if (a->matching) {
-		r = archive_match_path_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
+                memset(yyg->yy_buffer_stack, 0, num_to_alloc * sizeof(struct yy_buffer_state*));
 
-	/*
-	 * Distinguish 'L'/'P'/'H' symlink following.
-	 */
-	switch(t->symlink_mode) {
-	case 'H':
-		/* 'H': After the first item, rest like 'P'. */
-		t->symlink_mode = 'P';
-		/* 'H': First item (from command line) like 'L'. */
-		/* FALLTHROUGH */
-	case 'L':
-		/* 'L': Do descend through a symlink to dir. */
-		descend = tree_current_is_dir(t);
-		/* 'L': Follow symlinks to files. */
-		a->symlink_mode = 'L';
-		a->follow_symlinks = 1;
-		/* 'L': Archive symlinks as targets, if we can. */
-		st = tree_current_stat(t);
-		if (st != NULL && !tree_target_is_same_as_parent(t, st))
-			break;
-		/* If stat fails, we have a broken symlink;
-		 * in that case, don't follow the link. */
-		/* FALLTHROUGH */
-	default:
-		/* 'P': Don't descend through a symlink to dir. */
-		descend = tree_current_is_physical_dir(t);
-		/* 'P': Don't follow symlinks to files. */
-		a->symlink_mode = 'P';
-		a->follow_symlinks = 0;
-		/* 'P': Archive symlinks as symlinks. */
-		st = lst;
-		break;
-	}
+                yyg->yy_buffer_stack_max = num_to_alloc;
+                yyg->yy_buffer_stack_top = 0;
+                return;
+        }
 
-	if (update_current_filesystem(a, bhfi_dev(st)) != ARCHIVE_OK) {
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		return (ARCHIVE_FATAL);
-	}
-	if (t->initial_filesystem_id == -1)
-		t->initial_filesystem_id = t->current_filesystem_id;
-	if (!a->traverse_mount_points) {
-		if (t->initial_filesystem_id != t->current_filesystem_id)
-			return (ARCHIVE_RETRY);
-	}
-	t->descend = descend;
+        if (yyg->yy_buffer_stack_top >= (yyg->yy_buffer_stack_max) - 1){
 
-	tree_archive_entry_copy_bhfi(entry, t, st);
+                /* Increase the buffer to prepare for a possible push. */
+                int grow_size = 8 /* arbitrary grow size */;
 
-	/* Save the times to be restored. This must be in before
-	 * calling archive_read_disk_descend() or any chance of it,
-	 * especially, invokng a callback. */
-	t->restore_time.lastWriteTime = st->ftLastWriteTime;
-	t->restore_time.lastAccessTime = st->ftLastAccessTime;
-	t->restore_time.filetype = archive_entry_filetype(entry);
+                num_to_alloc = yyg->yy_buffer_stack_max + grow_size;
+                yyg->yy_buffer_stack = (struct yy_buffer_state**)cmListFileLexer_yyrealloc
+                                                                (yyg->yy_buffer_stack,
+                                                                num_to_alloc * sizeof(struct yy_buffer_state*)
+                                                                , yyscanner);
+                if ( ! yyg->yy_buffer_stack )
+                        YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yyensure_buffer_stack()" );
 
-	/*
-	 * Perform time matching.
-	 */
-	if (a->matching) {
-		r = archive_match_time_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
-
-	/* Lookup uname/gname */
-	name = archive_read_disk_uname(&(a->archive), archive_entry_uid(entry));
-	if (name != NULL)
-		archive_entry_copy_uname(entry, name);
-	name = archive_read_disk_gname(&(a->archive), archive_entry_gid(entry));
-	if (name != NULL)
-		archive_entry_copy_gname(entry, name);
-
-	/*
-	 * Perform owner matching.
-	 */
-	if (a->matching) {
-		r = archive_match_owner_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
-
-	/*
-	 * Invoke a meta data filter callback.
-	 */
-	if (a->metadata_filter_func) {
-		if (!a->metadata_filter_func(&(a->archive),
-		    a->metadata_filter_data, entry))
-			return (ARCHIVE_RETRY);
-	}
-
-	archive_entry_copy_sourcepath_w(entry, tree_current_access_path(t));
-
-	r = ARCHIVE_OK;
-	if (archive_entry_filetype(entry) == AE_IFREG &&
-	    archive_entry_size(entry) > 0) {
-		DWORD flags = FILE_FLAG_BACKUP_SEMANTICS;
-		if (t->async_io)
-			flags |= FILE_FLAG_OVERLAPPED;
-		if (t->direct_io)
-			flags |= FILE_FLAG_NO_BUFFERING;
-		else
-			flags |= FILE_FLAG_SEQUENTIAL_SCAN;
-		t->entry_fh = CreateFileW(tree_current_access_path(t),
-		    GENERIC_READ, 0, NULL, OPEN_EXISTING, flags, NULL);
-		if (t->entry_fh == INVALID_HANDLE_VALUE) {
-			archive_set_error(&a->archive, errno,
-			    "Couldn't open %ls", tree_current_path(a->tree));
-			return (ARCHIVE_FAILED);
-		}
-
-		/* Find sparse data from the disk. */
-		if (archive_entry_hardlink(entry) == NULL &&
-		    (st->dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0)
-			r = setup_sparse_from_disk(a, entry, t->entry_fh);
-	}
-	return (r);
+                /* zero only the new slots.*/
+                memset(yyg->yy_buffer_stack + yyg->yy_buffer_stack_max, 0, grow_size * sizeof(struct yy_buffer_state*));
+                yyg->yy_buffer_stack_max = num_to_alloc;
+        }
 }

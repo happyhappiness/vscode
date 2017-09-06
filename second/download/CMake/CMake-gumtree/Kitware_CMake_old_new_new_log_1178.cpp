@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED ");
+printf("%c", ISGRAPH(data[i+j])?data[i+j]:'.');

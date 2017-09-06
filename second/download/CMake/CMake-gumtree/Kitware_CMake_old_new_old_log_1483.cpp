@@ -1,0 +1,1 @@
+sprintf(ptr, "krb4 ");

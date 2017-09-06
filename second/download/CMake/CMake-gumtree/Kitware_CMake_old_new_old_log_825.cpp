@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "cab: unknown keyword ``%s''", key);
+archive_set_error(&a->archive, errno,
+				    "%ls: Cannot stat",
+				    tree_current_path(t));

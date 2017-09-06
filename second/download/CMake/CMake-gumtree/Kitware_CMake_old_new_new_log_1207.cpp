@@ -1,2 +1,1 @@
-printf("  ==> extracting: %s (mode %04o, directory)\n", filename,
-         mode);
+fprintf(handle, "NTLMFLAG_UNKNOWN_11 ");

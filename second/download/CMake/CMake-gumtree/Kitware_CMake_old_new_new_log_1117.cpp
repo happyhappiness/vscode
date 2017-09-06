@@ -1,1 +1,1 @@
-len = vsprintf(buf, format, va);
+YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yyensure_buffer_stack()" );

@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, errno,
-			    "DeviceIoControl Failed: %lu", GetLastError());
+archive_set_error(&a->archive, errno, "fchdir failed");

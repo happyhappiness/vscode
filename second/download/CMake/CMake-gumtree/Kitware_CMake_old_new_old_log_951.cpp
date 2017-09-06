@@ -1,1 +1,2 @@
-fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "lha: unknown keyword ``%s''", key);

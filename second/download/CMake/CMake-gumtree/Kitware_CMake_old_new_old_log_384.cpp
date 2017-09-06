@@ -1,1 +1,1 @@
-yy_fatal_error( "cmListFileLexer_yyset_column called with no buffer" , yyscanner);
+tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);

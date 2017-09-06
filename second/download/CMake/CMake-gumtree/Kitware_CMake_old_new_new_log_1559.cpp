@@ -1,1 +1,1 @@
-fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
+sprintf(firstLine,  "Press [c] to configure     Press [g] to generate and exit");

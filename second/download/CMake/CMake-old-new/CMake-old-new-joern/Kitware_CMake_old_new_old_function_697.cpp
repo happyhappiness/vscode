@@ -1,52 +1,49 @@
-static ssize_t
-archive_write_zip_data(struct archive_write *a, const void *buff, size_t s)
+bool Directory::Load(const char* name)
 {
-	int ret;
-	struct zip *zip = a->format_data;
-	struct zip_file_header_link *l = zip->central_directory_end;
-
-	if ((int64_t)s > zip->remaining_data_bytes)
-		s = (size_t)zip->remaining_data_bytes;
-
-	if (s == 0) return 0;
-
-	switch (l->compression) {
-	case COMPRESSION_STORE:
-		ret = __archive_write_output(a, buff, s);
-		if (ret != ARCHIVE_OK) return (ret);
-		zip->written_bytes += s;
-		zip->remaining_data_bytes -= s;
-		l->compressed_size += s;
-		l->crc32 = crc32(l->crc32, buff, (unsigned)s);
-		return (s);
-#if HAVE_ZLIB_H
-	case COMPRESSION_DEFLATE:
-		zip->stream.next_in = (unsigned char*)(uintptr_t)buff;
-		zip->stream.avail_in = (uInt)s;
-		do {
-			ret = deflate(&zip->stream, Z_NO_FLUSH);
-			if (ret == Z_STREAM_ERROR)
-				return (ARCHIVE_FATAL);
-			if (zip->stream.avail_out == 0) {
-				ret = __archive_write_output(a, zip->buf,
-					zip->len_buf);
-				if (ret != ARCHIVE_OK)
-					return (ret);
-				l->compressed_size += zip->len_buf;
-				zip->written_bytes += zip->len_buf;
-				zip->stream.next_out = zip->buf;
-				zip->stream.avail_out = (uInt)zip->len_buf;
-			}
-		} while (zip->stream.avail_in != 0);
-		zip->remaining_data_bytes -= s;
-		/* If we have it, use zlib's fast crc32() */
-		l->crc32 = crc32(l->crc32, buff, (uInt)s);
-		return (s);
+  this->Clear();
+#if _MSC_VER < 1300
+  long srchHandle;
+#else
+  intptr_t srchHandle;
 #endif
+  char* buf;
+  size_t n = strlen(name);
+  if ( name[n - 1] == '/' || name[n - 1] == '\\' )
+    {
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
+    }
+  else
+    {
+    // Make sure the slashes in the wildcard suffix are consistent with the
+    // rest of the path
+    buf = new char[n + 2 + 1];
+    if ( strchr(name, '\\') )
+      {
+      sprintf(buf, "%s\\*", name);
+      }
+    else
+      {
+      sprintf(buf, "%s/*", name);
+      }
+    }
+  struct _wfinddata_t data;      // data of current file
 
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Invalid ZIP compression type");
-		return ARCHIVE_FATAL;
-	}
+  // Now put them into the file array
+  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
+  delete [] buf;
+
+  if ( srchHandle == -1 )
+    {
+    return 0;
+    }
+
+  // Loop through names
+  do
+    {
+    this->Internal->Files.push_back(Encoding::ToNarrow(data.name));
+    }
+  while ( _wfindnext(srchHandle, &data) != -1 );
+  this->Internal->Path = name;
+  return _findclose(srchHandle) != -1;
 }

@@ -1,219 +1,312 @@
-int cmake::ActualConfigure()
+void cmCTestTestHandler::ProcessOneTest(cmCTestTestProperties *it,
+                                        std::vector<cmStdString> &passed,
+                                        std::vector<cmStdString> &failed,
+                                        int cnt, int tmsize)
 {
-  // Construct right now our path conversion table before it's too late:
-  this->UpdateConversionPathTable();
-  this->CleanupCommandsAndMacros();
-
+  const std::string& testname = it->Name;
+  std::vector<std::string>& args = it->Args;
+  cmCTestTestResult cres;
+  cres.Properties = &*it;
+  cres.ExecutionTime = 0;
+  cres.ReturnValue = -1;
+  cres.Status = cmCTestTestHandler::NOT_RUN;
+  cres.TestCount = cnt;  
+  cres.Name = testname;
+  cres.Path = it->Directory.c_str();
+  
+  cmCTestLog(this->CTest, HANDLER_OUTPUT, std::setw(3) << cnt << "/");
+  cmCTestLog(this->CTest, HANDLER_OUTPUT, std::setw(3) << tmsize << " ");
+  if ( this->MemCheck )
+    {
+    cmCTestLog(this->CTest, HANDLER_OUTPUT, "Memory Check");
+    }
+  else
+    {
+    cmCTestLog(this->CTest, HANDLER_OUTPUT, "Testing");
+    }
+  cmCTestLog(this->CTest, HANDLER_OUTPUT, " ");
+  const int maxTestNameWidth = this->CTest->GetMaxTestNameWidth();
+  std::string outname = testname + " ";
+  outname.resize(maxTestNameWidth, '.');
+  *this->LogFile << cnt << "/" << tmsize << " Testing: " << testname
+                 << std::endl;
+  
+  if ( this->CTest->GetShowOnly() )
+    {
+    cmCTestLog(this->CTest, HANDLER_OUTPUT, outname.c_str() << std::endl);
+    }
+  else
+    {
+    cmCTestLog(this->CTest, HANDLER_OUTPUT, outname.c_str());
+    }
+  
+  cmCTestLog(this->CTest, DEBUG, "Testing " << args[0].c_str() << " ... ");
+  // find the test executable
+  std::string actualCommand = this->FindTheExecutable(args[1].c_str());
+  std::string testCommand
+    = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
+  
+  // continue if we did not find the executable
+  if (testCommand == "")
+    {
+    *this->LogFile << "Unable to find executable: " << args[1].c_str()
+                   << std::endl;
+    cmCTestLog(this->CTest, ERROR_MESSAGE, "Unable to find executable: "
+               << args[1].c_str() << std::endl);
+    cres.Output = "Unable to find executable: " + args[1];
+    if ( !this->CTest->GetShowOnly() )
+      {
+      cres.FullCommandLine = actualCommand;
+      this->TestResults.push_back( cres );
+      failed.push_back(testname);
+      return;
+      }
+    }
+  
+  // add the arguments
+  std::vector<std::string>::const_iterator j = args.begin();
+  ++j; // skip test name
+  ++j; // skip command as it is in actualCommand
+  std::vector<const char*> arguments;
+  this->GenerateTestCommand(arguments);
+  arguments.push_back(actualCommand.c_str());
+  for(;j != args.end(); ++j)
+    {
+    testCommand += " ";
+    testCommand += cmSystemTools::EscapeSpaces(j->c_str());
+    arguments.push_back(j->c_str());
+    }
+  arguments.push_back(0);
+  
+  /**
+   * Run an executable command and put the stdout in output.
+   */
+  std::string output;
+  int retVal = 0;
+  
+  
+  cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
+             << (this->MemCheck?"MemCheck":"Test") 
+             << " command: " << testCommand
+             << std::endl);
+  *this->LogFile << cnt << "/" << tmsize
+                 << " Test: " << testname.c_str() << std::endl;
+  *this->LogFile << "Command: ";
+  std::vector<cmStdString>::size_type ll;
+  for ( ll = 0; ll < arguments.size()-1; ll ++ )
+    {
+    *this->LogFile << "\"" << arguments[ll] << "\" ";
+    }
+  *this->LogFile
+    << std::endl
+    << "Directory: " << it->Directory << std::endl
+    << "\"" << testname.c_str() << "\" start time: "
+    << this->CTest->CurrentTime() << std::endl
+    << "Output:" << std::endl
+    << "----------------------------------------------------------"
+    << std::endl;
   int res = 0;
-  if ( !this->ScriptMode )
+  double clock_start, clock_finish;
+  clock_start = cmSystemTools::GetTime();
+  
+  if ( !this->CTest->GetShowOnly() )
     {
-    res = this->DoPreConfigureChecks();
-    }
-  if ( res < 0 )
-    {
-    return -2;
-    }
-  if ( !res )
-    {
-    this->CacheManager->AddCacheEntry
-      ("CMAKE_HOME_DIRECTORY", 
-       this->GetHomeDirectory(),
-       "Start directory with the top level CMakeLists.txt file for this "
-       "project",
-       cmCacheManager::INTERNAL);
+    res = this->CTest->RunTest(arguments, &output, &retVal, this->LogFile,
+                               it->Timeout, &it->Environment);
     }
 
-  // set the default BACKWARDS compatibility to the current version
-  if(!this->CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
-    {
-    char ver[256];
-    sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
-            cmVersion::GetMinorVersion());
-    this->CacheManager->AddCacheEntry
-      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
-       "For backwards compatibility, what version of CMake commands and "
-       "syntax should this version of CMake allow.",
-       cmCacheManager::INTERNAL);
-    }
+  clock_finish = cmSystemTools::GetTime();  
 
-  // no generator specified on the command line
-  if(!this->GlobalGenerator)
+  if ( this->LogFile )
     {
-    const char* genName = 
-      this->CacheManager->GetCacheValue("CMAKE_GENERATOR");
-    const char* extraGenName = 
-      this->CacheManager->GetCacheValue("CMAKE_EXTRA_GENERATOR");
-    if(genName)
+    double ttime = clock_finish - clock_start;
+    int hours = static_cast<int>(ttime / (60 * 60));
+    int minutes = static_cast<int>(ttime / 60) % 60;
+    int seconds = static_cast<int>(ttime) % 60;
+    char buffer[100];
+    sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+    *this->LogFile
+      << "----------------------------------------------------------"
+      << std::endl
+      << "\"" << testname.c_str() << "\" end time: "
+      << this->CTest->CurrentTime() << std::endl
+      << "\"" << testname.c_str() << "\" time elapsed: "
+      << buffer << std::endl
+      << "----------------------------------------------------------"
+      << std::endl << std::endl;
+    }
+  
+  cres.ExecutionTime = (double)(clock_finish - clock_start);
+  cres.FullCommandLine = testCommand;
+  std::string reason;
+  if ( !this->CTest->GetShowOnly() )
+    {
+    bool testFailed = false;
+    std::vector<std::pair<cmsys::RegularExpression,
+      std::string> >::iterator passIt;
+    bool forceFail = false;
+    if ( it->RequiredRegularExpressions.size() > 0 )
       {
-      std::string fullName = cmExternalMakefileProjectGenerator::
-                                CreateFullGeneratorName(genName, extraGenName);
-      this->GlobalGenerator = this->CreateGlobalGenerator(fullName.c_str());
-      }
-    if(this->GlobalGenerator)
-      {
-      // set the global flag for unix style paths on cmSystemTools as
-      // soon as the generator is set.  This allows gmake to be used
-      // on windows.
-      cmSystemTools::SetForceUnixPaths
-        (this->GlobalGenerator->GetForceUnixPaths());
-      }
-    else
-      {
-#if defined(__BORLANDC__) && defined(_WIN32)
-      this->SetGlobalGenerator(new cmGlobalBorlandMakefileGenerator);
-#elif defined(_WIN32) && !defined(__CYGWIN__) && !defined(CMAKE_BOOT_MINGW)
-      std::string installedCompiler;
-      std::string mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft"
-        "\\VisualStudio\\8.0\\Setup;Dbghelp_path]";
-      cmSystemTools::ExpandRegistryValues(mp);
-      if (!(mp == "/registry"))
+      bool found = false;
+      for ( passIt = it->RequiredRegularExpressions.begin();
+            passIt != it->RequiredRegularExpressions.end();
+            ++ passIt )
         {
-        installedCompiler = "Visual Studio 8 2005";
+        if ( passIt->first.find(output.c_str()) )
+          {
+          found = true;
+          reason = "Required regular expression found.";
+          }
+        }
+      if ( !found )
+        { 
+        reason = "Required regular expression not found.";
+        forceFail = true;
+        }
+      reason +=  "Regex=["; 
+      for ( passIt = it->RequiredRegularExpressions.begin();
+            passIt != it->RequiredRegularExpressions.end();
+            ++ passIt )
+        {
+        reason += passIt->second;
+        reason += "\n";
+        }
+      reason += "]";
+      }
+    if ( it->ErrorRegularExpressions.size() > 0 )
+      {
+      for ( passIt = it->ErrorRegularExpressions.begin();
+            passIt != it->ErrorRegularExpressions.end();
+            ++ passIt )
+        {
+        if ( passIt->first.find(output.c_str()) )
+          {
+          reason = "Error regular expression found in output.";
+          reason += " Regex=[";
+          reason += passIt->second;
+          reason += "]";
+          forceFail = true;
+          }
+        }
+      }
+    
+    if (res == cmsysProcess_State_Exited &&
+        (retVal == 0 || it->RequiredRegularExpressions.size()) &&
+        !forceFail)
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT,   "   Passed");
+      if ( it->WillFail )
+        {
+        cmCTestLog(this->CTest, HANDLER_OUTPUT,   " - But it should fail!");
+        cres.Status = cmCTestTestHandler::FAILED;
+        testFailed = true;
         }
       else
         {
-        mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft"
-          "\\VisualStudio\\7.1;InstallDir]";
-        cmSystemTools::ExpandRegistryValues(mp);
-        if (!(mp == "/registry"))
-          {
-          installedCompiler = "Visual Studio 7 .NET 2003";
-          }
-        else
-          {
-          mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft"
-            "\\VisualStudio\\7.0;InstallDir]";
-          cmSystemTools::ExpandRegistryValues(mp);
-          if (!(mp == "/registry"))
-            {
-            installedCompiler = "Visual Studio 7";
-            }
-          else
-            {
-            installedCompiler = "Visual Studio 6";
-            }
-          }
+        cres.Status = cmCTestTestHandler::COMPLETED;
         }
-      cmGlobalGenerator* gen
-        = this->CreateGlobalGenerator(installedCompiler.c_str());
-      if(!gen)
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl);
+      }
+    else
+      {
+      testFailed = true;
+      
+      cres.Status = cmCTestTestHandler::FAILED;
+      if ( res == cmsysProcess_State_Expired )
         {
-        gen = new cmGlobalNMakeMakefileGenerator;
+        cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Timeout" << std::endl);
+        cres.Status = cmCTestTestHandler::TIMEOUT;
         }
-      this->SetGlobalGenerator(gen);
-#else
-      this->SetGlobalGenerator(new cmGlobalUnixMakefileGenerator3);
-#endif
+      else if ( res == cmsysProcess_State_Exception )
+        {
+        cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Exception: ");
+        switch ( retVal )
+          {
+          case cmsysProcess_Exception_Fault:
+            cmCTestLog(this->CTest, HANDLER_OUTPUT, "SegFault");
+            cres.Status = cmCTestTestHandler::SEGFAULT;
+            break;
+          case cmsysProcess_Exception_Illegal:
+            cmCTestLog(this->CTest, HANDLER_OUTPUT, "Illegal");
+            cres.Status = cmCTestTestHandler::ILLEGAL;
+            break;
+          case cmsysProcess_Exception_Interrupt:
+            cmCTestLog(this->CTest, HANDLER_OUTPUT, "Interrupt");
+            cres.Status = cmCTestTestHandler::INTERRUPT;
+            break;
+          case cmsysProcess_Exception_Numerical:
+            cmCTestLog(this->CTest, HANDLER_OUTPUT, "Numerical");
+            cres.Status = cmCTestTestHandler::NUMERICAL;
+            break;
+          default:
+            cmCTestLog(this->CTest, HANDLER_OUTPUT, "Other");
+            cres.Status = cmCTestTestHandler::OTHER_FAULT;
+          }
+        cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl);
+        }
+      else if ( res == cmsysProcess_State_Error )
+        {
+        cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Bad command " << res
+                   << std::endl);
+        cres.Status = cmCTestTestHandler::BAD_COMMAND;
+        }
+      else
+        {
+        // Force fail will also be here?
+        cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Failed " << reason);
+        if ( it->WillFail )
+          {
+          cres.Status = cmCTestTestHandler::COMPLETED;
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, " - supposed to fail");
+          testFailed = false;
+          }
+        cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl);
+        }
       }
-    if(!this->GlobalGenerator)
+    if ( testFailed )
       {
-      cmSystemTools::Error("Could not create generator");
-      return -1;
+      failed.push_back(testname);
       }
-    }
-
-  const char* genName = this->CacheManager->GetCacheValue("CMAKE_GENERATOR");
-  if(genName)
-    {
-    if(strcmp(this->GlobalGenerator->GetName(), genName) != 0)
+    else
       {
-      std::string message = "Error: generator : ";
-      message += this->GlobalGenerator->GetName();
-      message += "\nDoes not match the generator used previously: ";
-      message += genName;
-      message +=
-        "\nEither remove the CMakeCache.txt file or choose a different"
-        " binary directory.";
-      cmSystemTools::Error(message.c_str());
-      return -2;
+      passed.push_back(testname);
       }
-    }
-  if(!this->CacheManager->GetCacheValue("CMAKE_GENERATOR"))
-    {
-    this->CacheManager->AddCacheEntry("CMAKE_GENERATOR", 
-                                      this->GlobalGenerator->GetName(),
-                                      "Name of generator.",
-                                      cmCacheManager::INTERNAL);
-    this->CacheManager->AddCacheEntry("CMAKE_EXTRA_GENERATOR", 
-                                this->GlobalGenerator->GetExtraGeneratorName(),
-                                "Name of external makefile project generator.",
-                                cmCacheManager::INTERNAL);
-    }
-
-  // reset any system configuration information, except for when we are
-  // InTryCompile. With TryCompile the system info is taken from the parent's
-  // info to save time
-  if (!this->InTryCompile)
-    {
-    this->GlobalGenerator->ClearEnabledLanguages();
-    }
-
-  this->CleanupWrittenFiles();
-
-  // Truncate log files
-  if (!this->InTryCompile)
-    {
-    this->TruncateOutputLog("CMakeOutput.log");
-    this->TruncateOutputLog("CMakeError.log");
-    }
-
-  // actually do the configure
-  this->GlobalGenerator->Configure();
-  // Before saving the cache
-  // if the project did not define one of the entries below, add them now
-  // so users can edit the values in the cache:
-  // LIBRARY_OUTPUT_PATH
-  // EXECUTABLE_OUTPUT_PATH
-  if(!this->CacheManager->GetCacheValue("LIBRARY_OUTPUT_PATH"))
-    {
-    this->CacheManager->AddCacheEntry
-      ("LIBRARY_OUTPUT_PATH", "",
-       "Single output directory for building all libraries.",
-       cmCacheManager::PATH);
-    } 
-  if(!this->CacheManager->GetCacheValue("EXECUTABLE_OUTPUT_PATH"))
-    {
-    this->CacheManager->AddCacheEntry
-      ("EXECUTABLE_OUTPUT_PATH", "",
-       "Single output directory for building all executables.",
-       cmCacheManager::PATH);
-    }  
-  if(!this->CacheManager->GetCacheValue("CMAKE_USE_RELATIVE_PATHS"))
-    {
-    this->CacheManager->AddCacheEntry
-      ("CMAKE_USE_RELATIVE_PATHS", false,
-       "If true, cmake will use relative paths in makefiles and projects.");
-    cmCacheManager::CacheIterator it =
-      this->CacheManager->GetCacheIterator("CMAKE_USE_RELATIVE_PATHS");
-    if ( !it.PropertyExists("ADVANCED") )
+    if (!output.empty() && output.find("<DartMeasurement") != output.npos)
       {
-      it.SetProperty("ADVANCED", "1");
+      if (this->DartStuff.find(output.c_str()))
+        {
+        std::string dartString = this->DartStuff.match(1);
+        // keep searching and replacing until none are left
+        while (this->DartStuff1.find(output.c_str()))
+          {
+          // replace the exact match for the string
+          cmSystemTools::ReplaceString(output,
+                                       this->DartStuff1.match(1).c_str(), "");
+          }
+        cres.RegressionImages
+          = this->GenerateRegressionImages(dartString);
+        }
       }
     }
 
-  if(cmSystemTools::GetFatalErrorOccured() &&
-     (!this->CacheManager->GetCacheValue("CMAKE_MAKE_PROGRAM") ||
-      cmSystemTools::IsOff(this->CacheManager->
-                           GetCacheValue("CMAKE_MAKE_PROGRAM"))))
+  // if this is doing MemCheck then all the output needs to be put into
+  // Output since that it what is parsed to by cmCTestMemCheckHandler
+  if(!this->MemCheck)
     {
-    // We must have a bad generator selection.  Wipe the cache entry so the
-    // user can select another.
-    this->CacheManager->RemoveCacheEntry("CMAKE_GENERATOR");
-    this->CacheManager->RemoveCacheEntry("CMAKE_EXTRA_GENERATOR");
+    if ( cres.Status == cmCTestTestHandler::COMPLETED )
+      {
+      this->CleanTestOutput(output, static_cast<size_t>
+                            (this->CustomMaximumPassedTestOutputSize));
+      }
+    else
+      {
+      this->CleanTestOutput(output, static_cast<size_t>
+                            (this->CustomMaximumFailedTestOutputSize));
+      }
     }
-  // only save the cache if there were no fatal errors
-  if ( !this->ScriptMode )
-    {
-    this->CacheManager->SaveCache(this->GetHomeOutputDirectory());
-    }
-  if ( !this->GraphVizFile.empty() )
-    {
-    std::cout << "Generate graphviz: " << this->GraphVizFile << std::endl;
-    this->GenerateGraphViz(this->GraphVizFile.c_str());
-    }
-  if(cmSystemTools::GetErrorOccuredFlag())
-    {
-    return -1;
-    }
-  return 0;
+  cres.Reason = reason;
+  cres.Output = output;
+  cres.ReturnValue = retVal;
+  cres.CompletionStatus = "Completed";
+  this->TestResults.push_back( cres );
 }

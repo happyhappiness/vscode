@@ -1,1 +1,1 @@
-fprintf(ofp, "#else\n");
+fprintf(stderr, "DIRECTORY_DEF_RELEASE should be defined in CXX\n");

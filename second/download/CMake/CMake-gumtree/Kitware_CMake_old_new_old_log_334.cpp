@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);

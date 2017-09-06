@@ -1,1 +1,1 @@
-fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());
+sprintf(buf, "Content-Length: %d\r\n", filesize);

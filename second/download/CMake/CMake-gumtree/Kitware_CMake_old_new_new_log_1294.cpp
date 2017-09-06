@@ -1,2 +1,1 @@
-depends.insert(depends.end(),
-                     cr->GetDepends().begin(), cr->GetDepends().end());
+snprintf(username, sizeof(username), "%d", (int)uid);

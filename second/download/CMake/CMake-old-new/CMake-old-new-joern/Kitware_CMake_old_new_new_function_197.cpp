@@ -1,225 +1,97 @@
 static int
-next_entry(struct archive_read_disk *a, struct tree *t,
-    struct archive_entry *entry)
+cleanup_pathname_fsobj(char *path, int *a_eno, struct archive_string *a_estr,
+    int flags)
 {
-	const struct stat *st; /* info to use for this entry */
-	const struct stat *lst;/* lstat() information */
-	const char *name;
-	int descend, r;
+	char *dest, *src;
+	char separator = '\0';
 
-	st = NULL;
-	lst = NULL;
-	t->descend = 0;
-	do {
-		switch (tree_next(t)) {
-		case TREE_ERROR_FATAL:
-			archive_set_error(&a->archive, t->tree_errno,
-			    "%s: Unable to continue traversing directory tree",
-			    tree_current_path(t));
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			tree_enter_initial_dir(t);
-			return (ARCHIVE_FATAL);
-		case TREE_ERROR_DIR:
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "%s: Couldn't visit directory",
-			    tree_current_path(t));
-			tree_enter_initial_dir(t);
+	dest = src = path;
+	if (*src == '\0') {
+		fsobj_error(a_eno, a_estr, ARCHIVE_ERRNO_MISC,
+		    "Invalid empty ", "pathname");
+		return (ARCHIVE_FAILED);
+	}
+
+#if defined(__CYGWIN__)
+	cleanup_pathname_win(path);
+#endif
+	/* Skip leading '/'. */
+	if (*src == '/') {
+		if (flags & ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS) {
+			fsobj_error(a_eno, a_estr, ARCHIVE_ERRNO_MISC,
+			    "Path is ", "absolute");
 			return (ARCHIVE_FAILED);
-		case 0:
-			tree_enter_initial_dir(t);
-			return (ARCHIVE_EOF);
-		case TREE_POSTDESCENT:
-		case TREE_POSTASCENT:
-			break;
-		case TREE_REGULAR:
-			lst = tree_current_lstat(t);
-			if (lst == NULL) {
-				archive_set_error(&a->archive, errno,
-				    "%s: Cannot stat",
-				    tree_current_path(t));
-				tree_enter_initial_dir(t);
-				return (ARCHIVE_FAILED);
-			}
-			break;
-		}	
-	} while (lst == NULL);
+		}
 
-#ifdef __APPLE__
-	if (a->enable_copyfile) {
-		/* If we're using copyfile(), ignore "._XXX" files. */
-		const char *bname = strrchr(tree_current_path(t), '/');
-		if (bname == NULL)
-			bname = tree_current_path(t);
+		separator = *src++;
+	}
+
+	/* Scan the pathname one element at a time. */
+	for (;;) {
+		/* src points to first char after '/' */
+		if (src[0] == '\0') {
+			break;
+		} else if (src[0] == '/') {
+			/* Found '//', ignore second one. */
+			src++;
+			continue;
+		} else if (src[0] == '.') {
+			if (src[1] == '\0') {
+				/* Ignore trailing '.' */
+				break;
+			} else if (src[1] == '/') {
+				/* Skip './'. */
+				src += 2;
+				continue;
+			} else if (src[1] == '.') {
+				if (src[2] == '/' || src[2] == '\0') {
+					/* Conditionally warn about '..' */
+					if (flags
+					    & ARCHIVE_EXTRACT_SECURE_NODOTDOT) {
+						fsobj_error(a_eno, a_estr,
+						    ARCHIVE_ERRNO_MISC,
+						    "Path contains ", "'..'");
+						return (ARCHIVE_FAILED);
+					}
+				}
+				/*
+				 * Note: Under no circumstances do we
+				 * remove '..' elements.  In
+				 * particular, restoring
+				 * '/foo/../bar/' should create the
+				 * 'foo' dir as a side-effect.
+				 */
+			}
+		}
+
+		/* Copy current element, including leading '/'. */
+		if (separator)
+			*dest++ = '/';
+		while (*src != '\0' && *src != '/') {
+			*dest++ = *src++;
+		}
+
+		if (*src == '\0')
+			break;
+
+		/* Skip '/' separator. */
+		separator = *src++;
+	}
+	/*
+	 * We've just copied zero or more path elements, not including the
+	 * final '/'.
+	 */
+	if (dest == path) {
+		/*
+		 * Nothing got copied.  The path must have been something
+		 * like '.' or '/' or './' or '/././././/./'.
+		 */
+		if (separator)
+			*dest++ = '/';
 		else
-			++bname;
-		if (bname[0] == '.' && bname[1] == '_')
-			return (ARCHIVE_RETRY);
+			*dest++ = '.';
 	}
-#endif
-
-	archive_entry_copy_pathname(entry, tree_current_path(t));
-	/*
-	 * Perform path matching.
-	 */
-	if (a->matching) {
-		r = archive_match_path_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
-
-	/*
-	 * Distinguish 'L'/'P'/'H' symlink following.
-	 */
-	switch(t->symlink_mode) {
-	case 'H':
-		/* 'H': After the first item, rest like 'P'. */
-		t->symlink_mode = 'P';
-		/* 'H': First item (from command line) like 'L'. */
-		/* FALLTHROUGH */
-	case 'L':
-		/* 'L': Do descend through a symlink to dir. */
-		descend = tree_current_is_dir(t);
-		/* 'L': Follow symlinks to files. */
-		a->symlink_mode = 'L';
-		a->follow_symlinks = 1;
-		/* 'L': Archive symlinks as targets, if we can. */
-		st = tree_current_stat(t);
-		if (st != NULL && !tree_target_is_same_as_parent(t, st))
-			break;
-		/* If stat fails, we have a broken symlink;
-		 * in that case, don't follow the link. */
-		/* FALLTHROUGH */
-	default:
-		/* 'P': Don't descend through a symlink to dir. */
-		descend = tree_current_is_physical_dir(t);
-		/* 'P': Don't follow symlinks to files. */
-		a->symlink_mode = 'P';
-		a->follow_symlinks = 0;
-		/* 'P': Archive symlinks as symlinks. */
-		st = lst;
-		break;
-	}
-
-	if (update_current_filesystem(a, st->st_dev) != ARCHIVE_OK) {
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		tree_enter_initial_dir(t);
-		return (ARCHIVE_FATAL);
-	}
-	if (t->initial_filesystem_id == -1)
-		t->initial_filesystem_id = t->current_filesystem_id;
-	if (!a->traverse_mount_points) {
-		if (t->initial_filesystem_id != t->current_filesystem_id)
-			descend = 0;
-	}
-	t->descend = descend;
-
-	/*
-	 * Honor nodump flag.
-	 * If the file is marked with nodump flag, do not return this entry.
-	 */
-	if (a->honor_nodump) {
-#if defined(HAVE_STRUCT_STAT_ST_FLAGS) && defined(UF_NODUMP)
-		if (st->st_flags & UF_NODUMP)
-			return (ARCHIVE_RETRY);
-#elif defined(EXT2_IOC_GETFLAGS) && defined(EXT2_NODUMP_FL) &&\
-      defined(HAVE_WORKING_EXT2_IOC_GETFLAGS)
-		if (S_ISREG(st->st_mode) || S_ISDIR(st->st_mode)) {
-			int stflags;
-
-			t->entry_fd = open_on_current_dir(t,
-			    tree_current_access_path(t),
-			    O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-			__archive_ensure_cloexec_flag(t->entry_fd);
-			if (t->entry_fd >= 0) {
-				r = ioctl(t->entry_fd, EXT2_IOC_GETFLAGS,
-					&stflags);
-				if (r == 0 && (stflags & EXT2_NODUMP_FL) != 0)
-					return (ARCHIVE_RETRY);
-			}
-		}
-#endif
-	}
-
-	archive_entry_copy_stat(entry, st);
-
-	/* Save the times to be restored. This must be in before
-	 * calling archive_read_disk_descend() or any chance of it,
-	 * especially, invoking a callback. */
-	t->restore_time.mtime = archive_entry_mtime(entry);
-	t->restore_time.mtime_nsec = archive_entry_mtime_nsec(entry);
-	t->restore_time.atime = archive_entry_atime(entry);
-	t->restore_time.atime_nsec = archive_entry_atime_nsec(entry);
-	t->restore_time.filetype = archive_entry_filetype(entry);
-	t->restore_time.noatime = t->current_filesystem->noatime;
-
-	/*
-	 * Perform time matching.
-	 */
-	if (a->matching) {
-		r = archive_match_time_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
-
-	/* Lookup uname/gname */
-	name = archive_read_disk_uname(&(a->archive), archive_entry_uid(entry));
-	if (name != NULL)
-		archive_entry_copy_uname(entry, name);
-	name = archive_read_disk_gname(&(a->archive), archive_entry_gid(entry));
-	if (name != NULL)
-		archive_entry_copy_gname(entry, name);
-
-	/*
-	 * Perform owner matching.
-	 */
-	if (a->matching) {
-		r = archive_match_owner_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
-
-	/*
-	 * Invoke a meta data filter callback.
-	 */
-	if (a->metadata_filter_func) {
-		if (!a->metadata_filter_func(&(a->archive),
-		    a->metadata_filter_data, entry))
-			return (ARCHIVE_RETRY);
-	}
-
-	/*
-	 * Populate the archive_entry with metadata from the disk.
-	 */
-	archive_entry_copy_sourcepath(entry, tree_current_access_path(t));
-	r = archive_read_disk_entry_from_file(&(a->archive), entry,
-		t->entry_fd, st);
-
-	return (r);
+	/* Terminate the result. */
+	*dest = '\0';
+	return (ARCHIVE_OK);
 }

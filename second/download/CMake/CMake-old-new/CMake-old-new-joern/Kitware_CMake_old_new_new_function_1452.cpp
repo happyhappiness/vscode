@@ -1,54 +1,93 @@
-static void getssl_version(char *ptr, long *num)
+int GetWebFile(void)
 {
+  int retVal = 0;
+  CURL *curl;
+  CURLcode res;
 
-#if (SSLEAY_VERSION_NUMBER >= 0x905000)
-  {
-    char sub[2];
-    unsigned long ssleay_value;
-    sub[1]='\0';
-    ssleay_value=SSLeay();
-    *num = ssleay_value;
-    if(ssleay_value < 0x906000) {
-      ssleay_value=SSLEAY_VERSION_NUMBER;
-      sub[0]='\0';
-    }
-    else {
-      if(ssleay_value&0xff0) {
-        sub[0]=((ssleay_value>>4)&0xff) + 'a' -1;
+  char proxy[1024];
+  int proxy_type = 0;
+
+  if ( getenv("HTTP_PROXY") )
+    {
+    proxy_type = 1;
+    if (getenv("HTTP_PROXY_PORT") )
+      {
+      sprintf("%s:%s", getenv("HTTP_PROXY"), getenv("HTTP_PROXY_PORT"));
       }
-      else
-        sub[0]='\0';
-    }
-
-    sprintf(ptr, " OpenSSL/%lx.%lx.%lx%s",
-            (ssleay_value>>28)&0xf,
-            (ssleay_value>>20)&0xff,
-            (ssleay_value>>12)&0xff,
-            sub);
-  }
-
-#else
-  *num = SSLEAY_VERSION_NUMBER;
-#if (SSLEAY_VERSION_NUMBER >= 0x900000)
-  sprintf(ptr, " OpenSSL/%lx.%lx.%lx",
-          (SSLEAY_VERSION_NUMBER>>28)&0xff,
-          (SSLEAY_VERSION_NUMBER>>20)&0xff,
-          (SSLEAY_VERSION_NUMBER>>12)&0xf);
-#else
-  {
-    char sub[2];
-    sub[1]='\0';
-    if(SSLEAY_VERSION_NUMBER&0x0f) {
-      sub[0]=(SSLEAY_VERSION_NUMBER&0x0f) + 'a' -1;
-    }
     else
-      sub[0]='\0';
+      {
+      sprintf("%s", getenv("HTTP_PROXY"));
+      }
+    if ( getenv("HTTP_PROXY_TYPE") )
+      {
+      // HTTP/SOCKS4/SOCKS5
+      if ( strcmp(getenv("HTTP_PROXY_TYPE"), "HTTP") == 0 )
+        {
+        proxy_type = 1;
+        }
+      else if ( strcmp(getenv("HTTP_PROXY_TYPE"), "SOCKS4") == 0 )
+        {
+        proxy_type = 2;
+        }
+      else if ( strcmp(getenv("HTTP_PROXY_TYPE"), "SOCKS5") == 0 )
+        {
+        proxy_type = 3;
+        }
+      }
+    }
 
-    sprintf(ptr, " SSL/%x.%x.%x%s",
-            (SSLEAY_VERSION_NUMBER>>12)&0xff,
-            (SSLEAY_VERSION_NUMBER>>8)&0xf,
-            (SSLEAY_VERSION_NUMBER>>4)&0xf, sub);
-  }
-#endif
-#endif
+  curl = curl_easy_init();
+  if(curl) 
+    {
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+    curl_easy_setopt(curl, CURLOPT_HEADER, 1);
+
+    // Using proxy
+    if ( proxy_type > 0 )
+      {
+      curl_easy_setopt(curl, CURLOPT_PROXY, proxy); 
+      switch (proxy_type)
+        {
+        case 2:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS4);
+          break;
+        case 3:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5);
+          break;
+        default:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);           
+        }
+      }
+
+    /* get the first document */
+    curl_easy_setopt(curl, CURLOPT_URL, "http://www.cmake.org/page1.html");
+    res = curl_easy_perform(curl);
+    if ( res != 0 )
+      {
+      printf("Error fetching: http://www.cmake.org/page1.html\n");
+      retVal = 1;
+      }
+
+    /* get another document from the same server using the same
+       connection */
+    /*
+      curl_easy_setopt(curl, CURLOPT_URL, "http://www.cmake.org/page2.html");
+      res = curl_easy_perform(curl);
+      if ( res != 0 )
+      {
+      printf("Error fetching: http://www.cmake.org/page2.html\n");
+      retVal = 1;
+      }
+    */
+
+    /* always cleanup */
+    curl_easy_cleanup(curl);
+    }
+  else
+    {
+    printf("Cannot create curl object\n");
+    retVal = 1;
+    }
+
+  return retVal;
 }

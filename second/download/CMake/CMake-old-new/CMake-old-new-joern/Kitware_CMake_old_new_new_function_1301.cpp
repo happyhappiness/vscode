@@ -1,607 +1,82 @@
-int cmCTestUpdateHandler::ProcessHandler()
+int
+tar_append_tree(TAR *t, char *realdir, char *savedir)
 {
-  int count = 0;
-  int updateType = e_CVS;
-  std::string::size_type cc, kk;
+  char realpath[TAR_MAXPATHLEN];
+  char savepath[TAR_MAXPATHLEN];
+#if !defined(_WIN32) || defined(__CYGWIN__)
+  struct dirent *dent;
+  DIR *dp;
+#else  
+  kwDirEntry * dent;
+  kwDirectory *dp;
+#endif  
+  struct stat s;
 
+#ifdef DEBUG
+  printf("==> tar_append_tree(0x%lx, \"%s\", \"%s\")\n",
+         t, realdir, (savedir ? savedir : "[NULL]"));
+#endif
 
-  // Get source dir
-  std::string sourceDirectory = m_CTest->GetDartConfiguration("SourceDirectory");
-  if ( sourceDirectory.empty() )
-    {
-    std::cerr << "Cannot find SourceDirectory  key in the DartConfiguration.tcl" << std::endl;
+  if (tar_append_file(t, realdir, savedir) != 0)
     return -1;
-    }
 
-  std::cout << "Updating the repository: " << sourceDirectory.c_str() << std::endl;
+#ifdef DEBUG
+  puts("    tar_append_tree(): done with tar_append_file()...");
+#endif
 
-  // Get update command
-  std::string updateCommand = m_CTest->GetDartConfiguration("UpdateCommand");
-  if ( updateCommand.empty() )
+#if defined(_WIN32) && !defined(__CYGWIN__)
+  dp = kwOpenDir(realdir);
+#else
+  dp = opendir(realdir);
+#endif
+
+  if (dp == NULL)
+  {
+    if (errno == ENOTDIR)
+      return 0;
+    return -1;
+  }
+#if defined(_WIN32) && !defined(__CYGWIN__)
+  while ((dent = kwReadDir(dp)) != NULL)
+#else
+  while ((dent = readdir(dp)) != NULL)
+#endif
+  {
+    if (strcmp(dent->d_name, ".") == 0 ||
+        strcmp(dent->d_name, "..") == 0)
+      continue;
+
+    snprintf(realpath, TAR_MAXPATHLEN, "%s/%s", realdir,
+       dent->d_name);
+    if (savedir)
+      snprintf(savepath, TAR_MAXPATHLEN, "%s/%s", savedir,
+         dent->d_name);
+
+#ifndef WIN32
+    if (lstat(realpath, &s) != 0)
+      return -1;
+#else
+    if (stat(realpath, &s) != 0)
+      return -1;
+#endif
+    if (S_ISDIR(s.st_mode))
     {
-    updateCommand = m_CTest->GetDartConfiguration("CVSCommand");
-    if ( updateCommand.empty() )
-      {
-      updateCommand = m_CTest->GetDartConfiguration("SVNCommand");
-      if ( updateCommand.empty() )
-        {
-        std::cerr << "Cannot find CVSCommand, SVNCommand, or UpdateCommand key in the DartConfiguration.tcl" << std::endl;
+      if (tar_append_tree(t, realpath,
+              (savedir ? savepath : NULL)) != 0)
         return -1;
-        }
-      else
-        {
-        updateType = e_SVN;
-        }
-      }
-    else
-      {
-      updateType = e_CVS;
-      }
-    }
-  else
-    {
-    updateType = this->DetermineType(updateCommand.c_str(), m_CTest->GetDartConfiguration("UpdateType").c_str());
+      continue;
     }
 
-  // And update options
-  std::string updateOptions = m_CTest->GetDartConfiguration("UpdateOptions");
-  if ( updateOptions.empty() )
-    {
-    switch (updateType)
-      {
-    case cmCTestUpdateHandler::e_CVS:
-      updateOptions = m_CTest->GetDartConfiguration("CVSUpdateOptions");
-      break;
-    case cmCTestUpdateHandler::e_SVN:
-      updateOptions = m_CTest->GetDartConfiguration("SVNUpdateOptions");
-      break;
-      }
-    }
+    if (tar_append_file(t, realpath,
+            (savedir ? savepath : NULL)) != 0)
+      return -1;
+  }
 
-  // Get update time
-  std::string extra_update_opts;
-  if ( m_CTest->GetTestModel() == cmCTest::NIGHTLY )
-    {
-    struct tm* t = cmCTest::GetNightlyTime(m_CTest->GetDartConfiguration("NightlyStartTime"),
-      m_Verbose, m_CTest->GetTomorrowTag());
-    char current_time[1024];
-    sprintf(current_time, "%04d-%02d-%02d %02d:%02d:%02d",
-      t->tm_year + 1900,
-      t->tm_mon + 1,
-      t->tm_mday,
-      t->tm_hour,
-      t->tm_min,
-      t->tm_sec);
-    std::string today_update_date = current_time;
+#if defined(_WIN32) && !defined(__CYGWIN__)
+  kwCloseDir(dp);
+#else
+  closedir(dp);
+#endif
 
-    // TODO: SVN
-    switch ( updateType )
-      {
-    case cmCTestUpdateHandler::e_CVS:
-      extra_update_opts += "-D \"" + today_update_date +" UTC\"";
-      break;
-    case cmCTestUpdateHandler::e_SVN:
-      extra_update_opts += "-r \"{" + today_update_date +" +0000}\"";
-      break;
-      }
-    }
-
-  // First, check what the current state of repository is
-  std::string command = "";
-  switch( updateType )
-    {
-  case cmCTestUpdateHandler::e_CVS:
-    // TODO: CVS - for now just leave empty
-    break;
-  case cmCTestUpdateHandler::e_SVN:
-    command = updateCommand + " info";
-    break;
-    }
-
-  cmGeneratedFileStream ofs;
-  if ( !m_CTest->GetShowOnly() )
-    {
-    m_CTest->OpenOutputFile("Temporary", "LastUpdate.log", ofs);
-    }
-
-  // CVS variables
-  // SVN variables
-  int svn_current_revision = 0;
-  int svn_latest_revision = 0;
-  int svn_use_status = 0;
-
-  std::string goutput;
-  int retVal = 0;
-  bool res = true;
-
-  if ( !command.empty() )
-    {
-    if ( m_Verbose )
-      {
-      std::cout << "* Get repository information: " << command.c_str() << std::endl;
-      }
-    if ( !m_CTest->GetShowOnly() )
-      {
-      res = cmSystemTools::RunSingleCommand(command.c_str(), &goutput, 
-        &retVal, sourceDirectory.c_str(),
-        m_Verbose, 0 /*m_TimeOut*/);
-      if ( ofs )
-        {
-        ofs << "--- Update information ---" << std::endl;
-        ofs << goutput << std::endl;
-        }
-      switch ( updateType )
-        {
-      case cmCTestUpdateHandler::e_CVS:
-        // TODO: CVS - for now just leave empty
-        break;
-      case cmCTestUpdateHandler::e_SVN:
-          {
-          cmsys::RegularExpression current_revision_regex("Revision: ([0-9]+)");
-          if ( current_revision_regex.find(goutput.c_str()) )
-            {
-            std::string currentRevisionString = current_revision_regex.match(1);
-            svn_current_revision = atoi(currentRevisionString.c_str());
-            std::cout << "   Old revision of repository is: " << svn_current_revision << std::endl;
-            }
-          }
-        break;
-        }
-      }
-    else
-      {
-      std::cout << "Update with command: " << command << std::endl;
-      }
-    }
-
-
-  command = "";
-  switch( updateType )
-    {
-  case cmCTestUpdateHandler::e_CVS:
-    command = updateCommand + " -z3 update " + updateOptions +
-      " " + extra_update_opts;
-    break;
-  case cmCTestUpdateHandler::e_SVN:
-    command = updateCommand + " update " + updateOptions +
-      " " + extra_update_opts;
-    }
-  cmGeneratedFileStream os; 
-  if ( !m_CTest->OpenOutputFile(m_CTest->GetCurrentTag(), "Update.xml", os, true) )
-    {
-    std::cerr << "Cannot open log file" << std::endl;
-    }
-  std::string start_time = m_CTest->CurrentTime();
-  double elapsed_time_start = cmSystemTools::GetTime();
-
-  if ( m_Verbose )
-    {
-    std::cout << "* Update repository: " << command.c_str() << std::endl;
-    }
-  if ( !m_CTest->GetShowOnly() )
-    {
-    res = cmSystemTools::RunSingleCommand(command.c_str(), &goutput, 
-      &retVal, sourceDirectory.c_str(),
-      m_Verbose, 0 /*m_TimeOut*/);
-    if ( ofs )
-      {
-      ofs << "--- Update repository ---" << std::endl;
-      ofs << goutput << std::endl;; 
-      }
-    }
-
-  os << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-    << "<Update mode=\"Client\" Generator=\"ctest-"
-    << cmVersion::GetCMakeVersion() << "\">\n"
-    << "\t<Site>" << m_CTest->GetDartConfiguration("Site") << "</Site>\n"
-    << "\t<BuildName>" << m_CTest->GetDartConfiguration("BuildName")
-    << "</BuildName>\n"
-    << "\t<BuildStamp>" << m_CTest->GetCurrentTag() << "-"
-    << m_CTest->GetTestModelString() << "</BuildStamp>" << std::endl;
-  os << "\t<StartDateTime>" << start_time << "</StartDateTime>\n"
-    << "\t<UpdateCommand>" << m_CTest->MakeXMLSafe(command)
-    << "</UpdateCommand>\n"
-    << "\t<UpdateReturnStatus>";
-  int failed = 0;
-  if ( !res || retVal )
-    {
-    os << "Update error: ";
-    os << m_CTest->MakeXMLSafe(goutput);
-    std::cerr << "Update with command: " << command << " failed" << std::endl;
-    failed = 1;
-    }
-  os << "</UpdateReturnStatus>" << std::endl;
-
-  // Even though it failed, we may have some useful information. Try to continue...
-  std::vector<cmStdString> lines;
-  cmSystemTools::Split(goutput.c_str(), lines);
-
-  // CVS style regular expressions
-  cmsys::RegularExpression cvs_date_author_regex("^date: +([^;]+); +author: +([^;]+); +state: +[^;]+;");
-  cmsys::RegularExpression cvs_revision_regex("^revision +([^ ]*) *$");
-  cmsys::RegularExpression cvs_end_of_file_regex("^=============================================================================$");
-  cmsys::RegularExpression cvs_end_of_comment_regex("^----------------------------$");
-
-  // Subversion style regular expressions
-  cmsys::RegularExpression svn_status_line_regex("^ *([0-9]+)  *([0-9]+)  *([^ ]+)  *([^ ][^\t\r\n]*)[ \t\r\n]*$");
-  cmsys::RegularExpression svn_latest_revision_regex("Updated to revision ([0-9]+).");
-
-  cmsys::RegularExpression file_update_line("([A-Z])  *(.*)");
-  std::string current_path = "<no-path>";
-  bool first_file = true;
-
-  cmCTestUpdateHandler::AuthorsToUpdatesMap authors_files_map;
-  int num_updated = 0;
-  int num_modified = 0;
-  int num_conflicting = 0;
-  // In subversion, get the latest revision
-  if ( updateType == cmCTestUpdateHandler::e_SVN )
-    {
-    for ( cc= 0 ; cc < lines.size(); cc ++ )
-      {
-      const char* line = lines[cc].c_str();
-      if ( svn_latest_revision_regex.find(line) )
-        {
-        svn_latest_revision = atoi(svn_latest_revision_regex.match(1).c_str());
-        }
-      }
-    }
-  if ( updateType == cmCTestUpdateHandler::e_SVN )
-    {
-    std::cout << "   Current revision of repository is: " << svn_latest_revision << std::endl;
-    }
-
-  std::cout << "   Gathering version information (each . represents one updated file):" << std::endl;
-  if ( !m_Verbose )
-    {
-    std::cout << "    ";
-    std::cout.flush();
-    }
-  for ( cc= 0 ; cc < lines.size(); cc ++ )
-    {
-    const char* line = lines[cc].c_str();
-    if ( file_update_line.find(line) )
-      {
-      if ( !m_Verbose )
-        {
-        std::cout << ".";
-        }
-      std::cout.flush();
-      std::string upChar = file_update_line.match(1);
-      std::string upFile = file_update_line.match(2);
-      char mod = upChar[0];
-      if ( mod != 'M' && mod != 'C' )
-        {
-        count ++;
-        }
-      const char* file = upFile.c_str();
-      //std::cout << "Line" << cc << ": " << mod << " - " << file << std::endl;
-
-      std::string logcommand;
-      switch ( updateType )
-        {
-      case cmCTestUpdateHandler::e_CVS:
-        logcommand = updateCommand + " -z3 log -N \"" + file + "\"";
-        break;
-      case cmCTestUpdateHandler::e_SVN:
-        if ( svn_latest_revision > 0 && svn_latest_revision > svn_current_revision )
-          {
-          cmOStringStream logCommandStream;
-          logCommandStream << updateCommand << " log -r " << svn_current_revision << ":" << svn_latest_revision
-            << " --xml \"" << file << "\"";
-          logcommand = logCommandStream.str();
-          }
-        else
-          {
-          logcommand = updateCommand + " status  --verbose \"" + file + "\"";
-          svn_use_status = 1;
-          }
-        break;
-        }
-      //std::cout << "Do log: " << logcommand << std::endl;
-      std::string output;
-      if ( m_Verbose )
-        {
-        std::cout << "* Get file update information: " << logcommand.c_str() << std::endl;
-        }
-      res = cmSystemTools::RunSingleCommand(logcommand.c_str(), &output, 
-        &retVal, sourceDirectory.c_str(),
-        m_Verbose, 0 /*m_TimeOut*/);
-      if ( ofs )
-        {
-        ofs << output << std::endl;
-        }
-      if ( res && retVal == 0)
-        {
-        //std::cout << output << std::endl;
-        std::string::size_type sline = 0;
-        std::string srevision1 = "Unknown";
-        std::string sdate1     = "Unknown";
-        std::string sauthor1   = "Unknown";
-        std::string semail1    = "Unknown";
-        std::string comment1   = "";
-        std::string srevision2 = "Unknown";
-        std::string sdate2     = "Unknown";
-        std::string sauthor2   = "Unknown";
-        std::string comment2   = "";
-        std::string semail2    = "Unknown";
-        if ( updateType == cmCTestUpdateHandler::e_CVS )
-          {
-          bool have_first = false;
-          bool have_second = false;
-          std::vector<cmStdString> ulines;
-          cmSystemTools::Split(output.c_str(), ulines);
-          for ( kk = 0; kk < ulines.size(); kk ++ )
-            {
-            const char* clp = ulines[kk].c_str();
-            if ( !have_second && !sline && cvs_revision_regex.find(clp) )
-              {
-              if ( !have_first )
-                {
-                srevision1 = cvs_revision_regex.match(1);
-                }
-              else
-                {
-                srevision2 = cvs_revision_regex.match(1);
-                }
-              }
-            else if ( !have_second && !sline && cvs_date_author_regex.find(clp) )
-              {
-              sline = kk + 1;
-              if ( !have_first )
-                {
-                sdate1 = cvs_date_author_regex.match(1);
-                sauthor1 = cvs_date_author_regex.match(2);
-                }
-              else
-                {
-                sdate2 = cvs_date_author_regex.match(1);
-                sauthor2 = cvs_date_author_regex.match(2);
-                }
-              }
-            else if ( sline && cvs_end_of_comment_regex.find(clp) || cvs_end_of_file_regex.find(clp))
-              {
-              if ( !have_first )
-                {
-                have_first = true;
-                }
-              else if ( !have_second )
-                {
-                have_second = true;
-                }
-              sline = 0;
-              }
-            else if ( sline )
-              {
-              if ( !have_first )
-                {
-                comment1 += clp;
-                comment1 += "\n";
-                }
-              else
-                {
-                comment2 += clp;
-                comment2 += "\n";
-                }
-              }
-            }
-          }
-        else if ( updateType == cmCTestUpdateHandler::e_SVN )
-          {
-          if ( svn_use_status )
-            {
-            cmOStringStream str;
-            str << svn_current_revision;
-            srevision1 = str.str();
-            if (!svn_status_line_regex.find(output))
-              {
-              std::cerr << "Bad output from SVN status command: " << output << std::endl;
-              }
-            else if ( svn_status_line_regex.match(4) != file )
-              {
-              std::cerr << "Bad output from SVN status command. The file name returned: \"" << svn_status_line_regex.match(4) << "\" was different than the file specified: \"" << file << "\"" << std::endl;
-              }
-            else
-              {
-              srevision1 = svn_status_line_regex.match(2);
-              int latest_revision = atoi(svn_status_line_regex.match(2).c_str());
-              if ( svn_current_revision < latest_revision )
-                {
-                srevision2 = str.str();
-                }
-              sauthor1 = svn_status_line_regex.match(3);
-              }
-            }
-          else
-            {
-            cmCTestUpdateHandlerSVNXMLParser parser(this);
-            parser.SetVerbose(m_Verbose);
-            if ( parser.Parse(output.c_str()) )
-              {
-              int minrev = parser.GetMinRevision();
-              int maxrev = parser.GetMaxRevision();
-              cmCTestUpdateHandlerSVNXMLParser::t_VectorOfCommits::iterator it;
-              for ( it = parser.GetCommits()->begin(); 
-                it != parser.GetCommits()->end(); 
-                ++ it )
-                {
-                if ( it->m_Revision == maxrev )
-                  {
-                  cmOStringStream mRevStream;
-                  mRevStream << maxrev;
-                  srevision1 = mRevStream.str();
-                  sauthor1 = it->m_Author;
-                  comment1 = it->m_Message;
-                  sdate1 = it->m_Date;
-                  }
-                else if ( it->m_Revision == minrev )
-                  {
-                  cmOStringStream mRevStream;
-                  mRevStream << minrev;
-                  srevision2 = mRevStream.str();
-                  sauthor2 = it->m_Author;
-                  comment2 = it->m_Message;       
-                  sdate2 = it->m_Date;
-                  }
-                }
-              }
-            }
-          }
-        if ( mod == 'M' )
-          {
-          comment1 = "Locally modified file\n";
-          }
-        if ( mod == 'C' )
-          {
-          comment1 = "Conflict while updating\n";
-          }
-        std::string path = cmSystemTools::GetFilenamePath(file);
-        std::string fname = cmSystemTools::GetFilenameName(file);
-        if ( path != current_path )
-          {
-          if ( !first_file )
-            {
-            os << "\t</Directory>" << std::endl;
-            }
-          else
-            {
-            first_file = false;
-            }
-          os << "\t<Directory>\n"
-            << "\t\t<Name>" << path << "</Name>" << std::endl;
-          }
-        if ( mod == 'C' )
-          {
-          num_conflicting ++;
-          os << "\t<Conflicting>" << std::endl;
-          }
-        else if ( mod == 'M' )
-          {
-          num_modified ++;
-          os << "\t<Modified>" << std::endl;
-          }
-        else
-          {
-          num_updated ++;
-          os << "\t<Updated>" << std::endl;
-          }
-        if ( srevision2 == "Unknown" )
-          {
-          srevision2 = srevision1;
-          }
-        if ( m_Verbose )
-          {
-          std::cout << "File: " << path.c_str() << " / " << fname.c_str() << " was updated by "
-            << sauthor1.c_str() << " to revision: " << srevision1.c_str()
-            << " from revision: " << srevision2.c_str() << std::endl;
-          }
-        os << "\t\t<File Directory=\"" << cmCTest::MakeXMLSafe(path) << "\">" << cmCTest::MakeXMLSafe(fname)
-          << "</File>\n"
-          << "\t\t<Directory>" << cmCTest::MakeXMLSafe(path) << "</Directory>\n"
-          << "\t\t<FullName>" << cmCTest::MakeXMLSafe(file) << "</FullName>\n"
-          << "\t\t<CheckinDate>" << cmCTest::MakeXMLSafe(sdate1) << "</CheckinDate>\n"
-          << "\t\t<Author>" << cmCTest::MakeXMLSafe(sauthor1) << "</Author>\n"
-          << "\t\t<Email>" << cmCTest::MakeXMLSafe(semail1) << "</Email>\n"
-          << "\t\t<Log>" << cmCTest::MakeXMLSafe(comment1) << "</Log>\n"
-          << "\t\t<Revision>" << srevision1 << "</Revision>\n"
-          << "\t\t<PriorRevision>" << srevision2 << "</PriorRevision>"
-          << std::endl;
-        if ( srevision2 != srevision1 )
-          {
-          os
-            << "\t\t<Revisions>\n"
-            << "\t\t\t<Revision>" << srevision1 << "</Revision>\n"
-            << "\t\t\t<PreviousRevision>" << srevision2 << "</PreviousRevision>\n"
-            << "\t\t\t<Author>" << cmCTest::MakeXMLSafe(sauthor1) << "</Author>\n"
-            << "\t\t\t<Date>" << cmCTest::MakeXMLSafe(sdate1) << "</Date>\n"
-            << "\t\t\t<Comment>" << cmCTest::MakeXMLSafe(comment1) << "</Comment>\n"
-            << "\t\t\t<Email>" << cmCTest::MakeXMLSafe(semail1) << "</Email>\n"
-            << "\t\t</Revisions>\n"
-            << "\t\t<Revisions>\n"
-            << "\t\t\t<Revision>" << srevision2 << "</Revision>\n"
-            << "\t\t\t<PreviousRevision>" << srevision2 << "</PreviousRevision>\n"
-            << "\t\t\t<Author>" << cmCTest::MakeXMLSafe(sauthor2) << "</Author>\n"
-            << "\t\t\t<Date>" << cmCTest::MakeXMLSafe(sdate2) << "</Date>\n"
-            << "\t\t\t<Comment>" << cmCTest::MakeXMLSafe(comment2) << "</Comment>\n"
-            << "\t\t\t<Email>" << cmCTest::MakeXMLSafe(semail2) << "</Email>\n"
-            << "\t\t</Revisions>" << std::endl;
-          }
-        if ( mod == 'C' )
-          {
-          os << "\t</Conflicting>" << std::endl;
-          }
-        else if ( mod == 'M' )
-          {
-          os << "\t</Modified>" << std::endl;
-          }
-        else
-          {
-          os << "\t</Updated>" << std::endl;
-          }
-        cmCTestUpdateHandler::UpdateFiles *u = &authors_files_map[sauthor1];
-        cmCTestUpdateHandler::StringPair p;
-        p.first = path;
-        p.second = fname;
-        u->push_back(p);
-
-        current_path = path;
-        }
-      }
-    }
-  std::cout << std::endl;
-  if ( num_updated )
-    {
-    std::cout << "   Found " << num_updated << " updated files" << std::endl;
-    }
-  if ( num_modified )
-    {
-    std::cout << "   Found " << num_modified << " locally modified files" 
-      << std::endl;
-    }
-  if ( num_conflicting )
-    {
-    std::cout << "   Found " << num_conflicting << " conflicting files" 
-      << std::endl;
-    }
-  if ( !first_file )
-    {
-    os << "\t</Directory>" << std::endl;
-    }
-
-  cmCTestUpdateHandler::AuthorsToUpdatesMap::iterator it;
-  for ( it = authors_files_map.begin();
-    it != authors_files_map.end();
-    it ++ )
-    {
-    os << "\t<Author>\n"
-      << "\t\t<Name>" << it->first << "</Name>" << std::endl;
-    cmCTestUpdateHandler::UpdateFiles *u = &(it->second);
-    for ( cc = 0; cc < u->size(); cc ++ )
-      {
-      os << "\t\t<File Directory=\"" << (*u)[cc].first << "\">"
-        << (*u)[cc].second << "</File>" << std::endl;
-      }
-    os << "\t</Author>" << std::endl;
-    }
-
-  //std::cout << "End" << std::endl;
-  std::string end_time = m_CTest->CurrentTime();
-  os << "\t<EndDateTime>" << end_time << "</EndDateTime>\n"
-    << "<ElapsedMinutes>" << 
-    static_cast<int>((cmSystemTools::GetTime() - elapsed_time_start)/6)/10.0 
-    << "</ElapsedMinutes>"
-    << "</Update>" << std::endl;
-
-  if ( ofs )
-    {
-    ofs.close();
-    }
-
-  if (! res || retVal )
-    {
-    std::cerr << "Error(s) when updating the project" << std::endl;
-    std::cerr << "Output: " << goutput << std::endl;
-    return -1;
-    }
-  return count;
+  return 0;
 }

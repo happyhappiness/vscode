@@ -1,1 +1,1 @@
-std::cout << buf << std::flush;
+sprintf(ptr, " ipv6");

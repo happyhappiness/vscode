@@ -1,1 +1,1 @@
-fprintf(ofp, "#endif\n");
+sprintf(temp,"%d",this->ChipID.Revision);

@@ -1,2 +1,2 @@
-sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
-          target->GetName().c_str(), count);
+archive_set_error(f->archive, EIO,
+		    "Error closing program: %s", data->program_name);

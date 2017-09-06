@@ -1,2 +1,1 @@
-archive_set_error(f->archive, EINVAL,
-		    "Can't launch external program: %s", cmd);
+DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));

@@ -1,1 +1,0 @@
-sprintf(buffer, "%.2f", percent_coverage);

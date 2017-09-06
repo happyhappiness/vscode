@@ -1,2 +1,1 @@
-snprintf(savepath, TAR_MAXPATHLEN, "%s/%s", savedir,
-         dent->d_name);
+fprintf(fout,"             int argc, char *argv[]);\n");

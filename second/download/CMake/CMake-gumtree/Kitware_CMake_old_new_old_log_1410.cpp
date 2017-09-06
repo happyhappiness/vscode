@@ -1,1 +1,1 @@
-sprintf(buffer, "&gt;&lt;");
+fprintf(stderr,"***Bad command\n");

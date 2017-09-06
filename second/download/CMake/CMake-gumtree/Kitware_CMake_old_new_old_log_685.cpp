@@ -1,2 +1,2 @@
-fprintf(fout,
-              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);
+fprintf(stderr, "Unable to find \'%s\' for reading:\n",
+            argv[arg]);

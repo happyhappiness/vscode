@@ -1,27 +1,67 @@
-int cmake::DumpDocumentationToFile(std::ostream& f)
+bool cmQtAutomoc::GenerateMoc(const std::string& sourceFile,
+                              const std::string& mocFileName)
 {
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  // Loop over all registered commands and print out documentation
-  const char *name;
-  const char *terse;
-  const char *full;
-  char tmp[1024];
-  sprintf(tmp,"Version %s", cmVersion::GetCMakeVersion());
-  f << "<html>\n";
-  f << "<h1>Documentation for commands of CMake " << tmp << "</h1>\n";
-  f << "<ul>\n";
-  for(RegisteredCommandsMap::iterator j = this->Commands.begin();
-      j != this->Commands.end(); ++j)
+  const std::string mocFilePath = this->Builddir + mocFileName;
+  int sourceNewerThanMoc = 0;
+  bool success = cmsys::SystemTools::FileTimeCompare(sourceFile.c_str(),
+                                                     mocFilePath.c_str(),
+                                                     &sourceNewerThanMoc);
+  if (this->GenerateAll || !success || sourceNewerThanMoc >= 0)
     {
-    name = (*j).second->GetName();
-    terse = (*j).second->GetTerseDocumentation();
-    full = (*j).second->GetFullDocumentation();
-    f << "<li><b>" << name << "</b> - " << terse << std::endl
-      << "<br><i>Usage:</i> " << full << "</li>" << std::endl << std::endl;
-    }
-  f << "</ul></html>\n";
-#else
-  (void)f;
+    // make sure the directory for the resulting moc file exists
+    std::string mocDir = mocFilePath.substr(0, mocFilePath.rfind('/'));
+    if (!cmsys::SystemTools::FileExists(mocDir.c_str(), false))
+      {
+      cmsys::SystemTools::MakeDirectory(mocDir.c_str());
+      }
+
+    std::string msg = "Generating ";
+    msg += mocFileName;
+    cmSystemTools::MakefileColorEcho(cmsysTerminal_Color_ForegroundBlue
+                                           |cmsysTerminal_Color_ForegroundBold,
+                                     msg.c_str(), true, this->ColorOutput);
+
+    std::vector<cmStdString> command;
+    command.push_back(this->MocExecutable);
+    for (std::list<std::string>::const_iterator it = this->MocIncludes.begin();
+         it != this->MocIncludes.end();
+         ++it)
+      {
+      command.push_back(*it);
+      }
+    for(std::list<std::string>::const_iterator it=this->MocDefinitions.begin();
+        it != this->MocDefinitions.end();
+        ++it)
+      {
+      command.push_back(*it);
+      }
+#ifdef _WIN32
+    command.push_back("-DWIN32");
 #endif
-  return 1;
+    command.push_back("-o");
+    command.push_back(mocFilePath);
+    command.push_back(sourceFile);
+
+    if (this->Verbose)
+      {
+      for(int i=0; i<command.size(); i++)
+        {
+        printf("%s ", command[i].c_str());
+        }
+      printf("\n");
+      }
+
+    std::string output;
+    int retVal = 0;
+    bool result = cmSystemTools::RunSingleCommand(command, &output, &retVal);
+    if (!result || retVal)
+      {
+      std::cerr << "automoc4: process for " << mocFilePath << " failed:\n"
+                << output << std::endl;
+      this->RunMocFailed = true;
+      cmSystemTools::RemoveFile(mocFilePath.c_str());
+      }
+    return true;
+    }
+  return false;
 }

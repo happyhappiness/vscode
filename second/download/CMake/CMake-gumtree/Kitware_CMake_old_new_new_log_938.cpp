@@ -1,3 +1,2 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "ZIP decompression failed (%d)", r);
+archive_set_error(a, errno,
+				    "Can't allocate memory");

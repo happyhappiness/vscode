@@ -1,1 +1,1 @@
-printf(" %s", pathname);
+fprintf(stderr, "Output on stderr before grandchild test.\n");

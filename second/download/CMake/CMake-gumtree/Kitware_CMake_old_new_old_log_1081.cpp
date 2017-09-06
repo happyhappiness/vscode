@@ -1,1 +1,1 @@
-sprintf(buffer, "%d", osvi.dwMinorVersion);
+sprintf(totalBuf, "%6.2f sec", totalTestTime);

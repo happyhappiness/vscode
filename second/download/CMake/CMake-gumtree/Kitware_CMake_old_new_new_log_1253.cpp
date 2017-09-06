@@ -1,2 +1,1 @@
-sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
-          target.GetName(), count);
+yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" , yyscanner);

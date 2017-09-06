@@ -1,1 +1,1 @@
-fprintf(stderr, "%s", message);
+fprintf(handle, "NTLMFLAG_NEGOTIATE_ALWAYS_SIGN ");

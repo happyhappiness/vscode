@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, errno, "fchdir failed");
+fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");

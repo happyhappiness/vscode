@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM_KEY ");
+fprintf(stdout, "%s\n", base64);

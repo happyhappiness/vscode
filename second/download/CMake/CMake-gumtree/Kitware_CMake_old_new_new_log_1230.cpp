@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout before grandchild test.\n");
+DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));

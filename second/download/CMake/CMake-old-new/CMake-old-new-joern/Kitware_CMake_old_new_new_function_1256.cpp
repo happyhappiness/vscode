@@ -28,10 +28,12 @@ void cmake::GenerateGraphViz(const char* fileName)
     {
     if ( !mf->ReadListFile(0, infile.c_str()) )
       {
-      cmSystemTools::Error("Problem opening GraphViz options file: ", infile.c_str());
+      cmSystemTools::Error("Problem opening GraphViz options file: ",
+        infile.c_str());
       return;
       }
-    std::cout << "Read GraphViz options file: " << infile.c_str() << std::endl;
+    std::cout << "Read GraphViz options file: " << infile.c_str()
+      << std::endl;
     }
 
 #define __set_if_not_set(var, value, cmakeDefinition) \
@@ -42,7 +44,8 @@ void cmake::GenerateGraphViz(const char* fileName)
     }
   __set_if_not_set(graphType, "digraph", "GRAPHVIZ_GRAPH_TYPE");
   __set_if_not_set(graphName, "GG", "GRAPHVIZ_GRAPH_NAME");
-  __set_if_not_set(graphHeader, "node [\n  fontsize = \"12\"\n];", "GRAPHVIZ_GRAPH_HEADER");
+  __set_if_not_set(graphHeader, "node [\n  fontsize = \"12\"\n];",
+    "GRAPHVIZ_GRAPH_HEADER");
   __set_if_not_set(graphNodePrefix, "node", "GRAPHVIZ_NODE_PREFIX");
   const char* ignoreTargets = mf->GetDefinition("GRAPHVIZ_IGNORE_TARGETS");
   std::set<cmStdString> ignoreTargetsSet;
@@ -51,12 +54,14 @@ void cmake::GenerateGraphViz(const char* fileName)
     std::vector<std::string> ignoreTargetsVector;
     cmSystemTools::ExpandListArgument(ignoreTargets,ignoreTargetsVector);
     std::vector<std::string>::iterator itvIt;
-    for ( itvIt = ignoreTargetsVector.begin(); itvIt != ignoreTargetsVector.end(); ++ itvIt )
+    for ( itvIt = ignoreTargetsVector.begin();
+      itvIt != ignoreTargetsVector.end();
+      ++ itvIt )
       {
       ignoreTargetsSet.insert(itvIt->c_str());
       }
     }
- 
+
   str << graphType << " " << graphName << " {" << std::endl;
   str << graphHeader << std::endl;
 
@@ -71,7 +76,6 @@ void cmake::GenerateGraphViz(const char* fileName)
   std::map<cmStdString, int> targetDeps;
   std::map<cmStdString, cmTarget*> targetPtrs;
   std::map<cmStdString, cmStdString> targetNamesNodes;
-  char tgtName[100];
   int cnt = 0;
   // First pass get the list of all cmake targets
   for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
@@ -87,10 +91,10 @@ void cmake::GenerateGraphViz(const char* fileName)
         continue;
         }
       //std::cout << "Found target: " << tit->first.c_str() << std::endl;
-      sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
-      targetNamesNodes[realTargetName] = tgtName;
+      cmOStringStream ostr;
+      ostr << graphNodePrefix << cnt++;
+      targetNamesNodes[realTargetName] = ostr.str();
       targetPtrs[realTargetName] = &tit->second;
-      //str << "    \"" << tgtName << "\" [ label=\"" << tit->first.c_str() <<  "\" shape=\"box\"];" << std::endl;
       }
     }
   // Ok, now find all the stuff we link to that is not in cmake
@@ -100,8 +104,9 @@ void cmake::GenerateGraphViz(const char* fileName)
     cmTargets::iterator tit;
     for ( tit = targets->begin(); tit != targets->end(); ++ tit )
       {
-      const cmTarget::LinkLibraries* ll = &(tit->second.GetOriginalLinkLibraries());
-      cmTarget::LinkLibraries::const_iterator llit;
+      const cmTarget::LinkLibraryVectorType* ll
+        = &(tit->second.GetOriginalLinkLibraries());
+      cmTarget::LinkLibraryVectorType::const_iterator llit;
       const char* realTargetName = tit->first.c_str();
       if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
         {
@@ -115,7 +120,8 @@ void cmake::GenerateGraphViz(const char* fileName)
       for ( llit = ll->begin(); llit != ll->end(); ++ llit )
         {
         const char* libName = llit->first.c_str();
-        std::map<cmStdString, cmStdString>::iterator tarIt = targetNamesNodes.find(libName);
+        std::map<cmStdString, cmStdString>::iterator tarIt
+          = targetNamesNodes.find(libName);
         if ( ignoreTargetsSet.find(libName) != ignoreTargetsSet.end() )
           {
           // Skip ignored targets
@@ -123,14 +129,17 @@ void cmake::GenerateGraphViz(const char* fileName)
           }
         if ( tarIt == targetNamesNodes.end() )
           {
-          sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
+          cmOStringStream ostr;
+          ostr << graphNodePrefix << cnt++;
           targetDeps[libName] = 2;
-          targetNamesNodes[libName] = tgtName;
-          //str << "    \"" << tgtName << "\" [ label=\"" << libName <<  "\" shape=\"ellipse\"];" << std::endl;
+          targetNamesNodes[libName] = ostr.str();
+          //str << "    \"" << ostr.c_str() << "\" [ label=\"" << libName
+          //<<  "\" shape=\"ellipse\"];" << std::endl;
           }
         else
           {
-          std::map<cmStdString, int>::iterator depIt = targetDeps.find(libName);
+          std::map<cmStdString, int>::iterator depIt
+            = targetDeps.find(libName);
           if ( depIt == targetDeps.end() )
             {
             targetDeps[libName] = 1;
@@ -145,22 +154,27 @@ void cmake::GenerateGraphViz(const char* fileName)
   for ( depIt = targetDeps.begin(); depIt != targetDeps.end(); ++ depIt )
     {
     const char* newTargetName = depIt->first.c_str();
-    std::map<cmStdString, cmStdString>::iterator tarIt = targetNamesNodes.find(newTargetName);
+    std::map<cmStdString, cmStdString>::iterator tarIt
+      = targetNamesNodes.find(newTargetName);
     if ( tarIt == targetNamesNodes.end() )
       {
       // We should not be here.
-      std::cout << __LINE__ << " Cannot find library: " << newTargetName << " even though it was added in the previous pass" << std::endl;
+      std::cout << __LINE__ << " Cannot find library: " << newTargetName
+        << " even though it was added in the previous pass" << std::endl;
       abort();
       }
 
-    str << "    \"" << tarIt->second.c_str() << "\" [ label=\"" << newTargetName <<  "\" shape=\"";
+    str << "    \"" << tarIt->second.c_str() << "\" [ label=\""
+      << newTargetName <<  "\" shape=\"";
     if ( depIt->second == 1 )
       {
-      std::map<cmStdString, cmTarget*>::iterator tarTypeIt= targetPtrs.find(newTargetName);
+      std::map<cmStdString, cmTarget*>::iterator tarTypeIt= targetPtrs.find(
+        newTargetName);
       if ( tarTypeIt == targetPtrs.end() )
         {
         // We should not be here.
-        std::cout << __LINE__ << " Cannot find library: " << newTargetName << " even though it was added in the previous pass" << std::endl;
+        std::cout << __LINE__ << " Cannot find library: " << newTargetName
+          << " even though it was added in the previous pass" << std::endl;
         abort();
         }
       cmTarget* tg = tarTypeIt->second;
@@ -196,31 +210,38 @@ void cmake::GenerateGraphViz(const char* fileName)
     cmTargets::iterator tit;
     for ( tit = targets->begin(); tit != targets->end(); ++ tit )
       {
-      std::map<cmStdString, int>::iterator dependIt = targetDeps.find(tit->first.c_str());
+      std::map<cmStdString, int>::iterator dependIt
+        = targetDeps.find(tit->first.c_str());
       if ( dependIt == targetDeps.end() )
         {
         continue;
         }
-      std::map<cmStdString, cmStdString>::iterator cmakeTarIt = targetNamesNodes.find(tit->first.c_str());
-      const cmTarget::LinkLibraries* ll = &(tit->second.GetOriginalLinkLibraries());
-      cmTarget::LinkLibraries::const_iterator llit;
+      std::map<cmStdString, cmStdString>::iterator cmakeTarIt
+        = targetNamesNodes.find(tit->first.c_str());
+      const cmTarget::LinkLibraryVectorType* ll
+        = &(tit->second.GetOriginalLinkLibraries());
+      cmTarget::LinkLibraryVectorType::const_iterator llit;
       for ( llit = ll->begin(); llit != ll->end(); ++ llit )
         {
         const char* libName = llit->first.c_str();
-        std::map<cmStdString, cmStdString>::iterator tarIt = targetNamesNodes.find(libName);
+        std::map<cmStdString, cmStdString>::iterator tarIt
+          = targetNamesNodes.find(libName);
         if ( tarIt == targetNamesNodes.end() )
           {
           // We should not be here.
-          std::cout << __LINE__ << " Cannot find library: " << libName << " even though it was added in the previous pass" << std::endl;
+          std::cout << __LINE__ << " Cannot find library: " << libName
+            << " even though it was added in the previous pass" << std::endl;
           abort();
           }
-        str << "    \"" << cmakeTarIt->second.c_str() << "\" -> \"" << tarIt->second.c_str() << "\"" << std::endl;
+        str << "    \"" << cmakeTarIt->second.c_str() << "\" -> \""
+          << tarIt->second.c_str() << "\"" << std::endl;
         }
       }
     }
 
   // TODO: Use dotted or something for external libraries
-  //str << "    \"node0\":f4 -> \"node12\"[color=\"#0000ff\" style=dotted]" << std::endl;
+  //str << "    \"node0\":f4 -> \"node12\"[color=\"#0000ff\" style=dotted]"
+  //<< std::endl;
   //
   str << "}" << std::endl;
 }

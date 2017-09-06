@@ -1,69 +1,95 @@
-static CURLcode global_init(long flags, bool memoryfuncs)
+static int
+cleanup_pathname(struct archive_write_disk *a)
 {
-  if(initialized++)
-    return CURLE_OK;
+	char *dest, *src;
+	char separator = '\0';
 
-  if(memoryfuncs) {
-    /* Setup the default memory functions here (again) */
-    Curl_cmalloc = (curl_malloc_callback)malloc;
-    Curl_cfree = (curl_free_callback)free;
-    Curl_crealloc = (curl_realloc_callback)realloc;
-    Curl_cstrdup = (curl_strdup_callback)system_strdup;
-    Curl_ccalloc = (curl_calloc_callback)calloc;
-#if defined(WIN32) && defined(UNICODE)
-    Curl_cwcsdup = (curl_wcsdup_callback)_wcsdup;
+	dest = src = a->name;
+	if (*src == '\0') {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Invalid empty pathname");
+		return (ARCHIVE_FAILED);
+	}
+
+#if defined(__CYGWIN__)
+	cleanup_pathname_win(a);
 #endif
-  }
+	/* Skip leading '/'. */
+	if (*src == '/') {
+		if (a->flags & ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			                  "Path is absolute");
+			return (ARCHIVE_FAILED);
+		}
 
-  if(flags & CURL_GLOBAL_SSL)
-    if(!Curl_ssl_init()) {
-      DEBUGF(fprintf(stderr, "Error: Curl_ssl_init failed\n"));
-      return CURLE_FAILED_INIT;
-    }
+		separator = *src++;
+	}
 
-  if(flags & CURL_GLOBAL_WIN32)
-    if(win32_init()) {
-      DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));
-      return CURLE_FAILED_INIT;
-    }
+	/* Scan the pathname one element at a time. */
+	for (;;) {
+		/* src points to first char after '/' */
+		if (src[0] == '\0') {
+			break;
+		} else if (src[0] == '/') {
+			/* Found '//', ignore second one. */
+			src++;
+			continue;
+		} else if (src[0] == '.') {
+			if (src[1] == '\0') {
+				/* Ignore trailing '.' */
+				break;
+			} else if (src[1] == '/') {
+				/* Skip './'. */
+				src += 2;
+				continue;
+			} else if (src[1] == '.') {
+				if (src[2] == '/' || src[2] == '\0') {
+					/* Conditionally warn about '..' */
+					if (a->flags & ARCHIVE_EXTRACT_SECURE_NODOTDOT) {
+						archive_set_error(&a->archive,
+						    ARCHIVE_ERRNO_MISC,
+						    "Path contains '..'");
+						return (ARCHIVE_FAILED);
+					}
+				}
+				/*
+				 * Note: Under no circumstances do we
+				 * remove '..' elements.  In
+				 * particular, restoring
+				 * '/foo/../bar/' should create the
+				 * 'foo' dir as a side-effect.
+				 */
+			}
+		}
 
-#ifdef __AMIGA__
-  if(!Curl_amiga_init()) {
-    DEBUGF(fprintf(stderr, "Error: Curl_amiga_init failed\n"));
-    return CURLE_FAILED_INIT;
-  }
-#endif
+		/* Copy current element, including leading '/'. */
+		if (separator)
+			*dest++ = '/';
+		while (*src != '\0' && *src != '/') {
+			*dest++ = *src++;
+		}
 
-#ifdef NETWARE
-  if(netware_init()) {
-    DEBUGF(fprintf(stderr, "Warning: LONG namespace not available\n"));
-  }
-#endif
+		if (*src == '\0')
+			break;
 
-#ifdef USE_LIBIDN
-  idna_init();
-#endif
-
-  if(Curl_resolver_global_init()) {
-    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
-    return CURLE_FAILED_INIT;
-  }
-
-  (void)Curl_ipv6works();
-
-#if defined(USE_LIBSSH2) && defined(HAVE_LIBSSH2_INIT)
-  if(libssh2_init(0)) {
-    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
-    return CURLE_FAILED_INIT;
-  }
-#endif
-
-  if(flags & CURL_GLOBAL_ACK_EINTR)
-    Curl_ack_eintr = 1;
-
-  init_flags = flags;
-
-  Curl_version_init();
-
-  return CURLE_OK;
+		/* Skip '/' separator. */
+		separator = *src++;
+	}
+	/*
+	 * We've just copied zero or more path elements, not including the
+	 * final '/'.
+	 */
+	if (dest == a->name) {
+		/*
+		 * Nothing got copied.  The path must have been something
+		 * like '.' or '/' or './' or '/././././/./'.
+		 */
+		if (separator)
+			*dest++ = '/';
+		else
+			*dest++ = '.';
+	}
+	/* Terminate the result. */
+	*dest = '\0';
+	return (ARCHIVE_OK);
 }

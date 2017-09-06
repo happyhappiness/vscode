@@ -1,4 +1,3 @@
-archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Internal error initializing compression library: "
-		    "invalid header");
+archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Can't translate ACL.default to UTF-8");

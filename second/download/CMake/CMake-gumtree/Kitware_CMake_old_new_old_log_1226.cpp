@@ -1,1 +1,0 @@
-f(tgtName, "%s%d", graphNodePrefix, cnt++);

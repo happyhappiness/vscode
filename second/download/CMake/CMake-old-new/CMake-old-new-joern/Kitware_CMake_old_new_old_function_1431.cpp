@@ -1,10 +1,22 @@
-int
-Curl_sec_fprintf(struct connectdata *conn, FILE *f, const char *fmt, ...)
+static void kwsysProcessCleanup(kwsysProcess* cp, int error)
 {
-    va_list ap;
-    int ret;
-    va_start(ap, fmt);
-    ret = Curl_sec_vfprintf(conn, f, fmt, ap);
-    va_end(ap);
-    return ret;
+  int i;
+  
+  /* If cleaning up due to an error, report the error message.  */
+  if(error)
+    {
+    snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE, "%s", strerror(errno));
+    cp->State = kwsysProcess_State_Error;
+    }
+  
+  /* Restore the SIGCHLD handler.  */
+  while((sigaction(SIGCHLD, &cp->OldSigChldAction, 0) < 0) &&
+        (errno == EINTR));
+  
+  /* Close pipe handles.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
+    {
+    kwsysProcessCleanupDescriptor(&cp->PipeReadEnds[i]);
+    kwsysProcessCleanupDescriptor(&cp->PipeWriteEnds[i]);
+    }
 }

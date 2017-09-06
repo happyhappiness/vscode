@@ -1,1 +1,1 @@
-f(fout, "PROJECT(CMAKE_TRY_COMPILE)\n");
+sprintf(ptr, "enabled)");

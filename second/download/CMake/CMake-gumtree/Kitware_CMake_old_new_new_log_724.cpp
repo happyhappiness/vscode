@@ -1,1 +1,4 @@
-fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());
+archive_string_sprintf(str,
+		    " resdevice=native,%ju,%ju",
+		    (uintmax_t)me->devmajor,
+		    (uintmax_t)me->devminor);

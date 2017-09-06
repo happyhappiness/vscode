@@ -1,1 +1,1 @@
-fprintf(fout, "SET(CMAKE_Fortran_FLAGS \"${CMAKE_Fortran_FLAGS} ");
+printf("   ");

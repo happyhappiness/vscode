@@ -1,1 +1,2 @@
-printf("%02x ", data[i+j]);
+fprintf(stdout, "Poll count reached limit %d.\n",
+                    MAXPOLL);

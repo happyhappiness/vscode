@@ -1,2 +1,1 @@
-archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
+fprintf(fout, "set(CMAKE_MODULE_PATH %s)\n", def);

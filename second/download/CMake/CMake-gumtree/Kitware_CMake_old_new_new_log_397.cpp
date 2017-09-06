@@ -1,2 +1,3 @@
-archive_set_error(f->archive, EIO,
-		    "Error closing program: %s", data->program_name);
+hostheader= /* host:port with IPv6 support */
+          aprintf("%s%s%s:%hu", ipv6_ip?"[":"", hostname, ipv6_ip?"]":"",
+                  remote_port);

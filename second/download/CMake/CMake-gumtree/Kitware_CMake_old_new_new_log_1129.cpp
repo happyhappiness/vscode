@@ -1,1 +1,1 @@
-fprintf(ofp, "# include <unistd.h>\n");
+sprintf(buf, "%u", this->VersionFoundMajor);

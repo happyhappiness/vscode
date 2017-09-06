@@ -1,1 +1,2 @@
-conn->allocptr.host = aprintf("%s\r\n", ptr);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Failed to initialize HMAC-SHA1");

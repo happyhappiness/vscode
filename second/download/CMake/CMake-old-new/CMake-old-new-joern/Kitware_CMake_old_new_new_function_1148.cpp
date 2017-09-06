@@ -1,50 +1,32 @@
-int main(int argc, char **argv, char **envp)
+int ZEXPORTVA gzprintf (gzFile file, const char *format, /* args */ ...)
 {
-  char *base64;
-  int base64Len;
-  unsigned char *data;
-  int dataLen;
-  int i, j;
-#ifdef CURL_DOES_CONVERSIONS
-  /* get a Curl handle so main can translate properly */
-  struct SessionHandle *handle = curl_easy_init();
-  if(handle == NULL) {
-    fprintf(stderr, "Error: curl_easy_init failed\n");
-    return 0;
-  }
+    char buf[Z_PRINTF_BUFSIZE];
+    va_list va;
+    int len;
+
+    buf[sizeof(buf) - 1] = 0;
+    va_start(va, format);
+#ifdef NO_vsnprintf
+#  ifdef HAS_vsprintf_void
+    (void)vsprintf(buf, format, va);
+    va_end(va);
+    for (len = 0; len < sizeof(buf); len++)
+        if (buf[len] == 0) break;
+#  else
+    len = vsprintf(buf, format, va);
+    va_end(va);
+#  endif
+#else
+#  ifdef HAS_vsnprintf_void
+    (void)vsnprintf(buf, sizeof(buf), format, va);
+    va_end(va);
+    len = strlen(buf);
+#  else
+    len = vsnprintf(buf, sizeof(buf), format, va);
+    va_end(va);
+#  endif
 #endif
-
-  base64 = (char *)suck(&base64Len);
-  dataLen = Curl_base64_decode(base64, &data);
-
-  fprintf(stderr, "%d\n", dataLen);
-
-  for(i=0; i < dataLen; i+=0x10) {
-    printf("0x%02x: ", i);
-    for(j=0; j < 0x10; j++)
-      if((j+i) < dataLen)
-        printf("%02x ", data[i+j]);
-      else
-        printf("   ");
-
-    printf(" | ");
-
-    for(j=0; j < 0x10; j++)
-      if((j+i) < dataLen) {
-#ifdef CURL_DOES_CONVERSIONS
-        if(CURLE_OK !=
-             Curl_convert_from_network(handle, &data[i+j], (size_t)1))
-          data[i+j] = '.';
-#endif /* CURL_DOES_CONVERSIONS */
-        printf("%c", ISGRAPH(data[i+j])?data[i+j]:'.');
-      } else
-        break;
-    puts("");
-  }
-
-#ifdef CURL_DOES_CONVERSIONS
-  curl_easy_cleanup(handle);
-#endif
-  free(base64); free(data);
-  return 0;
+    if (len <= 0 || len >= (int)sizeof(buf) || buf[sizeof(buf) - 1] != 0)
+        return 0;
+    return gzwrite(file, buf, (unsigned)len);
 }

@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, -1, "Header CRC error");
+sprintf(win9x, "%s%s", tempDir, fwdName);

@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory");
+fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");

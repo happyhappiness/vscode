@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_UNKNOWN_26 ");
+conn->allocptr.ref = aprintf("Referer: %s\r\n", data->change.referer);

@@ -1,1 +1,2 @@
-DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+fsobj_error(a_eno, a_estr, errno,
+				    "Could not stat %s", path);

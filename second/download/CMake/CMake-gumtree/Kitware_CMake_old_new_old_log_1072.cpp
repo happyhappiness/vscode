@@ -1,1 +1,1 @@
-sprintf(buf, "%u", this->VersionFoundPatch);
+fprintf(stderr, " + %s\n", realTargetName);

@@ -1,2 +1,1 @@
-sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
-            cmVersion::GetMinorVersion());
+fprintf(handle, "NTLMFLAG_NEGOTIATE_LOCAL_CALL ");

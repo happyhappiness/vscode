@@ -1,1 +1,1 @@
-sprintf(secondLine, "Q)uit Without Generating   T)oggle Advanced Mode (On)");
+sprintf(firstLine,  "Press [c] to configure                                   ");

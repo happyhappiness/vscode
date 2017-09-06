@@ -1,1 +1,1 @@
-sprintf(buf, "%u", this->VersionTweak);
+d::cout << "Writing " << currentFilename << "..." << std::endl;

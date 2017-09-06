@@ -1,63 +1,67 @@
-int
-tar_extract_file(TAR *t, char *realname)
+std::string&
+cmLocalUnixMakefileGenerator3::CreateSafeUniqueObjectFileName(const char* sin)
 {
-  int i;
-  linkname_t *lnp;
+  // Look for an existing mapped name for this object file.
+  std::map<cmStdString,cmStdString>::iterator it =
+    this->UniqueObjectNamesMap.find(sin);
 
-  if (t->options & TAR_NOOVERWRITE)
-  {
-    struct stat s;
-
-#ifdef WIN32
-    if (stat(realname, &s) == 0 || errno != ENOENT)
-#else
-    if (lstat(realname, &s) == 0 || errno != ENOENT)
-#endif
+  // If no entry exists create one.
+  if(it == this->UniqueObjectNamesMap.end())
     {
-      errno = EEXIST;
-      return -1;
+    // Start with the original name.
+    std::string ssin = sin;
+
+    // Avoid full paths by removing leading slashes.
+    std::string::size_type pos = 0;
+    for(;pos < ssin.size() && ssin[pos] == '/'; ++pos);
+    ssin = ssin.substr(pos);
+
+    // Avoid full paths by removing colons.
+    cmSystemTools::ReplaceString(ssin, ":", "_");
+
+    // Avoid relative paths that go up the tree.
+    cmSystemTools::ReplaceString(ssin, "../", "__/");
+
+    // Avoid spaces.
+    cmSystemTools::ReplaceString(ssin, " ", "_");
+
+    // Mangle the name if necessary.
+    if(this->Makefile->IsOn("CMAKE_MANGLE_OBJECT_FILE_NAMES"))
+      {
+      bool done;
+      int cc = 0;
+      char rpstr[100];
+      sprintf(rpstr, "_p_");
+      cmSystemTools::ReplaceString(ssin, "+", rpstr);
+      std::string sssin = sin;
+      do
+        {
+        done = true;
+        for ( it = this->UniqueObjectNamesMap.begin();
+              it != this->UniqueObjectNamesMap.end();
+              ++ it )
+          {
+          if ( it->second == ssin )
+            {
+            done = false;
+            }
+          }
+        if ( done )
+          {
+          break;
+          }
+        sssin = ssin;
+        cmSystemTools::ReplaceString(ssin, "_p_", rpstr);
+        sprintf(rpstr, "_p%d_", cc++);
+        }
+      while ( !done );
+      }
+
+    // Insert the newly mapped object file name.
+    std::map<cmStdString, cmStdString>::value_type e(sin, ssin);
+    it = this->UniqueObjectNamesMap.insert(e).first;
     }
-  }
 
-  if (TH_ISDIR(t))
-  {
-    i = tar_extract_dir(t, realname);
-    if (i == 1)
-      i = 0;
-  }
-#ifndef _WIN32
-  else if (TH_ISLNK(t))
-    i = tar_extract_hardlink(t, realname);
-  else if (TH_ISSYM(t))
-    i = tar_extract_symlink(t, realname);
-  else if (TH_ISCHR(t))
-    i = tar_extract_chardev(t, realname);
-  else if (TH_ISBLK(t))
-    i = tar_extract_blockdev(t, realname);
-  else if (TH_ISFIFO(t))
-    i = tar_extract_fifo(t, realname);
-#endif
-  else /* if (TH_ISREG(t)) */
-    i = tar_extract_regfile(t, realname);
-
-  if (i != 0)
-    return i;
-
-  i = tar_set_file_perms(t, realname);
-  if (i != 0)
-    return i;
-
-  lnp = (linkname_t *)calloc(1, sizeof(linkname_t));
-  if (lnp == NULL)
-    return -1;
-  strlcpy(lnp->ln_save, th_get_pathname(t), sizeof(lnp->ln_save));
-  strlcpy(lnp->ln_real, realname, sizeof(lnp->ln_real));
-#ifdef DEBUG
-  printf("tar_extract_file(): calling libtar_hash_add(): key=\"%s\", "
-         "value=\"%s\"\n", th_get_pathname(t), realname);
-#endif
-  if (libtar_hash_add(t->h, lnp) != 0)
-    return -1;
-
-  return 0;
+  // Return the map entry.
+  return it->second;
 }

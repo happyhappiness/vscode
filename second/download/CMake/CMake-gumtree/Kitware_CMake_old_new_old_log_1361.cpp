@@ -1,1 +1,1 @@
-fprintf(stderr,"***Bad command %d\n", res);
+fprintf(stderr, "Starting parse\n");

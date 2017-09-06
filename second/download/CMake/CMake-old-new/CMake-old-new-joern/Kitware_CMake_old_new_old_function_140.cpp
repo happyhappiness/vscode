@@ -1,152 +1,142 @@
 static int
-_warc_rdhdr(struct archive_read *a, struct archive_entry *entry)
+translate_acl(struct archive_read_disk *a,
+    struct archive_entry *entry, acl_t acl, int default_entry_acl_type)
 {
-#define HDR_PROBE_LEN		(12U)
-	struct warc_s *w = a->format->data;
-	unsigned int ver;
-	const char *buf;
-	ssize_t nrd;
-	const char *eoh;
-	/* for the file name, saves some strndup()'ing */
-	warc_string_t fnam;
-	/* warc record type, not that we really use it a lot */
-	warc_type_t ftyp;
-	/* content-length+error monad */
-	ssize_t cntlen;
-	/* record time is the WARC-Date time we reinterpret it as ctime */
-	time_t rtime;
-	/* mtime is the Last-Modified time which will be the entry's mtime */
-	time_t mtime;
+	acl_tag_t	 acl_tag;
+#ifdef ACL_TYPE_NFS4
+	acl_entry_type_t acl_type;
+	acl_flagset_t	 acl_flagset;
+	int brand, r;
+#endif
+	acl_entry_t	 acl_entry;
+	acl_permset_t	 acl_permset;
+	int		 i, entry_acl_type;
+	int		 s, ae_id, ae_tag, ae_perm;
+	const char	*ae_name;
 
-start_over:
-	/* just use read_ahead() they keep track of unconsumed
-	 * bits and bobs for us; no need to put an extra shift in
-	 * and reproduce that functionality here */
-	buf = __archive_read_ahead(a, HDR_PROBE_LEN, &nrd);
 
-	if (nrd < 0) {
-		/* no good */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Bad record header");
-		return (ARCHIVE_FATAL);
-	} else if (buf == NULL) {
-		/* there should be room for at least WARC/bla\r\n
-		 * must be EOF therefore */
-		return (ARCHIVE_EOF);
-	}
- 	/* looks good so far, try and find the end of the header now */
-	eoh = _warc_find_eoh(buf, nrd);
-	if (eoh == NULL) {
-		/* still no good, the header end might be beyond the
-		 * probe we've requested, but then again who'd cram
-		 * so much stuff into the header *and* be 28500-compliant */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Bad record header");
-		return (ARCHIVE_FATAL);
-	} else if ((ver = _warc_rdver(buf, eoh - buf)) > 10000U) {
-		/* nawww, I wish they promised backward compatibility
-		 * anyhoo, in their infinite wisdom the 28500 guys might
-		 * come up with something we can't possibly handle so
-		 * best end things here */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Unsupported record version");
-		return (ARCHIVE_FATAL);
-	} else if ((cntlen = _warc_rdlen(buf, eoh - buf)) < 0) {
-		/* nightmare!  the specs say content-length is mandatory
-		 * so I don't feel overly bad stopping the reader here */
-		archive_set_error(
-			&a->archive, EINVAL,
-			"Bad content length");
-		return (ARCHIVE_FATAL);
-	} else if ((rtime = _warc_rdrtm(buf, eoh - buf)) == (time_t)-1) {
-		/* record time is mandatory as per WARC/1.0,
-		 * so just barf here, fast and loud */
-		archive_set_error(
-			&a->archive, EINVAL,
-			"Bad record time");
-		return (ARCHIVE_FATAL);
-	}
-
-	/* let the world know we're a WARC archive */
-	a->archive.archive_format = ARCHIVE_FORMAT_WARC;
-	if (ver != w->pver) {
-		/* stringify this entry's version */
-		archive_string_sprintf(&w->sver,
-			"WARC/%u.%u", ver / 10000, ver % 10000);
-		/* remember the version */
-		w->pver = ver;
-	}
-	/* start off with the type */
-	ftyp = _warc_rdtyp(buf, eoh - buf);
-	/* and let future calls know about the content */
-	w->cntlen = cntlen;
-	w->cntoff = 0U;
-	mtime = 0;/* Avoid compiling error on some platform. */
-
-	switch (ftyp) {
-	case WT_RSRC:
-	case WT_RSP:
-		/* only try and read the filename in the cases that are
-		 * guaranteed to have one */
-		fnam = _warc_rduri(buf, eoh - buf);
-		/* check the last character in the URI to avoid creating
-		 * directory endpoints as files, see Todo above */
-		if (fnam.len == 0 || fnam.str[fnam.len - 1] == '/') {
-			/* break here for now */
-			fnam.len = 0U;
-			fnam.str = NULL;
+#ifdef ACL_TYPE_NFS4
+	// FreeBSD "brands" ACLs as POSIX.1e or NFSv4
+	// Make sure the "brand" on this ACL is consistent
+	// with the default_entry_acl_type bits provided.
+	acl_get_brand_np(acl, &brand);
+	switch (brand) {
+	case ACL_BRAND_POSIX:
+		switch (default_entry_acl_type) {
+		case ARCHIVE_ENTRY_ACL_TYPE_ACCESS:
+		case ARCHIVE_ENTRY_ACL_TYPE_DEFAULT:
 			break;
+		default:
+			// XXX set warning message?
+			return ARCHIVE_FAILED;
 		}
-		/* bang to our string pool, so we save a
-		 * malloc()+free() roundtrip */
-		if (fnam.len + 1U > w->pool.len) {
-			w->pool.len = ((fnam.len + 64U) / 64U) * 64U;
-			w->pool.str = realloc(w->pool.str, w->pool.len);
-		}
-		memcpy(w->pool.str, fnam.str, fnam.len);
-		w->pool.str[fnam.len] = '\0';
-		/* let noone else know about the pool, it's a secret, shhh */
-		fnam.str = w->pool.str;
-
-		/* snarf mtime or deduce from rtime
-		 * this is a custom header added by our writer, it's quite
-		 * hard to believe anyone else would go through with it
-		 * (apart from being part of some http responses of course) */
-		if ((mtime = _warc_rdmtm(buf, eoh - buf)) == (time_t)-1) {
-			mtime = rtime;
+		break;
+	case ACL_BRAND_NFS4:
+		if (default_entry_acl_type & ~ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
+			// XXX set warning message?
+			return ARCHIVE_FAILED;
 		}
 		break;
 	default:
-		fnam.len = 0U;
-		fnam.str = NULL;
+		// XXX set warning message?
+		return ARCHIVE_FAILED;
 		break;
 	}
+#endif
 
-	/* now eat some of those delicious buffer bits */
-	__archive_read_consume(a, eoh - buf);
 
-	switch (ftyp) {
-	case WT_RSRC:
-	case WT_RSP:
-		if (fnam.len > 0U) {
-			/* populate entry object */
-			archive_entry_set_filetype(entry, AE_IFREG);
-			archive_entry_copy_pathname(entry, fnam.str);
-			archive_entry_set_size(entry, cntlen);
-			archive_entry_set_perm(entry, 0644);
-			/* rtime is the new ctime, mtime stays mtime */
-			archive_entry_set_ctime(entry, rtime, 0L);
-			archive_entry_set_mtime(entry, mtime, 0L);
+	s = acl_get_entry(acl, ACL_FIRST_ENTRY, &acl_entry);
+	while (s == 1) {
+		ae_id = -1;
+		ae_name = NULL;
+		ae_perm = 0;
+
+		acl_get_tag_type(acl_entry, &acl_tag);
+		switch (acl_tag) {
+		case ACL_USER:
+			ae_id = (int)*(uid_t *)acl_get_qualifier(acl_entry);
+			ae_name = archive_read_disk_uname(&a->archive, ae_id);
+			ae_tag = ARCHIVE_ENTRY_ACL_USER;
 			break;
+		case ACL_GROUP:
+			ae_id = (int)*(gid_t *)acl_get_qualifier(acl_entry);
+			ae_name = archive_read_disk_gname(&a->archive, ae_id);
+			ae_tag = ARCHIVE_ENTRY_ACL_GROUP;
+			break;
+		case ACL_MASK:
+			ae_tag = ARCHIVE_ENTRY_ACL_MASK;
+			break;
+		case ACL_USER_OBJ:
+			ae_tag = ARCHIVE_ENTRY_ACL_USER_OBJ;
+			break;
+		case ACL_GROUP_OBJ:
+			ae_tag = ARCHIVE_ENTRY_ACL_GROUP_OBJ;
+			break;
+		case ACL_OTHER:
+			ae_tag = ARCHIVE_ENTRY_ACL_OTHER;
+			break;
+#ifdef ACL_TYPE_NFS4
+		case ACL_EVERYONE:
+			ae_tag = ARCHIVE_ENTRY_ACL_EVERYONE;
+			break;
+#endif
+		default:
+			/* Skip types that libarchive can't support. */
+			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+			continue;
 		}
-		/* FALLTHROUGH */
-	default:
-		/* consume the content and start over */
-		_warc_skip(a);
-		goto start_over;
+
+		// XXX acl type maps to allow/deny/audit/YYYY bits
+		// XXX acl_get_entry_type_np on FreeBSD returns EINVAL for
+		// non-NFSv4 ACLs
+		entry_acl_type = default_entry_acl_type;
+#ifdef ACL_TYPE_NFS4
+		r = acl_get_entry_type_np(acl_entry, &acl_type);
+		if (r == 0) {
+			switch (acl_type) {
+			case ACL_ENTRY_TYPE_ALLOW:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
+				break;
+			case ACL_ENTRY_TYPE_DENY:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
+				break;
+			case ACL_ENTRY_TYPE_AUDIT:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_AUDIT;
+				break;
+			case ACL_ENTRY_TYPE_ALARM:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALARM;
+				break;
+			}
+		}
+
+		/*
+		 * Libarchive stores "flag" (NFSv4 inheritance bits)
+		 * in the ae_perm bitmap.
+		 */
+		acl_get_flagset_np(acl_entry, &acl_flagset);
+                for (i = 0; i < (int)(sizeof(acl_inherit_map) / sizeof(acl_inherit_map[0])); ++i) {
+			if (acl_get_flag_np(acl_flagset,
+					    acl_inherit_map[i].platform_inherit))
+				ae_perm |= acl_inherit_map[i].archive_inherit;
+
+                }
+#endif
+
+		acl_get_permset(acl_entry, &acl_permset);
+		for (i = 0; i < (int)(sizeof(acl_perm_map) / sizeof(acl_perm_map[0])); ++i) {
+			/*
+			 * acl_get_perm() is spelled differently on different
+			 * platforms; see above.
+			 */
+			if (ACL_GET_PERM(acl_permset, acl_perm_map[i].platform_perm))
+				ae_perm |= acl_perm_map[i].archive_perm;
+		}
+
+		archive_entry_acl_add_entry(entry, entry_acl_type,
+					    ae_perm, ae_tag,
+					    ae_id, ae_name);
+
+		s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
 	}
 	return (ARCHIVE_OK);
 }

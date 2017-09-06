@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, errno, "Failed "
-				    "to get ACL type from a NFSv4 ACL entry");
+fsobj_error(a_eno, a_estr,
+						    errno,
+						    "Could not chdir %s", path);

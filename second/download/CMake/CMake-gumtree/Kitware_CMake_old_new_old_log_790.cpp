@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, errno, "Seek error");
+fprintf(fout,
+              "TARGET_LINK_LIBRARIES(%s ${LINK_LIBRARIES})\n",targetName);

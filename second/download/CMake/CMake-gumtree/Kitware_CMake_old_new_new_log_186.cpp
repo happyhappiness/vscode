@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, errno,
-		    "Failed to get first ACL entry");
+fsobj_error(a_eno, a_estr, errno,
+					    "Could not remove symlink %s",
+					    path);

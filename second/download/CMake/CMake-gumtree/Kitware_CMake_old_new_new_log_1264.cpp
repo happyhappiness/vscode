@@ -1,1 +1,1 @@
-snprintf(username, sizeof(username), "%d", (int)uid);
+fprintf(stdout, "Output on stdout from grandchild before sleep.\n");

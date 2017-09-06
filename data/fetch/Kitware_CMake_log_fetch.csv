@@ -2,6 +2,182 @@ sha,message,issue,file_name,old_file,new_file,patch_file,old_hunk_file,new_hunk_
 6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
 
 * upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1.cpp,145,112,146,143,,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		   ""Couldn't determine path"");",7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_2.cpp,328,334,334,-1,"archive_set_error(&a->archive, errno,
+			    ""Can't change dir to read extended attributes"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_2.cpp,328,334,339,-1,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Can't open file to read extended attributes: No name"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,476,-1,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Couldn't determine file path to read ACLs"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,549,-1,"archive_set_error(&a->archive, errno,
+			    ""Couldn't translate ""
+#if !HAVE_SUN_ACL
+			    ""NFSv4 ""
+#endif
+			    ""ACLs"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,605,-1,"archive_set_error(&a->archive, errno,
+			    ""Couldn't translate access ACLs"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,624,-1,"archive_set_error(&a->archive, errno,
+				    ""Couldn't translate default ACLs"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,1188,-1,"archive_set_error(&a->archive, errno,
+		    ""Failed to read ACL brand"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,1199,-1,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid ACL entry type for POSIX.1e ACL"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,1206,-1,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid ACL entry type for NFSv4 ACL"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,1212,-1,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Unknown ACL brand"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,1220,-1,"archive_set_error(&a->archive, errno,
+		    ""Failed to get first ACL entry"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,1236,-1,"archive_set_error(&a->archive, errno,
+			    ""Failed to get ACL tag type"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,1316,-1,"archive_set_error(&a->archive, errno, ""Failed ""
+				    ""to get ACL type from a NFSv4 ACL entry"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,1334,-1,"archive_set_error(&a->archive, errno,
+				    ""Invalid NFSv4 ACL entry type"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,1347,-1,"archive_set_error(&a->archive, errno,
+				    ""Failed to get flagset from a NFSv4 ACL entry"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,1355,-1,"archive_set_error(&a->archive, errno,
+					    ""Failed to check flag in a NFSv4 ""
+					    ""ACL flagset"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,1366,-1,"archive_set_error(&a->archive, errno,
+			    ""Failed to get ACL permission set"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,1377,-1,"archive_set_error(&a->archive, errno,
+				    ""Failed to check permission in an ACL permission set"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_3.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_3.cpp,426,423,1391,-1,"archive_set_error(&a->archive, errno,
+			    ""Failed to get next ACL entry"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_6.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_6.cpp,1499,532,1506,-1,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Couldn't determine file path to read ""
+			    ""extended attributes"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_8.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_8.cpp,1658,710,1665,-1,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Couldn't determine file path to read ""
+			    ""extended attributes"");",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_0.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_0.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_9.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_9.cpp,1880,920,1898,-1,"archive_set_error(&a->archive, errno,
+			    ""Can't open `%s'"", path);",,7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_mtree.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_1.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_1.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_1.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_11.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_11.cpp,1535,1533,1542,1540,"archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    ""Symbolic mode \""%s\"" unsupported"", val);","archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    ""Symbolic or non-octal mode \""%s\"" unsupported"", val);",7
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_12.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_12.cpp,2467,2506,2469,2508,"archive_string_sprintf(a_estr, errstr, path);","archive_string_sprintf(a_estr, ""%s%s"", errstr, path);",3
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_13.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_13.cpp,2573,2612,2574,2613,(a_eno;,(a_eno;,4
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_14.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_14.cpp,2582,2621,2583,2622,"fsobj_error(a_eno, a_estr, errno,
+					    ""Could not chdir %s"", path);","fsobj_error(a_eno, a_estr, errno,
+					    ""Could not chdir "", path);",3
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_15.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_15.cpp,2599,2638,2600,2639,"fsobj_error(a_eno, a_estr, errno,
+					    ""Could not remove symlink %s"",
+					    path);","fsobj_error(a_eno, a_estr, errno,
+					    ""Could not remove symlink "",
+					    path);",3
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_17.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_17.cpp,2630,2669,2630,2669,"fsobj_error(a_eno, a_estr, 0,
+					    ""Cannot remove intervening ""
+					    ""symlink %s"", path);","fsobj_error(a_eno, a_estr, 0,
+					    ""Cannot remove intervening ""
+					    ""symlink "", path);",3
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_18.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_18.cpp,2652,2691,2652,2691,"fsobj_error(a_eno, a_estr,
+						    errno,
+						    ""Could not stat %s"", path);","fsobj_error(a_eno, a_estr,
+						    errno,
+						    ""Could not stat "", path);",3
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
+  LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_19.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_19.cpp,2661,2700,2661,2700,"fsobj_error(a_eno, a_estr,
+						    errno,
+						    ""Could not chdir %s"", path);","fsobj_error(a_eno, a_estr,
+						    errno,
+						    ""Could not chdir "", path);",3
+6df1bda1c57193b289866389a994ea79a2f5e1d8,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+* upstream-LibArchive:
   LibArchive 2017-07-09 (98a69539)",[],Utilities/cmlibarchive/libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_2.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_2.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_20.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_20.cpp,2674,2713,2674,2713,"fsobj_error(a_eno, a_estr, 0,
 					    ""Cannot extract through ""
 					    ""symlink %s"", path);","fsobj_error(a_eno, a_estr, 0,

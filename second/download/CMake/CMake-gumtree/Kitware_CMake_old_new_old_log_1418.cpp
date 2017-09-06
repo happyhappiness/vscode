@@ -1,1 +1,1 @@
-printf("#CMake System Variables are:");
+fprintf(stderr,"***Failed\n");

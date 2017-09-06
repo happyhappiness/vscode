@@ -1,2 +1,1 @@
-sprintf(version,"CMake Version %d.%d", cmMakefile::GetMajorVersion(),
-	  cmMakefile::GetMinorVersion());
+fout << "    printf(\"Available tests:\\n\");\n";

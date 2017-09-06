@@ -1,1 +1,2 @@
-fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
+fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName(), ni->IsStrong()? "strong" : "weak");

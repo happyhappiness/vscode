@@ -1,196 +1,175 @@
-static int
-next_entry(struct archive_read_disk *a, struct tree *t,
-    struct archive_entry *entry)
+static CURLcode file_do(struct connectdata *conn, bool *done)
 {
-	const BY_HANDLE_FILE_INFORMATION *st;
-	const BY_HANDLE_FILE_INFORMATION *lst;
-	const char*name;
-	int descend, r;
+  /* This implementation ignores the host name in conformance with
+     RFC 1738. Only local files (reachable via the standard file system)
+     are supported. This means that files on remotely mounted directories
+     (via NFS, Samba, NT sharing) can be accessed through a file:// URL
+  */
+  CURLcode result = CURLE_OK;
+  struct_stat statbuf; /* struct_stat instead of struct stat just to allow the
+                          Windows version to have a different struct without
+                          having to redefine the simple word 'stat' */
+  curl_off_t expected_size=0;
+  bool size_known;
+  bool fstated=FALSE;
+  ssize_t nread;
+  struct Curl_easy *data = conn->data;
+  char *buf = data->state.buffer;
+  curl_off_t bytecount = 0;
+  int fd;
+  struct timeval now = Curl_tvnow();
+  struct FILEPROTO *file;
 
-	st = NULL;
-	lst = NULL;
-	t->descend = 0;
-	do {
-		switch (tree_next(t)) {
-		case TREE_ERROR_FATAL:
-			archive_set_error(&a->archive, t->tree_errno,
-			    "%ls: Unable to continue traversing directory tree",
-			    tree_current_path(t));
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			return (ARCHIVE_FATAL);
-		case TREE_ERROR_DIR:
-			archive_set_error(&a->archive, t->tree_errno,
-			    "%ls: Couldn't visit directory",
-			    tree_current_path(t));
-			return (ARCHIVE_FAILED);
-		case 0:
-			return (ARCHIVE_EOF);
-		case TREE_POSTDESCENT:
-		case TREE_POSTASCENT:
-			break;
-		case TREE_REGULAR:
-			lst = tree_current_lstat(t);
-			if (lst == NULL) {
-				archive_set_error(&a->archive, t->tree_errno,
-				    "%ls: Cannot stat",
-				    tree_current_path(t));
-				return (ARCHIVE_FAILED);
-			}
-			break;
-		}	
-	} while (lst == NULL);
+  *done = TRUE; /* unconditionally */
 
-	archive_entry_copy_pathname_w(entry, tree_current_path(t));
+  Curl_initinfo(data);
+  Curl_pgrsStartNow(data);
 
-	/*
-	 * Perform path matching.
-	 */
-	if (a->matching) {
-		r = archive_match_path_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
+  if(data->set.upload)
+    return file_upload(conn);
 
-	/*
-	 * Distinguish 'L'/'P'/'H' symlink following.
-	 */
-	switch(t->symlink_mode) {
-	case 'H':
-		/* 'H': After the first item, rest like 'P'. */
-		t->symlink_mode = 'P';
-		/* 'H': First item (from command line) like 'L'. */
-		/* FALLTHROUGH */
-	case 'L':
-		/* 'L': Do descend through a symlink to dir. */
-		descend = tree_current_is_dir(t);
-		/* 'L': Follow symlinks to files. */
-		a->symlink_mode = 'L';
-		a->follow_symlinks = 1;
-		/* 'L': Archive symlinks as targets, if we can. */
-		st = tree_current_stat(t);
-		if (st != NULL && !tree_target_is_same_as_parent(t, st))
-			break;
-		/* If stat fails, we have a broken symlink;
-		 * in that case, don't follow the link. */
-		/* FALLTHROUGH */
-	default:
-		/* 'P': Don't descend through a symlink to dir. */
-		descend = tree_current_is_physical_dir(t);
-		/* 'P': Don't follow symlinks to files. */
-		a->symlink_mode = 'P';
-		a->follow_symlinks = 0;
-		/* 'P': Archive symlinks as symlinks. */
-		st = lst;
-		break;
-	}
+  file = conn->data->req.protop;
 
-	if (update_current_filesystem(a, bhfi_dev(st)) != ARCHIVE_OK) {
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		return (ARCHIVE_FATAL);
-	}
-	if (t->initial_filesystem_id == -1)
-		t->initial_filesystem_id = t->current_filesystem_id;
-	if (!a->traverse_mount_points) {
-		if (t->initial_filesystem_id != t->current_filesystem_id)
-			return (ARCHIVE_RETRY);
-	}
-	t->descend = descend;
+  /* get the fd from the connection phase */
+  fd = file->fd;
 
-	tree_archive_entry_copy_bhfi(entry, t, st);
+  /* VMS: This only works reliable for STREAMLF files */
+  if(-1 != fstat(fd, &statbuf)) {
+    /* we could stat it, then read out the size */
+    expected_size = statbuf.st_size;
+    /* and store the modification time */
+    data->info.filetime = (long)statbuf.st_mtime;
+    fstated = TRUE;
+  }
 
-	/* Save the times to be restored. This must be in before
-	 * calling archive_read_disk_descend() or any chance of it,
-	 * especially, invoking a callback. */
-	t->restore_time.lastWriteTime = st->ftLastWriteTime;
-	t->restore_time.lastAccessTime = st->ftLastAccessTime;
-	t->restore_time.filetype = archive_entry_filetype(entry);
+  if(fstated && !data->state.range && data->set.timecondition) {
+    if(!Curl_meets_timecondition(data, (time_t)data->info.filetime)) {
+      *done = TRUE;
+      return CURLE_OK;
+    }
+  }
 
-	/*
-	 * Perform time matching.
-	 */
-	if (a->matching) {
-		r = archive_match_time_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
+  /* If we have selected NOBODY and HEADER, it means that we only want file
+     information. Which for FILE can't be much more than the file size and
+     date. */
+  if(data->set.opt_no_body && data->set.include_header && fstated) {
+    time_t filetime;
+    struct tm buffer;
+    const struct tm *tm = &buffer;
+    snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+    if(result)
+      return result;
 
-	/* Lookup uname/gname */
-	name = archive_read_disk_uname(&(a->archive), archive_entry_uid(entry));
-	if (name != NULL)
-		archive_entry_copy_uname(entry, name);
-	name = archive_read_disk_gname(&(a->archive), archive_entry_gid(entry));
-	if (name != NULL)
-		archive_entry_copy_gname(entry, name);
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH,
+                               (char *)"Accept-ranges: bytes\r\n", 0);
+    if(result)
+      return result;
 
-	/*
-	 * Perform owner matching.
-	 */
-	if (a->matching) {
-		r = archive_match_owner_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
+    filetime = (time_t)statbuf.st_mtime;
+    result = Curl_gmtime(filetime, &buffer);
+    if(result)
+      return result;
 
-	/*
-	 * Invoke a meta data filter callback.
-	 */
-	if (a->metadata_filter_func) {
-		if (!a->metadata_filter_func(&(a->archive),
-		    a->metadata_filter_data, entry))
-			return (ARCHIVE_RETRY);
-	}
+    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+    snprintf(buf, BUFSIZE-1,
+             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+             tm->tm_mday,
+             Curl_month[tm->tm_mon],
+             tm->tm_year + 1900,
+             tm->tm_hour,
+             tm->tm_min,
+             tm->tm_sec);
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+    if(!result)
+      /* set the file size to make it available post transfer */
+      Curl_pgrsSetDownloadSize(data, expected_size);
+    return result;
+  }
 
-	archive_entry_copy_sourcepath_w(entry, tree_current_access_path(t));
+  /* Check whether file range has been specified */
+  file_range(conn);
 
-	r = ARCHIVE_OK;
-	if (archive_entry_filetype(entry) == AE_IFREG &&
-	    archive_entry_size(entry) > 0) {
-		DWORD flags = FILE_FLAG_BACKUP_SEMANTICS;
-		if (t->async_io)
-			flags |= FILE_FLAG_OVERLAPPED;
-		if (t->direct_io)
-			flags |= FILE_FLAG_NO_BUFFERING;
-		else
-			flags |= FILE_FLAG_SEQUENTIAL_SCAN;
-		t->entry_fh = CreateFileW(tree_current_access_path(t),
-		    GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, flags, NULL);
-		if (t->entry_fh == INVALID_HANDLE_VALUE) {
-			archive_set_error(&a->archive, errno,
-			    "Couldn't open %ls", tree_current_path(a->tree));
-			return (ARCHIVE_FAILED);
-		}
+  /* Adjust the start offset in case we want to get the N last bytes
+   * of the stream iff the filesize could be determined */
+  if(data->state.resume_from < 0) {
+    if(!fstated) {
+      failf(data, "Can't get the size of file.");
+      return CURLE_READ_ERROR;
+    }
+    data->state.resume_from += (curl_off_t)statbuf.st_size;
+  }
 
-		/* Find sparse data from the disk. */
-		if (archive_entry_hardlink(entry) == NULL &&
-		    (st->dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0)
-			r = setup_sparse_from_disk(a, entry, t->entry_fh);
-	}
-	return (r);
+  if(data->state.resume_from <= expected_size)
+    expected_size -= data->state.resume_from;
+  else {
+    failf(data, "failed to resume file:// transfer");
+    return CURLE_BAD_DOWNLOAD_RESUME;
+  }
+
+  /* A high water mark has been specified so we obey... */
+  if(data->req.maxdownload > 0)
+    expected_size = data->req.maxdownload;
+
+  if(!fstated || (expected_size == 0))
+    size_known = FALSE;
+  else
+    size_known = TRUE;
+
+  /* The following is a shortcut implementation of file reading
+     this is both more efficient than the former call to download() and
+     it avoids problems with select() and recv() on file descriptors
+     in Winsock */
+  if(fstated)
+    Curl_pgrsSetDownloadSize(data, expected_size);
+
+  if(data->state.resume_from) {
+    if(data->state.resume_from !=
+       lseek(fd, data->state.resume_from, SEEK_SET))
+      return CURLE_BAD_DOWNLOAD_RESUME;
+  }
+
+  Curl_pgrsTime(data, TIMER_STARTTRANSFER);
+
+  while(!result) {
+    /* Don't fill a whole buffer if we want less than all data */
+    size_t bytestoread;
+
+    if(size_known) {
+      bytestoread =
+        (expected_size < CURL_OFF_T_C(BUFSIZE) - CURL_OFF_T_C(1)) ?
+        curlx_sotouz(expected_size) : BUFSIZE - 1;
+    }
+    else
+      bytestoread = BUFSIZE-1;
+
+    nread = read(fd, buf, bytestoread);
+
+    if(nread > 0)
+      buf[nread] = 0;
+
+    if(nread <= 0 || (size_known && (expected_size == 0)))
+      break;
+
+    bytecount += nread;
+    if(size_known)
+      expected_size -= nread;
+
+    result = Curl_client_write(conn, CLIENTWRITE_BODY, buf, nread);
+    if(result)
+      return result;
+
+    Curl_pgrsSetDownloadCounter(data, bytecount);
+
+    if(Curl_pgrsUpdate(conn))
+      result = CURLE_ABORTED_BY_CALLBACK;
+    else
+      result = Curl_speedcheck(data, now);
+  }
+  if(Curl_pgrsUpdate(conn))
+    result = CURLE_ABORTED_BY_CALLBACK;
+
+  return result;
 }

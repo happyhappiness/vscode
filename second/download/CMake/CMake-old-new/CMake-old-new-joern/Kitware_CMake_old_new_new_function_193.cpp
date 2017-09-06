@@ -1,237 +1,231 @@
 static int
-translate_acl(struct archive_read_disk *a,
-    struct archive_entry *entry, acl_t acl, int default_entry_acl_type)
+check_symlinks_fsobj(char *path, int *a_eno, struct archive_string *a_estr,
+    int flags)
 {
-	acl_tag_t	 acl_tag;
-#if HAVE_ACL_TYPE_NFS4
-	acl_entry_type_t acl_type;
-	int brand;
-#endif
-#if HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL
-	acl_flagset_t	 acl_flagset;
-#endif
-	acl_entry_t	 acl_entry;
-	acl_permset_t	 acl_permset;
-	int		 i, entry_acl_type;
-	int		 r, s, ae_id, ae_tag, ae_perm;
-#if !HAVE_DARWIN_ACL
-	void		*q;
-#endif
-	const char	*ae_name;
-
-#if HAVE_ACL_TYPE_NFS4
-	// FreeBSD "brands" ACLs as POSIX.1e or NFSv4
-	// Make sure the "brand" on this ACL is consistent
-	// with the default_entry_acl_type bits provided.
-	if (acl_get_brand_np(acl, &brand) != 0) {
-		archive_set_error(&a->archive, errno,
-		    "Failed to read ACL brand");
-		return (ARCHIVE_WARN);
-	}
-	switch (brand) {
-	case ACL_BRAND_POSIX:
-		switch (default_entry_acl_type) {
-		case ARCHIVE_ENTRY_ACL_TYPE_ACCESS:
-		case ARCHIVE_ENTRY_ACL_TYPE_DEFAULT:
-			break;
-		default:
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Invalid ACL entry type for POSIX.1e ACL");
-			return (ARCHIVE_WARN);
-		}
-		break;
-	case ACL_BRAND_NFS4:
-		if (default_entry_acl_type & ~ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Invalid ACL entry type for NFSv4 ACL");
-			return (ARCHIVE_WARN);
-		}
-		break;
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Unknown ACL brand");
-		return (ARCHIVE_WARN);
-	}
-#endif
-
-	s = acl_get_entry(acl, ACL_FIRST_ENTRY, &acl_entry);
-	if (s == -1) {
-		archive_set_error(&a->archive, errno,
-		    "Failed to get first ACL entry");
-		return (ARCHIVE_WARN);
-	}
-
-#if HAVE_DARWIN_ACL
-	while (s == 0)
-#else	/* FreeBSD, Linux */
-	while (s == 1)
-#endif
-	{
-		ae_id = -1;
-		ae_name = NULL;
-		ae_perm = 0;
-
-		if (acl_get_tag_type(acl_entry, &acl_tag) != 0) {
-			archive_set_error(&a->archive, errno,
-			    "Failed to get ACL tag type");
-			return (ARCHIVE_WARN);
-		}
-		switch (acl_tag) {
-#if !HAVE_DARWIN_ACL	/* FreeBSD, Linux */
-		case ACL_USER:
-			q = acl_get_qualifier(acl_entry);
-			if (q != NULL) {
-				ae_id = (int)*(uid_t *)q;
-				acl_free(q);
-				ae_name = archive_read_disk_uname(&a->archive,
-				    ae_id);
-			}
-			ae_tag = ARCHIVE_ENTRY_ACL_USER;
-			break;
-		case ACL_GROUP:
-			q = acl_get_qualifier(acl_entry);
-			if (q != NULL) {
-				ae_id = (int)*(gid_t *)q;
-				acl_free(q);
-				ae_name = archive_read_disk_gname(&a->archive,
-				    ae_id);
-			}
-			ae_tag = ARCHIVE_ENTRY_ACL_GROUP;
-			break;
-		case ACL_MASK:
-			ae_tag = ARCHIVE_ENTRY_ACL_MASK;
-			break;
-		case ACL_USER_OBJ:
-			ae_tag = ARCHIVE_ENTRY_ACL_USER_OBJ;
-			break;
-		case ACL_GROUP_OBJ:
-			ae_tag = ARCHIVE_ENTRY_ACL_GROUP_OBJ;
-			break;
-		case ACL_OTHER:
-			ae_tag = ARCHIVE_ENTRY_ACL_OTHER;
-			break;
-#if HAVE_ACL_TYPE_NFS4
-		case ACL_EVERYONE:
-			ae_tag = ARCHIVE_ENTRY_ACL_EVERYONE;
-			break;
-#endif
-#else	/* HAVE_DARWIN_ACL */
-		case ACL_EXTENDED_ALLOW:
-			entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
-			r = translate_guid(&a->archive, acl_entry, &ae_id,
-			    &ae_tag, &ae_name);
-			break;
-		case ACL_EXTENDED_DENY:
-			entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
-			r = translate_guid(&a->archive, acl_entry, &ae_id,
-			    &ae_tag, &ae_name);
-			break;
-#endif	/* HAVE_DARWIN_ACL */
-		default:
-			/* Skip types that libarchive can't support. */
-			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
-			continue;
-		}
-
-#if HAVE_DARWIN_ACL
-		/* Skip if translate_guid() above failed */
-		if (r != 0) {
-			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
-			continue;
-		}
-#endif
-
-#if !HAVE_DARWIN_ACL
-		// XXX acl_type maps to allow/deny/audit/YYYY bits
-		entry_acl_type = default_entry_acl_type;
-#endif
-#if HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL
-		if (default_entry_acl_type & ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
-#if HAVE_ACL_TYPE_NFS4
-			/*
-			 * acl_get_entry_type_np() fails with non-NFSv4 ACLs
-			 */
-			if (acl_get_entry_type_np(acl_entry, &acl_type) != 0) {
-				archive_set_error(&a->archive, errno, "Failed "
-				    "to get ACL type from a NFSv4 ACL entry");
-				return (ARCHIVE_WARN);
-			}
-			switch (acl_type) {
-			case ACL_ENTRY_TYPE_ALLOW:
-				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
-				break;
-			case ACL_ENTRY_TYPE_DENY:
-				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
-				break;
-			case ACL_ENTRY_TYPE_AUDIT:
-				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_AUDIT;
-				break;
-			case ACL_ENTRY_TYPE_ALARM:
-				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALARM;
-				break;
-			default:
-				archive_set_error(&a->archive, errno,
-				    "Invalid NFSv4 ACL entry type");
-				return (ARCHIVE_WARN);
-			}
-#endif	/* HAVE_ACL_TYPE_NFS4 */
-
-			/*
-			 * Libarchive stores "flag" (NFSv4 inheritance bits)
-			 * in the ae_perm bitmap.
-			 *
-			 * acl_get_flagset_np() fails with non-NFSv4 ACLs
-			 */
-			if (acl_get_flagset_np(acl_entry, &acl_flagset) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Failed to get flagset from a NFSv4 ACL entry");
-				return (ARCHIVE_WARN);
-			}
-			for (i = 0; i < (int)(sizeof(acl_inherit_map) / sizeof(acl_inherit_map[0])); ++i) {
-				r = acl_get_flag_np(acl_flagset,
-				    acl_inherit_map[i].platform_inherit);
-				if (r == -1) {
-					archive_set_error(&a->archive, errno,
-					    "Failed to check flag in a NFSv4 "
-					    "ACL flagset");
-					return (ARCHIVE_WARN);
-				} else if (r)
-					ae_perm |= acl_inherit_map[i].archive_inherit;
-			}
-		}
-#endif	/* HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL */
-
-		if (acl_get_permset(acl_entry, &acl_permset) != 0) {
-			archive_set_error(&a->archive, errno,
-			    "Failed to get ACL permission set");
-			return (ARCHIVE_WARN);
-		}
-		for (i = 0; i < (int)(sizeof(acl_perm_map) / sizeof(acl_perm_map[0])); ++i) {
-			/*
-			 * acl_get_perm() is spelled differently on different
-			 * platforms; see above.
-			 */
-			r = ACL_GET_PERM(acl_permset, acl_perm_map[i].platform_perm);
-			if (r == -1) {
-				archive_set_error(&a->archive, errno,
-				    "Failed to check permission in an ACL permission set");
-				return (ARCHIVE_WARN);
-			} else if (r)
-				ae_perm |= acl_perm_map[i].archive_perm;
-		}
-
-		archive_entry_acl_add_entry(entry, entry_acl_type,
-					    ae_perm, ae_tag,
-					    ae_id, ae_name);
-
-		s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
-#if !HAVE_DARWIN_ACL
-		if (s == -1) {
-			archive_set_error(&a->archive, errno,
-			    "Failed to get next ACL entry");
-			return (ARCHIVE_WARN);
-		}
-#endif
-	}
+#if !defined(HAVE_LSTAT)
+	/* Platform doesn't have lstat, so we can't look for symlinks. */
+	(void)path; /* UNUSED */
+	(void)error_number; /* UNUSED */
+	(void)error_string; /* UNUSED */
+	(void)flags; /* UNUSED */
 	return (ARCHIVE_OK);
+#else
+	int res = ARCHIVE_OK;
+	char *tail;
+	char *head;
+	int last;
+	char c;
+	int r;
+	struct stat st;
+	int restore_pwd;
+
+	/* Nothing to do here if name is empty */
+	if(path[0] == '\0')
+	    return (ARCHIVE_OK);
+
+	/*
+	 * Guard against symlink tricks.  Reject any archive entry whose
+	 * destination would be altered by a symlink.
+	 *
+	 * Walk the filename in chunks separated by '/'.  For each segment:
+	 *  - if it doesn't exist, continue
+	 *  - if it's symlink, abort or remove it
+	 *  - if it's a directory and it's not the last chunk, cd into it
+	 * As we go:
+	 *  head points to the current (relative) path
+	 *  tail points to the temporary \0 terminating the segment we're
+	 *      currently examining
+	 *  c holds what used to be in *tail
+	 *  last is 1 if this is the last tail
+	 */
+	restore_pwd = open(".", O_RDONLY | O_BINARY | O_CLOEXEC);
+	__archive_ensure_cloexec_flag(restore_pwd);
+	if (restore_pwd < 0)
+		return (ARCHIVE_FATAL);
+	head = path;
+	tail = path;
+	last = 0;
+	/* TODO: reintroduce a safe cache here? */
+	/* Skip the root directory if the path is absolute. */
+	if(tail == path && tail[0] == '/')
+		++tail;
+	/* Keep going until we've checked the entire name.
+	 * head, tail, path all alias the same string, which is
+	 * temporarily zeroed at tail, so be careful restoring the
+	 * stashed (c=tail[0]) for error messages.
+	 * Exiting the loop with break is okay; continue is not.
+	 */
+	while (!last) {
+		/*
+		 * Skip the separator we just consumed, plus any adjacent ones
+		 */
+		while (*tail == '/')
+		    ++tail;
+		/* Skip the next path element. */
+		while (*tail != '\0' && *tail != '/')
+			++tail;
+		/* is this the last path component? */
+		last = (tail[0] == '\0') || (tail[0] == '/' && tail[1] == '\0');
+		/* temporarily truncate the string here */
+		c = tail[0];
+		tail[0] = '\0';
+		/* Check that we haven't hit a symlink. */
+		r = lstat(head, &st);
+		if (r != 0) {
+			tail[0] = c;
+			/* We've hit a dir that doesn't exist; stop now. */
+			if (errno == ENOENT) {
+				break;
+			} else {
+				/*
+				 * Treat any other error as fatal - best to be
+				 * paranoid here.
+				 * Note: This effectively disables deep
+				 * directory support when security checks are
+				 * enabled. Otherwise, very long pathnames that
+				 * trigger an error here could evade the
+				 * sandbox.
+				 * TODO: We could do better, but it would
+				 * probably require merging the symlink checks
+				 * with the deep-directory editing.
+				 */
+				fsobj_error(a_eno, a_estr, errno,
+				    "Could not stat %s", path);
+				res = ARCHIVE_FAILED;
+				break;
+			}
+		} else if (S_ISDIR(st.st_mode)) {
+			if (!last) {
+				if (chdir(head) != 0) {
+					tail[0] = c;
+					fsobj_error(a_eno, a_estr, errno,
+					    "Could not chdir %s", path);
+					res = (ARCHIVE_FATAL);
+					break;
+				}
+				/* Our view is now from inside this dir: */
+				head = tail + 1;
+			}
+		} else if (S_ISLNK(st.st_mode)) {
+			if (last) {
+				/*
+				 * Last element is symlink; remove it
+				 * so we can overwrite it with the
+				 * item being extracted.
+				 */
+				if (unlink(head)) {
+					tail[0] = c;
+					fsobj_error(a_eno, a_estr, errno,
+					    "Could not remove symlink %s",
+					    path);
+					res = ARCHIVE_FAILED;
+					break;
+				}
+				/*
+				 * Even if we did remove it, a warning
+				 * is in order.  The warning is silly,
+				 * though, if we're just replacing one
+				 * symlink with another symlink.
+				 */
+				tail[0] = c;
+				/*
+				 * FIXME:  not sure how important this is to
+				 * restore
+				 */
+				/*
+				if (!S_ISLNK(path)) {
+					fsobj_error(a_eno, a_estr, 0,
+					    "Removing symlink %s", path);
+				}
+				*/
+				/* Symlink gone.  No more problem! */
+				res = ARCHIVE_OK;
+				break;
+			} else if (flags & ARCHIVE_EXTRACT_UNLINK) {
+				/* User asked us to remove problems. */
+				if (unlink(head) != 0) {
+					tail[0] = c;
+					fsobj_error(a_eno, a_estr, 0,
+					    "Cannot remove intervening "
+					    "symlink %s", path);
+					res = ARCHIVE_FAILED;
+					break;
+				}
+				tail[0] = c;
+			} else if ((flags &
+			    ARCHIVE_EXTRACT_SECURE_SYMLINKS) == 0) {
+				/*
+				 * We are not the last element and we want to
+				 * follow symlinks if they are a directory.
+				 * 
+				 * This is needed to extract hardlinks over
+				 * symlinks.
+				 */
+				r = stat(head, &st);
+				if (r != 0) {
+					tail[0] = c;
+					if (errno == ENOENT) {
+						break;
+					} else {
+						fsobj_error(a_eno, a_estr,
+						    errno,
+						    "Could not stat %s", path);
+						res = (ARCHIVE_FAILED);
+						break;
+					}
+				} else if (S_ISDIR(st.st_mode)) {
+					if (chdir(head) != 0) {
+						tail[0] = c;
+						fsobj_error(a_eno, a_estr,
+						    errno,
+						    "Could not chdir %s", path);
+						res = (ARCHIVE_FATAL);
+						break;
+					}
+					/*
+					 * Our view is now from inside
+					 * this dir:
+					 */
+					head = tail + 1;
+				} else {
+					tail[0] = c;
+					fsobj_error(a_eno, a_estr, 0,
+					    "Cannot extract through "
+					    "symlink %s", path);
+					res = ARCHIVE_FAILED;
+					break;
+				}
+			} else {
+				tail[0] = c;
+				fsobj_error(a_eno, a_estr, 0,
+				    "Cannot extract through symlink %s", path);
+				res = ARCHIVE_FAILED;
+				break;
+			}
+		}
+		/* be sure to always maintain this */
+		tail[0] = c;
+		if (tail[0] != '\0')
+			tail++; /* Advance to the next segment. */
+	}
+	/* Catches loop exits via break */
+	tail[0] = c;
+#ifdef HAVE_FCHDIR
+	/* If we changed directory above, restore it here. */
+	if (restore_pwd >= 0) {
+		r = fchdir(restore_pwd);
+		if (r != 0) {
+			fsobj_error(a_eno, a_estr, errno,
+			    "chdir() failure", "");
+		}
+		close(restore_pwd);
+		restore_pwd = -1;
+		if (r != 0) {
+			res = (ARCHIVE_FATAL);
+		}
+	}
+#endif
+	/* TODO: reintroduce a safe cache here? */
+	return res;
+#endif
 }

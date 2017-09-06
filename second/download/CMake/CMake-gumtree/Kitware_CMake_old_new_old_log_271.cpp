@@ -1,1 +1,3 @@
-yy_fatal_error( "cmExpr_yyset_column called with no buffer" , yyscanner);
+archive_set_error(&a->archive, 0,
+					    "Cannot remove intervening symlink %s",
+					    a->name);

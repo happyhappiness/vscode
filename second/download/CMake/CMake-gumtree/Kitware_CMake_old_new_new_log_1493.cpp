@@ -1,1 +1,1 @@
-fprintf(fout, "ENDIF (CMAKE_ANSI_CFLAGS)\n");
+fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());

@@ -99,7 +99,7 @@ def deal_log( log_record, writer, gumtree, total_log):
 @ return nothing 
 @ involve fetch and analyze each hunk
 """
-def fetch_old_new():
+def fetch_old_new(gumtree):
 
     # read record from fetched log
     log_file = file(my_constant.FETCH_LOG_FILE_NAME, 'rb')
@@ -110,7 +110,6 @@ def fetch_old_new():
 
     total_log = 0
     total_record = 0
-    gumtree = Gumtree()
     for log_record in islice(log_records, 1, None):
         total_record += 1
         total_log = deal_log(log_record, old_new_gumtree_writer, gumtree, total_log)
@@ -120,7 +119,6 @@ def fetch_old_new():
     # close file
     log_file.close()
     old_new_gumtree_file.close()
-    gumtree.close()
 
 """
 @ param
@@ -128,9 +126,10 @@ def fetch_old_new():
 @ involve fetch and analyze each log[ddg and cdg]
 """
 def analyze_old_new_joern(is_rebuild = False):
-    # build joern index and restart database
+    # build joern index and restart database\
+    gumtree = Gumtree()
     if is_rebuild:
-        fetch_old_new()
+        fetch_old_new(gumtree)
         myUtil.rebuild_joern_index(my_constant.OLD_NEW_PARENT_DIR + '.joernIndex/', my_constant.OLD_NEW_JOERN_DIR)
     joern = Joern_api()
     old_new_gumtree_file = file(my_constant.ANALYZE_OLD_NEW_GUMTREE_FILE_NAME, 'rb')
@@ -141,7 +140,6 @@ def analyze_old_new_joern(is_rebuild = False):
 
     total_record = 0
     total_log = 0
-    gumtree = Gumtree()
     # get ddg and cdg with joern
     for record in islice(old_new_gumtree_records, 1, None):
         old_function_file = record[my_constant.ANALYZE_OLD_NEW_OLD_FUNCTION_FILE]
@@ -184,6 +182,6 @@ def analyze_old_new_joern(is_rebuild = False):
 main function
 """
 if __name__ == "__main__":
-    analyze_old_new_joern(False)
-
     # analyze_old_new_joern(True)
+
+    analyze_old_new_joern(False)

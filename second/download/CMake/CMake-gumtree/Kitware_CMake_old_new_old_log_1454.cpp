@@ -1,1 +1,1 @@
-sprintf(ptr, "ipv6 ");
+vfprintf(f, fmt, ap);

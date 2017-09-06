@@ -1,1 +1,1 @@
-f(fout,"  return TCL_OK;\n}\n");
+ret = Curl_sec_vfprintf(conn, f, fmt, ap);

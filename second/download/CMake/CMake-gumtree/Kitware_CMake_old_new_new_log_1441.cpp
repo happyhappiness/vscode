@@ -1,1 +1,1 @@
-printf("NETRC: overridden .netrc file: %s\n", home);
+sprintf(cmbuff, "%.2f", cmet);

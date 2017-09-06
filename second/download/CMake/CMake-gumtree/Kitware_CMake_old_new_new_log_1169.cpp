@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_UNKNOWN_3 ");
+fprintf(ofp, "}\n");

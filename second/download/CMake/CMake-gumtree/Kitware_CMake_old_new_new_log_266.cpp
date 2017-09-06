@@ -1,1 +1,3 @@
-YY_FATAL_ERROR( "out of dynamic memory in yy_get_next_buffer()" );
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Overflow of 64-bit file sizes");

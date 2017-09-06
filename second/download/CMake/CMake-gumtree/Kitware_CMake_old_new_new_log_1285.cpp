@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout after sleep.\n");
+f(fout,"  char pkgName[]=\"%s\";\n", this->LibraryName.c_str());

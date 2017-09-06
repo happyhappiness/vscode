@@ -1,22 +1,40 @@
-static int
-parse_device(struct archive *a, struct archive_entry *entry, char *val)
+unsigned long Directory::GetNumberOfFilesInDirectory(const char* name)
 {
-	char *comma1, *comma2;
+#if _MSC_VER < 1300
+  long srchHandle;
+#else
+  intptr_t srchHandle;
+#endif
+  char* buf;
+  size_t n = strlen(name);
+  if ( name[n - 1] == '/' )
+    {
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
+    }
+  else
+    {
+    buf = new char[n + 2 + 1];
+    sprintf(buf, "%s/*", name);
+    }
+  struct _wfinddata_t data;      // data of current file
 
-	comma1 = strchr(val, ',');
-	if (comma1 == NULL) {
-		archive_entry_set_dev(entry, (dev_t)mtree_atol10(&val));
-		return (ARCHIVE_OK);
-	}
-	++comma1;
-	comma2 = strchr(comma1, ',');
-	if (comma2 == NULL) {
-		archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Malformed device attribute");
-		return (ARCHIVE_WARN);
-	}
-	++comma2;
-	archive_entry_set_rdevmajor(entry, (dev_t)mtree_atol(&comma1));
-	archive_entry_set_rdevminor(entry, (dev_t)mtree_atol(&comma2));
-	return (ARCHIVE_OK);
+  // Now put them into the file array
+  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
+  delete [] buf;
+
+  if ( srchHandle == -1 )
+    {
+    return 0;
+    }
+
+  // Loop through names
+  unsigned long count = 0;
+  do
+    {
+    count++;
+    }
+  while ( _wfindnext(srchHandle, &data) != -1 );
+  _findclose(srchHandle);
+  return count;
 }

@@ -1,267 +1,183 @@
-void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed, 
-                             cmCTest::tm_VectorOfStrings &failed,
-                             bool memcheck)
+static
+CURLcode ftp_use_pasv(struct connectdata *conn,
+                      bool *connected)
 {
-  std::string current_dir = cmSystemTools::GetCurrentWorkingDirectory();
-  cmsys::RegularExpression dartStuff("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
-  tm_ListOfTests testlist;
-  this->GetListOfTests(&testlist, memcheck);
-  tm_ListOfTests::size_type tmsize = testlist.size();
+  struct SessionHandle *data = conn->data;
+  int nread;
+  char *buf = data->state.buffer; /* this is our buffer */
+  int ftpcode; /* receive FTP response codes in this */
+  CURLcode result;
+  struct Curl_dns_entry *addr=NULL;
+  Curl_ipconnect *conninfo;
 
-  std::ofstream ofs;
-  std::ofstream *olog = 0;
-  if ( !m_ShowOnly && tmsize > 0 && 
-    this->OpenOutputFile("Temporary", 
-      (memcheck?"LastMemCheck.log":"LastTest.log"), ofs) )
-    {
-    olog = &ofs;
-    }
+  /*
+    Here's the excecutive summary on what to do:
 
-  m_StartTest = this->CurrentTime();
-  double elapsed_time_start = cmSystemTools::GetTime();
+    PASV is RFC959, expect:
+    227 Entering Passive Mode (a1,a2,a3,a4,p1,p2)
 
-  if ( olog )
-    {
-    *olog << "Start testing: " << m_StartTest << std::endl
-      << "----------------------------------------------------------"
-      << std::endl;
-    }
+    LPSV is RFC1639, expect:
+    228 Entering Long Passive Mode (4,4,a1,a2,a3,a4,2,p1,p2)
 
-  // expand the test list
-  this->ExpandTestsToRunInformation((int)tmsize);
+    EPSV is RFC2428, expect:
+    229 Entering Extended Passive Mode (|||port|)
+
+  */
+
+#if 1
+  const char *mode[] = { "EPSV", "PASV", NULL };
+  int results[] = { 229, 227, 0 };
+#else
+#if 0
+  char *mode[] = { "EPSV", "LPSV", "PASV", NULL };
+  int results[] = { 229, 228, 227, 0 };
+#else
+  const char *mode[] = { "PASV", NULL };
+  int results[] = { 227, 0 };
+#endif
+#endif
+  int modeoff;
+  unsigned short connectport; /* the local port connect() should use! */
+  unsigned short newport=0; /* remote port, not necessary the local one */
   
-  int cnt = 0;
-  tm_ListOfTests::iterator it;
-  std::string last_directory = "";
-  for ( it = testlist.begin(); it != testlist.end(); it ++ )
-    {
-    cnt ++;
-    const std::string& testname = it->m_Name;
-    tm_VectorOfListFileArgs& args = it->m_Args;
-    cmCTestTestResult cres;
-    cres.m_Status = cmCTest::NOT_RUN;
-    cres.m_TestCount = cnt;
+  /* newhost must be able to hold a full IP-style address in ASCII, which
+     in the IPv6 case means 5*8-1 = 39 letters */
+  char newhost[48];
+  char *newhostp=NULL;
+  
+  for (modeoff = (data->set.ftp_use_epsv?0:1);
+       mode[modeoff]; modeoff++) {
+    result = Curl_ftpsendf(conn, "%s", mode[modeoff]);
+    if(result)
+      return result;
+    result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
+    if(result)
+      return result;
+    if (ftpcode == results[modeoff])
+      break;
+  }
 
-    if (!(last_directory == it->m_Directory))
-      {
-      if ( m_Verbose )
-        {
-        std::cerr << "Changing directory into " 
-          << it->m_Directory.c_str() << "\n";
-        }
-      last_directory = it->m_Directory;
-      cmSystemTools::ChangeDirectory(it->m_Directory.c_str());
-      }
-    cres.m_Name = testname;
-    if(m_TestsToRun.size() && 
-       std::find(m_TestsToRun.begin(), m_TestsToRun.end(), cnt) == m_TestsToRun.end())
-      {
-      continue;
-      }
+  if (!mode[modeoff]) {
+    failf(data, "Odd return code after PASV");
+    return CURLE_FTP_WEIRD_PASV_REPLY;
+  }
+  else if (227 == results[modeoff]) {
+    int ip[4];
+    int port[2];
+    char *str=buf;
 
-    if ( m_ShowOnly )
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s\n", cnt, (int)tmsize, testname.c_str());
-      }
-    else
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s ", cnt, (int)tmsize, testname.c_str());
-      fflush(stderr);
-      }
-    //std::cerr << "Testing " << args[0] << " ... ";
-    // find the test executable
-    std::string actualCommand = this->FindTheExecutable(args[1].Value.c_str());
-    std::string testCommand = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
-    std::string memcheckcommand = "";
-
-    // continue if we did not find the executable
-    if (testCommand == "")
-      {
-      std::cerr << "Unable to find executable: " <<
-        args[1].Value.c_str() << "\n";
-      if ( !m_ShowOnly )
-        {
-        m_TestResults.push_back( cres ); 
-        failed.push_back(testname);
-        continue;
-        }
-      }
-
-    // add the arguments
-    tm_VectorOfListFileArgs::const_iterator j = args.begin();
-    ++j;
-    ++j;
-    std::vector<const char*> arguments;
-    if ( memcheck )
-      {
-      cmCTest::tm_VectorOfStrings::size_type pp;
-      arguments.push_back(m_MemoryTester.c_str());
-      memcheckcommand = m_MemoryTester;
-      for ( pp = 0; pp < m_MemoryTesterOptionsParsed.size(); pp ++ )
-        {
-        arguments.push_back(m_MemoryTesterOptionsParsed[pp].c_str());
-        memcheckcommand += " ";
-        memcheckcommand += cmSystemTools::EscapeSpaces(m_MemoryTesterOptionsParsed[pp].c_str());
-        }
-      }
-    arguments.push_back(actualCommand.c_str());
-    for(;j != args.end(); ++j)
-      {
-      testCommand += " ";
-      testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
-      arguments.push_back(j->Value.c_str());
-      }
-    arguments.push_back(0);
-
-    /**
-     * Run an executable command and put the stdout in output.
+    /*
+     * New 227-parser June 3rd 1999.
+     * It now scans for a sequence of six comma-separated numbers and
+     * will take them as IP+port indicators.
+     *
+     * Found reply-strings include:
+     * "227 Entering Passive Mode (127,0,0,1,4,51)"
+     * "227 Data transfer will passively listen to 127,0,0,1,4,51"
+     * "227 Entering passive mode. 127,0,0,1,4,51"
      */
-    std::string output;
-    int retVal = 0;
+      
+    while(*str) {
+      if (6 == sscanf(str, "%d,%d,%d,%d,%d,%d",
+                      &ip[0], &ip[1], &ip[2], &ip[3],
+                      &port[0], &port[1]))
+        break;
+      str++;
+    }
 
+    if(!*str) {
+      failf(data, "Couldn't interpret this 227-reply: %s", buf);
+      return CURLE_FTP_WEIRD_227_FORMAT;
+    }
 
-    if ( m_Verbose )
-      {
-      std::cout << std::endl << (memcheck?"MemCheck":"Test") << " command: " << testCommand << std::endl;
-      if ( memcheck )
-        {
-        std::cout << "Memory check command: " << memcheckcommand << std::endl;
-        }
-      }
-    if ( olog )
-      {
-      *olog << cnt << "/" << tmsize 
-        << " Test: " << testname.c_str() << std::endl;
-      *olog << "Command: ";
-      tm_VectorOfStrings::size_type ll;
-      for ( ll = 0; ll < arguments.size()-1; ll ++ )
-        {
-        *olog << "\"" << arguments[ll] << "\" ";
-        }
-      *olog 
-        << std::endl 
-        << "Directory: " << it->m_Directory << std::endl 
-        << "\"" << testname.c_str() << "\" start time: " 
-        << this->CurrentTime() << std::endl
-        << "Output:" << std::endl 
-        << "----------------------------------------------------------"
-        << std::endl;
-      }
-    int res = 0;
-    double clock_start, clock_finish;
-    clock_start = cmSystemTools::GetTime();
+    sprintf(newhost, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+    newhostp = newhost;
+    newport = (unsigned short)((port[0]<<8) + port[1]);
+  }
+#if 1
+  else if (229 == results[modeoff]) {
+    char *ptr = strchr(buf, '(');
+    if(ptr) {
+      unsigned int num;
+      char separator[4];
+      ptr++;
+      if(5  == sscanf(ptr, "%c%c%c%u%c",
+                      &separator[0],
+                      &separator[1],
+                      &separator[2],
+                      &num,
+                      &separator[3])) {
+        /* the four separators should be identical */
+        newport = (unsigned short)num;
 
-    if ( !m_ShowOnly )
-      {
-      res = this->RunTest(arguments, &output, &retVal, olog);
-      }
-
-    clock_finish = cmSystemTools::GetTime();
-
-    if ( olog )
-      {
-      double ttime = clock_finish - clock_start;
-      int hours = static_cast<int>(ttime / (60 * 60));
-      int minutes = static_cast<int>(ttime / 60) % 60;
-      int seconds = static_cast<int>(ttime) % 60;
-      char buffer[100];
-      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
-      *olog 
-        << "----------------------------------------------------------"
-        << std::endl
-        << "\"" << testname.c_str() << "\" end time: " 
-        << this->CurrentTime() << std::endl
-        << "\"" << testname.c_str() << "\" time elapsed: " 
-        << buffer << std::endl
-        << "----------------------------------------------------------"
-        << std::endl << std::endl;
-      }
-
-    cres.m_ExecutionTime = (double)(clock_finish - clock_start);
-    cres.m_FullCommandLine = testCommand;
-
-    if ( !m_ShowOnly )
-      {
-      if (res == cmsysProcess_State_Exited && retVal == 0)
-        {
-        fprintf(stderr,"   Passed\n");
-        passed.push_back(testname);
-        cres.m_Status = cmCTest::COMPLETED;
-        }
+        /* we should use the same host we already are connected to */
+        newhostp = conn->name;
+      }                      
       else
-        {
-        cres.m_Status = cmCTest::FAILED;
-        if ( res == cmsysProcess_State_Expired )
-          {
-          fprintf(stderr,"***Timeout\n");
-          cres.m_Status = cmCTest::TIMEOUT;
-          }
-        else if ( res == cmsysProcess_State_Exception )
-          {
-          fprintf(stderr,"***Exception: ");
-          switch ( retVal )
-            {
-          case cmsysProcess_Exception_Fault:
-            fprintf(stderr,"SegFault");
-            cres.m_Status = cmCTest::SEGFAULT;
-            break;
-          case cmsysProcess_Exception_Illegal:
-            fprintf(stderr,"Illegal");
-            cres.m_Status = cmCTest::ILLEGAL;
-            break;
-          case cmsysProcess_Exception_Interrupt:
-            fprintf(stderr,"Interrupt");
-            cres.m_Status = cmCTest::INTERRUPT;
-            break;
-          case cmsysProcess_Exception_Numerical:
-            fprintf(stderr,"Numerical");
-            cres.m_Status = cmCTest::NUMERICAL;
-            break;
-          default:
-            fprintf(stderr,"Other");
-            cres.m_Status = cmCTest::OTHER_FAULT;
-            }
-          fprintf(stderr,"\n");
-          }
-        else if ( res == cmsysProcess_State_Error )
-          {
-          fprintf(stderr,"***Bad command %d\n", res);
-          cres.m_Status = cmCTest::BAD_COMMAND;
-          }
-        else
-          {
-          fprintf(stderr,"***Failed\n");
-          }
-        failed.push_back(testname);
-        }
-      if (output != "")
-        {
-        if (dartStuff.find(output.c_str()))
-          {
-          std::string dartString = dartStuff.match(1);
-          cmSystemTools::ReplaceString(output, dartString.c_str(),"");
-          cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
-          }
-        }
-      }
-    cres.m_Output = output;
-    cres.m_ReturnValue = retVal;
-    std::string nwd = it->m_Directory;
-    if ( nwd.size() > m_ToplevelPath.size() )
-      {
-      nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
-      }
-    cmSystemTools::ReplaceString(nwd, "\\", "/");
-    cres.m_Path = nwd;
-    cres.m_CompletionStatus = "Completed";
-    m_TestResults.push_back( cres );
+        ptr=NULL;
     }
+    if(!ptr) {
+      failf(data, "Weirdly formatted EPSV reply");
+      return CURLE_FTP_WEIRD_PASV_REPLY;
+    }
+  }
+#endif
+  else
+    return CURLE_FTP_CANT_RECONNECT;
 
-  m_EndTest = this->CurrentTime();
-  m_ElapsedTestingTime = cmSystemTools::GetTime() - elapsed_time_start;
-  if ( olog )
-    {
-    *olog << "End testing: " << m_EndTest << std::endl;
+  if(data->change.proxy) {
+    /*
+     * This is a tunnel through a http proxy and we need to connect to the
+     * proxy again here.
+     *
+     * We don't want to rely on a former host lookup that might've expired
+     * now, instead we remake the lookup here and now!
+     */
+    addr = Curl_resolv(data, conn->proxyhost, conn->port);
+    connectport =
+      (unsigned short)conn->port; /* we connect to the proxy's port */    
+
+  }
+  else {
+    /* normal, direct, ftp connection */
+    addr = Curl_resolv(data, newhostp, newport);
+    if(!addr) {
+      failf(data, "Can't resolve new host %s:%d", newhostp, newport);
+      return CURLE_FTP_CANT_GET_HOST;
     }
-  cmSystemTools::ChangeDirectory(current_dir.c_str());
+    connectport = newport; /* we connect to the remote port */
+  }
+    
+  result = Curl_connecthost(conn,
+                            addr,
+                            connectport,
+                            &conn->secondarysocket,
+                            &conninfo,
+                            connected);
+
+  Curl_resolv_unlock(addr); /* we're done using this address */
+
+  /*
+   * When this is used from the multi interface, this might've returned with
+   * the 'connected' set to FALSE and thus we are now awaiting a non-blocking
+   * connect to connect and we should not be "hanging" here waiting.
+   */
+  
+  if((CURLE_OK == result) &&       
+     data->set.verbose)
+    /* this just dumps information about this second connection */
+    ftp_pasv_verbose(conn, conninfo, newhostp, connectport);
+  
+  if(CURLE_OK != result)
+    return result;
+
+  if (data->set.tunnel_thru_httpproxy) {
+    /* We want "seamless" FTP operations through HTTP proxy tunnel */
+    result = Curl_ConnectHTTPProxyTunnel(conn, conn->secondarysocket,
+                                         newhostp, newport);
+    if(CURLE_OK != result)
+      return result;
+  }
+
+  return CURLE_OK;
 }

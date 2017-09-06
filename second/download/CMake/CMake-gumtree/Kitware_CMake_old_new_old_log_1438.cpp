@@ -1,1 +1,1 @@
-snprintf(sbuf, sizeof(sbuf), "%d", port);
+sprintf(cpbuff, "%.2f", cper);

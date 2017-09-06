@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_UNKNOWN_25 ");
+host = aprintf("Host: %s\r\n", host_port);

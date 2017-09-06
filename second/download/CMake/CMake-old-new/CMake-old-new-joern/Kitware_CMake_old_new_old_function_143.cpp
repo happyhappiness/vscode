@@ -1,168 +1,81 @@
-static int
-decompression_init(struct archive_read *a, enum enctype encoding)
+int
+setup_xattrs(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-	struct xar *xar;
-	const char *detail;
-	int r;
+	char buff[512];
+	char *list, *p;
+	ssize_t list_size;
+	const char *path;
+	int namespace = EXTATTR_NAMESPACE_USER;
 
-	xar = (struct xar *)(a->format->data);
-	xar->rd_encoding = encoding;
-	switch (encoding) {
-	case NONE:
-		break;
-	case GZIP:
-		if (xar->stream_valid)
-			r = inflateReset(&(xar->stream));
-		else
-			r = inflateInit(&(xar->stream));
-		if (r != Z_OK) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Couldn't initialize zlib stream.");
-			return (ARCHIVE_FATAL);
-		}
-		xar->stream_valid = 1;
-		xar->stream.total_in = 0;
-		xar->stream.total_out = 0;
-		break;
-#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-		if (xar->bzstream_valid) {
-			BZ2_bzDecompressEnd(&(xar->bzstream));
-			xar->bzstream_valid = 0;
-		}
-		r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 0);
-		if (r == BZ_MEM_ERROR)
-			r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 1);
-		if (r != BZ_OK) {
-			int err = ARCHIVE_ERRNO_MISC;
-			detail = NULL;
-			switch (r) {
-			case BZ_PARAM_ERROR:
-				detail = "invalid setup parameter";
-				break;
-			case BZ_MEM_ERROR:
-				err = ENOMEM;
-				detail = "out of memory";
-				break;
-			case BZ_CONFIG_ERROR:
-				detail = "mis-compiled library";
-				break;
+	path = archive_entry_sourcepath(entry);
+	if (path == NULL)
+		path = archive_entry_pathname(entry);
+
+	if (*fd < 0 && a->tree != NULL) {
+		if (a->follow_symlinks ||
+		    archive_entry_filetype(entry) != AE_IFLNK)
+			*fd = a->open_on_current_dir(a->tree, path,
+				O_RDONLY | O_NONBLOCK);
+		if (*fd < 0) {
+			if (a->tree_enter_working_dir(a->tree) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Couldn't access %s", path);
+				return (ARCHIVE_FAILED);
 			}
-			archive_set_error(&a->archive, err,
-			    "Internal error initializing decompressor: %s",
-			    detail == NULL ? "??" : detail);
-			xar->bzstream_valid = 0;
-			return (ARCHIVE_FATAL);
 		}
-		xar->bzstream_valid = 1;
-		xar->bzstream.total_in_lo32 = 0;
-		xar->bzstream.total_in_hi32 = 0;
-		xar->bzstream.total_out_lo32 = 0;
-		xar->bzstream.total_out_hi32 = 0;
-		break;
-#endif
-#if defined(HAVE_LZMA_H) && defined(HAVE_LIBLZMA)
-#if LZMA_VERSION_MAJOR >= 5
-/* Effectively disable the limiter. */
-#define LZMA_MEMLIMIT   UINT64_MAX
-#else
-/* NOTE: This needs to check memory size which running system has. */
-#define LZMA_MEMLIMIT   (1U << 30)
-#endif
-	case XZ:
-	case LZMA:
-		if (xar->lzstream_valid) {
-			lzma_end(&(xar->lzstream));
-			xar->lzstream_valid = 0;
-		}
-		if (xar->entry_encoding == XZ)
-			r = lzma_stream_decoder(&(xar->lzstream),
-			    LZMA_MEMLIMIT,/* memlimit */
-			    LZMA_CONCATENATED);
-		else
-			r = lzma_alone_decoder(&(xar->lzstream),
-			    LZMA_MEMLIMIT);/* memlimit */
-		if (r != LZMA_OK) {
-			switch (r) {
-			case LZMA_MEM_ERROR:
-				archive_set_error(&a->archive,
-				    ENOMEM,
-				    "Internal error initializing "
-				    "compression library: "
-				    "Cannot allocate memory");
-				break;
-			case LZMA_OPTIONS_ERROR:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "compression library: "
-				    "Invalid or unsupported options");
-				break;
-			default:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "lzma library");
-				break;
-			}
-			return (ARCHIVE_FATAL);
-		}
-		xar->lzstream_valid = 1;
-		xar->lzstream.total_in = 0;
-		xar->lzstream.total_out = 0;
-		break;
-#elif defined(HAVE_LZMADEC_H) && defined(HAVE_LIBLZMADEC)
-	case LZMA:
-		if (xar->lzstream_valid)
-			lzmadec_end(&(xar->lzstream));
-		r = lzmadec_init(&(xar->lzstream));
-		if (r != LZMADEC_OK) {
-			switch (r) {
-			case LZMADEC_HEADER_ERROR:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "compression library: "
-				    "invalid header");
-				break;
-			case LZMADEC_MEM_ERROR:
-				archive_set_error(&a->archive,
-				    ENOMEM,
-				    "Internal error initializing "
-				    "compression library: "
-				    "out of memory");
-				break;
-			}
-			return (ARCHIVE_FATAL);
-		}
-		xar->lzstream_valid = 1;
-		xar->lzstream.total_in = 0;
-		xar->lzstream.total_out = 0;
-		break;
-#endif
-	/*
-	 * Unsupported compression.
-	 */
-	default:
-#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-#endif
-#if !defined(HAVE_LZMA_H) || !defined(HAVE_LIBLZMA)
-#if !defined(HAVE_LZMADEC_H) || !defined(HAVE_LIBLZMADEC)
-	case LZMA:
-#endif
-	case XZ:
-#endif
-		switch (xar->entry_encoding) {
-		case BZIP2: detail = "bzip2"; break;
-		case LZMA: detail = "lzma"; break;
-		case XZ: detail = "xz"; break;
-		default: detail = "??"; break;
-		}
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "%s compression not supported on this platform",
-		    detail);
-		return (ARCHIVE_FAILED);
 	}
+
+	if (*fd >= 0)
+		list_size = extattr_list_fd(*fd, namespace, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = extattr_list_link(path, namespace, NULL, 0);
+	else
+		list_size = extattr_list_file(path, namespace, NULL, 0);
+
+	if (list_size == -1 && errno == EOPNOTSUPP)
+		return (ARCHIVE_OK);
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't list extended attributes");
+		return (ARCHIVE_WARN);
+	}
+
+	if (list_size == 0)
+		return (ARCHIVE_OK);
+
+	if ((list = malloc(list_size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (*fd >= 0)
+		list_size = extattr_list_fd(*fd, namespace, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = extattr_list_link(path, namespace, list, list_size);
+	else
+		list_size = extattr_list_file(path, namespace, list, list_size);
+
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't retrieve extended attributes");
+		free(list);
+		return (ARCHIVE_WARN);
+	}
+
+	p = list;
+	while ((p - list) < list_size) {
+		size_t len = 255 & (int)*p;
+		char *name;
+
+		strcpy(buff, "user.");
+		name = buff + strlen(buff);
+		memcpy(name, p + 1, len);
+		name[len] = '\0';
+		setup_xattr(a, entry, namespace, name, buff, *fd);
+		p += 1 + len;
+	}
+
+	free(list);
 	return (ARCHIVE_OK);
 }

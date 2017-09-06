@@ -1,2 +1,1 @@
-fsobj_error(a_eno, a_estr, errno,
-					    "Could not chdir ", path);
+archive_strappend_char(&errlist, ' ');

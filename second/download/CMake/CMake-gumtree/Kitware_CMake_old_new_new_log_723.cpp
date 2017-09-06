@@ -1,1 +1,1 @@
-fprintf(stderr, "  target [%s]\n", lei->Target->GetName().c_str());
+archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino);

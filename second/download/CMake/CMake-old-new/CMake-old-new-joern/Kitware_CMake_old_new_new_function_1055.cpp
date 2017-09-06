@@ -1,177 +1,43 @@
-int cmCTestTestHandler::ProcessHandler()
+bool SystemInformationImplementation::QuerySolarisInfo()
 {
-  // Update internal data structure from generic one
-  this->SetTestsToRunInformation(this->GetOption("TestsToRunInformation"));
-  this->SetUseUnion(cmSystemTools::IsOn(this->GetOption("UseUnion")));
-  const char* val;
-  val = this->GetOption("LabelRegularExpression");
-  if ( val )
-    {
-    this->UseIncludeLabelRegExpFlag = true;
-    this->IncludeLabelRegExp = val;
-    }
-  val = this->GetOption("ExcludeLabelRegularExpression");
-  if ( val )
-    {
-    this->UseExcludeLabelRegExpFlag = true;
-    this->ExcludeLabelRegularExpression = val;
-    }
-  val = this->GetOption("IncludeRegularExpression");
-  if ( val )
-    {
-    this->UseIncludeRegExp();
-    this->SetIncludeRegExp(val);
-    }
-  val = this->GetOption("ExcludeRegularExpression");
-  if ( val )
-    {
-    this->UseExcludeRegExp();
-    this->SetExcludeRegExp(val);
-    }
+  // Parse values
+  this->NumberOfPhysicalCPU = static_cast<unsigned int>(
+    atoi(this->ParseValueFromKStat("-n syste_misc -s ncpus").c_str()));
+  this->NumberOfLogicalCPU = this->NumberOfPhysicalCPU;
   
-  this->TestResults.clear();
- // do not output startup if this is a sub-process for parallel tests
-  if(!this->CTest->GetParallelSubprocess())
+  if(this->NumberOfPhysicalCPU!=0)
     {
-    cmCTestLog(this->CTest, HANDLER_OUTPUT,
-               (this->MemCheck ? "Memory check" : "Test")
-               << " project " << cmSystemTools::GetCurrentWorkingDirectory()
-               << std::endl);
-    }
-  if ( ! this->PreProcessHandler() )
-    {
-    return -1;
+    this->NumberOfLogicalCPU /= this->NumberOfPhysicalCPU;
     }
 
-  cmGeneratedFileStream mLogFile;
-  this->StartLogFile((this->MemCheck ? "DynamicAnalysis" : "Test"), mLogFile);
-  this->LogFile = &mLogFile;
+  this->CPUSpeedInMHz = static_cast<float>(atoi(this->ParseValueFromKStat("-s clock_MHz").c_str()));
 
-  std::vector<cmStdString> passed;
-  std::vector<cmStdString> failed;
-  int total;
+  // Chip family
+  this->ChipID.Family = 0; 
+ 
+  // Chip Vendor
+  this->ChipID.Vendor = "Sun";
+  this->FindManufacturer();
+  
+  // Chip Model
+  this->ChipID.ProcessorName = this->ParseValueFromKStat("-s cpu_type");
+  this->ChipID.Model = 0;
 
-  //start the real time clock
-  double clock_start, clock_finish;
-  clock_start = cmSystemTools::GetTime();
+  // Cache size
+  this->Features.L1CacheSize = 0; 
+  this->Features.L2CacheSize = 0;  
 
-  this->ProcessDirectory(passed, failed);
+  char* tail;
+  unsigned long totalMemory =
+       strtoul(this->ParseValueFromKStat("-s physmem").c_str(),&tail,0);
+  this->TotalPhysicalMemory = totalMemory/1024;
+  this->TotalPhysicalMemory *= 8192;
+  this->TotalPhysicalMemory /= 1024;
 
-  clock_finish = cmSystemTools::GetTime();
+  // Undefined values (for now at least)
+  this->TotalVirtualMemory = 0;
+  this->AvailablePhysicalMemory = 0;
+  this->AvailableVirtualMemory = 0;
 
-  total = int(passed.size()) + int(failed.size());
-
-  if (total == 0)
-    {
-    if ( !this->CTest->GetShowOnly() )
-      {
-      cmCTestLog(this->CTest, ERROR_MESSAGE, "No tests were found!!!"
-        << std::endl);
-      }
-    }
-  else
-    {
-    if (this->HandlerVerbose && passed.size() &&
-      (this->UseIncludeRegExpFlag || this->UseExcludeRegExpFlag))
-      {
-      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
-        << "The following tests passed:" << std::endl);
-      for(std::vector<cmStdString>::iterator j = passed.begin();
-          j != passed.end(); ++j)
-        {
-        cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "\t" << *j
-          << std::endl);
-        }
-      }
-
-    float percent = float(passed.size()) * 100.0f / total;
-    if ( failed.size() > 0 &&  percent > 99)
-      {
-      percent = 99;
-      }
-    
-    if(!this->CTest->GetParallelSubprocess())
-      {
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl
-                 << static_cast<int>(percent + .5) << "% tests passed, "
-                 << failed.size() << " tests failed out of " 
-                 << total << std::endl); 
-      double totalTestTime = 0;
-
-      for(cmCTestTestHandler::TestResultsVector::size_type cc = 0;
-          cc < this->TestResults.size(); cc ++ )
-        {
-        cmCTestTestResult *result = &this->TestResults[cc];
-        totalTestTime += result->ExecutionTime;
-        }
-      
-      char realBuf[1024];
-      sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (real) = "
-                 << realBuf << "\n" );
-
-      char totalBuf[1024];
-      sprintf(totalBuf, "%6.2f sec", totalTestTime); 
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (parallel) = " 
-                 <<  totalBuf << "\n" );
-      
-      }
-
-    if (failed.size())
-      {
-      cmGeneratedFileStream ofs;
-      if(!this->CTest->GetParallelSubprocess())
-        {
-        cmCTestLog(this->CTest, ERROR_MESSAGE, std::endl
-                   << "The following tests FAILED:" << std::endl);
-        this->StartLogFile("TestsFailed", ofs);
-        
-        std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;
-        for(ftit = this->TestResults.begin();
-            ftit != this->TestResults.end(); ++ftit)
-          {
-          if ( ftit->Status != cmCTestTestHandler::COMPLETED )
-            {
-            ofs << ftit->TestCount << ":" << ftit->Name << std::endl;
-            cmCTestLog(this->CTest, HANDLER_OUTPUT, "\t" << std::setw(3)
-                       << ftit->TestCount << " - " 
-                       << ftit->Name.c_str() << " ("
-                       << this->GetTestStatus(ftit->Status) << ")" 
-                       << std::endl);
-            }
-          }
-        
-        }
-      }
-    }
-
-  if ( this->CTest->GetProduceXML() )
-    {
-    cmGeneratedFileStream xmlfile;
-    if( !this->StartResultingXML(
-          (this->MemCheck ? cmCTest::PartMemCheck : cmCTest::PartTest),
-        (this->MemCheck ? "DynamicAnalysis" : "Test"), xmlfile) )
-      {
-      cmCTestLog(this->CTest, ERROR_MESSAGE, "Cannot create "
-        << (this->MemCheck ? "memory check" : "testing")
-        << " XML file" << std::endl);
-      this->LogFile = 0;
-      return 1;
-      }
-    this->GenerateDartOutput(xmlfile);
-    }
-
-  if ( ! this->PostProcessHandler() )
-    {
-    this->LogFile = 0;
-    return -1;
-    }
-
-  if ( !failed.empty() )
-    {
-    this->LogFile = 0;
-    return -1;
-    }
-  this->LogFile = 0;
-  return 0;
+  return true;
 }

@@ -1,1 +1,1 @@
-fprintf(out, "%s: \\\n", objfile.c_str());
+fprintf(fout,"%s ",compileFlags[i].c_str());

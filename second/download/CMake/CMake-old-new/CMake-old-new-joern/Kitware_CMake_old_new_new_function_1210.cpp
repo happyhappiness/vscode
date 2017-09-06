@@ -1,47 +1,67 @@
-int cmake::LoadCache()
+static void print_flags(FILE *handle, unsigned long flags)
 {
-  // could we not read the cache
-  if (!this->CacheManager->LoadCache(this->GetHomeOutputDirectory()))
-    {
-    // if it does exist, but isn;t readable then warn the user
-    std::string cacheFile = this->GetHomeOutputDirectory();
-    cacheFile += "/CMakeCache.txt";
-    if(cmSystemTools::FileExists(cacheFile.c_str()))
-      {
-      cmSystemTools::Error(
-        "There is a CMakeCache.txt file for the current binary tree but "
-        "cmake does not have permission to read it. Please check the "
-        "permissions of the directory you are trying to run CMake on.");
-      return -1;
-      }
-    }
-
-  if (this->CMakeCommand.size() < 2)
-    {
-    cmSystemTools::Error(
-      "cmake command was not specified prior to loading the cache in "
-      "cmake.cxx");
-    return -1;
-    }
-
-  // setup CMAKE_ROOT and CMAKE_COMMAND
-  if(!this->AddCMakePaths(this->CMakeCommand.c_str()))
-    {
-    return -3;
-    }
-
-  // set the default BACKWARDS compatibility to the current version
-  if(!this->CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
-    {
-    char ver[256];
-    sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
-            cmVersion::GetMinorVersion());
-    this->CacheManager->AddCacheEntry
-      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
-       "For backwards compatibility, what version of CMake commands and "
-       "syntax should this version of CMake allow.",
-       cmCacheManager::STRING);
-    }
-
-  return 0;
+  if(flags & NTLMFLAG_NEGOTIATE_UNICODE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_UNICODE ");
+  if(flags & NTLMFLAG_NEGOTIATE_OEM)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_OEM ");
+  if(flags & NTLMFLAG_REQUEST_TARGET)
+    fprintf(handle, "NTLMFLAG_REQUEST_TARGET ");
+  if(flags & (1<<3))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_3 ");
+  if(flags & NTLMFLAG_NEGOTIATE_SIGN)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_SIGN ");
+  if(flags & NTLMFLAG_NEGOTIATE_SEAL)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_SEAL ");
+  if(flags & NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE ");
+  if(flags & NTLMFLAG_NEGOTIATE_LM_KEY)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_LM_KEY ");
+  if(flags & NTLMFLAG_NEGOTIATE_NETWARE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_NETWARE ");
+  if(flags & NTLMFLAG_NEGOTIATE_NTLM_KEY)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM_KEY ");
+  if(flags & (1<<10))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_10 ");
+  if(flags & (1<<11))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_11 ");
+  if(flags & NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED ");
+  if(flags & NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED ");
+  if(flags & NTLMFLAG_NEGOTIATE_LOCAL_CALL)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_LOCAL_CALL ");
+  if(flags & NTLMFLAG_NEGOTIATE_ALWAYS_SIGN)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_ALWAYS_SIGN ");
+  if(flags & NTLMFLAG_TARGET_TYPE_DOMAIN)
+    fprintf(handle, "NTLMFLAG_TARGET_TYPE_DOMAIN ");
+  if(flags & NTLMFLAG_TARGET_TYPE_SERVER)
+    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SERVER ");
+  if(flags & NTLMFLAG_TARGET_TYPE_SHARE)
+    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SHARE ");
+  if(flags & NTLMFLAG_NEGOTIATE_NTLM2_KEY)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM2_KEY ");
+  if(flags & NTLMFLAG_REQUEST_INIT_RESPONSE)
+    fprintf(handle, "NTLMFLAG_REQUEST_INIT_RESPONSE ");
+  if(flags & NTLMFLAG_REQUEST_ACCEPT_RESPONSE)
+    fprintf(handle, "NTLMFLAG_REQUEST_ACCEPT_RESPONSE ");
+  if(flags & NTLMFLAG_REQUEST_NONNT_SESSION_KEY)
+    fprintf(handle, "NTLMFLAG_REQUEST_NONNT_SESSION_KEY ");
+  if(flags & NTLMFLAG_NEGOTIATE_TARGET_INFO)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_TARGET_INFO ");
+  if(flags & (1<<24))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_24 ");
+  if(flags & (1<<25))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_25 ");
+  if(flags & (1<<26))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_26 ");
+  if(flags & (1<<27))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_27 ");
+  if(flags & (1<<28))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_28 ");
+  if(flags & NTLMFLAG_NEGOTIATE_128)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_128 ");
+  if(flags & NTLMFLAG_NEGOTIATE_KEY_EXCHANGE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_KEY_EXCHANGE ");
+  if(flags & NTLMFLAG_NEGOTIATE_56)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_56 ");
 }

@@ -1,1 +1,2 @@
-sprintf(hex, "%%%02X", (int)c);
+fprintf(fout,
+            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");

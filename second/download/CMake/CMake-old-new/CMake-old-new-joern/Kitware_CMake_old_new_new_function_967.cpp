@@ -1,97 +1,137 @@
 static int
-xar_options(struct archive_write *a, const char *key, const char *value)
+zip_read_mac_metadata(struct archive_read *a, struct archive_entry *entry,
+    struct zip_entry *rsrc)
 {
-	struct xar *xar;
+	struct zip *zip = (struct zip *)a->format->data;
+	unsigned char *metadata, *mp;
+	int64_t offset = zip->offset;
+	size_t remaining_bytes, metadata_bytes;
+	ssize_t hsize;
+	int ret = ARCHIVE_OK, eof;
 
-	xar = (struct xar *)a->format_data;
-
-	if (strcmp(key, "checksum") == 0) {
-		if (value == NULL)
-			xar->opt_sumalg = CKSUM_NONE;
-		else if (strcmp(value, "sha1") == 0)
-			xar->opt_sumalg = CKSUM_SHA1;
-		else if (strcmp(value, "md5") == 0)
-			xar->opt_sumalg = CKSUM_MD5;
-		else {
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Unknown checksum name: `%s'",
-			    value);
-			return (ARCHIVE_FAILED);
-		}
-		return (ARCHIVE_OK);
-	}
-	if (strcmp(key, "compression") == 0) {
-		const char *name = NULL;
-
-		if (value == NULL)
-			xar->opt_compression = NONE;
-		else if (strcmp(value, "gzip") == 0)
-			xar->opt_compression = GZIP;
-		else if (strcmp(value, "bzip2") == 0)
-#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
-			xar->opt_compression = BZIP2;
-#else
-			name = "bzip2";
+	switch(rsrc->compression) {
+	case 0:  /* No compression. */
+#ifdef HAVE_ZLIB_H
+	case 8: /* Deflate compression. */
 #endif
-		else if (strcmp(value, "lzma") == 0)
-#if HAVE_LZMA_H
-			xar->opt_compression = LZMA;
-#else
-			name = "lzma";
-#endif
-		else if (strcmp(value, "xz") == 0)
-#if HAVE_LZMA_H
-			xar->opt_compression = XZ;
-#else
-			name = "xz";
-#endif
-		else {
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Unknown compression name: `%s'",
-			    value);
-			return (ARCHIVE_FAILED);
-		}
-		if (name != NULL) {
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "`%s' compression not supported "
-			    "on this platform",
-			    name);
-			return (ARCHIVE_FAILED);
-		}
-		return (ARCHIVE_OK);
-	}
-	if (strcmp(key, "compression-level") == 0) {
-		if (value == NULL ||
-		    !(value[0] >= '0' && value[0] <= '9') ||
-		    value[1] != '\0') {
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Illeagal value `%s'",
-			    value);
-			return (ARCHIVE_FAILED);
-		}
-		xar->opt_compression_level = value[0] - '0';
-		return (ARCHIVE_OK);
-	}
-	if (strcmp(key, "toc-checksum") == 0) {
-		if (value == NULL)
-			xar->opt_toc_sumalg = CKSUM_NONE;
-		else if (strcmp(value, "sha1") == 0)
-			xar->opt_toc_sumalg = CKSUM_SHA1;
-		else if (strcmp(value, "md5") == 0)
-			xar->opt_toc_sumalg = CKSUM_MD5;
-		else {
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Unknown checksum name: `%s'",
-			    value);
-			return (ARCHIVE_FAILED);
-		}
-		return (ARCHIVE_OK);
+		break;
+	default: /* Unsupported compression. */
+		/* Return a warning. */
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unsupported ZIP compression method (%s)",
+		    compression_name(rsrc->compression));
+		/* We can't decompress this entry, but we will
+		 * be able to skip() it and try the next entry. */
+		return (ARCHIVE_WARN);
 	}
 
-	return (ARCHIVE_FAILED);
+	if (rsrc->uncompressed_size > (128 * 1024)) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Mac metadata is too large: %jd > 128K bytes",
+		    (intmax_t)rsrc->uncompressed_size);
+		return (ARCHIVE_WARN);
+	}
+
+	metadata = malloc((size_t)rsrc->uncompressed_size);
+	if (metadata == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory for Mac metadata");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (zip->offset < rsrc->local_header_offset)
+		zip_read_consume(a, rsrc->local_header_offset - zip->offset);
+	else if (zip->offset != rsrc->local_header_offset) {
+		__archive_read_seek(a, rsrc->local_header_offset, SEEK_SET);
+		zip->offset = zip->entry->local_header_offset;
+	}
+
+	hsize = zip_get_local_file_header_size(a, 0);
+	zip_read_consume(a, hsize);
+
+	remaining_bytes = (size_t)rsrc->compressed_size;
+	metadata_bytes = (size_t)rsrc->uncompressed_size;
+	mp = metadata;
+	eof = 0;
+	while (!eof && remaining_bytes) {
+		const unsigned char *p;
+		ssize_t bytes_avail;
+		size_t bytes_used;
+
+		p = __archive_read_ahead(a, 1, &bytes_avail);
+		if (p == NULL) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file header");
+			ret = ARCHIVE_WARN;
+			goto exit_mac_metadata;
+		}
+		if ((size_t)bytes_avail > remaining_bytes)
+			bytes_avail = remaining_bytes;
+		switch(rsrc->compression) {
+		case 0:  /* No compression. */
+			memcpy(mp, p, bytes_avail);
+			bytes_used = (size_t)bytes_avail;
+			metadata_bytes -= bytes_used;
+			mp += bytes_used;
+			if (metadata_bytes == 0)
+				eof = 1;
+			break;
+#ifdef HAVE_ZLIB_H
+		case 8: /* Deflate compression. */
+		{
+			int r;
+
+			ret = zip_deflate_init(a, zip);
+			if (ret != ARCHIVE_OK)
+				goto exit_mac_metadata;
+			zip->stream.next_in =
+			    (Bytef *)(uintptr_t)(const void *)p;
+			zip->stream.avail_in = (uInt)bytes_avail;
+			zip->stream.total_in = 0;
+			zip->stream.next_out = mp;
+			zip->stream.avail_out = (uInt)metadata_bytes;
+			zip->stream.total_out = 0;
+
+			r = inflate(&zip->stream, 0);
+			switch (r) {
+			case Z_OK:
+				break;
+			case Z_STREAM_END:
+				eof = 1;
+				break;
+			case Z_MEM_ERROR:
+				archive_set_error(&a->archive, ENOMEM,
+				    "Out of memory for ZIP decompression");
+				ret = ARCHIVE_FATAL;
+				goto exit_mac_metadata;
+			default:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "ZIP decompression failed (%d)", r);
+				ret = ARCHIVE_FATAL;
+				goto exit_mac_metadata;
+			}
+			bytes_used = zip->stream.total_in;
+			metadata_bytes -= zip->stream.total_out;
+			mp += zip->stream.total_out;
+			break;
+		}
+#endif
+		default:
+			bytes_used = 0;
+			break;
+		}
+		zip_read_consume(a, bytes_used);
+		remaining_bytes -= bytes_used;
+	}
+	archive_entry_copy_mac_metadata(entry, metadata,
+	    (size_t)rsrc->uncompressed_size - metadata_bytes);
+
+	__archive_read_seek(a, offset, SEEK_SET);
+	zip->offset = offset;
+exit_mac_metadata:
+	zip->decompress_init = 0;
+	free(metadata);
+	return (ret);
 }

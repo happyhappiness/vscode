@@ -1,1 +1,2 @@
-f(fout, "SET(CMAKE_C_FLAGS \"${CMAKE_C_FLAGS} ${COMPILE_DEFINITIONS}\"\")\n");
+fprintf(stderr, "*** WARNING: locked DNS cache entry detected: %s\n",
+            e->entry_id);

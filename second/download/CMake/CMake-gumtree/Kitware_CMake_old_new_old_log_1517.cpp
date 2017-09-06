@@ -1,1 +1,1 @@
-fout << "    printf(\"To run a test, enter the test number: \");\n";
+fprintf(fout, "  SET(CMAKE_CXX_FLAGS \"${CMAKE_CXX_FLAGS} ${CMAKE_ANSI_CXXFLAGS}\")\n");

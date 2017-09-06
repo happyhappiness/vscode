@@ -1,1 +1,1 @@
-fout << "      printf(\"%d. %s\\n\", i, cmakeGeneratedFunctionMapEntries[i].name);\n";
+fprintf(fout, "IF (CMAKE_ANSI_CXXFLAGS)\n");

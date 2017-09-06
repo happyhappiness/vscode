@@ -1,1 +1,1 @@
-snprintf(sbuf, sizeof(sbuf), "%d", port);
+fprintf(ofp, "# include <unistd.h>\n");

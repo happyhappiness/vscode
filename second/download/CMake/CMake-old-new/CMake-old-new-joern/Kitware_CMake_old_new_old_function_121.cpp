@@ -1,68 +1,64 @@
-static int
-lzma_bidder_init(struct archive_read_filter *self)
+CURLcode Curl_open(struct Curl_easy **curl)
 {
-	static const size_t out_block_size = 64 * 1024;
-	void *out_block;
-	struct private_data *state;
-	ssize_t ret, avail_in;
+  CURLcode result;
+  struct Curl_easy *data;
 
-	self->code = ARCHIVE_FILTER_LZMA;
-	self->name = "lzma";
+  /* Very simple start-up: alloc the struct, init it with zeroes and return */
+  data = calloc(1, sizeof(struct Curl_easy));
+  if(!data) {
+    /* this is a very serious error */
+    DEBUGF(fprintf(stderr, "Error: calloc of Curl_easy failed\n"));
+    return CURLE_OUT_OF_MEMORY;
+  }
 
-	state = (struct private_data *)calloc(sizeof(*state), 1);
-	out_block = (unsigned char *)malloc(out_block_size);
-	if (state == NULL || out_block == NULL) {
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for lzma decompression");
-		free(out_block);
-		free(state);
-		return (ARCHIVE_FATAL);
-	}
+  data->magic = CURLEASY_MAGIC_NUMBER;
 
-	self->data = state;
-	state->out_block_size = out_block_size;
-	state->out_block = out_block;
-	self->read = lzma_filter_read;
-	self->skip = NULL; /* not supported */
-	self->close = lzma_filter_close;
+  result = Curl_resolver_init(&data->state.resolver);
+  if(result) {
+    DEBUGF(fprintf(stderr, "Error: resolver_init failed\n"));
+    free(data);
+    return result;
+  }
 
-	/* Prime the lzma library with 18 bytes of input. */
-	state->stream.next_in = (unsigned char *)(uintptr_t)
-	    __archive_read_filter_ahead(self->upstream, 18, &avail_in);
-	if (state->stream.next_in == NULL)
-		return (ARCHIVE_FATAL);
-	state->stream.avail_in = avail_in;
-	state->stream.next_out = state->out_block;
-	state->stream.avail_out = state->out_block_size;
+  /* We do some initial setup here, all those fields that can't be just 0 */
 
-	/* Initialize compression library. */
-	ret = lzmadec_init(&(state->stream));
-	__archive_read_filter_consume(self->upstream,
-	    avail_in - state->stream.avail_in);
-	if (ret == LZMADEC_OK)
-		return (ARCHIVE_OK);
+  data->state.headerbuff = malloc(HEADERSIZE);
+  if(!data->state.headerbuff) {
+    DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"));
+    result = CURLE_OUT_OF_MEMORY;
+  }
+  else {
+    result = Curl_init_userdefined(&data->set);
 
-	/* Library setup failed: Clean up. */
-	archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-	    "Internal error initializing lzma library");
+    data->state.headersize=HEADERSIZE;
 
-	/* Override the error message if we know what really went wrong. */
-	switch (ret) {
-	case LZMADEC_HEADER_ERROR:
-		archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Internal error initializing compression library: "
-		    "invalid header");
-		break;
-	case LZMADEC_MEM_ERROR:
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Internal error initializing compression library: "
-		    "out of memory");
-		break;
-	}
+    Curl_convert_init(data);
 
-	free(state->out_block);
-	free(state);
-	self->data = NULL;
-	return (ARCHIVE_FATAL);
+    Curl_initinfo(data);
+
+    /* most recent connection is not yet defined */
+    data->state.lastconnect = NULL;
+
+    data->progress.flags |= PGRS_HIDE;
+    data->state.current_speed = -1; /* init to negative == impossible */
+
+    data->wildcard.state = CURLWC_INIT;
+    data->wildcard.filelist = NULL;
+    data->set.fnmatch = ZERO_NULL;
+    data->set.maxconnects = DEFAULT_CONNCACHE_SIZE; /* for easy handles */
+
+    Curl_http2_init_state(&data->state);
+  }
+
+  if(result) {
+    Curl_resolver_cleanup(data->state.resolver);
+    free(data->state.headerbuff);
+    Curl_freeset(data);
+    free(data);
+    data = NULL;
+  }
+  else
+    *curl = data;
+
+  return result;
 }

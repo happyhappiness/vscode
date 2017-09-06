@@ -1,1 +1,0 @@
-str.Printf("CMake %s", cmVersion::GetCMakeVersion());

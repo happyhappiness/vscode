@@ -1,132 +1,187 @@
-static int yy_get_next_buffer (yyscan_t yyscanner)
+static int
+zip_read_data_deflate(struct archive_read *a, const void **buff,
+    size_t *size, int64_t *offset)
 {
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
-	char *dest = YY_CURRENT_BUFFER_LVALUE->yy_ch_buf;
-	char *source = yyg->yytext_ptr;
-	yy_size_t number_to_move, i;
-	int ret_val;
+	struct zip *zip;
+	ssize_t bytes_avail;
+	const void *compressed_buff, *sp;
+	int r;
 
-	if ( yyg->yy_c_buf_p > &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars + 1] )
-		YY_FATAL_ERROR(
-		"fatal flex scanner internal error--end of buffer missed" );
+	(void)offset; /* UNUSED */
 
-	if ( YY_CURRENT_BUFFER_LVALUE->yy_fill_buffer == 0 )
-		{ /* Don't try to fill the buffer, so this is an EOF. */
-		if ( yyg->yy_c_buf_p - yyg->yytext_ptr - YY_MORE_ADJ == 1 )
-			{
-			/* We matched a single character, the EOB, so
-			 * treat this as a final EOF.
-			 */
-			return EOB_ACT_END_OF_FILE;
-			}
+	zip = (struct zip *)(a->format->data);
 
-		else
-			{
-			/* We matched some text prior to the EOB, first
-			 * process it.
-			 */
-			return EOB_ACT_LAST_MATCH;
-			}
+	/* If the buffer hasn't been allocated, allocate it now. */
+	if (zip->uncompressed_buffer == NULL) {
+		zip->uncompressed_buffer_size = 256 * 1024;
+		zip->uncompressed_buffer
+		    = (unsigned char *)malloc(zip->uncompressed_buffer_size);
+		if (zip->uncompressed_buffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for ZIP decompression");
+			return (ARCHIVE_FATAL);
 		}
-
-	/* Try to read more data. */
-
-	/* First move last chars to start of buffer. */
-	number_to_move = (yy_size_t) (yyg->yy_c_buf_p - yyg->yytext_ptr) - 1;
-
-	for ( i = 0; i < number_to_move; ++i )
-		*(dest++) = *(source++);
-
-	if ( YY_CURRENT_BUFFER_LVALUE->yy_buffer_status == YY_BUFFER_EOF_PENDING )
-		/* don't do the read, it's not guaranteed to return an EOF,
-		 * just force an EOF
-		 */
-		YY_CURRENT_BUFFER_LVALUE->yy_n_chars = yyg->yy_n_chars = 0;
-
-	else
-		{
-			int num_to_read =
-			YY_CURRENT_BUFFER_LVALUE->yy_buf_size - number_to_move - 1;
-
-		while ( num_to_read <= 0 )
-			{ /* Not enough room in the buffer - grow it. */
-
-			/* just a shorter name for the current buffer */
-			YY_BUFFER_STATE b = YY_CURRENT_BUFFER_LVALUE;
-
-			int yy_c_buf_p_offset =
-				(int) (yyg->yy_c_buf_p - b->yy_ch_buf);
-
-			if ( b->yy_is_our_buffer )
-				{
-				int new_size = b->yy_buf_size * 2;
-
-				if ( new_size <= 0 )
-					b->yy_buf_size += b->yy_buf_size / 8;
-				else
-					b->yy_buf_size *= 2;
-
-				b->yy_ch_buf = (char *)
-					/* Include room in for 2 EOB chars. */
-					cmExpr_yyrealloc((void *) b->yy_ch_buf,b->yy_buf_size + 2 ,yyscanner );
-				}
-			else
-				/* Can't grow it, we don't own it. */
-				b->yy_ch_buf = NULL;
-
-			if ( ! b->yy_ch_buf )
-				YY_FATAL_ERROR(
-				"fatal error - scanner input buffer overflow" );
-
-			yyg->yy_c_buf_p = &b->yy_ch_buf[yy_c_buf_p_offset];
-
-			num_to_read = YY_CURRENT_BUFFER_LVALUE->yy_buf_size -
-						number_to_move - 1;
-
-			}
-
-		if ( num_to_read > YY_READ_BUF_SIZE )
-			num_to_read = YY_READ_BUF_SIZE;
-
-		/* Read in more data. */
-		YY_INPUT( (&YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[number_to_move]),
-			yyg->yy_n_chars, num_to_read );
-
-		YY_CURRENT_BUFFER_LVALUE->yy_n_chars = yyg->yy_n_chars;
-		}
-
-	if ( yyg->yy_n_chars == 0 )
-		{
-		if ( number_to_move == YY_MORE_ADJ )
-			{
-			ret_val = EOB_ACT_END_OF_FILE;
-			cmExpr_yyrestart(yyin  ,yyscanner);
-			}
-
-		else
-			{
-			ret_val = EOB_ACT_LAST_MATCH;
-			YY_CURRENT_BUFFER_LVALUE->yy_buffer_status =
-				YY_BUFFER_EOF_PENDING;
-			}
-		}
-
-	else
-		ret_val = EOB_ACT_CONTINUE_SCAN;
-
-	if ((int) (yyg->yy_n_chars + number_to_move) > YY_CURRENT_BUFFER_LVALUE->yy_buf_size) {
-		/* Extend the array by 50%, plus the number we really need. */
-		int new_size = yyg->yy_n_chars + number_to_move + (yyg->yy_n_chars >> 1);
-		YY_CURRENT_BUFFER_LVALUE->yy_ch_buf = (char *) cmExpr_yyrealloc((void *) YY_CURRENT_BUFFER_LVALUE->yy_ch_buf,new_size ,yyscanner );
-		if ( ! YY_CURRENT_BUFFER_LVALUE->yy_ch_buf )
-			YY_FATAL_ERROR( "out of dynamic memory in yy_get_next_buffer()" );
 	}
 
-	yyg->yy_n_chars += number_to_move;
-	YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars] = YY_END_OF_BUFFER_CHAR;
-	YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars + 1] = YY_END_OF_BUFFER_CHAR;
+	r = zip_deflate_init(a, zip);
+	if (r != ARCHIVE_OK)
+		return (r);
 
-	yyg->yytext_ptr = &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[0];
+	/*
+	 * Note: '1' here is a performance optimization.
+	 * Recall that the decompression layer returns a count of
+	 * available bytes; asking for more than that forces the
+	 * decompressor to combine reads by copying data.
+	 */
+	compressed_buff = sp = __archive_read_ahead(a, 1, &bytes_avail);
+	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
+	    && bytes_avail > zip->entry_bytes_remaining) {
+		bytes_avail = (ssize_t)zip->entry_bytes_remaining;
+	}
+	if (bytes_avail < 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file body");
+		return (ARCHIVE_FATAL);
+	}
 
-	return ret_val;
+	if (zip->tctx_valid || zip->cctx_valid) {
+		if (zip->decrypted_bytes_remaining < (size_t)bytes_avail) {
+			size_t buff_remaining =
+			    (zip->decrypted_buffer + zip->decrypted_buffer_size)
+			    - (zip->decrypted_ptr + zip->decrypted_bytes_remaining);
+
+			if (buff_remaining > (size_t)bytes_avail)
+				buff_remaining = (size_t)bytes_avail;
+
+			if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END) &&
+			      zip->entry_bytes_remaining > 0) {
+				if ((int64_t)(zip->decrypted_bytes_remaining
+				    + buff_remaining)
+				      > zip->entry_bytes_remaining) {
+					if (zip->entry_bytes_remaining <
+					      (int64_t)zip->decrypted_bytes_remaining)
+						buff_remaining = 0;
+					else
+						buff_remaining =
+						    (size_t)zip->entry_bytes_remaining
+						      - zip->decrypted_bytes_remaining;
+				}
+			}
+			if (buff_remaining > 0) {
+				if (zip->tctx_valid) {
+					trad_enc_decrypt_update(&zip->tctx,
+					    compressed_buff, buff_remaining,
+					    zip->decrypted_ptr
+					      + zip->decrypted_bytes_remaining,
+					    buff_remaining);
+				} else {
+					size_t dsize = buff_remaining;
+					archive_decrypto_aes_ctr_update(
+					    &zip->cctx,
+					    compressed_buff, buff_remaining,
+					    zip->decrypted_ptr
+					      + zip->decrypted_bytes_remaining,
+					    &dsize);
+				}
+				zip->decrypted_bytes_remaining += buff_remaining;
+			}
+		}
+		bytes_avail = zip->decrypted_bytes_remaining;
+		compressed_buff = (const char *)zip->decrypted_ptr;
+	}
+
+	/*
+	 * A bug in zlib.h: stream.next_in should be marked 'const'
+	 * but isn't (the library never alters data through the
+	 * next_in pointer, only reads it).  The result: this ugly
+	 * cast to remove 'const'.
+	 */
+	zip->stream.next_in = (Bytef *)(uintptr_t)(const void *)compressed_buff;
+	zip->stream.avail_in = (uInt)bytes_avail;
+	zip->stream.total_in = 0;
+	zip->stream.next_out = zip->uncompressed_buffer;
+	zip->stream.avail_out = (uInt)zip->uncompressed_buffer_size;
+	zip->stream.total_out = 0;
+
+	r = inflate(&zip->stream, 0);
+	switch (r) {
+	case Z_OK:
+		break;
+	case Z_STREAM_END:
+		zip->end_of_entry = 1;
+		break;
+	case Z_MEM_ERROR:
+		archive_set_error(&a->archive, ENOMEM,
+		    "Out of memory for ZIP decompression");
+		return (ARCHIVE_FATAL);
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "ZIP decompression failed (%d)", r);
+		return (ARCHIVE_FATAL);
+	}
+
+	/* Consume as much as the compressor actually used. */
+	bytes_avail = zip->stream.total_in;
+	if (zip->tctx_valid || zip->cctx_valid) {
+		zip->decrypted_bytes_remaining -= bytes_avail;
+		if (zip->decrypted_bytes_remaining == 0)
+			zip->decrypted_ptr = zip->decrypted_buffer;
+		else
+			zip->decrypted_ptr += bytes_avail;
+	}
+	/* Calculate compressed data as much as we used.*/
+	if (zip->hctx_valid)
+		archive_hmac_sha1_update(&zip->hctx, sp, bytes_avail);
+	__archive_read_consume(a, bytes_avail);
+	zip->entry_bytes_remaining -= bytes_avail;
+	zip->entry_compressed_bytes_read += bytes_avail;
+
+	*size = zip->stream.total_out;
+	zip->entry_uncompressed_bytes_read += zip->stream.total_out;
+	*buff = zip->uncompressed_buffer;
+
+	if (zip->end_of_entry && zip->hctx_valid) {
+		r = check_authentication_code(a, NULL);
+		if (r != ARCHIVE_OK)
+			return (r);
+	}
+
+	if (zip->end_of_entry && (zip->entry->zip_flags & ZIP_LENGTH_AT_END)) {
+		const char *p;
+
+		if (NULL == (p = __archive_read_ahead(a, 24, NULL))) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP end-of-file record");
+			return (ARCHIVE_FATAL);
+		}
+		/* Consume the optional PK\007\010 marker. */
+		if (p[0] == 'P' && p[1] == 'K' &&
+		    p[2] == '\007' && p[3] == '\010') {
+			p += 4;
+			zip->unconsumed = 4;
+		}
+		if (zip->entry->flags & LA_USED_ZIP64) {
+			uint64_t compressed, uncompressed;
+			zip->entry->crc32 = archive_le32dec(p);
+			compressed = archive_le64dec(p + 4);
+			uncompressed = archive_le64dec(p + 12);
+			if (compressed > INT64_MAX || uncompressed > INT64_MAX) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Overflow of 64-bit file sizes");
+				return ARCHIVE_FAILED;
+			}
+			zip->entry->compressed_size = compressed;
+			zip->entry->uncompressed_size = uncompressed;
+			zip->unconsumed += 20;
+		} else {
+			zip->entry->crc32 = archive_le32dec(p);
+			zip->entry->compressed_size = archive_le32dec(p + 4);
+			zip->entry->uncompressed_size = archive_le32dec(p + 8);
+			zip->unconsumed += 12;
+		}
+	}
+
+	return (ARCHIVE_OK);
 }

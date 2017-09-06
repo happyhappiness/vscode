@@ -1,65 +1,68 @@
-void cmCursesMainForm::UpdateStatusBar()
+bool cmSystemTools::FilesDiffer(const char* source,
+                                const char* destination)
 {
-  int x,y;
-  getmaxyx(m_Window, y, x);
-  if ( x < cmCursesMainForm::MIN_WIDTH  || 
-       y < cmCursesMainForm::MIN_HEIGHT )
+  struct stat statSource;
+  if (stat(source, &statSource) != 0) 
     {
-    curses_move(0,0);
-    printw("Window is too small. A size of at least %dx%d is required.",
-	   cmCursesMainForm::MIN_WIDTH, cmCursesMainForm::MIN_HEIGHT);
-    touchwin(m_Window); 
-    wrefresh(m_Window); 
-    return;
+    return true;
     }
 
-  FIELD* cur = current_field(m_Form);
-  int index = field_index(cur);
-  char* curField = field_buffer(m_Fields[index-2], 0);
-
-  char version[128];
-  sprintf(version,"(CMake Version %d.%d)", cmMakefile::GetMajorVersion(),
-	  cmMakefile::GetMinorVersion());
-
-  char bar[cmCursesMainForm::MAX_WIDTH];
-  int i, curFieldLen = strlen(curField);
-  int versionLen = strlen(version);
-  int leftLen = cmCursesMainForm::IDEAL_WIDTH - versionLen;
-  if (curFieldLen >= leftLen)
+  struct stat statDestination;
+  if (stat(destination, &statDestination) != 0) 
     {
-    strncpy(bar, curField, leftLen);
-    }
-  else
-    {
-    strcpy(bar, curField);
-    for(i=curFieldLen; i < leftLen; ++i) { bar[i] = ' '; }
-    }
-  strcpy(bar+leftLen, version);
-
-  if ( x < cmCursesMainForm::MAX_WIDTH )
-    {
-    if (x > cmCursesMainForm::IDEAL_WIDTH )
-      {
-      for(i=cmCursesMainForm::IDEAL_WIDTH; i < x; i++)
-	{
-	bar[i] = ' ';
-	}
-      }
-    bar[x] = '\0';
-    }
-  else
-    {
-    for(i=cmCursesMainForm::IDEAL_WIDTH; 
-	i < cmCursesMainForm::MAX_WIDTH-1; i++)
-      {
-      bar[i] = ' ';
-      }
-    bar[cmCursesMainForm::MAX_WIDTH-1] = '\0';
+    return true;
     }
 
-  curses_move(y-3,0);
-  attron(A_STANDOUT);
-  printw(bar);
-  attroff(A_STANDOUT);  
-  pos_form_cursor(m_Form);
+  if(statSource.st_size != statDestination.st_size)
+    {
+    return true;
+    }
+
+  if(statSource.st_size == 0)
+    {
+    return false;
+    }
+
+#if defined(_WIN32) || defined(__CYGWIN__)
+  std::ifstream finSource(source, 
+                          std::ios::binary | std::ios::in);
+  std::ifstream finDestination(destination, 
+                               std::ios::binary | std::ios::in);
+#else
+  std::ifstream finSource(source);
+  std::ifstream finDestination(destination);
+#endif
+  if(!finSource || !finDestination)
+    {
+    return true;
+    }
+
+  char* source_buf = new char[statSource.st_size];
+  char* dest_buf = new char[statSource.st_size];
+
+  finSource.read(source_buf, statSource.st_size);
+  finDestination.read(dest_buf, statSource.st_size);
+
+  if(statSource.st_size != finSource.gcount() ||
+     statSource.st_size != finDestination.gcount())
+    {
+    char msg[256];
+    sprintf(msg, "FilesDiffer failed to read files (allocated: %lu, source: %lu, dest: %lu)", statSource.st_size, finSource.gcount(), finDestination.gcount());
+    cmSystemTools::Error(msg);
+    delete [] source_buf;
+    delete [] dest_buf;
+    return false;
+    }
+
+  finSource.close();
+  finDestination.close();
+
+  int ret = memcmp((const void*)source_buf, 
+                   (const void*)dest_buf, 
+                   statSource.st_size);
+
+  delete [] dest_buf;
+  delete [] source_buf;
+
+  return ret != 0;
 }

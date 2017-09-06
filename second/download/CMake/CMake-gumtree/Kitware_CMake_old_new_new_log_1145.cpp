@@ -1,1 +1,0 @@
-fprintf(stdout, "%s\n", base64);

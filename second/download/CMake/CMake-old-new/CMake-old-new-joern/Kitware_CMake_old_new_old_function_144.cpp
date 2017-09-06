@@ -1,168 +1,225 @@
 static int
-decompression_init(struct archive_read *a, enum enctype encoding)
+next_entry(struct archive_read_disk *a, struct tree *t,
+    struct archive_entry *entry)
 {
-	struct xar *xar;
-	const char *detail;
-	int r;
+	const struct stat *st; /* info to use for this entry */
+	const struct stat *lst;/* lstat() information */
+	const char *name;
+	int descend, r;
 
-	xar = (struct xar *)(a->format->data);
-	xar->rd_encoding = encoding;
-	switch (encoding) {
-	case NONE:
-		break;
-	case GZIP:
-		if (xar->stream_valid)
-			r = inflateReset(&(xar->stream));
-		else
-			r = inflateInit(&(xar->stream));
-		if (r != Z_OK) {
+	st = NULL;
+	lst = NULL;
+	t->descend = 0;
+	do {
+		switch (tree_next(t)) {
+		case TREE_ERROR_FATAL:
+			archive_set_error(&a->archive, t->tree_errno,
+			    "%s: Unable to continue traversing directory tree",
+			    tree_current_path(t));
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			tree_enter_initial_dir(t);
+			return (ARCHIVE_FATAL);
+		case TREE_ERROR_DIR:
 			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Couldn't initialize zlib stream.");
-			return (ARCHIVE_FATAL);
-		}
-		xar->stream_valid = 1;
-		xar->stream.total_in = 0;
-		xar->stream.total_out = 0;
-		break;
-#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-		if (xar->bzstream_valid) {
-			BZ2_bzDecompressEnd(&(xar->bzstream));
-			xar->bzstream_valid = 0;
-		}
-		r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 0);
-		if (r == BZ_MEM_ERROR)
-			r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 1);
-		if (r != BZ_OK) {
-			int err = ARCHIVE_ERRNO_MISC;
-			detail = NULL;
-			switch (r) {
-			case BZ_PARAM_ERROR:
-				detail = "invalid setup parameter";
-				break;
-			case BZ_MEM_ERROR:
-				err = ENOMEM;
-				detail = "out of memory";
-				break;
-			case BZ_CONFIG_ERROR:
-				detail = "mis-compiled library";
-				break;
+			    "%s: Couldn't visit directory",
+			    tree_current_path(t));
+			tree_enter_initial_dir(t);
+			return (ARCHIVE_FAILED);
+		case 0:
+			tree_enter_initial_dir(t);
+			return (ARCHIVE_EOF);
+		case TREE_POSTDESCENT:
+		case TREE_POSTASCENT:
+			break;
+		case TREE_REGULAR:
+			lst = tree_current_lstat(t);
+			if (lst == NULL) {
+				archive_set_error(&a->archive, errno,
+				    "%s: Cannot stat",
+				    tree_current_path(t));
+				tree_enter_initial_dir(t);
+				return (ARCHIVE_FAILED);
 			}
-			archive_set_error(&a->archive, err,
-			    "Internal error initializing decompressor: %s",
-			    detail == NULL ? "??" : detail);
-			xar->bzstream_valid = 0;
-			return (ARCHIVE_FATAL);
-		}
-		xar->bzstream_valid = 1;
-		xar->bzstream.total_in_lo32 = 0;
-		xar->bzstream.total_in_hi32 = 0;
-		xar->bzstream.total_out_lo32 = 0;
-		xar->bzstream.total_out_hi32 = 0;
-		break;
-#endif
-#if defined(HAVE_LZMA_H) && defined(HAVE_LIBLZMA)
-#if LZMA_VERSION_MAJOR >= 5
-/* Effectively disable the limiter. */
-#define LZMA_MEMLIMIT   UINT64_MAX
-#else
-/* NOTE: This needs to check memory size which running system has. */
-#define LZMA_MEMLIMIT   (1U << 30)
-#endif
-	case XZ:
-	case LZMA:
-		if (xar->lzstream_valid) {
-			lzma_end(&(xar->lzstream));
-			xar->lzstream_valid = 0;
-		}
-		if (xar->entry_encoding == XZ)
-			r = lzma_stream_decoder(&(xar->lzstream),
-			    LZMA_MEMLIMIT,/* memlimit */
-			    LZMA_CONCATENATED);
+			break;
+		}	
+	} while (lst == NULL);
+
+#ifdef __APPLE__
+	if (a->enable_copyfile) {
+		/* If we're using copyfile(), ignore "._XXX" files. */
+		const char *bname = strrchr(tree_current_path(t), '/');
+		if (bname == NULL)
+			bname = tree_current_path(t);
 		else
-			r = lzma_alone_decoder(&(xar->lzstream),
-			    LZMA_MEMLIMIT);/* memlimit */
-		if (r != LZMA_OK) {
-			switch (r) {
-			case LZMA_MEM_ERROR:
-				archive_set_error(&a->archive,
-				    ENOMEM,
-				    "Internal error initializing "
-				    "compression library: "
-				    "Cannot allocate memory");
-				break;
-			case LZMA_OPTIONS_ERROR:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "compression library: "
-				    "Invalid or unsupported options");
-				break;
-			default:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "lzma library");
-				break;
-			}
-			return (ARCHIVE_FATAL);
-		}
-		xar->lzstream_valid = 1;
-		xar->lzstream.total_in = 0;
-		xar->lzstream.total_out = 0;
-		break;
-#elif defined(HAVE_LZMADEC_H) && defined(HAVE_LIBLZMADEC)
-	case LZMA:
-		if (xar->lzstream_valid)
-			lzmadec_end(&(xar->lzstream));
-		r = lzmadec_init(&(xar->lzstream));
-		if (r != LZMADEC_OK) {
-			switch (r) {
-			case LZMADEC_HEADER_ERROR:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "compression library: "
-				    "invalid header");
-				break;
-			case LZMADEC_MEM_ERROR:
-				archive_set_error(&a->archive,
-				    ENOMEM,
-				    "Internal error initializing "
-				    "compression library: "
-				    "out of memory");
-				break;
-			}
-			return (ARCHIVE_FATAL);
-		}
-		xar->lzstream_valid = 1;
-		xar->lzstream.total_in = 0;
-		xar->lzstream.total_out = 0;
-		break;
-#endif
-	/*
-	 * Unsupported compression.
-	 */
-	default:
-#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-#endif
-#if !defined(HAVE_LZMA_H) || !defined(HAVE_LIBLZMA)
-#if !defined(HAVE_LZMADEC_H) || !defined(HAVE_LIBLZMADEC)
-	case LZMA:
-#endif
-	case XZ:
-#endif
-		switch (xar->entry_encoding) {
-		case BZIP2: detail = "bzip2"; break;
-		case LZMA: detail = "lzma"; break;
-		case XZ: detail = "xz"; break;
-		default: detail = "??"; break;
-		}
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "%s compression not supported on this platform",
-		    detail);
-		return (ARCHIVE_FAILED);
+			++bname;
+		if (bname[0] == '.' && bname[1] == '_')
+			return (ARCHIVE_RETRY);
 	}
-	return (ARCHIVE_OK);
+#endif
+
+	archive_entry_copy_pathname(entry, tree_current_path(t));
+	/*
+	 * Perform path matching.
+	 */
+	if (a->matching) {
+		r = archive_match_path_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
+	}
+
+	/*
+	 * Distinguish 'L'/'P'/'H' symlink following.
+	 */
+	switch(t->symlink_mode) {
+	case 'H':
+		/* 'H': After the first item, rest like 'P'. */
+		t->symlink_mode = 'P';
+		/* 'H': First item (from command line) like 'L'. */
+		/* FALLTHROUGH */
+	case 'L':
+		/* 'L': Do descend through a symlink to dir. */
+		descend = tree_current_is_dir(t);
+		/* 'L': Follow symlinks to files. */
+		a->symlink_mode = 'L';
+		a->follow_symlinks = 1;
+		/* 'L': Archive symlinks as targets, if we can. */
+		st = tree_current_stat(t);
+		if (st != NULL && !tree_target_is_same_as_parent(t, st))
+			break;
+		/* If stat fails, we have a broken symlink;
+		 * in that case, don't follow the link. */
+		/* FALLTHROUGH */
+	default:
+		/* 'P': Don't descend through a symlink to dir. */
+		descend = tree_current_is_physical_dir(t);
+		/* 'P': Don't follow symlinks to files. */
+		a->symlink_mode = 'P';
+		a->follow_symlinks = 0;
+		/* 'P': Archive symlinks as symlinks. */
+		st = lst;
+		break;
+	}
+
+	if (update_current_filesystem(a, st->st_dev) != ARCHIVE_OK) {
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		tree_enter_initial_dir(t);
+		return (ARCHIVE_FATAL);
+	}
+	if (t->initial_filesystem_id == -1)
+		t->initial_filesystem_id = t->current_filesystem_id;
+	if (!a->traverse_mount_points) {
+		if (t->initial_filesystem_id != t->current_filesystem_id)
+			descend = 0;
+	}
+	t->descend = descend;
+
+	/*
+	 * Honor nodump flag.
+	 * If the file is marked with nodump flag, do not return this entry.
+	 */
+	if (a->honor_nodump) {
+#if defined(HAVE_STRUCT_STAT_ST_FLAGS) && defined(UF_NODUMP)
+		if (st->st_flags & UF_NODUMP)
+			return (ARCHIVE_RETRY);
+#elif defined(EXT2_IOC_GETFLAGS) && defined(EXT2_NODUMP_FL) &&\
+      defined(HAVE_WORKING_EXT2_IOC_GETFLAGS)
+		if (S_ISREG(st->st_mode) || S_ISDIR(st->st_mode)) {
+			int stflags;
+
+			t->entry_fd = open_on_current_dir(t,
+			    tree_current_access_path(t),
+			    O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+			__archive_ensure_cloexec_flag(t->entry_fd);
+			if (t->entry_fd >= 0) {
+				r = ioctl(t->entry_fd, EXT2_IOC_GETFLAGS,
+					&stflags);
+				if (r == 0 && (stflags & EXT2_NODUMP_FL) != 0)
+					return (ARCHIVE_RETRY);
+			}
+		}
+#endif
+	}
+
+	archive_entry_copy_stat(entry, st);
+
+	/* Save the times to be restored. This must be in before
+	 * calling archive_read_disk_descend() or any chance of it,
+	 * especially, invokng a callback. */
+	t->restore_time.mtime = archive_entry_mtime(entry);
+	t->restore_time.mtime_nsec = archive_entry_mtime_nsec(entry);
+	t->restore_time.atime = archive_entry_atime(entry);
+	t->restore_time.atime_nsec = archive_entry_atime_nsec(entry);
+	t->restore_time.filetype = archive_entry_filetype(entry);
+	t->restore_time.noatime = t->current_filesystem->noatime;
+
+	/*
+	 * Perform time matching.
+	 */
+	if (a->matching) {
+		r = archive_match_time_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
+	}
+
+	/* Lookup uname/gname */
+	name = archive_read_disk_uname(&(a->archive), archive_entry_uid(entry));
+	if (name != NULL)
+		archive_entry_copy_uname(entry, name);
+	name = archive_read_disk_gname(&(a->archive), archive_entry_gid(entry));
+	if (name != NULL)
+		archive_entry_copy_gname(entry, name);
+
+	/*
+	 * Perform owner matching.
+	 */
+	if (a->matching) {
+		r = archive_match_owner_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
+	}
+
+	/*
+	 * Invoke a meta data filter callback.
+	 */
+	if (a->metadata_filter_func) {
+		if (!a->metadata_filter_func(&(a->archive),
+		    a->metadata_filter_data, entry))
+			return (ARCHIVE_RETRY);
+	}
+
+	/*
+	 * Populate the archive_entry with metadata from the disk.
+	 */
+	archive_entry_copy_sourcepath(entry, tree_current_access_path(t));
+	r = archive_read_disk_entry_from_file(&(a->archive), entry,
+		t->entry_fd, st);
+
+	return (r);
 }

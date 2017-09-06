@@ -1,52 +1,43 @@
-static ssize_t
-lz4_filter_read_legacy_stream(struct archive_read_filter *self, const void **p)
+static CURLcode http_output_basic(struct connectdata *conn, bool proxy)
 {
-	struct private_data *state = (struct private_data *)self->data;
-	int compressed;
-	const char *read_buf;
-	ssize_t ret;
+  size_t size = 0;
+  char *authorization = NULL;
+  struct Curl_easy *data = conn->data;
+  char **userp;
+  const char *user;
+  const char *pwd;
+  CURLcode result;
 
-	*p = NULL;
-	ret = lz4_allocate_out_block_for_legacy(self);
-	if (ret != ARCHIVE_OK)
-		return ret;
+  if(proxy) {
+    userp = &conn->allocptr.proxyuserpwd;
+    user = conn->http_proxy.user;
+    pwd = conn->http_proxy.passwd;
+  }
+  else {
+    userp = &conn->allocptr.userpwd;
+    user = conn->user;
+    pwd = conn->passwd;
+  }
 
-	/* Make sure we have 4 bytes for a block size. */
-	read_buf = __archive_read_filter_ahead(self->upstream, 4, NULL);
-	if (read_buf == NULL) {
-		if (state->stage == SELECT_STREAM) {
-			state->stage = READ_LEGACY_STREAM;
-			archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "truncated lz4 input");
-			return (ARCHIVE_FATAL);
-		}
-		state->stage = SELECT_STREAM;
-		return 0;
-	}
-	state->stage = READ_LEGACY_BLOCK;
-	compressed = archive_le32dec(read_buf);
-	if (compressed > LZ4_COMPRESSBOUND(LEGACY_BLOCK_SIZE)) {
-		state->stage = SELECT_STREAM;
-		return 0;
-	}
+  snprintf(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
+           "%s:%s", user, pwd);
 
-	/* Make sure we have a whole block. */
-	read_buf = __archive_read_filter_ahead(self->upstream,
-	    4 + compressed, NULL);
-	if (read_buf == NULL) {
-		archive_set_error(&(self->archive->archive),
-		    ARCHIVE_ERRNO_MISC, "truncated lz4 input");
-		return (ARCHIVE_FATAL);
-	}
-	ret = LZ4_decompress_safe(read_buf + 4, state->out_block,
-	    compressed, (int)state->out_block_size);
-	if (ret < 0) {
-		archive_set_error(&(self->archive->archive),
-		    ARCHIVE_ERRNO_MISC, "lz4 decompression failed");
-		return (ARCHIVE_FATAL);
-	}
-	*p = state->out_block;
-	state->unconsumed = 4 + compressed;
-	return ret;
+  result = Curl_base64_encode(data,
+                              data->state.buffer, strlen(data->state.buffer),
+                              &authorization, &size);
+  if(result)
+    return result;
+
+  if(!authorization)
+    return CURLE_REMOTE_ACCESS_DENIED;
+
+  free(*userp);
+  *userp = aprintf("%sAuthorization: Basic %s\r\n",
+                   proxy ? "Proxy-" : "",
+                   authorization);
+  free(authorization);
+  if(!*userp)
+    return CURLE_OUT_OF_MEMORY;
+
+  return CURLE_OK;
 }

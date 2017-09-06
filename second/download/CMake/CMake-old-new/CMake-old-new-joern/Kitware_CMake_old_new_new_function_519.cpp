@@ -1,92 +1,75 @@
-static int
-init_WinZip_AES_decryption(struct archive_read *a)
+ssize_t
+archive_read_data(struct archive *_a, void *buff, size_t s)
 {
-	struct zip *zip = (struct zip *)(a->format->data);
-	const void *p;
-	const uint8_t *pv;
-	size_t key_len, salt_len;
-	uint8_t derived_key[MAX_DERIVED_KEY_BUF_SIZE];
-	int retry;
-	int r;
+	struct archive *a = (struct archive *)_a;
+	char	*dest;
+	const void *read_buf;
+	size_t	 bytes_read;
+	size_t	 len;
+	int	 r;
 
-	if (zip->cctx_valid || zip->hctx_valid)
-		return (ARCHIVE_OK);
+	bytes_read = 0;
+	dest = (char *)buff;
 
-	switch (zip->entry->aes_extra.strength) {
-	case 1: salt_len = 8;  key_len = 16; break;
-	case 2: salt_len = 12; key_len = 24; break;
-	case 3: salt_len = 16; key_len = 32; break;
-	default: goto corrupted;
-	}
-	p = __archive_read_ahead(a, salt_len + 2, NULL);
-	if (p == NULL)
-		goto truncated;
-
-	for (retry = 0;; retry++) {
-		const char *passphrase;
-
-		passphrase = __archive_read_next_passphrase(a);
-		if (passphrase == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    (retry > 0)?
-				"Incorrect passphrase":
-				"Passphrase required for this entry");
-			return (ARCHIVE_FAILED);
-		}
-		memset(derived_key, 0, sizeof(derived_key));
-		r = archive_pbkdf2_sha1(passphrase, strlen(passphrase),
-		    p, salt_len, 1000, derived_key, key_len * 2 + 2);
-		if (r != 0) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Decryption is unsupported due to lack of "
-			    "crypto library");
-			return (ARCHIVE_FAILED);
+	while (s > 0) {
+		if (a->read_data_remaining == 0) {
+			read_buf = a->read_data_block;
+			a->read_data_is_posix_read = 1;
+			a->read_data_requested = s;
+			r = archive_read_data_block(a, &read_buf,
+			    &a->read_data_remaining, &a->read_data_offset);
+			a->read_data_block = read_buf;
+			if (r == ARCHIVE_EOF)
+				return (bytes_read);
+			/*
+			 * Error codes are all negative, so the status
+			 * return here cannot be confused with a valid
+			 * byte count.  (ARCHIVE_OK is zero.)
+			 */
+			if (r < ARCHIVE_OK)
+				return (r);
 		}
 
-		/* Check password verification value. */
-		pv = ((const uint8_t *)p) + salt_len;
-		if (derived_key[key_len * 2] == pv[0] &&
-		    derived_key[key_len * 2 + 1] == pv[1])
-			break;/* The passphrase is OK. */
-		if (retry > 10000) {
-			/* Avoid infinity loop. */
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Too many incorrect passphrases");
-			return (ARCHIVE_FAILED);
+		if (a->read_data_offset < a->read_data_output_offset) {
+			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Encountered out-of-order sparse blocks");
+			return (ARCHIVE_RETRY);
+		}
+
+		/* Compute the amount of zero padding needed. */
+		if (a->read_data_output_offset + (int64_t)s <
+		    a->read_data_offset) {
+			len = s;
+		} else if (a->read_data_output_offset <
+		    a->read_data_offset) {
+			len = (size_t)(a->read_data_offset -
+			    a->read_data_output_offset);
+		} else
+			len = 0;
+
+		/* Add zeroes. */
+		memset(dest, 0, len);
+		s -= len;
+		a->read_data_output_offset += len;
+		dest += len;
+		bytes_read += len;
+
+		/* Copy data if there is any space left. */
+		if (s > 0) {
+			len = a->read_data_remaining;
+			if (len > s)
+				len = s;
+			memcpy(dest, a->read_data_block, len);
+			s -= len;
+			a->read_data_block += len;
+			a->read_data_remaining -= len;
+			a->read_data_output_offset += len;
+			a->read_data_offset += len;
+			dest += len;
+			bytes_read += len;
 		}
 	}
-
-	r = archive_decrypto_aes_ctr_init(&zip->cctx, derived_key, key_len);
-	if (r != 0) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Decryption is unsupported due to lack of crypto library");
-		return (ARCHIVE_FAILED);
-	}
-	r = archive_hmac_sha1_init(&zip->hctx, derived_key + key_len, key_len);
-	if (r != 0) {
-		archive_decrypto_aes_ctr_release(&zip->cctx);
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Failed to initialize HMAC-SHA1");
-		return (ARCHIVE_FAILED);
-	}
-	zip->cctx_valid = zip->hctx_valid = 1;
-	__archive_read_consume(a, salt_len + 2);
-	zip->entry_bytes_remaining -= salt_len + 2 + AUTH_CODE_SIZE;
-	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
-	    && zip->entry_bytes_remaining < 0)
-		goto corrupted;
-	zip->entry_compressed_bytes_read += salt_len + 2 + AUTH_CODE_SIZE;
-	zip->decrypted_bytes_remaining = 0;
-
-	zip->entry->compression = zip->entry->aes_extra.compression;
-	return (zip_alloc_decryption_buffer(a));
-
-truncated:
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-	    "Truncated ZIP file data");
-	return (ARCHIVE_FATAL);
-corrupted:
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-	    "Corrupted ZIP file data");
-	return (ARCHIVE_FATAL);
+	a->read_data_is_posix_read = 0;
+	a->read_data_requested = 0;
+	return (bytes_read);
 }

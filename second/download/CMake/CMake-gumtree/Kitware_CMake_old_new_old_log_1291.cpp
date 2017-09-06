@@ -1,1 +1,0 @@
-fprintf(stderr, "JPError: %s (%lu / Line: %d)\n", str, pos, this->CurrentLine);

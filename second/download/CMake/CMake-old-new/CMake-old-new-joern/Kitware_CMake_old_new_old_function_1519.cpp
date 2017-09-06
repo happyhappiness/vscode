@@ -1,146 +1,171 @@
-bool cmCreateTestSourceList::InitialPass(std::vector<std::string> const& argsIn)
+int cmTryCompileCommand::CoreTryCompileCode(
+  cmMakefile *mf, std::vector<std::string> const& argv, bool clean)
 {
-  if (argsIn.size() < 3)
-    {
-      this->SetError("called with wrong number of arguments.");
-      return false;
-    }
-
-  std::vector<std::string> args;
-  cmSystemTools::ExpandListArguments(argsIn, args, true);
+  // which signature were we called with ?
+  bool srcFileSignature = false;
+  unsigned int i;
   
-  std::vector<std::string>::iterator i = args.begin();
+  // where will the binaries be stored
+  const char* binaryDirectory = argv[1].c_str();
+  const char* sourceDirectory = argv[2].c_str();
+  const char* projectName = 0;
+  const char* targetName = 0;
+  std::string tmpString;
 
-  // Name of the source list
-
-  const char* sourceList = i->c_str();
-  ++i;
-
-  // Name of the test driver
-
-  std::string driver = m_Makefile->GetCurrentOutputDirectory();
-  driver += "/";
-  driver += *i;
-  driver += ".cxx";
-  ++i;
-
-  std::ofstream fout(driver.c_str());
-  if(!fout)
+  // do we have a srcfile signature
+  if (argv.size() == 3 || argv[3] == "CMAKE_FLAGS" || argv[3] == "COMPILE_DEFINITIONS" ||
+      argv[3] == "OUTPUT_VARIABLE")
     {
-    std::string err = "Could not create file ";
-    err += driver;
-    err += " for cmCreateTestSourceList command.";
-    this->SetError(err.c_str());
-    return false;
+    srcFileSignature = true;
     }
 
-  // Create the test driver file
-
-  fout << "#include <stdio.h>\n";
-  fout << "#include <string.h>\n";
-  fout << "// forward declare test functions\n";
-
-  std::vector<std::string>::iterator testsBegin = i;
-  std::vector<std::string> tests_filename;
-
-  // The rest of the arguments consist of a list of test source files.
-  // Sadly, they can be in directories. Let's modify each arg to get
-  // a unique function name for the corresponding test, and push the 
-  // real source filename to the tests_filename var (used at the end). 
-  // For the moment:
-  //   - replace spaces ' ', ':' and '/' with underscores '_'
-
-  for(i = testsBegin; i != args.end(); ++i)
+  // look for CMAKE_FLAGS and store them
+  std::vector<std::string> cmakeFlags;
+  for (i = 3; i < argv.size(); ++i)
     {
-    tests_filename.push_back(*i);
-    cmSystemTools::ConvertToUnixSlashes(*i);
-    cmSystemTools::ReplaceString(*i, " ", "_");
-    cmSystemTools::ReplaceString(*i, "/", "_");
-    cmSystemTools::ReplaceString(*i, ":", "_");
-    fout << "int " << *i << "(int, char**);\n";
+    if (argv[i] == "CMAKE_FLAGS")
+      {
+      for (; i < argv.size() && argv[i] != "COMPILE_DEFINITIONS" && 
+             argv[i] != "OUTPUT_VARIABLE"; 
+           ++i)
+        {
+        cmakeFlags.push_back(argv[i]);
+        }
+      break;
+      }
     }
 
-  fout << "// Create map \n";
-  fout << "typedef int (*MainFuncPointer)(int , char**);\n";
-  fout << "struct functionMapEntry\n"
-       << "{\n"
-       << "const char* name;\n"
-       << "MainFuncPointer func;\n"
-       << "};\n\n";
-  fout << "functionMapEntry cmakeGeneratedFunctionMapEntries[] = {\n";
-
-  int numTests = 0;
-  for(i = testsBegin; i != args.end(); ++i)
+  // look for OUTPUT_VARIABLE and store them
+  std::string outputVariable;
+  for (i = 3; i < argv.size(); ++i)
     {
-    fout << "{\"" << *i << "\", " << *i << "},\n";
-    numTests++;
+    if (argv[i] == "OUTPUT_VARIABLE")
+      {
+      if ( argv.size() <= (i+1) )
+        {
+        cmSystemTools::Error(
+          "OUTPUT_VARIABLE specified but there is no variable");
+        return -1;
+        }
+      outputVariable = argv[i+1];
+      break;
+      }
     }
 
-  fout << "};\n";
-  fout << "int main(int ac, char** av)\n"
-       << "{\n";
-  fout << "  int NumTests = " << numTests << ";\n";
-  fout << "  int i;\n";
-  fout << "  if(ac < 2)\n";
-  fout << "    {\n";
-  fout << "    // if there is only one test, then run it with the arguments\n";
-  fout << "    if(NumTests == 1)\n";
-  fout << "      { return (*cmakeGeneratedFunctionMapEntries[0].func)(ac, av); }\n";
-  fout << "    printf(\"Available tests:\\n\");\n";
-  fout << "    for(i =0; i < NumTests; ++i)\n";
-  fout << "      {\n";
-  fout << "      printf(\"%d. %s\\n\", i, cmakeGeneratedFunctionMapEntries[i].name);\n";
-  fout << "      }\n";
-  fout << "    printf(\"To run a test, enter the test number: \");\n";
-  fout << "    int testNum = 0;\n";
-  fout << "    scanf(\"%d\", &testNum);\n";
-  fout << "    if(testNum >= NumTests)\n";
-  fout << "    {\n";
-  fout << "    printf(\"%d is an invalid test number.\\n\", testNum);\n";
-  fout << "    return -1;\n";
-  fout << "    }\n";
-  fout << "    return (*cmakeGeneratedFunctionMapEntries[testNum].func)(ac-1, av+1);\n";
-  fout << "    }\n";
-  fout << "  for(i =0; i < NumTests; ++i)\n";
-  fout << "    {\n";
-  fout << "    if(strcmp(cmakeGeneratedFunctionMapEntries[i].name, av[1]) == 0)\n";
-  fout << "      {\n";
-  fout << "      return (*cmakeGeneratedFunctionMapEntries[i].func)(ac-1, av+1);\n";
-  fout << "      }\n";
-  fout << "    }\n";
-  fout << "  // if there is only one test, then run it with the arguments\n";
-  fout << "  if(NumTests == 1)\n";
-  fout << "    { return (*cmakeGeneratedFunctionMapEntries[0].func)(ac, av); }\n";
-  fout << "  printf(\"Available tests:\\n\");\n";
-  fout << "  for(i =0; i < NumTests; ++i)\n";
-  fout << "    {\n";
-  fout << "    printf(\"%d. %s\\n\", i, cmakeGeneratedFunctionMapEntries[i].name);\n";
-  fout << "    }\n";
-  fout << "  printf(\"Failed: %s is an invalid test name.\\n\", av[1]);\n";
-  fout << "  return -1;\n";
-  fout << "}\n";
-  fout.close();
+  // look for COMPILE_DEFINITIONS and store them
+  std::vector<std::string> compileFlags;
+  for (i = 3; i < argv.size(); ++i)
+    {
+    if (argv[i] == "COMPILE_DEFINITIONS")
+      {
+      // only valid for srcfile signatures
+      if (!srcFileSignature)
+        {
+        cmSystemTools::Error(
+          "COMPILE_FLAGS specified on a srcdir type TRY_COMPILE");
+        return -1;
+        }
+      for (i = i + 1; i < argv.size() && argv[i] != "CMAKE_FLAGS" && 
+             argv[i] != "OUTPUT_VARIABLE"; 
+           ++i)
+        {
+        compileFlags.push_back(argv[i]);
+        }
+      break;
+      }
+    }
 
-  // Create the source list
-
-  cmSourceFile cfile;
-  cfile.SetIsAnAbstractClass(false);
-  cfile.SetName(args[1].c_str(), 
-                m_Makefile->GetCurrentOutputDirectory(),
-                "cxx", 
-                false);
-  m_Makefile->AddSource(cfile, sourceList);
+  // compute the binary dir when TRY_COMPILE is called with a src file
+  // signature
+  if (srcFileSignature)
+    {
+    tmpString = argv[1] + "/CMakeTmp";
+    binaryDirectory = tmpString.c_str();
+    }
+  // make sure the binary directory exists
+  cmSystemTools::MakeDirectory(binaryDirectory);
   
-  for(i = tests_filename.begin(); i != tests_filename.end(); ++i)
+  // do not allow recursive try Compiles
+  if (!strcmp(binaryDirectory,mf->GetHomeOutputDirectory()))
     {
-    cmSourceFile cfile;
-    cfile.SetIsAnAbstractClass(false);
-    cfile.SetName(i->c_str(), 
-                  m_Makefile->GetCurrentDirectory(),
-                  "cxx", 
-                  false);
-    m_Makefile->AddSource(cfile, sourceList);
+    cmSystemTools::Error("Attempt at a recursive or nested TRY_COMPILE", 
+                         binaryDirectory);
+    return -1;
     }
+  
+  std::string outFileName = tmpString + "/CMakeLists.txt";
+  // which signature are we using? If we are using var srcfile bindir
+  if (srcFileSignature)
+    {
+    // remove any CMakeCache.txt files so we will have a clean test
+    std::string ccFile = tmpString + "/CMakeCache.txt";
+    cmSystemTools::RemoveFile(ccFile.c_str());
+    
+    // we need to create a directory and CMakeList file etc...
+    // first create the directories
+    sourceDirectory = binaryDirectory;
 
-  return true;
+    // now create a CMakeList.txt file in that directory
+    FILE *fout = fopen(outFileName.c_str(),"w");
+    if (!fout)
+      {
+      cmSystemTools::Error("Failed to create CMakeList file for ", 
+                           outFileName.c_str());
+      return -1;
+      }
+    fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE)\n");
+    fprintf(fout, "IF (CMAKE_ANSI_CXXFLAGS)\n");
+    fprintf(fout, "  SET(CMAKE_CXX_FLAGS \"${CMAKE_CXX_FLAGS} ${CMAKE_ANSI_CXXFLAGS}\")\n");
+    fprintf(fout, "  SET(CMAKE_C_FLAGS \"${CMAKE_C_FLAGS} ${CMAKE_ANSI_CFLAGS}\")\n");
+    fprintf(fout, "ENDIF (CMAKE_ANSI_CXXFLAGS)\n");
+    // handle any compile flags we need to pass on
+    if (compileFlags.size())
+      {
+      fprintf(fout, "ADD_DEFINITIONS( ");
+      for (i = 0; i < compileFlags.size(); ++i)
+        {
+        fprintf(fout,"%s ",compileFlags[i].c_str());
+        }
+      fprintf(fout, ")\n");
+      }
+    
+    fprintf(fout, "ADD_EXECUTABLE(cmTryCompileExec \"%s\")\n",argv[2].c_str());
+    fclose(fout);
+    projectName = "CMAKE_TRY_COMPILE";
+    targetName = "cmTryCompileExec";
+    }
+  // else the srcdir bindir project target signature
+  else
+    {
+    projectName = argv[3].c_str();
+    
+    if (argv.size() == 5)
+      {
+      targetName = argv[4].c_str();
+      }
+    }
+  
+  std::string output;
+  // actually do the try compile now that everything is setup
+  int res = mf->TryCompile(sourceDirectory, binaryDirectory,
+                           projectName, targetName, &cmakeFlags, &output);
+  
+  // set the result var to the return value to indicate success or failure
+  mf->AddCacheDefinition(argv[0].c_str(), (res == 0 ? "TRUE" : "FALSE"),
+                         "Result of TRY_COMPILE",
+                         cmCacheManager::INTERNAL);
+
+  if ( outputVariable.size() > 0 )
+    {
+    mf->AddDefinition(outputVariable.c_str(), output.c_str());
+    }
+  
+  // if They specified clean then we clean up what we can
+  if (srcFileSignature && clean)
+    {    
+    cmListFileCache::GetInstance()->FlushCache(outFileName.c_str());
+    cmTryCompileCommand::CleanupFiles(binaryDirectory);
+    }
+  
+  return res;
 }

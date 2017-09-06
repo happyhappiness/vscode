@@ -1,7 +1,2 @@
-"      printf(\"%3d. %s\\n\", i, cmakeGeneratedFunctionMapEntries[i].name);\n"
-    "      }\n"
-    "    printf(\"To run a test, enter the test number: \");\n"
-    "    int testNum = 0;\n"
-    "    scanf(\"%d\", &testNum);\n"
-    "    if (testNum >= NumTests)\n"
-    "      {\n";
+fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
+              percent, int(failed.size()), total);

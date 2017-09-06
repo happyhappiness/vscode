@@ -1,2 +1,1 @@
-sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
-            cmVersion::GetMinorVersion());
+sprintf(buffer, "&lt;%d&gt;", (int)ch);

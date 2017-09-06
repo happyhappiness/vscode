@@ -1,81 +1,64 @@
-int
-setup_xattrs(struct archive_read_disk *a,
-    struct archive_entry *entry, int *fd)
+CURLcode Curl_open(struct Curl_easy **curl)
 {
-	char buff[512];
-	char *list, *p;
-	ssize_t list_size;
-	const char *path;
-	int namespace = EXTATTR_NAMESPACE_USER;
+  CURLcode result;
+  struct Curl_easy *data;
 
-	path = archive_entry_sourcepath(entry);
-	if (path == NULL)
-		path = archive_entry_pathname(entry);
+  /* Very simple start-up: alloc the struct, init it with zeroes and return */
+  data = calloc(1, sizeof(struct Curl_easy));
+  if(!data) {
+    /* this is a very serious error */
+    DEBUGF(fprintf(stderr, "Error: calloc of Curl_easy failed\n"));
+    return CURLE_OUT_OF_MEMORY;
+  }
 
-	if (*fd < 0 && a->tree != NULL) {
-		if (a->follow_symlinks ||
-		    archive_entry_filetype(entry) != AE_IFLNK)
-			*fd = a->open_on_current_dir(a->tree, path,
-				O_RDONLY | O_NONBLOCK);
-		if (*fd < 0) {
-			if (a->tree_enter_working_dir(a->tree) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Couldn't access %s", path);
-				return (ARCHIVE_FAILED);
-			}
-		}
-	}
+  data->magic = CURLEASY_MAGIC_NUMBER;
 
-	if (*fd >= 0)
-		list_size = extattr_list_fd(*fd, namespace, NULL, 0);
-	else if (!a->follow_symlinks)
-		list_size = extattr_list_link(path, namespace, NULL, 0);
-	else
-		list_size = extattr_list_file(path, namespace, NULL, 0);
+  result = Curl_resolver_init(&data->state.resolver);
+  if(result) {
+    DEBUGF(fprintf(stderr, "Error: resolver_init failed\n"));
+    free(data);
+    return result;
+  }
 
-	if (list_size == -1 && errno == EOPNOTSUPP)
-		return (ARCHIVE_OK);
-	if (list_size == -1) {
-		archive_set_error(&a->archive, errno,
-			"Couldn't list extended attributes");
-		return (ARCHIVE_WARN);
-	}
+  /* We do some initial setup here, all those fields that can't be just 0 */
 
-	if (list_size == 0)
-		return (ARCHIVE_OK);
+  data->state.headerbuff = malloc(HEADERSIZE);
+  if(!data->state.headerbuff) {
+    DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"));
+    result = CURLE_OUT_OF_MEMORY;
+  }
+  else {
+    result = Curl_init_userdefined(&data->set);
 
-	if ((list = malloc(list_size)) == NULL) {
-		archive_set_error(&a->archive, errno, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
+    data->state.headersize=HEADERSIZE;
 
-	if (*fd >= 0)
-		list_size = extattr_list_fd(*fd, namespace, list, list_size);
-	else if (!a->follow_symlinks)
-		list_size = extattr_list_link(path, namespace, list, list_size);
-	else
-		list_size = extattr_list_file(path, namespace, list, list_size);
+    Curl_convert_init(data);
 
-	if (list_size == -1) {
-		archive_set_error(&a->archive, errno,
-			"Couldn't retrieve extended attributes");
-		free(list);
-		return (ARCHIVE_WARN);
-	}
+    Curl_initinfo(data);
 
-	p = list;
-	while ((p - list) < list_size) {
-		size_t len = 255 & (int)*p;
-		char *name;
+    /* most recent connection is not yet defined */
+    data->state.lastconnect = NULL;
 
-		strcpy(buff, "user.");
-		name = buff + strlen(buff);
-		memcpy(name, p + 1, len);
-		name[len] = '\0';
-		setup_xattr(a, entry, namespace, name, buff, *fd);
-		p += 1 + len;
-	}
+    data->progress.flags |= PGRS_HIDE;
+    data->state.current_speed = -1; /* init to negative == impossible */
 
-	free(list);
-	return (ARCHIVE_OK);
+    data->wildcard.state = CURLWC_INIT;
+    data->wildcard.filelist = NULL;
+    data->set.fnmatch = ZERO_NULL;
+    data->set.maxconnects = DEFAULT_CONNCACHE_SIZE; /* for easy handles */
+
+    Curl_http2_init_state(&data->state);
+  }
+
+  if(result) {
+    Curl_resolver_cleanup(data->state.resolver);
+    free(data->state.headerbuff);
+    Curl_freeset(data);
+    free(data);
+    data = NULL;
+  }
+  else
+    *curl = data;
+
+  return result;
 }

@@ -1,1 +1,1 @@
-fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
+archive_set_error(&a->archive, ENOMEM, "Couldn't allocate memory.");

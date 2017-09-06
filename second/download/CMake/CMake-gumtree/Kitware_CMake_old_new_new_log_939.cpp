@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate memory for Symlink");
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external bzip2 program");

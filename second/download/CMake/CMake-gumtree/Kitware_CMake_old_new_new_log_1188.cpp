@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_REQUEST_NONNT_SESSION_KEY ");
+printf("failed; %s\n", Curl_strerror(conn, Curl_sockerrno()));

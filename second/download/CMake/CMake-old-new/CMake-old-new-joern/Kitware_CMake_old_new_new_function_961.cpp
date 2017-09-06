@@ -1,450 +1,433 @@
-int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
+static int
+read_header(struct archive_read *a, struct archive_entry *entry,
+            char head_type)
 {
-  this->BinaryDirectory = argv[1].c_str();
-  this->OutputFile = "";
-  // which signature were we called with ?
-  this->SrcFileSignature = true;
+  const void *h;
+  const char *p, *endp;
+  struct rar *rar;
+  struct rar_header rar_header;
+  struct rar_file_header file_header;
+  int64_t header_size;
+  unsigned filename_size, end;
+  char *filename;
+  char *strp;
+  char packed_size[8];
+  char unp_size[8];
+  int ttime;
+  struct archive_string_conv *sconv, *fn_sconv;
+  unsigned long crc32_val;
+  int ret = (ARCHIVE_OK), ret2;
 
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  const char* targetName = 0;
-  std::vector<std::string> cmakeFlags;
-  std::vector<std::string> compileDefs;
-  std::string outputVariable;
-  std::string copyFile;
-  std::vector<cmTarget*> targets;
-  std::string libsToLink = " ";
-  bool useOldLinkLibs = true;
-  char targetNameBuf[64];
-  bool didOutputVariable = false;
-  bool didCopyFile = false;
-  bool useSources = argv[2] == "SOURCES";
-  std::vector<std::string> sources;
+  rar = (struct rar *)(a->format->data);
 
-  enum Doing { DoingNone, DoingCMakeFlags, DoingCompileDefinitions,
-               DoingLinkLibraries, DoingOutputVariable, DoingCopyFile,
-               DoingSources };
-  Doing doing = useSources? DoingSources : DoingNone;
-  for(size_t i=3; i < argv.size(); ++i)
-    {
-    if(argv[i] == "CMAKE_FLAGS")
-      {
-      doing = DoingCMakeFlags;
-      // CMAKE_FLAGS is the first argument because we need an argv[0] that
-      // is not used, so it matches regular command line parsing which has
-      // the program name as arg 0
-      cmakeFlags.push_back(argv[i]);
-      }
-    else if(argv[i] == "COMPILE_DEFINITIONS")
-      {
-      doing = DoingCompileDefinitions;
-      }
-    else if(argv[i] == "LINK_LIBRARIES")
-      {
-      doing = DoingLinkLibraries;
-      useOldLinkLibs = false;
-      }
-    else if(argv[i] == "OUTPUT_VARIABLE")
-      {
-      doing = DoingOutputVariable;
-      didOutputVariable = true;
-      }
-    else if(argv[i] == "COPY_FILE")
-      {
-      doing = DoingCopyFile;
-      didCopyFile = true;
-      }
-    else if(doing == DoingCMakeFlags)
-      {
-      cmakeFlags.push_back(argv[i]);
-      }
-    else if(doing == DoingCompileDefinitions)
-      {
-      compileDefs.push_back(argv[i]);
-      }
-    else if(doing == DoingLinkLibraries)
-      {
-      libsToLink += "\"" + cmSystemTools::TrimWhitespace(argv[i]) + "\" ";
-      if(cmTarget *tgt = this->Makefile->FindTargetToUse(argv[i].c_str()))
-        {
-        switch(tgt->GetType())
-          {
-          case cmTarget::SHARED_LIBRARY:
-          case cmTarget::STATIC_LIBRARY:
-          case cmTarget::UNKNOWN_LIBRARY:
-            break;
-          case cmTarget::EXECUTABLE:
-            if (tgt->IsExecutableWithExports())
-              {
-              break;
-              }
-          default:
-            this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-              "Only libraries may be used as try_compile IMPORTED "
-              "LINK_LIBRARIES.  Got " + std::string(tgt->GetName()) + " of "
-              "type " + tgt->GetTargetTypeName(tgt->GetType()) + ".");
-            return -1;
-          }
-        if (tgt->IsImported())
-          {
-          targets.push_back(tgt);
-          }
-        }
-      }
-    else if(doing == DoingOutputVariable)
-      {
-      outputVariable = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingCopyFile)
-      {
-      copyFile = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingSources)
-      {
-      sources.push_back(argv[i]);
-      }
-    else if(i == 3)
-      {
-      this->SrcFileSignature = false;
-      projectName = argv[i].c_str();
-      }
-    else if(i == 4 && !this->SrcFileSignature)
-      {
-      targetName = argv[i].c_str();
-      }
-    else
-      {
-      cmOStringStream m;
-      m << "try_compile given unknown argument \"" << argv[i] << "\".";
-      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, m.str());
-      }
+  /* Setup a string conversion object for non-rar-unicode filenames. */
+  sconv = rar->opt_sconv;
+  if (sconv == NULL) {
+    if (!rar->init_default_conversion) {
+      rar->sconv_default =
+          archive_string_default_conversion_for_read(
+            &(a->archive));
+      rar->init_default_conversion = 1;
     }
+    sconv = rar->sconv_default;
+  }
 
-  if(didCopyFile && copyFile.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE must be followed by a file path");
-    return -1;
-    }
 
-  if(didOutputVariable && outputVariable.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "OUTPUT_VARIABLE must be followed by a variable name");
-    return -1;
-    }
+  if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
+    return (ARCHIVE_FATAL);
+  p = h;
+  memcpy(&rar_header, p, sizeof(rar_header));
+  rar->file_flags = archive_le16dec(rar_header.flags);
+  header_size = archive_le16dec(rar_header.size);
+  if (header_size < (int64_t)sizeof(file_header) + 7) {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+      "Invalid header size");
+    return (ARCHIVE_FATAL);
+  }
+  crc32_val = crc32(0, (const unsigned char *)p + 2, 7 - 2);
+  __archive_read_consume(a, 7);
 
-  if(useSources && sources.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "SOURCES must be followed by at least one source file");
-    return -1;
-    }
-
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (this->SrcFileSignature)
-    {
-    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
-    this->BinaryDirectory += "/CMakeTmp";
-    }
+  if (!(rar->file_flags & FHD_SOLID))
+  {
+    rar->compression_method = 0;
+    rar->packed_size = 0;
+    rar->unp_size = 0;
+    rar->mtime = 0;
+    rar->ctime = 0;
+    rar->atime = 0;
+    rar->arctime = 0;
+    rar->mode = 0;
+    memset(&rar->salt, 0, sizeof(rar->salt));
+    rar->atime = 0;
+    rar->ansec = 0;
+    rar->ctime = 0;
+    rar->cnsec = 0;
+    rar->mtime = 0;
+    rar->mnsec = 0;
+    rar->arctime = 0;
+    rar->arcnsec = 0;
+  }
   else
-    {
-    // only valid for srcfile signatures
-    if (compileDefs.size())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    if (copyFile.size())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COPY_FILE specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
+  {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "RAR solid archive support unavailable.");
+    return (ARCHIVE_FATAL);
+  }
+
+  if ((h = __archive_read_ahead(a, (size_t)header_size - 7, NULL)) == NULL)
+    return (ARCHIVE_FATAL);
+
+  /* File Header CRC check. */
+  crc32_val = crc32(crc32_val, h, (unsigned)(header_size - 7));
+  if ((crc32_val & 0xffff) != archive_le16dec(rar_header.crc)) {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+      "Header CRC error");
+    return (ARCHIVE_FATAL);
+  }
+  /* If no CRC error, Go on parsing File Header. */
+  p = h;
+  endp = p + header_size - 7;
+  memcpy(&file_header, p, sizeof(file_header));
+  p += sizeof(file_header);
+
+  rar->compression_method = file_header.method;
+
+  ttime = archive_le32dec(file_header.file_time);
+  rar->mtime = get_time(ttime);
+
+  rar->file_crc = archive_le32dec(file_header.file_crc);
+
+  if (rar->file_flags & FHD_PASSWORD)
+  {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "RAR encryption support unavailable.");
+    return (ARCHIVE_FATAL);
+  }
+
+  if (rar->file_flags & FHD_LARGE)
+  {
+    memcpy(packed_size, file_header.pack_size, 4);
+    memcpy(packed_size + 4, p, 4); /* High pack size */
+    p += 4;
+    memcpy(unp_size, file_header.unp_size, 4);
+    memcpy(unp_size + 4, p, 4); /* High unpack size */
+    p += 4;
+    rar->packed_size = archive_le64dec(&packed_size);
+    rar->unp_size = archive_le64dec(&unp_size);
+  }
+  else
+  {
+    rar->packed_size = archive_le32dec(file_header.pack_size);
+    rar->unp_size = archive_le32dec(file_header.unp_size);
+  }
+
+  if (rar->packed_size < 0 || rar->unp_size < 0)
+  {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Invalid sizes specified.");
+    return (ARCHIVE_FATAL);
+  }
+
+  rar->bytes_remaining = rar->packed_size;
+
+  /* TODO: RARv3 subblocks contain comments. For now the complete block is
+   * consumed at the end.
+   */
+  if (head_type == NEWSUB_HEAD) {
+    size_t distance = p - (const char *)h;
+    header_size += rar->packed_size;
+    /* Make sure we have the extended data. */
+    if ((h = __archive_read_ahead(a, (size_t)header_size - 7, NULL)) == NULL)
+        return (ARCHIVE_FATAL);
+    p = h;
+    endp = p + header_size - 7;
+    p += distance;
+  }
+
+  filename_size = archive_le16dec(file_header.name_size);
+  if (p + filename_size > endp) {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+      "Invalid filename size");
+    return (ARCHIVE_FATAL);
+  }
+  if (rar->filename_allocated < filename_size * 2 + 2) {
+    char *newptr;
+    size_t newsize = filename_size * 2 + 2;
+    newptr = realloc(rar->filename, newsize);
+    if (newptr == NULL) {
+      archive_set_error(&a->archive, ENOMEM,
+                        "Couldn't allocate memory.");
+      return (ARCHIVE_FATAL);
     }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
-
-  // do not allow recursive try Compiles
-  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory())
+    rar->filename = newptr;
+    rar->filename_allocated = newsize;
+  }
+  filename = rar->filename;
+  memcpy(filename, p, filename_size);
+  filename[filename_size] = '\0';
+  if (rar->file_flags & FHD_UNICODE)
+  {
+    if (filename_size != strlen(filename))
     {
-    cmOStringStream e;
-    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
-      << "  " << this->BinaryDirectory << "\n";
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-    return -1;
-    }
+      unsigned char highbyte, flagbits, flagbyte;
+      unsigned fn_end, offset;
 
-  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (this->SrcFileSignature)
-    {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile.c_str());
-
-    // Choose sources.
-    if(!useSources)
+      end = filename_size;
+      fn_end = filename_size * 2;
+      filename_size = 0;
+      offset = (unsigned)strlen(filename) + 1;
+      highbyte = *(p + offset++);
+      flagbits = 0;
+      flagbyte = 0;
+      while (offset < end && filename_size < fn_end)
       {
-      sources.push_back(argv[2]);
-      }
-
-    // Detect languages to enable.
-    cmGlobalGenerator* gg =
-      this->Makefile->GetCMakeInstance()->GetGlobalGenerator();
-    std::set<std::string> testLangs;
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
-      std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
-      if(const char* lang = gg->GetLanguageFromExtension(ext.c_str()))
+        if (!flagbits)
         {
-        testLangs.insert(lang);
+          flagbyte = *(p + offset++);
+          flagbits = 8;
         }
-      else
+	
+        flagbits -= 2;
+        switch((flagbyte >> flagbits) & 3)
         {
-        cmOStringStream err;
-        err << "Unknown extension \"" << ext << "\" for file\n"
-            << "  " << *si << "\n"
-            << "try_compile() works only for enabled languages.  "
-            << "Currently these are:\n ";
-        std::vector<std::string> langs;
-        gg->GetEnabledLanguages(langs);
-        for(std::vector<std::string>::iterator l = langs.begin();
-            l != langs.end(); ++l)
+          case 0:
+            filename[filename_size++] = '\0';
+            filename[filename_size++] = *(p + offset++);
+            break;
+          case 1:
+            filename[filename_size++] = highbyte;
+            filename[filename_size++] = *(p + offset++);
+            break;
+          case 2:
+            filename[filename_size++] = *(p + offset + 1);
+            filename[filename_size++] = *(p + offset);
+            offset += 2;
+            break;
+          case 3:
           {
-          err << " " << *l;
+            char extra, high;
+            uint8_t length = *(p + offset++);
+
+            if (length & 0x80) {
+              extra = *(p + offset++);
+              high = (char)highbyte;
+            } else
+              extra = high = 0;
+            length = (length & 0x7f) + 2;
+            while (length && filename_size < fn_end) {
+              unsigned cp = filename_size >> 1;
+              filename[filename_size++] = high;
+              filename[filename_size++] = p[cp] + extra;
+              length--;
+            }
           }
-        err << "\nSee project() command to enable other languages.";
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
-        return -1;
+          break;
         }
       }
+      if (filename_size > fn_end) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid filename");
+        return (ARCHIVE_FATAL);
+      }
+      filename[filename_size++] = '\0';
+      filename[filename_size++] = '\0';
 
-    // we need to create a directory and CMakeLists file etc...
-    // first create the directories
-    sourceDirectory = this->BinaryDirectory.c_str();
+      /* Decoded unicode form is UTF-16BE, so we have to update a string
+       * conversion object for it. */
+      if (rar->sconv_utf16be == NULL) {
+        rar->sconv_utf16be = archive_string_conversion_from_charset(
+           &a->archive, "UTF-16BE", 1);
+        if (rar->sconv_utf16be == NULL)
+          return (ARCHIVE_FATAL);
+      }
+      fn_sconv = rar->sconv_utf16be;
 
-    // now create a CMakeLists.txt file in that directory
-    FILE *fout = fopen(outFileName.c_str(),"w");
-    if (!fout)
+      strp = filename;
+      while (memcmp(strp, "\x00\x00", 2))
       {
-      cmOStringStream e;
-      e << "Failed to open\n"
-        << "  " << outFileName.c_str() << "\n"
-        << cmSystemTools::GetLastSystemError();
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-      return -1;
+        if (!memcmp(strp, "\x00\\", 2))
+          *(strp + 1) = '/';
+        strp += 2;
       }
+      p += offset;
+    } else {
+      /*
+       * If FHD_UNICODE is set but no unicode data, this file name form
+       * is UTF-8, so we have to update a string conversion object for
+       * it accordingly.
+       */
+      if (rar->sconv_utf8 == NULL) {
+        rar->sconv_utf8 = archive_string_conversion_from_charset(
+           &a->archive, "UTF-8", 1);
+        if (rar->sconv_utf8 == NULL)
+          return (ARCHIVE_FATAL);
+      }
+      fn_sconv = rar->sconv_utf8;
+      while ((strp = strchr(filename, '\\')) != NULL)
+        *strp = '/';
+      p += filename_size;
+    }
+  }
+  else
+  {
+    fn_sconv = sconv;
+    while ((strp = strchr(filename, '\\')) != NULL)
+      *strp = '/';
+    p += filename_size;
+  }
 
-    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
-    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
-            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
-            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
-    if(def)
+  /* Split file in multivolume RAR. No more need to process header. */
+  if (rar->filename_save &&
+    !memcmp(rar->filename, rar->filename_save, filename_size + 1))
+  {
+    __archive_read_consume(a, header_size - 7);
+    rar->cursor++;
+    if (rar->cursor >= rar->nodes)
+    {
+      rar->nodes++;
+      if ((rar->dbo =
+        realloc(rar->dbo, sizeof(*rar->dbo) * rar->nodes)) == NULL)
       {
-      fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
+        archive_set_error(&a->archive, ENOMEM, "Couldn't allocate memory.");
+        return (ARCHIVE_FATAL);
       }
+      rar->dbo[rar->cursor].header_size = header_size;
+      rar->dbo[rar->cursor].start_offset = -1;
+      rar->dbo[rar->cursor].end_offset = -1;
+    }
+    if (rar->dbo[rar->cursor].start_offset < 0)
+    {
+      rar->dbo[rar->cursor].start_offset = a->filter->position;
+      rar->dbo[rar->cursor].end_offset = rar->dbo[rar->cursor].start_offset +
+        rar->packed_size;
+    }
+    return ret;
+  }
 
-    std::string projectLangs;
-    for(std::set<std::string>::iterator li = testLangs.begin();
-        li != testLangs.end(); ++li)
-      {
-      projectLangs += " " + *li;
-      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
-      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
-      if(const char* rulesOverridePath =
-         this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
-        {
-        fprintf(fout, "SET(%s \"%s\")\n",
-                rulesOverrideLang.c_str(), rulesOverridePath);
-        }
-      else if(const char* rulesOverridePath2 =
-              this->Makefile->GetDefinition(rulesOverrideBase.c_str()))
-        {
-        fprintf(fout, "SET(%s \"%s\")\n",
-                rulesOverrideBase.c_str(), rulesOverridePath2);
-        }
-      }
-    fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
-    fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");
-    for(std::set<std::string>::iterator li = testLangs.begin();
-        li != testLangs.end(); ++li)
-      {
-      fprintf(fout, "SET(CMAKE_%s_FLAGS \"", li->c_str());
-      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
-      if(const char* flags = this->Makefile->GetDefinition(langFlags.c_str()))
-        {
-        fprintf(fout, " %s ", flags);
-        }
-      fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
-      }
-    fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "SET(CMAKE_SUPPRESS_REGENERATION 1)\n");
-    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (compileDefs.size())
-      {
-      fprintf(fout, "ADD_DEFINITIONS( ");
-      for (size_t i = 0; i < compileDefs.size(); ++i)
-        {
-        fprintf(fout,"%s ",compileDefs[i].c_str());
-        }
-      fprintf(fout, ")\n");
-      }
+  rar->filename_save = (char*)realloc(rar->filename_save,
+                                      filename_size + 1);
+  memcpy(rar->filename_save, rar->filename, filename_size + 1);
 
-    /* Use a random file name to avoid rapid creation and deletion
-       of the same executable name (some filesystems fail on that).  */
-    sprintf(targetNameBuf, "cmTryCompileExec%u",
-            cmSystemTools::RandomSeed());
-    targetName = targetNameBuf;
+  /* Set info for seeking */
+  free(rar->dbo);
+  if ((rar->dbo = calloc(1, sizeof(*rar->dbo))) == NULL)
+  {
+    archive_set_error(&a->archive, ENOMEM, "Couldn't allocate memory.");
+    return (ARCHIVE_FATAL);
+  }
+  rar->dbo[0].header_size = header_size;
+  rar->dbo[0].start_offset = -1;
+  rar->dbo[0].end_offset = -1;
+  rar->cursor = 0;
+  rar->nodes = 1;
 
-    if (!targets.empty())
-      {
-      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
-      cmExportTryCompileFileGenerator tcfg;
-      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
-      tcfg.SetExports(targets);
-      tcfg.SetConfig(this->Makefile->GetDefinition(
-                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
+  if (rar->file_flags & FHD_SALT)
+  {
+    if (p + 8 > endp) {
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+        "Invalid header size");
+      return (ARCHIVE_FATAL);
+    }
+    memcpy(rar->salt, p, 8);
+    p += 8;
+  }
 
-      if(!tcfg.GenerateImportFile())
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-                                     "could not write export file.");
-        fclose(fout);
-        return -1;
-        }
-      fprintf(fout,
-              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
-              fname.c_str());
-      }
+  if (rar->file_flags & FHD_EXTTIME) {
+    if (read_exttime(p, rar, endp) < 0) {
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+        "Invalid header size");
+      return (ARCHIVE_FATAL);
+    }
+  }
 
-    /* for the TRY_COMPILEs we want to be able to specify the architecture.
-      So the user can set CMAKE_OSX_ARCHITECTURE to i386;ppc and then set
-      CMAKE_TRY_COMPILE_OSX_ARCHITECTURE first to i386 and then to ppc to
-      have the tests run for each specific architecture. Since
-      cmLocalGenerator doesn't allow building for "the other"
-      architecture only via CMAKE_OSX_ARCHITECTURES.
-      */
-    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition(
-                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_SYSROOT=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
-      cmakeFlags.push_back(flag);
-      }
-    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
-      {
-      fprintf(fout, "SET(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
-      }
+  __archive_read_consume(a, header_size - 7);
+  rar->dbo[0].start_offset = a->filter->position;
+  rar->dbo[0].end_offset = rar->dbo[0].start_offset + rar->packed_size;
 
-    /* Put the executable at a known location (for COPY_FILE).  */
-    fprintf(fout, "SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-            this->BinaryDirectory.c_str());
-    /* Create the actual executable.  */
-    fprintf(fout, "ADD_EXECUTABLE(%s", targetName);
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
-      fprintf(fout, " \"%s\"", si->c_str());
-
-      // Add dependencies on any non-temporary sources.
-      if(si->find("CMakeTmp") == si->npos)
-        {
-        this->Makefile->AddCMakeDependFile(si->c_str());
-        }
-      }
-    fprintf(fout, ")\n");
-    if (useOldLinkLibs)
-      {
-      fprintf(fout,
-              "TARGET_LINK_LIBRARIES(%s ${LINK_LIBRARIES})\n",targetName);
-      }
+  switch(file_header.host_os)
+  {
+  case OS_MSDOS:
+  case OS_OS2:
+  case OS_WIN32:
+    rar->mode = archive_le32dec(file_header.file_attr);
+    if (rar->mode & FILE_ATTRIBUTE_DIRECTORY)
+      rar->mode = AE_IFDIR | S_IXUSR | S_IXGRP | S_IXOTH;
     else
-      {
-      fprintf(fout, "TARGET_LINK_LIBRARIES(%s %s)\n",
-              targetName,
-              libsToLink.c_str());
-      }
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
-    }
+      rar->mode = AE_IFREG;
+    rar->mode |= S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    break;
 
-  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
-  cmSystemTools::ResetErrorOccuredFlag();
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = this->Makefile->TryCompile(sourceDirectory,
-                                       this->BinaryDirectory.c_str(),
-                                       projectName,
-                                       targetName,
-                                       this->SrcFileSignature,
-                                       &cmakeFlags,
-                                       &output);
-  if ( erroroc )
+  case OS_UNIX:
+  case OS_MAC_OS:
+  case OS_BEOS:
+    rar->mode = archive_le32dec(file_header.file_attr);
+    break;
+
+  default:
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Unknown file attributes from RAR file's host OS");
+    return (ARCHIVE_FATAL);
+  }
+
+  rar->bytes_uncopied = rar->bytes_unconsumed = 0;
+  rar->lzss.position = rar->offset = 0;
+  rar->offset_seek = 0;
+  rar->dictionary_size = 0;
+  rar->offset_outgoing = 0;
+  rar->br.cache_avail = 0;
+  rar->br.avail_in = 0;
+  rar->crc_calculated = 0;
+  rar->entry_eof = 0;
+  rar->valid = 1;
+  rar->is_ppmd_block = 0;
+  rar->start_new_table = 1;
+  free(rar->unp_buffer);
+  rar->unp_buffer = NULL;
+  rar->unp_offset = 0;
+  rar->unp_buffer_size = UNP_BUFFER_SIZE;
+  memset(rar->lengthtable, 0, sizeof(rar->lengthtable));
+  __archive_ppmd7_functions.Ppmd7_Free(&rar->ppmd7_context, &g_szalloc);
+  rar->ppmd_valid = rar->ppmd_eod = 0;
+
+  /* Don't set any archive entries for non-file header types */
+  if (head_type == NEWSUB_HEAD)
+    return ret;
+
+  archive_entry_set_mtime(entry, rar->mtime, rar->mnsec);
+  archive_entry_set_ctime(entry, rar->ctime, rar->cnsec);
+  archive_entry_set_atime(entry, rar->atime, rar->ansec);
+  archive_entry_set_size(entry, rar->unp_size);
+  archive_entry_set_mode(entry, rar->mode);
+
+  if (archive_entry_copy_pathname_l(entry, filename, filename_size, fn_sconv))
+  {
+    if (errno == ENOMEM)
     {
-    cmSystemTools::SetErrorOccured();
+      archive_set_error(&a->archive, ENOMEM,
+                        "Can't allocate memory for Pathname");
+      return (ARCHIVE_FATAL);
     }
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Pathname cannot be converted from %s to current locale.",
+                      archive_string_conversion_charset_name(fn_sconv));
+    ret = (ARCHIVE_WARN);
+  }
 
-  // set the result var to the return value to indicate success or failure
-  this->Makefile->AddCacheDefinition(argv[0].c_str(),
-                                     (res == 0 ? "TRUE" : "FALSE"),
-                                     "Result of TRY_COMPILE",
-                                     cmCacheManager::INTERNAL);
+  if (((rar->mode) & AE_IFMT) == AE_IFLNK)
+  {
+    /* Make sure a symbolic-link file does not have its body. */
+    rar->bytes_remaining = 0;
+    archive_entry_set_size(entry, 0);
 
-  if ( outputVariable.size() > 0 )
-    {
-    this->Makefile->AddDefinition(outputVariable.c_str(), output.c_str());
-    }
+    /* Read a symbolic-link name. */
+    if ((ret2 = read_symlink_stored(a, entry, sconv)) < (ARCHIVE_WARN))
+      return ret2;
+    if (ret > ret2)
+      ret = ret2;
+  }
 
-  if (this->SrcFileSignature)
-    {
-    this->FindOutputFile(targetName);
+  if (rar->bytes_remaining == 0)
+    rar->entry_eof = 1;
 
-    if ((res==0) && (copyFile.size()))
-      {
-      if(this->OutputFile.empty() ||
-         !cmSystemTools::CopyFileAlways(this->OutputFile.c_str(),
-                                        copyFile.c_str()))
-        {
-        cmOStringStream emsg;
-        emsg << "Cannot copy output executable\n"
-             << "  '" << this->OutputFile.c_str() << "'\n"
-             << "to destination specified by COPY_FILE:\n"
-             << "  '" << copyFile.c_str() << "'\n";
-        if(!this->FindErrorMessage.empty())
-          {
-          emsg << this->FindErrorMessage.c_str();
-          }
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
-        return -1;
-        }
-      }
-    }
-  return res;
+  return ret;
 }

@@ -1,2 +1,1 @@
-fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideLang.c_str(), rulesOverridePath);
+fprintf(fout, "add_executable(%s", targetName.c_str());

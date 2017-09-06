@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-			"No memory.");
+fprintf(fout, "add_executable(%s", targetName.c_str());

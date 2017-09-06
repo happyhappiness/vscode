@@ -1,2 +1,2 @@
-snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             rnd[0], rnd[1], rnd[2], rnd[3]);
+fsobj_error(a_eno, a_estr, errno,
+					    "Could not chdir %s", path);

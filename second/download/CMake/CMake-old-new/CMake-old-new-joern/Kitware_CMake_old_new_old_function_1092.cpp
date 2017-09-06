@@ -1,18 +1,59 @@
-void cmComputeTargetDepends::DisplayComponents()
+void cmFindPackageCommand::SetModuleVariables(const std::string& components)
 {
-  fprintf(stderr, "The strongly connected components are:\n");
-  int n = static_cast<int>(this->Components.size());
-  for(int c = 0; c < n; ++c)
+  // Store the list of components.
+  std::string components_var = this->Name + "_FIND_COMPONENTS";
+  this->Makefile->AddDefinition(components_var.c_str(), components.c_str());
+   
+  if(this->Quiet)
     {
-    ComponentList const& cl = this->Components[c];
-    fprintf(stderr, "Component (%d):\n", c);
-    for(ComponentList::const_iterator ci = cl.begin();
-        ci != cl.end(); ++ci)
-      {
-      int i = *ci;
-      fprintf(stderr, "  contains target %d [%s]\n",
-              i, this->Targets[i]->GetName());
-      }
+    // Tell the module that is about to be read that it should find
+    // quietly.
+    std::string quietly = this->Name;
+    quietly += "_FIND_QUIETLY";
+    this->Makefile->AddDefinition(quietly.c_str(), "1");
     }
-  fprintf(stderr, "\n");
+
+  if(this->Required)
+    {
+    // Tell the module that is about to be read that it should report
+    // a fatal error if the package is not found.
+    std::string req = this->Name;
+    req += "_FIND_REQUIRED";
+    this->Makefile->AddDefinition(req.c_str(), "1");
+    }
+
+  if(!this->Version.empty())
+    {
+    // Tell the module that is about to be read what version of the
+    // package has been requested.
+    std::string ver = this->Name;
+    ver += "_FIND_VERSION";
+    this->Makefile->AddDefinition(ver.c_str(), this->Version.c_str());
+    char buf[64];
+    switch(this->VersionCount)
+      {
+      case 3:
+        {
+        sprintf(buf, "%u", this->VersionPatch);
+        this->Makefile->AddDefinition((ver+"_PATCH").c_str(), buf);
+        } // no break
+      case 2:
+        {
+        sprintf(buf, "%u", this->VersionMinor);
+        this->Makefile->AddDefinition((ver+"_MINOR").c_str(), buf);
+        } // no break
+      case 1:
+        {
+        sprintf(buf, "%u", this->VersionMajor);
+        this->Makefile->AddDefinition((ver+"_MAJOR").c_str(), buf);
+        } // no break
+      default: break;
+      }
+
+    // Tell the module whether an exact version has been requested.
+    std::string exact = this->Name;
+    exact += "_FIND_VERSION_EXACT";
+    this->Makefile->AddDefinition(exact.c_str(),
+                                  this->VersionExact? "1":"0");
+   }
 }

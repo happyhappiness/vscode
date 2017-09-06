@@ -1,1 +1,2 @@
-fprintf(handle, "NTLMFLAG_REQUEST_INIT_RESPONSE ");
+printf("    fam %2d, CNAME %s, ",
+           ai->ai_family, ai->ai_canonname ? ai->ai_canonname : "<none>");

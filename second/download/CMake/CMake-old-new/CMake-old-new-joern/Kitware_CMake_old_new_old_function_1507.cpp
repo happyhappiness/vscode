@@ -1,108 +1,71 @@
-void cmCursesMainForm::UpdateStatusBar()
+void ctest::GenerateDartOutput(std::ostream& os)
 {
-  int x,y;
-  getmaxyx(stdscr, y, x);
-  // If window size is too small, display error and return
-  if ( x < cmCursesMainForm::MIN_WIDTH  || 
-       x < m_InitialWidth               ||
-       y < cmCursesMainForm::MIN_HEIGHT )
+  if ( !m_DartMode )
     {
-    curses_clear();
-    curses_move(0,0);
-    char fmt[] = "Window is too small. A size of at least %dx%d is required.";
-    printw(fmt,
-	   (cmCursesMainForm::MIN_WIDTH < m_InitialWidth ?
-	    m_InitialWidth : cmCursesMainForm::MIN_WIDTH), 
-	   cmCursesMainForm::MIN_HEIGHT);
-    touchwin(stdscr); 
-    wrefresh(stdscr); 
     return;
     }
 
-  // Get the key of the current entry
-  FIELD* cur = current_field(m_Form);
-  int index = field_index(cur);
-  cmCursesWidget* lbl = reinterpret_cast<cmCursesWidget*>(field_userptr(
-    m_Fields[index-2]));
-  const char* curField = lbl->GetValue();
-
-  // Get the help string of the current entry
-  // and add it to the help string
-  char help[128];
-  const char* helpString;
-  cmCacheManager::CacheEntry *entry = 
-    this->m_CMakeInstance->GetCacheManager()->GetCacheEntry(curField);
-  if (entry)
+  if ( m_TestResults.size() == 0 )
     {
-    helpString = entry->m_HelpString.c_str();
-    strncpy(help, helpString, 127);
-    help[127] = '\0';
-    }
-  else
-    {
-    sprintf(help," ");
+    return;
     }
 
+  time_t tctime = time(0);
+  struct tm *lctime = gmtime(&tctime);
+  char datestring[100];
+  sprintf(datestring, "%4d%02d%02d-%d%d",
+          lctime->tm_year + 1900,
+          lctime->tm_mon,
+          lctime->tm_mday,
+          lctime->tm_hour,
+          lctime->tm_min);
 
-  // Join the key, help string and pad with spaces
-  // (or truncate) as necessary
-  char bar[cmCursesMainForm::MAX_WIDTH];
-  int i, curFieldLen = strlen(curField);
-  int helpLen = strlen(help);
-
-  int width;
-  if (x < cmCursesMainForm::MAX_WIDTH )
+  os << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+     << "<Site BuildName=\"" << m_DartConfiguration["BuildName"]
+     << "\" BuildStamp=\"" << datestring << "-Experimental\" Name=\""
+     << m_DartConfiguration["Site"] << "\">\n"
+     << "<Testing>\n"
+     << "  <StartDateTime>" << ::CurrentTime() << "</StartDateTime>\n"
+     << "  <TestList>\n";
+  tm_TestResultsVector::size_type cc;
+  for ( cc = 0; cc < m_TestResults.size(); cc ++ )
     {
-    width = x;
+    cmCTestTestResult *result = &m_TestResults[cc];
+    os << "    <Test>" << result->m_Path << "/" << result->m_Name 
+       << "</Test>" << std::endl;
     }
-  else
+  os << "  </TestList>\n";
+  for ( cc = 0; cc < m_TestResults.size(); cc ++ )
     {
-    width = cmCursesMainForm::MAX_WIDTH;
-    }
-
-  if (curFieldLen >= width)
-    {
-    strncpy(bar, curField, width);
-    }
-  else
-    {
-    strcpy(bar, curField);
-    bar[curFieldLen] = ':';
-    bar[curFieldLen+1] = ' ';
-    if (curFieldLen + helpLen + 2 >= width)
+    cmCTestTestResult *result = &m_TestResults[cc];
+    os << "  <Test Status=\"" << (result->m_ReturnValue?"failed":"passed") 
+       << "\">\n"
+       << "    <Name>" << result->m_Name << "</Name>\n"
+       << "    <Path>" << result->m_Path << "</Path>\n"
+       << "    <FullName>" << result->m_Path << "/" << result->m_Name << "</FullName>\n"
+       << "    <FullCommandLine>" << result->m_FullCommandLine << "</FullCommandLine>\n"
+       << "    <Results>" << std::endl;
+    if ( result->m_ReturnValue )
       {
-      strncpy(bar+curFieldLen+2, help, width
-	- curFieldLen - 2);
+      os << "      <NamedMeasurement type=\"text/string\" name=\"Exit Code\"><Value>"
+         << "CHILDSTATUS" << "</Value></NamedMeasurement>\n"
+         << "      <NamedMeasurement type=\"text/string\" name=\"Exit Value\"><Value>"
+         << result->m_ReturnValue << "</Value></NamedMeasurement>" << std::endl;
       }
-    else
-      {
-      strcpy(bar+curFieldLen+2, help);
-      for(i=curFieldLen+helpLen+2; i < width; ++i) 
-	{ 
-	bar[i] = ' '; 
-	}
-      }
+    os << "      <NamedMeasurement type=\"numeric/double\" "
+       << "name=\"Execution Time\"><Value>"
+       << result->m_ExecutionTime << "</Value></NamedMeasurement>\n"
+       << "      <NamedMeasurement type=\"text/string\" "
+       << "name=\"Completion Status\"><Value>"
+       << result->m_CompletionStatus << "</Value></NamedMeasurement>\n"
+       << "      <Measurement>\n"
+       << "        <Value>" << result->m_Output << "</value>\n"
+       << "      </Measurement>\n"
+       << "    </Results>\n"
+       << "  </Test>" << std::endl;
     }
-
-  bar[width] = '\0';
-
-  // Display CMake version info on the next line
-  // We want to display this on the right
-  char version[cmCursesMainForm::MAX_WIDTH];
-  char vertmp[128];
-  sprintf(vertmp,"CMake Version %d.%d - %s", cmMakefile::GetMajorVersion(),
-	  cmMakefile::GetMinorVersion(),cmMakefile::GetReleaseVersion());
-  int sideSpace = (width-strlen(vertmp));
-  for(i=0; i<sideSpace; i++) { version[i] = ' '; }
-  sprintf(version+sideSpace, "%s", vertmp);
-  version[width] = '\0';
-
-  // Now print both lines
-  curses_move(y-5,0);
-  attron(A_STANDOUT);
-  printw(bar);
-  attroff(A_STANDOUT);  
-  curses_move(y-4,0);
-  printw(version);
-  pos_form_cursor(m_Form);
+  
+  os << "<EndDateTime>" << ::CurrentTime() << "</EndDateTime>\n"
+     << "</Testing>\n"
+     << "</Site>" << std::endl;
 }

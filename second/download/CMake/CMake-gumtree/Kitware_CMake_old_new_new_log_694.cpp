@@ -1,4 +1,1 @@
-archive_string_sprintf(str,
-		    " resdevice=native,%ju,%ju",
-		    (uintmax_t)me->devmajor,
-		    (uintmax_t)me->devminor);
+snprintf(addr, MAX_IPADR_LEN, "%s", su->sun_path);

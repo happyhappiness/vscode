@@ -1,70 +1,76 @@
-void cmCursesMainForm::PrintKeys()
+int ctest::TestDirectory()
 {
-  int x,y;
-  getmaxyx(stdscr, y, x);
-  if ( x < cmCursesMainForm::MIN_WIDTH  || 
-       x < m_InitialWidth               ||
-       y < cmCursesMainForm::MIN_HEIGHT )
-    {
-    return;
-    }
+  std::vector<std::string> passed;
+  std::vector<std::string> failed;
+  int total;
 
-  // Give the current widget (if it exists), a chance to print keys
-  cmCursesWidget* cw = 0;
-  if (m_Form)
-    {
-    FIELD* currentField = current_field(m_Form);
-    cw = reinterpret_cast<cmCursesWidget*>(field_userptr(currentField));
-    }
+  m_StartTest = ::CurrentTime();
+  this->ProcessDirectory(passed, failed);
+  m_EndTest = ::CurrentTime();
 
-  if (cw)
+  total = int(passed.size()) + int(failed.size());
+
+  if (total == 0)
     {
-    cw->PrintKeys();
+    std::cerr << "No tests were found!!!\n";
     }
-  
-//    {
-//    }
-//  else
-//    {
-    char firstLine[512], secondLine[512], thirdLine[512];
-    if (m_OkToGenerate)
+  else
+    {
+    if (passed.size() && (m_UseIncludeRegExp || m_UseExcludeRegExp)) 
       {
-      sprintf(firstLine,  "Press [c] to configure     Press [g] to generate and exit");
+      std::cerr << "\nThe following tests passed:\n";
+      for(std::vector<std::string>::iterator j = passed.begin();
+          j != passed.end(); ++j)
+        {   
+        std::cerr << "\t" << *j << "\n";
+        }
+      }
+
+    float percent = float(passed.size()) * 100.0f / total;
+    fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
+            percent, int(failed.size()), total);
+
+    if (failed.size()) 
+      {
+      std::cerr << "\nThe following tests FAILED:\n";
+      for(std::vector<std::string>::iterator j = failed.begin();
+          j != failed.end(); ++j)
+        {   
+        std::cerr << "\t" << *j << "\n";
+        }
+      }
+    }
+
+  if ( m_DartMode )
+    {
+    std::string testingDir = m_ToplevelPath + "/Testing/CDart";
+    if ( cmSystemTools::FileExists(testingDir.c_str()) )
+      {
+      if ( !cmSystemTools::FileIsDirectory(testingDir.c_str()) )
+        {
+        std::cerr << "File " << testingDir << " is in the place of the testing directory"
+                  << std::endl;
+        return 1;
+        }
       }
     else
       {
-      sprintf(firstLine,  "Press [c] to configure                                   ");
+      if ( !cmSystemTools::MakeDirectory(testingDir.c_str()) )
+        {
+        std::cerr << "Cannot create directory " << testingDir
+                  << std::endl;
+        return 1;
+        }
       }
-    if (m_AdvancedMode)
+    std::string testxml = testingDir + "/Test.xml";
+    std::ofstream ofs(testxml.c_str());
+    if( !ofs )
       {
-      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently On)");
+      std::cerr << "Cannot create testing XML file" << std::endl;
+      return 1;
       }
-    else
-      {
-      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently Off)");
-      }
-    
-    sprintf(secondLine, "Press [h] for help         Press [q] to quit without generating");
+    this->GenerateDartOutput(ofs);
+    }
 
-
-    curses_move(y-4,0);
-    char fmt[] = "Press [enter] to edit option";
-    printw(fmt);
-    curses_move(y-3,0);
-    printw(firstLine);
-    curses_move(y-2,0);
-    printw(secondLine);
-    curses_move(y-1,0);
-    printw(thirdLine);
-
-    if (cw)
-      {
-      sprintf(firstLine, "Page %d of %d", cw->GetPage(), m_NumberOfPages);
-      curses_move(0,65-strlen(firstLine)-1);
-      printw(firstLine);
-      }
-//    }
-
-  pos_form_cursor(m_Form);
-  
+  return int(failed.size());
 }

@@ -1,2 +1,2 @@
-fprintf(fout, "cmake_minimum_required(VERSION %u.%u)\n",
-            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion());
+sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%ld_%p.exe",
+            GetCurrentProcessId(), cp);

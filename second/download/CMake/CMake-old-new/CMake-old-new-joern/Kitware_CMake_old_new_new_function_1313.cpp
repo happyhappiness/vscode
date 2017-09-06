@@ -1,10 +1,19 @@
-void cmCTestCoverageHandler::StopLogFile(std::ofstream& ostr, int logFileCount)
+int test7(int argc, const char* argv[])
 {
-  std::string local_end_time = m_CTest->CurrentTime();
-  ostr << "\t<EndDateTime>" << local_end_time << "</EndDateTime>" << std::endl
-    << "</CoverageLog>" << std::endl;
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-  std::cout << "Close file: " << covLogFilename << std::endl;
-  ostr.close();
+  (void)argc; (void)argv;
+  fprintf(stdout, "Output on stdout before sleep.\n");
+  fprintf(stderr, "Output on stderr before sleep.\n");
+  fflush(stdout);
+  fflush(stderr);
+  /* Sleep for 1 second.  */
+#if defined(_WIN32)
+  Sleep(1000);
+#else
+  usleep(1000000);
+#endif
+  fprintf(stdout, "Output on stdout after sleep.\n");
+  fprintf(stderr, "Output on stderr after sleep.\n");
+  fflush(stdout);
+  fflush(stderr);
+  return 0;
 }

@@ -1,1 +1,1 @@
-host = aprintf("Host: %s\r\n", host_port);
+fprintf(ofp, "\n");

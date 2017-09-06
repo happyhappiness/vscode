@@ -1,35 +1,18 @@
-int main(int argc, char **argv, char **envp)
+int ZEXPORTVA gzprintf (gzFile file, const char *format, /* args */ ...)
 {
-  char *base64;
-  int base64Len;
-  unsigned char *data;
-  int dataLen;
-  int i, j;
+    char buf[Z_PRINTF_BUFSIZE];
+    va_list va;
+    int len;
 
-  base64 = (char *)suck(&base64Len);
-  data = (unsigned char *)malloc(base64Len * 3/4 + 8);
-  dataLen = Curl_base64_decode(base64, data);
+    va_start(va, format);
+#ifdef HAS_vsnprintf
+    (void)vsnprintf(buf, sizeof(buf), format, va);
+#else
+    (void)vsprintf(buf, format, va);
+#endif
+    va_end(va);
+    len = strlen(buf); /* some *sprintf don't return the nb of bytes written */
+    if (len <= 0) return 0;
 
-  fprintf(stderr, "%d\n", dataLen);
-
-  for(i=0; i < dataLen; i+=0x10) {
-    printf("0x%02x: ", i);
-    for(j=0; j < 0x10; j++)
-      if((j+i) < dataLen)
-        printf("%02x ", data[i+j]);
-      else
-        printf("   ");
-
-    printf(" | ");
-
-    for(j=0; j < 0x10; j++)
-      if((j+i) < dataLen)
-        printf("%c", isgraph(data[i+j])?data[i+j]:'.');
-      else
-        break;
-    puts("");
-  }
-
-  free(base64); free(data);
-  return 0;
+    return gzwrite(file, buf, (unsigned)len);
 }

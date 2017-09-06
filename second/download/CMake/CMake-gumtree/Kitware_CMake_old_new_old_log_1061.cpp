@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "flex scanner push-back overflow" );
+sprintf(tz, " -%04ld", -committer.TimeZone);

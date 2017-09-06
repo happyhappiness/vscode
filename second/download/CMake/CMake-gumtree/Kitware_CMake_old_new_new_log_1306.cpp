@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_scan_buffer()" );
+fprintf(stderr, "kwsysProcess_New returned NULL!\n");

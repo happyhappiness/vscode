@@ -1,30 +1,14 @@
-CURLcode Curl_output_negotiate(struct connectdata *conn, bool proxy)
+static void idna_init (void)
 {
-  struct negotiatedata *neg_ctx = proxy?&conn->data->state.proxyneg:
-    &conn->data->state.negotiate;
-  char *encoded = NULL;
-  size_t len = 0;
-  char *userp;
-  CURLcode result;
-  OM_uint32 discard_st;
+#ifdef WIN32
+  char buf[60];
+  UINT cp = GetACP();
 
-  result = Curl_base64_encode(conn->data,
-                              neg_ctx->output_token.value,
-                              neg_ctx->output_token.length,
-                              &encoded, &len);
-  if(result) {
-    gss_release_buffer(&discard_st, &neg_ctx->output_token);
-    neg_ctx->output_token.value = NULL;
-    neg_ctx->output_token.length = 0;
-    return result;
+  if(!getenv("CHARSET") && cp > 0) {
+    snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);
+    putenv(buf);
   }
-
-  if(!encoded || !len) {
-    gss_release_buffer(&discard_st, &neg_ctx->output_token);
-    neg_ctx->output_token.value = NULL;
-    neg_ctx->output_token.length = 0;
-    return CURLE_REMOTE_ACCESS_DENIED;
-  }
-
-  userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
-                  encoded)
+#else
+  /* to do? */
+#endif
+}

@@ -1,58 +1,27 @@
-bool
-DumpFile(const char* filename, FILE *fout)
+static int test10(int argc, const char* argv[])
 {
-   HANDLE hFile;
-   HANDLE hFileMapping;
-   LPVOID lpFileBase;
-   PIMAGE_DOS_HEADER dosHeader;
-
-   hFile = CreateFileW(cmsys::Encoding::ToWide(filename).c_str(),
-                       GENERIC_READ, FILE_SHARE_READ, NULL,
-      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
-
-   if (hFile == INVALID_HANDLE_VALUE) {
-      fprintf(stderr, "Couldn't open file '%s' with CreateFile()\n", filename);
-      return false;
-   }
-
-   hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
-   if (hFileMapping == 0) {
-      CloseHandle(hFile);
-      fprintf(stderr, "Couldn't open file mapping with CreateFileMapping()\n");
-      return false;
-   }
-
-   lpFileBase = MapViewOfFile(hFileMapping, FILE_MAP_READ, 0, 0, 0);
-   if (lpFileBase == 0) {
-      CloseHandle(hFileMapping);
-      CloseHandle(hFile);
-      fprintf(stderr, "Couldn't map view of file with MapViewOfFile()\n");
-      return false;
-   }
-
-   dosHeader = (PIMAGE_DOS_HEADER)lpFileBase;
-   if (dosHeader->e_magic == IMAGE_DOS_SIGNATURE) {
-      fprintf(stderr, "File is an executable.  I don't dump those.\n");
-      return false;
-   }
-   /* Does it look like a i386 COFF OBJ file??? */
-   else if (
-           ((dosHeader->e_magic == IMAGE_FILE_MACHINE_I386) ||
-            (dosHeader->e_magic == IMAGE_FILE_MACHINE_AMD64))
-           && (dosHeader->e_sp == 0)
-           ) {
-      /*
-      * The two tests above aren't what they look like.  They're
-      * really checking for IMAGE_FILE_HEADER.Machine == i386 (0x14C)
-      * and IMAGE_FILE_HEADER.SizeOfOptionalHeader == 0;
-      */
-      DumpObjFile((PIMAGE_FILE_HEADER) lpFileBase, fout);
-   } else {
-      printf("unrecognized file format in '%s'\n", filename);
-      return false;
-   }
-   UnmapViewOfFile(lpFileBase);
-   CloseHandle(hFileMapping);
-   CloseHandle(hFile);
-   return true;
+  /* Test Ctrl+C behavior: the root test program will send a Ctrl+C to this
+     process.  Here, we start a child process that sleeps for a long time and
+     processes signals normally.  However, this grandchild is created in a new
+     process group - ensuring that Ctrl+C we receive is sent to our process
+     groups.  We make sure it exits anyway.  */
+  int r;
+  const char* cmd[4];
+  (void)argc;
+  cmd[0] = argv[0];
+  cmd[1] = "run";
+  cmd[2] = "110";
+  cmd[3] = 0;
+  fprintf(stdout, "Output on stdout before grandchild test.\n");
+  fprintf(stderr, "Output on stderr before grandchild test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  r = runChild(cmd, kwsysProcess_State_Exception,
+               kwsysProcess_Exception_Interrupt,
+               0, 1, 1, 0, 30, 0, 1, 0, 1, 0);
+  fprintf(stdout, "Output on stdout after grandchild test.\n");
+  fprintf(stderr, "Output on stderr after grandchild test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  return r;
 }

@@ -1,1 +1,1 @@
-sprintf(tz, " -%04ld", -author.TimeZone);
+archive_set_error(&a->archive, -1, "Header CRC error");

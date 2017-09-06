@@ -1,1 +1,2 @@
-fprintf(fout, "ADD_DEFINITIONS( ");
+sprintf(firstLine, 
+            "                                                               ");

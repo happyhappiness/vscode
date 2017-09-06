@@ -1,1 +1,2 @@
-uudecode->state = ST_IGNORE;
+archive_set_error(&a->archive, errno,
+		    "GetOverlappedResult failed");

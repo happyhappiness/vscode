@@ -1,1 +1,1 @@
-fprintf(stderr, "kwsysProcess_New returned NULL!\n");
+fprintf(fout,"extern \"C\"\n{\nvoid vtkCommonDeleteAssocData(ClientData cd)\n");

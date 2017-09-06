@@ -1,85 +1,50 @@
-bool cmFindPackageCommand::CheckVersionFile(std::string const& version_file)
+void cmFindPackageCommand::SetModuleVariables(const std::string& components)
 {
-  // The version file will be loaded in an isolated scope.
-  this->Makefile->PushScope();
+  // Store the list of components.
+  std::string components_var = this->Name + "_FIND_COMPONENTS";
+  this->Makefile->AddDefinition(components_var.c_str(), components.c_str());
+   
+  if(this->Quiet)
+    {
+    // Tell the module that is about to be read that it should find
+    // quietly.
+    std::string quietly = this->Name;
+    quietly += "_FIND_QUIETLY";
+    this->Makefile->AddDefinition(quietly.c_str(), "1");
+    }
 
-  // Clear the output variables.
-  this->Makefile->RemoveDefinition("PACKAGE_VERSION");
-  this->Makefile->RemoveDefinition("PACKAGE_VERSION_COMPATIBLE");
-  this->Makefile->RemoveDefinition("PACKAGE_VERSION_EXACT");
+  if(this->Required)
+    {
+    // Tell the module that is about to be read that it should report
+    // a fatal error if the package is not found.
+    std::string req = this->Name;
+    req += "_FIND_REQUIRED";
+    this->Makefile->AddDefinition(req.c_str(), "1");
+    }
 
-  // Set the input variables.
-  this->Makefile->AddDefinition("PACKAGE_FIND_NAME", this->Name.c_str());
-  this->Makefile->AddDefinition("PACKAGE_FIND_VERSION",
-                                this->Version.c_str());
-  if(this->VersionCount >= 3)
+  if(!this->Version.empty())
     {
-    char buf[64];
-    sprintf(buf, "%u", this->VersionPatch);
-    this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_PATCH", buf);
-    }
-  else
-    {
-    this->Makefile->RemoveDefinition("PACKAGE_FIND_VERSION_PATCH");
-    }
-  if(this->VersionCount >= 2)
-    {
-    char buf[64];
-    sprintf(buf, "%u", this->VersionMinor);
-    this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_MINOR", buf);
-    }
-  else
-    {
-    this->Makefile->RemoveDefinition("PACKAGE_FIND_VERSION_MINOR");
-    }
-  if(this->VersionCount >= 1)
-    {
+    // Tell the module that is about to be read what version of the
+    // package has been requested.
+    std::string ver = this->Name;
+    ver += "_FIND_VERSION";
+    this->Makefile->AddDefinition(ver.c_str(), this->Version.c_str());
     char buf[64];
     sprintf(buf, "%u", this->VersionMajor);
-    this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_MAJOR", buf);
-    }
-  else
-    {
-    this->Makefile->RemoveDefinition("PACKAGE_FIND_VERSION_MAJOR");
-    }
+    this->Makefile->AddDefinition((ver+"_MAJOR").c_str(), buf);
+    sprintf(buf, "%u", this->VersionMinor);
+    this->Makefile->AddDefinition((ver+"_MINOR").c_str(), buf);
+    sprintf(buf, "%u", this->VersionPatch);
+    this->Makefile->AddDefinition((ver+"_PATCH").c_str(), buf);
+    sprintf(buf, "%u", this->VersionTweak);
+    this->Makefile->AddDefinition((ver+"_TWEAK").c_str(), buf);
+    sprintf(buf, "%u", this->VersionCount);
+    this->Makefile->AddDefinition((ver+"_COUNT").c_str(), buf);
 
-  // Load the version check file.
-  bool found = false;
-  if(this->ReadListFile(version_file.c_str()))
-    {
-    // Check the output variables.
-    found = this->Makefile->IsOn("PACKAGE_VERSION_EXACT");
-    if(!found && !this->VersionExact)
-      {
-      found = this->Makefile->IsOn("PACKAGE_VERSION_COMPATIBLE");
-      }
-    if(found || this->Version.empty())
-      {
-      // Get the version found.
-      this->VersionFound =
-        this->Makefile->GetSafeDefinition("PACKAGE_VERSION");
-
-      // Try to parse the version number and store the results that were
-      // successfully parsed.
-      unsigned int parsed_major;
-      unsigned int parsed_minor;
-      unsigned int parsed_patch;
-      this->VersionFoundCount =
-        sscanf(this->VersionFound.c_str(), "%u.%u.%u",
-               &parsed_major, &parsed_minor, &parsed_patch);
-      switch(this->VersionFoundCount)
-        {
-        case 3: this->VersionFoundPatch = parsed_patch; // no break!
-        case 2: this->VersionFoundMinor = parsed_minor; // no break!
-        case 1: this->VersionFoundMajor = parsed_major; // no break!
-        default: break;
-        }
-      }
-    }
-
-  // Restore the original scope.
-  this->Makefile->PopScope();
-
-  // Succeed if the version was found or no version was requested.
-  return found || this->Version.empty();
+    // Tell the module whether an exact version has been requested.
+    std::string exact = this->Name;
+    exact += "_FIND_VERSION_EXACT";
+    this->Makefile->AddDefinition(exact.c_str(),
+                                  this->VersionExact? "1":"0");
+   }
 }

@@ -1,1 +1,1 @@
-::sprintf(newkey, "%s\\%s", this->m_SubKey.c_str(), key);
+fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");

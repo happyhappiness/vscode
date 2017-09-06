@@ -1,3 +1,2 @@
-sprintf(realCommand, "%s %p %p %p %d %s", cp->Win9x,
-            si->ErrorPipeWrite, cp->Win9xResumeEvent, cp->Win9xKillEvent,
-            cp->HideWindow, cp->Commands[index]);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Can't initialize ZIP decompression.");

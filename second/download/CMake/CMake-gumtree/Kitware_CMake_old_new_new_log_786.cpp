@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, errno, "fchdir failed");
+fprintf(fout, "link_directories(${LINK_DIRECTORIES})\n");

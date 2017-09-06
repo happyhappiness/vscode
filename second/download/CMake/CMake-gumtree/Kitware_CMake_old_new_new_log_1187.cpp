@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_REQUEST_ACCEPT_RESPONSE ");
+printf("%s\n", buf);

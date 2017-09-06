@@ -1,1 +1,1 @@
-fprintf(ofp, "#ifdef __WATCOMC__\n");
+sprintf(temp,"%d",this->ChipID.Family);

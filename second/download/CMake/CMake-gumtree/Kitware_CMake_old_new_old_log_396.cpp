@@ -1,2 +1,2 @@
-archive_set_error(f->archive, errno,
-			    "Read from filter failed unexpectedly.");
+userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
+                  encoded);

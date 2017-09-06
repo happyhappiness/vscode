@@ -1,1 +1,1 @@
-fprintf(stderr,"   Passed\n");
+std::cerr << "Other";

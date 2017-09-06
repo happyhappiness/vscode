@@ -1,1 +1,1 @@
-sprintf(buf, "%s/*", name);
+fprintf(fout, "%04X ", i);

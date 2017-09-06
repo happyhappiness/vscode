@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_UNICODE ");
+fprintf(ofp, "#else\n");

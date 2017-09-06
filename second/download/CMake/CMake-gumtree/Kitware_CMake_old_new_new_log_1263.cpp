@@ -1,1 +1,1 @@
-fprintf(stdout, "Usage: %s <test number>\n", argv[0]);
+fprintf(stderr, "Output on stderr after grandchild test.\n");

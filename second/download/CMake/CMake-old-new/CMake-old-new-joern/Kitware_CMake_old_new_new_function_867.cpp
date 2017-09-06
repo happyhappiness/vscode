@@ -1,89 +1,155 @@
-static int
-setup_sparse(struct archive_read_disk *a,
-    struct archive_entry *entry, int *fd)
+static int64_t
+archive_read_format_rar_seek_data(struct archive_read *a, int64_t offset,
+    int whence)
 {
-	int64_t size;
-	off_t initial_off; /* FreeBSD/Solaris only, so off_t okay here */
-	off_t off_s, off_e; /* FreeBSD/Solaris only, so off_t okay here */
-	int exit_sts = ARCHIVE_OK;
+  int64_t client_offset, ret;
+  unsigned int i;
+  struct rar *rar = (struct rar *)(a->format->data);
 
-	if (archive_entry_filetype(entry) != AE_IFREG
-	    || archive_entry_size(entry) <= 0
-	    || archive_entry_hardlink(entry) != NULL)
-		return (ARCHIVE_OK);
+  if (rar->compression_method == COMPRESS_METHOD_STORE)
+  {
+    /* Modify the offset for use with SEEK_SET */
+    switch (whence)
+    {
+      case SEEK_CUR:
+        client_offset = rar->offset_seek;
+        break;
+      case SEEK_END:
+        client_offset = rar->unp_size;
+        break;
+      case SEEK_SET:
+      default:
+        client_offset = 0;
+    }
+    client_offset += offset;
+    if (client_offset < 0)
+    {
+      /* Can't seek past beginning of data block */
+      return -1;
+    }
+    else if (client_offset > rar->unp_size)
+    {
+      /*
+       * Set the returned offset but only seek to the end of
+       * the data block.
+       */
+      rar->offset_seek = client_offset;
+      client_offset = rar->unp_size;
+    }
 
-	/* Does filesystem support the reporting of hole ? */
-	if (*fd < 0 && a->tree != NULL) {
-		const char *path;
+    client_offset += rar->dbo[0].start_offset;
+    i = 0;
+    while (i < rar->cursor)
+    {
+      i++;
+      client_offset += rar->dbo[i].start_offset - rar->dbo[i-1].end_offset;
+    }
+    if (rar->main_flags & MHD_VOLUME)
+    {
+      /* Find the appropriate offset among the multivolume archive */
+      while (1)
+      {
+        if (client_offset < rar->dbo[rar->cursor].start_offset &&
+          rar->file_flags & FHD_SPLIT_BEFORE)
+        {
+          /* Search backwards for the correct data block */
+          if (rar->cursor == 0)
+          {
+            archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+              "Attempt to seek past beginning of RAR data block");
+            return (ARCHIVE_FAILED);
+          }
+          rar->cursor--;
+          client_offset -= rar->dbo[rar->cursor+1].start_offset -
+            rar->dbo[rar->cursor].end_offset;
+          if (client_offset < rar->dbo[rar->cursor].start_offset)
+            continue;
+          ret = __archive_read_seek(a, rar->dbo[rar->cursor].start_offset -
+            rar->dbo[rar->cursor].header_size, SEEK_SET);
+          if (ret < (ARCHIVE_OK))
+            return ret;
+          ret = archive_read_format_rar_read_header(a, a->entry);
+          if (ret != (ARCHIVE_OK))
+          {
+            archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+              "Error during seek of RAR file");
+            return (ARCHIVE_FAILED);
+          }
+          rar->cursor--;
+          break;
+        }
+        else if (client_offset > rar->dbo[rar->cursor].end_offset &&
+          rar->file_flags & FHD_SPLIT_AFTER)
+        {
+          /* Search forward for the correct data block */
+          rar->cursor++;
+          if (rar->cursor < rar->nodes &&
+            client_offset > rar->dbo[rar->cursor].end_offset)
+          {
+            client_offset += rar->dbo[rar->cursor].start_offset -
+              rar->dbo[rar->cursor-1].end_offset;
+            continue;
+          }
+          rar->cursor--;
+          ret = __archive_read_seek(a, rar->dbo[rar->cursor].end_offset,
+                                    SEEK_SET);
+          if (ret < (ARCHIVE_OK))
+            return ret;
+          ret = archive_read_format_rar_read_header(a, a->entry);
+          if (ret == (ARCHIVE_EOF))
+          {
+            rar->has_endarc_header = 1;
+            ret = archive_read_format_rar_read_header(a, a->entry);
+          }
+          if (ret != (ARCHIVE_OK))
+          {
+            archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+              "Error during seek of RAR file");
+            return (ARCHIVE_FAILED);
+          }
+          client_offset += rar->dbo[rar->cursor].start_offset -
+            rar->dbo[rar->cursor-1].end_offset;
+          continue;
+        }
+        break;
+      }
+    }
 
-		path = archive_entry_sourcepath(entry);
-		if (path == NULL)
-			path = archive_entry_pathname(entry);
-		*fd = a->open_on_current_dir(a->tree, path,
-				O_RDONLY | O_NONBLOCK);
-		if (*fd < 0) {
-			archive_set_error(&a->archive, errno,
-			    "Can't open `%s'", path);
-			return (ARCHIVE_FAILED);
-		}
-	}
+    ret = __archive_read_seek(a, client_offset, SEEK_SET);
+    if (ret < (ARCHIVE_OK))
+      return ret;
+    rar->bytes_remaining = rar->dbo[rar->cursor].end_offset - ret;
+    i = rar->cursor;
+    while (i > 0)
+    {
+      i--;
+      ret -= rar->dbo[i+1].start_offset - rar->dbo[i].end_offset;
+    }
+    ret -= rar->dbo[0].start_offset;
 
-	if (*fd >= 0) {
-		if (fpathconf(*fd, _PC_MIN_HOLE_SIZE) <= 0)
-			return (ARCHIVE_OK);
-		initial_off = lseek(*fd, 0, SEEK_CUR);
-		if (initial_off != 0)
-			lseek(*fd, 0, SEEK_SET);
-	} else {
-		const char *path;
+    /* Always restart reading the file after a seek */
+    a->read_data_block = NULL;
+    a->read_data_offset = 0;
+    a->read_data_output_offset = 0;
+    a->read_data_remaining = 0;
+    rar->bytes_unconsumed = 0;
+    rar->offset = 0;
 
-		path = archive_entry_sourcepath(entry);
-		if (path == NULL)
-			path = archive_entry_pathname(entry);
-			
-		if (pathconf(path, _PC_MIN_HOLE_SIZE) <= 0)
-			return (ARCHIVE_OK);
-		*fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-		if (*fd < 0) {
-			archive_set_error(&a->archive, errno,
-			    "Can't open `%s'", path);
-			return (ARCHIVE_FAILED);
-		}
-		__archive_ensure_cloexec_flag(*fd);
-		initial_off = 0;
-	}
+    /*
+     * If a seek past the end of file was requested, return the requested
+     * offset.
+     */
+    if (ret == rar->unp_size && rar->offset_seek > rar->unp_size)
+      return rar->offset_seek;
 
-	off_s = 0;
-	size = archive_entry_size(entry);
-	while (off_s < size) {
-		off_s = lseek(*fd, off_s, SEEK_DATA);
-		if (off_s == (off_t)-1) {
-			if (errno == ENXIO)
-				break;/* no more hole */
-			archive_set_error(&a->archive, errno,
-			    "lseek(SEEK_HOLE) failed");
-			exit_sts = ARCHIVE_FAILED;
-			goto exit_setup_sparse;
-		}
-		off_e = lseek(*fd, off_s, SEEK_HOLE);
-		if (off_e == (off_t)-1) {
-			if (errno == ENXIO) {
-				off_e = lseek(*fd, 0, SEEK_END);
-				if (off_e != (off_t)-1)
-					break;/* no more data */
-			}
-			archive_set_error(&a->archive, errno,
-			    "lseek(SEEK_DATA) failed");
-			exit_sts = ARCHIVE_FAILED;
-			goto exit_setup_sparse;
-		}
-		if (off_s == 0 && off_e == size)
-			break;/* This is not spase. */
-		archive_entry_sparse_add_entry(entry, off_s,
-			off_e - off_s);
-		off_s = off_e;
-	}
-exit_setup_sparse:
-	lseek(*fd, initial_off, SEEK_SET);
-	return (exit_sts);
+    /* Return the new offset */
+    rar->offset_seek = ret;
+    return rar->offset_seek;
+  }
+  else
+  {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+      "Seeking of compressed RAR files is unsupported");
+  }
+  return (ARCHIVE_FAILED);
 }

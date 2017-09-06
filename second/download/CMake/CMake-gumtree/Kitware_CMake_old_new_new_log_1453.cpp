@@ -1,1 +1,0 @@
-getssl_version(ptr, &num);

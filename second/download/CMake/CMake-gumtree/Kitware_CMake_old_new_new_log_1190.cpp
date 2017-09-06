@@ -1,1 +1,3 @@
-fprintf(handle, "NTLMFLAG_UNKNOWN_24 ");
+*userp = aprintf( "%sAuthorization: Basic %s\r\n",
+                      proxy?"Proxy-":"",
+                      authorization);

@@ -1,1 +1,1 @@
-fprintf(progFile,"%i\n",count);
+fprintf(stderr, "The %s target dependency graph is:\n", name);

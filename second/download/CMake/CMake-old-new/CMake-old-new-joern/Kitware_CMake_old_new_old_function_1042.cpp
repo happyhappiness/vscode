@@ -1,70 +1,89 @@
-int cmake::getAllExternalLibs(const std::set<cmStdString>& ignoreTargetsSet,
-                          std::map<cmStdString, cmStdString>& targetNamesNodes,
-                          std::map<cmStdString, const cmTarget*>& targetPtrs,
-                          std::map<cmStdString, int>& targetDeps,
-                          const char* graphNodePrefix) const
+void cmCursesMainForm::PrintKeys(int process /* = 0 */)
 {
-  int cnt = 0;
-
-  const std::vector<cmLocalGenerator*>& localGenerators =
-                              this->GetGlobalGenerator()->GetLocalGenerators();
-  // Ok, now find all the stuff we link to that is not in cmake
-  for (std::vector<cmLocalGenerator*>::const_iterator lit =
-                                                       localGenerators.begin();
-       lit != localGenerators.end();
-       ++ lit )
+  int x,y;
+  getmaxyx(stdscr, y, x);
+  if ( x < cmCursesMainForm::MIN_WIDTH  ||
+       x < this->InitialWidth               ||
+       y < cmCursesMainForm::MIN_HEIGHT )
     {
-    const cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
-    for ( cmTargets::const_iterator tit = targets->begin();
-          tit != targets->end();
-          ++ tit )
-      {
-      const char* realTargetName = tit->first.c_str();
-      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
-        {
-        // Skip ignored targets
-        continue;
-        }
-      const cmTarget::LinkLibraryVectorType* ll =
-                                     &(tit->second.GetOriginalLinkLibraries());
-      if ( ll->size() > 0 )
-        {
-        targetDeps[realTargetName] = DOT_DEP_TARGET;
-        fprintf(stderr, " + %s\n", realTargetName);
-        }
-      for (cmTarget::LinkLibraryVectorType::const_iterator llit = ll->begin();
-           llit != ll->end();
-           ++ llit )
-        {
-        const char* libName = llit->first.c_str();
-        if ( ignoreTargetsSet.find(libName) != ignoreTargetsSet.end() )
-          {
-          // Skip ignored targets
-          continue;
-          }
-
-        std::map<cmStdString, cmStdString>::const_iterator tarIt =
-                                                targetNamesNodes.find(libName);
-        if ( tarIt == targetNamesNodes.end() )
-          {
-          cmOStringStream ostr;
-          ostr << graphNodePrefix << cnt++;
-          targetDeps[libName] = DOT_DEP_EXTERNAL;
-          targetNamesNodes[libName] = ostr.str();
-          //str << "    \"" << ostr.c_str() << "\" [ label=\"" << libName
-          //<<  "\" shape=\"ellipse\"];" << std::endl;
-          }
-        else
-          {
-          std::map<cmStdString, int>::const_iterator depIt =
-                                                      targetDeps.find(libName);
-          if ( depIt == targetDeps.end() )
-            {
-            targetDeps[libName] = DOT_DEP_TARGET;
-            }
-          }
-        }
-      }
+    return;
     }
-   return cnt;
+
+  // Give the current widget (if it exists), a chance to print keys
+  cmCursesWidget* cw = 0;
+  if (this->Form)
+    {
+    FIELD* currentField = current_field(this->Form);
+    cw = reinterpret_cast<cmCursesWidget*>(field_userptr(currentField));
+    }
+
+  if (cw)
+    {
+    cw->PrintKeys();
+    }
+
+//    {
+//    }
+//  else
+//    {
+  char firstLine[512]="";
+  char secondLine[512]="";
+  char thirdLine[512]="";
+  if (process)
+    {
+    sprintf(firstLine,
+            "                                                               ");
+    sprintf(secondLine,
+            "                                                               ");
+    sprintf(thirdLine,
+            "                                                               ");
+    }
+  else
+    {
+    if (this->OkToGenerate)
+      {
+      sprintf(firstLine,
+              "Press [c] to configure     Press [g] to generate and exit");
+      }
+    else
+      {
+      sprintf(firstLine,  "Press [c] to configure                                   ");
+      }
+    if (this->AdvancedMode)
+      {
+      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently On)");
+      }
+    else
+      {
+      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently Off)");
+      }
+
+    sprintf(secondLine,
+            "Press [h] for help         Press [q] to quit without generating");
+    }
+
+  curses_move(y-4,0);
+  char fmt[512] = "Press [enter] to edit option";
+  if ( process )
+    {
+    strcpy(fmt, "                           ");
+    }
+  printw(fmt);
+  curses_move(y-3,0);
+  printw(firstLine);
+  curses_move(y-2,0);
+  printw(secondLine);
+  curses_move(y-1,0);
+  printw(thirdLine);
+
+  if (cw)
+    {
+    sprintf(firstLine, "Page %d of %d", cw->GetPage(), this->NumberOfPages);
+    curses_move(0,65-static_cast<unsigned int>(strlen(firstLine))-1);
+    printw(firstLine);
+    }
+//    }
+
+  pos_form_cursor(this->Form);
+
 }

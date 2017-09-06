@@ -1,279 +1,155 @@
-CURLcode Curl_output_digest(struct connectdata *conn,
-                            bool proxy,
-                            const unsigned char *request,
-                            const unsigned char *uripath)
+static int
+restore_entry(struct archive_write_disk *a)
 {
-  /* We have a Digest setup for this, use it!  Now, to get all the details for
-     this sorted out, I must urge you dear friend to read up on the RFC2617
-     section 3.2.2, */
-  size_t urilen;
-  unsigned char md5buf[16]; /* 16 bytes/128 bits */
-  unsigned char request_digest[33];
-  unsigned char *md5this;
-  unsigned char ha1[33];/* 32 digits and 1 zero byte */
-  unsigned char ha2[33];/* 32 digits and 1 zero byte */
-  char cnoncebuf[33];
-  char *cnonce = NULL;
-  size_t cnonce_sz = 0;
-  char *tmp = NULL;
-  char **allocuserpwd;
-  size_t userlen;
-  const char *userp;
-  char *userp_quoted;
-  const char *passwdp;
-  struct auth *authp;
+	int ret = ARCHIVE_OK, en;
 
-  struct SessionHandle *data = conn->data;
-  struct digestdata *d;
-  CURLcode rc;
-/* The CURL_OUTPUT_DIGEST_CONV macro below is for non-ASCII machines.
-   It converts digest text to ASCII so the MD5 will be correct for
-   what ultimately goes over the network.
-*/
-#define CURL_OUTPUT_DIGEST_CONV(a, b) \
-  rc = Curl_convert_to_network(a, (char *)b, strlen((const char*)b)); \
-  if(rc != CURLE_OK) { \
-    free(b); \
-    return rc; \
-  }
+	if (a->flags & ARCHIVE_EXTRACT_UNLINK && !S_ISDIR(a->mode)) {
+		/*
+		 * TODO: Fix this.  Apparently, there are platforms
+		 * that still allow root to hose the entire filesystem
+		 * by unlinking a dir.  The S_ISDIR() test above
+		 * prevents us from using unlink() here if the new
+		 * object is a dir, but that doesn't mean the old
+		 * object isn't a dir.
+		 */
+		if (unlink(a->name) == 0) {
+			/* We removed it, reset cached stat. */
+			a->pst = NULL;
+		} else if (errno == ENOENT) {
+			/* File didn't exist, that's just as good. */
+		} else if (rmdir(a->name) == 0) {
+			/* It was a dir, but now it's gone. */
+			a->pst = NULL;
+		} else {
+			/* We tried, but couldn't get rid of it. */
+			archive_set_error(&a->archive, errno,
+			    "Could not unlink");
+			return(ARCHIVE_FAILED);
+		}
+	}
 
-  if(proxy) {
-    d = &data->state.proxydigest;
-    allocuserpwd = &conn->allocptr.proxyuserpwd;
-    userp = conn->proxyuser;
-    passwdp = conn->proxypasswd;
-    authp = &data->state.authproxy;
-  }
-  else {
-    d = &data->state.digest;
-    allocuserpwd = &conn->allocptr.userpwd;
-    userp = conn->user;
-    passwdp = conn->passwd;
-    authp = &data->state.authhost;
-  }
+	/* Try creating it first; if this fails, we'll try to recover. */
+	en = create_filesystem_object(a);
 
-  Curl_safefree(*allocuserpwd);
+	if ((en == ENOTDIR || en == ENOENT)
+	    && !(a->flags & ARCHIVE_EXTRACT_NO_AUTODIR)) {
+		/* If the parent dir doesn't exist, try creating it. */
+		create_parent_dir(a, a->name);
+		/* Now try to create the object again. */
+		en = create_filesystem_object(a);
+	}
 
-  /* not set means empty */
-  if(!userp)
-    userp="";
+	if ((en == EISDIR || en == EEXIST)
+	    && (a->flags & ARCHIVE_EXTRACT_NO_OVERWRITE)) {
+		/* If we're not overwriting, we're done. */
+		archive_entry_unset_size(a->entry);
+		return (ARCHIVE_OK);
+	}
 
-  if(!passwdp)
-    passwdp="";
+	/*
+	 * Some platforms return EISDIR if you call
+	 * open(O_WRONLY | O_EXCL | O_CREAT) on a directory, some
+	 * return EEXIST.  POSIX is ambiguous, requiring EISDIR
+	 * for open(O_WRONLY) on a dir and EEXIST for open(O_EXCL | O_CREAT)
+	 * on an existing item.
+	 */
+	if (en == EISDIR) {
+		/* A dir is in the way of a non-dir, rmdir it. */
+		if (rmdir(a->name) != 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't remove already-existing dir");
+			return (ARCHIVE_FAILED);
+		}
+		a->pst = NULL;
+		/* Try again. */
+		en = create_filesystem_object(a);
+	} else if (en == EEXIST) {
+		/*
+		 * We know something is in the way, but we don't know what;
+		 * we need to find out before we go any further.
+		 */
+		int r = 0;
+		/*
+		 * The SECURE_SYMLINKS logic has already removed a
+		 * symlink to a dir if the client wants that.  So
+		 * follow the symlink if we're creating a dir.
+		 */
+		if (S_ISDIR(a->mode))
+			r = stat(a->name, &a->st);
+		/*
+		 * If it's not a dir (or it's a broken symlink),
+		 * then don't follow it.
+		 */
+		if (r != 0 || !S_ISDIR(a->mode))
+			r = lstat(a->name, &a->st);
+		if (r != 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't stat existing object");
+			return (ARCHIVE_FAILED);
+		}
 
-  if(!d->nonce) {
-    authp->done = FALSE;
-    return CURLE_OK;
-  }
-  authp->done = TRUE;
+		/*
+		 * NO_OVERWRITE_NEWER doesn't apply to directories.
+		 */
+		if ((a->flags & ARCHIVE_EXTRACT_NO_OVERWRITE_NEWER)
+		    &&  !S_ISDIR(a->st.st_mode)) {
+			if (!older(&(a->st), a->entry)) {
+				archive_entry_unset_size(a->entry);
+				return (ARCHIVE_OK);
+			}
+		}
 
-  if(!d->nc)
-    d->nc = 1;
+		/* If it's our archive, we're done. */
+		if (a->skip_file_set &&
+		    a->st.st_dev == (dev_t)a->skip_file_dev &&
+		    a->st.st_ino == (ino_t)a->skip_file_ino) {
+			archive_set_error(&a->archive, 0,
+			    "Refusing to overwrite archive");
+			return (ARCHIVE_FAILED);
+		}
 
-  if(!d->cnonce) {
-    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
-    rc = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
-                            &cnonce, &cnonce_sz);
-    if(rc)
-      return rc;
-    d->cnonce = cnonce;
-  }
+		if (!S_ISDIR(a->st.st_mode)) {
+			/* A non-dir is in the way, unlink it. */
+			if (unlink(a->name) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Can't unlink already-existing object");
+				return (ARCHIVE_FAILED);
+			}
+			a->pst = NULL;
+			/* Try again. */
+			en = create_filesystem_object(a);
+		} else if (!S_ISDIR(a->mode)) {
+			/* A dir is in the way of a non-dir, rmdir it. */
+			if (rmdir(a->name) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Can't replace existing directory with non-directory");
+				return (ARCHIVE_FAILED);
+			}
+			/* Try again. */
+			en = create_filesystem_object(a);
+		} else {
+			/*
+			 * There's a dir in the way of a dir.  Don't
+			 * waste time with rmdir()/mkdir(), just fix
+			 * up the permissions on the existing dir.
+			 * Note that we don't change perms on existing
+			 * dirs unless _EXTRACT_PERM is specified.
+			 */
+			if ((a->mode != a->st.st_mode)
+			    && (a->todo & TODO_MODE_FORCE))
+				a->deferred |= (a->todo & TODO_MODE);
+			/* Ownership doesn't need deferred fixup. */
+			en = 0; /* Forget the EEXIST. */
+		}
+	}
 
-  /*
-    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
+	if (en) {
+		/* Everything failed; give up here. */
+		archive_set_error(&a->archive, en, "Can't create '%s'",
+		    a->name);
+		return (ARCHIVE_FAILED);
+	}
 
-    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
-
-    if the algorithm is "MD5-sess" then:
-
-    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
-         ":" unq(nonce-value) ":" unq(cnonce-value)
-  */
-
-  md5this = (unsigned char *)
-    aprintf("%s:%s:%s", userp, d->realm, passwdp);
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  Curl_safefree(md5this);
-  md5_to_ascii(md5buf, ha1);
-
-  if(d->algo == CURLDIGESTALGO_MD5SESS) {
-    /* nonce and cnonce are OUTSIDE the hash */
-    tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
-    Curl_md5it(md5buf, (unsigned char *)tmp);
-    Curl_safefree(tmp);
-    md5_to_ascii(md5buf, ha1);
-  }
-
-  /*
-    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
-
-      A2       = Method ":" digest-uri-value
-
-          If the "qop" value is "auth-int", then A2 is:
-
-      A2       = Method ":" digest-uri-value ":" H(entity-body)
-
-    (The "Method" value is the HTTP request method as specified in section
-    5.1.1 of RFC 2616)
-  */
-
-  /* So IE browsers < v7 cut off the URI part at the query part when they
-     evaluate the MD5 and some (IIS?) servers work with them so we may need to
-     do the Digest IE-style. Note that the different ways cause different MD5
-     sums to get sent.
-
-     Apache servers can be set to do the Digest IE-style automatically using
-     the BrowserMatch feature:
-     http://httpd.apache.org/docs/2.2/mod/mod_auth_digest.html#msie
-
-     Further details on Digest implementation differences:
-     http://www.fngtps.com/2006/09/http-authentication
-  */
-
-  if(authp->iestyle && ((tmp = strchr((char *)uripath, '?')) != NULL))
-    urilen = tmp - (char *)uripath;
-  else
-    urilen = strlen((char *)uripath);
-
-  md5this = (unsigned char *)aprintf("%s:%.*s", request, urilen, uripath);
-
-  if(d->qop && Curl_raw_equal(d->qop, "auth-int")) {
-    /* We don't support auth-int for PUT or POST at the moment.
-       TODO: replace md5 of empty string with entity-body for PUT/POST */
-    unsigned char *md5this2 = (unsigned char *)
-      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
-    Curl_safefree(md5this);
-    md5this = md5this2;
-  }
-
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  Curl_safefree(md5this);
-  md5_to_ascii(md5buf, ha2);
-
-  if(d->qop) {
-    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
-                                       ha1,
-                                       d->nonce,
-                                       d->nc,
-                                       d->cnonce,
-                                       d->qop,
-                                       ha2);
-  }
-  else {
-    md5this = (unsigned char *)aprintf("%s:%s:%s",
-                                       ha1,
-                                       d->nonce,
-                                       ha2);
-  }
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  Curl_safefree(md5this);
-  md5_to_ascii(md5buf, request_digest);
-
-  /* for test case 64 (snooped from a Mozilla 1.3a request)
-
-    Authorization: Digest username="testuser", realm="testrealm", \
-    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
-
-    Digest parameters are all quoted strings.  Username which is provided by
-    the user will need double quotes and backslashes within it escaped.  For
-    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
-    are copied as is from the server, escapes and all.  cnonce is generated
-    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
-    characters.  algorithm and qop with standard values only contain web-safe
-    chracters.
-  */
-  userp_quoted = string_quoted(userp);
-  if(!userp_quoted)
-    return CURLE_OUT_OF_MEMORY;
-
-  if(d->qop) {
-    *allocuserpwd =
-      aprintf( "%sAuthorization: Digest "
-               "username=\"%s\", "
-               "realm=\"%s\", "
-               "nonce=\"%s\", "
-               "uri=\"%.*s\", "
-               "cnonce=\"%s\", "
-               "nc=%08x, "
-               "qop=%s, "
-               "response=\"%s\"",
-               proxy?"Proxy-":"",
-               userp_quoted,
-               d->realm,
-               d->nonce,
-               urilen, uripath, /* this is the PATH part of the URL */
-               d->cnonce,
-               d->nc,
-               d->qop,
-               request_digest);
-
-    if(Curl_raw_equal(d->qop, "auth"))
-      d->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0 padded
-                  which tells to the server how many times you are using the
-                  same nonce in the qop=auth mode. */
-  }
-  else {
-    *allocuserpwd =
-      aprintf( "%sAuthorization: Digest "
-               "username=\"%s\", "
-               "realm=\"%s\", "
-               "nonce=\"%s\", "
-               "uri=\"%.*s\", "
-               "response=\"%s\"",
-               proxy?"Proxy-":"",
-               userp_quoted,
-               d->realm,
-               d->nonce,
-               urilen, uripath, /* this is the PATH part of the URL */
-               request_digest);
-  }
-  Curl_safefree(userp_quoted);
-  if(!*allocuserpwd)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Add optional fields */
-  if(d->opaque) {
-    /* append opaque */
-    tmp = aprintf("%s, opaque=\"%s\"", *allocuserpwd, d->opaque);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-    free(*allocuserpwd);
-    *allocuserpwd = tmp;
-  }
-
-  if(d->algorithm) {
-    /* append algorithm */
-    tmp = aprintf("%s, algorithm=\"%s\"", *allocuserpwd, d->algorithm);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-    free(*allocuserpwd);
-    *allocuserpwd = tmp;
-  }
-
-  /* append CRLF + zero (3 bytes) to the userpwd header */
-  userlen = strlen(*allocuserpwd);
-  tmp = realloc(*allocuserpwd, userlen + 3);
-  if(!tmp)
-    return CURLE_OUT_OF_MEMORY;
-  strcpy(&tmp[userlen], "\r\n"); /* append the data */
-  *allocuserpwd = tmp;
-
-  return CURLE_OK;
+	a->pst = NULL; /* Cached stat data no longer valid. */
+	return (ret);
 }

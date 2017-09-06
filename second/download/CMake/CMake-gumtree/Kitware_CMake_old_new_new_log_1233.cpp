@@ -1,1 +1,2 @@
-fprintf(stderr, "Output on stderr after grandchild test.\n");
+fprintf(logfile, "MEM %s:%d realloc(%p, %zd) = %p\n",
+            source, line, ptr, wantedsize, mem?mem->mem:NULL);

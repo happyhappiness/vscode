@@ -1,1 +1,1 @@
-printf("error: first argument should be a url to download\n");
+std::cout << "AUTOMOC: Checking " << absFilename << std::endl;

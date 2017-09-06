@@ -1,3 +1,5 @@
 archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Symbolic mode \"%s\" unsupported", val);
+						    errno,
+						    "Cannot restore extended "
+						    "attributes on this file "
+						    "system");

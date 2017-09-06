@@ -1,1 +1,1 @@
-free(conn->allocptr.accept_encoding);
+printf("%s", comment);

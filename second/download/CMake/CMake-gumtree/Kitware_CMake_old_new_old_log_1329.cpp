@@ -1,1 +1,1 @@
-sprintf(buf, "Content-Length: %d\r\n", filesize);
+printf("%s\n", state_name);

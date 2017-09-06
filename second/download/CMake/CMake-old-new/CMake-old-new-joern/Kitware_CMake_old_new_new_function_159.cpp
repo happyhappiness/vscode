@@ -1,231 +1,97 @@
 static int
-check_symlinks_fsobj(char *path, int *a_eno, struct archive_string *a_estr,
-    int flags)
+header_Solaris_ACL(struct archive_read *a, struct tar *tar,
+    struct archive_entry *entry, const void *h, size_t *unconsumed)
 {
-#if !defined(HAVE_LSTAT)
-	/* Platform doesn't have lstat, so we can't look for symlinks. */
-	(void)path; /* UNUSED */
-	(void)error_number; /* UNUSED */
-	(void)error_string; /* UNUSED */
-	(void)flags; /* UNUSED */
-	return (ARCHIVE_OK);
-#else
-	int res = ARCHIVE_OK;
-	char *tail;
-	char *head;
-	int last;
-	char c;
-	int r;
-	struct stat st;
-	int restore_pwd;
-
-	/* Nothing to do here if name is empty */
-	if(path[0] == '\0')
-	    return (ARCHIVE_OK);
+	const struct archive_entry_header_ustar *header;
+	size_t size;
+	int err, acl_type;
+	int64_t type;
+	char *acl, *p;
 
 	/*
-	 * Guard against symlink tricks.  Reject any archive entry whose
-	 * destination would be altered by a symlink.
-	 *
-	 * Walk the filename in chunks separated by '/'.  For each segment:
-	 *  - if it doesn't exist, continue
-	 *  - if it's symlink, abort or remove it
-	 *  - if it's a directory and it's not the last chunk, cd into it
-	 * As we go:
-	 *  head points to the current (relative) path
-	 *  tail points to the temporary \0 terminating the segment we're
-	 *      currently examining
-	 *  c holds what used to be in *tail
-	 *  last is 1 if this is the last tail
+	 * read_body_to_string adds a NUL terminator, but we need a little
+	 * more to make sure that we don't overrun acl_text later.
 	 */
-	restore_pwd = open(".", O_RDONLY | O_BINARY | O_CLOEXEC);
-	__archive_ensure_cloexec_flag(restore_pwd);
-	if (restore_pwd < 0)
-		return (ARCHIVE_FATAL);
-	head = path;
-	tail = path;
-	last = 0;
-	/* TODO: reintroduce a safe cache here? */
-	/* Skip the root directory if the path is absolute. */
-	if(tail == path && tail[0] == '/')
-		++tail;
-	/* Keep going until we've checked the entire name.
-	 * head, tail, path all alias the same string, which is
-	 * temporarily zeroed at tail, so be careful restoring the
-	 * stashed (c=tail[0]) for error messages.
-	 * Exiting the loop with break is okay; continue is not.
-	 */
-	while (!last) {
-		/*
-		 * Skip the separator we just consumed, plus any adjacent ones
-		 */
-		while (*tail == '/')
-		    ++tail;
-		/* Skip the next path element. */
-		while (*tail != '\0' && *tail != '/')
-			++tail;
-		/* is this the last path component? */
-		last = (tail[0] == '\0') || (tail[0] == '/' && tail[1] == '\0');
-		/* temporarily truncate the string here */
-		c = tail[0];
-		tail[0] = '\0';
-		/* Check that we haven't hit a symlink. */
-		r = lstat(head, &st);
-		if (r != 0) {
-			tail[0] = c;
-			/* We've hit a dir that doesn't exist; stop now. */
-			if (errno == ENOENT) {
-				break;
-			} else {
-				/*
-				 * Treat any other error as fatal - best to be
-				 * paranoid here.
-				 * Note: This effectively disables deep
-				 * directory support when security checks are
-				 * enabled. Otherwise, very long pathnames that
-				 * trigger an error here could evade the
-				 * sandbox.
-				 * TODO: We could do better, but it would
-				 * probably require merging the symlink checks
-				 * with the deep-directory editing.
-				 */
-				fsobj_error(a_eno, a_estr, errno,
-				    "Could not stat %s", path);
-				res = ARCHIVE_FAILED;
-				break;
-			}
-		} else if (S_ISDIR(st.st_mode)) {
-			if (!last) {
-				if (chdir(head) != 0) {
-					tail[0] = c;
-					fsobj_error(a_eno, a_estr, errno,
-					    "Could not chdir %s", path);
-					res = (ARCHIVE_FATAL);
-					break;
-				}
-				/* Our view is now from inside this dir: */
-				head = tail + 1;
-			}
-		} else if (S_ISLNK(st.st_mode)) {
-			if (last) {
-				/*
-				 * Last element is symlink; remove it
-				 * so we can overwrite it with the
-				 * item being extracted.
-				 */
-				if (unlink(head)) {
-					tail[0] = c;
-					fsobj_error(a_eno, a_estr, errno,
-					    "Could not remove symlink %s",
-					    path);
-					res = ARCHIVE_FAILED;
-					break;
-				}
-				/*
-				 * Even if we did remove it, a warning
-				 * is in order.  The warning is silly,
-				 * though, if we're just replacing one
-				 * symlink with another symlink.
-				 */
-				tail[0] = c;
-				/*
-				 * FIXME:  not sure how important this is to
-				 * restore
-				 */
-				/*
-				if (!S_ISLNK(path)) {
-					fsobj_error(a_eno, a_estr, 0,
-					    "Removing symlink %s", path);
-				}
-				*/
-				/* Symlink gone.  No more problem! */
-				res = ARCHIVE_OK;
-				break;
-			} else if (flags & ARCHIVE_EXTRACT_UNLINK) {
-				/* User asked us to remove problems. */
-				if (unlink(head) != 0) {
-					tail[0] = c;
-					fsobj_error(a_eno, a_estr, 0,
-					    "Cannot remove intervening "
-					    "symlink %s", path);
-					res = ARCHIVE_FAILED;
-					break;
-				}
-				tail[0] = c;
-			} else if ((flags &
-			    ARCHIVE_EXTRACT_SECURE_SYMLINKS) == 0) {
-				/*
-				 * We are not the last element and we want to
-				 * follow symlinks if they are a directory.
-				 * 
-				 * This is needed to extract hardlinks over
-				 * symlinks.
-				 */
-				r = stat(head, &st);
-				if (r != 0) {
-					tail[0] = c;
-					if (errno == ENOENT) {
-						break;
-					} else {
-						fsobj_error(a_eno, a_estr,
-						    errno,
-						    "Could not stat %s", path);
-						res = (ARCHIVE_FAILED);
-						break;
-					}
-				} else if (S_ISDIR(st.st_mode)) {
-					if (chdir(head) != 0) {
-						tail[0] = c;
-						fsobj_error(a_eno, a_estr,
-						    errno,
-						    "Could not chdir %s", path);
-						res = (ARCHIVE_FATAL);
-						break;
-					}
-					/*
-					 * Our view is now from inside
-					 * this dir:
-					 */
-					head = tail + 1;
-				} else {
-					tail[0] = c;
-					fsobj_error(a_eno, a_estr, 0,
-					    "Cannot extract through "
-					    "symlink %s", path);
-					res = ARCHIVE_FAILED;
-					break;
-				}
-			} else {
-				tail[0] = c;
-				fsobj_error(a_eno, a_estr, 0,
-				    "Cannot extract through symlink %s", path);
-				res = ARCHIVE_FAILED;
-				break;
-			}
+	header = (const struct archive_entry_header_ustar *)h;
+	size = (size_t)tar_atol(header->size, sizeof(header->size));
+	err = read_body_to_string(a, tar, &(tar->acl_text), h, unconsumed);
+	if (err != ARCHIVE_OK)
+		return (err);
+
+	/* Recursively read next header */
+	err = tar_read_header(a, tar, entry, unconsumed);
+	if ((err != ARCHIVE_OK) && (err != ARCHIVE_WARN))
+		return (err);
+
+	/* TODO: Examine the first characters to see if this
+	 * is an AIX ACL descriptor.  We'll likely never support
+	 * them, but it would be polite to recognize and warn when
+	 * we do see them. */
+
+	/* Leading octal number indicates ACL type and number of entries. */
+	p = acl = tar->acl_text.s;
+	type = 0;
+	while (*p != '\0' && p < acl + size) {
+		if (*p < '0' || *p > '7') {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Malformed Solaris ACL attribute (invalid digit)");
+			return(ARCHIVE_WARN);
 		}
-		/* be sure to always maintain this */
-		tail[0] = c;
-		if (tail[0] != '\0')
-			tail++; /* Advance to the next segment. */
+		type <<= 3;
+		type += *p - '0';
+		if (type > 077777777) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Malformed Solaris ACL attribute (count too large)");
+			return (ARCHIVE_WARN);
+		}
+		p++;
 	}
-	/* Catches loop exits via break */
-	tail[0] = c;
-#ifdef HAVE_FCHDIR
-	/* If we changed directory above, restore it here. */
-	if (restore_pwd >= 0) {
-		r = fchdir(restore_pwd);
-		if (r != 0) {
-			fsobj_error(a_eno, a_estr, errno,
-			    "chdir() failure", "");
-		}
-		close(restore_pwd);
-		restore_pwd = -1;
-		if (r != 0) {
-			res = (ARCHIVE_FATAL);
-		}
+	switch ((int)type & ~0777777) {
+	case 01000000:
+		/* POSIX.1e ACL */
+		acl_type = ARCHIVE_ENTRY_ACL_TYPE_ACCESS;
+		break;
+	case 03000000:
+		/* NFSv4 ACL */
+		acl_type = ARCHIVE_ENTRY_ACL_TYPE_NFS4;
+		break;
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Malformed Solaris ACL attribute (unsupported type %o)",
+		    (int)type);
+		return (ARCHIVE_WARN);
 	}
-#endif
-	/* TODO: reintroduce a safe cache here? */
-	return res;
-#endif
+	p++;
+
+	if (p >= acl + size) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Malformed Solaris ACL attribute (body overflow)");
+		return(ARCHIVE_WARN);
+	}
+
+	/* ACL text is null-terminated; find the end. */
+	size -= (p - acl);
+	acl = p;
+
+	while (*p != '\0' && p < acl + size)
+		p++;
+
+	if (tar->sconv_acl == NULL) {
+		tar->sconv_acl = archive_string_conversion_from_charset(
+		    &(a->archive), "UTF-8", 1);
+		if (tar->sconv_acl == NULL)
+			return (ARCHIVE_FATAL);
+	}
+	archive_strncpy(&(tar->localname), acl, p - acl);
+	err = archive_acl_from_text_l(archive_entry_acl(entry),
+	    tar->localname.s, acl_type, tar->sconv_acl);
+	if (err != ARCHIVE_OK) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for ACL");
+		} else
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Malformed Solaris ACL attribute (unparsable)");
+	}
+	return (err);
 }

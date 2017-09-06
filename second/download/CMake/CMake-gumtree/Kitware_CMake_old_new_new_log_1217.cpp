@@ -1,0 +1,1 @@
+fprintf(handle, "NTLMFLAG_REQUEST_ACCEPT_RESPONSE ");

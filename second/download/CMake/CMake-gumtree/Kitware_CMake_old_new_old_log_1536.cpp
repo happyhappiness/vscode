@@ -1,1 +1,1 @@
-sprintf(secondLine, "Q)uit                  H)elp");
+sprintf(firstLine,  "Press [c] to configure");

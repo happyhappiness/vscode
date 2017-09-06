@@ -1,4 +1,1 @@
-sprintf(ptr, " OpenSSL/%lx.%lx.%lx",
-          (SSLEAY_VERSION_NUMBER>>28)&0xff,
-          (SSLEAY_VERSION_NUMBER>>20)&0xff,
-          (SSLEAY_VERSION_NUMBER>>12)&0xf);
+sprintf("%s:%s", getenv("HTTP_PROXY"), getenv("HTTP_PROXY_PORT"));

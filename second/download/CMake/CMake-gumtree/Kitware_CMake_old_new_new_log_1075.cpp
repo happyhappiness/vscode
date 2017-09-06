@@ -1,1 +1,1 @@
-sprintf(buf, "%u", this->VersionFoundTweak);
+printf("error: first argument should be a url to download\n");

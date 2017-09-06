@@ -1,3 +1,5 @@
-fsobj_error(a_eno, a_estr,
+archive_set_error(&a->archive,
 						    errno,
-						    "Could not stat %s", path);
+						    "Cannot restore extended "
+						    "attributes on this file "
+						    "system");

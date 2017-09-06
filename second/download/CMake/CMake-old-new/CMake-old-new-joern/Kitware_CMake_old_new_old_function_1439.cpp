@@ -1,483 +1,406 @@
-CURLcode Curl_http(struct connectdata *conn)
+int cmCTest::CoverageDirectory()
 {
-  struct SessionHandle *data=conn->data;
-  char *buf = data->state.buffer; /* this is a short cut to the buffer */
-  CURLcode result=CURLE_OK;
-  struct HTTP *http;
-  struct Cookie *co=NULL; /* no cookies from start */
-  char *ppath = conn->ppath; /* three previous function arguments */
-  char *host = conn->name;
-  long *bytecount = &conn->bytecount;
+  std::cout << "Performing coverage" << std::endl;
+  std::vector<std::string> files;
+  std::vector<std::string> cfiles;
+  std::vector<std::string> cdirs;
+  bool done = false;
+  std::string::size_type cc;
+  std::string glob;
+  std::map<std::string, std::string> allsourcefiles;
+  std::map<std::string, std::string> allbinaryfiles;
 
-  if(!conn->proto.http) {
-    /* Only allocate this struct if we don't already have it! */
+  std::string start_time = ::CurrentTime();
 
-    http = (struct HTTP *)malloc(sizeof(struct HTTP));
-    if(!http)
-      return CURLE_OUT_OF_MEMORY;
-    memset(http, 0, sizeof(struct HTTP));
-    conn->proto.http = http;
-  }
-  else
-    http = conn->proto.http;
-
-  /* We default to persistant connections */
-  conn->bits.close = FALSE;
-
-  if ( (conn->protocol&(PROT_HTTP|PROT_FTP)) &&
-       data->set.upload) {
-    data->set.httpreq = HTTPREQ_PUT;
-  }
-  
-  /* The User-Agent string has been built in url.c already, because it might
-     have been used in the proxy connect, but if we have got a header with
-     the user-agent string specified, we erase the previously made string
-     here. */
-  if(checkheaders(data, "User-Agent:") && conn->allocptr.uagent) {
-    free(conn->allocptr.uagent);
-    conn->allocptr.uagent=NULL;
-  }
-
-  if((conn->bits.user_passwd) && !checkheaders(data, "Authorization:")) {
-    char *authorization;
-
-    /* To prevent the user+password to get sent to other than the original
-       host due to a location-follow, we do some weirdo checks here */
-    if(!data->state.this_is_a_follow ||
-       !data->state.auth_host ||
-       strequal(data->state.auth_host, conn->hostname)) {
-      sprintf(data->state.buffer, "%s:%s",
-              data->state.user, data->state.passwd);
-      if(Curl_base64_encode(data->state.buffer, strlen(data->state.buffer),
-                            &authorization) >= 0) {
-        if(conn->allocptr.userpwd)
-          free(conn->allocptr.userpwd);
-        conn->allocptr.userpwd = aprintf( "Authorization: Basic %s\015\012",
-                                          authorization);
-        free(authorization);
+  // Find all source files.
+  std::string sourceDirectory = m_DartConfiguration["SourceDirectory"];
+  if ( sourceDirectory.size() == 0 )
+    {
+    std::cerr << "Cannot find SourceDirectory  key in the DartConfiguration.tcl" << std::endl;
+    return 1;
+    }
+  cdirs.push_back(sourceDirectory);
+  while ( !done ) 
+    {
+    if ( cdirs.size() <= 0 )
+      {
+      break;
       }
-    }
-  }
-  if((data->change.referer) && !checkheaders(data, "Referer:")) {
-    if(conn->allocptr.ref)
-      free(conn->allocptr.ref);
-    conn->allocptr.ref = aprintf("Referer: %s\015\012", data->change.referer);
-  }
-  if(data->set.cookie && !checkheaders(data, "Cookie:")) {
-    if(conn->allocptr.cookie)
-      free(conn->allocptr.cookie);
-    conn->allocptr.cookie = aprintf("Cookie: %s\015\012", data->set.cookie);
-  }
-
-  if(data->cookies) {
-    co = Curl_cookie_getlist(data->cookies,
-                             host, ppath,
-                             conn->protocol&PROT_HTTPS?TRUE:FALSE);
-  }
-  if (data->change.proxy &&
-      !data->set.tunnel_thru_httpproxy &&
-      !(conn->protocol&PROT_HTTPS))  {
-    /* The path sent to the proxy is in fact the entire URL */
-    ppath = data->change.url;
-  }
-  if(HTTPREQ_POST_FORM == data->set.httpreq) {
-    /* we must build the whole darned post sequence first, so that we have
-       a size of the whole shebang before we start to send it */
-    http->sendit = Curl_getFormData(data->set.httppost, &http->postsize);
-  }
-
-  if(!checkheaders(data, "Host:")) {
-    /* if ptr_host is already set, it is almost OK since we only re-use
-       connections to the very same host and port, but when we use a HTTP
-       proxy we have a persistant connect and yet we must change the Host:
-       header! */
-
-    if(conn->allocptr.host)
-      free(conn->allocptr.host);
-
-    if(((conn->protocol&PROT_HTTPS) && (conn->remote_port == PORT_HTTPS)) ||
-       (!(conn->protocol&PROT_HTTPS) && (conn->remote_port == PORT_HTTP)) )
-      /* If (HTTPS on port 443) OR (non-HTTPS on port 80) then don't include
-         the port number in the host string */
-      conn->allocptr.host = aprintf("Host: %s\r\n", host);
-    else
-      conn->allocptr.host = aprintf("Host: %s:%d\r\n", host,
-                                    conn->remote_port);
-  }
-
-  if(!checkheaders(data, "Pragma:"))
-    http->p_pragma = "Pragma: no-cache\r\n";
-
-  if(!checkheaders(data, "Accept:"))
-    http->p_accept = "Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*\r\n";
-
-  if(( (HTTPREQ_POST == data->set.httpreq) ||
-       (HTTPREQ_POST_FORM == data->set.httpreq) ||
-       (HTTPREQ_PUT == data->set.httpreq) ) &&
-     conn->resume_from) {
-    /**********************************************************************
-     * Resuming upload in HTTP means that we PUT or POST and that we have
-     * got a resume_from value set. The resume value has already created
-     * a Range: header that will be passed along. We need to "fast forward"
-     * the file the given number of bytes and decrease the assume upload
-     * file size before we continue this venture in the dark lands of HTTP.
-     *********************************************************************/
-   
-    if(conn->resume_from < 0 ) {
-      /*
-       * This is meant to get the size of the present remote-file by itself.
-       * We don't support this now. Bail out!
-       */
-       conn->resume_from = 0;
-    }
-
-    if(conn->resume_from) {
-      /* do we still game? */
-      int passed=0;
-
-      /* Now, let's read off the proper amount of bytes from the
-         input. If we knew it was a proper file we could've just
-         fseek()ed but we only have a stream here */
-      do {
-        int readthisamountnow = (conn->resume_from - passed);
-        int actuallyread;
-
-        if(readthisamountnow > BUFSIZE)
-          readthisamountnow = BUFSIZE;
-
-        actuallyread =
-          data->set.fread(data->state.buffer, 1, readthisamountnow,
-                          data->set.in);
-
-        passed += actuallyread;
-        if(actuallyread != readthisamountnow) {
-          failf(data, "Could only read %d bytes from the input",
-                passed);
-          return CURLE_READ_ERROR;
-        }
-      } while(passed != conn->resume_from); /* loop until done */
-
-      /* now, decrease the size of the read */
-      if(data->set.infilesize>0) {
-        data->set.infilesize -= conn->resume_from;
-
-        if(data->set.infilesize <= 0) {
-          failf(data, "File already completely uploaded");
-          return CURLE_PARTIAL_FILE;
+    glob = cdirs[cdirs.size()-1] + "/*";
+    //std::cout << "Glob: " << glob << std::endl;
+    cdirs.pop_back();
+    if ( cmSystemTools::SimpleGlob(glob, cfiles, 1) )
+      {
+      for ( cc = 0; cc < cfiles.size(); cc ++ )
+        {
+        allsourcefiles[cmSystemTools::GetFilenameName(cfiles[cc])] = cfiles[cc];
         }
       }
-      /* we've passed, proceed as normal */
-    }
-  }
-  if(conn->bits.use_range) {
-    /*
-     * A range is selected. We use different headers whether we're downloading
-     * or uploading and we always let customized headers override our internal
-     * ones if any such are specified.
-     */
-    if((data->set.httpreq == HTTPREQ_GET) &&
-       !checkheaders(data, "Range:")) {
-      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n", conn->range);
-    }
-    else if((data->set.httpreq != HTTPREQ_GET) &&
-            !checkheaders(data, "Content-Range:")) {
-
-      if(conn->resume_from) {
-        /* This is because "resume" was selected */
-        long total_expected_size= conn->resume_from + data->set.infilesize;
-        conn->allocptr.rangeline = aprintf("Content-Range: bytes %s%ld/%ld\r\n",
-                                      conn->range, total_expected_size-1,
-                                      total_expected_size);
-      }
-      else {
-        /* Range was selected and then we just pass the incoming range and 
-           append total size */
-        conn->allocptr.rangeline = aprintf("Content-Range: bytes %s/%d\r\n",
-                                      conn->range, data->set.infilesize);
-      }
-    }
-  }
-
-  do {
-    /* Use 1.1 unless the use specificly asked for 1.0 */
-    const char *httpstring=
-      data->set.httpversion==CURL_HTTP_VERSION_1_0?"1.0":"1.1";
-
-    send_buffer *req_buffer;
-    struct curl_slist *headers=data->set.headers;
-
-    /* initialize a dynamic send-buffer */
-    req_buffer = add_buffer_init();
-
-    /* add the main request stuff */
-    add_bufferf(req_buffer,
-                "%s " /* GET/HEAD/POST/PUT */
-                "%s HTTP/%s\r\n" /* path */
-                "%s" /* proxyuserpwd */
-                "%s" /* userpwd */
-                "%s" /* range */
-                "%s" /* user agent */
-                "%s" /* cookie */
-                "%s" /* host */
-                "%s" /* pragma */
-                "%s" /* accept */
-                "%s", /* referer */
-
-                data->set.customrequest?data->set.customrequest:
-                (data->set.no_body?"HEAD":
-                 ((HTTPREQ_POST == data->set.httpreq) ||
-                  (HTTPREQ_POST_FORM == data->set.httpreq))?"POST":
-                 (HTTPREQ_PUT == data->set.httpreq)?"PUT":"GET"),
-                ppath, httpstring,
-                (conn->bits.proxy_user_passwd &&
-                 conn->allocptr.proxyuserpwd)?conn->allocptr.proxyuserpwd:"",
-                (conn->bits.user_passwd && conn->allocptr.userpwd)?
-                conn->allocptr.userpwd:"",
-                (conn->bits.use_range && conn->allocptr.rangeline)?
-                conn->allocptr.rangeline:"",
-                (data->set.useragent && *data->set.useragent && conn->allocptr.uagent)?
-                conn->allocptr.uagent:"",
-                (conn->allocptr.cookie?conn->allocptr.cookie:""), /* Cookie: <data> */
-                (conn->allocptr.host?conn->allocptr.host:""), /* Host: host */
-                http->p_pragma?http->p_pragma:"",
-                http->p_accept?http->p_accept:"",
-                (data->change.referer && conn->allocptr.ref)?conn->allocptr.ref:"" /* Referer: <data> <CRLF> */
-                );
-
-    if(co) {
-      int count=0;
-      struct Cookie *store=co;
-      /* now loop through all cookies that matched */
-      while(co) {
-        if(co->value && strlen(co->value)) {
-          if(0 == count) {
-            add_bufferf(req_buffer, "Cookie: ");
+    if ( cmSystemTools::SimpleGlob(glob, cfiles, -1) )
+      {
+      for ( cc = 0; cc < cfiles.size(); cc ++ )
+        {
+        if ( cfiles[cc] != "." && cfiles[cc] != ".." )
+          {
+          cdirs.push_back(cfiles[cc]);
           }
-          add_bufferf(req_buffer,
-                      "%s%s=%s", count?"; ":"", co->name, co->value);
-          count++;
         }
-        co = co->next; /* next cookie please */
-      }
-      if(count) {
-        add_buffer(req_buffer, "\r\n", 2);
-      }
-      Curl_cookie_freelist(store); /* free the cookie list */
-      co=NULL;
-    }
-
-    if(data->set.timecondition) {
-      struct tm *thistime;
-
-      /* Phil Karn (Fri, 13 Apr 2001) pointed out that the If-Modified-Since
-       * header family should have their times set in GMT as RFC2616 defines:
-       * "All HTTP date/time stamps MUST be represented in Greenwich Mean Time
-       * (GMT), without exception. For the purposes of HTTP, GMT is exactly
-       * equal to UTC (Coordinated Universal Time)." (see page 20 of RFC2616).
-       */
-
-#ifdef HAVE_GMTIME_R
-      /* thread-safe version */
-      struct tm keeptime;
-      thistime = (struct tm *)gmtime_r(&data->set.timevalue, &keeptime);
-#else
-      thistime = gmtime(&data->set.timevalue);
-#endif
-      if(NULL == thistime) {
-        failf(data, "localtime() failed!");
-        return CURLE_OUT_OF_MEMORY;
-      }
-
-#ifdef HAVE_STRFTIME
-      /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-      strftime(buf, BUFSIZE-1, "%a, %d %b %Y %H:%M:%S GMT", thistime);
-#else
-      /* TODO: Right, we *could* write a replacement here */
-      strcpy(buf, "no strftime() support");
-#endif
-      switch(data->set.timecondition) {
-      case TIMECOND_IFMODSINCE:
-      default:
-        add_bufferf(req_buffer,
-                    "If-Modified-Since: %s\r\n", buf);
-        break;
-      case TIMECOND_IFUNMODSINCE:
-        add_bufferf(req_buffer,
-                    "If-Unmodified-Since: %s\r\n", buf);
-        break;
-      case TIMECOND_LASTMOD:
-        add_bufferf(req_buffer,
-                    "Last-Modified: %s\r\n", buf);
-        break;
       }
     }
 
-    while(headers) {
-      char *ptr = strchr(headers->data, ':');
-      if(ptr) {
-        /* we require a colon for this to be a true header */
-
-        ptr++; /* pass the colon */
-        while(*ptr && isspace((int)*ptr))
-          ptr++;
-
-        if(*ptr) {
-          /* only send this if the contents was non-blank */
-
-          add_bufferf(req_buffer, "%s\r\n", headers->data);
+  // find all binary files
+  cdirs.push_back(cmSystemTools::GetCurrentWorkingDirectory());
+  while ( !done ) 
+    {
+    if ( cdirs.size() <= 0 )
+      {
+      break;
+      }
+    glob = cdirs[cdirs.size()-1] + "/*";
+    //std::cout << "Glob: " << glob << std::endl;
+    cdirs.pop_back();
+    if ( cmSystemTools::SimpleGlob(glob, cfiles, 1) )
+      {
+      for ( cc = 0; cc < cfiles.size(); cc ++ )
+        {
+        allbinaryfiles[cmSystemTools::GetFilenameName(cfiles[cc])] = cfiles[cc];
         }
       }
-      headers = headers->next;
+    if ( cmSystemTools::SimpleGlob(glob, cfiles, -1) )
+      {
+      for ( cc = 0; cc < cfiles.size(); cc ++ )
+        {
+        if ( cfiles[cc] != "." && cfiles[cc] != ".." )
+          {
+          cdirs.push_back(cfiles[cc]);
+          }
+        }
+      }
     }
 
-    if(HTTPREQ_POST_FORM == data->set.httpreq) {
-      if(Curl_FormInit(&http->form, http->sendit)) {
-        failf(data, "Internal HTTP POST error!");
-        return CURLE_HTTP_POST_ERROR;
-      }
-
-      http->storefread = data->set.fread; /* backup */
-      http->in = data->set.in; /* backup */
-          
-      data->set.fread = (curl_read_callback)
-        Curl_FormReader; /* set the read function to read from the
-                            generated form data */
-      data->set.in = (FILE *)&http->form;
-
-      add_bufferf(req_buffer,
-                  "Content-Length: %d\r\n", http->postsize);
-
-      if(!checkheaders(data, "Expect:")) {
-        /* if not disabled explicitly we add a Expect: 100-continue
-           to the headers which actually speeds up post operations (as
-           there is one packet coming back from the web server) */
-        add_bufferf(req_buffer,
-                    "Expect: 100-continue\r\n");
-        data->set.expect100header = TRUE;
-      }
-
-      if(!checkheaders(data, "Content-Type:")) {
-        /* Get Content-Type: line from Curl_FormReadOneLine, which happens
-           to always be the first line. We can know this for sure since
-           we always build the formpost linked list the same way!
-
-           The Content-Type header line also contains the MIME boundary
-           string etc why disabling this header is likely to not make things
-           work, but we support it anyway.
-        */
-        char contentType[256];
-        int linelength=0;
-        linelength = Curl_FormReadOneLine (contentType,
-                                           sizeof(contentType),
-                                           1,
-                                           (FILE *)&http->form);
-        if(linelength == -1) {
-          failf(data, "Could not get Content-Type header line!");
-          return CURLE_HTTP_POST_ERROR;
-        }
-        add_buffer(req_buffer, contentType, linelength);
-      }
-
-      /* make the request end in a true CRLF */
-      add_buffer(req_buffer, "\r\n", 2);
-
-      /* set upload size to the progress meter */
-      Curl_pgrsSetUploadSize(data, http->postsize);
-
-      /* fire away the whole request to the server */
-      result = add_buffer_send(conn->firstsocket, conn, req_buffer,
-                               &data->info.request_size);
-      if(result)
-        failf(data, "Failed sending POST request");
-      else
-        /* setup variables for the upcoming transfer */
-        result = Curl_Transfer(conn, conn->firstsocket, -1, TRUE,
-                               &http->readbytecount,
-                               conn->firstsocket,
-                               &http->writebytecount);
-      if(result) {
-        Curl_formclean(http->sendit); /* free that whole lot */
-        return result;
+  std::map<std::string, std::string>::iterator sit;
+  for ( sit = allbinaryfiles.begin(); sit != allbinaryfiles.end(); sit ++ )
+    {
+    const std::string& fname = sit->second;
+    //std::cout << "File: " << fname << std::endl;
+    if ( strcmp(fname.substr(fname.size()-3, 3).c_str(), ".da") == 0 )
+      {
+      files.push_back(fname);
       }
     }
-    else if(HTTPREQ_PUT == data->set.httpreq) {
-      /* Let's PUT the data to the server! */
-
-      if(data->set.infilesize>0) {
-        add_bufferf(req_buffer,
-                    "Content-Length: %d\r\n\r\n", /* file size */
-                    data->set.infilesize );
-      }
-      else
-        add_bufferf(req_buffer, "\015\012");
-
-      /* set the upload size to the progress meter */
-      Curl_pgrsSetUploadSize(data, data->set.infilesize);
-
-      /* this sends the buffer and frees all the buffer resources */
-      result = add_buffer_send(conn->firstsocket, conn, req_buffer,
-                               &data->info.request_size);
-      if(result)
-        failf(data, "Faied sending POST request");
-      else
-        /* prepare for transfer */
-        result = Curl_Transfer(conn, conn->firstsocket, -1, TRUE,
-                               &http->readbytecount,
-                               conn->firstsocket,
-                               &http->writebytecount);
-      if(result)
-        return result;
-      
+  
+  if ( files.size() == 0 )
+    {
+    std::cout << "Cannot find any coverage information files (.da)" << std::endl;
+    return 1;
     }
-    else {
-      if(HTTPREQ_POST == data->set.httpreq) {
-        /* this is the simple POST, using x-www-form-urlencoded style */
 
-        if(!data->set.postfields) {
-          /*
-           * This is an attempt to do a POST without having anything to
-           * actually send. Let's make a NULL pointer equal "" here. Good/bad
-           * ?
-           */
-          data->set.postfields = (char *)"";
-          data->set.postfieldsize = 0; /* it might been set to something illegal,
-                                      anything > 0 would be! */
-        }
+  std::ofstream log; 
+  if (!this->OpenOutputFile("Temporary", "Coverage.log", log))
+    {
+    std::cout << "Cannot open log file" << std::endl;
+    return 1;
+    }
+  log.close();
+  if (!this->OpenOutputFile(m_CurrentTag, "Coverage.xml", log))
+    {
+    std::cout << "Cannot open log file" << std::endl;
+    return 1;
+    }
 
-        if(!checkheaders(data, "Content-Length:"))
-          /* we allow replacing this header, although it isn't very wise to
-             actually set your own */
-          add_bufferf(req_buffer,
-                      "Content-Length: %d\r\n",
-                      (data->set.postfieldsize?data->set.postfieldsize:
-                       strlen(data->set.postfields)) );
-
-        if(!checkheaders(data, "Content-Type:"))
-          add_bufferf(req_buffer,
-                      "Content-Type: application/x-www-form-urlencoded\r\n");
-
-        /* and here comes the actual data */
-        if(data->set.postfieldsize) {
-          add_buffer(req_buffer, "\r\n", 2);
-          add_buffer(req_buffer, data->set.postfields,
-                     data->set.postfieldsize);
-        }
-        else {
-          add_bufferf(req_buffer,
-                      "\r\n"
-                      "%s",
-                      data->set.postfields );
+  std::string opath = m_ToplevelPath + "/Testing/Temporary/Coverage";
+  cmSystemTools::MakeDirectory(opath.c_str());
+  
+  for ( cc = 0; cc < files.size(); cc ++ )
+    {
+    std::string command = "gcov -l \"" + files[cc] + "\"";
+    std::string output;
+    int retVal = 0;
+    //std::cout << "Run gcov on " << files[cc] << std::flush;
+    //std::cout << "   --- Run [" << command << "]" << std::endl;
+    bool res = true;
+    if ( !m_ShowOnly )
+      {
+      res = cmSystemTools::RunCommand(command.c_str(), output, 
+                                      retVal, opath.c_str(),
+                                      m_Verbose);
+      }
+    if ( res && retVal == 0 )
+      {
+      //std::cout << " - done" << std::endl;
+      }
+    else
+      {
+      //std::cout << " - fail" << std::endl;
+      }
+    }
+  
+  files.clear();
+  glob = opath + "/*";
+  if ( !cmSystemTools::SimpleGlob(glob, cfiles, 1) )
+    {
+    std::cout << "Cannot found any coverage files" << std::endl;
+    return 1;
+    }
+  std::map<std::string, std::vector<std::string> > sourcefiles;
+  for ( cc = 0; cc < cfiles.size(); cc ++ )
+    {
+    std::string& fname = cfiles[cc];
+    //std::cout << "File: " << fname << std::endl;
+    if ( strcmp(fname.substr(fname.size()-5, 5).c_str(), ".gcov") == 0 )
+      {
+      files.push_back(fname);
+      std::string::size_type pos = fname.find(".da.");
+      if ( pos != fname.npos )
+        {
+        pos += 4;
+        std::string::size_type epos = fname.size() - pos - strlen(".gcov");
+        std::string nf = fname.substr(pos, epos);
+        //std::cout << "Substring: " << nf << std::endl;
+        if ( allsourcefiles.find(nf) != allsourcefiles.end() || 
+             allbinaryfiles.find(nf) != allbinaryfiles.end() )
+          {
+          std::vector<std::string> &cvec = sourcefiles[nf];
+          cvec.push_back(fname);
+          }
         }
       }
-      else
-        add_buffer(req_buffer, "\r\n", 2);
+    }
+  for ( cc = 0; cc < files.size(); cc ++ )
+    {
+    //std::cout << "File: " << files[cc] << std::endl;
+    }
 
-      /* issue the request */
-      result = add_buffer_send(conn->firstsocket, conn, req_buffer,
-                               &data->info.request_size);
+  std::map<std::string, std::vector<std::string> >::iterator it;
+  cmCTest::tm_CoverageMap coverageresults;
 
-      if(result)
-        failf(data, "Failed sending HTTP request");
-      else
-        /* HTTP GET/HEAD download: */
-        result = Curl_Transfer(conn, conn->firstsocket, -1, TRUE, bytecount,
+  log << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+      << "<Site BuildName=\"" << m_DartConfiguration["BuildName"]
+      << "\" BuildStamp=\"" << m_CurrentTag << "-"
+      << this->GetTestModelString() << "\" Name=\""
+      << m_DartConfiguration["Site"] << "\">\n"
+      << "<Coverage>\n"
+      << "\t<StartDateTime>" << start_time << "</StartDateTime>" << std::endl;
+
+  int total_tested = 0;
+  int total_untested = 0;
+
+  for ( it = sourcefiles.begin(); it != sourcefiles.end(); it ++ )
+    {
+    //std::cerr << "Source file: " << it->first << std::endl;
+    std::vector<std::string> &gfiles = it->second;
+    for ( cc = 0; cc < gfiles.size(); cc ++ )
+      {
+      //std::cout << "\t" << gfiles[cc] << std::endl;
+      std::ifstream ifile(gfiles[cc].c_str());
+      if ( !ifile )
+        {
+        std::cout << "Cannot open file: " << gfiles[cc].c_str() << std::endl;
+        }
+
+      ifile.seekg (0, std::ios::end);
+      int length = ifile.tellg();
+      ifile.seekg (0, std::ios::beg);
+      char *buffer = new char [ length + 1 ];
+      ifile.read(buffer, length);
+      buffer [length] = 0;
+      //std::cout << "Read: " << buffer << std::endl;
+      std::vector<cmStdString> lines;
+      cmSystemTools::Split(buffer, lines);
+      delete [] buffer;
+      cmCTest::cmCTestCoverage& cov = coverageresults[it->first];
+      std::vector<int>& covlines = cov.m_Lines; 
+      if ( cov.m_FullPath == "" )
+        {
+        covlines.insert(covlines.begin(), lines.size(), -1);
+        if ( allsourcefiles.find(it->first) != allsourcefiles.end() )
+          {
+          cov.m_FullPath = allsourcefiles[it->first];
+          }
+        else if ( allbinaryfiles.find(it->first) != allbinaryfiles.end() )
+          {
+          cov.m_FullPath = allbinaryfiles[it->first];
+          }
+        cov.m_AbsolutePath = cov.m_FullPath;
+        std::string src_dir = m_DartConfiguration["SourceDirectory"];
+        if ( src_dir[src_dir.size()-1] != '/' )
+          {
+          src_dir = src_dir + "/";
+          }
+        std::string::size_type spos = cov.m_FullPath.find(src_dir);
+        if ( spos == 0 )
+          {
+          cov.m_FullPath = std::string("./") + cov.m_FullPath.substr(src_dir.size());
+          }
+        else
+          {
+          //std::cerr << "Compare -- " << cov.m_FullPath << std::endl;
+          //std::cerr << "        -- " << src_dir << std::endl;
+          continue;
+          }
+        }
+      for ( cc = 0; cc < lines.size(); cc ++ )
+        {
+        std::string& line = lines[cc];
+        std::string sub = line.substr(0, strlen("      ######"));
+        int count = atoi(sub.c_str());
+        if ( sub.compare("      ######") == 0 )
+          {
+          if ( covlines[cc] == -1 )
+            {
+            covlines[cc] = 0;
+            }
+          cov.m_UnTested ++;
+          //std::cout << "Untested - ";
+          }
+        else if ( count > 0 )
+          {
+          if ( covlines[cc] == -1 )
+            {
+            covlines[cc] = 0;
+            }
+          cov.m_Tested ++;
+          covlines[cc] += count;
+          //std::cout << "Tested[" << count << "] - ";
+          }
+
+        //std::cout << line << std::endl;
+        }
+      }
+    }
+
+  //std::cerr << "Finalizing" << std::endl;
+  cmCTest::tm_CoverageMap::iterator cit;
+  int ccount = 0;
+  std::ofstream cfileoutput; 
+  int cfileoutputcount = 0;
+  char cfileoutputname[100];
+  std::string local_start_time = ::CurrentTime();
+  std::string local_end_time;
+  for ( cit = coverageresults.begin(); cit != coverageresults.end(); cit ++ )
+    {
+    if ( ccount == 100 )
+      {
+      local_end_time = ::CurrentTime();
+      cfileoutput << "\t<EndDateTime>" << local_end_time << "</EndDateTime>\n"
+        << "</CoverageLog>\n"
+        << "</Site>" << std::endl;
+      cfileoutput.close();
+      std::cout << "Close file: " << cfileoutputname << std::endl;
+      ccount = 0;
+      }
+    if ( ccount == 0 )
+      {
+      sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);
+      std::cout << "Open file: " << cfileoutputname << std::endl;
+      if (!this->OpenOutputFile(m_CurrentTag, cfileoutputname, cfileoutput))
+        {
+        std::cout << "Cannot open log file: " << cfileoutputname << std::endl;
+        return 1;
+        }
+      local_start_time = ::CurrentTime();
+      cfileoutput << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        << "<Site BuildName=\"" << m_DartConfiguration["BuildName"]
+        << "\" BuildStamp=\"" << m_CurrentTag << "-"
+        << this->GetTestModelString() << "\" Site=\""
+        << m_DartConfiguration["Site"] << "\">\n"
+        << "<CoverageLog>\n"
+        << "\t<StartDateTime>" << local_start_time << "</StartDateTime>" << std::endl;
+      }
+
+    //std::cerr << "Final process of Source file: " << cit->first << std::endl;
+    cmCTest::cmCTestCoverage &cov = cit->second;
+
+
+    std::ifstream ifile(cov.m_AbsolutePath.c_str());
+    if ( !ifile )
+      {
+      std::cerr << "Cannot open file: " << cov.m_FullPath.c_str() << std::endl;
+      }
+    ifile.seekg (0, std::ios::end);
+    int length = ifile.tellg();
+    ifile.seekg (0, std::ios::beg);
+    char *buffer = new char [ length + 1 ];
+    ifile.read(buffer, length);
+    buffer [length] = 0;
+    //std::cout << "Read: " << buffer << std::endl;
+    std::vector<cmStdString> lines;
+    cmSystemTools::Split(buffer, lines);
+    delete [] buffer;
+    cfileoutput << "\t<File Name=\"" << cit->first << "\" FullPath=\""
+      << cov.m_FullPath << std::endl << "\">\n"
+      << "\t\t<Report>" << std::endl;
+    for ( cc = 0; cc < lines.size(); cc ++ )
+      {
+      cfileoutput << "\t\t<Line Number=\"" 
+        << static_cast<int>(cc) << "\" Count=\""
+        << cov.m_Lines[cc] << "\">"
+        << cmCTest::MakeXMLSafe(lines[cc]) << "</Line>" << std::endl;
+      }
+    cfileoutput << "\t\t</Report>\n"
+      << "\t</File>" << std::endl;
+
+
+    total_tested += cov.m_Tested;
+    total_untested += cov.m_UnTested;
+    float cper = 0;
+    float cmet = 0;
+    if ( total_tested + total_untested > 0 )
+      {
+      cper = (100 * static_cast<float>(cov.m_Tested)/
+        static_cast<float>(cov.m_Tested + cov.m_UnTested));
+      cmet = ( static_cast<float>(cov.m_Tested + 10) /
+        static_cast<float>(cov.m_Tested + cov.m_UnTested + 10));
+      }
+    char cmbuff[100];
+    char cpbuff[100];
+    sprintf(cmbuff, "%.2f", cmet);
+    sprintf(cpbuff, "%.2f", cper);
+
+    log << "\t<File Name=\"" << cit->first << "\" FullPath=\"" << cov.m_FullPath
+      << "\" Covered=\"" << (cmet>0?"true":"false") << "\">\n"
+      << "\t\t<LOCTested>" << cov.m_Tested << "</LOCTested>\n"
+      << "\t\t<LOCUnTested>" << cov.m_UnTested << "</LOCUnTested>\n"
+      << "\t\t<PercentCoverage>" << cpbuff << "</PercentCoverage>\n"
+      << "\t\t<CoverageMetric>" << cmbuff << "</CoverageMetric>\n"
+      << "\t</File>" << std::endl;
+    ccount ++;
+    }
+  
+  if ( ccount > 0 )
+    {
+    local_end_time = ::CurrentTime();
+    cfileoutput << "\t<EndDateTime>" << local_end_time << "</EndDateTime>\n"
+                << "</CoverageLog>\n"
+                << "</Site>" << std::endl;
+    cfileoutput.close();
+    }
+
+  int total_lines = total_tested + total_untested;
+  float percent_coverage = 100 * static_cast<float>(total_tested) / 
+    static_cast<float>(total_lines);
+  if ( total_lines == 0 )
+    {
+    percent_coverage = 0;
+    }
+
+  std::string end_time = ::CurrentTime();
+  char buffer[100];
+  sprintf(buffer, "%.2f", percent_coverage);
+
+  log << "\t<LOCTested>" << total_tested << "</LOCTested>\n"
+      << "\t<LOCUntested>" << total_untested << "</LOCUntested>\n"
+      << "\t<LOC>" << total_lines << "</LOC>\n"
+      << "\t<PercentCoverage>" << buffer << "</PercentCoverage>\n"
+      << "\t<EndDateTime>" << end_time << "</EndDateTime>\n"
+      << "</Coverage>\n"
+      << "</Site>" << std::endl;
+
+  std::cout << "\tCovered LOC:         " << total_tested << std::endl
+            << "\tNot covered LOC:     " << total_untested << std::endl
+            << "\tTotal LOC:           " << total_lines << std::endl
+            << "\tPercentage Coverage: " << percent_coverage << "%" << std::endl;
+
+
+  return 1;
+}

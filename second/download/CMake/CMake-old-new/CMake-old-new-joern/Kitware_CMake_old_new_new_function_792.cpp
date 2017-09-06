@@ -1,85 +1,132 @@
-static int
-_archive_read_data_block(struct archive *_a, const void **buff,
-    size_t *size, int64_t *offset)
+static int yy_get_next_buffer (yyscan_t yyscanner)
 {
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	struct tree *t = a->tree;
-	struct la_overlapped *olp;
-	DWORD bytes_transferred;
-	int r = ARCHIVE_FATAL;
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+        char *dest = YY_CURRENT_BUFFER_LVALUE->yy_ch_buf;
+        char *source = yyg->yytext_ptr;
+        int number_to_move, i;
+        int ret_val;
 
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
-	    "archive_read_data_block");
+        if ( yyg->yy_c_buf_p > &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars + 1] )
+                YY_FATAL_ERROR(
+                "fatal flex scanner internal error--end of buffer missed" );
 
-	if (t->entry_eof || t->entry_remaining_bytes <= 0) {
-		r = ARCHIVE_EOF;
-		goto abort_read_data;
-	}
+        if ( YY_CURRENT_BUFFER_LVALUE->yy_fill_buffer == 0 )
+                { /* Don't try to fill the buffer, so this is an EOF. */
+                if ( yyg->yy_c_buf_p - yyg->yytext_ptr - YY_MORE_ADJ == 1 )
+                        {
+                        /* We matched a single character, the EOB, so
+                         * treat this as a final EOF.
+                         */
+                        return EOB_ACT_END_OF_FILE;
+                        }
 
-	/*
-	 * Make a request to read the file in asynchronous.
-	 */
-	if (t->ol_num_doing == 0) {
-		do {
-			r = start_next_async_read(a, t);
-			if (r == ARCHIVE_FATAL)
-				goto abort_read_data;
-			if (!t->async_io)
-				break;
-		} while (r == ARCHIVE_OK && t->ol_num_doing < MAX_OVERLAPPED);
-	} else {
-		if (start_next_async_read(a, t) == ARCHIVE_FATAL)
-			goto abort_read_data;
-	}
+                else
+                        {
+                        /* We matched some text prior to the EOB, first
+                         * process it.
+                         */
+                        return EOB_ACT_LAST_MATCH;
+                        }
+                }
 
-	olp = &(t->ol[t->ol_idx_done]);
-	t->ol_idx_done = (t->ol_idx_done + 1) % MAX_OVERLAPPED;
-	if (olp->bytes_transferred)
-		bytes_transferred = (DWORD)olp->bytes_transferred;
-	else if (!GetOverlappedResult(t->entry_fh, &(olp->ol),
-	    &bytes_transferred, TRUE)) {
-		la_dosmaperr(GetLastError());
-		archive_set_error(&a->archive, errno,
-		    "GetOverlappedResult failed");
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		r = ARCHIVE_FATAL;
-		goto abort_read_data;
-	}
-	t->ol_num_done++;
+        /* Try to read more data. */
 
-	if (bytes_transferred == 0 ||
-	    olp->bytes_expected != bytes_transferred) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Reading file truncated");
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		r = ARCHIVE_FATAL;
-		goto abort_read_data;
-	}
+        /* First move last chars to start of buffer. */
+        number_to_move = (int) (yyg->yy_c_buf_p - yyg->yytext_ptr) - 1;
 
-	*buff = olp->buff;
-	*size = bytes_transferred;
-	*offset = olp->offset;
-	if (olp->offset > t->entry_total)
-		t->entry_remaining_bytes -= olp->offset - t->entry_total;
-	t->entry_total = olp->offset + *size;
-	t->entry_remaining_bytes -= *size;
-	if (t->entry_remaining_bytes == 0) {
-		/* Close the current file descriptor */
-		close_and_restore_time(t->entry_fh, t, &t->restore_time);
-		t->entry_fh = INVALID_HANDLE_VALUE;
-		t->entry_eof = 1;
-	}
-	return (ARCHIVE_OK);
+        for ( i = 0; i < number_to_move; ++i )
+                *(dest++) = *(source++);
 
-abort_read_data:
-	*buff = NULL;
-	*size = 0;
-	*offset = t->entry_total;
-	if (t->entry_fh != INVALID_HANDLE_VALUE) {
-		cancel_async(t);
-		/* Close the current file descriptor */
-		close_and_restore_time(t->entry_fh, t, &t->restore_time);
-		t->entry_fh = INVALID_HANDLE_VALUE;
-	}
-	return (r);
+        if ( YY_CURRENT_BUFFER_LVALUE->yy_buffer_status == YY_BUFFER_EOF_PENDING )
+                /* don't do the read, it's not guaranteed to return an EOF,
+                 * just force an EOF
+                 */
+                YY_CURRENT_BUFFER_LVALUE->yy_n_chars = yyg->yy_n_chars = 0;
+
+        else
+                {
+                        int num_to_read =
+                        YY_CURRENT_BUFFER_LVALUE->yy_buf_size - number_to_move - 1;
+
+                while ( num_to_read <= 0 )
+                        { /* Not enough room in the buffer - grow it. */
+
+                        /* just a shorter name for the current buffer */
+                        YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
+
+                        int yy_c_buf_p_offset =
+                                (int) (yyg->yy_c_buf_p - b->yy_ch_buf);
+
+                        if ( b->yy_is_our_buffer )
+                                {
+                                int new_size = b->yy_buf_size * 2;
+
+                                if ( new_size <= 0 )
+                                        b->yy_buf_size += b->yy_buf_size / 8;
+                                else
+                                        b->yy_buf_size *= 2;
+
+                                b->yy_ch_buf = (char *)
+                                        /* Include room in for 2 EOB chars. */
+                                        cmListFileLexer_yyrealloc((void *) b->yy_ch_buf,b->yy_buf_size + 2 ,yyscanner );
+                                }
+                        else
+                                /* Can't grow it, we don't own it. */
+                                b->yy_ch_buf = 0;
+
+                        if ( ! b->yy_ch_buf )
+                                YY_FATAL_ERROR(
+                                "fatal error - scanner input buffer overflow" );
+
+                        yyg->yy_c_buf_p = &b->yy_ch_buf[yy_c_buf_p_offset];
+
+                        num_to_read = YY_CURRENT_BUFFER_LVALUE->yy_buf_size -
+                                                number_to_move - 1;
+
+                        }
+
+                if ( num_to_read > YY_READ_BUF_SIZE )
+                        num_to_read = YY_READ_BUF_SIZE;
+
+                /* Read in more data. */
+                YY_INPUT( (&YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[number_to_move]),
+                        yyg->yy_n_chars, (size_t) num_to_read );
+
+                YY_CURRENT_BUFFER_LVALUE->yy_n_chars = yyg->yy_n_chars;
+                }
+
+        if ( yyg->yy_n_chars == 0 )
+                {
+                if ( number_to_move == YY_MORE_ADJ )
+                        {
+                        ret_val = EOB_ACT_END_OF_FILE;
+                        cmListFileLexer_yyrestart(yyin  ,yyscanner);
+                        }
+
+                else
+                        {
+                        ret_val = EOB_ACT_LAST_MATCH;
+                        YY_CURRENT_BUFFER_LVALUE->yy_buffer_status =
+                                YY_BUFFER_EOF_PENDING;
+                        }
+                }
+
+        else
+                ret_val = EOB_ACT_CONTINUE_SCAN;
+
+        if ((yy_size_t) (yyg->yy_n_chars + number_to_move) > YY_CURRENT_BUFFER_LVALUE->yy_buf_size) {
+                /* Extend the array by 50%, plus the number we really need. */
+                yy_size_t new_size = yyg->yy_n_chars + number_to_move + (yyg->yy_n_chars >> 1);
+                YY_CURRENT_BUFFER_LVALUE->yy_ch_buf = (char *) cmListFileLexer_yyrealloc((void *) YY_CURRENT_BUFFER_LVALUE->yy_ch_buf,new_size ,yyscanner );
+                if ( ! YY_CURRENT_BUFFER_LVALUE->yy_ch_buf )
+                        YY_FATAL_ERROR( "out of dynamic memory in yy_get_next_buffer()" );
+        }
+
+        yyg->yy_n_chars += number_to_move;
+        YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars] = YY_END_OF_BUFFER_CHAR;
+        YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars + 1] = YY_END_OF_BUFFER_CHAR;
+
+        yyg->yytext_ptr = &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[0];
+
+        return ret_val;
 }

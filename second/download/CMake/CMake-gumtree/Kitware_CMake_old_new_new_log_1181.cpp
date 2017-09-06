@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_ALWAYS_SIGN ");
+fprintf(out, "#\n# Fatal libcurl error\n");

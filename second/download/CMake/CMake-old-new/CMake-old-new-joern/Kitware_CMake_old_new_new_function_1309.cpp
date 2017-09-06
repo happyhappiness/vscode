@@ -1,10 +1,16 @@
-void cmListFileLexer_yyset_lineno (int  line_number , yyscan_t yyscanner)
+bool cmCTestCoverageHandler::StartCoverageLogFile(cmGeneratedFileStream& covLogFile, int logFileCount)
 {
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
-
-        /* lineno is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           yy_fatal_error( "cmListFileLexer_yyset_lineno called with no buffer" , yyscanner); 
-    
-    yylineno = line_number;
+  char covLogFilename[1024];
+  sprintf(covLogFilename, "CoverageLog-%d", logFileCount);
+  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Open file: " << covLogFilename << std::endl);
+  if (!this->StartResultingXML(covLogFilename, covLogFile) )
+    {
+    cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot open log file: " << covLogFilename << std::endl);
+    return false;
+    }
+  std::string local_start_time = m_CTest->CurrentTime();
+  m_CTest->StartXML(covLogFile);
+  covLogFile << "<CoverageLog>" << std::endl
+    << "\t<StartDateTime>" << local_start_time << "</StartDateTime>" << std::endl;
+  return true;
 }

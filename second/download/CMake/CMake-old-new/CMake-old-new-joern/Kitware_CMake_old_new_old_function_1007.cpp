@@ -1,123 +1,234 @@
-static int
-slurp_central_directory(struct archive_read *a, struct _7zip *zip,
-    struct _7z_header_info *header)
+int kwsysProcessCreate(kwsysProcess* cp, int index,
+                       kwsysProcessCreateInformation* si,
+                       PHANDLE readEnd)
 {
-	const unsigned char *p;
-	const void *image;
-	uint64_t len;
-	uint64_t next_header_offset;
-	uint64_t next_header_size;
-	uint32_t next_header_crc;
-	ssize_t bytes_avail, image_bytes;
-	int r;
+  /* Setup the process's stdin.  */
+  if(*readEnd)
+    {
+    /* Create an inherited duplicate of the read end from the output
+       pipe of the previous process.  This also closes the
+       non-inherited version. */
+    if(!DuplicateHandle(GetCurrentProcess(), *readEnd,
+                        GetCurrentProcess(), readEnd,
+                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
+                                  DUPLICATE_SAME_ACCESS)))
+      {
+      return 0;
+      }
+    si->StartupInfo.hStdInput = *readEnd;
 
-	if ((p = __archive_read_ahead(a, 32, &bytes_avail)) == NULL)
-		return (ARCHIVE_FATAL);
+    /* This function is done with this handle.  */
+    *readEnd = 0;
+    }
+  else if(cp->PipeFileSTDIN)
+    {
+    /* Create a handle to read a file for stdin.  */
+    HANDLE fin = CreateFile(cp->PipeFileSTDIN, GENERIC_READ|GENERIC_WRITE,
+                            FILE_SHARE_READ|FILE_SHARE_WRITE,
+                            0, OPEN_EXISTING, 0, 0);
+    if(fin == INVALID_HANDLE_VALUE)
+      {
+      return 0;
+      }
+    /* Create an inherited duplicate of the handle.  This also closes
+       the non-inherited version.  */
+    if(!DuplicateHandle(GetCurrentProcess(), fin,
+                        GetCurrentProcess(), &fin,
+                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
+                                  DUPLICATE_SAME_ACCESS)))
+      {
+      return 0;
+      }
+    si->StartupInfo.hStdInput = fin;
+    }
+  else if(cp->PipeSharedSTDIN)
+    {
+    /* Share this process's stdin with the child.  */
+    if(!kwsysProcessSetupSharedPipe(STD_INPUT_HANDLE,
+                                    &si->StartupInfo.hStdInput))
+      {
+      return 0;
+      }
+    }
+  else if(cp->PipeNativeSTDIN[0])
+    {
+    /* Use the provided native pipe.  */
+    if(!kwsysProcessSetupPipeNative(&si->StartupInfo.hStdInput,
+                                    cp->PipeNativeSTDIN, 0))
+      {
+      return 0;
+      }
+    }
+  else
+    {
+    /* Explicitly give the child no stdin.  */
+    si->StartupInfo.hStdInput = INVALID_HANDLE_VALUE;
+    }
 
-	if ((p[0] == 'M' && p[1] == 'Z') || memcmp(p, "\x7F\x45LF", 4) == 0) {
-		/* This is an executable ? Must be self-extracting... */
-		r = skip_sfx(a, bytes_avail);
-		if (r < ARCHIVE_WARN)
-			return (r);
-		if ((p = __archive_read_ahead(a, 32, NULL)) == NULL)
-			return (ARCHIVE_FATAL);
-	}
-	zip->seek_base += 32;
+  /* Setup the process's stdout.  */
+  {
+  DWORD maybeClose = DUPLICATE_CLOSE_SOURCE;
+  HANDLE writeEnd;
 
-	if (memcmp(p, _7ZIP_SIGNATURE, 6) != 0) {
-		archive_set_error(&a->archive, -1, "Not 7-Zip archive file");
-		return (ARCHIVE_FATAL);
-	}
+  /* Create the output pipe for this process.  Neither end is directly
+     inherited.  */
+  if(!CreatePipe(readEnd, &writeEnd, 0, 0))
+    {
+    return 0;
+    }
 
-	/* CRC check. */
-	if (crc32(0, (unsigned char *)p + 12, 20) != archive_le32dec(p + 8)) {
-		archive_set_error(&a->archive, -1, "Header CRC error");
-		return (ARCHIVE_FATAL);
-	}
+  /* Create an inherited duplicate of the write end.  Close the
+     non-inherited version unless this is the last process.  Save the
+     non-inherited write end of the last process.  */
+  if(index == cp->NumberOfCommands-1)
+    {
+    cp->Pipe[KWSYSPE_PIPE_STDOUT].Write = writeEnd;
+    maybeClose = 0;
+    }
+  if(!DuplicateHandle(GetCurrentProcess(), writeEnd,
+                      GetCurrentProcess(), &writeEnd,
+                      0, TRUE, (maybeClose | DUPLICATE_SAME_ACCESS)))
+    {
+    return 0;
+    }
+  si->StartupInfo.hStdOutput = writeEnd;
+  }
 
-	next_header_offset = archive_le64dec(p + 12);
-	next_header_size = archive_le64dec(p + 20);
-	next_header_crc = archive_le32dec(p + 28);
+  /* Replace the stdout pipe with a file if requested.  In this case
+     the pipe thread will still run but never report data.  */
+  if(index == cp->NumberOfCommands-1 && cp->PipeFileSTDOUT)
+    {
+    if(!kwsysProcessSetupOutputPipeFile(&si->StartupInfo.hStdOutput,
+                                        cp->PipeFileSTDOUT))
+      {
+      return 0;
+      }
+    }
 
-	if (next_header_size == 0)
-		/* There is no entry in an archive file. */
-		return (ARCHIVE_EOF);
+  /* Replace the stdout pipe of the last child with the parent
+     process's if requested.  In this case the pipe thread will still
+     run but never report data.  */
+  if(index == cp->NumberOfCommands-1 && cp->PipeSharedSTDOUT)
+    {
+    if(!kwsysProcessSetupSharedPipe(STD_OUTPUT_HANDLE,
+                                    &si->StartupInfo.hStdOutput))
+      {
+      return 0;
+      }
+    }
 
-	if (((int64_t)next_header_offset) < 0) {
-		archive_set_error(&a->archive, -1, "Malformed 7-Zip archive");
-		return (ARCHIVE_FATAL);
-	}
-	if (__archive_read_seek(a, next_header_offset + zip->seek_base,
-	    SEEK_SET) < 0)
-		return (ARCHIVE_FATAL);
-	zip->header_offset = next_header_offset;
+  /* Replace the stdout pipe with the native pipe provided if any.  In
+     this case the pipe thread will still run but never report
+     data.  */
+  if(index == cp->NumberOfCommands-1 && cp->PipeNativeSTDOUT[1])
+    {
+    if(!kwsysProcessSetupPipeNative(&si->StartupInfo.hStdOutput,
+                                    cp->PipeNativeSTDOUT, 1))
+      {
+      return 0;
+      }
+    }
 
-	if ((p = __archive_read_ahead(a, next_header_size, NULL)) == NULL)
-		return (ARCHIVE_FATAL);
+  /* Create the child process.  */
+  {
+  BOOL r;
+  char* realCommand;
+  if(cp->Win9x)
+    {
+    /* Create an error reporting pipe for the forwarding executable.
+       Neither end is directly inherited.  */
+    if(!CreatePipe(&si->ErrorPipeRead, &si->ErrorPipeWrite, 0, 0))
+      {
+      return 0;
+      }
 
-	if (crc32(0, p, next_header_size) != next_header_crc) {
-		archive_set_error(&a->archive, -1, "Damaged 7-Zip archive");
-		return (ARCHIVE_FATAL);
-	}
+    /* Create an inherited duplicate of the write end.  This also closes
+       the non-inherited version. */
+    if(!DuplicateHandle(GetCurrentProcess(), si->ErrorPipeWrite,
+                        GetCurrentProcess(), &si->ErrorPipeWrite,
+                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
+                                  DUPLICATE_SAME_ACCESS)))
+      {
+      return 0;
+      }
 
-	len = next_header_size;
-	/* Parse ArchiveProperties. */
-	switch (p[0]) {
-	case kEncodedHeader:
-		p++;
-		len--;
+    /* The forwarding executable is given a handle to the error pipe
+       and resume and kill events.  */
+    realCommand = (char*)malloc(strlen(cp->Win9x)+strlen(cp->Commands[index])+100);
+    if(!realCommand)
+      {
+      return 0;
+      }
+    sprintf(realCommand, "%s %p %p %p %d %s", cp->Win9x,
+            si->ErrorPipeWrite, cp->Win9xResumeEvent, cp->Win9xKillEvent,
+            cp->HideWindow, cp->Commands[index]);
+    }
+  else
+    {
+    realCommand = cp->Commands[index];
+    }
 
-		/*
-		 * The archive has an encoded header and we have to decode it
-		 * in order to parse the header correctly.
-		 */
-		image_bytes =
-		    decode_header_image(a, zip, &(zip->si), p, len, &image);
-		free_StreamsInfo(&(zip->si));
-		memset(&(zip->si), 0, sizeof(zip->si));
-		if (image_bytes < 0)
-			return (ARCHIVE_FATAL);
-		p = image;
-		len = image_bytes;
-		/* FALL THROUGH */
-	case kHeader:
-		/*
-		 * Parse the header.
-		 */
-		errno = 0;
-		r = read_Header(zip, header, p, len);
-		if (r < 0) {
-			if (errno == ENOMEM)
-				archive_set_error(&a->archive, -1,
-				    "Couldn't allocate memory");
-			else
-				archive_set_error(&a->archive, -1,
-				    "Damaged 7-Zip archive");
-			return (ARCHIVE_FATAL);
-		}
-		if (len - r == 0 || p[r] != kEnd) {
-			archive_set_error(&a->archive, -1,
-			    "Malformed 7-Zip archive");
-			return (ARCHIVE_FATAL);
-		}
-		break;
-	default:
-		archive_set_error(&a->archive, -1,
-		    "Unexpected Property ID = %X", p[0]);
-		return (ARCHIVE_FATAL);
-	}
-	zip->stream_offset = -1;
+  /* Create the child in a suspended state so we can wait until all
+     children have been created before running any one.  */
+  r = CreateProcess(0, realCommand, 0, 0, TRUE,
+                    cp->Win9x? 0 : CREATE_SUSPENDED, 0, 0,
+                    &si->StartupInfo, &cp->ProcessInformation[index]);
+  if(cp->Win9x)
+    {
+    /* Free memory.  */
+    free(realCommand);
 
-	/*
-	 * If the uncompressed buffer was allocated more than 64K for
-	 * the header image, release it.
-	 */
-	if (zip->uncompressed_buffer != NULL &&
-	    zip->uncompressed_buffer_size != 64 * 1024) {
-		free(zip->uncompressed_buffer);
-		zip->uncompressed_buffer = NULL;
-		zip->uncompressed_buffer_size = 0;
-	}
+    /* Close the error pipe write end so we can detect when the
+       forwarding executable closes it.  */
+    kwsysProcessCleanupHandle(&si->ErrorPipeWrite);
+    if(r)
+      {
+      /* Wait for the forwarding executable to report an error or
+         close the error pipe to report success.  */
+      DWORD total = 0;
+      DWORD n = 1;
+      while(total < KWSYSPE_PIPE_BUFFER_SIZE && n > 0)
+        {
+        if(ReadFile(si->ErrorPipeRead, cp->ErrorMessage+total,
+                    KWSYSPE_PIPE_BUFFER_SIZE-total, &n, 0))
+          {
+          total += n;
+          }
+        else
+          {
+          n = 0;
+          }
+        }
+      if(total > 0 || GetLastError() != ERROR_BROKEN_PIPE)
+        {
+        /* The forwarding executable could not run the process, or
+           there was an error reading from its error pipe.  Preserve
+           the last error while cleaning up the forwarding executable
+           so the cleanup our caller does reports the proper error.  */
+        DWORD error = GetLastError();
+        kwsysProcessCleanupHandle(&cp->ProcessInformation[index].hThread);
+        kwsysProcessCleanupHandle(&cp->ProcessInformation[index].hProcess);
+        SetLastError(error);
+        return 0;
+        }
+      }
+    kwsysProcessCleanupHandle(&si->ErrorPipeRead);
+    }
 
-	return (ARCHIVE_OK);
+  if(!r)
+    {
+    return 0;
+    }
+  }
+
+  /* Successfully created this child process.  Close the current
+     process's copies of the inherited stdout and stdin handles.  The
+     stderr handle is shared among all children and is closed by
+     kwsysProcess_Execute after all children have been created.  */
+  kwsysProcessCleanupHandleSafe(&si->StartupInfo.hStdInput,
+                                STD_INPUT_HANDLE);
+  kwsysProcessCleanupHandleSafe(&si->StartupInfo.hStdOutput,
+                                STD_OUTPUT_HANDLE);
+
+  return 1;
 }

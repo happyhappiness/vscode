@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_56 ");
+fprintf(handle, "NTLMFLAG_NEGOTIATE_OEM ");

@@ -1,1 +1,1 @@
-fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
+snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);

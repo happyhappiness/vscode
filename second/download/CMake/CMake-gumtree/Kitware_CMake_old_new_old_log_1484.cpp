@@ -1,1 +1,1 @@
-printf("%s",buf);
+sprintf(ptr, "ipv6 ");

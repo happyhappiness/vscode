@@ -1,1 +1,1 @@
-sprintf(buf, "%u", this->VersionPatch);
+std::cout << "Working directory: -->" << cwd << "<--";;

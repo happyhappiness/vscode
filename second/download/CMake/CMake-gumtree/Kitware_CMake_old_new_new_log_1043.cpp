@@ -1,2 +1,3 @@
-fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
+f(secondLine,
+            "Press [h] for help           "
+            "Press [q] to quit without generating");

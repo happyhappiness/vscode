@@ -18,7 +18,7 @@ static CURLcode ftp_state_mdtm_resp(struct connectdata *conn,
         /* we have a time, reformat it */
         time_t secs=time(NULL);
         /* using the good old yacc/bison yuck */
-        snprintf(buf, sizeof(conn->data->state.buffer),
+        snprintf(buf, CURL_BUFSIZE(conn->data->set.buffer_size),
                  "%04d%02d%02d %02d:%02d:%02d GMT",
                  year, month, day, hour, minute, second);
         /* now, convert this into a time() value: */

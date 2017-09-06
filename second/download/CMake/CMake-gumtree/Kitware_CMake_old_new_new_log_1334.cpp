@@ -1,1 +1,1 @@
-YYDPRINTF ((stderr, "Reading a token: "));
+YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_create_buffer()" );

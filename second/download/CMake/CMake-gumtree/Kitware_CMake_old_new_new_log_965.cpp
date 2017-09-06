@@ -1,1 +1,2 @@
-fprintf(fout,"%s ",compileDefs[i].c_str());
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory for Mac metadata");

@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-			    "CreateEvent failed");
+fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);

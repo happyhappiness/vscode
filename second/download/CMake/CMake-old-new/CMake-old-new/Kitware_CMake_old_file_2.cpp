@@ -2470,6 +2470,19 @@ fsobj_error(int *a_eno, struct archive_string *a_estr,
 		archive_string_sprintf(a_estr, errstr, path);
 }
 
+
+
+void
+archive_string_sprintf(struct archive_string *as, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	archive_string_vsprintf(as, fmt, ap);
+	va_end(ap);
+}
+
+
 /*
  * TODO: Someday, integrate this with the deep dir support; they both
  * scan the path and both can be optimized by comparing against other

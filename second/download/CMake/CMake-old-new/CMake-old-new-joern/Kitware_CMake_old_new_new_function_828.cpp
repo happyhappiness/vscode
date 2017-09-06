@@ -1,209 +1,196 @@
 static int
-next_cache_entry(struct archive_read *a, struct iso9660 *iso9660,
-    struct file_info **pfile)
+next_entry(struct archive_read_disk *a, struct tree *t,
+    struct archive_entry *entry)
 {
-	struct file_info *file;
-	struct {
-		struct file_info	*first;
-		struct file_info	**last;
-	}	empty_files;
-	int64_t number;
-	int count;
+	const BY_HANDLE_FILE_INFORMATION *st;
+	const BY_HANDLE_FILE_INFORMATION *lst;
+	const char*name;
+	int descend, r;
 
-	file = cache_get_entry(iso9660);
-	if (file != NULL) {
-		*pfile = file;
-		return (ARCHIVE_OK);
+	st = NULL;
+	lst = NULL;
+	t->descend = 0;
+	do {
+		switch (tree_next(t)) {
+		case TREE_ERROR_FATAL:
+			archive_set_error(&a->archive, t->tree_errno,
+			    "%ls: Unable to continue traversing directory tree",
+			    tree_current_path(t));
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			return (ARCHIVE_FATAL);
+		case TREE_ERROR_DIR:
+			archive_set_error(&a->archive, t->tree_errno,
+			    "%ls: Couldn't visit directory",
+			    tree_current_path(t));
+			return (ARCHIVE_FAILED);
+		case 0:
+			return (ARCHIVE_EOF);
+		case TREE_POSTDESCENT:
+		case TREE_POSTASCENT:
+			break;
+		case TREE_REGULAR:
+			lst = tree_current_lstat(t);
+			if (lst == NULL) {
+				archive_set_error(&a->archive, t->tree_errno,
+				    "%ls: Cannot stat",
+				    tree_current_path(t));
+				return (ARCHIVE_FAILED);
+			}
+			break;
+		}	
+	} while (lst == NULL);
+
+	archive_entry_copy_pathname_w(entry, tree_current_path(t));
+
+	/*
+	 * Perform path matching.
+	 */
+	if (a->matching) {
+		r = archive_match_path_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
 	}
 
-	for (;;) {
-		struct file_info *re, *d;
-
-		*pfile = file = next_entry(iso9660);
-		if (file == NULL) {
-			/*
-			 * If directory entries all which are descendant of
-			 * rr_moved are stil remaning, expose their. 
-			 */
-			if (iso9660->re_files.first != NULL && 
-			    iso9660->rr_moved != NULL &&
-			    iso9660->rr_moved->rr_moved_has_re_only)
-				/* Expose "rr_moved" entry. */
-				cache_add_entry(iso9660, iso9660->rr_moved);
-			while ((re = re_get_entry(iso9660)) != NULL) {
-				/* Expose its descendant dirs. */
-				while ((d = rede_get_entry(re)) != NULL)
-					cache_add_entry(iso9660, d);
-			}
-			if (iso9660->cache_files.first != NULL)
-				return (next_cache_entry(a, iso9660, pfile));
-			return (ARCHIVE_EOF);
-		}
-
-		if (file->cl_offset) {
-			struct file_info *first_re = NULL;
-			int nexted_re = 0;
-
-			/*
-			 * Find "RE" dir for the current file, which
-			 * has "CL" flag.
-			 */
-			while ((re = re_get_entry(iso9660))
-			    != first_re) {
-				if (first_re == NULL)
-					first_re = re;
-				if (re->offset == file->cl_offset) {
-					re->parent->subdirs--;
-					re->parent = file->parent;
-					re->re = 0;
-					if (re->parent->re_descendant) {
-						nexted_re = 1;
-						re->re_descendant = 1;
-						if (rede_add_entry(re) < 0)
-							goto fatal_rr;
-						/* Move a list of descendants
-						 * to a new ancestor. */
-						while ((d = rede_get_entry(
-						    re)) != NULL)
-							if (rede_add_entry(d)
-							    < 0)
-								goto fatal_rr;
-						break;
-					}
-					/* Replace the current file
-					 * with "RE" dir */
-					*pfile = file = re;
-					/* Expose its descendant */
-					while ((d = rede_get_entry(
-					    file)) != NULL)
-						cache_add_entry(
-						    iso9660, d);
-					break;
-				} else
-					re_add_entry(iso9660, re);
-			}
-			if (nexted_re) {
-				/*
-				 * Do not expose this at this time
-				 * because we have not gotten its full-path
-				 * name yet.
-				 */
-				continue;
-			}
-		} else if ((file->mode & AE_IFMT) == AE_IFDIR) {
-			int r;
-
-			/* Read file entries in this dir. */
-			r = read_children(a, file);
-			if (r != ARCHIVE_OK)
-				return (r);
-
-			/*
-			 * Handle a special dir of Rockridge extensions,
-			 * "rr_moved".
-			 */
-			if (file->rr_moved) {
-				/*
-				 * If this has only the subdirectories which
-				 * have "RE" flags, do not expose at this time.
-				 */
-				if (file->rr_moved_has_re_only)
-					continue;
-				/* Otherwise expose "rr_moved" entry. */
-			} else if (file->re) {
-				/*
-				 * Do not expose this at this time
-				 * because we have not gotten its full-path
-				 * name yet.
-				 */
-				re_add_entry(iso9660, file);
-				continue;
-			} else if (file->re_descendant) {
-				/*
-				 * If the top level "RE" entry of this entry
-				 * is not exposed, we, accordingly, should not
-				 * expose this entry at this time because
-				 * we cannot make its proper full-path name.
-				 */
-				if (rede_add_entry(file) == 0)
-					continue;
-				/* Otherwise we can expose this entry because
-				 * it seems its top level "RE" has already been
-				 * exposed. */
-			}
-		}
+	/*
+	 * Distinguish 'L'/'P'/'H' symlink following.
+	 */
+	switch(t->symlink_mode) {
+	case 'H':
+		/* 'H': After the first item, rest like 'P'. */
+		t->symlink_mode = 'P';
+		/* 'H': First item (from command line) like 'L'. */
+		/* FALLTHROUGH */
+	case 'L':
+		/* 'L': Do descend through a symlink to dir. */
+		descend = tree_current_is_dir(t);
+		/* 'L': Follow symlinks to files. */
+		a->symlink_mode = 'L';
+		a->follow_symlinks = 1;
+		/* 'L': Archive symlinks as targets, if we can. */
+		st = tree_current_stat(t);
+		if (st != NULL && !tree_target_is_same_as_parent(t, st))
+			break;
+		/* If stat fails, we have a broken symlink;
+		 * in that case, don't follow the link. */
+		/* FALLTHROUGH */
+	default:
+		/* 'P': Don't descend through a symlink to dir. */
+		descend = tree_current_is_physical_dir(t);
+		/* 'P': Don't follow symlinks to files. */
+		a->symlink_mode = 'P';
+		a->follow_symlinks = 0;
+		/* 'P': Archive symlinks as symlinks. */
+		st = lst;
 		break;
 	}
 
-	if ((file->mode & AE_IFMT) != AE_IFREG || file->number == -1)
-		return (ARCHIVE_OK);
+	if (update_current_filesystem(a, bhfi_dev(st)) != ARCHIVE_OK) {
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		return (ARCHIVE_FATAL);
+	}
+	if (t->initial_filesystem_id == -1)
+		t->initial_filesystem_id = t->current_filesystem_id;
+	if (!a->traverse_mount_points) {
+		if (t->initial_filesystem_id != t->current_filesystem_id)
+			return (ARCHIVE_RETRY);
+	}
+	t->descend = descend;
 
-	count = 0;
-	number = file->number;
-	iso9660->cache_files.first = NULL;
-	iso9660->cache_files.last = &(iso9660->cache_files.first);
-	empty_files.first = NULL;
-	empty_files.last = &empty_files.first;
-	/* Collect files which has the same file serial number.
-	 * Peek pending_files so that file which number is different
-	 * is not put bak. */
-	while (iso9660->pending_files.used > 0 &&
-	    (iso9660->pending_files.files[0]->number == -1 ||
-	     iso9660->pending_files.files[0]->number == number)) {
-		if (file->number == -1) {
-			/* This file has the same offset
-			 * but it's wrong offset which empty files
-			 * and symlink files have.
-			 * NOTE: This wrong offse was recorded by
-			 * old mkisofs utility. If ISO images is
-			 * created by latest mkisofs, this does not
-			 * happen.
-			 */
-			file->next = NULL;
-			*empty_files.last = file;
-			empty_files.last = &(file->next);
-		} else {
-			count++;
-			cache_add_entry(iso9660, file);
+	tree_archive_entry_copy_bhfi(entry, t, st);
+
+	/* Save the times to be restored. This must be in before
+	 * calling archive_read_disk_descend() or any chance of it,
+	 * especially, invokng a callback. */
+	t->restore_time.lastWriteTime = st->ftLastWriteTime;
+	t->restore_time.lastAccessTime = st->ftLastAccessTime;
+	t->restore_time.filetype = archive_entry_filetype(entry);
+
+	/*
+	 * Perform time matching.
+	 */
+	if (a->matching) {
+		r = archive_match_time_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
 		}
-		file = next_entry(iso9660);
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
 	}
 
-	if (count == 0) {
-		*pfile = file;
-		return ((file == NULL)?ARCHIVE_EOF:ARCHIVE_OK);
-	}
-	if (file->number == -1) {
-		file->next = NULL;
-		*empty_files.last = file;
-		empty_files.last = &(file->next);
-	} else {
-		count++;
-		cache_add_entry(iso9660, file);
+	/* Lookup uname/gname */
+	name = archive_read_disk_uname(&(a->archive), archive_entry_uid(entry));
+	if (name != NULL)
+		archive_entry_copy_uname(entry, name);
+	name = archive_read_disk_gname(&(a->archive), archive_entry_gid(entry));
+	if (name != NULL)
+		archive_entry_copy_gname(entry, name);
+
+	/*
+	 * Perform owner matching.
+	 */
+	if (a->matching) {
+		r = archive_match_owner_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
 	}
 
-	if (count > 1) {
-		/* The count is the same as number of hardlink,
-		 * so much so that each nlinks of files in cache_file
-		 * is overwritten by value of the count.
-		 */
-		for (file = iso9660->cache_files.first;
-		    file != NULL; file = file->next)
-			file->nlinks = count;
+	/*
+	 * Invoke a meta data filter callback.
+	 */
+	if (a->metadata_filter_func) {
+		if (!a->metadata_filter_func(&(a->archive),
+		    a->metadata_filter_data, entry))
+			return (ARCHIVE_RETRY);
 	}
-	/* If there are empty files, that files are added
-	 * to the tail of the cache_files. */
-	if (empty_files.first != NULL) {
-		*iso9660->cache_files.last = empty_files.first;
-		iso9660->cache_files.last = empty_files.last;
-	}
-	*pfile = cache_get_entry(iso9660);
-	return ((*pfile == NULL)?ARCHIVE_EOF:ARCHIVE_OK);
 
-fatal_rr:
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-	    "Failed to connect 'CL' pointer to 'RE' rr_moved pointer of "
-	    "Rockridge extensions: current position = %jd, CL offset = %jd",
-	    (intmax_t)iso9660->current_position, (intmax_t)file->cl_offset);
-	return (ARCHIVE_FATAL);
+	archive_entry_copy_sourcepath_w(entry, tree_current_access_path(t));
+
+	r = ARCHIVE_OK;
+	if (archive_entry_filetype(entry) == AE_IFREG &&
+	    archive_entry_size(entry) > 0) {
+		DWORD flags = FILE_FLAG_BACKUP_SEMANTICS;
+		if (t->async_io)
+			flags |= FILE_FLAG_OVERLAPPED;
+		if (t->direct_io)
+			flags |= FILE_FLAG_NO_BUFFERING;
+		else
+			flags |= FILE_FLAG_SEQUENTIAL_SCAN;
+		t->entry_fh = CreateFileW(tree_current_access_path(t),
+		    GENERIC_READ, 0, NULL, OPEN_EXISTING, flags, NULL);
+		if (t->entry_fh == INVALID_HANDLE_VALUE) {
+			archive_set_error(&a->archive, errno,
+			    "Couldn't open %ls", tree_current_path(a->tree));
+			return (ARCHIVE_FAILED);
+		}
+
+		/* Find sparse data from the disk. */
+		if (archive_entry_hardlink(entry) == NULL &&
+		    (st->dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0)
+			r = setup_sparse_from_disk(a, entry, t->entry_fh);
+	}
+	return (r);
 }

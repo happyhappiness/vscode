@@ -1,1 +1,1 @@
-fprintf(fout, "IF (CMAKE_ANSI_CXXFLAGS)\n");
+sprintf(ptr, " zlib/%s", zlibVersion());

@@ -1,1 +1,2 @@
-fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());
+archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "%s", error);

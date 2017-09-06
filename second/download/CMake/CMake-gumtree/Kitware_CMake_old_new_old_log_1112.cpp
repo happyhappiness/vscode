@@ -1,1 +1,1 @@
-sprintf(temp,"%d",this->ChipID.Model);
+sprintf(buffer, "%d", osvi.dwBuildNumber & 0xFFFF);

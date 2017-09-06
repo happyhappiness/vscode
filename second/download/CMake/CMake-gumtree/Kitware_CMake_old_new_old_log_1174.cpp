@@ -1,0 +1,1 @@
+fprintf(ofp, "    _unlink(fname);\n");

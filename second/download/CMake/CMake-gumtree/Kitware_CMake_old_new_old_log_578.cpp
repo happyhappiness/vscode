@@ -1,1 +1,2 @@
-snprintf((char *)&dest[i*2], 3, "%02x", source[i]);
+snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+                     conn->host.name);

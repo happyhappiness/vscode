@@ -1,1 +1,1 @@
-std::cerr <<   "   Passed\n";
+vsnprintf(s, sizeof(s), fmt, ap);

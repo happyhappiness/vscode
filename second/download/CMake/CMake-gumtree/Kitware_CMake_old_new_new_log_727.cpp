@@ -1,2 +1,2 @@
-fprintf(stderr, "  contains target %d [%s]\n",
-              i, this->Targets[i]->GetName().c_str());
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Invalid ZIP compression type");

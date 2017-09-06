@@ -1,1 +1,1 @@
-fprintf(stderr, "No current working directory\n");
+archive_set_error(&a->archive, -1, "Header CRC error");

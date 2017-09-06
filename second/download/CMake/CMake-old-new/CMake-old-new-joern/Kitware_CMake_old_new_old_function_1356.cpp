@@ -1,267 +1,122 @@
-void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed, 
-                             cmCTest::tm_VectorOfStrings &failed,
-                             bool memcheck)
+static void
+ftp_pasv_verbose(struct connectdata *conn,
+                 Curl_ipconnect *addr,
+                 char *newhost, /* ascii version */
+                 int port)
 {
-  std::string current_dir = cmSystemTools::GetCurrentWorkingDirectory();
-  cmsys::RegularExpression dartStuff("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
-  tm_ListOfTests testlist;
-  this->GetListOfTests(&testlist, memcheck);
-  tm_ListOfTests::size_type tmsize = testlist.size();
+#ifndef ENABLE_IPV6
+  /*****************************************************************
+   *
+   * IPv4-only code section
+   */
 
-  std::ofstream ofs;
-  std::ofstream *olog = 0;
-  if ( !m_ShowOnly && tmsize > 0 && 
-    this->OpenOutputFile("Temporary", 
-      (memcheck?"LastMemCheck.log":"LastTest.log"), ofs) )
-    {
-    olog = &ofs;
-    }
+  struct in_addr in;
+  struct hostent * answer;
 
-  m_StartTest = this->CurrentTime();
-  double elapsed_time_start = cmSystemTools::GetTime();
+#ifdef HAVE_INET_NTOA_R
+  char ntoa_buf[64];
+#endif
+  /* The array size trick below is to make this a large chunk of memory
+     suitably 8-byte aligned on 64-bit platforms. This was thoughtfully
+     suggested by Philip Gladstone. */
+  long bigbuf[9000 / sizeof(long)];
 
-  if ( olog )
-    {
-    *olog << "Start testing: " << m_StartTest << std::endl
-      << "----------------------------------------------------------"
-      << std::endl;
-    }
+#if defined(HAVE_INET_ADDR)
+  in_addr_t address;
+# if defined(HAVE_GETHOSTBYADDR_R)
+  int h_errnop;
+# endif
+  char *hostent_buf = (char *)bigbuf; /* get a char * to the buffer */
+  (void)hostent_buf;
+  address = inet_addr(newhost);
+# ifdef HAVE_GETHOSTBYADDR_R
 
-  // expand the test list
-  this->ExpandTestsToRunInformation((int)tmsize);
-  
-  int cnt = 0;
-  tm_ListOfTests::iterator it;
-  std::string last_directory = "";
-  for ( it = testlist.begin(); it != testlist.end(); it ++ )
-    {
-    cnt ++;
-    const std::string& testname = it->m_Name;
-    tm_VectorOfListFileArgs& args = it->m_Args;
-    cmCTestTestResult cres;
-    cres.m_Status = cmCTest::NOT_RUN;
-    cres.m_TestCount = cnt;
+#  ifdef HAVE_GETHOSTBYADDR_R_5
+  /* AIX, Digital Unix (OSF1, Tru64) style:
+     extern int gethostbyaddr_r(char *addr, size_t len, int type,
+     struct hostent *htent, struct hostent_data *ht_data); */
 
-    if (!(last_directory == it->m_Directory))
-      {
-      if ( m_Verbose )
-        {
-        std::cerr << "Changing directory into " 
-          << it->m_Directory.c_str() << "\n";
-        }
-      last_directory = it->m_Directory;
-      cmSystemTools::ChangeDirectory(it->m_Directory.c_str());
-      }
-    cres.m_Name = testname;
-    if(m_TestsToRun.size() && 
-       std::find(m_TestsToRun.begin(), m_TestsToRun.end(), cnt) == m_TestsToRun.end())
-      {
-      continue;
-      }
+  /* Fred Noz helped me try this out, now it at least compiles! */
 
-    if ( m_ShowOnly )
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s\n", cnt, (int)tmsize, testname.c_str());
-      }
-    else
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s ", cnt, (int)tmsize, testname.c_str());
-      fflush(stderr);
-      }
-    //std::cerr << "Testing " << args[0] << " ... ";
-    // find the test executable
-    std::string actualCommand = this->FindTheExecutable(args[1].Value.c_str());
-    std::string testCommand = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
-    std::string memcheckcommand = "";
+  /* Bjorn Reese (November 28 2001):
+     The Tru64 man page on gethostbyaddr_r() says that
+     the hostent struct must be filled with zeroes before the call to
+     gethostbyaddr_r(). 
 
-    // continue if we did not find the executable
-    if (testCommand == "")
-      {
-      std::cerr << "Unable to find executable: " <<
-        args[1].Value.c_str() << "\n";
-      if ( !m_ShowOnly )
-        {
-        m_TestResults.push_back( cres ); 
-        failed.push_back(testname);
-        continue;
-        }
-      }
+     ... as must be struct hostent_data Craig Markwardt 19 Sep 2002. */
 
-    // add the arguments
-    tm_VectorOfListFileArgs::const_iterator j = args.begin();
-    ++j;
-    ++j;
-    std::vector<const char*> arguments;
-    if ( memcheck )
-      {
-      cmCTest::tm_VectorOfStrings::size_type pp;
-      arguments.push_back(m_MemoryTester.c_str());
-      memcheckcommand = m_MemoryTester;
-      for ( pp = 0; pp < m_MemoryTesterOptionsParsed.size(); pp ++ )
-        {
-        arguments.push_back(m_MemoryTesterOptionsParsed[pp].c_str());
-        memcheckcommand += " ";
-        memcheckcommand += cmSystemTools::EscapeSpaces(m_MemoryTesterOptionsParsed[pp].c_str());
-        }
-      }
-    arguments.push_back(actualCommand.c_str());
-    for(;j != args.end(); ++j)
-      {
-      testCommand += " ";
-      testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
-      arguments.push_back(j->Value.c_str());
-      }
-    arguments.push_back(0);
+  memset(hostent_buf, 0, sizeof(struct hostent)+sizeof(struct hostent_data));
 
-    /**
-     * Run an executable command and put the stdout in output.
-     */
-    std::string output;
-    int retVal = 0;
+  if(gethostbyaddr_r((char *) &address,
+                     sizeof(address), AF_INET,
+                     (struct hostent *)hostent_buf,
+                     (struct hostent_data *)(hostent_buf + sizeof(*answer))))
+    answer=NULL;
+  else
+    answer=(struct hostent *)hostent_buf;
+                           
+#  endif
+#  ifdef HAVE_GETHOSTBYADDR_R_7
+  /* Solaris and IRIX */
+  answer = gethostbyaddr_r((char *) &address, sizeof(address), AF_INET,
+                           (struct hostent *)bigbuf,
+                           hostent_buf + sizeof(*answer),
+                           sizeof(bigbuf) - sizeof(*answer),
+                           &h_errnop);
+#  endif
+#  ifdef HAVE_GETHOSTBYADDR_R_8
+  /* Linux style */
+  if(gethostbyaddr_r((char *) &address, sizeof(address), AF_INET,
+                     (struct hostent *)hostent_buf,
+                     hostent_buf + sizeof(*answer),
+                     sizeof(bigbuf) - sizeof(*answer),
+                     &answer,
+                     &h_errnop))
+    answer=NULL; /* error */
+#  endif
+        
+# else
+  answer = gethostbyaddr((char *) &address, sizeof(address), AF_INET);
+# endif
+#else
+  answer = NULL;
+#endif
+  (void) memcpy(&in.s_addr, addr, sizeof (Curl_ipconnect));
+  infof(conn->data, "Connecting to %s (%s) port %u\n",
+        answer?answer->h_name:newhost,
+#if defined(HAVE_INET_NTOA_R)
+        inet_ntoa_r(in, ntoa_buf, sizeof(ntoa_buf)),
+#else
+        inet_ntoa(in),
+#endif
+        port);
 
-
-    if ( m_Verbose )
-      {
-      std::cout << std::endl << (memcheck?"MemCheck":"Test") << " command: " << testCommand << std::endl;
-      if ( memcheck )
-        {
-        std::cout << "Memory check command: " << memcheckcommand << std::endl;
-        }
-      }
-    if ( olog )
-      {
-      *olog << cnt << "/" << tmsize 
-        << " Test: " << testname.c_str() << std::endl;
-      *olog << "Command: ";
-      tm_VectorOfStrings::size_type ll;
-      for ( ll = 0; ll < arguments.size()-1; ll ++ )
-        {
-        *olog << "\"" << arguments[ll] << "\" ";
-        }
-      *olog 
-        << std::endl 
-        << "Directory: " << it->m_Directory << std::endl 
-        << "\"" << testname.c_str() << "\" start time: " 
-        << this->CurrentTime() << std::endl
-        << "Output:" << std::endl 
-        << "----------------------------------------------------------"
-        << std::endl;
-      }
-    int res = 0;
-    double clock_start, clock_finish;
-    clock_start = cmSystemTools::GetTime();
-
-    if ( !m_ShowOnly )
-      {
-      res = this->RunTest(arguments, &output, &retVal, olog);
-      }
-
-    clock_finish = cmSystemTools::GetTime();
-
-    if ( olog )
-      {
-      double ttime = clock_finish - clock_start;
-      int hours = static_cast<int>(ttime / (60 * 60));
-      int minutes = static_cast<int>(ttime / 60) % 60;
-      int seconds = static_cast<int>(ttime) % 60;
-      char buffer[100];
-      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
-      *olog 
-        << "----------------------------------------------------------"
-        << std::endl
-        << "\"" << testname.c_str() << "\" end time: " 
-        << this->CurrentTime() << std::endl
-        << "\"" << testname.c_str() << "\" time elapsed: " 
-        << buffer << std::endl
-        << "----------------------------------------------------------"
-        << std::endl << std::endl;
-      }
-
-    cres.m_ExecutionTime = (double)(clock_finish - clock_start);
-    cres.m_FullCommandLine = testCommand;
-
-    if ( !m_ShowOnly )
-      {
-      if (res == cmsysProcess_State_Exited && retVal == 0)
-        {
-        fprintf(stderr,"   Passed\n");
-        passed.push_back(testname);
-        cres.m_Status = cmCTest::COMPLETED;
-        }
-      else
-        {
-        cres.m_Status = cmCTest::FAILED;
-        if ( res == cmsysProcess_State_Expired )
-          {
-          fprintf(stderr,"***Timeout\n");
-          cres.m_Status = cmCTest::TIMEOUT;
-          }
-        else if ( res == cmsysProcess_State_Exception )
-          {
-          fprintf(stderr,"***Exception: ");
-          switch ( retVal )
-            {
-          case cmsysProcess_Exception_Fault:
-            fprintf(stderr,"SegFault");
-            cres.m_Status = cmCTest::SEGFAULT;
-            break;
-          case cmsysProcess_Exception_Illegal:
-            fprintf(stderr,"Illegal");
-            cres.m_Status = cmCTest::ILLEGAL;
-            break;
-          case cmsysProcess_Exception_Interrupt:
-            fprintf(stderr,"Interrupt");
-            cres.m_Status = cmCTest::INTERRUPT;
-            break;
-          case cmsysProcess_Exception_Numerical:
-            fprintf(stderr,"Numerical");
-            cres.m_Status = cmCTest::NUMERICAL;
-            break;
-          default:
-            fprintf(stderr,"Other");
-            cres.m_Status = cmCTest::OTHER_FAULT;
-            }
-          fprintf(stderr,"\n");
-          }
-        else if ( res == cmsysProcess_State_Error )
-          {
-          fprintf(stderr,"***Bad command %d\n", res);
-          cres.m_Status = cmCTest::BAD_COMMAND;
-          }
-        else
-          {
-          fprintf(stderr,"***Failed\n");
-          }
-        failed.push_back(testname);
-        }
-      if (output != "")
-        {
-        if (dartStuff.find(output.c_str()))
-          {
-          std::string dartString = dartStuff.match(1);
-          cmSystemTools::ReplaceString(output, dartString.c_str(),"");
-          cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
-          }
-        }
-      }
-    cres.m_Output = output;
-    cres.m_ReturnValue = retVal;
-    std::string nwd = it->m_Directory;
-    if ( nwd.size() > m_ToplevelPath.size() )
-      {
-      nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
-      }
-    cmSystemTools::ReplaceString(nwd, "\\", "/");
-    cres.m_Path = nwd;
-    cres.m_CompletionStatus = "Completed";
-    m_TestResults.push_back( cres );
-    }
-
-  m_EndTest = this->CurrentTime();
-  m_ElapsedTestingTime = cmSystemTools::GetTime() - elapsed_time_start;
-  if ( olog )
-    {
-    *olog << "End testing: " << m_EndTest << std::endl;
-    }
-  cmSystemTools::ChangeDirectory(current_dir.c_str());
+#else
+  /*****************************************************************
+   *
+   * IPv6-only code section
+   */
+  char hbuf[NI_MAXHOST]; /* ~1KB */
+  char nbuf[NI_MAXHOST]; /* ~1KB */
+  char sbuf[NI_MAXSERV]; /* around 32 */
+#ifdef NI_WITHSCOPEID
+  const int niflags = NI_NUMERICHOST | NI_NUMERICSERV | NI_WITHSCOPEID;
+#else
+  const int niflags = NI_NUMERICHOST | NI_NUMERICSERV;
+#endif
+  port = 0; /* unused, prevent warning */
+  if (getnameinfo(addr->ai_addr, addr->ai_addrlen,
+                  nbuf, sizeof(nbuf), sbuf, sizeof(sbuf), niflags)) {
+    snprintf(nbuf, sizeof(nbuf), "?");
+    snprintf(sbuf, sizeof(sbuf), "?");
+  }
+        
+  if (getnameinfo(addr->ai_addr, addr->ai_addrlen,
+                  hbuf, sizeof(hbuf), NULL, 0, 0)) {
+    infof(conn->data, "Connecting to %s (%s) port %s\n", nbuf, newhost, sbuf);
+  }
+  else {
+    infof(conn->data, "Connecting to %s (%s) port %s\n", hbuf, nbuf, sbuf);
+  }
+#endif
 }

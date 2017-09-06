@@ -1,97 +1,237 @@
 static int
-header_Solaris_ACL(struct archive_read *a, struct tar *tar,
-    struct archive_entry *entry, const void *h, size_t *unconsumed)
+translate_acl(struct archive_read_disk *a,
+    struct archive_entry *entry, acl_t acl, int default_entry_acl_type)
 {
-	const struct archive_entry_header_ustar *header;
-	size_t size;
-	int err, acl_type;
-	int64_t type;
-	char *acl, *p;
+	acl_tag_t	 acl_tag;
+#if HAVE_ACL_TYPE_NFS4
+	acl_entry_type_t acl_type;
+	int brand;
+#endif
+#if HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL
+	acl_flagset_t	 acl_flagset;
+#endif
+	acl_entry_t	 acl_entry;
+	acl_permset_t	 acl_permset;
+	int		 i, entry_acl_type;
+	int		 r, s, ae_id, ae_tag, ae_perm;
+#if !HAVE_DARWIN_ACL
+	void		*q;
+#endif
+	const char	*ae_name;
 
-	/*
-	 * read_body_to_string adds a NUL terminator, but we need a little
-	 * more to make sure that we don't overrun acl_text later.
-	 */
-	header = (const struct archive_entry_header_ustar *)h;
-	size = (size_t)tar_atol(header->size, sizeof(header->size));
-	err = read_body_to_string(a, tar, &(tar->acl_text), h, unconsumed);
-	if (err != ARCHIVE_OK)
-		return (err);
-
-	/* Recursively read next header */
-	err = tar_read_header(a, tar, entry, unconsumed);
-	if ((err != ARCHIVE_OK) && (err != ARCHIVE_WARN))
-		return (err);
-
-	/* TODO: Examine the first characters to see if this
-	 * is an AIX ACL descriptor.  We'll likely never support
-	 * them, but it would be polite to recognize and warn when
-	 * we do see them. */
-
-	/* Leading octal number indicates ACL type and number of entries. */
-	p = acl = tar->acl_text.s;
-	type = 0;
-	while (*p != '\0' && p < acl + size) {
-		if (*p < '0' || *p > '7') {
+#if HAVE_ACL_TYPE_NFS4
+	// FreeBSD "brands" ACLs as POSIX.1e or NFSv4
+	// Make sure the "brand" on this ACL is consistent
+	// with the default_entry_acl_type bits provided.
+	if (acl_get_brand_np(acl, &brand) != 0) {
+		archive_set_error(&a->archive, errno,
+		    "Failed to read ACL brand");
+		return (ARCHIVE_WARN);
+	}
+	switch (brand) {
+	case ACL_BRAND_POSIX:
+		switch (default_entry_acl_type) {
+		case ARCHIVE_ENTRY_ACL_TYPE_ACCESS:
+		case ARCHIVE_ENTRY_ACL_TYPE_DEFAULT:
+			break;
+		default:
 			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Malformed Solaris ACL attribute (invalid digit)");
-			return(ARCHIVE_WARN);
-		}
-		type <<= 3;
-		type += *p - '0';
-		if (type > 077777777) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Malformed Solaris ACL attribute (count too large)");
+			    "Invalid ACL entry type for POSIX.1e ACL");
 			return (ARCHIVE_WARN);
 		}
-		p++;
-	}
-	switch ((int)type & ~0777777) {
-	case 01000000:
-		/* POSIX.1e ACL */
-		acl_type = ARCHIVE_ENTRY_ACL_TYPE_ACCESS;
 		break;
-	case 03000000:
-		/* NFSv4 ACL */
-		acl_type = ARCHIVE_ENTRY_ACL_TYPE_NFS4;
+	case ACL_BRAND_NFS4:
+		if (default_entry_acl_type & ~ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Invalid ACL entry type for NFSv4 ACL");
+			return (ARCHIVE_WARN);
+		}
 		break;
 	default:
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Malformed Solaris ACL attribute (unsupported type %o)",
-		    (int)type);
+		    "Unknown ACL brand");
 		return (ARCHIVE_WARN);
 	}
-	p++;
+#endif
 
-	if (p >= acl + size) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Malformed Solaris ACL attribute (body overflow)");
-		return(ARCHIVE_WARN);
+	s = acl_get_entry(acl, ACL_FIRST_ENTRY, &acl_entry);
+	if (s == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Failed to get first ACL entry");
+		return (ARCHIVE_WARN);
 	}
 
-	/* ACL text is null-terminated; find the end. */
-	size -= (p - acl);
-	acl = p;
+#if HAVE_DARWIN_ACL
+	while (s == 0)
+#else	/* FreeBSD, Linux */
+	while (s == 1)
+#endif
+	{
+		ae_id = -1;
+		ae_name = NULL;
+		ae_perm = 0;
 
-	while (*p != '\0' && p < acl + size)
-		p++;
+		if (acl_get_tag_type(acl_entry, &acl_tag) != 0) {
+			archive_set_error(&a->archive, errno,
+			    "Failed to get ACL tag type");
+			return (ARCHIVE_WARN);
+		}
+		switch (acl_tag) {
+#if !HAVE_DARWIN_ACL	/* FreeBSD, Linux */
+		case ACL_USER:
+			q = acl_get_qualifier(acl_entry);
+			if (q != NULL) {
+				ae_id = (int)*(uid_t *)q;
+				acl_free(q);
+				ae_name = archive_read_disk_uname(&a->archive,
+				    ae_id);
+			}
+			ae_tag = ARCHIVE_ENTRY_ACL_USER;
+			break;
+		case ACL_GROUP:
+			q = acl_get_qualifier(acl_entry);
+			if (q != NULL) {
+				ae_id = (int)*(gid_t *)q;
+				acl_free(q);
+				ae_name = archive_read_disk_gname(&a->archive,
+				    ae_id);
+			}
+			ae_tag = ARCHIVE_ENTRY_ACL_GROUP;
+			break;
+		case ACL_MASK:
+			ae_tag = ARCHIVE_ENTRY_ACL_MASK;
+			break;
+		case ACL_USER_OBJ:
+			ae_tag = ARCHIVE_ENTRY_ACL_USER_OBJ;
+			break;
+		case ACL_GROUP_OBJ:
+			ae_tag = ARCHIVE_ENTRY_ACL_GROUP_OBJ;
+			break;
+		case ACL_OTHER:
+			ae_tag = ARCHIVE_ENTRY_ACL_OTHER;
+			break;
+#if HAVE_ACL_TYPE_NFS4
+		case ACL_EVERYONE:
+			ae_tag = ARCHIVE_ENTRY_ACL_EVERYONE;
+			break;
+#endif
+#else	/* HAVE_DARWIN_ACL */
+		case ACL_EXTENDED_ALLOW:
+			entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
+			r = translate_guid(&a->archive, acl_entry, &ae_id,
+			    &ae_tag, &ae_name);
+			break;
+		case ACL_EXTENDED_DENY:
+			entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
+			r = translate_guid(&a->archive, acl_entry, &ae_id,
+			    &ae_tag, &ae_name);
+			break;
+#endif	/* HAVE_DARWIN_ACL */
+		default:
+			/* Skip types that libarchive can't support. */
+			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+			continue;
+		}
 
-	if (tar->sconv_acl == NULL) {
-		tar->sconv_acl = archive_string_conversion_from_charset(
-		    &(a->archive), "UTF-8", 1);
-		if (tar->sconv_acl == NULL)
-			return (ARCHIVE_FATAL);
+#if HAVE_DARWIN_ACL
+		/* Skip if translate_guid() above failed */
+		if (r != 0) {
+			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+			continue;
+		}
+#endif
+
+#if !HAVE_DARWIN_ACL
+		// XXX acl_type maps to allow/deny/audit/YYYY bits
+		entry_acl_type = default_entry_acl_type;
+#endif
+#if HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL
+		if (default_entry_acl_type & ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
+#if HAVE_ACL_TYPE_NFS4
+			/*
+			 * acl_get_entry_type_np() fails with non-NFSv4 ACLs
+			 */
+			if (acl_get_entry_type_np(acl_entry, &acl_type) != 0) {
+				archive_set_error(&a->archive, errno, "Failed "
+				    "to get ACL type from a NFSv4 ACL entry");
+				return (ARCHIVE_WARN);
+			}
+			switch (acl_type) {
+			case ACL_ENTRY_TYPE_ALLOW:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
+				break;
+			case ACL_ENTRY_TYPE_DENY:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
+				break;
+			case ACL_ENTRY_TYPE_AUDIT:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_AUDIT;
+				break;
+			case ACL_ENTRY_TYPE_ALARM:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALARM;
+				break;
+			default:
+				archive_set_error(&a->archive, errno,
+				    "Invalid NFSv4 ACL entry type");
+				return (ARCHIVE_WARN);
+			}
+#endif	/* HAVE_ACL_TYPE_NFS4 */
+
+			/*
+			 * Libarchive stores "flag" (NFSv4 inheritance bits)
+			 * in the ae_perm bitmap.
+			 *
+			 * acl_get_flagset_np() fails with non-NFSv4 ACLs
+			 */
+			if (acl_get_flagset_np(acl_entry, &acl_flagset) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Failed to get flagset from a NFSv4 ACL entry");
+				return (ARCHIVE_WARN);
+			}
+			for (i = 0; i < (int)(sizeof(acl_inherit_map) / sizeof(acl_inherit_map[0])); ++i) {
+				r = acl_get_flag_np(acl_flagset,
+				    acl_inherit_map[i].platform_inherit);
+				if (r == -1) {
+					archive_set_error(&a->archive, errno,
+					    "Failed to check flag in a NFSv4 "
+					    "ACL flagset");
+					return (ARCHIVE_WARN);
+				} else if (r)
+					ae_perm |= acl_inherit_map[i].archive_inherit;
+			}
+		}
+#endif	/* HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL */
+
+		if (acl_get_permset(acl_entry, &acl_permset) != 0) {
+			archive_set_error(&a->archive, errno,
+			    "Failed to get ACL permission set");
+			return (ARCHIVE_WARN);
+		}
+		for (i = 0; i < (int)(sizeof(acl_perm_map) / sizeof(acl_perm_map[0])); ++i) {
+			/*
+			 * acl_get_perm() is spelled differently on different
+			 * platforms; see above.
+			 */
+			r = ACL_GET_PERM(acl_permset, acl_perm_map[i].platform_perm);
+			if (r == -1) {
+				archive_set_error(&a->archive, errno,
+				    "Failed to check permission in an ACL permission set");
+				return (ARCHIVE_WARN);
+			} else if (r)
+				ae_perm |= acl_perm_map[i].archive_perm;
+		}
+
+		archive_entry_acl_add_entry(entry, entry_acl_type,
+					    ae_perm, ae_tag,
+					    ae_id, ae_name);
+
+		s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+#if !HAVE_DARWIN_ACL
+		if (s == -1) {
+			archive_set_error(&a->archive, errno,
+			    "Failed to get next ACL entry");
+			return (ARCHIVE_WARN);
+		}
+#endif
 	}
-	archive_strncpy(&(tar->localname), acl, p - acl);
-	err = archive_acl_from_text_l(archive_entry_acl(entry),
-	    tar->localname.s, acl_type, tar->sconv_acl);
-	if (err != ARCHIVE_OK) {
-		if (errno == ENOMEM) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for ACL");
-		} else
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Malformed Solaris ACL attribute (unparsable)");
-	}
-	return (err);
+	return (ARCHIVE_OK);
 }

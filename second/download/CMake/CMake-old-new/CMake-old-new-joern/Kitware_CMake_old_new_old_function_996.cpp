@@ -1,107 +1,97 @@
-static ssize_t
-decode_header_image(struct archive_read *a, struct _7zip *zip,
-    struct _7z_stream_info *si, const unsigned char *p, uint64_t len,
-    const void **image)
+static int
+xar_options(struct archive_write *a, const char *key, const char *value)
 {
-	const unsigned char *v;
-	size_t vsize;
-	int r;
+	struct xar *xar;
 
-	errno = 0;
-	r = read_StreamsInfo(zip, si, p, len);
-	if (r < 0) {
-		if (errno == ENOMEM)
-			archive_set_error(&a->archive, -1,
-			    "Couldn't allocate memory");
-		else
-			archive_set_error(&a->archive, -1,
-			    "Malformed 7-Zip archive");
-		return (ARCHIVE_FATAL);
-	}
+	xar = (struct xar *)a->format_data;
 
-	if (si->pi.numPackStreams == 0 || si->ci.numFolders == 0) {
-		archive_set_error(&a->archive, -1, "Malformed 7-Zip archive");
-		return (ARCHIVE_FATAL);
-	}
-
-	if (zip->header_offset < si->pi.pos + si->pi.sizes[0] ||
-	    (int64_t)(si->pi.pos + si->pi.sizes[0]) < 0 ||
-	    si->pi.sizes[0] == 0 || (int64_t)si->pi.pos < 0) {
-		archive_set_error(&a->archive, -1, "Malformed Header offset");
-		return (ARCHIVE_FATAL);
-	}
-
-	r = setup_decode_folder(a, si->ci.folders, 1);
-	if (r != ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
-
-	/* Get an uncompressed header size. */
-	vsize = (size_t)zip->folder_outbytes_remaining;
-
-	/*
-	 * Allocate an uncompressed buffer for the header image.
-	 */
-	zip->uncompressed_buffer_size = 64 * 1024;
-	if (vsize > zip->uncompressed_buffer_size)
-		zip->uncompressed_buffer_size = vsize;
-	zip->uncompressed_buffer = malloc(zip->uncompressed_buffer_size);
-	if (zip->uncompressed_buffer == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "No memory for 7-Zip decompression");
-		return (ARCHIVE_FATAL);
-	}
-
-	/* Get the bytes we can read to decode the header. */
-	zip->pack_stream_inbytes_remaining = si->pi.sizes[0];
-
-	/* Seek the read point. */
-	if (__archive_read_seek(a, si->pi.pos + zip->seek_base, SEEK_SET) < 0)
-		return (ARCHIVE_FATAL);
-	zip->header_offset = si->pi.pos;
-
-	/* Extract a pack stream. */
-	r = extract_pack_stream(a);
-	if (r < 0)
-		return (r);
-	for (;;) {
-		ssize_t bytes;
-		
-		bytes = get_uncompressed_data(a, image, vsize);
-		if (bytes < 0)
-			return (r);
-		if (bytes != vsize) {
-			if (*image != zip->uncompressed_buffer) {
-				/* This might happen if the coder was COPY.
-				 * We have to make sure we read a full plain
-				 * header image. */
-				if (NULL==__archive_read_ahead(a, vsize, NULL))
-					return (ARCHIVE_FATAL);
-				continue;
-			} else {
-				archive_set_error(&a->archive, -1,
-				    "Malformed 7-Zip archive file");
-				return (ARCHIVE_FATAL);
-			}
+	if (strcmp(key, "checksum") == 0) {
+		if (value == NULL)
+			xar->opt_sumalg = CKSUM_NONE;
+		else if (strcmp(value, "sha1") == 0)
+			xar->opt_sumalg = CKSUM_SHA1;
+		else if (strcmp(value, "md5") == 0)
+			xar->opt_sumalg = CKSUM_MD5;
+		else {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unkonwn checksum name: `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
 		}
-		break;
+		return (ARCHIVE_OK);
 	}
-	v = *image;
+	if (strcmp(key, "compression") == 0) {
+		const char *name = NULL;
 
-	/* Clean up variables which will not be used for decoding the
-	 * archive header */
-	zip->pack_stream_remaining = 0;
-	zip->pack_stream_index = 0;
-	zip->folder_outbytes_remaining = 0;
-	zip->uncompressed_buffer_bytes_remaining = 0;
-	zip->pack_stream_bytes_unconsumed = 0;
-
-	/* Check the header CRC. */
-	if (si->ci.folders[0].digest_defined){
-		uint32_t c = crc32(0, v, vsize);
-		if (c != si->ci.folders[0].digest) {
-			archive_set_error(&a->archive, -1, "Header CRC error");
-			return (ARCHIVE_FATAL);
+		if (value == NULL)
+			xar->opt_compression = NONE;
+		else if (strcmp(value, "gzip") == 0)
+			xar->opt_compression = GZIP;
+		else if (strcmp(value, "bzip2") == 0)
+#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
+			xar->opt_compression = BZIP2;
+#else
+			name = "bzip2";
+#endif
+		else if (strcmp(value, "lzma") == 0)
+#if HAVE_LZMA_H
+			xar->opt_compression = LZMA;
+#else
+			name = "lzma";
+#endif
+		else if (strcmp(value, "xz") == 0)
+#if HAVE_LZMA_H
+			xar->opt_compression = XZ;
+#else
+			name = "xz";
+#endif
+		else {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unkonwn compression name: `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
 		}
+		if (name != NULL) {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "`%s' compression not supported "
+			    "on this platform",
+			    name);
+			return (ARCHIVE_FAILED);
+		}
+		return (ARCHIVE_OK);
 	}
-	return ((ssize_t)vsize);
+	if (strcmp(key, "compression-level") == 0) {
+		if (value == NULL ||
+		    !(value[0] >= '0' && value[0] <= '9') ||
+		    value[1] != '\0') {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Illeagal value `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
+		}
+		xar->opt_compression_level = value[0] - '0';
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "toc-checksum") == 0) {
+		if (value == NULL)
+			xar->opt_toc_sumalg = CKSUM_NONE;
+		else if (strcmp(value, "sha1") == 0)
+			xar->opt_toc_sumalg = CKSUM_SHA1;
+		else if (strcmp(value, "md5") == 0)
+			xar->opt_toc_sumalg = CKSUM_MD5;
+		else {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unkonwn checksum name: `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
+		}
+		return (ARCHIVE_OK);
+	}
+
+	return (ARCHIVE_FAILED);
 }

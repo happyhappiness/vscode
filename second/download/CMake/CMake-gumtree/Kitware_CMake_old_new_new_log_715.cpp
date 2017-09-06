@@ -1,2 +1,3 @@
-fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName().c_str());
+fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
+              targetName.c_str());

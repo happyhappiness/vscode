@@ -1,1 +1,0 @@
-fprintf(fout,"#define VTK_TCL_TO_STRING0(x) #x\n");

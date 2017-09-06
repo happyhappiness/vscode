@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "bad buffer in yy_scan_bytes()" );
+sprintf(hex, "%%%02X", (int)c);

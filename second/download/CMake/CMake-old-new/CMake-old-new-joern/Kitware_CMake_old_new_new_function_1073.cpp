@@ -1,27 +1,21 @@
-void cmFindPackageCommand::StoreVersionFound()
+void
+cmComputeTargetDepends::DisplayGraph(Graph const& graph, const char* name)
 {
-  // Store the whole version string.
-  std::string ver = this->Name;
-  ver += "_VERSION";
-  if(this->VersionFound.empty())
+  fprintf(stderr, "The %s target dependency graph is:\n", name);
+  int n = static_cast<int>(graph.size());
+  for(int depender_index = 0; depender_index < n; ++depender_index)
     {
-    this->Makefile->RemoveDefinition(ver.c_str());
+    EdgeList const& nl = graph[depender_index];
+    cmTarget* depender = this->Targets[depender_index];
+    fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int dependee_index = *ni;
+      cmTarget* dependee = this->Targets[dependee_index];
+      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
+      }
     }
-  else
-    {
-    this->Makefile->AddDefinition(ver.c_str(), this->VersionFound.c_str());
-    }
-
-  // Store the version components.
-  char buf[64];
-  sprintf(buf, "%u", this->VersionFoundMajor);
-  this->Makefile->AddDefinition((ver+"_MAJOR").c_str(), buf);
-  sprintf(buf, "%u", this->VersionFoundMinor);
-  this->Makefile->AddDefinition((ver+"_MINOR").c_str(), buf);
-  sprintf(buf, "%u", this->VersionFoundPatch);
-  this->Makefile->AddDefinition((ver+"_PATCH").c_str(), buf);
-  sprintf(buf, "%u", this->VersionFoundTweak);
-  this->Makefile->AddDefinition((ver+"_TWEAK").c_str(), buf);
-  sprintf(buf, "%u", this->VersionFoundCount);
-  this->Makefile->AddDefinition((ver+"_COUNT").c_str(), buf);
+  fprintf(stderr, "\n");
 }

@@ -1,1 +1,1 @@
-fprintf(stderr,"Illegal");
+std::cerr << "SegFault";

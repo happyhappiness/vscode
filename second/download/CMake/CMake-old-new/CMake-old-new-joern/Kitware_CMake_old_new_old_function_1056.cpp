@@ -1,165 +1,66 @@
-int cmCTestTestHandler::ProcessHandler()
-{
-  // Update internal data structure from generic one
-  this->SetTestsToRunInformation(this->GetOption("TestsToRunInformation"));
-  this->SetUseUnion(cmSystemTools::IsOn(this->GetOption("UseUnion")));
-  const char* val;
-  val = this->GetOption("LabelRegularExpression");
-  if ( val )
+void DoHeaderLine()
     {
-    this->UseIncludeLabelRegExpFlag = true;
-    this->IncludeLabelRegExp = val;
-    }
-  val = this->GetOption("ExcludeLabelRegularExpression");
-  if ( val )
-    {
-    this->UseExcludeLabelRegExpFlag = true;
-    this->ExcludeLabelRegularExpression = val;
-    }
-  val = this->GetOption("IncludeRegularExpression");
-  if ( val )
-    {
-    this->UseIncludeRegExp();
-    this->SetIncludeRegExp(val);
-    }
-  val = this->GetOption("ExcludeRegularExpression");
-  if ( val )
-    {
-    this->UseExcludeRegExp();
-    this->SetExcludeRegExp(val);
-    }
-  
-  this->TestResults.clear();
- // do not output startup if this is a sub-process for parallel tests
-  if(!this->CTest->GetParallelSubprocess())
-    {
-    cmCTestLog(this->CTest, HANDLER_OUTPUT,
-               (this->MemCheck ? "Memory check" : "Test")
-               << " project " << cmSystemTools::GetCurrentWorkingDirectory()
-               << std::endl);
-    }
-  if ( ! this->PreProcessHandler() )
-    {
-    return -1;
-    }
-
-  cmGeneratedFileStream mLogFile;
-  this->StartLogFile((this->MemCheck ? "DynamicAnalysis" : "Test"), mLogFile);
-  this->LogFile = &mLogFile;
-
-  std::vector<cmStdString> passed;
-  std::vector<cmStdString> failed;
-  int total;
-  this->ProcessDirectory(passed, failed);
-
-  total = int(passed.size()) + int(failed.size());
-
-  if (total == 0)
-    {
-    if ( !this->CTest->GetShowOnly() )
+    // Look for header fields that we need.
+    if(strncmp(this->Line.c_str(), "commit ", 7) == 0)
       {
-      cmCTestLog(this->CTest, ERROR_MESSAGE, "No tests were found!!!"
-        << std::endl);
+      this->Rev.Rev = this->Line.c_str()+7;
       }
-    }
-  else
-    {
-    if (this->HandlerVerbose && passed.size() &&
-      (this->UseIncludeRegExpFlag || this->UseExcludeRegExpFlag))
+    else if(strncmp(this->Line.c_str(), "author ", 7) == 0)
       {
-      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
-        << "The following tests passed:" << std::endl);
-      for(std::vector<cmStdString>::iterator j = passed.begin();
-          j != passed.end(); ++j)
+      Person author;
+      this->ParsePerson(this->Line.c_str()+7, author);
+      this->Rev.Author = author.Name;
+      this->Rev.EMail = author.EMail;
+
+      // Convert the time to a human-readable format that is also easy
+      // to machine-parse: "CCYY-MM-DD hh:mm:ss".
+      time_t seconds = static_cast<time_t>(author.Time);
+      struct tm* t = gmtime(&seconds);
+      char dt[1024];
+      sprintf(dt, "%04d-%02d-%02d %02d:%02d:%02d",
+              t->tm_year+1900, t->tm_mon+1, t->tm_mday,
+              t->tm_hour, t->tm_min, t->tm_sec);
+      this->Rev.Date = dt;
+
+      // Add the time-zone field "+zone" or "-zone".
+      char tz[32];
+      if(author.TimeZone >= 0)
         {
-        cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "\t" << *j
-          << std::endl);
+        sprintf(tz, " +%04ld", author.TimeZone);
         }
-      }
-
-    float percent = float(passed.size()) * 100.0f / total;
-    if ( failed.size() > 0 &&  percent > 99)
-      {
-      percent = 99;
-      }
-    
-    if(!this->CTest->GetParallelSubprocess())
-      {
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl
-                 << static_cast<int>(percent + .5) << "% tests passed, "
-                 << failed.size() << " tests failed out of " 
-                 << total << std::endl); 
-      double totalTestTime = 0;
-
-      for(cmCTestTestHandler::TestResultsVector::size_type cc = 0;
-          cc < this->TestResults.size(); cc ++ )
+      else
         {
-        cmCTestTestResult *result = &this->TestResults[cc];
-        totalTestTime += result->ExecutionTime;
+        sprintf(tz, " -%04ld", -author.TimeZone);
         }
-      
-      char buf[1024];
-      sprintf(buf, "%6.2f sec", totalTestTime); 
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time = " 
-                 <<  buf << "\n" );
-      
+      this->Rev.Date += tz;
       }
-
-    if (failed.size())
+    else if(strncmp(this->Line.c_str(), "committer ", 10) == 0)
       {
-      cmGeneratedFileStream ofs;
-      if(!this->CTest->GetParallelSubprocess())
+      Person committer;
+      this->ParsePerson(this->Line.c_str()+10, committer);
+      this->Rev.Committer = committer.Name;
+      this->Rev.CommitterEMail = committer.EMail;
+
+      // Convert the time to a human-readable format that is also easy
+      // to machine-parse: "CCYY-MM-DD hh:mm:ss".
+      time_t seconds = static_cast<time_t>(committer.Time);
+      struct tm* t = gmtime(&seconds);
+      char dt[1024];
+      sprintf(dt, "%04d-%02d-%02d %02d:%02d:%02d",
+              t->tm_year+1900, t->tm_mon+1, t->tm_mday,
+              t->tm_hour, t->tm_min, t->tm_sec);
+      this->Rev.CommitDate = dt;
+
+      // Add the time-zone field "+zone" or "-zone".
+      char tz[32];
+      if(committer.TimeZone >= 0)
         {
-        cmCTestLog(this->CTest, ERROR_MESSAGE, std::endl
-                   << "The following tests FAILED:" << std::endl);
-        this->StartLogFile("TestsFailed", ofs);
-        
-        std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;
-        for(ftit = this->TestResults.begin();
-            ftit != this->TestResults.end(); ++ftit)
-          {
-          if ( ftit->Status != cmCTestTestHandler::COMPLETED )
-            {
-            ofs << ftit->TestCount << ":" << ftit->Name << std::endl;
-            cmCTestLog(this->CTest, HANDLER_OUTPUT, "\t" << std::setw(3)
-                       << ftit->TestCount << " - " 
-                       << ftit->Name.c_str() << " ("
-                       << this->GetTestStatus(ftit->Status) << ")" 
-                       << std::endl);
-            }
-          }
-        
+        sprintf(tz, " +%04ld", committer.TimeZone);
         }
+      else
+        {
+        sprintf(tz, " -%04ld", -committer.TimeZone);
+        }
+      this->Rev.CommitDate += tz;
       }
     }
-
-  if ( this->CTest->GetProduceXML() )
-    {
-    cmGeneratedFileStream xmlfile;
-    if( !this->StartResultingXML(
-          (this->MemCheck ? cmCTest::PartMemCheck : cmCTest::PartTest),
-        (this->MemCheck ? "DynamicAnalysis" : "Test"), xmlfile) )
-      {
-      cmCTestLog(this->CTest, ERROR_MESSAGE, "Cannot create "
-        << (this->MemCheck ? "memory check" : "testing")
-        << " XML file" << std::endl);
-      this->LogFile = 0;
-      return 1;
-      }
-    this->GenerateDartOutput(xmlfile);
-    }
-
-  if ( ! this->PostProcessHandler() )
-    {
-    this->LogFile = 0;
-    return -1;
-    }
-
-  if ( !failed.empty() )
-    {
-    this->LogFile = 0;
-    return -1;
-    }
-  this->LogFile = 0;
-  return 0;
-}

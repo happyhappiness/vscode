@@ -1,237 +1,242 @@
 static int
-translate_acl(struct archive_read_disk *a,
-    struct archive_entry *entry, acl_t acl, int default_entry_acl_type)
+parse_keyword(struct archive_read *a, struct mtree *mtree,
+    struct archive_entry *entry, struct mtree_option *opt, int *parsed_kws)
 {
-	acl_tag_t	 acl_tag;
-#if HAVE_ACL_TYPE_NFS4
-	acl_entry_type_t acl_type;
-	int brand;
-#endif
-#if HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL
-	acl_flagset_t	 acl_flagset;
-#endif
-	acl_entry_t	 acl_entry;
-	acl_permset_t	 acl_permset;
-	int		 i, entry_acl_type;
-	int		 r, s, ae_id, ae_tag, ae_perm;
-#if !HAVE_DARWIN_ACL
-	void		*q;
-#endif
-	const char	*ae_name;
+	char *val, *key;
 
-#if HAVE_ACL_TYPE_NFS4
-	// FreeBSD "brands" ACLs as POSIX.1e or NFSv4
-	// Make sure the "brand" on this ACL is consistent
-	// with the default_entry_acl_type bits provided.
-	if (acl_get_brand_np(acl, &brand) != 0) {
-		archive_set_error(&a->archive, errno,
-		    "Failed to read ACL brand");
+	key = opt->value;
+
+	if (*key == '\0')
+		return (ARCHIVE_OK);
+
+	if (strcmp(key, "nochange") == 0) {
+		*parsed_kws |= MTREE_HAS_NOCHANGE;
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "optional") == 0) {
+		*parsed_kws |= MTREE_HAS_OPTIONAL;
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "ignore") == 0) {
+		/*
+		 * The mtree processing is not recursive, so
+		 * recursion will only happen for explicitly listed
+		 * entries.
+		 */
+		return (ARCHIVE_OK);
+	}
+
+	val = strchr(key, '=');
+	if (val == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Malformed attribute \"%s\" (%d)", key, key[0]);
 		return (ARCHIVE_WARN);
 	}
-	switch (brand) {
-	case ACL_BRAND_POSIX:
-		switch (default_entry_acl_type) {
-		case ARCHIVE_ENTRY_ACL_TYPE_ACCESS:
-		case ARCHIVE_ENTRY_ACL_TYPE_DEFAULT:
+
+	*val = '\0';
+	++val;
+
+	switch (key[0]) {
+	case 'c':
+		if (strcmp(key, "content") == 0
+		    || strcmp(key, "contents") == 0) {
+			parse_escapes(val, NULL);
+			archive_strcpy(&mtree->contents_name, val);
 			break;
-		default:
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Invalid ACL entry type for POSIX.1e ACL");
-			return (ARCHIVE_WARN);
 		}
-		break;
-	case ACL_BRAND_NFS4:
-		if (default_entry_acl_type & ~ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Invalid ACL entry type for NFSv4 ACL");
-			return (ARCHIVE_WARN);
+		if (strcmp(key, "cksum") == 0)
+			break;
+	case 'd':
+		if (strcmp(key, "device") == 0) {
+			/* stat(2) st_rdev field, e.g. the major/minor IDs
+			 * of a char/block special file */
+			int r;
+			dev_t dev;
+
+			*parsed_kws |= MTREE_HAS_DEVICE;
+			r = parse_device(&dev, &a->archive, val);
+			if (r == ARCHIVE_OK)
+				archive_entry_set_rdev(entry, dev);
+			return r;
 		}
-		break;
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Unknown ACL brand");
-		return (ARCHIVE_WARN);
-	}
-#endif
-
-	s = acl_get_entry(acl, ACL_FIRST_ENTRY, &acl_entry);
-	if (s == -1) {
-		archive_set_error(&a->archive, errno,
-		    "Failed to get first ACL entry");
-		return (ARCHIVE_WARN);
-	}
-
-#if HAVE_DARWIN_ACL
-	while (s == 0)
-#else	/* FreeBSD, Linux */
-	while (s == 1)
-#endif
-	{
-		ae_id = -1;
-		ae_name = NULL;
-		ae_perm = 0;
-
-		if (acl_get_tag_type(acl_entry, &acl_tag) != 0) {
-			archive_set_error(&a->archive, errno,
-			    "Failed to get ACL tag type");
-			return (ARCHIVE_WARN);
+	case 'f':
+		if (strcmp(key, "flags") == 0) {
+			*parsed_kws |= MTREE_HAS_FFLAGS;
+			archive_entry_copy_fflags_text(entry, val);
+			break;
 		}
-		switch (acl_tag) {
-#if !HAVE_DARWIN_ACL	/* FreeBSD, Linux */
-		case ACL_USER:
-			q = acl_get_qualifier(acl_entry);
-			if (q != NULL) {
-				ae_id = (int)*(uid_t *)q;
-				acl_free(q);
-				ae_name = archive_read_disk_uname(&a->archive,
-				    ae_id);
+	case 'g':
+		if (strcmp(key, "gid") == 0) {
+			*parsed_kws |= MTREE_HAS_GID;
+			archive_entry_set_gid(entry, mtree_atol10(&val));
+			break;
+		}
+		if (strcmp(key, "gname") == 0) {
+			*parsed_kws |= MTREE_HAS_GNAME;
+			archive_entry_copy_gname(entry, val);
+			break;
+		}
+	case 'i':
+		if (strcmp(key, "inode") == 0) {
+			archive_entry_set_ino(entry, mtree_atol10(&val));
+			break;
+		}
+	case 'l':
+		if (strcmp(key, "link") == 0) {
+			archive_entry_copy_symlink(entry, val);
+			break;
+		}
+	case 'm':
+		if (strcmp(key, "md5") == 0 || strcmp(key, "md5digest") == 0)
+			break;
+		if (strcmp(key, "mode") == 0) {
+			if (val[0] >= '0' && val[0] <= '9') {
+				*parsed_kws |= MTREE_HAS_PERM;
+				archive_entry_set_perm(entry,
+				    (mode_t)mtree_atol8(&val));
+			} else {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Symbolic mode \"%s\" unsupported", val);
+				return ARCHIVE_WARN;
 			}
-			ae_tag = ARCHIVE_ENTRY_ACL_USER;
 			break;
-		case ACL_GROUP:
-			q = acl_get_qualifier(acl_entry);
-			if (q != NULL) {
-				ae_id = (int)*(gid_t *)q;
-				acl_free(q);
-				ae_name = archive_read_disk_gname(&a->archive,
-				    ae_id);
-			}
-			ae_tag = ARCHIVE_ENTRY_ACL_GROUP;
-			break;
-		case ACL_MASK:
-			ae_tag = ARCHIVE_ENTRY_ACL_MASK;
-			break;
-		case ACL_USER_OBJ:
-			ae_tag = ARCHIVE_ENTRY_ACL_USER_OBJ;
-			break;
-		case ACL_GROUP_OBJ:
-			ae_tag = ARCHIVE_ENTRY_ACL_GROUP_OBJ;
-			break;
-		case ACL_OTHER:
-			ae_tag = ARCHIVE_ENTRY_ACL_OTHER;
-			break;
-#if HAVE_ACL_TYPE_NFS4
-		case ACL_EVERYONE:
-			ae_tag = ARCHIVE_ENTRY_ACL_EVERYONE;
-			break;
-#endif
-#else	/* HAVE_DARWIN_ACL */
-		case ACL_EXTENDED_ALLOW:
-			entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
-			r = translate_guid(&a->archive, acl_entry, &ae_id,
-			    &ae_tag, &ae_name);
-			break;
-		case ACL_EXTENDED_DENY:
-			entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
-			r = translate_guid(&a->archive, acl_entry, &ae_id,
-			    &ae_tag, &ae_name);
-			break;
-#endif	/* HAVE_DARWIN_ACL */
-		default:
-			/* Skip types that libarchive can't support. */
-			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
-			continue;
 		}
-
-#if HAVE_DARWIN_ACL
-		/* Skip if translate_guid() above failed */
-		if (r != 0) {
-			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
-			continue;
+	case 'n':
+		if (strcmp(key, "nlink") == 0) {
+			*parsed_kws |= MTREE_HAS_NLINK;
+			archive_entry_set_nlink(entry,
+				(unsigned int)mtree_atol10(&val));
+			break;
 		}
-#endif
+	case 'r':
+		if (strcmp(key, "resdevice") == 0) {
+			/* stat(2) st_dev field, e.g. the device ID where the
+			 * inode resides */
+			int r;
+			dev_t dev;
 
-#if !HAVE_DARWIN_ACL
-		// XXX acl_type maps to allow/deny/audit/YYYY bits
-		entry_acl_type = default_entry_acl_type;
-#endif
-#if HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL
-		if (default_entry_acl_type & ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
-#if HAVE_ACL_TYPE_NFS4
+			r = parse_device(&dev, &a->archive, val);
+			if (r == ARCHIVE_OK)
+				archive_entry_set_dev(entry, dev);
+			return r;
+		}
+		if (strcmp(key, "rmd160") == 0 ||
+		    strcmp(key, "rmd160digest") == 0)
+			break;
+	case 's':
+		if (strcmp(key, "sha1") == 0 || strcmp(key, "sha1digest") == 0)
+			break;
+		if (strcmp(key, "sha256") == 0 ||
+		    strcmp(key, "sha256digest") == 0)
+			break;
+		if (strcmp(key, "sha384") == 0 ||
+		    strcmp(key, "sha384digest") == 0)
+			break;
+		if (strcmp(key, "sha512") == 0 ||
+		    strcmp(key, "sha512digest") == 0)
+			break;
+		if (strcmp(key, "size") == 0) {
+			archive_entry_set_size(entry, mtree_atol10(&val));
+			break;
+		}
+	case 't':
+		if (strcmp(key, "tags") == 0) {
 			/*
-			 * acl_get_entry_type_np() fails with non-NFSv4 ACLs
+			 * Comma delimited list of tags.
+			 * Ignore the tags for now, but the interface
+			 * should be extended to allow inclusion/exclusion.
 			 */
-			if (acl_get_entry_type_np(acl_entry, &acl_type) != 0) {
-				archive_set_error(&a->archive, errno, "Failed "
-				    "to get ACL type from a NFSv4 ACL entry");
-				return (ARCHIVE_WARN);
+			break;
+		}
+		if (strcmp(key, "time") == 0) {
+			int64_t m;
+			int64_t my_time_t_max = get_time_t_max();
+			int64_t my_time_t_min = get_time_t_min();
+			long ns = 0;
+
+			*parsed_kws |= MTREE_HAS_MTIME;
+			m = mtree_atol10(&val);
+			/* Replicate an old mtree bug:
+			 * 123456789.1 represents 123456789
+			 * seconds and 1 nanosecond. */
+			if (*val == '.') {
+				++val;
+				ns = (long)mtree_atol10(&val);
+				if (ns < 0)
+					ns = 0;
+				else if (ns > 999999999)
+					ns = 999999999;
 			}
-			switch (acl_type) {
-			case ACL_ENTRY_TYPE_ALLOW:
-				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
-				break;
-			case ACL_ENTRY_TYPE_DENY:
-				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
-				break;
-			case ACL_ENTRY_TYPE_AUDIT:
-				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_AUDIT;
-				break;
-			case ACL_ENTRY_TYPE_ALARM:
-				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALARM;
-				break;
+			if (m > my_time_t_max)
+				m = my_time_t_max;
+			else if (m < my_time_t_min)
+				m = my_time_t_min;
+			archive_entry_set_mtime(entry, (time_t)m, ns);
+			break;
+		}
+		if (strcmp(key, "type") == 0) {
+			switch (val[0]) {
+			case 'b':
+				if (strcmp(val, "block") == 0) {
+					archive_entry_set_filetype(entry, AE_IFBLK);
+					break;
+				}
+			case 'c':
+				if (strcmp(val, "char") == 0) {
+					archive_entry_set_filetype(entry,
+						AE_IFCHR);
+					break;
+				}
+			case 'd':
+				if (strcmp(val, "dir") == 0) {
+					archive_entry_set_filetype(entry,
+						AE_IFDIR);
+					break;
+				}
+			case 'f':
+				if (strcmp(val, "fifo") == 0) {
+					archive_entry_set_filetype(entry,
+						AE_IFIFO);
+					break;
+				}
+				if (strcmp(val, "file") == 0) {
+					archive_entry_set_filetype(entry,
+						AE_IFREG);
+					break;
+				}
+			case 'l':
+				if (strcmp(val, "link") == 0) {
+					archive_entry_set_filetype(entry,
+						AE_IFLNK);
+					break;
+				}
 			default:
-				archive_set_error(&a->archive, errno,
-				    "Invalid NFSv4 ACL entry type");
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Unrecognized file type \"%s\"; "
+				    "assuming \"file\"", val);
+				archive_entry_set_filetype(entry, AE_IFREG);
 				return (ARCHIVE_WARN);
 			}
-#endif	/* HAVE_ACL_TYPE_NFS4 */
-
-			/*
-			 * Libarchive stores "flag" (NFSv4 inheritance bits)
-			 * in the ae_perm bitmap.
-			 *
-			 * acl_get_flagset_np() fails with non-NFSv4 ACLs
-			 */
-			if (acl_get_flagset_np(acl_entry, &acl_flagset) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Failed to get flagset from a NFSv4 ACL entry");
-				return (ARCHIVE_WARN);
-			}
-			for (i = 0; i < (int)(sizeof(acl_inherit_map) / sizeof(acl_inherit_map[0])); ++i) {
-				r = acl_get_flag_np(acl_flagset,
-				    acl_inherit_map[i].platform_inherit);
-				if (r == -1) {
-					archive_set_error(&a->archive, errno,
-					    "Failed to check flag in a NFSv4 "
-					    "ACL flagset");
-					return (ARCHIVE_WARN);
-				} else if (r)
-					ae_perm |= acl_inherit_map[i].archive_inherit;
-			}
+			*parsed_kws |= MTREE_HAS_TYPE;
+			break;
 		}
-#endif	/* HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL */
-
-		if (acl_get_permset(acl_entry, &acl_permset) != 0) {
-			archive_set_error(&a->archive, errno,
-			    "Failed to get ACL permission set");
-			return (ARCHIVE_WARN);
+	case 'u':
+		if (strcmp(key, "uid") == 0) {
+			*parsed_kws |= MTREE_HAS_UID;
+			archive_entry_set_uid(entry, mtree_atol10(&val));
+			break;
 		}
-		for (i = 0; i < (int)(sizeof(acl_perm_map) / sizeof(acl_perm_map[0])); ++i) {
-			/*
-			 * acl_get_perm() is spelled differently on different
-			 * platforms; see above.
-			 */
-			r = ACL_GET_PERM(acl_permset, acl_perm_map[i].platform_perm);
-			if (r == -1) {
-				archive_set_error(&a->archive, errno,
-				    "Failed to check permission in an ACL permission set");
-				return (ARCHIVE_WARN);
-			} else if (r)
-				ae_perm |= acl_perm_map[i].archive_perm;
+		if (strcmp(key, "uname") == 0) {
+			*parsed_kws |= MTREE_HAS_UNAME;
+			archive_entry_copy_uname(entry, val);
+			break;
 		}
-
-		archive_entry_acl_add_entry(entry, entry_acl_type,
-					    ae_perm, ae_tag,
-					    ae_id, ae_name);
-
-		s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
-#if !HAVE_DARWIN_ACL
-		if (s == -1) {
-			archive_set_error(&a->archive, errno,
-			    "Failed to get next ACL entry");
-			return (ARCHIVE_WARN);
-		}
-#endif
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unrecognized key %s=%s", key, val);
+		return (ARCHIVE_WARN);
 	}
 	return (ARCHIVE_OK);
 }

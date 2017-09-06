@@ -1,1 +1,2 @@
-fprintf(fout, "add_executable(%s", targetName.c_str());
+archive_set_error(&a->archive, ENOMEM,
+				"Can't allocate zip data");

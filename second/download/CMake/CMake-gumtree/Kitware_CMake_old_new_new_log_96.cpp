@@ -1,6 +1,3 @@
-archive_set_error(&a->archive, errno,
-			    "Couldn't translate "
-#if !HAVE_SUN_ACL
-			    "NFSv4 "
-#endif
-			    "ACLs");
+snprintf(timebuf, sizeof(timebuf),
+                 "%04d%02d%02d %02d:%02d:%02d GMT",
+                 year, month, day, hour, minute, second);

@@ -1,0 +1,1 @@
+tmp = aprintf("%s, algorithm=\"%s\"", *allocuserpwd, d->algorithm);

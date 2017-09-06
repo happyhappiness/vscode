@@ -1,1 +1,1 @@
-printf("Error fetching: http://www.cmake.org/\n");
+f(win9x, "%s/%s", tempDir, fwdName);

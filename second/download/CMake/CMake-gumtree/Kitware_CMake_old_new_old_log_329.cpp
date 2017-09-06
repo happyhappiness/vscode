@@ -1,16 +1,7 @@
-response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "cnonce=\"%s\", "
-                       "nc=%08x, "
-                       "qop=%s, "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       digest->cnonce,
-                       digest->nc,
-                       digest->qop,
-                       request_digest);
+md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       digest->nc,
+                                       digest->cnonce,
+                                       digest->qop,
+                                       ha2);

@@ -1,1 +1,1 @@
-fprintf(fout, "ADD_DEFINITIONS(${COMPILE_DEFINITIONS})\n");
+fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());

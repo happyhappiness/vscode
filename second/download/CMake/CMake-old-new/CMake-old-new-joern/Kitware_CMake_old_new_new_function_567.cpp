@@ -1,101 +1,133 @@
-CURLcode Curl_output_digest(struct connectdata *conn,
-                            bool proxy,
-                            const unsigned char *request,
-                            const unsigned char *uripath)
+static ssize_t
+archive_write_zip_data(struct archive_write *a, const void *buff, size_t s)
 {
-  CURLcode result;
-  struct SessionHandle *data = conn->data;
-  unsigned char *path;
-  char *tmp;
-  char *response;
-  size_t len;
-  bool have_chlg;
+	int ret;
+	struct zip *zip = a->format_data;
 
-  /* Point to the address of the pointer that holds the string to send to the
-     server, which is for a plain host or for a HTTP proxy */
-  char **allocuserpwd;
+	if ((int64_t)s > zip->entry_uncompressed_limit)
+		s = (size_t)zip->entry_uncompressed_limit;
+	zip->entry_uncompressed_written += s;
 
-  /* Point to the name and password for this */
-  const char *userp;
-  const char *passwdp;
+	if (s == 0) return 0;
 
-  /* Point to the correct struct with this */
-  struct digestdata *digest;
-  struct auth *authp;
+	if (zip->entry_flags & ZIP_ENTRY_FLAG_ENCRYPTED) {
+		switch (zip->entry_encryption) {
+		case ENCRYPTION_TRADITIONAL:
+			/* Initialize traditoinal PKWARE encryption context. */
+			if (!zip->tctx_valid) {
+				ret = init_traditional_pkware_encryption(a);
+				if (ret != ARCHIVE_OK)
+					return (ret);
+				zip->tctx_valid = 1;
+			}
+			break;
+		case ENCRYPTION_WINZIP_AES128:
+		case ENCRYPTION_WINZIP_AES256:
+			if (!zip->cctx_valid) {
+				ret = init_winzip_aes_encryption(a);
+				if (ret != ARCHIVE_OK)
+					return (ret);
+				zip->cctx_valid = zip->hctx_valid = 1;
+			}
+			break;
+		default:
+			break;
+		}
+	}
 
-  if(proxy) {
-    digest = &data->state.proxydigest;
-    allocuserpwd = &conn->allocptr.proxyuserpwd;
-    userp = conn->proxyuser;
-    passwdp = conn->proxypasswd;
-    authp = &data->state.authproxy;
-  }
-  else {
-    digest = &data->state.digest;
-    allocuserpwd = &conn->allocptr.userpwd;
-    userp = conn->user;
-    passwdp = conn->passwd;
-    authp = &data->state.authhost;
-  }
+	switch (zip->entry_compression) {
+	case COMPRESSION_STORE:
+		if (zip->tctx_valid || zip->cctx_valid) {
+			const uint8_t *rb = (const uint8_t *)buff;
+			const uint8_t * const re = rb + s;
 
-  Curl_safefree(*allocuserpwd);
+			while (rb < re) {
+				size_t l;
 
-  /* not set means empty */
-  if(!userp)
-    userp = "";
-
-  if(!passwdp)
-    passwdp = "";
-
-#if defined(USE_WINDOWS_SSPI)
-  have_chlg = digest->input_token ? TRUE : FALSE;
-#else
-  have_chlg = digest->nonce ? TRUE : FALSE;
+				if (zip->tctx_valid) {
+					l = trad_enc_encrypt_update(&zip->tctx,
+					    rb, re - rb,
+					    zip->buf, zip->len_buf);
+				} else {
+					l = zip->len_buf;
+					ret = archive_encrypto_aes_ctr_update(
+					    &zip->cctx,
+					    rb, re - rb, zip->buf, &l);
+					if (ret < 0) {
+						archive_set_error(&a->archive,
+						    ARCHIVE_ERRNO_MISC,
+						    "Failed to encrypt file");
+						return (ARCHIVE_FAILED);
+					}
+					archive_hmac_sha1_update(&zip->hctx,
+					    zip->buf, l);
+				}
+				ret = __archive_write_output(a, zip->buf, l);
+				if (ret != ARCHIVE_OK)
+					return (ret);
+				zip->entry_compressed_written += l;
+				zip->written_bytes += l;
+				rb += l;
+			}
+		} else {
+			ret = __archive_write_output(a, buff, s);
+			if (ret != ARCHIVE_OK)
+				return (ret);
+			zip->written_bytes += s;
+			zip->entry_compressed_written += s;
+		}
+		break;
+#if HAVE_ZLIB_H
+	case COMPRESSION_DEFLATE:
+		zip->stream.next_in = (unsigned char*)(uintptr_t)buff;
+		zip->stream.avail_in = (uInt)s;
+		do {
+			ret = deflate(&zip->stream, Z_NO_FLUSH);
+			if (ret == Z_STREAM_ERROR)
+				return (ARCHIVE_FATAL);
+			if (zip->stream.avail_out == 0) {
+				if (zip->tctx_valid) {
+					trad_enc_encrypt_update(&zip->tctx,
+					    zip->buf, zip->len_buf,
+					    zip->buf, zip->len_buf);
+				} else if (zip->cctx_valid) {
+					size_t outl = zip->len_buf;
+					ret = archive_encrypto_aes_ctr_update(
+					    &zip->cctx,
+					    zip->buf, zip->len_buf,
+					    zip->buf, &outl);
+					if (ret < 0) {
+						archive_set_error(&a->archive,
+						    ARCHIVE_ERRNO_MISC,
+						    "Failed to encrypt file");
+						return (ARCHIVE_FAILED);
+					}
+					archive_hmac_sha1_update(&zip->hctx,
+					    zip->buf, zip->len_buf);
+				}
+				ret = __archive_write_output(a, zip->buf,
+					zip->len_buf);
+				if (ret != ARCHIVE_OK)
+					return (ret);
+				zip->entry_compressed_written += zip->len_buf;
+				zip->written_bytes += zip->len_buf;
+				zip->stream.next_out = zip->buf;
+				zip->stream.avail_out = (uInt)zip->len_buf;
+			}
+		} while (zip->stream.avail_in != 0);
+		break;
 #endif
 
-  if(!have_chlg) {
-    authp->done = FALSE;
-    return CURLE_OK;
-  }
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Invalid ZIP compression type");
+		return ARCHIVE_FATAL;
+	}
 
-  /* So IE browsers < v7 cut off the URI part at the query part when they
-     evaluate the MD5 and some (IIS?) servers work with them so we may need to
-     do the Digest IE-style. Note that the different ways cause different MD5
-     sums to get sent.
+	zip->entry_uncompressed_limit -= s;
+	if (!zip->cctx_valid || zip->aes_vendor != AES_VENDOR_AE_2)
+		zip->entry_crc32 =
+		    zip->crc32func(zip->entry_crc32, buff, (unsigned)s);
+	return (s);
 
-     Apache servers can be set to do the Digest IE-style automatically using
-     the BrowserMatch feature:
-     http://httpd.apache.org/docs/2.2/mod/mod_auth_digest.html#msie
-
-     Further details on Digest implementation differences:
-     http://www.fngtps.com/2006/09/http-authentication
-  */
-
-  if(authp->iestyle && ((tmp = strchr((char *)uripath, '?')) != NULL)) {
-    size_t urilen = tmp - (char *)uripath;
-
-    path = (unsigned char *) aprintf("%.*s", urilen, uripath);
-  }
-  else
-    path = (unsigned char *) strdup((char *) uripath);
-
-  if(!path)
-    return CURLE_OUT_OF_MEMORY;
-
-  result = Curl_sasl_create_digest_http_message(data, userp, passwdp, request,
-                                                path, digest, &response, &len);
-  free(path);
-  if(result)
-    return result;
-
-  *allocuserpwd = aprintf("%sAuthorization: Digest %s\r\n",
-                          proxy ? "Proxy-" : "",
-                          response);
-  free(response);
-  if(!*allocuserpwd)
-    return CURLE_OUT_OF_MEMORY;
-
-  authp->done = TRUE;
-
-  return CURLE_OK;
 }

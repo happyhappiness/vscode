@@ -1,234 +1,414 @@
-int kwsysProcessCreate(kwsysProcess* cp, int index,
-                       kwsysProcessCreateInformation* si,
-                       PHANDLE readEnd)
+int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
 {
-  /* Setup the process's stdin.  */
-  if(*readEnd)
-    {
-    /* Create an inherited duplicate of the read end from the output
-       pipe of the previous process.  This also closes the
-       non-inherited version. */
-    if(!DuplicateHandle(GetCurrentProcess(), *readEnd,
-                        GetCurrentProcess(), readEnd,
-                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
-                                  DUPLICATE_SAME_ACCESS)))
-      {
-      return 0;
-      }
-    si->StartupInfo.hStdInput = *readEnd;
+  this->BinaryDirectory = argv[1].c_str();
+  this->OutputFile = "";
+  // which signature were we called with ?
+  this->SrcFileSignature = true;
 
-    /* This function is done with this handle.  */
-    *readEnd = 0;
-    }
-  else if(cp->PipeFileSTDIN)
+  const char* sourceDirectory = argv[2].c_str();
+  const char* projectName = 0;
+  const char* targetName = 0;
+  std::vector<std::string> cmakeFlags;
+  std::vector<std::string> compileDefs;
+  std::string outputVariable;
+  std::string copyFile;
+  std::vector<cmTarget*> targets;
+  std::string libsToLink = " ";
+  bool useOldLinkLibs = true;
+  char targetNameBuf[64];
+  bool didOutputVariable = false;
+  bool didCopyFile = false;
+
+  enum Doing { DoingNone, DoingCMakeFlags, DoingCompileDefinitions,
+               DoingLinkLibraries, DoingOutputVariable, DoingCopyFile };
+  Doing doing = DoingNone;
+  for(size_t i=3; i < argv.size(); ++i)
     {
-    /* Create a handle to read a file for stdin.  */
-    HANDLE fin = CreateFile(cp->PipeFileSTDIN, GENERIC_READ|GENERIC_WRITE,
-                            FILE_SHARE_READ|FILE_SHARE_WRITE,
-                            0, OPEN_EXISTING, 0, 0);
-    if(fin == INVALID_HANDLE_VALUE)
+    if(argv[i] == "CMAKE_FLAGS")
       {
-      return 0;
+      doing = DoingCMakeFlags;
+      // CMAKE_FLAGS is the first argument because we need an argv[0] that
+      // is not used, so it matches regular command line parsing which has
+      // the program name as arg 0
+      cmakeFlags.push_back(argv[i]);
       }
-    /* Create an inherited duplicate of the handle.  This also closes
-       the non-inherited version.  */
-    if(!DuplicateHandle(GetCurrentProcess(), fin,
-                        GetCurrentProcess(), &fin,
-                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
-                                  DUPLICATE_SAME_ACCESS)))
+    else if(argv[i] == "COMPILE_DEFINITIONS")
       {
-      return 0;
+      doing = DoingCompileDefinitions;
       }
-    si->StartupInfo.hStdInput = fin;
+    else if(argv[i] == "LINK_LIBRARIES")
+      {
+      doing = DoingLinkLibraries;
+      useOldLinkLibs = false;
+      }
+    else if(argv[i] == "OUTPUT_VARIABLE")
+      {
+      doing = DoingOutputVariable;
+      didOutputVariable = true;
+      }
+    else if(argv[i] == "COPY_FILE")
+      {
+      doing = DoingCopyFile;
+      didCopyFile = true;
+      }
+    else if(doing == DoingCMakeFlags)
+      {
+      cmakeFlags.push_back(argv[i]);
+      }
+    else if(doing == DoingCompileDefinitions)
+      {
+      compileDefs.push_back(argv[i]);
+      }
+    else if(doing == DoingLinkLibraries)
+      {
+      libsToLink += "\"" + cmSystemTools::TrimWhitespace(argv[i]) + "\" ";
+      if(cmTarget *tgt = this->Makefile->FindTargetToUse(argv[i].c_str()))
+        {
+        switch(tgt->GetType())
+          {
+          case cmTarget::SHARED_LIBRARY:
+          case cmTarget::STATIC_LIBRARY:
+          case cmTarget::UNKNOWN_LIBRARY:
+            break;
+          case cmTarget::EXECUTABLE:
+            if (tgt->IsExecutableWithExports())
+              {
+              break;
+              }
+          default:
+            this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+              "Only libraries may be used as try_compile IMPORTED "
+              "LINK_LIBRARIES.  Got " + std::string(tgt->GetName()) + " of "
+              "type " + tgt->GetTargetTypeName(tgt->GetType()) + ".");
+            return -1;
+          }
+        if (tgt->IsImported())
+          {
+          targets.push_back(tgt);
+          }
+        }
+      }
+    else if(doing == DoingOutputVariable)
+      {
+      outputVariable = argv[i].c_str();
+      doing = DoingNone;
+      }
+    else if(doing == DoingCopyFile)
+      {
+      copyFile = argv[i].c_str();
+      doing = DoingNone;
+      }
+    else if(i == 3)
+      {
+      this->SrcFileSignature = false;
+      projectName = argv[i].c_str();
+      }
+    else if(i == 4 && !this->SrcFileSignature)
+      {
+      targetName = argv[i].c_str();
+      }
+    else
+      {
+      cmOStringStream m;
+      m << "try_compile given unknown argument \"" << argv[i] << "\".";
+      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, m.str());
+      }
     }
-  else if(cp->PipeSharedSTDIN)
+
+  if(didCopyFile && copyFile.empty())
     {
-    /* Share this process's stdin with the child.  */
-    if(!kwsysProcessSetupSharedPipe(STD_INPUT_HANDLE,
-                                    &si->StartupInfo.hStdInput))
-      {
-      return 0;
-      }
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "COPY_FILE must be followed by a file path");
+    return -1;
     }
-  else if(cp->PipeNativeSTDIN[0])
+
+  if(didOutputVariable && outputVariable.empty())
     {
-    /* Use the provided native pipe.  */
-    if(!kwsysProcessSetupPipeNative(&si->StartupInfo.hStdInput,
-                                    cp->PipeNativeSTDIN, 0))
-      {
-      return 0;
-      }
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "OUTPUT_VARIABLE must be followed by a variable name");
+    return -1;
+    }
+
+  // compute the binary dir when TRY_COMPILE is called with a src file
+  // signature
+  if (this->SrcFileSignature)
+    {
+    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
+    this->BinaryDirectory += "/CMakeTmp";
     }
   else
     {
-    /* Explicitly give the child no stdin.  */
-    si->StartupInfo.hStdInput = INVALID_HANDLE_VALUE;
-    }
-
-  /* Setup the process's stdout.  */
-  {
-  DWORD maybeClose = DUPLICATE_CLOSE_SOURCE;
-  HANDLE writeEnd;
-
-  /* Create the output pipe for this process.  Neither end is directly
-     inherited.  */
-  if(!CreatePipe(readEnd, &writeEnd, 0, 0))
-    {
-    return 0;
-    }
-
-  /* Create an inherited duplicate of the write end.  Close the
-     non-inherited version unless this is the last process.  Save the
-     non-inherited write end of the last process.  */
-  if(index == cp->NumberOfCommands-1)
-    {
-    cp->Pipe[KWSYSPE_PIPE_STDOUT].Write = writeEnd;
-    maybeClose = 0;
-    }
-  if(!DuplicateHandle(GetCurrentProcess(), writeEnd,
-                      GetCurrentProcess(), &writeEnd,
-                      0, TRUE, (maybeClose | DUPLICATE_SAME_ACCESS)))
-    {
-    return 0;
-    }
-  si->StartupInfo.hStdOutput = writeEnd;
-  }
-
-  /* Replace the stdout pipe with a file if requested.  In this case
-     the pipe thread will still run but never report data.  */
-  if(index == cp->NumberOfCommands-1 && cp->PipeFileSTDOUT)
-    {
-    if(!kwsysProcessSetupOutputPipeFile(&si->StartupInfo.hStdOutput,
-                                        cp->PipeFileSTDOUT))
+    // only valid for srcfile signatures
+    if (compileDefs.size())
       {
-      return 0;
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
+      return -1;
+      }
+    if (copyFile.size())
+      {
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+        "COPY_FILE specified on a srcdir type TRY_COMPILE");
+      return -1;
       }
     }
+  // make sure the binary directory exists
+  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
 
-  /* Replace the stdout pipe of the last child with the parent
-     process's if requested.  In this case the pipe thread will still
-     run but never report data.  */
-  if(index == cp->NumberOfCommands-1 && cp->PipeSharedSTDOUT)
+  // do not allow recursive try Compiles
+  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory())
     {
-    if(!kwsysProcessSetupSharedPipe(STD_OUTPUT_HANDLE,
-                                    &si->StartupInfo.hStdOutput))
-      {
-      return 0;
-      }
+    cmOStringStream e;
+    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
+      << "  " << this->BinaryDirectory << "\n";
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+    return -1;
     }
 
-  /* Replace the stdout pipe with the native pipe provided if any.  In
-     this case the pipe thread will still run but never report
-     data.  */
-  if(index == cp->NumberOfCommands-1 && cp->PipeNativeSTDOUT[1])
+  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
+  // which signature are we using? If we are using var srcfile bindir
+  if (this->SrcFileSignature)
     {
-    if(!kwsysProcessSetupPipeNative(&si->StartupInfo.hStdOutput,
-                                    cp->PipeNativeSTDOUT, 1))
-      {
-      return 0;
-      }
-    }
+    // remove any CMakeCache.txt files so we will have a clean test
+    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
+    cmSystemTools::RemoveFile(ccFile.c_str());
 
-  /* Create the child process.  */
-  {
-  BOOL r;
-  char* realCommand;
-  if(cp->Win9x)
-    {
-    /* Create an error reporting pipe for the forwarding executable.
-       Neither end is directly inherited.  */
-    if(!CreatePipe(&si->ErrorPipeRead, &si->ErrorPipeWrite, 0, 0))
-      {
-      return 0;
-      }
+    // we need to create a directory and CMakeLists file etc...
+    // first create the directories
+    sourceDirectory = this->BinaryDirectory.c_str();
 
-    /* Create an inherited duplicate of the write end.  This also closes
-       the non-inherited version. */
-    if(!DuplicateHandle(GetCurrentProcess(), si->ErrorPipeWrite,
-                        GetCurrentProcess(), &si->ErrorPipeWrite,
-                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
-                                  DUPLICATE_SAME_ACCESS)))
+    // now create a CMakeLists.txt file in that directory
+    FILE *fout = fopen(outFileName.c_str(),"w");
+    if (!fout)
       {
-      return 0;
+      cmOStringStream e;
+      e << "Failed to open\n"
+        << "  " << outFileName.c_str() << "\n"
+        << cmSystemTools::GetLastSystemError();
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+      return -1;
       }
 
-    /* The forwarding executable is given a handle to the error pipe
-       and resume and kill events.  */
-    realCommand = (char*)malloc(strlen(cp->Win9x)+strlen(cp->Commands[index])+100);
-    if(!realCommand)
+    std::string source = argv[2];
+    std::string ext = cmSystemTools::GetFilenameLastExtension(source);
+    const char* lang =(this->Makefile->GetCMakeInstance()->GetGlobalGenerator()
+                        ->GetLanguageFromExtension(ext.c_str()));
+    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
+    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
+            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
+            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
+    if(def)
       {
-      return 0;
+      fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
       }
-    sprintf(realCommand, "%s %p %p %p %d %s", cp->Win9x,
-            si->ErrorPipeWrite, cp->Win9xResumeEvent, cp->Win9xKillEvent,
-            cp->HideWindow, cp->Commands[index]);
-    }
-  else
-    {
-    realCommand = cp->Commands[index];
-    }
 
-  /* Create the child in a suspended state so we can wait until all
-     children have been created before running any one.  */
-  r = CreateProcess(0, realCommand, 0, 0, TRUE,
-                    cp->Win9x? 0 : CREATE_SUSPENDED, 0, 0,
-                    &si->StartupInfo, &cp->ProcessInformation[index]);
-  if(cp->Win9x)
-    {
-    /* Free memory.  */
-    free(realCommand);
-
-    /* Close the error pipe write end so we can detect when the
-       forwarding executable closes it.  */
-    kwsysProcessCleanupHandle(&si->ErrorPipeWrite);
-    if(r)
+    const char* rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
+    std::string rulesOverrideLang =
+      rulesOverrideBase + (lang ? std::string("_") + lang : std::string(""));
+    if(const char* rulesOverridePath =
+       this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
       {
-      /* Wait for the forwarding executable to report an error or
-         close the error pipe to report success.  */
-      DWORD total = 0;
-      DWORD n = 1;
-      while(total < KWSYSPE_PIPE_BUFFER_SIZE && n > 0)
+      fprintf(fout, "SET(%s \"%s\")\n",
+              rulesOverrideLang.c_str(), rulesOverridePath);
+      }
+    else if(const char* rulesOverridePath2 =
+            this->Makefile->GetDefinition(rulesOverrideBase))
+      {
+      fprintf(fout, "SET(%s \"%s\")\n",
+              rulesOverrideBase, rulesOverridePath2);
+      }
+
+    if(lang)
+      {
+      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE %s)\n", lang);
+      }
+    else
+      {
+      fclose(fout);
+      cmOStringStream err;
+      err << "Unknown extension \"" << ext << "\" for file\n"
+          << "  " << source << "\n"
+          << "try_compile() works only for enabled languages.  "
+          << "Currently these are:\n ";
+      std::vector<std::string> langs;
+      this->Makefile->GetCMakeInstance()->GetGlobalGenerator()->
+        GetEnabledLanguages(langs);
+      for(std::vector<std::string>::iterator l = langs.begin();
+          l != langs.end(); ++l)
         {
-        if(ReadFile(si->ErrorPipeRead, cp->ErrorMessage+total,
-                    KWSYSPE_PIPE_BUFFER_SIZE-total, &n, 0))
-          {
-          total += n;
-          }
-        else
-          {
-          n = 0;
-          }
+        err << " " << *l;
         }
-      if(total > 0 || GetLastError() != ERROR_BROKEN_PIPE)
+      err << "\nSee project() command to enable other languages.";
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
+      return -1;
+      }
+    std::string langFlags = "CMAKE_";
+    langFlags +=  lang;
+    langFlags += "_FLAGS";
+    fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");
+    fprintf(fout, "SET(CMAKE_%s_FLAGS \"", lang);
+    const char* flags = this->Makefile->GetDefinition(langFlags.c_str());
+    if(flags)
+      {
+      fprintf(fout, " %s ", flags);
+      }
+    fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
+    fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
+    fprintf(fout, "SET(CMAKE_SUPPRESS_REGENERATION 1)\n");
+    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
+    // handle any compile flags we need to pass on
+    if (compileDefs.size())
+      {
+      fprintf(fout, "ADD_DEFINITIONS( ");
+      for (size_t i = 0; i < compileDefs.size(); ++i)
         {
-        /* The forwarding executable could not run the process, or
-           there was an error reading from its error pipe.  Preserve
-           the last error while cleaning up the forwarding executable
-           so the cleanup our caller does reports the proper error.  */
-        DWORD error = GetLastError();
-        kwsysProcessCleanupHandle(&cp->ProcessInformation[index].hThread);
-        kwsysProcessCleanupHandle(&cp->ProcessInformation[index].hProcess);
-        SetLastError(error);
-        return 0;
+        fprintf(fout,"%s ",compileDefs[i].c_str());
+        }
+      fprintf(fout, ")\n");
+      }
+
+    /* Use a random file name to avoid rapid creation and deletion
+       of the same executable name (some filesystems fail on that).  */
+    sprintf(targetNameBuf, "cmTryCompileExec%u",
+            cmSystemTools::RandomSeed());
+    targetName = targetNameBuf;
+
+    if (!targets.empty())
+      {
+      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
+      cmExportTryCompileFileGenerator tcfg;
+      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
+      tcfg.SetExports(targets);
+      tcfg.SetConfig(this->Makefile->GetDefinition(
+                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
+
+      if(!tcfg.GenerateImportFile())
+        {
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+                                     "could not write export file.");
+        fclose(fout);
+        return -1;
+        }
+      fprintf(fout,
+              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
+              fname.c_str());
+      }
+
+    /* for the TRY_COMPILEs we want to be able to specify the architecture.
+      So the user can set CMAKE_OSX_ARCHITECTURE to i386;ppc and then set
+      CMAKE_TRY_COMPILE_OSX_ARCHITECTURE first to i386 and then to ppc to
+      have the tests run for each specific architecture. Since
+      cmLocalGenerator doesn't allow building for "the other"
+      architecture only via CMAKE_OSX_ARCHITECTURES.
+      */
+    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition(
+                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+      }
+    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+      }
+    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
+    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_SYSROOT=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
+      cmakeFlags.push_back(flag);
+      }
+    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
+    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
+      cmakeFlags.push_back(flag);
+      }
+    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
+      {
+      fprintf(fout, "SET(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
+      }
+
+    /* Put the executable at a known location (for COPY_FILE).  */
+    fprintf(fout, "SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+            this->BinaryDirectory.c_str());
+    /* Create the actual executable.  */
+    fprintf(fout, "ADD_EXECUTABLE(%s \"%s\")\n", targetName, source.c_str());
+    if (useOldLinkLibs)
+      {
+      fprintf(fout,
+              "TARGET_LINK_LIBRARIES(%s ${LINK_LIBRARIES})\n",targetName);
+      }
+    else
+      {
+      fprintf(fout, "TARGET_LINK_LIBRARIES(%s %s)\n",
+              targetName,
+              libsToLink.c_str());
+      }
+    fclose(fout);
+    projectName = "CMAKE_TRY_COMPILE";
+    // if the source is not in CMakeTmp
+    if(source.find("CMakeTmp") == source.npos)
+      {
+      this->Makefile->AddCMakeDependFile(source.c_str());
+      }
+
+    }
+
+  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
+  cmSystemTools::ResetErrorOccuredFlag();
+  std::string output;
+  // actually do the try compile now that everything is setup
+  int res = this->Makefile->TryCompile(sourceDirectory,
+                                       this->BinaryDirectory.c_str(),
+                                       projectName,
+                                       targetName,
+                                       this->SrcFileSignature,
+                                       &cmakeFlags,
+                                       &output);
+  if ( erroroc )
+    {
+    cmSystemTools::SetErrorOccured();
+    }
+
+  // set the result var to the return value to indicate success or failure
+  this->Makefile->AddCacheDefinition(argv[0].c_str(),
+                                     (res == 0 ? "TRUE" : "FALSE"),
+                                     "Result of TRY_COMPILE",
+                                     cmCacheManager::INTERNAL);
+
+  if ( outputVariable.size() > 0 )
+    {
+    this->Makefile->AddDefinition(outputVariable.c_str(), output.c_str());
+    }
+
+  if (this->SrcFileSignature)
+    {
+    this->FindOutputFile(targetName);
+
+    if ((res==0) && (copyFile.size()))
+      {
+      if(this->OutputFile.empty() ||
+         !cmSystemTools::CopyFileAlways(this->OutputFile.c_str(),
+                                        copyFile.c_str()))
+        {
+        cmOStringStream emsg;
+        emsg << "Cannot copy output executable\n"
+             << "  '" << this->OutputFile.c_str() << "'\n"
+             << "to destination specified by COPY_FILE:\n"
+             << "  '" << copyFile.c_str() << "'\n";
+        if(!this->FindErrorMessage.empty())
+          {
+          emsg << this->FindErrorMessage.c_str();
+          }
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
+        return -1;
         }
       }
-    kwsysProcessCleanupHandle(&si->ErrorPipeRead);
     }
-
-  if(!r)
-    {
-    return 0;
-    }
-  }
-
-  /* Successfully created this child process.  Close the current
-     process's copies of the inherited stdout and stdin handles.  The
-     stderr handle is shared among all children and is closed by
-     kwsysProcess_Execute after all children have been created.  */
-  kwsysProcessCleanupHandleSafe(&si->StartupInfo.hStdInput,
-                                STD_INPUT_HANDLE);
-  kwsysProcessCleanupHandleSafe(&si->StartupInfo.hStdOutput,
-                                STD_OUTPUT_HANDLE);
-
-  return 1;
+  return res;
 }

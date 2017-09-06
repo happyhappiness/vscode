@@ -1,1 +1,1 @@
-str << this->ChipID.Revision;
+sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF);

@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-				    "Failed to get flagset from a NFSv4 ACL entry");
+_snprintf(cp->ProcessResults[idx].ExitExceptionString,
+                KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);

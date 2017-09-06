@@ -1,22 +1,20 @@
-static void kwsysProcessCleanup(kwsysProcess* cp, int error)
+int test5(int argc, const char* argv[])
 {
-  int i;
-  
-  /* If cleaning up due to an error, report the error message.  */
-  if(error)
-    {
-    strncpy(cp->ErrorMessage, strerror(errno), KWSYSPE_PIPE_BUFFER_SIZE);
-    cp->State = kwsysProcess_State_Error;
-    }
-  
-  /* Restore the SIGCHLD handler.  */
-  while((sigaction(SIGCHLD, &cp->OldSigChldAction, 0) < 0) &&
-        (errno == EINTR));
-  
-  /* Close pipe handles.  */
-  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
-    {
-    kwsysProcessCleanupDescriptor(&cp->PipeReadEnds[i]);
-    kwsysProcessCleanupDescriptor(&cp->PipeWriteEnds[i]);
-    }
+  int r;
+  const char* cmd[4];
+  cmd[0] = argv[0];
+  cmd[1] = "run";
+  cmd[2] = "4";
+  cmd[3] = 0;
+  fprintf(stdout, "Output on stdout before recursive test.\n");
+  fprintf(stderr, "Output on stderr before recursive test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  r = runChild(cmd, kwsysProcess_State_Exception,
+               kwsysProcess_Exception_Fault, 1, 1, 2);
+  fprintf(stdout, "Output on stdout after recursive test.\n");
+  fprintf(stderr, "Output on stderr after recursive test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  return r;
 }

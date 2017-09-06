@@ -1,2 +1,3 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external unlzma program for lzma decompression");
+archive_set_error(&a->archive, errno,
+				    "%ls: Cannot stat",
+				    tree_current_path(t));

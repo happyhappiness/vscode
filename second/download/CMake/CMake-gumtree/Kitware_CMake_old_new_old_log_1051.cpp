@@ -1,1 +1,1 @@
-sprintf(totalBuf, "%6.2f sec", totalTestTime);
+sprintf(tz, " -%04ld", -author.TimeZone);
