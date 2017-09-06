@@ -1,1 +1,1 @@
-fprintf(stderr,"Other");
+sprintf(buf, "Content-Length: %d\r\n", filesize);

@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, errno,
-		    "Failed to read ACL brand");
+vsnprintf(error, CURL_ERROR_SIZE, fmt, ap);

@@ -1,1 +1,1 @@
-fprintf(ofp, "#endif\n");
+fprintf(stderr, "DIRECTORY_DEF_DEBUG should not be defined in C\n");

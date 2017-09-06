@@ -1,152 +1,89 @@
-int cmTryCompileCommand::CoreTryCompileCode(
-  cmMakefile *mf, std::vector<std::string> const& argv, bool clean)
+void cmCursesMainForm::PrintKeys(int process /* = 0 */)
 {
-  // which signature were we called with ?
-  bool srcFileSignature = true;
-  int i;
-  
-  // where will the binaries be stored
-  const char* binaryDirectory = argv[1].c_str();
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  const char* targetName = 0;
-  std::string tmpString;
-  
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (srcFileSignature)
+  int x,y;
+  getmaxyx(stdscr, y, x);
+  if ( x < cmCursesMainForm::MIN_WIDTH  || 
+       x < m_InitialWidth               ||
+       y < cmCursesMainForm::MIN_HEIGHT )
     {
-    tmpString = argv[1] + "/CMakeTmp";
-    binaryDirectory = tmpString.c_str();
+    return;
     }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(binaryDirectory);
-  
-  // do not allow recursive try Compiles
-  if (!strcmp(binaryDirectory,mf->GetHomeOutputDirectory()))
+
+  // Give the current widget (if it exists), a chance to print keys
+  cmCursesWidget* cw = 0;
+  if (m_Form)
     {
-    cmSystemTools::Error("Attempt at a recursive or nested TRY_COMPILE", 
-                         binaryDirectory);
-    return -1;
+    FIELD* currentField = current_field(m_Form);
+    cw = reinterpret_cast<cmCursesWidget*>(field_userptr(currentField));
+    }
+
+  if (cw)
+    {
+    cw->PrintKeys();
     }
   
-  // look for CMAKE_FLAGS and store them
-  std::vector<std::string> cmakeFlags;
-  for (i = 3; i < argv.size(); ++i)
+//    {
+//    }
+//  else
+//    {
+  char firstLine[512]="";
+  char secondLine[512]="";
+  char thirdLine[512]="";
+  if (process)
     {
-    if (argv[i] == "CMAKE_FLAGS")
+    sprintf(firstLine, 
+            "                                                               ");  
+    sprintf(secondLine, 
+            "                                                               ");  
+    sprintf(thirdLine, 
+            "                                                               ");  
+    }
+  else
+    {
+    if (m_OkToGenerate)
       {
-      for (; i < argv.size() && argv[i] != "COMPILE_DEFINITIONS"; 
-           ++i)
-        {
-        cmakeFlags.push_back(argv[i]);
-        }
-      break;
+      sprintf(firstLine,  
+              "Press [c] to configure     Press [g] to generate and exit");
       }
     else
       {
-      srcFileSignature = false;
+      sprintf(firstLine,  "Press [c] to configure                                   ");
       }
+    if (m_AdvancedMode)
+      {
+      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently On)");
+      }
+    else
+      {
+      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently Off)");
+      }
+    
+    sprintf(secondLine, 
+            "Press [h] for help         Press [q] to quit without generating");
     }
 
-  // look for COMPILE_DEFINITIONS and store them
-  std::vector<std::string> compileFlags;
-  for (i = 0; i < argv.size(); ++i)
+  curses_move(y-4,0);
+  char *fmt = "Press [enter] to edit option";
+  if ( process )
     {
-    if (argv[i] == "COMPILE_DEFINITIONS")
-      {
-      // only valid for srcfile signatures
-      if (!srcFileSignature)
-        {
-        cmSystemTools::Error(
-          "COMPILE_FLAGS specified on a srcdir type TRY_COMPILE");
-        return -1;
-        }
-      for (i = i + 1; i < argv.size() && argv[i] != "CMAKE_FLAGS"; 
-           ++i)
-        {
-        compileFlags.push_back(argv[i]);
-        }
-      break;
-      }
+    fmt = "                           ";
     }
-  
-  // which signature are we using? If we are using var srcfile bindir
-  if (srcFileSignature)
-    {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = tmpString + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile.c_str());
-    
-    // we need to create a directory and CMakeList file etc...
-    // first create the directories
-    sourceDirectory = binaryDirectory;
+  printw(fmt);
+  curses_move(y-3,0);
+  printw(firstLine);
+  curses_move(y-2,0);
+  printw(secondLine);
+  curses_move(y-1,0);
+  printw(thirdLine);
 
-    // now create a CMakeList.txt file in that directory
-    std::string outFileName = tmpString + "/CMakeLists.txt";
-    FILE *fout = fopen(outFileName.c_str(),"w");
-    if (!fout)
-      {
-      cmSystemTools::Error("Failed to create CMakeList file for ", 
-                           outFileName.c_str());
-      return -1;
-      }
-    fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE)\n");
-    fprintf(fout, "IF (CMAKE_ANSI_CXXFLAGS)\n");
-    fprintf(fout, "  SET(CMAKE_CXX_FLAGS \"${CMAKE_CXX_FLAGS} ${CMAKE_ANSI_CXXFLAGS}\")\n");
-    fprintf(fout, "ENDIF (CMAKE_ANSI_CXXFLAGS)\n");
-    // handle any compile flags we need to pass on
-    if (compileFlags.size())
-      {
-      fprintf(fout, "ADD_DEFINITIONS( ");
-      for (i = 0; i < compileFlags.size(); ++i)
-        {
-        fprintf(fout,"%s ",compileFlags[i].c_str());
-        }
-      fprintf(fout, ")\n");
-      }
-    
-    fprintf(fout, "ADD_EXECUTABLE(cmTryCompileExec \"%s\")\n",argv[2].c_str());
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
-    targetName = "cmTryCompileExec";
-    }
-  // else the srcdir bindir project target signature
-  else
+  if (cw)
     {
-    projectName = argv[3].c_str();
-    
-    if (argv.size() == 5)
-      {
-      targetName = argv[4].c_str();
-      }
+    sprintf(firstLine, "Page %d of %d", cw->GetPage(), m_NumberOfPages);
+    curses_move(0,65-strlen(firstLine)-1);
+    printw(firstLine);
     }
+//    }
+
+  pos_form_cursor(m_Form);
   
-  // actually do the try compile now that everything is setup
-  int res = mf->TryCompile(sourceDirectory, binaryDirectory,
-                           projectName, targetName, &cmakeFlags);
-  
-  // set the result var to the return value to indicate success or failure
-  mf->AddDefinition(argv[0].c_str(), (res == 0 ? "TRUE" : "FALSE"));
-  
-  // if They specified clean then we clean up what we can
-  if (srcFileSignature && clean)
-    {
-    cmDirectory dir;
-    dir.Load(binaryDirectory);
-    size_t fileNum;
-    for (fileNum = 0; fileNum <  dir.GetNumberOfFiles(); ++fileNum)
-      {
-      if (strcmp(dir.GetFile(fileNum),".") &&
-          strcmp(dir.GetFile(fileNum),".."))
-        {
-        std::string fullPath = binaryDirectory;
-        fullPath += "/";
-        fullPath += dir.GetFile(fileNum);
-        cmSystemTools::RemoveFile(fullPath.c_str());
-        }
-      }
-    }
-  
-  return res;
 }

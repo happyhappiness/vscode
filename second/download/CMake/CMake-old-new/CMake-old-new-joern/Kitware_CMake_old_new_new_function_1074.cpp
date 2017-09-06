@@ -1,27 +1,95 @@
-void cmFindPackageCommand::StoreVersionFound()
+int GetWebFiles(char *url1, char *url2)
 {
-  // Store the whole version string.
-  std::string ver = this->Name;
-  ver += "_VERSION";
-  if(this->VersionFound.empty())
+  int retVal = 0;
+  CURL *curl;
+  CURLcode res;
+
+  char proxy[1024];
+  int proxy_type = 0;
+
+  if ( getenv("HTTP_PROXY") )
     {
-    this->Makefile->RemoveDefinition(ver.c_str());
+    proxy_type = 1;
+    if (getenv("HTTP_PROXY_PORT") )
+      {
+      sprintf(proxy, "%s:%s", getenv("HTTP_PROXY"), getenv("HTTP_PROXY_PORT"));
+      }
+    else
+      {
+      sprintf(proxy, "%s", getenv("HTTP_PROXY"));
+      }
+    if ( getenv("HTTP_PROXY_TYPE") )
+      {
+      /* HTTP/SOCKS4/SOCKS5 */
+      if ( strcmp(getenv("HTTP_PROXY_TYPE"), "HTTP") == 0 )
+        {
+        proxy_type = 1;
+        }
+      else if ( strcmp(getenv("HTTP_PROXY_TYPE"), "SOCKS4") == 0 )
+        {
+        proxy_type = 2;
+        }
+      else if ( strcmp(getenv("HTTP_PROXY_TYPE"), "SOCKS5") == 0 )
+        {
+        proxy_type = 3;
+        }
+      }
+    }
+
+  curl = curl_easy_init();
+  if(curl) 
+    {
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+    curl_easy_setopt(curl, CURLOPT_HEADER, 1);
+
+    /* Using proxy */
+    if ( proxy_type > 0 )
+      {
+      curl_easy_setopt(curl, CURLOPT_PROXY, proxy); 
+      switch (proxy_type)
+        {
+        case 2:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS4);
+          break;
+        case 3:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5);
+          break;
+        default:
+          curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);           
+        }
+      }
+
+    /* get the first document */
+    curl_easy_setopt(curl, CURLOPT_URL, url1);
+    res = curl_easy_perform(curl);
+    if ( res != 0 )
+      {
+      printf("Error fetching: %s\n", url1);
+      retVal = 1;
+      }
+
+    /* get another document from the same server using the same
+       connection */
+    /* avoid warnings about url2 since below block is commented out: */
+    (void) url2;
+    /*
+      curl_easy_setopt(curl, CURLOPT_URL, url2);
+      res = curl_easy_perform(curl);
+      if ( res != 0 )
+      {
+      printf("Error fetching: %s\n", url2);
+      retVal = 1;
+      }
+    */
+
+    /* always cleanup */
+    curl_easy_cleanup(curl);
     }
   else
     {
-    this->Makefile->AddDefinition(ver.c_str(), this->VersionFound.c_str());
+    printf("Cannot create curl object\n");
+    retVal = 1;
     }
 
-  // Store the version components.
-  char buf[64];
-  sprintf(buf, "%u", this->VersionFoundMajor);
-  this->Makefile->AddDefinition((ver+"_MAJOR").c_str(), buf);
-  sprintf(buf, "%u", this->VersionFoundMinor);
-  this->Makefile->AddDefinition((ver+"_MINOR").c_str(), buf);
-  sprintf(buf, "%u", this->VersionFoundPatch);
-  this->Makefile->AddDefinition((ver+"_PATCH").c_str(), buf);
-  sprintf(buf, "%u", this->VersionFoundTweak);
-  this->Makefile->AddDefinition((ver+"_TWEAK").c_str(), buf);
-  sprintf(buf, "%u", this->VersionFoundCount);
-  this->Makefile->AddDefinition((ver+"_COUNT").c_str(), buf);
+  return retVal;
 }

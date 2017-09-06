@@ -1,1 +1,2 @@
-vsnprintf(data->state.buffer, BUFSIZE, fmt, ap);
+archive_set_error(&a->archive, errno,
+			    "Can't open `%s'", path);

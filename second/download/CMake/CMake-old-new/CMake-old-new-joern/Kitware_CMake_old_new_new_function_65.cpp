@@ -1,174 +1,231 @@
-static CURLcode file_do(struct connectdata *conn, bool *done)
+static int
+check_symlinks_fsobj(char *path, int *a_eno, struct archive_string *a_estr,
+    int flags)
 {
-  /* This implementation ignores the host name in conformance with
-     RFC 1738. Only local files (reachable via the standard file system)
-     are supported. This means that files on remotely mounted directories
-     (via NFS, Samba, NT sharing) can be accessed through a file:// URL
-  */
-  CURLcode result = CURLE_OK;
-  struct_stat statbuf; /* struct_stat instead of struct stat just to allow the
-                          Windows version to have a different struct without
-                          having to redefine the simple word 'stat' */
-  curl_off_t expected_size=0;
-  bool size_known;
-  bool fstated=FALSE;
-  ssize_t nread;
-  struct Curl_easy *data = conn->data;
-  char *buf = data->state.buffer;
-  curl_off_t bytecount = 0;
-  int fd;
-  struct FILEPROTO *file;
+#if !defined(HAVE_LSTAT)
+	/* Platform doesn't have lstat, so we can't look for symlinks. */
+	(void)path; /* UNUSED */
+	(void)error_number; /* UNUSED */
+	(void)error_string; /* UNUSED */
+	(void)flags; /* UNUSED */
+	return (ARCHIVE_OK);
+#else
+	int res = ARCHIVE_OK;
+	char *tail;
+	char *head;
+	int last;
+	char c;
+	int r;
+	struct stat st;
+	int restore_pwd;
 
-  *done = TRUE; /* unconditionally */
+	/* Nothing to do here if name is empty */
+	if(path[0] == '\0')
+	    return (ARCHIVE_OK);
 
-  Curl_initinfo(data);
-  Curl_pgrsStartNow(data);
-
-  if(data->set.upload)
-    return file_upload(conn);
-
-  file = conn->data->req.protop;
-
-  /* get the fd from the connection phase */
-  fd = file->fd;
-
-  /* VMS: This only works reliable for STREAMLF files */
-  if(-1 != fstat(fd, &statbuf)) {
-    /* we could stat it, then read out the size */
-    expected_size = statbuf.st_size;
-    /* and store the modification time */
-    data->info.filetime = (long)statbuf.st_mtime;
-    fstated = TRUE;
-  }
-
-  if(fstated && !data->state.range && data->set.timecondition) {
-    if(!Curl_meets_timecondition(data, (time_t)data->info.filetime)) {
-      *done = TRUE;
-      return CURLE_OK;
-    }
-  }
-
-  /* If we have selected NOBODY and HEADER, it means that we only want file
-     information. Which for FILE can't be much more than the file size and
-     date. */
-  if(data->set.opt_no_body && data->set.include_header && fstated) {
-    time_t filetime;
-    struct tm buffer;
-    const struct tm *tm = &buffer;
-    char header[80];
-    snprintf(header, sizeof(header),
-             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, header, 0);
-    if(result)
-      return result;
-
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH,
-                               (char *)"Accept-ranges: bytes\r\n", 0);
-    if(result)
-      return result;
-
-    filetime = (time_t)statbuf.st_mtime;
-    result = Curl_gmtime(filetime, &buffer);
-    if(result)
-      return result;
-
-    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-    snprintf(header, sizeof(header),
-             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-             tm->tm_mday,
-             Curl_month[tm->tm_mon],
-             tm->tm_year + 1900,
-             tm->tm_hour,
-             tm->tm_min,
-             tm->tm_sec);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-    if(!result)
-      /* set the file size to make it available post transfer */
-      Curl_pgrsSetDownloadSize(data, expected_size);
-    return result;
-  }
-
-  /* Check whether file range has been specified */
-  file_range(conn);
-
-  /* Adjust the start offset in case we want to get the N last bytes
-   * of the stream iff the filesize could be determined */
-  if(data->state.resume_from < 0) {
-    if(!fstated) {
-      failf(data, "Can't get the size of file.");
-      return CURLE_READ_ERROR;
-    }
-    data->state.resume_from += (curl_off_t)statbuf.st_size;
-  }
-
-  if(data->state.resume_from <= expected_size)
-    expected_size -= data->state.resume_from;
-  else {
-    failf(data, "failed to resume file:// transfer");
-    return CURLE_BAD_DOWNLOAD_RESUME;
-  }
-
-  /* A high water mark has been specified so we obey... */
-  if(data->req.maxdownload > 0)
-    expected_size = data->req.maxdownload;
-
-  if(!fstated || (expected_size == 0))
-    size_known = FALSE;
-  else
-    size_known = TRUE;
-
-  /* The following is a shortcut implementation of file reading
-     this is both more efficient than the former call to download() and
-     it avoids problems with select() and recv() on file descriptors
-     in Winsock */
-  if(fstated)
-    Curl_pgrsSetDownloadSize(data, expected_size);
-
-  if(data->state.resume_from) {
-    if(data->state.resume_from !=
-       lseek(fd, data->state.resume_from, SEEK_SET))
-      return CURLE_BAD_DOWNLOAD_RESUME;
-  }
-
-  Curl_pgrsTime(data, TIMER_STARTTRANSFER);
-
-  while(!result) {
-    /* Don't fill a whole buffer if we want less than all data */
-    size_t bytestoread;
-
-    if(size_known) {
-      bytestoread = (expected_size < data->set.buffer_size) ?
-        curlx_sotouz(expected_size) : (size_t)data->set.buffer_size;
-    }
-    else
-      bytestoread = data->set.buffer_size-1;
-
-    nread = read(fd, buf, bytestoread);
-
-    if(nread > 0)
-      buf[nread] = 0;
-
-    if(nread <= 0 || (size_known && (expected_size == 0)))
-      break;
-
-    bytecount += nread;
-    if(size_known)
-      expected_size -= nread;
-
-    result = Curl_client_write(conn, CLIENTWRITE_BODY, buf, nread);
-    if(result)
-      return result;
-
-    Curl_pgrsSetDownloadCounter(data, bytecount);
-
-    if(Curl_pgrsUpdate(conn))
-      result = CURLE_ABORTED_BY_CALLBACK;
-    else
-      result = Curl_speedcheck(data, Curl_tvnow());
-  }
-  if(Curl_pgrsUpdate(conn))
-    result = CURLE_ABORTED_BY_CALLBACK;
-
-  return result;
+	/*
+	 * Guard against symlink tricks.  Reject any archive entry whose
+	 * destination would be altered by a symlink.
+	 *
+	 * Walk the filename in chunks separated by '/'.  For each segment:
+	 *  - if it doesn't exist, continue
+	 *  - if it's symlink, abort or remove it
+	 *  - if it's a directory and it's not the last chunk, cd into it
+	 * As we go:
+	 *  head points to the current (relative) path
+	 *  tail points to the temporary \0 terminating the segment we're
+	 *      currently examining
+	 *  c holds what used to be in *tail
+	 *  last is 1 if this is the last tail
+	 */
+	restore_pwd = open(".", O_RDONLY | O_BINARY | O_CLOEXEC);
+	__archive_ensure_cloexec_flag(restore_pwd);
+	if (restore_pwd < 0)
+		return (ARCHIVE_FATAL);
+	head = path;
+	tail = path;
+	last = 0;
+	/* TODO: reintroduce a safe cache here? */
+	/* Skip the root directory if the path is absolute. */
+	if(tail == path && tail[0] == '/')
+		++tail;
+	/* Keep going until we've checked the entire name.
+	 * head, tail, path all alias the same string, which is
+	 * temporarily zeroed at tail, so be careful restoring the
+	 * stashed (c=tail[0]) for error messages.
+	 * Exiting the loop with break is okay; continue is not.
+	 */
+	while (!last) {
+		/*
+		 * Skip the separator we just consumed, plus any adjacent ones
+		 */
+		while (*tail == '/')
+		    ++tail;
+		/* Skip the next path element. */
+		while (*tail != '\0' && *tail != '/')
+			++tail;
+		/* is this the last path component? */
+		last = (tail[0] == '\0') || (tail[0] == '/' && tail[1] == '\0');
+		/* temporarily truncate the string here */
+		c = tail[0];
+		tail[0] = '\0';
+		/* Check that we haven't hit a symlink. */
+		r = lstat(head, &st);
+		if (r != 0) {
+			tail[0] = c;
+			/* We've hit a dir that doesn't exist; stop now. */
+			if (errno == ENOENT) {
+				break;
+			} else {
+				/*
+				 * Treat any other error as fatal - best to be
+				 * paranoid here.
+				 * Note: This effectively disables deep
+				 * directory support when security checks are
+				 * enabled. Otherwise, very long pathnames that
+				 * trigger an error here could evade the
+				 * sandbox.
+				 * TODO: We could do better, but it would
+				 * probably require merging the symlink checks
+				 * with the deep-directory editing.
+				 */
+				fsobj_error(a_eno, a_estr, errno,
+				    "Could not stat ", path);
+				res = ARCHIVE_FAILED;
+				break;
+			}
+		} else if (S_ISDIR(st.st_mode)) {
+			if (!last) {
+				if (chdir(head) != 0) {
+					tail[0] = c;
+					fsobj_error(a_eno, a_estr, errno,
+					    "Could not chdir ", path);
+					res = (ARCHIVE_FATAL);
+					break;
+				}
+				/* Our view is now from inside this dir: */
+				head = tail + 1;
+			}
+		} else if (S_ISLNK(st.st_mode)) {
+			if (last) {
+				/*
+				 * Last element is symlink; remove it
+				 * so we can overwrite it with the
+				 * item being extracted.
+				 */
+				if (unlink(head)) {
+					tail[0] = c;
+					fsobj_error(a_eno, a_estr, errno,
+					    "Could not remove symlink ",
+					    path);
+					res = ARCHIVE_FAILED;
+					break;
+				}
+				/*
+				 * Even if we did remove it, a warning
+				 * is in order.  The warning is silly,
+				 * though, if we're just replacing one
+				 * symlink with another symlink.
+				 */
+				tail[0] = c;
+				/*
+				 * FIXME:  not sure how important this is to
+				 * restore
+				 */
+				/*
+				if (!S_ISLNK(path)) {
+					fsobj_error(a_eno, a_estr, 0,
+					    "Removing symlink ", path);
+				}
+				*/
+				/* Symlink gone.  No more problem! */
+				res = ARCHIVE_OK;
+				break;
+			} else if (flags & ARCHIVE_EXTRACT_UNLINK) {
+				/* User asked us to remove problems. */
+				if (unlink(head) != 0) {
+					tail[0] = c;
+					fsobj_error(a_eno, a_estr, 0,
+					    "Cannot remove intervening "
+					    "symlink ", path);
+					res = ARCHIVE_FAILED;
+					break;
+				}
+				tail[0] = c;
+			} else if ((flags &
+			    ARCHIVE_EXTRACT_SECURE_SYMLINKS) == 0) {
+				/*
+				 * We are not the last element and we want to
+				 * follow symlinks if they are a directory.
+				 * 
+				 * This is needed to extract hardlinks over
+				 * symlinks.
+				 */
+				r = stat(head, &st);
+				if (r != 0) {
+					tail[0] = c;
+					if (errno == ENOENT) {
+						break;
+					} else {
+						fsobj_error(a_eno, a_estr,
+						    errno,
+						    "Could not stat ", path);
+						res = (ARCHIVE_FAILED);
+						break;
+					}
+				} else if (S_ISDIR(st.st_mode)) {
+					if (chdir(head) != 0) {
+						tail[0] = c;
+						fsobj_error(a_eno, a_estr,
+						    errno,
+						    "Could not chdir ", path);
+						res = (ARCHIVE_FATAL);
+						break;
+					}
+					/*
+					 * Our view is now from inside
+					 * this dir:
+					 */
+					head = tail + 1;
+				} else {
+					tail[0] = c;
+					fsobj_error(a_eno, a_estr, 0,
+					    "Cannot extract through "
+					    "symlink ", path);
+					res = ARCHIVE_FAILED;
+					break;
+				}
+			} else {
+				tail[0] = c;
+				fsobj_error(a_eno, a_estr, 0,
+				    "Cannot extract through symlink ", path);
+				res = ARCHIVE_FAILED;
+				break;
+			}
+		}
+		/* be sure to always maintain this */
+		tail[0] = c;
+		if (tail[0] != '\0')
+			tail++; /* Advance to the next segment. */
+	}
+	/* Catches loop exits via break */
+	tail[0] = c;
+#ifdef HAVE_FCHDIR
+	/* If we changed directory above, restore it here. */
+	if (restore_pwd >= 0) {
+		r = fchdir(restore_pwd);
+		if (r != 0) {
+			fsobj_error(a_eno, a_estr, errno,
+			    "chdir() failure", "");
+		}
+		close(restore_pwd);
+		restore_pwd = -1;
+		if (r != 0) {
+			res = (ARCHIVE_FATAL);
+		}
+	}
+#endif
+	/* TODO: reintroduce a safe cache here? */
+	return res;
+#endif
 }

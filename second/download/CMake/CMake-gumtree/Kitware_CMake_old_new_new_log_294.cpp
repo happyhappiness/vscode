@@ -1,0 +1,1 @@
+YY_FATAL_ERROR( "cmCommandArgument_yyset_lineno called with no buffer" );

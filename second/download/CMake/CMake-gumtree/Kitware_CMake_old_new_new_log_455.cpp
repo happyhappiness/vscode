@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "No memory for ZIP decryption");
+YY_FATAL_ERROR( "cmFortran_yyset_lineno called with no buffer" );

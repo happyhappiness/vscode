@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, errno,
-				    "Invalid NFSv4 ACL entry type");
+fsobj_error(a_eno, a_estr, 0,
+					    "Cannot extract through "
+					    "symlink %s", path);

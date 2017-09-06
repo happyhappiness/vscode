@@ -1,1 +1,2 @@
-fprintf(stderr, " + %s\n", realTargetName);
+sprintf(firstLine,
+              "Press [c] to configure     Press [g] to generate and exit");

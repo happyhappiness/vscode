@@ -1,137 +1,84 @@
 static int
-zip_read_mac_metadata(struct archive_read *a, struct archive_entry *entry,
-    struct zip_entry *rsrc)
+setup_sparse_from_disk(struct archive_read_disk *a,
+    struct archive_entry *entry, HANDLE handle)
 {
-	struct zip *zip = (struct zip *)a->format->data;
-	unsigned char *metadata, *mp;
-	int64_t offset = zip->offset;
-	size_t remaining_bytes, metadata_bytes;
-	ssize_t hsize;
-	int ret = ARCHIVE_OK, eof;
+	FILE_ALLOCATED_RANGE_BUFFER range, *outranges = NULL;
+	size_t outranges_size;
+	int64_t entry_size = archive_entry_size(entry);
+	int exit_sts = ARCHIVE_OK;
 
-	switch(rsrc->compression) {
-	case 0:  /* No compression. */
-#ifdef HAVE_ZLIB_H
-	case 8: /* Deflate compression. */
-#endif
-		break;
-	default: /* Unsupported compression. */
-		/* Return a warning. */
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unsupported ZIP compression method (%s)",
-		    compression_name(rsrc->compression));
-		/* We can't decompress this entry, but we will
-		 * be able to skip() it and try the next entry. */
-		return (ARCHIVE_WARN);
-	}
-
-	if (rsrc->uncompressed_size > (128 * 1024)) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Mac metadata is too large: %jd > 128K bytes",
-		    (intmax_t)rsrc->uncompressed_size);
-		return (ARCHIVE_WARN);
-	}
-
-	metadata = malloc((size_t)rsrc->uncompressed_size);
-	if (metadata == NULL) {
+	range.FileOffset.QuadPart = 0;
+	range.Length.QuadPart = entry_size;
+	outranges_size = 2048;
+	outranges = (FILE_ALLOCATED_RANGE_BUFFER *)malloc(outranges_size);
+	if (outranges == NULL) {
 		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate memory for Mac metadata");
-		return (ARCHIVE_FATAL);
+			"Couldn't allocate memory");
+		exit_sts = ARCHIVE_FATAL;
+		goto exit_setup_sparse;
 	}
 
-	if (zip->offset < rsrc->local_header_offset)
-		zip_read_consume(a, rsrc->local_header_offset - zip->offset);
-	else if (zip->offset != rsrc->local_header_offset) {
-		__archive_read_seek(a, rsrc->local_header_offset, SEEK_SET);
-		zip->offset = zip->entry->local_header_offset;
-	}
+	for (;;) {
+		DWORD retbytes;
+		BOOL ret;
 
-	hsize = zip_get_local_file_header_size(a, 0);
-	zip_read_consume(a, hsize);
-
-	remaining_bytes = (size_t)rsrc->compressed_size;
-	metadata_bytes = (size_t)rsrc->uncompressed_size;
-	mp = metadata;
-	eof = 0;
-	while (!eof && remaining_bytes) {
-		const unsigned char *p;
-		ssize_t bytes_avail;
-		size_t bytes_used;
-
-		p = __archive_read_ahead(a, 1, &bytes_avail);
-		if (p == NULL) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file header");
-			ret = ARCHIVE_WARN;
-			goto exit_mac_metadata;
+		for (;;) {
+			ret = DeviceIoControl(handle,
+			    FSCTL_QUERY_ALLOCATED_RANGES,
+			    &range, sizeof(range), outranges,
+			    (DWORD)outranges_size, &retbytes, NULL);
+			if (ret == 0 && GetLastError() == ERROR_MORE_DATA) {
+				free(outranges);
+				outranges_size *= 2;
+				outranges = (FILE_ALLOCATED_RANGE_BUFFER *)
+				    malloc(outranges_size);
+				if (outranges == NULL) {
+					archive_set_error(&a->archive, ENOMEM,
+					    "Couldn't allocate memory");
+					exit_sts = ARCHIVE_FATAL;
+					goto exit_setup_sparse;
+				}
+				continue;
+			} else
+				break;
 		}
-		if ((size_t)bytes_avail > remaining_bytes)
-			bytes_avail = remaining_bytes;
-		switch(rsrc->compression) {
-		case 0:  /* No compression. */
-			memcpy(mp, p, bytes_avail);
-			bytes_used = (size_t)bytes_avail;
-			metadata_bytes -= bytes_used;
-			mp += bytes_used;
-			if (metadata_bytes == 0)
-				eof = 1;
-			break;
-#ifdef HAVE_ZLIB_H
-		case 8: /* Deflate compression. */
-		{
-			int r;
+		if (ret != 0) {
+			if (retbytes > 0) {
+				DWORD i, n;
 
-			ret = zip_deflate_init(a, zip);
-			if (ret != ARCHIVE_OK)
-				goto exit_mac_metadata;
-			zip->stream.next_in =
-			    (Bytef *)(uintptr_t)(const void *)p;
-			zip->stream.avail_in = (uInt)bytes_avail;
-			zip->stream.total_in = 0;
-			zip->stream.next_out = mp;
-			zip->stream.avail_out = (uInt)metadata_bytes;
-			zip->stream.total_out = 0;
-
-			r = inflate(&zip->stream, 0);
-			switch (r) {
-			case Z_OK:
-				break;
-			case Z_STREAM_END:
-				eof = 1;
-				break;
-			case Z_MEM_ERROR:
-				archive_set_error(&a->archive, ENOMEM,
-				    "Out of memory for ZIP decompression");
-				ret = ARCHIVE_FATAL;
-				goto exit_mac_metadata;
-			default:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "ZIP decompression failed (%d)", r);
-				ret = ARCHIVE_FATAL;
-				goto exit_mac_metadata;
+				n = retbytes / sizeof(outranges[0]);
+				if (n == 1 &&
+				    outranges[0].FileOffset.QuadPart == 0 &&
+				    outranges[0].Length.QuadPart == entry_size)
+					break;/* This is not sparse. */
+				for (i = 0; i < n; i++)
+					archive_entry_sparse_add_entry(entry,
+					    outranges[i].FileOffset.QuadPart,
+						outranges[i].Length.QuadPart);
+				range.FileOffset.QuadPart =
+				    outranges[n-1].FileOffset.QuadPart
+				    + outranges[n-1].Length.QuadPart;
+				range.Length.QuadPart =
+				    entry_size - range.FileOffset.QuadPart;
+				if (range.Length.QuadPart > 0)
+					continue;
+			} else {
+				/* The remaining data is hole. */
+				archive_entry_sparse_add_entry(entry,
+				    range.FileOffset.QuadPart,
+				    range.Length.QuadPart);
 			}
-			bytes_used = zip->stream.total_in;
-			metadata_bytes -= zip->stream.total_out;
-			mp += zip->stream.total_out;
 			break;
+		} else {
+			la_dosmaperr(GetLastError());
+			archive_set_error(&a->archive, errno,
+			    "DeviceIoControl Failed: %lu", GetLastError());
+			exit_sts = ARCHIVE_FAILED;
+			goto exit_setup_sparse;
 		}
-#endif
-		default:
-			bytes_used = 0;
-			break;
-		}
-		zip_read_consume(a, bytes_used);
-		remaining_bytes -= bytes_used;
 	}
-	archive_entry_copy_mac_metadata(entry, metadata,
-	    (size_t)rsrc->uncompressed_size - metadata_bytes);
+exit_setup_sparse:
+	free(outranges);
 
-	__archive_read_seek(a, offset, SEEK_SET);
-	zip->offset = offset;
-exit_mac_metadata:
-	zip->decompress_init = 0;
-	free(metadata);
-	return (ret);
+	return (exit_sts);
 }

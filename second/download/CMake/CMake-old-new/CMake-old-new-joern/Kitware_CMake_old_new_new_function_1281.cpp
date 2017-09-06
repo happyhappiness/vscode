@@ -1,130 +1,89 @@
-bool cmMacroHelperCommand::InvokeInitialPass
-(const std::vector<cmListFileArgument>& args)
+void cmCursesMainForm::PrintKeys(int process /* = 0 */)
 {
-  // Expand the argument list to the macro.
-  std::vector<std::string> expandedArgs;
-  m_Makefile->ExpandArguments(args, expandedArgs);
-  
-  std::string tmps;
-  cmListFileArgument arg;
-  std::string variable;
+  int x,y;
+  getmaxyx(stdscr, y, x);
+  if ( x < cmCursesMainForm::MIN_WIDTH  || 
+       x < this->InitialWidth               ||
+       y < cmCursesMainForm::MIN_HEIGHT )
+    {
+    return;
+    }
 
-  // make sure the number of arguments passed is at least the number
-  // required by the signature
-  if (expandedArgs.size() < m_Args.size() - 1)
+  // Give the current widget (if it exists), a chance to print keys
+  cmCursesWidget* cw = 0;
+  if (this->Form)
     {
-    std::string errorMsg = 
-      "Macro invoked with incorrect arguments for macro named: ";
-    errorMsg += m_Args[0];
-    this->SetError(errorMsg.c_str());
-    return false;
+    FIELD* currentField = current_field(this->Form);
+    cw = reinterpret_cast<cmCursesWidget*>(field_userptr(currentField));
     }
-  
-  // set the value of argc
-  cmOStringStream argcDefStream;
-  argcDefStream << expandedArgs.size();
-  std::string argcDef = argcDefStream.str();
-  
-  // declare varuiables for ARGV ARGN but do not compute until needed
-  std::string argvDef;
-  std::string argnDef;
-  bool argvDefInitialized = false;
 
-  // save the current definitions of all vars that we will be setting
-  std::string oldARGC;
-  if (m_Makefile->GetDefinition("ARGC"))
+  if (cw)
     {
-    oldARGC = m_Makefile->GetDefinition("ARGC");
+    cw->PrintKeys();
     }
-  m_Makefile->AddDefinition("ARGC",argcDef.c_str());
+  
+//    {
+//    }
+//  else
+//    {
+  char firstLine[512]="";
+  char secondLine[512]="";
+  char thirdLine[512]="";
+  if (process)
+    {
+    sprintf(firstLine, 
+            "                                                               ");  
+    sprintf(secondLine, 
+            "                                                               ");  
+    sprintf(thirdLine, 
+            "                                                               ");  
+    }
+  else
+    {
+    if (this->OkToGenerate)
+      {
+      sprintf(firstLine,  
+              "Press [c] to configure     Press [g] to generate and exit");
+      }
+    else
+      {
+      sprintf(firstLine,  "Press [c] to configure                                   ");
+      }
+    if (this->AdvancedMode)
+      {
+      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently On)");
+      }
+    else
+      {
+      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently Off)");
+      }
+    
+    sprintf(secondLine, 
+            "Press [h] for help         Press [q] to quit without generating");
+    }
 
-  // store ARGN, ARGV
-  std::vector<std::string> oldARGVArgs;
-  std::vector<std::string>::const_iterator eit;
-  std::vector<std::string>::size_type cnt = 0;
-  char argvName[60];
-  for ( eit = expandedArgs.begin(); eit != expandedArgs.end(); ++eit )
+  curses_move(y-4,0);
+  char fmt[512] = "Press [enter] to edit option";
+  if ( process )
     {
-    if ( cnt >= m_Args.size()-1 )
-      {
-      if ( argnDef.size() > 0 )
-        {
-        argnDef += ";";
-        }
-      argnDef += *eit;
-      }
-    if ( argvDef.size() > 0 )
-      {
-      argvDef += ";";
-      }
-    argvDef += *eit;
-    oldARGVArgs.push_back(std::string());
-    sprintf(argvName,"ARGV%i",cnt);
-    if (m_Makefile->GetDefinition(argvName))
-      {
-      oldARGVArgs[cnt] = m_Makefile->GetDefinition(argvName);
-      }
-    m_Makefile->AddDefinition(argvName,eit->c_str());
-    cnt++;
+    strcpy(fmt, "                           ");
     }
-  std::string oldARGN;
-  if (m_Makefile->GetDefinition("ARGN"))
-    {
-    oldARGN = m_Makefile->GetDefinition("ARGN");
-    }
-  m_Makefile->AddDefinition("ARGN",argnDef.c_str());
-  std::string oldARGV;
-  if (m_Makefile->GetDefinition("ARGV"))
-    {
-    oldARGV = m_Makefile->GetDefinition("ARGV");
-    }
-  m_Makefile->AddDefinition("ARGV",argvDef.c_str());
+  printw(fmt);
+  curses_move(y-3,0);
+  printw(firstLine);
+  curses_move(y-2,0);
+  printw(secondLine);
+  curses_move(y-1,0);
+  printw(thirdLine);
 
-  // store old defs for formal args
-  std::vector<std::string> oldFormalArgs;
-  for (unsigned int j = 1; j < m_Args.size(); ++j)
+  if (cw)
     {
-    oldFormalArgs.push_back(std::string());
-    if (m_Makefile->GetDefinition(m_Args[j].c_str()))
-      {
-      oldFormalArgs[j-1] = m_Makefile->GetDefinition(m_Args[j].c_str());
-      }
-    m_Makefile->AddDefinition(m_Args[j].c_str(),expandedArgs[j-1].c_str());
+    sprintf(firstLine, "Page %d of %d", cw->GetPage(), this->NumberOfPages);
+    curses_move(0,65-strlen(firstLine)-1);
+    printw(firstLine);
     }
+//    }
+
+  pos_form_cursor(this->Form);
   
-  // Invoke all the functions that were collected in the block.
-  for(unsigned int c = 0; c < m_Functions.size(); ++c)
-    {
-    if(!m_Makefile->ExecuteCommand(m_Functions[c]))
-      {
-      cmOStringStream error;
-      error << "Error in cmake code at\n"
-            << args[0].FilePath << ":" << args[0].Line << "\n"
-            << "A command failed during the invocation of macro \""
-            << this->m_Args[0].c_str() << "\".\nThe failing line "
-            << "in the macro definition was at\n" 
-            << m_Functions[c].m_FilePath << ":"
-            << m_Functions[c].m_Line << "\n";
-      cmSystemTools::Error(error.str().c_str());
-      return false;
-      }
-    }
-  
-  // restore all args
-  m_Makefile->AddDefinition("ARGC",oldARGC.c_str());
-  m_Makefile->AddDefinition("ARGN",oldARGN.c_str());
-  m_Makefile->AddDefinition("ARGV",oldARGV.c_str());
-  // restore old defs for formal args
-  for (unsigned int j = 1; j < m_Args.size(); ++j)
-    {
-    m_Makefile->AddDefinition(m_Args[j].c_str(),oldFormalArgs[j-1].c_str());
-    }
-  // restore old defs for formal args
-  for (unsigned int j = 0; j < oldARGVArgs.size(); ++j)
-    {
-    sprintf(argvName,"ARGV%i",j);
-    m_Makefile->AddDefinition(argvName,oldARGVArgs[j].c_str());
-    }
-  
-  return true;
 }

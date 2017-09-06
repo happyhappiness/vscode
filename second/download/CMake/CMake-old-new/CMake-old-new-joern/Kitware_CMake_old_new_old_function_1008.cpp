@@ -1,123 +1,218 @@
-static int
-slurp_central_directory(struct archive_read *a, struct _7zip *zip,
-    struct _7z_header_info *header)
+kwsysProcess* kwsysProcess_New(void)
 {
-	const unsigned char *p;
-	const void *image;
-	uint64_t len;
-	uint64_t next_header_offset;
-	uint64_t next_header_size;
-	uint32_t next_header_crc;
-	ssize_t bytes_avail, image_bytes;
-	int r;
+  int i;
 
-	if ((p = __archive_read_ahead(a, 32, &bytes_avail)) == NULL)
-		return (ARCHIVE_FATAL);
+  /* Process control structure.  */
+  kwsysProcess* cp;
 
-	if ((p[0] == 'M' && p[1] == 'Z') || memcmp(p, "\x7F\x45LF", 4) == 0) {
-		/* This is an executable ? Must be self-extracting... */
-		r = skip_sfx(a, bytes_avail);
-		if (r < ARCHIVE_WARN)
-			return (r);
-		if ((p = __archive_read_ahead(a, 32, NULL)) == NULL)
-			return (ARCHIVE_FATAL);
-	}
-	zip->seek_base += 32;
+  /* Path to Win9x forwarding executable.  */
+  char* win9x = 0;
 
-	if (memcmp(p, _7ZIP_SIGNATURE, 6) != 0) {
-		archive_set_error(&a->archive, -1, "Not 7-Zip archive file");
-		return (ARCHIVE_FATAL);
-	}
+  /* Windows version number data.  */
+  OSVERSIONINFO osv;
 
-	/* CRC check. */
-	if (crc32(0, (unsigned char *)p + 12, 20) != archive_le32dec(p + 8)) {
-		archive_set_error(&a->archive, -1, "Header CRC error");
-		return (ARCHIVE_FATAL);
-	}
+  /* Allocate a process control structure.  */
+  cp = (kwsysProcess*)malloc(sizeof(kwsysProcess));
+  if(!cp)
+    {
+    /* Could not allocate memory for the control structure.  */
+    return 0;
+    }
+  ZeroMemory(cp, sizeof(*cp));
 
-	next_header_offset = archive_le64dec(p + 12);
-	next_header_size = archive_le64dec(p + 20);
-	next_header_crc = archive_le32dec(p + 28);
+  /* Share stdin with the parent process by default.  */
+  cp->PipeSharedSTDIN = 1;
 
-	if (next_header_size == 0)
-		/* There is no entry in an archive file. */
-		return (ARCHIVE_EOF);
+  /* Set initial status.  */
+  cp->State = kwsysProcess_State_Starting;
 
-	if (((int64_t)next_header_offset) < 0) {
-		archive_set_error(&a->archive, -1, "Malformed 7-Zip archive");
-		return (ARCHIVE_FATAL);
-	}
-	if (__archive_read_seek(a, next_header_offset + zip->seek_base,
-	    SEEK_SET) < 0)
-		return (ARCHIVE_FATAL);
-	zip->header_offset = next_header_offset;
+  /* Choose a method of running the child based on version of
+     windows.  */
+  ZeroMemory(&osv, sizeof(osv));
+  osv.dwOSVersionInfoSize = sizeof(osv);
+  GetVersionEx(&osv);
+  if(osv.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS)
+    {
+    /* This is Win9x.  We need the console forwarding executable to
+       work-around a Windows 9x bug.  */
+    char fwdName[_MAX_FNAME+1] = "";
+    char tempDir[_MAX_PATH+1] = "";
 
-	if ((p = __archive_read_ahead(a, next_header_size, NULL)) == NULL)
-		return (ARCHIVE_FATAL);
+    /* We will try putting the executable in the system temp
+       directory.  Note that the returned path already has a trailing
+       slash.  */
+    DWORD length = GetTempPath(_MAX_PATH+1, tempDir);
 
-	if (crc32(0, p, next_header_size) != next_header_crc) {
-		archive_set_error(&a->archive, -1, "Damaged 7-Zip archive");
-		return (ARCHIVE_FATAL);
-	}
+    /* Construct the executable name from the process id and kwsysProcess
+       instance.  This should be unique.  */
+    sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%ld_%p.exe",
+            GetCurrentProcessId(), cp);
 
-	len = next_header_size;
-	/* Parse ArchiveProperties. */
-	switch (p[0]) {
-	case kEncodedHeader:
-		p++;
-		len--;
+    /* If we have a temp directory, use it.  */
+    if(length > 0 && length <= _MAX_PATH)
+      {
+      /* Allocate a buffer to hold the forwarding executable path.  */
+      size_t tdlen = strlen(tempDir);
+      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
+      if(!win9x)
+        {
+        kwsysProcess_Delete(cp);
+        return 0;
+        }
 
-		/*
-		 * The archive has an encoded header and we have to decode it
-		 * in order to parse the header correctly.
-		 */
-		image_bytes =
-		    decode_header_image(a, zip, &(zip->si), p, len, &image);
-		free_StreamsInfo(&(zip->si));
-		memset(&(zip->si), 0, sizeof(zip->si));
-		if (image_bytes < 0)
-			return (ARCHIVE_FATAL);
-		p = image;
-		len = image_bytes;
-		/* FALL THROUGH */
-	case kHeader:
-		/*
-		 * Parse the header.
-		 */
-		errno = 0;
-		r = read_Header(zip, header, p, len);
-		if (r < 0) {
-			if (errno == ENOMEM)
-				archive_set_error(&a->archive, -1,
-				    "Couldn't allocate memory");
-			else
-				archive_set_error(&a->archive, -1,
-				    "Damaged 7-Zip archive");
-			return (ARCHIVE_FATAL);
-		}
-		if (len - r == 0 || p[r] != kEnd) {
-			archive_set_error(&a->archive, -1,
-			    "Malformed 7-Zip archive");
-			return (ARCHIVE_FATAL);
-		}
-		break;
-	default:
-		archive_set_error(&a->archive, -1,
-		    "Unexpected Property ID = %X", p[0]);
-		return (ARCHIVE_FATAL);
-	}
-	zip->stream_offset = -1;
+      /* Construct the full path to the forwarding executable.  */
+      sprintf(win9x, "%s%s", tempDir, fwdName);
+      }
 
-	/*
-	 * If the uncompressed buffer was allocated more than 64K for
-	 * the header image, release it.
-	 */
-	if (zip->uncompressed_buffer != NULL &&
-	    zip->uncompressed_buffer_size != 64 * 1024) {
-		free(zip->uncompressed_buffer);
-		zip->uncompressed_buffer = NULL;
-		zip->uncompressed_buffer_size = 0;
-	}
+    /* If we found a place to put the forwarding executable, try to
+       write it. */
+    if(win9x)
+      {
+      if(!kwsysEncodedWriteArrayProcessFwd9x(win9x))
+        {
+        /* Failed to create forwarding executable.  Give up.  */
+        free(win9x);
+        kwsysProcess_Delete(cp);
+        return 0;
+        }
 
-	return (ARCHIVE_OK);
+      /* Get a handle to the file that will delete it when closed.  */
+      cp->Win9xHandle = CreateFile(win9x, GENERIC_READ, FILE_SHARE_READ, 0,
+                                   OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
+      if(cp->Win9xHandle == INVALID_HANDLE_VALUE)
+        {
+        /* We were not able to get a read handle for the forwarding
+           executable.  It will not be deleted properly.  Give up.  */
+        _unlink(win9x);
+        free(win9x);
+        kwsysProcess_Delete(cp);
+        return 0;
+        }
+      }
+    else
+      {
+      /* Failed to find a place to put forwarding executable.  */
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+    }
+
+  /* Save the path to the forwarding executable.  */
+  cp->Win9x = win9x;
+
+  /* Initially no thread owns the mutex.  Initialize semaphore to 1.  */
+  if(!(cp->SharedIndexMutex = CreateSemaphore(0, 1, 1, 0)))
+    {
+    kwsysProcess_Delete(cp);
+    return 0;
+    }
+
+  /* Initially no data are available.  Initialize semaphore to 0.  */
+  if(!(cp->Full = CreateSemaphore(0, 0, 1, 0)))
+    {
+    kwsysProcess_Delete(cp);
+    return 0;
+    }
+
+  if(cp->Win9x)
+    {
+    SECURITY_ATTRIBUTES sa;
+    ZeroMemory(&sa, sizeof(sa));
+    sa.nLength = sizeof(sa);
+    sa.bInheritHandle = TRUE;
+
+    /* Create an event to tell the forwarding executable to resume the
+       child.  */
+    if(!(cp->Win9xResumeEvent = CreateEvent(&sa, TRUE, 0, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* Create an event to tell the forwarding executable to kill the
+       child.  */
+    if(!(cp->Win9xKillEvent = CreateEvent(&sa, TRUE, 0, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+    }
+
+  /* Create the thread to read each pipe.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
+    {
+    DWORD dummy=0;
+
+    /* Assign the thread its index.  */
+    cp->Pipe[i].Index = i;
+
+    /* Give the thread a pointer back to the kwsysProcess instance.  */
+    cp->Pipe[i].Process = cp;
+
+    /* No process is yet running.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Reader.Ready = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* The pipe is not yet reset.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Reader.Reset = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* The thread's buffer is initially empty.  Initialize semaphore to 1.  */
+    if(!(cp->Pipe[i].Reader.Go = CreateSemaphore(0, 1, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* Create the reading thread.  It will block immediately.  The
+       thread will not make deeply nested calls, so we need only a
+       small stack.  */
+    if(!(cp->Pipe[i].Reader.Thread = CreateThread(0, 1024,
+                                                  kwsysProcessPipeThreadRead,
+                                                  &cp->Pipe[i], 0, &dummy)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* No process is yet running.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Waker.Ready = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* The pipe is not yet reset.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Waker.Reset = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* The waker should not wake immediately.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Waker.Go = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* Create the waking thread.  It will block immediately.  The
+       thread will not make deeply nested calls, so we need only a
+       small stack.  */
+    if(!(cp->Pipe[i].Waker.Thread = CreateThread(0, 1024,
+                                                 kwsysProcessPipeThreadWake,
+                                                 &cp->Pipe[i], 0, &dummy)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+    }
+
+  return cp;
 }

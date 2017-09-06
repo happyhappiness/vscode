@@ -1,1 +1,2 @@
-fprintf(fout, "ADD_EXECUTABLE(%s \"%s\")\n", targetName, source.c_str());
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "tar: unknown keyword ``%s''", key);

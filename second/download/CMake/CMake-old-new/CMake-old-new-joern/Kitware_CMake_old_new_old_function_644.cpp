@@ -1,53 +1,47 @@
-void
-DumpSymbolTable(PIMAGE_SYMBOL pSymbolTable, PIMAGE_SECTION_HEADER pSectionHeaders, FILE *fout, unsigned cSymbols)
+void kwsysProcessCleanup(kwsysProcess* cp, int error)
 {
-   unsigned i;
-   PSTR stringTable;
-   std::string sectionName;
-   std::string sectionCharacter;
-   int iSectNum;
+  int i;
+  /* If this is an error case, report the error.  */
+  if(error)
+    {
+    /* Construct an error message if one has not been provided already.  */
+    if(cp->ErrorMessage[0] == 0)
+      {
+      /* Format the error message.  */
+      DWORD original = GetLastError();
+      wchar_t err_msg[KWSYSPE_PIPE_BUFFER_SIZE];
+      DWORD length = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
+                                   FORMAT_MESSAGE_IGNORE_INSERTS, 0, original,
+                                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                                   err_msg, KWSYSPE_PIPE_BUFFER_SIZE, 0);
+      WideCharToMultiByte(CP_UTF8, 0, err_msg, -1, cp->ErrorMessage,
+                          KWSYSPE_PIPE_BUFFER_SIZE, NULL, NULL);
+      if(length < 1)
+        {
+        /* FormatMessage failed.  Use a default message.  */
+        _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  "Process execution failed with error 0x%X.  "
+                  "FormatMessage failed with error 0x%X",
+                  original, GetLastError());
+        }
+      }
 
-   fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
-      cSymbols);
+    /* Remove trailing period and newline, if any.  */
+    kwsysProcessCleanErrorMessage(cp);
 
-   fprintf(fout,
-      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
-      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");
+    /* Set the error state.  */
+    cp->State = kwsysProcess_State_Error;
 
-   /*
-   * The string table apparently starts right after the symbol table
-   */
-   stringTable = (PSTR)&pSymbolTable[cSymbols];
-
-   for ( i=0; i < cSymbols; i++ ) {
-      fprintf(fout, "%04X ", i);
-      if ( pSymbolTable->N.Name.Short != 0 )
-         fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
-      else
-         fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);
-
-      fprintf(fout, " %08X", pSymbolTable->Value);
-
-      iSectNum = pSymbolTable->SectionNumber;
-      GetSectionName(pSymbolTable, sectionName);
-      fprintf(fout, " sect:%s aux:%X type:%02X st:%s",
-         sectionName.c_str(),
-         pSymbolTable->NumberOfAuxSymbols,
-         pSymbolTable->Type,
-         GetSZStorageClass(pSymbolTable->StorageClass) );
-
-      GetSectionCharacteristics(pSectionHeaders,iSectNum,sectionCharacter);
-      fprintf(fout," hc: %s \n",sectionCharacter.c_str());
-#if 0
-      if ( pSymbolTable->NumberOfAuxSymbols )
-         DumpAuxSymbols(pSymbolTable);
-#endif
-
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-   }
-}
+    /* Cleanup any processes already started in a suspended state.  */
+    if(cp->ProcessInformation)
+      {
+      for(i=0; i < cp->NumberOfCommands; ++i)
+        {
+        if(cp->ProcessInformation[i].hProcess)
+          {
+          TerminateProcess(cp->ProcessInformation[i].hProcess, 255);
+          WaitForSingleObject(cp->ProcessInformation[i].hProcess, INFINITE);
+          }
+        }
+      for(i=0; i < cp->NumberOfCommands; ++i)
+        {

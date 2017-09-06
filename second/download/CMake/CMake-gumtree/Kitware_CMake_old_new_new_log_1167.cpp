@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_OEM ");
+fprintf(ofp, "  _unlink(fname);\n");

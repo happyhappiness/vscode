@@ -1,384 +1,211 @@
-int cmCTest::CoverageDirectory()
+void cmCTest::ProcessDirectory(std::vector<std::string> &passed, 
+                             std::vector<std::string> &failed)
 {
-  std::cout << "Performing coverage" << std::endl;
-  std::vector<std::string> files;
-  std::vector<std::string> cfiles;
-  std::vector<std::string> cdirs;
-  bool done = false;
-  std::string::size_type cc;
-  std::string glob;
-  std::map<std::string, std::string> allsourcefiles;
-  std::map<std::string, std::string> allbinaryfiles;
-
-  std::string start_time = ::CurrentTime();
-
-  // Find all source files.
-  std::string sourceDirectory = m_DartConfiguration["SourceDirectory"];
-  if ( sourceDirectory.size() == 0 )
+  // does the DartTestfile.txt exist ?
+  if(!cmSystemTools::FileExists("DartTestfile.txt"))
     {
-    std::cerr << "Cannot find SourceDirectory  key in the DartConfiguration.tcl" << std::endl;
-    return 1;
-    }
-  cdirs.push_back(sourceDirectory);
-  while ( !done ) 
-    {
-    if ( cdirs.size() <= 0 )
-      {
-      break;
-      }
-    glob = cdirs[cdirs.size()-1] + "/*";
-    //std::cout << "Glob: " << glob << std::endl;
-    cdirs.pop_back();
-    if ( cmSystemTools::SimpleGlob(glob, cfiles, 1) )
-      {
-      for ( cc = 0; cc < cfiles.size(); cc ++ )
-        {
-        allsourcefiles[cmSystemTools::GetFilenameName(cfiles[cc])] = cfiles[cc];
-        }
-      }
-    if ( cmSystemTools::SimpleGlob(glob, cfiles, -1) )
-      {
-      for ( cc = 0; cc < cfiles.size(); cc ++ )
-        {
-        if ( cfiles[cc] != "." && cfiles[cc] != ".." )
-          {
-          cdirs.push_back(cfiles[cc]);
-          }
-        }
-      }
-    }
-
-  // find all binary files
-  cdirs.push_back(cmSystemTools::GetCurrentWorkingDirectory());
-  while ( !done ) 
-    {
-    if ( cdirs.size() <= 0 )
-      {
-      break;
-      }
-    glob = cdirs[cdirs.size()-1] + "/*";
-    //std::cout << "Glob: " << glob << std::endl;
-    cdirs.pop_back();
-    if ( cmSystemTools::SimpleGlob(glob, cfiles, 1) )
-      {
-      for ( cc = 0; cc < cfiles.size(); cc ++ )
-        {
-        allbinaryfiles[cmSystemTools::GetFilenameName(cfiles[cc])] = cfiles[cc];
-        }
-      }
-    if ( cmSystemTools::SimpleGlob(glob, cfiles, -1) )
-      {
-      for ( cc = 0; cc < cfiles.size(); cc ++ )
-        {
-        if ( cfiles[cc] != "." && cfiles[cc] != ".." )
-          {
-          cdirs.push_back(cfiles[cc]);
-          }
-        }
-      }
-    }
-
-  std::map<std::string, std::string>::iterator sit;
-  for ( sit = allbinaryfiles.begin(); sit != allbinaryfiles.end(); sit ++ )
-    {
-    const std::string& fname = sit->second;
-    //std::cout << "File: " << fname << std::endl;
-    if ( strcmp(fname.substr(fname.size()-3, 3).c_str(), ".da") == 0 )
-      {
-      files.push_back(fname);
-      }
+    return;
     }
   
-  if ( files.size() == 0 )
+  // parse the file
+  std::ifstream fin("DartTestfile.txt");
+  if(!fin)
     {
-    std::cout << "Cannot find any coverage information files (.da)" << std::endl;
-    return 1;
+    return;
     }
 
-  std::ofstream log; 
-  if (!this->OpenOutputFile("Temporary", "Coverage.log", log))
-    {
-    std::cout << "Cannot open log file" << std::endl;
-    return 1;
-    }
-  log.close();
-  if (!this->OpenOutputFile(m_CurrentTag, "Coverage.xml", log))
-    {
-    std::cout << "Cannot open log file" << std::endl;
-    return 1;
-    }
+  int firstTest = 1;
+  long line = 0;
 
-  std::string opath = m_ToplevelPath + "/Testing/Temporary/Coverage";
-  cmSystemTools::MakeDirectory(opath.c_str());
+#define SPACE_REGEX "[ \t\r\n]"
   
-  for ( cc = 0; cc < files.size(); cc ++ )
+  cmsys::RegularExpression ireg(this->m_IncludeRegExp.c_str());
+  cmsys::RegularExpression ereg(this->m_ExcludeRegExp.c_str());
+  cmsys::RegularExpression dartStuff("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
+
+  bool parseError;
+  while ( fin )
     {
-    std::string command = "gcov -l \"" + files[cc] + "\"";
-    std::string output;
-    int retVal = 0;
-    //std::cout << "Run gcov on " << files[cc] << std::flush;
-    //std::cout << "   --- Run [" << command << "]" << std::endl;
-    bool res = true;
-    if ( !m_ShowOnly )
+    cmListFileFunction lff;
+    if(cmListFileCache::ParseFunction(fin, lff, "DartTestfile.txt",
+                                      parseError, line))
       {
-      res = cmSystemTools::RunCommand(command.c_str(), output, 
-                                      retVal, opath.c_str(),
-                                      m_Verbose);
-      }
-    if ( res && retVal == 0 )
-      {
-      //std::cout << " - done" << std::endl;
-      }
-    else
-      {
-      //std::cout << " - fail" << std::endl;
-      }
-    }
-  
-  files.clear();
-  glob = opath + "/*";
-  if ( !cmSystemTools::SimpleGlob(glob, cfiles, 1) )
-    {
-    std::cout << "Cannot found any coverage files" << std::endl;
-    return 1;
-    }
-  std::map<std::string, std::vector<std::string> > sourcefiles;
-  for ( cc = 0; cc < cfiles.size(); cc ++ )
-    {
-    std::string& fname = cfiles[cc];
-    //std::cout << "File: " << fname << std::endl;
-    if ( strcmp(fname.substr(fname.size()-5, 5).c_str(), ".gcov") == 0 )
-      {
-      files.push_back(fname);
-      std::string::size_type pos = fname.find(".da.");
-      if ( pos != fname.npos )
+      const std::string& name = lff.m_Name;
+      const std::vector<cmListFileArgument>& args = lff.m_Arguments;
+      if (name == "SUBDIRS")
         {
-        pos += 4;
-        std::string::size_type epos = fname.size() - pos - strlen(".gcov");
-        std::string nf = fname.substr(pos, epos);
-        //std::cout << "Substring: " << nf << std::endl;
-        if ( allsourcefiles.find(nf) != allsourcefiles.end() || 
-             allbinaryfiles.find(nf) != allbinaryfiles.end() )
-          {
-          std::vector<std::string> &cvec = sourcefiles[nf];
-          cvec.push_back(fname);
+        std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
+        for(std::vector<cmListFileArgument>::const_iterator j = args.begin();
+            j != args.end(); ++j)
+          {   
+          std::string nwd = cwd + "/";
+          nwd += j->Value;
+          if (cmSystemTools::FileIsDirectory(nwd.c_str()))
+            {
+            cmSystemTools::ChangeDirectory(nwd.c_str());
+            this->ProcessDirectory(passed, failed);
+            }
           }
+        // return to the original directory
+        cmSystemTools::ChangeDirectory(cwd.c_str());
         }
-      }
-    }
-  for ( cc = 0; cc < files.size(); cc ++ )
-    {
-    //std::cout << "File: " << files[cc] << std::endl;
-    }
-
-  std::map<std::string, std::vector<std::string> >::iterator it;
-  cmCTest::tm_CoverageMap coverageresults;
-
-  log << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-      << "<Site BuildName=\"" << m_DartConfiguration["BuildName"]
-      << "\" BuildStamp=\"" << m_CurrentTag << "-"
-      << this->GetTestModelString() << "\" Name=\""
-      << m_DartConfiguration["Site"] << "\">\n"
-      << "<Coverage>\n"
-      << "\t<StartDateTime>" << start_time << "</StartDateTime>" << std::endl;
-
-  int total_tested = 0;
-  int total_untested = 0;
-
-  for ( it = sourcefiles.begin(); it != sourcefiles.end(); it ++ )
-    {
-    //std::cerr << "Source file: " << it->first << std::endl;
-    std::vector<std::string> &gfiles = it->second;
-    for ( cc = 0; cc < gfiles.size(); cc ++ )
-      {
-      //std::cout << "\t" << gfiles[cc] << std::endl;
-      std::ifstream ifile(gfiles[cc].c_str());
-      ifile.seekg (0, std::ios::end);
-      int length = ifile.tellg();
-      ifile.seekg (0, std::ios::beg);
-      char *buffer = new char [ length + 1 ];
-      ifile.read(buffer, length);
-      buffer [length] = 0;
-      //std::cout << "Read: " << buffer << std::endl;
-      std::vector<cmStdString> lines;
-      cmSystemTools::Split(buffer, lines);
-      delete [] buffer;
-      cmCTest::cmCTestCoverage& cov = coverageresults[it->first];
-      std::vector<int>& covlines = cov.m_Lines; 
-      if ( cov.m_FullPath == "" )
+      
+      if (name == "ADD_TEST")
         {
-        covlines.insert(covlines.begin(), lines.size(), -1);
-        if ( allsourcefiles.find(it->first) != allsourcefiles.end() )
+        if (this->m_UseExcludeRegExp && 
+            this->m_UseExcludeRegExpFirst && 
+            ereg.find(args[0].Value.c_str()))
           {
-          cov.m_FullPath = allsourcefiles[it->first];
+          continue;
           }
-        else if ( allbinaryfiles.find(it->first) != allbinaryfiles.end() )
+        if (this->m_UseIncludeRegExp && !ireg.find(args[0].Value.c_str()))
           {
-          cov.m_FullPath = allbinaryfiles[it->first];
+          continue;
           }
-        std::string src_dir = m_DartConfiguration["SourceDirectory"];
-        std::string::size_type spos = cov.m_FullPath.find(src_dir);
-        if ( spos == 0 )
+        if (this->m_UseExcludeRegExp && 
+            !this->m_UseExcludeRegExpFirst && 
+            ereg.find(args[0].Value.c_str()))
           {
-          cov.m_FullPath = std::string(".") + cov.m_FullPath.substr(src_dir.size());
+          continue;
+          }
+
+        cmCTestTestResult cres;
+        cres.m_Status = cmCTest::NOT_RUN;
+
+        if (firstTest)
+          {
+          std::string nwd = cmSystemTools::GetCurrentWorkingDirectory();
+          std::cerr << "Changing directory into " << nwd.c_str() << "\n";
+          firstTest = 0;
+          }
+        cres.m_Name = args[0].Value;
+        if ( m_ShowOnly )
+          {
+          std::cout << args[0].Value << std::endl;
           }
         else
           {
-          std::cerr << "Compare -- " << cov.m_FullPath << std::endl;
-          std::cerr << "        -- " << src_dir << std::endl;
+          fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());
+          fflush(stderr);
           }
-        }
-      for ( cc = 0; cc < lines.size(); cc ++ )
-        {
-        std::string& line = lines[cc];
-        std::string sub = line.substr(0, strlen("      ######"));
-        int count = atoi(sub.c_str());
-        if ( sub.compare("      ######") == 0 )
+        //std::cerr << "Testing " << args[0] << " ... ";
+        // find the test executable
+        std::string testCommand = this->FindTheExecutable(args[1].Value.c_str());
+        testCommand = cmSystemTools::ConvertToOutputPath(testCommand.c_str());
+
+        // continue if we did not find the executable
+        if (testCommand == "")
           {
-          if ( covlines[cc] == -1 )
-            {
-            covlines[cc] = 0;
-            }
-          cov.m_UnTested ++;
-          //std::cout << "Untested - ";
+          std::cerr << "Unable to find executable: " << 
+            args[1].Value.c_str() << "\n";
+          continue;
           }
-        else if ( count > 0 )
+        
+        // add the arguments
+        std::vector<cmListFileArgument>::const_iterator j = args.begin();
+        ++j;
+        ++j;
+        for(;j != args.end(); ++j)
+          {   
+          testCommand += " ";
+          testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
+          }
+        /**
+         * Run an executable command and put the stdout in output.
+         */
+        std::string output;
+        int retVal = 0;
+
+        double clock_start, clock_finish;
+        clock_start = cmSystemTools::GetTime();
+
+        if ( m_Verbose )
           {
-          if ( covlines[cc] == -1 )
-            {
-            covlines[cc] = 0;
-            }
-          cov.m_Tested ++;
-          covlines[cc] += count;
-          //std::cout << "Tested[" << count << "] - ";
+          std::cout << std::endl << "Test command: " << testCommand << std::endl;
           }
+        int res = 0;
+        if ( !m_ShowOnly )
+          {
+          res = this->RunTest(testCommand.c_str(), &output, &retVal);
+          }
+        clock_finish = cmSystemTools::GetTime();
 
-        //std::cout << line << std::endl;
+        cres.m_ExecutionTime = (double)(clock_finish - clock_start);
+        cres.m_FullCommandLine = testCommand;
+
+        if ( !m_ShowOnly )
+          {
+          if (res == cmsysProcess_State_Exited && retVal == 0)
+            {
+            fprintf(stderr,"   Passed\n");
+            passed.push_back(args[0].Value); 
+            }
+          else
+            {
+            if ( res == cmsysProcess_State_Expired )
+              {
+              fprintf(stderr,"***Timeout\n");
+              cres.m_Status = cmCTest::TIMEOUT;
+              }
+            else if ( res == cmsysProcess_State_Exception )
+              {
+              fprintf(stderr,"***Exception: ");
+              switch ( retVal )
+                {
+              case cmsysProcess_Exception_Fault:
+                fprintf(stderr,"SegFault");
+                cres.m_Status = cmCTest::SEGFAULT;
+                break;
+              case cmsysProcess_Exception_Illegal:
+                fprintf(stderr,"Illegal");
+                cres.m_Status = cmCTest::ILLEGAL;
+                break;
+              case cmsysProcess_Exception_Interrupt:
+                fprintf(stderr,"Interrupt");
+                cres.m_Status = cmCTest::INTERRUPT;
+                break;
+              case cmsysProcess_Exception_Numerical:
+                fprintf(stderr,"Numerical");
+                cres.m_Status = cmCTest::NUMERICAL;
+                break;
+              default:
+                fprintf(stderr,"Other");
+                cres.m_Status = cmCTest::OTHER_FAULT;
+                }
+              }
+            else if ( res == cmsysProcess_State_Error )
+              {
+              fprintf(stderr,"***Bad command\n");
+              cres.m_Status = cmCTest::BAD_COMMAND;
+              }
+            else
+              {
+              fprintf(stderr,"***Failed\n");
+              }
+            failed.push_back(args[0].Value); 
+            }
+          if (output != "")
+            {
+            if (dartStuff.find(output.c_str()))
+              {
+              std::string dartString = dartStuff.match(1);
+              cmSystemTools::ReplaceString(output, dartString.c_str(),"");
+              cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
+              }
+            }
+          }
+        cres.m_Output = output;
+        cres.m_ReturnValue = retVal;
+        std::string nwd = cmSystemTools::GetCurrentWorkingDirectory();
+        if ( nwd.size() > m_ToplevelPath.size() )
+          {
+          nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
+          }
+        cmSystemTools::ReplaceString(nwd, "\\", "/");
+        cres.m_Path = nwd;
+        cres.m_CompletionStatus = "Completed";
+        m_TestResults.push_back( cres );
         }
       }
     }
-
-  //std::cerr << "Finalizing" << std::endl;
-  cmCTest::tm_CoverageMap::iterator cit;
-  int ccount = 0;
-  std::ofstream cfileoutput; 
-  int cfileoutputcount = 0;
-  char cfileoutputname[100];
-  std::string local_start_time = ::CurrentTime();
-  std::string local_end_time;
-  for ( cit = coverageresults.begin(); cit != coverageresults.end(); cit ++ )
-    {
-    if ( ccount == 100 )
-      {
-      local_end_time = ::CurrentTime();
-      cfileoutput << "\t<EndDateTime>" << local_end_time << "</EndDateTime>\n"
-        << "</CoverageLog>\n"
-        << "</Site>" << std::endl;
-      cfileoutput.close();
-      std::cout << "Close file: " << cfileoutputname << std::endl;
-      ccount = 0;
-      }
-    if ( ccount == 0 )
-      {
-      sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);
-      std::cout << "Open file: " << cfileoutputname << std::endl;
-      if (!this->OpenOutputFile(m_CurrentTag, cfileoutputname, cfileoutput))
-        {
-        std::cout << "Cannot open log file: " << cfileoutputname << std::endl;
-        return 1;
-        }
-      local_start_time = ::CurrentTime();
-      cfileoutput << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        << "<Site BuildName=\"" << m_DartConfiguration["BuildName"]
-        << "\" BuildStamp=\"" << m_CurrentTag << "-"
-        << this->GetTestModelString() << "\" Site=\""
-        << m_DartConfiguration["Site"] << "\">\n"
-        << "<CoverageLog>\n"
-        << "\t<StartDateTime>" << local_start_time << "</StartDateTime>" << std::endl;
-      }
-
-    //std::cerr << "Final process of Source file: " << cit->first << std::endl;
-    cmCTest::cmCTestCoverage &cov = cit->second;
-
-
-    std::ifstream ifile(cov.m_FullPath.c_str());
-    ifile.seekg (0, std::ios::end);
-    int length = ifile.tellg();
-    ifile.seekg (0, std::ios::beg);
-    char *buffer = new char [ length + 1 ];
-    ifile.read(buffer, length);
-    buffer [length] = 0;
-    //std::cout << "Read: " << buffer << std::endl;
-    std::vector<cmStdString> lines;
-    cmSystemTools::Split(buffer, lines);
-    delete [] buffer;
-    cfileoutput << "\t<File Name=\"" << cit->first << "\" FullPath=\""
-      << cov.m_FullPath << std::endl << "\">\n"
-      << "\t\t<Report>" << std::endl;
-    for ( cc = 0; cc < lines.size(); cc ++ )
-      {
-      cfileoutput << "\t\t<Line Number=\"" 
-        << static_cast<int>(cc) << "\" Count=\""
-        << cov.m_Lines[cc] << "\">"
-        << cmCTest::MakeXMLSafe(lines[cc]) << "</Line>" << std::endl;
-      }
-    cfileoutput << "\t\t</Report>\n"
-      << "\t</File>" << std::endl;
-
-
-    total_tested += cov.m_Tested;
-    total_untested += cov.m_UnTested;
-    float cper = 0;
-    float cmet = 0;
-    if ( total_tested + total_untested > 0 )
-      {
-      cper = (100 * static_cast<float>(cov.m_Tested)/
-        static_cast<float>(cov.m_Tested + cov.m_UnTested));
-      cmet = ( static_cast<float>(cov.m_Tested + 10) /
-        static_cast<float>(cov.m_Tested + cov.m_UnTested + 10));
-      }
-    log << "\t<File Name=\"" << cit->first << "\" FullPath=\"" << cov.m_FullPath
-      << "\" Covered=\"" << (cmet>0?"true":"false") << "\">\n"
-      << "\t\t<LOCTested>" << cov.m_Tested << "</LOCTested>\n"
-      << "\t\t<LOCUnTested>" << cov.m_UnTested << "</LOCUnTested>\n"
-      << "\t\t<PercentCoverage>" << cper << "</PercentCoverage>\n"
-      << "\t\t<CoverageMetric>" << cmet << "</CoverageMetric>\n"
-      << "\t</File>" << std::endl;
-    ccount ++;
-    }
-  
-  if ( ccount > 0 )
-    {
-    local_end_time = ::CurrentTime();
-    cfileoutput << "\t<EndDateTime>" << local_end_time << "</EndDateTime>\n"
-                << "</CoverageLog>\n"
-                << "</Site>" << std::endl;
-    cfileoutput.close();
-    }
-
-  int total_lines = total_tested + total_untested;
-  float percent_coverage = 100 * static_cast<float>(total_tested) / 
-    static_cast<float>(total_lines);
-  if ( total_lines == 0 )
-    {
-    percent_coverage = 0;
-    }
-
-  std::string end_time = ::CurrentTime();
-
-  log << "\t<LOCTested>" << total_tested << "</LOCTested>\n"
-      << "\t<LOCUntested>" << total_untested << "</LOCUntested>\n"
-      << "\t<LOC>" << total_lines << "</LOC>\n"
-      << "\t<PercentCoverage>" << percent_coverage << "</PercentCoverage>\n"
-      << "\t<EndDateTime>" << end_time << "</EndDateTime>\n"
-      << "</Coverage>\n"
-      << "</Site>" << std::endl;
-
-  std::cout << "\tCovered LOC:         " << total_tested << std::endl
-            << "\tNot covered LOC:     " << total_untested << std::endl
-            << "\tTotal LOC:           " << total_lines << std::endl
-            << "\tPercentage Coverage: " << percent_coverage << "%" << std::endl;
-
-
-  return 1;
 }

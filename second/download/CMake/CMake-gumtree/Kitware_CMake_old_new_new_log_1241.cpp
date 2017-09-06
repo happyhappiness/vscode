@@ -1,1 +1,1 @@
-fprintf(fout,"             int argc, char *argv[]);\n");
+fprintf(stderr, "%s", message);

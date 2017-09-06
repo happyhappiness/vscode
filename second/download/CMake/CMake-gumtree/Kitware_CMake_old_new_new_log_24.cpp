@@ -1,0 +1,1 @@
+archive_string_sprintf(a_estr, "%s%s", errstr, path);

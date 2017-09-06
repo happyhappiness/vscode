@@ -1,19 +1,33 @@
-int test7(int argc, const char* argv[])
+void
+cmLocalVisualStudio6Generator
+::AddUtilityCommandHack(cmTarget& target, int count,
+                        std::vector<std::string>& depends,
+                        const cmCustomCommand& origCommand)
 {
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout before sleep.\n");
-  fprintf(stderr, "Output on stderr before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 1 second.  */
-#if defined(_WIN32)
-  Sleep(1000);
-#else
-  usleep(1000000);
-#endif
-  fprintf(stdout, "Output on stdout after sleep.\n");
-  fprintf(stderr, "Output on stderr after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return 0;
+  // Create a fake output that forces the rule to run.
+  char* output = new char[(strlen(this->Makefile->GetStartOutputDirectory()) +
+                           strlen(target.GetName()) + 30)];
+  sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
+          target.GetName(), count);
+
+  // Add the rule with the given dependencies and commands.
+  const char* no_main_dependency = 0;
+  this->Makefile->AddCustomCommandToOutput(output,
+                                       depends,
+                                       no_main_dependency,
+                                       origCommand.GetCommandLines(),
+                                       origCommand.GetComment(),
+                                       origCommand.GetWorkingDirectory());
+
+  // Replace the dependencies with the output of this rule so that the
+  // next rule added will run after this one.
+  depends.clear();
+  depends.push_back(output);
+
+  // Add a source file representing this output to the project.
+  cmSourceFile* outsf = this->Makefile->GetSourceFileWithOutput(output);
+  target.GetSourceFiles().push_back(outsf);
+
+  // Free the fake output name.
+  delete [] output;
 }

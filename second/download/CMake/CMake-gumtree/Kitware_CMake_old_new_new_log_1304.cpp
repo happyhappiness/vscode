@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_create_buffer()" );
+sprintf(buffer, "%%%02X", *str);

@@ -1,1 +1,1 @@
-sprintf(tmp,"Version %s", cmVersion::GetCMakeVersion());
+printf("%s ", command[i].c_str());

@@ -1,1 +1,3 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmExpr_yyensure_buffer_stack()" );
+fsobj_error(a_eno, a_estr, errno,
+					    "Could not remove symlink %s",
+					    path);

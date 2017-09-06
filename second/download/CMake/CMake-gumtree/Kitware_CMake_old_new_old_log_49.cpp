@@ -1,2 +1,2 @@
-snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
-             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Unknown ACL brand");

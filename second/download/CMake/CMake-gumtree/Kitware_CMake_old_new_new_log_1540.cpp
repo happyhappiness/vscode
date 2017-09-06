@@ -1,1 +1,3 @@
-sprintf(help,"%127s", helpString);
+fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",\n"
+                 "                    reinterpret_cast<vtkTclCommandType>(vtkCommand),\n"
+                 "                    (ClientData *)NULL, NULL);\n\n");

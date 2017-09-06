@@ -1,121 +1,67 @@
-kwsys_stl::string Glob::PatternToRegex(const kwsys_stl::string& pattern,
-                                       bool require_whole_string)
+static void print_flags(FILE *handle, unsigned long flags)
 {
-  // Incrementally build the regular expression from the pattern.
-  kwsys_stl::string regex = require_whole_string? "^" : "";
-  kwsys_stl::string::const_iterator pattern_first = pattern.begin();
-  kwsys_stl::string::const_iterator pattern_last = pattern.end();
-  for(kwsys_stl::string::const_iterator i = pattern_first;
-      i != pattern_last; ++i)
-    {
-    int c = *i;
-    if(c == '*')
-      {
-      // A '*' (not between brackets) matches any string.
-      regex += ".*";
-      }
-    else if(c == '?')
-      {
-      // A '?' (not between brackets) matches any single character.
-      regex += ".";
-      }
-    else if(c == '[')
-      {
-      // Parse out the bracket expression.  It begins just after the
-      // opening character.
-      kwsys_stl::string::const_iterator bracket_first = i+1;
-      kwsys_stl::string::const_iterator bracket_last = bracket_first;
-
-      // The first character may be complementation '!' or '^'.
-      if(bracket_last != pattern_last &&
-         (*bracket_last == '!' || *bracket_last == '^'))
-        {
-        ++bracket_last;
-        }
-
-      // If the next character is a ']' it is included in the brackets
-      // because the bracket string may not be empty.
-      if(bracket_last != pattern_last && *bracket_last == ']')
-        {
-        ++bracket_last;
-        }
-
-      // Search for the closing ']'.
-      while(bracket_last != pattern_last && *bracket_last != ']')
-        {
-        ++bracket_last;
-        }
-
-      // Check whether we have a complete bracket string.
-      if(bracket_last == pattern_last)
-        {
-        // The bracket string did not end, so it was opened simply by
-        // a '[' that is supposed to be matched literally.
-        regex += "\\[";
-        }
-      else
-        {
-        // Convert the bracket string to its regex equivalent.
-        kwsys_stl::string::const_iterator k = bracket_first;
-
-        // Open the regex block.
-        regex += "[";
-
-        // A regex range complement uses '^' instead of '!'.
-        if(k != bracket_last && *k == '!')
-          {
-          regex += "^";
-          ++k;
-          }
-
-        // Convert the remaining characters.
-        for(; k != bracket_last; ++k)
-          {
-          // Backslashes must be escaped.
-          if(*k == '\\')
-            {
-            regex += "\\";
-            }
-
-          // Store this character.
-          regex += *k;
-          }
-
-        // Close the regex block.
-        regex += "]";
-
-        // Jump to the end of the bracket string.
-        i = bracket_last;
-        }
-      }
-    else
-      {
-      // A single character matches itself.
-      int ch = c;
-      if(!(('a' <= ch && ch <= 'z') ||
-           ('A' <= ch && ch <= 'Z') ||
-           ('0' <= ch && ch <= '9')))
-        {
-        // Escape the non-alphanumeric character.
-        regex += "\\";
-        }
-#if defined(KWSYS_GLOB_CASE_INDEPENDENT)
-      else
-        {
-        // On case-insensitive systems file names are converted to lower
-        // case before matching.
-        ch = tolower(ch);
-        }
-#endif
-
-      // Store the character.
-      regex.append(1, static_cast<char>(ch));
-      }
-    }
-
-  if(require_whole_string)
-    {
-    regex += "$";
-    }
-  return regex;
+  if(flags & NTLMFLAG_NEGOTIATE_UNICODE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_UNICODE ");
+  if(flags & NTLMFLAG_NEGOTIATE_OEM)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_OEM ");
+  if(flags & NTLMFLAG_REQUEST_TARGET)
+    fprintf(handle, "NTLMFLAG_REQUEST_TARGET ");
+  if(flags & (1<<3))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_3 ");
+  if(flags & NTLMFLAG_NEGOTIATE_SIGN)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_SIGN ");
+  if(flags & NTLMFLAG_NEGOTIATE_SEAL)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_SEAL ");
+  if(flags & NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE ");
+  if(flags & NTLMFLAG_NEGOTIATE_LM_KEY)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_LM_KEY ");
+  if(flags & NTLMFLAG_NEGOTIATE_NETWARE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_NETWARE ");
+  if(flags & NTLMFLAG_NEGOTIATE_NTLM_KEY)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM_KEY ");
+  if(flags & (1<<10))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_10 ");
+  if(flags & (1<<11))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_11 ");
+  if(flags & NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED ");
+  if(flags & NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED ");
+  if(flags & NTLMFLAG_NEGOTIATE_LOCAL_CALL)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_LOCAL_CALL ");
+  if(flags & NTLMFLAG_NEGOTIATE_ALWAYS_SIGN)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_ALWAYS_SIGN ");
+  if(flags & NTLMFLAG_TARGET_TYPE_DOMAIN)
+    fprintf(handle, "NTLMFLAG_TARGET_TYPE_DOMAIN ");
+  if(flags & NTLMFLAG_TARGET_TYPE_SERVER)
+    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SERVER ");
+  if(flags & NTLMFLAG_TARGET_TYPE_SHARE)
+    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SHARE ");
+  if(flags & NTLMFLAG_NEGOTIATE_NTLM2_KEY)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM2_KEY ");
+  if(flags & NTLMFLAG_REQUEST_INIT_RESPONSE)
+    fprintf(handle, "NTLMFLAG_REQUEST_INIT_RESPONSE ");
+  if(flags & NTLMFLAG_REQUEST_ACCEPT_RESPONSE)
+    fprintf(handle, "NTLMFLAG_REQUEST_ACCEPT_RESPONSE ");
+  if(flags & NTLMFLAG_REQUEST_NONNT_SESSION_KEY)
+    fprintf(handle, "NTLMFLAG_REQUEST_NONNT_SESSION_KEY ");
+  if(flags & NTLMFLAG_NEGOTIATE_TARGET_INFO)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_TARGET_INFO ");
+  if(flags & (1<<24))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_24 ");
+  if(flags & (1<<25))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_25 ");
+  if(flags & (1<<26))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_26 ");
+  if(flags & (1<<27))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_27 ");
+  if(flags & (1<<28))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_28 ");
+  if(flags & NTLMFLAG_NEGOTIATE_128)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_128 ");
+  if(flags & NTLMFLAG_NEGOTIATE_KEY_EXCHANGE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_KEY_EXCHANGE ");
+  if(flags & NTLMFLAG_NEGOTIATE_56)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_56 ");
 }

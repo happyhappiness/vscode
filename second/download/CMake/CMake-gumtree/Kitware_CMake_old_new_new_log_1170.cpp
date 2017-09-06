@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_SIGN ");
+fprintf(ofp, "\n");

@@ -1,1 +1,2 @@
-tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);
+snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+                 conn->ip_addr_str);

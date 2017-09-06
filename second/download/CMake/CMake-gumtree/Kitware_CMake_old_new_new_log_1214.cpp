@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "flex scanner push-back overflow" );
+fprintf(handle, "NTLMFLAG_TARGET_TYPE_SHARE ");

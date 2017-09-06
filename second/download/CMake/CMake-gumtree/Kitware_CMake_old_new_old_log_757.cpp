@@ -1,1 +1,2 @@
-fprintf(fout, "ADD_DEFINITIONS( ");
+fprintf(stderr, "  contains target %d [%s]\n",
+              i, this->Targets[i]->GetName());

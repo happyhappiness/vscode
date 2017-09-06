@@ -1,279 +1,266 @@
 static int
-zip_read_local_file_header(struct archive_read *a, struct archive_entry *entry,
-    struct zip *zip)
+parse_codes(struct archive_read *a)
 {
-	const char *p;
-	const void *h;
-	const wchar_t *wp;
-	const char *cp;
-	size_t len, filename_length, extra_length;
-	struct archive_string_conv *sconv;
-	struct zip_entry *zip_entry = zip->entry;
-	struct zip_entry zip_entry_central_dir;
-	int ret = ARCHIVE_OK;
-	char version;
+  int i, j, val, n, r;
+  unsigned char bitlengths[MAX_SYMBOLS], zerocount, ppmd_flags;
+  unsigned int maxorder;
+  struct huffman_code precode;
+  struct rar *rar = (struct rar *)(a->format->data);
+  struct rar_br *br = &(rar->br);
 
-	/* Save a copy of the original for consistency checks. */
-	zip_entry_central_dir = *zip_entry;
+  free_codes(a);
 
-	zip->decompress_init = 0;
-	zip->end_of_entry = 0;
-	zip->entry_uncompressed_bytes_read = 0;
-	zip->entry_compressed_bytes_read = 0;
-	zip->entry_crc32 = zip->crc32func(0, NULL, 0);
+  /* Skip to the next byte */
+  rar_br_consume_unalined_bits(br);
 
-	/* Setup default conversion. */
-	if (zip->sconv == NULL && !zip->init_default_conversion) {
-		zip->sconv_default =
-		    archive_string_default_conversion_for_read(&(a->archive));
-		zip->init_default_conversion = 1;
-	}
+  /* PPMd block flag */
+  if (!rar_br_read_ahead(a, br, 1))
+    goto truncated_data;
+  if ((rar->is_ppmd_block = rar_br_bits(br, 1)) != 0)
+  {
+    rar_br_consume(br, 1);
+    if (!rar_br_read_ahead(a, br, 7))
+      goto truncated_data;
+    ppmd_flags = rar_br_bits(br, 7);
+    rar_br_consume(br, 7);
 
-	if ((p = __archive_read_ahead(a, 30, NULL)) == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file header");
-		return (ARCHIVE_FATAL);
-	}
+    /* Memory is allocated in MB */
+    if (ppmd_flags & 0x20)
+    {
+      if (!rar_br_read_ahead(a, br, 8))
+        goto truncated_data;
+      rar->dictionary_size = (rar_br_bits(br, 8) + 1) << 20;
+      rar_br_consume(br, 8);
+    }
 
-	if (memcmp(p, "PK\003\004", 4) != 0) {
-		archive_set_error(&a->archive, -1, "Damaged Zip archive");
-		return ARCHIVE_FATAL;
-	}
-	version = p[4];
-	zip_entry->system = p[5];
-	zip_entry->zip_flags = archive_le16dec(p + 6);
-	if (zip_entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
-		zip->has_encrypted_entries = 1;
-		archive_entry_set_is_data_encrypted(entry, 1);
-		if (zip_entry->zip_flags & ZIP_CENTRAL_DIRECTORY_ENCRYPTED &&
-			zip_entry->zip_flags & ZIP_ENCRYPTED &&
-			zip_entry->zip_flags & ZIP_STRONG_ENCRYPTED) {
-			archive_entry_set_is_metadata_encrypted(entry, 1);
-			return ARCHIVE_FATAL;
-		}
-	}
-	zip->init_decryption = (zip_entry->zip_flags & ZIP_ENCRYPTED);
-	zip_entry->compression = (char)archive_le16dec(p + 8);
-	zip_entry->mtime = zip_time(p + 10);
-	zip_entry->crc32 = archive_le32dec(p + 14);
-	if (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
-		zip_entry->decdat = p[11];
-	else
-		zip_entry->decdat = p[17];
-	zip_entry->compressed_size = archive_le32dec(p + 18);
-	zip_entry->uncompressed_size = archive_le32dec(p + 22);
-	filename_length = archive_le16dec(p + 26);
-	extra_length = archive_le16dec(p + 28);
+    if (ppmd_flags & 0x40)
+    {
+      if (!rar_br_read_ahead(a, br, 8))
+        goto truncated_data;
+      rar->ppmd_escape = rar->ppmd7_context.InitEsc = rar_br_bits(br, 8);
+      rar_br_consume(br, 8);
+    }
+    else
+      rar->ppmd_escape = 2;
 
-	__archive_read_consume(a, 30);
+    if (ppmd_flags & 0x20)
+    {
+      maxorder = (ppmd_flags & 0x1F) + 1;
+      if(maxorder > 16)
+        maxorder = 16 + (maxorder - 16) * 3;
 
-	/* Read the filename. */
-	if ((h = __archive_read_ahead(a, filename_length, NULL)) == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file header");
-		return (ARCHIVE_FATAL);
-	}
-	if (zip_entry->zip_flags & ZIP_UTF8_NAME) {
-		/* The filename is stored to be UTF-8. */
-		if (zip->sconv_utf8 == NULL) {
-			zip->sconv_utf8 =
-			    archive_string_conversion_from_charset(
-				&a->archive, "UTF-8", 1);
-			if (zip->sconv_utf8 == NULL)
-				return (ARCHIVE_FATAL);
-		}
-		sconv = zip->sconv_utf8;
-	} else if (zip->sconv != NULL)
-		sconv = zip->sconv;
-	else
-		sconv = zip->sconv_default;
+      if (maxorder == 1)
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Truncated RAR file data");
+        return (ARCHIVE_FATAL);
+      }
 
-	if (archive_entry_copy_pathname_l(entry,
-	    h, filename_length, sconv) != 0) {
-		if (errno == ENOMEM) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Pathname");
-			return (ARCHIVE_FATAL);
-		}
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Pathname cannot be converted "
-		    "from %s to current locale.",
-		    archive_string_conversion_charset_name(sconv));
-		ret = ARCHIVE_WARN;
-	}
-	__archive_read_consume(a, filename_length);
+      /* Make sure ppmd7_contest is freed before Ppmd7_Construct
+       * because reading a broken file cause this abnormal sequence. */
+      __archive_ppmd7_functions.Ppmd7_Free(&rar->ppmd7_context, &g_szalloc);
 
-	/* Work around a bug in Info-Zip: When reading from a pipe, it
-	 * stats the pipe instead of synthesizing a file entry. */
-	if ((zip_entry->mode & AE_IFMT) == AE_IFIFO) {
-		zip_entry->mode &= ~ AE_IFMT;
-		zip_entry->mode |= AE_IFREG;
-	}
+      rar->bytein.a = a;
+      rar->bytein.Read = &ppmd_read;
+      __archive_ppmd7_functions.PpmdRAR_RangeDec_CreateVTable(&rar->range_dec);
+      rar->range_dec.Stream = &rar->bytein;
+      __archive_ppmd7_functions.Ppmd7_Construct(&rar->ppmd7_context);
 
-	if ((zip_entry->mode & AE_IFMT) == 0) {
-		/* Especially in streaming mode, we can end up
-		   here without having seen proper mode information.
-		   Guess from the filename. */
-		wp = archive_entry_pathname_w(entry);
-		if (wp != NULL) {
-			len = wcslen(wp);
-			if (len > 0 && wp[len - 1] == L'/')
-				zip_entry->mode |= AE_IFDIR;
-			else
-				zip_entry->mode |= AE_IFREG;
-		} else {
-			cp = archive_entry_pathname(entry);
-			len = (cp != NULL)?strlen(cp):0;
-			if (len > 0 && cp[len - 1] == '/')
-				zip_entry->mode |= AE_IFDIR;
-			else
-				zip_entry->mode |= AE_IFREG;
-		}
-		if (zip_entry->mode == AE_IFDIR) {
-			zip_entry->mode |= 0775;
-		} else if (zip_entry->mode == AE_IFREG) {
-			zip_entry->mode |= 0664;
-		}
-	}
+      if (!__archive_ppmd7_functions.Ppmd7_Alloc(&rar->ppmd7_context,
+        rar->dictionary_size, &g_szalloc))
+      {
+        archive_set_error(&a->archive, ENOMEM,
+                          "Out of memory");
+        return (ARCHIVE_FATAL);
+      }
+      if (!__archive_ppmd7_functions.PpmdRAR_RangeDec_Init(&rar->range_dec))
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Unable to initialize PPMd range decoder");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_ppmd7_functions.Ppmd7_Init(&rar->ppmd7_context, maxorder);
+      rar->ppmd_valid = 1;
+    }
+    else
+    {
+      if (!rar->ppmd_valid) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Invalid PPMd sequence");
+        return (ARCHIVE_FATAL);
+      }
+      if (!__archive_ppmd7_functions.PpmdRAR_RangeDec_Init(&rar->range_dec))
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Unable to initialize PPMd range decoder");
+        return (ARCHIVE_FATAL);
+      }
+    }
+  }
+  else
+  {
+    rar_br_consume(br, 1);
 
-	/* Read the extra data. */
-	if ((h = __archive_read_ahead(a, extra_length, NULL)) == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file header");
-		return (ARCHIVE_FATAL);
-	}
+    /* Keep existing table flag */
+    if (!rar_br_read_ahead(a, br, 1))
+      goto truncated_data;
+    if (!rar_br_bits(br, 1))
+      memset(rar->lengthtable, 0, sizeof(rar->lengthtable));
+    rar_br_consume(br, 1);
 
-	process_extra(h, extra_length, zip_entry);
-	__archive_read_consume(a, extra_length);
+    memset(&bitlengths, 0, sizeof(bitlengths));
+    for (i = 0; i < MAX_SYMBOLS;)
+    {
+      if (!rar_br_read_ahead(a, br, 4))
+        goto truncated_data;
+      bitlengths[i++] = rar_br_bits(br, 4);
+      rar_br_consume(br, 4);
+      if (bitlengths[i-1] == 0xF)
+      {
+        if (!rar_br_read_ahead(a, br, 4))
+          goto truncated_data;
+        zerocount = rar_br_bits(br, 4);
+        rar_br_consume(br, 4);
+        if (zerocount)
+        {
+          i--;
+          for (j = 0; j < zerocount + 2 && i < MAX_SYMBOLS; j++)
+            bitlengths[i++] = 0;
+        }
+      }
+    }
 
-	if (zip_entry->flags & LA_FROM_CENTRAL_DIRECTORY) {
-		/* If this came from the central dir, it's size info
-		 * is definitive, so ignore the length-at-end flag. */
-		zip_entry->zip_flags &= ~ZIP_LENGTH_AT_END;
-		/* If local header is missing a value, use the one from
-		   the central directory.  If both have it, warn about
-		   mismatches. */
-		if (zip_entry->crc32 == 0) {
-			zip_entry->crc32 = zip_entry_central_dir.crc32;
-		} else if (!zip->ignore_crc32
-		    && zip_entry->crc32 != zip_entry_central_dir.crc32) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Inconsistent CRC32 values");
-			ret = ARCHIVE_WARN;
-		}
-		if (zip_entry->compressed_size == 0) {
-			zip_entry->compressed_size
-			    = zip_entry_central_dir.compressed_size;
-		} else if (zip_entry->compressed_size
-		    != zip_entry_central_dir.compressed_size) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Inconsistent compressed size: "
-			    "%jd in central directory, %jd in local header",
-			    (intmax_t)zip_entry_central_dir.compressed_size,
-			    (intmax_t)zip_entry->compressed_size);
-			ret = ARCHIVE_WARN;
-		}
-		if (zip_entry->uncompressed_size == 0) {
-			zip_entry->uncompressed_size
-			    = zip_entry_central_dir.uncompressed_size;
-		} else if (zip_entry->uncompressed_size
-		    != zip_entry_central_dir.uncompressed_size) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Inconsistent uncompressed size: "
-			    "%jd in central directory, %jd in local header",
-			    (intmax_t)zip_entry_central_dir.uncompressed_size,
-			    (intmax_t)zip_entry->uncompressed_size);
-			ret = ARCHIVE_WARN;
-		}
-	}
+    memset(&precode, 0, sizeof(precode));
+    r = create_code(a, &precode, bitlengths, MAX_SYMBOLS, MAX_SYMBOL_LENGTH);
+    if (r != ARCHIVE_OK) {
+      free(precode.tree);
+      free(precode.table);
+      return (r);
+    }
 
-	/* Populate some additional entry fields: */
-	archive_entry_set_mode(entry, zip_entry->mode);
-	archive_entry_set_uid(entry, zip_entry->uid);
-	archive_entry_set_gid(entry, zip_entry->gid);
-	archive_entry_set_mtime(entry, zip_entry->mtime, 0);
-	archive_entry_set_ctime(entry, zip_entry->ctime, 0);
-	archive_entry_set_atime(entry, zip_entry->atime, 0);
+    for (i = 0; i < HUFFMAN_TABLE_SIZE;)
+    {
+      if ((val = read_next_symbol(a, &precode)) < 0) {
+        free(precode.tree);
+        free(precode.table);
+        return (ARCHIVE_FATAL);
+      }
+      if (val < 16)
+      {
+        rar->lengthtable[i] = (rar->lengthtable[i] + val) & 0xF;
+        i++;
+      }
+      else if (val < 18)
+      {
+        if (i == 0)
+        {
+          free(precode.tree);
+          free(precode.table);
+          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                            "Internal error extracting RAR file.");
+          return (ARCHIVE_FATAL);
+        }
 
-	if ((zip->entry->mode & AE_IFMT) == AE_IFLNK) {
-		size_t linkname_length;
+        if(val == 16) {
+          if (!rar_br_read_ahead(a, br, 3)) {
+            free(precode.tree);
+            free(precode.table);
+            goto truncated_data;
+          }
+          n = rar_br_bits(br, 3) + 3;
+          rar_br_consume(br, 3);
+        } else {
+          if (!rar_br_read_ahead(a, br, 7)) {
+            free(precode.tree);
+            free(precode.table);
+            goto truncated_data;
+          }
+          n = rar_br_bits(br, 7) + 11;
+          rar_br_consume(br, 7);
+        }
 
-		if (zip_entry->compressed_size > 64 * 1024) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Zip file with oversized link entry");
-			return ARCHIVE_FATAL;
-		}
+        for (j = 0; j < n && i < HUFFMAN_TABLE_SIZE; j++)
+        {
+          rar->lengthtable[i] = rar->lengthtable[i-1];
+          i++;
+        }
+      }
+      else
+      {
+        if(val == 18) {
+          if (!rar_br_read_ahead(a, br, 3)) {
+            free(precode.tree);
+            free(precode.table);
+            goto truncated_data;
+          }
+          n = rar_br_bits(br, 3) + 3;
+          rar_br_consume(br, 3);
+        } else {
+          if (!rar_br_read_ahead(a, br, 7)) {
+            free(precode.tree);
+            free(precode.table);
+            goto truncated_data;
+          }
+          n = rar_br_bits(br, 7) + 11;
+          rar_br_consume(br, 7);
+        }
 
-		linkname_length = (size_t)zip_entry->compressed_size;
+        for(j = 0; j < n && i < HUFFMAN_TABLE_SIZE; j++)
+          rar->lengthtable[i++] = 0;
+      }
+    }
+    free(precode.tree);
+    free(precode.table);
 
-		archive_entry_set_size(entry, 0);
-		p = __archive_read_ahead(a, linkname_length, NULL);
-		if (p == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Truncated Zip file");
-			return ARCHIVE_FATAL;
-		}
+    r = create_code(a, &rar->maincode, &rar->lengthtable[0], MAINCODE_SIZE,
+                MAX_SYMBOL_LENGTH);
+    if (r != ARCHIVE_OK)
+      return (r);
+    r = create_code(a, &rar->offsetcode, &rar->lengthtable[MAINCODE_SIZE],
+                OFFSETCODE_SIZE, MAX_SYMBOL_LENGTH);
+    if (r != ARCHIVE_OK)
+      return (r);
+    r = create_code(a, &rar->lowoffsetcode,
+                &rar->lengthtable[MAINCODE_SIZE + OFFSETCODE_SIZE],
+                LOWOFFSETCODE_SIZE, MAX_SYMBOL_LENGTH);
+    if (r != ARCHIVE_OK)
+      return (r);
+    r = create_code(a, &rar->lengthcode,
+                &rar->lengthtable[MAINCODE_SIZE + OFFSETCODE_SIZE +
+                LOWOFFSETCODE_SIZE], LENGTHCODE_SIZE, MAX_SYMBOL_LENGTH);
+    if (r != ARCHIVE_OK)
+      return (r);
+  }
 
-		sconv = zip->sconv;
-		if (sconv == NULL && (zip->entry->zip_flags & ZIP_UTF8_NAME))
-			sconv = zip->sconv_utf8;
-		if (sconv == NULL)
-			sconv = zip->sconv_default;
-		if (archive_entry_copy_symlink_l(entry, p, linkname_length,
-		    sconv) != 0) {
-			if (errno != ENOMEM && sconv == zip->sconv_utf8 &&
-			    (zip->entry->zip_flags & ZIP_UTF8_NAME))
-			    archive_entry_copy_symlink_l(entry, p,
-				linkname_length, NULL);
-			if (errno == ENOMEM) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate memory for Symlink");
-				return (ARCHIVE_FATAL);
-			}
-			/*
-			 * Since there is no character-set regulation for
-			 * symlink name, do not report the conversion error
-			 * in an automatic conversion.
-			 */
-			if (sconv != zip->sconv_utf8 ||
-			    (zip->entry->zip_flags & ZIP_UTF8_NAME) == 0) {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Symlink cannot be converted "
-				    "from %s to current locale.",
-				    archive_string_conversion_charset_name(
-					sconv));
-				ret = ARCHIVE_WARN;
-			}
-		}
-		zip_entry->uncompressed_size = zip_entry->compressed_size = 0;
+  if (!rar->dictionary_size || !rar->lzss.window)
+  {
+    /* Seems as though dictionary sizes are not used. Even so, minimize
+     * memory usage as much as possible.
+     */
+    void *new_window;
+    unsigned int new_size;
 
-		if (__archive_read_consume(a, linkname_length) < 0) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Read error skipping symlink target name");
-			return ARCHIVE_FATAL;
-		}
-	} else if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
-	    || zip_entry->uncompressed_size > 0) {
-		/* Set the size only if it's meaningful. */
-		archive_entry_set_size(entry, zip_entry->uncompressed_size);
-	}
-	zip->entry_bytes_remaining = zip_entry->compressed_size;
+    if (rar->unp_size >= DICTIONARY_MAX_SIZE)
+      new_size = DICTIONARY_MAX_SIZE;
+    else
+      new_size = rar_fls((unsigned int)rar->unp_size) << 1;
+    new_window = realloc(rar->lzss.window, new_size);
+    if (new_window == NULL) {
+      archive_set_error(&a->archive, ENOMEM,
+                        "Unable to allocate memory for uncompressed data.");
+      return (ARCHIVE_FATAL);
+    }
+    rar->lzss.window = (unsigned char *)new_window;
+    rar->dictionary_size = new_size;
+    memset(rar->lzss.window, 0, rar->dictionary_size);
+    rar->lzss.mask = rar->dictionary_size - 1;
+  }
 
-	/* If there's no body, force read_data() to return EOF immediately. */
-	if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
-	    && zip->entry_bytes_remaining < 1)
-		zip->end_of_entry = 1;
-
-	/* Set up a more descriptive format name. */
-	archive_string_sprintf(&zip->format_name, "ZIP %d.%d (%s)",
-	    version / 10, version % 10,
-	    compression_name(zip->entry->compression));
-	a->archive.archive_format_name = zip->format_name.s;
-
-	return (ret);
+  rar->start_new_table = 0;
+  return (ARCHIVE_OK);
+truncated_data:
+  archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                    "Truncated RAR file data");
+  rar->valid = 0;
+  return (ARCHIVE_FATAL);
 }

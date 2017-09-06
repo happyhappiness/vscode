@@ -1,1 +1,1 @@
-fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);
+fprintf(stdout, "Output on stdout before grandchild test.\n");

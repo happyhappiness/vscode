@@ -1,1 +1,1 @@
-pathname = th_get_pathname(t);
+fprintf(stdout, "Output on stdout before grandchild test.\n");

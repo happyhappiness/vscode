@@ -1,1 +1,1 @@
-f(fout, "ADD_EXECUTABLE(cmTryCompileExec \"%s\")\n",source.c_str());
+f(fout, "SET(CMAKE_C_FLAGS \"${CMAKE_C_FLAGS} ${COMPILE_DEFINITIONS}\"\")\n");

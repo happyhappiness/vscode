@@ -1,2 +1,2 @@
-fprintf(stderr, "  contains target %d [%s]\n",
-              i, this->Targets[i]->GetName());
+fprintf(stderr, "Unable to open \'%s\' for reading:\n",
+               argv[arg]);

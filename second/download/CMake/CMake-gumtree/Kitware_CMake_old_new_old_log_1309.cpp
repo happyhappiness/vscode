@@ -1,1 +1,1 @@
-yy_fatal_error( "yyset_lineno called with no buffer" , yyscanner);
+sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);

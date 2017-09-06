@@ -1,3 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Couldn't determine file path to read "
-			    "extended attributes");
+DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"));

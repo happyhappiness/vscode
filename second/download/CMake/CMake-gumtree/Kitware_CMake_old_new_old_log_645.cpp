@@ -1,1 +1,0 @@
-fprintf(fout," hc: %s \n",sectionCharacter.c_str());

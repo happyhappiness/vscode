@@ -1,223 +1,196 @@
 static int
-archive_read_format_iso9660_read_header(struct archive_read *a,
+next_entry(struct archive_read_disk *a, struct tree *t,
     struct archive_entry *entry)
 {
-	struct iso9660 *iso9660;
-	struct file_info *file;
-	int r, rd_r = ARCHIVE_OK;
+	const BY_HANDLE_FILE_INFORMATION *st;
+	const BY_HANDLE_FILE_INFORMATION *lst;
+	const char*name;
+	int descend, r;
 
-	iso9660 = (struct iso9660 *)(a->format->data);
+	st = NULL;
+	lst = NULL;
+	t->descend = 0;
+	do {
+		switch (tree_next(t)) {
+		case TREE_ERROR_FATAL:
+			archive_set_error(&a->archive, t->tree_errno,
+			    "%ls: Unable to continue traversing directory tree",
+			    tree_current_path(t));
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			return (ARCHIVE_FATAL);
+		case TREE_ERROR_DIR:
+			archive_set_error(&a->archive, t->tree_errno,
+			    "%ls: Couldn't visit directory",
+			    tree_current_path(t));
+			return (ARCHIVE_FAILED);
+		case 0:
+			return (ARCHIVE_EOF);
+		case TREE_POSTDESCENT:
+		case TREE_POSTASCENT:
+			break;
+		case TREE_REGULAR:
+			lst = tree_current_lstat(t);
+			if (lst == NULL) {
+				archive_set_error(&a->archive, t->tree_errno,
+				    "%ls: Cannot stat",
+				    tree_current_path(t));
+				return (ARCHIVE_FAILED);
+			}
+			break;
+		}	
+	} while (lst == NULL);
 
-	if (!a->archive.archive_format) {
-		a->archive.archive_format = ARCHIVE_FORMAT_ISO9660;
-		a->archive.archive_format_name = "ISO9660";
-	}
+	archive_entry_copy_pathname_w(entry, tree_current_path(t));
 
-	if (iso9660->current_position == 0) {
-		r = choose_volume(a, iso9660);
-		if (r != ARCHIVE_OK)
+	/*
+	 * Perform path matching.
+	 */
+	if (a->matching) {
+		r = archive_match_path_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
 			return (r);
-	}
-
-	file = NULL;/* Eliminate a warning. */
-	/* Get the next entry that appears after the current offset. */
-	r = next_entry_seek(a, iso9660, &file);
-	if (r != ARCHIVE_OK)
-		return (r);
-
-	if (iso9660->seenJoliet) {
-		/*
-		 * Convert UTF-16BE of a filename to local locale MBS
-		 * and store the result into a filename field.
-		 */
-		if (iso9660->sconv_utf16be == NULL) {
-			iso9660->sconv_utf16be =
-			    archive_string_conversion_from_charset(
-				&(a->archive), "UTF-16BE", 1);
-			if (iso9660->sconv_utf16be == NULL)
-				/* Coundn't allocate memory */
-				return (ARCHIVE_FATAL);
 		}
-		if (iso9660->utf16be_path == NULL) {
-			iso9660->utf16be_path = malloc(UTF16_NAME_MAX);
-			if (iso9660->utf16be_path == NULL) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "No memory");
-				return (ARCHIVE_FATAL);
-			}
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
 		}
-		if (iso9660->utf16be_previous_path == NULL) {
-			iso9660->utf16be_previous_path = malloc(UTF16_NAME_MAX);
-			if (iso9660->utf16be_previous_path == NULL) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "No memory");
-				return (ARCHIVE_FATAL);
-			}
+	}
+
+	/*
+	 * Distinguish 'L'/'P'/'H' symlink following.
+	 */
+	switch(t->symlink_mode) {
+	case 'H':
+		/* 'H': After the first item, rest like 'P'. */
+		t->symlink_mode = 'P';
+		/* 'H': First item (from command line) like 'L'. */
+		/* FALLTHROUGH */
+	case 'L':
+		/* 'L': Do descend through a symlink to dir. */
+		descend = tree_current_is_dir(t);
+		/* 'L': Follow symlinks to files. */
+		a->symlink_mode = 'L';
+		a->follow_symlinks = 1;
+		/* 'L': Archive symlinks as targets, if we can. */
+		st = tree_current_stat(t);
+		if (st != NULL && !tree_target_is_same_as_parent(t, st))
+			break;
+		/* If stat fails, we have a broken symlink;
+		 * in that case, don't follow the link. */
+		/* FALLTHROUGH */
+	default:
+		/* 'P': Don't descend through a symlink to dir. */
+		descend = tree_current_is_physical_dir(t);
+		/* 'P': Don't follow symlinks to files. */
+		a->symlink_mode = 'P';
+		a->follow_symlinks = 0;
+		/* 'P': Archive symlinks as symlinks. */
+		st = lst;
+		break;
+	}
+
+	if (update_current_filesystem(a, bhfi_dev(st)) != ARCHIVE_OK) {
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		return (ARCHIVE_FATAL);
+	}
+	if (t->initial_filesystem_id == -1)
+		t->initial_filesystem_id = t->current_filesystem_id;
+	if (!a->traverse_mount_points) {
+		if (t->initial_filesystem_id != t->current_filesystem_id)
+			return (ARCHIVE_RETRY);
+	}
+	t->descend = descend;
+
+	tree_archive_entry_copy_bhfi(entry, t, st);
+
+	/* Save the times to be restored. This must be in before
+	 * calling archive_read_disk_descend() or any chance of it,
+	 * especially, invokng a callback. */
+	t->restore_time.lastWriteTime = st->ftLastWriteTime;
+	t->restore_time.lastAccessTime = st->ftLastAccessTime;
+	t->restore_time.filetype = archive_entry_filetype(entry);
+
+	/*
+	 * Perform time matching.
+	 */
+	if (a->matching) {
+		r = archive_match_time_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
+	}
+
+	/* Lookup uname/gname */
+	name = archive_read_disk_uname(&(a->archive), archive_entry_uid(entry));
+	if (name != NULL)
+		archive_entry_copy_uname(entry, name);
+	name = archive_read_disk_gname(&(a->archive), archive_entry_gid(entry));
+	if (name != NULL)
+		archive_entry_copy_gname(entry, name);
+
+	/*
+	 * Perform owner matching.
+	 */
+	if (a->matching) {
+		r = archive_match_owner_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
+	}
+
+	/*
+	 * Invoke a meta data filter callback.
+	 */
+	if (a->metadata_filter_func) {
+		if (!a->metadata_filter_func(&(a->archive),
+		    a->metadata_filter_data, entry))
+			return (ARCHIVE_RETRY);
+	}
+
+	archive_entry_copy_sourcepath_w(entry, tree_current_access_path(t));
+
+	r = ARCHIVE_OK;
+	if (archive_entry_filetype(entry) == AE_IFREG &&
+	    archive_entry_size(entry) > 0) {
+		DWORD flags = FILE_FLAG_BACKUP_SEMANTICS;
+		if (t->async_io)
+			flags |= FILE_FLAG_OVERLAPPED;
+		if (t->direct_io)
+			flags |= FILE_FLAG_NO_BUFFERING;
+		else
+			flags |= FILE_FLAG_SEQUENTIAL_SCAN;
+		t->entry_fh = CreateFileW(tree_current_access_path(t),
+		    GENERIC_READ, 0, NULL, OPEN_EXISTING, flags, NULL);
+		if (t->entry_fh == INVALID_HANDLE_VALUE) {
+			archive_set_error(&a->archive, errno,
+			    "Couldn't open %ls", tree_current_path(a->tree));
+			return (ARCHIVE_FAILED);
 		}
 
-		iso9660->utf16be_path_len = 0;
-		if (build_pathname_utf16be(iso9660->utf16be_path,
-		    UTF16_NAME_MAX, &(iso9660->utf16be_path_len), file) != 0) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Pathname is too long");
-		}
-
-		r = archive_entry_copy_pathname_l(entry,
-		    (const char *)iso9660->utf16be_path,
-		    iso9660->utf16be_path_len,
-		    iso9660->sconv_utf16be);
-		if (r != 0) {
-			if (errno == ENOMEM) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "No memory for Pathname");
-				return (ARCHIVE_FATAL);
-			}
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Pathname cannot be converted "
-			    "from %s to current locale.",
-			    archive_string_conversion_charset_name(
-			      iso9660->sconv_utf16be));
-
-			rd_r = ARCHIVE_WARN;
-		}
-	} else {
-		archive_string_empty(&iso9660->pathname);
-		archive_entry_set_pathname(entry,
-		    build_pathname(&iso9660->pathname, file));
+		/* Find sparse data from the disk. */
+		if (archive_entry_hardlink(entry) == NULL &&
+		    (st->dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0)
+			r = setup_sparse_from_disk(a, entry, t->entry_fh);
 	}
-
-	iso9660->entry_bytes_remaining = file->size;
-	/* Offset for sparse-file-aware clients. */
-	iso9660->entry_sparse_offset = 0;
-
-	if (file->offset + file->size > iso9660->volume_size) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "File is beyond end-of-media: %s",
-		    archive_entry_pathname(entry));
-		iso9660->entry_bytes_remaining = 0;
-		return (ARCHIVE_WARN);
-	}
-
-	/* Set up the entry structure with information about this entry. */
-	archive_entry_set_mode(entry, file->mode);
-	archive_entry_set_uid(entry, file->uid);
-	archive_entry_set_gid(entry, file->gid);
-	archive_entry_set_nlink(entry, file->nlinks);
-	if (file->birthtime_is_set)
-		archive_entry_set_birthtime(entry, file->birthtime, 0);
-	else
-		archive_entry_unset_birthtime(entry);
-	archive_entry_set_mtime(entry, file->mtime, 0);
-	archive_entry_set_ctime(entry, file->ctime, 0);
-	archive_entry_set_atime(entry, file->atime, 0);
-	/* N.B.: Rock Ridge supports 64-bit device numbers. */
-	archive_entry_set_rdev(entry, (dev_t)file->rdev);
-	archive_entry_set_size(entry, iso9660->entry_bytes_remaining);
-	if (file->symlink.s != NULL)
-		archive_entry_copy_symlink(entry, file->symlink.s);
-
-	/* Note: If the input isn't seekable, we can't rewind to
-	 * return the same body again, so if the next entry refers to
-	 * the same data, we have to return it as a hardlink to the
-	 * original entry. */
-	if (file->number != -1 &&
-	    file->number == iso9660->previous_number) {
-		if (iso9660->seenJoliet) {
-			r = archive_entry_copy_hardlink_l(entry,
-			    (const char *)iso9660->utf16be_previous_path,
-			    iso9660->utf16be_previous_path_len,
-			    iso9660->sconv_utf16be);
-			if (r != 0) {
-				if (errno == ENOMEM) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "No memory for Linkname");
-					return (ARCHIVE_FATAL);
-				}
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Linkname cannot be converted "
-				    "from %s to current locale.",
-				    archive_string_conversion_charset_name(
-				      iso9660->sconv_utf16be));
-				rd_r = ARCHIVE_WARN;
-			}
-		} else
-			archive_entry_set_hardlink(entry,
-			    iso9660->previous_pathname.s);
-		archive_entry_unset_size(entry);
-		iso9660->entry_bytes_remaining = 0;
-		return (rd_r);
-	}
-
-	if ((file->mode & AE_IFMT) != AE_IFDIR &&
-	    file->offset < iso9660->current_position) {
-		int64_t r64;
-
-		r64 = __archive_read_seek(a, file->offset, SEEK_SET);
-		if (r64 != (int64_t)file->offset) {
-			/* We can't seek backwards to extract it, so issue
-			 * a warning.  Note that this can only happen if
-			 * this entry was added to the heap after we passed
-			 * this offset, that is, only if the directory
-			 * mentioning this entry is later than the body of
-			 * the entry. Such layouts are very unusual; most
-			 * ISO9660 writers lay out and record all directory
-			 * information first, then store all file bodies. */
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Ignoring out-of-order file @%jx (%s) %jd < %jd",
-			    (intmax_t)file->number,
-			    iso9660->pathname.s,
-			    (intmax_t)file->offset,
-			    (intmax_t)iso9660->current_position);
-			iso9660->entry_bytes_remaining = 0;
-			return (ARCHIVE_WARN);
-		}
-		iso9660->current_position = (uint64_t)r64;
-	}
-
-	/* Initialize zisofs variables. */
-	iso9660->entry_zisofs.pz = file->pz;
-	if (file->pz) {
-#ifdef HAVE_ZLIB_H
-		struct zisofs  *zisofs;
-
-		zisofs = &iso9660->entry_zisofs;
-		zisofs->initialized = 0;
-		zisofs->pz_log2_bs = file->pz_log2_bs;
-		zisofs->pz_uncompressed_size = file->pz_uncompressed_size;
-		zisofs->pz_offset = 0;
-		zisofs->header_avail = 0;
-		zisofs->header_passed = 0;
-		zisofs->block_pointers_avail = 0;
-#endif
-		archive_entry_set_size(entry, file->pz_uncompressed_size);
-	}
-
-	iso9660->previous_number = file->number;
-	if (iso9660->seenJoliet) {
-		memcpy(iso9660->utf16be_previous_path, iso9660->utf16be_path,
-		    iso9660->utf16be_path_len);
-		iso9660->utf16be_previous_path_len = iso9660->utf16be_path_len;
-	} else
-		archive_strcpy(
-		    &iso9660->previous_pathname, iso9660->pathname.s);
-
-	/* Reset entry_bytes_remaining if the file is multi extent. */
-	iso9660->entry_content = file->contents.first;
-	if (iso9660->entry_content != NULL)
-		iso9660->entry_bytes_remaining = iso9660->entry_content->size;
-
-	if (archive_entry_filetype(entry) == AE_IFDIR) {
-		/* Overwrite nlinks by proper link number which is
-		 * calculated from number of sub directories. */
-		archive_entry_set_nlink(entry, 2 + file->subdirs);
-		/* Directory data has been read completely. */
-		iso9660->entry_bytes_remaining = 0;
-	}
-
-	if (rd_r != ARCHIVE_OK)
-		return (rd_r);
-	return (ARCHIVE_OK);
+	return (r);
 }

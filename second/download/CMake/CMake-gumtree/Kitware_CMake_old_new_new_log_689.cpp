@@ -1,2 +1,3 @@
-archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Missing number");
+fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS %s)\n",
+                cmLocalGenerator::EscapeForCMake(
+                    exeLinkFlags ? exeLinkFlags : "").c_str());

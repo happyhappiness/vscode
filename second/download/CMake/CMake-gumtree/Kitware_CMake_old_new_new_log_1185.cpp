@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM2_KEY ");
+printf("dump_addrinfo:\n");

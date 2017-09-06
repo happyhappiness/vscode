@@ -1,1 +1,1 @@
-sprintf(buf, "%6.2f sec", totalTestTime);
+sprintf(this->ChipID.ProcessorName,"%s",this->ParseValueFromKStat("-s cpu_type").c_str());

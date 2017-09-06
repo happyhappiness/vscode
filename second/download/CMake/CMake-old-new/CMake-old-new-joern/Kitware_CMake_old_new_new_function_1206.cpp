@@ -1,113 +1,67 @@
-int
-tar_extract_dir(TAR *t, char *realname)
+static void print_flags(FILE *handle, unsigned long flags)
 {
-  mode_t mode;
-  char *filename;
-  char buf[T_BLOCKSIZE];
-  char *pathname = 0;
-  size_t len = 0;
-
-  if (!TH_ISDIR(t))
-  {
-    errno = EINVAL;
-    return -1;
-  }
-
-  if (realname)
-    {
-    filename = realname;
-    }
-  else
-    {
-    pathname = th_get_pathname(t);
-    filename = pathname;
-    }
-  mode = th_get_mode(t);
-
-  /* Make a copy of the string because dirname and mkdirhier may modify the
-   * string */
-  strncpy(buf, filename, sizeof(buf)-1);
-  buf[sizeof(buf)-1] = 0;
-
-  if (mkdirhier(dirname(buf)) == -1)
-    {
-    if (pathname)
-      {
-      free(pathname);
-      }
-    return -1;
-    }
-
-    /* Strip trailing '/'...it confuses some Unixes (and BeOS)... */
-    strncpy(buf, filename, sizeof(buf)-1);
-    buf[sizeof(buf)-1] = 0;
-    len = strlen(buf);
-    if ((len > 0) && (buf[len-1] == '/'))
-      {
-      buf[len-1] = '\0';
-      }
-
-#ifdef DEBUG
-  printf("  ==> extracting: %s (mode %04o, directory)\n", filename,
-         mode);
-#endif
-#ifdef WIN32
-  if (mkdir(buf) == -1)
-#else
-  if (mkdir(buf, mode & 07777) == -1)
-#endif
-  {
-#ifdef __BORLANDC__
-  /* There is a bug in the Borland Run time library which makes MKDIR
-     return EACCES when it should return EEXIST
-     if it is some other error besides directory exists
-     then return false */
-    if ( errno == EACCES) 
-    {
-      errno = EEXIST;
-    }
-#endif      
-    if (errno == EEXIST)
-    {
-      if (chmod(filename, mode & 07777) == -1)
-      {
-#ifdef DEBUG
-        perror("chmod()");
-#endif
-        if (pathname)
-          {
-          free(pathname);
-          }
-        return -1;
-      }
-      else
-      {
-#ifdef DEBUG
-        puts("  *** using existing directory");
-#endif
-        if (pathname)
-          {
-          free(pathname);
-          }
-        return 1;
-      }
-    }
-    else
-    {
-#ifdef DEBUG
-      perror("mkdir()");
-#endif
-      if (pathname)
-        {
-        free(pathname);
-        }
-      return -1;
-    }
-  }
-
-  if (pathname)
-    {
-    free(pathname);
-    }
-  return 0;
+  if(flags & NTLMFLAG_NEGOTIATE_UNICODE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_UNICODE ");
+  if(flags & NTLMFLAG_NEGOTIATE_OEM)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_OEM ");
+  if(flags & NTLMFLAG_REQUEST_TARGET)
+    fprintf(handle, "NTLMFLAG_REQUEST_TARGET ");
+  if(flags & (1<<3))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_3 ");
+  if(flags & NTLMFLAG_NEGOTIATE_SIGN)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_SIGN ");
+  if(flags & NTLMFLAG_NEGOTIATE_SEAL)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_SEAL ");
+  if(flags & NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE ");
+  if(flags & NTLMFLAG_NEGOTIATE_LM_KEY)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_LM_KEY ");
+  if(flags & NTLMFLAG_NEGOTIATE_NETWARE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_NETWARE ");
+  if(flags & NTLMFLAG_NEGOTIATE_NTLM_KEY)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM_KEY ");
+  if(flags & (1<<10))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_10 ");
+  if(flags & (1<<11))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_11 ");
+  if(flags & NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED ");
+  if(flags & NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED ");
+  if(flags & NTLMFLAG_NEGOTIATE_LOCAL_CALL)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_LOCAL_CALL ");
+  if(flags & NTLMFLAG_NEGOTIATE_ALWAYS_SIGN)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_ALWAYS_SIGN ");
+  if(flags & NTLMFLAG_TARGET_TYPE_DOMAIN)
+    fprintf(handle, "NTLMFLAG_TARGET_TYPE_DOMAIN ");
+  if(flags & NTLMFLAG_TARGET_TYPE_SERVER)
+    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SERVER ");
+  if(flags & NTLMFLAG_TARGET_TYPE_SHARE)
+    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SHARE ");
+  if(flags & NTLMFLAG_NEGOTIATE_NTLM2_KEY)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM2_KEY ");
+  if(flags & NTLMFLAG_REQUEST_INIT_RESPONSE)
+    fprintf(handle, "NTLMFLAG_REQUEST_INIT_RESPONSE ");
+  if(flags & NTLMFLAG_REQUEST_ACCEPT_RESPONSE)
+    fprintf(handle, "NTLMFLAG_REQUEST_ACCEPT_RESPONSE ");
+  if(flags & NTLMFLAG_REQUEST_NONNT_SESSION_KEY)
+    fprintf(handle, "NTLMFLAG_REQUEST_NONNT_SESSION_KEY ");
+  if(flags & NTLMFLAG_NEGOTIATE_TARGET_INFO)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_TARGET_INFO ");
+  if(flags & (1<<24))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_24 ");
+  if(flags & (1<<25))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_25 ");
+  if(flags & (1<<26))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_26 ");
+  if(flags & (1<<27))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_27 ");
+  if(flags & (1<<28))
+    fprintf(handle, "NTLMFLAG_UNKNOWN_28 ");
+  if(flags & NTLMFLAG_NEGOTIATE_128)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_128 ");
+  if(flags & NTLMFLAG_NEGOTIATE_KEY_EXCHANGE)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_KEY_EXCHANGE ");
+  if(flags & NTLMFLAG_NEGOTIATE_56)
+    fprintf(handle, "NTLMFLAG_NEGOTIATE_56 ");
 }

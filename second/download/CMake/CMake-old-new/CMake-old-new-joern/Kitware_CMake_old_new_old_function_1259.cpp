@@ -1,108 +1,67 @@
-int
-tar_extract_regfile(TAR *t, char *realname)
+std::string&
+cmLocalUnixMakefileGenerator3::CreateSafeUniqueObjectFileName(const char* sin)
 {
-  mode_t mode;
-  size_t size;
-  uid_t uid;
-  gid_t gid;
-  int fdout;
-  int i, k;
-  char buf[T_BLOCKSIZE];
-  char *filename;
+  // Look for an existing mapped name for this object file.
+  std::map<cmStdString,cmStdString>::iterator it =
+    this->UniqueObjectNamesMap.find(sin);
 
-#ifdef DEBUG
-  printf("==> tar_extract_regfile(t=0x%lx, realname=\"%s\")\n", t,
-         realname);
-#endif
-
-  if (!TH_ISREG(t))
-  {
-    errno = EINVAL;
-    return -1;
-  }
-
-  filename = (realname ? realname : th_get_pathname(t));
-  mode = th_get_mode(t);
-  size = th_get_size(t);
-  uid = th_get_uid(t);
-  gid = th_get_gid(t);
-
-  /* Make a copy of the string because dirname and mkdirhier may modify the
-   * string */
-  strncpy(buf, filename, sizeof(buf)-1);
-  buf[sizeof(buf)-1] = 0;
-
-  if (mkdirhier(dirname(buf)) == -1)
+  // If no entry exists create one.
+  if(it == this->UniqueObjectNamesMap.end())
     {
-    return -1;
+    // Start with the original name.
+    std::string ssin = sin;
+
+    // Avoid full paths by removing leading slashes.
+    std::string::size_type pos = 0;
+    for(;pos < ssin.size() && ssin[pos] == '/'; ++pos);
+    ssin = ssin.substr(pos);
+
+    // Avoid full paths by removing colons.
+    cmSystemTools::ReplaceString(ssin, ":", "_");
+
+    // Avoid relative paths that go up the tree.
+    cmSystemTools::ReplaceString(ssin, "../", "__/");
+
+    // Avoid spaces.
+    cmSystemTools::ReplaceString(ssin, " ", "_");
+
+    // Mangle the name if necessary.
+    if(this->Makefile->IsOn("CMAKE_MANGLE_OBJECT_FILE_NAMES"))
+      {
+      bool done;
+      int cc = 0;
+      char rpstr[100];
+      sprintf(rpstr, "_p_");
+      cmSystemTools::ReplaceString(ssin, "+", rpstr);
+      std::string sssin = sin;
+      do
+        {
+        done = true;
+        for ( it = this->UniqueObjectNamesMap.begin();
+              it != this->UniqueObjectNamesMap.end();
+              ++ it )
+          {
+          if ( it->second == ssin )
+            {
+            done = false;
+            }
+          }
+        if ( done )
+          {
+          break;
+          }
+        sssin = ssin;
+        cmSystemTools::ReplaceString(ssin, "_p_", rpstr);
+        sprintf(rpstr, "_p%d_", cc++);
+        }
+      while ( !done );
+      }
+
+    // Insert the newly mapped object file name.
+    std::map<cmStdString, cmStdString>::value_type e(sin, ssin);
+    it = this->UniqueObjectNamesMap.insert(e).first;
     }
 
-#ifdef DEBUG
-  printf("  ==> extracting: %s (mode %04o, uid %d, gid %d, %d bytes)\n",
-         filename, mode, uid, gid, size);
-#endif
-  fdout = open(filename, O_WRONLY | O_CREAT | O_TRUNC
-#ifdef O_BINARY
-         | O_BINARY
-#endif
-        , 0666);
-  if (fdout == -1)
-  {
-#ifdef DEBUG
-    perror("open()");
-#endif
-    return -1;
-  }
-
-#if 0
-  /* change the owner.  (will only work if run as root) */
-  if (fchown(fdout, uid, gid) == -1 && errno != EPERM)
-  {
-#ifdef DEBUG
-    perror("fchown()");
-#endif
-    return -1;
-  }
-
-  /* make sure the mode isn't inheritted from a file we're overwriting */
-  if (fchmod(fdout, mode & 07777) == -1)
-  {
-#ifdef DEBUG
-    perror("fchmod()");
-#endif
-    return -1;
-  }
-#endif
-
-  /* extract the file */
-  for (i = size; i > 0; i -= T_BLOCKSIZE)
-  {
-    k = tar_block_read(t, buf);
-    if (k != T_BLOCKSIZE)
-    {
-      if (k != -1)
-        errno = EINVAL;
-      return -1;
-    }
-
-    /* write block to output file */
-    if (write(fdout, buf,
-        ((i > T_BLOCKSIZE) ? T_BLOCKSIZE : i)) == -1)
-      return -1;
-  }
-
-  /* close output file */
-  if (close(fdout) == -1)
-    return -1;
-
-#ifdef DEBUG
-  printf("### done extracting %s\n", filename);
-#endif
-
-  (void)filename;
-  (void)gid;
-  (void)uid;
-  (void)mode;
-
-  return 0;
+  // Return the map entry.
+  return it->second;
 }

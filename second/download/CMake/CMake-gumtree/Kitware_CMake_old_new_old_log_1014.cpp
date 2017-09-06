@@ -1,1 +1,1 @@
-printf("Checking -%s-\n", absFilename.c_str());
+fprintf(stderr, "No current working directory\n");

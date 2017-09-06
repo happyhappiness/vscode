@@ -1,71 +1,59 @@
 static int
-init_traditional_PKWARE_decryption(struct archive_read *a)
+choose_filters(struct archive_read *a)
 {
-	struct zip *zip = (struct zip *)(a->format->data);
-	const void *p;
-	int retry;
+	int number_bidders, i, bid, best_bid, n;
+	struct archive_read_filter_bidder *bidder, *best_bidder;
+	struct archive_read_filter *filter;
+	ssize_t avail;
 	int r;
 
-	if (zip->tctx_valid)
-		return (ARCHIVE_OK);
+	for (n = 0; n < 25; ++n) {
+		number_bidders = sizeof(a->bidders) / sizeof(a->bidders[0]);
 
-	/*
-	   Read the 12 bytes encryption header stored at
-	   the start of the data area.
-	 */
-#define ENC_HEADER_SIZE	12
-	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
-	    && zip->entry_bytes_remaining < ENC_HEADER_SIZE) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated Zip encrypted body: only %jd bytes available",
-		    (intmax_t)zip->entry_bytes_remaining);
-		return (ARCHIVE_FATAL);
-	}
+		best_bid = 0;
+		best_bidder = NULL;
 
-	p = __archive_read_ahead(a, ENC_HEADER_SIZE, NULL);
-	if (p == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file data");
-		return (ARCHIVE_FATAL);
-	}
-
-	for (retry = 0;; retry++) {
-		const char *passphrase;
-		uint8_t crcchk;
-
-		passphrase = __archive_read_next_passphrase(a);
-		if (passphrase == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    (retry > 0)?
-				"Incorrect passphrase":
-				"Passphrase required for this entry");
-			return (ARCHIVE_FAILED);
+		bidder = a->bidders;
+		for (i = 0; i < number_bidders; i++, bidder++) {
+			if (bidder->bid != NULL) {
+				bid = (bidder->bid)(bidder, a->filter);
+				if (bid > best_bid) {
+					best_bid = bid;
+					best_bidder = bidder;
+				}
+			}
 		}
 
-		/*
-		 * Initialize ctx for Traditional PKWARE Decyption.
-		 */
-		r = trad_enc_init(&zip->tctx, passphrase, strlen(passphrase),
-			p, ENC_HEADER_SIZE, &crcchk);
-		if (r == 0 && crcchk == zip->entry->decdat)
-			break;/* The passphrase is OK. */
-		if (retry > 10000) {
-			/* Avoid infinity loop. */
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Too many incorrect passphrases");
-			return (ARCHIVE_FAILED);
+		/* If no bidder, we're done. */
+		if (best_bidder == NULL) {
+			/* Verify the filter by asking it for some data. */
+			__archive_read_filter_ahead(a->filter, 1, &avail);
+			if (avail < 0) {
+				__archive_read_close_filters(a);
+				__archive_read_free_filters(a);
+				return (ARCHIVE_FATAL);
+			}
+			a->archive.compression_name = a->filter->name;
+			a->archive.compression_code = a->filter->code;
+			return (ARCHIVE_OK);
+		}
+
+		filter
+		    = (struct archive_read_filter *)calloc(1, sizeof(*filter));
+		if (filter == NULL)
+			return (ARCHIVE_FATAL);
+		filter->bidder = best_bidder;
+		filter->archive = a;
+		filter->upstream = a->filter;
+		a->filter = filter;
+		r = (best_bidder->init)(a->filter);
+		if (r != ARCHIVE_OK) {
+			__archive_read_close_filters(a);
+			__archive_read_free_filters(a);
+			return (ARCHIVE_FATAL);
 		}
 	}
-
-	__archive_read_consume(a, ENC_HEADER_SIZE);
-	zip->tctx_valid = 1;
-	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)) {
-	    zip->entry_bytes_remaining -= ENC_HEADER_SIZE;
-	}
-	/*zip->entry_uncompressed_bytes_read += ENC_HEADER_SIZE;*/
-	zip->entry_compressed_bytes_read += ENC_HEADER_SIZE;
-	zip->decrypted_bytes_remaining = 0;
-
-	return (zip_alloc_decryption_buffer(a));
-#undef ENC_HEADER_SIZE
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Input requires too many filters for decoding");
+	return (ARCHIVE_FATAL);
 }

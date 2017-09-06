@@ -1,183 +1,329 @@
 static int
-setup_acls(struct archive_read_disk *a,
-    struct archive_entry *entry, int *fd)
+process_extra(struct archive_read *a, const char *p, size_t extra_length, struct zip_entry* zip_entry)
 {
-	const char	*accpath;
-#if HAVE_SUN_ACL
-	acl_t		*acl;
-#else
-	acl_t		acl;
-#endif
-	int		r;
+	unsigned offset = 0;
 
-	accpath = NULL;
-
-#if HAVE_SUN_ACL || HAVE_DARWIN_ACL || HAVE_ACL_GET_FD_NP
-	if (*fd < 0)
-#else
-	/* For default ACLs on Linux we need reachable accpath */
-	if (*fd < 0 || S_ISDIR(archive_entry_mode(entry)))
-#endif
-	{
-		accpath = archive_entry_sourcepath(entry);
-		if (accpath == NULL || (a->tree != NULL &&
-		    a->tree_enter_working_dir(a->tree) != 0))
-			accpath = archive_entry_pathname(entry);
-		if (accpath == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Couldn't determine file path to read ACLs");
-			return (ARCHIVE_WARN);
-		}
-		if (a->tree != NULL &&
-#if !HAVE_SUN_ACL && !HAVE_DARWIN_ACL && !HAVE_ACL_GET_FD_NP
-		    *fd < 0 &&
-#endif
-		    (a->follow_symlinks ||
-		    archive_entry_filetype(entry) != AE_IFLNK)) {
-			*fd = a->open_on_current_dir(a->tree,
-			    accpath, O_RDONLY | O_NONBLOCK);
-		}
+	if (extra_length == 0) {
+		return ARCHIVE_OK;
 	}
 
-	archive_entry_acl_clear(entry);
-
-	acl = NULL;
-
-#if HAVE_NFS4_ACL
-	/* Try NFSv4 ACL first. */
-	if (*fd >= 0)
-#if HAVE_SUN_ACL
-		/* Solaris reads both POSIX.1e and NFSv4 ACL here */
-		facl_get(*fd, 0, &acl);
-#elif HAVE_ACL_GET_FD_NP
-		acl = acl_get_fd_np(*fd, ARCHIVE_PLATFORM_ACL_TYPE_NFS4);
-#else
-		acl = acl_get_fd(*fd);
-#endif
-#if HAVE_ACL_GET_LINK_NP
-	else if (!a->follow_symlinks)
-		acl = acl_get_link_np(accpath, ARCHIVE_PLATFORM_ACL_TYPE_NFS4);
-#else
-	else if ((!a->follow_symlinks)
-	    && (archive_entry_filetype(entry) == AE_IFLNK))
-		/* We can't get the ACL of a symlink, so we assume it can't
-		   have one. */
-		acl = NULL;
-#endif
-	else
-#if HAVE_SUN_ACL
-		/* Solaris reads both POSIX.1e and NFSv4 ACLs here */
-		acl_get(accpath, 0, &acl);
-#else
-		acl = acl_get_file(accpath, ARCHIVE_PLATFORM_ACL_TYPE_NFS4);
-#endif
-
-
-#if HAVE_ACL_IS_TRIVIAL_NP || HAVE_SUN_ACL
-	/* Ignore "trivial" ACLs that just mirror the file mode. */
-	if (acl != NULL) {
-#if HAVE_SUN_ACL
-		if (sun_acl_is_trivial(acl, archive_entry_mode(entry),
-		    &r) == 0 && r == 1)
-#elif HAVE_ACL_IS_TRIVIAL_NP
-		if (acl_is_trivial_np(acl, &r) == 0 && r == 1)
-#endif
-		{
-			acl_free(acl);
-			acl = NULL;
-			/*
-			 * Simultaneous NFSv4 and POSIX.1e ACLs for the same
-			 * entry are not allowed, so we should return here
-			 */
-			return (ARCHIVE_OK);
-		}
+	if (extra_length < 4) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Too-small extra data: Need at least 4 bytes, but only found %d bytes", (int)extra_length);
+		return ARCHIVE_FAILED;
 	}
-#endif	/* HAVE_ACL_IS_TRIVIAL_NP || HAVE_SUN_ACL */
-	if (acl != NULL) {
-		r = translate_acl(a, entry, acl, ARCHIVE_ENTRY_ACL_TYPE_NFS4);
-		acl_free(acl);
-		if (r != ARCHIVE_OK) {
-			archive_set_error(&a->archive, errno,
-			    "Couldn't translate "
-#if !HAVE_SUN_ACL
-			    "NFSv4 "
-#endif
-			    "ACLs");
+	while (offset <= extra_length - 4) {
+		unsigned short headerid = archive_le16dec(p + offset);
+		unsigned short datasize = archive_le16dec(p + offset + 2);
+
+		offset += 4;
+		if (offset + datasize > extra_length) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Extra data overflow: Need %d bytes but only found %d bytes",
+			    (int)datasize, (int)(extra_length - offset));
+			return ARCHIVE_FAILED;
 		}
-#if HAVE_DARWIN_ACL
-		/*
-		 * Because Mac OS doesn't support owner@, group@ and everyone@
-		 * ACLs we need to add NFSv4 ACLs mirroring the file mode to
-		 * the archive entry. Otherwise extraction on non-Mac platforms
-		 * would lead to an invalid file mode.
-		 */
-		if ((archive_entry_acl_types(entry) &
-		    ARCHIVE_ENTRY_ACL_TYPE_NFS4) != 0)
-			add_trivial_nfs4_acl(entry);
+#ifdef DEBUG
+		fprintf(stderr, "Header id 0x%04x, length %d\n",
+		    headerid, datasize);
 #endif
-		return (r);
-	}
-#endif	/* HAVE_NFS4_ACL */
-
-#if HAVE_POSIX_ACL
-	/* This code path is skipped on MacOS and Solaris */
-
-	/* Retrieve access ACL from file. */
-	if (*fd >= 0)
-		acl = acl_get_fd(*fd);
-#if HAVE_ACL_GET_LINK_NP
-	else if (!a->follow_symlinks)
-		acl = acl_get_link_np(accpath, ACL_TYPE_ACCESS);
-#else
-	else if ((!a->follow_symlinks)
-	    && (archive_entry_filetype(entry) == AE_IFLNK))
-		/* We can't get the ACL of a symlink, so we assume it can't
-		   have one. */
-		acl = NULL;
-#endif
-	else
-		acl = acl_get_file(accpath, ACL_TYPE_ACCESS);
-
-#if HAVE_ACL_IS_TRIVIAL_NP
-	/* Ignore "trivial" ACLs that just mirror the file mode. */
-	if (acl != NULL && acl_is_trivial_np(acl, &r) == 0) {
-		if (r) {
-			acl_free(acl);
-			acl = NULL;
-		}
-	}
-#endif
-
-	if (acl != NULL) {
-		r = translate_acl(a, entry, acl, ARCHIVE_ENTRY_ACL_TYPE_ACCESS);
-		acl_free(acl);
-		acl = NULL;
-		if (r != ARCHIVE_OK) {
-			archive_set_error(&a->archive, errno,
-			    "Couldn't translate access ACLs");
-			return (r);
-		}
-	}
-
-	/* Only directories can have default ACLs. */
-	if (S_ISDIR(archive_entry_mode(entry))) {
-#if HAVE_ACL_GET_FD_NP
-		if (*fd >= 0)
-			acl = acl_get_fd_np(*fd, ACL_TYPE_DEFAULT);
-		else
-#endif
-		acl = acl_get_file(accpath, ACL_TYPE_DEFAULT);
-		if (acl != NULL) {
-			r = translate_acl(a, entry, acl,
-			    ARCHIVE_ENTRY_ACL_TYPE_DEFAULT);
-			acl_free(acl);
-			if (r != ARCHIVE_OK) {
-				archive_set_error(&a->archive, errno,
-				    "Couldn't translate default ACLs");
-				return (r);
+		switch (headerid) {
+		case 0x0001:
+			/* Zip64 extended information extra field. */
+			zip_entry->flags |= LA_USED_ZIP64;
+			if (zip_entry->uncompressed_size == 0xffffffff) {
+				uint64_t t = 0;
+				if (datasize < 8
+				    || (t = archive_le64dec(p + offset)) > INT64_MAX) {
+					archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+					    "Malformed 64-bit uncompressed size");
+					return ARCHIVE_FAILED;
+				}
+				zip_entry->uncompressed_size = t;
+				offset += 8;
+				datasize -= 8;
 			}
+			if (zip_entry->compressed_size == 0xffffffff) {
+				uint64_t t = 0;
+				if (datasize < 8
+				    || (t = archive_le64dec(p + offset)) > INT64_MAX) {
+					archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+					    "Malformed 64-bit compressed size");
+					return ARCHIVE_FAILED;
+				}
+				zip_entry->compressed_size = t;
+				offset += 8;
+				datasize -= 8;
+			}
+			if (zip_entry->local_header_offset == 0xffffffff) {
+				uint64_t t = 0;
+				if (datasize < 8
+				    || (t = archive_le64dec(p + offset)) > INT64_MAX) {
+					archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+					    "Malformed 64-bit local header offset");
+					return ARCHIVE_FAILED;
+				}
+				zip_entry->local_header_offset = t;
+				offset += 8;
+				datasize -= 8;
+			}
+			/* archive_le32dec(p + offset) gives disk
+			 * on which file starts, but we don't handle
+			 * multi-volume Zip files. */
+			break;
+#ifdef DEBUG
+		case 0x0017:
+		{
+			/* Strong encryption field. */
+			if (archive_le16dec(p + offset) == 2) {
+				unsigned algId =
+					archive_le16dec(p + offset + 2);
+				unsigned bitLen =
+					archive_le16dec(p + offset + 4);
+				int	 flags =
+					archive_le16dec(p + offset + 6);
+				fprintf(stderr, "algId=0x%04x, bitLen=%u, "
+				    "flgas=%d\n", algId, bitLen,flags);
+			}
+			break;
 		}
+#endif
+		case 0x5455:
+		{
+			/* Extended time field "UT". */
+			int flags = p[offset];
+			offset++;
+			datasize--;
+			/* Flag bits indicate which dates are present. */
+			if (flags & 0x01)
+			{
+#ifdef DEBUG
+				fprintf(stderr, "mtime: %lld -> %d\n",
+				    (long long)zip_entry->mtime,
+				    archive_le32dec(p + offset));
+#endif
+				if (datasize < 4)
+					break;
+				zip_entry->mtime = archive_le32dec(p + offset);
+				offset += 4;
+				datasize -= 4;
+			}
+			if (flags & 0x02)
+			{
+				if (datasize < 4)
+					break;
+				zip_entry->atime = archive_le32dec(p + offset);
+				offset += 4;
+				datasize -= 4;
+			}
+			if (flags & 0x04)
+			{
+				if (datasize < 4)
+					break;
+				zip_entry->ctime = archive_le32dec(p + offset);
+				offset += 4;
+				datasize -= 4;
+			}
+			break;
+		}
+		case 0x5855:
+		{
+			/* Info-ZIP Unix Extra Field (old version) "UX". */
+			if (datasize >= 8) {
+				zip_entry->atime = archive_le32dec(p + offset);
+				zip_entry->mtime =
+				    archive_le32dec(p + offset + 4);
+			}
+			if (datasize >= 12) {
+				zip_entry->uid =
+				    archive_le16dec(p + offset + 8);
+				zip_entry->gid =
+				    archive_le16dec(p + offset + 10);
+			}
+			break;
+		}
+		case 0x6c78:
+		{
+			/* Experimental 'xl' field */
+			/*
+			 * Introduced Dec 2013 to provide a way to
+			 * include external file attributes (and other
+			 * fields that ordinarily appear only in
+			 * central directory) in local file header.
+			 * This provides file type and permission
+			 * information necessary to support full
+			 * streaming extraction.  Currently being
+			 * discussed with other Zip developers
+			 * ... subject to change.
+			 *
+			 * Format:
+			 *  The field starts with a bitmap that specifies
+			 *  which additional fields are included.  The
+			 *  bitmap is variable length and can be extended in
+			 *  the future.
+			 *
+			 *  n bytes - feature bitmap: first byte has low-order
+			 *    7 bits.  If high-order bit is set, a subsequent
+			 *    byte holds the next 7 bits, etc.
+			 *
+			 *  if bitmap & 1, 2 byte "version made by"
+			 *  if bitmap & 2, 2 byte "internal file attributes"
+			 *  if bitmap & 4, 4 byte "external file attributes"
+			 *  if bitmap & 8, 2 byte comment length + n byte comment
+			 */
+			int bitmap, bitmap_last;
+
+			if (datasize < 1)
+				break;
+			bitmap_last = bitmap = 0xff & p[offset];
+			offset += 1;
+			datasize -= 1;
+
+			/* We only support first 7 bits of bitmap; skip rest. */
+			while ((bitmap_last & 0x80) != 0
+			    && datasize >= 1) {
+				bitmap_last = p[offset];
+				offset += 1;
+				datasize -= 1;
+			}
+
+			if (bitmap & 1) {
+				/* 2 byte "version made by" */
+				if (datasize < 2)
+					break;
+				zip_entry->system
+				    = archive_le16dec(p + offset) >> 8;
+				offset += 2;
+				datasize -= 2;
+			}
+			if (bitmap & 2) {
+				/* 2 byte "internal file attributes" */
+				uint32_t internal_attributes;
+				if (datasize < 2)
+					break;
+				internal_attributes
+				    = archive_le16dec(p + offset);
+				/* Not used by libarchive at present. */
+				(void)internal_attributes; /* UNUSED */
+				offset += 2;
+				datasize -= 2;
+			}
+			if (bitmap & 4) {
+				/* 4 byte "external file attributes" */
+				uint32_t external_attributes;
+				if (datasize < 4)
+					break;
+				external_attributes
+				    = archive_le32dec(p + offset);
+				if (zip_entry->system == 3) {
+					zip_entry->mode
+					    = external_attributes >> 16;
+				} else if (zip_entry->system == 0) {
+					// Interpret MSDOS directory bit
+					if (0x10 == (external_attributes & 0x10)) {
+						zip_entry->mode = AE_IFDIR | 0775;
+					} else {
+						zip_entry->mode = AE_IFREG | 0664;
+					}
+					if (0x01 == (external_attributes & 0x01)) {
+						// Read-only bit; strip write permissions
+						zip_entry->mode &= 0555;
+					}
+				} else {
+					zip_entry->mode = 0;
+				}
+				offset += 4;
+				datasize -= 4;
+			}
+			if (bitmap & 8) {
+				/* 2 byte comment length + comment */
+				uint32_t comment_length;
+				if (datasize < 2)
+					break;
+				comment_length
+				    = archive_le16dec(p + offset);
+				offset += 2;
+				datasize -= 2;
+
+				if (datasize < comment_length)
+					break;
+				/* Comment is not supported by libarchive */
+				offset += comment_length;
+				datasize -= comment_length;
+			}
+			break;
+		}
+		case 0x7855:
+			/* Info-ZIP Unix Extra Field (type 2) "Ux". */
+#ifdef DEBUG
+			fprintf(stderr, "uid %d gid %d\n",
+			    archive_le16dec(p + offset),
+			    archive_le16dec(p + offset + 2));
+#endif
+			if (datasize >= 2)
+				zip_entry->uid = archive_le16dec(p + offset);
+			if (datasize >= 4)
+				zip_entry->gid =
+				    archive_le16dec(p + offset + 2);
+			break;
+		case 0x7875:
+		{
+			/* Info-Zip Unix Extra Field (type 3) "ux". */
+			int uidsize = 0, gidsize = 0;
+
+			/* TODO: support arbitrary uidsize/gidsize. */
+			if (datasize >= 1 && p[offset] == 1) {/* version=1 */
+				if (datasize >= 4) {
+					/* get a uid size. */
+					uidsize = 0xff & (int)p[offset+1];
+					if (uidsize == 2)
+						zip_entry->uid =
+						    archive_le16dec(
+						        p + offset + 2);
+					else if (uidsize == 4 && datasize >= 6)
+						zip_entry->uid =
+						    archive_le32dec(
+						        p + offset + 2);
+				}
+				if (datasize >= (2 + uidsize + 3)) {
+					/* get a gid size. */
+					gidsize = 0xff & (int)p[offset+2+uidsize];
+					if (gidsize == 2)
+						zip_entry->gid =
+						    archive_le16dec(
+						        p+offset+2+uidsize+1);
+					else if (gidsize == 4 &&
+					    datasize >= (2 + uidsize + 5))
+						zip_entry->gid =
+						    archive_le32dec(
+						        p+offset+2+uidsize+1);
+				}
+			}
+			break;
+		}
+		case 0x9901:
+			/* WinZip AES extra data field. */
+			if (p[offset + 2] == 'A' && p[offset + 3] == 'E') {
+				/* Vendor version. */
+				zip_entry->aes_extra.vendor =
+				    archive_le16dec(p + offset);
+				/* AES encryption strength. */
+				zip_entry->aes_extra.strength = p[offset + 4];
+				/* Actual compression method. */
+				zip_entry->aes_extra.compression =
+				    p[offset + 5];
+			}
+			break;
+		default:
+			break;
+		}
+		offset += datasize;
 	}
-#endif	/* HAVE_POSIX_ACL */
-	return (ARCHIVE_OK);
+	if (offset != extra_length) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Malformed extra data: Consumed %d bytes of %d bytes",
+		    (int)offset, (int)extra_length);
+		return ARCHIVE_FAILED;
+	}
+	return ARCHIVE_OK;
 }

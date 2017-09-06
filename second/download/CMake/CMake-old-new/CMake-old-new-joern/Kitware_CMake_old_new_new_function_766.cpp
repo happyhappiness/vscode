@@ -1,32 +1,22 @@
-int
-archive_read_set_callback_data2(struct archive *_a, void *client_data,
-    unsigned int iindex)
+void
+cmComputeTargetDepends::DisplayGraph(Graph const& graph,
+                                     const std::string& name)
 {
-	struct archive_read *a = (struct archive_read *)_a;
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC, ARCHIVE_STATE_NEW,
-	    "archive_read_set_callback_data2");
-
-	if (a->client.nodes == 0)
-	{
-		a->client.dataset = (struct archive_read_data_node *)
-		    calloc(1, sizeof(*a->client.dataset));
-		if (a->client.dataset == NULL)
-		{
-			archive_set_error(&a->archive, ENOMEM,
-				"No memory.");
-			return ARCHIVE_FATAL;
-		}
-		a->client.nodes = 1;
-	}
-
-	if (iindex > a->client.nodes - 1)
-	{
-		archive_set_error(&a->archive, EINVAL,
-			"Invalid index specified.");
-		return ARCHIVE_FATAL;
-	}
-	a->client.dataset[iindex].data = client_data;
-	a->client.dataset[iindex].begin_position = -1;
-	a->client.dataset[iindex].total_size = -1;
-	return ARCHIVE_OK;
+  fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());
+  int n = static_cast<int>(graph.size());
+  for(int depender_index = 0; depender_index < n; ++depender_index)
+    {
+    EdgeList const& nl = graph[depender_index];
+    cmTarget const* depender = this->Targets[depender_index];
+    fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName().c_str());
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int dependee_index = *ni;
+      cmTarget const* dependee = this->Targets[dependee_index];
+      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName().c_str(), ni->IsStrong()? "strong" : "weak");
+      }
+    }
+  fprintf(stderr, "\n");
 }

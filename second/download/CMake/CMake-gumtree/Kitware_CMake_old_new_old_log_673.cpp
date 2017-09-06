@@ -1,1 +1,1 @@
-sprintf(buf, "%s/*", name);
+fprintf(fout, " %08X", pSymbolTable->Value);

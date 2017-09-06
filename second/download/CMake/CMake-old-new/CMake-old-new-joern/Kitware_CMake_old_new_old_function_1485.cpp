@@ -1,171 +1,82 @@
-int cmTryCompileCommand::CoreTryCompileCode(
-  cmMakefile *mf, std::vector<std::string> const& argv, bool clean)
+char *curl_version(void)
 {
-  // which signature were we called with ?
-  bool srcFileSignature = false;
-  unsigned int i;
-  
-  // where will the binaries be stored
-  const char* binaryDirectory = argv[1].c_str();
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  const char* targetName = 0;
-  std::string tmpString;
+  static char version[200];
+  char *ptr;
+  strcpy(version, LIBCURL_NAME " " LIBCURL_VERSION );
+  ptr=strchr(version, '\0');
 
-  // do we have a srcfile signature
-  if (argv.size() == 3 || argv[3] == "CMAKE_FLAGS" || argv[3] == "COMPILE_DEFINITIONS" ||
-      argv[3] == "OUTPUT_VARIABLE")
-    {
-    srcFileSignature = true;
+#ifdef USE_SSLEAY
+
+#if (SSLEAY_VERSION_NUMBER >= 0x905000)
+  {
+    char sub[2];
+    unsigned long ssleay_value;
+    sub[1]='\0';
+    ssleay_value=SSLeay();
+    if(ssleay_value < 0x906000) {
+      ssleay_value=SSLEAY_VERSION_NUMBER;
+      sub[0]='\0';
     }
-
-  // look for CMAKE_FLAGS and store them
-  std::vector<std::string> cmakeFlags;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "CMAKE_FLAGS")
-      {
-      for (; i < argv.size() && argv[i] != "COMPILE_DEFINITIONS" && 
-             argv[i] != "OUTPUT_VARIABLE"; 
-           ++i)
-        {
-        cmakeFlags.push_back(argv[i]);
-        }
-      break;
+    else {
+      if(ssleay_value&0xff0) {
+        sub[0]=((ssleay_value>>4)&0xff) + 'a' -1;
       }
+      else
+        sub[0]='\0';
     }
 
-  // look for OUTPUT_VARIABLE and store them
-  std::string outputVariable;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "OUTPUT_VARIABLE")
-      {
-      if ( argv.size() <= (i+1) )
-        {
-        cmSystemTools::Error(
-          "OUTPUT_VARIABLE specified but there is no variable");
-        return -1;
-        }
-      outputVariable = argv[i+1];
-      break;
-      }
-    }
+    sprintf(ptr, " (OpenSSL %lx.%lx.%lx%s)",
+            (ssleay_value>>28)&0xf,
+            (ssleay_value>>20)&0xff,
+            (ssleay_value>>12)&0xff,
+            sub);
+  }
 
-  // look for COMPILE_DEFINITIONS and store them
-  std::vector<std::string> compileFlags;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "COMPILE_DEFINITIONS")
-      {
-      // only valid for srcfile signatures
-      if (!srcFileSignature)
-        {
-        cmSystemTools::Error(
-          "COMPILE_FLAGS specified on a srcdir type TRY_COMPILE");
-        return -1;
-        }
-      for (i = i + 1; i < argv.size() && argv[i] != "CMAKE_FLAGS" && 
-             argv[i] != "OUTPUT_VARIABLE"; 
-           ++i)
-        {
-        compileFlags.push_back(argv[i]);
-        }
-      break;
-      }
+#else
+#if (SSLEAY_VERSION_NUMBER >= 0x900000)
+  sprintf(ptr, " (SSL %lx.%lx.%lx)",
+          (SSLEAY_VERSION_NUMBER>>28)&0xff,
+          (SSLEAY_VERSION_NUMBER>>20)&0xff,
+          (SSLEAY_VERSION_NUMBER>>12)&0xf);
+#else
+  {
+    char sub[2];
+    sub[1]='\0';
+    if(SSLEAY_VERSION_NUMBER&0x0f) {
+      sub[0]=(SSLEAY_VERSION_NUMBER&0x0f) + 'a' -1;
     }
+    else
+      sub[0]='\0';
 
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (srcFileSignature)
-    {
-    tmpString = argv[1] + "/CMakeTmp";
-    binaryDirectory = tmpString.c_str();
-    }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(binaryDirectory);
-  
-  // do not allow recursive try Compiles
-  if (!strcmp(binaryDirectory,mf->GetHomeOutputDirectory()))
-    {
-    cmSystemTools::Error("Attempt at a recursive or nested TRY_COMPILE", 
-                         binaryDirectory);
-    return -1;
-    }
-  
-  std::string outFileName = tmpString + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (srcFileSignature)
-    {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = tmpString + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile.c_str());
-    
-    // we need to create a directory and CMakeList file etc...
-    // first create the directories
-    sourceDirectory = binaryDirectory;
+    sprintf(ptr, " (SSL %x.%x.%x%s)",
+            (SSLEAY_VERSION_NUMBER>>12)&0xff,
+            (SSLEAY_VERSION_NUMBER>>8)&0xf,
+            (SSLEAY_VERSION_NUMBER>>4)&0xf, sub);
+  }
+#endif
+#endif
+  ptr=strchr(ptr, '\0');
+#endif
 
-    // now create a CMakeList.txt file in that directory
-    FILE *fout = fopen(outFileName.c_str(),"w");
-    if (!fout)
-      {
-      cmSystemTools::Error("Failed to create CMakeList file for ", 
-                           outFileName.c_str());
-      return -1;
-      }
-    fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE)\n");
-    fprintf(fout, "IF (CMAKE_ANSI_CXXFLAGS)\n");
-    fprintf(fout, "  SET(CMAKE_CXX_FLAGS \"${CMAKE_CXX_FLAGS} ${CMAKE_ANSI_CXXFLAGS}\")\n");
-    fprintf(fout, "  SET(CMAKE_C_FLAGS \"${CMAKE_C_FLAGS} ${CMAKE_ANSI_CFLAGS}\")\n");
-    fprintf(fout, "ENDIF (CMAKE_ANSI_CXXFLAGS)\n");
-    // handle any compile flags we need to pass on
-    if (compileFlags.size())
-      {
-      fprintf(fout, "ADD_DEFINITIONS( ");
-      for (i = 0; i < compileFlags.size(); ++i)
-        {
-        fprintf(fout,"%s ",compileFlags[i].c_str());
-        }
-      fprintf(fout, ")\n");
-      }
-    
-    fprintf(fout, "ADD_EXECUTABLE(cmTryCompileExec \"%s\")\n",argv[2].c_str());
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
-    targetName = "cmTryCompileExec";
-    }
-  // else the srcdir bindir project target signature
-  else
-    {
-    projectName = argv[3].c_str();
-    
-    if (argv.size() == 5)
-      {
-      targetName = argv[4].c_str();
-      }
-    }
-  
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = mf->TryCompile(sourceDirectory, binaryDirectory,
-                           projectName, targetName, &cmakeFlags, &output);
-  
-  // set the result var to the return value to indicate success or failure
-  mf->AddCacheDefinition(argv[0].c_str(), (res == 0 ? "TRUE" : "FALSE"),
-                         "Result of TRY_COMPILE",
-                         cmCacheManager::INTERNAL);
+#if defined(KRB4) || defined(ENABLE_IPV6)
+  strcat(ptr, " (");
+  ptr+=2;
+#ifdef KRB4
+  sprintf(ptr, "krb4 ");
+  ptr += strlen(ptr);
+#endif
+#ifdef ENABLE_IPV6
+  sprintf(ptr, "ipv6 ");
+  ptr += strlen(ptr);
+#endif
+  sprintf(ptr, "enabled)");
+  ptr += strlen(ptr);
+#endif
 
-  if ( outputVariable.size() > 0 )
-    {
-    mf->AddDefinition(outputVariable.c_str(), output.c_str());
-    }
-  
-  // if They specified clean then we clean up what we can
-  if (srcFileSignature && clean)
-    {    
-    cmListFileCache::GetInstance()->FlushCache(outFileName.c_str());
-    cmTryCompileCommand::CleanupFiles(binaryDirectory);
-    }
-  
-  return res;
+#ifdef USE_ZLIB
+  sprintf(ptr, " (zlib %s)", zlibVersion());
+  ptr += strlen(ptr);
+#endif
+
+  return version;
 }

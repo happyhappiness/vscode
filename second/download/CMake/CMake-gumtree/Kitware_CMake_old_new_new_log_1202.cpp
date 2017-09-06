@@ -1,1 +1,1 @@
-DEBUG_OUT(fprintf(stderr, "**** %s\n ", *allocuserpwd));
+fprintf(handle, "NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE ");

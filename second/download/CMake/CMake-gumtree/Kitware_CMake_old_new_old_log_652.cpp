@@ -1,1 +1,0 @@
-fprintf(fout, "DATA PRELOAD MOVEABLE MULTIPLE\n\n");

@@ -1,1 +1,1 @@
-fprintf(this->FileOut,"EXPORTS \n");
+fprintf(stderr, "unknowntag_end:%s\n", name);

@@ -1,1 +1,1 @@
-str << this->ChipID.Type;
+sprintf(buffer, "%ld", osvi.dwMajorVersion);

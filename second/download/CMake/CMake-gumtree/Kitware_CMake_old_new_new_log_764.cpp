@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yyensure_buffer_stack()" );
+fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());

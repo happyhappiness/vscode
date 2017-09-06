@@ -1,1 +1,0 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE ");

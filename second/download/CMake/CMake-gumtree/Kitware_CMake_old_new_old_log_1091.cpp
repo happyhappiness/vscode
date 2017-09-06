@@ -1,2 +1,1 @@
-sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
-            cmVersion::GetMinorVersion());
+YY_FATAL_ERROR( "flex scanner push-back overflow" );

@@ -1,2 +1,1 @@
-fprintf(fout,
-            "  Tcl_CreateExitHandler(vtkCommonDeleteAssocData,(ClientData *)info);\n");
+printf("Error...\n");

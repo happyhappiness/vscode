@@ -1,19 +1,78 @@
-static void hashkey(struct connectdata *conn, char *buf,
-                    size_t len) /* something like 128 is fine */
+void cmCTestTestHandler::PrintSubprojectSummary()
 {
-  const char *hostname;
+  std::vector<std::string> subprojects =
+    this->CTest->GetLabelsForSubprojects();
 
-  if(conn->bits.socksproxy)
-    hostname = conn->socks_proxy.host.name;
-  else if(conn->bits.httpproxy)
-    hostname = conn->http_proxy.host.name;
-  else if(conn->bits.conn_to_host)
-    hostname = conn->conn_to_host.name;
-  else
-    hostname = conn->host.name;
+  cmCTestTestHandler::ListOfTests::iterator it = this->TestList.begin();
+  std::map<std::string, double> labelTimes;
+  std::map<std::string, int> labelCounts;
+  std::set<std::string> labels;
+  // initialize maps
+  std::string::size_type maxlen = 0;
+  for (; it != this->TestList.end(); ++it) {
+    cmCTestTestProperties& p = *it;
+    for (std::vector<std::string>::iterator l = p.Labels.begin();
+         l != p.Labels.end(); ++l) {
+      std::vector<std::string>::iterator subproject =
+        std::find(subprojects.begin(), subprojects.end(), *l);
+      if (subproject != subprojects.end()) {
+        if ((*l).size() > maxlen) {
+          maxlen = (*l).size();
+        }
+        labels.insert(*l);
+        labelTimes[*l] = 0;
+        labelCounts[*l] = 0;
+      }
+    }
+  }
+  cmCTestTestHandler::TestResultsVector::iterator ri =
+    this->TestResults.begin();
+  // fill maps
+  for (; ri != this->TestResults.end(); ++ri) {
+    cmCTestTestResult& result = *ri;
+    cmCTestTestProperties& p = *result.Properties;
+    for (std::vector<std::string>::iterator l = p.Labels.begin();
+         l != p.Labels.end(); ++l) {
+      std::vector<std::string>::iterator subproject =
+        std::find(subprojects.begin(), subprojects.end(), *l);
+      if (subproject != subprojects.end()) {
+        labelTimes[*l] += result.ExecutionTime;
+        ++labelCounts[*l];
+      }
+    }
+  }
+  // now print times
+  if (!labels.empty()) {
+    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT,
+                       "\nSubproject Time Summary:", this->Quiet);
+  }
+  for (std::set<std::string>::const_iterator i = labels.begin();
+       i != labels.end(); ++i) {
+    std::string label = *i;
+    label.resize(maxlen + 3, ' ');
 
-  DEBUGASSERT(len > 32);
+    char buf[1024];
+    sprintf(buf, "%6.2f sec", labelTimes[*i]);
 
-  /* put the number first so that the hostname gets cut off if too long */
-  snprintf(buf, len, "%ld%s", conn->port, hostname);
+    std::ostringstream labelCountStr;
+    labelCountStr << "(" << labelCounts[*i] << " test";
+    if (labelCounts[*i] > 1) {
+      labelCountStr << "s";
+    }
+    labelCountStr << ")";
+
+    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT, "\n"
+                         << label << " = " << buf << " "
+                         << labelCountStr.str(),
+                       this->Quiet);
+    if (this->LogFile) {
+      *this->LogFile << "\n" << *i << " = " << buf << "\n";
+    }
+  }
+  if (!labels.empty()) {
+    if (this->LogFile) {
+      *this->LogFile << "\n";
+    }
+    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT, "\n", this->Quiet);
+  }
 }

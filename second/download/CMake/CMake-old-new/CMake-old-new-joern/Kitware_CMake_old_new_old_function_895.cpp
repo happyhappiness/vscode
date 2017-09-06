@@ -1,69 +1,67 @@
-static struct tree *
-tree_reopen(struct tree *t, const wchar_t *path, int restore_time)
+int
+setup_xattrs(struct archive_read_disk *a,
+    struct archive_entry *entry, int fd)
 {
-	struct archive_wstring ws;
-	wchar_t *pathname, *p, *base;
+	char buff[512];
+	char *list, *p;
+	ssize_t list_size;
+	const char *path;
+	int namespace = EXTATTR_NAMESPACE_USER;
 
-	t->flags = (restore_time)?needsRestoreTimes:0;
-	t->visit_type = 0;
-	t->tree_errno = 0;
-	t->full_path_dir_length = 0;
-	t->dirname_length = 0;
-	t->depth = 0;
-	t->descend = 0;
-	t->current = NULL;
-	t->d = INVALID_DIR_HANDLE;
-	t->symlink_mode = t->initial_symlink_mode;
-	archive_string_empty(&(t->full_path));
-	archive_string_empty(&t->path);
-	t->entry_fh = INVALID_HANDLE_VALUE;
-	t->entry_eof = 0;
-	t->entry_remaining_bytes = 0;
+	path = archive_entry_sourcepath(entry);
+	if (path == NULL)
+		path = archive_entry_pathname(entry);
 
-	/* Get wchar_t strings from char strings. */
-	archive_string_init(&ws);
-	archive_wstrcpy(&ws, path);
-	pathname = ws.s;
-	/* Get a full-path-name. */
-	p = __la_win_permissive_name_w(pathname);
-	if (p == NULL)
-		goto failed;
-	archive_wstrcpy(&(t->full_path), p);
-	free(p);
+	if (fd >= 0)
+		list_size = extattr_list_fd(fd, namespace, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = extattr_list_link(path, namespace, NULL, 0);
+	else
+		list_size = extattr_list_file(path, namespace, NULL, 0);
 
-	/* Convert path separators from '\' to '/' */
-	for (p = pathname; *p != L'\0'; ++p) {
-		if (*p == L'\\')
-			*p = L'/';
+	if (list_size == -1 && errno == EOPNOTSUPP)
+		return (ARCHIVE_OK);
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't list extended attributes");
+		return (ARCHIVE_WARN);
 	}
-	base = pathname;
 
-	/* First item is set up a lot like a symlink traversal. */
-	/* printf("Looking for wildcard in %s\n", path); */
-	/* TODO: wildcard detection here screws up on \\?\c:\ UNC names */
-	if (wcschr(base, L'*') || wcschr(base, L'?')) {
-		// It has a wildcard in it...
-		// Separate the last element.
-		p = wcsrchr(base, L'/');
-		if (p != NULL) {
-			*p = L'\0';
-			tree_append(t, base, p - base);
-			t->dirname_length = archive_strlen(&t->path);
-			base = p + 1;
-		}
-		p = wcsrchr(t->full_path.s, L'\\');
-		if (p != NULL) {
-			*p = L'\0';
-			t->full_path.length = wcslen(t->full_path.s);
-			t->full_path_dir_length = archive_strlen(&t->full_path);
-		}
+	if (list_size == 0)
+		return (ARCHIVE_OK);
+
+	if ((list = malloc(list_size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
 	}
-	tree_push(t, base, t->full_path.s, 0, 0, 0, NULL);
-	archive_wstring_free(&ws);
-	t->stack->flags = needsFirstVisit;
-	return (t);
-failed:
-	archive_wstring_free(&ws);
-	tree_free(t);
-	return (NULL);
+
+	if (fd >= 0)
+		list_size = extattr_list_fd(fd, namespace, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = extattr_list_link(path, namespace, list, list_size);
+	else
+		list_size = extattr_list_file(path, namespace, list, list_size);
+
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't retrieve extended attributes");
+		free(list);
+		return (ARCHIVE_WARN);
+	}
+
+	p = list;
+	while ((p - list) < list_size) {
+		size_t len = 255 & (int)*p;
+		char *name;
+
+		strcpy(buff, "user.");
+		name = buff + strlen(buff);
+		memcpy(name, p + 1, len);
+		name[len] = '\0';
+		setup_xattr(a, entry, namespace, name, buff, fd);
+		p += 1 + len;
+	}
+
+	free(list);
+	return (ARCHIVE_OK);
 }

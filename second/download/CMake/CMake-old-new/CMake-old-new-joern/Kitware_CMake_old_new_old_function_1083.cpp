@@ -1,265 +1,195 @@
-kwsys_stl::string SystemTools::GetOperatingSystemNameAndVersion()
+bool cmCTestRunTest::EndTest()
 {
-  kwsys_stl::string res;
-
-#ifdef _WIN32
-  char buffer[256];
-
-  OSVERSIONINFOEX osvi;
-  BOOL bOsVersionInfoEx;
-
-  // Try calling GetVersionEx using the OSVERSIONINFOEX structure.
-  // If that fails, try using the OSVERSIONINFO structure.
-
-  ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
-  osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
-
-  bOsVersionInfoEx = GetVersionEx((OSVERSIONINFO *)&osvi);
-  if (!bOsVersionInfoEx)
+  //restore the old environment
+  if (this->ModifyEnv)
     {
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    if (!GetVersionEx((OSVERSIONINFO *)&osvi)) 
+    cmSystemTools::RestoreEnv(this->OrigEnv);
+    }
+  this->WriteLogOutputTop();
+  std::string reason;
+  bool passed = true;
+  int res = this->TestProcess->GetProcessStatus();
+  int retVal = this->TestProcess->GetExitValue();
+  if ( !this->CTest->GetShowOnly() )
+    {
+    std::vector<std::pair<cmsys::RegularExpression,
+      std::string> >::iterator passIt;
+    bool forceFail = false;
+    if ( this->TestProperties->RequiredRegularExpressions.size() > 0 )
       {
-      return 0;
+      bool found = false;
+      for ( passIt = this->TestProperties->RequiredRegularExpressions.begin();
+            passIt != this->TestProperties->RequiredRegularExpressions.end();
+            ++ passIt )
+        {
+        if ( passIt->first.find(this->ProcessOutput.c_str()) )
+          {
+          found = true;
+          reason = "Required regular expression found.";
+          }
+        }
+      if ( !found )
+        { 
+        reason = "Required regular expression not found.";
+        forceFail = true;
+        }
+      reason +=  "Regex=["; 
+      for ( passIt = this->TestProperties->RequiredRegularExpressions.begin();
+            passIt != this->TestProperties->RequiredRegularExpressions.end();
+            ++ passIt )
+        {
+        reason += passIt->second;
+        reason += "\n";
+        }
+      reason += "]";
+      }
+    if ( this->TestProperties->ErrorRegularExpressions.size() > 0 )
+      {
+      for ( passIt = this->TestProperties->ErrorRegularExpressions.begin();
+            passIt != this->TestProperties->ErrorRegularExpressions.end();
+            ++ passIt )
+        {
+        if ( passIt->first.find(this->ProcessOutput.c_str()) )
+          {
+          reason = "Error regular expression found in output.";
+          reason += " Regex=[";
+          reason += passIt->second;
+          reason += "]";
+          forceFail = true;
+          }
+        }
+      }
+    if (res == cmsysProcess_State_Exited)
+      {
+      bool success = 
+        !forceFail &&  (retVal == 0 || 
+        this->TestProperties->RequiredRegularExpressions.size());
+      if((success && !this->TestProperties->WillFail) 
+        || (!success && this->TestProperties->WillFail))
+        {
+        this->TestResult.Status = cmCTestTestHandler::COMPLETED;
+        cmCTestLog(this->CTest, HANDLER_OUTPUT, "   Passed  " );
+        }
+      else
+        {
+        this->TestResult.Status = cmCTestTestHandler::FAILED;
+        cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Failed  " << reason );
+        }
+      }
+    else if ( res == cmsysProcess_State_Expired )
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Timeout");
+      this->TestResult.Status = cmCTestTestHandler::TIMEOUT;
+      }
+    else if ( res == cmsysProcess_State_Exception )
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Exception: ");
+      switch ( retVal )
+        {
+        case cmsysProcess_Exception_Fault:
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "SegFault");
+          this->TestResult.Status = cmCTestTestHandler::SEGFAULT;
+          break;
+        case cmsysProcess_Exception_Illegal:
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "Illegal");
+          this->TestResult.Status = cmCTestTestHandler::ILLEGAL;
+          break;
+        case cmsysProcess_Exception_Interrupt:
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "Interrupt");
+          this->TestResult.Status = cmCTestTestHandler::INTERRUPT;
+          break;
+        case cmsysProcess_Exception_Numerical:
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "Numerical");
+          this->TestResult.Status = cmCTestTestHandler::NUMERICAL;
+          break;
+        default:
+          cmCTestLog(this->CTest, HANDLER_OUTPUT, "Other");
+          this->TestResult.Status = cmCTestTestHandler::OTHER_FAULT;
+        }
+      }
+    else // if ( res == cmsysProcess_State_Error )
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Bad command " << res );
+      this->TestResult.Status = cmCTestTestHandler::BAD_COMMAND;
+      }
+
+    passed = this->TestResult.Status == cmCTestTestHandler::COMPLETED;
+
+    char buf[1024];
+    sprintf(buf, "%6.2f sec", this->TestProcess->GetTotalTime());
+    cmCTestLog(this->CTest, HANDLER_OUTPUT, buf << "\n" );
+    if ( this->TestHandler->LogFile )
+      {
+      *this->TestHandler->LogFile << "Test time = " << buf << std::endl;
+      }
+    this->DartProcessing();
+    } 
+  // if this is doing MemCheck then all the output needs to be put into
+  // Output since that is what is parsed by cmCTestMemCheckHandler
+  if(!this->TestHandler->MemCheck)
+    {
+    if ( this->TestResult.Status == cmCTestTestHandler::COMPLETED )
+      {
+      this->TestHandler->CleanTestOutput(this->ProcessOutput, 
+          static_cast<size_t>
+          (this->TestHandler->CustomMaximumPassedTestOutputSize));
+      }
+    else
+      {
+      this->TestHandler->CleanTestOutput(this->ProcessOutput,
+          static_cast<size_t>
+          (this->TestHandler->CustomMaximumFailedTestOutputSize));
       }
     }
-  
-  switch (osvi.dwPlatformId)
+  this->TestResult.Reason = reason;
+  if ( this->TestHandler->LogFile )
     {
-    // Test for the Windows NT product family.
-
-    case VER_PLATFORM_WIN32_NT:
-      
-      // Test for the specific product family.
-
-      if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 2)
+    bool pass = true;
+    const char* reasonType = "Test Pass Reason";
+    if(this->TestResult.Status != cmCTestTestHandler::COMPLETED &&
+       this->TestResult.Status != cmCTestTestHandler::NOT_RUN)
+      {
+      reasonType = "Test Fail Reason";
+      pass = false;
+      }
+    double ttime = this->TestProcess->GetTotalTime();
+    int hours = static_cast<int>(ttime / (60 * 60));
+    int minutes = static_cast<int>(ttime / 60) % 60;
+    int seconds = static_cast<int>(ttime) % 60;
+    char buffer[100];
+    sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+    *this->TestHandler->LogFile
+      << "----------------------------------------------------------"
+      << std::endl;
+    if(this->TestResult.Reason.size())
+      {
+      *this->TestHandler->LogFile << reasonType << ":\n" 
+        << this->TestResult.Reason << "\n";
+      }
+    else 
+      {
+      if(pass)
         {
-        res += "Microsoft Windows Server 2003 family";
+        *this->TestHandler->LogFile << "Test Passed.\n";
         }
-
-      if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 1)
+      else
         {
-        res += "Microsoft Windows XP";
+        *this->TestHandler->LogFile << "Test Failed.\n";
         }
-
-      if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 0)
-        {
-        res += "Microsoft Windows 2000";
-        }
-
-      if (osvi.dwMajorVersion <= 4)
-        {
-        res += "Microsoft Windows NT";
-        }
-
-      // Test for specific product on Windows NT 4.0 SP6 and later.
-
-      if (bOsVersionInfoEx)
-        {
-        // Test for the workstation type.
-
-#if (_MSC_VER >= 1300) 
-        if (osvi.wProductType == VER_NT_WORKSTATION)
-          {
-          if (osvi.dwMajorVersion == 4)
-            {
-            res += " Workstation 4.0";
-            }
-          else if (osvi.wSuiteMask & VER_SUITE_PERSONAL)
-            {
-            res += " Home Edition";
-            }
-          else
-            {
-            res += " Professional";
-            }
-          }
-            
-        // Test for the server type.
-
-        else if (osvi.wProductType == VER_NT_SERVER)
-          {
-          if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 2)
-            {
-            if (osvi.wSuiteMask & VER_SUITE_DATACENTER)
-              {
-              res += " Datacenter Edition";
-              }
-            else if (osvi.wSuiteMask & VER_SUITE_ENTERPRISE)
-              {
-              res += " Enterprise Edition";
-              }
-            else if (osvi.wSuiteMask == VER_SUITE_BLADE)
-              {
-              res += " Web Edition";
-              }
-            else
-              {
-              res += " Standard Edition";
-              }
-            }
-          
-          else if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 0)
-            {
-            if (osvi.wSuiteMask & VER_SUITE_DATACENTER)
-              {
-              res += " Datacenter Server";
-              }
-            else if (osvi.wSuiteMask & VER_SUITE_ENTERPRISE)
-              {
-              res += " Advanced Server";
-              }
-            else
-              {
-              res += " Server";
-              }
-            }
-
-          else  // Windows NT 4.0 
-            {
-            if (osvi.wSuiteMask & VER_SUITE_ENTERPRISE)
-              {
-              res += " Server 4.0, Enterprise Edition";
-              }
-            else
-              {
-              res += " Server 4.0";
-              }
-            }
-          }
-#endif // Visual Studio 7 and up
-        }
-
-      // Test for specific product on Windows NT 4.0 SP5 and earlier
-
-      else  
-        {
-        HKEY hKey;
-        #define BUFSIZE 80
-        char szProductType[BUFSIZE];
-        DWORD dwBufLen=BUFSIZE;
-        LONG lRet;
-
-        lRet = RegOpenKeyEx(
-          HKEY_LOCAL_MACHINE,
-          "SYSTEM\\CurrentControlSet\\Control\\ProductOptions",
-          0, KEY_QUERY_VALUE, &hKey);
-        if (lRet != ERROR_SUCCESS)
-          {
-          return 0;
-          }
-
-        lRet = RegQueryValueEx(hKey, "ProductType", NULL, NULL,
-                               (LPBYTE) szProductType, &dwBufLen);
-
-        if ((lRet != ERROR_SUCCESS) || (dwBufLen > BUFSIZE))
-          {
-          return 0;
-          }
-
-        RegCloseKey(hKey);
-
-        if (lstrcmpi("WINNT", szProductType) == 0)
-          {
-          res += " Workstation";
-          }
-        if (lstrcmpi("LANMANNT", szProductType) == 0)
-          {
-          res += " Server";
-          }
-        if (lstrcmpi("SERVERNT", szProductType) == 0)
-          {
-          res += " Advanced Server";
-          }
-
-        res += " ";
-        sprintf(buffer, "%d", osvi.dwMajorVersion);
-        res += buffer;
-        res += ".";
-        sprintf(buffer, "%d", osvi.dwMinorVersion);
-        res += buffer;
-        }
-
-      // Display service pack (if any) and build number.
-
-      if (osvi.dwMajorVersion == 4 && 
-          lstrcmpi(osvi.szCSDVersion, "Service Pack 6") == 0)
-        {
-        HKEY hKey;
-        LONG lRet;
-
-        // Test for SP6 versus SP6a.
-
-        lRet = RegOpenKeyEx(
-          HKEY_LOCAL_MACHINE,
-          "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Hotfix\\Q246009",
-          0, KEY_QUERY_VALUE, &hKey);
-
-        if (lRet == ERROR_SUCCESS)
-          {
-          res += " Service Pack 6a (Build ";
-          sprintf(buffer, "%d", osvi.dwBuildNumber & 0xFFFF);
-          res += buffer;
-          res += ")";
-          }
-        else // Windows NT 4.0 prior to SP6a
-          {
-          res += " ";
-          res += osvi.szCSDVersion;
-          res += " (Build ";
-          sprintf(buffer, "%d", osvi.dwBuildNumber & 0xFFFF);
-          res += buffer;
-          res += ")";
-          }
-        
-        RegCloseKey(hKey);
-        }
-      else // Windows NT 3.51 and earlier or Windows 2000 and later
-        {
-        res += " ";
-        res += osvi.szCSDVersion;
-        res += " (Build ";
-        sprintf(buffer, "%d", osvi.dwBuildNumber & 0xFFFF);
-        res += buffer;
-        res += ")";
-        }
-
-      break;
-
-      // Test for the Windows 95 product family.
-
-    case VER_PLATFORM_WIN32_WINDOWS:
-
-      if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 0)
-        {
-        res += "Microsoft Windows 95";
-        if (osvi.szCSDVersion[1] == 'C' || osvi.szCSDVersion[1] == 'B')
-          {
-          res += " OSR2";
-          }
-        }
-
-      if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 10)
-        {
-        res += "Microsoft Windows 98";
-        if (osvi.szCSDVersion[1] == 'A')
-          {
-          res += " SE";
-          }
-        }
-
-      if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 90)
-        {
-        res += "Microsoft Windows Millennium Edition";
-        } 
-      break;
-
-    case VER_PLATFORM_WIN32s:
-      
-      res +=  "Microsoft Win32s";
-      break;
+      }
+    *this->TestHandler->LogFile << "\"" << this->TestProperties->Name.c_str()
+      << "\" end time: " << this->CTest->CurrentTime() << std::endl
+      << "\"" << this->TestProperties->Name.c_str() << "\" time elapsed: "
+      << buffer << std::endl
+      << "----------------------------------------------------------"
+      << std::endl << std::endl;
     }
-#endif
+  this->TestResult.Output = this->ProcessOutput;
+  this->TestResult.ReturnValue = this->TestProcess->GetExitValue();
+  this->TestResult.CompletionStatus = "Completed";
+  this->TestResult.ExecutionTime = this->TestProcess->GetTotalTime();
+  this->TestHandler->TestResults.push_back( this->TestResult );
 
-  return res;
+  delete this->TestProcess;
+  return passed;
 }

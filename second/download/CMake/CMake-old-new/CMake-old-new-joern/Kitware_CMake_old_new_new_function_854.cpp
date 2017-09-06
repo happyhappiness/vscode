@@ -1,24 +1,28 @@
-static int
-zip_deflate_init(struct archive_read *a, struct zip *zip)
+int
+archive_read_support_filter_lzma(struct archive *_a)
 {
-	int r;
+	struct archive_read *a = (struct archive_read *)_a;
+	struct archive_read_filter_bidder *bidder;
 
-	/* If we haven't yet read any data, initialize the decompressor. */
-	if (!zip->decompress_init) {
-		if (zip->stream_valid)
-			r = inflateReset(&zip->stream);
-		else
-			r = inflateInit2(&zip->stream,
-			    -15 /* Don't check for zlib header */);
-		if (r != Z_OK) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Can't initialize ZIP decompression.");
-			return (ARCHIVE_FATAL);
-		}
-		/* Stream structure has been set up. */
-		zip->stream_valid = 1;
-		/* We've initialized decompression for this stream. */
-		zip->decompress_init = 1;
-	}
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_filter_lzma");
+
+	if (__archive_read_get_bidder(a, &bidder) != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	bidder->data = NULL;
+	bidder->name = "lzma";
+	bidder->bid = lzma_bidder_bid;
+	bidder->init = lzma_bidder_init;
+	bidder->options = NULL;
+	bidder->free = NULL;
+#if HAVE_LZMA_H && HAVE_LIBLZMA
 	return (ARCHIVE_OK);
+#elif HAVE_LZMADEC_H && HAVE_LIBLZMADEC
+	return (ARCHIVE_OK);
+#else
+	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external lzma program for lzma decompression");
+	return (ARCHIVE_WARN);
+#endif
 }

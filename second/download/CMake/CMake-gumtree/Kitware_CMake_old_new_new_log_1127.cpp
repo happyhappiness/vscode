@@ -1,1 +1,1 @@
-fprintf(ofp, "# include <io.h>\n");
+sprintf(buf, "%u", this->VersionFoundPatch);

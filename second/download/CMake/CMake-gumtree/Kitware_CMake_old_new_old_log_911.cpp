@@ -1,2 +1,1 @@
-archive_set_error(_a, -1,
-	    "External compression programs not supported on this platform");
+archive_set_error(&a->archive, errno, "Seek error");

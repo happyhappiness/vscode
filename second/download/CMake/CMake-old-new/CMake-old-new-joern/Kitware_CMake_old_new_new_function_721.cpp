@@ -1,61 +1,56 @@
-std::vector<cmComputeLinkDepends::LinkEntry> const&
-cmComputeLinkDepends::Compute()
+static int
+parse_device(dev_t *pdev, struct archive *a, char *val)
 {
-  // Follow the link dependencies of the target to be linked.
-  this->AddDirectLinkEntries();
+#define MAX_PACK_ARGS 3
+	unsigned long numbers[MAX_PACK_ARGS];
+	char *p, *dev;
+	int argc;
+	pack_t *pack;
+	dev_t result;
+	const char *error = NULL;
 
-  // Complete the breadth-first search of dependencies.
-  while(!this->BFSQueue.empty())
-    {
-    // Get the next entry.
-    BFSEntry qe = this->BFSQueue.front();
-    this->BFSQueue.pop();
-
-    // Follow the entry's dependencies.
-    this->FollowLinkEntry(qe);
-    }
-
-  // Complete the search of shared library dependencies.
-  while(!this->SharedDepQueue.empty())
-    {
-    // Handle the next entry.
-    this->HandleSharedDependency(this->SharedDepQueue.front());
-    this->SharedDepQueue.pop();
-    }
-
-  // Infer dependencies of targets for which they were not known.
-  this->InferDependencies();
-
-  // Cleanup the constraint graph.
-  this->CleanConstraintGraph();
-
-  // Display the constraint graph.
-  if(this->DebugMode)
-    {
-    fprintf(stderr,
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName().c_str(),
-            this->HasConfig?this->Config.c_str():"noconfig");
-    this->DisplayConstraintGraph();
-    }
-
-  // Compute the final ordering.
-  this->OrderLinkEntires();
-
-  // Compute the final set of link entries.
-  for(std::vector<int>::const_iterator li = this->FinalLinkOrder.begin();
-      li != this->FinalLinkOrder.end(); ++li)
-    {
-    this->FinalLinkEntries.push_back(this->EntryList[*li]);
-    }
-
-  // Display the final set.
-  if(this->DebugMode)
-    {
-    this->DisplayFinalEntries();
-    }
-
-  return this->FinalLinkEntries;
+	memset(pdev, 0, sizeof(*pdev));
+	if ((dev = strchr(val, ',')) != NULL) {
+		/*
+		 * Device's major/minor are given in a specified format.
+		 * Decode and pack it accordingly.
+		 */
+		*dev++ = '\0';
+		if ((pack = pack_find(val)) == NULL) {
+			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Unknown format `%s'", val);
+			return ARCHIVE_WARN;
+		}
+		argc = 0;
+		while ((p = la_strsep(&dev, ",")) != NULL) {
+			if (*p == '\0') {
+				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Missing number");
+				return ARCHIVE_WARN;
+			}
+			numbers[argc++] = mtree_atol(&p);
+			if (argc > MAX_PACK_ARGS) {
+				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Too many arguments");
+				return ARCHIVE_WARN;
+			}
+		}
+		if (argc < 2) {
+			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Not enough arguments");
+			return ARCHIVE_WARN;
+		}
+		result = (*pack)(argc, numbers, &error);
+		if (error != NULL) {
+			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "%s", error);
+			return ARCHIVE_WARN;
+		}
+	} else {
+		/* file system raw value. */
+		result = (dev_t)mtree_atol(&val);
+	}
+	*pdev = result;
+	return ARCHIVE_OK;
+#undef MAX_PACK_ARGS
 }

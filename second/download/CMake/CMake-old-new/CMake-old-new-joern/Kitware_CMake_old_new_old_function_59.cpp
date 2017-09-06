@@ -1,36 +1,93 @@
-static CURLcode ftp_state_size_resp(struct connectdata *conn,
-                                    int ftpcode,
-                                    ftpstate instate)
+static int
+setup_xattrs(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-  CURLcode result = CURLE_OK;
-  struct Curl_easy *data=conn->data;
-  curl_off_t filesize;
-  char *buf = data->state.buffer;
+	char *list, *p;
+	const char *path;
+	ssize_t list_size;
 
-  /* get the size from the ascii string: */
-  filesize = (ftpcode == 213)?curlx_strtoofft(buf+4, NULL, 0):-1;
+	path = NULL;
 
-  if(instate == FTP_SIZE) {
-#ifdef CURL_FTP_HTTPSTYLE_HEAD
-    if(-1 != filesize) {
-      snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
-               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);
-      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-      if(result)
-        return result;
-    }
+	if (*fd < 0) {
+		path = archive_entry_sourcepath(entry);
+		if (path == NULL || (a->tree != NULL &&
+		    a->tree_enter_working_dir(a->tree) != 0))
+			path = archive_entry_pathname(entry);
+		if (path == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Couldn't determine file path to read "
+			    "extended attributes");
+			return (ARCHIVE_WARN);
+		}
+		if (a->tree != NULL && (a->follow_symlinks ||
+		    archive_entry_filetype(entry) != AE_IFLNK)) {
+			*fd = a->open_on_current_dir(a->tree,
+			    path, O_RDONLY | O_NONBLOCK);
+		}
+	}
+
+#if HAVE_FLISTXATTR
+	if (*fd >= 0)
+		list_size = flistxattr(*fd, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = llistxattr(path, NULL, 0);
+	else
+		list_size = listxattr(path, NULL, 0);
+#elif HAVE_FLISTEA
+	if (*fd >= 0)
+		list_size = flistea(*fd, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = llistea(path, NULL, 0);
+	else
+		list_size = listea(path, NULL, 0);
 #endif
-    Curl_pgrsSetDownloadSize(data, filesize);
-    result = ftp_state_rest(conn);
-  }
-  else if(instate == FTP_RETR_SIZE) {
-    Curl_pgrsSetDownloadSize(data, filesize);
-    result = ftp_state_retr(conn, filesize);
-  }
-  else if(instate == FTP_STOR_SIZE) {
-    data->state.resume_from = filesize;
-    result = ftp_state_ul_setup(conn, TRUE);
-  }
 
-  return result;
+	if (list_size == -1) {
+		if (errno == ENOTSUP || errno == ENOSYS)
+			return (ARCHIVE_OK);
+		archive_set_error(&a->archive, errno,
+			"Couldn't list extended attributes");
+		return (ARCHIVE_WARN);
+	}
+
+	if (list_size == 0)
+		return (ARCHIVE_OK);
+
+	if ((list = malloc(list_size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+#if HAVE_FLISTXATTR
+	if (*fd >= 0)
+		list_size = flistxattr(*fd, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = llistxattr(path, list, list_size);
+	else
+		list_size = listxattr(path, list, list_size);
+#elif HAVE_FLISTEA
+	if (*fd >= 0)
+		list_size = flistea(*fd, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = llistea(path, list, list_size);
+	else
+		list_size = listea(path, list, list_size);
+#endif
+
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't retrieve extended attributes");
+		free(list);
+		return (ARCHIVE_WARN);
+	}
+
+	for (p = list; (p - list) < list_size; p += strlen(p) + 1) {
+		if (strncmp(p, "system.", 7) == 0 ||
+				strncmp(p, "xfsroot.", 8) == 0)
+			continue;
+		setup_xattr(a, entry, p, *fd, path);
+	}
+
+	free(list);
+	return (ARCHIVE_OK);
 }

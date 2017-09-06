@@ -1,85 +1,100 @@
-int cmcmd::ExecuteEchoColor(std::vector<std::string>& args)
+void
+DumpExternalsObjects(PIMAGE_SYMBOL pSymbolTable,
+                     PIMAGE_SECTION_HEADER pSectionHeaders,
+                     FILE *fout, DWORD_PTR cSymbols)
 {
-  // The arguments are
-  //   argv[0] == <cmake-executable>
-  //   argv[1] == cmake_echo_color
+   unsigned i;
+   PSTR stringTable;
+   std::string symbol;
+   DWORD SectChar;
+   static int fImportFlag = -1;  /*  The status is nor defined yet */
 
-  bool enabled = true;
-  int color = cmsysTerminal_Color_Normal;
-  bool newline = true;
-  for(unsigned int i=2; i < args.size(); ++i)
-    {
-    if(args[i].find("--switch=") == 0)
-      {
-      // Enable or disable color based on the switch value.
-      std::string value = args[i].substr(9);
-      if(!value.empty())
-        {
-        if(cmSystemTools::IsOn(value.c_str()))
-          {
-          enabled = true;
-          }
-        else
-          {
-          enabled = false;
-          }
-        }
-      }
-    else if(args[i] == "--normal")
-      {
-      color = cmsysTerminal_Color_Normal;
-      }
-    else if(args[i] == "--black")
-      {
-      color = cmsysTerminal_Color_ForegroundBlack;
-      }
-    else if(args[i] == "--red")
-      {
-      color = cmsysTerminal_Color_ForegroundRed;
-      }
-    else if(args[i] == "--green")
-      {
-      color = cmsysTerminal_Color_ForegroundGreen;
-      }
-    else if(args[i] == "--yellow")
-      {
-      color = cmsysTerminal_Color_ForegroundYellow;
-      }
-    else if(args[i] == "--blue")
-      {
-      color = cmsysTerminal_Color_ForegroundBlue;
-      }
-    else if(args[i] == "--magenta")
-      {
-      color = cmsysTerminal_Color_ForegroundMagenta;
-      }
-    else if(args[i] == "--cyan")
-      {
-      color = cmsysTerminal_Color_ForegroundCyan;
-      }
-    else if(args[i] == "--white")
-      {
-      color = cmsysTerminal_Color_ForegroundWhite;
-      }
-    else if(args[i] == "--bold")
-      {
-      color |= cmsysTerminal_Color_ForegroundBold;
-      }
-    else if(args[i] == "--no-newline")
-      {
-      newline = false;
-      }
-    else if(args[i] == "--newline")
-      {
-      newline = true;
-      }
-    else
-      {
-      // Color is enabled.  Print with the current color.
-      cmSystemTools::MakefileColorEcho(color, args[i].c_str(),
-                                       newline, enabled);
-      }
-    }
+   /*
+   * The string table apparently starts right after the symbol table
+   */
+   stringTable = (PSTR)&pSymbolTable[cSymbols];
 
-  return 0;
+   for ( i=0; i < cSymbols; i++ ) {
+      if (pSymbolTable->SectionNumber > 0 &&
+          ( pSymbolTable->Type == 0x20 || pSymbolTable->Type == 0x0)) {
+         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
+            /*
+            *    The name of the Function entry points
+            */
+            if (pSymbolTable->N.Name.Short != 0) {
+               symbol = "";
+               symbol.insert(0, (const char *)pSymbolTable->N.ShortName, 8);
+            } else {
+               symbol = stringTable + pSymbolTable->N.Name.Long;
+            }
+
+            // clear out any leading spaces
+            while (isspace(symbol[0])) symbol.erase(0,1);
+            // if it starts with _ and has an @ then it is a __cdecl
+            // so remove the @ stuff for the export
+            if(symbol[0] == '_') {
+               std::string::size_type posAt = symbol.find('@');
+               if (posAt != std::string::npos) {
+                  symbol.erase(posAt);
+               }
+            }
+            if (symbol[0] == '_') symbol.erase(0,1);
+            if (fImportFlag) {
+               fImportFlag = 0;
+               fprintf(fout,"EXPORTS \n");
+            }
+            /*
+            Check whether it is "Scalar deleting destructor" and
+            "Vector deleting destructor"
+            */
+            const char *scalarPrefix = "??_G";
+            const char *vectorPrefix = "??_E";
+            // original code had a check for
+            // symbol.find("real@") == std::string::npos)
+            // but if this disallows memmber functions with the name real
+            // if scalarPrefix and vectorPrefix are not found then print
+            // the symbol
+            if (symbol.compare(0, 4, scalarPrefix) &&
+                symbol.compare(0, 4, vectorPrefix) )
+            {
+               SectChar =
+                pSectionHeaders[pSymbolTable->SectionNumber-1].Characteristics;
+               if (!pSymbolTable->Type  && (SectChar & IMAGE_SCN_MEM_WRITE)) {
+                  // Read only (i.e. constants) must be excluded
+                  fprintf(fout, "\t%s \t DATA\n", symbol.c_str());
+               } else {
+                  if ( pSymbolTable->Type  ||
+                       !(SectChar & IMAGE_SCN_MEM_READ)) {
+                     fprintf(fout, "\t%s\n", symbol.c_str());
+                  } else {
+                     // printf(" strange symbol: %s \n",symbol.c_str());
+                  }
+               }
+            }
+         }
+      }
+      else if (pSymbolTable->SectionNumber == IMAGE_SYM_UNDEFINED &&
+               !pSymbolTable->Type && 0) {
+         /*
+         *    The IMPORT global variable entry points
+         */
+         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
+            symbol = stringTable + pSymbolTable->N.Name.Long;
+            while (isspace(symbol[0]))  symbol.erase(0,1);
+            if (symbol[0] == '_') symbol.erase(0,1);
+            if (!fImportFlag) {
+               fImportFlag = 1;
+               fprintf(fout,"IMPORTS \n");
+            }
+            fprintf(fout, "\t%s DATA \n", symbol.c_str()+1);
+         }
+      }
+
+      /*
+      * Take into account any aux symbols
+      */
+      i += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable++;
+   }
 }

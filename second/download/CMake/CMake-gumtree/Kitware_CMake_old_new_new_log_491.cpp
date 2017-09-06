@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, EINVAL,
-			    "Can't find long filename for GNU/SVR4 archive entry");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Decryption is unsupported due to lack of "
+			    "crypto library");

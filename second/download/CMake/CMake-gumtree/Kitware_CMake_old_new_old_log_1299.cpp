@@ -1,1 +1,1 @@
-printf("%s\n", state_name);
+fprintf(stderr, "tar_close(): %s\n", strerror(errno));

@@ -1,1 +1,1 @@
-fprintf(stderr,"Interrupt");
+std::cerr << "Illegal";

@@ -1,1 +1,0 @@
-fprintf(fout,"#include \"vtkVersion.h\"\n");

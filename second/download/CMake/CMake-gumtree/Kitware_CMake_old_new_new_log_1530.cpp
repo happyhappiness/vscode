@@ -1,1 +1,1 @@
-sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently On)");
+fprintf(fout,"%s ",compileFlags[i].c_str());

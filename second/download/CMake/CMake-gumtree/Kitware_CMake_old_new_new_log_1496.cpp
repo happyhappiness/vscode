@@ -1,1 +1,2 @@
-fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
+sprintf(tmp,"CMake %d.%d - %s", cmake::GetMajorVersion(),
+          cmake::GetMinorVersion(), cmake::GetReleaseVersion());

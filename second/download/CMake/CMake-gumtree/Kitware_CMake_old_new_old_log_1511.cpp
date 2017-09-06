@@ -1,1 +1,2 @@
-sprintf(msg, "FilesDiffer failed to read files (allocated: %lu, source: %lu, dest: %lu)", statSource.st_size, finSource.gcount(), finDestination.gcount());
+fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
+            percent, int(failed.size()), total);

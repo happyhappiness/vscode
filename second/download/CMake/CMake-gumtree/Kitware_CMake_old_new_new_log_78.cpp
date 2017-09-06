@@ -1,1 +1,1 @@
-snprintf(buf, len, "%ld%s", conn->port, hostname);
+sprintf(buf, "%6.2f sec", labelTimes[*i]);

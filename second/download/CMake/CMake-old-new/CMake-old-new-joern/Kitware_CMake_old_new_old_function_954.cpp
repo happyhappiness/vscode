@@ -1,444 +1,158 @@
-int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
+static int
+archive_read_format_rar_read_header(struct archive_read *a,
+                                    struct archive_entry *entry)
 {
-  this->BinaryDirectory = argv[1].c_str();
-  this->OutputFile = "";
-  // which signature were we called with ?
-  this->SrcFileSignature = false;
-  unsigned int i;
+  const void *h;
+  const char *p;
+  struct rar *rar;
+  size_t skip;
+  char head_type;
+  int ret;
+  unsigned flags;
 
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  const char* targetName = 0;
-  char targetNameBuf[64];
-  int extraArgs = 0;
+  a->archive.archive_format = ARCHIVE_FORMAT_RAR;
+  if (a->archive.archive_format_name == NULL)
+    a->archive.archive_format_name = "RAR";
 
-  // look for CMAKE_FLAGS and store them
-  std::vector<std::string> cmakeFlags;
-  for (i = 3; i < argv.size(); ++i)
+  rar = (struct rar *)(a->format->data);
+
+  /* RAR files can be generated without EOF headers, so return ARCHIVE_EOF if
+  * this fails.
+  */
+  if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
+    return (ARCHIVE_EOF);
+
+  p = h;
+  if (rar->found_first_header == 0 &&
+     ((p[0] == 'M' && p[1] == 'Z') || memcmp(p, "\x7F\x45LF", 4) == 0)) {
+    /* This is an executable ? Must be self-extracting... */
+    ret = skip_sfx(a);
+    if (ret < ARCHIVE_WARN)
+      return (ret);
+  }
+  rar->found_first_header = 1;
+
+  while (1)
+  {
+    unsigned long crc32_val;
+
+    if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
+      return (ARCHIVE_FATAL);
+    p = h;
+
+    head_type = p[2];
+    switch(head_type)
     {
-    if (argv[i] == "CMAKE_FLAGS")
-      {
-     // CMAKE_FLAGS is the first argument because we need an argv[0] that
-     // is not used, so it matches regular command line parsing which has
-     // the program name as arg 0
-      for (; i < argv.size() && argv[i] != "COMPILE_DEFINITIONS" &&
-             argv[i] != "OUTPUT_VARIABLE" &&
-             argv[i] != "LINK_LIBRARIES";
-           ++i)
-        {
-        extraArgs++;
-        cmakeFlags.push_back(argv[i]);
-        }
+    case MARK_HEAD:
+      if (memcmp(p, RAR_SIGNATURE, 7) != 0) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid marker header");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_read_consume(a, 7);
       break;
-      }
-    }
 
-  // look for OUTPUT_VARIABLE and store them
-  std::string outputVariable;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "OUTPUT_VARIABLE")
-      {
-      if ( argv.size() <= (i+1) )
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-          "OUTPUT_VARIABLE specified but there is no variable");
-        return -1;
+    case MAIN_HEAD:
+      rar->main_flags = archive_le16dec(p + 3);
+      skip = archive_le16dec(p + 5);
+      if (skip < 7 + sizeof(rar->reserved1) + sizeof(rar->reserved2)) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid header size");
+        return (ARCHIVE_FATAL);
+      }
+      if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
+        return (ARCHIVE_FATAL);
+      p = h;
+      memcpy(rar->reserved1, p + 7, sizeof(rar->reserved1));
+      memcpy(rar->reserved2, p + 7 + sizeof(rar->reserved1),
+             sizeof(rar->reserved2));
+      if (rar->main_flags & MHD_ENCRYPTVER) {
+        if (skip < 7 + sizeof(rar->reserved1) + sizeof(rar->reserved2)+1) {
+          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+            "Invalid header size");
+          return (ARCHIVE_FATAL);
         }
-      extraArgs += 2;
-      outputVariable = argv[i+1];
+        rar->encryptver = *(p + 7 + sizeof(rar->reserved1) +
+                            sizeof(rar->reserved2));
+      }
+
+      if (rar->main_flags & MHD_VOLUME ||
+          rar->main_flags & MHD_FIRSTVOLUME)
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "RAR volume support unavailable.");
+        return (ARCHIVE_FATAL);
+      }
+      if (rar->main_flags & MHD_PASSWORD)
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "RAR encryption support unavailable.");
+        return (ARCHIVE_FATAL);
+      }
+
+      crc32_val = crc32(0, (const unsigned char *)p + 2, skip - 2);
+      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Header CRC error");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_read_consume(a, skip);
       break;
-      }
-    }
 
-  // look for COMPILE_DEFINITIONS and store them
-  std::vector<std::string> compileFlags;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "COMPILE_DEFINITIONS")
+    case FILE_HEAD:
+      return read_header(a, entry, head_type);
+
+    case COMM_HEAD:
+    case AV_HEAD:
+    case SUB_HEAD:
+    case PROTECT_HEAD:
+    case SIGN_HEAD:
+      flags = archive_le16dec(p + 3);
+      skip = archive_le16dec(p + 5);
+      if (skip < 7) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid header size");
+        return (ARCHIVE_FATAL);
+      }
+      if (skip > 7) {
+        if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
+          return (ARCHIVE_FATAL);
+        p = h;
+      }
+      if (flags & HD_ADD_SIZE_PRESENT)
       {
-      extraArgs++;
-      for (i = i + 1; i < argv.size() && argv[i] != "CMAKE_FLAGS" &&
-             argv[i] != "OUTPUT_VARIABLE" &&
-             argv[i] != "LINK_LIBRARIES";
-           ++i)
-        {
-        extraArgs++;
-        compileFlags.push_back(argv[i]);
+        if (skip < 7 + 4) {
+          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+            "Invalid header size");
+          return (ARCHIVE_FATAL);
         }
+        skip += archive_le32dec(p + 7);
+        if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
+          return (ARCHIVE_FATAL);
+        p = h;
+      }
+
+      crc32_val = crc32(0, (const unsigned char *)p + 2, skip - 2);
+      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Header CRC error");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_read_consume(a, skip);
       break;
-      }
-    }
 
-  std::vector<cmTarget*> targets;
-  std::string libsToLink = " ";
-  bool useOldLinkLibs = true;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "LINK_LIBRARIES")
-      {
-      if ( argv.size() <= (i+1) )
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-          "LINK_LIBRARIES specified but there is no content");
-        return -1;
-        }
-      extraArgs++;
-      ++i;
-      useOldLinkLibs = false;
-      for ( ; i < argv.size() && argv[i] != "CMAKE_FLAGS"
-          && argv[i] != "COMPILE_DEFINITIONS" && argv[i] != "OUTPUT_VARIABLE";
-          ++i)
-        {
-        extraArgs++;
-        libsToLink += argv[i] + " ";
-        cmTarget *tgt = this->Makefile->FindTargetToUse(argv[i].c_str());
-        if (!tgt)
-          {
-          continue;
-          }
-        switch(tgt->GetType())
-        {
-        case cmTarget::SHARED_LIBRARY:
-        case cmTarget::STATIC_LIBRARY:
-        case cmTarget::UNKNOWN_LIBRARY:
-          break;
-        case cmTarget::EXECUTABLE:
-          if (tgt->IsExecutableWithExports())
-            {
-            break;
-            }
-        default:
-          this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-            "Only libraries may be used as try_compile IMPORTED "
-            "LINK_LIBRARIES.  Got " + std::string(tgt->GetName()) + " of "
-            "type " + tgt->GetTargetTypeName(tgt->GetType()) + ".");
-          return -1;
-        }
-        if (!tgt->IsImported())
-          {
-          continue;
-          }
-        targets.push_back(tgt);
-        }
+    case NEWSUB_HEAD:
+      if ((ret = read_header(a, entry, head_type)) < ARCHIVE_WARN)
+        return ret;
       break;
-      }
+
+    case ENDARC_HEAD:
+      return (ARCHIVE_EOF);
+
+    default:
+      archive_set_error(&a->archive,  ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Bad RAR file");
+      return (ARCHIVE_FATAL);
     }
-
-  // look for COPY_FILE
-  std::string copyFile;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "COPY_FILE")
-      {
-      if ( argv.size() <= (i+1) )
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-          "COPY_FILE specified but there is no variable");
-        return -1;
-        }
-      extraArgs += 2;
-      copyFile = argv[i+1];
-      break;
-      }
-    }
-
-  // do we have a srcfile signature
-  if (argv.size() - extraArgs == 3)
-    {
-    this->SrcFileSignature = true;
-    }
-
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (this->SrcFileSignature)
-    {
-    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
-    this->BinaryDirectory += "/CMakeTmp";
-    }
-  else
-    {
-    // only valid for srcfile signatures
-    if (compileFlags.size())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COMPILE_FLAGS specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    if (copyFile.size())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COPY_FILE specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
-
-  // do not allow recursive try Compiles
-  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory())
-    {
-    cmOStringStream e;
-    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
-      << "  " << this->BinaryDirectory << "\n";
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-    return -1;
-    }
-
-  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (this->SrcFileSignature)
-    {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile.c_str());
-
-    // we need to create a directory and CMakeLists file etc...
-    // first create the directories
-    sourceDirectory = this->BinaryDirectory.c_str();
-
-    // now create a CMakeLists.txt file in that directory
-    FILE *fout = fopen(outFileName.c_str(),"w");
-    if (!fout)
-      {
-      cmOStringStream e;
-      e << "Failed to open\n"
-        << "  " << outFileName.c_str() << "\n"
-        << cmSystemTools::GetLastSystemError();
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-      return -1;
-      }
-
-    std::string source = argv[2];
-    std::string ext = cmSystemTools::GetFilenameLastExtension(source);
-    const char* lang =(this->Makefile->GetCMakeInstance()->GetGlobalGenerator()
-                        ->GetLanguageFromExtension(ext.c_str()));
-    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
-    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
-            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
-            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
-    if(def)
-      {
-      fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
-      }
-
-    const char* rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
-    std::string rulesOverrideLang =
-      rulesOverrideBase + (lang ? std::string("_") + lang : std::string(""));
-    if(const char* rulesOverridePath =
-       this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
-      {
-      fprintf(fout, "SET(%s \"%s\")\n",
-              rulesOverrideLang.c_str(), rulesOverridePath);
-      }
-    else if(const char* rulesOverridePath2 =
-            this->Makefile->GetDefinition(rulesOverrideBase))
-      {
-      fprintf(fout, "SET(%s \"%s\")\n",
-              rulesOverrideBase, rulesOverridePath2);
-      }
-
-    if(lang)
-      {
-      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE %s)\n", lang);
-      }
-    else
-      {
-      fclose(fout);
-      cmOStringStream err;
-      err << "Unknown extension \"" << ext << "\" for file\n"
-          << "  " << source << "\n"
-          << "try_compile() works only for enabled languages.  "
-          << "Currently these are:\n ";
-      std::vector<std::string> langs;
-      this->Makefile->GetCMakeInstance()->GetGlobalGenerator()->
-        GetEnabledLanguages(langs);
-      for(std::vector<std::string>::iterator l = langs.begin();
-          l != langs.end(); ++l)
-        {
-        err << " " << *l;
-        }
-      err << "\nSee project() command to enable other languages.";
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
-      return -1;
-      }
-    std::string langFlags = "CMAKE_";
-    langFlags +=  lang;
-    langFlags += "_FLAGS";
-    fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");
-    fprintf(fout, "SET(CMAKE_%s_FLAGS \"", lang);
-    const char* flags = this->Makefile->GetDefinition(langFlags.c_str());
-    if(flags)
-      {
-      fprintf(fout, " %s ", flags);
-      }
-    fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
-    fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "SET(CMAKE_SUPPRESS_REGENERATION 1)\n");
-    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (compileFlags.size())
-      {
-      fprintf(fout, "ADD_DEFINITIONS( ");
-      for (i = 0; i < compileFlags.size(); ++i)
-        {
-        fprintf(fout,"%s ",compileFlags[i].c_str());
-        }
-      fprintf(fout, ")\n");
-      }
-
-    /* Use a random file name to avoid rapid creation and deletion
-       of the same executable name (some filesystems fail on that).  */
-    sprintf(targetNameBuf, "cmTryCompileExec%u",
-            cmSystemTools::RandomSeed());
-    targetName = targetNameBuf;
-
-    if (!targets.empty())
-      {
-      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
-      cmExportTryCompileFileGenerator tcfg;
-      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
-      tcfg.SetExports(targets);
-      tcfg.SetConfig(this->Makefile->GetDefinition(
-                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
-
-      if(!tcfg.GenerateImportFile())
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-                                     "could not write export file.");
-        fclose(fout);
-        return -1;
-        }
-      fprintf(fout,
-              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
-              fname.c_str());
-      }
-
-    /* for the TRY_COMPILEs we want to be able to specify the architecture.
-      So the user can set CMAKE_OSX_ARCHITECTURE to i386;ppc and then set
-      CMAKE_TRY_COMPILE_OSX_ARCHITECTURE first to i386 and then to ppc to
-      have the tests run for each specific architecture. Since
-      cmLocalGenerator doesn't allow building for "the other"
-      architecture only via CMAKE_OSX_ARCHITECTURES.
-      */
-    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition(
-                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_SYSROOT=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
-      cmakeFlags.push_back(flag);
-      }
-    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
-      {
-      fprintf(fout, "SET(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
-      }
-
-    /* Put the executable at a known location (for COPY_FILE).  */
-    fprintf(fout, "SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-            this->BinaryDirectory.c_str());
-    /* Create the actual executable.  */
-    fprintf(fout, "ADD_EXECUTABLE(%s \"%s\")\n", targetName, source.c_str());
-    if (useOldLinkLibs)
-      {
-      fprintf(fout,
-              "TARGET_LINK_LIBRARIES(%s ${LINK_LIBRARIES})\n",targetName);
-      }
-    else
-      {
-      fprintf(fout, "TARGET_LINK_LIBRARIES(%s %s)\n",
-              targetName,
-              libsToLink.c_str());
-      }
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
-    // if the source is not in CMakeTmp
-    if(source.find("CMakeTmp") == source.npos)
-      {
-      this->Makefile->AddCMakeDependFile(source.c_str());
-      }
-
-    }
-  // else the srcdir bindir project target signature
-  else
-    {
-    projectName = argv[3].c_str();
-
-    if (argv.size() - extraArgs == 5)
-      {
-      targetName = argv[4].c_str();
-      }
-    }
-
-  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
-  cmSystemTools::ResetErrorOccuredFlag();
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = this->Makefile->TryCompile(sourceDirectory,
-                                       this->BinaryDirectory.c_str(),
-                                       projectName,
-                                       targetName,
-                                       this->SrcFileSignature,
-                                       &cmakeFlags,
-                                       &output);
-  if ( erroroc )
-    {
-    cmSystemTools::SetErrorOccured();
-    }
-
-  // set the result var to the return value to indicate success or failure
-  this->Makefile->AddCacheDefinition(argv[0].c_str(),
-                                     (res == 0 ? "TRUE" : "FALSE"),
-                                     "Result of TRY_COMPILE",
-                                     cmCacheManager::INTERNAL);
-
-  if ( outputVariable.size() > 0 )
-    {
-    this->Makefile->AddDefinition(outputVariable.c_str(), output.c_str());
-    }
-
-  if (this->SrcFileSignature)
-    {
-    this->FindOutputFile(targetName);
-
-    if ((res==0) && (copyFile.size()))
-      {
-      if(this->OutputFile.empty() ||
-         !cmSystemTools::CopyFileAlways(this->OutputFile.c_str(),
-                                        copyFile.c_str()))
-        {
-        cmOStringStream emsg;
-        emsg << "Cannot copy output executable\n"
-             << "  '" << this->OutputFile.c_str() << "'\n"
-             << "to destination specified by COPY_FILE:\n"
-             << "  '" << copyFile.c_str() << "'\n";
-        if(!this->FindErrorMessage.empty())
-          {
-          emsg << this->FindErrorMessage.c_str();
-          }
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
-        return -1;
-        }
-      }
-    }
-  return res;
+  }
 }

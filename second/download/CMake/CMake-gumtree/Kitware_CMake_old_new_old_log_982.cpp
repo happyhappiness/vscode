@@ -1,1 +1,1 @@
-fprintf(stderr, "No current working directory\n");
+fprintf(fout,"%s ",compileFlags[i].c_str());

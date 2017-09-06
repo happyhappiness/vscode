@@ -1,1 +1,1 @@
-fprintf(ofp, "static void kwsys_unlink(const char* fname)\n");
+fprintf(stderr, "DIRECTORY_DEF_DEBUG should be defined in C\n");

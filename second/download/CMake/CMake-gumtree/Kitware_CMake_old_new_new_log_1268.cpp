@@ -1,1 +1,2 @@
-cmSystemTools::Error("Problem with tar_append_eof(): ", strerror(errno));
+fprintf(fout,"  if (!d) Py_FatalError"
+          "(\"can't get dictionary for module %s!\");\n\n", kitName);

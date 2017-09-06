@@ -1,84 +1,30 @@
-static int
-setup_sparse_from_disk(struct archive_read_disk *a,
-    struct archive_entry *entry, HANDLE handle)
+int
+archive_read_disk_open_w(struct archive *_a, const wchar_t *pathname)
 {
-	FILE_ALLOCATED_RANGE_BUFFER range, *outranges = NULL;
-	size_t outranges_size;
-	int64_t entry_size = archive_entry_size(entry);
-	int exit_sts = ARCHIVE_OK;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	struct archive_string path;
+	int ret;
 
-	range.FileOffset.QuadPart = 0;
-	range.Length.QuadPart = entry_size;
-	outranges_size = 2048;
-	outranges = (FILE_ALLOCATED_RANGE_BUFFER *)malloc(outranges_size);
-	if (outranges == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-			"Couldn't allocate memory");
-		exit_sts = ARCHIVE_FATAL;
-		goto exit_setup_sparse;
-	}
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_NEW | ARCHIVE_STATE_CLOSED,
+	    "archive_read_disk_open_w");
+	archive_clear_error(&a->archive);
 
-	for (;;) {
-		DWORD retbytes;
-		BOOL ret;
+	/* Make a char string from a wchar_t string. */
+	archive_string_init(&path);
+	if (archive_string_append_from_wcs(&path, pathname,
+	    wcslen(pathname)) != 0) {
+		if (errno == ENOMEM)
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory");
+		else
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Can't convert a path to a char string");
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		ret = ARCHIVE_FATAL;
+	} else
+		ret = _archive_read_disk_open(_a, path.s);
 
-		for (;;) {
-			ret = DeviceIoControl(handle,
-			    FSCTL_QUERY_ALLOCATED_RANGES,
-			    &range, sizeof(range), outranges,
-			    (DWORD)outranges_size, &retbytes, NULL);
-			if (ret == 0 && GetLastError() == ERROR_MORE_DATA) {
-				free(outranges);
-				outranges_size *= 2;
-				outranges = (FILE_ALLOCATED_RANGE_BUFFER *)
-				    malloc(outranges_size);
-				if (outranges == NULL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Couldn't allocate memory");
-					exit_sts = ARCHIVE_FATAL;
-					goto exit_setup_sparse;
-				}
-				continue;
-			} else
-				break;
-		}
-		if (ret != 0) {
-			if (retbytes > 0) {
-				DWORD i, n;
-
-				n = retbytes / sizeof(outranges[0]);
-				if (n == 1 &&
-				    outranges[0].FileOffset.QuadPart == 0 &&
-				    outranges[0].Length.QuadPart == entry_size)
-					break;/* This is not sparse. */
-				for (i = 0; i < n; i++)
-					archive_entry_sparse_add_entry(entry,
-					    outranges[i].FileOffset.QuadPart,
-						outranges[i].Length.QuadPart);
-				range.FileOffset.QuadPart =
-				    outranges[n-1].FileOffset.QuadPart
-				    + outranges[n-1].Length.QuadPart;
-				range.Length.QuadPart =
-				    entry_size - range.FileOffset.QuadPart;
-				if (range.Length.QuadPart > 0)
-					continue;
-			} else {
-				/* The remaining data is hole. */
-				archive_entry_sparse_add_entry(entry,
-				    range.FileOffset.QuadPart,
-				    range.Length.QuadPart);
-			}
-			break;
-		} else {
-			la_dosmaperr(GetLastError());
-			archive_set_error(&a->archive, errno,
-			    "DeviceIoControl Failed: %lu", GetLastError());
-			exit_sts = ARCHIVE_FAILED;
-			goto exit_setup_sparse;
-		}
-	}
-exit_setup_sparse:
-	free(outranges);
-
-	return (exit_sts);
+	archive_string_free(&path);
+	return (ret);
 }

@@ -1,1 +1,1 @@
-fprintf(stderr, "Mismatch in state.  Should have been %d.\n", state);
+fprintf(stderr, "tar_append_eof(): %s\n", strerror(errno));

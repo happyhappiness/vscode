@@ -1,2 +1,2 @@
-archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC, "Malformed 7-Zip archive");
+fprintf(fout,
+              "TARGET_LINK_LIBRARIES(%s ${LINK_LIBRARIES})\n",targetName);

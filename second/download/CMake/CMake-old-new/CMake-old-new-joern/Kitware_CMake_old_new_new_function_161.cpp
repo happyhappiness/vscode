@@ -1,231 +1,185 @@
 static int
-check_symlinks_fsobj(char *path, int *a_eno, struct archive_string *a_estr,
-    int flags)
+header_common(struct archive_read *a, struct tar *tar,
+    struct archive_entry *entry, const void *h)
 {
-#if !defined(HAVE_LSTAT)
-	/* Platform doesn't have lstat, so we can't look for symlinks. */
-	(void)path; /* UNUSED */
-	(void)error_number; /* UNUSED */
-	(void)error_string; /* UNUSED */
-	(void)flags; /* UNUSED */
-	return (ARCHIVE_OK);
-#else
-	int res = ARCHIVE_OK;
-	char *tail;
-	char *head;
-	int last;
-	char c;
-	int r;
-	struct stat st;
-	int restore_pwd;
+	const struct archive_entry_header_ustar	*header;
+	char	tartype;
+	int     err = ARCHIVE_OK;
 
-	/* Nothing to do here if name is empty */
-	if(path[0] == '\0')
-	    return (ARCHIVE_OK);
+	header = (const struct archive_entry_header_ustar *)h;
+	if (header->linkname[0])
+		archive_strncpy(&(tar->entry_linkpath),
+		    header->linkname, sizeof(header->linkname));
+	else
+		archive_string_empty(&(tar->entry_linkpath));
 
-	/*
-	 * Guard against symlink tricks.  Reject any archive entry whose
-	 * destination would be altered by a symlink.
-	 *
-	 * Walk the filename in chunks separated by '/'.  For each segment:
-	 *  - if it doesn't exist, continue
-	 *  - if it's symlink, abort or remove it
-	 *  - if it's a directory and it's not the last chunk, cd into it
-	 * As we go:
-	 *  head points to the current (relative) path
-	 *  tail points to the temporary \0 terminating the segment we're
-	 *      currently examining
-	 *  c holds what used to be in *tail
-	 *  last is 1 if this is the last tail
-	 */
-	restore_pwd = open(".", O_RDONLY | O_BINARY | O_CLOEXEC);
-	__archive_ensure_cloexec_flag(restore_pwd);
-	if (restore_pwd < 0)
+	/* Parse out the numeric fields (all are octal) */
+	archive_entry_set_mode(entry,
+		(mode_t)tar_atol(header->mode, sizeof(header->mode)));
+	archive_entry_set_uid(entry, tar_atol(header->uid, sizeof(header->uid)));
+	archive_entry_set_gid(entry, tar_atol(header->gid, sizeof(header->gid)));
+	tar->entry_bytes_remaining = tar_atol(header->size, sizeof(header->size));
+	if (tar->entry_bytes_remaining < 0) {
+		tar->entry_bytes_remaining = 0;
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Tar entry has negative size");
 		return (ARCHIVE_FATAL);
-	head = path;
-	tail = path;
-	last = 0;
-	/* TODO: reintroduce a safe cache here? */
-	/* Skip the root directory if the path is absolute. */
-	if(tail == path && tail[0] == '/')
-		++tail;
-	/* Keep going until we've checked the entire name.
-	 * head, tail, path all alias the same string, which is
-	 * temporarily zeroed at tail, so be careful restoring the
-	 * stashed (c=tail[0]) for error messages.
-	 * Exiting the loop with break is okay; continue is not.
-	 */
-	while (!last) {
+	}
+	if (tar->entry_bytes_remaining == INT64_MAX) {
+		/* Note: tar_atol returns INT64_MAX on overflow */
+		tar->entry_bytes_remaining = 0;
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Tar entry size overflow");
+		return (ARCHIVE_FATAL);
+	}
+	tar->realsize = tar->entry_bytes_remaining;
+	archive_entry_set_size(entry, tar->entry_bytes_remaining);
+	archive_entry_set_mtime(entry, tar_atol(header->mtime, sizeof(header->mtime)), 0);
+
+	/* Handle the tar type flag appropriately. */
+	tartype = header->typeflag[0];
+
+	switch (tartype) {
+	case '1': /* Hard link */
+		if (archive_entry_copy_hardlink_l(entry, tar->entry_linkpath.s,
+		    archive_strlen(&(tar->entry_linkpath)), tar->sconv) != 0) {
+			err = set_conversion_failed_error(a, tar->sconv,
+			    "Linkname");
+			if (err == ARCHIVE_FATAL)
+				return (err);
+		}
 		/*
-		 * Skip the separator we just consumed, plus any adjacent ones
+		 * The following may seem odd, but: Technically, tar
+		 * does not store the file type for a "hard link"
+		 * entry, only the fact that it is a hard link.  So, I
+		 * leave the type zero normally.  But, pax interchange
+		 * format allows hard links to have data, which
+		 * implies that the underlying entry is a regular
+		 * file.
 		 */
-		while (*tail == '/')
-		    ++tail;
-		/* Skip the next path element. */
-		while (*tail != '\0' && *tail != '/')
-			++tail;
-		/* is this the last path component? */
-		last = (tail[0] == '\0') || (tail[0] == '/' && tail[1] == '\0');
-		/* temporarily truncate the string here */
-		c = tail[0];
-		tail[0] = '\0';
-		/* Check that we haven't hit a symlink. */
-		r = lstat(head, &st);
-		if (r != 0) {
-			tail[0] = c;
-			/* We've hit a dir that doesn't exist; stop now. */
-			if (errno == ENOENT) {
-				break;
-			} else {
-				/*
-				 * Treat any other error as fatal - best to be
-				 * paranoid here.
-				 * Note: This effectively disables deep
-				 * directory support when security checks are
-				 * enabled. Otherwise, very long pathnames that
-				 * trigger an error here could evade the
-				 * sandbox.
-				 * TODO: We could do better, but it would
-				 * probably require merging the symlink checks
-				 * with the deep-directory editing.
-				 */
-				fsobj_error(a_eno, a_estr, errno,
-				    "Could not stat %s", path);
-				res = ARCHIVE_FAILED;
-				break;
-			}
-		} else if (S_ISDIR(st.st_mode)) {
-			if (!last) {
-				if (chdir(head) != 0) {
-					tail[0] = c;
-					fsobj_error(a_eno, a_estr, errno,
-					    "Could not chdir %s", path);
-					res = (ARCHIVE_FATAL);
-					break;
-				}
-				/* Our view is now from inside this dir: */
-				head = tail + 1;
-			}
-		} else if (S_ISLNK(st.st_mode)) {
-			if (last) {
-				/*
-				 * Last element is symlink; remove it
-				 * so we can overwrite it with the
-				 * item being extracted.
-				 */
-				if (unlink(head)) {
-					tail[0] = c;
-					fsobj_error(a_eno, a_estr, errno,
-					    "Could not remove symlink %s",
-					    path);
-					res = ARCHIVE_FAILED;
-					break;
-				}
-				/*
-				 * Even if we did remove it, a warning
-				 * is in order.  The warning is silly,
-				 * though, if we're just replacing one
-				 * symlink with another symlink.
-				 */
-				tail[0] = c;
-				/*
-				 * FIXME:  not sure how important this is to
-				 * restore
-				 */
-				/*
-				if (!S_ISLNK(path)) {
-					fsobj_error(a_eno, a_estr, 0,
-					    "Removing symlink %s", path);
-				}
-				*/
-				/* Symlink gone.  No more problem! */
-				res = ARCHIVE_OK;
-				break;
-			} else if (flags & ARCHIVE_EXTRACT_UNLINK) {
-				/* User asked us to remove problems. */
-				if (unlink(head) != 0) {
-					tail[0] = c;
-					fsobj_error(a_eno, a_estr, 0,
-					    "Cannot remove intervening "
-					    "symlink %s", path);
-					res = ARCHIVE_FAILED;
-					break;
-				}
-				tail[0] = c;
-			} else if ((flags &
-			    ARCHIVE_EXTRACT_SECURE_SYMLINKS) == 0) {
-				/*
-				 * We are not the last element and we want to
-				 * follow symlinks if they are a directory.
-				 * 
-				 * This is needed to extract hardlinks over
-				 * symlinks.
-				 */
-				r = stat(head, &st);
-				if (r != 0) {
-					tail[0] = c;
-					if (errno == ENOENT) {
-						break;
-					} else {
-						fsobj_error(a_eno, a_estr,
-						    errno,
-						    "Could not stat %s", path);
-						res = (ARCHIVE_FAILED);
-						break;
-					}
-				} else if (S_ISDIR(st.st_mode)) {
-					if (chdir(head) != 0) {
-						tail[0] = c;
-						fsobj_error(a_eno, a_estr,
-						    errno,
-						    "Could not chdir %s", path);
-						res = (ARCHIVE_FATAL);
-						break;
-					}
-					/*
-					 * Our view is now from inside
-					 * this dir:
-					 */
-					head = tail + 1;
-				} else {
-					tail[0] = c;
-					fsobj_error(a_eno, a_estr, 0,
-					    "Cannot extract through "
-					    "symlink %s", path);
-					res = ARCHIVE_FAILED;
-					break;
-				}
-			} else {
-				tail[0] = c;
-				fsobj_error(a_eno, a_estr, 0,
-				    "Cannot extract through symlink %s", path);
-				res = ARCHIVE_FAILED;
-				break;
-			}
+		if (archive_entry_size(entry) > 0)
+			archive_entry_set_filetype(entry, AE_IFREG);
+
+		/*
+		 * A tricky point: Traditionally, tar readers have
+		 * ignored the size field when reading hardlink
+		 * entries, and some writers put non-zero sizes even
+		 * though the body is empty.  POSIX blessed this
+		 * convention in the 1988 standard, but broke with
+		 * this tradition in 2001 by permitting hardlink
+		 * entries to store valid bodies in pax interchange
+		 * format, but not in ustar format.  Since there is no
+		 * hard and fast way to distinguish pax interchange
+		 * from earlier archives (the 'x' and 'g' entries are
+		 * optional, after all), we need a heuristic.
+		 */
+		if (archive_entry_size(entry) == 0) {
+			/* If the size is already zero, we're done. */
+		}  else if (a->archive.archive_format
+		    == ARCHIVE_FORMAT_TAR_PAX_INTERCHANGE) {
+			/* Definitely pax extended; must obey hardlink size. */
+		} else if (a->archive.archive_format == ARCHIVE_FORMAT_TAR
+		    || a->archive.archive_format == ARCHIVE_FORMAT_TAR_GNUTAR)
+		{
+			/* Old-style or GNU tar: we must ignore the size. */
+			archive_entry_set_size(entry, 0);
+			tar->entry_bytes_remaining = 0;
+		} else if (archive_read_format_tar_bid(a, 50) > 50) {
+			/*
+			 * We don't know if it's pax: If the bid
+			 * function sees a valid ustar header
+			 * immediately following, then let's ignore
+			 * the hardlink size.
+			 */
+			archive_entry_set_size(entry, 0);
+			tar->entry_bytes_remaining = 0;
 		}
-		/* be sure to always maintain this */
-		tail[0] = c;
-		if (tail[0] != '\0')
-			tail++; /* Advance to the next segment. */
+		/*
+		 * TODO: There are still two cases I'd like to handle:
+		 *   = a ustar non-pax archive with a hardlink entry at
+		 *     end-of-archive.  (Look for block of nulls following?)
+		 *   = a pax archive that has not seen any pax headers
+		 *     and has an entry which is a hardlink entry storing
+		 *     a body containing an uncompressed tar archive.
+		 * The first is worth addressing; I don't see any reliable
+		 * way to deal with the second possibility.
+		 */
+		break;
+	case '2': /* Symlink */
+		archive_entry_set_filetype(entry, AE_IFLNK);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		if (archive_entry_copy_symlink_l(entry, tar->entry_linkpath.s,
+		    archive_strlen(&(tar->entry_linkpath)), tar->sconv) != 0) {
+			err = set_conversion_failed_error(a, tar->sconv,
+			    "Linkname");
+			if (err == ARCHIVE_FATAL)
+				return (err);
+		}
+		break;
+	case '3': /* Character device */
+		archive_entry_set_filetype(entry, AE_IFCHR);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		break;
+	case '4': /* Block device */
+		archive_entry_set_filetype(entry, AE_IFBLK);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		break;
+	case '5': /* Dir */
+		archive_entry_set_filetype(entry, AE_IFDIR);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		break;
+	case '6': /* FIFO device */
+		archive_entry_set_filetype(entry, AE_IFIFO);
+		archive_entry_set_size(entry, 0);
+		tar->entry_bytes_remaining = 0;
+		break;
+	case 'D': /* GNU incremental directory type */
+		/*
+		 * No special handling is actually required here.
+		 * It might be nice someday to preprocess the file list and
+		 * provide it to the client, though.
+		 */
+		archive_entry_set_filetype(entry, AE_IFDIR);
+		break;
+	case 'M': /* GNU "Multi-volume" (remainder of file from last archive)*/
+		/*
+		 * As far as I can tell, this is just like a regular file
+		 * entry, except that the contents should be _appended_ to
+		 * the indicated file at the indicated offset.  This may
+		 * require some API work to fully support.
+		 */
+		break;
+	case 'N': /* Old GNU "long filename" entry. */
+		/* The body of this entry is a script for renaming
+		 * previously-extracted entries.  Ugh.  It will never
+		 * be supported by libarchive. */
+		archive_entry_set_filetype(entry, AE_IFREG);
+		break;
+	case 'S': /* GNU sparse files */
+		/*
+		 * Sparse files are really just regular files with
+		 * sparse information in the extended area.
+		 */
+		/* FALLTHROUGH */
+	case '0':
+		/*
+		 * Enable sparse file "read" support only for regular
+		 * files and explicit GNU sparse files.  However, we
+		 * don't allow non-standard file types to be sparse.
+		 */
+		tar->sparse_allowed = 1;
+		/* FALLTHROUGH */
+	default: /* Regular file  and non-standard types */
+		/*
+		 * Per POSIX: non-recognized types should always be
+		 * treated as regular files.
+		 */
+		archive_entry_set_filetype(entry, AE_IFREG);
+		break;
 	}
-	/* Catches loop exits via break */
-	tail[0] = c;
-#ifdef HAVE_FCHDIR
-	/* If we changed directory above, restore it here. */
-	if (restore_pwd >= 0) {
-		r = fchdir(restore_pwd);
-		if (r != 0) {
-			fsobj_error(a_eno, a_estr, errno,
-			    "chdir() failure", "");
-		}
-		close(restore_pwd);
-		restore_pwd = -1;
-		if (r != 0) {
-			res = (ARCHIVE_FATAL);
-		}
-	}
-#endif
-	/* TODO: reintroduce a safe cache here? */
-	return res;
-#endif
+	return (err);
 }

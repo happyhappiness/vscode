@@ -1,1 +1,0 @@
-vfprintf(data->set.err, fmt, ap);

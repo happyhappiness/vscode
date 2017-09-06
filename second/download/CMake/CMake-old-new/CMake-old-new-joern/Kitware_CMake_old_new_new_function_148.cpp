@@ -1,329 +1,196 @@
 static int
-process_extra(struct archive_read *a, const char *p, size_t extra_length, struct zip_entry* zip_entry)
+next_entry(struct archive_read_disk *a, struct tree *t,
+    struct archive_entry *entry)
 {
-	unsigned offset = 0;
+	const BY_HANDLE_FILE_INFORMATION *st;
+	const BY_HANDLE_FILE_INFORMATION *lst;
+	const char*name;
+	int descend, r;
 
-	if (extra_length == 0) {
-		return ARCHIVE_OK;
+	st = NULL;
+	lst = NULL;
+	t->descend = 0;
+	do {
+		switch (tree_next(t)) {
+		case TREE_ERROR_FATAL:
+			archive_set_error(&a->archive, t->tree_errno,
+			    "%ls: Unable to continue traversing directory tree",
+			    tree_current_path(t));
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			return (ARCHIVE_FATAL);
+		case TREE_ERROR_DIR:
+			archive_set_error(&a->archive, t->tree_errno,
+			    "%ls: Couldn't visit directory",
+			    tree_current_path(t));
+			return (ARCHIVE_FAILED);
+		case 0:
+			return (ARCHIVE_EOF);
+		case TREE_POSTDESCENT:
+		case TREE_POSTASCENT:
+			break;
+		case TREE_REGULAR:
+			lst = tree_current_lstat(t);
+			if (lst == NULL) {
+				archive_set_error(&a->archive, t->tree_errno,
+				    "%ls: Cannot stat",
+				    tree_current_path(t));
+				return (ARCHIVE_FAILED);
+			}
+			break;
+		}	
+	} while (lst == NULL);
+
+	archive_entry_copy_pathname_w(entry, tree_current_path(t));
+
+	/*
+	 * Perform path matching.
+	 */
+	if (a->matching) {
+		r = archive_match_path_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Failed : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
 	}
 
-	if (extra_length < 4) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Too-small extra data: Need at least 4 bytes, but only found %d bytes", (int)extra_length);
-		return ARCHIVE_FAILED;
+	/*
+	 * Distinguish 'L'/'P'/'H' symlink following.
+	 */
+	switch(t->symlink_mode) {
+	case 'H':
+		/* 'H': After the first item, rest like 'P'. */
+		t->symlink_mode = 'P';
+		/* 'H': First item (from command line) like 'L'. */
+		/* FALLTHROUGH */
+	case 'L':
+		/* 'L': Do descend through a symlink to dir. */
+		descend = tree_current_is_dir(t);
+		/* 'L': Follow symlinks to files. */
+		a->symlink_mode = 'L';
+		a->follow_symlinks = 1;
+		/* 'L': Archive symlinks as targets, if we can. */
+		st = tree_current_stat(t);
+		if (st != NULL && !tree_target_is_same_as_parent(t, st))
+			break;
+		/* If stat fails, we have a broken symlink;
+		 * in that case, don't follow the link. */
+		/* FALLTHROUGH */
+	default:
+		/* 'P': Don't descend through a symlink to dir. */
+		descend = tree_current_is_physical_dir(t);
+		/* 'P': Don't follow symlinks to files. */
+		a->symlink_mode = 'P';
+		a->follow_symlinks = 0;
+		/* 'P': Archive symlinks as symlinks. */
+		st = lst;
+		break;
 	}
-	while (offset <= extra_length - 4) {
-		unsigned short headerid = archive_le16dec(p + offset);
-		unsigned short datasize = archive_le16dec(p + offset + 2);
 
-		offset += 4;
-		if (offset + datasize > extra_length) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Extra data overflow: Need %d bytes but only found %d bytes",
-			    (int)datasize, (int)(extra_length - offset));
-			return ARCHIVE_FAILED;
-		}
-#ifdef DEBUG
-		fprintf(stderr, "Header id 0x%04x, length %d\n",
-		    headerid, datasize);
-#endif
-		switch (headerid) {
-		case 0x0001:
-			/* Zip64 extended information extra field. */
-			zip_entry->flags |= LA_USED_ZIP64;
-			if (zip_entry->uncompressed_size == 0xffffffff) {
-				uint64_t t = 0;
-				if (datasize < 8
-				    || (t = archive_le64dec(p + offset)) > INT64_MAX) {
-					archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-					    "Malformed 64-bit uncompressed size");
-					return ARCHIVE_FAILED;
-				}
-				zip_entry->uncompressed_size = t;
-				offset += 8;
-				datasize -= 8;
-			}
-			if (zip_entry->compressed_size == 0xffffffff) {
-				uint64_t t = 0;
-				if (datasize < 8
-				    || (t = archive_le64dec(p + offset)) > INT64_MAX) {
-					archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-					    "Malformed 64-bit compressed size");
-					return ARCHIVE_FAILED;
-				}
-				zip_entry->compressed_size = t;
-				offset += 8;
-				datasize -= 8;
-			}
-			if (zip_entry->local_header_offset == 0xffffffff) {
-				uint64_t t = 0;
-				if (datasize < 8
-				    || (t = archive_le64dec(p + offset)) > INT64_MAX) {
-					archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-					    "Malformed 64-bit local header offset");
-					return ARCHIVE_FAILED;
-				}
-				zip_entry->local_header_offset = t;
-				offset += 8;
-				datasize -= 8;
-			}
-			/* archive_le32dec(p + offset) gives disk
-			 * on which file starts, but we don't handle
-			 * multi-volume Zip files. */
-			break;
-#ifdef DEBUG
-		case 0x0017:
-		{
-			/* Strong encryption field. */
-			if (archive_le16dec(p + offset) == 2) {
-				unsigned algId =
-					archive_le16dec(p + offset + 2);
-				unsigned bitLen =
-					archive_le16dec(p + offset + 4);
-				int	 flags =
-					archive_le16dec(p + offset + 6);
-				fprintf(stderr, "algId=0x%04x, bitLen=%u, "
-				    "flgas=%d\n", algId, bitLen,flags);
-			}
-			break;
-		}
-#endif
-		case 0x5455:
-		{
-			/* Extended time field "UT". */
-			int flags = p[offset];
-			offset++;
-			datasize--;
-			/* Flag bits indicate which dates are present. */
-			if (flags & 0x01)
-			{
-#ifdef DEBUG
-				fprintf(stderr, "mtime: %lld -> %d\n",
-				    (long long)zip_entry->mtime,
-				    archive_le32dec(p + offset));
-#endif
-				if (datasize < 4)
-					break;
-				zip_entry->mtime = archive_le32dec(p + offset);
-				offset += 4;
-				datasize -= 4;
-			}
-			if (flags & 0x02)
-			{
-				if (datasize < 4)
-					break;
-				zip_entry->atime = archive_le32dec(p + offset);
-				offset += 4;
-				datasize -= 4;
-			}
-			if (flags & 0x04)
-			{
-				if (datasize < 4)
-					break;
-				zip_entry->ctime = archive_le32dec(p + offset);
-				offset += 4;
-				datasize -= 4;
-			}
-			break;
-		}
-		case 0x5855:
-		{
-			/* Info-ZIP Unix Extra Field (old version) "UX". */
-			if (datasize >= 8) {
-				zip_entry->atime = archive_le32dec(p + offset);
-				zip_entry->mtime =
-				    archive_le32dec(p + offset + 4);
-			}
-			if (datasize >= 12) {
-				zip_entry->uid =
-				    archive_le16dec(p + offset + 8);
-				zip_entry->gid =
-				    archive_le16dec(p + offset + 10);
-			}
-			break;
-		}
-		case 0x6c78:
-		{
-			/* Experimental 'xl' field */
-			/*
-			 * Introduced Dec 2013 to provide a way to
-			 * include external file attributes (and other
-			 * fields that ordinarily appear only in
-			 * central directory) in local file header.
-			 * This provides file type and permission
-			 * information necessary to support full
-			 * streaming extraction.  Currently being
-			 * discussed with other Zip developers
-			 * ... subject to change.
-			 *
-			 * Format:
-			 *  The field starts with a bitmap that specifies
-			 *  which additional fields are included.  The
-			 *  bitmap is variable length and can be extended in
-			 *  the future.
-			 *
-			 *  n bytes - feature bitmap: first byte has low-order
-			 *    7 bits.  If high-order bit is set, a subsequent
-			 *    byte holds the next 7 bits, etc.
-			 *
-			 *  if bitmap & 1, 2 byte "version made by"
-			 *  if bitmap & 2, 2 byte "internal file attributes"
-			 *  if bitmap & 4, 4 byte "external file attributes"
-			 *  if bitmap & 8, 2 byte comment length + n byte comment
-			 */
-			int bitmap, bitmap_last;
-
-			if (datasize < 1)
-				break;
-			bitmap_last = bitmap = 0xff & p[offset];
-			offset += 1;
-			datasize -= 1;
-
-			/* We only support first 7 bits of bitmap; skip rest. */
-			while ((bitmap_last & 0x80) != 0
-			    && datasize >= 1) {
-				bitmap_last = p[offset];
-				offset += 1;
-				datasize -= 1;
-			}
-
-			if (bitmap & 1) {
-				/* 2 byte "version made by" */
-				if (datasize < 2)
-					break;
-				zip_entry->system
-				    = archive_le16dec(p + offset) >> 8;
-				offset += 2;
-				datasize -= 2;
-			}
-			if (bitmap & 2) {
-				/* 2 byte "internal file attributes" */
-				uint32_t internal_attributes;
-				if (datasize < 2)
-					break;
-				internal_attributes
-				    = archive_le16dec(p + offset);
-				/* Not used by libarchive at present. */
-				(void)internal_attributes; /* UNUSED */
-				offset += 2;
-				datasize -= 2;
-			}
-			if (bitmap & 4) {
-				/* 4 byte "external file attributes" */
-				uint32_t external_attributes;
-				if (datasize < 4)
-					break;
-				external_attributes
-				    = archive_le32dec(p + offset);
-				if (zip_entry->system == 3) {
-					zip_entry->mode
-					    = external_attributes >> 16;
-				} else if (zip_entry->system == 0) {
-					// Interpret MSDOS directory bit
-					if (0x10 == (external_attributes & 0x10)) {
-						zip_entry->mode = AE_IFDIR | 0775;
-					} else {
-						zip_entry->mode = AE_IFREG | 0664;
-					}
-					if (0x01 == (external_attributes & 0x01)) {
-						// Read-only bit; strip write permissions
-						zip_entry->mode &= 0555;
-					}
-				} else {
-					zip_entry->mode = 0;
-				}
-				offset += 4;
-				datasize -= 4;
-			}
-			if (bitmap & 8) {
-				/* 2 byte comment length + comment */
-				uint32_t comment_length;
-				if (datasize < 2)
-					break;
-				comment_length
-				    = archive_le16dec(p + offset);
-				offset += 2;
-				datasize -= 2;
-
-				if (datasize < comment_length)
-					break;
-				/* Comment is not supported by libarchive */
-				offset += comment_length;
-				datasize -= comment_length;
-			}
-			break;
-		}
-		case 0x7855:
-			/* Info-ZIP Unix Extra Field (type 2) "Ux". */
-#ifdef DEBUG
-			fprintf(stderr, "uid %d gid %d\n",
-			    archive_le16dec(p + offset),
-			    archive_le16dec(p + offset + 2));
-#endif
-			if (datasize >= 2)
-				zip_entry->uid = archive_le16dec(p + offset);
-			if (datasize >= 4)
-				zip_entry->gid =
-				    archive_le16dec(p + offset + 2);
-			break;
-		case 0x7875:
-		{
-			/* Info-Zip Unix Extra Field (type 3) "ux". */
-			int uidsize = 0, gidsize = 0;
-
-			/* TODO: support arbitrary uidsize/gidsize. */
-			if (datasize >= 1 && p[offset] == 1) {/* version=1 */
-				if (datasize >= 4) {
-					/* get a uid size. */
-					uidsize = 0xff & (int)p[offset+1];
-					if (uidsize == 2)
-						zip_entry->uid =
-						    archive_le16dec(
-						        p + offset + 2);
-					else if (uidsize == 4 && datasize >= 6)
-						zip_entry->uid =
-						    archive_le32dec(
-						        p + offset + 2);
-				}
-				if (datasize >= (2 + uidsize + 3)) {
-					/* get a gid size. */
-					gidsize = 0xff & (int)p[offset+2+uidsize];
-					if (gidsize == 2)
-						zip_entry->gid =
-						    archive_le16dec(
-						        p+offset+2+uidsize+1);
-					else if (gidsize == 4 &&
-					    datasize >= (2 + uidsize + 5))
-						zip_entry->gid =
-						    archive_le32dec(
-						        p+offset+2+uidsize+1);
-				}
-			}
-			break;
-		}
-		case 0x9901:
-			/* WinZip AES extra data field. */
-			if (p[offset + 2] == 'A' && p[offset + 3] == 'E') {
-				/* Vendor version. */
-				zip_entry->aes_extra.vendor =
-				    archive_le16dec(p + offset);
-				/* AES encryption strength. */
-				zip_entry->aes_extra.strength = p[offset + 4];
-				/* Actual compression method. */
-				zip_entry->aes_extra.compression =
-				    p[offset + 5];
-			}
-			break;
-		default:
-			break;
-		}
-		offset += datasize;
+	if (update_current_filesystem(a, bhfi_dev(st)) != ARCHIVE_OK) {
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		return (ARCHIVE_FATAL);
 	}
-	if (offset != extra_length) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Malformed extra data: Consumed %d bytes of %d bytes",
-		    (int)offset, (int)extra_length);
-		return ARCHIVE_FAILED;
+	if (t->initial_filesystem_id == -1)
+		t->initial_filesystem_id = t->current_filesystem_id;
+	if (!a->traverse_mount_points) {
+		if (t->initial_filesystem_id != t->current_filesystem_id)
+			return (ARCHIVE_RETRY);
 	}
-	return ARCHIVE_OK;
+	t->descend = descend;
+
+	tree_archive_entry_copy_bhfi(entry, t, st);
+
+	/* Save the times to be restored. This must be in before
+	 * calling archive_read_disk_descend() or any chance of it,
+	 * especially, invoking a callback. */
+	t->restore_time.lastWriteTime = st->ftLastWriteTime;
+	t->restore_time.lastAccessTime = st->ftLastAccessTime;
+	t->restore_time.filetype = archive_entry_filetype(entry);
+
+	/*
+	 * Perform time matching.
+	 */
+	if (a->matching) {
+		r = archive_match_time_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Failed : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
+	}
+
+	/* Lookup uname/gname */
+	name = archive_read_disk_uname(&(a->archive), archive_entry_uid(entry));
+	if (name != NULL)
+		archive_entry_copy_uname(entry, name);
+	name = archive_read_disk_gname(&(a->archive), archive_entry_gid(entry));
+	if (name != NULL)
+		archive_entry_copy_gname(entry, name);
+
+	/*
+	 * Perform owner matching.
+	 */
+	if (a->matching) {
+		r = archive_match_owner_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Failed : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {
+			if (a->excluded_cb_func)
+				a->excluded_cb_func(&(a->archive),
+				    a->excluded_cb_data, entry);
+			return (ARCHIVE_RETRY);
+		}
+	}
+
+	/*
+	 * Invoke a meta data filter callback.
+	 */
+	if (a->metadata_filter_func) {
+		if (!a->metadata_filter_func(&(a->archive),
+		    a->metadata_filter_data, entry))
+			return (ARCHIVE_RETRY);
+	}
+
+	archive_entry_copy_sourcepath_w(entry, tree_current_access_path(t));
+
+	r = ARCHIVE_OK;
+	if (archive_entry_filetype(entry) == AE_IFREG &&
+	    archive_entry_size(entry) > 0) {
+		DWORD flags = FILE_FLAG_BACKUP_SEMANTICS;
+		if (t->async_io)
+			flags |= FILE_FLAG_OVERLAPPED;
+		if (t->direct_io)
+			flags |= FILE_FLAG_NO_BUFFERING;
+		else
+			flags |= FILE_FLAG_SEQUENTIAL_SCAN;
+		t->entry_fh = CreateFileW(tree_current_access_path(t),
+		    GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, flags, NULL);
+		if (t->entry_fh == INVALID_HANDLE_VALUE) {
+			archive_set_error(&a->archive, errno,
+			    "Couldn't open %ls", tree_current_path(a->tree));
+			return (ARCHIVE_FAILED);
+		}
+
+		/* Find sparse data from the disk. */
+		if (archive_entry_hardlink(entry) == NULL &&
+		    (st->dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0)
+			r = setup_sparse_from_disk(a, entry, t->entry_fh);
+	}
+	return (r);
 }

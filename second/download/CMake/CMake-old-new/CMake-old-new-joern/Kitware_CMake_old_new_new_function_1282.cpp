@@ -1,130 +1,108 @@
-bool cmMacroHelperCommand::InvokeInitialPass
-(const std::vector<cmListFileArgument>& args)
+void cmGlobalGenerator::Configure()
 {
-  // Expand the argument list to the macro.
-  std::vector<std::string> expandedArgs;
-  m_Makefile->ExpandArguments(args, expandedArgs);
-  
-  std::string tmps;
-  cmListFileArgument arg;
-  std::string variable;
-
-  // make sure the number of arguments passed is at least the number
-  // required by the signature
-  if (expandedArgs.size() < m_Args.size() - 1)
+  // Delete any existing cmLocalGenerators
+  unsigned int i;
+  for (i = 0; i < this->LocalGenerators.size(); ++i)
     {
-    std::string errorMsg = 
-      "Macro invoked with incorrect arguments for macro named: ";
-    errorMsg += m_Args[0];
-    this->SetError(errorMsg.c_str());
-    return false;
+    delete this->LocalGenerators[i];
     }
-  
-  // set the value of argc
-  cmOStringStream argcDefStream;
-  argcDefStream << expandedArgs.size();
-  std::string argcDef = argcDefStream.str();
-  
-  // declare varuiables for ARGV ARGN but do not compute until needed
-  std::string argvDef;
-  std::string argnDef;
-  bool argvDefInitialized = false;
+  this->LocalGenerators.clear();
 
-  // save the current definitions of all vars that we will be setting
-  std::string oldARGC;
-  if (m_Makefile->GetDefinition("ARGC"))
-    {
-    oldARGC = m_Makefile->GetDefinition("ARGC");
-    }
-  m_Makefile->AddDefinition("ARGC",argcDef.c_str());
+  // Setup relative path generation.
+  this->ConfigureRelativePaths();
 
-  // store ARGN, ARGV
-  std::vector<std::string> oldARGVArgs;
-  std::vector<std::string>::const_iterator eit;
-  std::vector<std::string>::size_type cnt = 0;
-  char argvName[60];
-  for ( eit = expandedArgs.begin(); eit != expandedArgs.end(); ++eit )
+  // start with this directory
+  cmLocalGenerator *lg = this->CreateLocalGenerator();
+  this->LocalGenerators.push_back(lg);
+
+  // set the Start directories
+  lg->GetMakefile()->SetStartDirectory
+    (this->CMakeInstance->GetStartDirectory());
+  lg->GetMakefile()->SetStartOutputDirectory
+    (this->CMakeInstance->GetStartOutputDirectory());
+  lg->GetMakefile()->MakeStartDirectoriesCurrent();
+  
+  // now do it
+  lg->Configure();
+  
+  // update the cache entry for the number of local generators, this is used
+  // for progress
+  char num[100];
+  sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
+  this->GetCMakeInstance()->AddCacheEntry
+    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
+     "number of local generators", cmCacheManager::INTERNAL);
+  
+  std::set<cmStdString> notFoundMap;
+  // after it is all done do a ConfigureFinalPass
+  cmCacheManager* manager = 0;
+  for (i = 0; i < this->LocalGenerators.size(); ++i)
     {
-    if ( cnt >= m_Args.size()-1 )
+    manager = this->LocalGenerators[i]->GetMakefile()->GetCacheManager();
+    this->LocalGenerators[i]->ConfigureFinalPass();
+    cmTargets & targets = 
+      this->LocalGenerators[i]->GetMakefile()->GetTargets(); 
+    for (cmTargets::iterator l = targets.begin();
+         l != targets.end(); l++)
       {
-      if ( argnDef.size() > 0 )
+      cmTarget::LinkLibraryVectorType libs = l->second.GetLinkLibraries();
+      for(cmTarget::LinkLibraryVectorType::iterator lib = libs.begin();
+          lib != libs.end(); ++lib)
         {
-        argnDef += ";";
+        if(lib->first.size() > 9 && 
+           cmSystemTools::IsNOTFOUND(lib->first.c_str()))
+          {
+          std::string varName = lib->first.substr(0, lib->first.size()-9);
+          notFoundMap.insert(varName);
+          }
         }
-      argnDef += *eit;
+      std::vector<std::string>& incs = 
+        this->LocalGenerators[i]->GetMakefile()->GetIncludeDirectories();
+      
+      for( std::vector<std::string>::iterator lib = incs.begin();
+           lib != incs.end(); ++lib)
+        {
+        if(lib->size() > 9 && 
+           cmSystemTools::IsNOTFOUND(lib->c_str()))
+          {
+          std::string varName = lib->substr(0, lib->size()-9); 
+          notFoundMap.insert(varName);
+          }
+        }
+      this->CMakeInstance->UpdateProgress("Configuring", 
+                                      0.9f+0.1f*(i+1.0f)/this->LocalGenerators.size());
+      this->LocalGenerators[i]->GetMakefile()->CheckInfiniteLoops();
       }
-    if ( argvDef.size() > 0 )
-      {
-      argvDef += ";";
-      }
-    argvDef += *eit;
-    oldARGVArgs.push_back(std::string());
-    sprintf(argvName,"ARGV%i",cnt);
-    if (m_Makefile->GetDefinition(argvName))
-      {
-      oldARGVArgs[cnt] = m_Makefile->GetDefinition(argvName);
-      }
-    m_Makefile->AddDefinition(argvName,eit->c_str());
-    cnt++;
     }
-  std::string oldARGN;
-  if (m_Makefile->GetDefinition("ARGN"))
-    {
-    oldARGN = m_Makefile->GetDefinition("ARGN");
-    }
-  m_Makefile->AddDefinition("ARGN",argnDef.c_str());
-  std::string oldARGV;
-  if (m_Makefile->GetDefinition("ARGV"))
-    {
-    oldARGV = m_Makefile->GetDefinition("ARGV");
-    }
-  m_Makefile->AddDefinition("ARGV",argvDef.c_str());
 
-  // store old defs for formal args
-  std::vector<std::string> oldFormalArgs;
-  for (unsigned int j = 1; j < m_Args.size(); ++j)
+  if(notFoundMap.size())
     {
-    oldFormalArgs.push_back(std::string());
-    if (m_Makefile->GetDefinition(m_Args[j].c_str()))
-      {
-      oldFormalArgs[j-1] = m_Makefile->GetDefinition(m_Args[j].c_str());
+    std::string notFoundVars;
+    for(std::set<cmStdString>::iterator ii = notFoundMap.begin();
+        ii != notFoundMap.end(); ++ii)
+      { 
+      notFoundVars += *ii;
+      if(manager)
+        {
+        cmCacheManager::CacheIterator it = 
+          manager->GetCacheIterator(ii->c_str());
+        if(it.GetPropertyAsBool("ADVANCED"))
+          {
+          notFoundVars += " (ADVANCED)";
+          }
+        }
+      notFoundVars += "\n";
       }
-    m_Makefile->AddDefinition(m_Args[j].c_str(),expandedArgs[j-1].c_str());
+    cmSystemTools::Error("This project requires some variables to be set,\n"
+                         "and cmake can not find them.\n"
+                         "Please set the following variables:\n",
+                         notFoundVars.c_str());
     }
-  
-  // Invoke all the functions that were collected in the block.
-  for(unsigned int c = 0; c < m_Functions.size(); ++c)
+  // at this point this->LocalGenerators has been filled,
+  // so create the map from project name to vector of local generators
+  this->FillProjectMap();
+  if ( !this->CMakeInstance->GetScriptMode() )
     {
-    if(!m_Makefile->ExecuteCommand(m_Functions[c]))
-      {
-      cmOStringStream error;
-      error << "Error in cmake code at\n"
-            << args[0].FilePath << ":" << args[0].Line << "\n"
-            << "A command failed during the invocation of macro \""
-            << this->m_Args[0].c_str() << "\".\nThe failing line "
-            << "in the macro definition was at\n" 
-            << m_Functions[c].m_FilePath << ":"
-            << m_Functions[c].m_Line << "\n";
-      cmSystemTools::Error(error.str().c_str());
-      return false;
-      }
+    this->CMakeInstance->UpdateProgress("Configuring done", -1);
     }
-  
-  // restore all args
-  m_Makefile->AddDefinition("ARGC",oldARGC.c_str());
-  m_Makefile->AddDefinition("ARGN",oldARGN.c_str());
-  m_Makefile->AddDefinition("ARGV",oldARGV.c_str());
-  // restore old defs for formal args
-  for (unsigned int j = 1; j < m_Args.size(); ++j)
-    {
-    m_Makefile->AddDefinition(m_Args[j].c_str(),oldFormalArgs[j-1].c_str());
-    }
-  // restore old defs for formal args
-  for (unsigned int j = 0; j < oldARGVArgs.size(); ++j)
-    {
-    sprintf(argvName,"ARGV%i",j);
-    m_Makefile->AddDefinition(argvName,oldARGVArgs[j].c_str());
-    }
-  
-  return true;
 }

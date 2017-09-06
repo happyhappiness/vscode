@@ -1,166 +1,71 @@
-kwsysProcess* kwsysProcess_New()
+int runChild(const char* cmd[], int state, int exception, int value)
 {
-  int i;
-
-  /* Process control structure.  */
-  kwsysProcess* cp;
-
-  /* Path to Win9x forwarding executable.  */
-  char* win9x = 0;
-
-  /* Windows version number data.  */
-  OSVERSIONINFO osv;
-  
-  /* Allocate a process control structure.  */
-  cp = (kwsysProcess*)malloc(sizeof(kwsysProcess));
-  if(!cp)
+  int result = 0;
+  char* data = 0;
+  int length = 0;
+  kwsysProcess* kp = kwsysProcess_New();
+  if(!kp)
     {
-    /* Could not allocate memory for the control structure.  */
-    return 0;
+    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
+    return 1;
     }
-  ZeroMemory(cp, sizeof(*cp));
   
-  /* Set initial status.  */
-  cp->State = kwsysProcess_State_Starting;
+  kwsysProcess_SetCommand(kp, cmd);
+  kwsysProcess_SetTimeout(kp, 3);
+  kwsysProcess_Execute(kp);
   
-  /* Choose a method of running the child based on version of
-     windows.  */
-  ZeroMemory(&osv, sizeof(osv));
-  osv.dwOSVersionInfoSize = sizeof(osv);
-  GetVersionEx(&osv);
-  if(osv.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS)
+  while(kwsysProcess_WaitForData(kp, &data, &length, 0))
     {
-    /* This is Win9x.  We need the console forwarding executable to
-       work-around a Windows 9x bug.  */
-    char fwdName[_MAX_FNAME+1] = "";
-    char tempDir[_MAX_PATH+1] = "";
-    
-    /* We will try putting the executable in the system temp
-       directory.  */
-    DWORD length = GetEnvironmentVariable("TEMP", tempDir, _MAX_PATH);
-    
-    /* Construct the executable name from the process id and kwsysProcess
-       instance.  This should be unique.  */
-    sprintf(fwdName, "cmw9xfwd_%u_%p.exe", GetCurrentProcessId(), cp);
-    
-    /* If the environment variable "TEMP" gave us a directory, use it.  */
-    if(length > 0 && length <= _MAX_PATH)
+    fwrite(data, 1, length, stdout);
+    fflush(stdout);
+    }
+  
+  kwsysProcess_WaitForExit(kp, 0);
+  
+  switch (kwsysProcess_GetState(kp))
+    {
+    case kwsysProcess_State_Starting:
+      printf("No process has been executed.\n"); break;
+    case kwsysProcess_State_Executing:
+      printf("The process is still executing.\n"); break;
+    case kwsysProcess_State_Expired:
+      printf("Child was killed when timeout expired.\n"); break;
+    case kwsysProcess_State_Exited:
+      printf("Child exited with value = %d\n",
+             kwsysProcess_GetExitValue(kp));
+      result = ((exception != kwsysProcess_GetExitException(kp)) ||
+                (value != kwsysProcess_GetExitValue(kp))); break;
+    case kwsysProcess_State_Killed:
+      printf("Child was killed by parent.\n"); break;
+    case kwsysProcess_State_Exception:
+      printf("Child terminated abnormally.\n");
+      result = ((exception != kwsysProcess_GetExitException(kp)) ||
+                (value != kwsysProcess_GetExitValue(kp))); break;
+    case kwsysProcess_State_Error:
+      printf("Error in administrating child process: [%s]\n",
+             kwsysProcess_GetErrorString(kp)); break;
+    };
+  
+  if(result)
+    {
+    if(exception != kwsysProcess_GetExitException(kp))
       {
-      /* Make sure there is no trailing slash.  */
-      size_t tdlen = strlen(tempDir);
-      if(tempDir[tdlen-1] == '/' || tempDir[tdlen-1] == '\\')
-        {
-        tempDir[tdlen-1] = 0;
-        --tdlen;
-        }
-      
-      /* Allocate a buffer to hold the forwarding executable path.  */
-      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
-      if(!win9x)
-        {
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
-      
-      /* Construct the full path to the forwarding executable.  */
-      sprintf(win9x, "%s/%s", tempDir, fwdName);
+      fprintf(stderr, "Mismatch in exit exception.  Should have been %d.\n",
+              exception);
       }
-    
-    /* If we found a place to put the forwarding executable, try to
-       write it. */
-    if(win9x)
+    if(value != kwsysProcess_GetExitValue(kp))
       {
-      if(!kwsysEncodedWriteArrayProcessFwd9x(win9x))
-        {
-        /* Failed to create forwarding executable.  Give up.  */
-        free(win9x);
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
-      }
-    else
-      {
-      /* Failed to find a place to put forwarding executable.  */
-      kwsysProcess_Delete(cp);
-      return 0;
+      fprintf(stderr, "Mismatch in exit value.  Should have been %d.\n",
+              value);
       }
     }
   
-  /* We need the extra error pipe on Win9x.  */
-  cp->Win9x = win9x;
-  cp->PipeCount = cp->Win9x? 3:2;
-  
-  /* Initially no thread owns the mutex.  Initialize semaphore to 1.  */
-  if(!(cp->SharedIndexMutex = CreateSemaphore(0, 1, 1, 0)))
+  if(kwsysProcess_GetState(kp) != state)
     {
-    kwsysProcess_Delete(cp);
-    return 0;
+    fprintf(stderr, "Mismatch in state.  Should have been %d.\n", state);
+    result = 1;
     }
   
-  /* Initially no data are available.  Initialize semaphore to 0.  */
-  if(!(cp->Full = CreateSemaphore(0, 0, 1, 0)))
-    {
-    kwsysProcess_Delete(cp);
-    return 0;
-    }
-
-  if(cp->Win9x)
-    {
-    /* Create an event to tell the forwarding executable to kill the
-       child.  */
-    SECURITY_ATTRIBUTES sa;
-    ZeroMemory(&sa, sizeof(sa));
-    sa.nLength = sizeof(sa);
-    sa.bInheritHandle = TRUE;
-    if(!(cp->Win9xKillEvent = CreateEvent(&sa, TRUE, 0, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    }
-    
-  /* Create the thread to read each pipe.  */
-  for(i=0; i < cp->PipeCount; ++i)
-    {
-    DWORD dummy=0;
-    
-    /* Assign the thread its index.  */
-    cp->Pipe[i].Index = i;
-    
-    /* Give the thread a pointer back to the kwsysProcess instance.  */
-    cp->Pipe[i].Process = cp;
-    
-    /* The pipe is not yet ready to read.  Initialize semaphore to 0.  */
-    if(!(cp->Pipe[i].Ready = CreateSemaphore(0, 0, 1, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    
-    /* The pipe is not yet reset.  Initialize semaphore to 0.  */
-    if(!(cp->Pipe[i].Reset = CreateSemaphore(0, 0, 1, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    
-    /* The thread's buffer is initially empty.  Initialize semaphore to 1.  */
-    if(!(cp->Pipe[i].Empty = CreateSemaphore(0, 1, 1, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    
-    /* Create the thread.  It will block immediately.  The thread will
-       not make deeply nested calls, so we need only a small
-       stack.  */
-    if(!(cp->Pipe[i].Thread = CreateThread(0, 1024, kwsysProcessPipeThread,
-                                           &cp->Pipe[i], 0, &dummy)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    }
-  
-  return cp;
+  kwsysProcess_Delete(kp);
+  return result;
 }

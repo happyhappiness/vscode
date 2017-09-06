@@ -1,1 +1,1 @@
-archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino);
+fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);

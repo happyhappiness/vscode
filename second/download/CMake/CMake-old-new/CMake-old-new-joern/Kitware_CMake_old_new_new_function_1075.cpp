@@ -1,27 +1,24 @@
-void cmFindPackageCommand::StoreVersionFound()
+int main(int argc, char **argv)
 {
-  // Store the whole version string.
-  std::string ver = this->Name;
-  ver += "_VERSION";
-  if(this->VersionFound.empty())
+  int retVal = 0;
+
+  curl_global_init(CURL_GLOBAL_DEFAULT);
+
+  if(argc>1)
     {
-    this->Makefile->RemoveDefinition(ver.c_str());
+    retVal += GetWebFiles(argv[1], 0);
     }
   else
     {
-    this->Makefile->AddDefinition(ver.c_str(), this->VersionFound.c_str());
+    printf("error: first argument should be a url to download\n");
+    retVal = 1;
     }
 
-  // Store the version components.
-  char buf[64];
-  sprintf(buf, "%u", this->VersionFoundMajor);
-  this->Makefile->AddDefinition((ver+"_MAJOR").c_str(), buf);
-  sprintf(buf, "%u", this->VersionFoundMinor);
-  this->Makefile->AddDefinition((ver+"_MINOR").c_str(), buf);
-  sprintf(buf, "%u", this->VersionFoundPatch);
-  this->Makefile->AddDefinition((ver+"_PATCH").c_str(), buf);
-  sprintf(buf, "%u", this->VersionFoundTweak);
-  this->Makefile->AddDefinition((ver+"_TWEAK").c_str(), buf);
-  sprintf(buf, "%u", this->VersionFoundCount);
-  this->Makefile->AddDefinition((ver+"_COUNT").c_str(), buf);
+  /* Do not check the output of FTP socks5 cannot handle FTP yet */
+  /* GetFtpFile(); */
+  /* do not test ftp right now because we don't enable that port */
+
+  curl_global_cleanup();
+
+  return retVal;
 }

@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout after grandchild test.\n");
+DEBUG_OUT(fprintf(stderr, "**** %s\n ", *allocuserpwd));

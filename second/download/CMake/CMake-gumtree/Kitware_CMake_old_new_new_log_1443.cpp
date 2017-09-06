@@ -1,1 +1,1 @@
-Curl_debug(data, CURLINFO_DATA_OUT, sptr, bytes_written);
+sprintf(buffer, "%.2f", percent_coverage);

@@ -1,3 +1,2 @@
-snprintf(buf, sizeof(conn->data->state.buffer),
-                 "%04d%02d%02d %02d:%02d:%02d GMT",
-                 year, month, day, hour, minute, second);
+sprintf(output,"%s/%s_force_%i", m_Makefile->GetStartOutputDirectory(),
+          target.GetName(), count);

@@ -1,1 +1,2 @@
-fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
+fprintf(stderr, "Unable to open \'%s\' for writing:\n",
+            argv[arg]);

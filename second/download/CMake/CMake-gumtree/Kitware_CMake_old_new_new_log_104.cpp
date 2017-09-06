@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, errno,
-			    "Failed to get ACL tag type");
+sprintf(cp->ProcessResults[idx].ExitExceptionString, "Signal %d", sig);

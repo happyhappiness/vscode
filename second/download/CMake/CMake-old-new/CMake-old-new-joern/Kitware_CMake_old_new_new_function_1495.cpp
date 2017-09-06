@@ -1,204 +1,170 @@
-int cmTryCompileCommand::CoreTryCompileCode(
-  cmMakefile *mf, std::vector<std::string> const& argv, bool clean)
+void ctest::ProcessDirectory(std::vector<std::string> &passed, 
+                             std::vector<std::string> &failed)
 {
-  // which signature were we called with ?
-  bool srcFileSignature = false;
-  unsigned int i;
-  
-  // where will the binaries be stored
-  const char* binaryDirectory = argv[1].c_str();
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  const char* targetName = 0;
-  std::string tmpString;
-
-  // do we have a srcfile signature
-  if (argv.size() == 3 || argv[3] == "CMAKE_FLAGS" || argv[3] == "COMPILE_DEFINITIONS" ||
-      argv[3] == "OUTPUT_VARIABLE")
+  // does the DartTestfile.txt exist ?
+  if(!cmSystemTools::FileExists("DartTestfile.txt"))
     {
-    srcFileSignature = true;
+    return;
+    }
+  
+  // parse the file
+  std::ifstream fin("DartTestfile.txt");
+  if(!fin)
+    {
+    return;
     }
 
-  // look for CMAKE_FLAGS and store them
-  std::vector<std::string> cmakeFlags;
-  for (i = 3; i < argv.size(); ++i)
+  int firstTest = 1;
+  
+  std::string name;
+  std::vector<std::string> args;
+  cmRegularExpression ireg(this->m_IncludeRegExp.c_str());
+  cmRegularExpression ereg(this->m_ExcludeRegExp.c_str());
+  cmRegularExpression dartStuff("([\t\n ]*<DartMeasurement.*/DartMeasurement[a-zA-Z]*>[\t ]*[\n]*)");
+
+  bool parseError;
+  while ( fin )
     {
-    if (argv[i] == "CMAKE_FLAGS")
+    cmListFileFunction lff;
+    if(cmListFileCache::ParseFunction(fin, lff, "DartTestfile.txt", parseError))
       {
-      for (; i < argv.size() && argv[i] != "COMPILE_DEFINITIONS" && 
-             argv[i] != "OUTPUT_VARIABLE"; 
-           ++i)
+      const std::string& name = lff.m_Name;
+      const std::vector<cmListFileArgument>& args = lff.m_Arguments;
+      if (name == "SUBDIRS")
         {
-        cmakeFlags.push_back(argv[i]);
+        std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
+        for(std::vector<cmListFileArgument>::const_iterator j = args.begin();
+            j != args.end(); ++j)
+          {   
+          std::string nwd = cwd + "/";
+          nwd += j->Value;
+          if (cmSystemTools::FileIsDirectory(nwd.c_str()))
+            {
+            cmSystemTools::ChangeDirectory(nwd.c_str());
+            this->ProcessDirectory(passed, failed);
+            }
+          }
+        // return to the original directory
+        cmSystemTools::ChangeDirectory(cwd.c_str());
         }
-      break;
-      }
-    }
-
-  // look for OUTPUT_VARIABLE and store them
-  std::string outputVariable;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "OUTPUT_VARIABLE")
-      {
-      if ( argv.size() <= (i+1) )
+      
+      if (name == "ADD_TEST")
         {
-        cmSystemTools::Error(
-          "OUTPUT_VARIABLE specified but there is no variable");
-        return -1;
+        if (this->m_UseExcludeRegExp && 
+            this->m_UseExcludeRegExpFirst && 
+            ereg.find(args[0].Value.c_str()))
+          {
+          continue;
+          }
+        if (this->m_UseIncludeRegExp && !ireg.find(args[0].Value.c_str()))
+          {
+          continue;
+          }
+        if (this->m_UseExcludeRegExp && 
+            !this->m_UseExcludeRegExpFirst && 
+            ereg.find(args[0].Value.c_str()))
+          {
+          continue;
+          }
+
+        cmCTestTestResult cres;
+
+        if (firstTest)
+          {
+          std::string nwd = cmSystemTools::GetCurrentWorkingDirectory();
+          std::cerr << "Changing directory into " << nwd.c_str() << "\n";
+          firstTest = 0;
+          }
+        cres.m_Name = args[0].Value;
+        fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());
+        fflush(stderr);
+        //std::cerr << "Testing " << args[0] << " ... ";
+        // find the test executable
+        std::string testCommand = this->FindExecutable(args[1].Value.c_str());
+        testCommand = cmSystemTools::ConvertToOutputPath(testCommand.c_str());
+
+        // continue if we did not find the executable
+        if (testCommand == "")
+          {
+          std::cerr << "Unable to find executable: " << 
+            args[1].Value.c_str() << "\n";
+          continue;
+          }
+        
+        // add the arguments
+        std::vector<cmListFileArgument>::const_iterator j = args.begin();
+        ++j;
+        ++j;
+        for(;j != args.end(); ++j)
+          {   
+          testCommand += " ";
+          testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
+          }
+        /**
+         * Run an executable command and put the stdout in output.
+         */
+        std::string output;
+        int retVal;
+
+        double clock_start, clock_finish;
+        clock_start = cmSystemTools::GetTime();
+
+        if ( m_Verbose )
+          {
+          std::cout << std::endl << "Test command: " << testCommand << std::endl;
+          }
+        bool res = cmSystemTools::RunCommand(testCommand.c_str(), output, 
+                                             retVal, 0, false);
+        clock_finish = cmSystemTools::GetTime();
+
+        cres.m_ExecutionTime = (double)(clock_finish - clock_start);
+        cres.m_FullCommandLine = testCommand;
+
+        if (!res || retVal != 0)
+          {
+          fprintf(stderr,"***Failed\n");
+          if (output != "")
+            {
+            if (dartStuff.find(output.c_str()))
+              {
+              cmSystemTools::ReplaceString(output,
+                                           dartStuff.match(1).c_str(),"");
+              }
+            if (output != "" && m_Verbose)
+              {
+              std::cerr << output.c_str() << "\n";
+              }
+            }
+          failed.push_back(args[0].Value); 
+          }
+        else
+          {
+          fprintf(stderr,"   Passed\n");
+          if (output != "")
+            {
+            if (dartStuff.find(output.c_str()))
+              {
+              cmSystemTools::ReplaceString(output,
+                                           dartStuff.match(1).c_str(),"");
+              }
+            if (output != "" && m_Verbose)
+              {
+              std::cerr << output.c_str() << "\n";
+              }
+            }
+          passed.push_back(args[0].Value); 
+          }
+        cres.m_Output = output;
+        cres.m_ReturnValue = retVal;
+        std::string nwd = cmSystemTools::GetCurrentWorkingDirectory();
+        if ( nwd.size() > m_ToplevelPath.size() )
+          {
+          nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
+          }
+        cres.m_Path = nwd;
+        cres.m_CompletionStatus = "Completed";
+        m_TestResults.push_back( cres );
         }
-      outputVariable = argv[i+1];
-      break;
       }
     }
-
-  // look for COMPILE_DEFINITIONS and store them
-  std::vector<std::string> compileFlags;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "COMPILE_DEFINITIONS")
-      {
-      // only valid for srcfile signatures
-      if (!srcFileSignature)
-        {
-        cmSystemTools::Error(
-          "COMPILE_FLAGS specified on a srcdir type TRY_COMPILE");
-        return -1;
-        }
-      for (i = i + 1; i < argv.size() && argv[i] != "CMAKE_FLAGS" && 
-             argv[i] != "OUTPUT_VARIABLE"; 
-           ++i)
-        {
-        compileFlags.push_back(argv[i]);
-        }
-      break;
-      }
-    }
-
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (srcFileSignature)
-    {
-    tmpString = argv[1] + "/CMakeTmp";
-    binaryDirectory = tmpString.c_str();
-    }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(binaryDirectory);
-  
-  // do not allow recursive try Compiles
-  if (!strcmp(binaryDirectory,mf->GetHomeOutputDirectory()))
-    {
-    cmSystemTools::Error("Attempt at a recursive or nested TRY_COMPILE", 
-                         binaryDirectory);
-    return -1;
-    }
-  
-  std::string outFileName = tmpString + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (srcFileSignature)
-    {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = tmpString + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile.c_str());
-    
-    // we need to create a directory and CMakeList file etc...
-    // first create the directories
-    sourceDirectory = binaryDirectory;
-
-    // now create a CMakeList.txt file in that directory
-    FILE *fout = fopen(outFileName.c_str(),"w");
-    if (!fout)
-      {
-      cmSystemTools::Error("Failed to create CMakeList file for ", 
-                           outFileName.c_str());
-      return -1;
-      }
-    
-    std::string source = argv[2];
-    cmSystemTools::e_FileFormat format = 
-      cmSystemTools::GetFileFormat( 
-        cmSystemTools::GetFilenameExtension(source).c_str());
-    if ( format == cmSystemTools::C_FILE_FORMAT )
-      {
-      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE C)\n");      
-      }
-    else if ( format == cmSystemTools::CXX_FILE_FORMAT )
-      {
-      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE CXX)\n");      
-      }
-    else
-      {
-      cmSystemTools::Error("Unknown file format for file: ", source.c_str(), 
-                           "; TRY_COMPILE only works for C and CXX files");
-      return -1;
-      }
-
-    if ( format == cmSystemTools::CXX_FILE_FORMAT )
-      {
-      fprintf(fout, "IF (CMAKE_ANSI_CXXFLAGS)\n");
-      fprintf(fout, "  SET(CMAKE_CXX_FLAGS \"${CMAKE_CXX_FLAGS}"
-              " ${CMAKE_ANSI_CXXFLAGS}\")\n");
-      fprintf(fout, "ENDIF (CMAKE_ANSI_CXXFLAGS)\n");
-      }
-
-    if ( format == cmSystemTools::C_FILE_FORMAT )
-      {
-      fprintf(fout, "IF (CMAKE_ANSI_CFLAGS)\n");
-      fprintf(fout, "  SET(CMAKE_C_FLAGS \"${CMAKE_C_FLAGS} ${CMAKE_ANSI_CFLAGS}\")\n");
-      fprintf(fout, "ENDIF (CMAKE_ANSI_CFLAGS)\n");
-      }
-    fprintf(fout, "ADD_DEFINITIONS(${COMPILE_DEFINITIONS})\n");
-    fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (compileFlags.size())
-      {
-      fprintf(fout, "ADD_DEFINITIONS( ");
-      for (i = 0; i < compileFlags.size(); ++i)
-        {
-        fprintf(fout,"%s ",compileFlags[i].c_str());
-        }
-      fprintf(fout, ")\n");
-      }
-    
-    fprintf(fout, "ADD_EXECUTABLE(cmTryCompileExec \"%s\")\n",source.c_str());
-    fprintf(fout, "TARGET_LINK_LIBRARIES(cmTryCompileExec ${LINK_LIBRARIES})\n");
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
-    targetName = "cmTryCompileExec";
-    }
-  // else the srcdir bindir project target signature
-  else
-    {
-    projectName = argv[3].c_str();
-    
-    if (argv.size() == 5)
-      {
-      targetName = argv[4].c_str();
-      }
-    }
-  
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = mf->TryCompile(sourceDirectory, binaryDirectory,
-                           projectName, targetName, &cmakeFlags, &output);
-  
-  // set the result var to the return value to indicate success or failure
-  mf->AddCacheDefinition(argv[0].c_str(), (res == 0 ? "TRUE" : "FALSE"),
-                         "Result of TRY_COMPILE",
-                         cmCacheManager::INTERNAL);
-
-  if ( outputVariable.size() > 0 )
-    {
-    mf->AddDefinition(outputVariable.c_str(), output.c_str());
-    }
-  
-  // if They specified clean then we clean up what we can
-  if (srcFileSignature && clean)
-    {    
-    cmListFileCache::GetInstance()->FlushCache(outFileName.c_str());
-    cmTryCompileCommand::CleanupFiles(binaryDirectory);
-    }
-  
-  return res;
 }

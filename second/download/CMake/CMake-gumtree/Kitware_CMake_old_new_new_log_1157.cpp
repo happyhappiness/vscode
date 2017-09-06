@@ -1,1 +1,1 @@
-printf("%s\n", buf);
+fprintf(ofp, "# include <io.h>\n");

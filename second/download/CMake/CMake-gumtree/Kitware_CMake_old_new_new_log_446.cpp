@@ -1,3 +1,1 @@
-archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "ZIP bad Authentication code");
+fprintf(fout, "add_library(%s STATIC", targetName.c_str());

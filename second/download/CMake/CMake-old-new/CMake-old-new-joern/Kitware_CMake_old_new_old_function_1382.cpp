@@ -1,124 +1,267 @@
-void kwsysProcess_Execute(kwsysProcess* cp)
+void cmCTest::ProcessDirectory(cmCTest::tm_VectorOfStrings &passed, 
+                             cmCTest::tm_VectorOfStrings &failed,
+                             bool memcheck)
 {
-  int i;
+  std::string current_dir = cmSystemTools::GetCurrentWorkingDirectory();
+  cmsys::RegularExpression dartStuff("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
+  tm_ListOfTests testlist;
+  this->GetListOfTests(&testlist, memcheck);
+  tm_ListOfTests::size_type tmsize = testlist.size();
 
-  /* Windows child startup control data.  */
-  STARTUPINFO si;
-  DWORD dwCreationFlags=0;
-  
-  /* Do not execute a second time.  */
-  if(cp->State == kwsysProcess_State_Executing)
+  std::ofstream ofs;
+  std::ofstream *olog = 0;
+  if ( !m_ShowOnly && tmsize > 0 && 
+    this->OpenOutputFile("Temporary", 
+      (memcheck?"LastMemCheck.log":"LastTest.log"), ofs) )
     {
-    return;
+    olog = &ofs;
     }
-  
-  /* Initialize startup info data.  */
-  ZeroMemory(&si, sizeof(si));
-  si.cb = sizeof(si);
-  
-  /* Reset internal status flags.  */
-  cp->TimeoutExpired = 0;
-  cp->Terminated = 0;
-  cp->Killed = 0;
-  cp->ExitException = kwsysProcess_Exception_None;
-  cp->ExitCode = 1;
-  cp->ExitValue = 1;
-  
-  /* Reset error data.  */
-  cp->ErrorMessage[0] = 0;
-  cp->ErrorMessageLength = 0;
-  
-  /* Reset the Win9x kill event.  */
-  if(cp->Win9x)
+
+  m_StartTest = this->CurrentTime();
+  double elapsed_time_start = cmSystemTools::GetTime();
+
+  if ( olog )
     {
-    if(!ResetEvent(cp->Win9xKillEvent))
+    *olog << "Start testing: " << m_StartTest << std::endl
+      << "----------------------------------------------------------"
+      << std::endl;
+    }
+
+  // expand the test list
+  this->ExpandTestsToRunInformation((int)tmsize);
+  
+  int cnt = 0;
+  tm_ListOfTests::iterator it;
+  std::string last_directory = "";
+  for ( it = testlist.begin(); it != testlist.end(); it ++ )
+    {
+    cnt ++;
+    const std::string& testname = it->m_Name;
+    tm_VectorOfListFileArgs& args = it->m_Args;
+    cmCTestTestResult cres;
+    cres.m_Status = cmCTest::NOT_RUN;
+    cres.m_TestCount = cnt;
+
+    if (!(last_directory == it->m_Directory))
       {
-      kwsysProcessCleanup(cp, 1);
-      return;
+      if ( m_Verbose )
+        {
+        std::cerr << "Changing directory into " 
+          << it->m_Directory.c_str() << "\n";
+        }
+      last_directory = it->m_Directory;
+      cmSystemTools::ChangeDirectory(it->m_Directory.c_str());
       }
-    }
-  
-  /* Create a pipe for each child output.  */
-  for(i=0; i < cp->PipeCount; ++i)
-    {
-    HANDLE writeEnd;
-    
-    /* The pipe is not closed.  */
-    cp->Pipe[i].Closed = 0;
-    
-    /* Create the pipe.  Neither end is directly inherited.  */
-    if(!CreatePipe(&cp->Pipe[i].Read, &writeEnd, 0, 0))
+    cres.m_Name = testname;
+    if(m_TestsToRun.size() && 
+       std::find(m_TestsToRun.begin(), m_TestsToRun.end(), cnt) == m_TestsToRun.end())
       {
-      kwsysProcessCleanup(cp, 1);
-      return;
+      continue;
       }
-    
-    /* Create an inherited duplicate of the write end.  This also closes
-       the non-inherited version. */
-    if(!DuplicateHandle(GetCurrentProcess(), writeEnd,
-                        GetCurrentProcess(), &cp->Pipe[i].Write,
-                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
-                                  DUPLICATE_SAME_ACCESS)))
+
+    if ( m_ShowOnly )
       {
-      kwsysProcessCleanup(cp, 1);
-      return;
+      fprintf(stderr,"%3d/%3d Testing %-30s\n", cnt, (int)tmsize, testname.c_str());
       }
+    else
+      {
+      fprintf(stderr,"%3d/%3d Testing %-30s ", cnt, (int)tmsize, testname.c_str());
+      fflush(stderr);
+      }
+    //std::cerr << "Testing " << args[0] << " ... ";
+    // find the test executable
+    std::string actualCommand = this->FindTheExecutable(args[1].Value.c_str());
+    std::string testCommand = cmSystemTools::ConvertToOutputPath(actualCommand.c_str());
+    std::string memcheckcommand = "";
+
+    // continue if we did not find the executable
+    if (testCommand == "")
+      {
+      std::cerr << "Unable to find executable: " <<
+        args[1].Value.c_str() << "\n";
+      if ( !m_ShowOnly )
+        {
+        m_TestResults.push_back( cres ); 
+        failed.push_back(testname);
+        continue;
+        }
+      }
+
+    // add the arguments
+    tm_VectorOfListFileArgs::const_iterator j = args.begin();
+    ++j;
+    ++j;
+    std::vector<const char*> arguments;
+    if ( memcheck )
+      {
+      cmCTest::tm_VectorOfStrings::size_type pp;
+      arguments.push_back(m_MemoryTester.c_str());
+      memcheckcommand = m_MemoryTester;
+      for ( pp = 0; pp < m_MemoryTesterOptionsParsed.size(); pp ++ )
+        {
+        arguments.push_back(m_MemoryTesterOptionsParsed[pp].c_str());
+        memcheckcommand += " ";
+        memcheckcommand += cmSystemTools::EscapeSpaces(m_MemoryTesterOptionsParsed[pp].c_str());
+        }
+      }
+    arguments.push_back(actualCommand.c_str());
+    for(;j != args.end(); ++j)
+      {
+      testCommand += " ";
+      testCommand += cmSystemTools::EscapeSpaces(j->Value.c_str());
+      arguments.push_back(j->Value.c_str());
+      }
+    arguments.push_back(0);
+
+    /**
+     * Run an executable command and put the stdout in output.
+     */
+    std::string output;
+    int retVal = 0;
+
+
+    if ( m_Verbose )
+      {
+      std::cout << std::endl << (memcheck?"MemCheck":"Test") << " command: " << testCommand << std::endl;
+      if ( memcheck )
+        {
+        std::cout << "Memory check command: " << memcheckcommand << std::endl;
+        }
+      }
+    if ( olog )
+      {
+      *olog << cnt << "/" << tmsize 
+        << " Test: " << testname.c_str() << std::endl;
+      *olog << "Command: ";
+      tm_VectorOfStrings::size_type ll;
+      for ( ll = 0; ll < arguments.size()-1; ll ++ )
+        {
+        *olog << "\"" << arguments[ll] << "\" ";
+        }
+      *olog 
+        << std::endl 
+        << "Directory: " << it->m_Directory << std::endl 
+        << "\"" << testname.c_str() << "\" start time: " 
+        << this->CurrentTime() << std::endl
+        << "Output:" << std::endl 
+        << "----------------------------------------------------------"
+        << std::endl;
+      }
+    int res = 0;
+    double clock_start, clock_finish;
+    clock_start = cmSystemTools::GetTime();
+
+    if ( !m_ShowOnly )
+      {
+      res = this->RunTest(arguments, &output, &retVal, olog);
+      }
+
+    clock_finish = cmSystemTools::GetTime();
+
+    if ( olog )
+      {
+      double ttime = clock_finish - clock_start;
+      int hours = static_cast<int>(ttime / (60 * 60));
+      int minutes = static_cast<int>(ttime / 60) % 60;
+      int seconds = static_cast<int>(ttime) % 60;
+      char buffer[100];
+      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+      *olog 
+        << "----------------------------------------------------------"
+        << std::endl
+        << "\"" << testname.c_str() << "\" end time: " 
+        << this->CurrentTime() << std::endl
+        << "\"" << testname.c_str() << "\" time elapsed: " 
+        << buffer << std::endl
+        << "----------------------------------------------------------"
+        << std::endl << std::endl;
+      }
+
+    cres.m_ExecutionTime = (double)(clock_finish - clock_start);
+    cres.m_FullCommandLine = testCommand;
+
+    if ( !m_ShowOnly )
+      {
+      if (res == cmsysProcess_State_Exited && retVal == 0)
+        {
+        fprintf(stderr,"   Passed\n");
+        passed.push_back(testname);
+        cres.m_Status = cmCTest::COMPLETED;
+        }
+      else
+        {
+        cres.m_Status = cmCTest::FAILED;
+        if ( res == cmsysProcess_State_Expired )
+          {
+          fprintf(stderr,"***Timeout\n");
+          cres.m_Status = cmCTest::TIMEOUT;
+          }
+        else if ( res == cmsysProcess_State_Exception )
+          {
+          fprintf(stderr,"***Exception: ");
+          switch ( retVal )
+            {
+          case cmsysProcess_Exception_Fault:
+            fprintf(stderr,"SegFault");
+            cres.m_Status = cmCTest::SEGFAULT;
+            break;
+          case cmsysProcess_Exception_Illegal:
+            fprintf(stderr,"Illegal");
+            cres.m_Status = cmCTest::ILLEGAL;
+            break;
+          case cmsysProcess_Exception_Interrupt:
+            fprintf(stderr,"Interrupt");
+            cres.m_Status = cmCTest::INTERRUPT;
+            break;
+          case cmsysProcess_Exception_Numerical:
+            fprintf(stderr,"Numerical");
+            cres.m_Status = cmCTest::NUMERICAL;
+            break;
+          default:
+            fprintf(stderr,"Other");
+            cres.m_Status = cmCTest::OTHER_FAULT;
+            }
+          fprintf(stderr,"\n");
+          }
+        else if ( res == cmsysProcess_State_Error )
+          {
+          fprintf(stderr,"***Bad command %d\n", res);
+          cres.m_Status = cmCTest::BAD_COMMAND;
+          }
+        else
+          {
+          fprintf(stderr,"***Failed\n");
+          }
+        failed.push_back(testname);
+        }
+      if (output != "")
+        {
+        if (dartStuff.find(output.c_str()))
+          {
+          std::string dartString = dartStuff.match(1);
+          cmSystemTools::ReplaceString(output, dartString.c_str(),"");
+          cres.m_RegressionImages = this->GenerateRegressionImages(dartString);
+          }
+        }
+      }
+    cres.m_Output = output;
+    cres.m_ReturnValue = retVal;
+    std::string nwd = it->m_Directory;
+    if ( nwd.size() > m_ToplevelPath.size() )
+      {
+      nwd = "." + nwd.substr(m_ToplevelPath.size(), nwd.npos);
+      }
+    cmSystemTools::ReplaceString(nwd, "\\", "/");
+    cres.m_Path = nwd;
+    cres.m_CompletionStatus = "Completed";
+    m_TestResults.push_back( cres );
     }
-  
-  /* Construct the real command line.  */
-  if(cp->Win9x)
+
+  m_EndTest = this->CurrentTime();
+  m_ElapsedTestingTime = cmSystemTools::GetTime() - elapsed_time_start;
+  if ( olog )
     {
-    /* Windows 9x */
-    
-    /* The forwarding executable is given a handle to the error pipe
-       and a handle to the kill event.  */
-    cp->RealCommand = malloc(strlen(cp->Win9x)+strlen(cp->Command)+100);
-    sprintf(cp->RealCommand, "%s %p %p %d %s", cp->Win9x,
-            cp->Pipe[CMPE_PIPE_ERROR].Write, cp->Win9xKillEvent,
-            cp->HideWindow, cp->Command);
+    *olog << "End testing: " << m_EndTest << std::endl;
     }
-  else
-    {
-    /* Not Windows 9x */    
-    cp->RealCommand = strdup(cp->Command);
-    }
-  
-  /* Connect the child's output pipes to the threads.  */
-  si.dwFlags = STARTF_USESTDHANDLES;
-  si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-  si.hStdOutput = cp->Pipe[CMPE_PIPE_STDOUT].Write;
-  si.hStdError = cp->Pipe[CMPE_PIPE_STDERR].Write;
-  
-  /* Decide whether a child window should be shown.  */
-  si.dwFlags |= STARTF_USESHOWWINDOW;
-  si.wShowWindow = (unsigned short)(cp->HideWindow?SW_HIDE:SW_SHOWDEFAULT);
-  
-  /* The timeout period starts now.  */
-  cp->StartTime = kwsysProcessTimeGetCurrent();
-  cp->TimeoutTime = kwsysProcessTimeFromDouble(-1);
-  
-  /* CREATE THE CHILD PROCESS */
-  if(!CreateProcess(0, cp->RealCommand, 0, 0, TRUE, dwCreationFlags, 0,
-                    cp->WorkingDirectory, &si, &cp->ProcessInformation))
-    {
-    kwsysProcessCleanup(cp, 1);
-    return;
-    }
-  
-  /* ---- It is no longer safe to call kwsysProcessCleanup. ----- */
-  /* Tell the pipe threads that a process has started.  */
-  for(i=0; i < cp->PipeCount; ++i)
-    {
-    ReleaseSemaphore(cp->Pipe[i].Ready, 1, 0);
-    }
-  
-  /* We don't care about the child's main thread.  */
-  kwsysProcessCleanupHandle(&cp->ProcessInformation.hThread);
-  
-  /* No pipe has reported data.  */
-  cp->CurrentIndex = CMPE_PIPE_COUNT;
-  cp->PipesLeft = cp->PipeCount;
-  
-  /* The process has now started.  */
-  cp->State = kwsysProcess_State_Executing;
+  cmSystemTools::ChangeDirectory(current_dir.c_str());
 }

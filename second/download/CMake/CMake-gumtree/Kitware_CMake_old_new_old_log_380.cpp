@@ -1,1 +1,1 @@
-fprintf(fout, "set(CMAKE_LINK_SEARCH_END_STATIC \"%s\")\n", lssDef);
+snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);

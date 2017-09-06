@@ -1,444 +1,208 @@
-int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
+static int
+next_cache_entry(struct archive_read *a, struct iso9660 *iso9660,
+    struct file_info **pfile)
 {
-  this->BinaryDirectory = argv[1].c_str();
-  this->OutputFile = "";
-  // which signature were we called with ?
-  this->SrcFileSignature = false;
-  unsigned int i;
+	struct file_info *file;
+	struct {
+		struct file_info	*first;
+		struct file_info	**last;
+	}	empty_files;
+	int64_t number;
+	int count;
 
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  const char* targetName = 0;
-  char targetNameBuf[64];
-  int extraArgs = 0;
+	file = cache_get_entry(iso9660);
+	if (file != NULL) {
+		*pfile = file;
+		return (ARCHIVE_OK);
+	}
 
-  // look for CMAKE_FLAGS and store them
-  std::vector<std::string> cmakeFlags;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "CMAKE_FLAGS")
-      {
-     // CMAKE_FLAGS is the first argument because we need an argv[0] that
-     // is not used, so it matches regular command line parsing which has
-     // the program name as arg 0
-      for (; i < argv.size() && argv[i] != "COMPILE_DEFINITIONS" &&
-             argv[i] != "OUTPUT_VARIABLE" &&
-             argv[i] != "LINK_LIBRARIES";
-           ++i)
-        {
-        extraArgs++;
-        cmakeFlags.push_back(argv[i]);
-        }
-      break;
-      }
-    }
+	for (;;) {
+		struct file_info *re, *d;
 
-  // look for OUTPUT_VARIABLE and store them
-  std::string outputVariable;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "OUTPUT_VARIABLE")
-      {
-      if ( argv.size() <= (i+1) )
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-          "OUTPUT_VARIABLE specified but there is no variable");
-        return -1;
-        }
-      extraArgs += 2;
-      outputVariable = argv[i+1];
-      break;
-      }
-    }
+		*pfile = file = next_entry(iso9660);
+		if (file == NULL) {
+			/*
+			 * If directory entries all which are descendant of
+			 * rr_moved are stil remaning, expose their. 
+			 */
+			if (iso9660->re_files.first != NULL && 
+			    iso9660->rr_moved != NULL &&
+			    iso9660->rr_moved->rr_moved_has_re_only)
+				/* Expose "rr_moved" entry. */
+				cache_add_entry(iso9660, iso9660->rr_moved);
+			while ((re = re_get_entry(iso9660)) != NULL) {
+				/* Expose its descendant dirs. */
+				while ((d = rede_get_entry(re)) != NULL)
+					cache_add_entry(iso9660, d);
+			}
+			if (iso9660->cache_files.first != NULL)
+				return (next_cache_entry(a, iso9660, pfile));
+			return (ARCHIVE_EOF);
+		}
 
-  // look for COMPILE_DEFINITIONS and store them
-  std::vector<std::string> compileFlags;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "COMPILE_DEFINITIONS")
-      {
-      extraArgs++;
-      for (i = i + 1; i < argv.size() && argv[i] != "CMAKE_FLAGS" &&
-             argv[i] != "OUTPUT_VARIABLE" &&
-             argv[i] != "LINK_LIBRARIES";
-           ++i)
-        {
-        extraArgs++;
-        compileFlags.push_back(argv[i]);
-        }
-      break;
-      }
-    }
+		if (file->cl_offset) {
+			struct file_info *first_re = NULL;
+			int nexted_re = 0;
 
-  std::vector<cmTarget*> targets;
-  std::string libsToLink = " ";
-  bool useOldLinkLibs = true;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "LINK_LIBRARIES")
-      {
-      if ( argv.size() <= (i+1) )
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-          "LINK_LIBRARIES specified but there is no content");
-        return -1;
-        }
-      extraArgs++;
-      ++i;
-      useOldLinkLibs = false;
-      for ( ; i < argv.size() && argv[i] != "CMAKE_FLAGS"
-          && argv[i] != "COMPILE_DEFINITIONS" && argv[i] != "OUTPUT_VARIABLE";
-          ++i)
-        {
-        extraArgs++;
-        libsToLink += argv[i] + " ";
-        cmTarget *tgt = this->Makefile->FindTargetToUse(argv[i].c_str());
-        if (!tgt)
-          {
-          continue;
-          }
-        switch(tgt->GetType())
-        {
-        case cmTarget::SHARED_LIBRARY:
-        case cmTarget::STATIC_LIBRARY:
-        case cmTarget::UNKNOWN_LIBRARY:
-          break;
-        case cmTarget::EXECUTABLE:
-          if (tgt->IsExecutableWithExports())
-            {
-            break;
-            }
-        default:
-          this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-            "Only libraries may be used as try_compile IMPORTED "
-            "LINK_LIBRARIES.  Got " + std::string(tgt->GetName()) + " of "
-            "type " + tgt->GetTargetTypeName(tgt->GetType()) + ".");
-          return -1;
-        }
-        if (!tgt->IsImported())
-          {
-          continue;
-          }
-        targets.push_back(tgt);
-        }
-      break;
-      }
-    }
+			/*
+			 * Find "RE" dir for the current file, which
+			 * has "CL" flag.
+			 */
+			while ((re = re_get_entry(iso9660))
+			    != first_re) {
+				if (first_re == NULL)
+					first_re = re;
+				if (re->offset == file->cl_offset) {
+					re->parent->subdirs--;
+					re->parent = file->parent;
+					re->re = 0;
+					if (re->parent->re_descendant) {
+						nexted_re = 1;
+						re->re_descendant = 1;
+						if (rede_add_entry(re) < 0)
+							goto fatal_rr;
+						/* Move a list of descendants
+						 * to a new ancestor. */
+						while ((d = rede_get_entry(
+						    re)) != NULL)
+							if (rede_add_entry(d)
+							    < 0)
+								goto fatal_rr;
+						break;
+					}
+					/* Replace the current file
+					 * with "RE" dir */
+					*pfile = file = re;
+					/* Expose its descendant */
+					while ((d = rede_get_entry(
+					    file)) != NULL)
+						cache_add_entry(
+						    iso9660, d);
+					break;
+				} else
+					re_add_entry(iso9660, re);
+			}
+			if (nexted_re) {
+				/*
+				 * Do not expose this at this time
+				 * because we have not gotten its full-path
+				 * name yet.
+				 */
+				continue;
+			}
+		} else if ((file->mode & AE_IFMT) == AE_IFDIR) {
+			int r;
 
-  // look for COPY_FILE
-  std::string copyFile;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "COPY_FILE")
-      {
-      if ( argv.size() <= (i+1) )
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-          "COPY_FILE specified but there is no variable");
-        return -1;
-        }
-      extraArgs += 2;
-      copyFile = argv[i+1];
-      break;
-      }
-    }
+			/* Read file entries in this dir. */
+			r = read_children(a, file);
+			if (r != ARCHIVE_OK)
+				return (r);
 
-  // do we have a srcfile signature
-  if (argv.size() - extraArgs == 3)
-    {
-    this->SrcFileSignature = true;
-    }
+			/*
+			 * Handle a special dir of Rockridge extensions,
+			 * "rr_moved".
+			 */
+			if (file->rr_moved) {
+				/*
+				 * If this has only the subdirectories which
+				 * have "RE" flags, do not expose at this time.
+				 */
+				if (file->rr_moved_has_re_only)
+					continue;
+				/* Otherwise expose "rr_moved" entry. */
+			} else if (file->re) {
+				/*
+				 * Do not expose this at this time
+				 * because we have not gotten its full-path
+				 * name yet.
+				 */
+				re_add_entry(iso9660, file);
+				continue;
+			} else if (file->re_descendant) {
+				/*
+				 * If the top level "RE" entry of this entry
+				 * is not exposed, we, accordingly, should not
+				 * expose this entry at this time because
+				 * we cannot make its proper full-path name.
+				 */
+				if (rede_add_entry(file) == 0)
+					continue;
+				/* Otherwise we can expose this entry because
+				 * it seems its top level "RE" has already been
+				 * exposed. */
+			}
+		}
+		break;
+	}
 
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (this->SrcFileSignature)
-    {
-    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
-    this->BinaryDirectory += "/CMakeTmp";
-    }
-  else
-    {
-    // only valid for srcfile signatures
-    if (compileFlags.size())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COMPILE_FLAGS specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    if (copyFile.size())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COPY_FILE specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
+	if ((file->mode & AE_IFMT) != AE_IFREG || file->number == -1)
+		return (ARCHIVE_OK);
 
-  // do not allow recursive try Compiles
-  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory())
-    {
-    cmOStringStream e;
-    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
-      << "  " << this->BinaryDirectory << "\n";
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-    return -1;
-    }
+	count = 0;
+	number = file->number;
+	iso9660->cache_files.first = NULL;
+	iso9660->cache_files.last = &(iso9660->cache_files.first);
+	empty_files.first = NULL;
+	empty_files.last = &empty_files.first;
+	/* Collect files which has the same file serial number.
+	 * Peek pending_files so that file which number is different
+	 * is not put bak. */
+	while (iso9660->pending_files.used > 0 &&
+	    (iso9660->pending_files.files[0]->number == -1 ||
+	     iso9660->pending_files.files[0]->number == number)) {
+		if (file->number == -1) {
+			/* This file has the same offset
+			 * but it's wrong offset which empty files
+			 * and symlink files have.
+			 * NOTE: This wrong offse was recorded by
+			 * old mkisofs utility. If ISO images is
+			 * created by latest mkisofs, this does not
+			 * happen.
+			 */
+			file->next = NULL;
+			*empty_files.last = file;
+			empty_files.last = &(file->next);
+		} else {
+			count++;
+			cache_add_entry(iso9660, file);
+		}
+		file = next_entry(iso9660);
+	}
 
-  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (this->SrcFileSignature)
-    {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile.c_str());
+	if (count == 0) {
+		*pfile = file;
+		return ((file == NULL)?ARCHIVE_EOF:ARCHIVE_OK);
+	}
+	if (file->number == -1) {
+		file->next = NULL;
+		*empty_files.last = file;
+		empty_files.last = &(file->next);
+	} else {
+		count++;
+		cache_add_entry(iso9660, file);
+	}
 
-    // we need to create a directory and CMakeLists file etc...
-    // first create the directories
-    sourceDirectory = this->BinaryDirectory.c_str();
+	if (count > 1) {
+		/* The count is the same as number of hardlink,
+		 * so much so that each nlinks of files in cache_file
+		 * is overwritten by value of the count.
+		 */
+		for (file = iso9660->cache_files.first;
+		    file != NULL; file = file->next)
+			file->nlinks = count;
+	}
+	/* If there are empty files, that files are added
+	 * to the tail of the cache_files. */
+	if (empty_files.first != NULL) {
+		*iso9660->cache_files.last = empty_files.first;
+		iso9660->cache_files.last = empty_files.last;
+	}
+	*pfile = cache_get_entry(iso9660);
+	return ((*pfile == NULL)?ARCHIVE_EOF:ARCHIVE_OK);
 
-    // now create a CMakeLists.txt file in that directory
-    FILE *fout = fopen(outFileName.c_str(),"w");
-    if (!fout)
-      {
-      cmOStringStream e;
-      e << "Failed to open\n"
-        << "  " << outFileName.c_str() << "\n"
-        << cmSystemTools::GetLastSystemError();
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-      return -1;
-      }
-
-    std::string source = argv[2];
-    std::string ext = cmSystemTools::GetFilenameLastExtension(source);
-    const char* lang =(this->Makefile->GetCMakeInstance()->GetGlobalGenerator()
-                        ->GetLanguageFromExtension(ext.c_str()));
-    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
-    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
-            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
-            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
-    if(def)
-      {
-      fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
-      }
-
-    const char* rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
-    std::string rulesOverrideLang =
-      rulesOverrideBase + (lang ? std::string("_") + lang : std::string(""));
-    if(const char* rulesOverridePath =
-       this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
-      {
-      fprintf(fout, "SET(%s \"%s\")\n",
-              rulesOverrideLang.c_str(), rulesOverridePath);
-      }
-    else if(const char* rulesOverridePath2 =
-            this->Makefile->GetDefinition(rulesOverrideBase))
-      {
-      fprintf(fout, "SET(%s \"%s\")\n",
-              rulesOverrideBase, rulesOverridePath2);
-      }
-
-    if(lang)
-      {
-      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE %s)\n", lang);
-      }
-    else
-      {
-      fclose(fout);
-      cmOStringStream err;
-      err << "Unknown extension \"" << ext << "\" for file\n"
-          << "  " << source << "\n"
-          << "try_compile() works only for enabled languages.  "
-          << "Currently these are:\n ";
-      std::vector<std::string> langs;
-      this->Makefile->GetCMakeInstance()->GetGlobalGenerator()->
-        GetEnabledLanguages(langs);
-      for(std::vector<std::string>::iterator l = langs.begin();
-          l != langs.end(); ++l)
-        {
-        err << " " << *l;
-        }
-      err << "\nSee project() command to enable other languages.";
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
-      return -1;
-      }
-    std::string langFlags = "CMAKE_";
-    langFlags +=  lang;
-    langFlags += "_FLAGS";
-    fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");
-    fprintf(fout, "SET(CMAKE_%s_FLAGS \"", lang);
-    const char* flags = this->Makefile->GetDefinition(langFlags.c_str());
-    if(flags)
-      {
-      fprintf(fout, " %s ", flags);
-      }
-    fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
-    fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "SET(CMAKE_SUPPRESS_REGENERATION 1)\n");
-    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (compileFlags.size())
-      {
-      fprintf(fout, "ADD_DEFINITIONS( ");
-      for (i = 0; i < compileFlags.size(); ++i)
-        {
-        fprintf(fout,"%s ",compileFlags[i].c_str());
-        }
-      fprintf(fout, ")\n");
-      }
-
-    /* Use a random file name to avoid rapid creation and deletion
-       of the same executable name (some filesystems fail on that).  */
-    sprintf(targetNameBuf, "cmTryCompileExec%u",
-            cmSystemTools::RandomSeed());
-    targetName = targetNameBuf;
-
-    if (!targets.empty())
-      {
-      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
-      cmExportTryCompileFileGenerator tcfg;
-      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
-      tcfg.SetExports(targets);
-      tcfg.SetConfig(this->Makefile->GetDefinition(
-                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
-
-      if(!tcfg.GenerateImportFile())
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-                                     "could not write export file.");
-        fclose(fout);
-        return -1;
-        }
-      fprintf(fout,
-              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
-              fname.c_str());
-      }
-
-    /* for the TRY_COMPILEs we want to be able to specify the architecture.
-      So the user can set CMAKE_OSX_ARCHITECTURE to i386;ppc and then set
-      CMAKE_TRY_COMPILE_OSX_ARCHITECTURE first to i386 and then to ppc to
-      have the tests run for each specific architecture. Since
-      cmLocalGenerator doesn't allow building for "the other"
-      architecture only via CMAKE_OSX_ARCHITECTURES.
-      */
-    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition(
-                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_SYSROOT=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
-      cmakeFlags.push_back(flag);
-      }
-    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
-      {
-      fprintf(fout, "SET(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
-      }
-
-    /* Put the executable at a known location (for COPY_FILE).  */
-    fprintf(fout, "SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-            this->BinaryDirectory.c_str());
-    /* Create the actual executable.  */
-    fprintf(fout, "ADD_EXECUTABLE(%s \"%s\")\n", targetName, source.c_str());
-    if (useOldLinkLibs)
-      {
-      fprintf(fout,
-              "TARGET_LINK_LIBRARIES(%s ${LINK_LIBRARIES})\n",targetName);
-      }
-    else
-      {
-      fprintf(fout, "TARGET_LINK_LIBRARIES(%s %s)\n",
-              targetName,
-              libsToLink.c_str());
-      }
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
-    // if the source is not in CMakeTmp
-    if(source.find("CMakeTmp") == source.npos)
-      {
-      this->Makefile->AddCMakeDependFile(source.c_str());
-      }
-
-    }
-  // else the srcdir bindir project target signature
-  else
-    {
-    projectName = argv[3].c_str();
-
-    if (argv.size() - extraArgs == 5)
-      {
-      targetName = argv[4].c_str();
-      }
-    }
-
-  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
-  cmSystemTools::ResetErrorOccuredFlag();
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = this->Makefile->TryCompile(sourceDirectory,
-                                       this->BinaryDirectory.c_str(),
-                                       projectName,
-                                       targetName,
-                                       this->SrcFileSignature,
-                                       &cmakeFlags,
-                                       &output);
-  if ( erroroc )
-    {
-    cmSystemTools::SetErrorOccured();
-    }
-
-  // set the result var to the return value to indicate success or failure
-  this->Makefile->AddCacheDefinition(argv[0].c_str(),
-                                     (res == 0 ? "TRUE" : "FALSE"),
-                                     "Result of TRY_COMPILE",
-                                     cmCacheManager::INTERNAL);
-
-  if ( outputVariable.size() > 0 )
-    {
-    this->Makefile->AddDefinition(outputVariable.c_str(), output.c_str());
-    }
-
-  if (this->SrcFileSignature)
-    {
-    this->FindOutputFile(targetName);
-
-    if ((res==0) && (copyFile.size()))
-      {
-      if(this->OutputFile.empty() ||
-         !cmSystemTools::CopyFileAlways(this->OutputFile.c_str(),
-                                        copyFile.c_str()))
-        {
-        cmOStringStream emsg;
-        emsg << "Cannot copy output executable\n"
-             << "  '" << this->OutputFile.c_str() << "'\n"
-             << "to destination specified by COPY_FILE:\n"
-             << "  '" << copyFile.c_str() << "'\n";
-        if(!this->FindErrorMessage.empty())
-          {
-          emsg << this->FindErrorMessage.c_str();
-          }
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
-        return -1;
-        }
-      }
-    }
-  return res;
+fatal_rr:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    "Failed to connect 'CL' pointer to 'RE' rr_moved pointer of"
+	    "Rockridge extensions");
+	return (ARCHIVE_FATAL);
 }

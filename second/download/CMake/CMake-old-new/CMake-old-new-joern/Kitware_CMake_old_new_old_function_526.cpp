@@ -1,94 +1,101 @@
 static int
-archive_read_format_zip_read_data(struct archive_read *a,
-    const void **buff, size_t *size, int64_t *offset)
+lha_read_data_lzh(struct archive_read *a, const void **buff,
+    size_t *size, int64_t *offset)
 {
+	struct lha *lha = (struct lha *)(a->format->data);
+	ssize_t bytes_avail;
 	int r;
-	struct zip *zip = (struct zip *)(a->format->data);
 
-	if (zip->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
-		zip->has_encrypted_entries = 0;
+	/* If the buffer hasn't been allocated, allocate it now. */
+	if (lha->uncompressed_buffer == NULL) {
+		lha->uncompressed_buffer_size = 64 * 1024;
+		lha->uncompressed_buffer
+		    = (unsigned char *)malloc(lha->uncompressed_buffer_size);
+		if (lha->uncompressed_buffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for lzh decompression");
+			return (ARCHIVE_FATAL);
+		}
 	}
 
-	*offset = zip->entry_uncompressed_bytes_read;
-	*size = 0;
-	*buff = NULL;
+	/* If we haven't yet read any data, initialize the decompressor. */
+	if (!lha->decompress_init) {
+		r = lzh_decode_init(&(lha->strm), lha->method);
+		switch (r) {
+		case ARCHIVE_OK:
+			break;
+		case ARCHIVE_FAILED:
+        		/* Unsupported compression. */
+			*buff = NULL;
+			*size = 0;
+			*offset = 0;
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Unsupported lzh compression method -%c%c%c-",
+			    lha->method[0], lha->method[1], lha->method[2]);
+			/* We know compressed size; just skip it. */
+			archive_read_format_lha_read_data_skip(a);
+			return (ARCHIVE_WARN);
+		default:
+			archive_set_error(&a->archive, ENOMEM,
+			    "Couldn't allocate memory "
+			    "for lzh decompression");
+			return (ARCHIVE_FATAL);
+		}
+		/* We've initialized decompression for this stream. */
+		lha->decompress_init = 1;
+		lha->strm.avail_out = 0;
+		lha->strm.total_out = 0;
+	}
 
-	/* If we hit end-of-entry last time, return ARCHIVE_EOF. */
-	if (zip->end_of_entry)
-		return (ARCHIVE_EOF);
-
-	/* Return EOF immediately if this is a non-regular file. */
-	if (AE_IFREG != (zip->entry->mode & AE_IFMT))
-		return (ARCHIVE_EOF);
-
-	if (zip->entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
-		zip->has_encrypted_entries = 1;
+	/*
+	 * Note: '1' here is a performance optimization.
+	 * Recall that the decompression layer returns a count of
+	 * available bytes; asking for more than that forces the
+	 * decompressor to combine reads by copying data.
+	 */
+	lha->strm.next_in = __archive_read_ahead(a, 1, &bytes_avail);
+	if (bytes_avail <= 0) {
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Encrypted file is unsupported");
+		    "Truncated LHa file body");
+		return (ARCHIVE_FATAL);
+	}
+	if (bytes_avail > lha->entry_bytes_remaining)
+		bytes_avail = (ssize_t)lha->entry_bytes_remaining;
+
+	lha->strm.avail_in = bytes_avail;
+	lha->strm.total_in = 0;
+	if (lha->strm.avail_out == 0) {
+		lha->strm.next_out = lha->uncompressed_buffer;
+		lha->strm.avail_out = lha->uncompressed_buffer_size;
+	}
+
+	r = lzh_decode(&(lha->strm), bytes_avail == lha->entry_bytes_remaining);
+	switch (r) {
+	case ARCHIVE_OK:
+		break;
+	case ARCHIVE_EOF:
+		lha->end_of_entry = 1;
+		break;
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Bad lzh data");
 		return (ARCHIVE_FAILED);
 	}
+	lha->entry_unconsumed = lha->strm.total_in;
+	lha->entry_bytes_remaining -= lha->strm.total_in;
 
-	__archive_read_consume(a, zip->unconsumed);
-	zip->unconsumed = 0;
-
-	switch(zip->entry->compression) {
-	case 0:  /* No compression. */
-		r =  zip_read_data_none(a, buff, size, offset);
-		break;
-#ifdef HAVE_ZLIB_H
-	case 8: /* Deflate compression. */
-		r =  zip_read_data_deflate(a, buff, size, offset);
-		break;
-#endif
-	default: /* Unsupported compression. */
-		/* Return a warning. */
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unsupported ZIP compression method (%s)",
-		    compression_name(zip->entry->compression));
-		/* We can't decompress this entry, but we will
-		 * be able to skip() it and try the next entry. */
-		return (ARCHIVE_FAILED);
-		break;
+	if (lha->strm.avail_out == 0 || lha->end_of_entry) {
+		*offset = lha->entry_offset;
+		*size = lha->strm.next_out - lha->uncompressed_buffer;
+		*buff = lha->uncompressed_buffer;
+		lha->entry_crc_calculated =
+		    lha_crc16(lha->entry_crc_calculated, *buff, *size);
+		lha->entry_offset += *size;
+	} else {
+		*offset = lha->entry_offset;
+		*size = 0;
+		*buff = NULL;
 	}
-	if (r != ARCHIVE_OK)
-		return (r);
-	/* Update checksum */
-	if (*size)
-		zip->entry_crc32 = zip->crc32func(zip->entry_crc32, *buff,
-		    (unsigned)*size);
-	/* If we hit the end, swallow any end-of-data marker. */
-	if (zip->end_of_entry) {
-		/* Check file size, CRC against these values. */
-		if (zip->entry->compressed_size !=
-		    zip->entry_compressed_bytes_read) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP compressed data is wrong size "
-			    "(read %jd, expected %jd)",
-			    (intmax_t)zip->entry_compressed_bytes_read,
-			    (intmax_t)zip->entry->compressed_size);
-			return (ARCHIVE_WARN);
-		}
-		/* Size field only stores the lower 32 bits of the actual
-		 * size. */
-		if ((zip->entry->uncompressed_size & UINT32_MAX)
-		    != (zip->entry_uncompressed_bytes_read & UINT32_MAX)) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP uncompressed data is wrong size "
-			    "(read %jd, expected %jd)\n",
-			    (intmax_t)zip->entry_uncompressed_bytes_read,
-			    (intmax_t)zip->entry->uncompressed_size);
-			return (ARCHIVE_WARN);
-		}
-		/* Check computed CRC against header */
-		if (zip->entry->crc32 != zip->entry_crc32
-		    && !zip->ignore_crc32) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP bad CRC: 0x%lx should be 0x%lx",
-			    (unsigned long)zip->entry_crc32,
-			    (unsigned long)zip->entry->crc32);
-			return (ARCHIVE_WARN);
-		}
-	}
-
 	return (ARCHIVE_OK);
 }

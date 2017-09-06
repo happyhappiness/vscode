@@ -1,1 +1,0 @@
-fprintf(stderr, "Output on stderr from grandchild before sleep.\n");

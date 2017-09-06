@@ -1,1 +1,1 @@
-fprintf(stderr,"%3d/%3d Testing %-30s ", cnt, tmsize, testname.c_str());
+YY_STACK_PRINT (yyss, yyssp);

@@ -1,1 +1,1 @@
-sprintf(buf, "%u", this->VersionTweak);
+std::cerr << "No current working directory." << std::endl;

@@ -1,132 +1,177 @@
-int yy_get_next_buffer (yyscan_t yyscanner)
+int cmCTestTestHandler::ProcessHandler()
 {
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
-        register char *dest = YY_CURRENT_BUFFER_LVALUE->yy_ch_buf;
-        register char *source = yyg->yytext_ptr;
-        register int number_to_move, i;
-        int ret_val;
+  // Update internal data structure from generic one
+  this->SetTestsToRunInformation(this->GetOption("TestsToRunInformation"));
+  this->SetUseUnion(cmSystemTools::IsOn(this->GetOption("UseUnion")));
+  const char* val;
+  val = this->GetOption("LabelRegularExpression");
+  if ( val )
+    {
+    this->UseIncludeLabelRegExpFlag = true;
+    this->IncludeLabelRegExp = val;
+    }
+  val = this->GetOption("ExcludeLabelRegularExpression");
+  if ( val )
+    {
+    this->UseExcludeLabelRegExpFlag = true;
+    this->ExcludeLabelRegularExpression = val;
+    }
+  val = this->GetOption("IncludeRegularExpression");
+  if ( val )
+    {
+    this->UseIncludeRegExp();
+    this->SetIncludeRegExp(val);
+    }
+  val = this->GetOption("ExcludeRegularExpression");
+  if ( val )
+    {
+    this->UseExcludeRegExp();
+    this->SetExcludeRegExp(val);
+    }
+  
+  this->TestResults.clear();
+ // do not output startup if this is a sub-process for parallel tests
+  if(!this->CTest->GetParallelSubprocess())
+    {
+    cmCTestLog(this->CTest, HANDLER_OUTPUT,
+               (this->MemCheck ? "Memory check" : "Test")
+               << " project " << cmSystemTools::GetCurrentWorkingDirectory()
+               << std::endl);
+    }
+  if ( ! this->PreProcessHandler() )
+    {
+    return -1;
+    }
 
-        if ( yyg->yy_c_buf_p > &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars + 1] )
-                YY_FATAL_ERROR(
-                "fatal flex scanner internal error--end of buffer missed" );
+  cmGeneratedFileStream mLogFile;
+  this->StartLogFile((this->MemCheck ? "DynamicAnalysis" : "Test"), mLogFile);
+  this->LogFile = &mLogFile;
 
-        if ( YY_CURRENT_BUFFER_LVALUE->yy_fill_buffer == 0 )
-                { /* Don't try to fill the buffer, so this is an EOF. */
-                if ( yyg->yy_c_buf_p - yyg->yytext_ptr - YY_MORE_ADJ == 1 )
-                        {
-                        /* We matched a single character, the EOB, so
-                         * treat this as a final EOF.
-                         */
-                        return EOB_ACT_END_OF_FILE;
-                        }
+  std::vector<cmStdString> passed;
+  std::vector<cmStdString> failed;
+  int total;
 
-                else
-                        {
-                        /* We matched some text prior to the EOB, first
-                         * process it.
-                         */
-                        return EOB_ACT_LAST_MATCH;
-                        }
-                }
+  //start the real time clock
+  double clock_start, clock_finish;
+  clock_start = cmSystemTools::GetTime();
 
-        /* Try to read more data. */
+  this->ProcessDirectory(passed, failed);
 
-        /* First move last chars to start of buffer. */
-        number_to_move = (int) (yyg->yy_c_buf_p - yyg->yytext_ptr) - 1;
+  clock_finish = cmSystemTools::GetTime();
 
-        for ( i = 0; i < number_to_move; ++i )
-                *(dest++) = *(source++);
+  total = int(passed.size()) + int(failed.size());
 
-        if ( YY_CURRENT_BUFFER_LVALUE->yy_buffer_status == YY_BUFFER_EOF_PENDING )
-                /* don't do the read, it's not guaranteed to return an EOF,
-                 * just force an EOF
-                 */
-                YY_CURRENT_BUFFER_LVALUE->yy_n_chars = yyg->yy_n_chars = 0;
-
-        else
-                {
-                        int num_to_read =
-                        YY_CURRENT_BUFFER_LVALUE->yy_buf_size - number_to_move - 1;
-
-                while ( num_to_read <= 0 )
-                        { /* Not enough room in the buffer - grow it. */
-
-                        /* just a shorter name for the current buffer */
-                        YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
-
-                        int yy_c_buf_p_offset =
-                                (int) (yyg->yy_c_buf_p - b->yy_ch_buf);
-
-                        if ( b->yy_is_our_buffer )
-                                {
-                                int new_size = b->yy_buf_size * 2;
-
-                                if ( new_size <= 0 )
-                                        b->yy_buf_size += b->yy_buf_size / 8;
-                                else
-                                        b->yy_buf_size *= 2;
-
-                                b->yy_ch_buf = (char *)
-                                        /* Include room in for 2 EOB chars. */
-                                        cmDependsFortran_yyrealloc((void *) b->yy_ch_buf,b->yy_buf_size + 2 ,yyscanner );
-                                }
-                        else
-                                /* Can't grow it, we don't own it. */
-                                b->yy_ch_buf = 0;
-
-                        if ( ! b->yy_ch_buf )
-                                YY_FATAL_ERROR(
-                                "fatal error - scanner input buffer overflow" );
-
-                        yyg->yy_c_buf_p = &b->yy_ch_buf[yy_c_buf_p_offset];
-
-                        num_to_read = YY_CURRENT_BUFFER_LVALUE->yy_buf_size -
-                                                number_to_move - 1;
-
-                        }
-
-                if ( num_to_read > YY_READ_BUF_SIZE )
-                        num_to_read = YY_READ_BUF_SIZE;
-
-                /* Read in more data. */
-                YY_INPUT( (&YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[number_to_move]),
-                        yyg->yy_n_chars, (size_t) num_to_read );
-
-                YY_CURRENT_BUFFER_LVALUE->yy_n_chars = yyg->yy_n_chars;
-                }
-
-        if ( yyg->yy_n_chars == 0 )
-                {
-                if ( number_to_move == YY_MORE_ADJ )
-                        {
-                        ret_val = EOB_ACT_END_OF_FILE;
-                        cmDependsFortran_yyrestart(yyin  ,yyscanner);
-                        }
-
-                else
-                        {
-                        ret_val = EOB_ACT_LAST_MATCH;
-                        YY_CURRENT_BUFFER_LVALUE->yy_buffer_status =
-                                YY_BUFFER_EOF_PENDING;
-                        }
-                }
-
-        else
-                ret_val = EOB_ACT_CONTINUE_SCAN;
-
-        if ((yy_size_t) (yyg->yy_n_chars + number_to_move) > YY_CURRENT_BUFFER_LVALUE->yy_buf_size) {
-                /* Extend the array by 50%, plus the number we really need. */
-                yy_size_t new_size = yyg->yy_n_chars + number_to_move + (yyg->yy_n_chars >> 1);
-                YY_CURRENT_BUFFER_LVALUE->yy_ch_buf = (char *) cmDependsFortran_yyrealloc((void *) YY_CURRENT_BUFFER_LVALUE->yy_ch_buf,new_size ,yyscanner );
-                if ( ! YY_CURRENT_BUFFER_LVALUE->yy_ch_buf )
-                        YY_FATAL_ERROR( "out of dynamic memory in yy_get_next_buffer()" );
+  if (total == 0)
+    {
+    if ( !this->CTest->GetShowOnly() )
+      {
+      cmCTestLog(this->CTest, ERROR_MESSAGE, "No tests were found!!!"
+        << std::endl);
+      }
+    }
+  else
+    {
+    if (this->HandlerVerbose && passed.size() &&
+      (this->UseIncludeRegExpFlag || this->UseExcludeRegExpFlag))
+      {
+      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
+        << "The following tests passed:" << std::endl);
+      for(std::vector<cmStdString>::iterator j = passed.begin();
+          j != passed.end(); ++j)
+        {
+        cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "\t" << *j
+          << std::endl);
         }
+      }
 
-        yyg->yy_n_chars += number_to_move;
-        YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars] = YY_END_OF_BUFFER_CHAR;
-        YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[yyg->yy_n_chars + 1] = YY_END_OF_BUFFER_CHAR;
+    float percent = float(passed.size()) * 100.0f / total;
+    if ( failed.size() > 0 &&  percent > 99)
+      {
+      percent = 99;
+      }
+    
+    if(!this->CTest->GetParallelSubprocess())
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl
+                 << static_cast<int>(percent + .5) << "% tests passed, "
+                 << failed.size() << " tests failed out of " 
+                 << total << std::endl); 
+      double totalTestTime = 0;
 
-        yyg->yytext_ptr = &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[0];
+      for(cmCTestTestHandler::TestResultsVector::size_type cc = 0;
+          cc < this->TestResults.size(); cc ++ )
+        {
+        cmCTestTestResult *result = &this->TestResults[cc];
+        totalTestTime += result->ExecutionTime;
+        }
+      
+      char realBuf[1024];
+      sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (real) = "
+                 << realBuf << "\n" );
 
-        return ret_val;
+      char totalBuf[1024];
+      sprintf(totalBuf, "%6.2f sec", totalTestTime); 
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (parallel) = " 
+                 <<  totalBuf << "\n" );
+      
+      }
+
+    if (failed.size())
+      {
+      cmGeneratedFileStream ofs;
+      if(!this->CTest->GetParallelSubprocess())
+        {
+        cmCTestLog(this->CTest, ERROR_MESSAGE, std::endl
+                   << "The following tests FAILED:" << std::endl);
+        this->StartLogFile("TestsFailed", ofs);
+        
+        std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;
+        for(ftit = this->TestResults.begin();
+            ftit != this->TestResults.end(); ++ftit)
+          {
+          if ( ftit->Status != cmCTestTestHandler::COMPLETED )
+            {
+            ofs << ftit->TestCount << ":" << ftit->Name << std::endl;
+            cmCTestLog(this->CTest, HANDLER_OUTPUT, "\t" << std::setw(3)
+                       << ftit->TestCount << " - " 
+                       << ftit->Name.c_str() << " ("
+                       << this->GetTestStatus(ftit->Status) << ")" 
+                       << std::endl);
+            }
+          }
+        
+        }
+      }
+    }
+
+  if ( this->CTest->GetProduceXML() )
+    {
+    cmGeneratedFileStream xmlfile;
+    if( !this->StartResultingXML(
+          (this->MemCheck ? cmCTest::PartMemCheck : cmCTest::PartTest),
+        (this->MemCheck ? "DynamicAnalysis" : "Test"), xmlfile) )
+      {
+      cmCTestLog(this->CTest, ERROR_MESSAGE, "Cannot create "
+        << (this->MemCheck ? "memory check" : "testing")
+        << " XML file" << std::endl);
+      this->LogFile = 0;
+      return 1;
+      }
+    this->GenerateDartOutput(xmlfile);
+    }
+
+  if ( ! this->PostProcessHandler() )
+    {
+    this->LogFile = 0;
+    return -1;
+    }
+
+  if ( !failed.empty() )
+    {
+    this->LogFile = 0;
+    return -1;
+    }
+  this->LogFile = 0;
+  return 0;
 }

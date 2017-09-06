@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "%s %s", "Can't allocate memory for ",
-			    errstr);
+archive_set_error(&a->archive, errno,
+		    "Failed to get first ACL entry");

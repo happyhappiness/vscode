@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, errno,
-			    "Couldn't translate access ACLs");
+				    "Invalid NFSv4 ACL entry type");

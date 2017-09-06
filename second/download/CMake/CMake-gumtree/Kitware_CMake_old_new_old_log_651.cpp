@@ -1,1 +1,0 @@
-fprintf(fout, "CODE PRELOAD MOVEABLE DISCARDABLE\n");

@@ -1,1 +1,1 @@
-sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
+fprintf(stdout, "Output on stdout before sleep.\n");

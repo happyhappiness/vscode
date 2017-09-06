@@ -1,1 +1,1 @@
-sprintf("%s", getenv("HTTP_PROXY"));
+fprintf(stderr,"SegFault");

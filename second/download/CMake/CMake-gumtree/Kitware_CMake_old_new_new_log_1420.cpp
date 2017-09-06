@@ -1,1 +1,1 @@
-sprintf(proxy, "%s", getenv("HTTP_PROXY"));
+fprintf(stderr,"***Timeout\n");

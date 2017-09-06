@@ -1,60 +1,137 @@
 static int
-setup_current_filesystem(struct archive_read_disk *a)
+zip_read_mac_metadata(struct archive_read *a, struct archive_entry *entry,
+    struct zip_entry *rsrc)
 {
-	struct tree *t = a->tree;
-	struct statvfs sfs;
-	int r, xr = 0;
+	struct zip *zip = (struct zip *)a->format->data;
+	unsigned char *metadata, *mp;
+	int64_t offset = zip->offset;
+	size_t remaining_bytes, metadata_bytes;
+	ssize_t hsize;
+	int ret = ARCHIVE_OK, eof;
 
-	t->current_filesystem->synthetic = -1;
-	if (tree_enter_working_dir(t) != 0) {
-		archive_set_error(&a->archive, errno, "fchdir failed");
-		return (ARCHIVE_FAILED);
-	}
-	if (tree_current_is_symblic_link_target(t)) {
-		r = statvfs(tree_current_access_path(t), &sfs);
-		if (r == 0)
-			xr = get_xfer_size(t, -1, tree_current_access_path(t));
-	} else {
-#ifdef HAVE_FSTATVFS
-		r = fstatvfs(tree_current_dir_fd(t), &sfs);
-		if (r == 0)
-			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
-#else
-		r = statvfs(".", &sfs);
-		if (r == 0)
-			xr = get_xfer_size(t, -1, ".");
+	switch(rsrc->compression) {
+	case 0:  /* No compression. */
+#ifdef HAVE_ZLIB_H
+	case 8: /* Deflate compression. */
 #endif
+		break;
+	default: /* Unsupported compression. */
+		/* Return a warning. */
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unsupported ZIP compression method (%s)",
+		    compression_name(rsrc->compression));
+		/* We can't decompress this entry, but we will
+		 * be able to skip() it and try the next entry. */
+		return (ARCHIVE_WARN);
 	}
-	if (r == -1 || xr == -1) {
-		t->current_filesystem->remote = -1;
-		archive_set_error(&a->archive, errno, "statvfs failed");
-		return (ARCHIVE_FAILED);
-	} else if (xr == 1) {
-		/* Usuall come here unless NetBSD supports _PC_REC_XFER_ALIGN
-		 * for pathconf() function. */
-		t->current_filesystem->xfer_align = sfs.f_frsize;
-		t->current_filesystem->max_xfer_size = -1;
-#if defined(HAVE_STRUCT_STATVFS_F_IOSIZE)
-		t->current_filesystem->min_xfer_size = sfs.f_iosize;
-		t->current_filesystem->incr_xfer_size = sfs.f_iosize;
-#else
-		t->current_filesystem->min_xfer_size = sfs.f_bsize;
-		t->current_filesystem->incr_xfer_size = sfs.f_bsize;
-#endif
-	}
-	if (sfs.f_flag & ST_LOCAL)
-		t->current_filesystem->remote = 0;
-	else
-		t->current_filesystem->remote = 1;
 
-#if defined(ST_NOATIME)
-	if (sfs.f_flag & ST_NOATIME)
-		t->current_filesystem->noatime = 1;
-	else
-#endif
-		t->current_filesystem->noatime = 0;
+	if (rsrc->uncompressed_size > (128 * 1024)) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Mac metadata is too large: %jd > 128K bytes",
+		    (intmax_t)rsrc->uncompressed_size);
+		return (ARCHIVE_WARN);
+	}
 
-	/* Set maximum filename length. */
-	t->current_filesystem->name_max = sfs.f_namemax;
-	return (ARCHIVE_OK);
+	metadata = malloc((size_t)rsrc->uncompressed_size);
+	if (metadata == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory for Mac metadata");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (zip->offset < rsrc->local_header_offset)
+		zip_read_consume(a, rsrc->local_header_offset - zip->offset);
+	else if (zip->offset != rsrc->local_header_offset) {
+		__archive_read_seek(a, rsrc->local_header_offset, SEEK_SET);
+		zip->offset = zip->entry->local_header_offset;
+	}
+
+	hsize = zip_get_local_file_header_size(a, 0);
+	zip_read_consume(a, hsize);
+
+	remaining_bytes = (size_t)rsrc->compressed_size;
+	metadata_bytes = (size_t)rsrc->uncompressed_size;
+	mp = metadata;
+	eof = 0;
+	while (!eof && remaining_bytes) {
+		const unsigned char *p;
+		ssize_t bytes_avail;
+		size_t bytes_used;
+
+		p = __archive_read_ahead(a, 1, &bytes_avail);
+		if (p == NULL) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file header");
+			ret = ARCHIVE_WARN;
+			goto exit_mac_metadata;
+		}
+		if ((size_t)bytes_avail > remaining_bytes)
+			bytes_avail = remaining_bytes;
+		switch(rsrc->compression) {
+		case 0:  /* No compression. */
+			memcpy(mp, p, bytes_avail);
+			bytes_used = (size_t)bytes_avail;
+			metadata_bytes -= bytes_used;
+			mp += bytes_used;
+			if (metadata_bytes == 0)
+				eof = 1;
+			break;
+#ifdef HAVE_ZLIB_H
+		case 8: /* Deflate compression. */
+		{
+			int r;
+
+			ret = zip_deflate_init(a, zip);
+			if (ret != ARCHIVE_OK)
+				goto exit_mac_metadata;
+			zip->stream.next_in =
+			    (Bytef *)(uintptr_t)(const void *)p;
+			zip->stream.avail_in = (uInt)bytes_avail;
+			zip->stream.total_in = 0;
+			zip->stream.next_out = mp;
+			zip->stream.avail_out = (uInt)metadata_bytes;
+			zip->stream.total_out = 0;
+
+			r = inflate(&zip->stream, 0);
+			switch (r) {
+			case Z_OK:
+				break;
+			case Z_STREAM_END:
+				eof = 1;
+				break;
+			case Z_MEM_ERROR:
+				archive_set_error(&a->archive, ENOMEM,
+				    "Out of memory for ZIP decompression");
+				ret = ARCHIVE_FATAL;
+				goto exit_mac_metadata;
+			default:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "ZIP decompression failed (%d)", r);
+				ret = ARCHIVE_FATAL;
+				goto exit_mac_metadata;
+			}
+			bytes_used = zip->stream.total_in;
+			metadata_bytes -= zip->stream.total_out;
+			mp += zip->stream.total_out;
+			break;
+		}
+#endif
+		default:
+			bytes_used = 0;
+			break;
+		}
+		zip_read_consume(a, bytes_used);
+		remaining_bytes -= bytes_used;
+	}
+	archive_entry_copy_mac_metadata(entry, metadata,
+	    (size_t)rsrc->uncompressed_size - metadata_bytes);
+
+	__archive_read_seek(a, offset, SEEK_SET);
+	zip->offset = offset;
+exit_mac_metadata:
+	zip->decompress_init = 0;
+	free(metadata);
+	return (ret);
 }

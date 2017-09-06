@@ -1,45 +1,60 @@
-int
-archive_read_open_filenames(struct archive *a, const char **filenames,
-    size_t block_size)
+static int
+setup_current_filesystem(struct archive_read_disk *a)
 {
-	struct read_file_data *mine;
-	const char *filename = NULL;
-	if (filenames)
-		filename = *(filenames++);
+	struct tree *t = a->tree;
+	struct statvfs sfs;
+	int r, xr = 0;
 
-	archive_clear_error(a);
-	do
-	{
-		if (filename == NULL)
-			filename = "";
-		mine = (struct read_file_data *)calloc(1,
-			sizeof(*mine) + strlen(filename));
-		if (mine == NULL)
-			goto no_memory;
-		strcpy(mine->filename.m, filename);
-		mine->block_size = block_size;
-		mine->fd = -1;
-		mine->buffer = NULL;
-		mine->st_mode = mine->use_lseek = 0;
-		if (filename == NULL || filename[0] == '\0') {
-			mine->filename_type = FNT_STDIN;
-		} else
-			mine->filename_type = FNT_MBS;
-		if (archive_read_append_callback_data(a, mine) != (ARCHIVE_OK))
-			return (ARCHIVE_FATAL);
-		if (filenames == NULL)
-			break;
-		filename = *(filenames++);
-	} while (filename != NULL && filename[0] != '\0');
-	archive_read_set_open_callback(a, file_open);
-	archive_read_set_read_callback(a, file_read);
-	archive_read_set_skip_callback(a, file_skip);
-	archive_read_set_close_callback(a, file_close);
-	archive_read_set_switch_callback(a, file_switch);
-	archive_read_set_seek_callback(a, file_seek);
+	t->current_filesystem->synthetic = -1;
+	if (tree_enter_working_dir(t) != 0) {
+		archive_set_error(&a->archive, errno, "fchdir failed");
+		return (ARCHIVE_FAILED);
+	}
+	if (tree_current_is_symblic_link_target(t)) {
+		r = statvfs(tree_current_access_path(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, tree_current_access_path(t));
+	} else {
+#ifdef HAVE_FSTATVFS
+		r = fstatvfs(tree_current_dir_fd(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
+#else
+		r = statvfs(".", &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, ".");
+#endif
+	}
+	if (r == -1 || xr == -1) {
+		t->current_filesystem->remote = -1;
+		archive_set_error(&a->archive, errno, "statvfs failed");
+		return (ARCHIVE_FAILED);
+	} else if (xr == 1) {
+		/* Usuall come here unless NetBSD supports _PC_REC_XFER_ALIGN
+		 * for pathconf() function. */
+		t->current_filesystem->xfer_align = sfs.f_frsize;
+		t->current_filesystem->max_xfer_size = -1;
+#if defined(HAVE_STRUCT_STATVFS_F_IOSIZE)
+		t->current_filesystem->min_xfer_size = sfs.f_iosize;
+		t->current_filesystem->incr_xfer_size = sfs.f_iosize;
+#else
+		t->current_filesystem->min_xfer_size = sfs.f_bsize;
+		t->current_filesystem->incr_xfer_size = sfs.f_bsize;
+#endif
+	}
+	if (sfs.f_flag & ST_LOCAL)
+		t->current_filesystem->remote = 0;
+	else
+		t->current_filesystem->remote = 1;
 
-	return (archive_read_open1(a));
-no_memory:
-	archive_set_error(a, ENOMEM, "No memory");
-	return (ARCHIVE_FATAL);
+#if defined(ST_NOATIME)
+	if (sfs.f_flag & ST_NOATIME)
+		t->current_filesystem->noatime = 1;
+	else
+#endif
+		t->current_filesystem->noatime = 0;
+
+	/* Set maximum filename length. */
+	t->current_filesystem->name_max = sfs.f_namemax;
+	return (ARCHIVE_OK);
 }

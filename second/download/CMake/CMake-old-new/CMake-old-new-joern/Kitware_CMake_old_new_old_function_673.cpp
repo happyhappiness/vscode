@@ -1,49 +1,53 @@
-bool Directory::Load(const char* name)
+void
+DumpSymbolTable(PIMAGE_SYMBOL pSymbolTable, PIMAGE_SECTION_HEADER pSectionHeaders, FILE *fout, unsigned cSymbols)
 {
-  this->Clear();
-#if _MSC_VER < 1300
-  long srchHandle;
-#else
-  intptr_t srchHandle;
+   unsigned i;
+   PSTR stringTable;
+   std::string sectionName;
+   std::string sectionCharacter;
+   int iSectNum;
+
+   fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
+      cSymbols);
+
+   fprintf(fout,
+      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
+      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");
+
+   /*
+   * The string table apparently starts right after the symbol table
+   */
+   stringTable = (PSTR)&pSymbolTable[cSymbols];
+
+   for ( i=0; i < cSymbols; i++ ) {
+      fprintf(fout, "%04X ", i);
+      if ( pSymbolTable->N.Name.Short != 0 )
+         fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
+      else
+         fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);
+
+      fprintf(fout, " %08X", pSymbolTable->Value);
+
+      iSectNum = pSymbolTable->SectionNumber;
+      GetSectionName(pSymbolTable, sectionName);
+      fprintf(fout, " sect:%s aux:%X type:%02X st:%s",
+         sectionName.c_str(),
+         pSymbolTable->NumberOfAuxSymbols,
+         pSymbolTable->Type,
+         GetSZStorageClass(pSymbolTable->StorageClass) );
+
+      GetSectionCharacteristics(pSectionHeaders,iSectNum,sectionCharacter);
+      fprintf(fout," hc: %s \n",sectionCharacter.c_str());
+#if 0
+      if ( pSymbolTable->NumberOfAuxSymbols )
+         DumpAuxSymbols(pSymbolTable);
 #endif
-  char* buf;
-  size_t n = strlen(name);
-  if ( name[n - 1] == '/' || name[n - 1] == '\\' )
-    {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name);
-    }
-  else
-    {
-    // Make sure the slashes in the wildcard suffix are consistent with the
-    // rest of the path
-    buf = new char[n + 2 + 1];
-    if ( strchr(name, '\\') )
-      {
-      sprintf(buf, "%s\\*", name);
-      }
-    else
-      {
-      sprintf(buf, "%s/*", name);
-      }
-    }
-  struct _wfinddata_t data;      // data of current file
 
-  // Now put them into the file array
-  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
-  delete [] buf;
-
-  if ( srchHandle == -1 )
-    {
-    return 0;
-    }
-
-  // Loop through names
-  do
-    {
-    this->Internal->Files.push_back(Encoding::ToNarrow(data.name));
-    }
-  while ( _wfindnext(srchHandle, &data) != -1 );
-  this->Internal->Path = name;
-  return _findclose(srchHandle) != -1;
+      /*
+      * Take into account any aux symbols
+      */
+      i += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable++;
+   }
 }

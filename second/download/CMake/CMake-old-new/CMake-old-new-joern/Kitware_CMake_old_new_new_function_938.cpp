@@ -1,137 +1,58 @@
-static int
-zip_read_mac_metadata(struct archive_read *a, struct archive_entry *entry,
-    struct zip_entry *rsrc)
+int
+archive_read_open_filename_w(struct archive *a, const wchar_t *wfilename,
+    size_t block_size)
 {
-	struct zip *zip = (struct zip *)a->format->data;
-	unsigned char *metadata, *mp;
-	int64_t offset = zip->offset;
-	size_t remaining_bytes, metadata_bytes;
-	ssize_t hsize;
-	int ret = ARCHIVE_OK, eof;
-
-	switch(rsrc->compression) {
-	case 0:  /* No compression. */
-#ifdef HAVE_ZLIB_H
-	case 8: /* Deflate compression. */
-#endif
-		break;
-	default: /* Unsupported compression. */
-		/* Return a warning. */
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unsupported ZIP compression method (%s)",
-		    compression_name(rsrc->compression));
-		/* We can't decompress this entry, but we will
-		 * be able to skip() it and try the next entry. */
-		return (ARCHIVE_WARN);
-	}
-
-	if (rsrc->uncompressed_size > (128 * 1024)) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Mac metadata is too large: %jd > 128K bytes",
-		    (intmax_t)rsrc->uncompressed_size);
-		return (ARCHIVE_WARN);
-	}
-
-	metadata = malloc((size_t)rsrc->uncompressed_size);
-	if (metadata == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate memory for Mac metadata");
+	struct read_file_data *mine = (struct read_file_data *)calloc(1,
+		sizeof(*mine) + wcslen(wfilename) * sizeof(wchar_t));
+	if (!mine)
+	{
+		archive_set_error(a, ENOMEM, "No memory");
 		return (ARCHIVE_FATAL);
 	}
+	mine->fd = -1;
+	mine->block_size = block_size;
 
-	if (zip->offset < rsrc->local_header_offset)
-		zip_read_consume(a, rsrc->local_header_offset - zip->offset);
-	else if (zip->offset != rsrc->local_header_offset) {
-		__archive_read_seek(a, rsrc->local_header_offset, SEEK_SET);
-		zip->offset = zip->entry->local_header_offset;
-	}
+	if (wfilename == NULL || wfilename[0] == L'\0') {
+		mine->filename_type = FNT_STDIN;
+	} else {
+#if defined(_WIN32) && !defined(__CYGWIN__)
+		mine->filename_type = FNT_WCS;
+		wcscpy(mine->filename.w, wfilename);
+#else
+		/*
+		 * POSIX system does not support a wchar_t interface for
+		 * open() system call, so we have to translate a whcar_t
+		 * filename to multi-byte one and use it.
+		 */
+		struct archive_string fn;
 
-	hsize = zip_get_local_file_header_size(a, 0);
-	zip_read_consume(a, hsize);
-
-	remaining_bytes = (size_t)rsrc->compressed_size;
-	metadata_bytes = (size_t)rsrc->uncompressed_size;
-	mp = metadata;
-	eof = 0;
-	while (!eof && remaining_bytes) {
-		const unsigned char *p;
-		ssize_t bytes_avail;
-		size_t bytes_used;
-
-		p = __archive_read_ahead(a, 1, &bytes_avail);
-		if (p == NULL) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file header");
-			ret = ARCHIVE_WARN;
-			goto exit_mac_metadata;
+		archive_string_init(&fn);
+		if (archive_string_append_from_wcs(&fn, wfilename,
+		    wcslen(wfilename)) != 0) {
+			if (errno == ENOMEM)
+				archive_set_error(a, errno,
+				    "Can't allocate memory");
+			else
+				archive_set_error(a, EINVAL,
+				    "Failed to convert a wide-character"
+				    " filename to a multi-byte filename");
+			archive_string_free(&fn);
+			free(mine);
+			return (ARCHIVE_FATAL);
 		}
-		if ((size_t)bytes_avail > remaining_bytes)
-			bytes_avail = remaining_bytes;
-		switch(rsrc->compression) {
-		case 0:  /* No compression. */
-			memcpy(mp, p, bytes_avail);
-			bytes_used = (size_t)bytes_avail;
-			metadata_bytes -= bytes_used;
-			mp += bytes_used;
-			if (metadata_bytes == 0)
-				eof = 1;
-			break;
-#ifdef HAVE_ZLIB_H
-		case 8: /* Deflate compression. */
-		{
-			int r;
-
-			ret = zip_deflate_init(a, zip);
-			if (ret != ARCHIVE_OK)
-				goto exit_mac_metadata;
-			zip->stream.next_in =
-			    (Bytef *)(uintptr_t)(const void *)p;
-			zip->stream.avail_in = (uInt)bytes_avail;
-			zip->stream.total_in = 0;
-			zip->stream.next_out = mp;
-			zip->stream.avail_out = (uInt)metadata_bytes;
-			zip->stream.total_out = 0;
-
-			r = inflate(&zip->stream, 0);
-			switch (r) {
-			case Z_OK:
-				break;
-			case Z_STREAM_END:
-				eof = 1;
-				break;
-			case Z_MEM_ERROR:
-				archive_set_error(&a->archive, ENOMEM,
-				    "Out of memory for ZIP decompression");
-				ret = ARCHIVE_FATAL;
-				goto exit_mac_metadata;
-			default:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "ZIP decompression failed (%d)", r);
-				ret = ARCHIVE_FATAL;
-				goto exit_mac_metadata;
-			}
-			bytes_used = zip->stream.total_in;
-			metadata_bytes -= zip->stream.total_out;
-			mp += zip->stream.total_out;
-			break;
-		}
+		mine->filename_type = FNT_MBS;
+		strcpy(mine->filename.m, fn.s);
+		archive_string_free(&fn);
 #endif
-		default:
-			bytes_used = 0;
-			break;
-		}
-		zip_read_consume(a, bytes_used);
-		remaining_bytes -= bytes_used;
 	}
-	archive_entry_copy_mac_metadata(entry, metadata,
-	    (size_t)rsrc->uncompressed_size - metadata_bytes);
+	if (archive_read_append_callback_data(a, mine) != (ARCHIVE_OK))
+		return (ARCHIVE_FATAL);
+	archive_read_set_open_callback(a, file_open);
+	archive_read_set_read_callback(a, file_read);
+	archive_read_set_skip_callback(a, file_skip);
+	archive_read_set_close_callback(a, file_close);
+	archive_read_set_switch_callback(a, file_switch);
+	archive_read_set_seek_callback(a, file_seek);
 
-	__archive_read_seek(a, offset, SEEK_SET);
-	zip->offset = offset;
-exit_mac_metadata:
-	zip->decompress_init = 0;
-	free(metadata);
-	return (ret);
+	return (archive_read_open1(a));
 }

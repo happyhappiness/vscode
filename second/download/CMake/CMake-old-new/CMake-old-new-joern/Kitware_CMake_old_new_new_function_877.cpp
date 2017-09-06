@@ -1,101 +1,105 @@
 static int
-setup_current_filesystem(struct archive_read_disk *a)
+archive_read_format_zip_seekable_read_header(struct archive_read *a,
+	struct archive_entry *entry)
 {
-	struct tree *t = a->tree;
-	struct statfs sfs;
-	struct statvfs svfs;
-	int r, vr = 0, xr = 0;
+	struct zip *zip = (struct zip *)a->format->data;
+	struct zip_entry *rsrc;
+	int r, ret = ARCHIVE_OK;
 
-	if (tree_current_is_symblic_link_target(t)) {
-#if defined(HAVE_OPENAT)
-		/*
-		 * Get file system statistics on any directory
-		 * where current is.
-		 */
-		int fd = openat(tree_current_dir_fd(t),
-		    tree_current_access_path(t), O_RDONLY | O_CLOEXEC);
-		__archive_ensure_cloexec_flag(fd);
-		if (fd < 0) {
-			archive_set_error(&a->archive, errno,
-			    "openat failed");
-			return (ARCHIVE_FAILED);
-		}
-		vr = fstatvfs(fd, &svfs);/* for f_flag, mount flags */
-		r = fstatfs(fd, &sfs);
-		if (r == 0)
-			xr = get_xfer_size(t, fd, NULL);
-		close(fd);
-#else
-		if (tree_enter_working_dir(t) != 0) {
-			archive_set_error(&a->archive, errno, "fchdir failed");
-			return (ARCHIVE_FAILED);
-		}
-		vr = statvfs(tree_current_access_path(t), &svfs);
-		r = statfs(tree_current_access_path(t), &sfs);
-		if (r == 0)
-			xr = get_xfer_size(t, -1, tree_current_access_path(t));
-#endif
-	} else {
-#ifdef HAVE_FSTATFS
-		vr = fstatvfs(tree_current_dir_fd(t), &svfs);
-		r = fstatfs(tree_current_dir_fd(t), &sfs);
-		if (r == 0)
-			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
-#else
-		if (tree_enter_working_dir(t) != 0) {
-			archive_set_error(&a->archive, errno, "fchdir failed");
-			return (ARCHIVE_FAILED);
-		}
-		vr = statvfs(".", &svfs);
-		r = statfs(".", &sfs);
-		if (r == 0)
-			xr = get_xfer_size(t, -1, ".");
-#endif
-	}
-	if (r == -1 || xr == -1 || vr == -1) {
-		t->current_filesystem->synthetic = -1;
-		t->current_filesystem->remote = -1;
-		archive_set_error(&a->archive, errno, "statfs failed");
-		return (ARCHIVE_FAILED);
-	} else if (xr == 1) {
-		/* pathconf(_PC_REX_*) operations are not supported. */
-		t->current_filesystem->xfer_align = svfs.f_frsize;
-		t->current_filesystem->max_xfer_size = -1;
-		t->current_filesystem->min_xfer_size = svfs.f_bsize;
-		t->current_filesystem->incr_xfer_size = svfs.f_bsize;
-	}
-	switch (sfs.f_type) {
-	case AFS_SUPER_MAGIC:
-	case CIFS_SUPER_MAGIC:
-	case CODA_SUPER_MAGIC:
-	case NCP_SUPER_MAGIC:/* NetWare */
-	case NFS_SUPER_MAGIC:
-	case SMB_SUPER_MAGIC:
-		t->current_filesystem->remote = 1;
-		t->current_filesystem->synthetic = 0;
-		break;
-	case DEVFS_SUPER_MAGIC:
-	case PROC_SUPER_MAGIC:
-	case USBDEVICE_SUPER_MAGIC:
-		t->current_filesystem->remote = 0;
-		t->current_filesystem->synthetic = 1;
-		break;
-	default:
-		t->current_filesystem->remote = 0;
-		t->current_filesystem->synthetic = 0;
-		break;
+	a->archive.archive_format = ARCHIVE_FORMAT_ZIP;
+	if (a->archive.archive_format_name == NULL)
+		a->archive.archive_format_name = "ZIP";
+
+	if (zip->zip_entries == NULL) {
+		r = slurp_central_directory(a, zip);
+		zip->entries_remaining = zip->central_directory_entries;
+		if (r != ARCHIVE_OK)
+			return r;
+		/* Get first entry whose local header offset is lower than
+		 * other entries in the archive file. */
+		zip->entry =
+		    (struct zip_entry *)ARCHIVE_RB_TREE_MIN(&zip->tree);
+	} else if (zip->entry != NULL) {
+		/* Get next entry in local header offset order. */
+		zip->entry = (struct zip_entry *)__archive_rb_tree_iterate(
+		    &zip->tree, &zip->entry->node, ARCHIVE_RB_DIR_RIGHT);
 	}
 
-#if defined(ST_NOATIME)
-	if (svfs.f_flag & ST_NOATIME)
-		t->current_filesystem->noatime = 1;
+	if (zip->entries_remaining <= 0 || zip->entry == NULL)
+		return ARCHIVE_EOF;
+	--zip->entries_remaining;
+
+	if (zip->entry->rsrcname.s)
+		rsrc = (struct zip_entry *)__archive_rb_tree_find_node(
+		    &zip->tree_rsrc, zip->entry->rsrcname.s);
 	else
-#endif
-		t->current_filesystem->noatime = 0;
+		rsrc = NULL;
 
-#if defined(HAVE_READDIR_R)
-	/* Set maximum filename length. */
-	t->current_filesystem->name_max = sfs.f_namelen;
-#endif
-	return (ARCHIVE_OK);
+	/* File entries are sorted by the header offset, we should mostly
+	 * use zip_read_consume to advance a read point to avoid redundant
+	 * data reading.  */
+	if (zip->offset < zip->entry->local_header_offset)
+		zip_read_consume(a,
+		    zip->entry->local_header_offset - zip->offset);
+	else if (zip->offset != zip->entry->local_header_offset) {
+		__archive_read_seek(a, zip->entry->local_header_offset,
+			SEEK_SET);
+		zip->offset = zip->entry->local_header_offset;
+	}
+	zip->unconsumed = 0;
+	r = zip_read_local_file_header(a, entry, zip);
+	if (r != ARCHIVE_OK)
+		return r;
+	if ((zip->entry->mode & AE_IFMT) == AE_IFLNK) {
+		const void *p;
+		struct archive_string_conv *sconv;
+		size_t linkname_length = (size_t)archive_entry_size(entry);
+
+		archive_entry_set_size(entry, 0);
+		p = __archive_read_ahead(a, linkname_length, NULL);
+		if (p == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated Zip file");
+			return ARCHIVE_FATAL;
+		}
+
+		sconv = zip->sconv;
+		if (sconv == NULL && (zip->entry->flags & ZIP_UTF8_NAME))
+			sconv = zip->sconv_utf8;
+		if (sconv == NULL)
+			sconv = zip->sconv_default;
+		if (archive_entry_copy_symlink_l(entry, p, linkname_length,
+		    sconv) != 0) {
+			if (errno != ENOMEM && sconv == zip->sconv_utf8 &&
+			    (zip->entry->flags & ZIP_UTF8_NAME))
+			    archive_entry_copy_symlink_l(entry, p,
+				linkname_length, NULL);
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Symlink");
+				return (ARCHIVE_FATAL);
+			}
+			/*
+			 * Since there is no character-set regulation for
+			 * symlink name, do not report the conversion error
+			 * in an automatic conversion.
+			 */
+			if (sconv != zip->sconv_utf8 ||
+			    (zip->entry->flags & ZIP_UTF8_NAME) == 0) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Symlink cannot be converted "
+				    "from %s to current locale.",
+				    archive_string_conversion_charset_name(
+					sconv));
+				ret = ARCHIVE_WARN;
+			}
+		}
+	}
+	if (rsrc) {
+		int ret2 = zip_read_mac_metadata(a, entry, rsrc);
+		if (ret2 < ret)
+			ret = ret2;
+	}
+	return (ret);
 }

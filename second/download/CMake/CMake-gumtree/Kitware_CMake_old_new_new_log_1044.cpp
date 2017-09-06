@@ -1,1 +1,1 @@
-printf("Error fetching: %s\n", url1);
+std::cout << "AUTOMOC: Checking " << absFilename << std::endl;

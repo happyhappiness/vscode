@@ -1,1 +1,2 @@
-len = snprintf(ptr, left, " libidn2/%s", idn2_check_version(NULL));
+archive_set_error(&a->archive, error_number, "%s",
+		    error_string.s);

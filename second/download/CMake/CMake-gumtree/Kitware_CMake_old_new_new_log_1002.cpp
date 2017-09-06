@@ -1,2 +1,2 @@
-archive_set_error(&(a->archive),
-		    ARCHIVE_ERRNO_MISC, "Damaged 7-Zip archive");
+f(fout, "SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+            this->BinaryDirectory.c_str());

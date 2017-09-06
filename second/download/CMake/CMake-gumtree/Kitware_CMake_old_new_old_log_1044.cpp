@@ -1,1 +1,1 @@
-printf("Error fetching: http://www.cmake.org/page1.html\n");
+printf("Checking -%s-\n", absFilename.c_str());

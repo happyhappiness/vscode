@@ -1,1 +1,3 @@
-snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);
+archive_set_error(&a->archive, 0,
+				    "Cannot extract through symlink %s",
+				    a->name);

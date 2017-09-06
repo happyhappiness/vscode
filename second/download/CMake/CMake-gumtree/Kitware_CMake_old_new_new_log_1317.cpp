@@ -1,1 +1,1 @@
-printf("0x%02x: ", i);
+fprintf(stdout, "WaitForData timeout reached.\n");

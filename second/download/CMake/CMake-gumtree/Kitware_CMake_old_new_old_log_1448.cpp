@@ -1,1 +1,1 @@
-snprintf(hbuf, sizeof(hbuf), "?");
+printf("#CMake System Variables are:");

@@ -1,24 +1,53 @@
-static int
-get_gss_name(struct connectdata *conn, bool proxy, gss_name_t *server)
+static ssize_t
+archive_write_zip_data(struct archive_write *a, const void *buff, size_t s)
 {
-  OM_uint32 major_status, minor_status;
-  gss_buffer_desc token = GSS_C_EMPTY_BUFFER;
-  char name[2048];
-  const char* service = "HTTP";
+	int ret;
+	struct zip *zip = a->format_data;
 
-  token.length = strlen(service) + 1 + strlen(proxy ? conn->proxy.name :
-                                              conn->host.name) + 1;
-  if(token.length + 1 > sizeof(name))
-    return EMSGSIZE;
+	if ((int64_t)s > zip->entry_uncompressed_limit)
+		s = (size_t)zip->entry_uncompressed_limit;
+	zip->entry_uncompressed_written += s;
 
-  snprintf(name, sizeof(name), "%s@%s", service, proxy ? conn->proxy.name :
-           conn->host.name);
+	if (s == 0) return 0;
 
-  token.value = (void *) name;
-  major_status = gss_import_name(&minor_status,
-                                 &token,
-                                 GSS_C_NT_HOSTBASED_SERVICE,
-                                 server);
+	switch (zip->entry_compression) {
+	case COMPRESSION_STORE:
+		ret = __archive_write_output(a, buff, s);
+		if (ret != ARCHIVE_OK)
+			return (ret);
+		zip->written_bytes += s;
+		zip->entry_compressed_written += s;
+		break;
+#if HAVE_ZLIB_H
+	case COMPRESSION_DEFLATE:
+		zip->stream.next_in = (unsigned char*)(uintptr_t)buff;
+		zip->stream.avail_in = (uInt)s;
+		do {
+			ret = deflate(&zip->stream, Z_NO_FLUSH);
+			if (ret == Z_STREAM_ERROR)
+				return (ARCHIVE_FATAL);
+			if (zip->stream.avail_out == 0) {
+				ret = __archive_write_output(a, zip->buf,
+					zip->len_buf);
+				if (ret != ARCHIVE_OK)
+					return (ret);
+				zip->entry_compressed_written += zip->len_buf;
+				zip->written_bytes += zip->len_buf;
+				zip->stream.next_out = zip->buf;
+				zip->stream.avail_out = (uInt)zip->len_buf;
+			}
+		} while (zip->stream.avail_in != 0);
+		break;
+#endif
 
-  return GSS_ERROR(major_status) ? -1 : 0;
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Invalid ZIP compression type");
+		return ARCHIVE_FATAL;
+	}
+
+	zip->entry_uncompressed_limit -= s;
+	zip->entry_crc32 = zip->crc32func(zip->entry_crc32, buff, (unsigned)s);
+	return (s);
+
 }

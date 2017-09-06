@@ -1,1 +1,1 @@
-fprintf(stdout, "WaitForData timeout reached.\n");
+sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);

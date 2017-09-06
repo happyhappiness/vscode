@@ -1,0 +1,1 @@
+fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE CXX)\n");

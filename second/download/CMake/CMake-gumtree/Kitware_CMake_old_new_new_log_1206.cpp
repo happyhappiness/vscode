@@ -1,1 +1,1 @@
-y(buf, filename, sizeof(buf)-1);
+fprintf(handle, "NTLMFLAG_UNKNOWN_10 ");

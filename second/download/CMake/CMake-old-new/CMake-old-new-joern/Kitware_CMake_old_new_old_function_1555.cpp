@@ -7,7 +7,15 @@ bool cmVTKWrapTclCommand::WriteInit(const char *kitName,
   FILE *fout = fopen(tempOutputFile.c_str(),"w");
   if (!fout)
     {
+    cmSystemTools::Error("Failed to open TclInit file for ", tempOutputFile.c_str());
     return false;
+    }
+
+  // capitalized commands just once
+  std::vector<std::string> capcommands;
+  for (i = 0; i < m_Commands.size(); i++)
+    {
+    capcommands.push_back(cmSystemTools::Capitalized(m_Commands[i]));
     }
   
   fprintf(fout,"#include \"vtkTclUtil.h\"\n");
@@ -33,15 +41,29 @@ bool cmVTKWrapTclCommand::WriteInit(const char *kitName,
     }
   fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
   fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
+
+  for (i = 0; i < m_Commands.size(); i++)
+    {
+    fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
+            capcommands[i].c_str());
+    }
   
-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n\n",
+  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n",
 	  kitName);
-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n\n",
+  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
 	  kitName);
   
   /* create an extern ref to the generic delete function */
-  fprintf(fout,"\n\nextern void vtkTclGenericDeleteObject(ClientData cd);\n\n");
+  fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
 
+  if (!strcmp(kitName,"Vtkcommontcl"))
+    {
+    fprintf(fout,"void vtkCommonDeleteAssocData(ClientData cd, Tcl_Interp *)\n");
+    fprintf(fout,"  {\n");
+    fprintf(fout,"  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n");
+    fprintf(fout,"  delete tis;\n  }\n");
+    }
+    
   /* the main declaration */
   fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
   fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
@@ -63,12 +85,18 @@ bool cmVTKWrapTclCommand::WriteInit(const char *kitName,
     fprintf(fout,
 	    "  Tcl_InitHashTable(&info->CommandLookup, TCL_STRING_KEYS);\n");
     fprintf(fout,
-            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");
+            "  Tcl_SetAssocData(interp,(char *) \"vtk\",vtkCommonDeleteAssocData,(ClientData *)info);\n");
 
     /* create special vtkCommand command */
     fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",vtkCommand,\n		    (ClientData *)NULL, NULL);\n\n");
     }
   
+  for (i = 0; i < m_Commands.size(); i++)
+    {
+    fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
+    }
+  fprintf(fout,"\n");
+
   for (i = 0; i < classes.size(); i++)
     {
     fprintf(fout,"  vtkTclCreateNew(interp,(char *) \"%s\", %sNewCommand,\n",

@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, errno,
-				    "Failed to check permission in an ACL permission set");
+snprintf(buf, CURL_BUFSIZE(conn->data->set.buffer_size),
+                 "%04d%02d%02d %02d:%02d:%02d GMT",
+                 year, month, day, hour, minute, second);

@@ -1,1 +1,1 @@
-snprintf(groupname, sizeof(groupname), "%d", (int)gid);
+fprintf(stderr, "Output on stderr from grandchild before sleep.\n");

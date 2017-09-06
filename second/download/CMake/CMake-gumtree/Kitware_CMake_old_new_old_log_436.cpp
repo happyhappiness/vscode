@@ -1,3 +1,2 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "LHa data CRC error");
+archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter");

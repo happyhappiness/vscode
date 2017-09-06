@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, errno,
-				    "FIEMAP failed");
+fprintf(progFile,"empty");

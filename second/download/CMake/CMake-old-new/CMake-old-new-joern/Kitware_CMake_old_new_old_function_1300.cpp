@@ -1,41 +1,82 @@
-int 
-main(int           const argc, 
-     const char ** const argv ATTR_UNUSED) {
+int
+tar_append_tree(TAR *t, char *realdir, char *savedir)
+{
+  char realpath[MAXPATHLEN];
+  char savepath[MAXPATHLEN];
+#ifndef _MSC_VER
+  struct dirent *dent;
+  DIR *dp;
+#else  
+  kwDirEntry * dent;
+  kwDirectory *dp;
+#endif  
+  struct stat s;
 
-    xmlrpc_env env;
-    xmlrpc_value *result;
-    char *state_name;
+#ifdef DEBUG
+  printf("==> tar_append_tree(0x%lx, \"%s\", \"%s\")\n",
+         t, realdir, (savedir ? savedir : "[NULL]"));
+#endif
 
-    if (argc-1 > 0) {
-        fprintf(stderr, "No arguments");
-        exit(0);
+  if (tar_append_file(t, realdir, savedir) != 0)
+    return -1;
+
+#ifdef DEBUG
+  puts("    tar_append_tree(): done with tar_append_file()...");
+#endif
+
+#ifdef _MSC_VER
+  dp = kwOpenDir(realdir);
+#else
+  dp = opendir(realdir);
+#endif
+
+  if (dp == NULL)
+  {
+    if (errno == ENOTDIR)
+      return 0;
+    return -1;
+  }
+#ifdef _MSC_VER
+  while ((dent = kwReadDir(dp)) != NULL)
+#else
+  while ((dent = readdir(dp)) != NULL)
+#endif
+  {
+    if (strcmp(dent->d_name, ".") == 0 ||
+        strcmp(dent->d_name, "..") == 0)
+      continue;
+
+    snprintf(realpath, MAXPATHLEN, "%s/%s", realdir,
+       dent->d_name);
+    if (savedir)
+      snprintf(savepath, MAXPATHLEN, "%s/%s", savedir,
+         dent->d_name);
+
+#ifndef WIN32
+    if (lstat(realpath, &s) != 0)
+      return -1;
+#else
+    if (stat(realpath, &s) != 0)
+      return -1;
+#endif
+    if (S_ISDIR(s.st_mode))
+    {
+      if (tar_append_tree(t, realpath,
+              (savedir ? savepath : NULL)) != 0)
+        return -1;
+      continue;
     }
 
-    /* Start up our XML-RPC client library. */
-    xmlrpc_client_init(XMLRPC_CLIENT_NO_FLAGS, NAME, VERSION);
+    if (tar_append_file(t, realpath,
+            (savedir ? savepath : NULL)) != 0)
+      return -1;
+  }
 
-    /* Initialize our error-handling environment. */
-    xmlrpc_env_init(&env);
+#ifdef _MSC_VER
+  kwCloseDir(dp);
+#else
+  closedir(dp);
+#endif
 
-    /* Call the famous server at UserLand. */
-    result = xmlrpc_client_call(&env, "http://betty.userland.com/RPC2",
-        "examples.getStateName",
-        "(i)", (xmlrpc_int32) 41);
-    die_if_fault_occurred(&env);
-    
-    /* Get our state name and print it out. */
-    xmlrpc_parse_value(&env, result, "s", &state_name);
-    die_if_fault_occurred(&env);
-    printf("%s\n", state_name);
-    
-    /* Dispose of our result value. */
-    xmlrpc_DECREF(result);
-
-    /* Clean up our error-handling environment. */
-    xmlrpc_env_clean(&env);
-  
-    /* Shutdown our XML-RPC client library. */
-    xmlrpc_client_cleanup();
-
-    return 0;
+  return 0;
 }

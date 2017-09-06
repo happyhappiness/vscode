@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Couldn't determine file path to read ACLs");
+snprintf(header, sizeof(header),
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);

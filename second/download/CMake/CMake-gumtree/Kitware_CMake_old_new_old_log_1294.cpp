@@ -1,3 +1,1 @@
-sprintf(output,"%s/%s_force_%i",
-              m_Makefile->GetStartOutputDirectory(),
-              libName, count);
+snprintf(username, sizeof(username), "%d", uid);

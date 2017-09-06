@@ -1,1 +1,1 @@
-sprintf(buf, "%u", this->VersionCount);
+std::cout << "Writing " << fileName << "..." << std::endl;

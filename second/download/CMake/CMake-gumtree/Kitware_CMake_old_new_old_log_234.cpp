@@ -1,2 +1,2 @@
-fprintf(stderr,
-		    "Extra data field contents do not match reported size!\n");
+archive_set_error(&self->archive->archive, ENOMEM,
+		    "Can't allocate data for lzma decompression");

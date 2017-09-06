@@ -1,2 +1,1 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external bzip2 program");
+archive_set_error(&a->archive, errno, "fchdir failed");

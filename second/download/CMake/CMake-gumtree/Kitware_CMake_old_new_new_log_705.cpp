@@ -1,1 +1,1 @@
-archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino);
+sprintf(buf, "%s/*", name.c_str());

@@ -1,1 +1,0 @@
-snprintf(buf, len, "%ld%s", conn->port, hostname);

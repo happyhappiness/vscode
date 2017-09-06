@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_UNKNOWN_27 ");
+("Accept-Encoding: %s\r\n";

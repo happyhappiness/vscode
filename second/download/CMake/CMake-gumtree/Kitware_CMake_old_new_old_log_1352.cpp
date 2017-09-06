@@ -1,1 +1,1 @@
-fprintf(stderr,"   Passed\n");
+vsprintf(s, fmt, ap);

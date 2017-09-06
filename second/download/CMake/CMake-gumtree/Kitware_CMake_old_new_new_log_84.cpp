@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: realloc of buffer failed\n"));
+strcpy(data->set.errorbuffer, error);

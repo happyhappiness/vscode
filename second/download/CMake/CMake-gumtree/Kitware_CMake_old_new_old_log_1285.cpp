@@ -1,0 +1,1 @@
+f(fout,"  char pkgName[]=\"%s\";\n", m_LibraryName.c_str());

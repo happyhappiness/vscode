@@ -1,1 +1,1 @@
-fprintf(stderr,"SegFault");
+fprintf(fout, " %s ", fflags);

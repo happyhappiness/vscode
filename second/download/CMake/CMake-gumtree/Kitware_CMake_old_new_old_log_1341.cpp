@@ -1,1 +1,1 @@
-sprintf(format, "%%%ds", static_cast<unsigned int>(maxlen));
+sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);

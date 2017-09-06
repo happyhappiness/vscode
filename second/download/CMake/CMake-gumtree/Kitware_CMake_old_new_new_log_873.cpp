@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, errno, "fchdir failed");
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory for Mac metadata");

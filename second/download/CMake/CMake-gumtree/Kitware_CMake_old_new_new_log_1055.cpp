@@ -1,1 +1,1 @@
-sprintf(totalBuf, "%6.2f sec", totalTestTime);
+this->ChipID.ProcessorName = this->ParseValueFromKStat("-s cpu_type");

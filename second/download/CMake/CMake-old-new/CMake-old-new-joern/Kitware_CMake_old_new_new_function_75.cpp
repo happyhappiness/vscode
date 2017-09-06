@@ -1,86 +1,68 @@
-static void kwsysProcessSetExitExceptionByIndex(kwsysProcess* cp, int code,
-                                                int idx)
+static int
+set_xattrs(struct archive_write_disk *a)
 {
-  switch (code) {
-    case STATUS_CONTROL_C_EXIT:
-      KWSYSPE_CASE(Interrupt, "User interrupt");
-      break;
+	struct archive_entry *entry = a->entry;
+	struct archive_string errlist;
+	int ret = ARCHIVE_OK;
+	int i = archive_entry_xattr_reset(entry);
+	short fail = 0;
 
-    case STATUS_FLOAT_DENORMAL_OPERAND:
-      KWSYSPE_CASE(Numerical, "Floating-point exception (denormal operand)");
-      break;
-    case STATUS_FLOAT_DIVIDE_BY_ZERO:
-      KWSYSPE_CASE(Numerical, "Divide-by-zero");
-      break;
-    case STATUS_FLOAT_INEXACT_RESULT:
-      KWSYSPE_CASE(Numerical, "Floating-point exception (inexact result)");
-      break;
-    case STATUS_FLOAT_INVALID_OPERATION:
-      KWSYSPE_CASE(Numerical, "Invalid floating-point operation");
-      break;
-    case STATUS_FLOAT_OVERFLOW:
-      KWSYSPE_CASE(Numerical, "Floating-point overflow");
-      break;
-    case STATUS_FLOAT_STACK_CHECK:
-      KWSYSPE_CASE(Numerical, "Floating-point stack check failed");
-      break;
-    case STATUS_FLOAT_UNDERFLOW:
-      KWSYSPE_CASE(Numerical, "Floating-point underflow");
-      break;
-#ifdef STATUS_FLOAT_MULTIPLE_FAULTS
-    case STATUS_FLOAT_MULTIPLE_FAULTS:
-      KWSYSPE_CASE(Numerical, "Floating-point exception (multiple faults)");
-      break;
-#endif
-#ifdef STATUS_FLOAT_MULTIPLE_TRAPS
-    case STATUS_FLOAT_MULTIPLE_TRAPS:
-      KWSYSPE_CASE(Numerical, "Floating-point exception (multiple traps)");
-      break;
-#endif
-    case STATUS_INTEGER_DIVIDE_BY_ZERO:
-      KWSYSPE_CASE(Numerical, "Integer divide-by-zero");
-      break;
-    case STATUS_INTEGER_OVERFLOW:
-      KWSYSPE_CASE(Numerical, "Integer overflow");
-      break;
+	archive_string_init(&errlist);
 
-    case STATUS_DATATYPE_MISALIGNMENT:
-      KWSYSPE_CASE(Fault, "Datatype misalignment");
-      break;
-    case STATUS_ACCESS_VIOLATION:
-      KWSYSPE_CASE(Fault, "Access violation");
-      break;
-    case STATUS_IN_PAGE_ERROR:
-      KWSYSPE_CASE(Fault, "In-page error");
-      break;
-    case STATUS_INVALID_HANDLE:
-      KWSYSPE_CASE(Fault, "Invalid hanlde");
-      break;
-    case STATUS_NONCONTINUABLE_EXCEPTION:
-      KWSYSPE_CASE(Fault, "Noncontinuable exception");
-      break;
-    case STATUS_INVALID_DISPOSITION:
-      KWSYSPE_CASE(Fault, "Invalid disposition");
-      break;
-    case STATUS_ARRAY_BOUNDS_EXCEEDED:
-      KWSYSPE_CASE(Fault, "Array bounds exceeded");
-      break;
-    case STATUS_STACK_OVERFLOW:
-      KWSYSPE_CASE(Fault, "Stack overflow");
-      break;
+	while (i--) {
+		const char *name;
+		const void *value;
+		size_t size;
+		archive_entry_xattr_next(entry, &name, &value, &size);
+		if (name != NULL) {
+			int e;
+			int namespace;
 
-    case STATUS_ILLEGAL_INSTRUCTION:
-      KWSYSPE_CASE(Illegal, "Illegal instruction");
-      break;
-    case STATUS_PRIVILEGED_INSTRUCTION:
-      KWSYSPE_CASE(Illegal, "Privileged instruction");
-      break;
+			if (strncmp(name, "user.", 5) == 0) {
+				/* "user." attributes go to user namespace */
+				name += 5;
+				namespace = EXTATTR_NAMESPACE_USER;
+			} else {
+				/* Other namespaces are unsupported */
+				archive_strcat(&errlist, name);
+				archive_strappend_char(&errlist, ' ');
+				fail = 1;
+				ret = ARCHIVE_WARN;
+				continue;
+			}
 
-    case STATUS_NO_MEMORY:
-    default:
-      cp->ProcessResults[idx].ExitException = kwsysProcess_Exception_Other;
-      _snprintf(cp->ProcessResults[idx].ExitExceptionString,
-                KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);
-      break;
-  }
+			if (a->fd >= 0) {
+				e = extattr_set_fd(a->fd, namespace, name,
+				    value, size);
+			} else {
+				e = extattr_set_link(
+				    archive_entry_pathname(entry), namespace,
+				    name, value, size);
+			}
+			if (e != (int)size) {
+				archive_strcat(&errlist, name);
+				archive_strappend_char(&errlist, ' ');
+				ret = ARCHIVE_WARN;
+				if (errno != ENOTSUP && errno != ENOSYS)
+					fail = 1;
+			}
+		}
+	}
+
+	if (ret == ARCHIVE_WARN) {
+		if (fail && errlist.length > 0) {
+			errlist.length--;
+			errlist.s[errlist.length] = '\0';
+
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Cannot restore extended attributes: %s",
+			    errlist.s);
+		} else
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Cannot restore extended "
+			    "attributes on this file system.");
+	}
+
+	archive_string_free(&errlist);
+	return (ret);
 }

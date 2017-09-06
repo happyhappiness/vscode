@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr before grandchild test.\n");
+conn->allocptr.host = aprintf("%s\r\n", ptr);

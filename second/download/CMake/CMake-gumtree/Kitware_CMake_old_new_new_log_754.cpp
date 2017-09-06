@@ -1,1 +1,1 @@
-fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");
+fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());

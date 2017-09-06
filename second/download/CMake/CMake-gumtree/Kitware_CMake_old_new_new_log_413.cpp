@@ -1,2 +1,1 @@
-fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-              this->BinaryDirectory.c_str());
+YY_FATAL_ERROR( "cmListFileLexer_yyset_lineno called with no buffer" );

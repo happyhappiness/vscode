@@ -1,1 +1,1 @@
-fprintf(stderr,"Illegal");
+snprintf(nbuf, sizeof(nbuf), "?");

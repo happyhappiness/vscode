@@ -1,182 +1,265 @@
-void CMakeSetupFrm::DoInitFrame(cmCommandLineInfo &cm, const wxString &fn)
-{ 
-    // path to where cmake.exe is
-    // m_PathToExecutable = cm.GetPathToExecutable().c_str();
-    m_PathToExecutable = fn;
+kwsys_stl::string SystemTools::GetOperatingSystemNameAndVersion()
+{
+  kwsys_stl::string res;
 
-    // adjust size of last bar, to display % progress
-    wxStatusBar *bar = GetStatusBar();
-    if(bar)
+#ifdef _WIN32
+  char buffer[256];
+
+  OSVERSIONINFOEX osvi;
+  BOOL bOsVersionInfoEx;
+
+  // Try calling GetVersionEx using the OSVERSIONINFOEX structure.
+  // If that fails, try using the OSVERSIONINFO structure.
+
+  ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
+  osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+
+  bOsVersionInfoEx = GetVersionEx((OSVERSIONINFO *)&osvi);
+  if (!bOsVersionInfoEx)
     {
-        wxASSERT(bar->GetFieldsCount() > 1);
-        
-        // fill all with -1. Why this way? because the count of the status bars
-        // can change. All of the widths must be accounted for and initialised
-        int *widths = new int[bar->GetFieldsCount()];
-        for(int i = 0; i < bar->GetFieldsCount(); i++)
-            widths[i] = -1;
-
-        // the % field
-        widths[1] = 75;
-        bar->SetStatusWidths(bar->GetFieldsCount(), widths);
-        delete widths;
+    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+    if (!GetVersionEx((OSVERSIONINFO *)&osvi)) 
+      {
+      return 0;
+      }
     }
-
-    wxString name, generator;
-    std::vector<std::string> names;
   
-    m_RunningConfigure = false;
-
-    // set grid labels
-    m_cmOptions->SetColLabelValue(0, wxT("Cache Name"));
-    m_cmOptions->SetColLabelValue(1, wxT("Cache Value"));
-    m_cmOptions->SetProjectGenerated(false);
-
-    // set drop target
-    m_cmOptions->SetDropTarget(new DnDFile(m_cmBuildPath));
-
-    m_cmake->GetRegisteredGenerators(names);
-    for(std::vector<std::string>::iterator i = names.begin(); i != names.end(); ++i)
+  switch (osvi.dwPlatformId)
     {
-        name = i->c_str();
-        m_cmGeneratorChoice->Append(name);
-    }
-    
-    // sync advanced option with grid
-    m_cmOptions->SetShowAdvanced(m_cmShowAdvanced->GetValue());
+    // Test for the Windows NT product family.
 
-    // if we have a command line query that a generator 
-    // needs to be chosen instead of the default, take it
-    bool foundGivenGenerator = false;
-    if(!cm.m_GeneratorChoiceString.IsEmpty())
-    {
-        // set proper discovered generator
-        foundGivenGenerator = m_cmGeneratorChoice->SetStringSelection(cm.m_GeneratorChoiceString);  
-    }
+    case VER_PLATFORM_WIN32_NT:
+      
+      // Test for the specific product family.
 
-    // if none selected, we will see if VS8, VS7 or VS6 is present
-    if(!foundGivenGenerator || m_cmGeneratorChoice->GetValue().IsEmpty())
-    {
-        std::string mp;
-        mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\8.0\\Setup;Dbghelp_path]";
-        cmSystemTools::ExpandRegistryValues(mp);
-        if(mp != "/registry")
-            generator = wxT("Visual Studio 8 2005");
-        else
+      if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 2)
         {
-            mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\7.1;InstallDir]";
-            cmSystemTools::ExpandRegistryValues(mp);
-            if (mp != "/registry")
-                generator = wxT("Visual Studio 7 .NET 2003");
-            else
+        res += "Microsoft Windows Server 2003 family";
+        }
+
+      if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 1)
+        {
+        res += "Microsoft Windows XP";
+        }
+
+      if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 0)
+        {
+        res += "Microsoft Windows 2000";
+        }
+
+      if (osvi.dwMajorVersion <= 4)
+        {
+        res += "Microsoft Windows NT";
+        }
+
+      // Test for specific product on Windows NT 4.0 SP6 and later.
+
+      if (bOsVersionInfoEx)
+        {
+        // Test for the workstation type.
+
+#if (_MSC_VER >= 1300) 
+        if (osvi.wProductType == VER_NT_WORKSTATION)
+          {
+          if (osvi.dwMajorVersion == 4)
             {
-                mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\7.0;InstallDir]";
-                cmSystemTools::ExpandRegistryValues(mp);
-                if (mp != "/registry")
-                    generator = wxT("Visual Studio 7");
-                else
-                    generator = wxT("Visual Studio 6");         
+            res += " Workstation 4.0";
             }
-        }
-    }
-
-    // set proper discovered generator
-    m_cmGeneratorChoice->SetStringSelection(generator);
-    
-    wxString str;
-    str.Printf("CMake %d.%d - %s", cmVersion::GetMajorVersion(),
-               cmVersion::GetMinorVersion(), 
-               cmVersion::GetReleaseVersion().c_str());
-    str.Printf("CMakeSetup v%i.%i%s", CMAKEGUI_MAJORVER, CMAKEGUI_MINORVER, CMAKEGUI_ADDVER);
-
-    SetTitle(str);
-    wxString path;
-    
-    // get last 5 used projects
-    for(size_t i = 0; i < CM_MAX_RECENT_PATHS; i++)
-    {
-        path.Printf("%s%i", _(CM_RECENT_BUILD_PATH), i);
-        if(m_config->Read(path, &str))
-            AppendPathToRecentList(str);
-    }
-
-    // get query items
-    for(size_t i = 0; i < CM_MAX_SEARCH_QUERIES; i++)
-    {
-        path.Printf("%s%i", _(CM_SEARCH_QUERY), i);
-        if(m_config->Read(path, &str))
-            m_cmSearchQuery->Append(str);
-    }
-
-
-    // make sure the call to update grid is not executed
-    m_noRefresh = true;
-    m_cmSearchQuery->SetValue(_(""));
-    m_noRefresh = false;
-
-    // Get the parameters from the command line info
-    // If an unknown parameter is found, try to interpret it too, since it
-    // is likely to be a file dropped on the shortcut :)
-    bool sourceDirLoaded = false,
-         buildDirLoaded = false;
-    
-    if(cm.m_LastUnknownParameter.empty())
-    {
-        if(cm.m_WhereSource.size() > 0 )
-        {
-            m_cmProjectPath->SetValue(cm.m_WhereSource.c_str());
-            sourceDirLoaded = true;
-        }   
-    
-        if (cm.m_WhereBuild.size() > 0 )
-        {
-            m_cmBuildPath->SetValue(cm.m_WhereBuild.c_str());
-            buildDirLoaded = true;
-        }
+          else if (osvi.wSuiteMask & VER_SUITE_PERSONAL)
+            {
+            res += " Home Edition";
+            }
+          else
+            {
+            res += " Professional";
+            }
+          }
             
-        m_cmShowAdvanced->SetValue(cm.m_AdvancedValues);
-    }
-    else
-    {
-        m_cmShowAdvanced->SetValue(false);
+        // Test for the server type.
+
+        else if (osvi.wProductType == VER_NT_SERVER)
+          {
+          if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 2)
+            {
+            if (osvi.wSuiteMask & VER_SUITE_DATACENTER)
+              {
+              res += " Datacenter Edition";
+              }
+            else if (osvi.wSuiteMask & VER_SUITE_ENTERPRISE)
+              {
+              res += " Enterprise Edition";
+              }
+            else if (osvi.wSuiteMask == VER_SUITE_BLADE)
+              {
+              res += " Web Edition";
+              }
+            else
+              {
+              res += " Standard Edition";
+              }
+            }
+          
+          else if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 0)
+            {
+            if (osvi.wSuiteMask & VER_SUITE_DATACENTER)
+              {
+              res += " Datacenter Server";
+              }
+            else if (osvi.wSuiteMask & VER_SUITE_ENTERPRISE)
+              {
+              res += " Advanced Server";
+              }
+            else
+              {
+              res += " Server";
+              }
+            }
+
+          else  // Windows NT 4.0 
+            {
+            if (osvi.wSuiteMask & VER_SUITE_ENTERPRISE)
+              {
+              res += " Server 4.0, Enterprise Edition";
+              }
+            else
+              {
+              res += " Server 4.0";
+              }
+            }
+          }
+#endif // Visual Studio 7 and up
+        }
+
+      // Test for specific product on Windows NT 4.0 SP5 and earlier
+
+      else  
+        {
+        HKEY hKey;
+        #define BUFSIZE 80
+        char szProductType[BUFSIZE];
+        DWORD dwBufLen=BUFSIZE;
+        LONG lRet;
+
+        lRet = RegOpenKeyEx(
+          HKEY_LOCAL_MACHINE,
+          "SYSTEM\\CurrentControlSet\\Control\\ProductOptions",
+          0, KEY_QUERY_VALUE, &hKey);
+        if (lRet != ERROR_SUCCESS)
+          {
+          return 0;
+          }
+
+        lRet = RegQueryValueEx(hKey, "ProductType", NULL, NULL,
+                               (LPBYTE) szProductType, &dwBufLen);
+
+        if ((lRet != ERROR_SUCCESS) || (dwBufLen > BUFSIZE))
+          {
+          return 0;
+          }
+
+        RegCloseKey(hKey);
+
+        if (lstrcmpi("WINNT", szProductType) == 0)
+          {
+          res += " Workstation";
+          }
+        if (lstrcmpi("LANMANNT", szProductType) == 0)
+          {
+          res += " Server";
+          }
+        if (lstrcmpi("SERVERNT", szProductType) == 0)
+          {
+          res += " Advanced Server";
+          }
+
+        res += " ";
+        sprintf(buffer, "%ld", osvi.dwMajorVersion);
+        res += buffer;
+        res += ".";
+        sprintf(buffer, "%ld", osvi.dwMinorVersion);
+        res += buffer;
+        }
+
+      // Display service pack (if any) and build number.
+
+      if (osvi.dwMajorVersion == 4 && 
+          lstrcmpi(osvi.szCSDVersion, "Service Pack 6") == 0)
+        {
+        HKEY hKey;
+        LONG lRet;
+
+        // Test for SP6 versus SP6a.
+
+        lRet = RegOpenKeyEx(
+          HKEY_LOCAL_MACHINE,
+          "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Hotfix\\Q246009",
+          0, KEY_QUERY_VALUE, &hKey);
+
+        if (lRet == ERROR_SUCCESS)
+          {
+          res += " Service Pack 6a (Build ";
+          sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF);
+          res += buffer;
+          res += ")";
+          }
+        else // Windows NT 4.0 prior to SP6a
+          {
+          res += " ";
+          res += osvi.szCSDVersion;
+          res += " (Build ";
+          sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF);
+          res += buffer;
+          res += ")";
+          }
         
-        // TODO: Interpret directory from dropped shortcut
-        //this->ChangeDirectoriesFromFile(cmdInfo->m_LastUnknownParameter.c_str());
+        RegCloseKey(hKey);
+        }
+      else // Windows NT 3.51 and earlier or Windows 2000 and later
+        {
+        res += " ";
+        res += osvi.szCSDVersion;
+        res += " (Build ";
+        sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF);
+        res += buffer;
+        res += ")";
+        }
+
+      break;
+
+      // Test for the Windows 95 product family.
+
+    case VER_PLATFORM_WIN32_WINDOWS:
+
+      if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 0)
+        {
+        res += "Microsoft Windows 95";
+        if (osvi.szCSDVersion[1] == 'C' || osvi.szCSDVersion[1] == 'B')
+          {
+          res += " OSR2";
+          }
+        }
+
+      if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 10)
+        {
+        res += "Microsoft Windows 98";
+        if (osvi.szCSDVersion[1] == 'A')
+          {
+          res += " SE";
+          }
+        }
+
+      if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 90)
+        {
+        res += "Microsoft Windows Millennium Edition";
+        } 
+      break;
+
+    case VER_PLATFORM_WIN32s:
+      
+      res +=  "Microsoft Win32s";
+      break;
     }
+#endif
 
-    if (cm.m_ExitAfterLoad)
-    {
-        int id = GetId();
-        m_ExitTimer = new wxTimer(this, id);
-        m_ExitTimer->Start(3000);
-
-        Connect( id, wxEVT_TIMER,(wxObjectEventFunction) &CMakeSetupFrm::OnExitTimer ); 
-
-    } 
-
-    // retrieve settings, this needs to be done here
-    // because writing to the m_cmBuildPath triggers a cache reload
-    if(!sourceDirLoaded && m_config->Read(CM_LASTPROJECT_PATH, &str))
-        m_cmProjectPath->SetValue(str);
-
-    if(!buildDirLoaded)
-    {
-        m_cmOptions->RemoveAll();
-        if(m_config->Read(CM_LASTBUILD_PATH, &str))
-            m_cmBuildPath->SetValue(str);
-    }
-
-    // set window size from settings
-    long xsize, ysize, splitpos;
-    if(m_config->Read(CM_XSIZE, &xsize) && m_config->Read(CM_YSIZE, &ysize) &&
-       m_config->Read(CM_SPLITTERPOS, &splitpos))
-    {
-        SetSize(xsize, ysize);
-        m_splitter->SetSashPosition(splitpos);
-    }
-
-    if(m_config->Read(CM_XPOS, &xsize) && m_config->Read(CM_YPOS, &ysize))
-        SetSize(xsize, ysize, -1, -1, wxSIZE_USE_EXISTING);
-
-    UpdateWindowState();
+  return res;
 }

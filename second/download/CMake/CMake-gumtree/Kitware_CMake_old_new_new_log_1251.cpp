@@ -1,1 +1,1 @@
-sprintf(firstLine, "Page %d of %d", cw->GetPage(), this->NumberOfPages);
+fprintf(stream, "%d.%02d%%", q / 100, q % 100);

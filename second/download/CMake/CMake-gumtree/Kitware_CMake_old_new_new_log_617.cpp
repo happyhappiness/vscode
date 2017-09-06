@@ -1,1 +1,0 @@
-fprintf(stdout, "Output on stdout after grandchild test.\n");

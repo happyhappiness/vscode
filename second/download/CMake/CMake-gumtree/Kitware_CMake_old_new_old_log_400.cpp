@@ -1,1 +1,1 @@
-fprintf(stderr, "unknowntag_end:%s\n", name);
+snprintf( buf, sizeof(buf), "%d", state->requested_blksize );

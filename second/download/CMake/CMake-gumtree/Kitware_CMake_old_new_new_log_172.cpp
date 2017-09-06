@@ -1,3 +1,2 @@
-archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT, "%s %s %s",
-		    "Can't translate ", attr, " to UTF-8");
+archive_string_sprintf(&w->sver,
+			"WARC/%u.%u", ver / 10000, (ver % 10000) / 100);

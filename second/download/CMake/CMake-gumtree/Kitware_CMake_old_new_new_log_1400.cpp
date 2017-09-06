@@ -1,1 +1,1 @@
-strncpy(cp->ErrorMessage, strerror(errno), KWSYSPE_PIPE_BUFFER_SIZE);
+sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);

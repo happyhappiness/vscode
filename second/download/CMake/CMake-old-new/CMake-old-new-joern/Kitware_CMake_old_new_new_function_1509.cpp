@@ -1,128 +1,72 @@
-bool cmVTKWrapTclCommand::WriteInit(const char *kitName, 
-                                    std::string& outFileName,
-                                    std::vector<std::string>& classes)
+void ctest::GenerateDartOutput(std::ostream& os)
 {
-  unsigned int i;
-  std::string tempOutputFile = outFileName + ".tmp";
-  FILE *fout = fopen(tempOutputFile.c_str(),"w");
-  if (!fout)
+  if ( !m_DartMode )
     {
-    cmSystemTools::Error("Failed to open TclInit file for ", tempOutputFile.c_str());
-    return false;
+    return;
     }
 
-  // capitalized commands just once
-  std::vector<std::string> capcommands;
-  for (i = 0; i < m_Commands.size(); i++)
+  if ( m_TestResults.size() == 0 )
     {
-    capcommands.push_back(cmSystemTools::Capitalized(m_Commands[i]));
+    return;
     }
-  
-  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
-  
-  fprintf(fout,
-          "extern \"C\"\n"
-          "{\n"
-          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, char *[]);\n"
-          "}\n"
-          "\n");
 
-  for (i = 0; i < classes.size(); i++)
+  time_t tctime = time(0);
+  struct tm *lctime = gmtime(&tctime);
+  char datestring[100];
+  sprintf(datestring, "%4d%02d%02d-%d%d",
+          lctime->tm_year + 1900,
+          lctime->tm_mon,
+          lctime->tm_mday,
+          lctime->tm_hour,
+          lctime->tm_min);
+
+  os << "Try to create dart output file" << std::endl;
+  os << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+     << "<Site BuildName=\"" << m_DartConfiguration["BuildName"]
+     << "\" BuildStamp=\"" << datestring << "-Experimental\" Name=\""
+     << m_DartConfiguration["Site"] << "\">\n"
+     << "<Testing>\n"
+     << "  <StartDateTime>" << ::CurrentTime() << " </StartDateTime>\n"
+     << "  <TestList>\n";
+  tm_TestResultsVector::size_type cc;
+  for ( cc = 0; cc < m_TestResults.size(); cc ++ )
     {
-    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
-    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
+    cmCTestTestResult *result = &m_TestResults[cc];
+    os << "    <Test>" << result->m_Path << "/" << result->m_Name 
+       << "</Test>" << std::endl;
+    }
+  os << "  </TestList>\n";
+  for ( cc = 0; cc < m_TestResults.size(); cc ++ )
+    {
+    cmCTestTestResult *result = &m_TestResults[cc];
+    os << "  <Test Status=\"" << (result->m_ReturnValue?"failed":"passed") 
+       << "\">\n"
+       << "    <Name>" << result->m_Name << "</Name>\n"
+       << "    <Path>" << result->m_Path << "</Path>\n"
+       << "    <FullName>" << result->m_Path << "/" << result->m_Name << "</FullName>\n"
+       << "    <FullCommandLine>" << result->m_FullCommandLine << "</FullCommandLine>\n"
+       << "    <Results>" << std::endl;
+    if ( result->m_ReturnValue )
+      {
+      os << "      <NamedMeasurement type=\"text/string\" name=\"Exit Code\"><Value>"
+         << "CHILDSTATUS" << "</Value></NamedMeasurement>\n"
+         << "      <NamedMeasurement type=\"text/string\" name=\"Exit Value\"><Value>"
+         << result->m_ReturnValue << "</Value></NamedMeasurement>" << std::endl;
+      }
+    os << "      <NamedMeasurement type=\"numeric/double\" "
+       << "name=\"Execution Time\"><Value>"
+       << result->m_ExecutionTime << "</Value></NamedMeasurement>\n"
+       << "      <NamedMeasurement type=\"text/string\" "
+       << "name=\"Completion Status\"><Value>"
+       << result->m_CompletionStatus << "</Value></NamedMeasurement>\n"
+       << "      <Measurement>\n"
+       << "        <Value>" << result->m_Output << "</value>\n"
+       << "      </Measurement>\n"
+       << "    </Results>\n"
+       << "  </Test>" << std::endl;
     }
   
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,"int vtkCommand(ClientData cd, Tcl_Interp *interp,\n"
-                 "               int argc, char *argv[]);\n");
-    fprintf(fout,"\nTcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkCommandLookup;\n");
-    }
-  else
-    {
-    fprintf(fout,"\nextern Tcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkCommandLookup;\n");
-    }
-  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
-  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
-
-  for (i = 0; i < m_Commands.size(); i++)
-    {
-    fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-            capcommands[i].c_str());
-    }
-  
-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n",
-	  kitName);
-  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-	  kitName);
-  
-  /* create an extern ref to the generic delete function */
-  fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
-
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,"extern \"C\"\n{\nvoid vtkCommonDeleteAssocData(ClientData cd)\n");
-    fprintf(fout,"  {\n");
-    fprintf(fout,"  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n");
-    fprintf(fout,"  delete tis;\n  }\n}\n");
-    }
-    
-  /* the main declaration */
-  fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
-  fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
-  
-  fprintf(fout,"\n\nint VTK_EXPORT %s_Init(Tcl_Interp *interp)\n{\n",
-          kitName);
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,
-	    "  vtkTclInterpStruct *info = new vtkTclInterpStruct;\n");
-    fprintf(fout,
-            "  info->Number = 0; info->InDelete = 0; info->DebugOn = 0;\n");
-    fprintf(fout,"\n");
-    fprintf(fout,"\n");
-    fprintf(fout,
-	    "  Tcl_InitHashTable(&info->InstanceLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-	    "  Tcl_InitHashTable(&info->PointerLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-	    "  Tcl_InitHashTable(&info->CommandLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");
-    fprintf(fout,
-            "  Tcl_CreateExitHandler(vtkCommonDeleteAssocData,(ClientData *)info);\n");
-
-    /* create special vtkCommand command */
-    fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",\n"
-                 "                    reinterpret_cast<vtkTclCommandType>(vtkCommand),\n"
-                 "                    (ClientData *)NULL, NULL);\n\n");
-    }
-  
-  for (i = 0; i < m_Commands.size(); i++)
-    {
-    fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
-    }
-  fprintf(fout,"\n");
-
-  for (i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"  vtkTclCreateNew(interp,(char *) \"%s\", %sNewCommand,\n",
-	    classes[i].c_str(), classes[i].c_str());
-    fprintf(fout,"                  %sCommand);\n",classes[i].c_str());
-    }
-  
-  fprintf(fout,"  return TCL_OK;\n}\n");
-  fclose(fout);
-
-  // copy the file if different
-  cmSystemTools::CopyFileIfDifferent(tempOutputFile.c_str(),
-                                     outFileName.c_str());
-  cmSystemTools::RemoveFile(tempOutputFile.c_str());
-
-  return true;
+  os << "<EndDateTime>" << ::CurrentTime() << "</EndDateTime>\n"
+     << "</Testing>\n"
+     << "</Site>" << std::endl;
 }

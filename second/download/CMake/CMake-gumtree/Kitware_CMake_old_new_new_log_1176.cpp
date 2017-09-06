@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_UNKNOWN_10 ");
+fprintf(stderr, "Error: curl_easy_init failed\n");

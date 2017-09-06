@@ -1,1 +1,1 @@
-this->Symbols.insert(symbol);
+archive_wstrcat(&s, wp);

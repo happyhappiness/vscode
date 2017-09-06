@@ -1,49 +1,95 @@
-static bool getaddressinfo(struct sockaddr* sa, char* addr,
-                           long* port)
-{
-  unsigned short us_port;
-  struct sockaddr_in* si = NULL;
-#ifdef ENABLE_IPV6
-  struct sockaddr_in6* si6 = NULL;
-#endif
-#if defined(HAVE_SYS_UN_H) && defined(AF_UNIX)
-  struct sockaddr_un* su = NULL;
-#endif
+void DumpExternalsObjects() {
+    unsigned i;
+    PSTR stringTable;
+    std::string symbol;
+    DWORD SectChar;
+    /*
+     * The string table apparently starts right after the symbol table
+     */
+    stringTable = (PSTR)&this->SymbolTable[this->SymbolCount];
+    SymbolTableType* pSymbolTable = this->SymbolTable;
+    for ( i=0; i < this->SymbolCount; i++ ) {
+      if (pSymbolTable->SectionNumber > 0 &&
+          ( pSymbolTable->Type == 0x20 || pSymbolTable->Type == 0x0)) {
+         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
+            /*
+            *    The name of the Function entry points
+            */
+            if (pSymbolTable->N.Name.Short != 0) {
+               symbol = "";
+               symbol.insert(0, (const char *)pSymbolTable->N.ShortName, 8);
+            } else {
+               symbol = stringTable + pSymbolTable->N.Name.Long;
+            }
 
-  switch (sa->sa_family) {
-    case AF_INET:
-      si = (struct sockaddr_in*) sa;
-      if(Curl_inet_ntop(sa->sa_family, &si->sin_addr,
-                        addr, MAX_IPADR_LEN)) {
-        us_port = ntohs(si->sin_port);
-        *port = us_port;
-        return TRUE;
+            // clear out any leading spaces
+            while (isspace(symbol[0])) symbol.erase(0,1);
+            // if it starts with _ and has an @ then it is a __cdecl
+            // so remove the @ stuff for the export
+            if(symbol[0] == '_') {
+               std::string::size_type posAt = symbol.find('@');
+               if (posAt != std::string::npos) {
+                  symbol.erase(posAt);
+               }
+            }
+            if (symbol[0] == '_') symbol.erase(0,1);
+            if (this->ImportFlag) {
+               this->ImportFlag = false;
+               fprintf(this->FileOut,"EXPORTS \n");
+            }
+            /*
+            Check whether it is "Scalar deleting destructor" and
+            "Vector deleting destructor"
+            */
+            const char *scalarPrefix = "??_G";
+            const char *vectorPrefix = "??_E";
+            // original code had a check for
+            // symbol.find("real@") == std::string::npos)
+            // but if this disallows memmber functions with the name real
+            // if scalarPrefix and vectorPrefix are not found then print
+            // the symbol
+            if (symbol.compare(0, 4, scalarPrefix) &&
+                symbol.compare(0, 4, vectorPrefix) )
+            {
+               SectChar =
+                 this->
+                 SectionHeaders[pSymbolTable->SectionNumber-1].Characteristics;
+               if (!pSymbolTable->Type  && (SectChar & IMAGE_SCN_MEM_WRITE)) {
+                  // Read only (i.e. constants) must be excluded
+                  fprintf(this->FileOut, "\t%s \t DATA\n", symbol.c_str());
+               } else {
+                  if ( pSymbolTable->Type  ||
+                       !(SectChar & IMAGE_SCN_MEM_READ)) {
+                     fprintf(this->FileOut, "\t%s\n", symbol.c_str());
+                  } else {
+                     // printf(" strange symbol: %s \n",symbol.c_str());
+                  }
+               }
+            }
+         }
       }
-      break;
-#ifdef ENABLE_IPV6
-    case AF_INET6:
-      si6 = (struct sockaddr_in6*)sa;
-      if(Curl_inet_ntop(sa->sa_family, &si6->sin6_addr,
-                        addr, MAX_IPADR_LEN)) {
-        us_port = ntohs(si6->sin6_port);
-        *port = us_port;
-        return TRUE;
+      else if (pSymbolTable->SectionNumber == IMAGE_SYM_UNDEFINED &&
+               !pSymbolTable->Type && 0) {
+         /*
+         *    The IMPORT global variable entry points
+         */
+         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
+            symbol = stringTable + pSymbolTable->N.Name.Long;
+            while (isspace(symbol[0]))  symbol.erase(0,1);
+            if (symbol[0] == '_') symbol.erase(0,1);
+            if (!this->ImportFlag) {
+               this->ImportFlag = true;
+               fprintf(this->FileOut,"IMPORTS \n");
+            }
+            fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);
+         }
       }
-      break;
-#endif
-#if defined(HAVE_SYS_UN_H) && defined(AF_UNIX)
-    case AF_UNIX:
-      su = (struct sockaddr_un*)sa;
-      snprintf(addr, MAX_IPADR_LEN, "%s", su->sun_path);
-      *port = 0;
-      return TRUE;
-#endif
-    default:
-      break;
+
+      /*
+      * Take into account any aux symbols
+      */
+      i += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
+      pSymbolTable++;
+    }
   }
-
-  addr[0] = '\0';
-  *port = 0;
-
-  return FALSE;
-}

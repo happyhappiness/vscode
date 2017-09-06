@@ -1,1 +1,1 @@
-fprintf(stderr, "DIRECTORY_DEF_DEBUG should not be defined in CXX\n");
+sprintf(buf, "%u", this->VersionFoundTweak);

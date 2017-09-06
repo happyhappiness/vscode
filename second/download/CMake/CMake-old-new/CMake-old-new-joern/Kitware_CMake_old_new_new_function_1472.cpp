@@ -1,23 +1,11 @@
-void cmCursesMainForm::UpdateProgress(const char *msg, float prog, void* vp)
+void Curl_infof(struct SessionHandle *data, const char *fmt, ...)
 {
-  cmCursesMainForm* cm = static_cast<cmCursesMainForm*>(vp);
-  if ( !cm )
-    {
-    return;
-    }
-  char tmp[1024];
-  const char *cmsg = tmp;
-  if ( prog >= 0 )
-    {
-    sprintf(tmp, "%s %i%%",msg,(int)(100*prog));
-    }
-  else
-    {
-    cmsg = msg;
-    }
-  cm->UpdateStatusBar(cmsg);
-  cm->PrintKeys(1);
-  curses_move(1,1);
-  touchwin(stdscr); 
-  refresh();
+  va_list ap;
+  if(data->set.verbose) {
+    char print_buffer[1024 + 1];
+    va_start(ap, fmt);
+    vsnprintf(print_buffer, 1024, fmt, ap);
+    va_end(ap);
+    Curl_debug(data, CURLINFO_TEXT, print_buffer, strlen(print_buffer));
+  }
 }

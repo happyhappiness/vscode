@@ -1,1 +1,1 @@
-fprintf(stderr,"***Failed\n");
+fprintf(stderr, "Stack size increased to %d\n", yystacksize);

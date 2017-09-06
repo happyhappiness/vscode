@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in yy_get_next_buffer()" );
+sprintf(totalBuf, "%6.2f sec", totalTestTime);

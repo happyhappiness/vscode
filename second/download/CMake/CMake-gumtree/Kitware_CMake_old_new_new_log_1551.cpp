@@ -1,1 +1,0 @@
-fprintf(fout,"  delete tis;\n  }\n");

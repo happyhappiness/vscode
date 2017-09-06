@@ -1,43 +1,177 @@
-static void cmDependsFortran_yyensure_buffer_stack (yyscan_t yyscanner)
+int cmCTestTestHandler::ProcessHandler()
 {
-        int num_to_alloc;
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+  // Update internal data structure from generic one
+  this->SetTestsToRunInformation(this->GetOption("TestsToRunInformation"));
+  this->SetUseUnion(cmSystemTools::IsOn(this->GetOption("UseUnion")));
+  const char* val;
+  val = this->GetOption("LabelRegularExpression");
+  if ( val )
+    {
+    this->UseIncludeLabelRegExpFlag = true;
+    this->IncludeLabelRegExp = val;
+    }
+  val = this->GetOption("ExcludeLabelRegularExpression");
+  if ( val )
+    {
+    this->UseExcludeLabelRegExpFlag = true;
+    this->ExcludeLabelRegularExpression = val;
+    }
+  val = this->GetOption("IncludeRegularExpression");
+  if ( val )
+    {
+    this->UseIncludeRegExp();
+    this->SetIncludeRegExp(val);
+    }
+  val = this->GetOption("ExcludeRegularExpression");
+  if ( val )
+    {
+    this->UseExcludeRegExp();
+    this->SetExcludeRegExp(val);
+    }
+  
+  this->TestResults.clear();
+ // do not output startup if this is a sub-process for parallel tests
+  if(!this->CTest->GetParallelSubprocess())
+    {
+    cmCTestLog(this->CTest, HANDLER_OUTPUT,
+               (this->MemCheck ? "Memory check" : "Test")
+               << " project " << cmSystemTools::GetCurrentWorkingDirectory()
+               << std::endl);
+    }
+  if ( ! this->PreProcessHandler() )
+    {
+    return -1;
+    }
 
-        if (!yyg->yy_buffer_stack) {
+  cmGeneratedFileStream mLogFile;
+  this->StartLogFile((this->MemCheck ? "DynamicAnalysis" : "Test"), mLogFile);
+  this->LogFile = &mLogFile;
 
-                /* First allocation is just for 2 elements, since we don't know if this
-                 * scanner will even need a stack. We use 2 instead of 1 to avoid an
-                 * immediate realloc on the next call.
-         */
-                num_to_alloc = 1;
-                yyg->yy_buffer_stack = (struct yy_buffer_state**)cmDependsFortran_yyalloc
-                                                                (num_to_alloc * sizeof(struct yy_buffer_state*)
-                                                                , yyscanner);
-                if ( ! yyg->yy_buffer_stack )
-                        YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yyensure_buffer_stack()" );
+  std::vector<cmStdString> passed;
+  std::vector<cmStdString> failed;
+  int total;
 
-                memset(yyg->yy_buffer_stack, 0, num_to_alloc * sizeof(struct yy_buffer_state*));
+  //start the real time clock
+  double clock_start, clock_finish;
+  clock_start = cmSystemTools::GetTime();
 
-                yyg->yy_buffer_stack_max = num_to_alloc;
-                yyg->yy_buffer_stack_top = 0;
-                return;
+  this->ProcessDirectory(passed, failed);
+
+  clock_finish = cmSystemTools::GetTime();
+
+  total = int(passed.size()) + int(failed.size());
+
+  if (total == 0)
+    {
+    if ( !this->CTest->GetShowOnly() )
+      {
+      cmCTestLog(this->CTest, ERROR_MESSAGE, "No tests were found!!!"
+        << std::endl);
+      }
+    }
+  else
+    {
+    if (this->HandlerVerbose && passed.size() &&
+      (this->UseIncludeRegExpFlag || this->UseExcludeRegExpFlag))
+      {
+      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
+        << "The following tests passed:" << std::endl);
+      for(std::vector<cmStdString>::iterator j = passed.begin();
+          j != passed.end(); ++j)
+        {
+        cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "\t" << *j
+          << std::endl);
         }
+      }
 
-        if (yyg->yy_buffer_stack_top >= (yyg->yy_buffer_stack_max) - 1){
+    float percent = float(passed.size()) * 100.0f / total;
+    if ( failed.size() > 0 &&  percent > 99)
+      {
+      percent = 99;
+      }
+    
+    if(!this->CTest->GetParallelSubprocess())
+      {
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl
+                 << static_cast<int>(percent + .5) << "% tests passed, "
+                 << failed.size() << " tests failed out of " 
+                 << total << std::endl); 
+      double totalTestTime = 0;
 
-                /* Increase the buffer to prepare for a possible push. */
-                int grow_size = 8 /* arbitrary grow size */;
-
-                num_to_alloc = yyg->yy_buffer_stack_max + grow_size;
-                yyg->yy_buffer_stack = (struct yy_buffer_state**)cmDependsFortran_yyrealloc
-                                                                (yyg->yy_buffer_stack,
-                                                                num_to_alloc * sizeof(struct yy_buffer_state*)
-                                                                , yyscanner);
-                if ( ! yyg->yy_buffer_stack )
-                        YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yyensure_buffer_stack()" );
-
-                /* zero only the new slots.*/
-                memset(yyg->yy_buffer_stack + yyg->yy_buffer_stack_max, 0, grow_size * sizeof(struct yy_buffer_state*));
-                yyg->yy_buffer_stack_max = num_to_alloc;
+      for(cmCTestTestHandler::TestResultsVector::size_type cc = 0;
+          cc < this->TestResults.size(); cc ++ )
+        {
+        cmCTestTestResult *result = &this->TestResults[cc];
+        totalTestTime += result->ExecutionTime;
         }
+      
+      char realBuf[1024];
+      sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (real) = "
+                 << realBuf << "\n" );
+
+      char totalBuf[1024];
+      sprintf(totalBuf, "%6.2f sec", totalTestTime); 
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (parallel) = " 
+                 <<  totalBuf << "\n" );
+      
+      }
+
+    if (failed.size())
+      {
+      cmGeneratedFileStream ofs;
+      if(!this->CTest->GetParallelSubprocess())
+        {
+        cmCTestLog(this->CTest, ERROR_MESSAGE, std::endl
+                   << "The following tests FAILED:" << std::endl);
+        this->StartLogFile("TestsFailed", ofs);
+        
+        std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;
+        for(ftit = this->TestResults.begin();
+            ftit != this->TestResults.end(); ++ftit)
+          {
+          if ( ftit->Status != cmCTestTestHandler::COMPLETED )
+            {
+            ofs << ftit->TestCount << ":" << ftit->Name << std::endl;
+            cmCTestLog(this->CTest, HANDLER_OUTPUT, "\t" << std::setw(3)
+                       << ftit->TestCount << " - " 
+                       << ftit->Name.c_str() << " ("
+                       << this->GetTestStatus(ftit->Status) << ")" 
+                       << std::endl);
+            }
+          }
+        
+        }
+      }
+    }
+
+  if ( this->CTest->GetProduceXML() )
+    {
+    cmGeneratedFileStream xmlfile;
+    if( !this->StartResultingXML(
+          (this->MemCheck ? cmCTest::PartMemCheck : cmCTest::PartTest),
+        (this->MemCheck ? "DynamicAnalysis" : "Test"), xmlfile) )
+      {
+      cmCTestLog(this->CTest, ERROR_MESSAGE, "Cannot create "
+        << (this->MemCheck ? "memory check" : "testing")
+        << " XML file" << std::endl);
+      this->LogFile = 0;
+      return 1;
+      }
+    this->GenerateDartOutput(xmlfile);
+    }
+
+  if ( ! this->PostProcessHandler() )
+    {
+    this->LogFile = 0;
+    return -1;
+    }
+
+  if ( !failed.empty() )
+    {
+    this->LogFile = 0;
+    return -1;
+    }
+  this->LogFile = 0;
+  return 0;
 }

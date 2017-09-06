@@ -1,58 +1,60 @@
-int
-archive_read_open_filename_w(struct archive *a, const wchar_t *wfilename,
-    size_t block_size)
+static int
+setup_current_filesystem(struct archive_read_disk *a)
 {
-	struct read_file_data *mine = (struct read_file_data *)calloc(1,
-		sizeof(*mine) + wcslen(wfilename) * sizeof(wchar_t));
-	if (!mine)
-	{
-		archive_set_error(a, ENOMEM, "No memory");
-		return (ARCHIVE_FATAL);
+	struct tree *t = a->tree;
+	struct statvfs sfs;
+	int r, xr = 0;
+
+	t->current_filesystem->synthetic = -1;
+	if (tree_enter_working_dir(t) != 0) {
+		archive_set_error(&a->archive, errno, "fchdir failed");
+		return (ARCHIVE_FAILED);
 	}
-	mine->fd = -1;
-	mine->block_size = block_size;
-
-	if (wfilename == NULL || wfilename[0] == L'\0') {
-		mine->filename_type = FNT_STDIN;
+	if (tree_current_is_symblic_link_target(t)) {
+		r = statvfs(tree_current_access_path(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, tree_current_access_path(t));
 	} else {
-#if defined(_WIN32) && !defined(__CYGWIN__)
-		mine->filename_type = FNT_WCS;
-		wcscpy(mine->filename.w, wfilename);
+#ifdef HAVE_FSTATVFS
+		r = fstatvfs(tree_current_dir_fd(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
 #else
-		/*
-		 * POSIX system does not support a wchar_t interface for
-		 * open() system call, so we have to translate a whcar_t
-		 * filename to multi-byte one and use it.
-		 */
-		struct archive_string fn;
-
-		archive_string_init(&fn);
-		if (archive_string_append_from_wcs(&fn, wfilename,
-		    wcslen(wfilename)) != 0) {
-			if (errno == ENOMEM)
-				archive_set_error(a, errno,
-				    "Can't allocate memory");
-			else
-				archive_set_error(a, EINVAL,
-				    "Failed to convert a wide-character"
-				    " filename to a multi-byte filename");
-			archive_string_free(&fn);
-			free(mine);
-			return (ARCHIVE_FATAL);
-		}
-		mine->filename_type = FNT_MBS;
-		strcpy(mine->filename.m, fn.s);
-		archive_string_free(&fn);
+		r = statvfs(".", &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, ".");
 #endif
 	}
-	if (archive_read_append_callback_data(a, mine) != (ARCHIVE_OK))
-		return (ARCHIVE_FATAL);
-	archive_read_set_open_callback(a, file_open);
-	archive_read_set_read_callback(a, file_read);
-	archive_read_set_skip_callback(a, file_skip);
-	archive_read_set_close_callback(a, file_close);
-	archive_read_set_switch_callback(a, file_switch);
-	archive_read_set_seek_callback(a, file_seek);
+	if (r == -1 || xr == -1) {
+		t->current_filesystem->remote = -1;
+		archive_set_error(&a->archive, errno, "statvfs failed");
+		return (ARCHIVE_FAILED);
+	} else if (xr == 1) {
+		/* Usuall come here unless NetBSD supports _PC_REC_XFER_ALIGN
+		 * for pathconf() function. */
+		t->current_filesystem->xfer_align = sfs.f_frsize;
+		t->current_filesystem->max_xfer_size = -1;
+#if defined(HAVE_STRUCT_STATVFS_F_IOSIZE)
+		t->current_filesystem->min_xfer_size = sfs.f_iosize;
+		t->current_filesystem->incr_xfer_size = sfs.f_iosize;
+#else
+		t->current_filesystem->min_xfer_size = sfs.f_bsize;
+		t->current_filesystem->incr_xfer_size = sfs.f_bsize;
+#endif
+	}
+	if (sfs.f_flag & ST_LOCAL)
+		t->current_filesystem->remote = 0;
+	else
+		t->current_filesystem->remote = 1;
 
-	return (archive_read_open1(a));
+#if defined(ST_NOATIME)
+	if (sfs.f_flag & ST_NOATIME)
+		t->current_filesystem->noatime = 1;
+	else
+#endif
+		t->current_filesystem->noatime = 0;
+
+	/* Set maximum filename length. */
+	t->current_filesystem->name_max = sfs.f_namemax;
+	return (ARCHIVE_OK);
 }

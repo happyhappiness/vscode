@@ -1,1 +1,1 @@
-f(fout,"  char pkgName[]=\"%s\";\n", m_LibraryName.c_str());
+yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" , yyscanner);

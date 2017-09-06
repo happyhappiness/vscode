@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, -1,
-			    "Malformed 7-Zip archive");
+fprintf(fout,
+              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
+              fname.c_str());

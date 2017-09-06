@@ -1,2 +1,4 @@
-fprintf(stderr, "\t%3d - %s (%s)\n", ftit->m_TestCount, ftit->m_Name.c_str(),
-            this->GetTestStatus(ftit->m_Status));
+sprintf(output, "%c%c%c=", 
+              table64[obuf[0]],
+              table64[obuf[1]],
+              table64[obuf[2]]);

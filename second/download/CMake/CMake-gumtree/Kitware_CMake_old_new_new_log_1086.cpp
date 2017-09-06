@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yyensure_buffer_stack()" );
+sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));

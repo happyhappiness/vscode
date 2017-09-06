@@ -1,1 +1,1 @@
-sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
+ostr << graphNodePrefix << cnt++;

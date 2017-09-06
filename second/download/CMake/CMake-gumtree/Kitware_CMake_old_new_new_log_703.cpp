@@ -1,2 +1,1 @@
-archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Not enough arguments");
+sprintf(buf, "%s/*", name.c_str());

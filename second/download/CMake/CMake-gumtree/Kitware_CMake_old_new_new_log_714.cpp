@@ -1,1 +1,1 @@
-fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());
+fprintf(fout, "add_executable(%s", targetName.c_str());

@@ -1,133 +1,68 @@
 static int
-zip_read_data_none(struct archive_read *a, const void **_buff,
-    size_t *size, int64_t *offset)
+lzma_bidder_init(struct archive_read_filter *self)
 {
-	struct zip *zip;
-	const char *buff;
-	ssize_t bytes_avail;
-	int r;
+	static const size_t out_block_size = 64 * 1024;
+	void *out_block;
+	struct private_data *state;
+	ssize_t ret, avail_in;
 
-	(void)offset; /* UNUSED */
+	self->code = ARCHIVE_FILTER_LZMA;
+	self->name = "lzma";
 
-	zip = (struct zip *)(a->format->data);
-
-	if (zip->entry->zip_flags & ZIP_LENGTH_AT_END) {
-		const char *p;
-		ssize_t grabbing_bytes = 24;
-
-		if (zip->hctx_valid)
-			grabbing_bytes += AUTH_CODE_SIZE;
-		/* Grab at least 24 bytes. */
-		buff = __archive_read_ahead(a, grabbing_bytes, &bytes_avail);
-		if (bytes_avail < grabbing_bytes) {
-			/* Zip archives have end-of-archive markers
-			   that are longer than this, so a failure to get at
-			   least 24 bytes really does indicate a truncated
-			   file. */
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file data");
-			return (ARCHIVE_FATAL);
-		}
-		/* Check for a complete PK\007\010 signature, followed
-		 * by the correct 4-byte CRC. */
-		p = buff;
-		if (zip->hctx_valid)
-			p += AUTH_CODE_SIZE;
-		if (p[0] == 'P' && p[1] == 'K'
-		    && p[2] == '\007' && p[3] == '\010'
-		    && (archive_le32dec(p + 4) == zip->entry_crc32
-			|| zip->ignore_crc32
-			|| (zip->hctx_valid
-			 && zip->entry->aes_extra.vendor == AES_VENDOR_AE_2))) {
-			if (zip->entry->flags & LA_USED_ZIP64) {
-				zip->entry->crc32 = archive_le32dec(p + 4);
-				zip->entry->compressed_size =
-					archive_le64dec(p + 8);
-				zip->entry->uncompressed_size =
-					archive_le64dec(p + 16);
-				zip->unconsumed = 24;
-			} else {
-				zip->entry->crc32 = archive_le32dec(p + 4);
-				zip->entry->compressed_size =
-					archive_le32dec(p + 8);
-				zip->entry->uncompressed_size =
-					archive_le32dec(p + 12);
-				zip->unconsumed = 16;
-			}
-			if (zip->hctx_valid) {
-				r = check_authentication_code(a, buff);
-				if (r != ARCHIVE_OK)
-					return (r);
-			}
-			zip->end_of_entry = 1;
-			return (ARCHIVE_OK);
-		}
-		/* If not at EOF, ensure we consume at least one byte. */
-		++p;
-
-		/* Scan forward until we see where a PK\007\010 signature
-		 * might be. */
-		/* Return bytes up until that point.  On the next call,
-		 * the code above will verify the data descriptor. */
-		while (p < buff + bytes_avail - 4) {
-			if (p[3] == 'P') { p += 3; }
-			else if (p[3] == 'K') { p += 2; }
-			else if (p[3] == '\007') { p += 1; }
-			else if (p[3] == '\010' && p[2] == '\007'
-			    && p[1] == 'K' && p[0] == 'P') {
-				if (zip->hctx_valid)
-					p -= AUTH_CODE_SIZE;
-				break;
-			} else { p += 4; }
-		}
-		bytes_avail = p - buff;
-	} else {
-		if (zip->entry_bytes_remaining == 0) {
-			zip->end_of_entry = 1;
-			if (zip->hctx_valid) {
-				r = check_authentication_code(a, NULL);
-				if (r != ARCHIVE_OK)
-					return (r);
-			}
-			return (ARCHIVE_OK);
-		}
-		/* Grab a bunch of bytes. */
-		buff = __archive_read_ahead(a, 1, &bytes_avail);
-		if (bytes_avail <= 0) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file data");
-			return (ARCHIVE_FATAL);
-		}
-		if (bytes_avail > zip->entry_bytes_remaining)
-			bytes_avail = (ssize_t)zip->entry_bytes_remaining;
+	state = (struct private_data *)calloc(sizeof(*state), 1);
+	out_block = (unsigned char *)malloc(out_block_size);
+	if (state == NULL || out_block == NULL) {
+		archive_set_error(&self->archive->archive, ENOMEM,
+		    "Can't allocate data for lzma decompression");
+		free(out_block);
+		free(state);
+		return (ARCHIVE_FATAL);
 	}
-	if (zip->tctx_valid || zip->cctx_valid) {
-		size_t dec_size = bytes_avail;
 
-		if (dec_size > zip->decrypted_buffer_size)
-			dec_size = zip->decrypted_buffer_size;
-		if (zip->tctx_valid) {
-			trad_enc_decrypt_update(&zip->tctx,
-			    (const uint8_t *)buff, dec_size,
-			    zip->decrypted_buffer, dec_size);
-		} else {
-			size_t dsize = dec_size;
-			archive_hmac_sha1_update(&zip->hctx,
-			    (const uint8_t *)buff, dec_size);
-			archive_decrypto_aes_ctr_update(&zip->cctx,
-			    (const uint8_t *)buff, dec_size,
-			    zip->decrypted_buffer, &dsize);
-		}
-		bytes_avail = dec_size;
-		buff = (const char *)zip->decrypted_buffer;
+	self->data = state;
+	state->out_block_size = out_block_size;
+	state->out_block = out_block;
+	self->read = lzma_filter_read;
+	self->skip = NULL; /* not supported */
+	self->close = lzma_filter_close;
+
+	/* Prime the lzma library with 18 bytes of input. */
+	state->stream.next_in = (unsigned char *)(uintptr_t)
+	    __archive_read_filter_ahead(self->upstream, 18, &avail_in);
+	if (state->stream.next_in == NULL)
+		return (ARCHIVE_FATAL);
+	state->stream.avail_in = avail_in;
+	state->stream.next_out = state->out_block;
+	state->stream.avail_out = state->out_block_size;
+
+	/* Initialize compression library. */
+	ret = lzmadec_init(&(state->stream));
+	__archive_read_filter_consume(self->upstream,
+	    avail_in - state->stream.avail_in);
+	if (ret == LZMADEC_OK)
+		return (ARCHIVE_OK);
+
+	/* Library setup failed: Clean up. */
+	archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+	    "Internal error initializing lzma library");
+
+	/* Override the error message if we know what really went wrong. */
+	switch (ret) {
+	case LZMADEC_HEADER_ERROR:
+		archive_set_error(&self->archive->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library: "
+		    "invalid header");
+		break;
+	case LZMADEC_MEM_ERROR:
+		archive_set_error(&self->archive->archive, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "out of memory");
+		break;
 	}
-	*size = bytes_avail;
-	zip->entry_bytes_remaining -= bytes_avail;
-	zip->entry_uncompressed_bytes_read += bytes_avail;
-	zip->entry_compressed_bytes_read += bytes_avail;
-	zip->unconsumed += bytes_avail;
-	*_buff = buff;
-	return (ARCHIVE_OK);
+
+	free(state->out_block);
+	free(state);
+	self->data = NULL;
+	return (ARCHIVE_FATAL);
 }

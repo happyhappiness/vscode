@@ -1,10 +1,23 @@
-void cmFortran_yyset_lineno (int  line_number , yyscan_t yyscanner)
+int
+__archive_write_program_write(struct archive_write_filter *f,
+    struct archive_write_program_data *data, const void *buff, size_t length)
 {
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+	ssize_t ret;
+	const char *buf;
 
-        /* lineno is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           yy_fatal_error( "cmFortran_yyset_lineno called with no buffer" , yyscanner);
+	if (data->child == 0)
+		return (ARCHIVE_OK);
 
-    yylineno = line_number;
+	buf = buff;
+	while (length > 0) {
+		ret = child_write(f, data, buf, length);
+		if (ret == -1 || ret == 0) {
+			archive_set_error(f->archive, EIO,
+			    "Can't write to filter");
+			return (ARCHIVE_FATAL);
+		}
+		length -= ret;
+		buf += ret;
+	}
+	return (ARCHIVE_OK);
 }

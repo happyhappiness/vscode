@@ -1,3 +1,3 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Decryption is unsupported due to lack of "
-			    "crypto library");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
+		    "Internal error: "
+		    "No format->read_data function registered");

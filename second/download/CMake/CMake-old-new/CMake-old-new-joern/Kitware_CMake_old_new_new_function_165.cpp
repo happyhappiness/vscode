@@ -1,231 +1,240 @@
 static int
-check_symlinks_fsobj(char *path, int *a_eno, struct archive_string *a_estr,
-    int flags)
+pax_attribute(struct archive_read *a, struct tar *tar,
+    struct archive_entry *entry, const char *key, const char *value, size_t value_length)
 {
-#if !defined(HAVE_LSTAT)
-	/* Platform doesn't have lstat, so we can't look for symlinks. */
-	(void)path; /* UNUSED */
-	(void)error_number; /* UNUSED */
-	(void)error_string; /* UNUSED */
-	(void)flags; /* UNUSED */
-	return (ARCHIVE_OK);
-#else
-	int res = ARCHIVE_OK;
-	char *tail;
-	char *head;
-	int last;
-	char c;
-	int r;
-	struct stat st;
-	int restore_pwd;
+	int64_t s;
+	long n;
+	int err = ARCHIVE_OK, r;
 
-	/* Nothing to do here if name is empty */
-	if(path[0] == '\0')
-	    return (ARCHIVE_OK);
+	if (value == NULL)
+		value = "";	/* Disable compiler warning; do not pass
+				 * NULL pointer to strlen().  */
+	switch (key[0]) {
+	case 'G':
+		/* Reject GNU.sparse.* headers on non-regular files. */
+		if (strncmp(key, "GNU.sparse", 10) == 0 &&
+		    !tar->sparse_allowed) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Non-regular file cannot be sparse");
+			return (ARCHIVE_FATAL);
+		}
 
-	/*
-	 * Guard against symlink tricks.  Reject any archive entry whose
-	 * destination would be altered by a symlink.
-	 *
-	 * Walk the filename in chunks separated by '/'.  For each segment:
-	 *  - if it doesn't exist, continue
-	 *  - if it's symlink, abort or remove it
-	 *  - if it's a directory and it's not the last chunk, cd into it
-	 * As we go:
-	 *  head points to the current (relative) path
-	 *  tail points to the temporary \0 terminating the segment we're
-	 *      currently examining
-	 *  c holds what used to be in *tail
-	 *  last is 1 if this is the last tail
-	 */
-	restore_pwd = open(".", O_RDONLY | O_BINARY | O_CLOEXEC);
-	__archive_ensure_cloexec_flag(restore_pwd);
-	if (restore_pwd < 0)
-		return (ARCHIVE_FATAL);
-	head = path;
-	tail = path;
-	last = 0;
-	/* TODO: reintroduce a safe cache here? */
-	/* Skip the root directory if the path is absolute. */
-	if(tail == path && tail[0] == '/')
-		++tail;
-	/* Keep going until we've checked the entire name.
-	 * head, tail, path all alias the same string, which is
-	 * temporarily zeroed at tail, so be careful restoring the
-	 * stashed (c=tail[0]) for error messages.
-	 * Exiting the loop with break is okay; continue is not.
-	 */
-	while (!last) {
-		/*
-		 * Skip the separator we just consumed, plus any adjacent ones
-		 */
-		while (*tail == '/')
-		    ++tail;
-		/* Skip the next path element. */
-		while (*tail != '\0' && *tail != '/')
-			++tail;
-		/* is this the last path component? */
-		last = (tail[0] == '\0') || (tail[0] == '/' && tail[1] == '\0');
-		/* temporarily truncate the string here */
-		c = tail[0];
-		tail[0] = '\0';
-		/* Check that we haven't hit a symlink. */
-		r = lstat(head, &st);
-		if (r != 0) {
-			tail[0] = c;
-			/* We've hit a dir that doesn't exist; stop now. */
-			if (errno == ENOENT) {
-				break;
-			} else {
-				/*
-				 * Treat any other error as fatal - best to be
-				 * paranoid here.
-				 * Note: This effectively disables deep
-				 * directory support when security checks are
-				 * enabled. Otherwise, very long pathnames that
-				 * trigger an error here could evade the
-				 * sandbox.
-				 * TODO: We could do better, but it would
-				 * probably require merging the symlink checks
-				 * with the deep-directory editing.
-				 */
-				fsobj_error(a_eno, a_estr, errno,
-				    "Could not stat %s", path);
-				res = ARCHIVE_FAILED;
-				break;
-			}
-		} else if (S_ISDIR(st.st_mode)) {
-			if (!last) {
-				if (chdir(head) != 0) {
-					tail[0] = c;
-					fsobj_error(a_eno, a_estr, errno,
-					    "Could not chdir %s", path);
-					res = (ARCHIVE_FATAL);
-					break;
-				}
-				/* Our view is now from inside this dir: */
-				head = tail + 1;
-			}
-		} else if (S_ISLNK(st.st_mode)) {
-			if (last) {
-				/*
-				 * Last element is symlink; remove it
-				 * so we can overwrite it with the
-				 * item being extracted.
-				 */
-				if (unlink(head)) {
-					tail[0] = c;
-					fsobj_error(a_eno, a_estr, errno,
-					    "Could not remove symlink %s",
-					    path);
-					res = ARCHIVE_FAILED;
-					break;
-				}
-				/*
-				 * Even if we did remove it, a warning
-				 * is in order.  The warning is silly,
-				 * though, if we're just replacing one
-				 * symlink with another symlink.
-				 */
-				tail[0] = c;
-				/*
-				 * FIXME:  not sure how important this is to
-				 * restore
-				 */
-				/*
-				if (!S_ISLNK(path)) {
-					fsobj_error(a_eno, a_estr, 0,
-					    "Removing symlink %s", path);
-				}
-				*/
-				/* Symlink gone.  No more problem! */
-				res = ARCHIVE_OK;
-				break;
-			} else if (flags & ARCHIVE_EXTRACT_UNLINK) {
-				/* User asked us to remove problems. */
-				if (unlink(head) != 0) {
-					tail[0] = c;
-					fsobj_error(a_eno, a_estr, 0,
-					    "Cannot remove intervening "
-					    "symlink %s", path);
-					res = ARCHIVE_FAILED;
-					break;
-				}
-				tail[0] = c;
-			} else if ((flags &
-			    ARCHIVE_EXTRACT_SECURE_SYMLINKS) == 0) {
-				/*
-				 * We are not the last element and we want to
-				 * follow symlinks if they are a directory.
-				 * 
-				 * This is needed to extract hardlinks over
-				 * symlinks.
-				 */
-				r = stat(head, &st);
-				if (r != 0) {
-					tail[0] = c;
-					if (errno == ENOENT) {
-						break;
-					} else {
-						fsobj_error(a_eno, a_estr,
-						    errno,
-						    "Could not stat %s", path);
-						res = (ARCHIVE_FAILED);
-						break;
-					}
-				} else if (S_ISDIR(st.st_mode)) {
-					if (chdir(head) != 0) {
-						tail[0] = c;
-						fsobj_error(a_eno, a_estr,
-						    errno,
-						    "Could not chdir %s", path);
-						res = (ARCHIVE_FATAL);
-						break;
-					}
-					/*
-					 * Our view is now from inside
-					 * this dir:
-					 */
-					head = tail + 1;
-				} else {
-					tail[0] = c;
-					fsobj_error(a_eno, a_estr, 0,
-					    "Cannot extract through "
-					    "symlink %s", path);
-					res = ARCHIVE_FAILED;
-					break;
-				}
-			} else {
-				tail[0] = c;
-				fsobj_error(a_eno, a_estr, 0,
-				    "Cannot extract through symlink %s", path);
-				res = ARCHIVE_FAILED;
-				break;
+		/* GNU "0.0" sparse pax format. */
+		if (strcmp(key, "GNU.sparse.numblocks") == 0) {
+			tar->sparse_offset = -1;
+			tar->sparse_numbytes = -1;
+			tar->sparse_gnu_major = 0;
+			tar->sparse_gnu_minor = 0;
+		}
+		if (strcmp(key, "GNU.sparse.offset") == 0) {
+			tar->sparse_offset = tar_atol10(value, strlen(value));
+			if (tar->sparse_numbytes != -1) {
+				if (gnu_add_sparse_entry(a, tar,
+				    tar->sparse_offset, tar->sparse_numbytes)
+				    != ARCHIVE_OK)
+					return (ARCHIVE_FATAL);
+				tar->sparse_offset = -1;
+				tar->sparse_numbytes = -1;
 			}
 		}
-		/* be sure to always maintain this */
-		tail[0] = c;
-		if (tail[0] != '\0')
-			tail++; /* Advance to the next segment. */
+		if (strcmp(key, "GNU.sparse.numbytes") == 0) {
+			tar->sparse_numbytes = tar_atol10(value, strlen(value));
+			if (tar->sparse_numbytes != -1) {
+				if (gnu_add_sparse_entry(a, tar,
+				    tar->sparse_offset, tar->sparse_numbytes)
+				    != ARCHIVE_OK)
+					return (ARCHIVE_FATAL);
+				tar->sparse_offset = -1;
+				tar->sparse_numbytes = -1;
+			}
+		}
+		if (strcmp(key, "GNU.sparse.size") == 0) {
+			tar->realsize = tar_atol10(value, strlen(value));
+			archive_entry_set_size(entry, tar->realsize);
+		}
+
+		/* GNU "0.1" sparse pax format. */
+		if (strcmp(key, "GNU.sparse.map") == 0) {
+			tar->sparse_gnu_major = 0;
+			tar->sparse_gnu_minor = 1;
+			if (gnu_sparse_01_parse(a, tar, value) != ARCHIVE_OK)
+				return (ARCHIVE_WARN);
+		}
+
+		/* GNU "1.0" sparse pax format */
+		if (strcmp(key, "GNU.sparse.major") == 0) {
+			tar->sparse_gnu_major = (int)tar_atol10(value, strlen(value));
+			tar->sparse_gnu_pending = 1;
+		}
+		if (strcmp(key, "GNU.sparse.minor") == 0) {
+			tar->sparse_gnu_minor = (int)tar_atol10(value, strlen(value));
+			tar->sparse_gnu_pending = 1;
+		}
+		if (strcmp(key, "GNU.sparse.name") == 0) {
+			/*
+			 * The real filename; when storing sparse
+			 * files, GNU tar puts a synthesized name into
+			 * the regular 'path' attribute in an attempt
+			 * to limit confusion. ;-)
+			 */
+			archive_strcpy(&(tar->entry_pathname_override), value);
+		}
+		if (strcmp(key, "GNU.sparse.realsize") == 0) {
+			tar->realsize = tar_atol10(value, strlen(value));
+			archive_entry_set_size(entry, tar->realsize);
+		}
+		break;
+	case 'L':
+		/* Our extensions */
+/* TODO: Handle arbitrary extended attributes... */
+/*
+		if (strcmp(key, "LIBARCHIVE.xxxxxxx") == 0)
+			archive_entry_set_xxxxxx(entry, value);
+*/
+		if (strcmp(key, "LIBARCHIVE.creationtime") == 0) {
+			pax_time(value, &s, &n);
+			archive_entry_set_birthtime(entry, s, n);
+		}
+		if (memcmp(key, "LIBARCHIVE.xattr.", 17) == 0)
+			pax_attribute_xattr(entry, key, value);
+		break;
+	case 'S':
+		/* We support some keys used by the "star" archiver */
+		if (strcmp(key, "SCHILY.acl.access") == 0) {
+			r = pax_attribute_acl(a, tar, entry, value,
+			    ARCHIVE_ENTRY_ACL_TYPE_ACCESS);
+			if (r == ARCHIVE_FATAL)
+				return (r);
+		} else if (strcmp(key, "SCHILY.acl.default") == 0) {
+			r = pax_attribute_acl(a, tar, entry, value,
+			    ARCHIVE_ENTRY_ACL_TYPE_DEFAULT);
+			if (r == ARCHIVE_FATAL)
+				return (r);
+		} else if (strcmp(key, "SCHILY.acl.ace") == 0) {
+			r = pax_attribute_acl(a, tar, entry, value,
+			    ARCHIVE_ENTRY_ACL_TYPE_NFS4);
+			if (r == ARCHIVE_FATAL)
+				return (r);
+		} else if (strcmp(key, "SCHILY.devmajor") == 0) {
+			archive_entry_set_rdevmajor(entry,
+			    (dev_t)tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "SCHILY.devminor") == 0) {
+			archive_entry_set_rdevminor(entry,
+			    (dev_t)tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "SCHILY.fflags") == 0) {
+			archive_entry_copy_fflags_text(entry, value);
+		} else if (strcmp(key, "SCHILY.dev") == 0) {
+			archive_entry_set_dev(entry,
+			    (dev_t)tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "SCHILY.ino") == 0) {
+			archive_entry_set_ino(entry,
+			    tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "SCHILY.nlink") == 0) {
+			archive_entry_set_nlink(entry, (unsigned)
+			    tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "SCHILY.realsize") == 0) {
+			tar->realsize = tar_atol10(value, strlen(value));
+			archive_entry_set_size(entry, tar->realsize);
+		} else if (strncmp(key, "SCHILY.xattr.", 13) == 0) {
+			pax_attribute_schily_xattr(entry, key, value,
+			    value_length);
+		} else if (strcmp(key, "SUN.holesdata") == 0) {
+			/* A Solaris extension for sparse. */
+			r = solaris_sparse_parse(a, tar, entry, value);
+			if (r < err) {
+				if (r == ARCHIVE_FATAL)
+					return (r);
+				err = r;
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Parse error: SUN.holesdata");
+			}
+		}
+		break;
+	case 'a':
+		if (strcmp(key, "atime") == 0) {
+			pax_time(value, &s, &n);
+			archive_entry_set_atime(entry, s, n);
+		}
+		break;
+	case 'c':
+		if (strcmp(key, "ctime") == 0) {
+			pax_time(value, &s, &n);
+			archive_entry_set_ctime(entry, s, n);
+		} else if (strcmp(key, "charset") == 0) {
+			/* TODO: Publish charset information in entry. */
+		} else if (strcmp(key, "comment") == 0) {
+			/* TODO: Publish comment in entry. */
+		}
+		break;
+	case 'g':
+		if (strcmp(key, "gid") == 0) {
+			archive_entry_set_gid(entry,
+			    tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "gname") == 0) {
+			archive_strcpy(&(tar->entry_gname), value);
+		}
+		break;
+	case 'h':
+		if (strcmp(key, "hdrcharset") == 0) {
+			if (strcmp(value, "BINARY") == 0)
+				/* Binary  mode. */
+				tar->pax_hdrcharset_binary = 1;
+			else if (strcmp(value, "ISO-IR 10646 2000 UTF-8") == 0)
+				tar->pax_hdrcharset_binary = 0;
+		}
+		break;
+	case 'l':
+		/* pax interchange doesn't distinguish hardlink vs. symlink. */
+		if (strcmp(key, "linkpath") == 0) {
+			archive_strcpy(&(tar->entry_linkpath), value);
+		}
+		break;
+	case 'm':
+		if (strcmp(key, "mtime") == 0) {
+			pax_time(value, &s, &n);
+			archive_entry_set_mtime(entry, s, n);
+		}
+		break;
+	case 'p':
+		if (strcmp(key, "path") == 0) {
+			archive_strcpy(&(tar->entry_pathname), value);
+		}
+		break;
+	case 'r':
+		/* POSIX has reserved 'realtime.*' */
+		break;
+	case 's':
+		/* POSIX has reserved 'security.*' */
+		/* Someday: if (strcmp(key, "security.acl") == 0) { ... } */
+		if (strcmp(key, "size") == 0) {
+			/* "size" is the size of the data in the entry. */
+			tar->entry_bytes_remaining
+			    = tar_atol10(value, strlen(value));
+			/*
+			 * But, "size" is not necessarily the size of
+			 * the file on disk; if this is a sparse file,
+			 * the disk size may have already been set from
+			 * GNU.sparse.realsize or GNU.sparse.size or
+			 * an old GNU header field or SCHILY.realsize
+			 * or ....
+			 */
+			if (tar->realsize < 0) {
+				archive_entry_set_size(entry,
+				    tar->entry_bytes_remaining);
+				tar->realsize
+				    = tar->entry_bytes_remaining;
+			}
+		}
+		break;
+	case 'u':
+		if (strcmp(key, "uid") == 0) {
+			archive_entry_set_uid(entry,
+			    tar_atol10(value, strlen(value)));
+		} else if (strcmp(key, "uname") == 0) {
+			archive_strcpy(&(tar->entry_uname), value);
+		}
+		break;
 	}
-	/* Catches loop exits via break */
-	tail[0] = c;
-#ifdef HAVE_FCHDIR
-	/* If we changed directory above, restore it here. */
-	if (restore_pwd >= 0) {
-		r = fchdir(restore_pwd);
-		if (r != 0) {
-			fsobj_error(a_eno, a_estr, errno,
-			    "chdir() failure", "");
-		}
-		close(restore_pwd);
-		restore_pwd = -1;
-		if (r != 0) {
-			res = (ARCHIVE_FATAL);
-		}
-	}
-#endif
-	/* TODO: reintroduce a safe cache here? */
-	return res;
-#endif
+	return (err);
 }

@@ -1,1 +1,1 @@
-fprintf(this->FileOut,"EXPORTS \n");
+fprintf(stdout, "Output on stdout from grandchild before sleep.\n");

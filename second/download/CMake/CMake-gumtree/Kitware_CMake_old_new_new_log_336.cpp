@@ -1,2 +1,1 @@
-userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
-                  base64);
+DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));

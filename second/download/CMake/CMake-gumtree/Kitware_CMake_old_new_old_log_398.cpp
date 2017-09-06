@@ -1,1 +1,0 @@
-fprintf(stderr, "unknowntag_start:%s\n", name);

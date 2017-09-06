@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-				"Can't allocate zip data");
+fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());

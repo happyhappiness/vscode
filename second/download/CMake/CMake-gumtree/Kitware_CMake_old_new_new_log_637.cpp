@@ -1,1 +1,1 @@
-printf("unrecognized file format in '%s'\n", filename);
+fprintf(stdout, "Output on stdout after grandchild test.\n");

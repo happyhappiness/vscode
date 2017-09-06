@@ -1,2 +1,2 @@
-fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
-              dependee->GetName());
+f(secondLine,
+            "Press [h] for help         Press [q] to quit without generating");

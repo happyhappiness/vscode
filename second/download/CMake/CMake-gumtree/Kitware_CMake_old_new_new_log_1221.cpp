@@ -1,1 +1,1 @@
-fprintf(stream, "%d.%02d%%", q / 100, q % 100);
+fprintf(handle, "NTLMFLAG_UNKNOWN_25 ");

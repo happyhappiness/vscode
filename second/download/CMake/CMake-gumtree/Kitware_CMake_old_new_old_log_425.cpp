@@ -1,1 +1,2 @@
-yy_fatal_error( "cmFortran_yyset_lineno called with no buffer" , yyscanner);
+archive_set_error(f->archive, EIO,
+			    "Can't write to filter");

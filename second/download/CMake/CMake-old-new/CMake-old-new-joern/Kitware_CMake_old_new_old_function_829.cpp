@@ -1,27 +1,31 @@
-static int
-archive_read_format_lha_options(struct archive_read *a,
-    const char *key, const char *val)
+int
+archive_read_disk_descend(struct archive *_a)
 {
-	struct lha *lha;
-	int ret = ARCHIVE_FAILED;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	struct tree *t = a->tree;
 
-	lha = (struct lha *)(a->format->data);
-	if (strcmp(key, "hdrcharset")  == 0) {
-		if (val == NULL || val[0] == 0)
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "lha: hdrcharset option needs a character-set name");
-		else {
-			lha->opt_sconv =
-			    archive_string_conversion_from_charset(
-				&a->archive, val, 0);
-			if (lha->opt_sconv != NULL)
-				ret = ARCHIVE_OK;
-			else
-				ret = ARCHIVE_FATAL;
-		}
-	} else
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
+	    "archive_read_disk_descend");
+
+	if (t->visit_type != TREE_REGULAR || !t->descend) {
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "lha: unknown keyword ``%s''", key);
+		    "Ignored the request descending the current object");
+		return (ARCHIVE_WARN);
+	}
 
-	return (ret);
+	if (tree_current_is_physical_dir(t)) {
+		tree_push(t, t->basename, t->full_path.s,
+		    t->current_filesystem_id,
+		    bhfi_dev(&(t->lst)), bhfi_ino(&(t->lst)),
+		    &t->restore_time);
+		t->stack->flags |= isDir;
+	} else if (tree_current_is_dir(t)) {
+		tree_push(t, t->basename, t->full_path.s,
+		    t->current_filesystem_id,
+		    bhfi_dev(&(t->st)), bhfi_ino(&(t->st)),
+		    &t->restore_time);
+		t->stack->flags |= isDirLink;
+	}
+	t->descend = 0;
+	return (ARCHIVE_OK);
 }

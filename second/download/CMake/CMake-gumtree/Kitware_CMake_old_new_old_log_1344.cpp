@@ -1,2 +1,3 @@
-fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
-      percent, int(failed.size()), total);
+sprintf(output, "%c%c==", 
+              table64[obuf[0]],
+              table64[obuf[1]]);

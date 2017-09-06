@@ -1,1 +1,1 @@
-sprintf(firstLine,  "Press [e] to exit help");
+f(fout, "ADD_EXECUTABLE(cmTryCompileExec \"%s\")\n",source.c_str());

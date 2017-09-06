@@ -1,1 +1,1 @@
-ret = Curl_sec_vfprintf(conn, f, fmt, ap);
+snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE, "%s", strerror(errno));

@@ -1,2 +1,6 @@
-sprintf(vertmp,"CMake Version %d.%d", cmMakefile::GetMajorVersion(),
-	  cmMakefile::GetMinorVersion());
+fprintf(fout,
+          "extern \"C\"\n"
+          "{\n"
+          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, char *[]);\n"
+          "}\n"
+          "\n");

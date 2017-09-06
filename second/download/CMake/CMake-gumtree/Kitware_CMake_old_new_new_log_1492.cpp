@@ -1,1 +1,1 @@
-fprintf(fout, "IF (CMAKE_ANSI_CFLAGS)\n");
+fprintf(fout,"  return TCL_OK;\n}\n");

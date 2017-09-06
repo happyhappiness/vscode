@@ -1,1 +1,1 @@
-sprintf(buf, "%u", this->VersionMinor);
+fprintf(stderr, "  followed by Component (%d)\n", *oi);

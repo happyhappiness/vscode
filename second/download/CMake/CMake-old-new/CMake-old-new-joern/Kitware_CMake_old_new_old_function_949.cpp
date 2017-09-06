@@ -1,444 +1,304 @@
-int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
+static int
+archive_read_format_iso9660_read_header(struct archive_read *a,
+    struct archive_entry *entry)
 {
-  this->BinaryDirectory = argv[1].c_str();
-  this->OutputFile = "";
-  // which signature were we called with ?
-  this->SrcFileSignature = false;
-  unsigned int i;
+	struct iso9660 *iso9660;
+	struct file_info *file;
+	int r, rd_r = ARCHIVE_OK;
 
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  const char* targetName = 0;
-  char targetNameBuf[64];
-  int extraArgs = 0;
+	iso9660 = (struct iso9660 *)(a->format->data);
 
-  // look for CMAKE_FLAGS and store them
-  std::vector<std::string> cmakeFlags;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "CMAKE_FLAGS")
-      {
-     // CMAKE_FLAGS is the first argument because we need an argv[0] that
-     // is not used, so it matches regular command line parsing which has
-     // the program name as arg 0
-      for (; i < argv.size() && argv[i] != "COMPILE_DEFINITIONS" &&
-             argv[i] != "OUTPUT_VARIABLE" &&
-             argv[i] != "LINK_LIBRARIES";
-           ++i)
-        {
-        extraArgs++;
-        cmakeFlags.push_back(argv[i]);
-        }
-      break;
-      }
-    }
+	if (!a->archive.archive_format) {
+		a->archive.archive_format = ARCHIVE_FORMAT_ISO9660;
+		a->archive.archive_format_name = "ISO9660";
+	}
 
-  // look for OUTPUT_VARIABLE and store them
-  std::string outputVariable;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "OUTPUT_VARIABLE")
-      {
-      if ( argv.size() <= (i+1) )
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-          "OUTPUT_VARIABLE specified but there is no variable");
-        return -1;
-        }
-      extraArgs += 2;
-      outputVariable = argv[i+1];
-      break;
-      }
-    }
+	if (iso9660->current_position == 0) {
+		int64_t skipsize;
+		struct vd *vd;
+		const void *block;
+		char seenJoliet;
 
-  // look for COMPILE_DEFINITIONS and store them
-  std::vector<std::string> compileFlags;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "COMPILE_DEFINITIONS")
-      {
-      extraArgs++;
-      for (i = i + 1; i < argv.size() && argv[i] != "CMAKE_FLAGS" &&
-             argv[i] != "OUTPUT_VARIABLE" &&
-             argv[i] != "LINK_LIBRARIES";
-           ++i)
-        {
-        extraArgs++;
-        compileFlags.push_back(argv[i]);
-        }
-      break;
-      }
-    }
+		vd = &(iso9660->primary);
+		if (!iso9660->opt_support_joliet)
+			iso9660->seenJoliet = 0;
+		if (iso9660->seenJoliet &&
+			vd->location > iso9660->joliet.location)
+			/* This condition is unlikely; by way of caution. */
+			vd = &(iso9660->joliet);
 
-  std::vector<cmTarget*> targets;
-  std::string libsToLink = " ";
-  bool useOldLinkLibs = true;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "LINK_LIBRARIES")
-      {
-      if ( argv.size() <= (i+1) )
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-          "LINK_LIBRARIES specified but there is no content");
-        return -1;
-        }
-      extraArgs++;
-      ++i;
-      useOldLinkLibs = false;
-      for ( ; i < argv.size() && argv[i] != "CMAKE_FLAGS"
-          && argv[i] != "COMPILE_DEFINITIONS" && argv[i] != "OUTPUT_VARIABLE";
-          ++i)
-        {
-        extraArgs++;
-        libsToLink += argv[i] + " ";
-        cmTarget *tgt = this->Makefile->FindTargetToUse(argv[i].c_str());
-        if (!tgt)
-          {
-          continue;
-          }
-        switch(tgt->GetType())
-        {
-        case cmTarget::SHARED_LIBRARY:
-        case cmTarget::STATIC_LIBRARY:
-        case cmTarget::UNKNOWN_LIBRARY:
-          break;
-        case cmTarget::EXECUTABLE:
-          if (tgt->IsExecutableWithExports())
-            {
-            break;
-            }
-        default:
-          this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-            "Only libraries may be used as try_compile IMPORTED "
-            "LINK_LIBRARIES.  Got " + std::string(tgt->GetName()) + " of "
-            "type " + tgt->GetTargetTypeName(tgt->GetType()) + ".");
-          return -1;
-        }
-        if (!tgt->IsImported())
-          {
-          continue;
-          }
-        targets.push_back(tgt);
-        }
-      break;
-      }
-    }
+		skipsize = LOGICAL_BLOCK_SIZE * vd->location;
+		skipsize = __archive_read_consume(a, skipsize);
+		if (skipsize < 0)
+			return ((int)skipsize);
+		iso9660->current_position = skipsize;
 
-  // look for COPY_FILE
-  std::string copyFile;
-  for (i = 3; i < argv.size(); ++i)
-    {
-    if (argv[i] == "COPY_FILE")
-      {
-      if ( argv.size() <= (i+1) )
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-          "COPY_FILE specified but there is no variable");
-        return -1;
-        }
-      extraArgs += 2;
-      copyFile = argv[i+1];
-      break;
-      }
-    }
+		block = __archive_read_ahead(a, vd->size, NULL);
+		if (block == NULL) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "Failed to read full block when scanning "
+			    "ISO9660 directory list");
+			return (ARCHIVE_FATAL);
+		}
 
-  // do we have a srcfile signature
-  if (argv.size() - extraArgs == 3)
-    {
-    this->SrcFileSignature = true;
-    }
+		/*
+		 * While reading Root Directory, flag seenJoliet
+		 * must be zero to avoid converting special name
+		 * 0x00(Current Directory) and next byte to UCS2.
+		 */
+		seenJoliet = iso9660->seenJoliet;/* Save flag. */
+		iso9660->seenJoliet = 0;
+		file = parse_file_info(a, NULL, block);
+		if (file == NULL)
+			return (ARCHIVE_FATAL);
+		iso9660->seenJoliet = seenJoliet;
+		if (vd == &(iso9660->primary) && iso9660->seenRockridge
+		    && iso9660->seenJoliet)
+			/*
+			 * If iso image has RockRidge and Joliet,
+			 * we use RockRidge Extensions.
+			 */
+			iso9660->seenJoliet = 0;
+		if (vd == &(iso9660->primary) && !iso9660->seenRockridge
+		    && iso9660->seenJoliet) {
+			/* Switch reading data from primary to joliet. */ 
+			vd = &(iso9660->joliet);
+			skipsize = LOGICAL_BLOCK_SIZE * vd->location;
+			skipsize -= iso9660->current_position;
+			skipsize = __archive_read_consume(a, skipsize);
+			if (skipsize < 0)
+				return ((int)skipsize);
+			iso9660->current_position += skipsize;
 
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (this->SrcFileSignature)
-    {
-    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
-    this->BinaryDirectory += "/CMakeTmp";
-    }
-  else
-    {
-    // only valid for srcfile signatures
-    if (compileFlags.size())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COMPILE_FLAGS specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    if (copyFile.size())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COPY_FILE specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
+			block = __archive_read_ahead(a, vd->size, NULL);
+			if (block == NULL) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Failed to read full block when scanning "
+				    "ISO9660 directory list");
+				return (ARCHIVE_FATAL);
+			}
+			iso9660->seenJoliet = 0;
+			file = parse_file_info(a, NULL, block);
+			if (file == NULL)
+				return (ARCHIVE_FATAL);
+			iso9660->seenJoliet = seenJoliet;
+		}
+		/* Store the root directory in the pending list. */
+		if (add_entry(a, iso9660, file) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+		if (iso9660->seenRockridge) {
+			a->archive.archive_format =
+			    ARCHIVE_FORMAT_ISO9660_ROCKRIDGE;
+			a->archive.archive_format_name =
+			    "ISO9660 with Rockridge extensions";
+		}
+	}
 
-  // do not allow recursive try Compiles
-  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory())
-    {
-    cmOStringStream e;
-    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
-      << "  " << this->BinaryDirectory << "\n";
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-    return -1;
-    }
+	file = NULL;/* Eliminate a warning. */
+	/* Get the next entry that appears after the current offset. */
+	r = next_entry_seek(a, iso9660, &file);
+	if (r != ARCHIVE_OK)
+		return (r);
 
-  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (this->SrcFileSignature)
-    {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile.c_str());
+	if (iso9660->seenJoliet) {
+		/*
+		 * Convert UTF-16BE of a filename to local locale MBS
+		 * and store the result into a filename field.
+		 */
+		if (iso9660->sconv_utf16be == NULL) {
+			iso9660->sconv_utf16be =
+			    archive_string_conversion_from_charset(
+				&(a->archive), "UTF-16BE", 1);
+			if (iso9660->sconv_utf16be == NULL)
+				/* Coundn't allocate memory */
+				return (ARCHIVE_FATAL);
+		}
+		if (iso9660->utf16be_path == NULL) {
+			iso9660->utf16be_path = malloc(UTF16_NAME_MAX);
+			if (iso9660->utf16be_path == NULL) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "No memory");
+				return (ARCHIVE_FATAL);
+			}
+		}
+		if (iso9660->utf16be_previous_path == NULL) {
+			iso9660->utf16be_previous_path = malloc(UTF16_NAME_MAX);
+			if (iso9660->utf16be_previous_path == NULL) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "No memory");
+				return (ARCHIVE_FATAL);
+			}
+		}
 
-    // we need to create a directory and CMakeLists file etc...
-    // first create the directories
-    sourceDirectory = this->BinaryDirectory.c_str();
+		iso9660->utf16be_path_len = 0;
+		if (build_pathname_utf16be(iso9660->utf16be_path,
+		    UTF16_NAME_MAX, &(iso9660->utf16be_path_len), file) != 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Pathname is too long");
+		}
 
-    // now create a CMakeLists.txt file in that directory
-    FILE *fout = fopen(outFileName.c_str(),"w");
-    if (!fout)
-      {
-      cmOStringStream e;
-      e << "Failed to open\n"
-        << "  " << outFileName.c_str() << "\n"
-        << cmSystemTools::GetLastSystemError();
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-      return -1;
-      }
+		r = archive_entry_copy_pathname_l(entry,
+		    (const char *)iso9660->utf16be_path,
+		    iso9660->utf16be_path_len,
+		    iso9660->sconv_utf16be);
+		if (r != 0) {
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "No memory for Pathname");
+				return (ARCHIVE_FATAL);
+			}
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Pathname cannot be converted "
+			    "from %s to current locale.",
+			    archive_string_conversion_charset_name(
+			      iso9660->sconv_utf16be));
 
-    std::string source = argv[2];
-    std::string ext = cmSystemTools::GetFilenameLastExtension(source);
-    const char* lang =(this->Makefile->GetCMakeInstance()->GetGlobalGenerator()
-                        ->GetLanguageFromExtension(ext.c_str()));
-    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
-    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
-            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
-            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
-    if(def)
-      {
-      fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
-      }
+			rd_r = ARCHIVE_WARN;
+		}
+	} else {
+		archive_string_empty(&iso9660->pathname);
+		archive_entry_set_pathname(entry,
+		    build_pathname(&iso9660->pathname, file));
+	}
 
-    const char* rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
-    std::string rulesOverrideLang =
-      rulesOverrideBase + (lang ? std::string("_") + lang : std::string(""));
-    if(const char* rulesOverridePath =
-       this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
-      {
-      fprintf(fout, "SET(%s \"%s\")\n",
-              rulesOverrideLang.c_str(), rulesOverridePath);
-      }
-    else if(const char* rulesOverridePath2 =
-            this->Makefile->GetDefinition(rulesOverrideBase))
-      {
-      fprintf(fout, "SET(%s \"%s\")\n",
-              rulesOverrideBase, rulesOverridePath2);
-      }
+	iso9660->entry_bytes_remaining = file->size;
+	iso9660->entry_sparse_offset = 0; /* Offset for sparse-file-aware clients. */
 
-    if(lang)
-      {
-      fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE %s)\n", lang);
-      }
-    else
-      {
-      fclose(fout);
-      cmOStringStream err;
-      err << "Unknown extension \"" << ext << "\" for file\n"
-          << "  " << source << "\n"
-          << "try_compile() works only for enabled languages.  "
-          << "Currently these are:\n ";
-      std::vector<std::string> langs;
-      this->Makefile->GetCMakeInstance()->GetGlobalGenerator()->
-        GetEnabledLanguages(langs);
-      for(std::vector<std::string>::iterator l = langs.begin();
-          l != langs.end(); ++l)
-        {
-        err << " " << *l;
-        }
-      err << "\nSee project() command to enable other languages.";
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
-      return -1;
-      }
-    std::string langFlags = "CMAKE_";
-    langFlags +=  lang;
-    langFlags += "_FLAGS";
-    fprintf(fout, "SET(CMAKE_VERBOSE_MAKEFILE 1)\n");
-    fprintf(fout, "SET(CMAKE_%s_FLAGS \"", lang);
-    const char* flags = this->Makefile->GetDefinition(langFlags.c_str());
-    if(flags)
-      {
-      fprintf(fout, " %s ", flags);
-      }
-    fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
-    fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "SET(CMAKE_SUPPRESS_REGENERATION 1)\n");
-    fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (compileFlags.size())
-      {
-      fprintf(fout, "ADD_DEFINITIONS( ");
-      for (i = 0; i < compileFlags.size(); ++i)
-        {
-        fprintf(fout,"%s ",compileFlags[i].c_str());
-        }
-      fprintf(fout, ")\n");
-      }
+	if (file->offset + file->size > iso9660->volume_size) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "File is beyond end-of-media: %s",
+		    archive_entry_pathname(entry));
+		iso9660->entry_bytes_remaining = 0;
+		iso9660->entry_sparse_offset = 0;
+		return (ARCHIVE_WARN);
+	}
 
-    /* Use a random file name to avoid rapid creation and deletion
-       of the same executable name (some filesystems fail on that).  */
-    sprintf(targetNameBuf, "cmTryCompileExec%u",
-            cmSystemTools::RandomSeed());
-    targetName = targetNameBuf;
+	/* Set up the entry structure with information about this entry. */
+	archive_entry_set_mode(entry, file->mode);
+	archive_entry_set_uid(entry, file->uid);
+	archive_entry_set_gid(entry, file->gid);
+	archive_entry_set_nlink(entry, file->nlinks);
+	if (file->birthtime_is_set)
+		archive_entry_set_birthtime(entry, file->birthtime, 0);
+	else
+		archive_entry_unset_birthtime(entry);
+	archive_entry_set_mtime(entry, file->mtime, 0);
+	archive_entry_set_ctime(entry, file->ctime, 0);
+	archive_entry_set_atime(entry, file->atime, 0);
+	/* N.B.: Rock Ridge supports 64-bit device numbers. */
+	archive_entry_set_rdev(entry, (dev_t)file->rdev);
+	archive_entry_set_size(entry, iso9660->entry_bytes_remaining);
+	if (file->symlink.s != NULL)
+		archive_entry_copy_symlink(entry, file->symlink.s);
 
-    if (!targets.empty())
-      {
-      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
-      cmExportTryCompileFileGenerator tcfg;
-      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
-      tcfg.SetExports(targets);
-      tcfg.SetConfig(this->Makefile->GetDefinition(
-                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
+	/* Note: If the input isn't seekable, we can't rewind to
+	 * return the same body again, so if the next entry refers to
+	 * the same data, we have to return it as a hardlink to the
+	 * original entry. */
+	if (file->number != -1 &&
+	    file->number == iso9660->previous_number) {
+		if (iso9660->seenJoliet) {
+			r = archive_entry_copy_hardlink_l(entry,
+			    (const char *)iso9660->utf16be_previous_path,
+			    iso9660->utf16be_previous_path_len,
+			    iso9660->sconv_utf16be);
+			if (r != 0) {
+				if (errno == ENOMEM) {
+					archive_set_error(&a->archive, ENOMEM,
+					    "No memory for Linkname");
+					return (ARCHIVE_FATAL);
+				}
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Linkname cannot be converted "
+				    "from %s to current locale.",
+				    archive_string_conversion_charset_name(
+				      iso9660->sconv_utf16be));
+				rd_r = ARCHIVE_WARN;
+			}
+		} else
+			archive_entry_set_hardlink(entry,
+			    iso9660->previous_pathname.s);
+		archive_entry_unset_size(entry);
+		iso9660->entry_bytes_remaining = 0;
+		iso9660->entry_sparse_offset = 0;
+		return (rd_r);
+	}
 
-      if(!tcfg.GenerateImportFile())
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-                                     "could not write export file.");
-        fclose(fout);
-        return -1;
-        }
-      fprintf(fout,
-              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
-              fname.c_str());
-      }
+	/* Except for the hardlink case above, if the offset of the
+	 * next entry is before our current position, we can't seek
+	 * backwards to extract it, so issue a warning.  Note that
+	 * this can only happen if this entry was added to the heap
+	 * after we passed this offset, that is, only if the directory
+	 * mentioning this entry is later than the body of the entry.
+	 * Such layouts are very unusual; most ISO9660 writers lay out
+	 * and record all directory information first, then store
+	 * all file bodies. */
+	/* TODO: Someday, libarchive's I/O core will support optional
+	 * seeking.  When that day comes, this code should attempt to
+	 * seek and only return the error if the seek fails.  That
+	 * will give us support for whacky ISO images that require
+	 * seeking while retaining the ability to read almost all ISO
+	 * images in a streaming fashion. */
+	if ((file->mode & AE_IFMT) != AE_IFDIR &&
+	    file->offset < iso9660->current_position) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Ignoring out-of-order file @%jx (%s) %jd < %jd",
+		    (intmax_t)file->number,
+		    iso9660->pathname.s,
+		    (intmax_t)file->offset,
+		    (intmax_t)iso9660->current_position);
+		iso9660->entry_bytes_remaining = 0;
+		iso9660->entry_sparse_offset = 0;
+		return (ARCHIVE_WARN);
+	}
 
-    /* for the TRY_COMPILEs we want to be able to specify the architecture.
-      So the user can set CMAKE_OSX_ARCHITECTURE to i386;ppc and then set
-      CMAKE_TRY_COMPILE_OSX_ARCHITECTURE first to i386 and then to ppc to
-      have the tests run for each specific architecture. Since
-      cmLocalGenerator doesn't allow building for "the other"
-      architecture only via CMAKE_OSX_ARCHITECTURES.
-      */
-    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition(
-                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_SYSROOT=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
-      cmakeFlags.push_back(flag);
-      }
-    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
-      {
-      fprintf(fout, "SET(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
-      }
+	/* Initialize zisofs variables. */
+	iso9660->entry_zisofs.pz = file->pz;
+	if (file->pz) {
+#ifdef HAVE_ZLIB_H
+		struct zisofs  *zisofs;
 
-    /* Put the executable at a known location (for COPY_FILE).  */
-    fprintf(fout, "SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-            this->BinaryDirectory.c_str());
-    /* Create the actual executable.  */
-    fprintf(fout, "ADD_EXECUTABLE(%s \"%s\")\n", targetName, source.c_str());
-    if (useOldLinkLibs)
-      {
-      fprintf(fout,
-              "TARGET_LINK_LIBRARIES(%s ${LINK_LIBRARIES})\n",targetName);
-      }
-    else
-      {
-      fprintf(fout, "TARGET_LINK_LIBRARIES(%s %s)\n",
-              targetName,
-              libsToLink.c_str());
-      }
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
-    // if the source is not in CMakeTmp
-    if(source.find("CMakeTmp") == source.npos)
-      {
-      this->Makefile->AddCMakeDependFile(source.c_str());
-      }
+		zisofs = &iso9660->entry_zisofs;
+		zisofs->initialized = 0;
+		zisofs->pz_log2_bs = file->pz_log2_bs;
+		zisofs->pz_uncompressed_size = file->pz_uncompressed_size;
+		zisofs->pz_offset = 0;
+		zisofs->header_avail = 0;
+		zisofs->header_passed = 0;
+		zisofs->block_pointers_avail = 0;
+#endif
+		archive_entry_set_size(entry, file->pz_uncompressed_size);
+	}
 
-    }
-  // else the srcdir bindir project target signature
-  else
-    {
-    projectName = argv[3].c_str();
+	iso9660->previous_number = file->number;
+	if (iso9660->seenJoliet) {
+		memcpy(iso9660->utf16be_previous_path, iso9660->utf16be_path,
+		    iso9660->utf16be_path_len);
+		iso9660->utf16be_previous_path_len = iso9660->utf16be_path_len;
+	} else
+		archive_strcpy(
+		    &iso9660->previous_pathname, iso9660->pathname.s);
 
-    if (argv.size() - extraArgs == 5)
-      {
-      targetName = argv[4].c_str();
-      }
-    }
+	/* Reset entry_bytes_remaining if the file is multi extent. */
+	iso9660->entry_content = file->contents.first;
+	if (iso9660->entry_content != NULL)
+		iso9660->entry_bytes_remaining = iso9660->entry_content->size;
 
-  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
-  cmSystemTools::ResetErrorOccuredFlag();
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = this->Makefile->TryCompile(sourceDirectory,
-                                       this->BinaryDirectory.c_str(),
-                                       projectName,
-                                       targetName,
-                                       this->SrcFileSignature,
-                                       &cmakeFlags,
-                                       &output);
-  if ( erroroc )
-    {
-    cmSystemTools::SetErrorOccured();
-    }
+	if (archive_entry_filetype(entry) == AE_IFDIR) {
+		/* Overwrite nlinks by proper link number which is
+		 * calculated from number of sub directories. */
+		archive_entry_set_nlink(entry, 2 + file->subdirs);
+		/* Directory data has been read completely. */
+		iso9660->entry_bytes_remaining = 0;
+		iso9660->entry_sparse_offset = 0;
+	}
 
-  // set the result var to the return value to indicate success or failure
-  this->Makefile->AddCacheDefinition(argv[0].c_str(),
-                                     (res == 0 ? "TRUE" : "FALSE"),
-                                     "Result of TRY_COMPILE",
-                                     cmCacheManager::INTERNAL);
-
-  if ( outputVariable.size() > 0 )
-    {
-    this->Makefile->AddDefinition(outputVariable.c_str(), output.c_str());
-    }
-
-  if (this->SrcFileSignature)
-    {
-    this->FindOutputFile(targetName);
-
-    if ((res==0) && (copyFile.size()))
-      {
-      if(this->OutputFile.empty() ||
-         !cmSystemTools::CopyFileAlways(this->OutputFile.c_str(),
-                                        copyFile.c_str()))
-        {
-        cmOStringStream emsg;
-        emsg << "Cannot copy output executable\n"
-             << "  '" << this->OutputFile.c_str() << "'\n"
-             << "to destination specified by COPY_FILE:\n"
-             << "  '" << copyFile.c_str() << "'\n";
-        if(!this->FindErrorMessage.empty())
-          {
-          emsg << this->FindErrorMessage.c_str();
-          }
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
-        return -1;
-        }
-      }
-    }
-  return res;
+	if (rd_r != ARCHIVE_OK)
+		return (rd_r);
+	return (ARCHIVE_OK);
 }

@@ -1,95 +1,159 @@
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int output, int delay, double timeout)
+void cmake::GenerateGraphViz(const char* fileName)
 {
-  int result = 0;
-  char* data = 0;
-  int length = 0;
-  kwsysProcess* kp = kwsysProcess_New();
-  if(!kp)
+  cmGeneratedFileStream str(fileName);
+  if ( !str )
     {
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
+    return;
     }
-  
-  kwsysProcess_SetCommand(kp, cmd);
-  kwsysProcess_SetTimeout(kp, timeout);
-  if(share)
-    {
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
-    }
-  kwsysProcess_Execute(kp);
+  str << "digraph G {" << std::endl;
+  str << "node [" << std::endl;
+  str << "  fontsize = \"12\"" << std::endl;
+  str << "];" << std::endl;
 
-  if(!share)
+  cmGlobalGenerator* gg = this->GetGlobalGenerator();
+  std::vector<cmLocalGenerator*> localGenerators;
+  gg->GetLocalGenerators(localGenerators);
+  std::vector<cmLocalGenerator*>::iterator lit;
+  // for target deps
+  // 1 - cmake target
+  // 2 - external target
+  // 0 - no deps
+  std::map<cmStdString, int> targetDeps;
+  std::map<cmStdString, cmTarget*> targetPtrs;
+  std::map<cmStdString, cmStdString> targetNamesNodes;
+  char tgtName[100];
+  int cnt = 0;
+  // First pass get the list of all cmake targets
+  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
     {
-    while(kwsysProcess_WaitForData(kp, &data, &length, 0))
+    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
+    cmTargets::iterator tit;
+    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
       {
-      if(output)
+      //std::cout << "Found target: " << tit->first.c_str() << std::endl;
+      sprintf(tgtName, "node%d", cnt++);
+      targetNamesNodes[tit->first.c_str()] = tgtName;
+      targetPtrs[tit->first.c_str()] = &tit->second;
+      //str << "    \"" << tgtName << "\" [ label=\"" << tit->first.c_str() <<  "\" shape=\"box\"];" << std::endl;
+      }
+    }
+  // Ok, now find all the stuff we link to that is not in cmake
+  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
+    {
+    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
+    cmTargets::iterator tit;
+    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
+      {
+      const cmTarget::LinkLibraries* ll = &(tit->second.GetOriginalLinkLibraries());
+      cmTarget::LinkLibraries::const_iterator llit;
+      if ( ll->size() > 0 )
         {
-        fwrite(data, 1, length, stdout);
-        fflush(stdout);
+        targetDeps[tit->first.c_str()] = 1;
         }
-      if(delay)
+      for ( llit = ll->begin(); llit != ll->end(); ++ llit )
         {
-        /* Purposely sleeping only on Win32 to let pipe fill up.  */
-#if defined(_WIN32)
-        Sleep(100);
-#endif
+        const char* libName = llit->first.c_str();
+        std::map<cmStdString, cmStdString>::iterator tarIt = targetNamesNodes.find(libName);
+        if ( tarIt == targetNamesNodes.end() )
+          {
+          sprintf(tgtName, "node%d", cnt++);
+          targetDeps[libName] = 2;
+          targetNamesNodes[libName] = tgtName;
+          //str << "    \"" << tgtName << "\" [ label=\"" << libName <<  "\" shape=\"ellipse\"];" << std::endl;
+          }
+        else
+          {
+          std::map<cmStdString, int>::iterator depIt = targetDeps.find(libName);
+          if ( depIt == targetDeps.end() )
+            {
+            targetDeps[libName] = 1;
+            }
+          }
         }
       }
     }
-  
-  kwsysProcess_WaitForExit(kp, 0);
-  
-  switch (kwsysProcess_GetState(kp))
+
+  // Write out nodes
+  std::map<cmStdString, int>::iterator depIt;
+  for ( depIt = targetDeps.begin(); depIt != targetDeps.end(); ++ depIt )
     {
-    case kwsysProcess_State_Starting:
-      printf("No process has been executed.\n"); break;
-    case kwsysProcess_State_Executing:
-      printf("The process is still executing.\n"); break;
-    case kwsysProcess_State_Expired:
-      printf("Child was killed when timeout expired.\n"); break;
-    case kwsysProcess_State_Exited:
-      printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Killed:
-      printf("Child was killed by parent.\n"); break;
-    case kwsysProcess_State_Exception:
-      printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Error:
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
-  
-  if(result)
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
+    const char* newTargetName = depIt->first.c_str();
+    std::map<cmStdString, cmStdString>::iterator tarIt = targetNamesNodes.find(newTargetName);
+    if ( tarIt == targetNamesNodes.end() )
       {
-      fprintf(stderr, "Mismatch in exit exception.  "
-              "Should have been %d, was %d.\n",
-              exception, kwsysProcess_GetExitException(kp));
+      // We should not be here.
+      std::cout << "Cannot find library: " << newTargetName << " even though it was added in the previous pass" << std::endl;
+      abort();
       }
-    if(value != kwsysProcess_GetExitValue(kp))
+
+    str << "    \"" << tarIt->second.c_str() << "\" [ label=\"" << newTargetName <<  "\" shape=\"";
+    if ( depIt->second == 1 )
       {
-      fprintf(stderr, "Mismatch in exit value.  "
-              "Should have been %d, was %d.\n",
-              value, kwsysProcess_GetExitValue(kp));
+      std::map<cmStdString, cmTarget*>::iterator tarTypeIt= targetPtrs.find(newTargetName);
+      if ( tarTypeIt == targetPtrs.end() )
+        {
+        // We should not be here.
+        std::cout << "Cannot find library: " << newTargetName << " even though it was added in the previous pass" << std::endl;
+        abort();
+        }
+      cmTarget* tg = tarTypeIt->second;
+      switch ( tg->GetType() )
+        {
+      case cmTarget::EXECUTABLE:
+        str << "house";
+        break;
+      case cmTarget::STATIC_LIBRARY:
+        str << "diamond";
+        break;
+      case cmTarget::SHARED_LIBRARY:
+        str << "polygon";
+        break;
+      case cmTarget::MODULE_LIBRARY:
+        str << "octagon";
+        break;
+      default:
+        str << "box";
+        }
+      }
+    else
+      {
+      str << "ellipse";
+      }
+    str << "\"];" << std::endl;
+    }
+
+  // Now generate the connectivity
+  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
+    {
+    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
+    cmTargets::iterator tit;
+    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
+      {
+      std::map<cmStdString, int>::iterator dependIt = targetDeps.find(tit->first.c_str());
+      if ( dependIt == targetDeps.end() )
+        {
+        continue;
+        }
+      std::map<cmStdString, cmStdString>::iterator cmakeTarIt = targetNamesNodes.find(tit->first.c_str());
+      const cmTarget::LinkLibraries* ll = &(tit->second.GetOriginalLinkLibraries());
+      cmTarget::LinkLibraries::const_iterator llit;
+      for ( llit = ll->begin(); llit != ll->end(); ++ llit )
+        {
+        const char* libName = llit->first.c_str();
+        std::map<cmStdString, cmStdString>::iterator tarIt = targetNamesNodes.find(libName);
+        if ( tarIt == targetNamesNodes.end() )
+          {
+          // We should not be here.
+          std::cout << "Cannot find library: " << libName << " even though it was added in the previous pass" << std::endl;
+          abort();
+          }
+        str << "    \"" << cmakeTarIt->second.c_str() << "\" -> \"" << tarIt->second.c_str() << "\"" << std::endl;
+        }
       }
     }
-  
-  if(kwsysProcess_GetState(kp) != state)
-    {
-    fprintf(stderr, "Mismatch in state.  "
-            "Should have been %d, was %d.\n",
-            state, kwsysProcess_GetState(kp));
-    result = 1;
-    }
-  
-  kwsysProcess_Delete(kp);
-  return result;
+
+  // TODO: Use dotted or something for external libraries
+  //str << "    \"node0\":f4 -> \"node12\"[color=\"#0000ff\" style=dotted]" << std::endl;
+  //
+  str << "}" << std::endl;
 }

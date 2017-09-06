@@ -1,4 +1,1 @@
-archive_string_sprintf(str,
-		    " resdevice=native,%ju,%ju",
-		    (uintmax_t)me->devmajor,
-		    (uintmax_t)me->devminor);
+fprintf(out, "%s", cm_archive_entry_pathname(entry).c_str());

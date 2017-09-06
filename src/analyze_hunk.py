@@ -102,7 +102,7 @@ def fetch_hunk():
     total_log = 0
     total_hunk = 0
     gumtree = Gumtree()
-    for hunk_record in islice(hunk_records, 20, None):
+    for hunk_record in islice(hunk_records, 1, None):
         total_hunk += 1
         total_log = deal_hunk(hunk_record, log_writer, gumtree, total_log)
         if total_hunk % 10 == 0:

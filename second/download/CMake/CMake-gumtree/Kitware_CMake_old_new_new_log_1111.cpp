@@ -1,1 +1,1 @@
-str << this->ChipID.Family;
+sprintf(buffer, "%ld", osvi.dwMinorVersion);

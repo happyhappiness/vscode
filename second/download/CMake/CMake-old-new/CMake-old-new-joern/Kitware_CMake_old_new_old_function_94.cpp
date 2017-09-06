@@ -1,98 +1,212 @@
-static int
-setup_mac_metadata(struct archive_read_disk *a,
-    struct archive_entry *entry, int *fd)
+CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
+                                              const char *userp,
+                                              const char *passwdp,
+                                              const unsigned char *request,
+                                              const unsigned char *uripath,
+                                              struct digestdata *digest,
+                                              char **outptr, size_t *outlen)
 {
-	int tempfd = -1;
-	int copyfile_flags = COPYFILE_NOFOLLOW | COPYFILE_ACL | COPYFILE_XATTR;
-	struct stat copyfile_stat;
-	int ret = ARCHIVE_OK;
-	void *buff = NULL;
-	int have_attrs;
-	const char *name, *tempdir;
-	struct archive_string tempfile;
+  CURLcode result;
+  unsigned char md5buf[16]; /* 16 bytes/128 bits */
+  unsigned char request_digest[33];
+  unsigned char *md5this;
+  unsigned char ha1[33];    /* 32 digits and 1 zero byte */
+  unsigned char ha2[33];    /* 32 digits and 1 zero byte */
+  char cnoncebuf[33];
+  char *cnonce = NULL;
+  size_t cnonce_sz = 0;
+  char *userp_quoted;
+  char *response = NULL;
+  char *tmp = NULL;
 
-	(void)fd; /* UNUSED */
-	name = archive_entry_sourcepath(entry);
-	if (name == NULL)
-		name = archive_entry_pathname(entry);
-	if (name == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Can't open file to read extended attributes: No name");
-		return (ARCHIVE_WARN);
-	}
+  if(!digest->nc)
+    digest->nc = 1;
 
-	if (a->tree != NULL) {
-		if (a->tree_enter_working_dir(a->tree) != 0) {
-			archive_set_error(&a->archive, errno,
-				    "Couldn't change dir");
-				return (ARCHIVE_FAILED);
-		}
-	}
+  if(!digest->cnonce) {
+    unsigned int rnd[4];
+    result = Curl_rand(data, &rnd[0], 4);
+    if(result)
+      return result;
+    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+             rnd[0], rnd[1], rnd[2], rnd[3]);
 
-	/* Short-circuit if there's nothing to do. */
-	have_attrs = copyfile(name, NULL, 0, copyfile_flags | COPYFILE_CHECK);
-	if (have_attrs == -1) {
-		archive_set_error(&a->archive, errno,
-			"Could not check extended attributes");
-		return (ARCHIVE_WARN);
-	}
-	if (have_attrs == 0)
-		return (ARCHIVE_OK);
+    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
+                                &cnonce, &cnonce_sz);
+    if(result)
+      return result;
 
-	tempdir = NULL;
-	if (issetugid() == 0)
-		tempdir = getenv("TMPDIR");
-	if (tempdir == NULL)
-		tempdir = _PATH_TMP;
-	archive_string_init(&tempfile);
-	archive_strcpy(&tempfile, tempdir);
-	archive_strcat(&tempfile, "tar.md.XXXXXX");
-	tempfd = mkstemp(tempfile.s);
-	if (tempfd < 0) {
-		archive_set_error(&a->archive, errno,
-		    "Could not open extended attribute file");
-		ret = ARCHIVE_WARN;
-		goto cleanup;
-	}
-	__archive_ensure_cloexec_flag(tempfd);
+    digest->cnonce = cnonce;
+  }
 
-	/* XXX I wish copyfile() could pack directly to a memory
-	 * buffer; that would avoid the temp file here.  For that
-	 * matter, it would be nice if fcopyfile() actually worked,
-	 * that would reduce the many open/close races here. */
-	if (copyfile(name, tempfile.s, 0, copyfile_flags | COPYFILE_PACK)) {
-		archive_set_error(&a->archive, errno,
-		    "Could not pack extended attributes");
-		ret = ARCHIVE_WARN;
-		goto cleanup;
-	}
-	if (fstat(tempfd, &copyfile_stat)) {
-		archive_set_error(&a->archive, errno,
-		    "Could not check size of extended attributes");
-		ret = ARCHIVE_WARN;
-		goto cleanup;
-	}
-	buff = malloc(copyfile_stat.st_size);
-	if (buff == NULL) {
-		archive_set_error(&a->archive, errno,
-		    "Could not allocate memory for extended attributes");
-		ret = ARCHIVE_WARN;
-		goto cleanup;
-	}
-	if (copyfile_stat.st_size != read(tempfd, buff, copyfile_stat.st_size)) {
-		archive_set_error(&a->archive, errno,
-		    "Could not read extended attributes into memory");
-		ret = ARCHIVE_WARN;
-		goto cleanup;
-	}
-	archive_entry_copy_mac_metadata(entry, buff, copyfile_stat.st_size);
+  /*
+    If the algorithm is "MD5" or unspecified (which then defaults to MD5):
 
-cleanup:
-	if (tempfd >= 0) {
-		close(tempfd);
-		unlink(tempfile.s);
-	}
-	archive_string_free(&tempfile);
-	free(buff);
-	return (ret);
+      A1 = unq(username-value) ":" unq(realm-value) ":" passwd
+
+    If the algorithm is "MD5-sess" then:
+
+      A1 = H(unq(username-value) ":" unq(realm-value) ":" passwd) ":"
+           unq(nonce-value) ":" unq(cnonce-value)
+  */
+
+  md5this = (unsigned char *)
+    aprintf("%s:%s:%s", userp, digest->realm, passwdp);
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  auth_digest_md5_to_ascii(md5buf, ha1);
+
+  if(digest->algo == CURLDIGESTALGO_MD5SESS) {
+    /* nonce and cnonce are OUTSIDE the hash */
+    tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* Convert on non-ASCII machines */
+    Curl_md5it(md5buf, (unsigned char *) tmp);
+    free(tmp);
+    auth_digest_md5_to_ascii(md5buf, ha1);
+  }
+
+  /*
+    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
+
+      A2 = Method ":" digest-uri-value
+
+    If the "qop" value is "auth-int", then A2 is:
+
+      A2 = Method ":" digest-uri-value ":" H(entity-body)
+
+    (The "Method" value is the HTTP request method as specified in section
+    5.1.1 of RFC 2616)
+  */
+
+  md5this = (unsigned char *) aprintf("%s:%s", request, uripath);
+
+  if(digest->qop && strcasecompare(digest->qop, "auth-int")) {
+    /* We don't support auth-int for PUT or POST at the moment.
+       TODO: replace md5 of empty string with entity-body for PUT/POST */
+    unsigned char *md5this2 = (unsigned char *)
+      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
+    free(md5this);
+    md5this = md5this2;
+  }
+
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  auth_digest_md5_to_ascii(md5buf, ha2);
+
+  if(digest->qop) {
+    md5this = (unsigned char *) aprintf("%s:%s:%08x:%s:%s:%s",
+                                        ha1,
+                                        digest->nonce,
+                                        digest->nc,
+                                        digest->cnonce,
+                                        digest->qop,
+                                        ha2);
+  }
+  else {
+    md5this = (unsigned char *) aprintf("%s:%s:%s",
+                                        ha1,
+                                        digest->nonce,
+                                        ha2);
+  }
+
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  auth_digest_md5_to_ascii(md5buf, request_digest);
+
+  /* For test case 64 (snooped from a Mozilla 1.3a request)
+
+     Authorization: Digest username="testuser", realm="testrealm", \
+     nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
+
+     Digest parameters are all quoted strings.  Username which is provided by
+     the user will need double quotes and backslashes within it escaped.  For
+     the other fields, this shouldn't be an issue.  realm, nonce, and opaque
+     are copied as is from the server, escapes and all.  cnonce is generated
+     with web-safe characters.  uri is already percent encoded.  nc is 8 hex
+     characters.  algorithm and qop with standard values only contain web-safe
+     characters.
+  */
+  userp_quoted = auth_digest_string_quoted(userp);
+  if(!userp_quoted)
+    return CURLE_OUT_OF_MEMORY;
+
+  if(digest->qop) {
+    response = aprintf("username=\"%s\", "
+                       "realm=\"%s\", "
+                       "nonce=\"%s\", "
+                       "uri=\"%s\", "
+                       "cnonce=\"%s\", "
+                       "nc=%08x, "
+                       "qop=%s, "
+                       "response=\"%s\"",
+                       userp_quoted,
+                       digest->realm,
+                       digest->nonce,
+                       uripath,
+                       digest->cnonce,
+                       digest->nc,
+                       digest->qop,
+                       request_digest);
+
+    if(strcasecompare(digest->qop, "auth"))
+      digest->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0
+                       padded which tells to the server how many times you are
+                       using the same nonce in the qop=auth mode */
+  }
+  else {
+    response = aprintf("username=\"%s\", "
+                       "realm=\"%s\", "
+                       "nonce=\"%s\", "
+                       "uri=\"%s\", "
+                       "response=\"%s\"",
+                       userp_quoted,
+                       digest->realm,
+                       digest->nonce,
+                       uripath,
+                       request_digest);
+  }
+  free(userp_quoted);
+  if(!response)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Add the optional fields */
+  if(digest->opaque) {
+    /* Append the opaque */
+    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
+    free(response);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    response = tmp;
+  }
+
+  if(digest->algorithm) {
+    /* Append the algorithm */
+    tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
+    free(response);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    response = tmp;
+  }
+
+  /* Return the output */
+  *outptr = response;
+  *outlen = strlen(response);
+
+  return CURLE_OK;
 }

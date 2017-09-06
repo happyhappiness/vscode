@@ -1,2 +1,2 @@
-fprintf(stderr, "LIBARCHIVE_DIRECT_IO=%s\n",
-				(t->direct_io)?"Enabled":"Disabled");
+archive_set_error(&a->archive, errno,
+				    "Couldn't change dir");

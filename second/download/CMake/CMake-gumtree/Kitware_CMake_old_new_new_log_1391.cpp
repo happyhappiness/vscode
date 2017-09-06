@@ -1,1 +1,1 @@
-fprintf(stderr,"***Exception: ");
+std::cerr << "***Bad command " << res << "\n";

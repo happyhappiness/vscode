@@ -1,71 +1,126 @@
-int runChild(const char* cmd[], int state, int exception, int value)
+int cmCTest::TestDirectory(bool memcheck)
 {
-  int result = 0;
-  char* data = 0;
-  int length = 0;
-  kwsysProcess* kp = kwsysProcess_New();
-  if(!kp)
+  m_TestResults.clear();
+  std::cout << (memcheck ? "Memory check" : "Test") << " project" << std::endl;
+  if ( memcheck )
     {
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
-    }
-  
-  kwsysProcess_SetCommand(kp, cmd);
-  kwsysProcess_SetTimeout(kp, 3);
-  kwsysProcess_Execute(kp);
-  
-  while(kwsysProcess_WaitForData(kp, &data, &length, 0))
-    {
-    fwrite(data, 1, length, stdout);
-    fflush(stdout);
-    }
-  
-  kwsysProcess_WaitForExit(kp, 0);
-  
-  switch (kwsysProcess_GetState(kp))
-    {
-    case kwsysProcess_State_Starting:
-      printf("No process has been executed.\n"); break;
-    case kwsysProcess_State_Executing:
-      printf("The process is still executing.\n"); break;
-    case kwsysProcess_State_Expired:
-      printf("Child was killed when timeout expired.\n"); break;
-    case kwsysProcess_State_Exited:
-      printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Killed:
-      printf("Child was killed by parent.\n"); break;
-    case kwsysProcess_State_Exception:
-      printf("Child terminated abnormally.\n");
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Error:
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
-  
-  if(result)
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
+    if ( !this->InitializeMemoryChecking() )
       {
-      fprintf(stderr, "Mismatch in exit exception.  Should have been %d.\n",
-              exception);
-      }
-    if(value != kwsysProcess_GetExitValue(kp))
-      {
-      fprintf(stderr, "Mismatch in exit value.  Should have been %d.\n",
-              value);
+      return 1;
       }
     }
-  
-  if(kwsysProcess_GetState(kp) != state)
+
+  if ( memcheck )
     {
-    fprintf(stderr, "Mismatch in state.  Should have been %d.\n", state);
-    result = 1;
+    if ( !this->ExecuteCommands(m_CustomPreMemCheck) )
+      {
+      std::cerr << "Problem executing pre-memcheck command(s)." << std::endl;
+      return 1;
+      }
     }
-  
-  kwsysProcess_Delete(kp);
-  return result;
+  else
+    {
+    if ( !this->ExecuteCommands(m_CustomPreTest) )
+      {
+      std::cerr << "Problem executing pre-test command(s)." << std::endl;
+      return 1;
+      }
+    }
+
+  cmCTest::tm_VectorOfStrings passed;
+  cmCTest::tm_VectorOfStrings failed;
+  int total;
+
+  this->ProcessDirectory(passed, failed, memcheck);
+
+  total = int(passed.size()) + int(failed.size());
+
+  if (total == 0)
+    {
+    if ( !m_ShowOnly )
+      {
+      std::cerr << "No tests were found!!!\n";
+      }
+    }
+  else
+    {
+    if (m_Verbose && passed.size() && 
+      (m_UseIncludeRegExp || m_UseExcludeRegExp)) 
+      {
+      std::cerr << "\nThe following tests passed:\n";
+      for(cmCTest::tm_VectorOfStrings::iterator j = passed.begin();
+        j != passed.end(); ++j)
+        {   
+        std::cerr << "\t" << *j << "\n";
+        }
+      }
+
+    float percent = float(passed.size()) * 100.0f / total;
+    if ( failed.size() > 0 &&  percent > 99)
+      {
+      percent = 99;
+      }
+    fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
+      percent, int(failed.size()), total);
+
+    if (failed.size()) 
+      {
+      std::ofstream ofs;
+
+      std::cerr << "\nThe following tests FAILED:\n";
+      this->OpenOutputFile("Temporary", "LastTestsFailed.log", ofs);
+
+      std::vector<cmCTest::cmCTestTestResult>::iterator ftit;
+      for(ftit = m_TestResults.begin();
+        ftit != m_TestResults.end(); ++ftit)
+        {
+        if ( ftit->m_Status != cmCTest::COMPLETED )
+          {
+          ofs << ftit->m_TestCount << ":" << ftit->m_Name << std::endl;
+          fprintf(stderr, "\t%3d - %s (%s)\n", ftit->m_TestCount, ftit->m_Name.c_str(),
+            this->GetTestStatus(ftit->m_Status));
+          }
+        }
+
+      }
+    }
+
+  if ( m_DartMode )
+    {
+    std::ofstream xmlfile;
+    if( !this->OpenOutputFile(m_CurrentTag, 
+        (memcheck ? (m_CompatibilityMode?"Purify.xml":"DynamicAnalysis.xml") : "Test.xml"), xmlfile) )
+      {
+      std::cerr << "Cannot create " << (memcheck ? "memory check" : "testing")
+        << " XML file" << std::endl;
+      return 1;
+      }
+    if ( memcheck )
+      {
+      this->GenerateDartMemCheckOutput(xmlfile);
+      }
+    else
+      {
+      this->GenerateDartTestOutput(xmlfile);
+      }
+    }
+
+  if ( memcheck )
+    {
+    if ( !this->ExecuteCommands(m_CustomPostMemCheck) )
+      {
+      std::cerr << "Problem executing post-memcheck command(s)." << std::endl;
+      return 1;
+      }
+    }
+  else
+    {
+    if ( !this->ExecuteCommands(m_CustomPostTest) )
+      {
+      std::cerr << "Problem executing post-test command(s)." << std::endl;
+      return 1;
+      }
+    }
+
+  return int(failed.size());
 }

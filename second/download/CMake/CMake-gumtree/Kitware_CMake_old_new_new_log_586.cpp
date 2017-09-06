@@ -1,1 +1,0 @@
-("%sAuthorization: Digest %s\r\n";

@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"));
+vsnprintf(error, CURL_ERROR_SIZE, fmt, ap);

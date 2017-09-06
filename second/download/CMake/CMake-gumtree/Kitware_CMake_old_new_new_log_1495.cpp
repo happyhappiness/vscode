@@ -1,1 +1,1 @@
-fprintf(fout, "INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES})\n");
+fprintf(stderr,"Testing %-30s ",args[0].Value.c_str());

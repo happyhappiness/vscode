@@ -1,65 +1,119 @@
-void cmCursesMainForm::UpdateStatusBar()
+bool cmVTKWrapTclCommand::WriteInit(const char *kitName, 
+                                    std::string& outFileName,
+                                    std::vector<std::string>& classes)
 {
-  int x,y;
-  getmaxyx(m_Window, y, x);
-  if ( x < cmCursesMainForm::MIN_WIDTH  || 
-       y < cmCursesMainForm::MIN_HEIGHT )
+  unsigned int i;
+  std::string tempOutputFile = outFileName + ".tmp";
+  FILE *fout = fopen(tempOutputFile.c_str(),"w");
+  if (!fout)
     {
-    curses_move(0,0);
-    printw("Window is too small. A size of at least %dx%d is required.",
-	   cmCursesMainForm::MIN_WIDTH, cmCursesMainForm::MIN_HEIGHT);
-    touchwin(m_Window); 
-    wrefresh(m_Window); 
-    return;
+    cmSystemTools::Error("Failed to open TclInit file for ", tempOutputFile.c_str());
+    return false;
     }
 
-  FIELD* cur = current_field(m_Form);
-  int index = field_index(cur);
-  char* curField = field_buffer(m_Fields[index-2], 0);
-
-  char version[128];
-  sprintf(version,"(CMake Version %d.%d)", cmMakefile::GetMajorVersion(),
-	  cmMakefile::GetMinorVersion());
-
-  char bar[cmCursesMainForm::MAX_WIDTH];
-  int i, curFieldLen = strlen(curField);
-  int versionLen = strlen(version);
-  int leftLen = cmCursesMainForm::IDEAL_WIDTH - versionLen;
-  if (curFieldLen >= leftLen)
+  // capitalized commands just once
+  std::vector<std::string> capcommands;
+  for (i = 0; i < m_Commands.size(); i++)
     {
-    strncpy(bar, curField, leftLen);
+    capcommands.push_back(cmSystemTools::Capitalized(m_Commands[i]));
     }
-  else
+  
+  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
+  
+  for (i = 0; i < classes.size(); i++)
     {
-    strcpy(bar, curField);
-    for(i=curFieldLen; i < leftLen; ++i) { bar[i] = ' '; }
+    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
+    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
     }
-  strcpy(bar+leftLen, version);
-
-  if ( x < cmCursesMainForm::MAX_WIDTH )
+  
+  if (!strcmp(kitName,"Vtkcommontcl"))
     {
-    if (x > cmCursesMainForm::IDEAL_WIDTH )
-      {
-      for(i=cmCursesMainForm::IDEAL_WIDTH; i < x; i++)
-	{
-	bar[i] = ' ';
-	}
-      }
-    bar[x] = '\0';
+    fprintf(fout,"int vtkCommand(ClientData cd, Tcl_Interp *interp,\n"
+                 "               int argc, char *argv[]);\n");
+    fprintf(fout,"\nTcl_HashTable vtkInstanceLookup;\n");
+    fprintf(fout,"Tcl_HashTable vtkPointerLookup;\n");
+    fprintf(fout,"Tcl_HashTable vtkCommandLookup;\n");
     }
   else
     {
-    for(i=cmCursesMainForm::IDEAL_WIDTH; 
-	i < cmCursesMainForm::MAX_WIDTH-1; i++)
-      {
-      bar[i] = ' ';
-      }
-    bar[cmCursesMainForm::MAX_WIDTH-1] = '\0';
+    fprintf(fout,"\nextern Tcl_HashTable vtkInstanceLookup;\n");
+    fprintf(fout,"extern Tcl_HashTable vtkPointerLookup;\n");
+    fprintf(fout,"extern Tcl_HashTable vtkCommandLookup;\n");
     }
+  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
+  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
 
-  curses_move(y-3,0);
-  attron(A_STANDOUT);
-  printw(bar);
-  attroff(A_STANDOUT);  
-  pos_form_cursor(m_Form);
+  for (i = 0; i < m_Commands.size(); i++)
+    {
+    fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
+            capcommands[i].c_str());
+    }
+  
+  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n",
+	  kitName);
+  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
+	  kitName);
+  
+  /* create an extern ref to the generic delete function */
+  fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
+
+  if (!strcmp(kitName,"Vtkcommontcl"))
+    {
+    fprintf(fout,"extern \"C\"\n{\nvoid vtkCommonDeleteAssocData(ClientData cd)\n");
+    fprintf(fout,"  {\n");
+    fprintf(fout,"  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n");
+    fprintf(fout,"  delete tis;\n  }\n}\n");
+    }
+    
+  /* the main declaration */
+  fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
+  fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
+  
+  fprintf(fout,"\n\nint VTK_EXPORT %s_Init(Tcl_Interp *interp)\n{\n",
+          kitName);
+  if (!strcmp(kitName,"Vtkcommontcl"))
+    {
+    fprintf(fout,
+	    "  vtkTclInterpStruct *info = new vtkTclInterpStruct;\n");
+    fprintf(fout,
+            "  info->Number = 0; info->InDelete = 0; info->DebugOn = 0;\n");
+    fprintf(fout,"\n");
+    fprintf(fout,"\n");
+    fprintf(fout,
+	    "  Tcl_InitHashTable(&info->InstanceLookup, TCL_STRING_KEYS);\n");
+    fprintf(fout,
+	    "  Tcl_InitHashTable(&info->PointerLookup, TCL_STRING_KEYS);\n");
+    fprintf(fout,
+	    "  Tcl_InitHashTable(&info->CommandLookup, TCL_STRING_KEYS);\n");
+    fprintf(fout,
+            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");
+    fprintf(fout,
+            "  Tcl_CreateExitHandler(vtkCommonDeleteAssocData,(ClientData *)info);\n");
+
+    /* create special vtkCommand command */
+    fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",vtkCommand,\n		    (ClientData *)NULL, NULL);\n\n");
+    }
+  
+  for (i = 0; i < m_Commands.size(); i++)
+    {
+    fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
+    }
+  fprintf(fout,"\n");
+
+  for (i = 0; i < classes.size(); i++)
+    {
+    fprintf(fout,"  vtkTclCreateNew(interp,(char *) \"%s\", %sNewCommand,\n",
+	    classes[i].c_str(), classes[i].c_str());
+    fprintf(fout,"                  %sCommand);\n",classes[i].c_str());
+    }
+  
+  fprintf(fout,"  return TCL_OK;\n}\n");
+  fclose(fout);
+
+  // copy the file if different
+  cmSystemTools::CopyFileIfDifferent(tempOutputFile.c_str(),
+                                     outFileName.c_str());
+  cmSystemTools::RemoveFile(tempOutputFile.c_str());
+
+  return true;
 }

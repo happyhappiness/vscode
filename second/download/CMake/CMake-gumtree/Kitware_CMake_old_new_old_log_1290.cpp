@@ -1,1 +1,1 @@
-fprintf(stderr, "Argument Parser Error: %s (%lu / Line: %d)\n", str, pos, this->CurrentLine);
+printf(" %s", th_get_pathname(t));

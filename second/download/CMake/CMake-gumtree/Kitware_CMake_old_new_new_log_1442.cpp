@@ -1,1 +1,1 @@
-vsnprintf(print_buffer, 1024, fmt, ap);
+sprintf(cpbuff, "%.2f", cper);

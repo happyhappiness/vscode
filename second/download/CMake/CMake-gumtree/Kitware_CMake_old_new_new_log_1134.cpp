@@ -1,1 +1,1 @@
-fprintf(ofp, "#if defined(__WATCOMC__)\n");
+fprintf(stderr, "DIRECTORY_DEF not defined in C\n");

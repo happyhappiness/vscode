@@ -1,1 +1,2 @@
-fprintf(fout, "SET(CMAKE_SUPPRESS_REGENERATION 1)\n");
+fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());

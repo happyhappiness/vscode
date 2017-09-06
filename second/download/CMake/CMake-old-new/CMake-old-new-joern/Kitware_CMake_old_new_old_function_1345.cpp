@@ -1,126 +1,64 @@
-int cmCTest::TestDirectory(bool memcheck)
+int Curl_base64_encode(const void *inp, int insize, char **outptr)
 {
-  m_TestResults.clear();
-  std::cout << (memcheck ? "Memory check" : "Test") << " project" << std::endl;
-  if ( memcheck )
-    {
-    if ( !this->InitializeMemoryChecking() )
-      {
-      return 1;
+  unsigned char ibuf[3];
+  unsigned char obuf[4];
+  int i;
+  int inputparts;
+  char *output;
+  char *base64data;
+
+  char *indata = (char *)inp;
+
+  if(0 == insize)
+    insize = (int)strlen(indata);
+
+  base64data = output = (char*)malloc(insize*4/3+4);
+  if(NULL == output)
+    return -1;
+
+  while(insize > 0) {
+    for (i = inputparts = 0; i < 3; i++) { 
+      if(*indata) {
+        inputparts++;
+        ibuf[i] = *indata;
+        indata++;
+        insize--;
       }
+      else
+        ibuf[i] = 0;
     }
+                       
+    obuf [0] = (unsigned char)((ibuf [0] & 0xFC) >> 2);
+    obuf [1] = (unsigned char)(((ibuf [0] & 0x03) << 4) | 
+                               ((ibuf [1] & 0xF0) >> 4));
+    obuf [2] = (unsigned char)(((ibuf [1] & 0x0F) << 2) | 
+                               ((ibuf [2] & 0xC0) >> 6));
+    obuf [3] = (unsigned char)(ibuf [2] & 0x3F);
 
-  if ( memcheck )
-    {
-    if ( !this->ExecuteCommands(m_CustomPreMemCheck) )
-      {
-      std::cerr << "Problem executing pre-memcheck command(s)." << std::endl;
-      return 1;
-      }
+    switch(inputparts) {
+    case 1: /* only one byte read */
+      sprintf(output, "%c%c==", 
+              table64[obuf[0]],
+              table64[obuf[1]]);
+      break;
+    case 2: /* two bytes read */
+      sprintf(output, "%c%c%c=", 
+              table64[obuf[0]],
+              table64[obuf[1]],
+              table64[obuf[2]]);
+      break;
+    default:
+      sprintf(output, "%c%c%c%c", 
+              table64[obuf[0]],
+              table64[obuf[1]],
+              table64[obuf[2]],
+              table64[obuf[3]] );
+      break;
     }
-  else
-    {
-    if ( !this->ExecuteCommands(m_CustomPreTest) )
-      {
-      std::cerr << "Problem executing pre-test command(s)." << std::endl;
-      return 1;
-      }
-    }
+    output += 4;
+  }
+  *output=0;
+  *outptr = base64data; /* make it return the actual data memory */
 
-  cmCTest::tm_VectorOfStrings passed;
-  cmCTest::tm_VectorOfStrings failed;
-  int total;
-
-  this->ProcessDirectory(passed, failed, memcheck);
-
-  total = int(passed.size()) + int(failed.size());
-
-  if (total == 0)
-    {
-    if ( !m_ShowOnly )
-      {
-      std::cerr << "No tests were found!!!\n";
-      }
-    }
-  else
-    {
-    if (m_Verbose && passed.size() && 
-      (m_UseIncludeRegExp || m_UseExcludeRegExp)) 
-      {
-      std::cerr << "\nThe following tests passed:\n";
-      for(cmCTest::tm_VectorOfStrings::iterator j = passed.begin();
-        j != passed.end(); ++j)
-        {   
-        std::cerr << "\t" << *j << "\n";
-        }
-      }
-
-    float percent = float(passed.size()) * 100.0f / total;
-    if ( failed.size() > 0 &&  percent > 99)
-      {
-      percent = 99;
-      }
-    fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
-      percent, int(failed.size()), total);
-
-    if (failed.size()) 
-      {
-      std::ofstream ofs;
-
-      std::cerr << "\nThe following tests FAILED:\n";
-      this->OpenOutputFile("Temporary", "LastTestsFailed.log", ofs);
-
-      std::vector<cmCTest::cmCTestTestResult>::iterator ftit;
-      for(ftit = m_TestResults.begin();
-        ftit != m_TestResults.end(); ++ftit)
-        {
-        if ( ftit->m_Status != cmCTest::COMPLETED )
-          {
-          ofs << ftit->m_TestCount << ":" << ftit->m_Name << std::endl;
-          fprintf(stderr, "\t%3d - %s (%s)\n", ftit->m_TestCount, ftit->m_Name.c_str(),
-            this->GetTestStatus(ftit->m_Status));
-          }
-        }
-
-      }
-    }
-
-  if ( m_DartMode )
-    {
-    std::ofstream xmlfile;
-    if( !this->OpenOutputFile(m_CurrentTag, 
-        (memcheck ? (m_CompatibilityMode?"Purify.xml":"DynamicAnalysis.xml") : "Test.xml"), xmlfile) )
-      {
-      std::cerr << "Cannot create " << (memcheck ? "memory check" : "testing")
-        << " XML file" << std::endl;
-      return 1;
-      }
-    if ( memcheck )
-      {
-      this->GenerateDartMemCheckOutput(xmlfile);
-      }
-    else
-      {
-      this->GenerateDartTestOutput(xmlfile);
-      }
-    }
-
-  if ( memcheck )
-    {
-    if ( !this->ExecuteCommands(m_CustomPostMemCheck) )
-      {
-      std::cerr << "Problem executing post-memcheck command(s)." << std::endl;
-      return 1;
-      }
-    }
-  else
-    {
-    if ( !this->ExecuteCommands(m_CustomPostTest) )
-      {
-      std::cerr << "Problem executing post-test command(s)." << std::endl;
-      return 1;
-      }
-    }
-
-  return int(failed.size());
+  return (int)strlen(base64data); /* return the length of the new data */
 }

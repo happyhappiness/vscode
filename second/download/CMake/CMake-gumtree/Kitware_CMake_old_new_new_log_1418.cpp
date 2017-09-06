@@ -1,1 +1,1 @@
-printf("%s", comment);
+fprintf(stderr,"***Failed\n");

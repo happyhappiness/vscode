@@ -1,1 +1,1 @@
-fprintf(ofp, "#define _unlink unlink\n");
+sprintf(temp,"%d",this->ChipID.Model);

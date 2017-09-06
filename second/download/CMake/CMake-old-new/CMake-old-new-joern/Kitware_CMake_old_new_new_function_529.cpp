@@ -1,168 +1,291 @@
-static int
-restore_entry(struct archive_write_disk *a)
+static void
+process_extra(const char *p, size_t extra_length, struct zip_entry* zip_entry)
 {
-	int ret = ARCHIVE_OK, en;
+	unsigned offset = 0;
 
-	if (a->flags & ARCHIVE_EXTRACT_UNLINK && !S_ISDIR(a->mode)) {
-		/*
-		 * TODO: Fix this.  Apparently, there are platforms
-		 * that still allow root to hose the entire filesystem
-		 * by unlinking a dir.  The S_ISDIR() test above
-		 * prevents us from using unlink() here if the new
-		 * object is a dir, but that doesn't mean the old
-		 * object isn't a dir.
-		 */
-		if (a->flags & ARCHIVE_EXTRACT_CLEAR_NOCHANGE_FFLAGS)
-			(void)clear_nochange_fflags(a);
-		if (unlink(a->name) == 0) {
-			/* We removed it, reset cached stat. */
-			a->pst = NULL;
-		} else if (errno == ENOENT) {
-			/* File didn't exist, that's just as good. */
-		} else if (rmdir(a->name) == 0) {
-			/* It was a dir, but now it's gone. */
-			a->pst = NULL;
-		} else {
-			/* We tried, but couldn't get rid of it. */
-			archive_set_error(&a->archive, errno,
-			    "Could not unlink");
-			return(ARCHIVE_FAILED);
-		}
-	}
+	while (offset < extra_length - 4) {
+		unsigned short headerid = archive_le16dec(p + offset);
+		unsigned short datasize = archive_le16dec(p + offset + 2);
 
-	/* Try creating it first; if this fails, we'll try to recover. */
-	en = create_filesystem_object(a);
-
-	if ((en == ENOTDIR || en == ENOENT)
-	    && !(a->flags & ARCHIVE_EXTRACT_NO_AUTODIR)) {
-		/* If the parent dir doesn't exist, try creating it. */
-		create_parent_dir(a, a->name);
-		/* Now try to create the object again. */
-		en = create_filesystem_object(a);
-	}
-
-	if ((en == ENOENT) && (archive_entry_hardlink(a->entry) != NULL)) {
-		archive_set_error(&a->archive, en,
-		    "Hard-link target '%s' does not exist.",
-		    archive_entry_hardlink(a->entry));
-		return (ARCHIVE_FAILED);
-	}
-
-	if ((en == EISDIR || en == EEXIST)
-	    && (a->flags & ARCHIVE_EXTRACT_NO_OVERWRITE)) {
-		/* If we're not overwriting, we're done. */
-		archive_entry_unset_size(a->entry);
-		return (ARCHIVE_OK);
-	}
-
-	/*
-	 * Some platforms return EISDIR if you call
-	 * open(O_WRONLY | O_EXCL | O_CREAT) on a directory, some
-	 * return EEXIST.  POSIX is ambiguous, requiring EISDIR
-	 * for open(O_WRONLY) on a dir and EEXIST for open(O_EXCL | O_CREAT)
-	 * on an existing item.
-	 */
-	if (en == EISDIR) {
-		/* A dir is in the way of a non-dir, rmdir it. */
-		if (rmdir(a->name) != 0) {
-			archive_set_error(&a->archive, errno,
-			    "Can't remove already-existing dir");
-			return (ARCHIVE_FAILED);
-		}
-		a->pst = NULL;
-		/* Try again. */
-		en = create_filesystem_object(a);
-	} else if (en == EEXIST) {
-		/*
-		 * We know something is in the way, but we don't know what;
-		 * we need to find out before we go any further.
-		 */
-		int r = 0;
-		/*
-		 * The SECURE_SYMLINKS logic has already removed a
-		 * symlink to a dir if the client wants that.  So
-		 * follow the symlink if we're creating a dir.
-		 */
-		if (S_ISDIR(a->mode))
-			r = stat(a->name, &a->st);
-		/*
-		 * If it's not a dir (or it's a broken symlink),
-		 * then don't follow it.
-		 */
-		if (r != 0 || !S_ISDIR(a->mode))
-			r = lstat(a->name, &a->st);
-		if (r != 0) {
-			archive_set_error(&a->archive, errno,
-			    "Can't stat existing object");
-			return (ARCHIVE_FAILED);
-		}
-
-		/*
-		 * NO_OVERWRITE_NEWER doesn't apply to directories.
-		 */
-		if ((a->flags & ARCHIVE_EXTRACT_NO_OVERWRITE_NEWER)
-		    &&  !S_ISDIR(a->st.st_mode)) {
-			if (!older(&(a->st), a->entry)) {
-				archive_entry_unset_size(a->entry);
-				return (ARCHIVE_OK);
+		offset += 4;
+		if (offset + datasize > extra_length)
+			break;
+#ifdef DEBUG
+		fprintf(stderr, "Header id 0x%04x, length %d\n",
+		    headerid, datasize);
+#endif
+		switch (headerid) {
+		case 0x0001:
+			/* Zip64 extended information extra field. */
+			zip_entry->flags |= LA_USED_ZIP64;
+			if (zip_entry->uncompressed_size == 0xffffffff) {
+				if (datasize < 8)
+					break;
+				zip_entry->uncompressed_size =
+				    archive_le64dec(p + offset);
+				offset += 8;
+				datasize -= 8;
 			}
-		}
-
-		/* If it's our archive, we're done. */
-		if (a->skip_file_set &&
-		    a->st.st_dev == (dev_t)a->skip_file_dev &&
-		    a->st.st_ino == (ino_t)a->skip_file_ino) {
-			archive_set_error(&a->archive, 0,
-			    "Refusing to overwrite archive");
-			return (ARCHIVE_FAILED);
-		}
-
-		if (!S_ISDIR(a->st.st_mode)) {
-			/* A non-dir is in the way, unlink it. */
-			if (a->flags & ARCHIVE_EXTRACT_CLEAR_NOCHANGE_FFLAGS)
-				(void)clear_nochange_fflags(a);
-			if (unlink(a->name) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Can't unlink already-existing object");
-				return (ARCHIVE_FAILED);
+			if (zip_entry->compressed_size == 0xffffffff) {
+				if (datasize < 8)
+					break;
+				zip_entry->compressed_size =
+				    archive_le64dec(p + offset);
+				offset += 8;
+				datasize -= 8;
 			}
-			a->pst = NULL;
-			/* Try again. */
-			en = create_filesystem_object(a);
-		} else if (!S_ISDIR(a->mode)) {
-			/* A dir is in the way of a non-dir, rmdir it. */
-			if (a->flags & ARCHIVE_EXTRACT_CLEAR_NOCHANGE_FFLAGS)
-				(void)clear_nochange_fflags(a);
-			if (rmdir(a->name) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Can't replace existing directory with non-directory");
-				return (ARCHIVE_FAILED);
+			if (zip_entry->local_header_offset == 0xffffffff) {
+				if (datasize < 8)
+					break;
+				zip_entry->local_header_offset =
+				    archive_le64dec(p + offset);
+				offset += 8;
+				datasize -= 8;
 			}
-			/* Try again. */
-			en = create_filesystem_object(a);
-		} else {
+			/* archive_le32dec(p + offset) gives disk
+			 * on which file starts, but we don't handle
+			 * multi-volume Zip files. */
+			break;
+#ifdef DEBUG
+		case 0x0017:
+		{
+			/* Strong encryption field. */
+			if (archive_le16dec(p + offset) == 2) {
+				unsigned algId =
+					archive_le16dec(p + offset + 2);
+				unsigned bitLen =
+					archive_le16dec(p + offset + 4);
+				int	 flags =
+					archive_le16dec(p + offset + 6);
+				fprintf(stderr, "algId=0x%04x, bitLen=%u, "
+				    "flgas=%d\n", algId, bitLen,flags);
+			}
+			break;
+		}
+#endif
+		case 0x5455:
+		{
+			/* Extended time field "UT". */
+			int flags = p[offset];
+			offset++;
+			datasize--;
+			/* Flag bits indicate which dates are present. */
+			if (flags & 0x01)
+			{
+#ifdef DEBUG
+				fprintf(stderr, "mtime: %lld -> %d\n",
+				    (long long)zip_entry->mtime,
+				    archive_le32dec(p + offset));
+#endif
+				if (datasize < 4)
+					break;
+				zip_entry->mtime = archive_le32dec(p + offset);
+				offset += 4;
+				datasize -= 4;
+			}
+			if (flags & 0x02)
+			{
+				if (datasize < 4)
+					break;
+				zip_entry->atime = archive_le32dec(p + offset);
+				offset += 4;
+				datasize -= 4;
+			}
+			if (flags & 0x04)
+			{
+				if (datasize < 4)
+					break;
+				zip_entry->ctime = archive_le32dec(p + offset);
+				offset += 4;
+				datasize -= 4;
+			}
+			break;
+		}
+		case 0x5855:
+		{
+			/* Info-ZIP Unix Extra Field (old version) "UX". */
+			if (datasize >= 8) {
+				zip_entry->atime = archive_le32dec(p + offset);
+				zip_entry->mtime =
+				    archive_le32dec(p + offset + 4);
+			}
+			if (datasize >= 12) {
+				zip_entry->uid =
+				    archive_le16dec(p + offset + 8);
+				zip_entry->gid =
+				    archive_le16dec(p + offset + 10);
+			}
+			break;
+		}
+		case 0x6c78:
+		{
+			/* Experimental 'xl' field */
 			/*
-			 * There's a dir in the way of a dir.  Don't
-			 * waste time with rmdir()/mkdir(), just fix
-			 * up the permissions on the existing dir.
-			 * Note that we don't change perms on existing
-			 * dirs unless _EXTRACT_PERM is specified.
+			 * Introduced Dec 2013 to provide a way to
+			 * include external file attributes (and other
+			 * fields that ordinarily appear only in
+			 * central directory) in local file header.
+			 * This provides file type and permission
+			 * information necessary to support full
+			 * streaming extraction.  Currently being
+			 * discussed with other Zip developers
+			 * ... subject to change.
+			 *
+			 * Format:
+			 *  The field starts with a bitmap that specifies
+			 *  which additional fields are included.  The
+			 *  bitmap is variable length and can be extended in
+			 *  the future.
+			 *
+			 *  n bytes - feature bitmap: first byte has low-order
+			 *    7 bits.  If high-order bit is set, a subsequent
+			 *    byte holds the next 7 bits, etc.
+			 *
+			 *  if bitmap & 1, 2 byte "version made by"
+			 *  if bitmap & 2, 2 byte "internal file attributes"
+			 *  if bitmap & 4, 4 byte "external file attributes"
+			 *  if bitmap * 7, 2 byte comment length + n byte comment
 			 */
-			if ((a->mode != a->st.st_mode)
-			    && (a->todo & TODO_MODE_FORCE))
-				a->deferred |= (a->todo & TODO_MODE);
-			/* Ownership doesn't need deferred fixup. */
-			en = 0; /* Forget the EEXIST. */
+			int bitmap, bitmap_last;
+
+			if (datasize < 1)
+				break;
+			bitmap_last = bitmap = 0xff & p[offset];
+			offset += 1;
+			datasize -= 1;
+
+			/* We only support first 7 bits of bitmap; skip rest. */
+			while ((bitmap_last & 0x80) != 0
+			    && datasize >= 1) {
+				bitmap_last = p[offset];
+				offset += 1;
+				datasize -= 1;
+			}
+
+			if (bitmap & 1) {
+				/* 2 byte "version made by" */
+				if (datasize < 2)
+					break;
+				zip_entry->system
+				    = archive_le16dec(p + offset) >> 8;
+				offset += 2;
+				datasize -= 2;
+			}
+			if (bitmap & 2) {
+				/* 2 byte "internal file attributes" */
+				uint32_t internal_attributes;
+				if (datasize < 2)
+					break;
+				internal_attributes
+				    = archive_le16dec(p + offset);
+				/* Not used by libarchive at present. */
+				(void)internal_attributes; /* UNUSED */
+				offset += 2;
+				datasize -= 2;
+			}
+			if (bitmap & 4) {
+				/* 4 byte "external file attributes" */
+				uint32_t external_attributes;
+				if (datasize < 4)
+					break;
+				external_attributes
+				    = archive_le32dec(p + offset);
+				if (zip_entry->system == 3) {
+					zip_entry->mode
+					    = external_attributes >> 16;
+				}
+				offset += 4;
+				datasize -= 4;
+			}
+			if (bitmap & 8) {
+				/* 2 byte comment length + comment */
+				uint32_t comment_length;
+				if (datasize < 2)
+					break;
+				comment_length
+				    = archive_le16dec(p + offset);
+				offset += 2;
+				datasize -= 2;
+
+				if (datasize < comment_length)
+					break;
+				/* Comment is not supported by libarchive */
+				offset += comment_length;
+				datasize -= comment_length;
+			}
+			break;
 		}
-	}
+		case 0x7855:
+			/* Info-ZIP Unix Extra Field (type 2) "Ux". */
+#ifdef DEBUG
+			fprintf(stderr, "uid %d gid %d\n",
+			    archive_le16dec(p + offset),
+			    archive_le16dec(p + offset + 2));
+#endif
+			if (datasize >= 2)
+				zip_entry->uid = archive_le16dec(p + offset);
+			if (datasize >= 4)
+				zip_entry->gid =
+				    archive_le16dec(p + offset + 2);
+			break;
+		case 0x7875:
+		{
+			/* Info-Zip Unix Extra Field (type 3) "ux". */
+			int uidsize = 0, gidsize = 0;
 
-	if (en) {
-		/* Everything failed; give up here. */
-		archive_set_error(&a->archive, en, "Can't create '%s'",
-		    a->name);
-		return (ARCHIVE_FAILED);
+			/* TODO: support arbitrary uidsize/gidsize. */
+			if (datasize >= 1 && p[offset] == 1) {/* version=1 */
+				if (datasize >= 4) {
+					/* get a uid size. */
+					uidsize = 0xff & (int)p[offset+1];
+					if (uidsize == 2)
+						zip_entry->uid =
+						    archive_le16dec(
+						        p + offset + 2);
+					else if (uidsize == 4 && datasize >= 6)
+						zip_entry->uid =
+						    archive_le32dec(
+						        p + offset + 2);
+				}
+				if (datasize >= (2 + uidsize + 3)) {
+					/* get a gid size. */
+					gidsize = 0xff & (int)p[offset+2+uidsize];
+					if (gidsize == 2)
+						zip_entry->gid =
+						    archive_le16dec(
+						        p+offset+2+uidsize+1);
+					else if (gidsize == 4 &&
+					    datasize >= (2 + uidsize + 5))
+						zip_entry->gid =
+						    archive_le32dec(
+						        p+offset+2+uidsize+1);
+				}
+			}
+			break;
+		}
+		case 0x9901:
+			/* WinZIp AES extra data field. */
+			if (p[offset + 2] == 'A' && p[offset + 3] == 'E') {
+				/* Vendor version. */
+				zip_entry->aes_extra.vendor =
+				    archive_le16dec(p + offset);
+				/* AES encryption strength. */
+				zip_entry->aes_extra.strength = p[offset + 4];
+				/* Actual compression method. */
+				zip_entry->aes_extra.compression =
+				    p[offset + 5];
+			}
+			break;
+		default:
+			break;
+		}
+		offset += datasize;
 	}
-
-	a->pst = NULL; /* Cached stat data no longer valid. */
-	return (ret);
+#ifdef DEBUG
+	if (offset != extra_length)
+	{
+		fprintf(stderr,
+		    "Extra data field contents do not match reported size!\n");
+	}
+#endif
 }

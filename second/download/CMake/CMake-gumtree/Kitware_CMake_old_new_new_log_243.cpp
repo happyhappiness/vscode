@@ -1,1 +1,2 @@
-archive_string_sprintf(a_estr, errstr, path);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Tar entry has negative size");

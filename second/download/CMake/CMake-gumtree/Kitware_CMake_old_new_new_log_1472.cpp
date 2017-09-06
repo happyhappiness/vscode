@@ -1,1 +1,1 @@
-sprintf(tmp, "%s %i%%",msg,(int)(100*prog));
+vsnprintf(print_buffer, 1024, fmt, ap);

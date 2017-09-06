@@ -1,2 +1,1 @@
-sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%ld_%p.exe",
-            GetCurrentProcessId(), cp);
+fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE %s)\n", lang);

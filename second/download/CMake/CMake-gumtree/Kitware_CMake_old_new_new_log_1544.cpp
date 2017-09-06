@@ -1,13 +1,7 @@
-m::AddError(const char* message, const char* title)
-{
-  m_Errors.push_back(message);
-}
-
-void cmCursesMainForm::RemoveEntry(const char* value)
-{
-  if (!value)
-    {
-    return;
-    }
-
-  std::vector<cmCursesCacheEntryComposite*>::iterator it;
+"  printf(\"Available tests:\\n\");\n"
+    "  for (i =0; i < NumTests; ++i)\n"
+    "    {\n"
+    "    printf(\"%3d. %s\\n\", i, cmakeGeneratedFunctionMapEntries[i].name);\n"
+    "    }\n"
+    "  printf(\"Failed: %s is an invalid test name.\\n\", av[1]);\n"
+    "  \n";

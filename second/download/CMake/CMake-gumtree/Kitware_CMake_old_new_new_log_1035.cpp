@@ -1,1 +1,1 @@
-std::cerr << "No current working directory." << std::endl;
+zip->header_bytes_remaining -= bytes;

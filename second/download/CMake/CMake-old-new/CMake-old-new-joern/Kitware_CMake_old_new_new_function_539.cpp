@@ -1,136 +1,193 @@
 static int
-archive_write_zip_finish_entry(struct archive_write *a)
+read_decryption_header(struct archive_read *a)
 {
-	struct zip *zip = a->format_data;
-	int ret;
+	struct zip *zip = (struct zip *)(a->format->data);
+	const char *p;
+	unsigned int remaining_size;
+	unsigned int ts;
 
-#if HAVE_ZLIB_H
-	if (zip->entry_compression == COMPRESSION_DEFLATE) {
-		for (;;) {
-			size_t remainder;
-
-			ret = deflate(&zip->stream, Z_FINISH);
-			if (ret == Z_STREAM_ERROR)
-				return (ARCHIVE_FATAL);
-			remainder = zip->len_buf - zip->stream.avail_out;
-			if (zip->tctx_valid) {
-				trad_enc_encrypt_update(&zip->tctx,
-				    zip->buf, remainder, zip->buf, remainder);
-			} else if (zip->cctx_valid) {
-				size_t outl = remainder;
-				ret = archive_encrypto_aes_ctr_update(
-				    &zip->cctx, zip->buf, remainder,
-				    zip->buf, &outl);
-				if (ret < 0) {
-					archive_set_error(&a->archive,
-					    ARCHIVE_ERRNO_MISC,
-					    "Failed to encrypt file");
-					return (ARCHIVE_FAILED);
-				}
-				archive_hmac_sha1_update(&zip->hctx,
-				    zip->buf, remainder);
-			}
-			ret = __archive_write_output(a, zip->buf, remainder);
-			if (ret != ARCHIVE_OK)
-				return (ret);
-			zip->entry_compressed_written += remainder;
-			zip->written_bytes += remainder;
-			zip->stream.next_out = zip->buf;
-			if (zip->stream.avail_out != 0)
-				break;
-			zip->stream.avail_out = (uInt)zip->len_buf;
-		}
-		deflateEnd(&zip->stream);
+	/*
+	 * Read an initialization vector data field.
+	 */
+	p = __archive_read_ahead(a, 2, NULL);
+	if (p == NULL)
+		goto truncated;
+	ts = zip->iv_size;
+	zip->iv_size = archive_le16dec(p);
+	__archive_read_consume(a, 2);
+	if (ts < zip->iv_size) {
+		free(zip->iv);
+		zip->iv = NULL;
 	}
-#endif
-	if (zip->hctx_valid) {
-		uint8_t hmac[20];
-		size_t hmac_len = 20;
+	p = __archive_read_ahead(a, zip->iv_size, NULL);
+	if (p == NULL)
+		goto truncated;
+	if (zip->iv == NULL) {
+		zip->iv = malloc(zip->iv_size);
+		if (zip->iv == NULL)
+			goto nomem;
+	}
+	memcpy(zip->iv, p, zip->iv_size);
+	__archive_read_consume(a, zip->iv_size);
 
-		archive_hmac_sha1_final(&zip->hctx, hmac, &hmac_len);
-		ret = __archive_write_output(a, hmac, AUTH_CODE_SIZE);
-		if (ret != ARCHIVE_OK)
-			return (ret);
-		zip->entry_compressed_written += AUTH_CODE_SIZE;
-		zip->written_bytes += AUTH_CODE_SIZE;
+	/*
+	 * Read a size of remaining decryption header field.
+	 */
+	p = __archive_read_ahead(a, 14, NULL);
+	if (p == NULL)
+		goto truncated;
+	remaining_size = archive_le32dec(p);
+	if (remaining_size < 16 || remaining_size > (1 << 18))
+		goto corrupted;
+
+	/* Check if format version is supported. */
+	if (archive_le16dec(p+4) != 3) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unsupported encryption format version: %u",
+		    archive_le16dec(p+4));
+		return (ARCHIVE_FAILED);
 	}
 
-	/* Write trailing data descriptor. */
-	if ((zip->entry_flags & ZIP_ENTRY_FLAG_LENGTH_AT_END) != 0) {
-		char d[24];
-		memcpy(d, "PK\007\010", 4);
-		if (zip->cctx_valid && zip->aes_vendor == AES_VENDOR_AE_2)
-			archive_le32enc(d + 4, 0);/* no CRC.*/
-		else
-			archive_le32enc(d + 4, zip->entry_crc32);
-		if (zip->entry_uses_zip64) {
-			archive_le64enc(d + 8,
-				(uint64_t)zip->entry_compressed_written);
-			archive_le64enc(d + 16,
-				(uint64_t)zip->entry_uncompressed_written);
-			ret = __archive_write_output(a, d, 24);
-			zip->written_bytes += 24;
-		} else {
-			archive_le32enc(d + 8,
-				(uint32_t)zip->entry_compressed_written);
-			archive_le32enc(d + 12,
-				(uint32_t)zip->entry_uncompressed_written);
-			ret = __archive_write_output(a, d, 16);
-			zip->written_bytes += 16;
-		}
-		if (ret != ARCHIVE_OK)
-			return (ARCHIVE_FATAL);
+	/*
+	 * Read an encryption algorithm field.
+	 */
+	zip->alg_id = archive_le16dec(p+6);
+	switch (zip->alg_id) {
+	case 0x6601:/* DES */
+	case 0x6602:/* RC2 */
+	case 0x6603:/* 3DES 168 */
+	case 0x6609:/* 3DES 112 */
+	case 0x660E:/* AES 128 */
+	case 0x660F:/* AES 192 */
+	case 0x6610:/* AES 256 */
+	case 0x6702:/* RC2 (version >= 5.2) */
+	case 0x6720:/* Blowfish */
+	case 0x6721:/* Twofish */
+	case 0x6801:/* RC4 */
+		/* Suuported encryption algorithm. */
+		break;
+	default:
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unknown encryption algorithm: %u", zip->alg_id);
+		return (ARCHIVE_FAILED);
 	}
 
-	/* Append Zip64 extra data to central directory information. */
-	if (zip->entry_compressed_written > 0xffffffffLL
-	    || zip->entry_uncompressed_written > 0xffffffffLL
-	    || zip->entry_offset > 0xffffffffLL) {
-		unsigned char zip64[32];
-		unsigned char *z = zip64, *zd;
-		memcpy(z, "\001\000\000\000", 4);
-		z += 4;
-		if (zip->entry_uncompressed_written >= 0xffffffffLL) {
-			archive_le64enc(z, zip->entry_uncompressed_written);
-			z += 8;
-		}
-		if (zip->entry_compressed_written >= 0xffffffffLL) {
-			archive_le64enc(z, zip->entry_compressed_written);
-			z += 8;
-		}
-		if (zip->entry_offset >= 0xffffffffLL) {
-			archive_le64enc(z, zip->entry_offset);
-			z += 8;
-		}
-		archive_le16enc(zip64 + 2, (uint16_t)(z - (zip64 + 4)));
-		zd = cd_alloc(zip, z - zip64);
-		if (zd == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-				"Can't allocate zip data");
-			return (ARCHIVE_FATAL);
-		}
-		memcpy(zd, zip64, z - zip64);
-		/* Zip64 means version needs to be set to at least 4.5 */
-		if (archive_le16dec(zip->file_header + 6) < 45)
-			archive_le16enc(zip->file_header + 6, 45);
+	/*
+	 * Read a bit length field.
+	 */
+	zip->bit_len = archive_le16dec(p+8);
+
+	/*
+	 * Read a flags field.
+	 */
+	zip->flags = archive_le16dec(p+10);
+	switch (zip->flags & 0xf000) {
+	case 0x0001: /* Password is required to decrypt. */
+	case 0x0002: /* Certificates only. */
+	case 0x0003: /* Password or certificate required to decrypt. */
+		break;
+	default:
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unknown encryption flag: %u", zip->flags);
+		return (ARCHIVE_FAILED);
+	}
+	if ((zip->flags & 0xf000) == 0 ||
+	    (zip->flags & 0xf000) == 0x4000) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unknown encryption flag: %u", zip->flags);
+		return (ARCHIVE_FAILED);
 	}
 
-	/* Fix up central directory file header. */
-	if (zip->cctx_valid && zip->aes_vendor == AES_VENDOR_AE_2)
-		archive_le32enc(zip->file_header + 16, 0);/* no CRC.*/
-	else
-		archive_le32enc(zip->file_header + 16, zip->entry_crc32);
-	archive_le32enc(zip->file_header + 20,
-		(uint32_t)zipmin(zip->entry_compressed_written,
-				 ARCHIVE_LITERAL_LL(0xffffffff)));
-	archive_le32enc(zip->file_header + 24,
-		(uint32_t)zipmin(zip->entry_uncompressed_written,
-				 ARCHIVE_LITERAL_LL(0xffffffff)));
-	archive_le16enc(zip->file_header + 30,
-	    (uint16_t)(zip->central_directory_bytes - zip->file_header_extra_offset));
-	archive_le32enc(zip->file_header + 42,
-		(uint32_t)zipmin(zip->entry_offset,
-				 ARCHIVE_LITERAL_LL(0xffffffff)));
+	/*
+	 * Read an encrypted random data field.
+	 */
+	ts = zip->erd_size;
+	zip->erd_size = archive_le16dec(p+12);
+	__archive_read_consume(a, 14);
+	if ((zip->erd_size & 0xf) != 0 ||
+	    (zip->erd_size + 16) > remaining_size ||
+	    (zip->erd_size + 16) < zip->erd_size)
+		goto corrupted;
 
-	return (ARCHIVE_OK);
+	if (ts < zip->erd_size) {
+		free(zip->erd);
+		zip->erd = NULL;
+	}
+	p = __archive_read_ahead(a, zip->erd_size, NULL);
+	if (p == NULL)
+		goto truncated;
+	if (zip->erd == NULL) {
+		zip->erd = malloc(zip->erd_size);
+		if (zip->erd == NULL)
+			goto nomem;
+	}
+	memcpy(zip->erd, p, zip->erd_size);
+	__archive_read_consume(a, zip->erd_size);
+
+	/*
+	 * Read a reserved data field.
+	 */
+	p = __archive_read_ahead(a, 4, NULL);
+	if (p == NULL)
+		goto truncated;
+	/* Reserved data size should be zero. */
+	if (archive_le32dec(p) != 0)
+		goto corrupted;
+	__archive_read_consume(a, 4);
+
+	/*
+	 * Read a password validation data field.
+	 */
+	p = __archive_read_ahead(a, 2, NULL);
+	if (p == NULL)
+		goto truncated;
+	ts = zip->v_size;
+	zip->v_size = archive_le16dec(p);
+	__archive_read_consume(a, 2);
+	if ((zip->v_size & 0x0f) != 0 ||
+	    (zip->erd_size + zip->v_size + 16) > remaining_size ||
+	    (zip->erd_size + zip->v_size + 16) < (zip->erd_size + zip->v_size))
+		goto corrupted;
+	if (ts < zip->v_size) {
+		free(zip->v_data);
+		zip->v_data = NULL;
+	}
+	p = __archive_read_ahead(a, zip->v_size, NULL);
+	if (p == NULL)
+		goto truncated;
+	if (zip->v_data == NULL) {
+		zip->v_data = malloc(zip->v_size);
+		if (zip->v_data == NULL)
+			goto nomem;
+	}
+	memcpy(zip->v_data, p, zip->v_size);
+	__archive_read_consume(a, zip->v_size);
+
+	p = __archive_read_ahead(a, 4, NULL);
+	if (p == NULL)
+		goto truncated;
+	zip->v_crc32 = archive_le32dec(p);
+	__archive_read_consume(a, 4);
+
+	/*return (ARCHIVE_OK);
+	 * This is not fully implemnted yet.*/
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Encrypted file is unsupported");
+	return (ARCHIVE_FAILED);
+truncated:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Truncated ZIP file data");
+	return (ARCHIVE_FATAL);
+corrupted:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Corrupted ZIP file data");
+	return (ARCHIVE_FATAL);
+nomem:
+	archive_set_error(&a->archive, ENOMEM,
+	    "No memory for ZIP decryption");
+	return (ARCHIVE_FATAL);
 }

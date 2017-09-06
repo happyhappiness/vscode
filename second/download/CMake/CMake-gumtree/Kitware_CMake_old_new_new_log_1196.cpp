@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_KEY_EXCHANGE ");
+fprintf(handle, "NTLMFLAG_NEGOTIATE_UNICODE ");

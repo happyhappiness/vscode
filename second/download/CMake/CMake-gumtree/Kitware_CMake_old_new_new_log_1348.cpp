@@ -1,1 +1,1 @@
-fprintf(fout, "PROJECT(CMAKE_TRY_COMPILE Fortran)\n");
+printf("%02x ", data[i+j]);

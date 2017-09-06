@@ -1,2 +1,2 @@
-fprintf(fout, "SET(%s \"%s\")\n",
-                rulesOverrideBase.c_str(), rulesOverridePath2);
+fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);

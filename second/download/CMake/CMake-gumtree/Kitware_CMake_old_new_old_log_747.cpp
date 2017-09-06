@@ -1,1 +1,2 @@
-fprintf(fout, "SET(CMAKE_MODULE_PATH %s)\n", def);
+fprintf(stderr, "  contains target %d [%s]\n",
+              i, this->Targets[i]->GetName());

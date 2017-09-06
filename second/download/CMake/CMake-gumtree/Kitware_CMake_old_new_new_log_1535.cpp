@@ -1,1 +1,2 @@
-sprintf(firstLine,  "C)onfigure                 G)enerate and Exit            H)elp");
+sprintf(tmp,"Version %d.%d - %s", cmake::GetMajorVersion(),
+          cmake::GetMinorVersion(), cmake::GetReleaseVersion());

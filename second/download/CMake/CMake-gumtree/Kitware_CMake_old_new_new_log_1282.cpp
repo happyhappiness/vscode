@@ -1,1 +1,1 @@
-sprintf(argvName,"ARGV%i",j);
+sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));

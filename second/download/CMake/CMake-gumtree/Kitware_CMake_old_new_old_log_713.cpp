@@ -1,1 +1,2 @@
-fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
+fprintf(stderr, "  contains target %d [%s]\n",
+              i, this->Targets[i]->GetName());

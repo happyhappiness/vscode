@@ -1,128 +1,75 @@
-bool cmVTKWrapTclCommand::WriteInit(const char *kitName, 
-                                    std::string& outFileName,
-                                    std::vector<std::string>& classes)
+int ctest::ProcessTests()
 {
-  unsigned int i;
-  std::string tempOutputFile = outFileName + ".tmp";
-  FILE *fout = fopen(tempOutputFile.c_str(),"w");
-  if (!fout)
-    {
-    cmSystemTools::Error("Failed to open TclInit file for ", tempOutputFile.c_str());
-    return false;
-    }
+  int res = 0;
+  bool notest = true;
+  int cc;
 
-  // capitalized commands just once
-  std::vector<std::string> capcommands;
-  for (i = 0; i < m_Commands.size(); i++)
+  for ( cc = 0; cc < LAST_TEST; cc ++ )
     {
-    capcommands.push_back(cmSystemTools::Capitalized(m_Commands[i]));
+    if ( m_Tests[cc] )
+      {
+      notest = false;
+      break;
+      }
     }
-  
-  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
-  
-  fprintf(fout,
-          "extern \"C\"\n"
-          "{\n"
-          "  typedef int (*vtkTclCommandType)(ClientData, Tcl_Interp *,int, char *[]);\n"
-          "}\n"
-          "\n");
+  if ( m_Tests[UPDATE_TEST] || m_Tests[ALL_TEST] )
+    {
+    this->UpdateDirectory();
+    }
+  if ( m_Tests[BUILD_TEST] || m_Tests[ALL_TEST] )
+    {
+    this->BuildDirectory();
+    }
+  if ( m_Tests[TEST_TEST] || m_Tests[ALL_TEST] || notest )
+    {
+    std::vector<std::string> passed;
+    std::vector<std::string> failed;
+    int total;
 
-  for (i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
-    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
-    }
-  
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,"int vtkCommand(ClientData cd, Tcl_Interp *interp,\n"
-                 "               int argc, char *argv[]);\n");
-    fprintf(fout,"\nTcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkCommandLookup;\n");
-    }
-  else
-    {
-    fprintf(fout,"\nextern Tcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkCommandLookup;\n");
-    }
-  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
-  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
+    this->ProcessDirectory(passed, failed);
 
-  for (i = 0; i < m_Commands.size(); i++)
-    {
-    fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-            capcommands[i].c_str());
-    }
-  
-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n",
-	  kitName);
-  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-	  kitName);
-  
-  /* create an extern ref to the generic delete function */
-  fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
+    total = int(passed.size()) + int(failed.size());
 
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,"extern \"C\"\n{\nvoid vtkCommonDeleteAssocData(ClientData cd)\n");
-    fprintf(fout,"  {\n");
-    fprintf(fout,"  vtkTclInterpStruct *tis = static_cast<vtkTclInterpStruct*>(cd);\n");
-    fprintf(fout,"  delete tis;\n  }\n}\n");
-    }
-    
-  /* the main declaration */
-  fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
-  fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
-  
-  fprintf(fout,"\n\nint VTK_EXPORT %s_Init(Tcl_Interp *interp)\n{\n",
-          kitName);
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,
-	    "  vtkTclInterpStruct *info = new vtkTclInterpStruct;\n");
-    fprintf(fout,
-            "  info->Number = 0; info->InDelete = 0; info->DebugOn = 0;\n");
-    fprintf(fout,"\n");
-    fprintf(fout,"\n");
-    fprintf(fout,
-	    "  Tcl_InitHashTable(&info->InstanceLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-	    "  Tcl_InitHashTable(&info->PointerLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-	    "  Tcl_InitHashTable(&info->CommandLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");
-    fprintf(fout,
-            "  Tcl_CreateExitHandler(vtkCommonDeleteAssocData,(ClientData *)info);\n");
+    if (total == 0)
+      {
+      std::cerr << "No tests were found!!!\n";
+      }
+    else
+      {
+      if (passed.size() && (m_UseIncludeRegExp || m_UseExcludeRegExp)) 
+        {
+        std::cerr << "\nThe following tests passed:\n";
+        for(std::vector<std::string>::iterator j = passed.begin();
+            j != passed.end(); ++j)
+          {   
+          std::cerr << "\t" << *j << "\n";
+          }
+        }
 
-    /* create special vtkCommand command */
-    fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",\n"
-                 "                    reinterpret_cast<vtkTclCommandType>(vtkCommand),\n"
-                 "                    (ClientData *)NULL, NULL);\n\n");
+      float percent = float(passed.size()) * 100.0f / total;
+      fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
+              percent, int(failed.size()), total);
+
+      if (failed.size()) 
+        {
+        std::cerr << "\nThe following tests FAILED:\n";
+        for(std::vector<std::string>::iterator j = failed.begin();
+            j != failed.end(); ++j)
+          {   
+          std::cerr << "\t" << *j << "\n";
+          }
+        }
+      }
+
+    res += int(failed.size());
     }
-  
-  for (i = 0; i < m_Commands.size(); i++)
+  if ( m_Tests[COVERAGE_TEST] || m_Tests[ALL_TEST] )
     {
-    fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
+    std::cerr << "Coverage test is not yet implemented" << std::endl;
     }
-  fprintf(fout,"\n");
-
-  for (i = 0; i < classes.size(); i++)
+  if ( m_Tests[PURIFY_TEST] || m_Tests[ALL_TEST] )
     {
-    fprintf(fout,"  vtkTclCreateNew(interp,(char *) \"%s\", %sNewCommand,\n",
-	    classes[i].c_str(), classes[i].c_str());
-    fprintf(fout,"                  %sCommand);\n",classes[i].c_str());
+    std::cerr << "Purify test is not yet implemented" << std::endl;
     }
-  
-  fprintf(fout,"  return TCL_OK;\n}\n");
-  fclose(fout);
-
-  // copy the file if different
-  cmSystemTools::CopyFileIfDifferent(tempOutputFile.c_str(),
-                                     outFileName.c_str());
-  cmSystemTools::RemoveFile(tempOutputFile.c_str());
-
-  return true;
+  return res;
 }

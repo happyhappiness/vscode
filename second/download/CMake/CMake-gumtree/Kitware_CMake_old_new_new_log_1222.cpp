@@ -1,1 +1,1 @@
-yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" , yyscanner);
+fprintf(handle, "NTLMFLAG_UNKNOWN_26 ");

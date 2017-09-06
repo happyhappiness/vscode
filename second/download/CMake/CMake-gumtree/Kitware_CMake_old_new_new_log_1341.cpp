@@ -1,1 +1,0 @@
-sprintf(format, "%%%ds  ", static_cast<unsigned int>(maxlen-2));

@@ -1,241 +1,279 @@
 static int
-_ar_read_header(struct archive_read *a, struct archive_entry *entry,
-	struct ar *ar, const char *h, size_t *unconsumed)
+zip_read_local_file_header(struct archive_read *a, struct archive_entry *entry,
+    struct zip *zip)
 {
-	char filename[AR_name_size + 1];
-	uint64_t number; /* Used to hold parsed numbers before validation. */
-	size_t bsd_name_length, entry_size;
-	char *p, *st;
-	const void *b;
-	int r;
+	const char *p;
+	const void *h;
+	const wchar_t *wp;
+	const char *cp;
+	size_t len, filename_length, extra_length;
+	struct archive_string_conv *sconv;
+	struct zip_entry *zip_entry = zip->entry;
+	struct zip_entry zip_entry_central_dir;
+	int ret = ARCHIVE_OK;
+	char version;
 
-	/* Verify the magic signature on the file header. */
-	if (strncmp(h + AR_fmag_offset, "`\n", 2) != 0) {
-		archive_set_error(&a->archive, EINVAL,
-		    "Incorrect file header signature");
-		return (ARCHIVE_WARN);
+	/* Save a copy of the original for consistency checks. */
+	zip_entry_central_dir = *zip_entry;
+
+	zip->decompress_init = 0;
+	zip->end_of_entry = 0;
+	zip->entry_uncompressed_bytes_read = 0;
+	zip->entry_compressed_bytes_read = 0;
+	zip->entry_crc32 = zip->crc32func(0, NULL, 0);
+
+	/* Setup default conversion. */
+	if (zip->sconv == NULL && !zip->init_default_conversion) {
+		zip->sconv_default =
+		    archive_string_default_conversion_for_read(&(a->archive));
+		zip->init_default_conversion = 1;
 	}
 
-	/* Copy filename into work buffer. */
-	strncpy(filename, h + AR_name_offset, AR_name_size);
-	filename[AR_name_size] = '\0';
-
-	/*
-	 * Guess the format variant based on the filename.
-	 */
-	if (a->archive.archive_format == ARCHIVE_FORMAT_AR) {
-		/* We don't already know the variant, so let's guess. */
-		/*
-		 * Biggest clue is presence of '/': GNU starts special
-		 * filenames with '/', appends '/' as terminator to
-		 * non-special names, so anything with '/' should be
-		 * GNU except for BSD long filenames.
-		 */
-		if (strncmp(filename, "#1/", 3) == 0)
-			a->archive.archive_format = ARCHIVE_FORMAT_AR_BSD;
-		else if (strchr(filename, '/') != NULL)
-			a->archive.archive_format = ARCHIVE_FORMAT_AR_GNU;
-		else if (strncmp(filename, "__.SYMDEF", 9) == 0)
-			a->archive.archive_format = ARCHIVE_FORMAT_AR_BSD;
-		/*
-		 * XXX Do GNU/SVR4 'ar' programs ever omit trailing '/'
-		 * if name exactly fills 16-byte field?  If so, we
-		 * can't assume entries without '/' are BSD. XXX
-		 */
+	if ((p = __archive_read_ahead(a, 30, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
 	}
 
-	/* Update format name from the code. */
-	if (a->archive.archive_format == ARCHIVE_FORMAT_AR_GNU)
-		a->archive.archive_format_name = "ar (GNU/SVR4)";
-	else if (a->archive.archive_format == ARCHIVE_FORMAT_AR_BSD)
-		a->archive.archive_format_name = "ar (BSD)";
+	if (memcmp(p, "PK\003\004", 4) != 0) {
+		archive_set_error(&a->archive, -1, "Damaged Zip archive");
+		return ARCHIVE_FATAL;
+	}
+	version = p[4];
+	zip_entry->system = p[5];
+	zip_entry->zip_flags = archive_le16dec(p + 6);
+	if (zip_entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
+		zip->has_encrypted_entries = 1;
+		archive_entry_set_is_data_encrypted(entry, 1);
+		if (zip_entry->zip_flags & ZIP_CENTRAL_DIRECTORY_ENCRYPTED &&
+			zip_entry->zip_flags & ZIP_ENCRYPTED &&
+			zip_entry->zip_flags & ZIP_STRONG_ENCRYPTED) {
+			archive_entry_set_is_metadata_encrypted(entry, 1);
+			return ARCHIVE_FATAL;
+		}
+	}
+	zip->init_decryption = (zip_entry->zip_flags & ZIP_ENCRYPTED);
+	zip_entry->compression = (char)archive_le16dec(p + 8);
+	zip_entry->mtime = zip_time(p + 10);
+	zip_entry->crc32 = archive_le32dec(p + 14);
+	if (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
+		zip_entry->decdat = p[11];
 	else
-		a->archive.archive_format_name = "ar";
+		zip_entry->decdat = p[17];
+	zip_entry->compressed_size = archive_le32dec(p + 18);
+	zip_entry->uncompressed_size = archive_le32dec(p + 22);
+	filename_length = archive_le16dec(p + 26);
+	extra_length = archive_le16dec(p + 28);
 
-	/*
-	 * Remove trailing spaces from the filename.  GNU and BSD
-	 * variants both pad filename area out with spaces.
-	 * This will only be wrong if GNU/SVR4 'ar' implementations
-	 * omit trailing '/' for 16-char filenames and we have
-	 * a 16-char filename that ends in ' '.
-	 */
-	p = filename + AR_name_size - 1;
-	while (p >= filename && *p == ' ') {
-		*p = '\0';
-		p--;
+	__archive_read_consume(a, 30);
+
+	/* Read the filename. */
+	if ((h = __archive_read_ahead(a, filename_length, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
 	}
-
-	/*
-	 * Remove trailing slash unless first character is '/'.
-	 * (BSD entries never end in '/', so this will only trim
-	 * GNU-format entries.  GNU special entries start with '/'
-	 * and are not terminated in '/', so we don't trim anything
-	 * that starts with '/'.)
-	 */
-	if (filename[0] != '/' && *p == '/')
-		*p = '\0';
-
-	/*
-	 * '//' is the GNU filename table.
-	 * Later entries can refer to names in this table.
-	 */
-	if (strcmp(filename, "//") == 0) {
-		/* This must come before any call to _read_ahead. */
-		ar_parse_common_header(ar, entry, h);
-		archive_entry_copy_pathname(entry, filename);
-		archive_entry_set_filetype(entry, AE_IFREG);
-		/* Get the size of the filename table. */
-		number = ar_atol10(h + AR_size_offset, AR_size_size);
-		if (number > SIZE_MAX) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Filename table too large");
-			return (ARCHIVE_FATAL);
+	if (zip_entry->zip_flags & ZIP_UTF8_NAME) {
+		/* The filename is stored to be UTF-8. */
+		if (zip->sconv_utf8 == NULL) {
+			zip->sconv_utf8 =
+			    archive_string_conversion_from_charset(
+				&a->archive, "UTF-8", 1);
+			if (zip->sconv_utf8 == NULL)
+				return (ARCHIVE_FATAL);
 		}
-		entry_size = (size_t)number;
-		if (entry_size == 0) {
-			archive_set_error(&a->archive, EINVAL,
-			    "Invalid string table");
-			return (ARCHIVE_WARN);
-		}
-		if (ar->strtab != NULL) {
-			archive_set_error(&a->archive, EINVAL,
-			    "More than one string tables exist");
-			return (ARCHIVE_WARN);
-		}
+		sconv = zip->sconv_utf8;
+	} else if (zip->sconv != NULL)
+		sconv = zip->sconv;
+	else
+		sconv = zip->sconv_default;
 
-		/* Read the filename table into memory. */
-		st = malloc(entry_size);
-		if (st == NULL) {
+	if (archive_entry_copy_pathname_l(entry,
+	    h, filename_length, sconv) != 0) {
+		if (errno == ENOMEM) {
 			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate filename table buffer");
+			    "Can't allocate memory for Pathname");
 			return (ARCHIVE_FATAL);
 		}
-		ar->strtab = st;
-		ar->strtab_size = entry_size;
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Pathname cannot be converted "
+		    "from %s to current locale.",
+		    archive_string_conversion_charset_name(sconv));
+		ret = ARCHIVE_WARN;
+	}
+	__archive_read_consume(a, filename_length);
 
-		if (*unconsumed) {
-			__archive_read_consume(a, *unconsumed);
-			*unconsumed = 0;
-		}
-
-		if ((b = __archive_read_ahead(a, entry_size, NULL)) == NULL)
-			return (ARCHIVE_FATAL);
-		memcpy(st, b, entry_size);
-		__archive_read_consume(a, entry_size);
-		/* All contents are consumed. */
-		ar->entry_bytes_remaining = 0;
-		archive_entry_set_size(entry, ar->entry_bytes_remaining);
-
-		/* Parse the filename table. */
-		return (ar_parse_gnu_filename_table(a));
+	/* Work around a bug in Info-Zip: When reading from a pipe, it
+	 * stats the pipe instead of synthesizing a file entry. */
+	if ((zip_entry->mode & AE_IFMT) == AE_IFIFO) {
+		zip_entry->mode &= ~ AE_IFMT;
+		zip_entry->mode |= AE_IFREG;
 	}
 
-	/*
-	 * GNU variant handles long filenames by storing /<number>
-	 * to indicate a name stored in the filename table.
-	 * XXX TODO: Verify that it's all digits... Don't be fooled
-	 * by "/9xyz" XXX
-	 */
-	if (filename[0] == '/' && filename[1] >= '0' && filename[1] <= '9') {
-		number = ar_atol10(h + AR_name_offset + 1, AR_name_size - 1);
-		/*
-		 * If we can't look up the real name, warn and return
-		 * the entry with the wrong name.
-		 */
-		if (ar->strtab == NULL || number > ar->strtab_size) {
-			archive_set_error(&a->archive, EINVAL,
-			    "Can't find long filename for entry");
-			archive_entry_copy_pathname(entry, filename);
-			/* Parse the time, owner, mode, size fields. */
-			ar_parse_common_header(ar, entry, h);
-			return (ARCHIVE_WARN);
+	if ((zip_entry->mode & AE_IFMT) == 0) {
+		/* Especially in streaming mode, we can end up
+		   here without having seen proper mode information.
+		   Guess from the filename. */
+		wp = archive_entry_pathname_w(entry);
+		if (wp != NULL) {
+			len = wcslen(wp);
+			if (len > 0 && wp[len - 1] == L'/')
+				zip_entry->mode |= AE_IFDIR;
+			else
+				zip_entry->mode |= AE_IFREG;
+		} else {
+			cp = archive_entry_pathname(entry);
+			len = (cp != NULL)?strlen(cp):0;
+			if (len > 0 && cp[len - 1] == '/')
+				zip_entry->mode |= AE_IFDIR;
+			else
+				zip_entry->mode |= AE_IFREG;
 		}
-
-		archive_entry_copy_pathname(entry, &ar->strtab[(size_t)number]);
-		/* Parse the time, owner, mode, size fields. */
-		return (ar_parse_common_header(ar, entry, h));
+		if (zip_entry->mode == AE_IFDIR) {
+			zip_entry->mode |= 0775;
+		} else if (zip_entry->mode == AE_IFREG) {
+			zip_entry->mode |= 0664;
+		}
 	}
 
-	/*
-	 * BSD handles long filenames by storing "#1/" followed by the
-	 * length of filename as a decimal number, then prepends the
-	 * the filename to the file contents.
-	 */
-	if (strncmp(filename, "#1/", 3) == 0) {
-		/* Parse the time, owner, mode, size fields. */
-		/* This must occur before _read_ahead is called again. */
-		ar_parse_common_header(ar, entry, h);
+	/* Read the extra data. */
+	if ((h = __archive_read_ahead(a, extra_length, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
+	}
 
-		/* Parse the size of the name, adjust the file size. */
-		number = ar_atol10(h + AR_name_offset + 3, AR_name_size - 3);
-		bsd_name_length = (size_t)number;
-		/* Guard against the filename + trailing NUL
-		 * overflowing a size_t and against the filename size
-		 * being larger than the entire entry. */
-		if (number > (uint64_t)(bsd_name_length + 1)
-		    || (int64_t)bsd_name_length > ar->entry_bytes_remaining) {
+	process_extra(h, extra_length, zip_entry);
+	__archive_read_consume(a, extra_length);
+
+	if (zip_entry->flags & LA_FROM_CENTRAL_DIRECTORY) {
+		/* If this came from the central dir, it's size info
+		 * is definitive, so ignore the length-at-end flag. */
+		zip_entry->zip_flags &= ~ZIP_LENGTH_AT_END;
+		/* If local header is missing a value, use the one from
+		   the central directory.  If both have it, warn about
+		   mismatches. */
+		if (zip_entry->crc32 == 0) {
+			zip_entry->crc32 = zip_entry_central_dir.crc32;
+		} else if (!zip->ignore_crc32
+		    && zip_entry->crc32 != zip_entry_central_dir.crc32) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Inconsistent CRC32 values");
+			ret = ARCHIVE_WARN;
+		}
+		if (zip_entry->compressed_size == 0) {
+			zip_entry->compressed_size
+			    = zip_entry_central_dir.compressed_size;
+		} else if (zip_entry->compressed_size
+		    != zip_entry_central_dir.compressed_size) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Inconsistent compressed size: "
+			    "%jd in central directory, %jd in local header",
+			    (intmax_t)zip_entry_central_dir.compressed_size,
+			    (intmax_t)zip_entry->compressed_size);
+			ret = ARCHIVE_WARN;
+		}
+		if (zip_entry->uncompressed_size == 0) {
+			zip_entry->uncompressed_size
+			    = zip_entry_central_dir.uncompressed_size;
+		} else if (zip_entry->uncompressed_size
+		    != zip_entry_central_dir.uncompressed_size) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Inconsistent uncompressed size: "
+			    "%jd in central directory, %jd in local header",
+			    (intmax_t)zip_entry_central_dir.uncompressed_size,
+			    (intmax_t)zip_entry->uncompressed_size);
+			ret = ARCHIVE_WARN;
+		}
+	}
+
+	/* Populate some additional entry fields: */
+	archive_entry_set_mode(entry, zip_entry->mode);
+	archive_entry_set_uid(entry, zip_entry->uid);
+	archive_entry_set_gid(entry, zip_entry->gid);
+	archive_entry_set_mtime(entry, zip_entry->mtime, 0);
+	archive_entry_set_ctime(entry, zip_entry->ctime, 0);
+	archive_entry_set_atime(entry, zip_entry->atime, 0);
+
+	if ((zip->entry->mode & AE_IFMT) == AE_IFLNK) {
+		size_t linkname_length;
+
+		if (zip_entry->compressed_size > 64 * 1024) {
 			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Bad input file size");
-			return (ARCHIVE_FATAL);
-		}
-		ar->entry_bytes_remaining -= bsd_name_length;
-		/* Adjust file size reported to client. */
-		archive_entry_set_size(entry, ar->entry_bytes_remaining);
-
-		if (*unconsumed) {
-			__archive_read_consume(a, *unconsumed);
-			*unconsumed = 0;
+			    "Zip file with oversized link entry");
+			return ARCHIVE_FATAL;
 		}
 
-		/* Read the long name into memory. */
-		if ((b = __archive_read_ahead(a, bsd_name_length, NULL)) == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Truncated input file");
-			return (ARCHIVE_FATAL);
-		}
-		/* Store it in the entry. */
-		p = (char *)malloc(bsd_name_length + 1);
+		linkname_length = (size_t)zip_entry->compressed_size;
+
+		archive_entry_set_size(entry, 0);
+		p = __archive_read_ahead(a, linkname_length, NULL);
 		if (p == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate fname buffer");
-			return (ARCHIVE_FATAL);
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated Zip file");
+			return ARCHIVE_FATAL;
 		}
-		strncpy(p, b, bsd_name_length);
-		p[bsd_name_length] = '\0';
 
-		__archive_read_consume(a, bsd_name_length);
+		sconv = zip->sconv;
+		if (sconv == NULL && (zip->entry->zip_flags & ZIP_UTF8_NAME))
+			sconv = zip->sconv_utf8;
+		if (sconv == NULL)
+			sconv = zip->sconv_default;
+		if (archive_entry_copy_symlink_l(entry, p, linkname_length,
+		    sconv) != 0) {
+			if (errno != ENOMEM && sconv == zip->sconv_utf8 &&
+			    (zip->entry->zip_flags & ZIP_UTF8_NAME))
+			    archive_entry_copy_symlink_l(entry, p,
+				linkname_length, NULL);
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Symlink");
+				return (ARCHIVE_FATAL);
+			}
+			/*
+			 * Since there is no character-set regulation for
+			 * symlink name, do not report the conversion error
+			 * in an automatic conversion.
+			 */
+			if (sconv != zip->sconv_utf8 ||
+			    (zip->entry->zip_flags & ZIP_UTF8_NAME) == 0) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Symlink cannot be converted "
+				    "from %s to current locale.",
+				    archive_string_conversion_charset_name(
+					sconv));
+				ret = ARCHIVE_WARN;
+			}
+		}
+		zip_entry->uncompressed_size = zip_entry->compressed_size = 0;
 
-		archive_entry_copy_pathname(entry, p);
-		free(p);
-		return (ARCHIVE_OK);
+		if (__archive_read_consume(a, linkname_length) < 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Read error skipping symlink target name");
+			return ARCHIVE_FATAL;
+		}
+	} else if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
+	    || zip_entry->uncompressed_size > 0) {
+		/* Set the size only if it's meaningful. */
+		archive_entry_set_size(entry, zip_entry->uncompressed_size);
 	}
+	zip->entry_bytes_remaining = zip_entry->compressed_size;
 
-	/*
-	 * "/" is the SVR4/GNU archive symbol table.
-	 */
-	if (strcmp(filename, "/") == 0) {
-		archive_entry_copy_pathname(entry, "/");
-		/* Parse the time, owner, mode, size fields. */
-		r = ar_parse_common_header(ar, entry, h);
-		/* Force the file type to a regular file. */
-		archive_entry_set_filetype(entry, AE_IFREG);
-		return (r);
-	}
+	/* If there's no body, force read_data() to return EOF immediately. */
+	if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
+	    && zip->entry_bytes_remaining < 1)
+		zip->end_of_entry = 1;
 
-	/*
-	 * "__.SYMDEF" is a BSD archive symbol table.
-	 */
-	if (strcmp(filename, "__.SYMDEF") == 0) {
-		archive_entry_copy_pathname(entry, filename);
-		/* Parse the time, owner, mode, size fields. */
-		return (ar_parse_common_header(ar, entry, h));
-	}
+	/* Set up a more descriptive format name. */
+	archive_string_sprintf(&zip->format_name, "ZIP %d.%d (%s)",
+	    version / 10, version % 10,
+	    compression_name(zip->entry->compression));
+	a->archive.archive_format_name = zip->format_name.s;
 
-	/*
-	 * Otherwise, this is a standard entry.  The filename
-	 * has already been trimmed as much as possible, based
-	 * on our current knowledge of the format.
-	 */
-	archive_entry_copy_pathname(entry, filename);
-	return (ar_parse_common_header(ar, entry, h));
+	return (ret);
 }

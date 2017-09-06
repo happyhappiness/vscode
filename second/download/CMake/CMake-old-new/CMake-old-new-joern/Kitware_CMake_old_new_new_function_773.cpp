@@ -1,91 +1,63 @@
-static int
-setup_xattrs(struct archive_read_disk *a,
-    struct archive_entry *entry, int *fd)
+static void kwsysProcessSetExitException(kwsysProcess* cp, int code)
 {
-	char *list, *p;
-	const char *path;
-	ssize_t list_size;
+  switch (code)
+    {
+    case STATUS_CONTROL_C_EXIT:
+      KWSYSPE_CASE(Interrupt, "User interrupt"); break;
 
-	path = archive_entry_sourcepath(entry);
-	if (path == NULL)
-		path = archive_entry_pathname(entry);
-
-	if (*fd < 0 && a->tree != NULL) {
-		if (a->follow_symlinks ||
-		    archive_entry_filetype(entry) != AE_IFLNK)
-			*fd = a->open_on_current_dir(a->tree, path,
-				O_RDONLY | O_NONBLOCK);
-		if (*fd < 0) {
-			if (a->tree_enter_working_dir(a->tree) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Couldn't access %s", path);
-				return (ARCHIVE_FAILED);
-			}
-		}
-	}
-
-#if HAVE_FLISTXATTR
-	if (*fd >= 0)
-		list_size = flistxattr(*fd, NULL, 0);
-	else if (!a->follow_symlinks)
-		list_size = llistxattr(path, NULL, 0);
-	else
-		list_size = listxattr(path, NULL, 0);
-#elif HAVE_FLISTEA
-	if (*fd >= 0)
-		list_size = flistea(*fd, NULL, 0);
-	else if (!a->follow_symlinks)
-		list_size = llistea(path, NULL, 0);
-	else
-		list_size = listea(path, NULL, 0);
+    case STATUS_FLOAT_DENORMAL_OPERAND:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (denormal operand)"); break;
+    case STATUS_FLOAT_DIVIDE_BY_ZERO:
+      KWSYSPE_CASE(Numerical, "Divide-by-zero"); break;
+    case STATUS_FLOAT_INEXACT_RESULT:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (inexact result)"); break;
+    case STATUS_FLOAT_INVALID_OPERATION:
+      KWSYSPE_CASE(Numerical, "Invalid floating-point operation"); break;
+    case STATUS_FLOAT_OVERFLOW:
+      KWSYSPE_CASE(Numerical, "Floating-point overflow"); break;
+    case STATUS_FLOAT_STACK_CHECK:
+      KWSYSPE_CASE(Numerical, "Floating-point stack check failed"); break;
+    case STATUS_FLOAT_UNDERFLOW:
+      KWSYSPE_CASE(Numerical, "Floating-point underflow"); break;
+#ifdef STATUS_FLOAT_MULTIPLE_FAULTS
+    case STATUS_FLOAT_MULTIPLE_FAULTS:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (multiple faults)"); break;
 #endif
-
-	if (list_size == -1) {
-		if (errno == ENOTSUP || errno == ENOSYS)
-			return (ARCHIVE_OK);
-		archive_set_error(&a->archive, errno,
-			"Couldn't list extended attributes");
-		return (ARCHIVE_WARN);
-	}
-
-	if (list_size == 0)
-		return (ARCHIVE_OK);
-
-	if ((list = malloc(list_size)) == NULL) {
-		archive_set_error(&a->archive, errno, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
-
-#if HAVE_FLISTXATTR
-	if (*fd >= 0)
-		list_size = flistxattr(*fd, list, list_size);
-	else if (!a->follow_symlinks)
-		list_size = llistxattr(path, list, list_size);
-	else
-		list_size = listxattr(path, list, list_size);
-#elif HAVE_FLISTEA
-	if (*fd >= 0)
-		list_size = flistea(*fd, list, list_size);
-	else if (!a->follow_symlinks)
-		list_size = llistea(path, list, list_size);
-	else
-		list_size = listea(path, list, list_size);
+#ifdef STATUS_FLOAT_MULTIPLE_TRAPS
+    case STATUS_FLOAT_MULTIPLE_TRAPS:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (multiple traps)"); break;
 #endif
+    case STATUS_INTEGER_DIVIDE_BY_ZERO:
+      KWSYSPE_CASE(Numerical, "Integer divide-by-zero"); break;
+    case STATUS_INTEGER_OVERFLOW:
+      KWSYSPE_CASE(Numerical, "Integer overflow"); break;
 
-	if (list_size == -1) {
-		archive_set_error(&a->archive, errno,
-			"Couldn't retrieve extended attributes");
-		free(list);
-		return (ARCHIVE_WARN);
-	}
+    case STATUS_DATATYPE_MISALIGNMENT:
+      KWSYSPE_CASE(Fault, "Datatype misalignment"); break;
+    case STATUS_ACCESS_VIOLATION:
+      KWSYSPE_CASE(Fault, "Access violation"); break;
+    case STATUS_IN_PAGE_ERROR:
+      KWSYSPE_CASE(Fault, "In-page error"); break;
+    case STATUS_INVALID_HANDLE:
+      KWSYSPE_CASE(Fault, "Invalid hanlde"); break;
+    case STATUS_NONCONTINUABLE_EXCEPTION:
+      KWSYSPE_CASE(Fault, "Noncontinuable exception"); break;
+    case STATUS_INVALID_DISPOSITION:
+      KWSYSPE_CASE(Fault, "Invalid disposition"); break;
+    case STATUS_ARRAY_BOUNDS_EXCEEDED:
+      KWSYSPE_CASE(Fault, "Array bounds exceeded"); break;
+    case STATUS_STACK_OVERFLOW:
+      KWSYSPE_CASE(Fault, "Stack overflow"); break;
 
-	for (p = list; (p - list) < list_size; p += strlen(p) + 1) {
-		if (strncmp(p, "system.", 7) == 0 ||
-				strncmp(p, "xfsroot.", 8) == 0)
-			continue;
-		setup_xattr(a, entry, p, *fd);
-	}
+    case STATUS_ILLEGAL_INSTRUCTION:
+      KWSYSPE_CASE(Illegal, "Illegal instruction"); break;
+    case STATUS_PRIVILEGED_INSTRUCTION:
+      KWSYSPE_CASE(Illegal, "Privileged instruction"); break;
 
-	free(list);
-	return (ARCHIVE_OK);
+    case STATUS_NO_MEMORY:
+    default:
+      cp->ExitException = kwsysProcess_Exception_Other;
+      _snprintf(cp->ExitExceptionString, KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);
+      break;
+    }
 }

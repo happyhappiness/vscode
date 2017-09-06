@@ -1,1 +1,1 @@
-fprintf(fout, "SET(CMAKE_FORTRAN_FLAGS \"${CMAKE_FORTRAN_FLAGS} ");
+YYDPRINTF ((stderr, "Reading a token: "));

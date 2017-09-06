@@ -1,95 +1,108 @@
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int output, int delay, double timeout)
+int
+tar_extract_regfile(TAR *t, char *realname)
 {
-  int result = 0;
-  char* data = 0;
-  int length = 0;
-  kwsysProcess* kp = kwsysProcess_New();
-  if(!kp)
-    {
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
-    }
-  
-  kwsysProcess_SetCommand(kp, cmd);
-  kwsysProcess_SetTimeout(kp, timeout);
-  if(share)
-    {
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
-    }
-  kwsysProcess_Execute(kp);
+  mode_t mode;
+  size_t size;
+  uid_t uid;
+  gid_t gid;
+  int fdout;
+  int i, k;
+  char buf[T_BLOCKSIZE];
+  char *filename;
 
-  if(!share)
-    {
-    while(kwsysProcess_WaitForData(kp, &data, &length, 0))
-      {
-      if(output)
-        {
-        fwrite(data, 1, length, stdout);
-        fflush(stdout);
-        }
-      if(delay)
-        {
-        /* Purposely sleeping only on Win32 to let pipe fill up.  */
-#if defined(_WIN32)
-        Sleep(100);
+#ifdef DEBUG
+  printf("==> tar_extract_regfile(t=0x%lx, realname=\"%s\")\n", t,
+         realname);
 #endif
-        }
-      }
-    }
-  
-  kwsysProcess_WaitForExit(kp, 0);
-  
-  switch (kwsysProcess_GetState(kp))
+
+  if (!TH_ISREG(t))
+  {
+    errno = EINVAL;
+    return -1;
+  }
+
+  filename = (realname ? realname : th_get_pathname(t));
+  mode = th_get_mode(t);
+  size = th_get_size(t);
+  uid = th_get_uid(t);
+  gid = th_get_gid(t);
+
+  /* Make a copy of the string because dirname and mkdirhier may modify the
+   * string */
+  strncpy(buf, filename, sizeof(buf)-1);
+  buf[sizeof(buf)-1] = 0;
+
+  if (mkdirhier(dirname(buf)) == -1)
     {
-    case kwsysProcess_State_Starting:
-      printf("No process has been executed.\n"); break;
-    case kwsysProcess_State_Executing:
-      printf("The process is still executing.\n"); break;
-    case kwsysProcess_State_Expired:
-      printf("Child was killed when timeout expired.\n"); break;
-    case kwsysProcess_State_Exited:
-      printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Killed:
-      printf("Child was killed by parent.\n"); break;
-    case kwsysProcess_State_Exception:
-      printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Error:
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
-  
-  if(result)
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
-      {
-      fprintf(stderr, "Mismatch in exit exception.  "
-              "Should have been %d, was %d.\n",
-              exception, kwsysProcess_GetExitException(kp));
-      }
-    if(value != kwsysProcess_GetExitValue(kp))
-      {
-      fprintf(stderr, "Mismatch in exit value.  "
-              "Should have been %d, was %d.\n",
-              value, kwsysProcess_GetExitValue(kp));
-      }
+    return -1;
     }
-  
-  if(kwsysProcess_GetState(kp) != state)
+
+#ifdef DEBUG
+  printf("  ==> extracting: %s (mode %04o, uid %d, gid %d, %d bytes)\n",
+         filename, mode, uid, gid, size);
+#endif
+  fdout = open(filename, O_WRONLY | O_CREAT | O_TRUNC
+#ifdef O_BINARY
+         | O_BINARY
+#endif
+        , 0666);
+  if (fdout == -1)
+  {
+#ifdef DEBUG
+    perror("open()");
+#endif
+    return -1;
+  }
+
+#if 0
+  /* change the owner.  (will only work if run as root) */
+  if (fchown(fdout, uid, gid) == -1 && errno != EPERM)
+  {
+#ifdef DEBUG
+    perror("fchown()");
+#endif
+    return -1;
+  }
+
+  /* make sure the mode isn't inheritted from a file we're overwriting */
+  if (fchmod(fdout, mode & 07777) == -1)
+  {
+#ifdef DEBUG
+    perror("fchmod()");
+#endif
+    return -1;
+  }
+#endif
+
+  /* extract the file */
+  for (i = size; i > 0; i -= T_BLOCKSIZE)
+  {
+    k = tar_block_read(t, buf);
+    if (k != T_BLOCKSIZE)
     {
-    fprintf(stderr, "Mismatch in state.  "
-            "Should have been %d, was %d.\n",
-            state, kwsysProcess_GetState(kp));
-    result = 1;
+      if (k != -1)
+        errno = EINVAL;
+      return -1;
     }
-  
-  kwsysProcess_Delete(kp);
-  return result;
+
+    /* write block to output file */
+    if (write(fdout, buf,
+        ((i > T_BLOCKSIZE) ? T_BLOCKSIZE : i)) == -1)
+      return -1;
+  }
+
+  /* close output file */
+  if (close(fdout) == -1)
+    return -1;
+
+#ifdef DEBUG
+  printf("### done extracting %s\n", filename);
+#endif
+
+  (void)filename;
+  (void)gid;
+  (void)uid;
+  (void)mode;
+
+  return 0;
 }

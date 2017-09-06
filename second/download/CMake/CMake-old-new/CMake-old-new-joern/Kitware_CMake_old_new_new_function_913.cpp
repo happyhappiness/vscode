@@ -1,66 +1,85 @@
-int
-__archive_read_program(struct archive_read_filter *self, const char *cmd)
+static int
+_archive_read_data_block(struct archive *_a, const void **buff,
+    size_t *size, int64_t *offset)
 {
-	struct program_filter	*state;
-	static const size_t out_buf_len = 65536;
-	char *out_buf;
-	const char *prefix = "Program: ";
-	pid_t child;
-	size_t l;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	struct tree *t = a->tree;
+	struct la_overlapped *olp;
+	DWORD bytes_transferred;
+	int r = ARCHIVE_FATAL;
 
-	l = strlen(prefix) + strlen(cmd) + 1;
-	state = (struct program_filter *)calloc(1, sizeof(*state));
-	out_buf = (char *)malloc(out_buf_len);
-	if (state == NULL || out_buf == NULL ||
-	    archive_string_ensure(&state->description, l) == NULL) {
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate input data");
-		if (state != NULL) {
-			archive_string_free(&state->description);
-			free(state);
-		}
-		free(out_buf);
-		return (ARCHIVE_FATAL);
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
+	    "archive_read_data_block");
+
+	if (t->entry_eof || t->entry_remaining_bytes <= 0) {
+		r = ARCHIVE_EOF;
+		goto abort_read_data;
 	}
-	archive_strcpy(&state->description, prefix);
-	archive_strcat(&state->description, cmd);
 
-	self->code = ARCHIVE_FILTER_PROGRAM;
-	self->name = state->description.s;
-
-	state->out_buf = out_buf;
-	state->out_buf_len = out_buf_len;
-
-	child = __archive_create_child(cmd, &state->child_stdin,
-	    &state->child_stdout);
-	if (child == -1) {
-		free(state->out_buf);
-		free(state);
-		archive_set_error(&self->archive->archive, EINVAL,
-		    "Can't initialize filter; unable to run program \"%s\"",
-		    cmd);
-		return (ARCHIVE_FATAL);
+	/*
+	 * Make a request to read the file in asynchronous.
+	 */
+	if (t->ol_num_doing == 0) {
+		do {
+			r = start_next_async_read(a, t);
+			if (r == ARCHIVE_FATAL)
+				goto abort_read_data;
+			if (!t->async_io)
+				break;
+		} while (r == ARCHIVE_OK && t->ol_num_doing < MAX_OVERLAPPED);
+	} else {
+		if (start_next_async_read(a, t) == ARCHIVE_FATAL)
+			goto abort_read_data;
 	}
-#if defined(_WIN32) && !defined(__CYGWIN__)
-	state->child = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, child);
-	if (state->child == NULL) {
-		child_stop(self, state);
-		free(state->out_buf);
-		free(state);
-		archive_set_error(&self->archive->archive, EINVAL,
-		    "Can't initialize filter; unable to run program \"%s\"",
-		    cmd);
-		return (ARCHIVE_FATAL);
+
+	olp = &(t->ol[t->ol_idx_done]);
+	t->ol_idx_done = (t->ol_idx_done + 1) % MAX_OVERLAPPED;
+	if (olp->bytes_transferred)
+		bytes_transferred = (DWORD)olp->bytes_transferred;
+	else if (!GetOverlappedResult(t->entry_fh, &(olp->ol),
+	    &bytes_transferred, TRUE)) {
+		la_dosmaperr(GetLastError());
+		archive_set_error(&a->archive, errno,
+		    "GetOverlappedResult failed");
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		r = ARCHIVE_FATAL;
+		goto abort_read_data;
 	}
-#else
-	state->child = child;
-#endif
+	t->ol_num_done++;
 
-	self->data = state;
-	self->read = program_filter_read;
-	self->skip = NULL;
-	self->close = program_filter_close;
+	if (bytes_transferred == 0 ||
+	    olp->bytes_expected != bytes_transferred) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Reading file truncated");
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		r = ARCHIVE_FATAL;
+		goto abort_read_data;
+	}
 
-	/* XXX Check that we can read at least one byte? */
+	*buff = olp->buff;
+	*size = bytes_transferred;
+	*offset = olp->offset;
+	if (olp->offset > t->entry_total)
+		t->entry_remaining_bytes -= olp->offset - t->entry_total;
+	t->entry_total = olp->offset + *size;
+	t->entry_remaining_bytes -= *size;
+	if (t->entry_remaining_bytes == 0) {
+		/* Close the current file descriptor */
+		close_and_restore_time(t->entry_fh, t, &t->restore_time);
+		t->entry_fh = INVALID_HANDLE_VALUE;
+		t->entry_eof = 1;
+	}
 	return (ARCHIVE_OK);
+
+abort_read_data:
+	*buff = NULL;
+	*size = 0;
+	*offset = t->entry_total;
+	if (t->entry_fh != INVALID_HANDLE_VALUE) {
+		cancel_async(t);
+		/* Close the current file descriptor */
+		close_and_restore_time(t->entry_fh, t, &t->restore_time);
+		t->entry_fh = INVALID_HANDLE_VALUE;
+	}
+	return (r);
 }

@@ -1,159 +1,158 @@
-const void *
-__archive_read_filter_ahead(struct archive_read_filter *filter,
-    size_t min, ssize_t *avail)
+static int
+archive_read_format_rar_read_header(struct archive_read *a,
+                                    struct archive_entry *entry)
 {
-	ssize_t bytes_read;
-	size_t tocopy;
+  const void *h;
+  const char *p;
+  struct rar *rar;
+  size_t skip;
+  char head_type;
+  int ret;
+  unsigned flags;
 
-	if (filter->fatal) {
-		if (avail)
-			*avail = ARCHIVE_FATAL;
-		return (NULL);
-	}
+  a->archive.archive_format = ARCHIVE_FORMAT_RAR;
+  if (a->archive.archive_format_name == NULL)
+    a->archive.archive_format_name = "RAR";
 
-	/*
-	 * Keep pulling more data until we can satisfy the request.
-	 */
-	for (;;) {
+  rar = (struct rar *)(a->format->data);
 
-		/*
-		 * If we can satisfy from the copy buffer (and the
-		 * copy buffer isn't empty), we're done.  In particular,
-		 * note that min == 0 is a perfectly well-defined
-		 * request.
-		 */
-		if (filter->avail >= min && filter->avail > 0) {
-			if (avail != NULL)
-				*avail = filter->avail;
-			return (filter->next);
-		}
+  /* RAR files can be generated without EOF headers, so return ARCHIVE_EOF if
+  * this fails.
+  */
+  if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
+    return (ARCHIVE_EOF);
 
-		/*
-		 * We can satisfy directly from client buffer if everything
-		 * currently in the copy buffer is still in the client buffer.
-		 */
-		if (filter->client_total >= filter->client_avail + filter->avail
-		    && filter->client_avail + filter->avail >= min) {
-			/* "Roll back" to client buffer. */
-			filter->client_avail += filter->avail;
-			filter->client_next -= filter->avail;
-			/* Copy buffer is now empty. */
-			filter->avail = 0;
-			filter->next = filter->buffer;
-			/* Return data from client buffer. */
-			if (avail != NULL)
-				*avail = filter->client_avail;
-			return (filter->client_next);
-		}
+  p = h;
+  if (rar->found_first_header == 0 &&
+     ((p[0] == 'M' && p[1] == 'Z') || memcmp(p, "\x7F\x45LF", 4) == 0)) {
+    /* This is an executable ? Must be self-extracting... */
+    ret = skip_sfx(a);
+    if (ret < ARCHIVE_WARN)
+      return (ret);
+  }
+  rar->found_first_header = 1;
 
-		/* Move data forward in copy buffer if necessary. */
-		if (filter->next > filter->buffer &&
-		    filter->next + min > filter->buffer + filter->buffer_size) {
-			if (filter->avail > 0)
-				memmove(filter->buffer, filter->next, filter->avail);
-			filter->next = filter->buffer;
-		}
+  while (1)
+  {
+    unsigned long crc32_val;
 
-		/* If we've used up the client data, get more. */
-		if (filter->client_avail <= 0) {
-			if (filter->end_of_file) {
-				if (avail != NULL)
-					*avail = 0;
-				return (NULL);
-			}
-			bytes_read = (filter->read)(filter,
-			    &filter->client_buff);
-			if (bytes_read < 0) {		/* Read error. */
-				filter->client_total = filter->client_avail = 0;
-				filter->client_next = filter->client_buff = NULL;
-				filter->fatal = 1;
-				if (avail != NULL)
-					*avail = ARCHIVE_FATAL;
-				return (NULL);
-			}
-			if (bytes_read == 0) {	/* Premature end-of-file. */
-				filter->client_total = filter->client_avail = 0;
-				filter->client_next = filter->client_buff = NULL;
-				filter->end_of_file = 1;
-				/* Return whatever we do have. */
-				if (avail != NULL)
-					*avail = filter->avail;
-				return (NULL);
-			}
-			filter->client_total = bytes_read;
-			filter->client_avail = filter->client_total;
-			filter->client_next = filter->client_buff;
-		}
-		else
-		{
-			/*
-			 * We can't satisfy the request from the copy
-			 * buffer or the existing client data, so we
-			 * need to copy more client data over to the
-			 * copy buffer.
-			 */
+    if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
+      return (ARCHIVE_FATAL);
+    p = h;
 
-			/* Ensure the buffer is big enough. */
-			if (min > filter->buffer_size) {
-				size_t s, t;
-				char *p;
+    head_type = p[2];
+    switch(head_type)
+    {
+    case MARK_HEAD:
+      if (memcmp(p, RAR_SIGNATURE, 7) != 0) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid marker header");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_read_consume(a, 7);
+      break;
 
-				/* Double the buffer; watch for overflow. */
-				s = t = filter->buffer_size;
-				if (s == 0)
-					s = min;
-				while (s < min) {
-					t *= 2;
-					if (t <= s) { /* Integer overflow! */
-						archive_set_error(
-							&filter->archive->archive,
-							ENOMEM,
-						    "Unable to allocate copy buffer");
-						filter->fatal = 1;
-						if (avail != NULL)
-							*avail = ARCHIVE_FATAL;
-						return (NULL);
-					}
-					s = t;
-				}
-				/* Now s >= min, so allocate a new buffer. */
-				p = (char *)malloc(s);
-				if (p == NULL) {
-					archive_set_error(
-						&filter->archive->archive,
-						ENOMEM,
-					    "Unable to allocate copy buffer");
-					filter->fatal = 1;
-					if (avail != NULL)
-						*avail = ARCHIVE_FATAL;
-					return (NULL);
-				}
-				/* Move data into newly-enlarged buffer. */
-				if (filter->avail > 0)
-					memmove(p, filter->next, filter->avail);
-				free(filter->buffer);
-				filter->next = filter->buffer = p;
-				filter->buffer_size = s;
-			}
+    case MAIN_HEAD:
+      rar->main_flags = archive_le16dec(p + 3);
+      skip = archive_le16dec(p + 5);
+      if (skip < 7 + sizeof(rar->reserved1) + sizeof(rar->reserved2)) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid header size");
+        return (ARCHIVE_FATAL);
+      }
+      if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
+        return (ARCHIVE_FATAL);
+      p = h;
+      memcpy(rar->reserved1, p + 7, sizeof(rar->reserved1));
+      memcpy(rar->reserved2, p + 7 + sizeof(rar->reserved1),
+             sizeof(rar->reserved2));
+      if (rar->main_flags & MHD_ENCRYPTVER) {
+        if (skip < 7 + sizeof(rar->reserved1) + sizeof(rar->reserved2)+1) {
+          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+            "Invalid header size");
+          return (ARCHIVE_FATAL);
+        }
+        rar->encryptver = *(p + 7 + sizeof(rar->reserved1) +
+                            sizeof(rar->reserved2));
+      }
 
-			/* We can add client data to copy buffer. */
-			/* First estimate: copy to fill rest of buffer. */
-			tocopy = (filter->buffer + filter->buffer_size)
-			    - (filter->next + filter->avail);
-			/* Don't waste time buffering more than we need to. */
-			if (tocopy + filter->avail > min)
-				tocopy = min - filter->avail;
-			/* Don't copy more than is available. */
-			if (tocopy > filter->client_avail)
-				tocopy = filter->client_avail;
+      if (rar->main_flags & MHD_VOLUME ||
+          rar->main_flags & MHD_FIRSTVOLUME)
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "RAR volume support unavailable.");
+        return (ARCHIVE_FATAL);
+      }
+      if (rar->main_flags & MHD_PASSWORD)
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "RAR encryption support unavailable.");
+        return (ARCHIVE_FATAL);
+      }
 
-			memcpy(filter->next + filter->avail, filter->client_next,
-			    tocopy);
-			/* Remove this data from client buffer. */
-			filter->client_next += tocopy;
-			filter->client_avail -= tocopy;
-			/* add it to copy buffer. */
-			filter->avail += tocopy;
-		}
-	}
+      crc32_val = crc32(0, (const unsigned char *)p + 2, skip - 2);
+      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Header CRC error");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_read_consume(a, skip);
+      break;
+
+    case FILE_HEAD:
+      return read_header(a, entry, head_type);
+
+    case COMM_HEAD:
+    case AV_HEAD:
+    case SUB_HEAD:
+    case PROTECT_HEAD:
+    case SIGN_HEAD:
+      flags = archive_le16dec(p + 3);
+      skip = archive_le16dec(p + 5);
+      if (skip < 7) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Invalid header size");
+        return (ARCHIVE_FATAL);
+      }
+      if (skip > 7) {
+        if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
+          return (ARCHIVE_FATAL);
+        p = h;
+      }
+      if (flags & HD_ADD_SIZE_PRESENT)
+      {
+        if (skip < 7 + 4) {
+          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+            "Invalid header size");
+          return (ARCHIVE_FATAL);
+        }
+        skip += archive_le32dec(p + 7);
+        if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
+          return (ARCHIVE_FATAL);
+        p = h;
+      }
+
+      crc32_val = crc32(0, (const unsigned char *)p + 2, skip - 2);
+      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Header CRC error");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_read_consume(a, skip);
+      break;
+
+    case NEWSUB_HEAD:
+      if ((ret = read_header(a, entry, head_type)) < ARCHIVE_WARN)
+        return ret;
+      break;
+
+    case ENDARC_HEAD:
+      return (ARCHIVE_EOF);
+
+    default:
+      archive_set_error(&a->archive,  ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Bad RAR file");
+      return (ARCHIVE_FATAL);
+    }
+  }
 }

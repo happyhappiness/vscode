@@ -1,1 +1,1 @@
-sprintf(updateVar,"CTEST_EXTRA_UPDATES_%i",i);
+yy_fatal_error( "yyset_column called with no buffer" , yyscanner);

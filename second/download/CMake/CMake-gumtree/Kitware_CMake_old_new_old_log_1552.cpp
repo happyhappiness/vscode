@@ -1,2 +1,1 @@
-fprintf(fout,
-            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");
+printf("%s",buf);

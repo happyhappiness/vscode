@@ -1,12 +1,20 @@
-static void kwsysProcessChildErrorExit(kwsysProcess* cp)
+int test5(int argc, const char* argv[])
 {
-  /* Construct the error message.  */
-  char buffer[KWSYSPE_PIPE_BUFFER_SIZE];
-  strncpy(buffer, strerror(errno), KWSYSPE_PIPE_BUFFER_SIZE);
-  
-  /* Report the error to the parent through the special pipe.  */
-  write(cp->PipeWriteEnds[KWSYSPE_PIPE_ERROR], buffer, strlen(buffer));
-  
-  /* Terminate without cleanup.  */
-  _exit(1);
+  int r;
+  const char* cmd[4];
+  cmd[0] = argv[0];
+  cmd[1] = "run";
+  cmd[2] = "4";
+  cmd[3] = 0;
+  fprintf(stdout, "Output on stdout before recursive test.\n");
+  fprintf(stderr, "Output on stderr before recursive test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  r = runChild(cmd, kwsysProcess_State_Exception,
+               kwsysProcess_Exception_Fault, 1, 1, 2);
+  fprintf(stdout, "Output on stdout after recursive test.\n");
+  fprintf(stderr, "Output on stderr after recursive test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  return r;
 }

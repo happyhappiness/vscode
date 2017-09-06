@@ -1,1 +1,1 @@
-fprintf(stderr, "No current working directory.\n");
+fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");

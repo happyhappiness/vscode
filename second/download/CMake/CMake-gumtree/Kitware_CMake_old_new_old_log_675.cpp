@@ -1,1 +1,1 @@
-sprintf(buf, "%s/*", name);
+fprintf(fout," hc: %s \n",sectionCharacter.c_str());

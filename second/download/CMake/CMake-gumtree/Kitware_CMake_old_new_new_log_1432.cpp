@@ -1,1 +1,1 @@
-printf("Error fetching: ftp://public.kitware.com/pub/cmake/cygwin/setup.hint\n");
+strncpy(buffer, strerror(errno), KWSYSPE_PIPE_BUFFER_SIZE);

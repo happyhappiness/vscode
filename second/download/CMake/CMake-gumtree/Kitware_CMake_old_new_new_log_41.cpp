@@ -1,1 +1,0 @@
-archive_strcat(&errlist, name);

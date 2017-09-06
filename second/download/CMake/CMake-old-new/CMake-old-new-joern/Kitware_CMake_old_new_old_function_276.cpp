@@ -1,56 +1,98 @@
-CURLcode Curl_ftpsendf(struct connectdata *conn,
-                       const char *fmt, ...)
+static int
+check_symlinks(struct archive_write_disk *a)
 {
-  ssize_t bytes_written;
-#define SBUF_SIZE 1024
-  char s[SBUF_SIZE];
-  size_t write_len;
-  char *sptr=s;
-  CURLcode result = CURLE_OK;
-#ifdef HAVE_GSSAPI
-  enum protection_level data_sec = conn->data_prot;
+#if !defined(HAVE_LSTAT)
+	/* Platform doesn't have lstat, so we can't look for symlinks. */
+	(void)a; /* UNUSED */
+	return (ARCHIVE_OK);
+#else
+	char *pn;
+	char c;
+	int r;
+	struct stat st;
+
+	/*
+	 * Guard against symlink tricks.  Reject any archive entry whose
+	 * destination would be altered by a symlink.
+	 */
+	/* Whatever we checked last time doesn't need to be re-checked. */
+	pn = a->name;
+	if (archive_strlen(&(a->path_safe)) > 0) {
+		char *p = a->path_safe.s;
+		while ((*pn != '\0') && (*p == *pn))
+			++p, ++pn;
+	}
+	/* Skip the root directory if the path is absolute. */
+	if(pn == a->name && pn[0] == '/')
+		++pn;
+	c = pn[0];
+	/* Keep going until we've checked the entire name. */
+	while (pn[0] != '\0' && (pn[0] != '/' || pn[1] != '\0')) {
+		/* Skip the next path element. */
+		while (*pn != '\0' && *pn != '/')
+			++pn;
+		c = pn[0];
+		pn[0] = '\0';
+		/* Check that we haven't hit a symlink. */
+		r = lstat(a->name, &st);
+		if (r != 0) {
+			/* We've hit a dir that doesn't exist; stop now. */
+			if (errno == ENOENT)
+				break;
+		} else if (S_ISLNK(st.st_mode)) {
+			if (c == '\0') {
+				/*
+				 * Last element is symlink; remove it
+				 * so we can overwrite it with the
+				 * item being extracted.
+				 */
+				if (unlink(a->name)) {
+					archive_set_error(&a->archive, errno,
+					    "Could not remove symlink %s",
+					    a->name);
+					pn[0] = c;
+					return (ARCHIVE_FAILED);
+				}
+				a->pst = NULL;
+				/*
+				 * Even if we did remove it, a warning
+				 * is in order.  The warning is silly,
+				 * though, if we're just replacing one
+				 * symlink with another symlink.
+				 */
+				if (!S_ISLNK(a->mode)) {
+					archive_set_error(&a->archive, 0,
+					    "Removing symlink %s",
+					    a->name);
+				}
+				/* Symlink gone.  No more problem! */
+				pn[0] = c;
+				return (0);
+			} else if (a->flags & ARCHIVE_EXTRACT_UNLINK) {
+				/* User asked us to remove problems. */
+				if (unlink(a->name) != 0) {
+					archive_set_error(&a->archive, 0,
+					    "Cannot remove intervening symlink %s",
+					    a->name);
+					pn[0] = c;
+					return (ARCHIVE_FAILED);
+				}
+				a->pst = NULL;
+			} else {
+				archive_set_error(&a->archive, 0,
+				    "Cannot extract through symlink %s",
+				    a->name);
+				pn[0] = c;
+				return (ARCHIVE_FAILED);
+			}
+		}
+		pn[0] = c;
+		if (pn[0] != '\0')
+			pn++; /* Advance to the next segment. */
+	}
+	pn[0] = c;
+	/* We've checked and/or cleaned the whole path, so remember it. */
+	archive_strcpy(&a->path_safe, a->name);
+	return (ARCHIVE_OK);
 #endif
-
-  va_list ap;
-  va_start(ap, fmt);
-  write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap);
-  va_end(ap);
-
-  strcpy(&s[write_len], "\r\n"); /* append a trailing CRLF */
-  write_len +=2;
-
-  bytes_written=0;
-
-  result = Curl_convert_to_network(conn->data, s, write_len);
-  /* Curl_convert_to_network calls failf if unsuccessful */
-  if(result)
-    return result;
-
-  for(;;) {
-#ifdef HAVE_GSSAPI
-    conn->data_prot = PROT_CMD;
-#endif
-    result = Curl_write(conn, conn->sock[FIRSTSOCKET], sptr, write_len,
-                        &bytes_written);
-#ifdef HAVE_GSSAPI
-    DEBUGASSERT(data_sec > PROT_NONE && data_sec < PROT_LAST);
-    conn->data_prot = data_sec;
-#endif
-
-    if(result)
-      break;
-
-    if(conn->data->set.verbose)
-      Curl_debug(conn->data, CURLINFO_HEADER_OUT,
-                 sptr, (size_t)bytes_written, conn);
-
-    if(bytes_written != (ssize_t)write_len) {
-      write_len -= bytes_written;
-      sptr += bytes_written;
-    }
-    else
-      break;
-  }
-
-  return result;
 }

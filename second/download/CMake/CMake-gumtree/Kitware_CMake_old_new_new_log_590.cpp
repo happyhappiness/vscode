@@ -1,1 +1,0 @@
-path = (unsigned char *) aprintf("%.*s", urilen, uripath);

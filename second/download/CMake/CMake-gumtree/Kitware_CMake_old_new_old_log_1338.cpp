@@ -1,1 +1,1 @@
-fprintf(stderr, "Shifting error token, ");
+YY_FATAL_ERROR( "bad buffer in yy_scan_bytes()" );

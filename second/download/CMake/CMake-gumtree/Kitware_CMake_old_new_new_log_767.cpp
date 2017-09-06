@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, EINVAL,
-			"Invalid index specified.");
+fprintf(stderr, "  contains target %d [%s]\n",
+              i, this->Targets[i]->GetName().c_str());

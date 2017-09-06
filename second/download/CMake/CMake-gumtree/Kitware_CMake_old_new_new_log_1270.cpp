@@ -1,2 +1,2 @@
-snprintf(realpath, TAR_MAXPATHLEN, "%s/%s", realdir,
-       dent->d_name);
+fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n"
+            ,classes[i].c_str());

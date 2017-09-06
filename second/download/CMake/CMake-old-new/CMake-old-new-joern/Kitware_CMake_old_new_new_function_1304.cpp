@@ -1,23 +1,19 @@
-YY_BUFFER_STATE cmListFileLexer_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
+kwsys_stl::string RegistryHelper::EncodeValue(const char* str)
 {
-        YY_BUFFER_STATE b;
-    
-        b = (YY_BUFFER_STATE) cmListFileLexer_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
-        if ( ! b )
-                YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_create_buffer()" );
-
-        b->yy_buf_size = size;
-
-        /* yy_ch_buf has to be 2 characters longer than the size given because
-         * we need to put in 2 end-of-buffer characters.
-         */
-        b->yy_ch_buf = (char *) cmListFileLexer_yyalloc(b->yy_buf_size + 2 ,yyscanner );
-        if ( ! b->yy_ch_buf )
-                YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_create_buffer()" );
-
-        b->yy_is_our_buffer = 1;
-
-        cmListFileLexer_yy_init_buffer(b,file ,yyscanner);
-
-        return b;
+  kwsys_ios::ostringstream ostr;
+  while ( *str )
+    {
+    switch ( *str )
+      {
+    case '%': case '=': case '\n': case '\r': case '\t': 
+      char buffer[4];
+      sprintf(buffer, "%%%02X", *str);
+      ostr << buffer;
+      break;
+    default:
+      ostr << *str;
+      }
+    str ++;
+    }
+  return ostr.str();
 }

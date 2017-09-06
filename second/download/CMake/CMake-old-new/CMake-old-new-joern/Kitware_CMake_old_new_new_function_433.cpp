@@ -1,231 +1,148 @@
 static int
-archive_read_format_iso9660_read_header(struct archive_read *a,
-    struct archive_entry *entry)
+zip_read_mac_metadata(struct archive_read *a, struct archive_entry *entry,
+    struct zip_entry *rsrc)
 {
-	struct iso9660 *iso9660;
-	struct file_info *file;
-	int r, rd_r = ARCHIVE_OK;
+	struct zip *zip = (struct zip *)a->format->data;
+	unsigned char *metadata, *mp;
+	int64_t offset = archive_filter_bytes(&a->archive, 0);
+	size_t remaining_bytes, metadata_bytes;
+	ssize_t hsize;
+	int ret = ARCHIVE_OK, eof;
 
-	iso9660 = (struct iso9660 *)(a->format->data);
-
-	if (!a->archive.archive_format) {
-		a->archive.archive_format = ARCHIVE_FORMAT_ISO9660;
-		a->archive.archive_format_name = "ISO9660";
-	}
-
-	if (iso9660->current_position == 0) {
-		r = choose_volume(a, iso9660);
-		if (r != ARCHIVE_OK)
-			return (r);
-	}
-
-	file = NULL;/* Eliminate a warning. */
-	/* Get the next entry that appears after the current offset. */
-	r = next_entry_seek(a, iso9660, &file);
-	if (r != ARCHIVE_OK)
-		return (r);
-
-	if (iso9660->seenJoliet) {
-		/*
-		 * Convert UTF-16BE of a filename to local locale MBS
-		 * and store the result into a filename field.
-		 */
-		if (iso9660->sconv_utf16be == NULL) {
-			iso9660->sconv_utf16be =
-			    archive_string_conversion_from_charset(
-				&(a->archive), "UTF-16BE", 1);
-			if (iso9660->sconv_utf16be == NULL)
-				/* Coundn't allocate memory */
-				return (ARCHIVE_FATAL);
-		}
-		if (iso9660->utf16be_path == NULL) {
-			iso9660->utf16be_path = malloc(UTF16_NAME_MAX);
-			if (iso9660->utf16be_path == NULL) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "No memory");
-				return (ARCHIVE_FATAL);
-			}
-		}
-		if (iso9660->utf16be_previous_path == NULL) {
-			iso9660->utf16be_previous_path = malloc(UTF16_NAME_MAX);
-			if (iso9660->utf16be_previous_path == NULL) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "No memory");
-				return (ARCHIVE_FATAL);
-			}
-		}
-
-		iso9660->utf16be_path_len = 0;
-		if (build_pathname_utf16be(iso9660->utf16be_path,
-		    UTF16_NAME_MAX, &(iso9660->utf16be_path_len), file) != 0) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Pathname is too long");
+	switch(rsrc->compression) {
+	case 0:  /* No compression. */
+		if (rsrc->uncompressed_size != rsrc->compressed_size) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Malformed OS X metadata entry: inconsistent size");
 			return (ARCHIVE_FATAL);
 		}
-
-		r = archive_entry_copy_pathname_l(entry,
-		    (const char *)iso9660->utf16be_path,
-		    iso9660->utf16be_path_len,
-		    iso9660->sconv_utf16be);
-		if (r != 0) {
-			if (errno == ENOMEM) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "No memory for Pathname");
-				return (ARCHIVE_FATAL);
-			}
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Pathname cannot be converted "
-			    "from %s to current locale.",
-			    archive_string_conversion_charset_name(
-			      iso9660->sconv_utf16be));
-
-			rd_r = ARCHIVE_WARN;
-		}
-	} else {
-		const char *path = build_pathname(&iso9660->pathname, file, 0);
-		if (path == NULL) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Pathname is too long");
-			return (ARCHIVE_FATAL);
-		} else {
-			archive_string_empty(&iso9660->pathname);
-			archive_entry_set_pathname(entry, path);
-		}
-	}
-
-	iso9660->entry_bytes_remaining = file->size;
-	/* Offset for sparse-file-aware clients. */
-	iso9660->entry_sparse_offset = 0;
-
-	if (file->offset + file->size > iso9660->volume_size) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "File is beyond end-of-media: %s",
-		    archive_entry_pathname(entry));
-		iso9660->entry_bytes_remaining = 0;
+#ifdef HAVE_ZLIB_H
+	case 8: /* Deflate compression. */
+#endif
+		break;
+	default: /* Unsupported compression. */
+		/* Return a warning. */
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unsupported ZIP compression method (%s)",
+		    compression_name(rsrc->compression));
+		/* We can't decompress this entry, but we will
+		 * be able to skip() it and try the next entry. */
 		return (ARCHIVE_WARN);
 	}
 
-	/* Set up the entry structure with information about this entry. */
-	archive_entry_set_mode(entry, file->mode);
-	archive_entry_set_uid(entry, file->uid);
-	archive_entry_set_gid(entry, file->gid);
-	archive_entry_set_nlink(entry, file->nlinks);
-	if (file->birthtime_is_set)
-		archive_entry_set_birthtime(entry, file->birthtime, 0);
-	else
-		archive_entry_unset_birthtime(entry);
-	archive_entry_set_mtime(entry, file->mtime, 0);
-	archive_entry_set_ctime(entry, file->ctime, 0);
-	archive_entry_set_atime(entry, file->atime, 0);
-	/* N.B.: Rock Ridge supports 64-bit device numbers. */
-	archive_entry_set_rdev(entry, (dev_t)file->rdev);
-	archive_entry_set_size(entry, iso9660->entry_bytes_remaining);
-	if (file->symlink.s != NULL)
-		archive_entry_copy_symlink(entry, file->symlink.s);
-
-	/* Note: If the input isn't seekable, we can't rewind to
-	 * return the same body again, so if the next entry refers to
-	 * the same data, we have to return it as a hardlink to the
-	 * original entry. */
-	if (file->number != -1 &&
-	    file->number == iso9660->previous_number) {
-		if (iso9660->seenJoliet) {
-			r = archive_entry_copy_hardlink_l(entry,
-			    (const char *)iso9660->utf16be_previous_path,
-			    iso9660->utf16be_previous_path_len,
-			    iso9660->sconv_utf16be);
-			if (r != 0) {
-				if (errno == ENOMEM) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "No memory for Linkname");
-					return (ARCHIVE_FATAL);
-				}
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Linkname cannot be converted "
-				    "from %s to current locale.",
-				    archive_string_conversion_charset_name(
-				      iso9660->sconv_utf16be));
-				rd_r = ARCHIVE_WARN;
-			}
-		} else
-			archive_entry_set_hardlink(entry,
-			    iso9660->previous_pathname.s);
-		archive_entry_unset_size(entry);
-		iso9660->entry_bytes_remaining = 0;
-		return (rd_r);
+	if (rsrc->uncompressed_size > (4 * 1024 * 1024)) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Mac metadata is too large: %jd > 4M bytes",
+		    (intmax_t)rsrc->uncompressed_size);
+		return (ARCHIVE_WARN);
+	}
+	if (rsrc->compressed_size > (4 * 1024 * 1024)) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Mac metadata is too large: %jd > 4M bytes",
+		    (intmax_t)rsrc->compressed_size);
+		return (ARCHIVE_WARN);
 	}
 
-	if ((file->mode & AE_IFMT) != AE_IFDIR &&
-	    file->offset < iso9660->current_position) {
-		int64_t r64;
+	metadata = malloc((size_t)rsrc->uncompressed_size);
+	if (metadata == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory for Mac metadata");
+		return (ARCHIVE_FATAL);
+	}
 
-		r64 = __archive_read_seek(a, file->offset, SEEK_SET);
-		if (r64 != (int64_t)file->offset) {
-			/* We can't seek backwards to extract it, so issue
-			 * a warning.  Note that this can only happen if
-			 * this entry was added to the heap after we passed
-			 * this offset, that is, only if the directory
-			 * mentioning this entry is later than the body of
-			 * the entry. Such layouts are very unusual; most
-			 * ISO9660 writers lay out and record all directory
-			 * information first, then store all file bodies. */
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Ignoring out-of-order file @%jx (%s) %jd < %jd",
-			    (intmax_t)file->number,
-			    iso9660->pathname.s,
-			    (intmax_t)file->offset,
-			    (intmax_t)iso9660->current_position);
-			iso9660->entry_bytes_remaining = 0;
-			return (ARCHIVE_WARN);
+	if (offset < rsrc->local_header_offset)
+		__archive_read_consume(a, rsrc->local_header_offset - offset);
+	else if (offset != rsrc->local_header_offset) {
+		__archive_read_seek(a, rsrc->local_header_offset, SEEK_SET);
+	}
+
+	hsize = zip_get_local_file_header_size(a, 0);
+	__archive_read_consume(a, hsize);
+
+	remaining_bytes = (size_t)rsrc->compressed_size;
+	metadata_bytes = (size_t)rsrc->uncompressed_size;
+	mp = metadata;
+	eof = 0;
+	while (!eof && remaining_bytes) {
+		const unsigned char *p;
+		ssize_t bytes_avail;
+		size_t bytes_used;
+
+		p = __archive_read_ahead(a, 1, &bytes_avail);
+		if (p == NULL) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file header");
+			ret = ARCHIVE_WARN;
+			goto exit_mac_metadata;
 		}
-		iso9660->current_position = (uint64_t)r64;
-	}
-
-	/* Initialize zisofs variables. */
-	iso9660->entry_zisofs.pz = file->pz;
-	if (file->pz) {
+		if ((size_t)bytes_avail > remaining_bytes)
+			bytes_avail = remaining_bytes;
+		switch(rsrc->compression) {
+		case 0:  /* No compression. */
+			if ((size_t)bytes_avail > metadata_bytes)
+				bytes_avail = metadata_bytes;
+			memcpy(mp, p, bytes_avail);
+			bytes_used = (size_t)bytes_avail;
+			metadata_bytes -= bytes_used;
+			mp += bytes_used;
+			if (metadata_bytes == 0)
+				eof = 1;
+			break;
 #ifdef HAVE_ZLIB_H
-		struct zisofs  *zisofs;
+		case 8: /* Deflate compression. */
+		{
+			int r;
 
-		zisofs = &iso9660->entry_zisofs;
-		zisofs->initialized = 0;
-		zisofs->pz_log2_bs = file->pz_log2_bs;
-		zisofs->pz_uncompressed_size = file->pz_uncompressed_size;
-		zisofs->pz_offset = 0;
-		zisofs->header_avail = 0;
-		zisofs->header_passed = 0;
-		zisofs->block_pointers_avail = 0;
+			ret = zip_deflate_init(a, zip);
+			if (ret != ARCHIVE_OK)
+				goto exit_mac_metadata;
+			zip->stream.next_in =
+			    (Bytef *)(uintptr_t)(const void *)p;
+			zip->stream.avail_in = (uInt)bytes_avail;
+			zip->stream.total_in = 0;
+			zip->stream.next_out = mp;
+			zip->stream.avail_out = (uInt)metadata_bytes;
+			zip->stream.total_out = 0;
+
+			r = inflate(&zip->stream, 0);
+			switch (r) {
+			case Z_OK:
+				break;
+			case Z_STREAM_END:
+				eof = 1;
+				break;
+			case Z_MEM_ERROR:
+				archive_set_error(&a->archive, ENOMEM,
+				    "Out of memory for ZIP decompression");
+				ret = ARCHIVE_FATAL;
+				goto exit_mac_metadata;
+			default:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "ZIP decompression failed (%d)", r);
+				ret = ARCHIVE_FATAL;
+				goto exit_mac_metadata;
+			}
+			bytes_used = zip->stream.total_in;
+			metadata_bytes -= zip->stream.total_out;
+			mp += zip->stream.total_out;
+			break;
+		}
 #endif
-		archive_entry_set_size(entry, file->pz_uncompressed_size);
+		default:
+			bytes_used = 0;
+			break;
+		}
+		__archive_read_consume(a, bytes_used);
+		remaining_bytes -= bytes_used;
 	}
+	archive_entry_copy_mac_metadata(entry, metadata,
+	    (size_t)rsrc->uncompressed_size - metadata_bytes);
 
-	iso9660->previous_number = file->number;
-	if (iso9660->seenJoliet) {
-		memcpy(iso9660->utf16be_previous_path, iso9660->utf16be_path,
-		    iso9660->utf16be_path_len);
-		iso9660->utf16be_previous_path_len = iso9660->utf16be_path_len;
-	} else
-		archive_strcpy(
-		    &iso9660->previous_pathname, iso9660->pathname.s);
-
-	/* Reset entry_bytes_remaining if the file is multi extent. */
-	iso9660->entry_content = file->contents.first;
-	if (iso9660->entry_content != NULL)
-		iso9660->entry_bytes_remaining = iso9660->entry_content->size;
-
-	if (archive_entry_filetype(entry) == AE_IFDIR) {
-		/* Overwrite nlinks by proper link number which is
-		 * calculated from number of sub directories. */
-		archive_entry_set_nlink(entry, 2 + file->subdirs);
-		/* Directory data has been read completely. */
-		iso9660->entry_bytes_remaining = 0;
-	}
-
-	if (rd_r != ARCHIVE_OK)
-		return (rd_r);
-	return (ARCHIVE_OK);
+exit_mac_metadata:
+	__archive_read_seek(a, offset, SEEK_SET);
+	zip->decompress_init = 0;
+	free(metadata);
+	return (ret);
 }

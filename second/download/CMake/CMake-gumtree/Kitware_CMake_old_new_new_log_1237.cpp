@@ -1,2 +1,2 @@
-fprintf(fout, "extern  \"C\" {__declspec( dllexport) "
-            "PyObject *PyVTKClass_%sNew(char *); }\n", classes[i].c_str());
+printf("  ==> extracting: %s (mode %04o, directory)\n", filename,
+         mode);

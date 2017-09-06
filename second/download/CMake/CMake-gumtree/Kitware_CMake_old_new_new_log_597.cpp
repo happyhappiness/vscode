@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout before grandchild test.\n");
+path = (unsigned char *) aprintf("%.*s", urilen, uripath);

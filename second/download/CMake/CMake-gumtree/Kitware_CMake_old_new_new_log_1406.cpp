@@ -1,1 +1,1 @@
-sprintf(fwdName, "cmw9xfwd_%u_%p.exe", GetCurrentProcessId(), cp);
+fprintf(stderr, "Output on stderr before test %d.\n", n);

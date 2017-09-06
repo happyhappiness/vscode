@@ -1,1 +1,1 @@
-fprintf(fout, " ${COMPILE_DEFINITIONS}\")\n");
+archive_set_error(&a->archive, ENOMEM, "Couldn't allocate memory.");

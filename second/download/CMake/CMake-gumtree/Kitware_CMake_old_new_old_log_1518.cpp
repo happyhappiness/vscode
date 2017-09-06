@@ -1,1 +1,1 @@
-fout << "    printf(\"%d is an invalid test number.\\n\", testNum);\n";
+fprintf(fout, "  SET(CMAKE_C_FLAGS \"${CMAKE_C_FLAGS} ${CMAKE_ANSI_CFLAGS}\")\n");

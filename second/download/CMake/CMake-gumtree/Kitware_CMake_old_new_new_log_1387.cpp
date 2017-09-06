@@ -1,1 +1,1 @@
-fprintf(stderr,"Numerical");
+std::cerr << "Interrupt";

@@ -1,100 +1,98 @@
-static struct tree *
-tree_reopen(struct tree *t, const wchar_t *path, int restore_time)
+static int
+setup_mac_metadata(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-	struct archive_wstring ws;
-	wchar_t *pathname, *p, *base;
+	int tempfd = -1;
+	int copyfile_flags = COPYFILE_NOFOLLOW | COPYFILE_ACL | COPYFILE_XATTR;
+	struct stat copyfile_stat;
+	int ret = ARCHIVE_OK;
+	void *buff = NULL;
+	int have_attrs;
+	const char *name, *tempdir;
+	struct archive_string tempfile;
 
-	t->flags = (restore_time)?needsRestoreTimes:0;
-	t->visit_type = 0;
-	t->tree_errno = 0;
-	t->full_path_dir_length = 0;
-	t->dirname_length = 0;
-	t->depth = 0;
-	t->descend = 0;
-	t->current = NULL;
-	t->d = INVALID_HANDLE_VALUE;
-	t->symlink_mode = t->initial_symlink_mode;
-	archive_string_empty(&(t->full_path));
-	archive_string_empty(&t->path);
-	t->entry_fh = INVALID_HANDLE_VALUE;
-	t->entry_eof = 0;
-	t->entry_remaining_bytes = 0;
-	t->initial_filesystem_id = -1;
-
-	/* Get wchar_t strings from char strings. */
-	archive_string_init(&ws);
-	archive_wstrcpy(&ws, path);
-	pathname = ws.s;
-	/* Get a full-path-name. */
-	p = __la_win_permissive_name_w(pathname);
-	if (p == NULL)
-		goto failed;
-	archive_wstrcpy(&(t->full_path), p);
-	free(p);
-
-	/* Convert path separators from '\' to '/' */
-	for (p = pathname; *p != L'\0'; ++p) {
-		if (*p == L'\\')
-			*p = L'/';
+	(void)fd; /* UNUSED */
+	name = archive_entry_sourcepath(entry);
+	if (name == NULL)
+		name = archive_entry_pathname(entry);
+	if (name == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Can't open file to read extended attributes: No name");
+		return (ARCHIVE_WARN);
 	}
-	base = pathname;
 
-	/* First item is set up a lot like a symlink traversal. */
-	/* printf("Looking for wildcard in %s\n", path); */
-	if ((base[0] == L'/' && base[1] == L'/' &&
-	     base[2] == L'?' && base[3] == L'/' &&
-	     (wcschr(base+4, L'*') || wcschr(base+4, L'?'))) ||
-	    (!(base[0] == L'/' && base[1] == L'/' &&
-	       base[2] == L'?' && base[3] == L'/') &&
-	       (wcschr(base, L'*') || wcschr(base, L'?')))) {
-		// It has a wildcard in it...
-		// Separate the last element.
-		p = wcsrchr(base, L'/');
-		if (p != NULL) {
-			*p = L'\0';
-			tree_append(t, base, p - base);
-			t->dirname_length = archive_strlen(&t->path);
-			base = p + 1;
-		}
-		p = wcsrchr(t->full_path.s, L'\\');
-		if (p != NULL) {
-			*p = L'\0';
-			t->full_path.length = wcslen(t->full_path.s);
-			t->full_path_dir_length = archive_strlen(&t->full_path);
+	if (a->tree != NULL) {
+		if (a->tree_enter_working_dir(a->tree) != 0) {
+			archive_set_error(&a->archive, errno,
+				    "Couldn't change dir");
+				return (ARCHIVE_FAILED);
 		}
 	}
-	tree_push(t, base, t->full_path.s, 0, 0, 0, NULL);
-	archive_wstring_free(&ws);
-	t->stack->flags = needsFirstVisit;
-	/*
-	 * Debug flag for Direct IO(No buffering) or Async IO.
-	 * Those dependant on environment variable switches
-	 * will be removed until next release.
-	 */
-	{
-		const char *e;
-		if ((e = getenv("LIBARCHIVE_DIRECT_IO")) != NULL) {
-			if (e[0] == '0')
-				t->direct_io = 0;
-			else
-				t->direct_io = 1;
-			fprintf(stderr, "LIBARCHIVE_DIRECT_IO=%s\n",
-				(t->direct_io)?"Enabled":"Disabled");
-		} else
-			t->direct_io = DIRECT_IO;
-		if ((e = getenv("LIBARCHIVE_ASYNC_IO")) != NULL) {
-			if (e[0] == '0')
-				t->async_io = 0;
-			else
-				t->async_io = 1;
-			fprintf(stderr, "LIBARCHIVE_ASYNC_IO=%s\n",
-			    (t->async_io)?"Enabled":"Disabled");
-		} else
-			t->async_io = ASYNC_IO;
+
+	/* Short-circuit if there's nothing to do. */
+	have_attrs = copyfile(name, NULL, 0, copyfile_flags | COPYFILE_CHECK);
+	if (have_attrs == -1) {
+		archive_set_error(&a->archive, errno,
+			"Could not check extended attributes");
+		return (ARCHIVE_WARN);
 	}
-	return (t);
-failed:
-	archive_wstring_free(&ws);
-	tree_free(t);
-	return (NULL);
+	if (have_attrs == 0)
+		return (ARCHIVE_OK);
+
+	tempdir = NULL;
+	if (issetugid() == 0)
+		tempdir = getenv("TMPDIR");
+	if (tempdir == NULL)
+		tempdir = _PATH_TMP;
+	archive_string_init(&tempfile);
+	archive_strcpy(&tempfile, tempdir);
+	archive_strcat(&tempfile, "tar.md.XXXXXX");
+	tempfd = mkstemp(tempfile.s);
+	if (tempfd < 0) {
+		archive_set_error(&a->archive, errno,
+		    "Could not open extended attribute file");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	__archive_ensure_cloexec_flag(tempfd);
+
+	/* XXX I wish copyfile() could pack directly to a memory
+	 * buffer; that would avoid the temp file here.  For that
+	 * matter, it would be nice if fcopyfile() actually worked,
+	 * that would reduce the many open/close races here. */
+	if (copyfile(name, tempfile.s, 0, copyfile_flags | COPYFILE_PACK)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not pack extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	if (fstat(tempfd, &copyfile_stat)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not check size of extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	buff = malloc(copyfile_stat.st_size);
+	if (buff == NULL) {
+		archive_set_error(&a->archive, errno,
+		    "Could not allocate memory for extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	if (copyfile_stat.st_size != read(tempfd, buff, copyfile_stat.st_size)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not read extended attributes into memory");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	archive_entry_copy_mac_metadata(entry, buff, copyfile_stat.st_size);
+
+cleanup:
+	if (tempfd >= 0) {
+		close(tempfd);
+		unlink(tempfile.s);
+	}
+	archive_string_free(&tempfile);
+	free(buff);
+	return (ret);
 }

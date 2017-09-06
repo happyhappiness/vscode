@@ -1,1 +1,1 @@
-sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF);
+sprintf(buf, "%6.2f sec", this->TestProcess->GetTotalTime());

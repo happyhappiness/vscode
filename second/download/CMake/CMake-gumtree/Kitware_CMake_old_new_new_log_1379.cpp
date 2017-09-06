@@ -1,1 +1,1 @@
-fprintf(stderr, "Test number out of range\n");
+fprintf(fout, "SET(CMAKE_Fortran_FLAGS \"${CMAKE_Fortran_FLAGS} ");

@@ -1,2 +1,1 @@
-archive_set_error(f->archive, errno,
-			    "Read from filter failed unexpectedly.");
+fprintf(fout, "set(CMAKE_LINK_SEARCH_START_STATIC \"%s\")\n", lssDef);

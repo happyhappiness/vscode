@@ -619,12 +619,12 @@ class Joern_api:
         return label
 
 if __name__ == "__main__":
-    filename = 'old_function_810.cpp'
+    filename = 'new_function_783.cpp'
     joern_api = Joern_api()
     # print joern_api.get_all_condition()
-    if joern_api.set_log(filename, 14):
-        # joern_api.get_data_dependence_for_cdg_and_log()
-        print joern_api.get_normalized_control_dependence()
+    if joern_api.set_log(filename, 35):
+        print joern_api.get_data_dependence_for_cdg_and_log()
+        # print joern_api.get_normalized_control_dependence()
     # print joern_api.get_control_dependence()
     # print joern_api.get_argument_type()
     # if re.match(r'^[A-Z0-9_]+$', 'BZ2_bzlibVersion'):

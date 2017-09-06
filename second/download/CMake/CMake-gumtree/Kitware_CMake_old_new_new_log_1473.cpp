@@ -1,1 +1,1 @@
-sprintf(s2, "%s", cmdstring);
+Curl_debug(data, CURLINFO_DATA_OUT, sptr, bytes_written);

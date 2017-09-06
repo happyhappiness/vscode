@@ -1,2 +1,2 @@
-fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n"
-            ,classes[i].c_str());
+sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
+            cmVersion::GetMinorVersion());

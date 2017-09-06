@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Unknown ACL brand");
+archive_set_error(&a->archive, error_number, "%s",
+			    error_string.s);

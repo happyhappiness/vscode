@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "cmFortran_yyset_lineno called with no buffer" );
+archive_set_error(f->archive, EIO,
+			    "Can't write to program: %s", data->program_name);

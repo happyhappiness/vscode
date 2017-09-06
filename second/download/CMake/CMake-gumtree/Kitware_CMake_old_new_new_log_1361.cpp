@@ -1,1 +1,1 @@
-std::cerr << "***Bad command " << res << "\n";
+YYFPRINTF (stderr, "Stack now");

@@ -1,1 +1,1 @@
-fprintf(stderr, "The %s target dependency graph is:\n", name);
+fprintf(fout, "LIBRARY    %s\n", dllname);

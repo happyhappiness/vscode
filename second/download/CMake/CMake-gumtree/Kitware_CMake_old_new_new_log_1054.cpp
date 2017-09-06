@@ -1,1 +1,1 @@
-sprintf(buf, "%6.2f sec", this->TestProcess->GetTotalTime());
+sprintf(tz, " -%04ld", -person.TimeZone);

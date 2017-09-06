@@ -1,1 +1,0 @@
-sprintf(ptr, " ipv6");

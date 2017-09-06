@@ -1,1 +1,0 @@
-fprintf(fout, "LIBRARY    %s\n", dllname);

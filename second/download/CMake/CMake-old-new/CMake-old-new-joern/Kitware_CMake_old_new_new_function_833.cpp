@@ -1,151 +1,100 @@
-static int
-archive_read_format_rar_read_header(struct archive_read *a,
-                                    struct archive_entry *entry)
+static struct tree *
+tree_reopen(struct tree *t, const wchar_t *path, int restore_time)
 {
-  const void *h;
-  const char *p;
-  struct rar *rar;
-  size_t skip;
-  char head_type;
-  int ret;
-  unsigned flags;
+	struct archive_wstring ws;
+	wchar_t *pathname, *p, *base;
 
-  a->archive.archive_format = ARCHIVE_FORMAT_RAR;
-  if (a->archive.archive_format_name == NULL)
-    a->archive.archive_format_name = "RAR";
+	t->flags = (restore_time)?needsRestoreTimes:0;
+	t->visit_type = 0;
+	t->tree_errno = 0;
+	t->full_path_dir_length = 0;
+	t->dirname_length = 0;
+	t->depth = 0;
+	t->descend = 0;
+	t->current = NULL;
+	t->d = INVALID_HANDLE_VALUE;
+	t->symlink_mode = t->initial_symlink_mode;
+	archive_string_empty(&(t->full_path));
+	archive_string_empty(&t->path);
+	t->entry_fh = INVALID_HANDLE_VALUE;
+	t->entry_eof = 0;
+	t->entry_remaining_bytes = 0;
+	t->initial_filesystem_id = -1;
 
-  rar = (struct rar *)(a->format->data);
+	/* Get wchar_t strings from char strings. */
+	archive_string_init(&ws);
+	archive_wstrcpy(&ws, path);
+	pathname = ws.s;
+	/* Get a full-path-name. */
+	p = __la_win_permissive_name_w(pathname);
+	if (p == NULL)
+		goto failed;
+	archive_wstrcpy(&(t->full_path), p);
+	free(p);
 
-  /* RAR files can be generated without EOF headers, so return ARCHIVE_EOF if
-  * this fails.
-  */
-  if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
-    return (ARCHIVE_EOF);
+	/* Convert path separators from '\' to '/' */
+	for (p = pathname; *p != L'\0'; ++p) {
+		if (*p == L'\\')
+			*p = L'/';
+	}
+	base = pathname;
 
-  p = h;
-  if (rar->found_first_header == 0 &&
-     ((p[0] == 'M' && p[1] == 'Z') || memcmp(p, "\x7F\x45LF", 4) == 0)) {
-    /* This is an executable ? Must be self-extracting... */
-    ret = skip_sfx(a);
-    if (ret < ARCHIVE_WARN)
-      return (ret);
-  }
-  rar->found_first_header = 1;
-
-  while (1)
-  {
-    unsigned long crc32_val;
-
-    if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
-      return (ARCHIVE_FATAL);
-    p = h;
-
-    head_type = p[2];
-    switch(head_type)
-    {
-    case MARK_HEAD:
-      if (memcmp(p, RAR_SIGNATURE, 7) != 0) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Invalid marker header");
-        return (ARCHIVE_FATAL);
-      }
-      __archive_read_consume(a, 7);
-      break;
-
-    case MAIN_HEAD:
-      rar->main_flags = archive_le16dec(p + 3);
-      skip = archive_le16dec(p + 5);
-      if (skip < 7 + sizeof(rar->reserved1) + sizeof(rar->reserved2)) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Invalid header size");
-        return (ARCHIVE_FATAL);
-      }
-      if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
-        return (ARCHIVE_FATAL);
-      p = h;
-      memcpy(rar->reserved1, p + 7, sizeof(rar->reserved1));
-      memcpy(rar->reserved2, p + 7 + sizeof(rar->reserved1),
-             sizeof(rar->reserved2));
-      if (rar->main_flags & MHD_ENCRYPTVER) {
-        if (skip < 7 + sizeof(rar->reserved1) + sizeof(rar->reserved2)+1) {
-          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-            "Invalid header size");
-          return (ARCHIVE_FATAL);
-        }
-        rar->encryptver = *(p + 7 + sizeof(rar->reserved1) +
-                            sizeof(rar->reserved2));
-      }
-
-      if (rar->main_flags & MHD_PASSWORD)
-      {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "RAR encryption support unavailable.");
-        return (ARCHIVE_FATAL);
-      }
-
-      crc32_val = crc32(0, (const unsigned char *)p + 2, (unsigned)skip - 2);
-      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Header CRC error");
-        return (ARCHIVE_FATAL);
-      }
-      __archive_read_consume(a, skip);
-      break;
-
-    case FILE_HEAD:
-      return read_header(a, entry, head_type);
-
-    case COMM_HEAD:
-    case AV_HEAD:
-    case SUB_HEAD:
-    case PROTECT_HEAD:
-    case SIGN_HEAD:
-    case ENDARC_HEAD:
-      flags = archive_le16dec(p + 3);
-      skip = archive_le16dec(p + 5);
-      if (skip < 7) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Invalid header size");
-        return (ARCHIVE_FATAL);
-      }
-      if (skip > 7) {
-        if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
-          return (ARCHIVE_FATAL);
-        p = h;
-      }
-      if (flags & HD_ADD_SIZE_PRESENT)
-      {
-        if (skip < 7 + 4) {
-          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-            "Invalid header size");
-          return (ARCHIVE_FATAL);
-        }
-        skip += archive_le32dec(p + 7);
-        if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
-          return (ARCHIVE_FATAL);
-        p = h;
-      }
-
-      crc32_val = crc32(0, (const unsigned char *)p + 2, (unsigned)skip - 2);
-      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Header CRC error");
-        return (ARCHIVE_FATAL);
-      }
-      __archive_read_consume(a, skip);
-      if (head_type == ENDARC_HEAD)
-        return (ARCHIVE_EOF);
-      break;
-
-    case NEWSUB_HEAD:
-      if ((ret = read_header(a, entry, head_type)) < ARCHIVE_WARN)
-        return ret;
-      break;
-
-    default:
-      archive_set_error(&a->archive,  ARCHIVE_ERRNO_FILE_FORMAT,
-                        "Bad RAR file");
-      return (ARCHIVE_FATAL);
-    }
-  }
+	/* First item is set up a lot like a symlink traversal. */
+	/* printf("Looking for wildcard in %s\n", path); */
+	if ((base[0] == L'/' && base[1] == L'/' &&
+	     base[2] == L'?' && base[3] == L'/' &&
+	     (wcschr(base+4, L'*') || wcschr(base+4, L'?'))) ||
+	    (!(base[0] == L'/' && base[1] == L'/' &&
+	       base[2] == L'?' && base[3] == L'/') &&
+	       (wcschr(base, L'*') || wcschr(base, L'?')))) {
+		// It has a wildcard in it...
+		// Separate the last element.
+		p = wcsrchr(base, L'/');
+		if (p != NULL) {
+			*p = L'\0';
+			tree_append(t, base, p - base);
+			t->dirname_length = archive_strlen(&t->path);
+			base = p + 1;
+		}
+		p = wcsrchr(t->full_path.s, L'\\');
+		if (p != NULL) {
+			*p = L'\0';
+			t->full_path.length = wcslen(t->full_path.s);
+			t->full_path_dir_length = archive_strlen(&t->full_path);
+		}
+	}
+	tree_push(t, base, t->full_path.s, 0, 0, 0, NULL);
+	archive_wstring_free(&ws);
+	t->stack->flags = needsFirstVisit;
+	/*
+	 * Debug flag for Direct IO(No buffering) or Async IO.
+	 * Those dependant on environment variable switches
+	 * will be removed until next release.
+	 */
+	{
+		const char *e;
+		if ((e = getenv("LIBARCHIVE_DIRECT_IO")) != NULL) {
+			if (e[0] == '0')
+				t->direct_io = 0;
+			else
+				t->direct_io = 1;
+			fprintf(stderr, "LIBARCHIVE_DIRECT_IO=%s\n",
+				(t->direct_io)?"Enabled":"Disabled");
+		} else
+			t->direct_io = DIRECT_IO;
+		if ((e = getenv("LIBARCHIVE_ASYNC_IO")) != NULL) {
+			if (e[0] == '0')
+				t->async_io = 0;
+			else
+				t->async_io = 1;
+			fprintf(stderr, "LIBARCHIVE_ASYNC_IO=%s\n",
+			    (t->async_io)?"Enabled":"Disabled");
+		} else
+			t->async_io = ASYNC_IO;
+	}
+	return (t);
+failed:
+	archive_wstring_free(&ws);
+	tree_free(t);
+	return (NULL);
 }

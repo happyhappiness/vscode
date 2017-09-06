@@ -1,16 +1,19 @@
-int main(int argc, char **argv, char **envp)
+void CMakeSetupFrm::OnAboutClick( wxCommandEvent& event )
 {
-  char *base64;
-  size_t base64Len;
-  unsigned char *data;
-  int dataLen;
+    CMAboutDlg *dlg = new CMAboutDlg(this);
+    
+    wxArrayString generators;
+    std::vector<std::string> names; 
+    m_cmake->GetRegisteredGenerators(names);
+    for(std::vector<std::string>::iterator i = names.begin(); i != names.end(); ++i)
+        generators.Add(i->c_str());
 
-  data = (unsigned char *)suck(&dataLen);
-  base64Len = Curl_base64_encode(data, dataLen, &base64);
+    wxString cmversion, cmsversion;
+    cmversion.Printf("v%i.%i %s", cmake::GetMajorVersion(), cmake::GetMinorVersion(), cmake::GetReleaseVersion());
+    cmsversion.Printf("v%i.%i%s", CMAKEGUI_MAJORVER, CMAKEGUI_MINORVER, CMAKEGUI_ADDVER);
 
-  fprintf(stderr, "%d\n", base64Len);
-  fprintf(stdout, "%s",   base64);
+    dlg->SetAboutText(cmversion, cmsversion, generators);
 
-  free(base64); free(data);
-  return 0;
+    dlg->ShowModal();
+    dlg->Destroy();
 }

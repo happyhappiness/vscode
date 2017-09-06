@@ -1,2 +1,2 @@
-archive_set_error(&(self->archive->archive),
-		    ARCHIVE_ERRNO_MISC, "truncated lz4 input");
+f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
+           "%s:%s", user, pwd);

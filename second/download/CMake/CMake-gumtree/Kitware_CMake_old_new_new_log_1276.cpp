@@ -1,1 +1,2 @@
-fprintf(stderr, "kwsysProcess_New returned NULL!\n");
+fprintf(fout,"  vtkTclInterpStruct *tis = "
+            "static_cast<vtkTclInterpStruct*>(cd);\n");

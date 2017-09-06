@@ -1,1 +1,1 @@
-sprintf(tgtName, "node%d", cnt++);
+sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);

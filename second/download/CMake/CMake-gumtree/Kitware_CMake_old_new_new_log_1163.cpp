@@ -1,1 +1,1 @@
-("Accept-Encoding: %s\r\n";
+fprintf(ofp, "{\n");

@@ -1,103 +1,67 @@
-void cmCursesMainForm::UpdateStatusBar()
+bool cmSystemTools::FilesDiffer(const char* source,
+                                const char* destination)
 {
-  int x,y;
-  getmaxyx(stdscr, y, x);
-  if ( x < cmCursesMainForm::MIN_WIDTH  || 
-       y < cmCursesMainForm::MIN_HEIGHT )
+  struct stat statSource;
+  if (stat(source, &statSource) != 0) 
     {
-    clear();
-    curses_move(0,0);
-    printw("Window is too small. A size of at least %dx%d is required.",
-	   cmCursesMainForm::MIN_WIDTH, cmCursesMainForm::MIN_HEIGHT);
-    touchwin(stdscr); 
-    wrefresh(stdscr); 
-    return;
+    return true;
     }
 
-  FIELD* cur = current_field(m_Form);
-  int index = field_index(cur);
-  cmCursesWidget* lbl = reinterpret_cast<cmCursesWidget*>(field_userptr(
-    m_Fields[index-2]));
-  const char* curField = lbl->GetValue();
-
-  // We want to display this on the right
-  char help[128];
-  const char* helpString;
-  cmCacheManager::CacheEntry *entry = 
-    cmCacheManager::GetInstance()->GetCacheEntry(curField);
-  if (entry)
+  struct stat statDestination;
+  if (stat(destination, &statDestination) != 0) 
     {
-    helpString = entry->m_HelpString.c_str();
-    if (strlen(helpString) > 127)
-      {
-      sprintf(help,"%127s", helpString);
-      }
-    else
-      {
-      sprintf(help,"%s", helpString);
-      }
-    }
-  else
-    {
-    sprintf(help," ");
+    return true;
     }
 
-
-  char bar[cmCursesMainForm::MAX_WIDTH];
-  int i, curFieldLen = strlen(curField);
-  int helpLen = strlen(help);
-
-  int width;
-  if (x < cmCursesMainForm::MAX_WIDTH )
+  if(statSource.st_size != statDestination.st_size)
     {
-    width = x;
-    }
-  else
-    {
-    width = cmCursesMainForm::MAX_WIDTH;
+    return true;
     }
 
-  int leftLen = width - helpLen;
-  if (curFieldLen >= width)
+  if(statSource.st_size == 0)
     {
-    strncpy(bar, curField, width);
-    }
-  else
-    {
-    strcpy(bar, curField);
-    bar[curFieldLen] = ':';
-    bar[curFieldLen+1] = ' ';
-    if (curFieldLen + helpLen + 2 >= width)
-      {
-      strncpy(bar+curFieldLen+2, help, width
-	- curFieldLen - 2);
-      }
-    else
-      {
-      strcpy(bar+curFieldLen+2, help);
-      for(i=curFieldLen+helpLen+2; i < width; ++i) 
-	{ 
-	bar[i] = ' '; 
-	}
-      }
+    return false;
     }
 
-  bar[width] = '\0';
+#if defined(_WIN32) || defined(__CYGWIN__)
+  std::ifstream finSource(source, 
+                          std::ios::binary | std::ios::in);
+  std::ifstream finDestination(destination, 
+                               std::ios::binary | std::ios::in);
+#else
+  std::ifstream finSource(source);
+  std::ifstream finDestination(destination);
+#endif
+  if(!finSource || !finDestination)
+    {
+    return true;
+    }
 
-  char version[cmCursesMainForm::MAX_WIDTH];
-  char vertmp[128];
-  sprintf(vertmp,"CMake Version %d.%d", cmMakefile::GetMajorVersion(),
-	  cmMakefile::GetMinorVersion());
-  int sideSpace = (width-strlen(vertmp));
-  for(i=0; i<sideSpace; i++) { version[i] = ' '; }
-  sprintf(version+sideSpace, "%s", vertmp);
-  version[width] = '\0';
+  char* source_buf = new char[statSource.st_size];
+  char* dest_buf = new char[statSource.st_size];
 
-  curses_move(y-4,0);
-  attron(A_STANDOUT);
-  printw(bar);
-  attroff(A_STANDOUT);  
-  curses_move(y-3,0);
-  printw(version);
-  pos_form_cursor(m_Form);
+  finSource.read(source_buf, statSource.st_size);
+  finDestination.read(dest_buf, statSource.st_size);
+
+  if(statSource.st_size != finSource.gcount() ||
+     statSource.st_size != finDestination.gcount())
+    {
+    std::strstream msg;
+    msg << "FilesDiffer failed to read files (allocated: " 
+        << statSource.st_size << ", read source: " <<  finSource.gcount() 
+        << ", read dest: " << finDestination.gcount() << std::ends;
+    cmSystemTools::Error(msg.str());
+    delete [] msg.str();
+    delete [] source_buf;
+    delete [] dest_buf;
+    return false;
+    }
+  int ret = memcmp((const void*)source_buf, 
+                   (const void*)dest_buf, 
+                   statSource.st_size);
+
+  delete [] dest_buf;
+  delete [] source_buf;
+
+  return ret != 0;
 }

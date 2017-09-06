@@ -1,103 +1,92 @@
-void cmCursesMainForm::UpdateStatusBar()
+void cmSystemTools::cmCopyFile(const char* source,
+                               const char* destination)
 {
-  int x,y;
-  getmaxyx(stdscr, y, x);
-  if ( x < cmCursesMainForm::MIN_WIDTH  || 
-       y < cmCursesMainForm::MIN_HEIGHT )
+  const int bufferSize = 4096;
+  char buffer[bufferSize];
+
+  // If destination is a directory, try to create a file with the same
+  // name as the source in that directory.
+
+  std::string new_destination;
+  if(cmSystemTools::FileExists(destination) &&
+     cmSystemTools::FileIsDirectory(destination))
     {
-    clear();
-    curses_move(0,0);
-    printw("Window is too small. A size of at least %dx%d is required.",
-	   cmCursesMainForm::MIN_WIDTH, cmCursesMainForm::MIN_HEIGHT);
-    touchwin(stdscr); 
-    wrefresh(stdscr); 
+    new_destination = destination;
+    cmSystemTools::ConvertToUnixSlashes(new_destination);
+    new_destination += '/';
+    std::string source_name = source;
+    new_destination += cmSystemTools::GetFilenameName(source_name);
+    destination = new_destination.c_str();
+    }
+
+  // Create destination directory
+
+  std::string destination_dir = destination;
+  destination_dir = cmSystemTools::GetFilenamePath(destination_dir);
+  cmSystemTools::MakeDirectory(destination_dir.c_str());
+
+  // Open files
+
+#if defined(_WIN32) || defined(__CYGWIN__)
+  std::ifstream fin(source, 
+                    std::ios::binary | std::ios::in);
+#else
+  std::ifstream fin(source);
+#endif
+  if(!fin)
+    {
+    cmSystemTools::Error("CopyFile failed to open input file \"",
+                         source, "\"");
     return;
     }
 
-  FIELD* cur = current_field(m_Form);
-  int index = field_index(cur);
-  cmCursesWidget* lbl = reinterpret_cast<cmCursesWidget*>(field_userptr(
-    m_Fields[index-2]));
-  const char* curField = lbl->GetValue();
-
-  // We want to display this on the right
-  char help[128];
-  const char* helpString;
-  cmCacheManager::CacheEntry *entry = 
-    cmCacheManager::GetInstance()->GetCacheEntry(curField);
-  if (entry)
+#if defined(_WIN32) || defined(__CYGWIN__)
+  std::ofstream fout(destination, 
+                     std::ios::binary | std::ios::out | std::ios::trunc);
+#else
+  std::ofstream fout(destination, 
+                     std::ios::out | std::ios::trunc);
+#endif
+  if(!fout)
     {
-    helpString = entry->m_HelpString.c_str();
-    if (strlen(helpString) > 127)
+    cmSystemTools::Error("CopyFile failed to open output file \"",
+                         destination, "\"");
+    return;
+    }
+  
+  // This copy loop is very sensitive on certain platforms with
+  // slightly broken stream libraries (like HPUX).  Normally, it is
+  // incorrect to not check the error condition on the fin.read()
+  // before using the data, but the fin.gcount() will be zero if an
+  // error occurred.  Therefore, the loop should be safe everywhere.
+  while(fin)
+    {
+    fin.read(buffer, bufferSize);
+    if(fin.gcount())
       {
-      sprintf(help,"%127s", helpString);
-      }
-    else
-      {
-      sprintf(help,"%s", helpString);
-      }
-    }
-  else
-    {
-    sprintf(help," ");
-    }
-
-
-  char bar[cmCursesMainForm::MAX_WIDTH];
-  int i, curFieldLen = strlen(curField);
-  int helpLen = strlen(help);
-
-  int width;
-  if (x < cmCursesMainForm::MAX_WIDTH )
-    {
-    width = x;
-    }
-  else
-    {
-    width = cmCursesMainForm::MAX_WIDTH;
-    }
-
-  int leftLen = width - helpLen;
-  if (curFieldLen >= width)
-    {
-    strncpy(bar, curField, width);
-    }
-  else
-    {
-    strcpy(bar, curField);
-    bar[curFieldLen] = ':';
-    bar[curFieldLen+1] = ' ';
-    if (curFieldLen + helpLen + 2 >= width)
-      {
-      strncpy(bar+curFieldLen+2, help, width
-	- curFieldLen - 2);
-      }
-    else
-      {
-      strcpy(bar+curFieldLen+2, help);
-      for(i=curFieldLen+helpLen+2; i < width; ++i) 
-	{ 
-	bar[i] = ' '; 
-	}
+      fout.write(buffer, fin.gcount());
       }
     }
 
-  bar[width] = '\0';
+  fin.close();
+  fout.close();
 
-  char version[cmCursesMainForm::MAX_WIDTH];
-  char vertmp[128];
-  sprintf(vertmp,"CMake Version %d.%d", cmMakefile::GetMajorVersion(),
-	  cmMakefile::GetMinorVersion());
-  int sideSpace = (width-strlen(vertmp));
-  for(i=0; i<sideSpace; i++) { version[i] = ' '; }
-  sprintf(version+sideSpace, "%s", vertmp);
-  version[width] = '\0';
+  // More checks
 
-  curses_move(y-4,0);
-  attron(A_STANDOUT);
-  printw(bar);
-  attroff(A_STANDOUT);  
-  curses_move(y-3,0);
-  printw(version);
-  pos_form_cursor(m_Form);
+  struct stat statSource, statDestination;
+  if (stat(source, &statSource) != 0 ||
+      stat(destination, &statDestination) != 0)
+    {
+    cmSystemTools::Error("CopyFile failed to copy files!");
+    }
+
+  if (statSource.st_size != statDestination.st_size)
+    {
+    std::strstream msg;
+    msg << "CopyFile failed to copy files (sizes differ, source: " 
+        << statSource.st_size << " , dest: " << statDestination.st_size 
+        << std::ends;
+    cmSystemTools::Error(msg.str());
+    delete [] msg.str();
+    }
 }

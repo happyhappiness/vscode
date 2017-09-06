@@ -1,1 +1,3 @@
-YY_FATAL_ERROR( "cmExpr_yyset_lineno called with no buffer" );
+fsobj_error(a_eno, a_estr, 0,
+					    "Cannot remove intervening "
+					    "symlink %s", path);

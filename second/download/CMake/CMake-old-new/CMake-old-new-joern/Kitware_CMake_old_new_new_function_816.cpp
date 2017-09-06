@@ -1,58 +1,101 @@
-int
-archive_read_open_filename_w(struct archive *a, const wchar_t *wfilename,
-    size_t block_size)
+static int
+setup_current_filesystem(struct archive_read_disk *a)
 {
-	struct read_file_data *mine = (struct read_file_data *)calloc(1,
-		sizeof(*mine) + wcslen(wfilename) * sizeof(wchar_t));
-	if (!mine)
-	{
-		archive_set_error(a, ENOMEM, "No memory");
-		return (ARCHIVE_FATAL);
-	}
-	mine->fd = -1;
-	mine->block_size = block_size;
+	struct tree *t = a->tree;
+	struct statfs sfs;
+	struct statvfs svfs;
+	int r, vr = 0, xr = 0;
 
-	if (wfilename == NULL || wfilename[0] == L'\0') {
-		mine->filename_type = FNT_STDIN;
-	} else {
-#if defined(_WIN32) && !defined(__CYGWIN__)
-		mine->filename_type = FNT_WCS;
-		wcscpy(mine->filename.w, wfilename);
-#else
+	if (tree_current_is_symblic_link_target(t)) {
+#if defined(HAVE_OPENAT)
 		/*
-		 * POSIX system does not support a wchar_t interface for
-		 * open() system call, so we have to translate a whcar_t
-		 * filename to multi-byte one and use it.
+		 * Get file system statistics on any directory
+		 * where current is.
 		 */
-		struct archive_string fn;
-
-		archive_string_init(&fn);
-		if (archive_string_append_from_wcs(&fn, wfilename,
-		    wcslen(wfilename)) != 0) {
-			if (errno == ENOMEM)
-				archive_set_error(a, errno,
-				    "Can't allocate memory");
-			else
-				archive_set_error(a, EINVAL,
-				    "Failed to convert a wide-character"
-				    " filename to a multi-byte filename");
-			archive_string_free(&fn);
-			free(mine);
-			return (ARCHIVE_FATAL);
+		int fd = openat(tree_current_dir_fd(t),
+		    tree_current_access_path(t), O_RDONLY | O_CLOEXEC);
+		__archive_ensure_cloexec_flag(fd);
+		if (fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "openat failed");
+			return (ARCHIVE_FAILED);
 		}
-		mine->filename_type = FNT_MBS;
-		strcpy(mine->filename.m, fn.s);
-		archive_string_free(&fn);
+		vr = fstatvfs(fd, &svfs);/* for f_flag, mount flags */
+		r = fstatfs(fd, &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, fd, NULL);
+		close(fd);
+#else
+		if (tree_enter_working_dir(t) != 0) {
+			archive_set_error(&a->archive, errno, "fchdir failed");
+			return (ARCHIVE_FAILED);
+		}
+		vr = statvfs(tree_current_access_path(t), &svfs);
+		r = statfs(tree_current_access_path(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, tree_current_access_path(t));
+#endif
+	} else {
+#ifdef HAVE_FSTATFS
+		vr = fstatvfs(tree_current_dir_fd(t), &svfs);
+		r = fstatfs(tree_current_dir_fd(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
+#else
+		if (tree_enter_working_dir(t) != 0) {
+			archive_set_error(&a->archive, errno, "fchdir failed");
+			return (ARCHIVE_FAILED);
+		}
+		vr = statvfs(".", &svfs);
+		r = statfs(".", &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, ".");
 #endif
 	}
-	if (archive_read_append_callback_data(a, mine) != (ARCHIVE_OK))
-		return (ARCHIVE_FATAL);
-	archive_read_set_open_callback(a, file_open);
-	archive_read_set_read_callback(a, file_read);
-	archive_read_set_skip_callback(a, file_skip);
-	archive_read_set_close_callback(a, file_close);
-	archive_read_set_switch_callback(a, file_switch);
-	archive_read_set_seek_callback(a, file_seek);
+	if (r == -1 || xr == -1 || vr == -1) {
+		t->current_filesystem->synthetic = -1;
+		t->current_filesystem->remote = -1;
+		archive_set_error(&a->archive, errno, "statfs failed");
+		return (ARCHIVE_FAILED);
+	} else if (xr == 1) {
+		/* pathconf(_PC_REX_*) operations are not supported. */
+		t->current_filesystem->xfer_align = svfs.f_frsize;
+		t->current_filesystem->max_xfer_size = -1;
+		t->current_filesystem->min_xfer_size = svfs.f_bsize;
+		t->current_filesystem->incr_xfer_size = svfs.f_bsize;
+	}
+	switch (sfs.f_type) {
+	case AFS_SUPER_MAGIC:
+	case CIFS_SUPER_MAGIC:
+	case CODA_SUPER_MAGIC:
+	case NCP_SUPER_MAGIC:/* NetWare */
+	case NFS_SUPER_MAGIC:
+	case SMB_SUPER_MAGIC:
+		t->current_filesystem->remote = 1;
+		t->current_filesystem->synthetic = 0;
+		break;
+	case DEVFS_SUPER_MAGIC:
+	case PROC_SUPER_MAGIC:
+	case USBDEVICE_SUPER_MAGIC:
+		t->current_filesystem->remote = 0;
+		t->current_filesystem->synthetic = 1;
+		break;
+	default:
+		t->current_filesystem->remote = 0;
+		t->current_filesystem->synthetic = 0;
+		break;
+	}
 
-	return (archive_read_open1(a));
+#if defined(ST_NOATIME)
+	if (svfs.f_flag & ST_NOATIME)
+		t->current_filesystem->noatime = 1;
+	else
+#endif
+		t->current_filesystem->noatime = 0;
+
+#if defined(HAVE_READDIR_R)
+	/* Set maximum filename length. */
+	t->current_filesystem->name_max = sfs.f_namelen;
+#endif
+	return (ARCHIVE_OK);
 }

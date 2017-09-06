@@ -1,29 +1,69 @@
-CURLcode Curl_output_negotiate(struct connectdata *conn, bool proxy)
+static CURLcode global_init(long flags, bool memoryfuncs)
 {
-  struct negotiatedata *neg_ctx = proxy ? &conn->data->state.proxyneg :
-    &conn->data->state.negotiate;
-  char *base64 = NULL;
-  size_t len = 0;
-  char *userp;
-  CURLcode result;
+  if(initialized++)
+    return CURLE_OK;
 
-  result = Curl_auth_create_spnego_message(conn->data, neg_ctx, &base64, &len);
-  if(result)
-    return result;
-
-  userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
-                  base64);
-
-  if(proxy) {
-    Curl_safefree(conn->allocptr.proxyuserpwd);
-    conn->allocptr.proxyuserpwd = userp;
-  }
-  else {
-    Curl_safefree(conn->allocptr.userpwd);
-    conn->allocptr.userpwd = userp;
+  if(memoryfuncs) {
+    /* Setup the default memory functions here (again) */
+    Curl_cmalloc = (curl_malloc_callback)malloc;
+    Curl_cfree = (curl_free_callback)free;
+    Curl_crealloc = (curl_realloc_callback)realloc;
+    Curl_cstrdup = (curl_strdup_callback)system_strdup;
+    Curl_ccalloc = (curl_calloc_callback)calloc;
+#if defined(WIN32) && defined(UNICODE)
+    Curl_cwcsdup = (curl_wcsdup_callback)_wcsdup;
+#endif
   }
 
-  free(base64);
+  if(flags & CURL_GLOBAL_SSL)
+    if(!Curl_ssl_init()) {
+      DEBUGF(fprintf(stderr, "Error: Curl_ssl_init failed\n"));
+      return CURLE_FAILED_INIT;
+    }
 
-  return (userp == NULL) ? CURLE_OUT_OF_MEMORY : CURLE_OK;
+  if(flags & CURL_GLOBAL_WIN32)
+    if(win32_init()) {
+      DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));
+      return CURLE_FAILED_INIT;
+    }
+
+#ifdef __AMIGA__
+  if(!Curl_amiga_init()) {
+    DEBUGF(fprintf(stderr, "Error: Curl_amiga_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }
+#endif
+
+#ifdef NETWARE
+  if(netware_init()) {
+    DEBUGF(fprintf(stderr, "Warning: LONG namespace not available\n"));
+  }
+#endif
+
+#ifdef USE_LIBIDN
+  idna_init();
+#endif
+
+  if(Curl_resolver_global_init()) {
+    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }
+
+  (void)Curl_ipv6works();
+
+#if defined(USE_LIBSSH2) && defined(HAVE_LIBSSH2_INIT)
+  if(libssh2_init(0)) {
+    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }
+#endif
+
+  if(flags & CURL_GLOBAL_ACK_EINTR)
+    Curl_ack_eintr = 1;
+
+  init_flags = flags;
+
+  Curl_version_init();
+
+  return CURLE_OK;
 }

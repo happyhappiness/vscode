@@ -1,176 +1,92 @@
-static CURLcode ftp_state_pasv_resp(struct connectdata *conn,
-                                    int ftpcode)
+static int
+init_WinZip_AES_decryption(struct archive_read *a)
 {
-  struct ftp_conn *ftpc = &conn->proto.ftpc;
-  CURLcode result;
-  struct SessionHandle *data=conn->data;
-  struct Curl_dns_entry *addr=NULL;
-  int rc;
-  unsigned short connectport; /* the local port connect() should use! */
-  char *str=&data->state.buffer[4];  /* start on the first letter */
+	struct zip *zip = (struct zip *)(a->format->data);
+	const void *p;
+	const uint8_t *pv;
+	size_t key_len, salt_len;
+	uint8_t derived_key[MAX_DERIVED_KEY_BUF_SIZE];
+	int retry;
+	int r;
 
-  /* if we come here again, make sure the former name is cleared */
-  Curl_safefree(ftpc->newhost);
+	if (zip->cctx_valid || zip->hctx_valid)
+		return (ARCHIVE_OK);
 
-  if((ftpc->count1 == 0) &&
-     (ftpcode == 229)) {
-    /* positive EPSV response */
-    char *ptr = strchr(str, '(');
-    if(ptr) {
-      unsigned int num;
-      char separator[4];
-      ptr++;
-      if(5 == sscanf(ptr, "%c%c%c%u%c",
-                     &separator[0],
-                     &separator[1],
-                     &separator[2],
-                     &num,
-                     &separator[3])) {
-        const char sep1 = separator[0];
-        int i;
+	switch (zip->entry->aes_extra.strength) {
+	case 1: salt_len = 8;  key_len = 16; break;
+	case 2: salt_len = 12; key_len = 24; break;
+	case 3: salt_len = 16; key_len = 32; break;
+	default: goto corrupted;
+	}
+	p = __archive_read_ahead(a, salt_len + 2, NULL);
+	if (p == NULL)
+		goto truncated;
 
-        /* The four separators should be identical, or else this is an oddly
-           formatted reply and we bail out immediately. */
-        for(i=1; i<4; i++) {
-          if(separator[i] != sep1) {
-            ptr=NULL; /* set to NULL to signal error */
-            break;
-          }
-        }
-        if(num > 0xffff) {
-          failf(data, "Illegal port number in EPSV reply");
-          return CURLE_FTP_WEIRD_PASV_REPLY;
-        }
-        if(ptr) {
-          ftpc->newport = (unsigned short)(num & 0xffff);
-          ftpc->newhost = strdup(control_address(conn));
-          if(!ftpc->newhost)
-            return CURLE_OUT_OF_MEMORY;
-        }
-      }
-      else
-        ptr=NULL;
-    }
-    if(!ptr) {
-      failf(data, "Weirdly formatted EPSV reply");
-      return CURLE_FTP_WEIRD_PASV_REPLY;
-    }
-  }
-  else if((ftpc->count1 == 1) &&
-          (ftpcode == 227)) {
-    /* positive PASV response */
-    int ip[4];
-    int port[2];
+	for (retry = 0;; retry++) {
+		const char *passphrase;
 
-    /*
-     * Scan for a sequence of six comma-separated numbers and use them as
-     * IP+port indicators.
-     *
-     * Found reply-strings include:
-     * "227 Entering Passive Mode (127,0,0,1,4,51)"
-     * "227 Data transfer will passively listen to 127,0,0,1,4,51"
-     * "227 Entering passive mode. 127,0,0,1,4,51"
-     */
-    while(*str) {
-      if(6 == sscanf(str, "%d,%d,%d,%d,%d,%d",
-                     &ip[0], &ip[1], &ip[2], &ip[3],
-                     &port[0], &port[1]))
-        break;
-      str++;
-    }
+		passphrase = __archive_read_next_passphrase(a);
+		if (passphrase == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    (retry > 0)?
+				"Incorrect passphrase":
+				"Passphrase required for this entry");
+			return (ARCHIVE_FAILED);
+		}
+		memset(derived_key, 0, sizeof(derived_key));
+		r = archive_pbkdf2_sha1(passphrase, strlen(passphrase),
+		    p, salt_len, 1000, derived_key, key_len * 2 + 2);
+		if (r != 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Decryption is unsupported due to lack of "
+			    "crypto library");
+			return (ARCHIVE_FAILED);
+		}
 
-    if(!*str) {
-      failf(data, "Couldn't interpret the 227-response");
-      return CURLE_FTP_WEIRD_227_FORMAT;
-    }
+		/* Check password verification value. */
+		pv = ((const uint8_t *)p) + salt_len;
+		if (derived_key[key_len * 2] == pv[0] &&
+		    derived_key[key_len * 2 + 1] == pv[1])
+			break;/* The passphrase is OK. */
+		if (retry > 10000) {
+			/* Avoid infinity loop. */
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Too many incorrect passphrases");
+			return (ARCHIVE_FAILED);
+		}
+	}
 
-    /* we got OK from server */
-    if(data->set.ftp_skip_ip) {
-      /* told to ignore the remotely given IP but instead use the host we used
-         for the control connection */
-      infof(data, "Skip %d.%d.%d.%d for data connection, re-use %s instead\n",
-            ip[0], ip[1], ip[2], ip[3],
-            conn->host.name);
-      ftpc->newhost = strdup(control_address(conn));
-    }
-    else
-      ftpc->newhost = aprintf("%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+	r = archive_decrypto_aes_ctr_init(&zip->cctx, derived_key, key_len);
+	if (r != 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Decryption is unsupported due to lack of crypto library");
+		return (ARCHIVE_FAILED);
+	}
+	r = archive_hmac_sha1_init(&zip->hctx, derived_key + key_len, key_len);
+	if (r != 0) {
+		archive_decrypto_aes_ctr_release(&zip->cctx);
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Failed to initialize HMAC-SHA1");
+		return (ARCHIVE_FAILED);
+	}
+	zip->cctx_valid = zip->hctx_valid = 1;
+	__archive_read_consume(a, salt_len + 2);
+	zip->entry_bytes_remaining -= salt_len + 2 + AUTH_CODE_SIZE;
+	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
+	    && zip->entry_bytes_remaining < 0)
+		goto corrupted;
+	zip->entry_compressed_bytes_read += salt_len + 2 + AUTH_CODE_SIZE;
+	zip->decrypted_bytes_remaining = 0;
 
-    if(!ftpc->newhost)
-      return CURLE_OUT_OF_MEMORY;
+	zip->entry->compression = zip->entry->aes_extra.compression;
+	return (zip_alloc_decryption_buffer(a));
 
-    ftpc->newport = (unsigned short)(((port[0]<<8) + port[1]) & 0xffff);
-  }
-  else if(ftpc->count1 == 0) {
-    /* EPSV failed, move on to PASV */
-    return ftp_epsv_disable(conn);
-  }
-  else {
-    failf(data, "Bad PASV/EPSV response: %03d", ftpcode);
-    return CURLE_FTP_WEIRD_PASV_REPLY;
-  }
-
-  if(conn->bits.proxy) {
-    /*
-     * This connection uses a proxy and we need to connect to the proxy again
-     * here. We don't want to rely on a former host lookup that might've
-     * expired now, instead we remake the lookup here and now!
-     */
-    rc = Curl_resolv(conn, conn->proxy.name, (int)conn->port, &addr);
-    if(rc == CURLRESOLV_PENDING)
-      /* BLOCKING, ignores the return code but 'addr' will be NULL in
-         case of failure */
-      (void)Curl_resolver_wait_resolv(conn, &addr);
-
-    connectport =
-      (unsigned short)conn->port; /* we connect to the proxy's port */
-
-    if(!addr) {
-      failf(data, "Can't resolve proxy host %s:%hu",
-            conn->proxy.name, connectport);
-      return CURLE_FTP_CANT_GET_HOST;
-    }
-  }
-  else {
-    /* normal, direct, ftp connection */
-    rc = Curl_resolv(conn, ftpc->newhost, ftpc->newport, &addr);
-    if(rc == CURLRESOLV_PENDING)
-      /* BLOCKING */
-      (void)Curl_resolver_wait_resolv(conn, &addr);
-
-    connectport = ftpc->newport; /* we connect to the remote port */
-
-    if(!addr) {
-      failf(data, "Can't resolve new host %s:%hu", ftpc->newhost, connectport);
-      return CURLE_FTP_CANT_GET_HOST;
-    }
-  }
-
-  conn->bits.tcpconnect[SECONDARYSOCKET] = FALSE;
-  result = Curl_connecthost(conn, addr);
-
-  if(result) {
-    Curl_resolv_unlock(data, addr); /* we're done using this address */
-    if(ftpc->count1 == 0 && ftpcode == 229)
-      return ftp_epsv_disable(conn);
-
-    return result;
-  }
-
-
-  /*
-   * When this is used from the multi interface, this might've returned with
-   * the 'connected' set to FALSE and thus we are now awaiting a non-blocking
-   * connect to connect.
-   */
-
-  if(data->set.verbose)
-    /* this just dumps information about this second connection */
-    ftp_pasv_verbose(conn, addr->addr, ftpc->newhost, connectport);
-
-  Curl_resolv_unlock(data, addr); /* we're done using this address */
-  conn->bits.do_more = TRUE;
-  state(conn, FTP_STOP); /* this phase is completed */
-
-  return result;
+truncated:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Truncated ZIP file data");
+	return (ARCHIVE_FATAL);
+corrupted:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Corrupted ZIP file data");
+	return (ARCHIVE_FATAL);
 }

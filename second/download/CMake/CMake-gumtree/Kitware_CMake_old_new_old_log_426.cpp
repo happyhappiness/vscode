@@ -1,1 +1,2 @@
-yy_fatal_error( "cmFortran_yyset_column called with no buffer" , yyscanner);
+archive_set_error(f->archive, errno,
+			    "Read from filter failed unexpectedly.");

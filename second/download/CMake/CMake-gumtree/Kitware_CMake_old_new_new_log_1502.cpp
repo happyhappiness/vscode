@@ -1,1 +1,1 @@
-self->AddError(message, title);
+sprintf(tmp, "%s %i%%",msg,(int)(100*prog));

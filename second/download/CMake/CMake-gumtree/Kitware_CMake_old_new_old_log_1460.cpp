@@ -1,0 +1,1 @@
+ret = fprintf(f, "CONF %s", buf);

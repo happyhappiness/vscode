@@ -1,2 +1,1 @@
-fprintf(stderr, "Mismatch in exit exception.  Should have been %d.\n",
-              exception);
+fprintf(stderr, "tar_open(): %s\n", strerror(errno));

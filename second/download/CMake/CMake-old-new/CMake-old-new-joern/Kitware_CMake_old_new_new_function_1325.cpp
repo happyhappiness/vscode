@@ -1,44 +1,33 @@
-static
-CURLcode ftp_getfiletime(struct connectdata *conn, char *file)
+void
+cmLocalVisualStudio6Generator
+::AddUtilityCommandHack(cmTarget& target, int count,
+                        std::vector<std::string>& depends,
+                        const cmCustomCommandLines& commandLines)
 {
-  CURLcode result=CURLE_OK;
-  int ftpcode; /* for ftp status */
-  ssize_t nread;
-  char *buf = conn->data->state.buffer;
+  // Create a fake output that forces the rule to run.
+  char* output = new char[(strlen(m_Makefile->GetStartOutputDirectory()) +
+                           strlen(target.GetName()) + 30)];
+  sprintf(output,"%s/%s_force_%i", m_Makefile->GetStartOutputDirectory(),
+          target.GetName(), count);
 
-  /* we have requested to get the modified-time of the file, this is yet
-     again a grey area as the MDTM is not kosher RFC959 */
-  FTPSENDF(conn, "MDTM %s", file);
+  // Add the rule with the given dependencies and commands.
+  const char* no_main_dependency = 0;
+  const char* no_comment = 0;
+  m_Makefile->AddCustomCommandToOutput(output,
+                                       depends,
+                                       no_main_dependency,
+                                       commandLines,
+                                       no_comment);
 
-  result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-  if(result)
-    return result;
+  // Replace the dependencies with the output of this rule so that the
+  // next rule added will run after this one.
+  depends.clear();
+  depends.push_back(output);
 
-  switch(ftpcode) {
-  case 213:
-    {
-      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
-         last .sss part is optional and means fractions of a second */
-      int year, month, day, hour, minute, second;
-      if(6 == sscanf(buf+4, "%04d%02d%02d%02d%02d%02d",
-                     &year, &month, &day, &hour, &minute, &second)) {
-        /* we have a time, reformat it */
-        time_t secs=time(NULL);
-        snprintf(buf, sizeof(conn->data->state.buffer),
-                 "%04d%02d%02d %02d:%02d:%02d GMT",
-                 year, month, day, hour, minute, second);
-        /* now, convert this into a time() value: */
-        conn->data->info.filetime = curl_getdate(buf, &secs);
-      }
-    }
-    break;
-  default:
-    infof(conn->data, "unsupported MDTM reply format\n");
-    break;
-  case 550: /* "No such file or directory" */
-    failf(conn->data, "Given file does not exist");
-    result = CURLE_FTP_COULDNT_RETR_FILE;
-    break;
-  }
-  return  result;
+  // Add a source file representing this output to the project.
+  cmSourceFile* outsf = m_Makefile->GetSourceFileWithOutput(output);
+  target.GetSourceFiles().push_back(outsf);
+
+  // Free the fake output name.
+  delete [] output;
 }

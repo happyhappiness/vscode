@@ -1,0 +1,1 @@
+fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());

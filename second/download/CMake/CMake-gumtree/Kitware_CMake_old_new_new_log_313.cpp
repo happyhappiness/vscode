@@ -1,1 +1,1 @@
-aprintf("%s:%d", hostname, conn->port);
+len = snprintf(ptr, left, " libidn2/%s", idn2_check_version(NULL));

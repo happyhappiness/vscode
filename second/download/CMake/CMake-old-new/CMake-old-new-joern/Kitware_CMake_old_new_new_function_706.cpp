@@ -1,149 +1,116 @@
-static int
-write_mtree_entry(struct archive_write *a, struct mtree_entry *me)
+void
+    list_item_verbose(FILE *out, struct archive_entry *entry)
 {
-	struct mtree_writer *mtree = a->format_data;
-	struct archive_string *str;
-	int keys, ret;
+  char                   tmp[100];
+  size_t                         w;
+  const char            *p;
+  const char            *fmt;
+  time_t                         tim;
+  static time_t          now;
+  size_t u_width = 6;
+  size_t gs_width = 13;
 
-	if (me->dir_info) {
-		if (mtree->classic) {
-			/*
-			 * Output a comment line to describe the full
-			 * pathname of the entry as mtree utility does
-			 * while generating classic format.
-			 */
-			if (!mtree->dironly)
-				archive_strappend_char(&mtree->buf, '\n');
-			if (me->parentdir.s)
-				archive_string_sprintf(&mtree->buf,
-				    "# %s/%s\n",
-				    me->parentdir.s, me->basename.s);
-			else
-				archive_string_sprintf(&mtree->buf,
-				    "# %s\n",
-				    me->basename.s);
-		}
-		if (mtree->output_global_set)
-			write_global(mtree);
-	}
-	archive_string_empty(&mtree->ebuf);
-	str = (mtree->indent || mtree->classic)? &mtree->ebuf : &mtree->buf;
+  /*
+   * We avoid collecting the entire list in memory at once by
+   * listing things as we see them.  However, that also means we can't
+   * just pre-compute the field widths.  Instead, we start with guesses
+   * and just widen them as necessary.  These numbers are completely
+   * arbitrary.
+   */
+  if (!now)
+    {
+    time(&now);
+    }
+  fprintf(out, "%s %d ",
+          archive_entry_strmode(entry),
+          archive_entry_nlink(entry));
 
-	if (!mtree->classic && me->parentdir.s) {
-		/*
-		 * If generating format is not classic one(v1), output
-		 * a full pathname.
-		 */
-		mtree_quote(str, me->parentdir.s);
-		archive_strappend_char(str, '/');
-	}
-	mtree_quote(str, me->basename.s);
+  /* Use uname if it's present, else uid. */
+  p = archive_entry_uname(entry);
+  if ((p == NULL) || (*p == '\0'))
+    {
+    sprintf(tmp, "%lu ",
+            (unsigned long)archive_entry_uid(entry));
+    p = tmp;
+    }
+  w = strlen(p);
+  if (w > u_width)
+    {
+    u_width = w;
+    }
+  fprintf(out, "%-*s ", (int)u_width, p);
+  /* Use gname if it's present, else gid. */
+  p = archive_entry_gname(entry);
+  if (p != NULL && p[0] != '\0')
+    {
+    fprintf(out, "%s", p);
+    w = strlen(p);
+    }
+  else
+    {
+    sprintf(tmp, "%lu",
+            (unsigned long)archive_entry_gid(entry));
+    w = strlen(tmp);
+    fprintf(out, "%s", tmp);
+    }
 
-	keys = get_global_set_keys(mtree, me);
-	if ((keys & F_NLINK) != 0 &&
-	    me->nlink != 1 && me->filetype != AE_IFDIR)
-		archive_string_sprintf(str, " nlink=%u", me->nlink);
+  /*
+   * Print device number or file size, right-aligned so as to make
+   * total width of group and devnum/filesize fields be gs_width.
+   * If gs_width is too small, grow it.
+   */
+  if (archive_entry_filetype(entry) == AE_IFCHR
+      || archive_entry_filetype(entry) == AE_IFBLK)
+    {
+    sprintf(tmp, "%lu,%lu",
+            (unsigned long)archive_entry_rdevmajor(entry),
+            (unsigned long)archive_entry_rdevminor(entry));
+    }
+  else
+    {
+    /*
+     * Note the use of platform-dependent macros to format
+     * the filesize here.  We need the format string and the
+     * corresponding type for the cast.
+     */
+    sprintf(tmp, BSDTAR_FILESIZE_PRINTF,
+            (BSDTAR_FILESIZE_TYPE)archive_entry_size(entry));
+    }
+  if (w + strlen(tmp) >= gs_width)
+    {
+    gs_width = w+strlen(tmp)+1;
+    }
+  fprintf(out, "%*s", (int)(gs_width - w), tmp);
 
-	if ((keys & F_GNAME) != 0 && archive_strlen(&me->gname) > 0) {
-		archive_strcat(str, " gname=");
-		mtree_quote(str, me->gname.s);
-	}
-	if ((keys & F_UNAME) != 0 && archive_strlen(&me->uname) > 0) {
-		archive_strcat(str, " uname=");
-		mtree_quote(str, me->uname.s);
-	}
-	if ((keys & F_FLAGS) != 0) {
-		if (archive_strlen(&me->fflags_text) > 0) {
-			archive_strcat(str, " flags=");
-			mtree_quote(str, me->fflags_text.s);
-		} else if (mtree->set.processing &&
-		    (mtree->set.keys & F_FLAGS) != 0)
-			/* Overwrite the global parameter. */
-			archive_strcat(str, " flags=none");
-	}
-	if ((keys & F_TIME) != 0)
-		archive_string_sprintf(str, " time=%jd.%jd",
-		    (intmax_t)me->mtime, (intmax_t)me->mtime_nsec);
-	if ((keys & F_MODE) != 0)
-		archive_string_sprintf(str, " mode=%o", (unsigned int)me->mode);
-	if ((keys & F_GID) != 0)
-		archive_string_sprintf(str, " gid=%jd", (intmax_t)me->gid);
-	if ((keys & F_UID) != 0)
-		archive_string_sprintf(str, " uid=%jd", (intmax_t)me->uid);
+  /* Format the time using 'ls -l' conventions. */
+  tim = archive_entry_mtime(entry);
+#define HALF_YEAR (time_t)365 * 86400 / 2
+#if defined(_WIN32) && !defined(__CYGWIN__)
+  /* Windows' strftime function does not support %e format. */
+#define DAY_FMT  "%d"
+#else
+#define DAY_FMT  "%e"  /* Day number without leading zeros */
+#endif
+  if (tim < now - HALF_YEAR || tim > now + HALF_YEAR)
+    {
+    fmt = DAY_FMT " %b  %Y";
+    }
+  else
+    {
+    fmt = DAY_FMT " %b %H:%M";
+    }
+  strftime(tmp, sizeof(tmp), fmt, localtime(&tim));
+  fprintf(out, " %s ", tmp);
+  fprintf(out, "%s", cm_archive_entry_pathname(entry).c_str());
 
-	if ((keys & F_INO) != 0)
-		archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino);
-	if ((keys & F_RESDEV) != 0) {
-		archive_string_sprintf(str,
-		    " resdevice=native,%ju,%ju",
-		    (uintmax_t)me->devmajor,
-		    (uintmax_t)me->devminor);
-	}
-
-	switch (me->filetype) {
-	case AE_IFLNK:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=link");
-		if ((keys & F_SLINK) != 0) {
-			archive_strcat(str, " link=");
-			mtree_quote(str, me->symlink.s);
-		}
-		break;
-	case AE_IFSOCK:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=socket");
-		break;
-	case AE_IFCHR:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=char");
-		if ((keys & F_DEV) != 0) {
-			archive_string_sprintf(str,
-			    " device=native,%ju,%ju",
-			    (uintmax_t)me->rdevmajor,
-			    (uintmax_t)me->rdevminor);
-		}
-		break;
-	case AE_IFBLK:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=block");
-		if ((keys & F_DEV) != 0) {
-			archive_string_sprintf(str,
-			    " device=native,%ju,%ju",
-			    (uintmax_t)me->rdevmajor,
-			    (uintmax_t)me->rdevminor);
-		}
-		break;
-	case AE_IFDIR:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=dir");
-		break;
-	case AE_IFIFO:
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=fifo");
-		break;
-	case AE_IFREG:
-	default:	/* Handle unknown file types as regular files. */
-		if ((keys & F_TYPE) != 0)
-			archive_strcat(str, " type=file");
-		if ((keys & F_SIZE) != 0)
-			archive_string_sprintf(str, " size=%jd",
-			    (intmax_t)me->size);
-		break;
-	}
-
-	/* Write a bunch of sum. */
-	if (me->reg_info)
-		sum_write(str, me->reg_info);
-
-	archive_strappend_char(str, '\n');
-	if (mtree->indent || mtree->classic)
-		mtree_indent(mtree);
-
-	if (mtree->buf.length > 32768) {
-		ret = __archive_write_output(
-			a, mtree->buf.s, mtree->buf.length);
-		archive_string_empty(&mtree->buf);
-	} else
-		ret = ARCHIVE_OK;
-	return (ret);
+  /* Extra information for links. */
+  if (archive_entry_hardlink(entry)) /* Hard link */
+    {
+    fprintf(out, " link to %s",
+            archive_entry_hardlink(entry));
+    }
+  else if (archive_entry_symlink(entry)) /* Symbolic link */
+    {
+    fprintf(out, " -> %s", archive_entry_symlink(entry));
+    }
 }

@@ -1,1 +1,1 @@
-sprintf(ptr, " (zlib %s)", zlibVersion());
+vfprintf(f, fmt, ap);

@@ -1,1 +1,1 @@
-fprintf(fout, " %s ", fflags);
+YYDPRINTF ((stderr, "Now at end of input.\n"));

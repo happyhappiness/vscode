@@ -1,1 +1,1 @@
-fprintf(fout,"%s\n",(*d)->m_FullPath.c_str());
+yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" , yyscanner);

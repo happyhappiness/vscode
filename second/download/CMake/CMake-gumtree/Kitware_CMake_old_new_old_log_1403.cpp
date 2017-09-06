@@ -1,1 +1,0 @@
-f(win9x, "%s/%s", tempDir, fwdName);

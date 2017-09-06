@@ -1,1 +1,3 @@
-snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer);
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Symbolic mode \"%s\" unsupported", val);

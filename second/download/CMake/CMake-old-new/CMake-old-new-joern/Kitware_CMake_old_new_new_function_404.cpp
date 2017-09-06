@@ -1,148 +1,272 @@
 static int
-zip_read_mac_metadata(struct archive_read *a, struct archive_entry *entry,
-    struct zip_entry *rsrc)
+parse_codes(struct archive_read *a)
 {
-	struct zip *zip = (struct zip *)a->format->data;
-	unsigned char *metadata, *mp;
-	int64_t offset = archive_filter_bytes(&a->archive, 0);
-	size_t remaining_bytes, metadata_bytes;
-	ssize_t hsize;
-	int ret = ARCHIVE_OK, eof;
+  int i, j, val, n, r;
+  unsigned char bitlengths[MAX_SYMBOLS], zerocount, ppmd_flags;
+  unsigned int maxorder;
+  struct huffman_code precode;
+  struct rar *rar = (struct rar *)(a->format->data);
+  struct rar_br *br = &(rar->br);
 
-	switch(rsrc->compression) {
-	case 0:  /* No compression. */
-		if (rsrc->uncompressed_size != rsrc->compressed_size) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Malformed OS X metadata entry: inconsistent size");
-			return (ARCHIVE_FATAL);
-		}
-#ifdef HAVE_ZLIB_H
-	case 8: /* Deflate compression. */
-#endif
-		break;
-	default: /* Unsupported compression. */
-		/* Return a warning. */
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unsupported ZIP compression method (%s)",
-		    compression_name(rsrc->compression));
-		/* We can't decompress this entry, but we will
-		 * be able to skip() it and try the next entry. */
-		return (ARCHIVE_WARN);
-	}
+  free_codes(a);
 
-	if (rsrc->uncompressed_size > (4 * 1024 * 1024)) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Mac metadata is too large: %jd > 4M bytes",
-		    (intmax_t)rsrc->uncompressed_size);
-		return (ARCHIVE_WARN);
-	}
-	if (rsrc->compressed_size > (4 * 1024 * 1024)) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Mac metadata is too large: %jd > 4M bytes",
-		    (intmax_t)rsrc->compressed_size);
-		return (ARCHIVE_WARN);
-	}
+  /* Skip to the next byte */
+  rar_br_consume_unalined_bits(br);
 
-	metadata = malloc((size_t)rsrc->uncompressed_size);
-	if (metadata == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate memory for Mac metadata");
-		return (ARCHIVE_FATAL);
-	}
+  /* PPMd block flag */
+  if (!rar_br_read_ahead(a, br, 1))
+    goto truncated_data;
+  if ((rar->is_ppmd_block = rar_br_bits(br, 1)) != 0)
+  {
+    rar_br_consume(br, 1);
+    if (!rar_br_read_ahead(a, br, 7))
+      goto truncated_data;
+    ppmd_flags = rar_br_bits(br, 7);
+    rar_br_consume(br, 7);
 
-	if (offset < rsrc->local_header_offset)
-		__archive_read_consume(a, rsrc->local_header_offset - offset);
-	else if (offset != rsrc->local_header_offset) {
-		__archive_read_seek(a, rsrc->local_header_offset, SEEK_SET);
-	}
+    /* Memory is allocated in MB */
+    if (ppmd_flags & 0x20)
+    {
+      if (!rar_br_read_ahead(a, br, 8))
+        goto truncated_data;
+      rar->dictionary_size = (rar_br_bits(br, 8) + 1) << 20;
+      rar_br_consume(br, 8);
+    }
 
-	hsize = zip_get_local_file_header_size(a, 0);
-	__archive_read_consume(a, hsize);
+    if (ppmd_flags & 0x40)
+    {
+      if (!rar_br_read_ahead(a, br, 8))
+        goto truncated_data;
+      rar->ppmd_escape = rar->ppmd7_context.InitEsc = rar_br_bits(br, 8);
+      rar_br_consume(br, 8);
+    }
+    else
+      rar->ppmd_escape = 2;
 
-	remaining_bytes = (size_t)rsrc->compressed_size;
-	metadata_bytes = (size_t)rsrc->uncompressed_size;
-	mp = metadata;
-	eof = 0;
-	while (!eof && remaining_bytes) {
-		const unsigned char *p;
-		ssize_t bytes_avail;
-		size_t bytes_used;
+    if (ppmd_flags & 0x20)
+    {
+      maxorder = (ppmd_flags & 0x1F) + 1;
+      if(maxorder > 16)
+        maxorder = 16 + (maxorder - 16) * 3;
 
-		p = __archive_read_ahead(a, 1, &bytes_avail);
-		if (p == NULL) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file header");
-			ret = ARCHIVE_WARN;
-			goto exit_mac_metadata;
-		}
-		if ((size_t)bytes_avail > remaining_bytes)
-			bytes_avail = remaining_bytes;
-		switch(rsrc->compression) {
-		case 0:  /* No compression. */
-			if ((size_t)bytes_avail > metadata_bytes)
-				bytes_avail = metadata_bytes;
-			memcpy(mp, p, bytes_avail);
-			bytes_used = (size_t)bytes_avail;
-			metadata_bytes -= bytes_used;
-			mp += bytes_used;
-			if (metadata_bytes == 0)
-				eof = 1;
-			break;
-#ifdef HAVE_ZLIB_H
-		case 8: /* Deflate compression. */
-		{
-			int r;
+      if (maxorder == 1)
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Truncated RAR file data");
+        return (ARCHIVE_FATAL);
+      }
 
-			ret = zip_deflate_init(a, zip);
-			if (ret != ARCHIVE_OK)
-				goto exit_mac_metadata;
-			zip->stream.next_in =
-			    (Bytef *)(uintptr_t)(const void *)p;
-			zip->stream.avail_in = (uInt)bytes_avail;
-			zip->stream.total_in = 0;
-			zip->stream.next_out = mp;
-			zip->stream.avail_out = (uInt)metadata_bytes;
-			zip->stream.total_out = 0;
+      /* Make sure ppmd7_contest is freed before Ppmd7_Construct
+       * because reading a broken file cause this abnormal sequence. */
+      __archive_ppmd7_functions.Ppmd7_Free(&rar->ppmd7_context, &g_szalloc);
 
-			r = inflate(&zip->stream, 0);
-			switch (r) {
-			case Z_OK:
-				break;
-			case Z_STREAM_END:
-				eof = 1;
-				break;
-			case Z_MEM_ERROR:
-				archive_set_error(&a->archive, ENOMEM,
-				    "Out of memory for ZIP decompression");
-				ret = ARCHIVE_FATAL;
-				goto exit_mac_metadata;
-			default:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "ZIP decompression failed (%d)", r);
-				ret = ARCHIVE_FATAL;
-				goto exit_mac_metadata;
-			}
-			bytes_used = zip->stream.total_in;
-			metadata_bytes -= zip->stream.total_out;
-			mp += zip->stream.total_out;
-			break;
-		}
-#endif
-		default:
-			bytes_used = 0;
-			break;
-		}
-		__archive_read_consume(a, bytes_used);
-		remaining_bytes -= bytes_used;
-	}
-	archive_entry_copy_mac_metadata(entry, metadata,
-	    (size_t)rsrc->uncompressed_size - metadata_bytes);
+      rar->bytein.a = a;
+      rar->bytein.Read = &ppmd_read;
+      __archive_ppmd7_functions.PpmdRAR_RangeDec_CreateVTable(&rar->range_dec);
+      rar->range_dec.Stream = &rar->bytein;
+      __archive_ppmd7_functions.Ppmd7_Construct(&rar->ppmd7_context);
 
-exit_mac_metadata:
-	__archive_read_seek(a, offset, SEEK_SET);
-	zip->decompress_init = 0;
-	free(metadata);
-	return (ret);
+      if (rar->dictionary_size == 0) {
+	      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Invalid zero dictionary size");
+	      return (ARCHIVE_FATAL);
+      }
+
+      if (!__archive_ppmd7_functions.Ppmd7_Alloc(&rar->ppmd7_context,
+        rar->dictionary_size, &g_szalloc))
+      {
+        archive_set_error(&a->archive, ENOMEM,
+                          "Out of memory");
+        return (ARCHIVE_FATAL);
+      }
+      if (!__archive_ppmd7_functions.PpmdRAR_RangeDec_Init(&rar->range_dec))
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Unable to initialize PPMd range decoder");
+        return (ARCHIVE_FATAL);
+      }
+      __archive_ppmd7_functions.Ppmd7_Init(&rar->ppmd7_context, maxorder);
+      rar->ppmd_valid = 1;
+    }
+    else
+    {
+      if (!rar->ppmd_valid) {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Invalid PPMd sequence");
+        return (ARCHIVE_FATAL);
+      }
+      if (!__archive_ppmd7_functions.PpmdRAR_RangeDec_Init(&rar->range_dec))
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Unable to initialize PPMd range decoder");
+        return (ARCHIVE_FATAL);
+      }
+    }
+  }
+  else
+  {
+    rar_br_consume(br, 1);
+
+    /* Keep existing table flag */
+    if (!rar_br_read_ahead(a, br, 1))
+      goto truncated_data;
+    if (!rar_br_bits(br, 1))
+      memset(rar->lengthtable, 0, sizeof(rar->lengthtable));
+    rar_br_consume(br, 1);
+
+    memset(&bitlengths, 0, sizeof(bitlengths));
+    for (i = 0; i < MAX_SYMBOLS;)
+    {
+      if (!rar_br_read_ahead(a, br, 4))
+        goto truncated_data;
+      bitlengths[i++] = rar_br_bits(br, 4);
+      rar_br_consume(br, 4);
+      if (bitlengths[i-1] == 0xF)
+      {
+        if (!rar_br_read_ahead(a, br, 4))
+          goto truncated_data;
+        zerocount = rar_br_bits(br, 4);
+        rar_br_consume(br, 4);
+        if (zerocount)
+        {
+          i--;
+          for (j = 0; j < zerocount + 2 && i < MAX_SYMBOLS; j++)
+            bitlengths[i++] = 0;
+        }
+      }
+    }
+
+    memset(&precode, 0, sizeof(precode));
+    r = create_code(a, &precode, bitlengths, MAX_SYMBOLS, MAX_SYMBOL_LENGTH);
+    if (r != ARCHIVE_OK) {
+      free(precode.tree);
+      free(precode.table);
+      return (r);
+    }
+
+    for (i = 0; i < HUFFMAN_TABLE_SIZE;)
+    {
+      if ((val = read_next_symbol(a, &precode)) < 0) {
+        free(precode.tree);
+        free(precode.table);
+        return (ARCHIVE_FATAL);
+      }
+      if (val < 16)
+      {
+        rar->lengthtable[i] = (rar->lengthtable[i] + val) & 0xF;
+        i++;
+      }
+      else if (val < 18)
+      {
+        if (i == 0)
+        {
+          free(precode.tree);
+          free(precode.table);
+          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                            "Internal error extracting RAR file.");
+          return (ARCHIVE_FATAL);
+        }
+
+        if(val == 16) {
+          if (!rar_br_read_ahead(a, br, 3)) {
+            free(precode.tree);
+            free(precode.table);
+            goto truncated_data;
+          }
+          n = rar_br_bits(br, 3) + 3;
+          rar_br_consume(br, 3);
+        } else {
+          if (!rar_br_read_ahead(a, br, 7)) {
+            free(precode.tree);
+            free(precode.table);
+            goto truncated_data;
+          }
+          n = rar_br_bits(br, 7) + 11;
+          rar_br_consume(br, 7);
+        }
+
+        for (j = 0; j < n && i < HUFFMAN_TABLE_SIZE; j++)
+        {
+          rar->lengthtable[i] = rar->lengthtable[i-1];
+          i++;
+        }
+      }
+      else
+      {
+        if(val == 18) {
+          if (!rar_br_read_ahead(a, br, 3)) {
+            free(precode.tree);
+            free(precode.table);
+            goto truncated_data;
+          }
+          n = rar_br_bits(br, 3) + 3;
+          rar_br_consume(br, 3);
+        } else {
+          if (!rar_br_read_ahead(a, br, 7)) {
+            free(precode.tree);
+            free(precode.table);
+            goto truncated_data;
+          }
+          n = rar_br_bits(br, 7) + 11;
+          rar_br_consume(br, 7);
+        }
+
+        for(j = 0; j < n && i < HUFFMAN_TABLE_SIZE; j++)
+          rar->lengthtable[i++] = 0;
+      }
+    }
+    free(precode.tree);
+    free(precode.table);
+
+    r = create_code(a, &rar->maincode, &rar->lengthtable[0], MAINCODE_SIZE,
+                MAX_SYMBOL_LENGTH);
+    if (r != ARCHIVE_OK)
+      return (r);
+    r = create_code(a, &rar->offsetcode, &rar->lengthtable[MAINCODE_SIZE],
+                OFFSETCODE_SIZE, MAX_SYMBOL_LENGTH);
+    if (r != ARCHIVE_OK)
+      return (r);
+    r = create_code(a, &rar->lowoffsetcode,
+                &rar->lengthtable[MAINCODE_SIZE + OFFSETCODE_SIZE],
+                LOWOFFSETCODE_SIZE, MAX_SYMBOL_LENGTH);
+    if (r != ARCHIVE_OK)
+      return (r);
+    r = create_code(a, &rar->lengthcode,
+                &rar->lengthtable[MAINCODE_SIZE + OFFSETCODE_SIZE +
+                LOWOFFSETCODE_SIZE], LENGTHCODE_SIZE, MAX_SYMBOL_LENGTH);
+    if (r != ARCHIVE_OK)
+      return (r);
+  }
+
+  if (!rar->dictionary_size || !rar->lzss.window)
+  {
+    /* Seems as though dictionary sizes are not used. Even so, minimize
+     * memory usage as much as possible.
+     */
+    void *new_window;
+    unsigned int new_size;
+
+    if (rar->unp_size >= DICTIONARY_MAX_SIZE)
+      new_size = DICTIONARY_MAX_SIZE;
+    else
+      new_size = rar_fls((unsigned int)rar->unp_size) << 1;
+    new_window = realloc(rar->lzss.window, new_size);
+    if (new_window == NULL) {
+      archive_set_error(&a->archive, ENOMEM,
+                        "Unable to allocate memory for uncompressed data.");
+      return (ARCHIVE_FATAL);
+    }
+    rar->lzss.window = (unsigned char *)new_window;
+    rar->dictionary_size = new_size;
+    memset(rar->lzss.window, 0, rar->dictionary_size);
+    rar->lzss.mask = rar->dictionary_size - 1;
+  }
+
+  rar->start_new_table = 0;
+  return (ARCHIVE_OK);
+truncated_data:
+  archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                    "Truncated RAR file data");
+  rar->valid = 0;
+  return (ARCHIVE_FATAL);
 }

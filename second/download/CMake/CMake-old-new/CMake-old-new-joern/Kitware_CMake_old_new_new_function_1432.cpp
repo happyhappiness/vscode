@@ -1,30 +1,12 @@
-int GetFtpFile(void)
+static void kwsysProcessChildErrorExit(kwsysProcess* cp)
 {
-  int retVal = 0;
-  CURL *curl;
-  CURLcode res;
-  curl = curl_easy_init();
-  if(curl) 
-    {
-    /* Get curl 7.9.2 from sunet.se's FTP site: */
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-    curl_easy_setopt(curl, CURLOPT_HEADER, 1);
-    curl_easy_setopt(curl, CURLOPT_URL,
-                     "ftp://public.kitware.com/pub/cmake/cygwin/setup.hint");
-    res = curl_easy_perform(curl);
-    if ( res != 0 )
-      {
-      printf("Error fetching: ftp://public.kitware.com/pub/cmake/cygwin/setup.hint\n");
-      retVal = 1;
-      }
-
-    /* always cleanup */
-    curl_easy_cleanup(curl);
-    }
-  else
-    {
-    printf("Cannot create curl object\n");
-    retVal = 1;
-    }
-  return retVal;
+  /* Construct the error message.  */
+  char buffer[KWSYSPE_PIPE_BUFFER_SIZE];
+  strncpy(buffer, strerror(errno), KWSYSPE_PIPE_BUFFER_SIZE);
+  
+  /* Report the error to the parent through the special pipe.  */
+  write(cp->PipeWriteEnds[KWSYSPE_PIPE_ERROR], buffer, strlen(buffer));
+  
+  /* Terminate without cleanup.  */
+  _exit(1);
 }

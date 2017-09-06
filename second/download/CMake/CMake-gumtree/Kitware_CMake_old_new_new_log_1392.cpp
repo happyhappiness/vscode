@@ -1,1 +1,1 @@
-fprintf(stderr,"SegFault");
+std::cerr << "***Failed\n";

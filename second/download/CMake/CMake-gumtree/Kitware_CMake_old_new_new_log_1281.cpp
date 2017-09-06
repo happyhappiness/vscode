@@ -1,1 +1,1 @@
-sprintf(argvName,"ARGV%i",cnt);
+sprintf(firstLine, "Page %d of %d", cw->GetPage(), this->NumberOfPages);

@@ -1,43 +1,29 @@
-bool SystemInformationImplementation::QuerySolarisInfo()
-{
-  // Parse values
-  this->NumberOfPhysicalCPU = static_cast<unsigned int>(
-    atoi(this->ParseValueFromKStat("-n syste_misc -s ncpus").c_str()));
-  this->NumberOfLogicalCPU = this->NumberOfPhysicalCPU;
-  
-  if(this->NumberOfPhysicalCPU!=0)
-    {
-    this->NumberOfLogicalCPU /= this->NumberOfPhysicalCPU;
-    }
+static void outputDepFile(const string& dfile, const string& objfile,
+        vector<string>& incs) {
 
-  this->CPUSpeedInMHz = static_cast<float>(atoi(this->ParseValueFromKStat("-s clock_MHz").c_str()));
+  // strip duplicates
+  sort(incs.begin(), incs.end());
+  incs.erase(unique(incs.begin(), incs.end()), incs.end());
 
-  // Chip family
-  this->ChipID.Family = 0; 
- 
-  // Chip Vendor
-  this->ChipID.Vendor = "Sun";
-  this->FindManufacturer();
-  
-  // Chip Model
-  this->ChipID.ProcessorName = this->ParseValueFromKStat("-s cpu_type");
-  this->ChipID.Model = 0;
+  FILE* out = fopen(dfile.c_str(), "wb");
 
-  // Cache size
-  this->Features.L1CacheSize = 0; 
-  this->Features.L2CacheSize = 0;  
+  // FIXME should this be fatal or not? delete obj? delete d?
+  if (!out)
+    return;
 
-  char* tail;
-  unsigned long totalMemory =
-       strtoul(this->ParseValueFromKStat("-s physmem").c_str(),&tail,0);
-  this->TotalPhysicalMemory = totalMemory/1024;
-  this->TotalPhysicalMemory *= 8192;
-  this->TotalPhysicalMemory /= 1024;
+  string tmp = objfile;
+  doEscape(tmp, " ", "\\ ");
+  fprintf(out, "%s: \\\n", tmp.c_str());
 
-  // Undefined values (for now at least)
-  this->TotalVirtualMemory = 0;
-  this->AvailablePhysicalMemory = 0;
-  this->AvailableVirtualMemory = 0;
+  for (vector<string>::iterator i(incs.begin()); i != incs.end(); ++i) {
+    tmp = *i;
+    doEscape(tmp, "\\", "\\\\");
+    doEscape(tmp, " ", "\\ ");
+    //doEscape(tmp, "(", "("); // TODO ninja cant read ( and )
+    //doEscape(tmp, ")", ")");
+    fprintf(out, "%s \\\n", tmp.c_str());
+  }
 
-  return true;
+  fprintf(out, "\n");
+  fclose(out);
 }

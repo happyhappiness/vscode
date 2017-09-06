@@ -1,1 +1,3 @@
-YY_FATAL_ERROR( "cmExpr_yyset_column called with no buffer" );
+fsobj_error(a_eno, a_estr,
+						    errno,
+						    "Could not chdir %s", path);

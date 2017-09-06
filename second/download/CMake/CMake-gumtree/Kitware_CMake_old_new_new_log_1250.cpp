@@ -1,1 +1,1 @@
-f("Foo: %s %d\n", foo, class);
+printf("Error...\n");

@@ -1,75 +1,54 @@
-int ctest::ProcessTests()
+static void getssl_version(char *ptr, long *num)
 {
-  int res = 0;
-  bool notest = true;
-  int cc;
 
-  for ( cc = 0; cc < LAST_TEST; cc ++ )
-    {
-    if ( m_Tests[cc] )
-      {
-      notest = false;
-      break;
+#if (SSLEAY_VERSION_NUMBER >= 0x905000)
+  {
+    char sub[2];
+    unsigned long ssleay_value;
+    sub[1]='\0';
+    ssleay_value=SSLeay();
+    *num = ssleay_value;
+    if(ssleay_value < 0x906000) {
+      ssleay_value=SSLEAY_VERSION_NUMBER;
+      sub[0]='\0';
+    }
+    else {
+      if(ssleay_value&0xff0) {
+        sub[0]=((ssleay_value>>4)&0xff) + 'a' -1;
       }
+      else
+        sub[0]='\0';
     }
-  if ( m_Tests[UPDATE_TEST] || m_Tests[ALL_TEST] )
-    {
-    this->UpdateDirectory();
+
+    sprintf(ptr, " OpenSSL/%lx.%lx.%lx%s",
+            (ssleay_value>>28)&0xf,
+            (ssleay_value>>20)&0xff,
+            (ssleay_value>>12)&0xff,
+            sub);
+  }
+
+#else
+  *num = SSLEAY_VERSION_NUMBER;
+#if (SSLEAY_VERSION_NUMBER >= 0x900000)
+  sprintf(ptr, " OpenSSL/%lx.%lx.%lx",
+          (SSLEAY_VERSION_NUMBER>>28)&0xff,
+          (SSLEAY_VERSION_NUMBER>>20)&0xff,
+          (SSLEAY_VERSION_NUMBER>>12)&0xf);
+#else
+  {
+    char sub[2];
+    sub[1]='\0';
+    if(SSLEAY_VERSION_NUMBER&0x0f) {
+      sub[0]=(SSLEAY_VERSION_NUMBER&0x0f) + 'a' -1;
     }
-  if ( m_Tests[BUILD_TEST] || m_Tests[ALL_TEST] )
-    {
-    this->BuildDirectory();
-    }
-  if ( m_Tests[TEST_TEST] || m_Tests[ALL_TEST] || notest )
-    {
-    std::vector<std::string> passed;
-    std::vector<std::string> failed;
-    int total;
-
-    this->ProcessDirectory(passed, failed);
-
-    total = int(passed.size()) + int(failed.size());
-
-    if (total == 0)
-      {
-      std::cerr << "No tests were found!!!\n";
-      }
     else
-      {
-      if (passed.size() && (m_UseIncludeRegExp || m_UseExcludeRegExp)) 
-        {
-        std::cerr << "\nThe following tests passed:\n";
-        for(std::vector<std::string>::iterator j = passed.begin();
-            j != passed.end(); ++j)
-          {   
-          std::cerr << "\t" << *j << "\n";
-          }
-        }
+      sub[0]='\0';
 
-      float percent = float(passed.size()) * 100.0f / total;
-      fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
-              percent, int(failed.size()), total);
-
-      if (failed.size()) 
-        {
-        std::cerr << "\nThe following tests FAILED:\n";
-        for(std::vector<std::string>::iterator j = failed.begin();
-            j != failed.end(); ++j)
-          {   
-          std::cerr << "\t" << *j << "\n";
-          }
-        }
-      }
-
-    res += int(failed.size());
-    }
-  if ( m_Tests[COVERAGE_TEST] || m_Tests[ALL_TEST] )
-    {
-    std::cerr << "Coverage test is not yet implemented" << std::endl;
-    }
-  if ( m_Tests[PURIFY_TEST] || m_Tests[ALL_TEST] )
-    {
-    std::cerr << "Purify test is not yet implemented" << std::endl;
-    }
-  return res;
+    sprintf(ptr, " SSL/%x.%x.%x%s",
+            (SSLEAY_VERSION_NUMBER>>12)&0xff,
+            (SSLEAY_VERSION_NUMBER>>8)&0xf,
+            (SSLEAY_VERSION_NUMBER>>4)&0xf, sub);
+  }
+#endif
+#endif
 }

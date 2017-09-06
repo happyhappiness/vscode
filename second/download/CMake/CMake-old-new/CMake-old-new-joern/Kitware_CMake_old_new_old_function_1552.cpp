@@ -1,108 +1,108 @@
-bool cmVTKWrapTclCommand::WriteInit(const char *kitName, 
-                                    std::string& outFileName,
-                                    std::vector<std::string>& classes)
+bool WindowsRunCommand(const char* command,
+                       const char* dir,
+                       std::string& output,
+                       int& retVal,
+                       bool verbose)
 {
-  unsigned int i;
-  std::string tempOutputFile = outFileName + ".tmp";
-  FILE *fout = fopen(tempOutputFile.c_str(),"w");
-  if (!fout)
+  const int BUFFER_SIZE = 4096;
+  char buf[BUFFER_SIZE];                //i/o buffer
+  
+  STARTUPINFO si;
+  SECURITY_ATTRIBUTES sa;
+  SECURITY_DESCRIPTOR sd;        //security information for pipes
+  PROCESS_INFORMATION pi;
+  HANDLE newstdin,newstdout,read_stdout,write_stdin; //pipe handles
+
+  if (IsWinNT())                 //initialize security descriptor (Windows NT)
     {
-    cmSystemTools::Error("Failed to open TclInit file for ", tempOutputFile.c_str());
+    InitializeSecurityDescriptor(&sd,SECURITY_DESCRIPTOR_REVISION);
+    SetSecurityDescriptorDacl(&sd, true, NULL, false);
+    sa.lpSecurityDescriptor = &sd;
+    }
+  else sa.lpSecurityDescriptor = NULL;
+  sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+  sa.bInheritHandle = true;      //allow inheritable handles
+
+  if (!CreatePipe(&newstdin,&write_stdin,&sa,0)) //create stdin pipe
+    {
+    cmSystemTools::Error("CreatePipe");
+    return false;
+    }
+  if (!CreatePipe(&read_stdout,&newstdout,&sa,0)) //create stdout pipe
+    {
+    cmSystemTools::Error("CreatePipe");
+    CloseHandle(newstdin);
+    CloseHandle(write_stdin);
     return false;
     }
 
-  // capitalized commands just once
-  std::vector<std::string> capcommands;
-  for (i = 0; i < m_Commands.size(); i++)
+  GetStartupInfo(&si);           //set startupinfo for the spawned process
+                                /*
+                                  The dwFlags member tells CreateProcess how to make the process.
+                                  STARTF_USESTDHANDLES validates the hStd* members. STARTF_USESHOWWINDOW
+                                  validates the wShowWindow member.
+                                */
+  si.dwFlags = STARTF_USESTDHANDLES|STARTF_USESHOWWINDOW;
+  si.wShowWindow = SW_HIDE;
+  si.hStdOutput = newstdout;
+  si.hStdError = newstdout;      //set the new handles for the child process
+  si.hStdInput = newstdin;
+  char* commandAndArgs = strcpy(new char[strlen(command)+1], command);
+  if (!CreateProcess(NULL,commandAndArgs,NULL,NULL,TRUE,CREATE_NEW_CONSOLE,
+                     NULL,dir,&si,&pi))
     {
-    capcommands.push_back(cmSystemTools::Capitalized(m_Commands[i]));
+    cmSystemTools::Error("CreateProcess failed", commandAndArgs);
+    CloseHandle(newstdin);
+    CloseHandle(newstdout);
+    CloseHandle(read_stdout);
+    CloseHandle(write_stdin);
+    delete [] commandAndArgs;
+    return false;
     }
-  
-  fprintf(fout,"#include \"vtkTclUtil.h\"\n");
-  
-  for (i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"int %sCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n",classes[i].c_str());
-    fprintf(fout,"ClientData %sNewCommand();\n",classes[i].c_str());
-    }
-  
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,"int vtkCommand(ClientData cd, Tcl_Interp *interp,\n             int argc, char *argv[]);\n");
-    fprintf(fout,"\nTcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"Tcl_HashTable vtkCommandLookup;\n");
-    }
-  else
-    {
-    fprintf(fout,"\nextern Tcl_HashTable vtkInstanceLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkPointerLookup;\n");
-    fprintf(fout,"extern Tcl_HashTable vtkCommandLookup;\n");
-    }
-  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
-  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
+  delete [] commandAndArgs;
 
-  for (i = 0; i < m_Commands.size(); i++)
+  unsigned long exit=0;          //process exit code
+  unsigned long bread;           //bytes read
+  unsigned long avail;           //bytes available
+
+  memset(buf, 0, sizeof(buf));
+  for(;;)                        //main program loop
     {
-    fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-            capcommands[i].c_str());
+    GetExitCodeProcess(pi.hProcess,&exit); //while the process is running
+    if (exit != STILL_ACTIVE)
+      break;
+    //check to see if there is any data to read from stdout
+    PeekNamedPipe(read_stdout,buf,1023,&bread,&avail,NULL);
+    if (bread != 0)
+      {
+      memset(buf, 0, sizeof(buf));
+      if (avail > 1023)
+        {
+        while (bread >= 1023)
+          {
+          ReadFile(read_stdout,buf,1023,&bread,NULL); //read the stdout pipe
+          printf("%s",buf);
+          memset(buf, 0, sizeof(buf));
+          }
+        }
+      else
+        {
+        ReadFile(read_stdout,buf,1023,&bread,NULL);
+        output += buf;
+        output += "\n";
+        if(verbose)
+          {
+          std::cout << buf << "\n" << std::flush;
+          }
+        }
+      }
     }
-  
-  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT %s_SafeInit(Tcl_Interp *interp);}\n",
-	  kitName);
-  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
-	  kitName);
-  
-  /* create an extern ref to the generic delete function */
-  fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
-
-  /* the main declaration */
-  fprintf(fout,"\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
-  fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
-  
-  fprintf(fout,"\n\nint VTK_EXPORT %s_Init(Tcl_Interp *interp)\n{\n",
-          kitName);
-  if (!strcmp(kitName,"Vtkcommontcl"))
-    {
-    fprintf(fout,
-	    "  vtkTclInterpStruct *info = new vtkTclInterpStruct;\n");
-    fprintf(fout,
-            "  info->Number = 0; info->InDelete = 0; info->DebugOn = 0;\n");
-    fprintf(fout,"\n");
-    fprintf(fout,"\n");
-    fprintf(fout,
-	    "  Tcl_InitHashTable(&info->InstanceLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-	    "  Tcl_InitHashTable(&info->PointerLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-	    "  Tcl_InitHashTable(&info->CommandLookup, TCL_STRING_KEYS);\n");
-    fprintf(fout,
-            "  Tcl_SetAssocData(interp,(char *) \"vtk\",NULL,(ClientData *)info);\n");
-
-    /* create special vtkCommand command */
-    fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",vtkCommand,\n		    (ClientData *)NULL, NULL);\n\n");
-    }
-  
-  for (i = 0; i < m_Commands.size(); i++)
-    {
-    fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
-    }
-  fprintf(fout,"\n");
-
-  for (i = 0; i < classes.size(); i++)
-    {
-    fprintf(fout,"  vtkTclCreateNew(interp,(char *) \"%s\", %sNewCommand,\n",
-	    classes[i].c_str(), classes[i].c_str());
-    fprintf(fout,"                  %sCommand);\n",classes[i].c_str());
-    }
-  
-  fprintf(fout,"  return TCL_OK;\n}\n");
-  fclose(fout);
-
-  // copy the file if different
-  cmSystemTools::CopyFileIfDifferent(tempOutputFile.c_str(),
-                                     outFileName.c_str());
-  cmSystemTools::RemoveFile(tempOutputFile.c_str());
-
+  CloseHandle(pi.hThread);
+  CloseHandle(pi.hProcess);
+  CloseHandle(newstdin);         //clean stuff up
+  CloseHandle(newstdout);
+  CloseHandle(read_stdout);
+  CloseHandle(write_stdin);
+  retVal = exit;
   return true;
 }

@@ -1,1 +1,1 @@
-fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
+fprintf(this->FileOut, "\t%s\n", symbol.c_str());

@@ -1,27 +1,26 @@
-static int
-archive_read_format_lha_options(struct archive_read *a,
-    const char *key, const char *val)
+int
+archive_read_disk_open(struct archive *_a, const char *pathname)
 {
-	struct lha *lha;
-	int ret = ARCHIVE_FAILED;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	struct archive_wstring wpath;
+	int ret;
 
-	lha = (struct lha *)(a->format->data);
-	if (strcmp(key, "hdrcharset")  == 0) {
-		if (val == NULL || val[0] == 0)
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "lha: hdrcharset option needs a character-set name");
-		else {
-			lha->opt_sconv =
-			    archive_string_conversion_from_charset(
-				&a->archive, val, 0);
-			if (lha->opt_sconv != NULL)
-				ret = ARCHIVE_OK;
-			else
-				ret = ARCHIVE_FATAL;
-		}
-	} else
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_NEW | ARCHIVE_STATE_CLOSED,
+	    "archive_read_disk_open");
+	archive_clear_error(&a->archive);
+
+	/* Make a wchar_t string from a char string. */
+	archive_string_init(&wpath);
+	if (archive_wstring_append_from_mbs(&wpath, pathname,
+	    strlen(pathname)) != 0) {
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "lha: unknown keyword ``%s''", key);
+		    "Can't convert a path to a wchar_t string");
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		ret = ARCHIVE_FATAL;
+	} else
+		ret = _archive_read_disk_open_w(_a, wpath.s);
 
+	archive_wstring_free(&wpath);
 	return (ret);
 }

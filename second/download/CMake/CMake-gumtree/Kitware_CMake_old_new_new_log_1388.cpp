@@ -1,1 +1,1 @@
-fprintf(stderr,"***Failed\n");
+std::cerr << "Numerical";

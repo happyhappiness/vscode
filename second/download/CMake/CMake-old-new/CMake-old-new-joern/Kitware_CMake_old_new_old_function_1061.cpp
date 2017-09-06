@@ -1,37 +1,66 @@
-static void yyunput (int c, register char * yy_bp , yyscan_t yyscanner)
-{
-        register char *yy_cp;
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+void DoHeaderLine()
+    {
+    // Look for header fields that we need.
+    if(strncmp(this->Line.c_str(), "commit ", 7) == 0)
+      {
+      this->Rev.Rev = this->Line.c_str()+7;
+      }
+    else if(strncmp(this->Line.c_str(), "author ", 7) == 0)
+      {
+      Person author;
+      this->ParsePerson(this->Line.c_str()+7, author);
+      this->Rev.Author = author.Name;
+      this->Rev.EMail = author.EMail;
 
-    yy_cp = yyg->yy_c_buf_p;
+      // Convert the time to a human-readable format that is also easy
+      // to machine-parse: "CCYY-MM-DD hh:mm:ss".
+      time_t seconds = static_cast<time_t>(author.Time);
+      struct tm* t = gmtime(&seconds);
+      char dt[1024];
+      sprintf(dt, "%04d-%02d-%02d %02d:%02d:%02d",
+              t->tm_year+1900, t->tm_mon+1, t->tm_mday,
+              t->tm_hour, t->tm_min, t->tm_sec);
+      this->Rev.Date = dt;
 
-        /* undo effects of setting up yytext */
-        *yy_cp = yyg->yy_hold_char;
+      // Add the time-zone field "+zone" or "-zone".
+      char tz[32];
+      if(author.TimeZone >= 0)
+        {
+        sprintf(tz, " +%04ld", author.TimeZone);
+        }
+      else
+        {
+        sprintf(tz, " -%04ld", -author.TimeZone);
+        }
+      this->Rev.Date += tz;
+      }
+    else if(strncmp(this->Line.c_str(), "committer ", 10) == 0)
+      {
+      Person committer;
+      this->ParsePerson(this->Line.c_str()+10, committer);
+      this->Rev.Committer = committer.Name;
+      this->Rev.CommitterEMail = committer.EMail;
 
-        if ( yy_cp < YY_CURRENT_BUFFER_LVALUE->yy_ch_buf + 2 )
-                { /* need to shift things up to make room */
-                /* +2 for EOB chars. */
-                register int number_to_move = yyg->yy_n_chars + 2;
-                register char *dest = &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[
-                                        YY_CURRENT_BUFFER_LVALUE->yy_buf_size + 2];
-                register char *source =
-                                &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[number_to_move];
+      // Convert the time to a human-readable format that is also easy
+      // to machine-parse: "CCYY-MM-DD hh:mm:ss".
+      time_t seconds = static_cast<time_t>(committer.Time);
+      struct tm* t = gmtime(&seconds);
+      char dt[1024];
+      sprintf(dt, "%04d-%02d-%02d %02d:%02d:%02d",
+              t->tm_year+1900, t->tm_mon+1, t->tm_mday,
+              t->tm_hour, t->tm_min, t->tm_sec);
+      this->Rev.CommitDate = dt;
 
-                while ( source > YY_CURRENT_BUFFER_LVALUE->yy_ch_buf )
-                        *--dest = *--source;
-
-                yy_cp += (int) (dest - source);
-                yy_bp += (int) (dest - source);
-                YY_CURRENT_BUFFER_LVALUE->yy_n_chars =
-                        yyg->yy_n_chars = YY_CURRENT_BUFFER_LVALUE->yy_buf_size;
-
-                if ( yy_cp < YY_CURRENT_BUFFER_LVALUE->yy_ch_buf + 2 )
-                        YY_FATAL_ERROR( "flex scanner push-back overflow" );
-                }
-
-        *--yy_cp = (char) c;
-
-        yyg->yytext_ptr = yy_bp;
-        yyg->yy_hold_char = *yy_cp;
-        yyg->yy_c_buf_p = yy_cp;
-}
+      // Add the time-zone field "+zone" or "-zone".
+      char tz[32];
+      if(committer.TimeZone >= 0)
+        {
+        sprintf(tz, " +%04ld", committer.TimeZone);
+        }
+      else
+        {
+        sprintf(tz, " -%04ld", -committer.TimeZone);
+        }
+      this->Rev.CommitDate += tz;
+      }
+    }

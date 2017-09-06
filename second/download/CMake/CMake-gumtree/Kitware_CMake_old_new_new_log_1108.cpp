@@ -1,1 +1,1 @@
-fprintf(stderr, "DIRECTORY_DEF_RELEASE should not be defined in CXX\n");
+fprintf(stderr, "  followed by Component (%d)\n", *oi);

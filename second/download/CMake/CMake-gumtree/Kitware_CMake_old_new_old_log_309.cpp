@@ -1,3 +1,1 @@
-aprintf("%s%s%s:%hu", conn->bits.ipv6_ip?"[":"",
-                  hostname, conn->bits.ipv6_ip?"]":"",
-                  remote_port);
+DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));

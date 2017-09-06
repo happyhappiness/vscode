@@ -1,1 +1,2 @@
-fprintf(this->FileOut, "\t%s\n", symbol.c_str());
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");

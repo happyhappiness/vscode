@@ -1,67 +1,50 @@
-static void print_flags(FILE *handle, unsigned long flags)
+int main(int argc, char **argv, char **envp)
 {
-  if(flags & NTLMFLAG_NEGOTIATE_UNICODE)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_UNICODE ");
-  if(flags & NTLMFLAG_NEGOTIATE_OEM)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_OEM ");
-  if(flags & NTLMFLAG_REQUEST_TARGET)
-    fprintf(handle, "NTLMFLAG_REQUEST_TARGET ");
-  if(flags & (1<<3))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_3 ");
-  if(flags & NTLMFLAG_NEGOTIATE_SIGN)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_SIGN ");
-  if(flags & NTLMFLAG_NEGOTIATE_SEAL)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_SEAL ");
-  if(flags & NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE ");
-  if(flags & NTLMFLAG_NEGOTIATE_LM_KEY)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_LM_KEY ");
-  if(flags & NTLMFLAG_NEGOTIATE_NETWARE)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_NETWARE ");
-  if(flags & NTLMFLAG_NEGOTIATE_NTLM_KEY)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM_KEY ");
-  if(flags & (1<<10))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_10 ");
-  if(flags & (1<<11))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_11 ");
-  if(flags & NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED ");
-  if(flags & NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED ");
-  if(flags & NTLMFLAG_NEGOTIATE_LOCAL_CALL)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_LOCAL_CALL ");
-  if(flags & NTLMFLAG_NEGOTIATE_ALWAYS_SIGN)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_ALWAYS_SIGN ");
-  if(flags & NTLMFLAG_TARGET_TYPE_DOMAIN)
-    fprintf(handle, "NTLMFLAG_TARGET_TYPE_DOMAIN ");
-  if(flags & NTLMFLAG_TARGET_TYPE_SERVER)
-    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SERVER ");
-  if(flags & NTLMFLAG_TARGET_TYPE_SHARE)
-    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SHARE ");
-  if(flags & NTLMFLAG_NEGOTIATE_NTLM2_KEY)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM2_KEY ");
-  if(flags & NTLMFLAG_REQUEST_INIT_RESPONSE)
-    fprintf(handle, "NTLMFLAG_REQUEST_INIT_RESPONSE ");
-  if(flags & NTLMFLAG_REQUEST_ACCEPT_RESPONSE)
-    fprintf(handle, "NTLMFLAG_REQUEST_ACCEPT_RESPONSE ");
-  if(flags & NTLMFLAG_REQUEST_NONNT_SESSION_KEY)
-    fprintf(handle, "NTLMFLAG_REQUEST_NONNT_SESSION_KEY ");
-  if(flags & NTLMFLAG_NEGOTIATE_TARGET_INFO)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_TARGET_INFO ");
-  if(flags & (1<<24))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_24 ");
-  if(flags & (1<<25))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_25 ");
-  if(flags & (1<<26))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_26 ");
-  if(flags & (1<<27))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_27 ");
-  if(flags & (1<<28))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_28 ");
-  if(flags & NTLMFLAG_NEGOTIATE_128)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_128 ");
-  if(flags & NTLMFLAG_NEGOTIATE_KEY_EXCHANGE)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_KEY_EXCHANGE ");
-  if(flags & NTLMFLAG_NEGOTIATE_56)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_56 ");
+  char *base64;
+  int base64Len;
+  unsigned char *data;
+  int dataLen;
+  int i, j;
+#ifdef CURL_DOES_CONVERSIONS
+  /* get a Curl handle so main can translate properly */
+  struct SessionHandle *handle = curl_easy_init();
+  if(handle == NULL) {
+    fprintf(stderr, "Error: curl_easy_init failed\n");
+    return 0;
+  }
+#endif
+
+  base64 = (char *)suck(&base64Len);
+  dataLen = Curl_base64_decode(base64, &data);
+
+  fprintf(stderr, "%d\n", dataLen);
+
+  for(i=0; i < dataLen; i+=0x10) {
+    printf("0x%02x: ", i);
+    for(j=0; j < 0x10; j++)
+      if((j+i) < dataLen)
+        printf("%02x ", data[i+j]);
+      else
+        printf("   ");
+
+    printf(" | ");
+
+    for(j=0; j < 0x10; j++)
+      if((j+i) < dataLen) {
+#ifdef CURL_DOES_CONVERSIONS
+        if(CURLE_OK !=
+             Curl_convert_from_network(handle, &data[i+j], (size_t)1))
+          data[i+j] = '.';
+#endif /* CURL_DOES_CONVERSIONS */
+        printf("%c", ISGRAPH(data[i+j])?data[i+j]:'.');
+      } else
+        break;
+    puts("");
+  }
+
+#ifdef CURL_DOES_CONVERSIONS
+  curl_easy_cleanup(handle);
+#endif
+  free(base64); free(data);
+  return 0;
 }

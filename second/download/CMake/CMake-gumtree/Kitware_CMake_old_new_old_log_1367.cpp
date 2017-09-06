@@ -1,1 +1,1 @@
-sprintf(argcDef,"%i",expandedArguments.size());
+fprintf(stderr, "Discarding token %d (%s).\n", yychar, yytname[yychar1]);

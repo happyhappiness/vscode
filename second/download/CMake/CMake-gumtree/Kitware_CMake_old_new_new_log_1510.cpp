@@ -1,3 +1,2 @@
-fprintf(fout,"  Tcl_CreateCommand(interp,(char *) \"vtkCommand\",\n"
-                 "                    reinterpret_cast<vtkTclCommandType>(vtkCommand),\n"
-                 "                    (ClientData *)NULL, NULL);\n\n");
+fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
+              percent, int(failed.size()), total);

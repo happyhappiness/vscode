@@ -1,1 +1,1 @@
-sprintf(buf, "%u", this->VersionFoundMajor);
+sprintf(buf, "%u", this->VersionMajor);

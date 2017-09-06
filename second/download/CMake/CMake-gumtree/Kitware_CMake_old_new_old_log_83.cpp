@@ -1,0 +1,1 @@
+vsnprintf(data->state.buffer, BUFSIZE, fmt, ap);
