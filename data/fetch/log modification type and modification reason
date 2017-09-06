@@ -18,6 +18,7 @@ remove cdg
 move
 insert multi
 intsert one
+insert one + add cdg
 add info
 remove verbose info
 class refactor
@@ -26,6 +27,7 @@ log refactor
 variable refactor
 split long string
 variable format%
+type cast
 macro update
 case
 spell
