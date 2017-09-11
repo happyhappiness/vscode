@@ -619,10 +619,10 @@ class Joern_api:
         return label
 
 if __name__ == "__main__":
-    filename = 'new_function_783.cpp'
+    filename = 'new_function_80.cpp'
     joern_api = Joern_api()
     # print joern_api.get_all_condition()
-    if joern_api.set_log(filename, 35):
+    if joern_api.set_log(filename, 20):
         print joern_api.get_data_dependence_for_cdg_and_log()
         # print joern_api.get_normalized_control_dependence()
     # print joern_api.get_control_dependence()

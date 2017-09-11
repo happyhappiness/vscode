@@ -13,6 +13,7 @@ import java.util.Set;
 import com.github.gumtreediff.actions.ActionGenerator;
 import com.github.gumtreediff.actions.model.Action;
 import com.github.gumtreediff.actions.model.Addition;
+import com.github.gumtreediff.actions.model.Delete;
 import com.github.gumtreediff.actions.model.Insert;
 import com.github.gumtreediff.actions.model.Update;
 import com.github.gumtreediff.client.Run;
@@ -88,20 +89,20 @@ public class GumTreeApi {
 	public static void main(String args[]) {
 		// System.out.println("hello I am gumtree api");
 		
-		 String counter = "1059";
-		 String oldFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_" + counter + ".cpp";
-		 String newFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_" + counter + ".cpp";
-		 GumTreeApi g = new GumTreeApi();
-		 g.setOldAndNewFile(newFile, oldFile);
-		 g.addDDGNode(304);
-		 g.addDDGNode(301);
-		 g.addDDGNode(302);
-		 g.addDDGNode(303);
+//		 String counter = "1059";
+//		 String oldFile =
+//		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_old_function_" + counter + ".cpp";
+//		 String newFile =
+//		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new-joern/Kitware_CMake_old_new_new_function_" + counter + ".cpp";
+//		 GumTreeApi g = new GumTreeApi();
+//		 g.setOldAndNewFile(newFile, oldFile);
+//		 g.addDDGNode(304);
+//		 g.addDDGNode(301);
+//		 g.addDDGNode(302);
+//		 g.addDDGNode(303);
 //		 g.addDDGNode(5);
 //		 g.addDDGNode(6);
-		 System.out.println(g.isDDGModified());
+//		 System.out.println(g.isDDGModified());
 //		 Iterator<String[]> iter = g.getWordEdit().iterator();
 //		 while(iter.hasNext())
 //		 {
@@ -127,18 +128,18 @@ public class GumTreeApi {
 //		System.out.println(g.getFunctionLoc());
 	
 		
-//		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_94.cpp";
-//		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_94.cpp";
-//		GumTreeApi g = new GumTreeApi();
-//		g.setOldAndNewFile(oldFile, newFile);
-//		g.addNewLogNode(5);		
-//		g.addNewLogNode(11);
-//		g.addOldLogNode(5);
-//		g.setOldLoc(5);
-//		System.out.println(g.getNewLoc());
-//		g.setNewLoc(5);
-//		System.out.println(g.getOldLoc());
-//		System.out.println(g.getActionType());
+		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_94.cpp";
+		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_94.cpp";
+		GumTreeApi g = new GumTreeApi();
+		g.setOldAndNewFile(oldFile, newFile);
+		g.addNewLogNode(5);		
+		g.addNewLogNode(11);
+		g.addOldLogNode(5);
+		g.setOldLoc(5);
+		System.out.println(g.getNewLoc());
+		g.setNewLoc(5);
+		System.out.println(g.getOldLoc());
+		System.out.println(g.getActionType());
 		
 		
 //		GumTreeApi g = new GumTreeApi();
@@ -219,6 +220,7 @@ public class GumTreeApi {
 
 	// get mapping new log loc for old loc
 	public int getNewLoc() {
+		// delete
 		if (this.newLogNode == null)
 			return -1;
 		else

@@ -303,7 +303,7 @@
  		switch (headerid) {
 @@ -291,6 +461,23 @@ process_extra(const char *p, size_t extra_length, struct zip_entry* zip_entry)
  			 * on which file starts, but we don't handle
- 			 * multi-volume Zip files. */
+ 			 * multi-volume Zip files.
  			break;
 +#ifdef DEBUG
 +		case 0x0017:

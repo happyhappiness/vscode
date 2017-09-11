@@ -2,10 +2,12 @@
 """
 @ involve : constant definition
 """
-USER = 'Kitware'
-REPOS = 'CMake'
+# USER = 'Kitware'
+# REPOS = 'CMake'
 # USER = 'bftpd'
 # REPOS = 'bftpd'
+USER = 'nlohmann'
+REPOS = 'json'
 
 """
 stroed file name prefix
