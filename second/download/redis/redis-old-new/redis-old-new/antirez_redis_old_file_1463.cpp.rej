@@ -1,0 +1,9 @@
+--- /dev/null
++++ /dev/null
+@@ -982,5 +982,5 @@
+     server.bgrewritechildpid = -1;
+     /* Schedule a new rewrite if we are waiting for it to switch the AOF ON. */
+     if (server.aof_state == REDIS_AOF_WAIT_REWRITE)
+-        server.aof_rewrite_scheduled = 1;
++        server.aofrewrite_scheduled = 1;
+ 

@@ -1,0 +1,7 @@
+    int sendto_flags = 0;
+
+    if (!notify_socket) {
+        redisLog(REDIS_WARNING,
+                "systemd supervision requested, but NOTIFY_SOCKET not found");
+        return 0;
+    }

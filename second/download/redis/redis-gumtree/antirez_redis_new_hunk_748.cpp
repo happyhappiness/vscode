@@ -1,0 +1,9 @@
+        /* Manual failover requested from slaves. Initialize the state
+         * accordingly. */
+        resetManualFailover();
+        server.cluster->mf_end = mstime() + CLUSTER_MF_TIMEOUT;
+        server.cluster->mf_slave = sender;
+        pauseClients(mstime()+(CLUSTER_MF_TIMEOUT*2));
+        serverLog(LL_WARNING,"Manual failover requested by slave %.40s.",
+            sender->name);
+    } else if (type == CLUSTERMSG_TYPE_UPDATE) {

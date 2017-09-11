@@ -6,8 +6,10 @@
 # REPOS = 'CMake'
 # USER = 'bftpd'
 # REPOS = 'bftpd'
-USER = 'dmlc'
-REPOS = 'xgboost'
+# USER = 'dmlc'
+# REPOS = 'xgboost'
+USER = 'antirez'
+REPOS = 'redis'
 
 """
 stroed file name prefix
