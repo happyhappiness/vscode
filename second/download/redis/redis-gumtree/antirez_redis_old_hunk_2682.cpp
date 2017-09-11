@@ -1,0 +1,3 @@
+    addReplyLongLong(c,stringObjectLen(o));
+}
+

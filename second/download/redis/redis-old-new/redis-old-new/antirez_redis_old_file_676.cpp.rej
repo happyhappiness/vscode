@@ -1,0 +1,9 @@
+--- /dev/null
++++ /dev/null
+@@ -632,5 +631,5 @@
+     int port;
+ 
+     anetSockName(fd,ip,sizeof(ip),&port);
+-    return anetFormatAddr(fmt, fmt_len, ip, port);
++    return anetFormatIP(fmt, fmt_len, ip, port);
+ 

@@ -1,0 +1,7 @@
+            addReply(c,shared.ok);
+            c->flags |= CLIENT_LUA_DEBUG_SYNC;
+        } else {
+            addReplyError(c,"Use SCRIPT DEBUG yes/async/no");
+        }
+    } else {
+        addReplyError(c, "Unknown SCRIPT subcommand or wrong # of args.");

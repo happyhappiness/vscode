@@ -1,0 +1,46 @@
+void redisSetProcTitle(char *title);
+
+/* networking.c -- Networking and Client related operations */
+redisClient *createClient(int fd);
+void closeTimedoutClients(void);
+void freeClient(redisClient *c);
+void freeClientAsync(redisClient *c);
+void resetClient(redisClient *c);
+void sendReplyToClient(aeEventLoop *el, int fd, void *privdata, int mask);
+void *addDeferredMultiBulkLength(redisClient *c);
+void setDeferredMultiBulkLength(redisClient *c, void *node, long length);
+void processInputBuffer(redisClient *c);
+void acceptHandler(aeEventLoop *el, int fd, void *privdata, int mask);
+void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask);
+void acceptUnixHandler(aeEventLoop *el, int fd, void *privdata, int mask);
+void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask);
+void addReplyBulk(redisClient *c, robj *obj);
+void addReplyBulkCString(redisClient *c, const char *s);
+void addReplyBulkCBuffer(redisClient *c, const void *p, size_t len);
+void addReplyBulkLongLong(redisClient *c, long long ll);
+void addReply(redisClient *c, robj *obj);
+void addReplySds(redisClient *c, sds s);
+void addReplyBulkSds(redisClient *c, sds s);
+void addReplyError(redisClient *c, const char *err);
+void addReplyStatus(redisClient *c, const char *status);
+void addReplyDouble(redisClient *c, double d);
+void addReplyLongLong(redisClient *c, long long ll);
+void addReplyMultiBulkLen(redisClient *c, long length);
+void copyClientOutputBuffer(redisClient *dst, redisClient *src);
+void *dupClientReplyValue(void *o);
+void getClientsMaxBuffers(unsigned long *longest_output_list,
+                          unsigned long *biggest_input_buffer);
+void formatPeerId(char *peerid, size_t peerid_len, char *ip, int port);
+char *getClientPeerId(redisClient *client);
+sds catClientInfoString(sds s, redisClient *client);
+sds getAllClientsInfoString(void);
+void rewriteClientCommandVector(redisClient *c, int argc, ...);
+void rewriteClientCommandArgument(redisClient *c, int i, robj *newval);
+void replaceClientCommandVector(redisClient *c, int argc, robj **argv);
+unsigned long getClientOutputBufferMemoryUsage(redisClient *c);
+void freeClientsInAsyncFreeQueue(void);
+void asyncCloseClientOnOutputBufferLimitReached(redisClient *c);
+int getClientType(redisClient *c);
+int getClientTypeByName(char *name);
+char *getClientTypeName(int class);
+void flushSlavesOutputBuffers(void);

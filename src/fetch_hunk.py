@@ -24,7 +24,7 @@ sys.setdefaultencoding('utf8')
 @ return bool has log and updated hunk counter
 @ involve deal with patch file and save hunk info(has log)
 """
-def deal_patch(patch_info, patch, total_hunk, writer, caller_flag):
+def deal_patch(patch_info, patch, log_function, total_hunk, writer, caller_flag):
 
     has_log = False
 
@@ -39,9 +39,6 @@ def deal_patch(patch_info, patch, total_hunk, writer, caller_flag):
     # old and new log locations
     old_log_loc = [] # mov, del, update
     new_log_loc = [] # ins
-    # filter out the one with log statement changes
-    log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
-    log_function = myUtil.functionToRegrexStr(log_functions)
 
     # deal with each line of patch
     for line in patch:
@@ -158,6 +155,11 @@ def filter_file(changed_file):
 """
 def fetch_patch():
 
+
+    # filter out the one with log statement changes
+    log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
+    log_function = myUtil.functionToRegrexStr(log_functions)
+
     # initiate csvfile
     patch_file = file(my_constant.FETCH_PATCH_FILE_NAME, 'rb')
     patch_records = csv.reader(patch_file)
@@ -170,7 +172,7 @@ def fetch_patch():
         curr_patch_file = patch_info[my_constant.FETCH_PATCH_PATCH_FILE]
         curr_patch_file = open(curr_patch_file, 'rb')
         patch = curr_patch_file.readlines()
-        has_log, total_hunk = deal_patch(patch_info, patch, total_hunk, hunk_writer, '')
+        has_log, total_hunk = deal_patch(patch_info, patch, log_function, total_hunk, hunk_writer, '')
         curr_patch_file.close()
 
     hunk_file.close()
@@ -181,7 +183,7 @@ def fetch_patch():
 @ return total hunk, total_log_cpp, total_cpp and total file 
 @ involve deal with commit and involved changed file
 """
-def deal_commit(gh, sha, total_hunk, total_log_cpp, total_cpp, total_file, hunk_writer, patch_writer):
+def deal_commit(gh, sha, log_function, total_hunk, total_log_cpp, total_cpp, total_file, hunk_writer, patch_writer):
 
     # filter sha by message and retrieve info if pass
     commit, commit_info = filter_commit(gh, sha)
@@ -209,7 +211,7 @@ def deal_commit(gh, sha, total_hunk, total_log_cpp, total_cpp, total_file, hunk_
                     continue
                 # call deal_patch to deal with the patch file
                 patch = patch.split('\n')
-                has_log, total_hunk = deal_patch(patch_info, patch, total_hunk, hunk_writer, '\n')
+                has_log, total_hunk = deal_patch(patch_info, patch, log_function, total_hunk, hunk_writer, '\n')
                 if has_log:
                     patch_writer.writerow(patch_info)
                     # increment the file count
@@ -245,6 +247,10 @@ def fetch_commit(isFromStart=True, commit_sha='', start_file=0, start_cpp=0, sta
     # initiate Github with given user and repos
     gh = Github(login='993273596@qq.com', password='nx153156', user=my_constant.USER, repo=my_constant.REPOS)
 
+    # filter out the one with log statement changes
+    log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
+    log_function = myUtil.functionToRegrexStr(log_functions)
+
     # initiate csvfile which store the commit info
     if isFromStart:
         hunk_file = file(my_constant.FETCH_HUNK_FILE_NAME, 'wb')
@@ -273,7 +279,7 @@ def fetch_commit(isFromStart=True, commit_sha='', start_file=0, start_cpp=0, sta
         # print commit.sha
         # call deal_commit function to deal with each commit
         total_hunk, total_log_cpp, total_cpp, total_file = deal_commit \
-            (gh, commit.sha, total_hunk, total_log_cpp, total_cpp, total_file, \
+            (gh, commit.sha, log_function, total_hunk, total_log_cpp, total_cpp, total_file, \
             hunk_writer, patch_writer)
         # if total_file % 10 == 0:
 #             print 'now have dealed with commit: %s \nnow have deal with %d file ;\
@@ -300,7 +306,8 @@ if __name__ == "__main__":
     # fetch_commit(False, 'b59987eed9f5a67b6672d913501e3ce6495f1465', 98892, 49199, 774, 1476)
     # xgboost
     # 'ece5f00ca152bd56df5579e2ca76372fbf04dc38', 13313, 2366, 568, 912
-    fetch_commit()
+    # redis
+    fetch_commit(False, '3c72c94aaeb98b0c4c1a98992539f8839cea1d74', 7326, 5539, 1308, 2683)
     # fetch_patch()
 
     # re.match(r'^@@.*-(.*),.*\+(.*),.*@@', 'test statement')

@@ -1,0 +1,17 @@
+--- /dev/null
++++ /dev/null
+@@ -1074,7 +870,11 @@
+ }
+ 
+ void *redisCommandArgv(redisContext *c, int argc, const char **argv, const size_t *argvlen) {
+-    if (redisAppendCommandArgv(c,argc,argv,argvlen) != REDIS_OK)
+-        return NULL;
+-    return __redisBlockForReply(c);
++    char *cmd;
++    int len;
++    void *reply = NULL;
++    len = redisFormatCommandArgv(&cmd,argc,argv,argvlen);
++    reply = __redisCommand(c,cmd,len);
++    free(cmd);
++    return reply;
+ 
