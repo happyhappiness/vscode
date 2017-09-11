@@ -1,0 +1,1 @@
+assert(buffer_.size() > 0);

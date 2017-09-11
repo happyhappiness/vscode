@@ -1,0 +1,1 @@
+CHECK(n * limit_size >= maxn) << "invalid init parameter";

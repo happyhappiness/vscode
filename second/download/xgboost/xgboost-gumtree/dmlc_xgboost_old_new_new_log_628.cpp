@@ -1,0 +1,1 @@
+utils::Assert( sscanf( val, "%d", &a ) == 1 );

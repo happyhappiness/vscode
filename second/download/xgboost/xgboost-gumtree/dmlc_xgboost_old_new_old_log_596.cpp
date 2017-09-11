@@ -1,0 +1,1 @@
+utils::Assert( findex.size() == (unsigned)nfeat );

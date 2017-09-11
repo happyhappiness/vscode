@@ -1,0 +1,1 @@
+utils::Assert(n * limit_size >= maxn, "invalid init parameter");

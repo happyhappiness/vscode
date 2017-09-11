@@ -1,0 +1,1 @@
+utils::Assert(pred_counter[bid] == trees.size(), "cached buffer not up to date");

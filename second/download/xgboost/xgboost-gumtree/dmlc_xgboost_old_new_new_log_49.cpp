@@ -1,0 +1,1 @@
+CHECK_EQ(offset, -2);

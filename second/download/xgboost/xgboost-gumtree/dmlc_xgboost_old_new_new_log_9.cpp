@@ -1,0 +1,1 @@
+CHECK_EQ(fi->Read(&param, sizeof(param)), sizeof(param));

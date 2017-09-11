@@ -1,0 +1,1 @@
+utils::Assert(trees.size() == 0, "GBTree: model already initialized");

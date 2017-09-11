@@ -1,0 +1,1 @@
+LOG(FATAL) << "cannot open file " << fname;

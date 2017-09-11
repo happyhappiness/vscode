@@ -1,0 +1,1 @@
+utils::Assert(handle == NULL, "cannot initialize reduce handle twice");

@@ -1,0 +1,1 @@
+utils::Assert( base_score > 0.0f && base_score < 1.0f, "sigmoid range constrain" );

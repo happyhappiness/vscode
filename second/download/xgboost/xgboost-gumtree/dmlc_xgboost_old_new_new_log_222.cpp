@@ -1,0 +1,1 @@
+fprintf(stderr, "start %s:%d\n", pname.c_str(), rabit::GetRank());

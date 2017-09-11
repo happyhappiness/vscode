@@ -1,0 +1,1 @@
+utils::Assert(index >= start_ && index < end_,"The query index out of sampling bound");

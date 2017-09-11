@@ -1,0 +1,1 @@
+utils::Assert( bid >= 0 && bid < mparam.num_boosters , "must specify booster index for deletion");

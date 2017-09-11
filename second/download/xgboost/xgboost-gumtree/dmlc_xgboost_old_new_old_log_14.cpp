@@ -1,0 +1,1 @@
+utils::Assert(static_cast<size_t>(ridx) < info.num_row, "data row index exceed bound");

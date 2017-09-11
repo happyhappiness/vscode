@@ -1,0 +1,1 @@
+utils::Assert( fscanf( vec[i].fi, "%*d%*[^\n]\n" ) >= 0 );

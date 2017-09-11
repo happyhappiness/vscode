@@ -1,0 +1,1 @@
+d::runtime_error(msg);

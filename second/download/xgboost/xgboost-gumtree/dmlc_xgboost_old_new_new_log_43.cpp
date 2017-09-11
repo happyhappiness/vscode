@@ -1,0 +1,1 @@
+CHECK_NE(size, 0) << "try insert into size=0";

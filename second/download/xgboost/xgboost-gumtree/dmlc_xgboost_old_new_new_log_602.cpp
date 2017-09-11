@@ -1,0 +1,1 @@
+utils::Assert( sscanf( name, "pre@%u", &topn_ ) );

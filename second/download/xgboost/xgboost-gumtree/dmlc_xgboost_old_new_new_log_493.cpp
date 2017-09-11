@@ -1,0 +1,1 @@
+utils::Assert( feats.size() == (unsigned)nfeat, "nfeat" );

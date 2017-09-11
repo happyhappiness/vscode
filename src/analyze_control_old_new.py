@@ -183,8 +183,8 @@ main function
 if __name__ == "__main__":
     # analyze_old_new_joern(True)
 
-    # analyze_old_new_joern(False)
-    gumtree = Gumtree()
-    get_function("second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_517.cpp",\
-                1879, gumtree)
-    gumtree.close()
+    analyze_old_new_joern(False)
+    # gumtree = Gumtree()
+    # get_function("second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_517.cpp",\
+    #             1879, gumtree)
+    # gumtree.close()

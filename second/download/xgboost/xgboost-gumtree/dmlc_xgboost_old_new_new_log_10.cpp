@@ -1,0 +1,1 @@
+CHECK_EQ(mparam.num_trees, static_cast<int>(trees.size()));

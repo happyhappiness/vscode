@@ -1,0 +1,1 @@
+utils::Assert( sscanf(name, "ams@%f", &ratio_ ) == 1, "invalid ams format" );

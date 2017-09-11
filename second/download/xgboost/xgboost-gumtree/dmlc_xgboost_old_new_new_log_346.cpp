@@ -1,0 +1,1 @@
+printf("MaxError=%g/%g = %g\n", maxerr, wsum, maxerr / wsum);

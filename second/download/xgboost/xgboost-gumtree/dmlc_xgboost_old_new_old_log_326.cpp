@@ -1,0 +1,1 @@
+utils::Assert(nfinished == total_size, "AllReduce: nfinished check");

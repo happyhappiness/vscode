@@ -1,0 +1,1 @@
+CHECK_NE(param.num_nodes, 0);

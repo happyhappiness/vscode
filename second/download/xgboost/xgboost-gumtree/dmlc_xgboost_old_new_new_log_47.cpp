@@ -1,0 +1,1 @@
+CHECK_NE(istart, hist.size);

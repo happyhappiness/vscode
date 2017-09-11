@@ -1,0 +1,1 @@
+utils::Assert( fscanf( fgroup, "%u", &ngleft ) == 1, "group" );

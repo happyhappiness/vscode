@@ -1,0 +1,1 @@
+HandleAssertError(const char *msg);

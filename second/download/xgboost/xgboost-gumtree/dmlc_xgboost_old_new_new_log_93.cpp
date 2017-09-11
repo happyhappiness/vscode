@@ -1,0 +1,1 @@
+fprintf(stderr, "connect to ip: [%s]\n", tracker_uri.c_str());

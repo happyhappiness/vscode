@@ -1,0 +1,1 @@
+utils::Error("unknown objective function type");

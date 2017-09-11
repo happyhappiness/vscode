@@ -1,0 +1,2 @@
+utils::Assert( buffer_index < param.num_pbuffer, 
+                                   "buffer index exceed num_pbuffer" );

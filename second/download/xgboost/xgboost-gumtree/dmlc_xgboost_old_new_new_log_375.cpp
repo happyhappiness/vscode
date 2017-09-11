@@ -1,0 +1,1 @@
+utils::Assert(sizeof(DType) % sizeof(int) == 0, "struct must be multiple of int");

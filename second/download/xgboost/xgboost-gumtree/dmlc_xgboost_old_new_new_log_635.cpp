@@ -1,0 +1,1 @@
+utils::Assert( mparam.num_boosters == (int)boosters.size() );

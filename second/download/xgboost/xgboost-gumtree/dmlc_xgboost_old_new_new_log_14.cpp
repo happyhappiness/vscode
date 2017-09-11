@@ -1,0 +1,1 @@
+CHECK_LT(static_cast<size_t>(ridx), info.num_row);

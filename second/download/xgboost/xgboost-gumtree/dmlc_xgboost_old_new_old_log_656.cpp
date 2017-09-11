@@ -1,0 +1,1 @@
+utils::Assert( nodes[ nodes[rid].left  ].is_leaf(), "can not delete a non termial child");

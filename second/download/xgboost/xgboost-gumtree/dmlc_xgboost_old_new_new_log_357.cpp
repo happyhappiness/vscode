@@ -1,0 +1,1 @@
+((1 << nlevel) * limit_size >= maxn;

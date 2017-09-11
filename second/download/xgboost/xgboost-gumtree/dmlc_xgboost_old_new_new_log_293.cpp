@@ -1,0 +1,1 @@
+utils::Assert(links.size() == 0, "can only call Init once");

@@ -1,0 +1,1 @@
+fprintf(fo, "booster[%u]:\n", static_cast<unsigned>(i));

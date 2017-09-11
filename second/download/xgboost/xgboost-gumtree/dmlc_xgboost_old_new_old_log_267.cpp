@@ -1,0 +1,1 @@
+Error("Select Error: %s", strerror_r(errsv, buf, sizeof(buf)));

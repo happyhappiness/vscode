@@ -1,0 +1,1 @@
+CHECK(size <= sa.size + sb.size) << "bug in combine";

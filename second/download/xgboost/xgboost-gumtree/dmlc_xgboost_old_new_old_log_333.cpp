@@ -1,0 +1,1 @@
+utils::Assert(handle != NULL, "must intialize handle to call AllReduce");

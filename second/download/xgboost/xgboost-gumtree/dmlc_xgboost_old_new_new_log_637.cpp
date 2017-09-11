@@ -1,0 +1,1 @@
+utils::Assert( buffer_index < mparam.num_pbuffer, "buffer index exceed num_pbuffer" );

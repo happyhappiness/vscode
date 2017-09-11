@@ -1,0 +1,1 @@
+CHECK_EQ(pred_counter[bid], trees.size());

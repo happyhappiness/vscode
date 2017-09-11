@@ -1,0 +1,1 @@
+utils::Assert(rmin >= 0 && rmax >= 0 && wmin >= 0, "nonneg constraint");

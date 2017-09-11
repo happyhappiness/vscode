@@ -1,0 +1,1 @@
+utils::Assert( feat.len >= 0, "sparse feature length can not be negative" );

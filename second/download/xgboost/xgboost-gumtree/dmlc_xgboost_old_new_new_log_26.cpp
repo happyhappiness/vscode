@@ -1,0 +1,1 @@
+CHECK(rmax- rmin - wmin > -eps) <<  "relation constraint: min/max";

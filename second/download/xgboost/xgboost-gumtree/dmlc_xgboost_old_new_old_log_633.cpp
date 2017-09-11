@@ -1,0 +1,1 @@
+utils::Assert( fi.Read( &param, sizeof(Param) ) != 0 );

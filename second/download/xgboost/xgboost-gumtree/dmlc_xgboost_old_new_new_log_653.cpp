@@ -1,0 +1,1 @@
+fprintf( fo, "gain=%f,cover=%f", loss_chg, sum_hess );

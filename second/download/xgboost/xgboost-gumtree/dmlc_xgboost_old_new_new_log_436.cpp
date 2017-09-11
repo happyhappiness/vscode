@@ -1,0 +1,1 @@
+fprintf(stderr, "AssertError:%s\n", msg);

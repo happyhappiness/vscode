@@ -1,0 +1,1 @@
+utils::Assert( preds[j] == 0.5f, "BUG");

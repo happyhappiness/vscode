@@ -1,0 +1,1 @@
+utils::Error("lgamma function was not available until VS2013");

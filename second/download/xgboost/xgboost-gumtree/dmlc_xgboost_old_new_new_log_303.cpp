@@ -1,0 +1,1 @@
+utils::Assert(len != 0, "string must not be empty");

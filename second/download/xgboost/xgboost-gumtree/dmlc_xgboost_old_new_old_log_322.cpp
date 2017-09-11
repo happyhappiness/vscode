@@ -1,0 +1,1 @@
+utils::Assert(nread % type_nbytes == 0, "AllReduce: size check");

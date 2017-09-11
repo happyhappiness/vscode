@@ -298,7 +298,8 @@ if __name__ == "__main__":
     # sha = 'a0f91f1daa7765066a784e4479da7e231374a065'
     # cmake
     # fetch_commit(False, 'b59987eed9f5a67b6672d913501e3ce6495f1465', 98892, 49199, 774, 1476)
-
+    # xgboost
+    # 'ece5f00ca152bd56df5579e2ca76372fbf04dc38', 13313, 2366, 568, 912
     fetch_commit()
     # fetch_patch()
 

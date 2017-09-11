@@ -1,0 +1,1 @@
+Error("token followed directly by string");

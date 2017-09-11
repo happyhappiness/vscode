@@ -1,0 +1,1 @@
+utils::Assert( buffer_offset >=0, "interact mode must cache training data" );

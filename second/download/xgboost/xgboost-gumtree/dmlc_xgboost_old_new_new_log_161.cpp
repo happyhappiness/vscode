@@ -1,0 +1,1 @@
+utils::Assert(at_head_, "cannot call beforefirst");

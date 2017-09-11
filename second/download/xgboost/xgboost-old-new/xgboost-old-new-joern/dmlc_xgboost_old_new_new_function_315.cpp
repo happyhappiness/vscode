@@ -1,0 +1,5 @@
+inline void SetNonBlock(void) {
+    if (fcntl(sockfd, fcntl(sockfd, F_GETFL) | O_NONBLOCK) == -1) {
+      SockError("SetNonBlock", errno);
+    }
+  }

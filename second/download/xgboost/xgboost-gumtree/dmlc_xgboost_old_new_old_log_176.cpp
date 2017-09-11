@@ -1,0 +1,1 @@
+fprintf(fo, "%g", data[i]);

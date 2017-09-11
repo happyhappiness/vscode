@@ -1,0 +1,1 @@
+utils::Assert( fscanf ( vec[i].fi, "%f", &fv ) == 1, "load feat" );

@@ -1,0 +1,1 @@
+sprintf (buffer, "booster[%u]:\n%s", static_cast<unsigned>(i), res[i]);

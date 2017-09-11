@@ -1,0 +1,1 @@
+fprintf(stderr, "can not open file \"%s\"\n", fname);

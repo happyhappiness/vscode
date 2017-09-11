@@ -1,0 +1,1 @@
+utils::Assert(fi.Read(&ptr[0], ptr.size() * sizeof(size_t)) != 0, "Load FMatrixS");

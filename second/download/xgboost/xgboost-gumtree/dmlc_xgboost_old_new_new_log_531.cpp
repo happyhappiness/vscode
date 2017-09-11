@@ -1,0 +1,1 @@
+fprintf( stderr, "\tams-ratio=%g", float(thresindex)/ndata );

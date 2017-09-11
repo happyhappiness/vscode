@@ -1,0 +1,1 @@
+utils::Assert( preds.size() == info.labels.size(), "label size predict size not match" );

@@ -1,0 +1,1 @@
+utils::Error("Semaphore.Destroy:%s", strerror(errno));

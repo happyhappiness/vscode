@@ -1,0 +1,1 @@
+utils::Error("Base64OutStream do not support read");

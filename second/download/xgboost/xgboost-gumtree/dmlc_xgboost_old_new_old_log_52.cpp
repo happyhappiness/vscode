@@ -1,0 +1,1 @@
+utils::Assert(qexpand.size() != 0, "qexpand must not be empty");

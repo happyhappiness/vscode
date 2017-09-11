@@ -1,0 +1,1 @@
+utils::Assert( !strcmp( task.c_str(), "train"), "model_in not specified" );

@@ -1,0 +1,1 @@
+utils::Assert( sum_npos > 0.0 && sum_nneg > 0.0, "the dataset only contains pos or neg samples" );

@@ -1,0 +1,1 @@
+utils::Error("Semaphore.Post:%s", strerror(errno));

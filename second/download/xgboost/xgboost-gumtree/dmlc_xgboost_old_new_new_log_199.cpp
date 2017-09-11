@@ -1,0 +1,1 @@
+utils::Assert(read_ptr <= stop_read, "[%d] read_ptr boundary check", rank);

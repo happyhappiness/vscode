@@ -1,0 +1,1 @@
+utils::Assert( !bst_debug || ridx < this->NumRow(), "row id exceed bound" );

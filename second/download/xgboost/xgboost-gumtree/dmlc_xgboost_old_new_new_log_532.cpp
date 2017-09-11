@@ -1,0 +1,1 @@
+fprintf( stderr, "\tams-thres=%g", threshold );

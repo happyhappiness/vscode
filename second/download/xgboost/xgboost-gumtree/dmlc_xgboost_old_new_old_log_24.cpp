@@ -1,0 +1,1 @@
+utils::Error("cannot open file %s", fname);

@@ -1,0 +1,1 @@
+utils::Assert( model_out != "NULL", "interactive mode must specify model_out" );

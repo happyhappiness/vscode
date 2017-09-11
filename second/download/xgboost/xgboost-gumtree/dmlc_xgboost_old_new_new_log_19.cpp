@@ -1,0 +1,1 @@
+LOG(FATAL)<< "ConfigReader: unterminated string";

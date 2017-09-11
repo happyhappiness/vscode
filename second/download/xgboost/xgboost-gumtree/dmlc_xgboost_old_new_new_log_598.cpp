@@ -1,0 +1,1 @@
+utils::Assert( info.labels.size() == data.NumRow(), "label size is not consistent with feature matrix size" );

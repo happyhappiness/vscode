@@ -1,0 +1,1 @@
+utils::Assert(dst == data + size, "bug in combine");

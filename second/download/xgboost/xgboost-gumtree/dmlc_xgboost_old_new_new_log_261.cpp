@@ -1,0 +1,1 @@
+utils::Assert(rabit::VersionNumber() == i, "incorrect version number");

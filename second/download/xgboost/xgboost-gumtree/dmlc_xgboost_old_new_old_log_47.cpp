@@ -1,0 +1,1 @@
+utils::Assert(istart != hist.size, "the bound variable must be max");

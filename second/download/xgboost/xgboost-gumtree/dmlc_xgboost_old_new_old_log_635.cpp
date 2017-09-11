@@ -1,0 +1,1 @@
+utils::Assert( param.num_boosters == (int)boosters.size() );

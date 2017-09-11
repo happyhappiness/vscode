@@ -1,0 +1,1 @@
+CHECK(i != src.size - 1);

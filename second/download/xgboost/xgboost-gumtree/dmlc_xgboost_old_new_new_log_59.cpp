@@ -1,0 +1,1 @@
+CHECK_GE(nid, param.num_roots);

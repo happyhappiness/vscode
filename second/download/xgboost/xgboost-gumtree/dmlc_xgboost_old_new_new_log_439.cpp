@@ -1,0 +1,1 @@
+vsnprintf(&msg[0], kErrorBuffer, fmt, args);

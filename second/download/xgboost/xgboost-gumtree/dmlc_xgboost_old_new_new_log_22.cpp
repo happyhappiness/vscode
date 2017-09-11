@@ -1,0 +1,1 @@
+LOG(FATAL) << "ConfigReader: token followed directly by string";

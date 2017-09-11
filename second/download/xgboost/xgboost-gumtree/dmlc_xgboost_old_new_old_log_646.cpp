@@ -1,0 +1,1 @@
+fprintf( fo, "%d:leaf=%f\n", nid, nodes[ nid ].leaf_value() );

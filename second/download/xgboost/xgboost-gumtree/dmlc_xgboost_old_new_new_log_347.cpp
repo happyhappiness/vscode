@@ -1,0 +1,1 @@
+double maxerr = static_cast<double>(out.MaxError());

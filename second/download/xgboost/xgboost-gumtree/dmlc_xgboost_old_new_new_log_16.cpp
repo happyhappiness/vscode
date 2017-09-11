@@ -1,0 +1,1 @@
+CHECK_GE(tid, 0);

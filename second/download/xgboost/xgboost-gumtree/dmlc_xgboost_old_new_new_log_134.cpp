@@ -1,0 +1,1 @@
+utils::Check(semPtr != NULL, "create Semaphore error");

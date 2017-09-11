@@ -1,0 +1,1 @@
+utils::Assert(begin < end, "can not set combine to empty instance");

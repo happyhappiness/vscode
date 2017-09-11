@@ -1,0 +1,1 @@
+LOG(FATAL) << "unterminated string";

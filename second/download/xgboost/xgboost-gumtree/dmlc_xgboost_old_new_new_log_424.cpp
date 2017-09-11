@@ -1,0 +1,1 @@
+smat.CopyFrom(dmat);

@@ -1,0 +1,1 @@
+utils::Assert( gptr.size()!=0 && gptr.back() == preds.size(), "EvalAuc: group structure must match number of prediction" );

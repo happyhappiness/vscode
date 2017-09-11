@@ -1,0 +1,1 @@
+K(dst == data + size) << "bug in combine";

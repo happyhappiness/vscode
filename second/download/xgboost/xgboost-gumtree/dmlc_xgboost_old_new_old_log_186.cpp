@@ -1,0 +1,1 @@
+utils::Assert(file_index < fnames_.size(), "file index exceed bound");

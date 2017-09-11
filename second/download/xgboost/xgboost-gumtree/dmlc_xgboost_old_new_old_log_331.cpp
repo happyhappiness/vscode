@@ -1,0 +1,1 @@
+utils::Assert(len_ % kUnit == 0, "length not divide by size");

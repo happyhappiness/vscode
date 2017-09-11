@@ -1,0 +1,1 @@
+utils::Assert(cache_.size() == 0, "can only call cache data once");
