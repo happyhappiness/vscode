@@ -209,7 +209,7 @@ def deal_commit(gh, sha, total_hunk, total_log_cpp, total_cpp, total_file, hunk_
                     continue
                 # call deal_patch to deal with the patch file
                 patch = patch.split('\n')
-                has_log, total_hunk = deal_patch(patch_info, patch, total_hunk, hunk_writer, '/n')
+                has_log, total_hunk = deal_patch(patch_info, patch, total_hunk, hunk_writer, '\n')
                 if has_log:
                     patch_writer.writerow(patch_info)
                     # increment the file count
@@ -296,10 +296,11 @@ if __name__ == "__main__":
     # repos = 'linux'
 
     # sha = 'a0f91f1daa7765066a784e4479da7e231374a065'
-    # with function to retieve all the commits of given path
+    # cmake
     # fetch_commit(False, 'b59987eed9f5a67b6672d913501e3ce6495f1465', 98892, 49199, 774, 1476)
-    # fetch_commit()
-    fetch_patch()
+
+    fetch_commit()
+    # fetch_patch()
 
     # re.match(r'^@@.*-(.*),.*\+(.*),.*@@', 'test statement')
     # log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)

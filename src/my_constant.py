@@ -6,8 +6,8 @@
 # REPOS = 'CMake'
 # USER = 'bftpd'
 # REPOS = 'bftpd'
-USER = 'nlohmann'
-REPOS = 'json'
+USER = 'dmlc'
+REPOS = 'xgboost'
 
 """
 stroed file name prefix

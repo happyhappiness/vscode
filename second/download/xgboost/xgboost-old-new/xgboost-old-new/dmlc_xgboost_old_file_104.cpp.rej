@@ -1,0 +1,80 @@
+--- /dev/null
++++ /dev/null
+@@ -317,64 +169,32 @@
+   }
+   bst->CheckInitModel();
+   bst->eval_str = bst->EvalOneIter(iter, mats, names);
+-  *out_str = bst->eval_str.c_str();
+-  API_END();
++  return bst->eval_str.c_str();
+ }
+-
+-int XGBoosterPredict(BoosterHandle handle,
+-                     DMatrixHandle dmat,
+-                     int option_mask,
+-                     unsigned ntree_limit,
+-                     bst_ulong *len,
+-                     const float **out_result) {
+-  API_BEGIN();
+-  *out_result = static_cast<Booster*>(handle)->
+-      Pred(*static_cast<DataMatrix*>(dmat),
+-           option_mask, ntree_limit, len);
+-  API_END();
++const float *XGBoosterPredict(void *handle, void *dmat, int option_mask,
++                              unsigned ntree_limit, bst_ulong *len) {
++  return static_cast<Booster*>(handle)->Pred(*static_cast<DataMatrix*>(dmat),
++                                             option_mask, ntree_limit, len);
+ }
+-
+-int XGBoosterLoadModel(BoosterHandle handle, const char *fname) {
+-  API_BEGIN();
++void XGBoosterLoadModel(void *handle, const char *fname) {
+   static_cast<Booster*>(handle)->LoadModel(fname);
+-  API_END();
+ }
+-
+-int XGBoosterSaveModel(BoosterHandle handle, const char *fname) {
+-  API_BEGIN();
++void XGBoosterSaveModel(void *handle, const char *fname) {
+   Booster *bst = static_cast<Booster*>(handle);
+   bst->CheckInitModel();
+   bst->SaveModel(fname, false);
+-  API_END();
+ }
+-
+-int XGBoosterLoadModelFromBuffer(BoosterHandle handle,
+-                                 const void *buf,
+-                                 bst_ulong len) {
+-  API_BEGIN();
++void XGBoosterLoadModelFromBuffer(void *handle, const void *buf, bst_ulong len) {
+   static_cast<Booster*>(handle)->LoadModelFromBuffer(buf, len);
+-  API_END();
+ }
+-
+-int XGBoosterGetModelRaw(BoosterHandle handle,
+-                         bst_ulong *out_len,
+-                         const char **out_dptr) {
+-  API_BEGIN();
+-  *out_dptr = static_cast<Booster*>(handle)->GetModelRaw(out_len);
+-  API_END();
++const char *XGBoosterGetModelRaw(void *handle, bst_ulong *out_len) {
++  return static_cast<Booster*>(handle)->GetModelRaw(out_len);
+ }
+-
+-int XGBoosterDumpModel(BoosterHandle handle,
+-                       const char *fmap,
+-                       int with_stats,
+-                       bst_ulong *len,
+-                       const char ***out_models) {
+-  API_BEGIN();
++const char** XGBoosterDumpModel(void *handle, const char *fmap,
++                                int with_stats, bst_ulong *len) {
+   utils::FeatMap featmap;
+   if (strlen(fmap) != 0) {
+     featmap.LoadText(fmap);
+   }
+-  *out_models = static_cast<Booster*>(handle)->GetModelDump(
+-      featmap, with_stats != 0, len);
+-  API_END();
++  return static_cast<Booster*>(handle)->GetModelDump(featmap, with_stats != 0, len);
+ 

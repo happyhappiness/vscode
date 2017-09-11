@@ -1,0 +1,148 @@
+--- /dev/null
++++ /dev/null
+@@ -494,129 +490,20 @@
+  */
+ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_XgboostJNI_XGBoosterDumpModel
+   (JNIEnv *jenv, jclass jcls, jlong jhandle, jstring jfmap, jint jwith_stats, jobjectArray jout) {
+-  BoosterHandle handle = (BoosterHandle) jhandle;
+-  const char *fmap = jenv->GetStringUTFChars(jfmap, 0);
+-  bst_ulong len = 0;
+-  char **result;
+-
+-  int ret = XGBoosterDumpModel(handle, fmap, jwith_stats, &len, (const char ***) &result);
+-
+-  jsize jlen = (jsize) len;
+-  jobjectArray jinfos = jenv->NewObjectArray(jlen, jenv->FindClass("java/lang/String"), jenv->NewStringUTF(""));
+-  for(int i=0 ; i<jlen; i++) {
+-    jenv->SetObjectArrayElement(jinfos, i, jenv->NewStringUTF((const char*) result[i]));
+-  }
+-  jenv->SetObjectArrayElement(jout, 0, jinfos);
+-
+-  if (fmap) jenv->ReleaseStringUTFChars(jfmap, (const char *)fmap);
+-  return ret;
+-}
+-
+-/*
+- * Class:     ml_dmlc_xgboost4j_XgboostJNI
+- * Method:    XGBoosterLoadRabitCheckpoint
+- * Signature: (J[I)I
+- */
+-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_XgboostJNI_XGBoosterLoadRabitCheckpoint
+-  (JNIEnv *jenv , jclass jcls, jlong jhandle, jintArray jout) {
+-  BoosterHandle handle = (BoosterHandle) jhandle;
+-  int version;
+-  int ret = XGBoosterLoadRabitCheckpoint(handle, &version);
+-  jenv->SetIntArrayRegion(jout, 0, 1, &version);
+-  return ret;
+-}
+-
+-/*
+- * Class:     ml_dmlc_xgboost4j_XgboostJNI
+- * Method:    XGBoosterSaveRabitCheckpoint
+- * Signature: (J)I
+- */
+-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_XgboostJNI_XGBoosterSaveRabitCheckpoint
+-  (JNIEnv *jenv, jclass jcls, jlong jhandle) {
+-  BoosterHandle handle = (BoosterHandle) jhandle;
+-  return XGBoosterSaveRabitCheckpoint(handle);
+-}
+-
+-/*
+- * Class:     ml_dmlc_xgboost4j_XgboostJNI
+- * Method:    RabitInit
+- * Signature: ([Ljava/lang/String;)I
+- */
+-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_XgboostJNI_RabitInit
+-  (JNIEnv *jenv, jclass jcls, jobjectArray jargs) {
+-  std::vector<std::string> args;
+-  std::vector<char*> argv;
+-  bst_ulong len = (bst_ulong)jenv->GetArrayLength(jargs);
+-  for (bst_ulong i = 0; i < len; ++i) {
+-    jstring arg = (jstring)jenv->GetObjectArrayElement(jargs, i);
+-    std::string s(jenv->GetStringUTFChars(arg, 0),
+-                  jenv->GetStringLength(arg));
+-    if (s.length() != 0) args.push_back(s);
+-  }
+-
+-  for (size_t i = 0; i < args.size(); ++i) {
+-    argv.push_back(&args[i][0]);
+-  }
+-  RabitInit(args.size(), args.size() == 0 ? NULL : &argv[0]);
+-  return 0;
+-}
+-
+-/*
+- * Class:     ml_dmlc_xgboost4j_XgboostJNI
+- * Method:    RabitFinalize
+- * Signature: ()I
+- */
+-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_XgboostJNI_RabitFinalize
+-  (JNIEnv *jenv, jclass jcls) {
+-  RabitFinalize();
+-  return 0;
+-}
+-
+-/*
+- * Class:     ml_dmlc_xgboost4j_XgboostJNI
+- * Method:    RabitTrackerPrint
+- * Signature: (Ljava/lang/String;)I
+- */
+-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_XgboostJNI_RabitTrackerPrint
+-  (JNIEnv *jenv, jclass jcls, jstring jmsg) {
+-  std::string str(jenv->GetStringUTFChars(jmsg, 0),
+-                  jenv->GetStringLength(jmsg));
+-  RabitTrackerPrint(str.c_str());
+-  return 0;
+-}
+-
+-/*
+- * Class:     ml_dmlc_xgboost4j_XgboostJNI
+- * Method:    RabitGetRank
+- * Signature: ([I)I
+- */
+-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_XgboostJNI_RabitGetRank
+-  (JNIEnv *jenv, jclass jcls, jintArray jout) {
+-  int rank = RabitGetRank();
+-  jenv->SetIntArrayRegion(jout, 0, 1, &rank);
+-  return 0;
+-}
+-
+-/*
+- * Class:     ml_dmlc_xgboost4j_XgboostJNI
+- * Method:    RabitGetWorldSize
+- * Signature: ([I)I
+- */
+-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_XgboostJNI_RabitGetWorldSize
+-  (JNIEnv *jenv, jclass jcls, jintArray jout) {
+-  int out = RabitGetWorldSize();
+-  jenv->SetIntArrayRegion(jout, 0, 1, &out);
+-  return 0;
+-}
+-
+-/*
+- * Class:     ml_dmlc_xgboost4j_XgboostJNI
+- * Method:    RabitVersionNumber
+- * Signature: ([I)I
+- */
+-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_XgboostJNI_RabitVersionNumber
+-  (JNIEnv *jenv, jclass jcls, jintArray jout) {
+-  int out = RabitVersionNumber();
+-  jenv->SetIntArrayRegion(jout, 0, 1, &out);
+-  return 0;
++    BoosterHandle handle = (BoosterHandle) jhandle;
++    const char *fmap = jenv->GetStringUTFChars(jfmap, 0);
++    bst_ulong len = 0; 
++    char **result;
++    
++    int ret = XGBoosterDumpModel(handle, fmap, jwith_stats, &len, (const char ***) &result);
++    
++    jsize jlen = (jsize) len;
++    jobjectArray jinfos = jenv->NewObjectArray(jlen, jenv->FindClass("java/lang/String"), jenv->NewStringUTF(""));
++    for(int i=0 ; i<jlen; i++) {
++        jenv->SetObjectArrayElement(jinfos, i, jenv->NewStringUTF((const char*) result[i]));
++    }
++    jenv->SetObjectArrayElement(jout, 0, jinfos);
++    
++    if (fmap) jenv->ReleaseStringUTFChars(jfmap, (const char *)fmap);   
++    return ret;
+ 

@@ -1,0 +1,46 @@
+--- /dev/null
++++ /dev/null
+@@ -116,40 +108,19 @@
+             }
+         public:
+             /*! \brief virtual destructor */
+-            virtual ~InterfaceBooster( void ){}
+-        };
+-    };
+-    namespace booster{
+-        /*! 
+-         * \brief this will is the most commonly used booster interface 
+-         *  we try to make booster invariant of data structures, but most cases, FMatrixS is what we wnat
+-         */
+-        typedef InterfaceBooster<FMatrixS> IBooster;
++            virtual ~IBooster( void ){}
++        };    
+     };
+ };
+ 
+ namespace xgboost{
+     namespace booster{
+         /*! 
+          * \brief create a gradient booster, given type of booster
+-         *    normally we use FMatrixS, by calling CreateBooster<FMatrixS>
+          * \param booster_type type of gradient booster, can be used to specify implements
+-         * \tparam FMatrix input data type for booster
+          * \return the pointer to the gradient booster created
+          */
+-        template<typename FMatrix>
+-        inline InterfaceBooster<FMatrix> *CreateBooster( int booster_type );
++        IBooster *CreateBooster( int booster_type );
+     };
+ };
+-
+-// A good design should have minimum functions defined interface, user should only operate on interface
+-// I break it a bit, by using template and let user 'see' the implementation
+-// The user should pretend that they only can use the interface, and we are all cool
+-// I find this is the only way so far I can think of to make boosters invariant of data structure, 
+-// while keep everything fast
+-
+-// this file includes the template implementations of all boosters
+-// the cost of using template is that the user can 'see' all the implementations, which is OK 
+-// ignore implementations and focus on the interface:) 
+-#include "xgboost-inl.hpp"
+ 
