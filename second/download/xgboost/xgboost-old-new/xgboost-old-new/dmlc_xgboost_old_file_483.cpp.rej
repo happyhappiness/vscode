@@ -1,0 +1,13 @@
+--- /dev/null
++++ /dev/null
+@@ -274,7 +269,7 @@
+ };
+ 
+ int main( int argc, char *argv[] ){
+-  xgboost::random::Seed( 0 );
+-  xgboost::regression::RegBoostTask tsk;
+-  return tsk.Run( argc, argv );
++    xgboost::random::Seed( 0 );
++    xgboost::regression::RegBoostTask tsk;
++    return tsk.Run( argc, argv );
+ 

@@ -3,7 +3,7 @@
 MYCODE_DIR="/usr/info/code/cpp/LogMonitor/LogMonitor"
 # REPOS="bftpd"
 # REPOS="CMake"
-REPOS="json"
+REPOS="xgboost"
 # parameter
 CODE_DIR="${MYCODE_DIR}/second/download/${REPOS}/${REPOS}/${REPOS}"
 # echo $CODE_DIR
@@ -12,7 +12,7 @@ CODE_DIR="${MYCODE_DIR}/second/download/${REPOS}/${REPOS}/${REPOS}"
 echo "generating compiled_files.def and call_dependence.csv";
 cd ${CODE_DIR}
 pwd
-tmp=`${SMARTLOG_DIR}/script/extract_command.pl compile_commands.json`
+tmp=`${SMARTLOG_DIR}/script/extract_command_11.pl compile_commands.json`
 tmp=`./build_ir.sh`
 tmp=`bash ${SMARTLOG_DIR}/script/call_dependence.sh`
 

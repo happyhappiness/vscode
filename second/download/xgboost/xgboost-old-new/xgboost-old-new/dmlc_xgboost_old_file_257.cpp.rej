@@ -1,0 +1,14 @@
+--- /dev/null
++++ /dev/null
+@@ -243,10 +237,7 @@
+ }
+ 
+ int main(int argc, char *argv[]){
+-  xgboost::sync::Init(argc, argv);
+   xgboost::random::Seed(0);
+   xgboost::BoostLearnTask tsk;
+-  int ret = tsk.Run(argc, argv);
+-  xgboost::sync::Finalize();
+-  return ret;
++  return tsk.Run(argc, argv);
+ 

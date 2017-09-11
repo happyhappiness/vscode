@@ -1,0 +1,6 @@
+                return "auc";
+            }
+        };
+    };
+
+    namespace regrank{
