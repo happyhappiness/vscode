@@ -1,10 +1,11 @@
 #!/bin/sh
 
 MYCODE_DIR="/usr/info/code/cpp/LogMonitor/LogMonitor"
-REPOS="bftpd"
+# REPOS="bftpd"
 # REPOS="CMake"
+REPOS="json"
 # parameter
-CODE_DIR="${MYCODE_DIR}/second/download/${REPOS}/${REPOS}"
+CODE_DIR="${MYCODE_DIR}/second/download/${REPOS}/${REPOS}/${REPOS}"
 # echo $CODE_DIR
 
 # code

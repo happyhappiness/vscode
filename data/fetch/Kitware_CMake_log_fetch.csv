@@ -20712,16 +20712,26 @@ Change-Id: I8b342bea8bc9c7b92a856ddc948e1b56f5e74b98",[],testProcess.c,second/do
 118c32f8f211b0bb9a096fbb0711cacf2b68f057,Merge branch 'xcode-duplicate-flags-13354' into generator-toolset,[],Source/kwsys/ProcessWin32.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_431.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_431.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_431.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1167.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1167.cpp,365,335,379,-1,"sprintf(fwdName, KWSYS_NAMESPACE_STRING ""pew9xfwd_%ld_%p.exe"",
             GetCurrentProcessId(), cp);",,7
 118c32f8f211b0bb9a096fbb0711cacf2b68f057,Merge branch 'xcode-duplicate-flags-13354' into generator-toolset,[],Source/kwsys/ProcessWin32.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_431.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_431.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_431.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1167.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1167.cpp,365,335,395,-1,"sprintf(win9x, ""%s%s"", tempDir, fwdName);",,7
-118c32f8f211b0bb9a096fbb0711cacf2b68f057,Merge branch 'xcode-duplicate-flags-13354' into generator-toolset,[],Source/kwsys/ProcessWin32.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_431.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_431.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_431.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1168.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1168.cpp,1815,1653,1847,-1,"sprintf(realCommand, ""%s %p %p %p %d %s"", cp->Win9x,
-            si->ErrorPipeWrite, cp->Win9xResumeEvent, cp->Win9xKillEvent,
-            cp->HideWindow, cp->Commands[index]);",,7
-e33fa5b67880e47fb350d5545a5ba04b8d6f3eb3,Merge branch 'upstream-kwsys' into update-kwsys,[],Source/kwsys/ProcessWin32.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_432.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_432.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_432.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1169.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1169.cpp,365,335,379,-1,"sprintf(fwdName, KWSYS_NAMESPACE_STRING ""pew9xfwd_%ld_%p.exe"",
-            GetCurrentProcessId(), cp);",,7
-e33fa5b67880e47fb350d5545a5ba04b8d6f3eb3,Merge branch 'upstream-kwsys' into update-kwsys,[],Source/kwsys/ProcessWin32.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_432.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_432.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_432.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1169.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1169.cpp,365,335,395,-1,"sprintf(win9x, ""%s%s"", tempDir, fwdName);",,7
-e33fa5b67880e47fb350d5545a5ba04b8d6f3eb3,Merge branch 'upstream-kwsys' into update-kwsys,[],Source/kwsys/ProcessWin32.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_432.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_432.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_432.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1170.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1170.cpp,1815,1653,1847,-1,"sprintf(realCommand, ""%s %p %p %p %d %s"", cp->Win9x,
-            si->ErrorPipeWrite, cp->Win9xResumeEvent, cp->Win9xKillEvent,
-            cp->HideWindow, cp->Commands[index]);",,7
-a0f91f1daa7765066a784e4479da7e231374a065,"KWSys 2012-12-19 (933eb822)
+118c32f8f211b0bb9a096fbb0711cacf2b68f057,Merge branch 'xcode-duplicate-flags-13354' into generator-toolset,[],Source/kwsys/ProcessWin32.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_431.cpp,second/download/CMake/CMae memory"");","archive_set_error(&a->archive, -1,
+			    ""Couldn't allocate memory"");",4
+156cb3bbf257f747672eac945fa2e19d33fc3a63,"Merge branch 'libarchive-upstream' into update-libarchive
+
+Conflicts:
+	Utilities/cmlibarchive/CMakeLists.txt
+	Utilities/cmlibarchive/libarchive/archive_windows.c",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_450.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1195.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1195.cpp,2686,2629,2703,-1,"archive_set_error(&a->archive, ENOMEM,
+		    ""No memory for 7-Zip decompression"");",,7
+156cb3bbf257f747672eac945fa2e19d33fc3a63,"Merge branch 'libarchive-upstream' into update-libarchive
+
+Conflicts:
+	Utilities/cmlibarchive/CMakeLists.txt
+	Utilities/cmlibarchive/libarchive/archive_windows.c",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_450.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1195.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1195.cpp,2686,2629,2735,2658,"archive_set_error(&a->archive, -1,
+				    ""Malformed 7-Zip archive file"");",zip->header_bytes_remaining -= bytes;,7
+156cb3bbf257f747672eac945fa2e19d33fc3a63,"Merge branch 'libarchive-upstream' into update-libarchive
+
+Conflicts:
+	Utilities/cmlibarchive/CMakeLists.txt
+	Utilities/cmlibarchive/libarchive/archive_windows.c",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_7zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_450.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_450.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_1195.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_1195.cpp,2686,2629,2756,-1,"archive_set_error(&a->archive, -1, ""Header CRC error"");",,7
+7e231374a065,"KWSys 2012-12-19 (933eb822)
 
 Extract upstream KWSys using the following shell commands.
 

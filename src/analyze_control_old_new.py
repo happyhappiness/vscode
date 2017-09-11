@@ -28,24 +28,23 @@ sys.setdefaultencoding('utf8')
 @ involve get function and log location in function from file and log location in file
 """
 def get_function(file_name, loc, gumtree):
-    old_function = ''
-    old_function_loc = -1
+    function = ''
+    function_loc = -1
     if loc == '-1':
-        return old_function, old_function_loc
-    gumtree.set_file(file_name)
+        return function, function_loc
     gumtree.set_file(file_name)
     if gumtree.set_loc(int(loc)):
         # block = gumtree.get_block()
         # myUtil.save_file(block, block_file_name)
         # get function
-        old_function = gumtree.get_function()
-        if old_function == '':
-            old_function = open(file_name).read()
-            old_function_loc = loc
+        function = gumtree.get_function()
+        if function == '':
+            function = open(file_name).read()
+            function_loc = loc
         else:
-            old_function_loc = gumtree.get_function_loc()
+            function_loc = gumtree.get_function_loc()
 
-    return old_function, old_function_loc
+    return function, function_loc
         # get block feature
         # gumtree.set_file(block_file_name)
         # block_feature = gumtree.get_block_feature()
@@ -126,7 +125,7 @@ def fetch_old_new(gumtree):
 @ involve fetch and analyze each log[ddg and cdg]
 """
 def analyze_old_new_joern(is_rebuild = False):
-    # build joern index and restart database\
+    # build joern index and restart database
     gumtree = Gumtree()
     if is_rebuild:
         fetch_old_new(gumtree)
@@ -184,4 +183,8 @@ main function
 if __name__ == "__main__":
     # analyze_old_new_joern(True)
 
-    analyze_old_new_joern(False)
+    # analyze_old_new_joern(False)
+    gumtree = Gumtree()
+    get_function("second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_517.cpp",\
+                1879, gumtree)
+    gumtree.close()
