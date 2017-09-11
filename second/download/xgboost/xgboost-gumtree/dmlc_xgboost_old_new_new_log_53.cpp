@@ -1,0 +1,1 @@
+CHECK_EQ(node2workindex[nid], static_cast<int>(wid));

@@ -1,0 +1,1 @@
+CHECK_EQ(cache_.size(), 0);

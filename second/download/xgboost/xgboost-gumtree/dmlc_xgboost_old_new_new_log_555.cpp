@@ -1,0 +1,1 @@
+utils::Assert(gptr.size() != 0, "must specify group when constructing rank file");

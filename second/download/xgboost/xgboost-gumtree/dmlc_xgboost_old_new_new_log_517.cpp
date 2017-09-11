@@ -1,0 +1,1 @@
+utils::Assert( fi.Read(&name_obj_[0], len*sizeof(char)) != 0 );

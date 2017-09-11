@@ -1,0 +1,1 @@
+utils::Error("Base64InStream do not support write");

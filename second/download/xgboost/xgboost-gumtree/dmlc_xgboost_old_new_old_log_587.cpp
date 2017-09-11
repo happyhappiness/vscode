@@ -1,0 +1,1 @@
+utils::Error("Cannot find the specified loss type");

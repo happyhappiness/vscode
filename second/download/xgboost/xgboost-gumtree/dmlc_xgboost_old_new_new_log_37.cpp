@@ -1,0 +1,1 @@
+CHECK(nlevel <= limit_size * eps) << "invalid init parameter";

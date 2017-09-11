@@ -1,0 +1,1 @@
+utils::Assert( info.weights.size() == ndata, "we need weight to evaluate ams");

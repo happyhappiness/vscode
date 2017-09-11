@@ -1,0 +1,1 @@
+utils::Assert(sampler_ != NULL,"Not config the sampler yet. Add rank:sampler in the config file\n");

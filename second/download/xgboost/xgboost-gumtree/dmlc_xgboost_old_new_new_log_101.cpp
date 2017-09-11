@@ -1,0 +1,1 @@
+utils::Error("Socket %s Error:WSAError-code=%d", msg, errsv);

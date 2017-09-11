@@ -1,0 +1,1 @@
+utils::Error("gblinear does not support predict leaf index");

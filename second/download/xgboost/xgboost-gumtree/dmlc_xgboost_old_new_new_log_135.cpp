@@ -1,0 +1,1 @@
+utils::Error("Semaphore.Init:%s", strerror(errno));

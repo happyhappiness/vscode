@@ -1,0 +1,1 @@
+utils::Assert(gbm_ == NULL, "GBM and obj should be NULL");

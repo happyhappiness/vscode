@@ -1,0 +1,1 @@
+f(GBTreeModelParam) == (4 + 2 + 2 + 32) * sizeof(int);

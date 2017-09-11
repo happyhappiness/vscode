@@ -1,0 +1,1 @@
+utils::Assert( fscanf( fweight, "%f", &weight ) == 1, "weight" );

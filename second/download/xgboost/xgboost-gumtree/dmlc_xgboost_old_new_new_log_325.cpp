@@ -1,0 +1,1 @@
+utils::Assert(buffer_size != 0, "must assign buffer_size");

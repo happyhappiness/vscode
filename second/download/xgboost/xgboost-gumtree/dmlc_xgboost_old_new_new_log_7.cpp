@@ -1,0 +1,1 @@
+CHECK_EQ(batch.base_rowid * ngroup, preds.size());

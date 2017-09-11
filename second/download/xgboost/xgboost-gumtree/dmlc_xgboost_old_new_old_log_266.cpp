@@ -1,0 +1,1 @@
+Error("Socket %s Error:%s", msg, strerror_r(errsv, buf, sizeof(buf)));

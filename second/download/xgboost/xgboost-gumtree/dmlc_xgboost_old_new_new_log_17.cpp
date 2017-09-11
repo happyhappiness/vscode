@@ -1,0 +1,1 @@
+LOG(FATAL) << "Base64InStream do not support write";

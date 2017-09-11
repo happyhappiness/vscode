@@ -1,0 +1,1 @@
+this->FixError(&err_mingap, &err_maxgap, &err_wgap);

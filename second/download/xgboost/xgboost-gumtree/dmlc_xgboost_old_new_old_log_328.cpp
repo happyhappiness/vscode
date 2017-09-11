@@ -1,0 +1,1 @@
+utils::Assert(in_channel == -2 || in_channel == i, "invalid in channel");

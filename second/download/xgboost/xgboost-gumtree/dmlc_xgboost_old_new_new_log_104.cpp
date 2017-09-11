@@ -1,0 +1,1 @@
+fprintf(stderr, "connect to (failed): [%s]\n", tracker_uri.c_str());

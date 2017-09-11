@@ -1,0 +1,1 @@
+utils::Assert(size_read <= max_size_read, "ReadToRingBuffer: max_size_read check");

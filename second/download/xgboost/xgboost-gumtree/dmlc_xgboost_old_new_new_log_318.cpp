@@ -1,0 +1,1 @@
+Error("TCPSocket::Close double close the socket or close without create");

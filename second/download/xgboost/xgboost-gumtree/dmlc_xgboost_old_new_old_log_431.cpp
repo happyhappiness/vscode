@@ -1,0 +1,1 @@
+utils::Assert(cidx < this->NumCol(), "col id exceed bound");

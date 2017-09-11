@@ -1,0 +1,1 @@
+Error("ConfigReader: token followed directly by string");

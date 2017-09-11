@@ -111,35 +111,34 @@ public class GumTreeApi {
 //		 }
 		
 		
-////		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
-//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake/CMake/Utilities/cmzlib/gzio.cpp";
-////		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_250.cpp";
-//		GumTreeApi g = new GumTreeApi();
-//		g.setFile(filename);
-//		g.setLoc(188);
-//		System.out.println(g.getLog());
-//		g.printSpliter();
-//		System.out.println(g.getBlock());
-//		g.printSpliter();
-//		System.out.println(g.getControl());
-//		g.printSpliter();
-//		System.out.println(g.getFunction());
-//		g.printSpliter();
-//		System.out.println(g.getFunctionLoc());
-	
-		
-		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_94.cpp";
-		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_94.cpp";
+//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
+		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake/CMake/Utilities/cmzlib/gzio.cpp";
+//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_250.cpp";
 		GumTreeApi g = new GumTreeApi();
-		g.setOldAndNewFile(oldFile, newFile);
-		g.addNewLogNode(5);		
-		g.addNewLogNode(11);
-		g.addOldLogNode(5);
-		g.setOldLoc(5);
-		System.out.println(g.getNewLoc());
-		g.setNewLoc(5);
-		System.out.println(g.getOldLoc());
-		System.out.println(g.getActionType());
+		g.setFile(filename);
+		g.setLoc(188);
+		System.out.println(g.getLog());
+		g.printSpliter();
+		System.out.println(g.getBlock());
+		g.printSpliter();
+		System.out.println(g.getControl());
+		g.printSpliter();
+		System.out.println(g.getFunction());
+		g.printSpliter();
+		System.out.println(g.getFunctionLoc());
+		
+//		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_94.cpp";
+//		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_94.cpp";
+//		GumTreeApi g = new GumTreeApi();
+//		g.setOldAndNewFile(oldFile, newFile);
+//		g.addNewLogNode(5);		
+//		g.addNewLogNode(11);
+//		g.addOldLogNode(5);
+//		g.setOldLoc(5);
+//		System.out.println(g.getNewLoc());
+//		g.setNewLoc(5);
+//		System.out.println(g.getOldLoc());
+//		System.out.println(g.getActionType());
 		
 		
 //		GumTreeApi g = new GumTreeApi();
@@ -205,6 +204,10 @@ public class GumTreeApi {
 //					System.out.println(getValue(parentNode, this.oldFile));
 //					System.out.println(pos);
 					int maxPos = parentNode.getChildren().size() - 1;
+					if(maxPos == -1)
+					{
+						continue;
+					}
 					pos = pos > maxPos ? maxPos : pos;
 					ITree oldNode = parentNode.getChild(pos);
 

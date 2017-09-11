@@ -1,0 +1,1 @@
+CHECK_EQ(static_cast<int>(deleted_nodes.size()), param.num_deleted);

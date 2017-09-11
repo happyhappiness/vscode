@@ -1,0 +1,1 @@
+utils::Assert(mparam.num_trees == 0, "GBTree: model already initialized");

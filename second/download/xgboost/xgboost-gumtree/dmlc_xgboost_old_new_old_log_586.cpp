@@ -1,0 +1,1 @@
+utils::Assert(group_index.size() != 0 && group_index.back() == preds.size(), "rank loss must have group file");

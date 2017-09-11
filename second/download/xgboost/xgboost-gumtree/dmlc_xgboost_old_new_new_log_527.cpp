@@ -1,0 +1,1 @@
+utils::Assert( nwt == 0 || nwt == data.NumRow(), "invalid weight" );

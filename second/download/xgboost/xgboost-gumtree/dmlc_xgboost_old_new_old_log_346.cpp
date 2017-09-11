@@ -1,0 +1,1 @@
+printf("MaxError=%f/%f = %g\n", out.MaxError(), wsum, out.MaxError() / wsum);

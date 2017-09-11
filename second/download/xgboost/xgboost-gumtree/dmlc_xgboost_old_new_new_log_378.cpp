@@ -1,0 +1,1 @@
+utils::Assert( info.group_ptr.back() == info.num_row(), "group size must match num rows" );

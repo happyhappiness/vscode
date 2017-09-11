@@ -1,0 +1,1 @@
+utils::Error("unknown booster type: %s", name);

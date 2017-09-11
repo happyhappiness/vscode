@@ -1,0 +1,1 @@
+utils::Assert( fscanf ( vec[i].fi, "%u:%f", &e.index, &e.fvalue ) == 2, "Error when load feat" );

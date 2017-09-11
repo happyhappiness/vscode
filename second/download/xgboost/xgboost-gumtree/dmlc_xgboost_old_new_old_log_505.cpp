@@ -1,0 +1,1 @@
+utils::Assert( info.group_ptr.back() == data.NumRow(), "group size must match num rows" );

@@ -1,0 +1,1 @@
+SET_STRING_ELT(out, i, mkChar(stream.str().c_str()));

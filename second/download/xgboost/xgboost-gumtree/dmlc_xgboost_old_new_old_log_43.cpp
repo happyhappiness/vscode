@@ -1,0 +1,1 @@
+utils::Assert(size != 0, "try insert into size=0");

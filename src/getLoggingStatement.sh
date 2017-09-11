@@ -3,7 +3,8 @@
 MYCODE_DIR="/usr/info/code/cpp/LogMonitor/LogMonitor"
 # REPOS="bftpd"
 # REPOS="CMake"
-REPOS="xgboost"
+# REPOS="xgboost"
+REPOS="redis"
 # parameter
 CODE_DIR="${MYCODE_DIR}/second/download/${REPOS}/${REPOS}/${REPOS}"
 # echo $CODE_DIR

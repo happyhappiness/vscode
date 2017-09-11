@@ -1,0 +1,1 @@
+utils::Assert( fscanf( fi, "%u:%f", &index, &value ) == 2, "load Text" );

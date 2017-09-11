@@ -1,0 +1,1 @@
+fprintf( stderr, "warning: number of rows in input matrix changed as remembered in cachelist, ignore cached results\n" );

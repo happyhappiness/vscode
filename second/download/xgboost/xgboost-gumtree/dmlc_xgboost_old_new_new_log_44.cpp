@@ -1,0 +1,1 @@
+CHECK_LT(i, size);

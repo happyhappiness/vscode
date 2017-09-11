@@ -1,0 +1,1 @@
+utils::Assert( fscanf( fwlist, "%u", &pass ) ==1, "pass" );

@@ -1,0 +1,1 @@
+utils::Assert(j < dat.size() && fabs(dat[j].x - out.data[i].value) < eps, "bug");

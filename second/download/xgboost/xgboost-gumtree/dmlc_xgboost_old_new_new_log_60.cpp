@@ -1,0 +1,1 @@
+CHECK(nodes[nodes[rid].cleft() ].is_leaf());

@@ -1,0 +1,1 @@
+fprintf(fo, "%s", res[i]);

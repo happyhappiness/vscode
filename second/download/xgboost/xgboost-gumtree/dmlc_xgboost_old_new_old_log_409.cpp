@@ -1,0 +1,1 @@
+utils::Assert(saved_offset[i] < rptr[i+1], "data exceed bound");

@@ -1,0 +1,1 @@
+utils::Assert(version == rabit::VersionNumber(), "consistent check");

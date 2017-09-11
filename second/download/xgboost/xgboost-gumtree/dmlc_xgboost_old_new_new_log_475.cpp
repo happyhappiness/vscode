@@ -1,0 +1,1 @@
+HandleAssertError(msg.c_str());

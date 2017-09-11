@@ -1,0 +1,1 @@
+utils::Assert(mparam.num_trees == static_cast<int>(trees.size()), "GBTree");

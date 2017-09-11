@@ -1,0 +1,1 @@
+utils::Assert(sem != NULL, "create Semaphore error");

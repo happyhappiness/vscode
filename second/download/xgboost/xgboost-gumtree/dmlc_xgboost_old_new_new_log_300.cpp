@@ -1,0 +1,1 @@
+utils::Assert(nchild >= 0, "in correct number of childs");

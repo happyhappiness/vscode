@@ -1,0 +1,1 @@
+CHECK_EQ(summary_array.size(), sketchs.size());

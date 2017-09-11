@@ -1,0 +1,1 @@
+utils::Assert( info.group_ptr.back() == data.NumRow(), "number of group must match number of record" );

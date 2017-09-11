@@ -1,0 +1,1 @@
+utils::Assert(tid >= 0, "invalid leaf position");

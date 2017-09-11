@@ -1,0 +1,1 @@
+utils::Assert(i != src.size - 1, "this cannot happen");

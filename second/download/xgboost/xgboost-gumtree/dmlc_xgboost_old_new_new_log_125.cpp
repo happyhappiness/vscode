@@ -1,0 +1,1 @@
+utils::Error("Semaphore.Wait:%s", strerror(errno));

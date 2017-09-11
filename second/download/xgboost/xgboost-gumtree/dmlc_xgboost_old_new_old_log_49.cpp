@@ -1,0 +1,1 @@
+utils::Assert(offset == -2, "BUG in mark");

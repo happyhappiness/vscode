@@ -1,0 +1,1 @@
+utils::Assert( gptr.back() == preds.size(), "EvalRanklist: group structure must match number of prediction");

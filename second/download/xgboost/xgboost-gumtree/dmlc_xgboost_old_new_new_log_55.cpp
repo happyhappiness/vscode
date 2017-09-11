@@ -1,0 +1,1 @@
+CHECK_LT(root_index[ridx], (unsigned)tree.param.num_roots);

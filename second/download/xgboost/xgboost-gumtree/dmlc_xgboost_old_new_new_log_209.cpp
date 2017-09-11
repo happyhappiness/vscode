@@ -1,0 +1,1 @@
+utils::Assert(param.num_nodes != 0, "invalid model");

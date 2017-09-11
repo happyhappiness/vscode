@@ -1,0 +1,1 @@
+utils::Assert(nid >= param.num_roots, "can not delete root");

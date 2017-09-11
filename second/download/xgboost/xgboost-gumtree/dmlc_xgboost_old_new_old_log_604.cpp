@@ -1,0 +1,1 @@
+utils::Assert( nneg > 0, "the dataset only contains pos samples" );

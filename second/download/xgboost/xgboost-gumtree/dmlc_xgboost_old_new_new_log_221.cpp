@@ -1,0 +1,1 @@
+utils::Assert(saved_offset[i] + nelem <= rptr[i+1], "data exceed bound");

@@ -1,0 +1,1 @@
+utils::Error("cannot do write in inputsplit");

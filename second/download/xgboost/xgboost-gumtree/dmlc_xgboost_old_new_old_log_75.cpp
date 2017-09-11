@@ -1,0 +1,1 @@
+utils::Assert(idx < names_.size(), "utils::FMap::name feature index exceed bound");

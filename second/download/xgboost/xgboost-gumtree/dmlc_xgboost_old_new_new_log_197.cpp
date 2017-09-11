@@ -1,0 +1,1 @@
+utils::Assert(write_ptr <= stop_write, "write ptr boundary check");

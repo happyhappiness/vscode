@@ -1,0 +1,1 @@
+CHECK_EQ(param.num_nodes, static_cast<int>(stats.size()));

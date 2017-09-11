@@ -1,0 +1,1 @@
+utils::Assert(nparent == 1 || nparent == 0, "in correct number of parent");

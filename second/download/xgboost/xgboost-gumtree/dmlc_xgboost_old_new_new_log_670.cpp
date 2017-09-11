@@ -1,0 +1,1 @@
+utils::Assert( !bst_debug || cidx < this->NumCol(), "col id exceed bound" );

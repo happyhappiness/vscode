@@ -1,0 +1,1 @@
+utils::Assert(csr_data.size() == static_cast<size_t>(ndata), "BUG CreateFromCSC");

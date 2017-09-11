@@ -1,0 +1,1 @@
+utils::Assert(group_stream.Read(&group_index[0], sizeof(int) * group_index_size) != 0, "Load group indice");

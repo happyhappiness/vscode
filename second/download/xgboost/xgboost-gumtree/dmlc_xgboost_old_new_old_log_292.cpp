@@ -1,0 +1,1 @@
+utils::Assert(type_nbytes < kBufferSize, "too large type_nbytes");

@@ -1,0 +1,1 @@
+LOG(FATAL) << "Base64OutStream do not support read";

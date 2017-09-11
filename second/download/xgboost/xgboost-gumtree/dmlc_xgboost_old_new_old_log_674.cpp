@@ -1,0 +1,1 @@
+utils::Assert( fi.Read( &findex[0] , findex.size() * sizeof(bst_uint) ) , "Load FMatrixS" );

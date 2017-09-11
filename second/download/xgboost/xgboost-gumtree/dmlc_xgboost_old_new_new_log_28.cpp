@@ -1,0 +1,1 @@
+CHECK(data[i].rmax >= data[i - 1].rmax + data[i].wmin) << "rmax range constraint";

@@ -1,0 +1,1 @@
+CHECK(sa.size > 0 && sb.size > 0) << "invalid input for merge";

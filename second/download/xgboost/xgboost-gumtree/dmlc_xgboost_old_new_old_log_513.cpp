@@ -1,0 +1,1 @@
+Assert(idx > 0, "can't call name before first");

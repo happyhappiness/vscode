@@ -1,0 +1,1 @@
+utils::Assert( bst_group == -1, "must set bst_group to -1 to support all group boosting" );
