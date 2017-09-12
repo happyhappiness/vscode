@@ -1,6 +1,8 @@
-                            _format[_l] = '\0';
-                            va_copy(_cpy,ap);
-                            current = sdscatvprintf(current,_format,_cpy);
-                            va_end(_cpy);
+    redisContext *c;
+    redisReply *reply;
 
-                            /* Update current position (note: outer blocks
+    struct timeval timeout = { 1, 500000 }; // 1.5 seconds
+    c = redisConnectWithTimeout((char*)"127.0.0.2", 6379, timeout);
+    if (c->err) {
+        printf("Connection error: %s\n", c->errstr);
+        exit(1);

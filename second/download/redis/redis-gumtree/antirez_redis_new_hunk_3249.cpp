@@ -1,11 +1,15 @@
+        if (errno == EINPROGRESS && !blocking) {
+            /* This is ok. */
+        } else {
+            if (redisContextWaitReady(c,s,timeout) != REDIS_OK)
+                return REDIS_ERR;
+        }
+    }
 
-#define SDS_ABORT_ON_OOM
+    /* Reset socket to be blocking after connect(2). */
+    if (blocking && redisSetBlocking(c,s,1) != REDIS_OK)
+        return REDIS_ERR;
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#include "sds.h"
-
-static void sdsOomAbort(void) {
-    fprintf(stderr,"SDS: Out Of Memory (SDS_ABORT_ON_OOM defined)\n");
+    c->fd = s;
+    c->flags |= REDIS_CONNECTED;
+    return REDIS_OK;

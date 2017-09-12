@@ -1,7 +1,7 @@
-                            _format[_l] = '\0';
-                            va_copy(_cpy,ap);
-                            current = sdscatvprintf(current,_format,_cpy);
-                            interpolated = 1;
-                            va_end(_cpy);
+    redisContext *c;
+    redisReply *reply;
 
-                            /* Update current position (note: outer blocks
+    c = redisConnect((char*)"127.0.0.1", 6379);
+    if (c->err) {
+        printf("Connection error: %s\n", c->errstr);
+        exit(1);
