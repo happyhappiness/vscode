@@ -1,0 +1,1 @@
+notifyKeyspaceEvent("del",storekey,c->db->id);

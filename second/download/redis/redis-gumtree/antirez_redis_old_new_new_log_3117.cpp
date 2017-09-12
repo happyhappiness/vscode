@@ -1,0 +1,1 @@
+anetSetError(err, "can't resolve: %s", host);

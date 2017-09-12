@@ -1,0 +1,1 @@
+addReplyError(c, "timeout is not an integer");

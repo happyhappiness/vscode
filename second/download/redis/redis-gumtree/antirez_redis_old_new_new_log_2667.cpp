@@ -1,0 +1,1 @@
+REDIS_NOTUSED(lua);

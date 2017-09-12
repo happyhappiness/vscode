@@ -1,0 +1,1 @@
+s[j++]="      error(\"assignment to undeclared global variable '\"..n..\"'\", 2)\n";

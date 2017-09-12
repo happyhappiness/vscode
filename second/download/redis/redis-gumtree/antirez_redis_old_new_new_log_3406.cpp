@@ -1,0 +1,1 @@
+fprintf(stderr,"%s: %s\n",config.hostsocket,context->errstr);

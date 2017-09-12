@@ -1,0 +1,1 @@
+snprintf(c->errstr,sizeof(c->errstr),"%s",((redisReply*)reply)->str);

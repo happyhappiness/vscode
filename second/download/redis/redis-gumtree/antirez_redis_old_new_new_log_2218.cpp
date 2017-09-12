@@ -1,0 +1,1 @@
+notifyKeyspaceEvent("lpush",dstkey,c->db->id);

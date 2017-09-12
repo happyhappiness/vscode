@@ -1,0 +1,1 @@
+printf("\x1b[H\x1b[2J");

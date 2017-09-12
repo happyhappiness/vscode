@@ -1,0 +1,1 @@
+snprintf(magic,sizeof(magic),"REDIS%04d",REDIS_RDB_VERSION);

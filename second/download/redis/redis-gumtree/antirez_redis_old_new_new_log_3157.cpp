@@ -1,0 +1,1 @@
+snprintf(buf,1024,"%s/%02x/%02x",server.ds_path,j,i);

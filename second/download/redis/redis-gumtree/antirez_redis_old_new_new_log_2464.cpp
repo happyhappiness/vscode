@@ -1,0 +1,1 @@
+fprintf(stderr,"Error reading RDB payload while SYNCing\n");

@@ -1,0 +1,1 @@
+printf("%s [%d]\n", title, pass);

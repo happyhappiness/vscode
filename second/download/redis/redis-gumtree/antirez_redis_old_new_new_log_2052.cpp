@@ -1,0 +1,1 @@
+rewriteConfigYesNoOption(state,"stop-writes-on-bgsave-error",server.stop_writes_on_bgsave_err,1);

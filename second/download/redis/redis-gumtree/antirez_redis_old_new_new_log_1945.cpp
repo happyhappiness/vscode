@@ -1,0 +1,1 @@
+printf("EXPIRED FAST: %lld\n", server.stat_expiredkeys - totalex);

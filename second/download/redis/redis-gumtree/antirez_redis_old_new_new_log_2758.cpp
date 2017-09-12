@@ -1,0 +1,1 @@
+printf(" -q                 Quiet. Just show query/sec values\n");

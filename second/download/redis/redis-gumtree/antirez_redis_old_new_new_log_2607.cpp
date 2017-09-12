@@ -1,0 +1,1 @@
+addReplyError(c,"Errors trying to SHUTDOWN. Check logs.");

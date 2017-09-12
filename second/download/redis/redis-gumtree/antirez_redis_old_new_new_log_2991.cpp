@@ -1,0 +1,1 @@
+n = clusterLookupNode(argv[0]);

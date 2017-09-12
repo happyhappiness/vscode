@@ -1,0 +1,1 @@
+sh = zrealloc(sh, sizeof(struct sdshdr)+sh->len+1);

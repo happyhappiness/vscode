@@ -1,0 +1,1 @@
+fprintf(stderr,"       ./redis-server /etc/myredis.conf --loglevel verbose\n\n");

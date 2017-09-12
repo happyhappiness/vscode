@@ -1,0 +1,1 @@
+(fwrite(p,40,1,stdout) == 0;

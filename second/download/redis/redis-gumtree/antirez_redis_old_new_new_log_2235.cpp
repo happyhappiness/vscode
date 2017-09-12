@@ -1,0 +1,1 @@
+notifyKeyspaceEvent("set",c->argv[j],c->db->id);

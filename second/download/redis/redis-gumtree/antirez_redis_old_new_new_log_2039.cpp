@@ -1,0 +1,1 @@
+retval = rewriteConfigOverwriteFile(server.configfile,newcontent);

@@ -1,0 +1,1 @@
+fprintf(stderr, "Could not connect to Redis at %s: %s", config.hostsocket, err);

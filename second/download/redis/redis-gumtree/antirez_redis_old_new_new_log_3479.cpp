@@ -1,0 +1,1 @@
+c->obuf = sdscat(c->obuf,"SET foo_rand000000000000 ");

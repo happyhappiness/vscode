@@ -1,0 +1,1 @@
+sprintf(buf,"%lld",(0LL + rand()) << 20);

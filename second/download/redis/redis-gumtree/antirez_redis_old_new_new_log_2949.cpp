@@ -1,0 +1,1 @@
+addReplyError(c,"Multi keys request invalid in cluster");

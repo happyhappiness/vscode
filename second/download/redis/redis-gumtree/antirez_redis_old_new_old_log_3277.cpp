@@ -1,0 +1,1 @@
+addReplySds(c,sdscatprintf(sdsempty(),"$%zu\r\n",rangelen));

@@ -1,0 +1,1 @@
+addReplyMultiBulkLen(c,withscores ? (rangelen*2) : rangelen);

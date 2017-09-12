@@ -1,0 +1,1 @@
+printf("Error: %s\n", c->errstr);

@@ -1,0 +1,1 @@
+notifyKeyspaceEvent("evicted",keyobj,db->id);

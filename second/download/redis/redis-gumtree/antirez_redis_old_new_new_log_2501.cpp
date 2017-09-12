@@ -1,0 +1,1 @@
+__redisSetError(c,REDIS_ERR_OOM,"Out of memory");

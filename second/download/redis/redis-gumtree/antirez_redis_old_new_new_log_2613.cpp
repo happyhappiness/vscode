@@ -1,0 +1,1 @@
+addReplyError(c,"min or max is not a float");

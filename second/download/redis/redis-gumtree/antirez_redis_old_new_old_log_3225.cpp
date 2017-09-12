@@ -1,0 +1,1 @@
+printf("Sorry DB 9 is not empty, test can not continue\n");

@@ -1,0 +1,1 @@
+luaPushError(lua, "redis.log() requires two arguments or more.");

@@ -1,0 +1,1 @@
+redisLog(REDIS_WARNING, "Not able to open the temp append only file produced by the child: %s", strerror(errno));

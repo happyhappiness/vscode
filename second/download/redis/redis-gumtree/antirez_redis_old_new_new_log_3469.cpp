@@ -1,0 +1,1 @@
+(elen && fwrite(entry,elen,1,stdout) == 0;

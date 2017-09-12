@@ -1,0 +1,1 @@
+tmp = sdscat(tmp,helpEntries[i].full);

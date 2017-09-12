@@ -1,0 +1,1 @@
+printf("\nIterate trought elements:\n");

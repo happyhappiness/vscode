@@ -1,0 +1,1 @@
+vsnprintf(buf, buflen, fmt, cpy);

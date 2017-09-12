@@ -1,0 +1,1 @@
+rewriteConfigYesNoOption(state,"active-rehashing",server.activerehashing,1);

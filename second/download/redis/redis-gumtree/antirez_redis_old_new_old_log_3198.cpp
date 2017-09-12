@@ -1,0 +1,1 @@
+fprintf(stderr,"Error: %s\n", c->errstr);

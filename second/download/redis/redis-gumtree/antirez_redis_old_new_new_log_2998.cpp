@@ -1,0 +1,1 @@
+addReplyError(c,"MOVE is not allowed in cluster mode");

@@ -1,0 +1,1 @@
+printf("  \x1b[33msummary:\x1b[0m %s\r\n", help->summary);

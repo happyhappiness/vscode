@@ -1,0 +1,1 @@
+c = redisConnect((char*)"localhost", 56380);

@@ -1,0 +1,1 @@
+pos += sprintf(cmd+pos,"$%zu\r\n",sdslen(argv[j]));

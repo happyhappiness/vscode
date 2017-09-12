@@ -1,0 +1,1 @@
+addReplyErrorFormat(c,"Slot %d is already busy", slot);

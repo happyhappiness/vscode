@@ -1,0 +1,1 @@
+sprintf(body, "Skipped %llu bytes (resuming at 0x%08llx)", bytes, offset);

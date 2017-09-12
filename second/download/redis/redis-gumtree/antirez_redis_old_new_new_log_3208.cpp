@@ -1,0 +1,1 @@
+c->obuf = sdsnewlen(cmd,len);

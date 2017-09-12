@@ -1,0 +1,1 @@
+len = redisFormatCommandArgv(&cmd,21,argv,NULL);

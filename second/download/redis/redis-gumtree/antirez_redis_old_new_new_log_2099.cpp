@@ -1,0 +1,1 @@
+addReplyError(c,"SLAVEOF not allowed in cluster mode.");

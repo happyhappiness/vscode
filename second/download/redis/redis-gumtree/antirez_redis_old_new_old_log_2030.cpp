@@ -1,0 +1,1 @@
+rewriteConfigYesNoOption(state,"syslog-enabled",server.syslog_enabled,0);

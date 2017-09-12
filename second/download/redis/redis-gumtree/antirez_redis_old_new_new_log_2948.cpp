@@ -1,0 +1,1 @@
+buflen = sprintf(buf,"%lld",sval);

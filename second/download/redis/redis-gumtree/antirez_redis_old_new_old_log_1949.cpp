@@ -1,0 +1,1 @@
+snprintf(slavename,sizeof(slavename),"%s:%d",hostname,port);

@@ -1,0 +1,1 @@
+sdscatprintf(sdsempty(), "select(2): %s", strerror(errno));

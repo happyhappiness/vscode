@@ -1,0 +1,1 @@
+addReplyError(c,"Invalid slot or number of keys");

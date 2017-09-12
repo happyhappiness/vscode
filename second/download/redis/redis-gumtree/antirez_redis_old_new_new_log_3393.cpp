@@ -1,0 +1,1 @@
+snprintf(_prefixfmt,sizeof(_prefixfmt),"%%s%%%dd) ",idxlen);

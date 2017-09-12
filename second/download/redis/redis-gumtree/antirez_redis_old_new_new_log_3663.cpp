@@ -1,0 +1,1 @@
+len->ptr = sdscatprintf(sdsempty(),"*%ld\r\n",length);

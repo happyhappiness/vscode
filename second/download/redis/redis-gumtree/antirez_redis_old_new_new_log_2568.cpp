@@ -1,0 +1,1 @@
+addReplyErrorLength(c,s,sdslen(s));

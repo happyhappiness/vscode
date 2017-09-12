@@ -1,0 +1,1 @@
+rewriteConfigYesNoOption(state,"rdbcompression",server.rdb_compression,1);

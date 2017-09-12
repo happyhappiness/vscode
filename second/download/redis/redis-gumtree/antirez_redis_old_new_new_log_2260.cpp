@@ -1,0 +1,1 @@
+luaL_argerror(L, 1, "option 'c0' has no fixed size");

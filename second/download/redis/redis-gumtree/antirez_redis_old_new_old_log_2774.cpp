@@ -1,0 +1,1 @@
+printf("Wrong option '%s' or option argument missing\n\n",argv[i]);

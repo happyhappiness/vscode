@@ -1,0 +1,1 @@
+addReplyError(c,"DUMP payload version or checksum are wrong");

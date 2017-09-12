@@ -1,0 +1,1 @@
+addReplyError(c,"BITOP NOT must be called with a single source key.");

@@ -1,0 +1,1 @@
+snprintf(config.historyfile,256,"%s/.rediscli_history",getenv("HOME"));

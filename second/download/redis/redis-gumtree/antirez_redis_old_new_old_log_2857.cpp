@@ -1,0 +1,1 @@
+addReplyError(c,(char*)lua_tostring(lua,-1));

@@ -1,0 +1,1 @@
+snprintf(psync_offset,sizeof(psync_offset),"%lld", server.cached_master->reploff+1);
