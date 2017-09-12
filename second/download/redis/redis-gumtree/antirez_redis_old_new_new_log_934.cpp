@@ -1,0 +1,1 @@
+sprintf(types[RDB_OPCODE_EOF], "EOF");

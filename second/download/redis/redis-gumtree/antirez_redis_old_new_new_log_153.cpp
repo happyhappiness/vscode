@@ -1,0 +1,1 @@
+snprintf(buf,sizeof(buf),"Query buffer during protocol error: '%s'", c->querybuf);

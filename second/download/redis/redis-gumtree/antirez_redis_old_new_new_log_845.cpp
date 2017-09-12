@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"Set size: %d", (int) setTypeSize(o));

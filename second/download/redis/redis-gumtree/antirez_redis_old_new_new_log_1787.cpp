@@ -1,0 +1,1 @@
+strerror(server.aof_last_write_errno);

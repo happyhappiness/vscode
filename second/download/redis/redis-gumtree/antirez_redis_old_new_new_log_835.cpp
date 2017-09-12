@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"client->flags = %d", c->flags);

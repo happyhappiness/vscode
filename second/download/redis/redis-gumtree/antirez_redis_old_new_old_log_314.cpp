@@ -1,0 +1,1 @@
+SHIFT_ERROR(offset, "Unknown type (0x%02x)", t);

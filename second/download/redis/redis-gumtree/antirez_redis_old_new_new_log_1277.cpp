@@ -1,0 +1,1 @@
+printf(". - * #          .01 .125 .25 .5 milliseconds\n");

@@ -1,0 +1,1 @@
+anetSetError(err, "setsockopt SO_SNDTIMEO: %s", strerror(errno));

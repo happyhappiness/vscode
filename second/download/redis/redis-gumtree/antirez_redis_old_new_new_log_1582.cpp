@@ -1,0 +1,1 @@
+obj_len = snprintf(dbuf,sizeof(dbuf),"%.17g",(double)num);

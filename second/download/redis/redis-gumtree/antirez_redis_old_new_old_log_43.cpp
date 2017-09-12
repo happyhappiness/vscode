@@ -1,0 +1,1 @@
+printf("Random lookup: %f\n", (double)(ustime()-start)/1000000);

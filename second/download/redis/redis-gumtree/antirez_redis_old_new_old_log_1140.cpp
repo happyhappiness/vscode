@@ -1,0 +1,1 @@
+redisLog(REDIS_WARNING,"Error moving temp append only file on the final destination: %s", strerror(errno));

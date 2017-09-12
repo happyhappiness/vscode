@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"Wrong signature trying to load DB from file");

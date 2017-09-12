@@ -1,0 +1,1 @@
+addReplyError(c,"Invalid number of arguments specified for command");

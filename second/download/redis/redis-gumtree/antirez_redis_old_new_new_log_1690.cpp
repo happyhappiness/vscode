@@ -1,0 +1,1 @@
+snprintf(seq,64,"\x1b[0G\x1b[%dC", (int)(pos+plen));

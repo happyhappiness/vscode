@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"Fatal: Can't initialize Background Jobs.");

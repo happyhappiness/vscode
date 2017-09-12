@@ -1,0 +1,1 @@
+fprintf(stderr, "Usage: %s <rdb-file-name>\n", argv[0]);

@@ -1,0 +1,1 @@
+addReplyError(c,"hash value is not a float");

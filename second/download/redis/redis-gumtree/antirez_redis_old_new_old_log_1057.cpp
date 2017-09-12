@@ -1,0 +1,1 @@
+serverLog(REDIS_NOTICE,"Removing the pid file.");

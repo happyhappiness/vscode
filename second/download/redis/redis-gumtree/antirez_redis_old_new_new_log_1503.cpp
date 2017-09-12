@@ -1,0 +1,1 @@
+addReplyErrorFormat(c,"invalid expire time in %s",c->cmd->name);

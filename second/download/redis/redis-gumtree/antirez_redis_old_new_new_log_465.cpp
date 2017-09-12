@@ -1,0 +1,1 @@
+RedisModule_ReplyWithError(ctx,REDISMODULE_ERRORMSG_WRONGTYPE);

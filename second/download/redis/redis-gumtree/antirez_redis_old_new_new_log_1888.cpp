@@ -1,0 +1,1 @@
+rv = snprintf(buf, sizeof(buf), "%lu", cursor);

@@ -1,0 +1,1 @@
+printf("Use 'restart' only in Lua debugging mode.");

@@ -1,0 +1,1 @@
+serverLog(LL_WARNING|LL_RAW,"%s\n", client);

@@ -1,0 +1,1 @@
+types = zrealloc(types, sizeof(int)*keys->elements);

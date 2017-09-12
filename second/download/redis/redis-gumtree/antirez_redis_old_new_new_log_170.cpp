@@ -1,0 +1,1 @@
+buflen = snprintf(buf,sizeof(buf),"+CONTINUE %s\r\n", server.replid);

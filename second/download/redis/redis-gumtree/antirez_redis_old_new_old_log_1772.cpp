@@ -1,0 +1,1 @@
+printf("# You can use -i 0.1 to sleep 0.1 sec every 100 sampled keys\n");

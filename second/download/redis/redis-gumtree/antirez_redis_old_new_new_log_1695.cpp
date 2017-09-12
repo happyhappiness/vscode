@@ -1,0 +1,1 @@
+snprintf(seq,64,"\x1b[%dA", rows-rpos2);

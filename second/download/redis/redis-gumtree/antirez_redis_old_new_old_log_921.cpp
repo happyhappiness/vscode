@@ -1,0 +1,1 @@
+serverLog(REDIS_NOTICE,"Background RDB transfer started by pid %d",childpid);

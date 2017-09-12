@@ -1,0 +1,1 @@
+addReplyError(c,"Invalid HLL object detected");

@@ -1,0 +1,1 @@
+addReplyError(c, "TESTFAILED dense/sparse disagree");

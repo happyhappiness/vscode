@@ -1,0 +1,1 @@
+printf("clients: %d\r", config.liveclients);

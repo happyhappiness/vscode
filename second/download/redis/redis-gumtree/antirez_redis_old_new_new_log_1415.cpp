@@ -1,0 +1,1 @@
+snprintf(errmsg, sizeof(errmsg), "expected integer between %d and %d", min, max);

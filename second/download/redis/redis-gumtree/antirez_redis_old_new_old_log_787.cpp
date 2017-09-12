@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING,"Received unknown packet type: %d", type);

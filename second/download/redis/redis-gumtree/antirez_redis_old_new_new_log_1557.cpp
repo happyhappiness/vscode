@@ -1,0 +1,1 @@
+arena_redzone_corruption(ptr, size, true, i, *byte);

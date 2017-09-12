@@ -1,0 +1,1 @@
+used = snprintf(nextra, remaining, " ql_avg_node:%.2f", avg);

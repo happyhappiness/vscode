@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING,"Discarding UPDATE message about myself.");

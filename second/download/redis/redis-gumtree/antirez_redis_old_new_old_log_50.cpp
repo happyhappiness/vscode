@@ -1,0 +1,1 @@
+printf("EOF: %d\n", (iter.flags & RAX_ITER_EOF) != 0);

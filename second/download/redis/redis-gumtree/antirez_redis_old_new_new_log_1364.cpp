@@ -1,0 +1,1 @@
+printf("ERROR: not \"1024\"\n");

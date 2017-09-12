@@ -1,0 +1,1 @@
+serverLog(LL_NOTICE,"The server is now ready to accept connections at %s", server.unixsocket);

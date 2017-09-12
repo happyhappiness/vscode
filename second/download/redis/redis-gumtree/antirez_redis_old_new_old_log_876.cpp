@@ -1,0 +1,1 @@
+serverLogFromHandler(REDIS_WARNING,"\n--- WATCHDOG TIMER EXPIRED ---");

@@ -1,0 +1,1 @@
+json_encode_exception(l, cfg, -1, "excessively sparse array");

@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING,"client->flags = %d", c->flags);

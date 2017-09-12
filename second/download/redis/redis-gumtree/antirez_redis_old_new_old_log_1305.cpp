@@ -1,0 +1,1 @@
+sprintf(types[REDIS_STRING], "STRING");

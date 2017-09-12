@@ -1,0 +1,1 @@
+setProtocolError("too big bulk count string",c,0);

@@ -1,0 +1,1 @@
+luaL_error(L,"Missing bytes in input.");

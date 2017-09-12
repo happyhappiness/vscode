@@ -1,0 +1,1 @@
+serverLogRaw(REDIS_WARNING, clients);

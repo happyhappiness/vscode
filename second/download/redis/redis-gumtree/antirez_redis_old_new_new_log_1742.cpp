@@ -1,0 +1,1 @@
+fprintf(stderr, "SCAN error: %s\n", reply->str);

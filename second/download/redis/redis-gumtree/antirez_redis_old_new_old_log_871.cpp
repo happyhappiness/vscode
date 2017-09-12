@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING, "--- FAST MEMORY TEST");

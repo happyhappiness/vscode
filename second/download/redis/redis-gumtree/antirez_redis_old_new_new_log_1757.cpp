@@ -1,0 +1,1 @@
+fprintf(stderr, "Failed to allocate storage for keys!\n");

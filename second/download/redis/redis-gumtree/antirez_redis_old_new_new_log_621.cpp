@@ -1,0 +1,1 @@
+printf("%s %d\n", ar->short_src, (int) ar->currentline);

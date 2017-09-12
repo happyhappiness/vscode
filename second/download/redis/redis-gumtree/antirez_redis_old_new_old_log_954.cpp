@@ -1,0 +1,1 @@
+serverLog(REDIS_NOTICE,"Waiting for next BGSAVE for SYNC");

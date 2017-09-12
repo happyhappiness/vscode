@@ -1,0 +1,1 @@
+sprintf(tmp, "arena.%d.purge", narenas);

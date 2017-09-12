@@ -1,0 +1,1 @@
+sprintf(s,"%.2fT",d);

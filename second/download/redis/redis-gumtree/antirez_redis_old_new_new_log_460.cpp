@@ -1,0 +1,1 @@
+RedisModule_ReplyWithError(ctx,"invalid range");

@@ -1,0 +1,1 @@
+serverLog(LL_NOTICE,"No BGSAVE in progress. Starting one ASAP");

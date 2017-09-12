@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING,"Last valid command offset is invalid");

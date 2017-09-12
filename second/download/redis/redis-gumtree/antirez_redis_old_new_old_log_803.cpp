@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING,"Manual failover timed out.");

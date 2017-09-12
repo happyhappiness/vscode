@@ -1,0 +1,1 @@
+raise_error ? luaRaiseError(lua) : 1;

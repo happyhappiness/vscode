@@ -1,0 +1,1 @@
+serverLog(REDIS_DEBUG, "[PSYNC] Backlog history len is zero");

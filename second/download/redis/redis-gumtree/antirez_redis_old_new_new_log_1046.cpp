@@ -1,0 +1,1 @@
+serverLog(LL_WARNING, "Opening Unix socket: %s", server.neterr);

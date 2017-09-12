@@ -1,0 +1,1 @@
+fprintf(stderr, "Invalid SCAN result!\n");

@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"Fatal error loading the DB: %s. Exiting.",strerror(errno));

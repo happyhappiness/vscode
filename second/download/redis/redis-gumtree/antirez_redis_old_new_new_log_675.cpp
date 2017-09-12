@@ -1,0 +1,1 @@
+len = sdscatprintf(sdsnewlen("*",1),"%ld\r\n",length);

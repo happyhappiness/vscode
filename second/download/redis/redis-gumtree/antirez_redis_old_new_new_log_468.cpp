@@ -1,0 +1,1 @@
+addReplyError(c,"radius must be >= 0");

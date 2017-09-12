@@ -1,0 +1,1 @@
+snprintf(buf,sizeof(buf),"%dh",elapsed/3600);

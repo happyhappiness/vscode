@@ -1,0 +1,1 @@
+addReplyError(c,"failed to restart the server. Check server logs.");

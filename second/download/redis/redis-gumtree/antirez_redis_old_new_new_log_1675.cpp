@@ -1,0 +1,3 @@
+addReplyError(c,
+                "To set a master the node must be empty and "
+                "without assigned slots.");

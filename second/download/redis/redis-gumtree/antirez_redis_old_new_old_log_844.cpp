@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING,"List length: %d", (int) listTypeLength(o));

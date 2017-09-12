@@ -1,0 +1,1 @@
+luaPushError(lua, "redis.set_repl() requires two arguments.");

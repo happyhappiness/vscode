@@ -1,0 +1,1 @@
+snprintf(filename,sizeof(filename),"/proc/%ld/smaps",pid);

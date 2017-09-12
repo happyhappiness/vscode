@@ -1,0 +1,1 @@
+fprintf(stderr,"Try %s --help for more information.\n", argv[0]);

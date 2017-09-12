@@ -1,0 +1,1 @@
+nwritten = snprintf(ls->buf,ls->buflen,"%s",lc.cvec[i]);

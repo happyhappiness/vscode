@@ -1,0 +1,1 @@
+ERROR("Cannot stat: %s", rdbfilename);

@@ -1,0 +1,1 @@
+addReplyError(c,"Syntax error. Try MEMORY usage <key>");

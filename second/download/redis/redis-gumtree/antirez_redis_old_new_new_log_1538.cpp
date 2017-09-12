@@ -1,0 +1,1 @@
+addReplyError(c, "Unknown subcommand.");

@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"Append Only File loaded by DEBUG LOADAOF");
