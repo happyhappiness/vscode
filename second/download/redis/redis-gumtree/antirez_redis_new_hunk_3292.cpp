@@ -1,10 +1,7 @@
-void selectCommand(redisClient *c) {
-    int id = atoi(c->argv[1]->ptr);
-
-    if (server.cluster_enabled) {
-        addReplyError(c,"SELECT is not allowed in cluster mode");
-        return;
-    }
-    if (selectDb(c,id) == REDIS_ERR) {
-        addReplyError(c,"invalid DB index");
-    } else {
+        }
+        zfree(slots);
+        clusterUpdateState();
+        clusterSaveConfigOrDie();
+        addReply(c,shared.ok);
+    } else if (!strcasecmp(c->argv[1]->ptr,"info") && c->argc == 2) {
+        char *statestr[] = {"ok","fail","needhelp"};

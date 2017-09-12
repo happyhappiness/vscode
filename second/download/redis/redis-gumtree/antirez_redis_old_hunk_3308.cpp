@@ -1,6 +1,11 @@
- * CLUSTER command
- * -------------------------------------------------------------------------- */
+            ci = sdscatprintf(ci,"- ");
 
-void clusterCommand(redisClient *c) {
-    if (server.cluster_enabled == 0) {
-        addReplyError(c,"This instance has cluster support disabled");
+        /* Latency from the POV of this node, link status */
+        ci = sdscatprintf(ci,"%ld %ld %s\n",
+            (long) node->ping_sent,
+            (long) node->pong_received,
+            node->link ? "connected" : "disconnected");
+    }
+    dictReleaseIterator(di);
+    return ci;
+}

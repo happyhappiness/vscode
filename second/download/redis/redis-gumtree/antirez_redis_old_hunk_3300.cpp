@@ -1,6 +1,8 @@
-        strerror(errno));
-    fclose(fp);
-    close(fd);
 
-file_rd_err:
-    redisLog(REDIS_WARNING,"Can't read from tmp file for MIGRATE: %s",
+    /* Finally create the object from the serialized dump and
+     * store it at the specified key. */
+    o = rdbLoadObject(data[0],fp);
+    if (o == NULL) {
+        addReplyError(c,"Bad data format.");
+        fclose(fp);
+        return;

@@ -1,17 +1,7 @@
-            nodeIp2String(node->ip,link);
-            node->port = ntohs(hdr->port);
-            clusterAddNode(node);
-            update_config = 1;
-        }
-
-        /* Get info from the gossip section */
-        clusterProcessGossipSection(hdr,link);
-
-        /* Anyway reply with a PONG */
-        clusterSendPing(link,CLUSTERMSG_TYPE_PONG);
-
-        /* Update config if needed */
-        if (update_config) clusterSaveConfigOrDie();
-    } else if (type == CLUSTERMSG_TYPE_PONG) {
-        int update_state = 0;
-        int update_config = 0;
+ * an error and REDIS_ERR is returned. */
+int clusterAddSlot(clusterNode *n, int slot) {
+    redisAssert(clusterNodeSetSlotBit(n,slot) == 0);
+    server.cluster.slots[slot] = n;
+    printf("SLOT %d added to %.40s\n", slot, n->name);
+    return REDIS_OK;
+}

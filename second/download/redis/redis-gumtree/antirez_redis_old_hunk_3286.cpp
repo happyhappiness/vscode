@@ -1,18 +1,10 @@
-    while(fgets(line,maxline,fp) != NULL) {
-        int argc;
-        sds *argv = sdssplitargs(line,&argc);
+        clusterProcessGossipSection(hdr,link);
 
-        printf("Node: %s\n", argv[0]);
+        /* Update the cluster state if needed */
+        if (update) {
+            clusterUpdateState();
+            clusterSaveConfigOrDie();
+        }
+    } else if (type == CLUSTERMSG_TYPE_FAIL && sender) {
+        clusterNode *failing;
 
-        sdssplitargs_free(argv,argc);
-    }
-    zfree(line);
-    fclose(fp);
-
-    /* Config sanity check */
-    /* TODO: check that myself is set. */
-    return REDIS_ERR;
-
-    redisLog(REDIS_NOTICE,"Node configuration loaded, I'm %.40s",
-        server.cluster.myself->name);
-    return REDIS_OK;

@@ -1,0 +1,7 @@
+    ret = redisReplyReaderGetReply(reader,NULL);
+    err = redisReplyReaderGetError(reader);
+    test_cond(ret == REDIS_ERR &&
+              strcasecmp(err,"protocol error, got \"@\" as reply type byte") == 0);
+    redisReplyReaderFree(reader);
+
+    test("Works with NULL functions for reply: ");

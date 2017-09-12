@@ -1,22 +1,11 @@
-                }
-                setTypeReleaseIterator(si);
-            } else if (o->type == REDIS_ZSET) {
-                zset *zs = o->ptr;
-                dictIterator *di = dictGetIterator(zs->dict);
-                dictEntry *de;
-
-                while((de = dictNext(di)) != NULL) {
-                    robj *eleobj = dictGetEntryKey(de);
-                    double *score = dictGetEntryVal(de);
-                    unsigned char eledigest[20];
-
-                    snprintf(buf,sizeof(buf),"%.17g",*score);
-                    memset(eledigest,0,20);
-                    mixObjectDigest(eledigest,eleobj);
-                    mixDigest(eledigest,buf,strlen(buf));
-                    xorDigest(digest,eledigest,20);
-                }
-                dictReleaseIterator(di);
-            } else if (o->type == REDIS_HASH) {
-                hashTypeIterator *hi;
-                robj *obj;
+        case '"':
+            s = sdscatprintf(s,"\\%c",*p);
+            break;
+        case '\n': s = sdscatlen(s,"\\n",1); break;
+        case '\r': s = sdscatlen(s,"\\r",1); break;
+        case '\t': s = sdscatlen(s,"\\t",1); break;
+        case '\a': s = sdscatlen(s,"\\a",1); break;
+        case '\b': s = sdscatlen(s,"\\b",1); break;
+        default:
+            if (isprint(*p))
+                s = sdscatprintf(s,"%c",*p);

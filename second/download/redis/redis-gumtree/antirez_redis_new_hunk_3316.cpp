@@ -1,12 +1,57 @@
-    } else if (!strcasecmp(c->argv[2]->ptr,"set-max-intset-entries")) {
-        if (getLongLongFromObject(o,&ll) == REDIS_ERR || ll < 0) goto badfmt;
-        server.set_max_intset_entries = ll;
-    } else if (!strcasecmp(c->argv[2]->ptr,"zset-max-ziplist-entries")) {
-        if (getLongLongFromObject(o,&ll) == REDIS_ERR || ll < 0) goto badfmt;
-        server.zset_max_ziplist_entries = ll;
-    } else if (!strcasecmp(c->argv[2]->ptr,"zset-max-ziplist-value")) {
-        if (getLongLongFromObject(o,&ll) == REDIS_ERR || ll < 0) goto badfmt;
-        server.zset_max_ziplist_value = ll;
-    } else {
-        addReplyErrorFormat(c,"Unsupported CONFIG parameter: %s",
-            (char*)c->argv[2]->ptr);
+                }
+                setTypeReleaseIterator(si);
+            } else if (o->type == REDIS_ZSET) {
+                unsigned char eledigest[20];
+
+                if (o->encoding == REDIS_ENCODING_ZIPLIST) {
+                    unsigned char *zl = o->ptr;
+                    unsigned char *eptr, *sptr;
+                    unsigned char *vstr;
+                    unsigned int vlen;
+                    long long vll;
+                    double score;
+
+                    eptr = ziplistIndex(zl,0);
+                    redisAssert(eptr != NULL);
+                    sptr = ziplistNext(zl,eptr);
+                    redisAssert(sptr != NULL);
+
+                    while (eptr != NULL) {
+                        redisAssert(ziplistGet(eptr,&vstr,&vlen,&vll));
+                        score = zzlGetScore(sptr);
+
+                        memset(eledigest,0,20);
+                        if (vstr != NULL) {
+                            mixDigest(eledigest,vstr,vlen);
+                        } else {
+                            ll2string(buf,sizeof(buf),vll);
+                            mixDigest(eledigest,buf,strlen(buf));
+                        }
+
+                        snprintf(buf,sizeof(buf),"%.17g",score);
+                        mixDigest(eledigest,buf,strlen(buf));
+                        xorDigest(digest,eledigest,20);
+                        zzlNext(zl,&eptr,&sptr);
+                    }
+                } else if (o->encoding == REDIS_ENCODING_RAW) {
+                    zset *zs = o->ptr;
+                    dictIterator *di = dictGetIterator(zs->dict);
+                    dictEntry *de;
+
+                    while((de = dictNext(di)) != NULL) {
+                        robj *eleobj = dictGetEntryKey(de);
+                        double *score = dictGetEntryVal(de);
+
+                        snprintf(buf,sizeof(buf),"%.17g",*score);
+                        memset(eledigest,0,20);
+                        mixObjectDigest(eledigest,eleobj);
+                        mixDigest(eledigest,buf,strlen(buf));
+                        xorDigest(digest,eledigest,20);
+                    }
+                    dictReleaseIterator(di);
+                } else {
+                    redisPanic("Unknown sorted set encoding");
+                }
+            } else if (o->type == REDIS_HASH) {
+                hashTypeIterator *hi;
+                robj *obj;
