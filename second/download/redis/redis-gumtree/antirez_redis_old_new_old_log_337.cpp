@@ -1,0 +1,1 @@
+serverLog(LL_WARNING, "%s %s %s", head, body, tail);

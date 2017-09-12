@@ -1,0 +1,1 @@
+rewriteConfigYesNoOption(state,"hll-use-loglogbeta",server.hll_use_loglogbeta,CONFIG_DEFAULT_HLL_USE_LOGLOGBETA);

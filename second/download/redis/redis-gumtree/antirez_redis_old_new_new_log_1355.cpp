@@ -1,0 +1,1 @@
+int used = snprintf(nextra, remaining, " ql_nodes:%lu", ql->len);

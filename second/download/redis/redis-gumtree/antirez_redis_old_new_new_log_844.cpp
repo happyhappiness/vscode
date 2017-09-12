@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"List length: %d", (int) listTypeLength(o));

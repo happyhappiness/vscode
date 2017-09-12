@@ -1,0 +1,1 @@
+snprintf(s,maxlen,"%lu",(unsigned long)i);

@@ -1,0 +1,1 @@
+historyPath = sdscatprintf(sdsempty(), "%s", path);

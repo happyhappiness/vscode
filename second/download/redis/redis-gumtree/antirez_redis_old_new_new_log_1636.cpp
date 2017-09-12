@@ -1,0 +1,1 @@
+addReplyError(c,"HLL sparse encoding is corrupted");

@@ -1,0 +1,1 @@
+serverLog(REDIS_DEBUG, "[PSYNC] Index of first byte: %lld", j);

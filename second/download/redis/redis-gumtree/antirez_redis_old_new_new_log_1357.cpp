@@ -1,0 +1,1 @@
+printf("Starting optimization offset at: %d\n", optimize_start);

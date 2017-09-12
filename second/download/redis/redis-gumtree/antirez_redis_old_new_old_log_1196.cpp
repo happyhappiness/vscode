@@ -1,0 +1,1 @@
+printf(" avg chain length (counted): %.02f\n", (float)totchainlen/slots);

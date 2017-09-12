@@ -1,0 +1,1 @@
+serverLog(LL_WARNING, "configEpoch set to 0 via CLUSTER RESET HARD");

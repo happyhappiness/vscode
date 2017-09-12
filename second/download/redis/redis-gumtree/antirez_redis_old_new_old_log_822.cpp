@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING,"CONFIG REWRITE executed with success.");

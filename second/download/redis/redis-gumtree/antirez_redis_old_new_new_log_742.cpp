@@ -1,0 +1,1 @@
+serverLog(LL_NOTICE, "Background AOF rewrite finished successfully");

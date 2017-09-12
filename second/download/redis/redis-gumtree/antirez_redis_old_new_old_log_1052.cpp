@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING, "Writing initial AOF, can't exit.");

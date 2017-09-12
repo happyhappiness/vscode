@@ -1,0 +1,1 @@
+notifyKeyspaceEvent(NOTIFY_ZSET,event[rangetype],key,c->db->id);

@@ -1,0 +1,1 @@
+addReplyError(c,"You should send CLUSTER FAILOVER to a slave");

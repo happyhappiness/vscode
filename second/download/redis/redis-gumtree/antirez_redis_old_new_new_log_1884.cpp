@@ -1,0 +1,1 @@
+printf("MASTER or SLAVE have old config\n");

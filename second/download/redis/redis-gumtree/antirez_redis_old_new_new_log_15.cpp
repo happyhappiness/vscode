@@ -1,0 +1,1 @@
+printf("\x1b[0G\x1b[2K");

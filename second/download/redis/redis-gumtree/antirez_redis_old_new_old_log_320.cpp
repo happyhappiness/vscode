@@ -1,0 +1,1 @@
+SHIFT_ERROR(offset, "Error reading string object");

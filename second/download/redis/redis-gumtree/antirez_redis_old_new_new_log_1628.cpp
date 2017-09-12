@@ -1,0 +1,1 @@
+addReplyError(c,invalid_hll_err);

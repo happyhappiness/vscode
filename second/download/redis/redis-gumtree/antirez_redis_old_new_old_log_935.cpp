@@ -1,0 +1,1 @@
+g(REDIS_WARNING, "Checking RDB file %s", argv[1]);

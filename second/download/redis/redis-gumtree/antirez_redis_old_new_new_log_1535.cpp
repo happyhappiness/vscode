@@ -1,0 +1,1 @@
+addReplyErrorFormat(c,"Invalid command specified");

@@ -1,0 +1,1 @@
+printf("Max latency so far: %lld microseconds.\n", max_latency);

@@ -1,0 +1,1 @@
+addReplyError(c,"invalid DB index");

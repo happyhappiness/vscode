@@ -1,0 +1,1 @@
+luaL_error(l, "Memory allocation error in CJSON protected call");

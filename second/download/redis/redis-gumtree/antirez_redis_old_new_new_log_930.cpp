@@ -1,0 +1,1 @@
+sprintf(types[RDB_TYPE_ZSET], "ZSET");

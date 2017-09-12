@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING,"Fatal: Can't initialize Background Jobs.");

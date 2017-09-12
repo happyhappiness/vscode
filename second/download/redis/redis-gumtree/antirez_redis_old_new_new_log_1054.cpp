@@ -1,0 +1,1 @@
+serverLog(LL_NOTICE,"Calling fsync() on the AOF file.");

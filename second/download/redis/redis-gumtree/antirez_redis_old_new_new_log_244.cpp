@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"Error reading the RDB preamble of the AOF file, AOF loading aborted");

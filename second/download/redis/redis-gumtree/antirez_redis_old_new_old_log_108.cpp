@@ -1,0 +1,1 @@
+snprintf(buf,64,"%d",j);

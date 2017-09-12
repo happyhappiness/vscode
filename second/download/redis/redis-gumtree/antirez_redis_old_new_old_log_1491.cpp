@@ -1,0 +1,1 @@
+snprintf(tmpfile,256,"temp-%d.rdb", (int) childpid);

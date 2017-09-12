@@ -1,0 +1,1 @@
+fprintf(stderr, "Unknown type '%s' for key '%s'\n", type, key);

@@ -1,0 +1,1 @@
+addReplyError(c,"Blocking module command called from Lua script");

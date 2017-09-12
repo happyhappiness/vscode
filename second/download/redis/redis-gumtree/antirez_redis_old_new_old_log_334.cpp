@@ -1,0 +1,1 @@
+SHIFT_ERROR(offset[1], "Error for type %s", types[e.type]);

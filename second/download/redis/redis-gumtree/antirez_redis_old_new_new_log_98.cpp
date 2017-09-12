@@ -1,0 +1,1 @@
+printf("Connecting to inherited fd %d\n", fd);

@@ -1,0 +1,1 @@
+printf("Inserting 5M items: %lld ms\n", elapsed);

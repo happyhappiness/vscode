@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"Redis needs to enable the AOF but can't open the append only file: %s",strerror(errno));

@@ -1,0 +1,1 @@
+printf("%c", isprint(buf[j]) ? buf[j] : '.');

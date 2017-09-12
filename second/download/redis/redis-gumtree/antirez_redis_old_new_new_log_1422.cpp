@@ -1,0 +1,1 @@
+json_encode_exception(l, cfg, json, -1, "type not supported");

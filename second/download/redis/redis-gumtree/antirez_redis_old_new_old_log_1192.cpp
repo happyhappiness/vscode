@@ -1,0 +1,1 @@
+printf(" table size: %ld\n", ht->size);

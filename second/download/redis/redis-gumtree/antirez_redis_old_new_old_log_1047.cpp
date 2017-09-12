@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING, "Configured to not listen anywhere, exiting.");

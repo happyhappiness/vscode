@@ -1,0 +1,1 @@
+rdbCheckError("Wrong signature trying to load DB from file");

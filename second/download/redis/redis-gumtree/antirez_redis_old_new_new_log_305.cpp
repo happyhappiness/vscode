@@ -1,0 +1,1 @@
+printf("[info] %lu already expired\n", rdbstate.already_expired);

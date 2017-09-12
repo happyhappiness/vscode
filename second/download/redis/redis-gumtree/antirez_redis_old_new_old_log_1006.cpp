@@ -1,0 +1,1 @@
+serverLog(REDIS_NOTICE,"Caching the disconnected master state.");

@@ -1,0 +1,1 @@
+int dlen = snprintf(dbuf, sizeof(dbuf), "%.4f", d);

@@ -1,0 +1,1 @@
+serverLog(LL_NOTICE,"Reading RDB preamble from AOF file...");

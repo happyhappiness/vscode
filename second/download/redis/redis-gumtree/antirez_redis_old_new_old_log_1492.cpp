@@ -1,0 +1,1 @@
+fprintf(stderr,"All clients disconnected... aborting.");

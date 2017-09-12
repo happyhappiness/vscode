@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"User requested shutdown...");

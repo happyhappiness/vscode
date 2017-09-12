@@ -1,0 +1,69 @@
+void sigsegvHandler(int sig, siginfo_t *info, void *secret) {
+    ucontext_t *uc = (ucontext_t*) secret;
+    sds infostring, clients;
+    struct sigaction act;
+    UNUSED(info);
+
+    bugReportStart();
+    serverLog(LL_WARNING,
+        "    Redis %s crashed by signal: %d", REDIS_VERSION, sig);
+    if (sig == SIGSEGV) {
+        serverLog(LL_WARNING,
+        "    SIGSEGV caused by address: %p", (void*)info->si_addr);
+    }
+    serverLog(LL_WARNING,
+        "    Failed assertion: %s (%s:%d)", server.assert_failed,
+                        server.assert_file, server.assert_line);
+
+    /* Log the stack trace */
+    serverLog(LL_WARNING, "--- STACK TRACE");
+    logStackTrace(uc);
+
+    /* Log INFO and CLIENT LIST */
+    serverLog(LL_WARNING, "--- INFO OUTPUT");
+    infostring = genRedisInfoString("all");
+    infostring = sdscatprintf(infostring, "hash_init_value: %u\n",
+        dictGetHashFunctionSeed());
+    serverLogRaw(LL_WARNING, infostring);
+    serverLog(LL_WARNING, "--- CLIENT LIST OUTPUT");
+    clients = getAllClientsInfoString();
+    serverLogRaw(LL_WARNING, clients);
+    sdsfree(infostring);
+    sdsfree(clients);
+
+    /* Log the current client */
+    logCurrentClient();
+
+    /* Log dump of processor registers */
+    logRegisters(uc);
+
+#if defined(HAVE_PROC_MAPS)
+    /* Test memory */
+    serverLog(LL_WARNING, "--- FAST MEMORY TEST");
+    bioKillThreads();
+    if (memtest_test_linux_anonymous_maps()) {
+        serverLog(LL_WARNING,
+            "!!! MEMORY ERROR DETECTED! Check your memory ASAP !!!");
+    } else {
+        serverLog(LL_WARNING,
+            "Fast memory test PASSED, however your memory can still be broken. Please run a memory test for several hours if possible.");
+    }
+#endif
+
+    serverLog(LL_WARNING,
+"\n=== REDIS BUG REPORT END. Make sure to include from START to END. ===\n\n"
+"       Please report the crash by opening an issue on github:\n\n"
+"           http://github.com/antirez/redis/issues\n\n"
+"  Suspect RAM error? Use redis-server --test-memory to verify it.\n\n"
+);
+    /* free(messages); Don't call free() with possibly corrupted memory. */
+    if (server.daemonize && server.supervised == 0) unlink(server.pidfile);
+
+    /* Make sure we exit with the right signal at the end. So for instance
+     * the core will be dumped if enabled. */
+    sigemptyset (&act.sa_mask);
+    act.sa_flags = SA_NODEFER | SA_ONSTACK | SA_RESETHAND;
+    act.sa_handler = SIG_DFL;
+    sigaction (sig, &act, NULL);
+    kill(getpid(),sig);
+}

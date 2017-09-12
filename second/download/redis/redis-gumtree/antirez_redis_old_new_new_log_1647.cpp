@@ -1,0 +1,1 @@
+addReplyErrorFormat(c, "Key is not a valid HyperLogLog string value.");

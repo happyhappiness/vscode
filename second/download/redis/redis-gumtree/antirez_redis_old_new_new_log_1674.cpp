@@ -1,0 +1,3 @@
+addReplyErrorFormat(c,
+                        "Can't assign hashslot %d to a different node "
+                        "while I still hold keys for this hash slot.", slot);

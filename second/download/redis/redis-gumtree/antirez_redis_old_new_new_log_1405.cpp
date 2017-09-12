@@ -1,0 +1,1 @@
+addReplyError(c, "Quorum must be 1 or greater.");

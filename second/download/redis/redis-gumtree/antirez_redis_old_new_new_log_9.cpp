@@ -1,0 +1,1 @@
+printf("RDB preamble of AOF file is not sane, aborting.\n");

@@ -1,0 +1,1 @@
+len = snprintf(buf,size,"\"\\x%02x\"",(unsigned char)byte);

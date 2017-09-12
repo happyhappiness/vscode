@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING,"Currently unable to failover: %s", msg);

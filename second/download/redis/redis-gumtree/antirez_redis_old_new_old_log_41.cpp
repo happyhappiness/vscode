@@ -1,0 +1,1 @@
+printf("Lookup: %f\n", (double)(ustime()-start)/1000000);

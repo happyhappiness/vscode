@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING,"Error truncating the RDB file received from the master for SYNC: %s", strerror(errno));

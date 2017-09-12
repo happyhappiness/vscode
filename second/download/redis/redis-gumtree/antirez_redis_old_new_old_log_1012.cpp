@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING,"MASTER timeout: no data nor PING received...");

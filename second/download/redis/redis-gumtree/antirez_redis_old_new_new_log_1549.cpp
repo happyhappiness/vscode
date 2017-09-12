@@ -1,0 +1,1 @@
+snprintf(buf,sizeof(buf),"Can't get addr: %s",gai_strerror(rv));

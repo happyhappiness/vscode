@@ -1,0 +1,1 @@
+snprintf(fmt, fmt_len, strchr(ip,':') ? "[%s]" : "%s", ip);

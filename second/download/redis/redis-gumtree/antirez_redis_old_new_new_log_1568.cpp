@@ -1,0 +1,1 @@
+malloc_snprintf(filename, sizeof(filename), "/proc/curproc/map");

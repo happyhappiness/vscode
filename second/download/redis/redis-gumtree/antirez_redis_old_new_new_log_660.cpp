@@ -1,0 +1,2 @@
+luaPushError(lua,
+                "Write commands not allowed after non deterministic commands. Call redis.replicate_commands() at the start of your script in order to switch to single commands replication mode.");

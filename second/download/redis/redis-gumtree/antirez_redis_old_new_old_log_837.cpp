@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING,"client->argc = %d", c->argc);

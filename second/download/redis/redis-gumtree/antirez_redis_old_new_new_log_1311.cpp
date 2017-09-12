@@ -1,0 +1,1 @@
+sprintf(types[REDIS_RDB_OPCODE_SELECTDB], "SELECTDB");

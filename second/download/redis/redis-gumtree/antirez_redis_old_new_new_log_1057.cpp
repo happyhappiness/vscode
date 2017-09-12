@@ -1,0 +1,1 @@
+serverLog(LL_NOTICE,"Removing the pid file.");

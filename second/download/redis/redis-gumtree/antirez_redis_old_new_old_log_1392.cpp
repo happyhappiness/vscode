@@ -1,0 +1,1 @@
+snprintf(buf,sizeof(buf),"%s:%d",ip,c->slave_listening_port);

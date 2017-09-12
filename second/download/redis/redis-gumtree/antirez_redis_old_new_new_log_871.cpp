@@ -1,0 +1,1 @@
+serverLog(LL_WARNING, "--- FAST MEMORY TEST");

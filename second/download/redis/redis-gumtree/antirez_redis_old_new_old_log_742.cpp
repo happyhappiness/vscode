@@ -1,0 +1,1 @@
+serverLog(REDIS_NOTICE, "Background AOF rewrite finished successfully");

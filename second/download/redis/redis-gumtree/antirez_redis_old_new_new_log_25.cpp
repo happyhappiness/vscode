@@ -1,0 +1,1 @@
+RedisModule_ReplyWithError(ctx,"-ERR Can't start thread");

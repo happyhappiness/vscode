@@ -1,0 +1,1 @@
+line = sdscatprintf(sdsempty(), "sentinel myid %s", sentinel.myid);

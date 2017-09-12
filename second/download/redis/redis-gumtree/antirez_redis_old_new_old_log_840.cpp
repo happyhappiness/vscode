@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING,"Object encoding: %d", o->encoding);

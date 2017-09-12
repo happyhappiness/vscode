@@ -1,0 +1,1 @@
+addReplyError(c,"The specified node is not a master");

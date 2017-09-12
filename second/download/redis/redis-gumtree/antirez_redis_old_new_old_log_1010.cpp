@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING,"Timeout connecting to the MASTER...");

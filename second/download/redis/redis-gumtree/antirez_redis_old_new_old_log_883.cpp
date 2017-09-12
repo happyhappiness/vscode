@@ -1,0 +1,1 @@
+serverLog(REDIS_VERBOSE,"Accepted %s:%d", cip, cport);

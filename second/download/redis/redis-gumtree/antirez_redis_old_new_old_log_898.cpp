@@ -1,0 +1,1 @@
+serverLog(REDIS_NOTICE,"DB saved on disk");

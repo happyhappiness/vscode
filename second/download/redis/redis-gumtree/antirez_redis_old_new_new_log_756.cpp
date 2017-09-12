@@ -1,0 +1,1 @@
+serverLog(LL_NOTICE,"Node configuration loaded, I'm %.40s", myself->name);

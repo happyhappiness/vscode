@@ -1,0 +1,1 @@
+addReplyError(c,"Please use SETSLOT only with masters.");

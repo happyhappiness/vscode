@@ -1,0 +1,1 @@
+setProtocolError("invalid bulk length",c,pos);

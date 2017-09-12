@@ -1,0 +1,1 @@
+serverLog(REDIS_VERBOSE, "Reading from client: %s",strerror(errno));

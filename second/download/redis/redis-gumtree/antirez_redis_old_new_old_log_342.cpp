@@ -1,0 +1,1 @@
+sprintf(body, "Error trace (%s: (unknown))", types[e->type]);

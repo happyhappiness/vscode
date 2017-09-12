@@ -1,0 +1,1 @@
+printf("ERROR: Allowed merging of one ziplist into itself.\n");

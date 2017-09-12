@@ -1,0 +1,1 @@
+printf("Deletion: %f\n", (double)(ustime()-start)/1000000);

@@ -1,0 +1,1 @@
+snprintf(name,sizeof(name),"sentinel-%.8s-%s",sentinel.myid,type);

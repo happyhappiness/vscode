@@ -1,0 +1,1 @@
+ERROR("Cannot open file: %s\n", rdbfilename);

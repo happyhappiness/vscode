@@ -1,0 +1,1 @@
+snprintf(seq,64,"\r");

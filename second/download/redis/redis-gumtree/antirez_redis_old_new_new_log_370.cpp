@@ -1,0 +1,1 @@
+rdbCheckError("Can't handle RDB format version %d",rdbver);

@@ -1,0 +1,1 @@
+argc = lua_gettop(L);

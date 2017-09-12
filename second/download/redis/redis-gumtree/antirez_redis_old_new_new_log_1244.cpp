@@ -1,0 +1,1 @@
+clusterRedirectClient(c,n,hashslot,error_code);

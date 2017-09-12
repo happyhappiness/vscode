@@ -1,0 +1,1 @@
+SHIFT_ERROR(offset, "Error reading element at index %d (length: %d)", i, length);

@@ -1,0 +1,1 @@
+serverLog(LL_NOTICE,"Delay next BGSAVE for SYNC");

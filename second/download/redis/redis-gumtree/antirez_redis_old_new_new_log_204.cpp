@@ -1,0 +1,1 @@
+s = sdscatvprintf(s, fmt, ap);

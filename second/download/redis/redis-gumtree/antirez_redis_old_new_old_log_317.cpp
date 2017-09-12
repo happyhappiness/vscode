@@ -1,0 +1,1 @@
+SHIFT_ERROR(offset, "Unknown integer encoding (0x%02x)", enctype);

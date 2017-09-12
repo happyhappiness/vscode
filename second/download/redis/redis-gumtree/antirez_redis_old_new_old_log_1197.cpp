@@ -1,0 +1,1 @@
+printf(" avg chain length (computed): %.02f\n", (float)ht->used/slots);

@@ -1,0 +1,1 @@
+setProtocolError("unbalanced quotes in inline request",c,0);

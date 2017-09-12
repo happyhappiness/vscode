@@ -1,0 +1,1 @@
+vsnprintf(msg + name_len, sizeof(msg) - name_len, fmt, ap);

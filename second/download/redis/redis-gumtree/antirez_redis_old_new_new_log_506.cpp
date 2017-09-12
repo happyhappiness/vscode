@@ -1,0 +1,1 @@
+notifyKeyspaceEvent(NOTIFY_STRING,"setbit",c->argv[1],c->db->id);

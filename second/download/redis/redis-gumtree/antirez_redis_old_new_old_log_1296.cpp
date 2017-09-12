@@ -1,0 +1,1 @@
+printf("%s %s %s\n", head, body, tail);

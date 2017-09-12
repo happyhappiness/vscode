@@ -1,0 +1,1 @@
+fprintf(stderr, "Usage: %s [--multiline] [--keycodes]\n", prgname);

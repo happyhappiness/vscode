@@ -1,0 +1,1 @@
+clusterSaveConfigOrDie(1);

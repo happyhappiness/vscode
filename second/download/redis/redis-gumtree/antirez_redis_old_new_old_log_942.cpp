@@ -1,0 +1,1 @@
+serverLog(REDIS_DEBUG, "[PSYNC] Skipping: %lld", skip);

@@ -1,0 +1,1 @@
+sizes = sdscatprintf(sizes,"sdshdr8:%d", (int)sizeof(struct sdshdr8));

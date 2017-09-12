@@ -1,0 +1,1 @@
+serverLog(REDIS_WARNING, "(%08lx) -> %08lx", addr, val);

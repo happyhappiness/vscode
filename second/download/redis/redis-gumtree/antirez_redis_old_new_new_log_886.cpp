@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"Connection with master lost.");

@@ -1,0 +1,1 @@
+snprintf(dbname,sizeof(dbname),"db.%d",j);
