@@ -307,7 +307,7 @@ if __name__ == "__main__":
     # xgboost
     # 'ece5f00ca152bd56df5579e2ca76372fbf04dc38', 13313, 2366, 568, 912
     # redis
-    fetch_commit(False, 'dcdfd005a0133a347cc0aae54c690cd8c845fed7', 8645, 6454, 1540, 3049)
+    fetch_commit(False, 'af0e51f2e15bc9c63d11229e64ce7884e1a1402a', 10084, 6832, 1653, 3239)
     # fetch_patch()
 
     # re.match(r'^@@.*-(.*),.*\+(.*),.*@@', 'test statement')

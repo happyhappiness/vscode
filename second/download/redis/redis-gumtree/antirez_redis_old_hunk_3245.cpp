@@ -1,9 +1,13 @@
-        close(fd);
-        return REDIS_ERR;
-    }
-    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-        __redisSetError(c,REDIS_ERR_IO,
-            sdscatprintf(sdsempty(), "fcntl(F_SETFL,O_NONBLOCK): %s", strerror(errno)));
-        close(fd);
-        return REDIS_ERR;
-    }
+} redisContext;
+
+void freeReplyObject(void *reply);
+void *redisReplyReaderCreate();
+int redisReplyReaderSetReplyObjectFunctions(void *reader, redisReplyObjectFunctions *fn);
+int redisReplyReaderSetPrivdata(void *reader, void *privdata);
+void *redisReplyReaderGetObject(void *reader);
+char *redisReplyReaderGetError(void *reader);
+void redisReplyReaderFree(void *ptr);
+void redisReplyReaderFeed(void *reader, char *buf, size_t len);
+int redisReplyReaderGetReply(void *reader, void **reply);
+
+/* Functions to format a command according to the protocol. */

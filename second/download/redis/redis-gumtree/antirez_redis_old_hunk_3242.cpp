@@ -1,7 +1,7 @@
-    char buf[2048];
-    int nread = read(c->fd,buf,sizeof(buf));
-    if (nread == -1) {
-        if (errno == EAGAIN) {
-            /* Try again later */
-        } else {
-            __redisSetError(c,REDIS_ERR_IO,NULL);
+                            _format[_l] = '\0';
+                            va_copy(_cpy,ap);
+                            current = sdscatvprintf(current,_format,_cpy);
+                            interpolated = 1;
+                            va_end(_cpy);
+
+                            /* Update current position (note: outer blocks

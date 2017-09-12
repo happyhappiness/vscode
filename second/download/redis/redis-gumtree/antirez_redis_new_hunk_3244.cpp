@@ -1,13 +1,7 @@
-} redisContext;
-
-void freeReplyObject(void *reply);
-void *redisReplyReaderCreate(void);
-int redisReplyReaderSetReplyObjectFunctions(void *reader, redisReplyObjectFunctions *fn);
-int redisReplyReaderSetPrivdata(void *reader, void *privdata);
-void *redisReplyReaderGetObject(void *reader);
-char *redisReplyReaderGetError(void *reader);
-void redisReplyReaderFree(void *ptr);
-void redisReplyReaderFeed(void *reader, const char *buf, size_t len);
-int redisReplyReaderGetReply(void *reader, void **reply);
-
-/* Functions to format a command according to the protocol. */
+    if (sdslen(c->obuf) > 0) {
+        nwritten = write(c->fd,c->obuf,sdslen(c->obuf));
+        if (nwritten == -1) {
+            if (errno == EAGAIN && !(c->flags & REDIS_BLOCK)) {
+                /* Try again later */
+            } else {
+                __redisSetError(c,REDIS_ERR_IO,NULL);
