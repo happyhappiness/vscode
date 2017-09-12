@@ -1,6 +1,6 @@
+            failing->flags |= REDIS_NODE_FAIL;
+            failing->flags &= ~REDIS_NODE_PFAIL;
+            clusterUpdateState();
         }
-        zfree(slots);
-        clusterUpdateState();
-        addReply(c,shared.ok);
-    } else if (!strcasecmp(c->argv[1]->ptr,"info") && c->argc == 2) {
-        char *statestr[] = {"ok","fail","needhelp"};
+    } else {
+        redisLog(REDIS_NOTICE,"Received unknown packet type: %d", type);

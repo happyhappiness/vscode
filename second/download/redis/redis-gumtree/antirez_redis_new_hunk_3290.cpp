@@ -1,7 +1,10 @@
-            failing->flags |= REDIS_NODE_FAIL;
-            failing->flags &= ~REDIS_NODE_PFAIL;
+        clusterProcessGossipSection(hdr,link);
+
+        /* Update the cluster state if needed */
+        if (update) {
             clusterUpdateState();
             clusterSaveConfigOrDie();
         }
-    } else {
-        redisLog(REDIS_NOTICE,"Received unknown packet type: %d", type);
+    } else if (type == CLUSTERMSG_TYPE_FAIL && sender) {
+        clusterNode *failing;
+

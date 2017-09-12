@@ -1,6 +1,6 @@
-    redisDb *src, *dst;
-    int srcid;
+void selectCommand(redisClient *c) {
+    int id = atoi(c->argv[1]->ptr);
 
-    /* Obtain source and target DB pointers */
-    src = c->db;
-    srcid = c->db->id;
+    if (selectDb(c,id) == REDIS_ERR) {
+        addReplyError(c,"invalid DB index");
+    } else {

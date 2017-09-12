@@ -1,10 +1,9 @@
-void selectCommand(redisClient *c) {
-    int id = atoi(c->argv[1]->ptr);
+        clusterAddNode(n);
+        addReply(c,shared.ok);
+    } else if (!strcasecmp(c->argv[1]->ptr,"nodes") && c->argc == 2) {
+        robj *o;
+        sds ci = clusterGenNodesDescription();
 
-    if (server.cluster_enabled) {
-        addReplyError(c,"SELECT is not allowed in cluster mode");
-        return;
-    }
-    if (selectDb(c,id) == REDIS_ERR) {
-        addReplyError(c,"invalid DB index");
-    } else {
+        o = createObject(REDIS_STRING,ci);
+        addReplyBulk(c,o);
+        decrRefCount(o);

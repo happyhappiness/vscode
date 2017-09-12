@@ -1,10 +1,17 @@
+    while(fgets(line,maxline,fp) != NULL) {
+        int argc;
+        sds *argv = sdssplitargs(line,&argc);
 
-int clusterLoadConfig(char *filename) {
-    FILE *fp = fopen(filename,"r");
-   
-    return REDIS_ERR;
-    if (fp == NULL) return REDIS_ERR;
+        printf("Node: %s\n", argv[0]);
+
+        sdssplitargs_free(argv,argc);
+    }
+    zfree(line);
     fclose(fp);
+
+    /* Config sanity check */
+    /* TODO: check that myself is set. */
+    return REDIS_ERR;
 
     redisLog(REDIS_NOTICE,"Node configuration loaded, I'm %.40s",
         server.cluster.myself->name);

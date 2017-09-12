@@ -1,13 +1,9 @@
-    return -1;
-}
-
-void clusterSaveConfigOrDie(void) {
-    if (clusterSaveConfig() == -1) {
-        redisLog(REDIS_WARNING,"Fatal: can't update cluster config file.");
-        exit(1);
+         * by the createClusterNode() function. */
+        redisLog(REDIS_NOTICE,"No cluster configuration found, I'm %.40s",
+            server.cluster.myself->name);
+        clusterAddNode(server.cluster.myself);
+        saveconf = 1;
     }
-}
-
-void clusterInit(void) {
-    int saveconf = 0;
-
+    if (saveconf) clusterSaveConfigOrDie();
+    /* We need a listening TCP port for our cluster messaging needs */
+    server.cfd = anetTcpServer(server.neterr,

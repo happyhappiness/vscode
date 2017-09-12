@@ -3,5 +3,5 @@
     close(fd);
     return;
 
-socket_wr_err:
-    redisLog(REDIS_NOTICE,"Can't write to target node for MIGRATE: %s",
+file_rd_err:
+    redisLog(REDIS_WARNING,"Can't read from tmp file for MIGRATE: %s",

@@ -1,11 +1,27 @@
-        case '"':
-            s = sdscatprintf(s,"\\%c",*p);
-            break;
-        case '\n': s = sdscatlen(s,"\\n",2); break;
-        case '\r': s = sdscatlen(s,"\\r",2); break;
-        case '\t': s = sdscatlen(s,"\\t",2); break;
-        case '\a': s = sdscatlen(s,"\\a",2); break;
-        case '\b': s = sdscatlen(s,"\\b",2); break;
-        default:
-            if (isprint(*p))
-                s = sdscatprintf(s,"%c",*p);
+        return REDIS_OK;
+    }
+
+    /* If cluster is enabled, redirect here */
+    if (server.cluster_enabled &&
+                !(cmd->getkeys_proc == NULL && cmd->firstkey == 0)) {
+        int hashslot;
+
+        if (server.cluster.state != REDIS_CLUSTER_OK) {
+            addReplyError(c,"The cluster is down. Check with CLUSTER INFO for more information");
+            return REDIS_OK;
+        } else {
+            clusterNode *n = getNodeByQuery(c,cmd,c->argv,c->argc,&hashslot);
+            if (n == NULL) {
+                addReplyError(c,"Invalid cross-node request");
+                return REDIS_OK;
+            } else if (n != server.cluster.myself) {
+                addReplySds(c,sdscatprintf(sdsempty(),
+                    "-MOVED %d %s:%d\r\n",hashslot,n->ip,n->port));
+                return REDIS_OK;
+            }
+        }
+    }
+
+    /* Handle the maxmemory directive.
+     *
+     * First we try to free some memory if possible (if there are volatile

@@ -1,27 +1,26 @@
-        return REDIS_OK;
-    }
-
-    /* If cluster is enabled, redirect here */
-    if (server.cluster_enabled &&
-                !(cmd->getkeys_proc == NULL && cmd->firstkey == 0)) {
-        int hashslot;
-
-        if (server.cluster.state != REDIS_CLUSTER_OK) {
-            addReplyError(c,"The cluster is down. Check with CLUSTER INFO for more information");
-            return REDIS_OK;
-        } else {
-            clusterNode *n = getNodeByQuery(c,cmd,c->argv,c->argc,&hashslot);
-            if (n == NULL) {
-                addReplyError(c,"Invalid cross-node request");
-                return REDIS_OK;
-            } else if (n != server.cluster.myself) {
-                addReplySds(c,sdscatprintf(sdsempty(),
-                    "-MOVED %d %s:%d\r\n",hashslot,n->ip,n->port));
-                return REDIS_OK;
-            }
+    switch (r->type) {
+    case REDIS_REPLY_NIL:
+        /* Nothing... */
+        break;
+    case REDIS_REPLY_ERROR:
+        out = sdscatlen(out,r->str,r->len);
+        out = sdscatlen(out,"\n",1);
+        break;
+    case REDIS_REPLY_STATUS:
+    case REDIS_REPLY_STRING:
+        out = sdscatlen(out,r->str,r->len);
+        break;
+    case REDIS_REPLY_INTEGER:
+        out = sdscatprintf(out,"%lld",r->integer);
+        break;
+    case REDIS_REPLY_ARRAY:
+        for (i = 0; i < r->elements; i++) {
+            if (i > 0) out = sdscat(out,config.mb_delim);
+            tmp = cliFormatReplyRaw(r->element[i]);
+            out = sdscatlen(out,tmp,sdslen(tmp));
+            sdsfree(tmp);
         }
-    }
-
-    /* Handle the maxmemory directive.
-     *
-     * First we try to free some memory if possible (if there are volatile
+        break;
+    default:
+        fprintf(stderr,"Unknown reply type: %d\n", r->type);
+        exit(1);

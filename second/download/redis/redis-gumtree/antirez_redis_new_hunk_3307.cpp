@@ -1,32 +1,15 @@
-            ci = sdscatprintf(ci,"- ");
-
-        /* Latency from the POV of this node, link status */
-        ci = sdscatprintf(ci,"%ld %ld %s",
-            (long) node->ping_sent,
-            (long) node->pong_received,
-            node->link ? "connected" : "disconnected");
-
-        /* Slots served by this instance */
-        start = -1;
-        for (j = 0; j < REDIS_CLUSTER_SLOTS; j++) {
-            int bit;
-
-            if ((bit = clusterNodeGetSlotBit(node,j)) != 0) {
-                if (start == -1) start = j;
-            }
-            if (start != -1 && (!bit || j == REDIS_CLUSTER_SLOTS-1)) {
-                if (j == REDIS_CLUSTER_SLOTS-1) j++;
-
-                if (start == j-1) {
-                    ci = sdscatprintf(ci," %d",start);
-                } else {
-                    ci = sdscatprintf(ci," %d-%d",start,j-1);
-                }
-                start = -1;
-            }
-        }
+        sizeof(server.cluster.importing_slots_from));
+    memset(server.cluster.slots,0,
+        sizeof(server.cluster.slots));
+    if (clusterLoadConfig(server.cluster.configfile) == REDIS_ERR) {
+        /* No configuration found. We will just use the random name provided
+         * by the createClusterNode() function. */
+        redisLog(REDIS_NOTICE,"No cluster configuration found, I'm %.40s",
+            server.cluster.myself->name);
+        saveconf = 1;
     }
-    ci = sdscatlen(ci,"\n",1);
-    dictReleaseIterator(di);
-    return ci;
-}
+    clusterAddNode(server.cluster.myself);
+    if (saveconf) clusterSaveConfigOrDie();
+    /* We need a listening TCP port for our cluster messaging needs */
+    server.cfd = anetTcpServer(server.neterr,
+            server.port+REDIS_CLUSTER_PORT_INCR, server.bindaddr);

@@ -1,11 +1,10 @@
-    redisDb *src, *dst;
-    int srcid;
+void selectCommand(redisClient *c) {
+    int id = atoi(c->argv[1]->ptr);
 
     if (server.cluster_enabled) {
-        addReplyError(c,"MOVE is not allowed in cluster mode");
+        addReplyError(c,"SELECT is not allowed in cluster mode");
         return;
     }
-
-    /* Obtain source and target DB pointers */
-    src = c->db;
-    srcid = c->db->id;
+    if (selectDb(c,id) == REDIS_ERR) {
+        addReplyError(c,"invalid DB index");
+    } else {

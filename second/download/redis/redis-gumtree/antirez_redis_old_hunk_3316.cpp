@@ -1,6 +1,22 @@
-    } else if (!strcasecmp(c->argv[2]->ptr,"set-max-intset-entries")) {
-        if (getLongLongFromObject(o,&ll) == REDIS_ERR || ll < 0) goto badfmt;
-        server.set_max_intset_entries = ll;
-    } else {
-        addReplyErrorFormat(c,"Unsupported CONFIG parameter: %s",
-            (char*)c->argv[2]->ptr);
+                }
+                setTypeReleaseIterator(si);
+            } else if (o->type == REDIS_ZSET) {
+                zset *zs = o->ptr;
+                dictIterator *di = dictGetIterator(zs->dict);
+                dictEntry *de;
+
+                while((de = dictNext(di)) != NULL) {
+                    robj *eleobj = dictGetEntryKey(de);
+                    double *score = dictGetEntryVal(de);
+                    unsigned char eledigest[20];
+
+                    snprintf(buf,sizeof(buf),"%.17g",*score);
+                    memset(eledigest,0,20);
+                    mixObjectDigest(eledigest,eleobj);
+                    mixDigest(eledigest,buf,strlen(buf));
+                    xorDigest(digest,eledigest,20);
+                }
+                dictReleaseIterator(di);
+            } else if (o->type == REDIS_HASH) {
+                hashTypeIterator *hi;
+                robj *obj;
