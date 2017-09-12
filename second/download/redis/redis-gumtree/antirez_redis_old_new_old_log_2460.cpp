@@ -1,0 +1,1 @@
+(!config.raw_output) printf("SYNC done. Logging commands from master.\n");

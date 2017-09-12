@@ -1,0 +1,1 @@
+addReplyError(c,"This instance has cluster support disabled");

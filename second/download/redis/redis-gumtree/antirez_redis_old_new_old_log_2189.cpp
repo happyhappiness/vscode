@@ -1,0 +1,1 @@
+notifyKeyspaceEvent(incr ? "zincr" : "zadd", key, c->db->id);

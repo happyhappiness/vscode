@@ -1,0 +1,1 @@
+addReplyError(c,"Invalid or out of range slot index");

@@ -1,0 +1,1 @@
+printf("  \x1b[33mgroup:\x1b[0m %s\n", command_group_type_names[help->group]);

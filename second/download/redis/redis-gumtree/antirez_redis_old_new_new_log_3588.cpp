@@ -1,0 +1,1 @@
+addReplyError(c,"Can't SYNC while not connected with my master");

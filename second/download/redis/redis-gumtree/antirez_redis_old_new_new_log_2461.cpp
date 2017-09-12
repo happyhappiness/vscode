@@ -1,0 +1,1 @@
+f(stderr,"SYNC done. Logging commands from master.\n");

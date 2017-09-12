@@ -1,0 +1,1 @@
+printf("\t(%dx PING: %.3fs)\n", num, (t2-t1)/1000000.0);

@@ -1,0 +1,1 @@
+printf("SYNC with master failed: %s\n", buf);

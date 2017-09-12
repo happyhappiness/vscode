@@ -1,0 +1,1 @@
+printf("DISCONNECT CALLBACK CALLED: %p (%p)\n", (void*)c, (void*)c->data);

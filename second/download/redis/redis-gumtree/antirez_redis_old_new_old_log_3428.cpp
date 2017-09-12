@@ -1,0 +1,1 @@
+anetSetError(err, "socket: %s\n", strerror(errno));

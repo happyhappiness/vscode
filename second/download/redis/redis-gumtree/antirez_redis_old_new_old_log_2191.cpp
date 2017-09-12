@@ -1,0 +1,1 @@
+notifyKeyspaceEvent("zrembyscore",key,c->db->id);

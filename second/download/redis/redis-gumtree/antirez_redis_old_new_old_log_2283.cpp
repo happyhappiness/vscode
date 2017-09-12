@@ -1,0 +1,1 @@
+malloc_cprintf(write_cb, cbopaque, "Max arenas: %u\n", uv);

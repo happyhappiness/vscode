@@ -1,0 +1,1 @@
+config.hostip = argv[i+1];

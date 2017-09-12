@@ -1,0 +1,1 @@
+snprintf(buf,len,"%lldgb",bytes/gb);

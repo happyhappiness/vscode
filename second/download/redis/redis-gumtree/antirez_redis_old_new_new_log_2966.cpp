@@ -1,0 +1,1 @@
+addReplyError(c,"Invalid CLUSTER SETSLOT action or number of arguments");

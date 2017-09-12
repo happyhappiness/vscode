@@ -1,0 +1,1 @@
+syslog(syslogLevelMap[level], "%s", msg);

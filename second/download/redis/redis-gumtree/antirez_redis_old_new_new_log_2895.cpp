@@ -1,0 +1,1 @@
+addReplyError(c,"The cluster is down. Check with CLUSTER INFO for more information");

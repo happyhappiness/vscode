@@ -1,0 +1,1 @@
+sdscatprintf(sdsempty(), "getsockopt(SO_ERROR): %s", strerror(errno));

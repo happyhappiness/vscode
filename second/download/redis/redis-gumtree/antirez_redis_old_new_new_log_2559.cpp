@@ -1,0 +1,1 @@
+printf("EVENTS: %d\n", events);

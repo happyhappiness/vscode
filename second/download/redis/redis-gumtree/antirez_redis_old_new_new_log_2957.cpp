@@ -1,0 +1,1 @@
+addReplyErrorFormat(c,"I'm not the owner of hash slot %u",slot);

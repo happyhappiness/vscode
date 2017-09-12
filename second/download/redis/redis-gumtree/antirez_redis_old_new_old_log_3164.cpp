@@ -1,0 +1,1 @@
+addReplyError(c,"Virtual Memory is disabled");

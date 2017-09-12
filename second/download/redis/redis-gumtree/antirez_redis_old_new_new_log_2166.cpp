@@ -1,0 +1,1 @@
+t(REDIS_NOTIFY_LIST,"ltrim",c->argv[1],c->db->id);

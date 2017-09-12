@@ -1,0 +1,1 @@
+snprintf(buf,sizeof(buf),"%s%02x",prefix,j);

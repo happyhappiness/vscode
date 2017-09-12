@@ -1,0 +1,1 @@
+sdscatprintf(sdsempty(), "setsockopt(SO_RCVTIMEO): %s", strerror(errno));

@@ -1,0 +1,1 @@
+snprintf(dbuf,sizeof(dbuf),"%.17g\r\n",d);

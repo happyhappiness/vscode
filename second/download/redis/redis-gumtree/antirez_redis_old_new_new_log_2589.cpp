@@ -1,0 +1,1 @@
+"Can't open file '%s': %s\n";

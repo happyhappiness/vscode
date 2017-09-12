@@ -1,0 +1,1 @@
+memtest_progress_start("Random fill",pass);

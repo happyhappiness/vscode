@@ -1,0 +1,1 @@
+setDeferredMultiBulkLength(c,replylen,numkeys);

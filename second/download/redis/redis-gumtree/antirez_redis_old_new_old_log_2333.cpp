@@ -1,0 +1,1 @@
+authlen = snprintf(authcmd,sizeof(authcmd),"AUTH %s\r\n",server.masterauth);

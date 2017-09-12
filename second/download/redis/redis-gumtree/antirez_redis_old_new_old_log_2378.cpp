@@ -1,0 +1,1 @@
+s[11]="      error(\"assign to undeclared global var '\"..n..\"'\", 2)\n";

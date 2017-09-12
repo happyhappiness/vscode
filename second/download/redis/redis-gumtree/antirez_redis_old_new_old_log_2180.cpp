@@ -1,0 +1,1 @@
+notifyKeyspaceEvent("sinterstore",dstkey,c->db->id);

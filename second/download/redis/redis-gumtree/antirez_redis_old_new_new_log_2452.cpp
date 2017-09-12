@@ -1,0 +1,1 @@
+fprintf(stderr,"Example: ./redis-server --test-memory 4096\n\n");

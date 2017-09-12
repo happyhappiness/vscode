@@ -1,0 +1,1 @@
+fprintf(stderr,"       ./redis-server (run the server with default conf)\n");

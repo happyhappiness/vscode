@@ -1,0 +1,1 @@
+(l != 0 && fwrite(p,l,1,stdout) == 0;

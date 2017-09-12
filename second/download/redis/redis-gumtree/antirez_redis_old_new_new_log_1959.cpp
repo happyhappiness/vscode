@@ -1,0 +1,1 @@
+snprintf(peerid,peerid_len,"%s:%d",ip,port);

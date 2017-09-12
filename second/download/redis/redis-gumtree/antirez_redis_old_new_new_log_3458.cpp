@@ -1,0 +1,1 @@
+(vlen && fwrite(vstr,vlen,1,stdout) == 0;

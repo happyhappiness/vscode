@@ -1,0 +1,1 @@
+notifyKeyspaceEvent("sortstore",storekey,c->db->id);

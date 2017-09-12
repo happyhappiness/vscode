@@ -1,0 +1,1 @@
+nwritten = write(fd,slave->replpreamble,sdslen(slave->replpreamble));

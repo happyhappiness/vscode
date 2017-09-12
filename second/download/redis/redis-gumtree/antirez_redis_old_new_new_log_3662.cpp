@@ -1,0 +1,1 @@
+sds s = sdscatvprintf(sdsempty(),fmt,ap);

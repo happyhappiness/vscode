@@ -1,0 +1,1 @@
+luaL_error(L, "integral size %d is not a power of 2", sz);

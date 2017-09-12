@@ -1,0 +1,1 @@
+fprintf(stderr,"%s:%d: %s",config.hostip,config.hostport,err);

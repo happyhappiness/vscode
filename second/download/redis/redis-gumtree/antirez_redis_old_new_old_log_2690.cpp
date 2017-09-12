@@ -1,0 +1,1 @@
+addReplyError(c,"RESTORE failed, tmp file I/O error.");

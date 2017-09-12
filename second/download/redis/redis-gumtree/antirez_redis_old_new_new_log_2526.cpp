@@ -1,0 +1,1 @@
+snprintf(buf,sizeof(buf),"Can't create socket: %s",strerror(errno));

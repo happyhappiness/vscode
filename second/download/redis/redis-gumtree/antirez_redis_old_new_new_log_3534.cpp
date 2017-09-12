@@ -1,0 +1,1 @@
+setDeferredMultiBulkLength(c,replylen,matches*2);

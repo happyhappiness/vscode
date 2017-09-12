@@ -1,0 +1,1 @@
+printf("%lld\n", (uint64_t)INTSET_GET(is,i));

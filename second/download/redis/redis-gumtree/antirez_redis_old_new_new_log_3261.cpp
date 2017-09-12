@@ -1,0 +1,1 @@
+version = sdscatprintf(sdsempty(), "%s", REDIS_VERSION);

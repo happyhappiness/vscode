@@ -1,0 +1,1 @@
+printf("USED: %zu, TOFREE: %zu\n", mem_used, mem_tofree);

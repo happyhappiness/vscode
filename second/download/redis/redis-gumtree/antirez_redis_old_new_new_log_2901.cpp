@@ -1,0 +1,1 @@
+p = ziplistIndex(zl,-1);

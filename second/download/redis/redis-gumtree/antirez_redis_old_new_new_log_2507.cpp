@@ -1,0 +1,1 @@
+__redisSetErrorFromErrno(c,REDIS_ERR_IO,"fcntl(F_SETFL)");

@@ -1,0 +1,1 @@
+len = snprintf(buf,len,"%.17g",value);

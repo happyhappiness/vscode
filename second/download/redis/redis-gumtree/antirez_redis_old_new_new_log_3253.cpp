@@ -1,0 +1,1 @@
+printf("redis-cli %s\n", version);

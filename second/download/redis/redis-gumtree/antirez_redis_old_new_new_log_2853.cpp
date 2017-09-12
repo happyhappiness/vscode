@@ -1,0 +1,1 @@
+p = redisProtocolToLuaType_Error(lua,reply);

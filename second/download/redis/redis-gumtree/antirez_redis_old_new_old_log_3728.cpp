@@ -1,0 +1,1 @@
+sdscatprintf(sdsempty(),":%lu\r\n",dictSize(c->db->dict));

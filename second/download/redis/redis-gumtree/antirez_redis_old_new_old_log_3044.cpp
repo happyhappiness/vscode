@@ -1,0 +1,1 @@
+snprintf(dbnum,sizeof(dbnum),"%d",config.dbnum);

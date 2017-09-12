@@ -1,0 +1,1 @@
+notifyKeyspaceEvent("hdel",c->argv[1],c->db->id);

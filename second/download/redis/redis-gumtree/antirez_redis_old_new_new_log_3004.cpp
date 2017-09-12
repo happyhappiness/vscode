@@ -1,0 +1,1 @@
+snprintf(buf,sizeof(buf),"redis-dump-%d.tmp",getpid());

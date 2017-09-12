@@ -1,0 +1,1 @@
+fprintf(stderr,"Connect: %s\n",err);

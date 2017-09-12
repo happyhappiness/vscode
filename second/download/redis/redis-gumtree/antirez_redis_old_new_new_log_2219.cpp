@@ -1,0 +1,1 @@
+notifyKeyspaceEvent("rpop",touchedkey,c->db->id);

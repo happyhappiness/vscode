@@ -1,0 +1,1 @@
+(nread == -1) ? strerror(errno) : "connection lost";

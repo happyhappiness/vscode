@@ -1,0 +1,1 @@
+printf("Connection error: %s\n", c->errstr);

@@ -1,0 +1,1 @@
+printf("val->ptr: %s\n",(char*)j->val->ptr);

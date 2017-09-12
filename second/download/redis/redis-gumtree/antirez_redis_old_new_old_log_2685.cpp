@@ -1,0 +1,1 @@
+f(buf,sizeof(buf),"redis-restore-%d.tmp",getpid());

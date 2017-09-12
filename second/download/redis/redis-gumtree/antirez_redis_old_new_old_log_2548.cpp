@@ -1,0 +1,1 @@
+(debug) printf("+freed: %zu\n\n", mem_freed);

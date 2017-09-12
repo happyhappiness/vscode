@@ -1,0 +1,1 @@
+printf("Total unprocessable opcodes: %d\n", num_errors);

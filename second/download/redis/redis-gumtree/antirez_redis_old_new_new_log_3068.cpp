@@ -1,0 +1,1 @@
+addReplyError(c, "Can't flush cache while BGSAVE is in progress.");

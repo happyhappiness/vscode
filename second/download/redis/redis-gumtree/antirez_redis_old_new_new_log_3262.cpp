@@ -1,0 +1,1 @@
+version = sdscatprintf(version, " (git:%s", redisGitSHA1());

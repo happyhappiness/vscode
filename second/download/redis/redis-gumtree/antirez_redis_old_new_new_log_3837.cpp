@@ -1,0 +1,1 @@
+llen = ll2string(lbuf,32,l);

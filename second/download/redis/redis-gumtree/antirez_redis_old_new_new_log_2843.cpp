@@ -1,0 +1,1 @@
+luaPushError(lua, "First argument must be a number (log level).");

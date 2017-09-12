@@ -1,0 +1,1 @@
+luaL_argerror(L, arg, "no value");
