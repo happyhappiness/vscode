@@ -307,9 +307,9 @@ if __name__ == "__main__":
     # xgboost
     # 'ece5f00ca152bd56df5579e2ca76372fbf04dc38', 13313, 2366, 568, 912
     # redis
-    fetch_commit(False, '674492bcebbfd59612ad65d7429b3db5735bd447', 11570, 7913, 1999, 3928)
-    # fetch_patch()
-
+    # fetch_commit(False, 'ed9b544e10b84cd43348ddfab7068b610a5df1f7', 14980, 9089, 2364, 4581)
+    fetch_patch()
+    # fetch_commit()
     # re.match(r'^@@.*-(.*),.*\+(.*),.*@@', 'test statement')
     # log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
     # log_function = myUtil.functionToRegrexStr(log_functions)
