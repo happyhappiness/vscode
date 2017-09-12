@@ -1,0 +1,17 @@
+}
+
+static void mgetCommand(redisClient *c) {
+    dictEntry *de;
+    int j;
+  
+    addReplySds(c,sdscatprintf(sdsempty(),"*%d\r\n",c->argc-1));
+    for (j = 1; j < c->argc; j++) {
+        de = dictFind(c->dict,c->argv[j]);
+        if (de == NULL) {
+            addReply(c,shared.nullbulk);
+        } else {
+            robj *o = dictGetEntryVal(de);
+            
+            if (o->type != REDIS_STRING) {
+                addReply(c,shared.nullbulk);
+            } else {
