@@ -1,0 +1,1 @@
+f("Delete foo while iterating:\n");

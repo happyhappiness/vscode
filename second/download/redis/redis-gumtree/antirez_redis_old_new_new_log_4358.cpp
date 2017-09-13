@@ -1,0 +1,1 @@
+buf = sdscatprintf(buf,"*%d\r\n",argc);

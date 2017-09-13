@@ -1,0 +1,1 @@
+clen = 1+ll2string(cbuf+1,sizeof(cbuf)-1,len);

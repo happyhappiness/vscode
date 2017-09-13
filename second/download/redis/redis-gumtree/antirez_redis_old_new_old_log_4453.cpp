@@ -1,0 +1,1 @@
+printf(" number of elements: %d\n", ht->used);

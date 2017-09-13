@@ -1,0 +1,1 @@
+s = sdscatprintf(s,"\\x%02x",(unsigned char)*p);

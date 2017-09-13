@@ -1,0 +1,1 @@
+printf("Successfully truncated AOF\n");

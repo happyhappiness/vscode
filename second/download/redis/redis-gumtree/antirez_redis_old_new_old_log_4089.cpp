@@ -1,0 +1,1 @@
+cmd = sdscatprintf(cmd,"*%d\r\n",argc);

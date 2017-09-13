@@ -1,0 +1,1 @@
+snprintf(buf,64,"unknown encoding %d\n", val->encoding);

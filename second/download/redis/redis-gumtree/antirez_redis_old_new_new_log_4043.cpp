@@ -1,0 +1,1 @@
+len = ll2string(buf,32,(long)o->ptr);

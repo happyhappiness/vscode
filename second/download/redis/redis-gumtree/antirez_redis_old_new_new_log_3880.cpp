@@ -1,0 +1,1 @@
+printf("Compare strings with ziplist entries:\n");

@@ -1,0 +1,1 @@
+snprintf(lbuf,sizeof(lbuf),"%ld\r\n",l);

@@ -1,0 +1,1 @@
+snprintf((char*)buf+1,sizeof(buf)-1,"%.16g",val);

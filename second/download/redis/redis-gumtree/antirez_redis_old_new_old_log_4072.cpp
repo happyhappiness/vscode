@@ -1,0 +1,1 @@
+printf("Empty file: %s\n", argv[1]);

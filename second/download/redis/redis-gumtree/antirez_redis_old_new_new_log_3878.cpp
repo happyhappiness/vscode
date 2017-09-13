@@ -1,0 +1,1 @@
+len = sprintf(buf,"%d",i);

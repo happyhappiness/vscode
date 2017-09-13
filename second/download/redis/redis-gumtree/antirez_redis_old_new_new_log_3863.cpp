@@ -1,0 +1,1 @@
+sprintf(buf, "much much longer non integer");

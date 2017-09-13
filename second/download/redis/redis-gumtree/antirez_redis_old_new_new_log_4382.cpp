@@ -1,0 +1,1 @@
+redisLog(REDIS_WARNING,"Error moving temp DB file on the final destination: %s", strerror(errno));

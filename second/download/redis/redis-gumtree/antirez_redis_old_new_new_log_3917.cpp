@@ -1,0 +1,1 @@
+printf("{offset %ld, header %u, payload %u} ",p-zl,prevrawlensize+lensize,len);

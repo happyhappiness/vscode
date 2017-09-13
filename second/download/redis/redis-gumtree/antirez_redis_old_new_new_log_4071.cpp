@@ -1,0 +1,1 @@
+printf("Cannot stat file: %s\n", filename);

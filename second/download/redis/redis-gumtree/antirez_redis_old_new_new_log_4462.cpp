@@ -1,0 +1,2 @@
+addReplySds(c,sdscatprintf(sdsempty(),
+                            "$%d\r\n",sdslen(ele->ptr)));

@@ -1,0 +1,1 @@
+lenobj->ptr = sdscatprintf(sdsempty(),"*%d\r\n",cardinality);

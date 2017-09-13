@@ -1,0 +1,1 @@
+cmd = sdscatprintf(cmd,"SELECT %d\r\n",config.dbnum);

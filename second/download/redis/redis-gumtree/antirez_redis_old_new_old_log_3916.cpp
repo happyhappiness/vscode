@@ -1,0 +1,1 @@
+printf("%lld", zipLoadInteger(p,encoding));

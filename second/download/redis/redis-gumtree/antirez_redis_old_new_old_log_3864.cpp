@@ -1,0 +1,1 @@
+snprintf(buf,sizeof(buf),"$%ld\r\n",(long)sdslen(obj->ptr));

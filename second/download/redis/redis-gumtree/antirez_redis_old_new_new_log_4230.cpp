@@ -1,0 +1,1 @@
+printf("val->type: %d\n",j->val->type);

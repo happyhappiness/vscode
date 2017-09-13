@@ -1,0 +1,1 @@
+printf("Mark used: %lld (byte:%d bit:%d)\n", (long long)page, byte, bit);

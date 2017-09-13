@@ -1,0 +1,1 @@
+o = createObject(REDIS_STRING,sdsfromlonglong(value));
