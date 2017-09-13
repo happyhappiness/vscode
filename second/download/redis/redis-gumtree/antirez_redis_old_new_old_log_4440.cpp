@@ -1,0 +1,1 @@
+fprintf(fp,"%c ",c[level]);

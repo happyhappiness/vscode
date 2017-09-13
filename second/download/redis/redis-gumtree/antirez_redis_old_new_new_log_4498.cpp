@@ -1,0 +1,1 @@
+snprintf(sizebuf,32,"$%d\r\n",len);

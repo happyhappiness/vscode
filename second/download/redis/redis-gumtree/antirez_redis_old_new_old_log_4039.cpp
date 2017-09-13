@@ -1,0 +1,1 @@
+snprintf(bufb,sizeof(bufb),"%ld",(long) b->ptr);

@@ -1,0 +1,1 @@
+addReplyBulkLen(c,vector[j].obj);

@@ -1,0 +1,1 @@
+vmMarkPagesFree(o->vm.page,o->vm.usedpages);

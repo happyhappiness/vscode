@@ -1,0 +1,1 @@
+snprintf(buf,32,"%lld",value);

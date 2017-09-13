@@ -1,0 +1,1 @@
+printf("Got signal %d\n", sig);

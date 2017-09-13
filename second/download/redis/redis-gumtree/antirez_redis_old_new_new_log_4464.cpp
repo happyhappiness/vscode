@@ -1,0 +1,1 @@
+printf("Increment '%s'(%p), now is: %d\n",o->ptr,o,o->refcount);

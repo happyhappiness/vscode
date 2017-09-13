@@ -1,0 +1,1 @@
+redisLog(REDIS_WARNING,"Write error writing append only fileon disk: %s", strerror(errno));

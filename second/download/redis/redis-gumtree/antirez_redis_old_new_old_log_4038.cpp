@@ -1,0 +1,1 @@
+snprintf(bufa,sizeof(bufa),"%ld",(long) a->ptr);

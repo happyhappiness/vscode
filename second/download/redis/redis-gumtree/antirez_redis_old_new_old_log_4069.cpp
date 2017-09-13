@@ -1,0 +1,1 @@
+printf("Usage: %s <file.aof>\n", argv[0]);

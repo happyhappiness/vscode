@@ -1,0 +1,1 @@
+shared.plus = createObject(REDIS_STRING,sdsnew("+"));

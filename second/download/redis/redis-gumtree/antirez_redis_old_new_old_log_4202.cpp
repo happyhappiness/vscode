@@ -1,0 +1,1 @@
+j->ptr = sdscatprintf(sdsempty(),"*%d\r\n",rangelen);

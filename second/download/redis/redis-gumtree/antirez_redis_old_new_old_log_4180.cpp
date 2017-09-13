@@ -1,0 +1,1 @@
+snprintf(tmpfile,256,"temp-%d.%ld.rdb",(int)time(NULL),(long int)random());

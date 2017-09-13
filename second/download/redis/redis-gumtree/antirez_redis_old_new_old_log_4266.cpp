@@ -1,0 +1,1 @@
+printf("blockForKey %p %s\n", c, key->ptr);

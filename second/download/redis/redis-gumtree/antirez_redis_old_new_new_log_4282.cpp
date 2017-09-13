@@ -1,0 +1,1 @@
+redisLog(REDIS_WARNING, "%s: Out of memory\n",msg);

@@ -1,0 +1,1 @@
+o->ptr = sdscatprintf(sdsempty(),"%lld",value);

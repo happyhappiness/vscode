@@ -1,0 +1,1 @@
+printf("Redis server version %s\n", REDIS_VERSION);

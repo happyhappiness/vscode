@@ -1,0 +1,1 @@
+c->obuf = sdscatprintf(c->obuf,"SET foo %d\r\n",config.datasize);

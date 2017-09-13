@@ -1,0 +1,1 @@
+snprintf(buf,sizeof(buf),"%.16g",*score);

@@ -1,0 +1,1 @@
+sprintf(buf, "100");

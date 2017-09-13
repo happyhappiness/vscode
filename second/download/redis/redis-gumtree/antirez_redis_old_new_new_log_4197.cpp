@@ -1,0 +1,1 @@
+fprintf(stderr, "\nRun in interactive mode: redis-cli -i \n");

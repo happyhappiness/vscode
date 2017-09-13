@@ -1,0 +1,1 @@
+addReplyLongLong(c,listLength(list));

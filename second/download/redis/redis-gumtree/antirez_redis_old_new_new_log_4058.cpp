@@ -1,0 +1,1 @@
+redisLog(REDIS_WARNING,"Exiting on error writing to the append-only file: %s",strerror(errno));

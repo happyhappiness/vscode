@@ -1,0 +1,1 @@
+fprintf(stderr,"       ./redis-server - (read config from stdin)\n");

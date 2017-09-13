@@ -1,0 +1,1 @@
+f("Delete inclusive range 0,0:\n");

@@ -1,0 +1,1 @@
+printf("AOF is valid\n");

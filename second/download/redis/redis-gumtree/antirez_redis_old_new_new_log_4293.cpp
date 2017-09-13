@@ -1,0 +1,1 @@
+addReplySds(c,sdscatprintf(sdsempty(),":%lu\r\n",zs->zsl->length));

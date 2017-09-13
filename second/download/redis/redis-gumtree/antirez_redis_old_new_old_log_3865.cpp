@@ -1,0 +1,1 @@
+snprintf(buf,sizeof(buf),"$%ld\r\n",(unsigned long)len);

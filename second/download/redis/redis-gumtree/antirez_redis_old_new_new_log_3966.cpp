@@ -1,0 +1,1 @@
+printf("Delete inclusive range 1,2:\n");

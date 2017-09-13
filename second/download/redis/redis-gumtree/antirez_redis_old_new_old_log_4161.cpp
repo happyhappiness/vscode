@@ -1,0 +1,1 @@
+cmd = sdscatprintf(cmd,"AUTH %s\r\n",config.authpw);

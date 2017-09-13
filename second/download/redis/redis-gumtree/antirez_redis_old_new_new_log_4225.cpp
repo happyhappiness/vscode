@@ -1,0 +1,1 @@
+printf("Calling LZF with ptr: %p\n", (void*)obj->ptr);

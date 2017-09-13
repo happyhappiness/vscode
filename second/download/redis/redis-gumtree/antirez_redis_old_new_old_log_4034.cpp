@@ -1,0 +1,1 @@
+len = snprintf(buf,32,"%ld",(long)o->ptr);
