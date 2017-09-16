@@ -18,116 +18,160 @@ import myUtil
 
 
 """
-@ param gh and sha
-@ return flag
-@ involve filter out file which is not cpp like
+@ param old and new hunk, hunk counter
+@ return hunk counter, old and new hunk
+@ involve store hunk file
 """
-def filter_file(changed_file):
+def store_hunk(old_hunk, new_hunk, total_hunk):
+    
+    total_hunk += 1
+    print 'now processing hunk: %d' %(total_hunk)
+    # store old hunk file
+    old_hunk_name = my_constant.DOWNLOAD_OLD_HUNK + str(total_hunk) + '.cpp'
+    myUtil.save_file(old_hunk, old_hunk_name)
 
-    # cpp like(ignore case)
-    is_cpp = re.search(my_constant.FILE_FORMAT, changed_file.filename, re.I)
-    # test like
-    # is_test_cpp = re.search(r'(test)$', changed_file.filename, re.I)
-    # modified
-    if is_cpp:
-        return True
-    else:
-        return False
+    # store new hunk file
+    new_hunk_name = my_constant.DOWNLOAD_NEW_HUNK + str(total_hunk) + '.cpp'
+    myUtil.save_file(new_hunk, new_hunk_name)
 
+    return total_hunk, old_hunk_name, new_hunk_name
 
 """
-@ param  patch info, patch, hunk counter, csv writer
-@ return bool has log and updated hunk counter
-@ involve deal with patch file and save hunk info(has log)
+@ param patch info, patch, log function, hunk counter and file writer
+@ return hunk counter
+@ involve recognize and save hunk info(has log)
 """
-def deal_patch( patch_file, log_function, total_hunk, writer, caller_flag):
-
-    full_patch_file = open(my_constant.PATCH_DIR + patch_file, 'rb')
-    patch = full_patch_file.readlines()
-    has_log = False
+def deal_file_diff( version_diff_info, file_diff, log_function, total_hunk, writer):
 
     # old and new hunk content
-    old_hunk = ''
-    new_hunk = ''
+    old_hunk = new_hunk = ''
     # old and new file location of hunk top
-    old_hunk_loc = 0
-    new_hunk_loc = 0
-    old_loc = 0
-    new_loc = 0
+    old_hunk_loc = new_hunk_loc = 0
+    old_loc = new_loc = 0
     # old and new log locations
-    old_log_loc = [] # mov, del, update
-    new_log_loc = [] # ins
+    old_log_loc = new_log_loc = []
 
     # deal with each line of patch
-    for line in patch:
+    file_diff = file_diff[2:]
+    for line in file_diff:
         # recognize change hunk by description info
         is_hunk = re.match(r'^@@.*-(.*),.*\+(.*),.*@@', line)
         # deal with past hunk and record new one
         if is_hunk:
-            # if has log update, so deal with it
+            # if has log modification
             if len(old_log_loc) != 0 or len(new_log_loc) != 0:
-                has_log = True
-                total_hunk += 1
-                # write old hunk file to temp file
-                old_hunk_name = my_constant.DOWNLOAD_OLD_HUNK + str(total_hunk) + '.cpp'
-                myUtil.save_file(old_hunk, old_hunk_name)
-
-                # write new hunk file to temp file
-                new_hunk_name = my_constant.DOWNLOAD_NEW_HUNK + str(total_hunk) + '.cpp'
-                myUtil.save_file(new_hunk, new_hunk_name)
-
-                writer.writerow([patch_file, old_file, new_file, old_hunk_name, new_hunk_name, \
-                old_hunk_loc, new_hunk_loc, json.dumps(old_log_loc), json.dumps(new_log_loc)])
+                total_hunk, old_hunk_name, new_hunk_name = store_hunk(old_hunk, new_hunk, total_hunk)
+                writer.writerow(version_diff_info + [old_hunk_name, new_hunk_name, \
+                    old_hunk_loc, new_hunk_loc, json.dumps(old_log_loc), json.dumps(new_log_loc)])
             # initialize hunk info
-            old_hunk = ''
-            new_hunk = ''
+            old_hunk = new_hunk = ''
             old_hunk_loc = is_hunk.group(1)
             new_hunk_loc = is_hunk.group(2)
-            old_loc = 0
-            new_loc = 0
-            old_log_loc = [] # mov, del, update
-            new_log_loc = [] # ins
+            old_loc = new_loc = 0
+            old_log_loc = new_log_loc = []
             continue
 
         # record change type flag
         change_type = line[0]
+        line = line[1:]
         # decide if it belongs to log change
         is_log_change = re.search(log_function, line, re.I)
+        # + and common
         if change_type != '-':
-            new_hunk += (line[1:]) + caller_flag
+            new_hunk += (line + '\n')
             if is_log_change:
                 new_log_loc.append(new_loc)
             new_loc += 1
+        # - and common
         if change_type != '+':
-            old_hunk += (line[1:]) + caller_flag
+            old_hunk += (line + '\n')
             if is_log_change:
                 old_log_loc.append(old_loc)
             old_loc += 1
 
     # deal with last hunk, if has log update
     if len(old_log_loc) != 0 or len(new_log_loc) != 0:
-        has_log = True
-        total_hunk += 1
-        # write old hunk file to temp file
-        old_hunk_name = my_constant.DOWNLOAD_OLD_HUNK + str(total_hunk) + '.cpp'
-        myUtil.save_file(old_hunk, old_hunk_name)
+        total_hunk, old_hunk_name, new_hunk_name = store_hunk(old_hunk, new_hunk, total_hunk)
+        writer.writerow(version_diff_info + [old_hunk_name, new_hunk_name, \
+            old_hunk_loc, new_hunk_loc, json.dumps(old_log_loc), json.dumps(new_log_loc)])
 
-        # write new hunk file to temp file
-        new_hunk_name = my_constant.DOWNLOAD_NEW_HUNK + str(total_hunk) + '.cpp'
-        myUtil.save_file(new_hunk, new_hunk_name)
+    return total_hunk
 
-        writer.writerow(patch_info + [old_hunk_name, new_hunk_name, \
-        old_hunk_loc, new_hunk_loc, json.dumps(old_log_loc), json.dumps(new_log_loc)])
+"""
+@ param file name
+@ return flag
+@ involve filter out file which is not cpp like and which is test like
+"""
+def filter_file(file_name):
 
-    full_patch_file.close()
-    return has_log, total_hunk
+    # cpp like(ignore case)
+    is_cpp = re.search(my_constant.CPP_FILE_FORMAT, file_name, re.I)
+    # test like
+    is_test_cpp = re.search(r'test', file_name, re.I)
+    if is_cpp and not is_test_cpp:
+        return True
+    else:
+        return False
+
+"""
+@ param  version diff file, log function, hunk counter and file writer
+@ return bool has log and updated hunk counter
+@ involve recognize and deal with version diff file
+"""
+def deal_version_diff( version_diff_file, log_function, total_hunk, writer):
+
+    full_version_diff_file = open(my_constant.PATCH_DIR + version_diff_file, 'rb')
+    version_diff = full_version_diff_file.readlines()
+
+    file_diff = []
+    is_diff_file = False
+    for i in range(len(version_diff)):
+        # get diff file
+        is_diff = re.match(r'^diff .*', version_diff[i])
+        if is_diff:
+            # get old file name
+            i += 1
+            is_old = re.match(r'^--- (\S*)\s*.*', version_diff[i])
+            if is_old:
+                temp_old_file = is_old.group(1)
+                # do not deal with this file diff
+                if filter_file(temp_old_file):
+                    # get new file name
+                    i += 1
+                    is_new = re.match(r'^\+\+\+ (\S*)\s*.*', version_diff[i])
+                    if is_new:
+                        temp_new_file = is_new.group(1)
+                        # do not deal with this file diff
+                        if filter_file(temp_new_file):
+                            is_diff_file = True
+                            old_file = temp_old_file
+                            new_file = temp_new_file
+                            continue
+            if is_diff_file:
+                # mark end of previous diff file
+                is_diff_file = False
+                # deal with previous diff file
+                total_hunk = deal_file_diff([version_diff_file, old_file, new_file], \
+                                    file_diff, log_function, total_hunk, writer)
+        # record diff file
+        if is_diff_file:
+            file_diff.append(version_diff[i])
+
+    # deal with last file diff
+    if is_diff_file:
+        # deal with previous diff file
+        total_hunk = deal_file_diff([version_diff_file, old_file, new_file], \
+                                file_diff, log_function, total_hunk, writer)
+
+    full_version_diff_file.close()
+    return total_hunk
 
 """
 @ param
 @ return
 @ involve read patch from repos patch dir and deal with each patch file
 """
-def fetch_patch():
+def fetch_version_diff():
 
     # filter out the one with log statement changes
     log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
@@ -138,12 +182,12 @@ def fetch_patch():
     hunk_writer = csv.writer(hunk_file)
     hunk_writer.writerow(my_constant.FETCH_HUNK_TITLE)
 
-    patch_files = commands.getoutput('ls ' + my_constant.PATCH_DIR)
-    patch_files = patch_files.split('\n')
+    version_diff_files = commands.getoutput('ls ' + my_constant.PATCH_DIR)
+    version_diff_files = version_diff_files.split('\n')
     total_hunk = 0
-    for curr_patch_file in patch_files:
-        print 'now processing patch %s' %curr_patch_file
-        total_hunk = deal_patch(curr_patch_file, log_function, total_hunk, hunk_writer, '')
+    for version_diff_file in version_diff_files:
+        print 'now processing patch %s' %version_diff_file
+        total_hunk = deal_version_diff(version_diff_file, log_function, total_hunk, hunk_writer)
 
     hunk_file.close()
 
@@ -151,26 +195,6 @@ def fetch_patch():
 main function
 """
 if __name__ == "__main__":
-    # several configuration constant: user, repos
-    # user = 'mongodb'
-    # repos = 'mongo'
-    # user = 'torvalds'
-    # repos = 'linux'
+    fetch_version_diff()
 
-    # sha = 'a0f91f1daa7765066a784e4479da7e231374a065'
-    # cmake
-    # fetch_commit(False, 'b59987eed9f5a67b6672d913501e3ce6495f1465', 98892, 49199, 774, 1476)
-    # xgboost
-    # 'ece5f00ca152bd56df5579e2ca76372fbf04dc38', 13313, 2366, 568, 912
-    # redis
-    # fetch_commit(False, 'ed9b544e10b84cd43348ddfab7068b610a5df1f7', 14980, 9089, 2364, 4581)
-    fetch_patch()
-    # fetch_commit()
-    # re.match(r'^@@.*-(.*),.*\+(.*),.*@@', 'test statement')
-    # log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
-    # log_function = myUtil.functionToRegrexStr(log_functions)
-    # is_log_change = re.search(log_function, 'printf', re.I)
-    # if is_log_change:
-    #     print 'ok'
-    # filter_commit(gh, commit_sha)
-    # deal with hunk
+

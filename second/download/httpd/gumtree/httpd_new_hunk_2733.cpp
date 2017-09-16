@@ -1,0 +1,28 @@
+    if (!found) {
+
+	printf("Adding user %s in realm %s\n", user, realm);
+
+	add_password(user, realm, tfp);
+
+    }
+
+    fclose(f);
+
+    fclose(tfp);
+
+#if defined(OS2) || defined(WIN32)
+
+    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
+
+#else
+
+    sprintf(command, "cp %s %s", tn, argv[1]);
+
+#endif
+
+    system(command);
+
+    unlink(tn);
+
+++ apache_1.3.2/src/support/rotatelogs.c	1998-08-03 17:15:33.000000000 +0800
+
