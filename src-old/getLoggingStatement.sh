@@ -4,9 +4,9 @@ MYCODE_DIR="/usr/info/code/cpp/LogMonitor/LogMonitor"
 # REPOS="bftpd"
 # REPOS="CMake"
 # REPOS="xgboost"
-REPOS="httpd"
+REPOS="redis"
 # parameter
-CODE_DIR="${MYCODE_DIR}/second/download/${REPOS}/repos/apache_1.3.29"
+CODE_DIR="${MYCODE_DIR}/second/download/${REPOS}/${REPOS}/${REPOS}"
 # echo $CODE_DIR
 
 # code

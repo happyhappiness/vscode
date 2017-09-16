@@ -8,75 +8,57 @@
 # REPOS = 'bftpd'
 # USER = 'dmlc'
 # REPOS = 'xgboost'
-USER = 'antirez'
-REPOS = 'redis'
+# USER = 'antirez'
+# REPOS = 'redis'
+
+REPOS = 'httpd'
 
 """
 stroed file name prefix
 """
 # parent
-BASE_DIR = '/usr/info/code/cpp/LogMonitor/LogMonitor/'
-OLD_NEW_PARENT_DIR = 'second/download/' + REPOS + '/' + REPOS + '-old-new/'
-REPOS_PARENT_DIR = 'second/download/' + REPOS + '/' + REPOS + '/'
-# old new
-OLD_NEW_JOERN_DIR = OLD_NEW_PARENT_DIR + REPOS + '-old-new-joern/'
+BASE_DIR = '/usr/info/code/cpp/LogMonitor/LogMonitor'
+REPOS_DIR = BASE_DIR + '/second/download/' + REPOS + '/'
+# patch dir
+PATCH_DIR = REPOS_DIR + 'patch/'
 # repos
-REPOS_DIR = REPOS_PARENT_DIR + REPOS + '/'
-REPOS_JOERN_DIR = REPOS_PARENT_DIR + REPOS + '-joern/'
-# gumtree
-GUMTREE_DIR = 'second/download/' + REPOS + '/' + REPOS + '-gumtree/'
-# source file and patch file
-DOWNLOAD_OLD_FILE = OLD_NEW_PARENT_DIR + REPOS + '-old-new/' + USER + '_' + REPOS + '_old_file_'
-DOWNLOAD_NEW_FILE = OLD_NEW_PARENT_DIR + REPOS + '-old-new/' + USER + '_' + REPOS + '_new_file_'
-DOWNLOAD_PATCH_FILE = OLD_NEW_PARENT_DIR + REPOS + '-old-new/' + USER + '_' + REPOS + '_patch_'
+REPOS_DIR = REPOS_DIR + 'repos/'
+# gumtree dir(hunk, block, function)
+GUMTREE_DIR = REPOS_DIR + 'gumtree/'
 # hunk
-DOWNLOAD_OLD_HUNK = GUMTREE_DIR + USER + '_' + REPOS + '_old_hunk_'
-DOWNLOAD_NEW_HUNK = GUMTREE_DIR + USER + '_' + REPOS + '_new_hunk_'
+DOWNLOAD_OLD_HUNK = GUMTREE_DIR + REPOS + '_old_hunk_'
+DOWNLOAD_NEW_HUNK = GUMTREE_DIR + REPOS + '_new_hunk_'
 # log
-SAVE_REPOS_LOG = GUMTREE_DIR + USER + '_' + REPOS + '_repos_log_'
-SAVE_OLD_NEW_OLD_LOG = GUMTREE_DIR + USER + '_' + REPOS + '_old_new_old_log_'
-SAVE_OLD_NEW_NEW_LOG = GUMTREE_DIR + USER + '_' + REPOS + '_old_new_new_log_'
-# block
-# SAVE_REPOS_BASIC_BLOCK_BLOCK = GUMTREE_DIR + USER + '_' + REPOS + '_repos_basic_block_block_'
-# SAVE_REPOS_LOG_BLOCK = GUMTREE_DIR + USER + '_' + REPOS + '_repos_log_block_'
-# SAVE_OLD_NEW_BLOCK = GUMTREE_DIR + USER + '_' + REPOS + '_old_new_block_'
+SAVE_OLD_NEW_OLD_LOG = GUMTREE_DIR + REPOS + '_old_log_'
+SAVE_OLD_NEW_NEW_LOG = GUMTREE_DIR + REPOS + '_new_log_'
 # function
-SAVE_REPOS_FUNCTION = REPOS_JOERN_DIR + USER + '_' + REPOS + '_repos_function_'
-SAVE_OLD_NEW_OLD_FUNCTION = OLD_NEW_JOERN_DIR + USER + '_' + REPOS + '_old_new_old_function_'
-SAVE_OLD_NEW_NEW_FUNCTION = OLD_NEW_JOERN_DIR + USER + '_' + REPOS + '_old_new_new_function_'
+SAVE_OLD_FUNCTION = GUMTREE_DIR + REPOS + '_old_function_'
+SAVE_NEW_FUNCTION = GUMTREE_DIR + REPOS + '_new_function_'
 
 """
 file name
 """
 LOG_CALL_FILE_NAME = 'data/fetch/' + REPOS + '_logging_statement.csv'
-FUNC_SIMILAIRTY_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_func_similarity.csv'
-FETCH_PATCH_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_patch_fetch.csv'
-FETCH_HUNK_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_hunk_fetch.csv'
-FETCH_LOG_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_log_fetch.csv'
-ANALYZE_OLD_NEW_GUMTREE_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_gumtree_analyze.csv'
-ANALYZE_REPOS_LOG_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_log_analyze.csv'
-ANALYZE_REPOS_BASIC_BLOCK_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_basic_block_analyze.csv'
-ANALYZE_OLD_NEW_JOERN_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_joern_analyze.csv'
-ANALYZE_CLONE_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_seek_clone.csv'
-STATISTICS_CLONE_NUM_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_clone_statistics.csv'
-STATISTICS_OLD_NEW_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_statistics.csv'
-STATISTICS_OLD_NEW_TEMP_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_statistics_temp.csv'
-CLUSTER_REPOS_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_cluster.csv'
-ANALYZE_REPOS_CLASS_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_class.csv'
-REPOS_SIMILARITY_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_similarity.csv'
-NODE_DICT_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_node_dict.csv'
-
-"""
-fetch patch file title and index
-"""
-FETCH_PATCH_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'patch_file']
-FETCH_PATCH_PATCH_FILE = FETCH_PATCH_TITLE.index('patch_file')
-
+FUNC_SIMILAIRTY_FILE_NAME = 'data/fetch/' + REPOS + '_func_similarity.csv'
+FETCH_HUNK_FILE_NAME = 'data/fetch/' + REPOS + '_hunk_fetch.csv'
+FETCH_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_log_fetch.csv'
+ANALYZE_OLD_NEW_GUMTREE_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_gumtree_analyze.csv'
+ANALYZE_REPOS_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_repos_log_analyze.csv'
+ANALYZE_REPOS_BASIC_BLOCK_FILE_NAME = 'data/fetch/' + REPOS + '_repos_basic_block_analyze.csv'
+ANALYZE_OLD_NEW_JOERN_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_joern_analyze.csv'
+ANALYZE_CLONE_FILE_NAME = 'data/fetch/' + REPOS + '_seek_clone.csv'
+STATISTICS_CLONE_NUM_FILE_NAME = 'data/fetch/' + REPOS + '_clone_statistics.csv'
+STATISTICS_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_statistics.csv'
+STATISTICS_OLD_NEW_TEMP_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_statistics_temp.csv'
+CLUSTER_REPOS_FILE_NAME = 'data/fetch/' + REPOS + '_repos_cluster.csv'
+ANALYZE_REPOS_CLASS_FILE_NAME = 'data/fetch/' + REPOS + '_repos_class.csv'
+REPOS_SIMILARITY_FILE_NAME = 'data/fetch/' + REPOS + '_repos_similarity.csv'
+NODE_DICT_FILE_NAME = 'data/fetch/' + REPOS + '_node_dict.csv'
 
 """
 fetch hunk file title and index
 """
-FETCH_HUNK_TITLE = FETCH_PATCH_TITLE + ['old_hunk_file', 'new_hunk_file', 'old_hunk_loc', 'new_hunk_loc', \
+FETCH_HUNK_TITLE = ['patch_file', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk_loc', 'new_hunk_loc', \
 'old_log_loc', 'new_log_loc']
 FETCH_HUNK_OLD_HUNK_LOC = FETCH_HUNK_TITLE.index('old_hunk_loc')
 FETCH_HUNK_NEW_HUNK_LOC = FETCH_HUNK_TITLE.index('new_hunk_loc')
@@ -88,12 +70,8 @@ FETCH_HUNK_NEW_HUNK_FILE = FETCH_HUNK_TITLE.index('new_hunk_file')
 """
 fetch log file title and index
 """
-FETCH_LOG_TITLE = FETCH_PATCH_TITLE + ['old_hunk_file', 'new_hunk_file', 'old_hunk_loc', 'new_hunk_loc',\
+FETCH_LOG_TITLE = ['patch_file', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', \
  'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type']
-FETCH_LOG_SHA = FETCH_LOG_TITLE.index('sha')
-FETCH_LOG_ISSUE = FETCH_LOG_TITLE.index('issue')
-FETCH_LOG_MESSAGE = FETCH_LOG_TITLE.index('message')
-FETCH_LOG_FILE = FETCH_LOG_TITLE.index('file_name')
 FETCH_LOG_OLD_LOC = FETCH_LOG_TITLE.index('old_loc')
 FETCH_LOG_NEW_LOC = FETCH_LOG_TITLE.index('new_loc')
 FETCH_LOG_OLD_LOG = FETCH_LOG_TITLE.index('old_log')
@@ -112,33 +90,21 @@ ANALYZE_OLD_NEW_OLD_FUNCTION_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_fun
 ANALYZE_OLD_NEW_OLD_FUNCTION_LOC = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_fucntion_loc')
 ANALYZE_OLD_NEW_NEW_FUNCTION_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('new_function_file')
 ANALYZE_OLD_NEW_NEW_FUNCTION_LOC = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('new_function_loc')
-# ANALYZE_OLD_NEW_SHA = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('sha')
-# ANALYZE_OLD_NEW_OLD_LOG_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_log_file')
-# ANALYZE_OLD_NEW_NEW_LOG_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('new_log_file')
-# ANALYZE_OLD_NEW_OLD_BLOCK_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_block_file')
-# ANALYZE_OLD_NEW_OLD_BLOCK_FEATURE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_block_feature')
-# ANALYZE_OLD_NEW_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('file_name')
-# ANALYZE_OLD_NEW_OLD_LOG = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_log')
-# ANALYZE_OLD_NEW_NEW_LOG = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('new_log')
 
 """
 analyze old new title and index
 """
 ANALYZE_OLD_NEW_JOERN_TITLE = ANALYZE_OLD_NEW_GUMTREE_TITLE + ['old_ddg_feature', 'old_cdg_feature', 'new_ddg_codes', 'new_ddg_loc']
-ANALYZE_OLD_NEW_SHA = ANALYZE_OLD_NEW_JOERN_TITLE.index('sha')
 ANALYZE_OLD_NEW_OLD_LOG_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_log_file')
 ANALYZE_OLD_NEW_NEW_LOG_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('new_log_file')
-# ANALYZE_OLD_NEW_OLD_BLOCK_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_block_file')
-# ANALYZE_OLD_NEW_OLD_BLOCK_FEATURE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_block_feature')
 ANALYZE_OLD_NEW_OLD_DDG_FEATURE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_ddg_feature')
 ANALYZE_OLD_NEW_OLD_CDG_FEATURE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_cdg_feature')
 ANALYZE_OLD_NEW_NEW_DDG_LOC = ANALYZE_OLD_NEW_JOERN_TITLE.index('new_ddg_loc')
-ANALYZE_OLD_NEW_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('file_name')
 ANALYZE_OLD_NEW_OLD_LOG = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_log')
 ANALYZE_OLD_NEW_NEW_LOG = ANALYZE_OLD_NEW_JOERN_TITLE.index('new_log')
 
 
-STATISTICS_OLD_NEW_TITLE = ANALYZE_OLD_NEW_JOERN_TITLE + ['edit_words', 'old_log_time', 'old_log_author', 'edit_feature','cluster']
+STATISTICS_OLD_NEW_TITLE = ANALYZE_OLD_NEW_JOERN_TITLE + ['edit_words', 'edit_feature','cluster']
 
 
 """
@@ -149,14 +115,7 @@ ANALYZE_REPOS_LOG_TITLE = ['file', 'loc',\
                              'log', 'log_file', 'ddg_feature', 'condition_info', \
                              'normalized_condition', 'cdg_z3_feature', 'class_index']
 ANALYZE_REPOS_LOG_FILE = ANALYZE_REPOS_LOG_TITLE.index('log_file')
-# ANALYZE_REPOS_BLOCK_FILE = ANALYZE_REPOS_LOG_TITLE.index('block_file')
-# ANALYZE_REPOS_BLOCK_FEATURE = ANALYZE_REPOS_LOG_TITLE.index('block_feature')
 ANALYZE_REPOS_CONDITION_INFO = ANALYZE_REPOS_LOG_TITLE.index('condition_info')
-# ANALYZE_REPOS_LOG_FILE = ANALYZE_REPOS_TITLE.index('log_file')
-# ANALYZE_REPOS_BLOCK_FILE = ANALYZE_REPOS_TITLE.index('block_file')
-# ANALYZE_REPOS_BLOCK_FEATURE = ANALYZE_REPOS_TITLE.index('block_feature')
-# CLUSTER_REPOS_TITLE = ['file', 'loc', 'log', 'log_file', 'block', 'block_file', 'block_feature', 'cluster_index']
-
 
 """
 analyze repos / cluster repos title and index
@@ -169,7 +128,6 @@ ANALYZE_REPOS_BASIC_BLOCK_LOC = ANALYZE_REPOS_BASIC_BLOCK_TITLE.index('loc')
 ANALYZE_REPOS_BASIC_BLOCK_CONDITION_IFNO = ANALYZE_REPOS_BASIC_BLOCK_TITLE.index('condition_info')
 ANALYZE_REPOS_BASIC_BLOCK_NORMALIZED_CONDITION = ANALYZE_REPOS_BASIC_BLOCK_TITLE.index('normalized_condition')
 CLUSTER_REPOS_TITLE = ANALYZE_REPOS_BASIC_BLOCK_TITLE + ['cdg_z3_feature', 'class_index']
-
 ANALYZE_REPOS_CLASS_TITLE = ANALYZE_REPOS_BASIC_BLOCK_TITLE + ['cdg_z3_feature', 'class_index', 'class_size']
 ANALYZE_REPOS_CLASS_INDEX = ANALYZE_REPOS_CLASS_TITLE.index('class_index')
 ANALYZE_REPOS_CLASS_SIZE = ANALYZE_REPOS_CLASS_TITLE.index('class_size')
@@ -183,20 +141,6 @@ ANALYZE_CLONE_TITLE = ANALYZE_OLD_NEW_JOERN_TITLE + ['class_index', 'class_size'
 """
 flag type && log type
 """
-FLAG_LOG_DELETE = -2
-FLAG_DELETE = -1
-FLAG_LOG_DELETE_CONTINUE = -3
-FLAG_NO_CHANGE = 0
-FLAG_ADD = 1
-FLAG_LOG_ADD = 2
-FLAG_LOG_ADD_CONTINUE = 3
-
-LOG_ADD = 0
-LOG_DELETE = 1
-LOG_MOVE = 2
-LOG_UPDATE = 3
-LOG_COCHANGE = 4
-
 LOG_FEATURE_MODIFY = 4
 LOG_OTHER_LOG_FEATURE_MODIFY = 6
 LOG_OTHER_LOG_MODIFY = 2
@@ -204,54 +148,12 @@ LOG_NO_MODIFY = 0
 LOG_LOG_MODIFY = 3
 LOG_LOG_FEATURE_MODIFY = 7
 
-HUNK_LOGS_MODIFY = 2
-HUNK_FEATURE_MODIFY = 4
-
-LOG_OVER_MODIFY = -1
-LOG_NO_MODIFY = 0
-LOG_MODIFY = 1
-
-
-"""
-joern result format
-"""
-JOERN_DEFALUT = 0
-JOERN_ID = 0
-JOERN_CODE = 1
-JOERN_TYPE = 2
-JOERN_FILE = 2
-JOERN_LOCATION = 3
-JOERN_OPERATOR = 3
-JOERN_BOOL_OPERATOR = ['AndExpression', 'OrExpression', 'RelationalExpression', 'EqualityExpression']
-JOERN_ADDRESS_OPERATOR = ['ArrayIndexing', 'PtrMemberAccess', 'MemberAccess']
-JOERN_BIT_OPERATOR = ['BitAndExpression', 'BitOrExpression']
-JOERN_UNARY_OPERATOR = 'UnaryOp'
-JOERN_ASSIGN_OPERATOR = 'AssignmentExpr'
-# variable types
-JOERN_CALLEE_FLAG = '_ret'
-JOERN_NULL = 'null'
-JOERN_UNKNOWN = 'unkown'
-JOERN_MEMEBER = 'member'
-JOERN_BOOL = 'bool'
-JOERN_MACRO = 'macro'
-JOERN_STRING = 'string'
-JOERN_INT = 'int'
-JOERN_CHAR = 'char'
-JOERN_CONSTANT = 'constant'
-JOERN_DEFINED = [JOERN_NULL, JOERN_UNKNOWN, JOERN_MEMEBER, JOERN_BOOL, JOERN_MACRO,\
- JOERN_STRING, JOERN_INT, JOERN_CHAR, JOERN_CONSTANT]
-
 """
 split string for statement to get tokens
 """
 SPLIT_STR = r'[\W\s_]'
 SPLIT_ALGORITHM = r'[+-\*/%=]'
 
-
-"""
-pre issue address
-"""
-ISSUE_ADDRESS = 'https://gitlab.kitware.com/cmake/cmake/issues/'
 FILE_FORMAT = r'\.(c|cpp|cc|cxx|h)$'
 UNSRCML_FILE_FORMAT = r'\.(h|c|cc|cxx)$'
 
