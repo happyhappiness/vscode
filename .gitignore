@@ -17,6 +17,7 @@ second/download/CMake/CMake/CMake/
 second/download/json/json/json/
 second/download/xgboost/xgboost/xgboost/
 second/download/redis/redis/redis/
+second/download/httpd/repos/
 *.joernIndex/
 
 
