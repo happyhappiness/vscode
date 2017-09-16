@@ -1,6 +1,6 @@
-diff -BEr -U 6 repos/apache_1.3.0/ABOUT_APACHE repos/apache_1.3.1/ABOUT_APACHE
---- repos/apache_1.3.0/ABOUT_APACHE	1998-05-19 09:43:44.000000000 +0800
-+++ repos/apache_1.3.1/ABOUT_APACHE	1998-07-15 20:31:23.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/ABOUT_APACHE apache_1.3.1/ABOUT_APACHE
+--- apache_1.3.0/ABOUT_APACHE	1998-05-19 09:43:44.000000000 +0800
++++ apache_1.3.1/ABOUT_APACHE	1998-07-15 20:31:23.000000000 +0800
 @@ -1,12 +1,12 @@
  
                       The Apache HTTP Server Project
@@ -71,9 +71,9 @@ diff -BEr -U 6 repos/apache_1.3.0/ABOUT_APACHE repos/apache_1.3.1/ABOUT_APACHE
  How to become involved in the Apache project
  
  There are several levels of contributing.  If you just want to send
-diff -BEr -U 6 repos/apache_1.3.0/Announcement repos/apache_1.3.1/Announcement
---- repos/apache_1.3.0/Announcement	1998-06-02 06:18:42.000000000 +0800
-+++ repos/apache_1.3.1/Announcement	1998-07-19 06:50:14.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/Announcement apache_1.3.1/Announcement
+--- apache_1.3.0/Announcement	1998-06-02 06:18:42.000000000 +0800
++++ apache_1.3.1/Announcement	1998-07-19 06:50:14.000000000 +0800
 @@ -1,22 +1,72 @@
 +Apache 1.3.1 Released
 +=====================
@@ -166,10 +166,11 @@ diff -BEr -U 6 repos/apache_1.3.0/Announcement repos/apache_1.3.1/Announcement
 +filename variants.  As a result, we recommend that you use extreme
 +caution when dealing with access restrictions on all Win32 web
 +servers.
-Only in repos/apache_1.3.0/: CHANGES
-diff -BEr -U 6 repos/apache_1.3.0/conf/access.conf-dist repos/apache_1.3.1/conf/access.conf-dist
---- repos/apache_1.3.0/conf/access.conf-dist	1998-05-29 09:27:49.000000000 +0800
-+++ repos/apache_1.3.1/conf/access.conf-dist	1998-06-07 03:46:59.000000000 +0800
+Only in apache_1.3.0/: CHANGES
+Only in apache_1.3.0/: compile_commands.json
+diff -BEr -U 6 apache_1.3.0/conf/access.conf-dist apache_1.3.1/conf/access.conf-dist
+--- apache_1.3.0/conf/access.conf-dist	1998-05-29 09:27:49.000000000 +0800
++++ apache_1.3.1/conf/access.conf-dist	1998-06-07 03:46:59.000000000 +0800
 @@ -11,13 +11,13 @@
  # Originally by Rob McCool
  
@@ -185,9 +186,9 @@ diff -BEr -U 6 repos/apache_1.3.0/conf/access.conf-dist repos/apache_1.3.1/conf/
  # Note that from this point forward you must specifically allow
  # particular features to be enabled - so if something's not working as
  # you might expect, make sure that you have specifically enabled it
-diff -BEr -U 6 repos/apache_1.3.0/conf/access.conf-dist-win repos/apache_1.3.1/conf/access.conf-dist-win
---- repos/apache_1.3.0/conf/access.conf-dist-win	1998-05-30 22:46:49.000000000 +0800
-+++ repos/apache_1.3.1/conf/access.conf-dist-win	1998-07-17 04:24:40.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/conf/access.conf-dist-win apache_1.3.1/conf/access.conf-dist-win
+--- apache_1.3.0/conf/access.conf-dist-win	1998-05-30 22:46:49.000000000 +0800
++++ apache_1.3.1/conf/access.conf-dist-win	1998-07-17 04:24:40.000000000 +0800
 @@ -15,16 +15,17 @@
  
  # Originally by Rob McCool
@@ -225,9 +226,9 @@ diff -BEr -U 6 repos/apache_1.3.0/conf/access.conf-dist-win repos/apache_1.3.1/c
  
  # Allow server status reports, with the URL of http://servername/server-status
  # Change the ".your_domain.com" to match your domain to enable.
-diff -BEr -U 6 repos/apache_1.3.0/conf/httpd.conf-dist-win repos/apache_1.3.1/conf/httpd.conf-dist-win
---- repos/apache_1.3.0/conf/httpd.conf-dist-win	1998-05-30 22:46:49.000000000 +0800
-+++ repos/apache_1.3.1/conf/httpd.conf-dist-win	1998-07-17 04:24:40.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/conf/httpd.conf-dist-win apache_1.3.1/conf/httpd.conf-dist-win
+--- apache_1.3.0/conf/httpd.conf-dist-win	1998-05-30 22:46:49.000000000 +0800
++++ apache_1.3.1/conf/httpd.conf-dist-win	1998-07-17 04:24:40.000000000 +0800
 @@ -44,17 +44,12 @@
  # had to knowingly turn this feature on.
  
@@ -261,9 +262,9 @@ diff -BEr -U 6 repos/apache_1.3.0/conf/httpd.conf-dist-win repos/apache_1.3.1/co
  #CacheLastModifiedFactor 0.1
  #CacheDefaultExpire 1
  #NoCache a_domain.com another_domain.edu joes.garage_sale.com
-diff -BEr -U 6 repos/apache_1.3.0/conf/magic repos/apache_1.3.1/conf/magic
---- repos/apache_1.3.0/conf/magic	1997-07-08 02:18:36.000000000 +0800
-+++ repos/apache_1.3.1/conf/magic	1998-07-18 19:35:53.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/conf/magic apache_1.3.1/conf/magic
+--- apache_1.3.0/conf/magic	1997-07-08 02:18:36.000000000 +0800
++++ apache_1.3.1/conf/magic	1998-07-18 19:35:53.000000000 +0800
 @@ -167,13 +167,16 @@
  0	string		\<Maker		application/x-frame
  
@@ -301,9 +302,9 @@ diff -BEr -U 6 repos/apache_1.3.0/conf/magic repos/apache_1.3.1/conf/magic
  # printer:  file(1) magic for printer-formatted files
  #
  
-diff -BEr -U 6 repos/apache_1.3.0/conf/srm.conf-dist repos/apache_1.3.1/conf/srm.conf-dist
---- repos/apache_1.3.0/conf/srm.conf-dist	1998-05-22 02:01:58.000000000 +0800
-+++ repos/apache_1.3.1/conf/srm.conf-dist	1998-07-15 22:50:28.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/conf/srm.conf-dist apache_1.3.1/conf/srm.conf-dist
+--- apache_1.3.0/conf/srm.conf-dist	1998-05-22 02:01:58.000000000 +0800
++++ apache_1.3.1/conf/srm.conf-dist	1998-07-15 22:50:28.000000000 +0800
 @@ -88,12 +88,17 @@
  
  # AccessFileName: The name of the file to look for in each directory
@@ -322,9 +323,9 @@ diff -BEr -U 6 repos/apache_1.3.0/conf/srm.conf-dist repos/apache_1.3.1/conf/srm
  DefaultType text/plain
  
  # AddEncoding allows you to have certain browsers (Mosaic/X 2.1+) uncompress
-diff -BEr -U 6 repos/apache_1.3.0/conf/srm.conf-dist-win repos/apache_1.3.1/conf/srm.conf-dist-win
---- repos/apache_1.3.0/conf/srm.conf-dist-win	1998-05-30 22:46:49.000000000 +0800
-+++ repos/apache_1.3.1/conf/srm.conf-dist-win	1998-07-15 22:50:28.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/conf/srm.conf-dist-win apache_1.3.1/conf/srm.conf-dist-win
+--- apache_1.3.0/conf/srm.conf-dist-win	1998-05-30 22:46:49.000000000 +0800
++++ apache_1.3.1/conf/srm.conf-dist-win	1998-07-15 22:50:28.000000000 +0800
 @@ -96,12 +96,17 @@
  
  # AccessFileName: The name of the file to look for in each directory
@@ -364,9 +365,9 @@ diff -BEr -U 6 repos/apache_1.3.0/conf/srm.conf-dist-win repos/apache_1.3.1/conf
  
  # AddType allows you to tweak mime.types without actually editing it, or to
  # make certain files to be certain types.
-diff -BEr -U 6 repos/apache_1.3.0/configure repos/apache_1.3.1/configure
---- repos/apache_1.3.0/configure	1998-05-30 04:45:52.000000000 +0800
-+++ repos/apache_1.3.1/configure	1998-07-12 17:25:46.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/configure apache_1.3.1/configure
+--- apache_1.3.0/configure	1998-05-30 04:45:52.000000000 +0800
++++ apache_1.3.1/configure	1998-07-12 17:25:46.000000000 +0800
 @@ -72,12 +72,13 @@
  top=.
  mkf=Makefile
@@ -686,9 +687,9 @@ diff -BEr -U 6 repos/apache_1.3.0/configure repos/apache_1.3.1/configure
                  echo "s%^#*\\($var=\\).*%\\1$val%g" >>$sedsubst
                  ;;
          esac
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/dso.html repos/apache_1.3.1/htdocs/manual/dso.html
---- repos/apache_1.3.0/htdocs/manual/dso.html	1998-06-02 06:30:13.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/dso.html	1998-07-19 07:04:21.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/dso.html apache_1.3.1/htdocs/manual/dso.html
+--- apache_1.3.0/htdocs/manual/dso.html	1998-06-02 06:30:13.000000000 +0800
++++ apache_1.3.1/htdocs/manual/dso.html	1998-07-19 07:04:21.000000000 +0800
 @@ -187,12 +187,13 @@
  o  Solaris            (2.4, 2.5.1, 2.6)
  o  SunOS              (4.1.3)
@@ -703,9 +704,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/dso.html repos/apache_1.3.1/htdo
  </PRE>
  
  <P>
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/misc/compat_notes.html repos/apache_1.3.1/htdocs/manual/misc/compat_notes.html
---- repos/apache_1.3.0/htdocs/manual/misc/compat_notes.html	1998-06-02 06:30:22.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/misc/compat_notes.html	1998-07-19 07:04:31.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/misc/compat_notes.html apache_1.3.1/htdocs/manual/misc/compat_notes.html
+--- apache_1.3.0/htdocs/manual/misc/compat_notes.html	1998-06-02 06:30:22.000000000 +0800
++++ apache_1.3.1/htdocs/manual/misc/compat_notes.html	1998-07-19 07:04:31.000000000 +0800
 @@ -1,9 +1,11 @@
 -<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
 -<HTML><HEAD>
@@ -742,9 +743,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/misc/compat_notes.html repos/apa
  <P>
  <LI>If you follow the NCSA guidelines for setting up access
      restrictions based on client domain, you may well have added
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/misc/custom_errordocs.html repos/apache_1.3.1/htdocs/manual/misc/custom_errordocs.html
---- repos/apache_1.3.0/htdocs/manual/misc/custom_errordocs.html	1998-06-02 06:30:22.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/misc/custom_errordocs.html	1998-07-19 07:04:31.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/misc/custom_errordocs.html apache_1.3.1/htdocs/manual/misc/custom_errordocs.html
+--- apache_1.3.0/htdocs/manual/misc/custom_errordocs.html	1998-06-02 06:30:22.000000000 +0800
++++ apache_1.3.1/htdocs/manual/misc/custom_errordocs.html	1998-07-19 07:04:31.000000000 +0800
 @@ -28,12 +28,13 @@
   <LI><A HREF="#intro">Introduction</A>
   <LI><A HREF="#createdir">Creating an ErrorDocument directory</A>
@@ -892,9 +893,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/misc/custom_errordocs.html repos
 +</BODY>
 +</HTML>
  
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/misc/FAQ.html repos/apache_1.3.1/htdocs/manual/misc/FAQ.html
---- repos/apache_1.3.0/htdocs/manual/misc/FAQ.html	1998-06-02 06:30:21.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/misc/FAQ.html	1998-07-19 07:04:31.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/misc/FAQ.html apache_1.3.1/htdocs/manual/misc/FAQ.html
+--- apache_1.3.0/htdocs/manual/misc/FAQ.html	1998-06-02 06:30:21.000000000 +0800
++++ apache_1.3.1/htdocs/manual/misc/FAQ.html	1998-07-19 07:04:31.000000000 +0800
 @@ -17,13 +17,13 @@
    Apache HTTP Server Version 1.3
   </H3>
@@ -1087,9 +1088,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/misc/FAQ.html repos/apache_1.3.1
    In versions of Apache prior to 1.3b2, there was a lot of confusion
    regarding address-based virtual hosts and (HTTP/1.1) name-based
    virtual hosts, and the rules concerning how the server processed
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/misc/perf.html repos/apache_1.3.1/htdocs/manual/misc/perf.html
---- repos/apache_1.3.0/htdocs/manual/misc/perf.html	1998-06-02 06:30:23.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/misc/perf.html	1998-07-19 07:04:32.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/misc/perf.html apache_1.3.1/htdocs/manual/misc/perf.html
+--- apache_1.3.0/htdocs/manual/misc/perf.html	1998-06-02 06:30:23.000000000 +0800
++++ apache_1.3.1/htdocs/manual/misc/perf.html	1998-07-19 07:04:32.000000000 +0800
 @@ -77,17 +77,16 @@
  <P><HR>
  
@@ -1112,9 +1113,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/misc/perf.html repos/apache_1.3.
  <H3><A NAME="Solaris">
  Solaris 2.4
  </A></H3>
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/misc/perf-tuning.html repos/apache_1.3.1/htdocs/manual/misc/perf-tuning.html
---- repos/apache_1.3.0/htdocs/manual/misc/perf-tuning.html	1998-06-02 06:30:23.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/misc/perf-tuning.html	1998-07-19 07:04:32.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/misc/perf-tuning.html apache_1.3.1/htdocs/manual/misc/perf-tuning.html
+--- apache_1.3.0/htdocs/manual/misc/perf-tuning.html	1998-06-02 06:30:23.000000000 +0800
++++ apache_1.3.1/htdocs/manual/misc/perf-tuning.html	1998-07-19 07:04:32.000000000 +0800
 @@ -705,13 +705,13 @@
  On some architectures it's slower to <CODE>mmap</CODE> small
  files than it is to simply <CODE>read</CODE> them.  The define
@@ -1130,9 +1131,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/misc/perf-tuning.html repos/apac
  (default 32768) which determines the maximum number of bytes that
  will be written at a time from mmap()d files.  Apache only resets the
  client's <CODE>Timeout</CODE> in between write()s.  So setting this
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/misc/security_tips.html repos/apache_1.3.1/htdocs/manual/misc/security_tips.html
---- repos/apache_1.3.0/htdocs/manual/misc/security_tips.html	1998-06-02 06:30:23.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/misc/security_tips.html	1998-07-19 07:04:32.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/misc/security_tips.html apache_1.3.1/htdocs/manual/misc/security_tips.html
+--- apache_1.3.0/htdocs/manual/misc/security_tips.html	1998-06-02 06:30:23.000000000 +0800
++++ apache_1.3.1/htdocs/manual/misc/security_tips.html	1998-07-19 07:04:32.000000000 +0800
 @@ -51,16 +51,16 @@
  
  It is assumed that /, /usr, and /usr/local are only modifiable by root.
@@ -1173,9 +1174,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/misc/security_tips.html repos/ap
  <HR>
  
  <H3 ALIGN="CENTER">
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/mod/core.html repos/apache_1.3.1/htdocs/manual/mod/core.html
---- repos/apache_1.3.0/htdocs/manual/mod/core.html	1998-06-02 06:30:16.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/mod/core.html	1998-07-19 07:04:24.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/mod/core.html apache_1.3.1/htdocs/manual/mod/core.html
+--- apache_1.3.0/htdocs/manual/mod/core.html	1998-06-02 06:30:16.000000000 +0800
++++ apache_1.3.1/htdocs/manual/mod/core.html	1998-07-19 07:04:24.000000000 +0800
 @@ -46,12 +46,13 @@
  <LI><A HREF="#errorlog">ErrorLog</A>
  <LI><A HREF="#files">&lt;Files&gt;</A>
@@ -1383,9 +1384,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/mod/core.html repos/apache_1.3.1
  that original user. If you do start the server as root, then it is normal
  for the parent process to remain running as root.<P>
  
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/mod/directives.html repos/apache_1.3.1/htdocs/manual/mod/directives.html
---- repos/apache_1.3.0/htdocs/manual/mod/directives.html	1998-06-02 06:30:16.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/mod/directives.html	1998-07-19 07:04:24.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/mod/directives.html apache_1.3.1/htdocs/manual/mod/directives.html
+--- apache_1.3.0/htdocs/manual/mod/directives.html	1998-06-02 06:30:16.000000000 +0800
++++ apache_1.3.1/htdocs/manual/mod/directives.html	1998-07-19 07:04:24.000000000 +0800
 @@ -74,12 +74,13 @@
  <LI><A HREF="mod_setenvif.html#BrowserMatch">BrowserMatch</A>
  <LI><A HREF="mod_setenvif.html#BrowserMatchNoCase">BrowserMatchNoCase</A>
@@ -1414,9 +1415,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/mod/directives.html repos/apache
  <LI><A HREF="mod_imap.html#imapmenu">ImapMenu</A>
  <LI><A HREF="core.html#include">Include</A>
  <LI><A HREF="mod_autoindex.html#indexignore">IndexIgnore</A>
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/mod/mod_auth_anon.html repos/apache_1.3.1/htdocs/manual/mod/mod_auth_anon.html
---- repos/apache_1.3.0/htdocs/manual/mod/mod_auth_anon.html	1998-06-02 06:30:17.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/mod/mod_auth_anon.html	1998-07-19 07:04:25.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/mod/mod_auth_anon.html apache_1.3.1/htdocs/manual/mod/mod_auth_anon.html
+--- apache_1.3.0/htdocs/manual/mod/mod_auth_anon.html	1998-06-02 06:30:17.000000000 +0800
++++ apache_1.3.1/htdocs/manual/mod/mod_auth_anon.html	1998-07-19 07:04:25.000000000 +0800
 @@ -165,13 +165,13 @@
  <A
   HREF="directive-dict.html#Module"
@@ -1447,9 +1448,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/mod/mod_auth_anon.html repos/apa
  Excerpt of access.conf:
  <BLOCKQUOTE><CODE>
  Anonymous_NoUserId      off<BR>
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/mod/mod_cern_meta.html repos/apache_1.3.1/htdocs/manual/mod/mod_cern_meta.html
---- repos/apache_1.3.0/htdocs/manual/mod/mod_cern_meta.html	1998-06-02 06:30:17.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/mod/mod_cern_meta.html	1998-07-19 07:04:25.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/mod/mod_cern_meta.html apache_1.3.1/htdocs/manual/mod/mod_cern_meta.html
+--- apache_1.3.0/htdocs/manual/mod/mod_cern_meta.html	1998-06-02 06:30:17.000000000 +0800
++++ apache_1.3.1/htdocs/manual/mod/mod_cern_meta.html	1998-07-19 07:04:25.000000000 +0800
 @@ -34,14 +34,14 @@
  the Expires: header, as well as providing other curiosities.
  There are many ways to manage meta information, this one was
@@ -1467,9 +1468,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/mod/mod_cern_meta.html repos/apa
  <LI><A HREF="#metafiles">MetaFiles</A>
  <LI><A HREF="#metadir">MetaDir</A>
  <LI><A HREF="#metasuffix">MetaSuffix</A>
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/mod/mod_mime.html repos/apache_1.3.1/htdocs/manual/mod/mod_mime.html
---- repos/apache_1.3.0/htdocs/manual/mod/mod_mime.html	1998-06-02 06:30:20.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/mod/mod_mime.html	1998-07-19 07:04:29.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/mod/mod_mime.html apache_1.3.1/htdocs/manual/mod/mod_mime.html
+--- apache_1.3.0/htdocs/manual/mod/mod_mime.html	1998-06-02 06:30:20.000000000 +0800
++++ apache_1.3.1/htdocs/manual/mod/mod_mime.html	1998-07-19 07:04:29.000000000 +0800
 @@ -147,12 +147,16 @@
  ><STRONG>Syntax:</STRONG></A> AddHandler <EM>handler-name extension extension...</EM><BR>
  <A
@@ -1487,9 +1488,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/mod/mod_mime.html repos/apache_1
  <A
   HREF="directive-dict.html#Module"
   REL="Help"
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/mod/mod_proxy.html repos/apache_1.3.1/htdocs/manual/mod/mod_proxy.html
---- repos/apache_1.3.0/htdocs/manual/mod/mod_proxy.html	1998-06-02 06:30:20.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/mod/mod_proxy.html	1998-07-19 07:04:30.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/mod/mod_proxy.html apache_1.3.1/htdocs/manual/mod/mod_proxy.html
+--- apache_1.3.0/htdocs/manual/mod/mod_proxy.html	1998-06-02 06:30:20.000000000 +0800
++++ apache_1.3.1/htdocs/manual/mod/mod_proxy.html	1998-07-19 07:04:30.000000000 +0800
 @@ -59,12 +59,13 @@
  <LI><A HREF="#cachemaxexpire">CacheMaxExpire</A>
  <LI><A HREF="#cachedefaultexpire">CacheDefaultExpire</A>
@@ -1620,9 +1621,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/mod/mod_proxy.html repos/apache_
  <H2><A NAME="cachemaxexpire">CacheMaxExpire</A></H2>
  <A
   HREF="directive-dict.html#Syntax"
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/mod/mod_rewrite.html repos/apache_1.3.1/htdocs/manual/mod/mod_rewrite.html
---- repos/apache_1.3.0/htdocs/manual/mod/mod_rewrite.html	1998-06-02 06:30:20.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/mod/mod_rewrite.html	1998-07-19 07:04:30.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/mod/mod_rewrite.html apache_1.3.1/htdocs/manual/mod/mod_rewrite.html
+--- apache_1.3.0/htdocs/manual/mod/mod_rewrite.html	1998-06-02 06:30:20.000000000 +0800
++++ apache_1.3.1/htdocs/manual/mod/mod_rewrite.html	1998-07-19 07:04:30.000000000 +0800
 @@ -54,12 +54,27 @@
  Apache Group
  </DIV>
@@ -1651,9 +1652,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/mod/mod_rewrite.html repos/apach
  This module uses a rule-based rewriting engine (based on a regular-expression
  parser) to rewrite requested URLs on the fly. It supports an unlimited number
  of rules and an unlimited number of attached rule conditions for each rule to
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/mod/mod_usertrack.html repos/apache_1.3.1/htdocs/manual/mod/mod_usertrack.html
---- repos/apache_1.3.0/htdocs/manual/mod/mod_usertrack.html	1998-06-02 06:30:21.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/mod/mod_usertrack.html	1998-07-19 07:04:30.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/mod/mod_usertrack.html apache_1.3.1/htdocs/manual/mod/mod_usertrack.html
+--- apache_1.3.0/htdocs/manual/mod/mod_usertrack.html	1998-06-02 06:30:21.000000000 +0800
++++ apache_1.3.1/htdocs/manual/mod/mod_usertrack.html	1998-07-19 07:04:30.000000000 +0800
 @@ -113,12 +113,54 @@
  When the user track module is compiled in, and "CookieTracking on" is
  set, Apache will start sending a user-tracking cookie for all new
@@ -1709,9 +1710,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/mod/mod_usertrack.html repos/apa
  <H3 ALIGN="CENTER">
   Apache HTTP Server Version 1.3
  </H3>
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/sections.html repos/apache_1.3.1/htdocs/manual/sections.html
---- repos/apache_1.3.0/htdocs/manual/sections.html	1998-06-02 06:30:15.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/sections.html	1998-07-19 07:04:22.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/sections.html apache_1.3.1/htdocs/manual/sections.html
+--- apache_1.3.0/htdocs/manual/sections.html	1998-06-02 06:30:15.000000000 +0800
++++ apache_1.3.1/htdocs/manual/sections.html	1998-07-19 07:04:22.000000000 +0800
 @@ -33,16 +33,16 @@
  
  <H2>Directives allowed in the sections</H2>
@@ -1783,9 +1784,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/sections.html repos/apache_1.3.1
      There is actually a
      <CODE>&lt;Location&gt;</CODE>/<CODE>&lt;LocationMatch&gt;</CODE>
      sequence performed just before the name translation phase (where
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/suexec.html repos/apache_1.3.1/htdocs/manual/suexec.html
---- repos/apache_1.3.0/htdocs/manual/suexec.html	1998-06-02 06:30:15.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/suexec.html	1998-07-19 07:04:22.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/suexec.html apache_1.3.1/htdocs/manual/suexec.html
+--- apache_1.3.0/htdocs/manual/suexec.html	1998-06-02 06:30:15.000000000 +0800
++++ apache_1.3.1/htdocs/manual/suexec.html	1998-07-19 07:04:22.000000000 +0800
 @@ -380,13 +380,14 @@
  </PRE>
  </P>
@@ -1802,9 +1803,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/suexec.html repos/apache_1.3.1/h
  <P ALIGN="LEFT">
  <STRONG>COMPILING APACHE FOR USE WITH SUEXEC</STRONG><BR>
  By default, Apache is compiled to look for the suEXEC wrapper in the following
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/upgrading_to_1_3.html repos/apache_1.3.1/htdocs/manual/upgrading_to_1_3.html
---- repos/apache_1.3.0/htdocs/manual/upgrading_to_1_3.html	1998-06-02 06:30:15.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/upgrading_to_1_3.html	1998-07-19 07:04:24.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/upgrading_to_1_3.html apache_1.3.1/htdocs/manual/upgrading_to_1_3.html
+--- apache_1.3.0/htdocs/manual/upgrading_to_1_3.html	1998-06-02 06:30:15.000000000 +0800
++++ apache_1.3.1/htdocs/manual/upgrading_to_1_3.html	1998-07-19 07:04:24.000000000 +0800
 @@ -75,14 +75,15 @@
        procedure for the complete Apache package.
  </UL>
@@ -1880,9 +1881,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/upgrading_to_1_3.html repos/apac
      more general "allow from env".
  
    <LI>When using wildcards in pathnames (such as * and ?) they no longer
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/vhosts/host.html repos/apache_1.3.1/htdocs/manual/vhosts/host.html
---- repos/apache_1.3.0/htdocs/manual/vhosts/host.html	1998-06-02 06:30:24.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/vhosts/host.html	1998-07-19 07:04:33.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/vhosts/host.html apache_1.3.1/htdocs/manual/vhosts/host.html
+--- apache_1.3.0/htdocs/manual/vhosts/host.html	1998-06-02 06:30:24.000000000 +0800
++++ apache_1.3.1/htdocs/manual/vhosts/host.html	1998-07-19 07:04:33.000000000 +0800
 @@ -126,13 +126,13 @@
  <CODE>Host:</CODE> header functionality now allows someone who has
  access to <CODE>www.foo.com</CODE> to get
@@ -1898,9 +1899,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/vhosts/host.html repos/apache_1.
  
  <P>As mentioned earlier, a majority of browsers do not send the
  required data for the new virtual hosts to work properly. These
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/vhosts/virtual-host.html repos/apache_1.3.1/htdocs/manual/vhosts/virtual-host.html
---- repos/apache_1.3.0/htdocs/manual/vhosts/virtual-host.html	1998-06-02 06:30:24.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/vhosts/virtual-host.html	1998-07-19 07:04:33.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/vhosts/virtual-host.html apache_1.3.1/htdocs/manual/vhosts/virtual-host.html
+--- apache_1.3.0/htdocs/manual/vhosts/virtual-host.html	1998-06-02 06:30:24.000000000 +0800
++++ apache_1.3.1/htdocs/manual/vhosts/virtual-host.html	1998-07-19 07:04:33.000000000 +0800
 @@ -69,45 +69,45 @@
  Either by running a separate httpd daemon for each hostname, or by running a
  single daemon which supports all the virtual hosts.
@@ -2002,9 +2003,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/vhosts/virtual-host.html repos/a
  
  <H2>File Handle/Resource Limits:</H2>
  When using a large number of Virtual Hosts, Apache may run out of available
-diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/windows.html repos/apache_1.3.1/htdocs/manual/windows.html
---- repos/apache_1.3.0/htdocs/manual/windows.html	1998-06-02 06:30:15.000000000 +0800
-+++ repos/apache_1.3.1/htdocs/manual/windows.html	1998-07-19 07:04:24.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/htdocs/manual/windows.html apache_1.3.1/htdocs/manual/windows.html
+--- apache_1.3.0/htdocs/manual/windows.html	1998-06-02 06:30:15.000000000 +0800
++++ apache_1.3.1/htdocs/manual/windows.html	1998-07-19 07:04:24.000000000 +0800
 @@ -50,12 +50,13 @@
    <LI><A HREF="#req">Requirements</A>
    <LI><A HREF="#down">Downloading Apache for Windows</A>
@@ -2216,9 +2217,9 @@ diff -BEr -U 6 repos/apache_1.3.0/htdocs/manual/windows.html repos/apache_1.3.1/
   </H3>
  
  <A HREF="./"><IMG SRC="images/index.gif" ALT="Index"></A>
-diff -BEr -U 6 repos/apache_1.3.0/INSTALL repos/apache_1.3.1/INSTALL
---- repos/apache_1.3.0/INSTALL	1998-05-22 15:25:01.000000000 +0800
-+++ repos/apache_1.3.1/INSTALL	1998-07-08 19:09:34.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/INSTALL apache_1.3.1/INSTALL
+--- apache_1.3.0/INSTALL	1998-05-22 15:25:01.000000000 +0800
++++ apache_1.3.1/INSTALL	1998-07-08 19:09:34.000000000 +0800
 @@ -28,12 +28,16 @@
  
       $ ./configure --prefix=PREFIX
@@ -2376,9 +2377,9 @@ diff -BEr -U 6 repos/apache_1.3.0/INSTALL repos/apache_1.3.1/INSTALL
       set the allowed caller user id, the --suexec-userdir=DIR to set the user
       subdirectory, the --suexec-uidmin=UID/--suexec-gidmin=GID to set the
       minimal allowed UID/GID and --suexec-safepath=PATH to set the safe shell
-diff -BEr -U 6 repos/apache_1.3.0/KEYS repos/apache_1.3.1/KEYS
---- repos/apache_1.3.0/KEYS	1998-03-26 02:39:54.000000000 +0800
-+++ repos/apache_1.3.1/KEYS	1998-07-15 20:31:23.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/KEYS apache_1.3.1/KEYS
+--- apache_1.3.0/KEYS	1998-03-26 02:39:54.000000000 +0800
++++ apache_1.3.1/KEYS	1998-07-15 20:31:23.000000000 +0800
 @@ -320,6 +320,134 @@
  AmwbvL/UwgiDnm95qBBfCZtmGkkFaoOePtBevWFaviFZM2pErPRcjY8A/1cZsycj
  JPMFYqBKGDIk76ulDSjU0Q8dqhCEDf0o2oQEg6msjDtetVFEDw9yJe0AGIkAPwMF
@@ -2514,9 +2515,10 @@ diff -BEr -U 6 repos/apache_1.3.0/KEYS repos/apache_1.3.1/KEYS
 +=8Cs1
 +-----END PGP PUBLIC KEY BLOCK-----
 +
-diff -BEr -U 6 repos/apache_1.3.0/Makefile.tmpl repos/apache_1.3.1/Makefile.tmpl
---- repos/apache_1.3.0/Makefile.tmpl	1998-05-12 19:52:11.000000000 +0800
-+++ repos/apache_1.3.1/Makefile.tmpl	1998-07-16 01:03:25.000000000 +0800
+Only in apache_1.3.0/: Makefile
+diff -BEr -U 6 apache_1.3.0/Makefile.tmpl apache_1.3.1/Makefile.tmpl
+--- apache_1.3.0/Makefile.tmpl	1998-05-12 19:52:11.000000000 +0800
++++ apache_1.3.1/Makefile.tmpl	1998-07-16 01:03:25.000000000 +0800
 @@ -115,12 +115,18 @@
  suexec_caller   = @suexec_caller@
  suexec_userdir  = @suexec_userdir@
@@ -2621,9 +2623,9 @@ diff -BEr -U 6 repos/apache_1.3.0/Makefile.tmpl repos/apache_1.3.1/Makefile.tmpl
  	@cd $(TOP)/$(SRC); $(MAKE) $(MFLAGS) SDP=$(SRC)/ distclean
  
  distclean-support:
-diff -BEr -U 6 repos/apache_1.3.0/README.configure repos/apache_1.3.1/README.configure
---- repos/apache_1.3.0/README.configure	1998-05-30 23:24:59.000000000 +0800
-+++ repos/apache_1.3.1/README.configure	1998-06-28 23:42:21.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/README.configure apache_1.3.1/README.configure
+--- apache_1.3.0/README.configure	1998-05-30 23:24:59.000000000 +0800
++++ apache_1.3.1/README.configure	1998-06-28 23:42:21.000000000 +0800
 @@ -15,12 +15,16 @@
  
      $ gunzip <apache-1.3.X.tar.gz | tar xvf -
@@ -2641,9 +2643,10 @@ diff -BEr -U 6 repos/apache_1.3.0/README.configure repos/apache_1.3.1/README.con
  
      $ PREFIX/sbin/apachectl start
  
-diff -BEr -U 6 repos/apache_1.3.0/src/ap/ap.dsp repos/apache_1.3.1/src/ap/ap.dsp
---- repos/apache_1.3.0/src/ap/ap.dsp	1998-02-05 21:09:30.000000000 +0800
-+++ repos/apache_1.3.1/src/ap/ap.dsp	1998-06-24 03:16:29.000000000 +0800
+Only in apache_1.3.0/src/ap: ap_cpystrn.o
+diff -BEr -U 6 apache_1.3.0/src/ap/ap.dsp apache_1.3.1/src/ap/ap.dsp
+--- apache_1.3.0/src/ap/ap.dsp	1998-02-05 21:09:30.000000000 +0800
++++ apache_1.3.1/src/ap/ap.dsp	1998-06-24 03:16:29.000000000 +0800
 @@ -90,16 +90,12 @@
  SOURCE=.\ap_slack.c
  # End Source File
@@ -2661,9 +2664,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/ap/ap.dsp repos/apache_1.3.1/src/ap/ap.dsp
  # PROP Default_Filter ""
  # End Group
  # End Target
-diff -BEr -U 6 repos/apache_1.3.0/src/ap/ap.mak repos/apache_1.3.1/src/ap/ap.mak
---- repos/apache_1.3.0/src/ap/ap.mak	1998-02-05 21:09:30.000000000 +0800
-+++ repos/apache_1.3.1/src/ap/ap.mak	1998-06-24 03:16:30.000000000 +0800
+Only in apache_1.3.0/src/ap: ap_execve.o
+diff -BEr -U 6 apache_1.3.0/src/ap/ap.mak apache_1.3.1/src/ap/ap.mak
+--- apache_1.3.0/src/ap/ap.mak	1998-02-05 21:09:30.000000000 +0800
++++ apache_1.3.1/src/ap/ap.mak	1998-06-24 03:16:30.000000000 +0800
 @@ -47,13 +47,12 @@
  
  CLEAN :
@@ -2918,9 +2922,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/ap/ap.mak repos/apache_1.3.1/src/ap/ap.mak
  
  !ENDIF 
  
-diff -BEr -U 6 repos/apache_1.3.0/src/ap/ap_slack.c repos/apache_1.3.1/src/ap/ap_slack.c
---- repos/apache_1.3.0/src/ap/ap_slack.c	1998-04-11 20:00:17.000000000 +0800
-+++ repos/apache_1.3.1/src/ap/ap_slack.c	1998-06-17 14:57:05.000000000 +0800
+Only in apache_1.3.0/src/ap: ap_signal.o
+diff -BEr -U 6 apache_1.3.0/src/ap/ap_slack.c apache_1.3.1/src/ap/ap_slack.c
+--- apache_1.3.0/src/ap/ap_slack.c	1998-04-11 20:00:17.000000000 +0800
++++ apache_1.3.1/src/ap/ap_slack.c	1998-06-17 14:57:05.000000000 +0800
 @@ -95,13 +95,13 @@
  	     * how libraries and such are going to fail.  If we can't
  	     * do this F_DUPFD there's a good chance that apache has too
@@ -2936,9 +2941,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/ap/ap_slack.c repos/apache_1.3.1/src/ap/ap
  	    low_warned = 1;
  	}
  	return fd;
-diff -BEr -U 6 repos/apache_1.3.0/src/ap/ap_snprintf.c repos/apache_1.3.1/src/ap/ap_snprintf.c
---- repos/apache_1.3.0/src/ap/ap_snprintf.c	1998-05-12 01:49:21.000000000 +0800
-+++ repos/apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
+Only in apache_1.3.0/src/ap: ap_slack.o
+diff -BEr -U 6 apache_1.3.0/src/ap/ap_snprintf.c apache_1.3.1/src/ap/ap_snprintf.c
+--- apache_1.3.0/src/ap/ap_snprintf.c	1998-05-12 01:49:21.000000000 +0800
++++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
 @@ -69,14 +69,18 @@
  #include <math.h>
  
@@ -3033,10 +3039,14 @@ diff -BEr -U 6 repos/apache_1.3.0/src/ap/ap_snprintf.c repos/apache_1.3.1/src/ap
  			precision = va_arg(ap, int);
  			fmt++;
  			if (precision < 0)
-Only in repos/apache_1.3.0/src/ap: ap_strings.c
-diff -BEr -U 6 repos/apache_1.3.0/src/ap/Makefile.tmpl repos/apache_1.3.1/src/ap/Makefile.tmpl
---- repos/apache_1.3.0/src/ap/Makefile.tmpl	1998-05-10 21:04:30.000000000 +0800
-+++ repos/apache_1.3.1/src/ap/Makefile.tmpl	1998-07-13 19:32:32.000000000 +0800
+Only in apache_1.3.0/src/ap: ap_snprintf.o
+Only in apache_1.3.0/src/ap: ap_strings.c
+Only in apache_1.3.0/src/ap: ap_strings.o
+Only in apache_1.3.0/src/ap: libap.a
+Only in apache_1.3.0/src/ap: Makefile
+diff -BEr -U 6 apache_1.3.0/src/ap/Makefile.tmpl apache_1.3.1/src/ap/Makefile.tmpl
+--- apache_1.3.0/src/ap/Makefile.tmpl	1998-05-10 21:04:30.000000000 +0800
++++ apache_1.3.1/src/ap/Makefile.tmpl	1998-07-13 19:32:32.000000000 +0800
 @@ -3,13 +3,13 @@
  INCLUDES=$(INCLUDES1) $(INCLUDES0) $(EXTRA_INCLUDES)
  LDFLAGS=$(LDFLAGS1) $(EXTRA_LDFLAGS)
@@ -3097,9 +3107,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/ap/Makefile.tmpl repos/apache_1.3.1/src/ap
 + $(INCDIR)/ap_config_auto.h $(OSDIR)/os.h $(INCDIR)/ap_ctype.h \
 + $(INCDIR)/hsregex.h $(INCDIR)/alloc.h $(INCDIR)/buff.h \
 + $(INCDIR)/ap.h $(INCDIR)/util_uri.h
-diff -BEr -U 6 repos/apache_1.3.0/src/buildmark.c repos/apache_1.3.1/src/buildmark.c
---- repos/apache_1.3.0/src/buildmark.c	1998-05-07 20:24:23.000000000 +0800
-+++ repos/apache_1.3.1/src/buildmark.c	1998-07-13 19:32:29.000000000 +0800
+Only in apache_1.3.0/src: apaci
+diff -BEr -U 6 apache_1.3.0/src/buildmark.c apache_1.3.1/src/buildmark.c
+--- apache_1.3.0/src/buildmark.c	1998-05-07 20:24:23.000000000 +0800
++++ apache_1.3.1/src/buildmark.c	1998-07-13 19:32:29.000000000 +0800
 @@ -52,13 +52,13 @@
   * Supercomputing Applications, University of Illinois, Urbana-Champaign.
   * For more information on the Apache Group and the Apache HTTP server
@@ -3115,9 +3126,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/buildmark.c repos/apache_1.3.1/src/buildma
  static const char server_built[] = __DATE__ " " __TIME__;
  #else
  static const char server_built[] = "unknown";
-diff -BEr -U 6 repos/apache_1.3.0/src/CHANGES repos/apache_1.3.1/src/CHANGES
---- repos/apache_1.3.0/src/CHANGES	1998-05-31 03:15:37.000000000 +0800
-+++ repos/apache_1.3.1/src/CHANGES	1998-07-19 06:50:15.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/CHANGES apache_1.3.1/src/CHANGES
+--- apache_1.3.0/src/CHANGES	1998-05-31 03:15:37.000000000 +0800
++++ apache_1.3.1/src/CHANGES	1998-07-19 06:50:15.000000000 +0800
 @@ -1,7 +1,336 @@
 -Changes with Apache 1.3b8
 +Changes with Apache 1.3.1
@@ -3501,9 +3512,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/CHANGES repos/apache_1.3.1/src/CHANGES
          htdocs/manual/suexec.html document before using the suexec-related
          configure options.
       2. Make sure the user has at least provided one --suexec-xxxx option
-diff -BEr -U 6 repos/apache_1.3.0/src/Configuration repos/apache_1.3.1/src/Configuration
---- repos/apache_1.3.0/src/Configuration	1998-06-02 06:26:55.000000000 +0800
-+++ repos/apache_1.3.1/src/Configuration	1998-07-19 07:03:37.000000000 +0800
+Only in apache_1.3.0/src: compile_commands.json
+diff -BEr -U 6 apache_1.3.0/src/Configuration apache_1.3.1/src/Configuration
+--- apache_1.3.0/src/Configuration	2017-09-16 15:35:38.284036649 +0800
++++ apache_1.3.1/src/Configuration	1998-07-19 07:03:37.000000000 +0800
 @@ -44,16 +44,21 @@
  # Optimization note: 
  # Be careful when adding optimization flags (like -O3 or -O6) on the OPTIM
@@ -3566,9 +3578,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/Configuration repos/apache_1.3.1/src/Confi
  ## should be the last (highest priority) module.
  
  AddModule modules/standard/mod_setenvif.o
-diff -BEr -U 6 repos/apache_1.3.0/src/Configuration.tmpl repos/apache_1.3.1/src/Configuration.tmpl
---- repos/apache_1.3.0/src/Configuration.tmpl	1998-05-12 20:13:50.000000000 +0800
-+++ repos/apache_1.3.1/src/Configuration.tmpl	1998-07-12 00:44:33.000000000 +0800
+Only in apache_1.3.0/src: Configuration.apaci
+diff -BEr -U 6 apache_1.3.0/src/Configuration.tmpl apache_1.3.1/src/Configuration.tmpl
+--- apache_1.3.0/src/Configuration.tmpl	1998-05-12 20:13:50.000000000 +0800
++++ apache_1.3.1/src/Configuration.tmpl	1998-07-12 00:44:33.000000000 +0800
 @@ -44,16 +44,21 @@
  # Optimization note: 
  # Be careful when adding optimization flags (like -O3 or -O6) on the OPTIM
@@ -3631,9 +3644,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/Configuration.tmpl repos/apache_1.3.1/src/
  ## should be the last (highest priority) module.
  
  AddModule modules/standard/mod_setenvif.o
-diff -BEr -U 6 repos/apache_1.3.0/src/Configure repos/apache_1.3.1/src/Configure
---- repos/apache_1.3.0/src/Configure	1998-05-12 20:13:50.000000000 +0800
-+++ repos/apache_1.3.1/src/Configure	1998-07-18 18:51:52.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/Configure apache_1.3.1/src/Configure
+--- apache_1.3.0/src/Configure	1998-05-12 20:13:50.000000000 +0800
++++ apache_1.3.1/src/Configure	1998-07-18 18:51:52.000000000 +0800
 @@ -255,17 +255,12 @@
  TARGET="httpd"
  SUBTARGET="target_static"
@@ -4083,10 +4096,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/Configure repos/apache_1.3.1/src/Configure
  
  .SUFFIXES: .o .so
  
-Only in repos/apache_1.3.1/src/helpers: findprg.sh
-diff -BEr -U 6 repos/apache_1.3.0/src/helpers/GuessOS repos/apache_1.3.1/src/helpers/GuessOS
---- repos/apache_1.3.0/src/helpers/GuessOS	1998-02-21 23:00:41.000000000 +0800
-+++ repos/apache_1.3.1/src/helpers/GuessOS	1998-06-29 20:21:04.000000000 +0800
+Only in apache_1.3.1/src/helpers: findprg.sh
+diff -BEr -U 6 apache_1.3.0/src/helpers/GuessOS apache_1.3.1/src/helpers/GuessOS
+--- apache_1.3.0/src/helpers/GuessOS	1998-02-21 23:00:41.000000000 +0800
++++ apache_1.3.1/src/helpers/GuessOS	1998-06-29 20:21:04.000000000 +0800
 @@ -47,12 +47,17 @@
  		    echo "${MACHINE}-whatever-unixware2"; exit 0
  		fi
@@ -4194,10 +4207,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/helpers/GuessOS repos/apache_1.3.1/src/hel
  # At this point we gone through all the one's
  # we know of: Punt
  
-Only in repos/apache_1.3.1/src/helpers: MakeEtags
-diff -BEr -U 6 repos/apache_1.3.0/src/helpers/TestCompile repos/apache_1.3.1/src/helpers/TestCompile
---- repos/apache_1.3.0/src/helpers/TestCompile	1998-04-11 23:45:59.000000000 +0800
-+++ repos/apache_1.3.1/src/helpers/TestCompile	1998-07-18 23:30:41.000000000 +0800
+Only in apache_1.3.1/src/helpers: MakeEtags
+diff -BEr -U 6 apache_1.3.0/src/helpers/TestCompile apache_1.3.1/src/helpers/TestCompile
+--- apache_1.3.0/src/helpers/TestCompile	1998-04-11 23:45:59.000000000 +0800
++++ apache_1.3.1/src/helpers/TestCompile	1998-07-18 23:30:41.000000000 +0800
 @@ -1,24 +1,27 @@
  #!/bin/sh
  exstat=1
@@ -4257,9 +4270,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/helpers/TestCompile repos/apache_1.3.1/src
  esac
  
  #
-diff -BEr -U 6 repos/apache_1.3.0/src/include/alloc.h repos/apache_1.3.1/src/include/alloc.h
---- repos/apache_1.3.0/src/include/alloc.h	1998-05-29 06:09:45.000000000 +0800
-+++ repos/apache_1.3.1/src/include/alloc.h	1998-06-28 02:09:28.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/include/alloc.h apache_1.3.1/src/include/alloc.h
+--- apache_1.3.0/src/include/alloc.h	1998-05-29 06:09:45.000000000 +0800
++++ apache_1.3.1/src/include/alloc.h	1998-06-28 02:09:28.000000000 +0800
 @@ -176,13 +176,13 @@
      char *val;
  } table_entry;
@@ -4292,12 +4305,1195 @@ diff -BEr -U 6 repos/apache_1.3.0/src/include/alloc.h repos/apache_1.3.1/src/inc
   * cleanup functions in the general case, one for exec() preparation,
   * to keep CGI scripts and the like from inheriting access to things
   * they shouldn't be able to touch, and one for actually cleaning up,
-Only in repos/apache_1.3.1/src/include: ap_compat.h
-Only in repos/apache_1.3.1/src/include: ap_config.h
-Only in repos/apache_1.3.1/src/include: ap_ctype.h
-diff -BEr -U 6 repos/apache_1.3.0/src/include/ap.h repos/apache_1.3.1/src/include/ap.h
---- repos/apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
-+++ repos/apache_1.3.1/src/include/ap.h	1998-07-09 02:02:16.000000000 +0800
+Only in apache_1.3.1/src/include: ap_compat.h
+diff -BEr -U 6 apache_1.3.0/src/include/ap_config.h apache_1.3.1/src/include/ap_config.h
+--- apache_1.3.0/src/include/ap_config.h	2017-09-16 15:36:21.356035070 +0800
++++ apache_1.3.1/src/include/ap_config.h	1998-07-18 23:30:43.000000000 +0800
+@@ -1,8 +1,1175 @@
+-/* Automatically generated file - do not edit */
++/* ====================================================================
++ * Copyright (c) 1995-1998 The Apache Group.  All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer. 
++ *
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in
++ *    the documentation and/or other materials provided with the
++ *    distribution.
++ *
++ * 3. All advertising materials mentioning features or use of this
++ *    software must display the following acknowledgment:
++ *    "This product includes software developed by the Apache Group
++ *    for use in the Apache HTTP server project (http://www.apache.org/)."
++ *
++ * 4. The names "Apache Server" and "Apache Group" must not be used to
++ *    endorse or promote products derived from this software without
++ *    prior written permission. For written permission, please contact
++ *    apache@apache.org.
++ *
++ * 5. Products derived from this software may not be called "Apache"
++ *    nor may "Apache" appear in their names without prior written
++ *    permission of the Apache Group.
++ *
++ * 6. Redistributions of any form whatsoever must retain the following
++ *    acknowledgment:
++ *    "This product includes software developed by the Apache Group
++ *    for use in the Apache HTTP server project (http://www.apache.org/)."
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE APACHE GROUP ``AS IS'' AND ANY
++ * EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
++ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE APACHE GROUP OR
++ * ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
++ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
++ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++ * OF THE POSSIBILITY OF SUCH DAMAGE.
++ * ====================================================================
++ *
++ * This software consists of voluntary contributions made by many
++ * individuals on behalf of the Apache Group and was originally based
++ * on public domain software written at the National Center for
++ * Supercomputing Applications, University of Illinois, Urbana-Champaign.
++ * For more information on the Apache Group and the Apache HTTP server
++ * project, please see <http://www.apache.org/>.
++ *
++ */
+ 
+-#ifndef LINUX
+-#define LINUX 2
++#ifndef AP_CONFIG_H
++#define AP_CONFIG_H
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++/*
++ * ap_config.h: system-dependant #defines and includes...
++ * See PORTING for a listing of what they mean
++ */
++
++/*
++ * Support for platform dependent autogenerated defines
++ */
++#ifndef WIN32
++#include "ap_config_auto.h"
++#else
++/* not available under WIN32, so provide important entries manually */
++#undef HAVE_UNISTD_H
++#endif
++
++/* Have to include sys/stat.h before ../os/win32/os.h so we can override
++stat() properly */
++#include <sys/types.h>
++#include <sys/stat.h>
++
++#ifdef WIN32
++/* include process.h first so we can override spawn[lv]e* properly */
++#include <process.h>
++#include "../os/win32/os.h"
++#else
++#include "os.h"
++#endif
++
++#if !defined(QNX) && !defined(MPE) && !defined(WIN32)
++#include <sys/param.h>
++#endif
++
++/* Define one of these according to your system. */
++#if defined(MINT)
++typedef int rlim_t;
++#define JMP_BUF sigjmp_buf
++#define NO_LONG_DOUBLE
++#define USE_FLOCK_SERIALIZED_ACCEPT
++#define _BSD_SOURCE
++#define EAGAIN EWOULDBLOCK
++int initgroups (char *, int);     
++char *crypt (const char *pw, const char *salt);
++int gethostname (char *name, int namelen);
++
++#elif defined(MPE)
++#include <sys/times.h>
++#define NO_SETSID
++#define NO_KILLPG
++#define NO_WRITEV
++#define HAVE_SHMGET 1
++#define USE_SHMGET_SCOREBOARD
++#define SHM_R 0400  /* Read permission */
++#define SHM_W 0200  /* Write permission */
++#define NEED_INITGROUPS
++#define NEED_STRCASECMP
++#define NEED_STRDUP
++#define NEED_STRNCASECMP
++extern void GETPRIVMODE();
++extern void GETUSERMODE();
++extern char *inet_ntoa();
++#define NO_SLACK
++#define NO_GETTIMEOFDAY
++#define S_IEXEC  S_IXUSR
++#define S_IREAD  S_IRUSR
++#define S_IWRITE S_IWUSR
++#define PF_INET  AF_INET
++
++#elif defined(SUNOS4)
++#define HAVE_GMTOFF 1
++#undef NO_KILLPG
++#undef NO_SETSID
++char *crypt(const char *pw, const char *salt);
++char *mktemp(char *template);
++#define HAVE_MMAP 1
++#define USE_MMAP_SCOREBOARD
++#define USE_MMAP_FILES
++#include <sys/time.h>
++#define NEED_STRERROR
++typedef int rlim_t;
++#define memmove(a,b,c) bcopy(b,a,c)
++#define NO_LINGCLOSE
++#define USE_FLOCK_SERIALIZED_ACCEPT
++#define NEED_DIFFTIME
++#define HAVE_SYSLOG 1
++
++#elif defined(SOLARIS2)
++#undef HAVE_GMTOFF
++#define NO_KILLPG
++#undef NO_SETSID
++#define bzero(a,b) memset(a,0,b)
++#if !defined(USE_SYSVSEM_SERIALIZED_ACCEPT) && \
++    !defined(USE_PTHREAD_SERIALIZED_ACCEPT)
++#define USE_FCNTL_SERIALIZED_ACCEPT
++#endif
++#define NEED_UNION_SEMUN
++#define HAVE_MMAP 1
++#define USE_MMAP_SCOREBOARD
++#define USE_MMAP_FILES
++int gethostname(char *name, int namelen);
++#define HAVE_SYSLOG 1
++#define SYS_SIGLIST _sys_siglist
++
++#elif defined(IRIX)
++#undef HAVE_GMTOFF
++/* IRIX has killpg, but it's only in _BSD_COMPAT, so don't use it in case
++ * there's some weird conflict with non-BSD signals */
++#define NO_KILLPG
++#undef NO_SETSID
++#if !defined(USE_FCNTL_SERIALIZED_ACCEPT) && !defined(USE_USLOCK_SERIALIZED_ACCEPT)
++#define USE_SYSVSEM_SERIALIZED_ACCEPT
++#endif
++#define HAVE_SHMGET 1
++#define USE_SHMGET_SCOREBOARD
++#define HAVE_MMAP 1
++#define USE_MMAP_FILES
++#define NO_LONG_DOUBLE
++#define NO_LINGCLOSE
++#define HAVE_SYSLOG 1
++
++#elif defined(HIUX)
++#undef HAVE_GMTOFF
++#define NO_KILLPG
++#undef NO_SETSID
++#ifndef _HIUX_SOURCE
++#define _HIUX_SOURCE
++#endif
++#define HAVE_SHMGET 1
++#define USE_SHMGET_SCOREBOARD
++#define SELECT_NEEDS_CAST
++#define HAVE_SYSLOG 1
++
++#elif defined(HPUX) || defined(HPUX10)
++#undef HAVE_GMTOFF
++#define NO_KILLPG
++#undef NO_SETSID
++#define USE_FCNTL_SERIALIZED_ACCEPT
++#ifndef _HPUX_SOURCE
++#define _HPUX_SOURCE
++#endif
++#define HAVE_SHMGET 1
++#define USE_SHMGET_SCOREBOARD
++#define HAVE_SYSLOG 1
++#ifndef HPUX10
++#define SELECT_NEEDS_CAST
++typedef int rlim_t;
++#endif
++
++#elif defined(HPUX11)
++#ifndef _HPUX_SOURCE
++#define _HPUX_SOURCE
++#endif
++#define HAVE_SHMGET
++#define USE_SHMGET_SCOREBOARD
++#undef  HAVE_GMTOFF
++#define USE_FCNTL_SERIALIZED_ACCEPT
++/* feeling brave?  want to try using POSIX mutexes? */
++/* #define HAVE_MMAP */
++/* #define USE_MMAP_SCOREBOARD */
++/* #define USE_MMAP_FILES */
++/* #define USE_PTHREAD_SERIALIZED_ACCEPT */
++#define NO_KILLPG
++#undef  NO_SETSID
++#define HAVE_SYSLOG
++
++#elif defined(AIX)
++#undef HAVE_GMTOFF
++#undef NO_KILLPG
++#undef NO_SETSID
++#ifndef __ps2__
++#define HAVE_MMAP 1
++#define USE_MMAP_SCOREBOARD
++#define USE_MMAP_FILES
++#define HAVE_SYSLOG 1
++#ifndef DEFAULT_GROUP
++#define DEFAULT_GROUP "nobody"
++#endif
++#endif
++#ifndef DEFAULT_USER
++#define DEFAULT_USER "nobody"
++#endif
++#ifdef NEED_RLIM_T
++typedef int rlim_t;
++#endif
++#define USE_FCNTL_SERIALIZED_ACCEPT
++#ifdef USEBCOPY
++#define memmove(a,b,c) bcopy(b,a,c)
++#endif
++#if AIX >= 42
++#define NET_SIZE_T size_t
++#endif
++
++#elif defined(ULTRIX)
++#define HAVE_GMTOFF 1
++#undef NO_KILLPG
++#undef NO_SETSID
++#define ULTRIX_BRAIN_DEATH
++#define NEED_STRDUP
++/* If you have Ultrix 4.3, and are using cc, const is broken */
++#ifndef __ultrix__		/* Hack to check for pre-Ultrix 4.4 cc */
++#define const			/* Not implemented */
++#endif
++
++#elif defined(OSF1)
++#define HAVE_GMTOFF 1
++#undef NO_KILLPG
++#undef NO_SETSID
++#define HAVE_MMAP 1
++#define USE_MMAP_SCOREBOARD
++#define USE_MMAP_FILES
++#define NO_LONG_DOUBLE
++#define HAVE_SYSLOG 1
++#define USE_FLOCK_SERIALIZED_ACCEPT
++#define SINGLE_LISTEN_UNSERIALIZED_ACCEPT
++
++#elif defined(PARAGON)
++#define HAVE_GMTOFF 1
++#undef NO_KILLPG
++#undef NO_SETSID
++#define HAVE_MMAP 1
++#define USE_MMAP_SCOREBOARD
++#define USE_MMAP_FILES
++#define NO_LONG_DOUBLE
++#define HAVE_SYSLOG 1
++typedef int rlim_t;
++
++#elif defined(SEQUENT)
++#define HAVE_GMTOFF 1
++#undef NO_KILLPG
++#define NO_SETSID
++#define NEED_STRDUP
++#define HAVE_SYSLOG 1
++
++#elif defined(NEXT)
++typedef unsigned short mode_t;
++#define HAVE_GMTOFF 1
++#undef NO_KILLPG
++#define NO_SETSID
++#define NEED_STRDUP
++#define NO_LINGCLOSE
++#undef _POSIX_SOURCE
++#ifndef FD_CLOEXEC
++#define FD_CLOEXEC 1
++#endif
++#ifndef S_ISDIR
++#define S_ISDIR(m)      (((m)&(S_IFMT)) == (S_IFDIR))
++#endif
++#ifndef S_ISREG
++#define S_ISREG(m)      (((m)&(S_IFMT)) == (S_IFREG))
++#endif
++#ifndef S_IXUSR
++#define S_IXUSR 00100
++#endif
++#ifndef S_IRGRP
++#define S_IRGRP 00040
++#endif
++#ifndef S_IXGRP
++#define S_IXGRP 00010
++#endif
++#ifndef S_IROTH
++#define S_IROTH 00004
++#endif
++#ifndef S_IXOTH
++#define S_IXOTH 00001
++#endif
++#ifndef S_IRUSR
++#define S_IRUSR S_IREAD
++#endif
++#ifndef S_IWUSR
++#define S_IWUSR S_IWRITE
++#endif
++#ifndef S_IWGRP
++#define S_IWGRP	000020
++#endif
++#ifndef S_IWOTH
++#define S_IWOTH 000002
++#ifndef rlim_t
++typedef int rlim_t;
++#endif
++typedef u_long n_long;
++#endif
++
++#define STDIN_FILENO  0
++#define STDOUT_FILENO 1
++#define STDERR_FILENO 2
++
++/* PR#2293 fix */
++#define	ap_wait_t	union wait
++#define waitpid(a,b,c) wait4((a) == -1 ? 0 : (a),(union wait *)(b),c,NULL)
++#define WEXITSTATUS(status)     (int)( WIFEXITED(status) ? ( (status).w_retcode ) : -1)
++#define WTERMSIG(status)	(int)( (status).w_termsig )
++
++typedef int pid_t;
++#define USE_LONGJMP
++#define NO_USE_SIGACTION
++#define HAVE_SYSLOG 1
++
++#elif defined(LINUX)
++
++#if LINUX > 1
++#include <features.h>
++
++/* libc4 systems probably still work, it probably doesn't define
++ *  __GNU_LIBRARY__
++ * libc5 systems define __GNU_LIBRARY__ == 1, but don't define __GLIBC__
++ * glibc 2.x and later systems define __GNU_LIBRARY__ == 6, but list it as
++ * "deprecated in favour of __GLIBC__"; the value 6 will never be changed.
++ * glibc 1.x systems (i.e. redhat 4.x on sparc/alpha) should have
++ * __GLIBC__ < 2
++ * all glibc based systems need crypt.h
++ */
++#if defined(__GNU_LIBRARY__) && __GNU_LIBRARY__ > 1
++#include <crypt.h>
++#endif
++
++/* glibc 2.0.0 through 2.0.4 need size_t * here, where 2.0.5 needs socklen_t *
++ * there's no way to discern between these two libraries.  But using int should
++ * be portable because otherwise these libs would be hopelessly broken with
++ * reams of existing networking code.  We'll use socklen_t * for 2.1.x and
++ * later.
++ *
++ * int works for all the earlier libs, and is picked up by default later.
++ */
++#if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ > 0))
++#define NET_SIZE_T socklen_t
++#endif
++
++#define HAVE_SHMGET 1
++#define USE_SHMGET_SCOREBOARD
++#define HAVE_MMAP 1
++#define USE_MMAP_FILES
++
++/* glibc 2.1 and later finally define rlim_t */
++#if !defined(__GLIBC__) || __GLIBC__ < 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ < 1)
++typedef int rlim_t;
++#endif
++
++/* flock is faster ... but hasn't been tested on 1.x systems */
++#define USE_FLOCK_SERIALIZED_ACCEPT
++
++#define SYS_SIGLIST	_sys_siglist
++
++#else
++#define USE_FCNTL_SERIALIZED_ACCEPT
++#endif
++
++#undef HAVE_GMTOFF
++#undef NO_KILLPG
++#undef NO_SETSID
++#undef NEED_STRDUP
++#include <sys/time.h>
++#define HAVE_SYSLOG 1
++
++#elif defined(SCO)
++#undef HAVE_GMTOFF
++#undef NO_KILLPG
++#undef NO_SETSID
++#define NEED_INITGROUPS
++#define NO_WRITEV
++#include <sys/time.h>
++#define HAVE_SYSLOG 1
++
++#elif defined(SCO5)
++
++#define USE_FCNTL_SERIALIZED_ACCEPT
++#define HAVE_MMAP 1
++#define USE_MMAP_SCOREBOARD
++#define USE_MMAP_FILES
++#define SecureWare
++#define HAVE_SYSLOG 1
++
++/* Although SCO 5 defines these in <strings.h> (note the "s") they don't have
++   consts. Sigh. */
++extern int strcasecmp(const char *, const char *);
++extern int strncasecmp(const char *, const char *, unsigned);
++
++#elif defined(AUX3)
++/* These are to let -Wall compile more cleanly */
++extern int strcasecmp(const char *, const char *);
++extern int strncasecmp(const char *, const char *, unsigned);
++extern int set42sig(), getopt(), getpeername(), bzero();
++extern int listen(), bind(), socket(), getsockname();
++extern int accept(), gethostname(), connect(), lstat();
++extern int select(), killpg(), shutdown();
++extern int initgroups(), setsockopt();
++extern char *shmat();
++extern int shmctl();
++extern int shmget();
++extern char *sbrk();
++extern char *crypt();
++#include <sys/time.h>
++#undef HAVE_GMTOFF
++#undef NO_KILLPG
++#undef NO_SETSID
++#define NEED_STRDUP
++/* fcntl() locking is expensive with NFS */
++#define USE_FLOCK_SERIALIZED_ACCEPT
++#define SINGLE_LISTEN_UNSERIALIZED_ACCEPT
++#define HAVE_SHMGET 1
++#define USE_SHMGET_SCOREBOARD
++/*
++ * NOTE: If when you run Apache under A/UX and you get a warning
++ * that httpd couldn't move break, then the below value for
++ * MOVEBREAK (64megs) is too large for your setup. Try reducing
++ * to 0x2000000 which is still PLENTY of space. I doubt if
++ * even on heavy systems sbrk() would be called at all...
++ */
++#define MOVEBREAK		0x4000000
++#define NO_LINGCLOSE
++#define NO_SLACK
++#define HAVE_SYSLOG 1
++#undef HAVE_SYS_RESOURCE_H	/* exists but does not provide *rlimit funcs */
++
++#elif defined(SVR4)
++#define NO_KILLPG
++#undef  NO_SETSID
++#undef NEED_STRDUP
++#ifndef MPRAS
++#define NEED_STRCASECMP
++#ifndef ENCORE
++#define NEED_STRNCASECMP
++#endif /* ENCORE */
++#endif /* MPRAS */
++#define bzero(a,b) memset(a,0,b)
++/* A lot of SVR4 systems need this */
++#ifndef USE_SYSVSEM_SERIALIZED_ACCEPT
++#define USE_FCNTL_SERIALIZED_ACCEPT
++#endif
++#define HAVE_SYSLOG 1
++#define NET_SIZE_T size_t
++#define HAVE_SHMGET 1
++#define USE_SHMGET_SCOREBOARD
++#ifdef _OSD_POSIX /* BS2000-POSIX mainframe needs initgroups */
++#define NEED_INITGROUPS
++#define NEED_HASHBANG_EMUL /* execve() doesn't start shell scripts by default */
++#undef HAVE_SHMGET
++#undef USE_SHMGET_SCOREBOARD
++#undef bzero
++#endif /*_OSD_POSIX*/
++
++#elif defined(UW)
++#define NO_LINGCLOSE
++#define NO_KILLPG
++#undef  NO_SETSID
++#undef NEED_STRDUP
++#define NEED_STRCASECMP
++#define NEED_STRNCASECMP
++#define bzero(a,b) memset(a,0,b)
++#define HAVE_MMAP 1
++#define USE_MMAP_SCOREBOARD
++#define USE_MMAP_FILES
++#define HAVE_SHMGET 1
++#undef USE_SHMGET_SCOREBOARD	/* force use of mmap() scoreboard */
++#include <sys/time.h>
++#if UW >= 200
++#define _POSIX_SOURCE
++#endif
++#define NET_SIZE_T size_t
++#define HAVE_SYSLOG 1
++#define USE_FCNTL_SERIALIZED_ACCEPT
++
++#elif defined(DGUX)
++#define NO_KILLPG
++#undef  NO_SETSID
++#undef NEED_STRDUP
++#define NEED_STRCASECMP
++#define NEED_STRNCASECMP
++#define bzero(a,b) memset(a,0,b)
++/* A lot of SVR4 systems need this */
++#define USE_FCNTL_SERIALIZED_ACCEPT
++#define ap_inet_addr inet_network
++#define HAVE_SYSLOG 1
++
++#elif defined(__NetBSD__) || defined(__OpenBSD__) || defined(NETBSD)
++#define HAVE_GMTOFF 1
++#undef NO_KILLPG
++#undef NO_SETSID
++#define HAVE_SYSLOG 1
++#ifndef DEFAULT_USER
++#define DEFAULT_USER "nobody"
++#endif
++#ifndef DEFAULT_GROUP
++#define DEFAULT_GROUP "nogroup"
++#define HAVE_SHMGET 1
++#define HAVE_MMAP 1
++#define USE_MMAP_SCOREBOARD
++#define USE_MMAP_FILES
++#endif
++
++#elif defined(UTS21)
++#undef HAVE_GMTOFF
++#undef NO_KILLPG
++#define NO_SETSID
++#define NEED_WAITPID
++#define STDIN_FILENO 0
++#define STDOUT_FILENO 1
++#define STDERR_FILENO 2
++#define HAVE_SYSLOG 1
++#define USE_LONGJMP
++#define JMP_BUF jmp_buf
++#define NO_USE_SIGACTION
++#define NEED_STRERROR
++#define NEED_STRSTR
++#define NEED_HASHBANG_EMUL
++#define NDELAY_PIPE_RETURNS_ZERO
++#define NO_DATA NO_ADDRESS
++#define	ap_wait_t		union wait
++#define WEXITSTATUS(status)	(int)((status).w_retcode)
++#define WTERMSIG(status)	(int)((status).w_termsig)
++#define strftime(buf,bufsize,fmt,tm)    ascftime(buf,fmt,tm)
++#include <sys/types.h>
++#include <sys/time.h>     
++
++#elif defined(APOLLO)
++#undef HAVE_GMTOFF
++#undef NO_KILLPG
++#undef NO_SETSID
++#define HAVE_SYSLOG 1
++
++#elif defined(__FreeBSD__) || defined(__bsdi__)
++#if defined(__FreeBSD__)
++#include <osreldate.h>
++#endif
++#define HAVE_GMTOFF 1
++#undef NO_KILLPG
++#undef NO_SETSID
++#define HAVE_MMAP 1
++#define USE_MMAP_SCOREBOARD
++#define USE_MMAP_FILES
++#ifndef DEFAULT_USER
++#define DEFAULT_USER "nobody"
++#endif
++#ifndef DEFAULT_GROUP
++#define DEFAULT_GROUP "nogroup"
++#endif
++#if defined(__bsdi__) || \
++(defined(__FreeBSD_version) && (__FreeBSD_version < 220000))
++typedef quad_t rlim_t;
++#endif
++#define USE_FLOCK_SERIALIZED_ACCEPT
++#define HAVE_SYSLOG 1
++#define SYS_SIGLIST sys_siglist
++
++#elif defined(QNX)
++#ifndef crypt
++char *crypt(const char *pw, const char *salt);
++#endif
++#ifndef initgroups
++int initgroups(char *, int);
++#endif
++#ifndef strncasecmp
++#define strncasecmp strnicmp
++#endif
++#undef NO_KILLPG
++#undef NO_SETSID
++#define NEED_INITGROUPS
++#define NEED_SELECT_H
++#define NEED_PROCESS_H
++#include <unix.h>
++#define HAVE_MMAP 1
++#define USE_POSIX_SCOREBOARD
++#define USE_FLOCK_SERIALIZED_ACCEPT
++#define SINGLE_LISTEN_UNSERIALIZED_ACCEPT
++#define HAVE_SYSLOG 1
++
++#elif defined(LYNXOS)
++#undef HAVE_GMTOFF
++#undef USE_MMAP_SCOREBOARD
++#undef USE_SHMGET_SCOREBOARD
++#undef USE_FCNTL_SERIALIZED_ACCEPT
++#undef USE_FLOCK_SERIALIZED_ACCEPT
++#define USE_LONGJMP
++#undef NO_KILLPG
++#undef NO_SETSID
++#undef NO_USE_SIGACTION
++#undef NO_LINGCLOSE
++extern char *crypt(char *pw, char *salt);
++typedef int rlim_t;
++#define HAVE_SYSLOG 1
++
++#elif defined(UXPDS)
++#undef NEED_STRCASECMP
++#undef NEED_STRNCASECMP
++#undef NEED_STRDUP
++#undef HAVE_GMTOFF
++#define NO_KILLPG
++#undef NO_SETSID
++#define bzero(a,b) memset(a,0,b)
++#define USE_FCNTL_SERIALIZED_ACCEPT
++#define HAVE_MMAP 1
++#define USE_MMAP_SCOREBOARD
++#define USE_MMAP_FILES
++#define HAVE_SYSLOG 1
++
++#elif defined(__EMX__)
++/* Defines required for EMX OS/2 port. */
++#define NO_KILLPG
++#define NEED_STRCASECMP
++#define NEED_STRNCASECMP
++#define NO_SETSID
++#define NO_TIMES
++/* ap_config_auto.h gets this wrong, force sys/select.h to be included */
++#define HAVE_SYS_SELECT_H
++#define CASE_BLIND_FILESYSTEM
++/* Add some drive name support */
++#define chdir _chdir2
++#include <sys/time.h>
++#define MAXSOCKETS 4096
++#define USE_OS2_SCOREBOARD
++#define NO_RELIABLE_PIPED_LOGS
++
++#elif defined(__MACHTEN__)
++typedef int rlim_t;
++#undef NO_KILLPG
++#define NO_SETSID
++#define HAVE_GMTOFF 1
++#ifndef __MACHTEN_PPC__
++#ifndef __MACHTEN_68K__
++#define __MACHTEN_68K__
++#endif
++#define USE_FLOCK_SERIALIZED_ACCEPT
++#define NO_USE_SIGACTION
++#define JMP_BUF sigjmp_buf
++#define USE_LONGJMP
++#undef NEED_STRDUP
++#else
++#define HAVE_SHMGET 1
++#define USE_SHMGET_SCOREBOARD
++#define USE_FCNTL_SERIALIZED_ACCEPT
++#endif
++
++/* Convex OS v11 */
++#elif defined(CONVEXOS11)
++#undef HAVE_GMTOFF
++#undef NO_KILLPG
++#undef NO_SETSID
++#undef NEED_STRDUP
++#define HAVE_MMAP 1
++#define USE_MMAP_SCOREBOARD
++#define USE_MMAP_FILES
++#define HAVE_SYSLOG 1
++
++#define NO_TIMEZONE
++#include <stdio.h>
++#include <sys/types.h>
++typedef int rlim_t;
++
++#elif defined(ISC)
++#include <net/errno.h>
++#define NO_KILLPG
++#undef NO_SETSID
++#define HAVE_SHMGET 1
++#define USE_SHMGET_SCOREBOARD
++#define USE_FCNTL_SERIALIZED_ACCEPT
++#define HAVE_SYSLOG 1
++
++#elif defined(NEWSOS)
++#define HAVE_SHMGET 1
++#define USE_SHMGET_SCOREBOARD
++#define USE_LONGJMP
++#define NO_SETSID
++#define NO_USE_SIGACTION
++#define NEED_WAITPID
++#define NO_OTHER_CHILD
++#define HAVE_SYSLOG 1
++#include <sys/time.h>
++#include <stdlib.h>
++#include <sys/types.h>
++typedef int pid_t;
++typedef int rlim_t;
++typedef int mode_t;
++
++#elif defined(RISCIX)
++#include <sys/time.h>
++typedef int rlim_t;
++#define NO_USE_SIGACTION
++#define USE_LONGJMP
++#define NEED_STRCASECMP
++#define NEED_STRNCASECMP
++#define NEED_STRDUP
++
++#elif defined(BEOS)
++#include <stddef.h>
++
++#define NO_WRITEV
++#define NO_KILLPG
++#define NEED_INITGROUPS
++
++#elif defined(WIN32)
++
++/* All windows stuff is now in os/win32/os.h */
++
++#else
++/* Unknown system - Edit these to match */
++#ifdef BSD
++#define HAVE_GMTOFF 1
++#else
++#undef HAVE_GMTOFF
+ #endif
+-#ifndef USE_HSREGEX
+-#define USE_HSREGEX 
++/* NO_KILLPG is set on systems that don't have killpg */
++#undef NO_KILLPG
++/* NO_SETSID is set on systems that don't have setsid */
++#undef NO_SETSID
++/* NEED_STRDUP is set on stupid systems that don't have strdup. */
++#undef NEED_STRDUP
+ #endif
++
++/* stuff marked API_EXPORT is part of the API, and intended for use
++ * by modules
++ */
++#ifndef API_EXPORT
++#define API_EXPORT(type)    type
++#endif
++
++/* Stuff marked API_EXPORT_NONSTD is part of the API, and intended for
++ * use by modules.  The difference between API_EXPORT and
++ * API_EXPORT_NONSTD is that the latter is required for any functions
++ * which use varargs or are used via indirect function call.  This
++ * is to accomodate the two calling conventions in windows dlls.
++ */
++#ifndef API_EXPORT_NONSTD
++#define API_EXPORT_NONSTD(type)    type
++#endif
++
++#ifndef MODULE_VAR_EXPORT
++#define MODULE_VAR_EXPORT
++#endif
++#ifndef API_VAR_EXPORT
++#define API_VAR_EXPORT
++#endif
++
++/* modules should not used functions marked CORE_EXPORT
++ * or CORE_EXPORT_NONSTD */
++#ifndef CORE_EXPORT
++#define CORE_EXPORT	API_EXPORT
++#endif
++#ifndef CORE_EXPORT_NONSTD
++#define CORE_EXPORT_NONSTD	API_EXPORT_NONSTD
++#endif
++
++/* So that we can use inline on some critical functions, and use
++ * GNUC attributes (such as to get -Wall warnings for printf-like
++ * functions).  Only do this in gcc 2.7 or later ... it may work
++ * on earlier stuff, but why chance it.
++ *
++ * We've since discovered that the gcc shipped with NeXT systems
++ * as "cc" is completely broken.  It claims to be __GNUC__ and so
++ * on, but it doesn't implement half of the things that __GNUC__
++ * means.  In particular it's missing inline and the __attribute__
++ * stuff.  So we hack around it.  PR#1613. -djg
++ */
++#if !defined(__GNUC__) || __GNUC__ < 2 || __GNUC_MINOR__ < 7 || defined(NEXT)
++#define ap_inline
++#define __attribute__(__x)
++#define ENUM_BITFIELD(e,n,w)  signed int n : w
++#else
++#define ap_inline __inline__
++#define USE_GNU_INLINE
++#define ENUM_BITFIELD(e,n,w)  e n : w
++#endif
++
++/*
++ * The particular directory style your system supports. If you have dirent.h
++ * in /usr/include (POSIX) or /usr/include/sys (SYSV), #include 
++ * that file and define DIR_TYPE to be dirent. Otherwise, if you have 
++ * /usr/include/sys/dir.h, define DIR_TYPE to be direct and include that
++ * file. If you have neither, I'm confused.
++ */
++
++#include <sys/types.h>
++#include <stdarg.h>
++
++#if !defined(NEXT) && !defined(WIN32)
++#include <dirent.h>
++#define DIR_TYPE dirent
++#elif !defined(WIN32)
++#include <sys/dir.h>
++#define DIR_TYPE direct
++#else
++#define DIR_TYPE dirent
++#endif
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include "ap_ctype.h"
++#if !defined(MPE) && !defined(WIN32)
++#include <sys/file.h>
++#endif
++#ifndef WIN32
++#include <sys/socket.h>
++#ifdef HAVE_SYS_SELECT_H
++#include <sys/select.h>
++#endif /* HAVE_SYS_SELECT_H */
++#include <netinet/in.h>
++#include <netdb.h>
++#include <sys/ioctl.h>
++#if !defined(MPE) && !defined(BEOS)
++#include <arpa/inet.h>		/* for inet_ntoa */
++#endif
++#include <sys/wait.h>
++#include <pwd.h>
++#include <grp.h>
++#include <fcntl.h>
++#include <limits.h>
++#define closesocket(s) close(s)
++#ifndef O_BINARY
++#define O_BINARY (0)
++#endif
++
++#else /* WIN32 */
++#include <winsock.h>
++#include <malloc.h>
++#include <io.h>
++#include <fcntl.h>
++#endif /* ndef WIN32 */
++
++#include <time.h>		/* for ctime */
++#include <signal.h>
++#include <errno.h>
++#if !defined(QNX) && !defined(CONVEXOS11) && !defined(NEXT)
++#include <memory.h>
++#endif
++
++#ifdef NEED_PROCESS_H
++#include <process.h>
++#endif
++
++#ifdef WIN32
++#include "../include/hsregex.h"
++#elif defined(USE_HSREGEX)
++#include "hsregex.h"
++#else
++#include <regex.h>
++#endif
++
++#ifdef HAVE_SYS_RESOURCE_H
++#include <sys/resource.h>
++#ifdef SUNOS4
++int getrlimit(int, struct rlimit *);
++int setrlimit(int, struct rlimit *);
++#endif
++#endif
++#ifdef USE_MMAP_SCOREBOARD
++#if !defined(__EMX__) && !defined(WIN32)
++/* This file is not needed for OS/2 */
++#include <sys/mman.h>
++#endif
++#endif
++#if !defined(MAP_ANON) && defined(MAP_ANONYMOUS)
++#define MAP_ANON MAP_ANONYMOUS
++#endif
++
++#if defined(USE_MMAP_FILES) && (defined(NO_MMAP) || !defined(HAVE_MMAP))
++#undef USE_MMAP_FILES
++#endif
++
++#if defined(USE_MMAP_SCOREBOARD) && (defined(NO_MMAP) || !defined(HAVE_MMAP))
++#undef USE_MMAP_SCOREBOARD
++#endif
++
++#if defined(USE_SHMGET_SCOREBOARD) && (defined(NO_SHMGET) || !defined(HAVE_SHMGET))
++#undef USE_SHMGET_SCOREBOARD
++#endif
++
++#ifndef LOGNAME_MAX
++#define LOGNAME_MAX 25
++#endif
++
++#ifdef HAVE_UNISTD_H
++#include <unistd.h>
++#endif
++
++#ifdef ultrix
++#define ULTRIX_BRAIN_DEATH
++#endif
++
++#ifndef S_ISLNK
++#define S_ISLNK(m) (((m) & S_IFMT) == S_IFLNK)
++#endif
++
++#ifndef INADDR_NONE
++#define INADDR_NONE ((unsigned long) -1)
++#endif
++
++/*
++ * Replace signal function with sigaction equivalent
++ */
++#ifndef NO_USE_SIGACTION
++typedef void Sigfunc(int);
++
++#if defined(SIG_IGN) && !defined(SIG_ERR)
++#define SIG_ERR ((Sigfunc *)-1)
++#endif
++
++/*
++ * For some strange reason, QNX defines signal to signal. Eliminate it.
++ */
++#ifdef signal
++#undef signal
++#endif
++#define signal(s,f)	ap_signal(s,f)
++Sigfunc *signal(int signo, Sigfunc * func);
++#endif
++
++#include <setjmp.h>
++
++#if defined(USE_LONGJMP)
++#define ap_longjmp(x, y)        longjmp((x), (y))
++#define ap_setjmp(x)            setjmp(x)
++#ifndef JMP_BUF
++#define JMP_BUF jmp_buf
++#endif
++#else
++#define ap_longjmp(x, y)        siglongjmp((x), (y))
++#define ap_setjmp(x)            sigsetjmp((x), 1)
++#ifndef JMP_BUF
++#define JMP_BUF sigjmp_buf
++#endif
++#endif
++
++#ifdef SELECT_NEEDS_CAST
++#define ap_select(_a, _b, _c, _d, _e)	\
++    select((_a), (int *)(_b), (int *)(_c), (int *)(_d), (_e))
++#else
++#define ap_select	select
++#endif
++
++#ifdef ULTRIX_BRAIN_DEATH
++#define ap_fdopen(d,m) fdopen((d), (char *)(m))
++#else
++#define ap_fdopen(d,m) fdopen((d), (m))
++#endif
++
++#ifndef ap_inet_addr
++#define ap_inet_addr inet_addr
++#endif
++
++#ifdef NO_OTHER_CHILD
++#define NO_RELIABLE_PIPED_LOGS
++#endif
++
++/* When the underlying OS doesn't support exec() of scripts which start
++ * with a HASHBANG (#!) followed by interpreter name and args, define this.
++ */
++#ifdef NEED_HASHBANG_EMUL
++extern int ap_execle(const char *filename, const char *arg,...);
++extern int ap_execve(const char *filename, const char *argv[],
++                     const char *envp[]);
++/* ap_execle() is a wrapper function around ap_execve(). */
++#define execle  ap_execle
++#define execve(path,argv,envp)  ap_execve(path,argv,envp)
++#endif
++
++/* Finding offsets of elements within structures.
++ * Taken from the X code... they've sweated portability of this stuff
++ * so we don't have to.  Sigh...
++ */
++
++#if defined(CRAY) || (defined(__arm) && !defined(LINUX))
++#ifdef __STDC__
++#define XtOffset(p_type,field) _Offsetof(p_type,field)
++#else
++#ifdef CRAY2
++#define XtOffset(p_type,field) \
++	(sizeof(int)*((unsigned int)&(((p_type)NULL)->field)))
++
++#else /* !CRAY2 */
++
++#define XtOffset(p_type,field) ((unsigned int)&(((p_type)NULL)->field))
++
++#endif /* !CRAY2 */
++#endif /* __STDC__ */
++#else /* ! (CRAY || __arm) */
++
++#define XtOffset(p_type,field) \
++	((long) (((char *) (&(((p_type)NULL)->field))) - ((char *) NULL)))
++
++#endif /* !CRAY */
++
++#ifdef offsetof
++#define XtOffsetOf(s_type,field) offsetof(s_type,field)
++#else
++#define XtOffsetOf(s_type,field) XtOffset(s_type*,field)
++#endif
++
++/*
++ * NET_SIZE_T exists because of shortsightedness on the POSIX committee.  BSD
++ * systems used "int *" as the parameter to accept(), getsockname(),
++ * getpeername() et al.  Consequently many unixes took an int * for that
++ * parameter.  The POSIX committee decided that "int" was just too generic and
++ * had to be replaced with size_t almost everywhere.  There's no problem with
++ * that when you're passing by value.  But when you're passing by reference
++ * this creates a gross source incompatibility with existing programs.  On
++ * 32-bit architectures it creates only a warning.  On 64-bit architectures it
++ * creates broken code -- because "int *" is a pointer to a 64-bit quantity and
++ * "size_t *" is frequently a pointer to a 32-bit quantity.
++ *
++ * Some Unixes adopted "size_t *" for the sake of POSIX compliance.  Others
++ * ignored it because it was such a broken interface.  Chaos ensued.  POSIX
++ * finally woke up and decided that it was wrong and created a new type
++ * socklen_t.  The only useful value for socklen_t is int, and that's how
++ * everyone who has a clue implements it.  It is almost always the case that
++ * NET_SIZE_T should be defined to be an int, unless the system being compiled
++ * for was created in the window of POSIX madness.
++ */
++#ifndef NET_SIZE_T
++#define NET_SIZE_T int
++#endif
++
++/* Linux defines __WCOREDUMP, but doesn't define WCOREDUMP unless __USE_BSD
++ * is in use... we'd prefer to just use WCOREDUMP everywhere.
++ */
++#if defined(__WCOREDUMP) && !defined(WCOREDUMP)
++#define WCOREDUMP __WCOREDUMP
++#endif
++
++#ifdef SUNOS_LIB_PROTOTYPES
++/* Prototypes needed to get a clean compile with gcc -Wall.
++ * Believe it or not, these do have to be declared, at least on SunOS,
++ * because they aren't mentioned in the relevant system headers.
++ * Sun Quality Software.  Gotta love it.  This section is not 
++ * currently (13Nov97) used.
++ */
++
++int getopt(int, char **, char *);
++
++int strcasecmp(const char *, const char *);
++int strncasecmp(const char *, const char *, int);
++int toupper(int);
++int tolower(int);
++
++int printf(char *,...);
++int fprintf(FILE *, char *,...);
++int fputs(char *, FILE *);
++int fread(char *, int, int, FILE *);
++int fwrite(char *, int, int, FILE *);
++int fgetc(FILE *);
++char *fgets(char *s, int, FILE*);
++int fflush(FILE *);
++int fclose(FILE *);
++int ungetc(int, FILE *);
++int _filbuf(FILE *);	/* !!! */
++int _flsbuf(unsigned char, FILE *);	/* !!! */
++int sscanf(char *, char *,...);
++void setbuf(FILE *, char *);
++void perror(char *);
++
++time_t time(time_t *);
++int strftime(char *, int, const char *, struct tm *);
++
++int initgroups(char *, int);
++int wait3(int *, int, void *);	/* Close enough for us... */
++int lstat(const char *, struct stat *);
++int stat(const char *, struct stat *);
++int flock(int, int);
++#ifndef NO_KILLPG
++int killpg(int, int);
++#endif
++int socket(int, int, int);
++int setsockopt(int, int, int, const char *, int);
++int listen(int, int);
++int bind(int, struct sockaddr *, int);
++int connect(int, struct sockaddr *, int);
++int accept(int, struct sockaddr *, int *);
++int shutdown(int, int);
++
++int getsockname(int s, struct sockaddr *name, int *namelen);
++int getpeername(int s, struct sockaddr *name, int *namelen);
++int gethostname(char *name, int namelen);
++void syslog(int, char *,...);
++char *mktemp(char *);
++
++long vfprintf(FILE *, const char *, va_list);
++
++#endif /* SUNOS_LIB_PROTOTYPES */
++
++/* The assumption is that when the functions are missing,
++ * then there's no matching prototype available either.
++ * Declare what is needed exactly as the replacement routines implement it.
++ */
++#ifdef NEED_STRDUP
++extern char *strdup (const char *str);
++#endif
++#ifdef NEED_STRCASECMP
++extern int strcasecmp (const char *a, const char *b);
++#endif
++#ifdef NEED_STRNCASECMP
++extern int strncasecmp (const char *a, const char *b, int n);
++#endif
++#ifdef NEED_INITGROUPS
++extern int initgroups(const char *name, gid_t basegid);
++#endif
++#ifdef NEED_WAITPID
++extern int waitpid(pid_t pid, int *statusp, int options);
++#endif
++#ifdef NEED_STRERROR
++extern char *strerror (int err);
++#endif
++#ifdef NEED_DIFFTIME
++extern double difftime(time_t time1, time_t time0);
++#endif
++
++#ifndef ap_wait_t
++#define ap_wait_t int
++#endif
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif /* !AP_CONFIG_H */
+Only in apache_1.3.1/src/include: ap_ctype.h
+diff -BEr -U 6 apache_1.3.0/src/include/ap.h apache_1.3.1/src/include/ap.h
+--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
++++ apache_1.3.1/src/include/ap.h	1998-07-09 02:02:16.000000000 +0800
 @@ -50,27 +50,26 @@
   * individuals on behalf of the Apache Group and was originally based
   * on public domain software written at the National Center for
@@ -4329,9 +5525,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/include/ap.h repos/apache_1.3.1/src/includ
  int ap_execve(const char *, const char *argv[], const char *envp[]);
  
  /* small utility macros to make things easier to read */
-diff -BEr -U 6 repos/apache_1.3.0/src/include/buff.h repos/apache_1.3.1/src/include/buff.h
---- repos/apache_1.3.0/src/include/buff.h	1998-05-29 06:09:46.000000000 +0800
-+++ repos/apache_1.3.1/src/include/buff.h	1998-07-05 00:07:25.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/include/buff.h apache_1.3.1/src/include/buff.h
+--- apache_1.3.0/src/include/buff.h	1998-05-29 06:09:46.000000000 +0800
++++ apache_1.3.1/src/include/buff.h	1998-07-05 00:07:25.000000000 +0800
 @@ -150,13 +150,13 @@
  #endif
  API_EXPORT(int) ap_bsetopt(BUFF *fb, int optname, const void *optval);
@@ -4347,9 +5543,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/include/buff.h repos/apache_1.3.1/src/incl
  			  void *data);
  
  /* I/O */
-diff -BEr -U 6 repos/apache_1.3.0/src/include/compat.h repos/apache_1.3.1/src/include/compat.h
---- repos/apache_1.3.0/src/include/compat.h	1998-05-29 06:09:46.000000000 +0800
-+++ repos/apache_1.3.1/src/include/compat.h	1998-07-15 11:27:03.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/include/compat.h apache_1.3.1/src/include/compat.h
+--- apache_1.3.0/src/include/compat.h	1998-05-29 06:09:46.000000000 +0800
++++ apache_1.3.1/src/include/compat.h	1998-07-15 11:27:03.000000000 +0800
 @@ -1,417 +1,9 @@
  /*
 -**  compat.h -- Apache Backward Compatibility
@@ -4772,9 +5968,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/include/compat.h repos/apache_1.3.1/src/in
  
 -#endif /* APACHE_COMPAT_H */
 +#include "ap_compat.h"
-diff -BEr -U 6 repos/apache_1.3.0/src/include/conf.h repos/apache_1.3.1/src/include/conf.h
---- repos/apache_1.3.0/src/include/conf.h	1998-05-29 08:15:56.000000000 +0800
-+++ repos/apache_1.3.1/src/include/conf.h	1998-07-15 11:27:03.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/include/conf.h apache_1.3.1/src/include/conf.h
+--- apache_1.3.0/src/include/conf.h	1998-05-29 08:15:56.000000000 +0800
++++ apache_1.3.1/src/include/conf.h	1998-07-15 11:27:03.000000000 +0800
 @@ -1,1173 +1,9 @@
 -/* ====================================================================
 - * Copyright (c) 1995-1998 The Apache Group.  All rights reserved.
@@ -5953,9 +7149,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/include/conf.h repos/apache_1.3.1/src/incl
  
 -#endif	/* !APACHE_CONF_H */
 +#include "ap_config.h"
-diff -BEr -U 6 repos/apache_1.3.0/src/include/fnmatch.h repos/apache_1.3.1/src/include/fnmatch.h
---- repos/apache_1.3.0/src/include/fnmatch.h	1998-05-04 01:31:08.000000000 +0800
-+++ repos/apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/include/fnmatch.h apache_1.3.1/src/include/fnmatch.h
+--- apache_1.3.0/src/include/fnmatch.h	1998-05-04 01:31:08.000000000 +0800
++++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
 @@ -32,13 +32,13 @@
   *
   *	@(#)fnmatch.h	8.1 (Berkeley) 6/2/93
@@ -5986,9 +7182,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/include/fnmatch.h repos/apache_1.3.1/src/i
  /* this function is an Apache addition */
  API_EXPORT(extern int) ap_is_fnmatch(const char *);
  
-diff -BEr -U 6 repos/apache_1.3.0/src/include/hsregex.h repos/apache_1.3.1/src/include/hsregex.h
---- repos/apache_1.3.0/src/include/hsregex.h	1998-04-06 13:21:41.000000000 +0800
-+++ repos/apache_1.3.1/src/include/hsregex.h	1998-07-09 08:04:57.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/include/hsregex.h apache_1.3.1/src/include/hsregex.h
+--- apache_1.3.0/src/include/hsregex.h	1998-04-06 13:21:41.000000000 +0800
++++ apache_1.3.1/src/include/hsregex.h	1998-07-09 08:04:57.000000000 +0800
 @@ -1,6 +1,8 @@
 +/* DON'T EVEN THINK ABOUT EDITING THIS, go see regex/Makefile,
 + * search for mkh */
@@ -5998,9 +7194,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/include/hsregex.h repos/apache_1.3.1/src/i
  #ifdef __cplusplus
  extern "C" {
  #endif
-diff -BEr -U 6 repos/apache_1.3.0/src/include/http_conf_globals.h repos/apache_1.3.1/src/include/http_conf_globals.h
---- repos/apache_1.3.0/src/include/http_conf_globals.h	1998-05-12 04:08:06.000000000 +0800
-+++ repos/apache_1.3.1/src/include/http_conf_globals.h	1998-06-16 11:37:24.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/include/http_conf_globals.h apache_1.3.1/src/include/http_conf_globals.h
+--- apache_1.3.0/src/include/http_conf_globals.h	1998-05-12 04:08:06.000000000 +0800
++++ apache_1.3.1/src/include/http_conf_globals.h	1998-06-16 11:37:24.000000000 +0800
 @@ -99,15 +99,16 @@
   * statically...
   */
@@ -6019,9 +7215,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/include/http_conf_globals.h repos/apache_1
   */
  extern char ap_coredump_dir[MAX_STRING_LEN];
  
-diff -BEr -U 6 repos/apache_1.3.0/src/include/http_config.h repos/apache_1.3.1/src/include/http_config.h
---- repos/apache_1.3.0/src/include/http_config.h	1998-05-27 22:01:31.000000000 +0800
-+++ repos/apache_1.3.1/src/include/http_config.h	1998-07-13 19:32:35.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/include/http_config.h apache_1.3.1/src/include/http_config.h
+--- apache_1.3.0/src/include/http_config.h	1998-05-27 22:01:31.000000000 +0800
++++ apache_1.3.1/src/include/http_config.h	1998-07-13 19:32:35.000000000 +0800
 @@ -272,13 +272,13 @@
   * really set up once we start running.  Note that the first word
   * is a version check; this should allow us to deal with changes to
@@ -6037,9 +7233,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/include/http_config.h repos/apache_1.3.1/s
   * data
   */
  
-diff -BEr -U 6 repos/apache_1.3.0/src/include/http_core.h repos/apache_1.3.1/src/include/http_core.h
---- repos/apache_1.3.0/src/include/http_core.h	1998-05-04 01:31:08.000000000 +0800
-+++ repos/apache_1.3.1/src/include/http_core.h	1998-07-02 05:19:51.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/include/http_core.h apache_1.3.1/src/include/http_core.h
+--- apache_1.3.0/src/include/http_core.h	1998-05-04 01:31:08.000000000 +0800
++++ apache_1.3.1/src/include/http_core.h	1998-07-02 05:19:51.000000000 +0800
 @@ -94,14 +94,14 @@
  #define SATISFY_ALL 0
  #define SATISFY_ANY 1
@@ -6077,9 +7273,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/include/http_core.h repos/apache_1.3.1/src
  /*
   * Core is also unlike other modules in being implemented in more than
   * one file... so, data structures are declared here, even though most of
-diff -BEr -U 6 repos/apache_1.3.0/src/include/httpd.h repos/apache_1.3.1/src/include/httpd.h
---- repos/apache_1.3.0/src/include/httpd.h	1998-06-02 06:18:43.000000000 +0800
-+++ repos/apache_1.3.1/src/include/httpd.h	1998-07-19 06:57:27.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/include/httpd.h apache_1.3.1/src/include/httpd.h
+--- apache_1.3.0/src/include/httpd.h	1998-06-02 06:18:43.000000000 +0800
++++ apache_1.3.1/src/include/httpd.h	1998-07-19 06:57:27.000000000 +0800
 @@ -65,13 +65,13 @@
  /*
   * httpd.h: header for simple (ha! not anymore) http daemon
@@ -6224,9 +7420,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/include/httpd.h repos/apache_1.3.1/src/inc
  API_EXPORT(void) ap_log_assert(const char *szExp, const char *szFile, int nLine)
  			    __attribute__((noreturn));
  #define ap_assert(exp) (void)( (exp) || (ap_log_assert(#exp, __FILE__, __LINE__), 0) )
-diff -BEr -U 6 repos/apache_1.3.0/src/include/http_main.h repos/apache_1.3.1/src/include/http_main.h
---- repos/apache_1.3.0/src/include/http_main.h	1998-05-04 01:31:09.000000000 +0800
-+++ repos/apache_1.3.1/src/include/http_main.h	1998-06-05 04:13:17.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/include/http_main.h apache_1.3.1/src/include/http_main.h
+--- apache_1.3.0/src/include/http_main.h	1998-05-04 01:31:09.000000000 +0800
++++ apache_1.3.1/src/include/http_main.h	1998-06-05 04:13:17.000000000 +0800
 @@ -140,13 +140,13 @@
   * write_fd is an fd that is probed for writing by select() if it is ever
   * unwritable, then maintenance is invoked with reason OC_REASON_UNWRITABLE.
@@ -6242,9 +7438,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/include/http_main.h repos/apache_1.3.1/src
  #define OC_REASON_UNWRITABLE	1	/* write_fd is unwritable */
  #define OC_REASON_RESTART	2	/* a restart is occuring, perform
  					 * any necessary cleanup (including
-diff -BEr -U 6 repos/apache_1.3.0/src/include/http_protocol.h repos/apache_1.3.1/src/include/http_protocol.h
---- repos/apache_1.3.0/src/include/http_protocol.h	1998-05-06 23:04:11.000000000 +0800
-+++ repos/apache_1.3.1/src/include/http_protocol.h	1998-07-02 05:19:51.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/include/http_protocol.h apache_1.3.1/src/include/http_protocol.h
+--- apache_1.3.0/src/include/http_protocol.h	1998-05-06 23:04:11.000000000 +0800
++++ apache_1.3.1/src/include/http_protocol.h	1998-07-02 05:19:51.000000000 +0800
 @@ -192,13 +192,13 @@
   *
   */
@@ -6260,9 +7456,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/include/http_protocol.h repos/apache_1.3.1
   * Also, a wrapup function to keep the internal accounting straight.
   */
  
-diff -BEr -U 6 repos/apache_1.3.0/src/include/util_script.h repos/apache_1.3.1/src/include/util_script.h
---- repos/apache_1.3.0/src/include/util_script.h	1998-05-17 00:34:47.000000000 +0800
-+++ repos/apache_1.3.1/src/include/util_script.h	1998-06-13 23:22:49.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/include/util_script.h apache_1.3.1/src/include/util_script.h
+--- apache_1.3.0/src/include/util_script.h	1998-05-17 00:34:47.000000000 +0800
++++ apache_1.3.1/src/include/util_script.h	1998-06-13 23:22:49.000000000 +0800
 @@ -74,13 +74,13 @@
  API_EXPORT(int) ap_find_path_info(const char *uri, const char *path_info);
  API_EXPORT(void) ap_add_cgi_vars(request_rec *r);
@@ -6278,9 +7474,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/include/util_script.h repos/apache_1.3.1/s
  
  #ifdef __cplusplus
  }
-diff -BEr -U 6 repos/apache_1.3.0/src/include/util_uri.h repos/apache_1.3.1/src/include/util_uri.h
---- repos/apache_1.3.0/src/include/util_uri.h	1998-05-04 01:31:11.000000000 +0800
-+++ repos/apache_1.3.1/src/include/util_uri.h	1998-07-16 07:49:12.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/include/util_uri.h apache_1.3.1/src/include/util_uri.h
+--- apache_1.3.0/src/include/util_uri.h	1998-05-04 01:31:11.000000000 +0800
++++ apache_1.3.1/src/include/util_uri.h	1998-07-16 07:49:12.000000000 +0800
 @@ -72,22 +72,23 @@
  
  #define	DEFAULT_FTP_DATA_PORT	20
@@ -6321,9 +7517,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/include/util_uri.h repos/apache_1.3.1/src/
  API_EXPORT(int) ap_parse_uri_components(pool *p, const char *uri, uri_components *uptr);
  API_EXPORT(int) ap_parse_hostinfo_components(pool *p, const char *hostinfo, uri_components *uptr);
  /* called by the core in main() */
-diff -BEr -U 6 repos/apache_1.3.0/src/main/alloc.c repos/apache_1.3.1/src/main/alloc.c
---- repos/apache_1.3.0/src/main/alloc.c	1998-05-29 06:09:50.000000000 +0800
-+++ repos/apache_1.3.1/src/main/alloc.c	1998-06-13 23:22:52.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/main/alloc.c apache_1.3.1/src/main/alloc.c
+--- apache_1.3.0/src/main/alloc.c	1998-05-29 06:09:50.000000000 +0800
++++ apache_1.3.1/src/main/alloc.c	1998-06-13 23:22:52.000000000 +0800
 @@ -1114,13 +1114,13 @@
  
  API_EXPORT(void) ap_clear_table(table *t)
@@ -6354,9 +7550,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/alloc.c repos/apache_1.3.1/src/main/a
  #endif
  
      for (i = 0; i < t->a.nelts; ) {
-diff -BEr -U 6 repos/apache_1.3.0/src/main/buff.c repos/apache_1.3.1/src/main/buff.c
---- repos/apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
-+++ repos/apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+Only in apache_1.3.0/src/main: alloc.o
+diff -BEr -U 6 apache_1.3.0/src/main/buff.c apache_1.3.1/src/main/buff.c
+--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
++++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
 @@ -430,13 +430,13 @@
  static void start_chunk(BUFF *fb)
  {
@@ -6503,9 +7700,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/buff.c repos/apache_1.3.1/src/main/bu
      res = ap_vformatter(bprintf_flush, &b.vbuff, fmt, ap);
      if (res != -1) {
  #ifdef CHARSET_EBCDIC
-diff -BEr -U 6 repos/apache_1.3.0/src/main/fnmatch.c repos/apache_1.3.1/src/main/fnmatch.c
---- repos/apache_1.3.0/src/main/fnmatch.c	1998-04-11 20:00:28.000000000 +0800
-+++ repos/apache_1.3.1/src/main/fnmatch.c	1998-07-13 19:32:39.000000000 +0800
+Only in apache_1.3.0/src/main: buff.o
+diff -BEr -U 6 apache_1.3.0/src/main/fnmatch.c apache_1.3.1/src/main/fnmatch.c
+--- apache_1.3.0/src/main/fnmatch.c	1998-04-11 20:00:28.000000000 +0800
++++ apache_1.3.1/src/main/fnmatch.c	1998-07-13 19:32:39.000000000 +0800
 @@ -40,143 +40,167 @@
  
  /*
@@ -6727,9 +7925,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/fnmatch.c repos/apache_1.3.1/src/main
      }
      return 0;
  }
-diff -BEr -U 6 repos/apache_1.3.0/src/main/gen_test_char.c repos/apache_1.3.1/src/main/gen_test_char.c
---- repos/apache_1.3.0/src/main/gen_test_char.c	1998-04-13 03:02:03.000000000 +0800
-+++ repos/apache_1.3.1/src/main/gen_test_char.c	1998-07-09 01:47:05.000000000 +0800
+Only in apache_1.3.0/src/main: gen_test_char
+diff -BEr -U 6 apache_1.3.0/src/main/gen_test_char.c apache_1.3.1/src/main/gen_test_char.c
+--- apache_1.3.0/src/main/gen_test_char.c	1998-04-13 03:02:03.000000000 +0800
++++ apache_1.3.1/src/main/gen_test_char.c	1998-07-09 01:47:05.000000000 +0800
 @@ -38,22 +38,22 @@
  
  	/* escape_shell_cmd */
@@ -6756,9 +7955,12 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/gen_test_char.c repos/apache_1.3.1/sr
  
      }
      printf("\n};\n");
-diff -BEr -U 6 repos/apache_1.3.0/src/main/http_config.c repos/apache_1.3.1/src/main/http_config.c
---- repos/apache_1.3.0/src/main/http_config.c	1998-05-06 23:18:01.000000000 +0800
-+++ repos/apache_1.3.1/src/main/http_config.c	1998-07-07 12:06:20.000000000 +0800
+Only in apache_1.3.0/src/main: gen_test_char.o
+Only in apache_1.3.0/src/main: gen_uri_delims
+Only in apache_1.3.0/src/main: gen_uri_delims.o
+diff -BEr -U 6 apache_1.3.0/src/main/http_config.c apache_1.3.1/src/main/http_config.c
+--- apache_1.3.0/src/main/http_config.c	1998-05-06 23:18:01.000000000 +0800
++++ apache_1.3.1/src/main/http_config.c	1998-07-07 12:06:20.000000000 +0800
 @@ -473,14 +473,16 @@
      ph->hr.handler = NULL;
  }
@@ -6810,9 +8012,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/http_config.c repos/apache_1.3.1/src/
           }
      }
  
-diff -BEr -U 6 repos/apache_1.3.0/src/main/http_core.c repos/apache_1.3.1/src/main/http_core.c
---- repos/apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
-+++ repos/apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
+Only in apache_1.3.0/src/main: http_config.o
+diff -BEr -U 6 apache_1.3.0/src/main/http_core.c apache_1.3.1/src/main/http_core.c
+--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
++++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
 @@ -101,188 +101,228 @@
   * but may not be worth preserving.
   *
@@ -9988,9 +11191,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/http_core.c repos/apache_1.3.1/src/ma
 +    NULL,			/* child_exit */
 +    NULL			/* post_read_request */
  };
-diff -BEr -U 6 repos/apache_1.3.0/src/main/http_log.c repos/apache_1.3.1/src/main/http_log.c
---- repos/apache_1.3.0/src/main/http_log.c	1998-05-29 08:09:22.000000000 +0800
-+++ repos/apache_1.3.1/src/main/http_log.c	1998-06-05 04:13:19.000000000 +0800
+Only in apache_1.3.0/src/main: http_core.o
+diff -BEr -U 6 apache_1.3.0/src/main/http_log.c apache_1.3.1/src/main/http_log.c
+--- apache_1.3.0/src/main/http_log.c	1998-05-29 08:09:22.000000000 +0800
++++ apache_1.3.1/src/main/http_log.c	1998-06-05 04:13:19.000000000 +0800
 @@ -476,13 +476,13 @@
  }
  
@@ -10021,9 +11225,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/http_log.c repos/apache_1.3.1/src/mai
      switch (reason) {
      case OC_REASON_DEATH:
      case OC_REASON_LOST:
-diff -BEr -U 6 repos/apache_1.3.0/src/main/http_main.c repos/apache_1.3.1/src/main/http_main.c
---- repos/apache_1.3.0/src/main/http_main.c	1998-05-29 16:18:49.000000000 +0800
-+++ repos/apache_1.3.1/src/main/http_main.c	1998-07-14 17:57:56.000000000 +0800
+Only in apache_1.3.0/src/main: http_log.o
+diff -BEr -U 6 apache_1.3.0/src/main/http_main.c apache_1.3.1/src/main/http_main.c
+--- apache_1.3.0/src/main/http_main.c	1998-05-29 16:18:49.000000000 +0800
++++ apache_1.3.1/src/main/http_main.c	1998-07-14 17:57:56.000000000 +0800
 @@ -277,12 +277,13 @@
  API_VAR_EXPORT char ap_server_root[MAX_STRING_LEN];
  char ap_server_confname[MAX_STRING_LEN];
@@ -10722,9 +11927,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/http_main.c repos/apache_1.3.1/src/ma
  	    llp_dir = strdup(optarg);
  	    break;
  	}
-diff -BEr -U 6 repos/apache_1.3.0/src/main/http_protocol.c repos/apache_1.3.1/src/main/http_protocol.c
---- repos/apache_1.3.0/src/main/http_protocol.c	1998-05-28 06:55:59.000000000 +0800
-+++ repos/apache_1.3.1/src/main/http_protocol.c	1998-07-09 01:47:05.000000000 +0800
+Only in apache_1.3.0/src/main: http_main.o
+diff -BEr -U 6 apache_1.3.0/src/main/http_protocol.c apache_1.3.1/src/main/http_protocol.c
+--- apache_1.3.0/src/main/http_protocol.c	1998-05-28 06:55:59.000000000 +0800
++++ apache_1.3.1/src/main/http_protocol.c	1998-07-09 01:47:05.000000000 +0800
 @@ -113,18 +113,18 @@
      if (*start > *end)
  	return 0;
@@ -11112,9 +12318,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/http_protocol.c repos/apache_1.3.1/sr
                  break;
              case LENGTH_REQUIRED:
                  ap_bvputs(fd, "A request of the requested method ", r->method,
-diff -BEr -U 6 repos/apache_1.3.0/src/main/http_request.c repos/apache_1.3.1/src/main/http_request.c
---- repos/apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800
-+++ repos/apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/main/http_request.c apache_1.3.1/src/main/http_request.c
+--- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800
++++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800
 @@ -940,13 +940,13 @@
               * status...
               */
@@ -11160,9 +12366,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/http_request.c repos/apache_1.3.1/src
  
      for (i = 0; i < env_arr->nelts; ++i) {
          if (!elts[i].key)
-diff -BEr -U 6 repos/apache_1.3.0/src/main/Makefile.tmpl repos/apache_1.3.1/src/main/Makefile.tmpl
---- repos/apache_1.3.0/src/main/Makefile.tmpl	1998-05-30 02:20:54.000000000 +0800
-+++ repos/apache_1.3.1/src/main/Makefile.tmpl	1998-07-13 19:32:38.000000000 +0800
+Only in apache_1.3.0/src/main: Makefile
+diff -BEr -U 6 apache_1.3.0/src/main/Makefile.tmpl apache_1.3.1/src/main/Makefile.tmpl
+--- apache_1.3.0/src/main/Makefile.tmpl	1998-05-30 02:20:54.000000000 +0800
++++ apache_1.3.1/src/main/Makefile.tmpl	1998-07-13 19:32:38.000000000 +0800
 @@ -55,87 +55,111 @@
  
  #Dependencies
@@ -11342,9 +12549,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/Makefile.tmpl repos/apache_1.3.1/src/
 + $(INCDIR)/hsregex.h $(INCDIR)/alloc.h $(INCDIR)/buff.h \
 + $(INCDIR)/ap.h $(INCDIR)/util_uri.h $(INCDIR)/http_log.h \
   $(INCDIR)/http_conf_globals.h uri_delims.h
-diff -BEr -U 6 repos/apache_1.3.0/src/main/md5c.c repos/apache_1.3.1/src/main/md5c.c
---- repos/apache_1.3.0/src/main/md5c.c	1998-05-30 02:20:54.000000000 +0800
-+++ repos/apache_1.3.1/src/main/md5c.c	1998-07-13 19:32:40.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/main/md5c.c apache_1.3.1/src/main/md5c.c
+--- apache_1.3.0/src/main/md5c.c	1998-05-30 02:20:54.000000000 +0800
++++ apache_1.3.1/src/main/md5c.c	1998-07-13 19:32:40.000000000 +0800
 @@ -87,13 +87,13 @@
   * project, please see <http://www.apache.org/>.
   *
@@ -11360,9 +12567,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/md5c.c repos/apache_1.3.1/src/main/md
  #endif /*CHARSET_EBCDIC*/
  
  /* Constants for MD5Transform routine.
-diff -BEr -U 6 repos/apache_1.3.0/src/main/rfc1413.c repos/apache_1.3.1/src/main/rfc1413.c
---- repos/apache_1.3.0/src/main/rfc1413.c	1998-05-19 05:56:11.000000000 +0800
-+++ repos/apache_1.3.1/src/main/rfc1413.c	1998-07-13 19:32:40.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/main/rfc1413.c apache_1.3.1/src/main/rfc1413.c
+--- apache_1.3.0/src/main/rfc1413.c	1998-05-19 05:56:11.000000000 +0800
++++ apache_1.3.1/src/main/rfc1413.c	1998-07-13 19:32:40.000000000 +0800
 @@ -65,13 +65,13 @@
   * 
   * Author: Wietse Venema, Eindhoven University of Technology,
@@ -11394,9 +12601,11 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/rfc1413.c repos/apache_1.3.1/src/main
  
      return conn->remote_logname;
  }
-diff -BEr -U 6 repos/apache_1.3.0/src/main/util.c repos/apache_1.3.1/src/main/util.c
---- repos/apache_1.3.0/src/main/util.c	1998-06-02 02:20:30.000000000 +0800
-+++ repos/apache_1.3.1/src/main/util.c	1998-07-13 19:32:41.000000000 +0800
+Only in apache_1.3.0/src/main: test_char.h
+Only in apache_1.3.0/src/main: uri_delims.h
+diff -BEr -U 6 apache_1.3.0/src/main/util.c apache_1.3.1/src/main/util.c
+--- apache_1.3.0/src/main/util.c	1998-06-02 02:20:30.000000000 +0800
++++ apache_1.3.1/src/main/util.c	1998-07-13 19:32:41.000000000 +0800
 @@ -69,13 +69,13 @@
   */
  
@@ -11845,9 +13054,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/util.c repos/apache_1.3.1/src/main/ut
 +    *outchr = '\0';
 +    return outstring;
 +}
-diff -BEr -U 6 repos/apache_1.3.0/src/main/util_date.c repos/apache_1.3.1/src/main/util_date.c
---- repos/apache_1.3.0/src/main/util_date.c	1998-04-11 20:00:32.000000000 +0800
-+++ repos/apache_1.3.1/src/main/util_date.c	1998-07-13 19:32:41.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/main/util_date.c apache_1.3.1/src/main/util_date.c
+--- apache_1.3.0/src/main/util_date.c	1998-04-11 20:00:32.000000000 +0800
++++ apache_1.3.1/src/main/util_date.c	1998-07-13 19:32:41.000000000 +0800
 @@ -63,13 +63,13 @@
   *     Extracted (with many modifications) from mod_proxy.c and
   *     tested with over 50,000 randomly chosen valid date strings
@@ -11912,9 +13121,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/util_date.c repos/apache_1.3.1/src/ma
  	return BAD_DATE;
  
      if ((date = strchr(date, ' ')) == NULL)	/* Find space after weekday */
-diff -BEr -U 6 repos/apache_1.3.0/src/main/util_script.c repos/apache_1.3.1/src/main/util_script.c
---- repos/apache_1.3.0/src/main/util_script.c	1998-05-29 07:26:41.000000000 +0800
-+++ repos/apache_1.3.1/src/main/util_script.c	1998-07-10 16:33:36.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/main/util_script.c apache_1.3.1/src/main/util_script.c
+--- apache_1.3.0/src/main/util_script.c	1998-05-29 07:26:41.000000000 +0800
++++ apache_1.3.1/src/main/util_script.c	1998-07-10 16:33:36.000000000 +0800
 @@ -97,27 +97,32 @@
      char **av;
      char *w;
@@ -12830,9 +14039,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/util_script.c repos/apache_1.3.1/src/
      return (pid);
  #endif
  }
-diff -BEr -U 6 repos/apache_1.3.0/src/main/util_uri.c repos/apache_1.3.1/src/main/util_uri.c
---- repos/apache_1.3.0/src/main/util_uri.c	1998-05-30 09:54:30.000000000 +0800
-+++ repos/apache_1.3.1/src/main/util_uri.c	1998-07-16 07:49:13.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/main/util_uri.c apache_1.3.1/src/main/util_uri.c
+--- apache_1.3.0/src/main/util_uri.c	1998-05-30 09:54:30.000000000 +0800
++++ apache_1.3.1/src/main/util_uri.c	1998-07-16 07:49:13.000000000 +0800
 @@ -63,20 +63,22 @@
  #include "http_log.h"
  #include "http_conf_globals.h"	/* for user_id & group_id */
@@ -12959,9 +14168,11 @@ diff -BEr -U 6 repos/apache_1.3.0/src/main/util_uri.c repos/apache_1.3.1/src/mai
  /* The regex version of parse_uri_components has the advantage that it is
   * relatively easy to understand and extend.  But it has the disadvantage
   * that the regexes are complex enough that regex libraries really
-diff -BEr -U 6 repos/apache_1.3.0/src/Makefile.tmpl repos/apache_1.3.1/src/Makefile.tmpl
---- repos/apache_1.3.0/src/Makefile.tmpl	1998-05-22 14:56:56.000000000 +0800
-+++ repos/apache_1.3.1/src/Makefile.tmpl	1998-07-13 19:32:29.000000000 +0800
+Only in apache_1.3.0/src: Makefile
+Only in apache_1.3.0/src: Makefile.config
+diff -BEr -U 6 apache_1.3.0/src/Makefile.tmpl apache_1.3.1/src/Makefile.tmpl
+--- apache_1.3.0/src/Makefile.tmpl	1998-05-22 14:56:56.000000000 +0800
++++ apache_1.3.1/src/Makefile.tmpl	1998-07-13 19:32:29.000000000 +0800
 @@ -20,13 +20,13 @@
  	@echo "++ File '@@Configuration@@' older than 'Configuration.tmpl',"
  	@echo "++ or still doesn't exist. Please consider copying 'Configuration.tmpl'"
@@ -13010,9 +14221,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/Makefile.tmpl repos/apache_1.3.1/src/Makef
 + include/ap_config_auto.h os/unix/os.h include/ap_ctype.h \
 + include/hsregex.h include/alloc.h include/buff.h include/ap.h \
 + include/util_uri.h include/http_config.h
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/example/Makefile.tmpl repos/apache_1.3.1/src/modules/example/Makefile.tmpl
---- repos/apache_1.3.0/src/modules/example/Makefile.tmpl	1998-05-10 21:04:31.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/example/Makefile.tmpl	1998-07-13 19:32:44.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/example/Makefile.tmpl apache_1.3.1/src/modules/example/Makefile.tmpl
+--- apache_1.3.0/src/modules/example/Makefile.tmpl	1998-05-10 21:04:31.000000000 +0800
++++ apache_1.3.1/src/modules/example/Makefile.tmpl	1998-07-13 19:32:44.000000000 +0800
 @@ -2,11 +2,13 @@
  #Dependencies
  
@@ -13032,9 +14243,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/example/Makefile.tmpl repos/apache
 + $(INCDIR)/http_core.h $(INCDIR)/http_log.h \
 + $(INCDIR)/http_main.h $(INCDIR)/http_protocol.h \
 + $(INCDIR)/util_script.h
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/example/mod_example.c repos/apache_1.3.1/src/modules/example/mod_example.c
---- repos/apache_1.3.0/src/modules/example/mod_example.c	1998-05-06 19:14:43.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/example/mod_example.c	1998-06-15 05:10:25.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/example/mod_example.c apache_1.3.1/src/modules/example/mod_example.c
+--- apache_1.3.0/src/modules/example/mod_example.c	1998-05-06 19:14:43.000000000 +0800
++++ apache_1.3.1/src/modules/example/mod_example.c	1998-06-15 05:10:25.000000000 +0800
 @@ -113,13 +113,13 @@
   * trace.  As each API callback is made to us, we'll tack on the particulars
   * to whatever we've already recorded.  To avoid massive memory bloat as
@@ -13070,9 +14281,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/example/mod_example.c repos/apache
       */
      setup_module_cells();
      /*
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/experimental/Makefile.tmpl repos/apache_1.3.1/src/modules/experimental/Makefile.tmpl
---- repos/apache_1.3.0/src/modules/experimental/Makefile.tmpl	1998-05-10 21:04:32.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/experimental/Makefile.tmpl	1998-07-13 19:32:44.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/experimental/Makefile.tmpl apache_1.3.1/src/modules/experimental/Makefile.tmpl
+--- apache_1.3.0/src/modules/experimental/Makefile.tmpl	1998-05-10 21:04:32.000000000 +0800
++++ apache_1.3.1/src/modules/experimental/Makefile.tmpl	1998-07-13 19:32:44.000000000 +0800
 @@ -2,11 +2,12 @@
  #Dependencies
  
@@ -13091,9 +14302,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/experimental/Makefile.tmpl repos/a
 + $(INCDIR)/util_uri.h $(INCDIR)/http_config.h \
 + $(INCDIR)/http_log.h $(INCDIR)/http_protocol.h \
 + $(INCDIR)/http_request.h $(INCDIR)/http_core.h
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/experimental/mod_mmap_static.c repos/apache_1.3.1/src/modules/experimental/mod_mmap_static.c
---- repos/apache_1.3.0/src/modules/experimental/mod_mmap_static.c	1998-04-11 20:00:38.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/experimental/mod_mmap_static.c	1998-07-12 17:35:42.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/experimental/mod_mmap_static.c apache_1.3.1/src/modules/experimental/mod_mmap_static.c
+--- apache_1.3.0/src/modules/experimental/mod_mmap_static.c	1998-04-11 20:00:38.000000000 +0800
++++ apache_1.3.1/src/modules/experimental/mod_mmap_static.c	1998-07-12 17:35:42.000000000 +0800
 @@ -277,18 +277,23 @@
  {
      a_server_config *sconf;
@@ -13119,9 +14330,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/experimental/mod_mmap_static.c rep
      if (match == NULL) {
  	return DECLINED;
      }
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/proxy/Makefile.tmpl repos/apache_1.3.1/src/modules/proxy/Makefile.tmpl
---- repos/apache_1.3.0/src/modules/proxy/Makefile.tmpl	1998-05-30 02:20:58.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/proxy/Makefile.tmpl	1998-07-13 19:32:45.000000000 +0800
+Only in apache_1.3.0/src/modules: Makefile
+diff -BEr -U 6 apache_1.3.0/src/modules/proxy/Makefile.tmpl apache_1.3.1/src/modules/proxy/Makefile.tmpl
+--- apache_1.3.0/src/modules/proxy/Makefile.tmpl	1998-05-30 02:20:58.000000000 +0800
++++ apache_1.3.1/src/modules/proxy/Makefile.tmpl	1998-07-13 19:32:45.000000000 +0800
 @@ -50,42 +50,51 @@
  #Dependencies
  
@@ -13204,9 +14416,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/proxy/Makefile.tmpl repos/apache_1
 + $(INCDIR)/http_protocol.h $(INCDIR)/explain.h \
 + $(INCDIR)/http_main.h $(INCDIR)/ap_md5.h \
   $(INCDIR)/multithread.h $(INCDIR)/http_log.h
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/proxy/mod_proxy.c repos/apache_1.3.1/src/modules/proxy/mod_proxy.c
---- repos/apache_1.3.0/src/modules/proxy/mod_proxy.c	1998-05-28 06:56:02.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/proxy/mod_proxy.c	1998-07-10 03:45:55.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/proxy/mod_proxy.c apache_1.3.1/src/modules/proxy/mod_proxy.c
+--- apache_1.3.0/src/modules/proxy/mod_proxy.c	1998-05-28 06:56:02.000000000 +0800
++++ apache_1.3.1/src/modules/proxy/mod_proxy.c	1998-07-10 03:45:55.000000000 +0800
 @@ -241,13 +241,14 @@
  /* servers like Netscape's allow this and access hosts from the local */
  /* domain in this case. I think it is better to redirect to a FQDN, since */
@@ -13281,9 +14493,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/proxy/mod_proxy.c repos/apache_1.3
  module MODULE_VAR_EXPORT proxy_module =
  {
      STANDARD_MODULE_STUFF,
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/proxy/mod_proxy.h repos/apache_1.3.1/src/modules/proxy/mod_proxy.h
---- repos/apache_1.3.0/src/modules/proxy/mod_proxy.h	1998-05-28 06:56:04.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/proxy/mod_proxy.h	1998-07-10 03:45:56.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/proxy/mod_proxy.h apache_1.3.1/src/modules/proxy/mod_proxy.h
+--- apache_1.3.0/src/modules/proxy/mod_proxy.h	1998-05-28 06:56:04.000000000 +0800
++++ apache_1.3.1/src/modules/proxy/mod_proxy.h	1998-07-10 03:45:56.000000000 +0800
 @@ -181,41 +181,43 @@
  };
  
@@ -13376,9 +14588,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/proxy/mod_proxy.h repos/apache_1.3
  int ap_proxy_liststr(const char *list, const char *val);
  void ap_proxy_hash(const char *it, char *val, int ndepth, int nlength);
  int ap_proxy_hex2sec(const char *x);
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/proxy/proxy_cache.c repos/apache_1.3.1/src/modules/proxy/proxy_cache.c
---- repos/apache_1.3.0/src/modules/proxy/proxy_cache.c	1998-05-30 02:20:58.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/proxy/proxy_cache.c	1998-07-10 03:45:56.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/proxy/proxy_cache.c apache_1.3.1/src/modules/proxy/proxy_cache.c
+--- apache_1.3.0/src/modules/proxy/proxy_cache.c	1998-05-30 02:20:58.000000000 +0800
++++ apache_1.3.1/src/modules/proxy/proxy_cache.c	1998-07-10 03:45:56.000000000 +0800
 @@ -68,39 +68,43 @@
  #endif /* WIN32 */
  #include "multithread.h"
@@ -13904,9 +15116,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/proxy/proxy_cache.c repos/apache_1
  	off_t curpos;
  
  	c->len = bc;
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/proxy/proxy_connect.c repos/apache_1.3.1/src/modules/proxy/proxy_connect.c
---- repos/apache_1.3.0/src/modules/proxy/proxy_connect.c	1998-05-28 06:56:04.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/proxy/proxy_connect.c	1998-06-08 22:23:50.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/proxy/proxy_connect.c apache_1.3.1/src/modules/proxy/proxy_connect.c
+--- apache_1.3.0/src/modules/proxy/proxy_connect.c	1998-05-28 06:56:04.000000000 +0800
++++ apache_1.3.1/src/modules/proxy/proxy_connect.c	1998-06-08 22:23:50.000000000 +0800
 @@ -159,24 +159,24 @@
  	return ap_proxyerror(r, err);	/* give up */
  
@@ -13934,9 +15146,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/proxy/proxy_connect.c repos/apache
      j = 0;
      while (server_hp.h_addr_list[j] != NULL) {
  	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/proxy/proxy_ftp.c repos/apache_1.3.1/src/modules/proxy/proxy_ftp.c
---- repos/apache_1.3.0/src/modules/proxy/proxy_ftp.c	1998-05-28 06:56:05.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/proxy/proxy_ftp.c apache_1.3.1/src/modules/proxy/proxy_ftp.c
+--- apache_1.3.0/src/modules/proxy/proxy_ftp.c	1998-05-28 06:56:05.000000000 +0800
++++ apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800
 @@ -192,14 +192,14 @@
      char linebuff[100], buff[5];
  
@@ -14340,9 +15552,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/proxy/proxy_ftp.c repos/apache_1.3
  	    rc = ftp_getrc(f);
  	if (rc != 226 && rc != 250)
  	    ap_proxy_cache_error(c);
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/proxy/proxy_http.c repos/apache_1.3.1/src/modules/proxy/proxy_http.c
---- repos/apache_1.3.0/src/modules/proxy/proxy_http.c	1998-05-28 06:56:05.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/proxy/proxy_http.c	1998-07-10 03:45:56.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/proxy/proxy_http.c apache_1.3.1/src/modules/proxy/proxy_http.c
+--- apache_1.3.0/src/modules/proxy/proxy_http.c	1998-05-28 06:56:05.000000000 +0800
++++ apache_1.3.1/src/modules/proxy/proxy_http.c	1998-07-10 03:45:56.000000000 +0800
 @@ -108,13 +108,13 @@
  
      r->filename = ap_pstrcat(r->pool, "proxy:", scheme, "://", host, sport, "/",
@@ -14538,9 +15750,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/proxy/proxy_http.c repos/apache_1.
      ap_bclose(f);
  
      ap_proxy_garbage_coll(r);
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/proxy/proxy_util.c repos/apache_1.3.1/src/modules/proxy/proxy_util.c
---- repos/apache_1.3.0/src/modules/proxy/proxy_util.c	1998-05-30 02:20:59.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/proxy/proxy_util.c	1998-07-10 03:45:57.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/proxy/proxy_util.c apache_1.3.1/src/modules/proxy/proxy_util.c
+--- apache_1.3.0/src/modules/proxy/proxy_util.c	1998-05-30 02:20:59.000000000 +0800
++++ apache_1.3.1/src/modules/proxy/proxy_util.c	1998-07-10 03:45:57.000000000 +0800
 @@ -72,24 +72,24 @@
  int ap_proxy_hex2c(const char *x)
  {
@@ -15003,9 +16215,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/proxy/proxy_util.c repos/apache_1.
  int ap_proxy_doconnect(int sock, struct sockaddr_in *addr, request_rec *r)
  {
      int i;
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/Makefile.tmpl repos/apache_1.3.1/src/modules/standard/Makefile.tmpl
---- repos/apache_1.3.0/src/modules/standard/Makefile.tmpl	1998-05-30 04:28:01.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/Makefile.tmpl	1998-07-13 19:32:46.000000000 +0800
+Only in apache_1.3.0/src/modules/standard: Makefile
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/Makefile.tmpl apache_1.3.1/src/modules/standard/Makefile.tmpl
+--- apache_1.3.0/src/modules/standard/Makefile.tmpl	1998-05-30 04:28:01.000000000 +0800
++++ apache_1.3.1/src/modules/standard/Makefile.tmpl	1998-07-13 19:32:46.000000000 +0800
 @@ -1,183 +1,231 @@
  
  #Dependencies
@@ -15390,9 +16603,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/Makefile.tmpl repos/apach
 + $(INCDIR)/alloc.h $(INCDIR)/buff.h $(INCDIR)/ap.h \
 + $(INCDIR)/util_uri.h $(INCDIR)/http_config.h \
 + $(INCDIR)/http_core.h
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_access.c repos/apache_1.3.1/src/modules/standard/mod_access.c
---- repos/apache_1.3.0/src/modules/standard/mod_access.c	1998-04-20 03:19:38.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_access.c	1998-07-09 01:47:12.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_access.c apache_1.3.1/src/modules/standard/mod_access.c
+--- apache_1.3.0/src/modules/standard/mod_access.c	1998-04-20 03:19:38.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_access.c	1998-07-09 01:47:12.000000000 +0800
 @@ -135,13 +135,13 @@
  
      return NULL;
@@ -15443,9 +16656,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_access.c repos/apache
  		*t++ = 0;
  	    }
  	    else if (*t) {
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_actions.c repos/apache_1.3.1/src/modules/standard/mod_actions.c
---- repos/apache_1.3.0/src/modules/standard/mod_actions.c	1998-04-11 20:00:43.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_actions.c	1998-06-13 23:23:04.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_actions.c apache_1.3.1/src/modules/standard/mod_actions.c
+--- apache_1.3.0/src/modules/standard/mod_actions.c	1998-04-11 20:00:43.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_actions.c	1998-06-13 23:23:04.000000000 +0800
 @@ -156,14 +156,14 @@
  };
  
@@ -15463,9 +16676,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_actions.c repos/apach
  	r->allowed |= (1 << M_GET);
      if (conf->post)
  	r->allowed |= (1 << M_POST);
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_alias.c repos/apache_1.3.1/src/modules/standard/mod_alias.c
---- repos/apache_1.3.0/src/modules/standard/mod_alias.c	1998-05-04 10:38:43.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_alias.c	1998-07-09 01:47:13.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_alias.c apache_1.3.1/src/modules/standard/mod_alias.c
+--- apache_1.3.0/src/modules/standard/mod_alias.c	1998-05-04 10:38:43.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_alias.c	1998-07-09 01:47:13.000000000 +0800
 @@ -174,13 +174,13 @@
      else if (!strcasecmp(arg1, "permanent"))
  	status = HTTP_MOVED_PERMANENTLY;
@@ -15481,9 +16694,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_alias.c repos/apache_
  	url = arg2;
      }
  
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_asis.c repos/apache_1.3.1/src/modules/standard/mod_asis.c
---- repos/apache_1.3.0/src/modules/standard/mod_asis.c	1998-04-11 20:00:43.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_asis.c	1998-06-13 23:23:05.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_asis.c apache_1.3.1/src/modules/standard/mod_asis.c
+--- apache_1.3.0/src/modules/standard/mod_asis.c	1998-04-11 20:00:43.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_asis.c	1998-06-13 23:23:05.000000000 +0800
 @@ -63,13 +63,13 @@
  #include "http_main.h"
  #include "http_request.h"
@@ -15499,9 +16712,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_asis.c repos/apache_1
  	return DECLINED;
      if (r->finfo.st_mode == 0) {
  	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_auth_anon.c repos/apache_1.3.1/src/modules/standard/mod_auth_anon.c
---- repos/apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_auth_anon.c apache_1.3.1/src/modules/standard/mod_auth_anon.c
+--- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800
 @@ -214,16 +214,16 @@
  static int anon_authenticate_basic_user(request_rec *r)
  {
@@ -15556,9 +16769,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_auth_anon.c repos/apa
      }
  
      return DECLINED;
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_auth.c repos/apache_1.3.1/src/modules/standard/mod_auth.c
---- repos/apache_1.3.0/src/modules/standard/mod_auth.c	1998-04-11 20:00:44.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_auth.c	1998-07-10 14:33:24.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_auth.c apache_1.3.1/src/modules/standard/mod_auth.c
+--- apache_1.3.0/src/modules/standard/mod_auth.c	1998-04-11 20:00:44.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_auth.c	1998-07-10 14:33:24.000000000 +0800
 @@ -198,13 +198,14 @@
  
  static int authenticate_basic_user(request_rec *r)
@@ -15609,9 +16822,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_auth.c repos/apache_1
  
  module MODULE_VAR_EXPORT auth_module =
  {
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_auth_db.c repos/apache_1.3.1/src/modules/standard/mod_auth_db.c
---- repos/apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_auth_db.c apache_1.3.1/src/modules/standard/mod_auth_db.c
+--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
 @@ -202,13 +202,14 @@
  static int db_authenticate_basic_user(request_rec *r)
  {
@@ -15643,9 +16856,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_auth_db.c repos/apach
      const char *t;
      char *w;
  
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_auth_dbm.c repos/apache_1.3.1/src/modules/standard/mod_auth_dbm.c
---- repos/apache_1.3.0/src/modules/standard/mod_auth_dbm.c	1998-04-11 20:00:44.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_auth_dbm.c	1998-07-04 06:08:50.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_auth_dbm.c apache_1.3.1/src/modules/standard/mod_auth_dbm.c
+--- apache_1.3.0/src/modules/standard/mod_auth_dbm.c	1998-04-11 20:00:44.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_auth_dbm.c	1998-07-04 06:08:50.000000000 +0800
 @@ -203,13 +203,14 @@
  static int dbm_authenticate_basic_user(request_rec *r)
  {
@@ -15677,9 +16890,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_auth_dbm.c repos/apac
      const char *t;
      char *w;
  
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_autoindex.c repos/apache_1.3.1/src/modules/standard/mod_autoindex.c
---- repos/apache_1.3.0/src/modules/standard/mod_autoindex.c	1998-05-17 05:11:17.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_autoindex.c	1998-07-09 01:47:14.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_autoindex.c apache_1.3.1/src/modules/standard/mod_autoindex.c
+--- apache_1.3.0/src/modules/standard/mod_autoindex.c	1998-05-17 05:11:17.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_autoindex.c	1998-07-09 01:47:14.000000000 +0800
 @@ -133,61 +133,82 @@
  
  #define BY_ENCODING &c_by_encoding
@@ -16712,9 +17925,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_autoindex.c repos/apa
  
  
  static const handler_rec autoindex_handlers[] =
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_cern_meta.c repos/apache_1.3.1/src/modules/standard/mod_cern_meta.c
---- repos/apache_1.3.0/src/modules/standard/mod_cern_meta.c	1998-04-11 20:00:45.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_cern_meta.c apache_1.3.1/src/modules/standard/mod_cern_meta.c
+--- apache_1.3.0/src/modules/standard/mod_cern_meta.c	1998-04-11 20:00:45.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
 @@ -214,13 +214,14 @@
      return NULL;
  }
@@ -16763,9 +17976,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_cern_meta.c repos/apa
  	    r->status_line = ap_pstrdup(r->pool, l);
  	}
  	else {
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_cgi.c repos/apache_1.3.1/src/modules/standard/mod_cgi.c
---- repos/apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_cgi.c apache_1.3.1/src/modules/standard/mod_cgi.c
+--- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
 @@ -85,13 +85,13 @@
   * request came through ScriptAlias or not... so the Alias module
   * leaves a note for us.
@@ -16830,9 +18043,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_cgi.c repos/apache_1.
  	    return log_script(r, conf, ret, dbuf, sbuf, script_in, script_err);
  	}
  
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_digest.c repos/apache_1.3.1/src/modules/standard/mod_digest.c
---- repos/apache_1.3.0/src/modules/standard/mod_digest.c	1998-04-11 20:00:46.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_digest.c	1998-07-09 01:47:14.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_digest.c apache_1.3.1/src/modules/standard/mod_digest.c
+--- apache_1.3.0/src/modules/standard/mod_digest.c	1998-04-11 20:00:46.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_digest.c	1998-07-09 01:47:14.000000000 +0800
 @@ -138,13 +138,14 @@
  {
      const char *auth_line = ap_table_get(r->headers_in,
@@ -16894,9 +18107,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_digest.c repos/apache
  	return DECLINED;
  
      reqs_arr = ap_requires(r);
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_env.c repos/apache_1.3.1/src/modules/standard/mod_env.c
---- repos/apache_1.3.0/src/modules/standard/mod_env.c	1998-04-11 20:00:46.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_env.c	1998-06-28 02:09:32.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_env.c apache_1.3.1/src/modules/standard/mod_env.c
+--- apache_1.3.0/src/modules/standard/mod_env.c	1998-04-11 20:00:46.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_env.c	1998-06-28 02:09:32.000000000 +0800
 @@ -142,13 +142,13 @@
       *     table_unset( new_table, $unsetenv );
       * }
@@ -16912,9 +18125,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_env.c repos/apache_1.
          ap_table_setn(new_table, elts[i].key, elts[i].val);
      }
  
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_expires.c repos/apache_1.3.1/src/modules/standard/mod_expires.c
---- repos/apache_1.3.0/src/modules/standard/mod_expires.c	1998-04-11 20:00:46.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_expires.c	1998-07-09 01:47:15.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_expires.c apache_1.3.1/src/modules/standard/mod_expires.c
+--- apache_1.3.0/src/modules/standard/mod_expires.c	1998-04-11 20:00:46.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_expires.c	1998-07-09 01:47:15.000000000 +0800
 @@ -281,13 +281,13 @@
  
      /* {<num> <type>}*
@@ -16930,9 +18143,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_expires.c repos/apach
              return ap_pstrcat(p, "bad expires code, numeric value expected <num> '",
                             word, "'", NULL);
          };
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_imap.c repos/apache_1.3.1/src/modules/standard/mod_imap.c
---- repos/apache_1.3.0/src/modules/standard/mod_imap.c	1998-04-11 20:00:47.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_imap.c	1998-07-09 01:47:15.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_imap.c apache_1.3.1/src/modules/standard/mod_imap.c
+--- apache_1.3.0/src/modules/standard/mod_imap.c	1998-04-11 20:00:47.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_imap.c	1998-07-09 01:47:15.000000000 +0800
 @@ -260,13 +260,13 @@
      double x_coord = -1;        /* -1 is returned if no coordinate is given */
  
@@ -17036,9 +18249,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_imap.c repos/apache_1
          }                       /* so long as there are more vertices to
                                     read, and we have room, read them in.
                                     We start where we left off of the last
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_include.c repos/apache_1.3.1/src/modules/standard/mod_include.c
---- repos/apache_1.3.0/src/modules/standard/mod_include.c	1998-05-29 16:18:51.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_include.c	1998-07-09 01:47:16.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_include.c apache_1.3.1/src/modules/standard/mod_include.c
+--- apache_1.3.0/src/modules/standard/mod_include.c	1998-05-29 16:18:51.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_include.c	1998-07-09 01:47:16.000000000 +0800
 @@ -306,13 +306,13 @@
              *p = *s;
              continue;
@@ -17264,9 +18477,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_include.c repos/apach
      if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
          return 1;
      }
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_log_agent.c repos/apache_1.3.1/src/modules/standard/mod_log_agent.c
---- repos/apache_1.3.0/src/modules/standard/mod_log_agent.c	1998-05-29 16:18:51.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_log_agent.c	1998-06-15 05:10:26.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_log_agent.c apache_1.3.1/src/modules/standard/mod_log_agent.c
+--- apache_1.3.0/src/modules/standard/mod_log_agent.c	1998-05-29 16:18:51.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_log_agent.c	1998-06-15 05:10:26.000000000 +0800
 @@ -141,13 +141,13 @@
  static int agent_log_transaction(request_rec *orig)
  {
@@ -17282,9 +18495,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_log_agent.c repos/apa
          return OK;
  
      for (r = orig; r->next; r = r->next)
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_log_config.c repos/apache_1.3.1/src/modules/standard/mod_log_config.c
---- repos/apache_1.3.0/src/modules/standard/mod_log_config.c	1998-05-29 16:18:51.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_log_config.c	1998-07-09 01:47:16.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_log_config.c apache_1.3.1/src/modules/standard/mod_log_config.c
+--- apache_1.3.0/src/modules/standard/mod_log_config.c	1998-05-29 16:18:51.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_log_config.c	1998-07-09 01:47:16.000000000 +0800
 @@ -212,12 +212,13 @@
   * points to the same array as config_logs in the main server, and
   * config_logs points to the array of logs defined inside this vhost,
@@ -17687,9 +18900,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_log_config.c repos/ap
  
      return NULL;
  }
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_log_referer.c repos/apache_1.3.1/src/modules/standard/mod_log_referer.c
---- repos/apache_1.3.0/src/modules/standard/mod_log_referer.c	1998-05-29 16:18:51.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_log_referer.c	1998-06-15 05:10:27.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_log_referer.c apache_1.3.1/src/modules/standard/mod_log_referer.c
+--- apache_1.3.0/src/modules/standard/mod_log_referer.c	1998-05-29 16:18:51.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_log_referer.c	1998-06-15 05:10:27.000000000 +0800
 @@ -159,13 +159,14 @@
  {
      char **ptrptr, **ptrptr2;
@@ -17706,9 +18919,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_log_referer.c repos/a
          return OK;
  
      for (r = orig; r->next; r = r->next)
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_mime.c repos/apache_1.3.1/src/modules/standard/mod_mime.c
---- repos/apache_1.3.0/src/modules/standard/mod_mime.c	1998-05-29 16:18:52.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_mime.c	1998-07-09 01:47:17.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_mime.c apache_1.3.1/src/modules/standard/mod_mime.c
+--- apache_1.3.0/src/modules/standard/mod_mime.c	1998-05-29 16:18:52.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_mime.c	1998-07-09 01:47:17.000000000 +0800
 @@ -196,13 +196,13 @@
  /* MIME_HASHSIZE used to be 27 (26 chars and one "non-alpha" slot), but
   * with character sets like EBCDIC, this is insufficient because the
@@ -17762,9 +18975,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_mime.c repos/apache_1
  
          /* Check for Content-Encoding */
          if ((type = ap_table_get(conf->encoding_types, ext))) {
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_mime_magic.c repos/apache_1.3.1/src/modules/standard/mod_mime_magic.c
---- repos/apache_1.3.0/src/modules/standard/mod_mime_magic.c	1998-05-29 06:09:57.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_mime_magic.c	1998-07-09 01:47:17.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_mime_magic.c apache_1.3.1/src/modules/standard/mod_mime_magic.c
+--- apache_1.3.0/src/modules/standard/mod_mime_magic.c	1998-05-29 06:09:57.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_mime_magic.c	1998-07-09 01:47:17.000000000 +0800
 @@ -718,13 +718,13 @@
      encoding_frag = encoding_pos = encoding_len = 0;
      for (frag = req_dat->head, cur_frag = 0;
@@ -18090,9 +19303,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_mime_magic.c repos/ap
  				(((unsigned long) m) >> 24) & 255,
  				(((unsigned long) m) >> 16) & 255,
  				(((unsigned long) m) >> 8) & 255,
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_negotiation.c repos/apache_1.3.1/src/modules/standard/mod_negotiation.c
---- repos/apache_1.3.0/src/modules/standard/mod_negotiation.c	1998-05-31 03:15:38.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_negotiation.c	1998-07-09 01:47:18.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_negotiation.c apache_1.3.1/src/modules/standard/mod_negotiation.c
+--- apache_1.3.0/src/modules/standard/mod_negotiation.c	1998-05-31 03:15:38.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_negotiation.c	1998-07-09 01:47:18.000000000 +0800
 @@ -177,13 +177,13 @@
   */
  
@@ -18366,9 +19579,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_negotiation.c repos/a
      int i;
  
      if (!enc || !*enc) {
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_rewrite.c repos/apache_1.3.1/src/modules/standard/mod_rewrite.c
---- repos/apache_1.3.0/src/modules/standard/mod_rewrite.c	1998-05-29 17:19:41.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_rewrite.c	1998-07-18 23:30:46.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_rewrite.c apache_1.3.1/src/modules/standard/mod_rewrite.c
+--- apache_1.3.0/src/modules/standard/mod_rewrite.c	1998-05-29 17:19:41.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_rewrite.c	1998-07-18 23:30:46.000000000 +0800
 @@ -262,22 +262,27 @@
  
      if (a->options & OPTION_INHERIT) {
@@ -20487,9 +21700,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_rewrite.c repos/apach
  
  
  /*EOF*/
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_rewrite.h repos/apache_1.3.1/src/modules/standard/mod_rewrite.h
---- repos/apache_1.3.0/src/modules/standard/mod_rewrite.h	1998-05-29 16:32:40.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_rewrite.h	1998-07-13 19:32:46.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_rewrite.h apache_1.3.1/src/modules/standard/mod_rewrite.h
+--- apache_1.3.0/src/modules/standard/mod_rewrite.h	1998-05-29 16:32:40.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_rewrite.h	1998-07-13 19:32:46.000000000 +0800
 @@ -104,12 +104,13 @@
  #include <sys/types.h>
  #include <sys/stat.h>
@@ -20519,9 +21732,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_rewrite.h repos/apach
  #include <fcntl.h>
  #endif
  #if defined(USE_FLOCK_SERIALIZED_ACCEPT)
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_setenvif.c repos/apache_1.3.1/src/modules/standard/mod_setenvif.c
---- repos/apache_1.3.0/src/modules/standard/mod_setenvif.c	1998-05-02 19:15:13.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_setenvif.c	1998-07-10 20:58:56.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_setenvif.c apache_1.3.1/src/modules/standard/mod_setenvif.c
+--- apache_1.3.0/src/modules/standard/mod_setenvif.c	1998-05-02 19:15:13.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_setenvif.c	1998-07-10 20:58:56.000000000 +0800
 @@ -155,38 +155,39 @@
  static void *merge_setenvif_config(pool *p, void *basev, void *overridesv)
  {
@@ -20733,9 +21946,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_setenvif.c repos/apac
                  if (!strcmp(elts[j].val, "!")) {
                      ap_table_unset(r->subprocess_env, elts[j].key);
                  }
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_speling.c repos/apache_1.3.1/src/modules/standard/mod_speling.c
---- repos/apache_1.3.0/src/modules/standard/mod_speling.c	1998-05-30 09:53:05.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_speling.c	1998-07-09 01:47:18.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_speling.c apache_1.3.1/src/modules/standard/mod_speling.c
+--- apache_1.3.0/src/modules/standard/mod_speling.c	1998-05-30 09:53:05.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_speling.c	1998-07-09 01:47:18.000000000 +0800
 @@ -153,19 +153,19 @@
   * NOTE that is still allows only _one_ real "typo",
   * it does NOT try to correct multiple errors.
@@ -20775,9 +21988,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_speling.c repos/apach
          ref = ap_table_get(r->headers_in, "Referer");
  
          qsort((void *) candidates->elts, candidates->nelts,
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_status.c repos/apache_1.3.1/src/modules/standard/mod_status.c
---- repos/apache_1.3.0/src/modules/standard/mod_status.c	1998-05-06 11:24:20.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_status.c	1998-06-16 00:46:13.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_status.c apache_1.3.1/src/modules/standard/mod_status.c
+--- apache_1.3.0/src/modules/standard/mod_status.c	1998-05-06 11:24:20.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_status.c	1998-06-16 00:46:13.000000000 +0800
 @@ -116,22 +116,22 @@
  #include "util_script.h"
  #include <time.h>
@@ -20819,9 +22032,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_status.c repos/apache
      int short_report = 0;
      int no_table_report = 0;
      short_score score_record;
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_unique_id.c repos/apache_1.3.1/src/modules/standard/mod_unique_id.c
---- repos/apache_1.3.0/src/modules/standard/mod_unique_id.c	1998-04-11 20:00:53.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_unique_id.c	1998-06-15 05:10:29.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_unique_id.c apache_1.3.1/src/modules/standard/mod_unique_id.c
+--- apache_1.3.0/src/modules/standard/mod_unique_id.c	1998-04-11 20:00:53.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_unique_id.c	1998-06-15 05:10:29.000000000 +0800
 @@ -56,29 +56,30 @@
   */
  
@@ -21054,9 +22267,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_unique_id.c repos/apa
      cur_unique_id.counter = htons(counter);
  
      return DECLINED;
-diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_usertrack.c repos/apache_1.3.1/src/modules/standard/mod_usertrack.c
---- repos/apache_1.3.0/src/modules/standard/mod_usertrack.c	1998-04-11 20:00:53.000000000 +0800
-+++ repos/apache_1.3.1/src/modules/standard/mod_usertrack.c	1998-07-09 01:47:19.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/modules/standard/mod_usertrack.c apache_1.3.1/src/modules/standard/mod_usertrack.c
+--- apache_1.3.0/src/modules/standard/mod_usertrack.c	1998-04-11 20:00:53.000000000 +0800
++++ apache_1.3.1/src/modules/standard/mod_usertrack.c	1998-07-09 01:47:19.000000000 +0800
 @@ -134,42 +134,38 @@
      struct timeval tv;
      struct timezone tz = {0, 0};
@@ -21148,9 +22361,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/modules/standard/mod_usertrack.c repos/apa
  
          /* <type> */
          word = ap_getword_conf(parms->pool, &arg);
-diff -BEr -U 6 repos/apache_1.3.0/src/os/bs2000/bs2login.c repos/apache_1.3.1/src/os/bs2000/bs2login.c
---- repos/apache_1.3.0/src/os/bs2000/bs2login.c	1998-05-05 06:18:24.000000000 +0800
-+++ repos/apache_1.3.1/src/os/bs2000/bs2login.c	1998-07-09 01:47:24.000000000 +0800
+Only in apache_1.3.0/src: modules.c
+diff -BEr -U 6 apache_1.3.0/src/os/bs2000/bs2login.c apache_1.3.1/src/os/bs2000/bs2login.c
+--- apache_1.3.0/src/os/bs2000/bs2login.c	1998-05-05 06:18:24.000000000 +0800
++++ apache_1.3.1/src/os/bs2000/bs2login.c	1998-07-09 01:47:24.000000000 +0800
 @@ -115,13 +115,13 @@
      memset (&lcl_data, '\0', sizeof lcl_data);
  
@@ -21166,9 +22380,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/os/bs2000/bs2login.c repos/apache_1.3.1/sr
  	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
  		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
  		     "an authorization file for User %s",
-diff -BEr -U 6 repos/apache_1.3.0/src/os/bs2000/ebcdic.c repos/apache_1.3.1/src/os/bs2000/ebcdic.c
---- repos/apache_1.3.0/src/os/bs2000/ebcdic.c	1998-05-13 23:31:01.000000000 +0800
-+++ repos/apache_1.3.1/src/os/bs2000/ebcdic.c	1998-07-13 19:32:47.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/os/bs2000/ebcdic.c apache_1.3.1/src/os/bs2000/ebcdic.c
+--- apache_1.3.0/src/os/bs2000/ebcdic.c	1998-05-13 23:31:01.000000000 +0800
++++ apache_1.3.1/src/os/bs2000/ebcdic.c	1998-07-13 19:32:47.000000000 +0800
 @@ -54,13 +54,13 @@
   * project, please see <http://www.apache.org/>.
   *
@@ -21184,9 +22398,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/os/bs2000/ebcdic.c repos/apache_1.3.1/src/
  
  "BS2000 OSD" is a POSIX on a main frame.
  It is made by Siemens Nixdorf AG, Germany.
-diff -BEr -U 6 repos/apache_1.3.0/src/os/bs2000/os.h repos/apache_1.3.1/src/os/bs2000/os.h
---- repos/apache_1.3.0/src/os/bs2000/os.h	1998-05-07 20:24:27.000000000 +0800
-+++ repos/apache_1.3.1/src/os/bs2000/os.h	1998-07-13 19:32:47.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/os/bs2000/os.h apache_1.3.1/src/os/bs2000/os.h
+--- apache_1.3.0/src/os/bs2000/os.h	1998-05-07 20:24:27.000000000 +0800
++++ apache_1.3.1/src/os/bs2000/os.h	1998-07-13 19:32:47.000000000 +0800
 @@ -6,13 +6,13 @@
  /*
   * This file in included in all Apache source code. It contains definitions
@@ -21202,9 +22416,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/os/bs2000/os.h repos/apache_1.3.1/src/os/b
   * part of the header
   */
  #define INLINE extern ap_inline
-diff -BEr -U 6 repos/apache_1.3.0/src/os/bs2000/os-inline.c repos/apache_1.3.1/src/os/bs2000/os-inline.c
---- repos/apache_1.3.0/src/os/bs2000/os-inline.c	1998-04-14 02:05:17.000000000 +0800
-+++ repos/apache_1.3.1/src/os/bs2000/os-inline.c	1998-07-13 19:32:47.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/os/bs2000/os-inline.c apache_1.3.1/src/os/bs2000/os-inline.c
+--- apache_1.3.0/src/os/bs2000/os-inline.c	1998-04-14 02:05:17.000000000 +0800
++++ apache_1.3.1/src/os/bs2000/os-inline.c	1998-07-13 19:32:47.000000000 +0800
 @@ -18,13 +18,13 @@
   */
  
@@ -21220,9 +22434,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/os/bs2000/os-inline.c repos/apache_1.3.1/s
  INLINE int ap_os_is_path_absolute(const char *file)
  {
    return (file && file[0] == '/' ? 1 : 0);
-diff -BEr -U 6 repos/apache_1.3.0/src/os/emx/os-inline.c repos/apache_1.3.1/src/os/emx/os-inline.c
---- repos/apache_1.3.0/src/os/emx/os-inline.c	1998-04-14 02:05:18.000000000 +0800
-+++ repos/apache_1.3.1/src/os/emx/os-inline.c	1998-07-13 19:32:48.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/os/emx/os-inline.c apache_1.3.1/src/os/emx/os-inline.c
+--- apache_1.3.0/src/os/emx/os-inline.c	1998-04-14 02:05:18.000000000 +0800
++++ apache_1.3.1/src/os/emx/os-inline.c	1998-07-13 19:32:48.000000000 +0800
 @@ -18,13 +18,13 @@
   */
  
@@ -21238,9 +22452,11 @@ diff -BEr -U 6 repos/apache_1.3.0/src/os/emx/os-inline.c repos/apache_1.3.1/src/
  INLINE int ap_os_is_path_absolute(const char *file)
  {
    /* For now, just do the same check that http_request.c and mod_alias.c
-diff -BEr -U 6 repos/apache_1.3.0/src/os/unix/Makefile.tmpl repos/apache_1.3.1/src/os/unix/Makefile.tmpl
---- repos/apache_1.3.0/src/os/unix/Makefile.tmpl	1998-05-10 21:04:38.000000000 +0800
-+++ repos/apache_1.3.1/src/os/unix/Makefile.tmpl	1998-07-13 19:32:49.000000000 +0800
+Only in apache_1.3.0/src/os/unix: libos.a
+Only in apache_1.3.0/src/os/unix: Makefile
+diff -BEr -U 6 apache_1.3.0/src/os/unix/Makefile.tmpl apache_1.3.1/src/os/unix/Makefile.tmpl
+--- apache_1.3.0/src/os/unix/Makefile.tmpl	1998-05-10 21:04:38.000000000 +0800
++++ apache_1.3.1/src/os/unix/Makefile.tmpl	1998-07-13 19:32:49.000000000 +0800
 @@ -36,8 +36,12 @@
  	    && rm Makefile.new
  
@@ -21256,9 +22472,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/os/unix/Makefile.tmpl repos/apache_1.3.1/s
 +os.o: os.c $(INCDIR)/ap_config.h $(INCDIR)/ap_config_auto.h \
 + $(OSDIR)/os.h $(INCDIR)/ap_ctype.h $(INCDIR)/hsregex.h \
 + os.h
-diff -BEr -U 6 repos/apache_1.3.0/src/os/unix/os.c repos/apache_1.3.1/src/os/unix/os.c
---- repos/apache_1.3.0/src/os/unix/os.c	1998-04-28 16:42:11.000000000 +0800
-+++ repos/apache_1.3.1/src/os/unix/os.c	1998-07-13 19:32:49.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/os/unix/os.c apache_1.3.1/src/os/unix/os.c
+--- apache_1.3.0/src/os/unix/os.c	1998-04-28 16:42:11.000000000 +0800
++++ apache_1.3.1/src/os/unix/os.c	1998-07-13 19:32:49.000000000 +0800
 @@ -1,12 +1,12 @@
  /*
   * This file will include OS specific functions which are not inlineable.
@@ -21291,9 +22507,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/os/unix/os.c repos/apache_1.3.1/src/os/uni
  
  void ap_os_dso_unload(void *handle) 
  {
-diff -BEr -U 6 repos/apache_1.3.0/src/os/unix/os.h repos/apache_1.3.1/src/os/unix/os.h
---- repos/apache_1.3.0/src/os/unix/os.h	1998-05-14 09:22:52.000000000 +0800
-+++ repos/apache_1.3.1/src/os/unix/os.h	1998-07-13 19:32:49.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/os/unix/os.h apache_1.3.1/src/os/unix/os.h
+--- apache_1.3.0/src/os/unix/os.h	1998-05-14 09:22:52.000000000 +0800
++++ apache_1.3.1/src/os/unix/os.h	1998-07-13 19:32:49.000000000 +0800
 @@ -55,12 +55,14 @@
   *
   */
@@ -21350,9 +22566,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/os/unix/os.h repos/apache_1.3.1/src/os/uni
  
  #define     ap_os_dso_handle_t  void *
  void *      ap_os_dso_load(const char *);
-diff -BEr -U 6 repos/apache_1.3.0/src/os/unix/os-inline.c repos/apache_1.3.1/src/os/unix/os-inline.c
---- repos/apache_1.3.0/src/os/unix/os-inline.c	1998-04-14 02:05:19.000000000 +0800
-+++ repos/apache_1.3.1/src/os/unix/os-inline.c	1998-07-13 19:32:49.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/os/unix/os-inline.c apache_1.3.1/src/os/unix/os-inline.c
+--- apache_1.3.0/src/os/unix/os-inline.c	1998-04-14 02:05:19.000000000 +0800
++++ apache_1.3.1/src/os/unix/os-inline.c	1998-07-13 19:32:49.000000000 +0800
 @@ -18,13 +18,13 @@
   */
  
@@ -21368,9 +22584,11 @@ diff -BEr -U 6 repos/apache_1.3.0/src/os/unix/os-inline.c repos/apache_1.3.1/src
  INLINE int ap_os_is_path_absolute(const char *file)
  {
    return file[0] == '/';
-diff -BEr -U 6 repos/apache_1.3.0/src/os/win32/installer/apache.iwz repos/apache_1.3.1/src/os/win32/installer/apache.iwz
---- repos/apache_1.3.0/src/os/win32/installer/apache.iwz	1998-05-30 02:21:09.000000000 +0800
-+++ repos/apache_1.3.1/src/os/win32/installer/apache.iwz	1998-07-19 06:57:34.000000000 +0800
+Only in apache_1.3.0/src/os/unix: os-inline.o
+Only in apache_1.3.0/src/os/unix: os.o
+diff -BEr -U 6 apache_1.3.0/src/os/win32/installer/apache.iwz apache_1.3.1/src/os/win32/installer/apache.iwz
+--- apache_1.3.0/src/os/win32/installer/apache.iwz	1998-05-30 02:21:09.000000000 +0800
++++ apache_1.3.1/src/os/win32/installer/apache.iwz	1998-07-19 06:57:34.000000000 +0800
 @@ -43,15 +43,15 @@
  LangDir=LANG\ENG\
  
@@ -21713,9 +22931,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/os/win32/installer/apache.iwz repos/apache
  Regs=5
  
  [Icons]
-diff -BEr -U 6 repos/apache_1.3.0/src/os/win32/mod_isapi.c repos/apache_1.3.1/src/os/win32/mod_isapi.c
---- repos/apache_1.3.0/src/os/win32/mod_isapi.c	1998-05-09 23:09:31.000000000 +0800
-+++ repos/apache_1.3.1/src/os/win32/mod_isapi.c	1998-07-09 01:47:24.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/os/win32/mod_isapi.c apache_1.3.1/src/os/win32/mod_isapi.c
+--- apache_1.3.0/src/os/win32/mod_isapi.c	1998-05-09 23:09:31.000000000 +0800
++++ apache_1.3.1/src/os/win32/mod_isapi.c	1998-07-09 01:47:24.000000000 +0800
 @@ -294,13 +294,13 @@
  #pragma optimize("",on)
  
@@ -21765,9 +22983,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/os/win32/mod_isapi.c repos/apache_1.3.1/sr
  	    }
  	    else if (!strcasecmp(data, "Transfer-Encoding")) {
  		ap_table_set(r->headers_out, data, value);
-diff -BEr -U 6 repos/apache_1.3.0/src/os/win32/multithread.c repos/apache_1.3.1/src/os/win32/multithread.c
---- repos/apache_1.3.0/src/os/win32/multithread.c	1998-04-11 20:01:06.000000000 +0800
-+++ repos/apache_1.3.1/src/os/win32/multithread.c	1998-07-13 19:32:51.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/os/win32/multithread.c apache_1.3.1/src/os/win32/multithread.c
+--- apache_1.3.0/src/os/win32/multithread.c	1998-04-11 20:01:06.000000000 +0800
++++ apache_1.3.1/src/os/win32/multithread.c	1998-07-13 19:32:51.000000000 +0800
 @@ -1,8 +1,8 @@
  
 -#include "conf.h"
@@ -21778,9 +22996,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/os/win32/multithread.c repos/apache_1.3.1/
  #include <process.h>
  #include <assert.h>
  
-diff -BEr -U 6 repos/apache_1.3.0/src/os/win32/os.h repos/apache_1.3.1/src/os/win32/os.h
---- repos/apache_1.3.0/src/os/win32/os.h	1998-05-07 20:24:31.000000000 +0800
-+++ repos/apache_1.3.1/src/os/win32/os.h	1998-07-13 19:32:51.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/os/win32/os.h apache_1.3.1/src/os/win32/os.h
+--- apache_1.3.0/src/os/win32/os.h	1998-05-07 20:24:31.000000000 +0800
++++ apache_1.3.1/src/os/win32/os.h	1998-07-13 19:32:51.000000000 +0800
 @@ -19,19 +19,19 @@
  
  #define STATUS
@@ -21803,9 +23021,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/os/win32/os.h repos/apache_1.3.1/src/os/wi
  #define MULTITHREAD
  #define HAVE_CANONICAL_FILENAME
  typedef int uid_t;
-diff -BEr -U 6 repos/apache_1.3.0/src/os/win32/registry.c repos/apache_1.3.1/src/os/win32/registry.c
---- repos/apache_1.3.0/src/os/win32/registry.c	1998-06-02 06:18:44.000000000 +0800
-+++ repos/apache_1.3.1/src/os/win32/registry.c	1998-07-19 06:57:31.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/os/win32/registry.c apache_1.3.1/src/os/win32/registry.c
+--- apache_1.3.0/src/os/win32/registry.c	1998-06-02 06:18:44.000000000 +0800
++++ apache_1.3.1/src/os/win32/registry.c	1998-07-19 06:57:31.000000000 +0800
 @@ -25,13 +25,13 @@
   * VERSION will be the same across all beta releases for a particular
   * major release, but will change when the final release is made.
@@ -21821,9 +23039,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/os/win32/registry.c repos/apache_1.3.1/src
  /*
   * The Windows API registry key functions don't set the last error
   * value (the windows equivalent of errno). So we need to set it
-diff -BEr -U 6 repos/apache_1.3.0/src/os/win32/util_win32.c repos/apache_1.3.1/src/os/win32/util_win32.c
---- repos/apache_1.3.0/src/os/win32/util_win32.c	1998-05-09 23:00:50.000000000 +0800
-+++ repos/apache_1.3.1/src/os/win32/util_win32.c	1998-07-13 15:06:16.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/os/win32/util_win32.c apache_1.3.1/src/os/win32/util_win32.c
+--- apache_1.3.0/src/os/win32/util_win32.c	1998-05-09 23:00:50.000000000 +0800
++++ apache_1.3.1/src/os/win32/util_win32.c	1998-07-13 15:06:16.000000000 +0800
 @@ -1,20 +1,28 @@
  #include <windows.h>
  #include <sys/stat.h>
@@ -22007,9 +23225,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/os/win32/util_win32.c repos/apache_1.3.1/s
  	char *s;
  	int nSlashes=0;
  
-diff -BEr -U 6 repos/apache_1.3.0/src/PORTING repos/apache_1.3.1/src/PORTING
---- repos/apache_1.3.0/src/PORTING	1998-05-09 11:25:41.000000000 +0800
-+++ repos/apache_1.3.1/src/PORTING	1998-07-13 20:35:51.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/PORTING apache_1.3.1/src/PORTING
+--- apache_1.3.0/src/PORTING	1998-05-09 11:25:41.000000000 +0800
++++ apache_1.3.1/src/PORTING	1998-07-13 20:35:51.000000000 +0800
 @@ -94,13 +94,13 @@
  When all else fails, it's time to hack some code. The source itself
  is generic enough that most ports are incredibly easy. No matter
@@ -22138,9 +23356,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/PORTING repos/apache_1.3.1/src/PORTING
  The above hints, and a good understanding of your OS and Apache, will
  go a LONG way in helping you get Apache built and running on your
  OS. If you have a port, PLEASE send Email to 'Apache@Apache.Org',
-diff -BEr -U 6 repos/apache_1.3.0/src/regex/debug.c repos/apache_1.3.1/src/regex/debug.c
---- repos/apache_1.3.0/src/regex/debug.c	1998-02-05 02:18:53.000000000 +0800
-+++ repos/apache_1.3.1/src/regex/debug.c	1998-07-09 01:47:26.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/regex/debug.c apache_1.3.1/src/regex/debug.c
+--- apache_1.3.0/src/regex/debug.c	1998-02-05 02:18:53.000000000 +0800
++++ apache_1.3.1/src/regex/debug.c	1998-07-09 01:47:26.000000000 +0800
 @@ -231,12 +231,12 @@
  static char *			/* -> representation */
  regchar(ch)
@@ -22155,9 +23373,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/regex/debug.c repos/apache_1.3.1/src/regex
  		sprintf(buf, "\\%o", ch);
  	return(buf);
  }
-diff -BEr -U 6 repos/apache_1.3.0/src/regex/engine.c repos/apache_1.3.1/src/regex/engine.c
---- repos/apache_1.3.0/src/regex/engine.c	1997-02-17 12:52:40.000000000 +0800
-+++ repos/apache_1.3.1/src/regex/engine.c	1998-07-13 19:32:52.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/regex/engine.c apache_1.3.1/src/regex/engine.c
+--- apache_1.3.0/src/regex/engine.c	1997-02-17 12:52:40.000000000 +0800
++++ apache_1.3.1/src/regex/engine.c	1998-07-13 19:32:52.000000000 +0800
 @@ -43,12 +43,13 @@
  	states fresh;		/* states for a fresh start */
  	states tmp;		/* temporary */
@@ -22187,9 +23405,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/regex/engine.c repos/apache_1.3.1/src/rege
  	return(pbuf);
  }
  #endif
-diff -BEr -U 6 repos/apache_1.3.0/src/regex/engine.ih repos/apache_1.3.1/src/regex/engine.ih
---- repos/apache_1.3.0/src/regex/engine.ih	1997-07-09 02:05:39.000000000 +0800
-+++ repos/apache_1.3.1/src/regex/engine.ih	1998-07-13 19:32:52.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/regex/engine.ih apache_1.3.1/src/regex/engine.ih
+--- apache_1.3.0/src/regex/engine.ih	1997-07-09 02:05:39.000000000 +0800
++++ apache_1.3.1/src/regex/engine.ih	1998-07-13 19:32:52.000000000 +0800
 @@ -1,6 +1,8 @@
 +/* DON'T EVEN THINK ABOUT EDITING THIS, go see regex/Makefile,
 + * search for mkh */
@@ -22199,9 +23417,11 @@ diff -BEr -U 6 repos/apache_1.3.0/src/regex/engine.ih repos/apache_1.3.1/src/reg
  #endif
  
  /* === engine.c === */
-diff -BEr -U 6 repos/apache_1.3.0/src/regex/mkh repos/apache_1.3.1/src/regex/mkh
---- repos/apache_1.3.0/src/regex/mkh	1997-11-05 20:48:25.000000000 +0800
-+++ repos/apache_1.3.1/src/regex/mkh	1998-07-09 08:04:56.000000000 +0800
+Only in apache_1.3.0/src/regex: libregex.a
+Only in apache_1.3.0/src/regex: Makefile
+diff -BEr -U 6 apache_1.3.0/src/regex/mkh apache_1.3.1/src/regex/mkh
+--- apache_1.3.0/src/regex/mkh	1997-11-05 20:48:25.000000000 +0800
++++ apache_1.3.1/src/regex/mkh	1998-07-09 08:04:56.000000000 +0800
 @@ -45,12 +45,14 @@
  		;;
  	*)	break
@@ -22217,9 +23437,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/regex/mkh repos/apache_1.3.1/src/regex/mkh
  	echo "#define	$ifndef	/* never again */"
  fi
  echo "/* ========= begin header generated by $0 ========= */"
-diff -BEr -U 6 repos/apache_1.3.0/src/regex/regcomp.c repos/apache_1.3.1/src/regex/regcomp.c
---- repos/apache_1.3.0/src/regex/regcomp.c	1998-02-05 02:18:53.000000000 +0800
-+++ repos/apache_1.3.1/src/regex/regcomp.c	1998-07-13 19:32:52.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/regex/regcomp.c apache_1.3.1/src/regex/regcomp.c
+--- apache_1.3.0/src/regex/regcomp.c	1998-02-05 02:18:53.000000000 +0800
++++ apache_1.3.1/src/regex/regcomp.c	1998-07-13 19:32:52.000000000 +0800
 @@ -3,12 +3,13 @@
  #include <string.h>
  #include <ctype.h>
@@ -22390,9 +23610,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/regex/regcomp.c repos/apache_1.3.1/src/reg
  		if (cap[ch] == 0)
  			cap[ch] = p->g->ncategories++;
  	}
-diff -BEr -U 6 repos/apache_1.3.0/src/regex/regcomp.ih repos/apache_1.3.1/src/regex/regcomp.ih
---- repos/apache_1.3.0/src/regex/regcomp.ih	1997-07-09 02:05:40.000000000 +0800
-+++ repos/apache_1.3.1/src/regex/regcomp.ih	1998-07-13 19:32:55.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/regex/regcomp.ih apache_1.3.1/src/regex/regcomp.ih
+--- apache_1.3.0/src/regex/regcomp.ih	2017-09-16 12:06:56.634163832 +0800
++++ apache_1.3.1/src/regex/regcomp.ih	1998-07-13 19:32:55.000000000 +0800
 @@ -1,6 +1,8 @@
 +/* DON'T EVEN THINK ABOUT EDITING THIS, go see regex/Makefile,
 + * search for mkh */
@@ -22402,9 +23622,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/regex/regcomp.ih repos/apache_1.3.1/src/re
  #endif
  
  /* === regcomp.c === */
-diff -BEr -U 6 repos/apache_1.3.0/src/regex/regerror.ih repos/apache_1.3.1/src/regex/regerror.ih
---- repos/apache_1.3.0/src/regex/regerror.ih	1997-07-09 02:05:41.000000000 +0800
-+++ repos/apache_1.3.1/src/regex/regerror.ih	1998-07-13 19:32:56.000000000 +0800
+Only in apache_1.3.0/src/regex: regcomp.o
+diff -BEr -U 6 apache_1.3.0/src/regex/regerror.ih apache_1.3.1/src/regex/regerror.ih
+--- apache_1.3.0/src/regex/regerror.ih	2017-09-16 12:06:56.794163826 +0800
++++ apache_1.3.1/src/regex/regerror.ih	1998-07-13 19:32:56.000000000 +0800
 @@ -1,6 +1,8 @@
 +/* DON'T EVEN THINK ABOUT EDITING THIS, go see regex/Makefile,
 + * search for mkh */
@@ -22414,9 +23635,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/regex/regerror.ih repos/apache_1.3.1/src/r
  #endif
  
  /* === regerror.c === */
-diff -BEr -U 6 repos/apache_1.3.0/src/regex/regex2.h repos/apache_1.3.1/src/regex/regex2.h
---- repos/apache_1.3.0/src/regex/regex2.h	1997-07-16 08:41:25.000000000 +0800
-+++ repos/apache_1.3.1/src/regex/regex2.h	1998-07-09 08:04:56.000000000 +0800
+Only in apache_1.3.0/src/regex: regerror.o
+diff -BEr -U 6 apache_1.3.0/src/regex/regex2.h apache_1.3.1/src/regex/regex2.h
+--- apache_1.3.0/src/regex/regex2.h	1997-07-16 08:41:25.000000000 +0800
++++ apache_1.3.1/src/regex/regex2.h	1998-07-09 08:04:56.000000000 +0800
 @@ -1,13 +1,15 @@
  /*
   * First, the stuff that ends up in the outside-world include file
@@ -22442,9 +23664,11 @@ diff -BEr -U 6 repos/apache_1.3.0/src/regex/regex2.h repos/apache_1.3.1/src/rege
  #define	OUT	(CHAR_MAX+1)	/* a non-character value */
 -#define	ISWORD(c)	(isalnum(c) || (c) == '_')
 +#define	ISWORD(c)	(ap_isalnum(c) || (c) == '_')
-diff -BEr -U 6 repos/apache_1.3.0/src/support/ab.c repos/apache_1.3.1/src/support/ab.c
---- repos/apache_1.3.0/src/support/ab.c	1998-04-22 04:14:05.000000000 +0800
-+++ repos/apache_1.3.1/src/support/ab.c	1998-07-16 02:33:12.000000000 +0800
+Only in apache_1.3.0/src/regex: regexec.o
+Only in apache_1.3.0/src/regex: regfree.o
+diff -BEr -U 6 apache_1.3.0/src/support/ab.c apache_1.3.1/src/support/ab.c
+--- apache_1.3.0/src/support/ab.c	1998-04-22 04:14:05.000000000 +0800
++++ apache_1.3.1/src/support/ab.c	1998-07-16 02:33:12.000000000 +0800
 @@ -86,13 +86,13 @@
  
  /*  -------------------------------------------------------------------- */
@@ -22508,9 +23732,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/support/ab.c repos/apache_1.3.1/src/suppor
          }
          if (n < 1)
              err("select");
-diff -BEr -U 6 repos/apache_1.3.0/src/support/apachectl repos/apache_1.3.1/src/support/apachectl
---- repos/apache_1.3.0/src/support/apachectl	1998-03-31 20:53:46.000000000 +0800
-+++ repos/apache_1.3.1/src/support/apachectl	1998-07-17 05:25:54.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/support/apachectl apache_1.3.1/src/support/apachectl
+--- apache_1.3.0/src/support/apachectl	1998-03-31 20:53:46.000000000 +0800
++++ apache_1.3.1/src/support/apachectl	1998-07-17 05:25:54.000000000 +0800
 @@ -9,12 +9,13 @@
  #	2 - usage error
  #	3 - httpd could not be started
@@ -22632,9 +23856,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/support/apachectl repos/apache_1.3.1/src/s
  	ERROR=2
      ;;
  
-diff -BEr -U 6 repos/apache_1.3.0/src/support/apachectl.1 repos/apache_1.3.1/src/support/apachectl.1
---- repos/apache_1.3.0/src/support/apachectl.1	1998-03-31 20:53:46.000000000 +0800
-+++ repos/apache_1.3.1/src/support/apachectl.1	1998-06-10 20:08:51.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/support/apachectl.1 apache_1.3.1/src/support/apachectl.1
+--- apache_1.3.0/src/support/apachectl.1	1998-03-31 20:53:46.000000000 +0800
++++ apache_1.3.1/src/support/apachectl.1	1998-06-10 20:08:51.000000000 +0800
 @@ -89,12 +89,15 @@
  .BI stop
  Stops the Apache daemon.
@@ -22678,9 +23902,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/support/apachectl.1 repos/apache_1.3.1/src
  .SH SEE ALSO
  .BR httpd(8)
  .
-diff -BEr -U 6 repos/apache_1.3.0/src/support/htdigest.c repos/apache_1.3.1/src/support/htdigest.c
---- repos/apache_1.3.0/src/support/htdigest.c	1998-04-22 04:14:05.000000000 +0800
-+++ repos/apache_1.3.1/src/support/htdigest.c	1998-07-13 19:32:58.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/support/htdigest.c apache_1.3.1/src/support/htdigest.c
+--- apache_1.3.0/src/support/htdigest.c	1998-04-22 04:14:05.000000000 +0800
++++ apache_1.3.1/src/support/htdigest.c	1998-07-13 19:32:58.000000000 +0800
 @@ -7,13 +7,13 @@
  /*
   * htdigest.c: simple program for manipulating digest passwd file for Apache
@@ -22696,9 +23920,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/support/htdigest.c repos/apache_1.3.1/src/
  #else
  #include <sys/signal.h>
  #endif
-diff -BEr -U 6 repos/apache_1.3.0/src/support/htpasswd.c repos/apache_1.3.1/src/support/htpasswd.c
---- repos/apache_1.3.0/src/support/htpasswd.c	1998-04-22 04:14:06.000000000 +0800
-+++ repos/apache_1.3.1/src/support/htpasswd.c	1998-07-13 19:32:58.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/support/htpasswd.c apache_1.3.1/src/support/htpasswd.c
+--- apache_1.3.0/src/support/htpasswd.c	1998-04-22 04:14:06.000000000 +0800
++++ apache_1.3.1/src/support/htpasswd.c	1998-07-13 19:32:58.000000000 +0800
 @@ -7,13 +7,13 @@
  /*
   * htpasswd.c: simple program for manipulating password file for NCSA httpd
@@ -22778,9 +24002,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/support/htpasswd.c repos/apache_1.3.1/src/
      unlink(tn);
      exit(0);
  }
-diff -BEr -U 6 repos/apache_1.3.0/src/support/httpd.8 repos/apache_1.3.1/src/support/httpd.8
---- repos/apache_1.3.0/src/support/httpd.8	1998-05-12 19:14:31.000000000 +0800
-+++ repos/apache_1.3.1/src/support/httpd.8	1998-06-16 11:37:32.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/support/httpd.8 apache_1.3.1/src/support/httpd.8
+--- apache_1.3.0/src/support/httpd.8	1998-05-12 19:14:31.000000000 +0800
++++ apache_1.3.1/src/support/httpd.8	1998-06-16 11:37:32.000000000 +0800
 @@ -66,12 +66,14 @@
  ] [
  .BI \-f " config"
@@ -22830,9 +24054,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/support/httpd.8 repos/apache_1.3.1/src/sup
  to provide ordinary web service.
  .TP
  .B \-v
-diff -BEr -U 6 repos/apache_1.3.0/src/support/httpd.exp repos/apache_1.3.1/src/support/httpd.exp
---- repos/apache_1.3.0/src/support/httpd.exp	1998-05-22 14:58:28.000000000 +0800
-+++ repos/apache_1.3.1/src/support/httpd.exp	1998-06-10 20:40:26.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/support/httpd.exp apache_1.3.1/src/support/httpd.exp
+--- apache_1.3.0/src/support/httpd.exp	1998-05-22 14:58:28.000000000 +0800
++++ apache_1.3.1/src/support/httpd.exp	1998-06-10 20:40:26.000000000 +0800
 @@ -34,12 +34,13 @@
  ap_bpushfd
  ap_bputs
@@ -22877,9 +24101,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/support/httpd.exp repos/apache_1.3.1/src/s
  ap_start_shutdown
  ap_str_tolower
  ap_strcasecmp_match
-diff -BEr -U 6 repos/apache_1.3.0/src/support/logresolve.c repos/apache_1.3.1/src/support/logresolve.c
---- repos/apache_1.3.0/src/support/logresolve.c	1998-05-28 19:23:13.000000000 +0800
-+++ repos/apache_1.3.1/src/support/logresolve.c	1998-07-13 19:32:58.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/support/logresolve.c apache_1.3.1/src/support/logresolve.c
+--- apache_1.3.0/src/support/logresolve.c	1998-05-28 19:23:13.000000000 +0800
++++ apache_1.3.1/src/support/logresolve.c	1998-07-13 19:32:58.000000000 +0800
 @@ -36,13 +36,13 @@
   * The -c option causes logresolve to apply the same check as httpd
   * compiled with -DMAXIMUM_DNS; after finding the hostname from the IP
@@ -22910,9 +24134,10 @@ diff -BEr -U 6 repos/apache_1.3.0/src/support/logresolve.c repos/apache_1.3.1/sr
  
  
      for (i = 0; i < BUCKETS; i++)
-diff -BEr -U 6 repos/apache_1.3.0/src/support/Makefile.tmpl repos/apache_1.3.1/src/support/Makefile.tmpl
---- repos/apache_1.3.0/src/support/Makefile.tmpl	1998-05-30 02:21:15.000000000 +0800
-+++ repos/apache_1.3.1/src/support/Makefile.tmpl	1998-07-13 19:32:57.000000000 +0800
+Only in apache_1.3.0/src/support: Makefile
+diff -BEr -U 6 apache_1.3.0/src/support/Makefile.tmpl apache_1.3.1/src/support/Makefile.tmpl
+--- apache_1.3.0/src/support/Makefile.tmpl	1998-05-30 02:21:15.000000000 +0800
++++ apache_1.3.1/src/support/Makefile.tmpl	1998-07-13 19:32:57.000000000 +0800
 @@ -59,13 +59,22 @@
  
  #Dependencies
@@ -22943,9 +24168,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/support/Makefile.tmpl repos/apache_1.3.1/s
 + $(INCDIR)/hsregex.h
 +suexec.o: suexec.c $(INCDIR)/ap_config.h $(INCDIR)/ap_config_auto.h \
 + $(OSDIR)/os.h $(INCDIR)/ap_ctype.h $(INCDIR)/hsregex.h suexec.h
-diff -BEr -U 6 repos/apache_1.3.0/src/support/rotatelogs.8 repos/apache_1.3.1/src/support/rotatelogs.8
---- repos/apache_1.3.0/src/support/rotatelogs.8	1998-03-31 20:53:54.000000000 +0800
-+++ repos/apache_1.3.1/src/support/rotatelogs.8	1998-06-12 18:10:58.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/support/rotatelogs.8 apache_1.3.1/src/support/rotatelogs.8
+--- apache_1.3.0/src/support/rotatelogs.8	1998-03-31 20:53:54.000000000 +0800
++++ apache_1.3.1/src/support/rotatelogs.8	1998-06-12 18:10:58.000000000 +0800
 @@ -61,13 +61,13 @@
  .SH DESCRIPTION
  .B rotatelogs
@@ -22961,9 +24186,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/support/rotatelogs.8 repos/apache_1.3.1/sr
  time at which the log nominally starts (this time will always be a multiple of
  the rotation time, so you can synchronize cron scripts with it).  At the end
  of each rotation time (here after 24 hours) a new log is started.
-diff -BEr -U 6 repos/apache_1.3.0/src/support/rotatelogs.c repos/apache_1.3.1/src/support/rotatelogs.c
---- repos/apache_1.3.0/src/support/rotatelogs.c	1998-04-22 04:14:06.000000000 +0800
-+++ repos/apache_1.3.1/src/support/rotatelogs.c	1998-07-13 19:32:58.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/support/rotatelogs.c apache_1.3.1/src/support/rotatelogs.c
+--- apache_1.3.0/src/support/rotatelogs.c	1998-04-22 04:14:06.000000000 +0800
++++ apache_1.3.1/src/support/rotatelogs.c	1998-07-13 19:32:58.000000000 +0800
 @@ -7,13 +7,13 @@
   */
  
@@ -22979,9 +24204,9 @@ diff -BEr -U 6 repos/apache_1.3.0/src/support/rotatelogs.c repos/apache_1.3.1/sr
  
  int main (int argc, char **argv)
  {
-diff -BEr -U 6 repos/apache_1.3.0/src/support/suexec.c repos/apache_1.3.1/src/support/suexec.c
---- repos/apache_1.3.0/src/support/suexec.c	1998-04-22 04:14:06.000000000 +0800
-+++ repos/apache_1.3.1/src/support/suexec.c	1998-07-13 19:32:59.000000000 +0800
+diff -BEr -U 6 apache_1.3.0/src/support/suexec.c apache_1.3.1/src/support/suexec.c
+--- apache_1.3.0/src/support/suexec.c	1998-04-22 04:14:06.000000000 +0800
++++ apache_1.3.1/src/support/suexec.c	1998-07-13 19:32:59.000000000 +0800
 @@ -68,13 +68,13 @@
   *
   ***********************************************************************
