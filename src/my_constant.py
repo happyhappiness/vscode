@@ -18,13 +18,13 @@ stroed file name prefix
 """
 # parent
 BASE_DIR = '/usr/info/code/cpp/LogMonitor/LogMonitor'
-REPOS_DIR = BASE_DIR + '/second/download/' + REPOS + '/'
+CURR_REPOS_DIR = BASE_DIR + '/second/download/' + REPOS + '/'
 # patch dir
-PATCH_DIR = REPOS_DIR + 'patch/'
+PATCH_DIR = CURR_REPOS_DIR + 'patch/'
 # repos
-REPOS_DIR = REPOS_DIR + 'repos/'
+REPOS_DIR = CURR_REPOS_DIR + 'repos/'
 # gumtree dir(hunk, block, function)
-GUMTREE_DIR = REPOS_DIR + 'gumtree/'
+GUMTREE_DIR = CURR_REPOS_DIR + 'gumtree/'
 # hunk
 DOWNLOAD_OLD_HUNK = GUMTREE_DIR + REPOS + '_old_hunk_'
 DOWNLOAD_NEW_HUNK = GUMTREE_DIR + REPOS + '_new_hunk_'
@@ -154,7 +154,7 @@ split string for statement to get tokens
 SPLIT_STR = r'[\W\s_]'
 SPLIT_ALGORITHM = r'[+-\*/%=]'
 
-FILE_FORMAT = r'\.(c|cpp|cc|cxx|h)$'
+CPP_FILE_FORMAT = r'\.(c|cpp|cc|cxx|h)$'
 UNSRCML_FILE_FORMAT = r'\.(h|c|cc|cxx)$'
 
 """

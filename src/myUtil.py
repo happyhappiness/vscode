@@ -170,7 +170,7 @@ def retrieveLogFunction(fileName):
 @ involve concate log functions into regrex string
 """
 def functionToRegrexStr(log_functions):
-    regrex_string = r'('
+    regrex_string = r'\W('
     for log_function in log_functions:
         regrex_string += log_function + r'|'
     regrex_string = regrex_string[:-1]
