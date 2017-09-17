@@ -1,46 +1,13 @@
-	/* TM - Added \015\012 to the end of TYPE I, otherwise it hangs the
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		   sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
+	ap_pclosesocket(p, sock);
+	return HTTP_INTERNAL_SERVER_ERROR;
+#endif /*_OSD_POSIX*/
+    }
 
-	   connection */
-
-	ap_bputs("TYPE I" CRLF, f);
-
-	ap_bflush(f);
-
-	Explain0("FTP: TYPE I");
-
-/* responses: 200, 421, 500, 501, 504, 530 */
-
-    /* 200 Command okay. */
-
-    /* 421 Service not available, closing control connection. */
-
-    /* 500 Syntax error, command unrecognized. */
-
-    /* 501 Syntax error in parameters or arguments. */
-
-    /* 504 Command not implemented for that parameter. */
-
-    /* 530 Not logged in. */
-
-	i = ftp_getrc(f);
-
-	Explain1("FTP: returned status %d", i);
-
-	if (i == -1) {
-
-	    ap_kill_timeout(r);
-
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ "Error reading from remote server");
-
-	}
-
-	if (i != 200 && i != 504) {
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_BAD_GATEWAY;
-
-	}
-
-/* Allow not implemented */
-
+#ifdef SINIX_D_RESOLVER_BUG
+    {
+	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;

@@ -1,26 +1,15 @@
-    ++filp;
+            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+        }
 
-    prefix_len = strlen(filp);
-
-
-
-    dirp = ap_popendir(neg->pool, neg->dir_name);
-
-
-
-    if (dirp == NULL) {
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-                    "cannot read directory for multi: %s", neg->dir_name);
-
-        return HTTP_FORBIDDEN;
-
+        r->read_chunked = 1;
     }
+    else if (lenp) {
+        char *pos = lenp;
 
-
-
-    while ((dir_entry = readdir(dirp))) {
-
-        request_rec *sub_req;
-
+        while (isdigit(*pos) || isspace(*pos))
+            ++pos;
+        if (*pos != '\0') {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }

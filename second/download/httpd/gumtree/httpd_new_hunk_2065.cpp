@@ -1,26 +1,12 @@
-    /* Set the status (for logging) */
 
-    if (ecb->dwHttpStatusCode)
+    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
+	return (ap_suexec_enabled);
 
-	r->status = ecb->dwHttpStatusCode;
+    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
+	ap_suexec_enabled = 1;
+    }
+#endif /* ndef WIN32 */
+    return (ap_suexec_enabled);
+}
 
-
-
-    /* Check for a log message - and log it */
-
-    if (ecb->lpszLogData && strcmp(ecb->lpszLogData, ""))
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		    "%s: %s", ecb->lpszLogData, r->filename);
-
-
-
-    /* All done with the DLL... get rid of it */
-
-    if (isapi_term) (*isapi_term)(HSE_TERM_MUST_UNLOAD);
-
-    FreeLibrary(isapi_handle);
-
-
-
+/*****************************************************************

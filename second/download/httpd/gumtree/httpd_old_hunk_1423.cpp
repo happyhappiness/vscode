@@ -1,26 +1,26 @@
-	pp = ctime((time_t *) & p->l);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"malformed header in meta file: %s", r->filename);
+	    return SERVER_ERROR;
+	}
 
-	if ((rt = strchr(pp, '\n')) != NULL)
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
-	    *rt = '\0';
+	if (!strcasecmp(w, "Content-type")) {
 
-	(void) magic_rsl_printf(r, m->desc, pp);
+	    /* Nuke trailing whitespace */
 
-	return;
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
 
-    default:
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-
-		    MODNAME ": invalid m->type (%d) in mprint().",
-
-		    m->type);
-
-	return;
-
-    }
-
-
-
-    v = signextend(r->server, m, v) & m->mask;
-
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
+	}
+	else if (!strcasecmp(w, "Status")) {
+	    sscanf(l, "%d", &r->status);
+	    r->status_line = ap_pstrdup(r->pool, l);
+	}
+	else {
+-- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800

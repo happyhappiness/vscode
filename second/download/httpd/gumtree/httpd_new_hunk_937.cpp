@@ -1,26 +1,14 @@
-    ap_daemons_limit = atoi(arg);
-
-    if (ap_daemons_limit > HARD_SERVER_LIMIT) {
-
-       fprintf(stderr, "WARNING: MaxClients of %d exceeds compile time limit "
-
-           "of %d servers,\n", ap_daemons_limit, HARD_SERVER_LIMIT);
-
-       fprintf(stderr, " lowering MaxClients to %d.  To increase, please "
-
-           "see the\n", HARD_SERVER_LIMIT);
-
-       fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-
-       ap_daemons_limit = HARD_SERVER_LIMIT;
-
-    } 
-
-    else if (ap_daemons_limit < 1) {
-
-	fprintf(stderr, "WARNING: Require MaxClients > 0, setting to 1\n");
-
-	ap_daemons_limit = 1;
-
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
+	    abort();
+	}
     }
+#endif
 
+    for (i = 0; i < t->a.nelts; ) {
+++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800

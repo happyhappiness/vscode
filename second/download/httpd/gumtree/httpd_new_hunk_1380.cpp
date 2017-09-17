@@ -1,26 +1,15 @@
-    char parsed_string[MAX_STRING_LEN];
+            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+        }
 
-    char *tag_val;
-
-    SV *sub = Nullsv;
-
-    AV *av = newAV();
-
-
-
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "httpd: #perl SSI disallowed by IncludesNoExec in %s",
-
-                    r->filename);
-
-        return DECLINED;
-
+        r->read_chunked = 1;
     }
+    else if (lenp) {
+        const char *pos = lenp;
 
-    while (1) {
-
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-
+        while (ap_isdigit(*pos) || ap_isspace(*pos))
+            ++pos;
+        if (*pos != '\0') {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }

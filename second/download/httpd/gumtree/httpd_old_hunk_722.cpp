@@ -1,26 +1,14 @@
-    if (!method_restricted)
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+    }
+#endif
 
-	return OK;
-
-
-
-    if (!(sec->auth_authoritative))
-
-	return DECLINED;
-
-
-
-    ap_note_basic_auth_failure(r);
-
-    return AUTH_REQUIRED;
-
-}
-
-
-
-module MODULE_VAR_EXPORT auth_module =
-
-{
-
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
-
+    for (i = 0; i < t->a.nelts; ) {
+-- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800

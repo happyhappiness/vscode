@@ -1,26 +1,18 @@
+    ap_table_setn(r->err_headers_out,
+	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
+	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
+		ap_auth_name(r), r->request_time));
+}
+
+API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
 {
+    const char *auth_line = ap_table_get(r->headers_in,
+                                      r->proxyreq ? "Proxy-Authorization"
+                                                  : "Authorization");
+    char *t;
 
-    regex_t *compiled;
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
 
-    int regex_error;
-
-
-
-    compiled = ap_pregcomp(r->pool, rexp, REG_EXTENDED | REG_NOSUB);
-
-    if (compiled == NULL) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "unable to compile pattern \"%s\"", rexp);
-
-        return -1;
-
-    }
-
-    regex_error = regexec(compiled, string, 0, (regmatch_t *) NULL, 0);
-
-    ap_pregfree(r->pool, compiled);
-
-    return (!regex_error);
-
+    if (!ap_auth_name(r)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

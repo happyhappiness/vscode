@@ -1,74 +1,31 @@
-                    while (*p > 32)
 
-                        *q++ = *p++;
+    /* Pass one --- direct matches */
 
-                }
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            result = (*handp->hr.handler) (r);
 
-                *q = 0;
+            if (result != DECLINED)
+                return result;
+        }
+    }
 
-            }
+    if (result == NOT_IMPLEMENTED && r->handler) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    }
 
+    /* Pass two --- wildcard matches */
 
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             result = (*handp->hr.handler) (r);
 
-	    /* XXX: this parsing isn't even remotely HTTP compliant...
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-	     * but in the interest of speed it doesn't totally have to be,
-
-	     * it just needs to be extended to handle whatever servers
-
-	     * folks want to test against. -djg */
-
-
-
-            /* check response code */
-
-            part = strstr(c->cbuff, "HTTP");                /* really HTTP/1.x_ */
-
-            strncpy(respcode, (part+strlen("HTTP/1.x_")), 3);
-
-	    respcode[3] = '\0';
-
-            if (respcode[0] != '2') {
-
-                err_response++;
-
-                if (verbosity >= 2) printf ("WARNING: Response code not 2xx (%s)\n", respcode);
-
-            }
-
-	    else if (verbosity >= 3) {
-
-                printf("LOG: Response code = %s\n", respcode);
-
-            }
-
-
-
-            c->gotheader = 1;
-
-            *s = 0;             /* terminate at end of header */
-
-            if (keepalive &&
-
-                (strstr(c->cbuff, "Keep-Alive")
-
-                 || strstr(c->cbuff, "keep-alive"))) {  /* for benefit of MSIIS */
-
-                char *cl;
-
-                cl = strstr(c->cbuff, "Content-Length:");
-
-                /* handle NCSA, which sends Content-length: */
-
-                if (!cl)
-
-                    cl = strstr(c->cbuff, "Content-length:");
-
-                if (cl) {
-
-                    c->keepalive = 1;
-
-                    c->length = atoi(cl + 16);
-
-                }
-
+++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800

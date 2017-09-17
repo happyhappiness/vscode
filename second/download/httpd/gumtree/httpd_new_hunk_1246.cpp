@@ -1,74 +1,20 @@
-    DBT d, q;
-
-    char *pw = NULL;
-
-
-
-    q.data = user;
-
-    q.size = strlen(q.data);
-
-
-
-#ifdef DB2
-
-    if (db_open(auth_dbpwfile, DB_HASH, O_RDONLY, 0664, NULL, NULL,  &f) != 0) {
-
-#else
-
-    if (!(f = dbopen(auth_dbpwfile, O_RDONLY, 0664, DB_HASH, NULL))) {
-
-#endif
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		    "could not open db auth file: %s", auth_dbpwfile);
-
-	return NULL;
-
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
+        }
+        return 0;
     }
 
+    range = ap_getword(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
+    if (r->byterange > 1) {
+        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-#ifdef DB2
-
-    if (!((f->get) (f, NULL, &q, &d, 0))) {
-
-#else
-
-    if (!((f->get) (f, &q, &d, 0))) {
-
-#endif
-
-	pw = ap_palloc(r->pool, d.size + 1);
-
-	strncpy(pw, d.data, d.size);
-
-	pw[d.size] = '\0';	/* Terminate the string */
-
-    }
-
-
-
-#ifdef DB2
-
-    (f->close) (f, 0);
-
-#else
-
-    (f->close) (f);
-
-#endif
-
-    return pw;
-
-}
-
-
-
-/* We do something strange with the group file.  If the group file
-
- * contains any : we assume the format is
-
- *      key=username value=":"groupname [":"anything here is ignored]
-
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

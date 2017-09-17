@@ -1,26 +1,33 @@
-         * Client sent us a HTTP/1.1 or later request without telling us the
-
-         * hostname, either with a full URL or a Host: header. We therefore
-
-         * need to (as per the 1.1 spec) send an error.  As a special case,
-
-	 * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
-
-	 * a Host: header, and the server MUST respond with 400 if it doesn't.
-
-         */
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-               "client sent HTTP/1.1 request without hostname (see RFC2068 section 9, and 14.23): %s", r->uri);
-
-        ap_die(BAD_REQUEST, r);
-
-        return;
-
+	    p->next = head;
+	    head = p;
+	    num_ent++;
+	}
     }
+    if (num_ent > 0) {
+	ar = (struct ent **) ap_palloc(r->pool,
+				       num_ent * sizeof(struct ent *));
+	p = head;
+	x = 0;
+	while (p) {
+	    ar[x++] = p;
+	    p = p->next;
+	}
 
+	qsort((void *) ar, num_ent, sizeof(struct ent *),
+	      (int (*)(const void *, const void *)) dsortf);
+    }
+    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
+		       direction);
+    ap_pclosedir(r->pool, d);
 
+    if ((tmp = find_readme(autoindex_conf, r))) {
+	if (!insert_readme(name, tmp, "",
+			   ((autoindex_opts & FANCY_INDEXING) ? HRULE
+			                                      : NO_HRULE),
+			   END_MATTER, r)) {
+	    ap_rputs(ap_psignature("<HR>\n", r), r);
+	}
+    }
+    ap_rputs("</BODY></HTML>\n", r);
 
-    /* Ignore embedded %2F's in path for proxy requests */
-
+    ap_kill_timeout(r);

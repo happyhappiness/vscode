@@ -1,26 +1,16 @@
-    /*
 
-     *  only do something under runtime if the engine is really enabled,
-
-     *  for this directory, else return immediately!
-
-     */
-
-    if (!(ap_allow_options(r) & (OPT_SYM_LINKS | OPT_SYM_OWNER))) {
-
-        /* FollowSymLinks is mandatory! */
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                     "Options FollowSymLinks or SymLinksIfOwnerMatch is off "
-
-                     "which implies that RewriteRule directive is forbidden: "
-
-                     "%s", r->filename);
-
-        return FORBIDDEN;
-
-    }
-
-    else {
-
+#if MIME_MAGIC_DEBUG
+    prevm = 0;
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
+		MODNAME ": apprentice test");
+    for (m = conf->magic; m; m = m->next) {
+	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
+	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
+	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
+	    ap_isprint(((unsigned long) m) & 255)) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
+			MODNAME ": apprentice: POINTER CLOBBERED! "
+			"m=\"%c%c%c%c\" line=%d",
+			(((unsigned long) m) >> 24) & 255,
+			(((unsigned long) m) >> 16) & 255,
+			(((unsigned long) m) >> 8) & 255,

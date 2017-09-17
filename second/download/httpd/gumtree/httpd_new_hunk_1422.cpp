@@ -1,38 +1,14 @@
-	    }
-
-
-
-	    /* move to next continuation record */
-
-	    m = m->next;
-
+	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
 	}
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-		    MODNAME ": matched after %d rules", rule_counter);
-
-#endif
-
-	return 1;		/* all through */
-
+	return index_directory(r, d);
     }
-
-#if MIME_MAGIC_DEBUG
-
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-		MODNAME ": failed after %d rules", rule_counter);
-
-#endif
-
-    return 0;			/* no match at all */
-
+    else {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		     "Directory index forbidden by rule: %s", r->filename);
+	return HTTP_FORBIDDEN;
+    }
 }
 
 
-
-static void mprint(request_rec *r, union VALUETYPE *p, struct magic *m)
-
+static const handler_rec autoindex_handlers[] =
+++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800

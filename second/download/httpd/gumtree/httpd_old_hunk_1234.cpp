@@ -1,134 +1,109 @@
-    } else {
-
-        ap_hard_timeout("proxy send body", r);
-
-        alt_to = 0;
-
-    }
-
-#endif
+static const char end_location_section[] = "</Location>";
+static const char end_locationmatch_section[] = "</LocationMatch>";
+static const char end_files_section[] = "</Files>";
+static const char end_filesmatch_section[] = "</FilesMatch>";
+static const char end_virtualhost_section[] = "</VirtualHost>";
+static const char end_ifmodule_section[] = "</IfModule>";
 
 
+API_EXPORT(const char *) ap_check_cmd_context(cmd_parms *cmd, unsigned forbidden)
+{
+    const char *gt = (cmd->cmd->name[0] == '<'
+		   && cmd->cmd->name[strlen(cmd->cmd->name)-1] != '>') ? ">" : "";
 
-    while (ok && f != NULL) {
+    if ((forbidden & NOT_IN_VIRTUALHOST) && cmd->server->is_virtual)
+	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
+		       " cannot occur within <VirtualHost> section", NULL);
 
-        if (alt_to)
+    if ((forbidden & NOT_IN_LIMIT) && cmd->limited != -1)
+	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
+		       " cannot occur within <Limit> section", NULL);
 
-            ap_hard_timeout("proxy send body", r);
+    if ((forbidden & NOT_IN_DIR_LOC_FILE) == NOT_IN_DIR_LOC_FILE && cmd->path != NULL)
+	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
+		       " cannot occur within <Directory/Location/Files> section", NULL);
+    
+    if (((forbidden & NOT_IN_DIRECTORY) && (cmd->end_token == end_directory_section
+	    || cmd->end_token == end_directorymatch_section)) ||
+	((forbidden & NOT_IN_LOCATION) && (cmd->end_token == end_location_section
+	    || cmd->end_token == end_locationmatch_section)) ||
+	((forbidden & NOT_IN_FILES) && (cmd->end_token == end_files_section
+	    || cmd->end_token == end_filesmatch_section)))
+	
+	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
+		       " cannot occur within <", cmd->end_token+2,
+		       " section", NULL);
 
+    return NULL;
+}
 
+static const char *set_access_name (cmd_parms *cmd, void *dummy, char *arg)
+{
+    void *sconf = cmd->server->module_config;
+    core_server_config *conf = ap_get_module_config (sconf, &core_module);
 
-	n = ap_bread(f, buf, IOBUFSIZE);
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
+    if (err != NULL) return err;
 
+    conf->access_name = ap_pstrdup(cmd->pool, arg);
+    return NULL;
+}
 
+static const char *set_document_root (cmd_parms *cmd, void *dummy, char *arg)
+{
+    void *sconf = cmd->server->module_config;
+    core_server_config *conf = ap_get_module_config (sconf, &core_module);
+  
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
+    if (err != NULL) return err;
 
-        if (alt_to)
-
-            ap_kill_timeout(r);
-
-        else
-
-            ap_reset_timeout(r);
-
-
-
-	if (n == -1) {		/* input error */
-
-	    if (f2 != NULL)
-
-		f2 = ap_proxy_cache_error(c);
-
-	    break;
-
+    arg = ap_os_canonical_filename(cmd->pool, arg);
+    if (!ap_is_directory (arg)) {
+	if (cmd->server->is_virtual) {
+	    fprintf (stderr, "Warning: DocumentRoot [%s] does not exist\n", arg);
 	}
+	else {
+	    return "DocumentRoot must be a directory";
+	}
+    }
+    
+    conf->ap_document_root = arg;
+    return NULL;
+}
 
-	if (n == 0)
+static const char *set_error_document (cmd_parms *cmd, core_dir_config *conf,
+				char *line)
+{
+    int error_number, index_number, idx500;
+    char *w;
+                
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_LIMIT);
+    if (err != NULL) return err;
 
-	    break;		/* EOF */
+    /* 1st parameter should be a 3 digit number, which we recognize;
+     * convert it into an array index
+     */
+  
+    w = ap_getword_conf_nc (cmd->pool, &line);
+    error_number = atoi(w);
 
-	o = 0;
+    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
 
-	total_bytes_rcv += n;
+    if (error_number == HTTP_INTERNAL_SERVER_ERROR)
+        index_number = idx500;
+    else if ((index_number = ap_index_of_response(error_number)) == idx500)
+        return ap_pstrcat(cmd->pool, "Unsupported HTTP response code ", w, NULL);
+                
+    /* Store it... */
 
+    if( conf->response_code_strings == NULL ) {
+	conf->response_code_strings = ap_pcalloc(cmd->pool,
+	    sizeof(*conf->response_code_strings) * RESPONSE_CODES );
+    }
+    conf->response_code_strings[index_number] = ap_pstrdup (cmd->pool, line);
 
+    return NULL;
+}
 
-        if (f2 != NULL) {
-
-            if (ap_bwrite(f2, &buf[0], n) != n) {
-
-                f2 = ap_proxy_cache_error(c);
-
-            } else {
-
-                c->written += n;
-
-            }
-
-        }
-
-
-
-        while (n && !con->aborted) {
-
-            if (alt_to)
-
-                ap_soft_timeout("proxy send body", r);
-
-
-
-            w = ap_bwrite(con->client, &buf[o], n);
-
-
-
-            if (alt_to)
-
-                ap_kill_timeout(r);
-
-            else
-
-                ap_reset_timeout(r);
-
-
-
-            if (w <= 0) {
-
-                if (f2 != NULL) {
-
-                    /* when a send failure occurs, we need to decide
-
-                     * whether to continue loading and caching the
-
-                     * document, or to abort the whole thing
-
-                     */
-
-                    ok = (c->len > 0) &&
-
-                         (c->cache_completion > 0) &&
-
-                         (c->len * c->cache_completion < total_bytes_rcv);
-
-
-
-                    if (! ok) {
-
-                        ap_pclosef(c->req->pool, c->fp->fd);
-
-                        c->fp = NULL;
-
-                        f2 = NULL;
-
-                        unlink(c->tempfile);
-
-                    }
-
-                }
-
-                con->aborted = 1;
-
-                break;
-
-            }
-
-            n -= w;
-
+/* access.conf commands...
+ *

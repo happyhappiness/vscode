@@ -1,28 +1,37 @@
-        additional = atoi(&code[1]);
+	if (rc == -1) {
+	    ap_kill_timeout(r);
+	    return ap_proxyerror(r, "Error sending to remote server");
+	}
+	if (rc == 550) {
+	    ap_kill_timeout(r);
+	    return HTTP_NOT_FOUND;
+	}
+	if (rc != 250) {
+	    ap_kill_timeout(r);
+	    return HTTP_BAD_GATEWAY;
+	}
 
-        break;
+	ap_bputs("LIST -lag" CRLF, f);
+	ap_bflush(f);
+	Explain0("FTP: LIST -lag");
+	rc = ftp_getrc(f);
+	Explain1("FTP: returned status %d", rc);
+	if (rc == -1)
+	    return ap_proxyerror(r, "Error sending to remote server");
+    }
+    ap_kill_timeout(r);
+    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
+	return HTTP_BAD_GATEWAY;
 
-    default:
+    r->status = 200;
+    r->status_line = "200 OK";
 
-        /* expecting the add_* routines to be case-hardened this 
+    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
+    c->hdrs = resp_hdrs;
 
-         * is just a reminder that module is beta
-
-         */
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "internal error: bad expires code: %s", r->filename);
-
-        return SERVER_ERROR;
-
-    };
-
-
-
-    expires = base + additional;
-
-    ap_snprintf(age, sizeof(age), "max-age=%d", (int) expires - (int) r->request_time);
-
-++ apache_1.3.2/src/modules/standard/mod_imap.c	1998-08-07 01:30:58.000000000 +0800
-
+    if (parms[0] == 'd')
+	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
+    else {
+	if (r->content_type != NULL) {
+	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
+			     HDR_REP);

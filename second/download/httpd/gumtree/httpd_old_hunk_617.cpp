@@ -1,56 +1,26 @@
-	    return;
 
-	}
+    /* Pass one --- direct matches */
 
-	if (utime(filename, NULL) == -1)
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
 
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: utimes(%s)", filename);
-
+            if (result != DECLINED)
+                return result;
+        }
     }
 
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
+    /* Pass two --- wildcard matches */
 
-    curblocks = 0;
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
-    curbytes = 0;
-
-
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-
-
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-
-	ap_unblock_alarms();
-
-	return;
-
+             if (result != DECLINED)
+                 return result;
+         }
     }
 
-
-
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
-
-
-
-    elts = (struct gc_ent **) files->elts;
-
-    for (i = 0; i < files->nelts; i++) {
-
-	fent = elts[i];
-
-	sprintf(filename, "%s%s", cachedir, fent->file);
-
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-
-#if TESTING
-
-	fprintf(stderr, "Would unlink %s\n", filename);
-
-#else
-
-	if (unlink(filename) == -1) {
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

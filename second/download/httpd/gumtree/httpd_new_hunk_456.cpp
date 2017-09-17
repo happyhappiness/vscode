@@ -1,50 +1,31 @@
-	return ap_proxyerror(r, err);	/* give up */
-
-
-
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (sock == -1) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    "proxy: error creating socket");
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
-
-
-#ifndef WIN32
-
-    if (sock >= FD_SETSIZE) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-
-	    "proxy_connect_handler: filedescriptor (%u) "
-
-	    "larger than FD_SETSIZE (%u) "
-
-	    "found, you probably need to rebuild Apache with a "
-
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-
-	ap_pclosesocket(r->pool, sock);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
+    if (!child && run_as_service) {
+	service_cd();
     }
 
-#endif
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
+    }
 
-
-    j = 0;
-
-    while (server_hp.h_addr_list[j] != NULL) {
-
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
-
-++ apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800
-
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

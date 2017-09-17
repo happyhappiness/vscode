@@ -1,26 +1,13 @@
-#define STANDALONE_MAIN standalone_main
 
+    /* Host names must not start with a '.' */
+    if (addr[0] == '.')
+	return 0;
 
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
 
-static void standalone_main(int argc, char **argv)
-
-{
-
-    int remaining_children_to_start;
-
-
-
-#ifdef OS2
-
-    printf("%s \n", ap_get_server_version());
-
-#endif
-
-
-
-    ap_standalone = 1;
-
-
-
-    is_graceful = 0;
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
+	/* @@@@ handle optional port */
+    }

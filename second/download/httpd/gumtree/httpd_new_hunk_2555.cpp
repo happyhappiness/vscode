@@ -1,28 +1,13 @@
-    return res;
+    if (i == -1) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+    if (i != 220) {
+	ap_kill_timeout(r);
+	return HTTP_BAD_GATEWAY;
+    }
 
-}
+    Explain0("FTP: connected.");
 
-
-
-API_EXPORT(int) ap_cfg_closefile(configfile_t *cfp)
-
-{
-
-#ifdef DEBUG
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, 
-
-        "Done with config file %s", cfp->name);
-
-#endif
-
-    return (cfp->close == NULL) ? 0 : cfp->close(cfp->param);
-
-}
-
-
-
-/* Common structure that holds the file and pool for ap_pcfg_openfile */
-
-typedef struct {
-
+    ap_bputs("USER ", f);
+    ap_bwrite(f, user, userlen);

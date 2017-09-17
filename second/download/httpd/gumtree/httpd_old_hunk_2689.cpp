@@ -1,46 +1,20 @@
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
+        }
+        return 0;
     }
 
+    range = ap_getword_nc(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
+    if (r->byterange > 1) {
+        char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-    /* perform sub-request for the file name without the suffix */
-
-    result = 0;
-
-    sub_filename = ap_pstrndup(r->pool, r->filename, suffix_pos);
-
-#if MIME_MAGIC_DEBUG
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		MODNAME ": subrequest lookup for %s", sub_filename);
-
-#endif /* MIME_MAGIC_DEBUG */
-
-    sub = ap_sub_req_lookup_file(sub_filename, r);
-
-
-
-    /* extract content type/encoding/language from sub-request */
-
-    if (sub->content_type) {
-
-	r->content_type = ap_pstrdup(r->pool, sub->content_type);
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		    MODNAME ": subrequest %s got %s",
-
-		    sub_filename, r->content_type);
-
-#endif /* MIME_MAGIC_DEBUG */
-
-	if (sub->content_encoding)
-
-	    r->content_encoding =
-
-		ap_pstrdup(r->pool, sub->content_encoding);
-
--- apache_1.3.1/src/modules/standard/mod_negotiation.c	1998-07-09 01:47:18.000000000 +0800
-
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

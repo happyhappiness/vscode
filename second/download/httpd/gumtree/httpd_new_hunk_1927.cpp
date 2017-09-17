@@ -1,46 +1,29 @@
-	/* TM - Added \015\012 to the end of TYPE I, otherwise it hangs the
-
-	   connection */
-
-	ap_bputs("TYPE I" CRLF, f);
-
-	ap_bflush(f);
-
-	Explain0("FTP: TYPE I");
-
-/* responses: 200, 421, 500, 501, 504, 530 */
-
-    /* 200 Command okay. */
-
-    /* 421 Service not available, closing control connection. */
-
-    /* 500 Syntax error, command unrecognized. */
-
-    /* 501 Syntax error in parameters or arguments. */
-
-    /* 504 Command not implemented for that parameter. */
-
-    /* 530 Not logged in. */
-
-	i = ftp_getrc(f);
-
-	Explain1("FTP: returned status %d", i);
-
-	if (i == -1) {
-
-	    ap_kill_timeout(r);
-
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ "Error reading from remote server");
-
 	}
 
-	if (i != 200 && i != 504) {
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_BAD_GATEWAY;
-
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (ap_isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!ap_isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (ap_isspace(*src))
+		++src;
 	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && ap_isspace(*dst))
+	    *dst = '\0';
 
-/* Allow not implemented */
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

@@ -1,26 +1,13 @@
-#elif defined(NEXT) || defined(NEWSOS)
-
-    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
-
-	perror("setpgrp");
-
-	fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
-
-	exit(1);
-
+    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (dsock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating PASV socket");
+	ap_bclose(f);
+	ap_kill_timeout(r);
+	return SERVER_ERROR;
     }
 
-#elif defined(__EMX__)
-
-    /* OS/2 don't support process group IDs */
-
-    pgrp = getpid();
-
-#elif defined(MPE)
-
-    /* MPE uses negative pid for process group */
-
-    pgrp = -getpid();
-
-#else
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
+	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,

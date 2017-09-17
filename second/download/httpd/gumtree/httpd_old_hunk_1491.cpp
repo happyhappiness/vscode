@@ -1,26 +1,13 @@
-     * you access /symlink (or /symlink/) you would get a 403 without this
+{
+    const char *auth_line = ap_table_get(r->headers_in,
+                                    r->proxyreq ? "Proxy-Authorization"
+                                    : "Authorization");
+    int l;
+    int s, vk = 0, vv = 0;
+    char *t, *key, *value;
 
-     * S_ISDIR test.  But if you accessed /symlink/index.html, for example,
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
+	return DECLINED;
 
-     * you would *not* get the 403.
-
-     */
-
-    if (!S_ISDIR(r->finfo.st_mode)
-
-        && (res = check_symlinks(r->filename, ap_allow_options(r)))) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "Symbolic link not allowed: %s", r->filename);
-
-        return res;
-
-    }
-
-    return OK;                  /* Can only "fail" if access denied by the
-
-                                 * symlink goop. */
-
-}
-
+    if (!ap_auth_name(r)) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

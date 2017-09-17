@@ -1,26 +1,14 @@
-	return log_scripterror(r, conf, FORBIDDEN, APLOG_NOERRNO,
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
+	    abort();
+	}
+    }
+#endif
 
-			       "Options ExecCGI is off in this directory");
-
-    if (nph && is_included)
-
-	return log_scripterror(r, conf, FORBIDDEN, APLOG_NOERRNO,
-
-			       "attempt to include NPH CGI script");
-
-
-
-#if defined(OS2) || defined(WIN32)
-
-    /* Allow for cgi files without the .EXE extension on them under OS/2 */
-
-    if (r->finfo.st_mode == 0) {
-
-	struct stat statbuf;
-
-
-
-	r->filename = ap_pstrcat(r->pool, r->filename, ".EXE", NULL);
-
-
-
+    for (i = 0; i < t->a.nelts; ) {
+++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800

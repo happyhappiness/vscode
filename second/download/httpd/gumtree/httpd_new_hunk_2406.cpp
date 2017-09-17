@@ -1,26 +1,17 @@
-	return ap_construct_url(r->pool, "/", r);
 
+    if (i != DECLINED) {
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	return i;
     }
 
+    cache = c->fp;
 
+    c->hdrs = resp_hdrs;
 
-    /* must be a relative URL to be combined with base */
-
-    if (strchr(base, '/') == NULL && (!strncmp(value, "../", 3)
-
-        || !strcmp(value, ".."))) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "invalid base directive in map file: %s", r->uri);
-
-        return NULL;
-
-    }
-
-    my_base = ap_pstrdup(r->pool, base);
-
-    string_pos = my_base;
-
-    while (*string_pos) {
-
+    if (!pasvmode) {		/* wait for connection */
+	ap_hard_timeout("proxy ftp data connect", r);
+	clen = sizeof(struct sockaddr_in);
+	do
+	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
+	while (csd == -1 && errno == EINTR);

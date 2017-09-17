@@ -1,26 +1,15 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-
-    else
-
-	ap_bputs(CRLF, f);
-
-
-
-    reqhdrs_arr = table_elts(r->headers_in);
-
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-
-	/* Clear out headers not to send */
-
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
-
+    }
+    else {
+	alarm_fn = fn;
+	alarm_expiry_time = time(NULL) + x;
+    }
+#else
+    if (x) {
+	alarm_fn = fn;
+    }
+#ifndef OPTIMIZE_TIMEOUTS
+    old = alarm(x);
+#else
+    if (child_timeouts) {
+	old = alarm(x);
+    }

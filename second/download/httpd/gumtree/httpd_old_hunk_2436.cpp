@@ -1,26 +1,25 @@
-#endif
+                                         REWRITELOCK_MODE)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+                     "mod_rewrite: Parent could not create RewriteLock "
+                     "file %s", conf->rewritelockfile);
+        exit(1);
+    }
+    return;
+}
 
-            if (*conditional_status) {
+static void rewritelock_open(server_rec *s, pool *p)
+{
+    rewrite_server_conf *conf;
 
-                *printing = 0;
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
 
-                return (0);
+    /* only operate if a lockfile is used */
+    if (conf->rewritelockfile == NULL
+        || *(conf->rewritelockfile) == '\0')
+        return;
 
-            }
-
-	    if (expr == NULL) {
-
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			    "missing expr in elif statement: %s",
-
-			    r->filename);
-
-		ap_rputs(error, r);
-
-		return 1;
-
-	    }
-
-            *printing = *conditional_status = parse_expr(r, expr, error);
-
+    /* open the lockfile (once per child) to get a unique fd */
+    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
+                                         O_WRONLY,
+                                         REWRITELOCK_MODE)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, s,

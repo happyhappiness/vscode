@@ -1,28 +1,40 @@
-	    hStdErr = dup(fileno(stderr));
+	return;
+    }
+    else
+	inside = 1;
+    (void) ap_release_mutex(garbage_mutex);
 
-	    if(dup2(err_fds[1], fileno(stderr)))
+    help_proxy_garbage_coll(r);
 
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
-
-	    close(err_fds[1]);
-
-	}
-
-
-
-	pid = (*func) (data, NULL);
-
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
+    (void) ap_acquire_mutex(garbage_mutex);
+    inside = 0;
+    (void) ap_release_mutex(garbage_mutex);
+}
 
 
+static void help_proxy_garbage_coll(request_rec *r)
+{
+    const char *cachedir;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *pconf =
+    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+    const struct cache_conf *conf = &pconf->cache;
+    array_header *files;
+    struct stat buf;
+    struct gc_ent *fent, **elts;
+    int i, timefd;
+    static time_t lastcheck = BAD_DATE;		/* static data!!! */
 
-        if (!pid) {
+    cachedir = conf->root;
+    cachesize = conf->space;
+    every = conf->gcinterval;
 
-	    save_errno = errno;
+    if (cachedir == NULL || every == -1)
+	return;
+    garbage_now = time(NULL);
+    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
+	return;
 
-	    close(in_fds[1]);
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
 
-	    close(out_fds[0]);
-
--- apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
-
+    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

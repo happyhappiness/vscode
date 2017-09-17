@@ -1,60 +1,65 @@
-	    return;
 
+static int getsfunc_FILE(char *buf, int len, void *f)
+{
+    return fgets(buf, len, (FILE *) f) != NULL;
+}
+
+API_EXPORT(int) ap_scan_script_header_err(request_rec *r, FILE *f,
+					  char *buffer)
+{
+    return scan_script_header_err_core(r, buffer, getsfunc_FILE, f);
+}
+
+static int getsfunc_BUFF(char *w, int len, void *fb)
+{
+    return ap_bgets(w, len, (BUFF *) fb) > 0;
+}
+
+API_EXPORT(int) ap_scan_script_header_err_buff(request_rec *r, BUFF *fb,
+					       char *buffer)
+{
+    return scan_script_header_err_core(r, buffer, getsfunc_BUFF, fb);
+}
+
+
+API_EXPORT(void) ap_send_size(size_t size, request_rec *r)
+{
+    /* XXX: this -1 thing is a gross hack */
+    if (size == (size_t)-1) {
+	ap_rputs("    -", r);
+    }
+    else if (!size) {
+	ap_rputs("   0k", r);
+    }
+    else if (size < 1024) {
+	ap_rputs("   1k", r);
+    }
+    else if (size < 1048576) {
+	ap_rprintf(r, "%4dk", (size + 512) / 1024);
+    }
+    else if (size < 103809024) {
+	ap_rprintf(r, "%4.1fM", size / 1048576.0);
+    }
+    else {
+	ap_rprintf(r, "%4dM", (size + 524288) / 1048576);
+    }
+}
+
+#if defined(__EMX__) || defined(WIN32)
+static char **create_argv_cmd(pool *p, char *av0, const char *args, char *path)
+{
+    register int x, n;
+    char **av;
+    char *w;
+
+    for (x = 0, n = 2; args[x]; x++) {
+        if (args[x] == '+') {
+	    ++n;
 	}
-
-	if (utime(filename, NULL) == -1)
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: utimes(%s)", filename);
-
     }
 
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
+    /* Add extra strings to array. */
+    n = n + 2;
 
-    curbytes.upper = curbytes.lower = 0L;
-
-
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-
-
-    if (cmp_long61(&curbytes, &cachesize) < 0L) {
-
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-
-			 "proxy GC: Cache is %ld%% full (nothing deleted)",
-
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
-
-	ap_unblock_alarms();
-
-	return;
-
-    }
-
-
-
-    /* sort the files we found by expiration date */
-
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
-
-
-
-    for (i = 0; i < files->nelts; i++) {
-
-	fent = &((struct gc_ent *) files->elts)[i];
-
-	sprintf(filename, "%s%s", cachedir, fent->file);
-
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-
-#if TESTING
-
-	fprintf(stderr, "Would unlink %s\n", filename);
-
-#else
-
-	if (unlink(filename) == -1) {
-
+    av = (char **) ap_palloc(p, (n + 1) * sizeof(char *));
+    av[0] = av0;

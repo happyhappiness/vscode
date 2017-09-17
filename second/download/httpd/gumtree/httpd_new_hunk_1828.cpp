@@ -1,26 +1,27 @@
-#if defined(WIN32)
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"malformed header in meta file: %s", r->filename);
+	    return SERVER_ERROR;
+	}
 
-    child_pid = spawnvp(compr[parm->method].argv[0],
+	*l++ = '\0';
+	while (*l && ap_isspace(*l))
+	    ++l;
 
-			compr[parm->method].argv);
+	if (!strcasecmp(w, "Content-type")) {
+	    char *tmp;
+	    /* Nuke trailing whitespace */
 
-    return (child_pid);
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && ap_isspace(*endp))
+		*endp-- = '\0';
 
-#else
-
-    execvp(compr[parm->method].argv[0], compr[parm->method].argv);
-
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, parm->r,
-
-		MODNAME ": could not execute `%s'.",
-
-		compr[parm->method].argv[0]);
-
-    return -1;
-
-#endif
-
-}
-
-
-
+	    tmp = ap_pstrdup(r->pool, l);
+	    ap_content_type_tolower(tmp);
+	    r->content_type = tmp;
+	}
+	else if (!strcasecmp(w, "Status")) {
+	    sscanf(l, "%d", &r->status);
+	    r->status_line = ap_pstrdup(r->pool, l);
+	}
+	else {
+++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800

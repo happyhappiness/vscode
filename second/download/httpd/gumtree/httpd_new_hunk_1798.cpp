@@ -1,26 +1,13 @@
-            expr = tag_val;
-
-#ifdef DEBUG_INCLUDE
-
-            ap_rvputs(r, "**** if expr=\"", expr, "\"\n", NULL);
-
-#endif
-
-        }
-
-        else {
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                        "unknown parameter \"%s\" to tag if in %s",
-
-                        tag, r->filename);
-
-            ap_rputs(error, r);
-
-        }
-
+	}
+	if ((timefd = creat(filename, 0666)) == -1) {
+	    if (errno != EEXIST)
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy: creat(%s)", filename);
+	    else
+		lastcheck = garbage_now;	/* someone else got in there */
+	    ap_unblock_alarms();
+	    return;
+	}
+	close(timefd);
     }
-
-}
-
+    else {

@@ -1,38 +1,13 @@
-	version_locked++;
-
+	}
+	if ((timefd = creat(filename, 0666)) == -1) {
+	    if (errno != EEXIST)
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy: creat(%s)", filename);
+	    else
+		lastcheck = abs(garbage_now);	/* someone else got in there */
+	    ap_unblock_alarms();
+	    return;
+	}
+	close(timefd);
     }
-
-}
-
-
-
-static APACHE_TLS int volatile exit_after_unblock = 0;
-
-
-
-/* a clean exit from a child with proper cleanup */
-
-static void __attribute__((noreturn)) clean_child_exit(int code)
-
-{
-
-    if (pchild) {
-
-	ap_child_exit_modules(pchild, server_conf);
-
-	ap_destroy_pool(pchild);
-
-    }
-
-    exit(code);
-
-}
-
-
-
-#if defined(USE_FCNTL_SERIALIZED_ACCEPT) || defined(USE_FLOCK_SERIALIZED_ACCEPT)
-
-static void expand_lock_fname(pool *p)
-
-{
-
+    else {

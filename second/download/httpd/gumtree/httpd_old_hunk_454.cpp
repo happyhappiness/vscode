@@ -1,44 +1,17 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
 
-			     "proxy gc: unlink(%s)", filename);
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	restart_pending = shutdown_pending = 0;
 
-	}
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    int status;
+	    int pid = wait_or_timeout(&status);
 
-	else
-
-#endif
-
-	{
-
-	    curblocks -= fent->len >> 10;
-
-	    curbytes -= fent->len & 0x3FF;
-
-	    if (curbytes < 0) {
-
-		curbytes += 1024;
-
-		curblocks--;
-
-	    }
-
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-
-		break;
-
-	}
-
-    }
-
-    ap_unblock_alarms();
-
-}
-
-
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-
-			  const char *cachebasedir, const char *cachesubdir)
-
-{
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

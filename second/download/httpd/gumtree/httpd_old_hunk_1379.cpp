@@ -1,26 +1,13 @@
-            }
 
-        }
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-        else if (!strcmp(tag, "done")) {
+    ap_hard_timeout("send headers", r);
 
-            return 0;
-
-        }
-
-        else {
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "unknown parameter \"%s\" to tag echo in %s",
-
-                        tag, r->filename);
-
-            ap_rputs(error, r);
-
-        }
-
-    }
-
-}
-
+    ap_basic_http_header(r);

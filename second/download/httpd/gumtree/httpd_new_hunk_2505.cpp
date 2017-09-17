@@ -1,46 +1,13 @@
+}
 
+#ifdef USE_PERL_SSI
+static int handle_perl(FILE *in, request_rec *r, const char *error)
+{
+    char tag[MAX_STRING_LEN];
+    char parsed_string[MAX_STRING_LEN];
+    char *tag_val;
+    SV *sub = Nullsv;
+    AV *av = newAV();
 
-    if (!c->gotheader) {
-
-        char *s;
-
-        int l = 4;
-
-        int space = CBUFFSIZE - c->cbx - 1;     /* -1 to allow for 0 terminator */
-
-        int tocopy = (space < r) ? space : r;
-
-#ifndef CHARSET_EBCDIC
-
-        memcpy(c->cbuff + c->cbx, buffer, space);
-
-#else /*CHARSET_EBCDIC*/
-
-        ascii2ebcdic(c->cbuff + c->cbx, buffer, space);
-
-#endif /*CHARSET_EBCDIC*/
-
-        c->cbx += tocopy;
-
-        space -= tocopy;
-
-        c->cbuff[c->cbx] = 0;   /* terminate for benefit of strstr */
-
-	if (verbosity >= 4) {
-
-	    printf("LOG: header received:\n%s\n", c->cbuff);
-
-	}
-
-        s = strstr(c->cbuff, "\r\n\r\n");
-
-        /* this next line is so that we talk to NCSA 1.5 which blatantly breaks 
-
-           the http specifaction */
-
-        if (!s) {
-
-            s = strstr(c->cbuff, "\n\n");
-
-            l = 2;
-
+    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

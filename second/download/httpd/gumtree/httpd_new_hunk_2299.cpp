@@ -1,48 +1,31 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-
-    if (err != NULL) {
-
-        return err;
-
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
-
-
-    ap_threads_per_child = atoi(arg);
-
-    if (ap_threads_per_child > HARD_SERVER_LIMIT) {
-
-        fprintf(stderr, "WARNING: ThreadsPerChild of %d exceeds compile time limit "
-
-                "of %d threads,\n", ap_threads_per_child, HARD_SERVER_LIMIT);
-
-        fprintf(stderr, " lowering ThreadsPerChild to %d.  To increase, please "
-
-                "see the\n", HARD_SERVER_LIMIT);
-
-        fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-
-        ap_threads_per_child = HARD_SERVER_LIMIT;
-
-    } 
-
-    else if (ap_threads_per_child < 1) {
-
-	fprintf(stderr, "WARNING: Require ThreadsPerChild > 0, setting to 1\n");
-
-	ap_threads_per_child = 1;
-
+    if (!child && run_as_service) {
+	service_cd();
     }
 
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
+    }
 
-    return NULL;
-
-}
-
-
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-
-{
-
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

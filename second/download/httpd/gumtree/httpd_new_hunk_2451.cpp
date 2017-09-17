@@ -1,46 +1,21 @@
-	/* fatal error, bail out */
 
-	return result;
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	if (ap_suexec_enabled) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
+	}
+	restart_pending = shutdown_pending = 0;
 
-    }
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    ap_wait_t status;
+	    int pid = wait_or_timeout(&status);
 
-
-
-    if ((fd = ap_popenf(r->pool, r->filename, O_RDONLY, 0)) < 0) {
-
-	/* We can't open it, but we were able to stat it. */
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		    MODNAME ": can't read `%s'", r->filename);
-
-	/* let some other handler decide what the problem is */
-
-	return DECLINED;
-
-    }
-
-
-
-    /*
-
-     * try looking at the first HOWMANY bytes
-
-     */
-
-    if ((nbytes = read(fd, (char *) buf, sizeof(buf) - 1)) == -1) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		    MODNAME ": read failed: %s", r->filename);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-    if (nbytes == 0)
-
-	magic_rsl_puts(r, MIME_TEXT_UNKNOWN);
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

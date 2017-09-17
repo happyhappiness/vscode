@@ -1,26 +1,31 @@
-            ap_rputs("     Evaluate eq/ne\n", r);
 
-#endif
+    /* Pass one --- direct matches */
 
-            if ((current->left == (struct parse_node *) NULL) ||
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            result = (*handp->hr.handler) (r);
 
-                (current->right == (struct parse_node *) NULL) ||
+            if (result != DECLINED)
+                return result;
+        }
+    }
 
-                (current->left->token.type != token_string) ||
+    if (result == NOT_IMPLEMENTED && r->handler) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    }
 
-                (current->right->token.type != token_string)) {
+    /* Pass two --- wildcard matches */
 
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             result = (*handp->hr.handler) (r);
 
-                            "Invalid expression \"%s\" in file %s",
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-                            expr, r->filename);
-
-                ap_rputs(error, r);
-
-                goto RETURN;
-
-            }
-
-            parse_string(r, current->left->token.value,
-
+++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800

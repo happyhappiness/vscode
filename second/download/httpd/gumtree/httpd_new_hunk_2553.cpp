@@ -1,26 +1,13 @@
-    if (r->assbackwards && r->header_only) {
+	return ap_proxyerror(r, err);	/* give up */
 
-        /*
-
-         * Client asked for headers only with HTTP/0.9, which doesn't send
-
-         * headers!  Have to dink things even to make sure the error message
-
-         * comes through...
-
-         */
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "client sent illegal HTTP/0.9 request: %s", r->uri);
-
-        r->header_only = 0;
-
-        ap_die(BAD_REQUEST, r);
-
-        return;
-
+    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating socket");
+	return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
+		       (const char *) &conf->recv_buffer_size, sizeof(int))
+	    == -1) {

@@ -1,34 +1,14 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
 
-    if (err != NULL) {
-
-        return err;
-
+    if (i != DECLINED) {
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	return i;
     }
+    cache = c->fp;
 
-
-
-    ap_threads_per_child = atoi(arg);
-
-#ifdef WIN32
-
-    if (ap_threads_per_child > 64) {
-
-	return "Can't have more than 64 threads in Windows (for now)";
-
-    }
-
-#endif
-
-
-
-    return NULL;
-
-}
-
-
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-
-{
-
+    if (!pasvmode) {		/* wait for connection */
+	ap_hard_timeout("proxy ftp data connect", r);
+	clen = sizeof(struct sockaddr_in);
+	do
+	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
+	while (csd == -1 && errno == EINTR);

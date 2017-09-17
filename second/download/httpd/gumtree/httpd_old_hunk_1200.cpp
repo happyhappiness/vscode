@@ -1,26 +1,22 @@
-    return res;
-
-}
-
-
-
-API_EXPORT(int) ap_cfg_closefile(configfile_t *cfp)
-
-{
-
-#ifdef DEBUG
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Done with config file %s", fp->name);
-
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
+	}
+	else
 #endif
-
-    return (cfp->close == NULL) ? 0 : cfp->close(cfp->param);
-
+	{
+	    curblocks -= fent->len >> 10;
+	    curbytes -= fent->len & 0x3FF;
+	    if (curbytes < 0) {
+		curbytes += 1024;
+		curblocks--;
+	    }
+	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
+		break;
+	}
+    }
+    ap_unblock_alarms();
 }
 
-
-
-/* Common structure that holds the file and pool for ap_pcfg_openfile */
-
-typedef struct {
-
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

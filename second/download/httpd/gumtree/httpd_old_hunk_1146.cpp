@@ -1,58 +1,46 @@
-    if (i != DECLINED) {
-
-	ap_pclosesocket(p, dsock);
-
-	ap_bclose(f);
-
-	return i;
-
-    }
-
-
-
-    cache = c->fp;
-
-
-
-    c->hdrs = resp_hdrs;
-
-
-
-    if (!pasvmode) {		/* wait for connection */
-
-	ap_hard_timeout("proxy ftp data connect", r);
-
 	clen = sizeof(struct sockaddr_in);
-
-	do
-
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-
-	while (csd == -1 && errno == EINTR);
-
-	if (csd == -1) {
-
+	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
 	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: failed to accept data connection");
-
-	    ap_pclosesocket(p, dsock);
-
+			 "proxy: error getting socket address");
 	    ap_bclose(f);
-
 	    ap_kill_timeout(r);
-
-	    ap_proxy_cache_error(c);
-
-	    return HTTP_BAD_GATEWAY;
-
+	    return SERVER_ERROR;
 	}
 
-	ap_note_cleanups_for_socket(p, csd);
+	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (dsock == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error creating socket");
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return SERVER_ERROR;
+	}
 
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
+	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		       sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error setting reuseaddr option");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return SERVER_ERROR;
+#endif /*_OSD_POSIX*/
+	}
 
-	ap_bpushfd(data, csd, -1);
+	if (bind(dsock, (struct sockaddr *) &server,
+		 sizeof(struct sockaddr_in)) == -1) {
+	    char buff[22];
 
-	ap_kill_timeout(r);
+	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error binding to ftp data socket %s", buff);
+	    ap_bclose(f);
+	    ap_pclosesocket(p, dsock);
+	    return SERVER_ERROR;
+	}
+	listen(dsock, 2);	/* only need a short queue */
+    }
 
+/* set request */
+    len = decodeenc(path);

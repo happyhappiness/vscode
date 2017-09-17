@@ -1,30 +1,14 @@
-    {
-
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-
-	    abort();
-
-	}
-
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-
-	    abort();
-
-	}
-
-    }
-
-#endif
-
-
-
-    for (i = 0; i < t->a.nelts; ) {
-
-nly in apache_1.3.0/src/main: alloc.o
-
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
-
+                 "An appropriate representation of the requested resource ",
+                          ap_escape_html(r->pool, r->uri),
+                          " could not be found on this server.<P>\n", NULL);
+                /* fall through */
+            case MULTIPLE_CHOICES:
+                {
+                    const char *list;
+                    if ((list = ap_table_get(r->notes, "variant-list")))
+                        ap_bputs(list, fd);
+                }
+                break;
+            case LENGTH_REQUIRED:
+                ap_bvputs(fd, "A request of the requested method ", r->method,
+++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800

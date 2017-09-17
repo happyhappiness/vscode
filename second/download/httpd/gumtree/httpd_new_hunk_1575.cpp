@@ -1,52 +1,20 @@
-{
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
+        }
+        return 0;
+    }
 
-    request_rec *r = ((include_cmd_arg *) arg)->r;
+    range = ap_getword(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
-    char *s = ((include_cmd_arg *) arg)->s;
+    if (r->byterange > 1) {
+        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-    table *env = r->subprocess_env;
-
-    int child_pid = 0;
-
-#ifdef DEBUG_INCLUDE_CMD
-
-#ifdef OS2
-
-    /* under OS/2 /dev/tty is referenced as con */
-
-    FILE *dbg = fopen("con", "w");
-
-#else
-
-    FILE *dbg = fopen("/dev/tty", "w");
-
-#endif
-
-#endif
-
-#ifndef WIN32
-
-    char err_string[MAX_STRING_LEN];
-
-#endif
-
-
-
-#ifdef DEBUG_INCLUDE_CMD
-
-    fprintf(dbg, "Attempting to include command '%s'\n", s);
-
-#endif
-
-
-
-    if (r->path_info && r->path_info[0] != '\0') {
-
-        request_rec *pa_req;
-
-
-
-        ap_table_setn(env, "PATH_INFO", ap_escape_shell_cmd(r->pool, r->path_info));
-
-
-
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

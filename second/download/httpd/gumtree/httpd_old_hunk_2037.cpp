@@ -1,56 +1,14 @@
-     * where we would end up with LOTS of zombies.
+    ap_hard_timeout("send directory", r);
 
-     */
+    /* Spew HTML preamble */
 
-    sub_pool = ap_make_sub_pool(r->pool);
+    title_endp = title_name + strlen(title_name) - 1;
 
+    while (title_endp > title_name && *title_endp == '/')
+	*title_endp-- = '\0';
 
-
-    if (!ap_bspawn_child(sub_pool, uncompress_child, &parm, kill_always,
-
-			 &bin, &bout, NULL)) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    MODNAME ": couldn't spawn uncompress process: %s", r->uri);
-
-	return -1;
-
-    }
-
-
-
-    if (ap_bwrite(bin, old, n) != n) {
-
-	ap_destroy_pool(sub_pool);
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    MODNAME ": write failed.");
-
-	return -1;
-
-    }
-
-    ap_bclose(bin);
-
-    *newch = (unsigned char *) ap_palloc(r->pool, n);
-
-    if ((n = ap_bread(bout, *newch, n)) <= 0) {
-
-	ap_destroy_pool(sub_pool);
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-	    MODNAME ": read failed %s", r->filename);
-
-	return -1;
-
-    }
-
-    ap_destroy_pool(sub_pool);
-
-    return n;
-
-}
-
+    if ((!(tmp = find_header(autoindex_conf, r)))
+	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
+	) {
+	emit_preamble(r, title_name);
+	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);

@@ -1,26 +1,18 @@
-    if (!method_restricted)
+    if (i == 530) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Not logged in");
+    }
+    if (i != 230 && i != 331) {
+	ap_kill_timeout(r);
+	return BAD_GATEWAY;
+    }
 
-	return OK;
-
-
-
-    if (!(sec->auth_authoritative))
-
-	return DECLINED;
-
-
-
-    ap_note_basic_auth_failure(r);
-
-    return AUTH_REQUIRED;
-
-}
-
-
-
-module MODULE_VAR_EXPORT auth_module =
-
-{
-
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
-
+    if (i == 331) {		/* send password */
+	if (password == NULL)
+	    return FORBIDDEN;
+	ap_bputs("PASS ", f);
+	ap_bwrite(f, password, passlen);
+	ap_bputs(CRLF, f);
+	ap_bflush(f);
+	Explain1("FTP: PASS %s", password);
+/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

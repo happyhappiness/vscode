@@ -1,46 +1,56 @@
-#endif
 
-
-
-static void show_compile_settings(void)
-
+static int getsfunc_FILE(char *buf, int len, void *f)
 {
+    return fgets(buf, len, (FILE *) f) != NULL;
+}
 
-    printf("Server version: %s\n", ap_get_server_version());
+API_EXPORT(int) ap_scan_script_header_err(request_rec *r, FILE *f, char *buffer)
+{
+    return scan_script_header_err_core(r, buffer, getsfunc_FILE, f);
+}
 
-    printf("Server built:   %s\n", ap_get_server_built());
+static int getsfunc_BUFF(char *w, int len, void *fb)
+{
+    return ap_bgets(w, len, (BUFF *) fb) > 0;
+}
 
-    printf("Server's Module Magic Number: %u\n", MODULE_MAGIC_NUMBER);
+API_EXPORT(int) ap_scan_script_header_err_buff(request_rec *r, BUFF *fb,
+					    char *buffer)
+{
+    return scan_script_header_err_core(r, buffer, getsfunc_BUFF, fb);
+}
 
-    printf("Server compiled with....\n");
 
-#ifdef BIG_SECURITY_HOLE
+API_EXPORT(void) ap_send_size(size_t size, request_rec *r)
+{
+    /* XXX: this -1 thing is a gross hack */
+    if (size == (size_t)-1)
+	ap_rputs("    -", r);
+    else if (!size)
+	ap_rputs("   0k", r);
+    else if (size < 1024)
+	ap_rputs("   1k", r);
+    else if (size < 1048576)
+	ap_rprintf(r, "%4dk", (size + 512) / 1024);
+    else if (size < 103809024)
+	ap_rprintf(r, "%4.1fM", size / 1048576.0);
+    else
+	ap_rprintf(r, "%4dM", (size + 524288) / 1048576);
+}
 
-    printf(" -D BIG_SECURITY_HOLE\n");
+#if defined(__EMX__) || defined(WIN32)
+static char **create_argv_cmd(pool *p, char *av0, const char *args, char *path)
+{
+    register int x, n;
+    char **av;
+    char *w;
 
-#endif
+    for (x = 0, n = 2; args[x]; x++)
+	if (args[x] == '+')
+	    ++n;
 
-#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
+    /* Add extra strings to array. */
+    n = n + 2;
 
-    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
-
-#endif
-
-#ifdef HTTPD_ROOT
-
-    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
-
-#endif
-
-#ifdef HAVE_MMAP
-
-    printf(" -D HAVE_MMAP\n");
-
-#endif
-
-#ifdef HAVE_SHMGET
-
-    printf(" -D HAVE_SHMGET\n");
-
-#endif
-
+    av = (char **) ap_palloc(p, (n + 1) * sizeof(char *));
+    av[0] = av0;

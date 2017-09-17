@@ -1,30 +1,20 @@
-	     * how libraries and such are going to fail.  If we can't
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
+        }
+        return 0;
+    }
 
-	     * do this F_DUPFD there's a good chance that apache has too
+    range = ap_getword(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
-	     * few descriptors available to it.  Note we don't warn on
+    if (r->byterange > 1) {
+        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-	     * the high line, because if it fails we'll eventually try
-
-	     * the low line...
-
-	     */
-
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-
-		        "unable to open a file descriptor above %u, "
-
-			"you may need to increase the number of descriptors",
-
-			LOW_SLACK_LINE);
-
-	    low_warned = 1;
-
-	}
-
-	return fd;
-
-nly in apache_1.3.0/src/ap: ap_slack.o
-
-++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
-
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

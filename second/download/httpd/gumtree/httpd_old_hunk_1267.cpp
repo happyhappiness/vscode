@@ -1,38 +1,13 @@
-	version_locked++;
+	return ap_proxyerror(r, err);	/* give up */
 
+    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating socket");
+	return SERVER_ERROR;
     }
 
-}
-
-
-
-static APACHE_TLS int volatile exit_after_unblock = 0;
-
-
-
-/* a clean exit from a child with proper cleanup */
-
-static void __attribute__((noreturn)) clean_child_exit(int code)
-
-{
-
-    if (pchild) {
-
-	ap_child_exit_modules(pchild, server_conf);
-
-	ap_destroy_pool(pchild);
-
-    }
-
-    exit(code);
-
-}
-
-
-
-#if defined(USE_FCNTL_SERIALIZED_ACCEPT) || defined(USE_FLOCK_SERIALIZED_ACCEPT)
-
-static void expand_lock_fname(pool *p)
-
-{
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
+		       (const char *) &conf->recv_buffer_size, sizeof(int))
+	    == -1) {

@@ -1,26 +1,10 @@
-    if (i == -1) {
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
 
-	ap_kill_timeout(r);
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
+#endif
 
-	return ap_proxyerror(r, "Error reading from remote server");
-
-    }
-
-    if (i != 220) {
-
-	ap_kill_timeout(r);
-
-	return HTTP_BAD_GATEWAY;
-
-    }
-
-
-
-    Explain0("FTP: connected.");
-
-
-
-    ap_bputs("USER ", f);
-
-    ap_bwrite(f, user, userlen);
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

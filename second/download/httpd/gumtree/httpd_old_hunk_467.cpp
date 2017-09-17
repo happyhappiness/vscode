@@ -1,26 +1,41 @@
-	else
+	    return cond_status;
+	}
 
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
-				"Could not connect to remote machine: ",
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
-				strerror(errno), NULL));
+	    if (!buffer)
+		/* Soak up all the script output --- may save an outright kill */
+		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
+		    continue;
 
-    }
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
+	}
 
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
+	if (!strcasecmp(w, "Content-type")) {
 
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
+	    /* Nuke trailing whitespace */
 
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
 
-
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-
-    ap_bpushfd(f, sock, sock);
-
-
-
-    ap_hard_timeout("proxy send", r);
-
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
-
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

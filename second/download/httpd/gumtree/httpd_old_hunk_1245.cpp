@@ -1,36 +1,22 @@
-    if (!method_restricted)
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
+    }
 
-	return OK;
+    if (!child && run_as_service) {
+	service_cd();
+    }
 
-
-
-    if (!(sec->auth_authoritative))
-
-	return DECLINED;
-
-
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-	"access to %s failed for %s, reason: user %s not allowed access",
-
-	r->uri,
-
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-
-	user);
-
-	
-
-    ap_note_basic_auth_failure(r);
-
-    return AUTH_REQUIRED;
-
-}
-
-
-
-module MODULE_VAR_EXPORT auth_module =
-
--- apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
-
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

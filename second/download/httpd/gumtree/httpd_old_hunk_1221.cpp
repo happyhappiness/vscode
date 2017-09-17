@@ -1,204 +1,61 @@
-/* shouldn't we implement telnet control options here? */
 
-
-
-#ifdef CHARSET_EBCDIC
-
-    ap_bsetflag(f, B_ASCII2EBCDIC|B_EBCDIC2ASCII, 1);
-
-#endif /*CHARSET_EBCDIC*/
-
-
-
-/* possible results: 120, 220, 421 */
-
-    ap_hard_timeout("proxy ftp", r);
-
-    i = ftp_getrc(f);
-
-    Explain1("FTP: returned status %d", i);
-
-    if (i == -1) {
-
-	ap_kill_timeout(r);
-
-	return ap_proxyerror(r, "Error reading from remote server");
-
-    }
-
-    if (i != 220) {
-
-	ap_kill_timeout(r);
-
-	return HTTP_BAD_GATEWAY;
-
-    }
-
-
-
-    Explain0("FTP: connected.");
-
-
-
-    ap_bputs("USER ", f);
-
-    ap_bwrite(f, user, userlen);
-
-    ap_bputs(CRLF, f);
-
-    ap_bflush(f);			/* capture any errors */
-
-    Explain1("FTP: USER %s", user);
-
-
-
-/* possible results; 230, 331, 332, 421, 500, 501, 530 */
-
-/* states: 1 - error, 2 - success; 3 - send password, 4,5 fail */
-
-    i = ftp_getrc(f);
-
-    Explain1("FTP: returned status %d", i);
-
-    if (i == -1) {
-
-	ap_kill_timeout(r);
-
-	return ap_proxyerror(r, "Error sending to remote server");
-
-    }
-
-    if (i == 530) {
-
-	ap_kill_timeout(r);
-
-	return ap_proxyerror(r, "Not logged in");
-
-    }
-
-    if (i != 230 && i != 331) {
-
-	ap_kill_timeout(r);
-
-	return HTTP_BAD_GATEWAY;
-
-    }
-
-
-
-    if (i == 331) {		/* send password */
-
-	if (password == NULL)
-
-	    return HTTP_FORBIDDEN;
-
-	ap_bputs("PASS ", f);
-
-	ap_bwrite(f, password, passlen);
-
-	ap_bputs(CRLF, f);
-
-	ap_bflush(f);
-
-	Explain1("FTP: PASS %s", password);
-
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
-
-	i = ftp_getrc(f);
-
-	Explain1("FTP: returned status %d", i);
-
-	if (i == -1) {
-
-	    ap_kill_timeout(r);
-
-	    return ap_proxyerror(r, "Error sending to remote server");
-
-	}
-
-	if (i == 332) {
-
-	    ap_kill_timeout(r);
-
-	    return ap_proxyerror(r, "Need account for login");
-
-	}
-
-	if (i == 530) {
-
-	    ap_kill_timeout(r);
-
-	    return ap_proxyerror(r, "Not logged in");
-
-	}
-
-	if (i != 230 && i != 202) {
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_BAD_GATEWAY;
-
-	}
-
-    }
-
-
-
-/* set the directory */
-
-/* this is what we must do if we don't know the OS type of the remote
-
- * machine
-
+#define BY_ENCODING &c_by_encoding
+#define BY_TYPE &c_by_type
+#define BY_PATH &c_by_path
+
+/*
+ * This routine puts the standard HTML header at the top of the index page.
+ * We include the DOCTYPE because we may be using features therefrom (i.e.,
+ * HEIGHT and WIDTH attributes on the icons if we're FancyIndexing).
  */
+static void emit_preamble(request_rec *r, char *title)
+{
+    ap_rvputs
+	(
+	    r,
+	    "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n",
+	    "<HTML>\n <HEAD>\n  <TITLE>Index of ",
+	    title,
+	    "</TITLE>\n </HEAD>\n <BODY>\n",
+	    NULL
+	);
+}
 
-    for (;;) {
+static void push_item(array_header *arr, char *type, char *to, char *path,
+		      char *data)
+{
+    struct item *p = (struct item *) ap_push_array(arr);
 
-	strp = strchr(path, '/');
+    if (!to)
+	to = "";
+    if (!path)
+	path = "";
 
-	if (strp == NULL)
+    p->type = type;
+    p->data = data ? ap_pstrdup(arr->pool, data) : NULL;
+    p->apply_path = ap_pstrcat(arr->pool, path, "*", NULL);
 
-	    break;
+    if ((type == BY_PATH) && (!ap_is_matchexp(to)))
+	p->apply_to = ap_pstrcat(arr->pool, "*", to, NULL);
+    else if (to)
+	p->apply_to = ap_pstrdup(arr->pool, to);
+    else
+	p->apply_to = NULL;
+}
 
-	*strp = '\0';
+static const char *add_alt(cmd_parms *cmd, void *d, char *alt, char *to)
+{
+    if (cmd->info == BY_PATH)
+	if (!strcmp(to, "**DIRECTORY**"))
+	    to = "^^DIRECTORY^^";
+    if (cmd->info == BY_ENCODING) {
+	ap_str_tolower(to);
+    }
 
+    push_item(((autoindex_config_rec *) d)->alt_list, cmd->info, to, cmd->path, alt);
+    return NULL;
+}
 
-
-	len = decodeenc(path);
-
-	ap_bputs("CWD ", f);
-
-	ap_bwrite(f, path, len);
-
-	ap_bputs(CRLF, f);
-
-	ap_bflush(f);
-
-	Explain1("FTP: CWD %s", path);
-
-/* responses: 250, 421, 500, 501, 502, 530, 550 */
-
-/* 1,3 error, 2 success, 4,5 failure */
-
-	i = ftp_getrc(f);
-
-	Explain1("FTP: returned status %d", i);
-
-	if (i == -1) {
-
-	    ap_kill_timeout(r);
-
-	    return ap_proxyerror(r, "Error sending to remote server");
-
-	}
-
-	if (i == 550) {
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_NOT_FOUND;
-
-	}
-
-	if (i != 250) {
-
+static const char *add_icon(cmd_parms *cmd, void *d, char *icon, char *to)
+{
+    char *iconbak = ap_pstrdup(cmd->pool, icon);

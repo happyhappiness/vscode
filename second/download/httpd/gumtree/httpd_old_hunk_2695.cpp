@@ -1,26 +1,14 @@
-            /* it should be go on as an internal proxy request */
-
-
-
-            /* check if the proxy module is enabled, so
-
-             * we can actually use it!
-
-             */
-
-            if (!proxy_available) {
-
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                             "attempt to make remote request from mod_rewrite "
-
-                             "without proxy enabled: %s", r->filename);
-
-                return FORBIDDEN;
-
-            }
-
-
-
-            /* make sure the QUERY_STRING and
-
+                 "An appropriate representation of the requested resource ",
+                          ap_escape_html(r->pool, r->uri),
+                          " could not be found on this server.<P>\n", NULL);
+                /* fall through */
+            case MULTIPLE_CHOICES:
+                {
+                    char *list;
+                    if ((list = ap_table_get(r->notes, "variant-list")))
+                        ap_bputs(list, fd);
+                }
+                break;
+            case LENGTH_REQUIRED:
+                ap_bvputs(fd, "A request of the requested method ", r->method,
+-- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800

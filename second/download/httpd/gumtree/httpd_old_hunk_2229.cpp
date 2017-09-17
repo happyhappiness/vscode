@@ -1,26 +1,14 @@
-		    frag = req_dat->tail;
-
-		    break;
-
-		}
-
-		else {
-
-		    /* should not be possible */
-
-		    /* abandon malfunctioning module */
-
-		    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-
-				MODNAME ": bad state %d (ws)", state);
-
-		    return DECLINED;
-
-		}
-
-		/* NOTREACHED */
-
-	    }
-
-	    else if (state == rsl_type &&
-
+                 "An appropriate representation of the requested resource ",
+                          ap_escape_html(r->pool, r->uri),
+                          " could not be found on this server.<P>\n", NULL);
+                /* fall through */
+            case MULTIPLE_CHOICES:
+                {
+                    char *list;
+                    if ((list = ap_table_get(r->notes, "variant-list")))
+                        ap_bputs(list, fd);
+                }
+                break;
+            case LENGTH_REQUIRED:
+                ap_bvputs(fd, "A request of the requested method ", r->method,
+-- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800

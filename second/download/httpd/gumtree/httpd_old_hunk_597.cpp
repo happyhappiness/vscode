@@ -1,34 +1,28 @@
+	    return;
+	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
+    curblocks = 0;
+    curbytes = 0;
 
+    sub_garbage_coll(r, files, cachedir, "/");
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
+	ap_unblock_alarms();
+	return;
+    }
 
-		    "%s configured -- resuming normal operations",
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
 
-		    ap_get_server_version());
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-
-		    "Server built: %s", ap_get_server_built());
-
-	restart_pending = shutdown_pending = 0;
-
-
-
-	while (!restart_pending && !shutdown_pending) {
-
-	    int child_slot;
-
-	    int status;
-
-	    int pid = wait_or_timeout(&status);
-
-
-
-	    /* XXX: if it takes longer than 1 second for all our children
-
-	     * to start up and get into IDLE state then we may spawn an
-
-	     * extra child
-
-	     */
-
+    elts = (struct gc_ent **) files->elts;
+    for (i = 0; i < files->nelts; i++) {
+	fent = elts[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
+#else
+	if (unlink(filename) == -1) {

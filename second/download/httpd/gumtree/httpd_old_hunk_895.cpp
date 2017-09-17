@@ -1,28 +1,22 @@
-#include "http_main.h"
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
+    }
 
-#include "http_request.h"
+    if (!child && run_as_service) {
+	service_cd();
+    }
 
-
-
-static int asis_handler(request_rec *r)
-
-{
-
-    FILE *f;
-
-    char *location;
-
-
-
-    r->allowed |= (1 << M_GET);
-
-    if (r->method_number != M_GET)
-
-	return DECLINED;
-
-    if (r->finfo.st_mode == 0) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
--- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800
-
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

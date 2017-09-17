@@ -1,26 +1,31 @@
-                                         REWRITELOCK_MODE)) < 0) {
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-
-                     "mod_rewrite: Parent could not create RewriteLock "
-
-                     "file %s", conf->rewritelockfile);
-
-        exit(1);
-
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
-#if !defined(OS2) && !defined(WIN32)
+    if (!child && run_as_service) {
+	service_cd();
+    }
 
-    /* make sure the childs have access to this file */
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-    if (geteuid() == 0 /* is superuser */)
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
+    }
 
-        chown(conf->rewritelockfile, ap_user_id, -1 /* no gid change */);
-
-#endif
-
-
-
-    return;
-
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

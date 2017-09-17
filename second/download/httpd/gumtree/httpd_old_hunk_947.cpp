@@ -1,24 +1,13 @@
-    {
 
-	unsigned len = SCOREBOARD_SIZE;
+    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
+	return (ap_suexec_enabled);
 
-
-
-	m = mmap((caddr_t) 0xC0000000, &len,
-
-		 PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, NOFD, 0);
-
+    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
+	ap_suexec_enabled = 1;
+	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
     }
+#endif /* ndef WIN32 */
+    return (ap_suexec_enabled);
+}
 
-#else
-
-    m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-
-	     PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-
-#endif
-
-    if (m == (caddr_t) - 1) {
-
-	perror("mmap");
-
+/*****************************************************************

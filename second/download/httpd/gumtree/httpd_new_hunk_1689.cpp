@@ -1,44 +1,14 @@
-    if (r->finfo.st_mode == 0         /* doesn't exist */
-
-        || S_ISDIR(r->finfo.st_mode)
-
-        || S_ISREG(r->finfo.st_mode)
-
-        || S_ISLNK(r->finfo.st_mode)) {
-
-        return OK;
-
+	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
+	}
+	return index_directory(r, d);
     }
-
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                "object is not a file, directory or symlink: %s",
-
-                r->filename);
-
-    return HTTP_FORBIDDEN;
-
+    else {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		     "Directory index forbidden by rule: %s", r->filename);
+	return HTTP_FORBIDDEN;
+    }
 }
 
 
-
-
-
-static int check_symlinks(char *d, int opts)
-
-{
-
-#if defined(OS2) || defined(WIN32)
-
-    /* OS/2 doesn't have symlinks */
-
-    return OK;
-
-#else
-
-    struct stat lfi, fi;
-
-    char *lastp;
-
-    int res;
-
+static const handler_rec autoindex_handlers[] =
+++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800

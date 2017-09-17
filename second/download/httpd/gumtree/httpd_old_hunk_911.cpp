@@ -1,32 +1,40 @@
+	return;
+    }
+    else
+	inside = 1;
+    (void) ap_release_mutex(garbage_mutex);
+
+    help_proxy_garbage_coll(r);
+
+    (void) ap_acquire_mutex(garbage_mutex);
+    inside = 0;
+    (void) ap_release_mutex(garbage_mutex);
+}
 
 
-#if MIME_MAGIC_DEBUG
+static void help_proxy_garbage_coll(request_rec *r)
+{
+    const char *cachedir;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *pconf =
+    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+    const struct cache_conf *conf = &pconf->cache;
+    array_header *files;
+    struct stat buf;
+    struct gc_ent *fent, **elts;
+    int i, timefd;
+    static time_t lastcheck = BAD_DATE;		/* static data!!! */
 
-    prevm = 0;
+    cachedir = conf->root;
+    cachesize = conf->space;
+    every = conf->gcinterval;
 
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
+    if (cachedir == NULL || every == -1)
+	return;
+    garbage_now = time(NULL);
+    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
+	return;
 
-		MODNAME ": apprentice test");
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
 
-    for (m = conf->magic; m; m = m->next) {
-
-	if (isprint((((unsigned long) m) >> 24) & 255) &&
-
-	    isprint((((unsigned long) m) >> 16) & 255) &&
-
-	    isprint((((unsigned long) m) >> 8) & 255) &&
-
-	    isprint(((unsigned long) m) & 255)) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-
-			MODNAME ": apprentice: POINTER CLOBBERED! "
-
-			"m=\"%c%c%c%c\" line=%d",
-
-			(((unsigned long) m) >> 24) & 255,
-
-			(((unsigned long) m) >> 16) & 255,
-
-			(((unsigned long) m) >> 8) & 255,
-
+    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

@@ -1,26 +1,10 @@
-	    cmd->server->server_uid = ap_user_id;
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
 
-	    fprintf(stderr,
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
+#endif
 
-		    "Warning: User directive in <VirtualHost> "
-
-		    "requires SUEXEC wrapper.\n");
-
-	}
-
-    }
-
-#if !defined (BIG_SECURITY_HOLE) && !defined (OS2)
-
-    if (cmd->server->server_uid == 0) {
-
-	fprintf(stderr,
-
-		"Error:\tApache has not been designed to serve pages while\n"
-
-		"\trunning as root.  There are known race conditions that\n"
-
-		"\twill allow any local user to read any file on the system.\n"
-
-		"\tShould you still desire to serve pages as root then\n"
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

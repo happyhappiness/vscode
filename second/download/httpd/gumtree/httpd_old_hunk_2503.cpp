@@ -1,36 +1,13 @@
-            maxcon = max(maxcon, s.ctime);
+    rr->content_type = CGI_MAGIC_TYPE;
 
-            maxtot = max(maxtot, s.time);
+    /* Run it. */
 
-            totalcon += s.ctime;
-
-            total += s.time;
-
-        }
-
-        printf("\nConnnection Times (ms)\n");
-
-        printf("           min   avg   max\n");
-
-        printf("Connect: %5d %5d %5d\n", mincon, totalcon / requests, maxcon);
-
-        printf("Total:   %5d %5d %5d\n", mintot, total / requests, maxtot);
-
+    rr_status = ap_run_sub_req(rr);
+    if (is_HTTP_REDIRECT(rr_status)) {
+        char *location = ap_table_get(rr->headers_out, "Location");
+        location = ap_escape_html(rr->pool, location);
+        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
     }
 
-
-
-    exit(0);
-
-}
-
-
-
-/* --------------------------------------------------------- */
-
-
-
-/* start asnchronous non-blocking connection */
-
-
-
+    ap_destroy_sub_req(rr);
+#ifndef WIN32

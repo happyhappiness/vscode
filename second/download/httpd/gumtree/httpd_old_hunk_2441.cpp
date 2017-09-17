@@ -1,26 +1,26 @@
-        for (i = 0; i < arr->nelts; ++i) {
 
-            ap_rvputs(r, elts[i].key, "=", elts[i].val, "\n", NULL);
+    /* Pass one --- direct matches */
 
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
+
+            if (result != DECLINED)
+                return result;
         }
-
-        return 0;
-
     }
 
-    else {
+    /* Pass two --- wildcard matches */
 
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
-                    "printenv directive does not take tags in %s",
-
-		    r->filename);
-
-        ap_rputs(error, r);
-
-        return -1;
-
+             if (result != DECLINED)
+                 return result;
+         }
     }
 
-}
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

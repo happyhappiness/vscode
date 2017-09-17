@@ -1,24 +1,24 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
 
-#endif
+static char *lcase_header_name_return_body(char *header, request_rec *r)
+{
+    char *cp = header;
 
-#ifdef SIGABRT
-
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-
-#endif
-
-	sa.sa_flags = 0;
-
+    for ( ; *cp && *cp != ':' ; ++cp) {
+        *cp = tolower(*cp);
     }
 
-    sa.sa_handler = sig_term;
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    "Syntax error in type map --- no ':': %s", r->filename);
+        return NULL;
+    }
 
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
+    do {
+        ++cp;
+    } while (*cp && isspace(*cp));
 
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-
-#ifdef SIGINT
-
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    "Syntax error in type map --- no header body: %s",
+                    r->filename);
+        return NULL;

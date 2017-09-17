@@ -1,26 +1,9 @@
-    return res;
+/* Automatically generated file - do not edit */
 
-}
-
-
-
-API_EXPORT(int) ap_cfg_closefile(configfile_t *cfp)
-
-{
-
-#ifdef DEBUG
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Done with config file %s", fp->name);
-
+#ifndef LINUX
+#define LINUX 2
 #endif
-
-    return (cfp->close == NULL) ? 0 : cfp->close(cfp->param);
-
-}
-
-
-
-/* Common structure that holds the file and pool for ap_pcfg_openfile */
-
-typedef struct {
-
+#ifndef USE_HSREGEX
+#define USE_HSREGEX 
+#endif
+-- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800

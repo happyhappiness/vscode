@@ -1,38 +1,28 @@
-	    }
-
-
-
-	    /* move to next continuation record */
-
-	    m = m->next;
-
+	    return;
 	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
+    curblocks = 0;
+    curbytes = 0;
 
-#if MIME_MAGIC_DEBUG
+    sub_garbage_coll(r, files, cachedir, "/");
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		    MODNAME ": matched after %d rules", rule_counter);
-
-#endif
-
-	return 1;		/* all through */
-
+    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
+	ap_unblock_alarms();
+	return;
     }
 
-#if MIME_MAGIC_DEBUG
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
 
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		MODNAME ": failed after %d rules", rule_counter);
-
-#endif
-
-    return 0;			/* no match at all */
-
-}
-
-
-
-static void mprint(request_rec *r, union VALUETYPE *p, struct magic *m)
-
+    elts = (struct gc_ent **) files->elts;
+    for (i = 0; i < files->nelts; i++) {
+	fent = elts[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
+#else
+	if (unlink(filename) == -1) {

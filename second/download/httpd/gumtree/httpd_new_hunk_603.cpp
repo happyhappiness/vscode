@@ -1,30 +1,13 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-
-        }
-
-
-
-        r->read_chunked = 1;
-
+    if (i == -1) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+    if (i != 220) {
+	ap_kill_timeout(r);
+	return HTTP_BAD_GATEWAY;
     }
 
-    else if (lenp) {
+    Explain0("FTP: connected.");
 
-        const char *pos = lenp;
-
-
-
-        while (ap_isdigit(*pos) || ap_isspace(*pos))
-
-            ++pos;
-
-        if (*pos != '\0') {
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "Invalid Content-Length %s", lenp);
-
-            return HTTP_BAD_REQUEST;
-
-        }
-
+    ap_bputs("USER ", f);
+    ap_bwrite(f, user, userlen);

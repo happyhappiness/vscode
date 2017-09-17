@@ -1,152 +1,163 @@
-
-
-    ap_hard_timeout("proxy receive", r);
-
-/* send response */
-
-/* write status line */
-
-    if (!r->assbackwards)
-
-	ap_rvputs(r, "HTTP/1.0 ", r->status_line, CRLF, NULL);
-
-    if (c != NULL && c->fp != NULL
-
-	&& ap_bvputs(c->fp, "HTTP/1.0 ", r->status_line, CRLF, NULL) == -1)
-
-	c = ap_proxy_cache_error(c);
-
-
-
-/* send headers */
-
-    tdo.req = r;
-
-    tdo.cache = c;
-
-    ap_table_do(ap_proxy_send_hdr_line, &tdo, resp_hdrs, NULL);
-
-
-
-    if (!r->assbackwards)
-
-	ap_rputs(CRLF, r);
-
-    if (c != NULL && c->fp != NULL && ap_bputs(CRLF, c->fp) == -1)
-
-	c = ap_proxy_cache_error(c);
-
-
-
-    ap_bsetopt(r->connection->client, BO_BYTECT, &zero);
-
-    r->sent_bodyct = 1;
-
-/* send body */
-
-    if (!r->header_only) {
-
-	if (parms[0] != 'd') {
-
-/* we need to set this for ap_proxy_send_fb()... */
-
-	    if (c != NULL)
-
-		c->cache_completion = 0;
-
-	    ap_proxy_send_fb(data, r, c);
-
-	} else
-
-	    send_dir(data, r, c, cwd);
-
-
-
-	if (rc == 125 || rc == 150)
-
-	    rc = ftp_getrc(f);
-
-
-
-	/* XXX: we checked for 125||150||226||250 above. This is redundant. */
-
-	if (rc != 226 && rc != 250)
-
-	    c = ap_proxy_cache_error(c);
-
+	return;
     }
+    else
+	inside = 1;
+    (void) ap_release_mutex(garbage_mutex);
 
-    else {
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
+#if !defined(WIN32) && !defined(MPE) && !defined(__EMX__)
+    detached_proxy_garbage_coll(r);
+#else
+    help_proxy_garbage_coll(r);
+#endif
+    ap_unblock_alarms();
 
-/* abort the transfer */
+    (void) ap_acquire_mutex(garbage_mutex);
+    inside = 0;
+    (void) ap_release_mutex(garbage_mutex);
+}
 
-	ap_bputs("ABOR" CRLF, f);
 
-	ap_bflush(f);
+static void
+add_long61 (long61_t *accu, long val)
+{
+    /* Add in lower 30 bits */
+    accu->lower += (val & 0x3FFFFFFFL);
+    /* add in upper bits, and carry */
+    accu->upper += (val >> 30) + ((accu->lower & ~0x3FFFFFFFL) != 0L);
+    /* Clear carry */
+    accu->lower &= 0x3FFFFFFFL;
+}
 
-	if (!pasvmode)
+static void
+sub_long61 (long61_t *accu, long val)
+{
+    int carry = (val & 0x3FFFFFFFL) > accu->lower;
+    /* Subtract lower 30 bits */
+    accu->lower = accu->lower - (val & 0x3FFFFFFFL) + ((carry) ? 0x40000000 : 0);
+    /* add in upper bits, and carry */
+    accu->upper -= (val >> 30) + carry;
+}
 
-	    ap_bclose(data);
+/* Compare two long61's:
+ * return <0 when left < right
+ * return  0 when left == right
+ * return >0 when left > right
+ */
+static long
+cmp_long61 (long61_t *left, long61_t *right)
+{
+    return (left->upper == right->upper) ? (left->lower - right->lower)
+					 : (left->upper - right->upper);
+}
 
-	Explain0("FTP: ABOR");
+/* Compare two gc_ent's, sort them by expiration date */
+static int gcdiff(const void *ap, const void *bp)
+{
+    const struct gc_ent *a = (const struct gc_ent * const) ap;
+    const struct gc_ent *b = (const struct gc_ent * const) bp;
 
-/* responses: 225, 226, 421, 500, 501, 502 */
+    if (a->expire > b->expire)
+	return 1;
+    else if (a->expire < b->expire)
+	return -1;
+    else
+	return 0;
+}
 
-    /* 225 Data connection open; no transfer in progress. */
+#if !defined(WIN32) && !defined(MPE) && !defined(__EMX__)
+static void detached_proxy_garbage_coll(request_rec *r)
+{
+    pid_t pid;
+    int status;
+    pid_t pgrp;
 
-    /* 226 Closing data connection. */
+    switch (pid = fork()) {
+	case -1:
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: fork() for cache cleanup failed");
+	    return;
 
-    /* 421 Service not available, closing control connection. */
+	case 0:	/* Child */
 
-    /* 500 Syntax error, command unrecognized. */
+	    /* close all sorts of things, including the socket fd */
+	    ap_cleanup_for_exec();
 
-    /* 501 Syntax error in parameters or arguments. */
+	    /* Fork twice to disassociate from the child */
+	    switch (pid = fork()) {
+		case -1:
+		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: fork(2nd) for cache cleanup failed");
+		    exit(1);
 
-    /* 502 Command not implemented. */
+		case 0:	/* Child */
+		    /* The setpgrp() stuff was snarfed from http_main.c */
+#ifndef NO_SETSID
+		    if ((pgrp = setsid()) == -1) {
+			perror("setsid");
+			fprintf(stderr, "httpd: setsid failed\n");
+			exit(1);
+		    }
+#elif defined(NEXT) || defined(NEWSOS)
+		    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
+			perror("setpgrp");
+			fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
+			exit(1);
+		    }
+#else
+		    if ((pgrp = setpgrp(getpid(), 0)) == -1) {
+			perror("setpgrp");
+			fprintf(stderr, "httpd: setpgrp failed\n");
+			exit(1);
+		    }
+#endif
+		    help_proxy_garbage_coll(r);
+		    exit(0);
 
-	i = ftp_getrc(f);
-
-	Explain1("FTP: returned status %d", i);
-
+		default:    /* Father */
+		    /* After grandson has been forked off, */
+		    /* there's nothing else to do. */
+		    exit(0);		    
+	    }
+	default:
+	    /* Wait until grandson has been forked off */
+	    /* (without wait we'd leave a zombie) */
+	    waitpid(pid, &status, 0);
+	    return;
     }
+}
+#endif /* ndef WIN32 */
 
+static void help_proxy_garbage_coll(request_rec *r)
+{
+    const char *cachedir;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *pconf =
+    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+    const struct cache_conf *conf = &pconf->cache;
+    array_header *files;
+    struct stat buf;
+    struct gc_ent *fent;
+    int i, timefd;
+    static time_t lastcheck = BAD_DATE;		/* static (per-process) data!!! */
 
+    cachedir = conf->root;
+    /* configured size is given in kB. Make it bytes, convert to long61_t: */
+    cachesize.lower = cachesize.upper = 0;
+    add_long61(&cachesize, conf->space << 10);
+    every = conf->gcinterval;
 
-    ap_kill_timeout(r);
+    if (cachedir == NULL || every == -1)
+	return;
+    garbage_now = time(NULL);
+    /* Usually, the modification time of <cachedir>/.time can only increase.
+     * Thus, even with several child processes having their own copy of
+     * lastcheck, if time(NULL) still < lastcheck then it's not time
+     * for GC yet.
+     */
+    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
+	return;
 
-    ap_proxy_cache_tidy(c);
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
 
-
-
-/* finish */
-
-    ap_bputs("QUIT" CRLF, f);
-
-    ap_bflush(f);
-
-    Explain0("FTP: QUIT");
-
-/* responses: 221, 500 */
-
-    /* 221 Service closing control connection. */
-
-    /* 500 Syntax error, command unrecognized. */
-
-    i = ftp_getrc(f);
-
-    Explain1("FTP: QUIT: status %d", i);
-
-
-
-    if (pasvmode)
-
-	ap_bclose(data);
-
-    ap_bclose(f);
-
-
-
-    ap_rflush(r);	/* flush before garbage collection */
-
-++ apache_1.3.2/src/modules/proxy/proxy_http.c	1998-09-01 03:51:59.000000000 +0800
-
+    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

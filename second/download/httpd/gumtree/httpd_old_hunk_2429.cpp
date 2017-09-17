@@ -1,26 +1,16 @@
-        case token_or:
 
-#ifdef DEBUG_INCLUDE
-
-            ap_rputs("     Evaluate and/or\n", r);
-
-#endif
-
-            if (current->left == (struct parse_node *) NULL ||
-
-                current->right == (struct parse_node *) NULL) {
-
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                            "Invalid expression \"%s\" in file %s",
-
-                            expr, r->filename);
-
-                ap_rputs(error, r);
-
-                goto RETURN;
-
-            }
-
-            if (!current->left->done) {
-
+#if MIME_MAGIC_DEBUG
+    prevm = 0;
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
+		MODNAME ": apprentice test");
+    for (m = conf->magic; m; m = m->next) {
+	if (isprint((((unsigned long) m) >> 24) & 255) &&
+	    isprint((((unsigned long) m) >> 16) & 255) &&
+	    isprint((((unsigned long) m) >> 8) & 255) &&
+	    isprint(((unsigned long) m) & 255)) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
+			MODNAME ": apprentice: POINTER CLOBBERED! "
+			"m=\"%c%c%c%c\" line=%d",
+			(((unsigned long) m) >> 24) & 255,
+			(((unsigned long) m) >> 16) & 255,
+			(((unsigned long) m) >> 8) & 255,

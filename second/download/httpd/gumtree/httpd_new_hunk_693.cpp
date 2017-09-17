@@ -1,92 +1,49 @@
-	ap_destroy_sub_req(pa_req);
+	    return cond_status;
+	}
 
-    }
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
-}
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
+			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
 
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
-
-
-
-static int scan_script_header_err_core(request_rec *r, char *buffer,
-
-				       int (*getsfunc) (char *, int, void *),
-
-				       void *getsfunc_data)
-
-{
-
-    char x[MAX_STRING_LEN];
-
-    char *w, *l;
-
-    int p;
-
-    int cgi_status = HTTP_OK;
-
-
-
-    if (buffer) {
-
-	*buffer = '\0';
-
-    }
-
-    w = buffer ? buffer : x;
-
-
-
-    ap_hard_timeout("read script header", r);
-
-
-
-    while (1) {
-
-
-
-	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
+	    if (!buffer) {
+		/* Soak up all the script output - may save an outright kill */
+	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
+		    continue;
+		}
+	    }
 
 	    ap_kill_timeout(r);
-
 	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			 "Premature end of script headers: %s", r->filename);
-
+			 "%s: %s", malformed, r->filename);
 	    return SERVER_ERROR;
-
 	}
 
-
-
-	/* Delete terminal (CR?)LF */
-
-
-
-	p = strlen(w);
-
-	if (p > 0 && w[p - 1] == '\n') {
-
-	    if (p > 1 && w[p - 2] == '\015') {
-
-		w[p - 2] = '\0';
-
-	    }
-
-	    else {
-
-		w[p - 1] = '\0';
-
-	    }
-
+	*l++ = '\0';
+	while (*l && ap_isspace(*l)) {
+	    ++l;
 	}
 
+	if (!strcasecmp(w, "Content-type")) {
+	    char *tmp;
 
+	    /* Nuke trailing whitespace */
 
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && ap_isspace(*endp)) {
+		*endp-- = '\0';
+	    }
+
+	    tmp = ap_pstrdup(r->pool, l);
+	    ap_content_type_tolower(tmp);
+	    r->content_type = tmp;
+	}
 	/*
-
-	 * If we've finished reading the headers, check to make sure any
-
-	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
-
-	 * will handle the script's output.  If not, just return the error.
-
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

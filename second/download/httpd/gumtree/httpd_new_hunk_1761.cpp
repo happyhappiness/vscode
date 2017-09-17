@@ -1,26 +1,14 @@
-static int log_scripterror(request_rec *r, cgi_server_conf * conf, int ret,
-
-			   int show_errno, char *error)
-
 {
+    const char *auth_line = ap_table_get(r->headers_in,
+                                    r->proxyreq ? "Proxy-Authorization"
+                                    : "Authorization");
+    int l;
+    int s, vk = 0, vv = 0;
+    const char *t;
+    char *key, *value;
 
-    FILE *f;
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
+	return DECLINED;
 
-    struct stat finfo;
-
-
-
-    ap_log_rerror(APLOG_MARK, show_errno|APLOG_ERR, r, 
-
-		"%s: %s", error, r->filename);
-
-
-
-    if (!conf->logname ||
-
-	((stat(ap_server_root_relative(r->pool, conf->logname), &finfo) == 0)
-
-	 &&   (finfo.st_size > conf->logbytes)) ||
-
-         ((f = ap_pfopen(r->pool, ap_server_root_relative(r->pool, conf->logname),
-
+    if (!ap_auth_name(r)) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

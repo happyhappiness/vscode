@@ -1,26 +1,18 @@
-{
+    if (i == 530) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Not logged in");
+    }
+    if (i != 230 && i != 331) {
+	ap_kill_timeout(r);
+	return HTTP_BAD_GATEWAY;
+    }
 
-    int suffix_pos, result;
-
-    char *sub_filename;
-
-    request_rec *sub;
-
-
-
-#if MIME_MAGIC_DEBUG
-
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-		MODNAME ": revision_suffix checking %s", r->filename);
-
-#endif /* MIME_MAGIC_DEBUG */
-
-
-
-    /* check for recognized revision suffix */
-
-    suffix_pos = strlen(r->filename) - 1;
-
-    if (!ap_isdigit(r->filename[suffix_pos])) {
-
+    if (i == 331) {		/* send password */
+	if (password == NULL)
+	    return HTTP_FORBIDDEN;
+	ap_bputs("PASS ", f);
+	ap_bwrite(f, password, passlen);
+	ap_bputs(CRLF, f);
+	ap_bflush(f);
+	Explain1("FTP: PASS %s", password);
+/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

@@ -1,182 +1,88 @@
-            else {
-
-                p = r->main->pool;
-
-                notes = r->main->notes;
-
-            }
-
-
-
-            /* Generate the response text. */
-
-            /*
-
-	     * Since the text is expanded by repeated calls of
-
-             * t = pstrcat(p, t, ".."), we can avoid a little waste
-
-             * of memory by adding the header AFTER building the list.
-
-             * XXX: FIXME: find a way to build a string concatenation
-
-             *             without repeatedly requesting new memory
-
-             * XXX: FIXME: Limit the list to a maximum number of entries
-
-             */
-
-            t = "";
-
-
-
-            for (i = 0; i < candidates->nelts; ++i) {
-
-
-
-                /* The format isn't very neat... */
-
-                t = ap_pstrcat(p, t, "<li><a href=\"", url,
-
-			       variant[i].name, r->path_info,
-
-			       r->parsed_uri.query ? "?" : "",
-
-			       r->parsed_uri.query ? r->parsed_uri.query : "",
-
-			       "\">", variant[i].name, r->path_info,
-
-			       r->parsed_uri.query ? "?" : "",
-
-			       r->parsed_uri.query ? r->parsed_uri.query : "",
-
-			       "</a> (",
-
-			       sp_reason_str[(int) (variant[i].quality)],
-
-			       ")\n", NULL);
-
-
-
-                /*
-
-                 * when we have printed the "close matches" and there are
-
-                 * more "distant matches" (matched by stripping the suffix),
-
-                 * then we insert an additional separator text to suggest
-
-                 * that the user LOOK CLOSELY whether these are really the
-
-                 * files she wanted.
-
-                 */
-
-                if (i > 0 && i < candidates->nelts - 1
-
-                    && variant[i].quality != SP_VERYDIFFERENT
-
-                    && variant[i + 1].quality == SP_VERYDIFFERENT) {
-
-                    t = ap_pstrcat(p, t, 
-
-				   "</ul>\nFurthermore, the following related "
-
-				   "documents were found:\n<ul>\n", NULL);
-
-                }
-
-            }
-
-            t = ap_pstrcat(p, "The document name you requested (<code>",
-
-			   r->uri,
-
-			   "</code>) could not be found on this server.\n"
-
-			   "However, we found documents with names similar "
-
-			   "to the one you requested.<p>"
-
-			   "Available documents:\n<ul>\n", t, "</ul>\n", NULL);
-
-
-
-            /* If we know there was a referring page, add a note: */
-
-            if (ref != NULL) {
-
-                t = ap_pstrcat(p, t,
-
-			       "Please consider informing the owner of the "
-
-			       "<a href=\"", ref, 
-
-			       "\">referring page</a> "
-
-			       "about the broken link.\n",
-
-			       NULL);
-
+	    if (!(autoindex_opts & SUPPRESS_SIZE)) {
+		ap_send_size(ar[x]->size, r);
+		ap_rputs("  ", r);
 	    }
-
-
-
-            /* Pass our table to http_protocol.c (see mod_negotiation): */
-
-            ap_table_setn(notes, "variant-list", t);
-
-
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_INFO, r,
-
-			 ref ? "Spelling fix: %s: %d candidates from %s"
-
-			     : "Spelling fix: %s: %d candidates",
-
-			 r->uri, candidates->nelts, ref);
-
-
-
-            return HTTP_MULTIPLE_CHOICES;
-
-        }
-
+	    if (!(autoindex_opts & SUPPRESS_DESC)) {
+		if (ar[x]->desc) {
+		    ap_rputs(terminate_description(d, ar[x]->desc,
+						   autoindex_opts), r);
+		}
+	    }
+	}
+	else {
+	    ap_rvputs(r, "<LI> ", anchor, " ", t2, NULL);
+	}
+	ap_rputc('\n', r);
     }
+    if (autoindex_opts & FANCY_INDEXING) {
+	ap_rputs("</PRE>", r);
+    }
+    else {
+	ap_rputs("</UL>", r);
+    }
+}
 
+/*
+ * Compare two file entries according to the sort criteria.  The return
+ * is essentially a signum function value.
+ */
 
+static int dsortf(struct ent **e1, struct ent **e2)
+{
+    struct ent *c1;
+    struct ent *c2;
+    int result = 0;
 
-    return OK;
-
+    /*
+     * First, see if either of the entries is for the parent directory.
+     * If so, that *always* sorts lower than anything else.
+     */
+    if (is_parent((*e1)->name)) {
+        return -1;
+    }
+    if (is_parent((*e2)->name)) {
+        return 1;
+    }
+    /*
+     * All of our comparisons will be of the c1 entry against the c2 one,
+     * so assign them appropriately to take care of the ordering.
+     */
+    if ((*e1)->ascending) {
+        c1 = *e1;
+        c2 = *e2;
+    }
+    else {
+        c1 = *e2;
+        c2 = *e1;
+    }
+    switch (c1->key) {
+    case K_LAST_MOD:
+	if (c1->lm > c2->lm) {
+            return 1;
+        }
+        else if (c1->lm < c2->lm) {
+            return -1;
+        }
+        break;
+    case K_SIZE:
+        if (c1->size > c2->size) {
+            return 1;
+        }
+        else if (c1->size < c2->size) {
+            return -1;
+        }
+        break;
+    case K_DESC:
+        result = strcmp(c1->desc ? c1->desc : "", c2->desc ? c2->desc : "");
+        if (result) {
+            return result;
+        }
+        break;
+    }
+    return strcmp(c1->name, c2->name);
 }
 
 
-
-module MODULE_VAR_EXPORT speling_module =
-
+static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
 {
-
-    STANDARD_MODULE_STUFF,
-
-    NULL,                       /* initializer */
-
-    create_mconfig_for_directory,  /* create per-dir config */
-
-    NULL,                       /* merge per-dir config */
-
-    create_mconfig_for_server,  /* server config */
-
-    NULL,                       /* merge server config */
-
-    speling_cmds,               /* command table */
-
-    NULL,                       /* handlers */
-
-    NULL,                       /* filename translation */
-
-    NULL,                       /* check_user_id */
-
-    NULL,                       /* check auth */
-
-++ apache_1.3.2/src/modules/standard/mod_status.c	1998-08-12 18:23:46.000000000 +0800
-
+    char *title_name = ap_escape_html(r->pool, r->uri);

@@ -1,26 +1,13 @@
-    if (r->assbackwards && r->header_only) {
 
-        /*
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-         * Client asked for headers only with HTTP/0.9, which doesn't send
+    ap_hard_timeout("send headers", r);
 
-         * headers!  Have to dink things even to make sure the error message
-
-         * comes through...
-
-         */
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "client sent illegal HTTP/0.9 request: %s", r->uri);
-
-        r->header_only = 0;
-
-        ap_die(BAD_REQUEST, r);
-
-        return;
-
-    }
-
-
-
+    ap_basic_http_header(r);

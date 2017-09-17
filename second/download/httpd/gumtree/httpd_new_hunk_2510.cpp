@@ -1,34 +1,17 @@
-{
-
-    fprintf(stderr, "Usage: %s [options] [http://]hostname[:port]/path\n", progname);
-
-    fprintf(stderr, "Options are:\n");
-
-    fprintf(stderr, "    -n requests     Number of requests to perform\n");
-
-    fprintf(stderr, "    -c concurrency  Number of multiple requests to make\n");
-
-    fprintf(stderr, "    -t timelimit    Seconds to max. wait for responses\n");
-
-    fprintf(stderr, "    -p postfile     File containg data to POST\n");
-
-    fprintf(stderr, "    -T content-type Content-type header for POSTing\n");
-
-    fprintf(stderr, "    -v verbosity    How much troubleshooting info to print\n");
-
-    fprintf(stderr, "    -V              Print version number and exit\n");
-
-    fprintf(stderr, "    -k              Use HTTP KeepAlive feature\n");
-
-    fprintf(stderr, "    -h              Display usage information (this message)\n");
-
-    exit(EINVAL);
-
-}
-
-
-
-/* ------------------------------------------------------- */
-
-
-
+		return;
+#if MIME_MAGIC_DEBUG
+	    prevm = 0;
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
+			MODNAME ": magic_init 1 test");
+	    for (m = conf->magic; m; m = m->next) {
+		if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
+		    ap_isprint((((unsigned long) m) >> 16) & 255) &&
+		    ap_isprint((((unsigned long) m) >> 8) & 255) &&
+		    ap_isprint(((unsigned long) m) & 255)) {
+		    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
+				MODNAME ": magic_init 1: POINTER CLOBBERED! "
+				"m=\"%c%c%c%c\" line=%d",
+				(((unsigned long) m) >> 24) & 255,
+				(((unsigned long) m) >> 16) & 255,
+				(((unsigned long) m) >> 8) & 255,
+++ apache_1.3.1/src/modules/standard/mod_negotiation.c	1998-07-09 01:47:18.000000000 +0800

@@ -1,40 +1,13 @@
-            else
 
-                *tlength += 4 + strlen(r->boundary) + 4;
+    /* Host names must not start with a '.' */
+    if (addr[0] == '.')
+	return 0;
 
-        }
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
 
-        return 0;
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
+	/* @@@@ handle optional port */
     }
-
-
-
-    range = ap_getword_nc(r->pool, r_range, ',');
-
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-
-        /* Skip this one */
-
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-
-                                  length);
-
-
-
-    if (r->byterange > 1) {
-
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-
-        char ts[MAX_STRING_LEN];
-
-
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-
-                    r->clength);
-
-        if (realreq)
-
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
-

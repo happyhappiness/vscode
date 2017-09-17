@@ -1,56 +1,41 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+	    return cond_status;
+	}
 
-			    "ISA sent invalid headers", r->filename);
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
-		return FALSE;
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
-	    }
+	    if (!buffer)
+		/* Soak up all the script output --- may save an outright kill */
+		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
+		    continue;
 
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
+	}
 
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
-	    *value++ = '\0';
+	if (!strcasecmp(w, "Content-type")) {
 
-	    while (*value && isspace(*value)) ++value;
+	    /* Nuke trailing whitespace */
 
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
 
-
-	    /* Check all the special-case headers. Similar to what
-
-	     * scan_script_header() does (see that function for
-
-	     * more detail)
-
-	     */
-
-
-
-	    if (!strcasecmp(data, "Content-Type")) {
-
-		/* Nuke trailing whitespace */
-
-		
-
-		char *endp = value + strlen(value) - 1;
-
-		while (endp > value && isspace(*endp)) *endp-- = '\0';
-
-            
-
-		r->content_type = ap_pstrdup (r->pool, value);
-
-		ap_str_tolower(r->content_type);
-
-	    }
-
-	    else if (!strcasecmp(data, "Content-Length")) {
-
-		ap_table_set(r->headers_out, data, value);
-
-	    }
-
-	    else if (!strcasecmp(data, "Transfer-Encoding")) {
-
-		ap_table_set(r->headers_out, data, value);
-
--- apache_1.3.0/src/os/win32/multithread.c	1998-04-11 20:01:06.000000000 +0800
-
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

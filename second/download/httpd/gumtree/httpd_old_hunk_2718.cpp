@@ -1,26 +1,14 @@
 
+    if (i != DECLINED) {
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	return i;
+    }
+    cache = c->fp;
 
-#ifdef RELAX_HEADER_RULE
-
-	    if (lf)
-
-		*lf = '\0';
-
-#else
-
-	    if (!lf) { /* Huh? Invalid data, I think */
-
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			    "ISA sent invalid headers: %s", r->filename);
-
-		SetLastError(ERROR);	/* XXX: Find right error */
-
-		return FALSE;
-
-	    }
-
-
-
-	    /* Get rid of \n and \r */
-
+    if (!pasvmode) {		/* wait for connection */
+	ap_hard_timeout("proxy ftp data connect", r);
+	clen = sizeof(struct sockaddr_in);
+	do
+	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
+	while (csd == -1 && errno == EINTR);

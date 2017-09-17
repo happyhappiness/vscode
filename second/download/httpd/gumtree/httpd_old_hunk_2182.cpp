@@ -1,62 +1,14 @@
-                                    r->proxyreq ? "Proxy-Authorization"
+#include "http_main.h"
+#include "http_request.h"
 
-                                    : "Authorization");
+static int asis_handler(request_rec *r)
+{
+    FILE *f;
+    char *location;
 
-    int l;
-
-    int s, vk = 0, vv = 0;
-
-    const char *t;
-
-    char *key, *value;
-
-
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
 	return DECLINED;
-
-
-
-    if (!ap_auth_name(r)) {
-
+    if (r->finfo.st_mode == 0) {
 	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		    "need AuthName: %s", r->uri);
-
-	return SERVER_ERROR;
-
-    }
-
-
-
-    if (!auth_line) {
-
-	ap_note_digest_auth_failure(r);
-
-	return AUTH_REQUIRED;
-
-    }
-
-
-
-    if (strcasecmp(ap_getword(r->pool, &auth_line, ' '), "Digest")) {
-
-	/* Client tried to authenticate using wrong auth scheme */
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		    "client used wrong authentication scheme: %s", r->uri);
-
-	ap_note_digest_auth_failure(r);
-
-	return AUTH_REQUIRED;
-
-    }
-
-
-
-    l = strlen(auth_line);
-
-
-
+-- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800

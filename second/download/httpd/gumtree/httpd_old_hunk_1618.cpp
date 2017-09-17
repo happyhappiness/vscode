@@ -1,26 +1,14 @@
-    }
+    ap_hard_timeout("send directory", r);
 
-#endif
+    /* Spew HTML preamble */
 
+    title_endp = title_name + strlen(title_name) - 1;
 
+    while (title_endp > title_name && *title_endp == '/')
+	*title_endp-- = '\0';
 
-    for (m = conf->magic; m; m = m->next) {
-
-#if MIME_MAGIC_DEBUG
-
-	rule_counter++;
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		    MODNAME ": line=%d desc=%s", m->lineno, m->desc);
-
-#endif
-
-
-
-	/* check if main entry matches */
-
-	if (!mget(r, &p, s, m, nbytes) ||
-
-	    !mcheck(r, &p, m)) {
-
+    if ((!(tmp = find_header(autoindex_conf, r)))
+	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
+	) {
+	emit_preamble(r, title_name);
+	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);

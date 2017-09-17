@@ -1,32 +1,13 @@
-{
-
-    /* This could be called from an AddModule httpd.conf command,
-
-     * after the file has been linked and the module structure within it
-
-     * teased out...
-
-     */
-
-
-
-    if (m->version != MODULE_MAGIC_NUMBER_MAJOR) {
-
-	fprintf(stderr, "httpd: module \"%s\" is not compatible with this "
-
-		"version of Apache.\n", m->name);
-
-	fprintf(stderr, "Please contact the vendor for the correct version.\n");
-
-	exit(1);
-
+    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (dsock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating PASV socket");
+	ap_bclose(f);
+	ap_kill_timeout(r);
+	return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-
-
-    if (m->next == NULL) {
-
-	m->next = top_module;
-
-	top_module = m;
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
+	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,

@@ -1,52 +1,10 @@
-		    }   
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
 
-		}
-
-	    }
-
-	    break;
-
-	}
-
-
-
-	/*
-
-	 * Leading and trailing white space is eliminated completely
-
-	 */
-
-	src = buf;
-
-	while (ap_isspace(*src))
-
-	    ++src;
-
-	/* blast trailing whitespace */
-
-	dst = &src[strlen(src)];
-
-	while (--dst >= src && ap_isspace(*dst))
-
-	    *dst = '\0';
-
-        /* Zap leading whitespace by shifting */
-
-        if (src != buf)
-
-	    for (dst = buf; (*dst++ = *src++) != '\0'; )
-
-	        ;
-
-
-
-#ifdef DEBUG_CFG_LINES
-
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
 #endif
 
-	return 0;
-
-    } else {
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

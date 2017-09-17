@@ -1,26 +1,22 @@
-                  ap_escape_shell_cmd(r->pool, arg_copy));
-
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
+    if (!child && run_as_service) {
+	service_cd();
+    }
 
-
-    while (1) {
-
-        if (!find_string(f, STARTING_SEQUENCE, r, printing)) {
-
-            if (get_directive(f, directive, sizeof(directive), r->pool)) {
-
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			    "mod_include: error reading directive in %s",
-
-			    r->filename);
-
-		ap_rputs(error, r);
-
-                return;
-
-            }
-
-            if (!strcmp(directive, "if")) {
-
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

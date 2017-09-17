@@ -1,26 +1,18 @@
-    char *origs = s, *origp = p;
+    ap_table_setn(r->err_headers_out,
+	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
+	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
+		ap_auth_name(r), r->request_time));
+}
 
-    char *pmax = p + plen - 1;
+API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
+{
+    const char *auth_line = ap_table_get(r->headers_in,
+                                      r->proxyreq ? "Proxy-Authorization"
+                                                  : "Authorization");
+    char *t;
 
-    register int c;
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
 
-    register int val;
-
-
-
-    while ((c = *s++) != '\0') {
-
-	if (isspace((unsigned char) c))
-
-	    break;
-
-	if (p >= pmax) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, serv,
-
-			MODNAME ": string too long: %s", origs);
-
-	    break;
-
-	}
-
+    if (!ap_auth_name(r)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

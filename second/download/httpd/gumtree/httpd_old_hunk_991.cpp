@@ -1,26 +1,9 @@
+/* Automatically generated file - do not edit */
 
-
-	    name = ent->pw_name;
-
-	}
-
-	else
-
-	    name = ap_user_name;
-
-
-
-#ifndef __EMX__
-
-	/* OS/2 dosen't support groups. */
-
-
-
-	/* Reset `groups' attributes. */
-
-
-
-	if (initgroups(name, ap_group_id) == -1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ALERT, server_conf,
-
+#ifndef LINUX
+#define LINUX 2
+#endif
+#ifndef USE_HSREGEX
+#define USE_HSREGEX 
+#endif
+-- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800

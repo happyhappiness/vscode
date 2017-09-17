@@ -1,30 +1,13 @@
-#ifdef WIN32
-
-	if (i == SOCKET_ERROR)
-
-	    errno = WSAGetLastError();
-
-#endif /* WIN32 */
-
-    } while (i == -1 && errno == EINTR);
-
-    if (i == -1) {
-
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		   sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
 	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "proxy connect to %s port %d failed",
-
-		     inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
-
+		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
+	ap_pclosesocket(p, sock);
+	return SERVER_ERROR;
+#endif /*_OSD_POSIX*/
     }
 
-    ap_kill_timeout(r);
-
-
-
-    return i;
-
-}
-
--- apache_1.3.1/src/modules/standard/mod_access.c	1998-07-09 01:47:12.000000000 +0800
-
+#ifdef SINIX_D_RESOLVER_BUG
+    {
+	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;

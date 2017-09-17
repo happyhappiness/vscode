@@ -1,26 +1,20 @@
+#endif
 
+    ap_soft_timeout("send body", r);
 
-    /* Domain name must start with a '.' */
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
 
-    if (addr[0] != '.')
-
-	return 0;
-
-
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-
-	continue;
-
-
-
-#if 0
-
-    if (addr[i] == ':') {
-
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-
-	/* @@@@ handle optional port */
-
+        do {
+            n = ap_bread(fb, buf, len);
+            if (n >= 0 || r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

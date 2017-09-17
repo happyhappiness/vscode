@@ -1,48 +1,20 @@
-
-
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-
+void ap_send_error_response(request_rec *r, int recursive_error)
 {
+    BUFF *fd = r->connection->client;
+    int status = r->status;
+    int idx = ap_index_of_response(status);
+    char *custom_response;
+    const char *location = ap_table_get(r->headers_out, "Location");
 
-    char *cp = header;
+    /* We need to special-case the handling of 204 and 304 responses,
+     * since they have specific HTTP requirements and do not include a
+     * message body.  Note that being assbackwards here is not an option.
+     */
+    if (status == HTTP_NOT_MODIFIED) {
+        if (!ap_is_empty_table(r->err_headers_out))
+            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                               r->headers_out);
+        ap_hard_timeout("send 304", r);
 
-
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-
-        *cp = ap_tolower(*cp);
-
-    }
-
-
-
-    if (!*cp) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "Syntax error in type map --- no ':': %s", r->filename);
-
-        return NULL;
-
-    }
-
-
-
-    do {
-
-        ++cp;
-
-    } while (*cp && ap_isspace(*cp));
-
-
-
-    if (!*cp) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "Syntax error in type map --- no header body: %s",
-
-                    r->filename);
-
-        return NULL;
-
+        ap_basic_http_header(r);
+        ap_set_keepalive(r);

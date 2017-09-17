@@ -1,24 +1,13 @@
-	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
 
- 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
+    /* Host names must not start with a '.' */
+    if (addr[0] == '.')
+	return 0;
 
-	TerminateProcess((HANDLE) process_handles[i], 1);
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
 
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
+	/* @@@@ handle optional port */
     }
-
-    service_set_status(SERVICE_STOPPED);
-
-
-
-    if (pparent) {
-
-	ap_destroy_pool(pparent);
-
-    }
-
-
-
-    ap_destroy_mutex(start_mutex);
-
-    return (0);
-

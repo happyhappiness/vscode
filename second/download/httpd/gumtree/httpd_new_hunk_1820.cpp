@@ -1,26 +1,19 @@
-	    }
+    if (!method_restricted)
+	return OK;
 
+    if (!(sec->auth_authoritative))
+	return DECLINED;
 
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+	"access to %s failed for %s, reason: user %s not allowed access",
+	r->uri,
+	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
+	user);
+	
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
+}
 
-	    m_cont = m->next;
-
-	    while (m_cont && (m_cont->cont_level != 0)) {
-
-#if MIME_MAGIC_DEBUG
-
-		rule_counter++;
-
-		ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-			MODNAME ": line=%d mc=%x mc->next=%x cont=%d desc=%s",
-
-			    m_cont->lineno, m_cont,
-
-			    m_cont->next, m_cont->cont_level,
-
-			    m_cont->desc);
-
-#endif
-
-		/*
-
+module MODULE_VAR_EXPORT auth_module =
+{
+++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800

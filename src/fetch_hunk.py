@@ -49,13 +49,14 @@ def deal_file_diff( version_diff_info, file_diff, log_function, total_hunk, writ
     old_hunk_loc = new_hunk_loc = 0
     old_loc = new_loc = 0
     # old and new log locations
-    old_log_loc = new_log_loc = []
+    old_log_loc = []
+    new_log_loc = []
 
     # deal with each line of patch
     file_diff = file_diff[2:]
     for line in file_diff:
         # recognize change hunk by description info
-        is_hunk = re.match(r'^@@.*-(.*),.*\+(.*),.*@@', line)
+        is_hunk = re.match(r'^@@.*-(.*),.*\+(.*),.*@@$', line)
         # deal with past hunk and record new one
         if is_hunk:
             # if has log modification
@@ -68,23 +69,26 @@ def deal_file_diff( version_diff_info, file_diff, log_function, total_hunk, writ
             old_hunk_loc = is_hunk.group(1)
             new_hunk_loc = is_hunk.group(2)
             old_loc = new_loc = 0
-            old_log_loc = new_log_loc = []
+            old_log_loc = [] 
+            new_log_loc = []
             continue
 
         # record change type flag
         change_type = line[0]
+        if change_type not in ['-', '+', ' ']:
+            continue
         line = line[1:]
         # decide if it belongs to log change
         is_log_change = re.search(log_function, line, re.I)
         # + and common
         if change_type != '-':
-            new_hunk += (line + '\n')
+            new_hunk += line
             if is_log_change:
                 new_log_loc.append(new_loc)
             new_loc += 1
         # - and common
         if change_type != '+':
-            old_hunk += (line + '\n')
+            old_hunk += line
             if is_log_change:
                 old_log_loc.append(old_loc)
             old_loc += 1
@@ -125,6 +129,7 @@ def deal_version_diff( version_diff_file, log_function, total_hunk, writer):
 
     file_diff = []
     is_diff_file = False
+    old_file = new_file = None
     for i in range(len(version_diff)):
         # get diff file
         is_diff = re.match(r'^diff .*', version_diff[i])
@@ -143,6 +148,11 @@ def deal_version_diff( version_diff_file, log_function, total_hunk, writer):
                         temp_new_file = is_new.group(1)
                         # do not deal with this file diff
                         if filter_file(temp_new_file):
+                            if is_diff_file:
+                                    # deal with previous diff file
+                                total_hunk = deal_file_diff([version_diff_file, old_file, new_file], \
+                                                    file_diff, log_function, total_hunk, writer)
+                                file_diff = []
                             is_diff_file = True
                             old_file = temp_old_file
                             new_file = temp_new_file
@@ -153,6 +163,7 @@ def deal_version_diff( version_diff_file, log_function, total_hunk, writer):
                 # deal with previous diff file
                 total_hunk = deal_file_diff([version_diff_file, old_file, new_file], \
                                     file_diff, log_function, total_hunk, writer)
+                file_diff = []
         # record diff file
         if is_diff_file:
             file_diff.append(version_diff[i])
@@ -176,6 +187,7 @@ def fetch_version_diff():
     # filter out the one with log statement changes
     log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
     log_function = myUtil.functionToRegrexStr(log_functions)
+    # print re.search(log_function, '\t   ap_log_error()')
 
     # initiate csvfile
     hunk_file = file(my_constant.FETCH_HUNK_FILE_NAME, 'wb')

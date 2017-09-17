@@ -1,34 +1,20 @@
-		return;
+	     */
+	    break;
+#endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
+    }
 
-#if MIME_MAGIC_DEBUG
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-	    prevm = 0;
+    child_timeouts = !ap_standalone || one_process;
 
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-
-			MODNAME ": magic_init 1 test");
-
-	    for (m = conf->magic; m; m = m->next) {
-
-		if (isprint((((unsigned long) m) >> 24) & 255) &&
-
-		    isprint((((unsigned long) m) >> 16) & 255) &&
-
-		    isprint((((unsigned long) m) >> 8) & 255) &&
-
-		    isprint(((unsigned long) m) & 255)) {
-
-		    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-
-				MODNAME ": magic_init 1: POINTER CLOBBERED! "
-
-				"m=\"%c%c%c%c\" line=%d",
-
-				(((unsigned long) m) >> 24) & 255,
-
-				(((unsigned long) m) >> 16) & 255,
-
-				(((unsigned long) m) >> 8) & 255,
-
--- apache_1.3.0/src/modules/standard/mod_negotiation.c	1998-05-31 03:15:38.000000000 +0800
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

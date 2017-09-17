@@ -1,60 +1,25 @@
-    err = ap_proxy_host2addr(host, &server_hp);
-
-    if (err != NULL)
-
 	return ap_proxyerror(r, err);	/* give up */
 
-
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
+    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (sock == -1) {
-
 	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "proxy: error creating socket");
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
+		    "proxy: error creating socket");
+	return SERVER_ERROR;
     }
 
-
-
-    if (conf->recv_buffer_size) {
-
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-
-	    == -1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-
-	}
-
+#ifndef WIN32
+    if (sock >= FD_SETSIZE) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
+	    "proxy_connect_handler: filedescriptor (%u) "
+	    "larger than FD_SETSIZE (%u) "
+	    "found, you probably need to rebuild Apache with a "
+	    "larger FD_SETSIZE", sock, FD_SETSIZE);
+	ap_pclosesocket(r->pool, sock);
+	return SERVER_ERROR;
     }
+#endif
 
-
-
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-
-		   sizeof(one)) == -1) {
-
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-
-	ap_pclosesocket(p, sock);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-#endif /*_OSD_POSIX*/
-
-    }
-
-
-
+    j = 0;
+    while (server_hp.h_addr_list[j] != NULL) {
+	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
+-- apache_1.3.0/src/modules/proxy/proxy_ftp.c	1998-05-28 06:56:05.000000000 +0800

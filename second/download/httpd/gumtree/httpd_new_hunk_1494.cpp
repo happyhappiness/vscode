@@ -1,26 +1,10 @@
-    if (r->assbackwards && r->header_only) {
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
 
-        /*
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
+#endif
 
-         * Client asked for headers only with HTTP/0.9, which doesn't send
-
-         * headers!  Have to dink things even to make sure the error message
-
-         * comes through...
-
-         */
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "client sent illegal HTTP/0.9 request: %s", r->uri);
-
-        r->header_only = 0;
-
-        ap_die(BAD_REQUEST, r);
-
-        return;
-
-    }
-
-
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

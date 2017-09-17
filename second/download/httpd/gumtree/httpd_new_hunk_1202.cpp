@@ -1,26 +1,25 @@
-	perror("Unable to gethostname");
+	return ap_proxyerror(r, err);	/* give up */
 
-	exit(1);
-
+    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		    "proxy: error creating socket");
+	return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    str[MAXHOSTNAMELEN] = '\0';
-
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
-
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-
-	fprintf(stderr, "Use the ServerName directive to set it manually.\n");
-
-	exit(1);
-
+#ifndef WIN32
+    if (sock >= FD_SETSIZE) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
+	    "proxy_connect_handler: filedescriptor (%u) "
+	    "larger than FD_SETSIZE (%u) "
+	    "found, you probably need to rebuild Apache with a "
+	    "larger FD_SETSIZE", sock, FD_SETSIZE);
+	ap_pclosesocket(r->pool, sock);
+	return HTTP_INTERNAL_SERVER_ERROR;
     }
+#endif
 
-
-
-    return server_hostname;
-
-}
-
-
-
+    j = 0;
+    while (server_hp.h_addr_list[j] != NULL) {
+	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
+++ apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800

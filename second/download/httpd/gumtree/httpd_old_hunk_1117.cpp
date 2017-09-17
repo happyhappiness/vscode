@@ -1,26 +1,20 @@
-    if (r->assbackwards && r->header_only) {
-
-        /*
-
-         * Client asked for headers only with HTTP/0.9, which doesn't send
-
-         * headers!  Have to dink things even to make sure the error message
-
-         * comes through...
-
-         */
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "client sent illegal HTTP/0.9 request: %s", r->uri);
-
-        r->header_only = 0;
-
-        ap_die(BAD_REQUEST, r);
-
-        return;
-
+	     */
+	    break;
+#endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
+    child_timeouts = !ap_standalone || one_process;
 
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

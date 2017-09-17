@@ -1,400 +1,146 @@
-	ap_rputs("\"<B><code>W</code></B>\" Sending Reply, \n", r);
-
-	ap_rputs("\"<B><code>K</code></B>\" Keepalive (read), \n", r);
-
-	ap_rputs("\"<B><code>D</code></B>\" DNS Lookup,<BR>\n", r);
-
-	ap_rputs("\"<B><code>L</code></B>\" Logging, \n", r);
-
-	ap_rputs("\"<B><code>G</code></B>\" Gracefully finishing, \n", r);
-
-	ap_rputs("\"<B><code>.</code></B>\" Open slot with no current process<P>\n", r);
-
-    }
-
-
-
-#if defined(STATUS)
-
-    if (!short_report) {
-
-	if (no_table_report)
-
-	    ap_rputs("<p><hr><h2>Server Details</h2>\n\n", r);
-
-	else
-
-#ifdef NO_TIMES
-
-	    /* Allow for OS/2 not having CPU stats */
-
-	    ap_rputs("<p>\n\n<table border=0><tr><th>Srv<th>PID<th>Acc<th>M\n<th>SS<th>Req<th>Conn<th>Child<th>Slot<th>Host<th>VHost<th>Request</tr>\n\n", r);
-
-#else
-
-	    ap_rputs("<p>\n\n<table border=0><tr><th>Srv<th>PID<th>Acc<th>M<th>CPU\n<th>SS<th>Req<th>Conn<th>Child<th>Slot<th>Host<th>VHost<th>Request</tr>\n\n", r);
-
-#endif
-
-    }
-
-
-
-    for (i = 0; i < HARD_SERVER_LIMIT; ++i) {
-
-	score_record = ap_scoreboard_image->servers[i];
-
-	ps_record = ap_scoreboard_image->parent[i];
-
-
-
-#if defined(NO_GETTIMEOFDAY)
-
-#ifndef NO_TIMES
-
-	if (score_record.start_time == (clock_t) 0)
-
-#endif /* NO_TIMES */
-
-	    req_time = 0L;
-
-#ifndef NO_TIMES
-
 	else {
-
-	    req_time = score_record.stop_time - score_record.start_time;
-
-	    req_time = (req_time * 1000) / (int) tick;
-
+	    cur = atol(str);
 	}
+    }
+    else {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
+		    "Invalid parameters for %s", cmd->cmd->name);
+	return;
+    }
+    
+    if (arg2 && (str = ap_getword_conf(cmd->pool, &arg2)))
+	max = atol(str);
 
-#endif /* NO_TIMES */
-
-#else
-
-	if (score_record.start_time.tv_sec == 0L &&
-
-	    score_record.start_time.tv_usec == 0L)
-
-	    req_time = 0L;
-
-	else
-
-	    req_time =
-
-		((score_record.stop_time.tv_sec - score_record.start_time.tv_sec) * 1000) +
-
-		((score_record.stop_time.tv_usec - score_record.start_time.tv_usec) / 1000);
-
+    /* if we aren't running as root, cannot increase max */
+    if (geteuid()) {
+	limit->rlim_cur = cur;
+	if (max)
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
+			"Must be uid 0 to raise maximum %s", cmd->cmd->name);
+    }
+    else {
+	if (cur)
+	    limit->rlim_cur = cur;
+	if (max)
+	    limit->rlim_max = max;
+    }
+}
 #endif
 
-	if (req_time < 0L)
-
-	    req_time = 0L;
-
-
-
-	lres = score_record.access_count;
-
-	my_lres = score_record.my_access_count;
-
-	conn_lres = score_record.conn_count;
-
-	bytes = score_record.bytes_served;
-
-	my_bytes = score_record.my_bytes_served;
-
-	conn_bytes = score_record.conn_bytes;
-
-	if (lres != 0 || (score_record.status != SERVER_READY
-
-			  && score_record.status != SERVER_DEAD)) {
-
-	    if (!short_report) {
-
-		if (no_table_report) {
-
-		    if (score_record.status == SERVER_DEAD)
-
-			ap_rprintf(r, "<b>Server %d</b> (-): %d|%lu|%lu [",
-
-				i, (int) conn_lres, my_lres, lres);
-
-		    else
-
-			ap_rprintf(r, "<b>Server %d</b> (%d): %d|%lu|%lu [",
-
-				i, (int) ps_record.pid, (int) conn_lres, my_lres, lres);
-
-
-
-		    switch (score_record.status) {
-
-		    case SERVER_READY:
-
-			ap_rputs("Ready", r);
-
-			break;
-
-		    case SERVER_STARTING:
-
-			ap_rputs("Starting", r);
-
-			break;
-
-		    case SERVER_BUSY_READ:
-
-			ap_rputs("<b>Read</b>", r);
-
-			break;
-
-		    case SERVER_BUSY_WRITE:
-
-			ap_rputs("<b>Write</b>", r);
-
-			break;
-
-		    case SERVER_BUSY_KEEPALIVE:
-
-			ap_rputs("<b>Keepalive</b>", r);
-
-			break;
-
-		    case SERVER_BUSY_LOG:
-
-			ap_rputs("<b>Logging</b>", r);
-
-			break;
-
-		    case SERVER_BUSY_DNS:
-
-			ap_rputs("<b>DNS lookup</b>", r);
-
-			break;
-
-		    case SERVER_DEAD:
-
-			ap_rputs("Dead", r);
-
-			break;
-
-		    case SERVER_GRACEFUL:
-
-			ap_rputs("Graceful", r);
-
-			break;
-
-		    default:
-
-			ap_rputs("?STATE?", r);
-
-			break;
-
-		    }
-
-#ifdef NO_TIMES
-
-		    /* Allow for OS/2 not having CPU stats */
-
-		    ap_rprintf(r, "]\n %.0f %ld (",
-
-#else
-
-
-
-		    ap_rprintf(r, "] u%g s%g cu%g cs%g\n %.0f %ld (",
-
-			    score_record.times.tms_utime / tick,
-
-			    score_record.times.tms_stime / tick,
-
-			    score_record.times.tms_cutime / tick,
-
-			    score_record.times.tms_cstime / tick,
-
+#if !defined (RLIMIT_CPU) || !(defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)) || !defined (RLIMIT_NPROC)
+static const char *no_set_limit (cmd_parms *cmd, core_dir_config *conf,
+				 char *arg, char *arg2)
+{
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
+		"%s not supported on this platform", cmd->cmd->name);
+    return NULL;
+}
 #endif
 
-#ifdef OPTIMIZE_TIMEOUTS
-
-			    difftime(nowtime, ps_record.last_rtime),
-
-#else
-
-			    difftime(nowtime, score_record.last_used),
-
+#ifdef RLIMIT_CPU
+static const char *set_limit_cpu (cmd_parms *cmd, core_dir_config *conf, 
+	                          char *arg, char *arg2)
+{
+    set_rlimit(cmd,&conf->limit_cpu,arg,arg2,RLIMIT_CPU);
+    return NULL;
+}
 #endif
 
-			    (long) req_time);
-
-		    format_byte_out(r, conn_bytes);
-
-		    ap_rputs("|", r);
-
-		    format_byte_out(r, my_bytes);
-
-		    ap_rputs("|", r);
-
-		    format_byte_out(r, bytes);
-
-		    ap_rputs(")\n", r);
-
-		    ap_rprintf(r, " <i>%s {%s}</i><br>\n\n",
-
-			    score_record.client,
-
-			    ap_escape_html(r->pool, score_record.request));
-
-		}
-
-		else {		/* !no_table_report */
-
-		    if (score_record.status == SERVER_DEAD)
-
-			ap_rprintf(r, "<tr><td><b>%d</b><td>-<td>%d/%lu/%lu",
-
-				i, (int) conn_lres, my_lres, lres);
-
-		    else
-
-			ap_rprintf(r, "<tr><td><b>%d</b><td>%d<td>%d/%lu/%lu",
-
-				i, (int) ps_record.pid, (int) conn_lres, my_lres, lres);
-
-
-
-		    switch (score_record.status) {
-
-		    case SERVER_READY:
-
-			ap_rputs("<td>_", r);
-
-			break;
-
-		    case SERVER_STARTING:
-
-			ap_rputs("<td><b>S</b>", r);
-
-			break;
-
-		    case SERVER_BUSY_READ:
-
-			ap_rputs("<td><b>R</b>", r);
-
-			break;
-
-		    case SERVER_BUSY_WRITE:
-
-			ap_rputs("<td><b>W</b>", r);
-
-			break;
-
-		    case SERVER_BUSY_KEEPALIVE:
-
-			ap_rputs("<td><b>K</b>", r);
-
-			break;
-
-		    case SERVER_BUSY_LOG:
-
-			ap_rputs("<td><b>L</b>", r);
-
-			break;
-
-		    case SERVER_BUSY_DNS:
-
-			ap_rputs("<td><b>D</b>", r);
-
-			break;
-
-		    case SERVER_DEAD:
-
-			ap_rputs("<td>.", r);
-
-			break;
-
-		    case SERVER_GRACEFUL:
-
-			ap_rputs("<td>G", r);
-
-			break;
-
-		    default:
-
-			ap_rputs("<td>?", r);
-
-			break;
-
-		    }
-
-#ifdef NO_TIMES
-
-		    /* Allow for OS/2 not having CPU stats */
-
-		    ap_rprintf(r, "\n<td>%.0f<td>%ld",
-
-#else
-
-		    ap_rprintf(r, "\n<td>%.2f<td>%.0f<td>%ld",
-
-			    (score_record.times.tms_utime +
-
-			     score_record.times.tms_stime +
-
-			     score_record.times.tms_cutime +
-
-			     score_record.times.tms_cstime) / tick,
-
+#if defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)
+static const char *set_limit_mem (cmd_parms *cmd, core_dir_config *conf, 
+	                          char *arg, char * arg2)
+{
+#if defined(RLIMIT_AS)
+    set_rlimit(cmd,&conf->limit_mem,arg,arg2,RLIMIT_AS);
+#elif defined(RLIMIT_DATA)
+    set_rlimit(cmd,&conf->limit_mem,arg,arg2,RLIMIT_DATA);
+#elif defined(RLIMIT_VMEM)
+    set_rlimit(cmd,&conf->limit_mem,arg,arg2,RLIMIT_VMEM);
+#endif
+    return NULL;
+}
 #endif
 
-#ifdef OPTIMIZE_TIMEOUTS
-
-			    difftime(nowtime, ps_record.last_rtime),
-
-#else
-
-			    difftime(nowtime, score_record.last_used),
-
+#ifdef RLIMIT_NPROC
+static const char *set_limit_nproc (cmd_parms *cmd, core_dir_config *conf,  
+	                            char *arg, char * arg2)
+{
+    set_rlimit(cmd,&conf->limit_nproc,arg,arg2,RLIMIT_NPROC);
+    return NULL;
+}
 #endif
 
-			    (long) req_time);
+static const char *set_bind_address (cmd_parms *cmd, void *dummy, char *arg) 
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) return err;
 
-		    ap_rprintf(r, "<td>%-1.1f<td>%-2.2f<td>%-2.2f\n",
+    ap_bind_address.s_addr = ap_get_virthost_addr (arg, NULL);
+    return NULL;
+}
 
-		       (float) conn_bytes / KBYTE, (float) my_bytes / MBYTE,
+static const char *set_listener(cmd_parms *cmd, void *dummy, char *ips)
+{
+    listen_rec *new;
+    char *ports;
+    unsigned short port;
 
-			    (float) bytes / MBYTE);
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) return err;
 
-		    ap_rprintf(r, "<td>%s<td nowrap>%s<td nowrap>%s</tr>\n\n",
+    ports=strchr(ips, ':');
+    if (ports != NULL)
+    {
+	if (ports == ips) return "Missing IP address";
+	else if (ports[1] == '\0')
+	    return "Address must end in :<port-number>";
+	*(ports++) = '\0';
+    } else
+	ports = ips;
 
-			    score_record.client, score_record.vhost,
+    new=ap_pcalloc(cmd->pool, sizeof(listen_rec));
+    new->local_addr.sin_family = AF_INET;
+    if (ports == ips) /* no address */
+	new->local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    else
+	new->local_addr.sin_addr.s_addr = ap_get_virthost_addr(ips, NULL);
+    port=atoi(ports);
+    if(!port)
+	return "Port must be numeric";
+    new->local_addr.sin_port = htons(port);
+    new->fd = -1;
+    new->used = 0;
+    new->next = ap_listeners;
+    ap_listeners = new;
+    return NULL;
+}
 
-			    ap_escape_html(r->pool, score_record.request));
+static const char *set_listenbacklog (cmd_parms *cmd, void *dummy, char *arg) 
+{
+    int b;
 
-		}		/* no_table_report */
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) return err;
 
-	    }			/* !short_report */
+    b = atoi (arg);
+    if (b < 1) return "ListenBacklog must be > 0";
+    ap_listenbacklog = b;
+    return NULL;
+}
 
-	}			/* if (<active child>) */
+static const char *set_coredumpdir (cmd_parms *cmd, void *dummy, char *arg) 
+{
+    struct stat finfo;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) return err;
 
-    }				/* for () */
+    arg = ap_server_root_relative(cmd->pool, arg);
+    if ((stat(arg, &finfo) == -1) || !S_ISDIR(finfo.st_mode)) {
+	return ap_pstrcat(cmd->pool, "CoreDumpDirectory ", arg, 
+	    " does not exist or is not a directory", NULL);
+    }
+    ap_cpystrn(ap_coredump_dir, arg, sizeof(ap_coredump_dir));
+    return NULL;
+}
 
-
-
-    if (!(short_report || no_table_report)) {
-
-#ifdef __EMX__
-
-	ap_rputs("</table>\n \
-
-<hr> \
-
-<table>\n \
-
-<tr><th>Srv<td>Server number\n \
-
-<tr><th>PID<td>OS process ID\n \
-
-<tr><th>Acc<td>Number of accesses this connection / this child / this slot\n \
-
-<tr><th>M<td>Mode of operation\n \
-
+static const char *include_config (cmd_parms *cmd, void *dummy, char *name)

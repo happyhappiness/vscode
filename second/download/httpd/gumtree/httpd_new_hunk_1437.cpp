@@ -1,26 +1,17 @@
-    /*
-
-     *  only do something under runtime if the engine is really enabled,
-
-     *  for this directory, else return immediately!
-
-     */
-
-    if (!(ap_allow_options(r) & (OPT_SYM_LINKS | OPT_SYM_OWNER))) {
-
-        /* FollowSymLinks is mandatory! */
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                     "Options FollowSymLinks or SymLinksIfOwnerMatch is off "
-
-                     "which implies that RewriteRule directive is forbidden: "
-
-                     "%s", r->filename);
-
-        return FORBIDDEN;
-
     }
-
     else {
-
+	alarm_fn = fn;
+	alarm_expiry_time = time(NULL) + x;
+    }
+#else
+    if (alarm_fn && x && fn != alarm_fn) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
+	    "ap_set_callback_and_alarm: possible nested timer!");
+    }
+    alarm_fn = fn;
+#ifndef OPTIMIZE_TIMEOUTS
+    old = alarm(x);
+#else
+    if (child_timeouts) {
+	old = alarm(x);
+    }

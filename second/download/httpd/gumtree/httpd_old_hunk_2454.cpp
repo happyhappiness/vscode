@@ -1,26 +1,20 @@
-    union VALUETYPE p;
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
+        }
+        return 0;
+    }
 
-    magic_server_config_rec *conf = (magic_server_config_rec *)
+    range = ap_getword_nc(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
-		ap_get_module_config(r->server->module_config, &mime_magic_module);
+    if (r->byterange > 1) {
+        char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-    struct magic *m;
-
-
-
-#if MIME_MAGIC_DEBUG
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		MODNAME ": match conf=%x file=%s m=%s m->next=%s last=%s",
-
-		conf,
-
-		conf->magicfile ? conf->magicfile : "NULL",
-
-		conf->magic ? "set" : "NULL",
-
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
-
-		conf->last ? "set" : "NULL");
-
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

@@ -1,48 +1,64 @@
-			d->icon_height,
+     * this on Win32, though, since we haven't fork()'d.
+     */
+    r->server->error_log = stderr;
+#endif
 
-			d->icon_width
-
-		    );
-
-	    }
-
-	    ap_rputs("> ", r);
-
+#ifdef RLIMIT_CPU
+    if (conf->limit_cpu != NULL) {
+        if ((setrlimit(RLIMIT_CPU, conf->limit_cpu)) != 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "setrlimit: failed to set CPU usage limit");
 	}
-
-        emit_link(r, widthify("Name", name_scratch,
-
-			      (name_width > 5) ? 5 : name_width, K_NOPAD),
-
-		  K_NAME, keyid, direction, static_columns);
-
-	if (name_width > 5) {
-
-	    memset(name_scratch, ' ', name_width);
-
-	    name_scratch[name_width] = '\0';
-
-	    ap_rputs(&name_scratch[5], r);
-
+    }
+#endif
+#ifdef RLIMIT_NPROC
+    if (conf->limit_nproc != NULL) {
+        if ((setrlimit(RLIMIT_NPROC, conf->limit_nproc)) != 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "setrlimit: failed to set process limit");
 	}
-
-	/*
-
-	 * Emit the guaranteed-at-least-one-space-between-columns byte.
-
-	 */
-
-	ap_rputs(" ", r);
-
-	if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-
-            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
-
-                      static_columns);
-
-	    ap_rputs("       ", r);
-
+    }
+#endif
+#if defined(RLIMIT_AS)
+    if (conf->limit_mem != NULL) {
+        if ((setrlimit(RLIMIT_AS, conf->limit_mem)) != 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "setrlimit(RLIMIT_AS): failed to set memory "
+			 "usage limit");
 	}
+    }
+#elif defined(RLIMIT_DATA)
+    if (conf->limit_mem != NULL) {
+        if ((setrlimit(RLIMIT_DATA, conf->limit_mem)) != 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "setrlimit(RLIMIT_DATA): failed to set memory "
+			 "usage limit");
+	}
+    }
+#elif defined(RLIMIT_VMEM)
+    if (conf->limit_mem != NULL) {
+        if ((setrlimit(RLIMIT_VMEM, conf->limit_mem)) != 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "setrlimit(RLIMIT_VMEM): failed to set memory "
+			 "usage limit");
+	}
+    }
+#endif
 
-	if (!(autoindex_opts & SUPPRESS_SIZE)) {
+#ifdef __EMX__
+    {
+	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
+	int is_script;
+	char interpreter[2048];	/* hope it's enough for the interpreter path */
+	FILE *program;
 
+	program = fopen(r->filename, "rt");
+	if (!program) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
+			 r->filename);
+	    return (pid);
+	}
+	fgets(interpreter, sizeof(interpreter), program);
+	fclose(program);
+	if (!strncmp(interpreter, "#!", 2)) {
+	    is_script = 1;

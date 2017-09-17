@@ -1,56 +1,37 @@
-#ifdef SHARED_CORE
+	if (rc == -1) {
+	    ap_kill_timeout(r);
+	    return ap_proxyerror(r, "Error sending to remote server");
+	}
+	if (rc == 550) {
+	    ap_kill_timeout(r);
+	    return HTTP_NOT_FOUND;
+	}
+	if (rc != 250) {
+	    ap_kill_timeout(r);
+	    return HTTP_BAD_GATEWAY;
+	}
 
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
+	ap_bputs("LIST -lag" CRLF, f);
+	ap_bflush(f);
+	Explain0("FTP: LIST -lag");
+	rc = ftp_getrc(f);
+	Explain1("FTP: returned status %d", rc);
+	if (rc == -1)
+	    return ap_proxyerror(r, "Error sending to remote server");
+    }
+    ap_kill_timeout(r);
+    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
+	return HTTP_BAD_GATEWAY;
 
-#else
+    r->status = 200;
+    r->status_line = "200 OK";
 
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
+    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
+    c->hdrs = resp_hdrs;
 
-#endif
-
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
-
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S] [-t]\n", pad);
-
-    fprintf(stderr, "Options:\n");
-
-#ifdef SHARED_CORE
-
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
-
-#endif
-
-    fprintf(stderr, "  -D name          : define a name for use in <IfDefine name> directives\n");
-
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-
-    fprintf(stderr, "  -v               : show version number\n");
-
-    fprintf(stderr, "  -V               : show compile settings\n");
-
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-
-    fprintf(stderr, "  -t               : run syntax test for configuration files only\n");
-
-    exit(1);
-
-}
-
-
-
-/*****************************************************************
-
- *
-
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
-
+    if (parms[0] == 'd')
+	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
+    else {
+	if (r->content_type != NULL) {
+	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
+			     HDR_REP);

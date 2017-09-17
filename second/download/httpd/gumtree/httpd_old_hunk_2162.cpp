@@ -1,26 +1,13 @@
-	    const char *orig_groups, *groups;
-
-	    char *v;
-
-
-
-	    if (!(groups = get_db_grp(r, user, sec->auth_dbgrpfile))) {
-
-		if (!(sec->auth_dbauthoritative))
-
-		    return DECLINED;
-
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			    "user %s not in DB group file %s: %s",
-
-			    user, sec->auth_dbgrpfile, r->filename);
-
-		ap_note_basic_auth_failure(r);
-
-		return AUTH_REQUIRED;
-
-	    }
-
-	    orig_groups = groups;
-
+	}
+	if ((timefd = creat(filename, 0666)) == -1) {
+	    if (errno != EEXIST)
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy: creat(%s)", filename);
+	    else
+		lastcheck = abs(garbage_now);	/* someone else got in there */
+	    ap_unblock_alarms();
+	    return;
+	}
+	close(timefd);
+    }
+    else {

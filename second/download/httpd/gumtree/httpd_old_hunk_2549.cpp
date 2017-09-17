@@ -1,26 +1,28 @@
-        /*
+	    return;
+	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
+    curblocks = 0;
+    curbytes = 0;
 
-         * Do symlink checks first, because they are done with the
+    sub_garbage_coll(r, files, cachedir, "/");
 
-         * permissions appropriate to the *parent* directory...
+    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
+	ap_unblock_alarms();
+	return;
+    }
 
-         */
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
 
-
-
-        if ((res = check_symlinks(test_dirname, core_dir->opts))) {
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "Symbolic link not allowed: %s", test_dirname);
-
-            return res;
-
-        }
-
-
-
-        /*
-
-         * Begin *this* level by looking for matching <Directory> sections
-
+    elts = (struct gc_ent **) files->elts;
+    for (i = 0; i < files->nelts; i++) {
+	fent = elts[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
+#else
+	if (unlink(filename) == -1) {

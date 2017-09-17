@@ -1,26 +1,13 @@
-	return DONE;
 
-#endif
+    /* Domain name must start with a '.' */
+    if (addr[0] != '.')
+	return 0;
 
-#endif
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
+	continue;
 
-    case S_IFREG:
-
-	break;
-
-    default:
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
-
-		    MODNAME ": invalid mode 0%o.", (unsigned int)r->finfo.st_mode);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-    /*
-
-     * regular file, check next possibility
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
+	/* @@@@ handle optional port */

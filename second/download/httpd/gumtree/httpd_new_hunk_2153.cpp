@@ -1,32 +1,29 @@
-	else
+	}
 
-	    ret = FORBIDDEN;
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (ap_isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!ap_isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (ap_isspace(*src))
+		++src;
+	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && ap_isspace(*dst))
+	    *dst = '\0';
 
-    }
-
-
-
-    if (ret == FORBIDDEN
-
-	&& (ap_satisfies(r) != SATISFY_ANY || !ap_some_auth_required(r))) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		  "client denied by server configuration: %s",
-
-		  r->filename);
-
-    }
-
-
-
-    return ret;
-
-}
-
-
-
-
-
-++ apache_1.3.2/src/modules/standard/mod_actions.c	1998-08-07 01:30:53.000000000 +0800
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

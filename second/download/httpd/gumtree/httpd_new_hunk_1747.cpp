@@ -1,26 +1,13 @@
-#else
 
-    q.dsize = strlen(q.dptr) + 1;
+    /* Domain name must start with a '.' */
+    if (addr[0] != '.')
+	return 0;
 
-#endif
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
+	continue;
 
-
-
-
-
-    if (!(f = dbm_open(auth_dbmpwfile, O_RDONLY, 0664))) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		    "could not open dbm auth file: %s", auth_dbmpwfile);
-
-	return NULL;
-
-    }
-
-
-
-    d = dbm_fetch(f, q);
-
-
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
+	/* @@@@ handle optional port */

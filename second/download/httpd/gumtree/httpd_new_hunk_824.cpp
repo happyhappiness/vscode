@@ -1,26 +1,13 @@
-    char *origs = s, *origp = p;
 
-    char *pmax = p + plen - 1;
+    /* Host names must not start with a '.' */
+    if (addr[0] == '.')
+	return 0;
 
-    register int c;
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
 
-    register int val;
-
-
-
-    while ((c = *s++) != '\0') {
-
-	if (ap_isspace((unsigned char) c))
-
-	    break;
-
-	if (p >= pmax) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, serv,
-
-			MODNAME ": string too long: %s", origs);
-
-	    break;
-
-	}
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
+	/* @@@@ handle optional port */
+    }

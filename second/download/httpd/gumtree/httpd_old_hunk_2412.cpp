@@ -1,26 +1,13 @@
-            }
 
-        }
+    /* Host names must not start with a '.' */
+    if (addr[0] == '.')
+	return 0;
 
-        else if (!strcmp(tag, "done")) {
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
 
-            return 0;
-
-        }
-
-        else {
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "unknown parameter \"%s\" to tag include in %s",
-
-                        tag, r->filename);
-
-            ap_rputs(error, r);
-
-        }
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
+	/* @@@@ handle optional port */
     }
-
-}
-

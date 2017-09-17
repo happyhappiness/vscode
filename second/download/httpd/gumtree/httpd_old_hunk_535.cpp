@@ -1,56 +1,15 @@
-	    return;
+            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+        }
 
-	}
-
-	if (utime(filename, NULL) == -1)
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: utimes(%s)", filename);
-
+        r->read_chunked = 1;
     }
+    else if (lenp) {
+        char *pos = lenp;
 
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
-
-    curblocks = 0;
-
-    curbytes = 0;
-
-
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-
-
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-
-	ap_unblock_alarms();
-
-	return;
-
-    }
-
-
-
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
-
-
-
-    elts = (struct gc_ent **) files->elts;
-
-    for (i = 0; i < files->nelts; i++) {
-
-	fent = elts[i];
-
-	sprintf(filename, "%s%s", cachedir, fent->file);
-
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-
-#if TESTING
-
-	fprintf(stderr, "Would unlink %s\n", filename);
-
-#else
-
-	if (unlink(filename) == -1) {
-
+        while (isdigit(*pos) || isspace(*pos))
+            ++pos;
+        if (*pos != '\0') {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }

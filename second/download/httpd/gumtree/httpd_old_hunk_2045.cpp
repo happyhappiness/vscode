@@ -1,26 +1,12 @@
-            /* it should be go on as an internal proxy request */
+}
 
+#ifdef USE_PERL_SSI
+static int handle_perl(FILE *in, request_rec *r, const char *error)
+{
+    char tag[MAX_STRING_LEN];
+    char *tag_val;
+    SV *sub = Nullsv;
+    AV *av = newAV();
 
-
-            /* check if the proxy module is enabled, so
-
-             * we can actually use it!
-
-             */
-
-            if (!proxy_available) {
-
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                             "attempt to make remote request from mod_rewrite "
-
-                             "without proxy enabled: %s", r->filename);
-
-                return FORBIDDEN;
-
-            }
-
-
-
-            /* make sure the QUERY_STRING and
-
+    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

@@ -1,92 +1,13 @@
 
-
-    /* be sure it is has a drive letter or is a UNC path; everything
-
-     * _must_ be canonicalized before getting to this point.  
-
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
      */
+    if (!ap_is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-    if (szPath[1] != ':' && szPath[1] != '/') {
+    ap_hard_timeout("send headers", r);
 
-	ap_log_error(APLOG_MARK, APLOG_ERR, NULL, 
-
-		     "Invalid path in os_stat: \"%s\", "
-
-		     "should have a drive letter or be a UNC path",
-
-		     szPath);
-
-	return (-1);
-
-    }
-
-
-
-    if (szPath[0] == '/') {
-
-	char buf[_MAX_PATH];
-
-	char *s;
-
-	int nSlashes = 0;
-
-
-
-	ap_assert(strlen(szPath) < _MAX_PATH);
-
-	strcpy(buf, szPath);
-
-	for (s = buf; *s; ++s) {
-
-	    if (*s == '/') {
-
-		*s = '\\';
-
-		++nSlashes;
-
-	    }
-
-	}
-
-	/* then we need to add one more to get \\machine\share\ */
-
-	if (nSlashes == 3) {
-
-	    *s++ = '\\';
-
-	}
-
-	*s = '\0';
-
-	return stat(buf, pStat);
-
-    }
-
-
-
-    n = strlen(szPath);
-
-    if (szPath[n - 1] == '\\' || szPath[n - 1] == '/') {
-
-        char buf[_MAX_PATH];
-
-        
-
-        ap_assert(n < _MAX_PATH);
-
-        strcpy(buf, szPath);
-
-        buf[n - 1] = '\0';
-
-        
-
-        return stat(buf, pStat);
-
-    }
-
-    return stat(szPath, pStat);
-
-}
-
-
-
+    ap_basic_http_header(r);

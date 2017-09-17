@@ -1,64 +1,28 @@
-
-
-    /* Pass one --- direct matches */
-
-
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-
-	if (handler_len == handp->len
-
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-
-            result = (*handp->hr.handler) (r);
-
-
-
-            if (result != DECLINED)
-
-                return result;
-
-        }
-
+	     */
+	    break;
+#endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-
-    if (result == NOT_IMPLEMENTED && r->handler) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
     }
 
+    child_timeouts = !ap_standalone || one_process;
 
-
-    /* Pass two --- wildcard matches */
-
-
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-
-	if (handler_len >= handp->len
-
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-
-             result = (*handp->hr.handler) (r);
-
-
-
-             if (result != DECLINED)
-
-                 return result;
-
-         }
-
-    }
-
-
-
-nly in apache_1.3.0/src/main: http_config.o
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

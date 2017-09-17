@@ -1,54 +1,13 @@
-
-
-    /* Pass one --- direct matches */
-
-
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-
-	if (handler_len == handp->len
-
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-
-            int result = (*handp->hr.handler) (r);
-
-
-
-            if (result != DECLINED)
-
-                return result;
-
-        }
-
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		   sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
+	ap_pclosesocket(p, sock);
+	return SERVER_ERROR;
+#endif /*_OSD_POSIX*/
     }
 
-
-
-    /* Pass two --- wildcard matches */
-
-
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-
-	if (handler_len >= handp->len
-
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-
-             int result = (*handp->hr.handler) (r);
-
-
-
-             if (result != DECLINED)
-
-                 return result;
-
-         }
-
-    }
-
-
-
-nly in apache_1.3.0/src/main: http_config.o
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
-
+#ifdef SINIX_D_RESOLVER_BUG
+    {
+	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;

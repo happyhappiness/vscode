@@ -1,54 +1,37 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			"malformed header in meta file: %s", r->filename);
-
-	    return SERVER_ERROR;
-
+	if (rc == -1) {
+	    ap_kill_timeout(r);
+	    return ap_proxyerror(r, "Error sending to remote server");
+	}
+	if (rc == 550) {
+	    ap_kill_timeout(r);
+	    return HTTP_NOT_FOUND;
+	}
+	if (rc != 250) {
+	    ap_kill_timeout(r);
+	    return HTTP_BAD_GATEWAY;
 	}
 
+	ap_bputs("LIST -lag" CRLF, f);
+	ap_bflush(f);
+	Explain0("FTP: LIST -lag");
+	rc = ftp_getrc(f);
+	Explain1("FTP: returned status %d", rc);
+	if (rc == -1)
+	    return ap_proxyerror(r, "Error sending to remote server");
+    }
+    ap_kill_timeout(r);
+    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
+	return HTTP_BAD_GATEWAY;
 
+    r->status = 200;
+    r->status_line = "200 OK";
 
-	*l++ = '\0';
+    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
+    c->hdrs = resp_hdrs;
 
-	while (*l && ap_isspace(*l))
-
-	    ++l;
-
-
-
-	if (!strcasecmp(w, "Content-type")) {
-
-	    char *tmp;
-
-	    /* Nuke trailing whitespace */
-
-
-
-	    char *endp = l + strlen(l) - 1;
-
-	    while (endp > l && ap_isspace(*endp))
-
-		*endp-- = '\0';
-
-
-
-	    tmp = ap_pstrdup(r->pool, l);
-
-	    ap_content_type_tolower(tmp);
-
-	    r->content_type = tmp;
-
-	}
-
-	else if (!strcasecmp(w, "Status")) {
-
-	    sscanf(l, "%d", &r->status);
-
-	    r->status_line = ap_pstrdup(r->pool, l);
-
-	}
-
-	else {
-
-++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
-
+    if (parms[0] == 'd')
+	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
+    else {
+	if (r->content_type != NULL) {
+	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
+			     HDR_REP);

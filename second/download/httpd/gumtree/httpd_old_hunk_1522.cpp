@@ -1,194 +1,77 @@
-		    return HTTP_BAD_GATEWAY;
+        int iEnvBlockLen;
 
-		}
+	memset(&si, 0, sizeof(si));
+	memset(&pi, 0, sizeof(pi));
 
-		path = "";
+	interpreter[0] = 0;
 
-		len = 0;
-
-	    }
-
-	    else if (i == 213) { /* Size command ok */
-
-		for (j = 0; j < resplen && ap_isdigit(resp[j]); j++)
-
-			;
-
-		resp[j] = '\0';
-
-		if (resp[0] != '\0')
-
-		    size = ap_pstrdup(p, resp);
-
-	    }
-
-	}
-
-    }
-
-
-
-    if (parms[0] == 'd') {
-
-	if (len != 0)
-
-	    ap_bputs("LIST ", f);
-
+	exename = strrchr(r->filename, '/');
+	if (!exename)
+	    exename = strrchr(r->filename, '\\');
+	if (!exename)
+	    exename = r->filename;
 	else
-
-	    ap_bputs("LIST -lag", f);
-
-	Explain1("FTP: LIST %s", (len == 0 ? "" : path));
-
-    }
-
-    else {
-
-	ap_bputs("RETR ", f);
-
-	Explain1("FTP: RETR %s", path);
-
-    }
-
-    ap_bwrite(f, path, len);
-
-    ap_bputs(CRLF, f);
-
-    ap_bflush(f);
-
-/* RETR: 110, 125, 150, 226, 250, 421, 425, 426, 450, 451, 500, 501, 530, 550
-
-   NLST: 125, 150, 226, 250, 421, 425, 426, 450, 451, 500, 501, 502, 530 */
-
-    rc = ftp_getrc(f);
-
-    Explain1("FTP: returned status %d", rc);
-
-    if (rc == -1) {
-
-	ap_kill_timeout(r);
-
-	return ap_proxyerror(r, "Error sending to remote server");
-
-    }
-
-    if (rc == 550) {
-
-	Explain0("FTP: RETR failed, trying LIST instead");
-
-	parms = "d";
-
-	ap_bputs("CWD ", f);
-
-	ap_bwrite(f, path, len);
-
-	ap_bputs(CRLF, f);
-
-	ap_bflush(f);
-
-	Explain1("FTP: CWD %s", path);
-
-	rc = ftp_getrc(f);
-
-	Explain1("FTP: returned status %d", rc);
-
-	if (rc == -1) {
-
-	    ap_kill_timeout(r);
-
-	    return ap_proxyerror(r, "Error sending to remote server");
-
+	    exename++;
+	dot = strrchr(exename, '.');
+	if (dot) {
+	    if (!strcasecmp(dot, ".BAT") ||
+		!strcasecmp(dot, ".CMD") ||
+		!strcasecmp(dot, ".EXE") ||
+		!strcasecmp(dot, ".COM"))
+		is_exe = 1;
 	}
 
-	if (rc == 550) {
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_NOT_FOUND;
-
+	if (!is_exe) {
+	    program = fopen(r->filename, "rb");
+	    if (!program) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			    "fopen(%s) failed", r->filename);
+		return (pid);
+	    }
+	    sz = fread(interpreter, 1, sizeof(interpreter) - 1, program);
+	    if (sz < 0) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			    "fread of %s failed", r->filename);
+		fclose(program);
+		return (pid);
+	    }
+	    interpreter[sz] = 0;
+	    fclose(program);
+	    if (!strncmp(interpreter, "#!", 2)) {
+		is_script = 1;
+		for (i = 2; i < sizeof(interpreter); i++) {
+		    if ((interpreter[i] == '\r') ||
+			(interpreter[i] == '\n'))
+			break;
+		}
+		interpreter[i] = 0;
+		for (i = 2; interpreter[i] == ' '; ++i)
+		    ;
+		memmove(interpreter+2,interpreter+i,strlen(interpreter+i)+1);
+	    }
+	    else {
+                        /* Check to see if it's a executable */
+                IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)interpreter;
+                if (hdr->e_magic == IMAGE_DOS_SIGNATURE && hdr->e_cblp < 512)
+                    is_binary = 1;
+	    }
 	}
 
-	if (rc != 250) {
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_BAD_GATEWAY;
-
-	}
-
-
-
-	ap_bputs("LIST -lag" CRLF, f);
-
-	ap_bflush(f);
-
-	Explain0("FTP: LIST -lag");
-
-	rc = ftp_getrc(f);
-
-	Explain1("FTP: returned status %d", rc);
-
-	if (rc == -1)
-
-	    return ap_proxyerror(r, "Error sending to remote server");
-
-    }
-
-    ap_kill_timeout(r);
-
-    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
-
-	return HTTP_BAD_GATEWAY;
-
-
-
-    r->status = 200;
-
-    r->status_line = "200 OK";
-
-
-
-    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
-
-    c->hdrs = resp_hdrs;
-
-
-
-    if (parms[0] == 'd')
-
-	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
-
-    else {
-
-	if (r->content_type != NULL) {
-
-	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
-
-			     HDR_REP);
-
-	    Explain1("FTP: Content-Type set to %s", r->content_type);
-
-	}
-
-	else {
-
-	    ap_proxy_add_header(resp_hdrs, "Content-Type", "text/plain", HDR_REP);
-
-	}
-
-	if (parms[0] != 'a' && size != NULL) {
-
-	    ap_proxy_add_header(resp_hdrs, "Content-Length", size, HDR_REP);
-
-	    Explain1("FTP: Content-Length set to %s", size);
-
-	}
-
-    }
-
-
-
-/* check if NoCache directive on this host */
-
-    for (i = 0; i < conf->nocaches->nelts; i++) {
-
+	/*
+	 * Make child process use hPipeOutputWrite as standard out,
+	 * and make sure it does not show on screen.
+	 */
+	si.cb = sizeof(si);
+	si.dwFlags     = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
+	si.wShowWindow = SW_HIDE;
+	si.hStdInput   = pinfo->hPipeInputRead;
+	si.hStdOutput  = pinfo->hPipeOutputWrite;
+	si.hStdError   = pinfo->hPipeErrorWrite;
+	
+	pid = -1;      
+	if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) { 
+	    if (is_exe || is_binary) {
+	        /*
+	         * When the CGI is a straight binary executable, 
+		 * we can run it as is
+	         */

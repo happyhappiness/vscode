@@ -1,26 +1,13 @@
-<tr><th>Req<td>Milliseconds required to process most recent request\n \
 
-<tr><th>Conn<td>Kilobytes transferred this connection\n \
+    /* Host names must not start with a '.' */
+    if (addr[0] == '.')
+	return 0;
 
-<tr><th>Child<td>Megabytes transferred this child\n \
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
 
-<tr><th>Slot<td>Total megabytes transferred this slot\n \
-
-</table>\n", r);
-
-#else
-
-	    ap_rputs("</table>\n \
-
-<hr> \
-
-<table>\n \
-
-<tr><th>Srv<td>Server number\n \
-
-<tr><th>PID<td>OS process ID\n \
-
-<tr><th>Acc<td>Number of accesses this connection / this child / this slot\n \
-
-<tr><th>M<td>Mode of operation\n \
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
+	/* @@@@ handle optional port */
+    }

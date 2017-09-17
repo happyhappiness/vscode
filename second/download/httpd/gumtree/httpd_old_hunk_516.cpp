@@ -1,40 +1,9 @@
-	     */
+/* Automatically generated file - do not edit */
 
-	    break;
-
+#ifndef LINUX
+#define LINUX 2
 #endif
-
-	case 'S':
-
-	    ap_dump_settings = 1;
-
-	    break;
-
-	case '?':
-
-	    usage(argv[0]);
-
-	}
-
-    }
-
-
-
-    ap_suexec_enabled = init_suexec();
-
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-
-
-    child_timeouts = !ap_standalone || one_process;
-
-
-
-    if (ap_standalone) {
-
-	ap_open_logs(server_conf, pconf);
-
-	ap_set_version();
-
-	ap_init_modules(pconf, server_conf);
-
+#ifndef USE_HSREGEX
+#define USE_HSREGEX 
+#endif
+-- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800

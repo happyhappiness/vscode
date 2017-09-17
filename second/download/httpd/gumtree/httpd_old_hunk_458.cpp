@@ -1,26 +1,18 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+    ap_table_setn(r->err_headers_out,
+	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
+	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
+		ap_auth_name(r), r->request_time));
+}
 
-		   sizeof(one)) == -1) {
+API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
+{
+    const char *auth_line = ap_table_get(r->headers_in,
+                                      r->proxyreq ? "Proxy-Authorization"
+                                                  : "Authorization");
+    char *t;
 
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
 
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-
-	ap_pclosesocket(p, sock);
-
-	return SERVER_ERROR;
-
-#endif /*_OSD_POSIX*/
-
-    }
-
-
-
-#ifdef SINIX_D_RESOLVER_BUG
-
-    {
-
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
-
+    if (!ap_auth_name(r)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

@@ -1,26 +1,26 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
-    if (dsock == -1) {
+    /* Pass one --- direct matches */
 
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
 
-		     "proxy: error creating PASV socket");
-
-	ap_bclose(f);
-
-	ap_kill_timeout(r);
-
-	return SERVER_ERROR;
-
+            if (result != DECLINED)
+                return result;
+        }
     }
 
+    /* Pass two --- wildcard matches */
 
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
-    if (conf->recv_buffer_size) {
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

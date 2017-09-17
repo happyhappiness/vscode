@@ -1,32 +1,18 @@
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
+    if (i == 530) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Not logged in");
+    }
+    if (i != 230 && i != 331) {
+	ap_kill_timeout(r);
+	return BAD_GATEWAY;
+    }
 
-		conf->last ? "set" : "NULL");
-
-#endif
-
-
-
-#if MIME_MAGIC_DEBUG
-
-    for (m = conf->magic; m; m = m->next) {
-
-	if (isprint((((unsigned long) m) >> 24) & 255) &&
-
-	    isprint((((unsigned long) m) >> 16) & 255) &&
-
-	    isprint((((unsigned long) m) >> 8) & 255) &&
-
-	    isprint(((unsigned long) m) & 255)) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-			MODNAME ": match: POINTER CLOBBERED! "
-
-			"m=\"%c%c%c%c\"",
-
-			(((unsigned long) m) >> 24) & 255,
-
-			(((unsigned long) m) >> 16) & 255,
-
-			(((unsigned long) m) >> 8) & 255,
-
+    if (i == 331) {		/* send password */
+	if (password == NULL)
+	    return FORBIDDEN;
+	ap_bputs("PASS ", f);
+	ap_bwrite(f, password, passlen);
+	ap_bputs(CRLF, f);
+	ap_bflush(f);
+	Explain1("FTP: PASS %s", password);
+/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

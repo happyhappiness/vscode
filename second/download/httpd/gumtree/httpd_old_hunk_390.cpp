@@ -1,26 +1,17 @@
 
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	restart_pending = shutdown_pending = 0;
 
-    /* Host names must not start with a '.' */
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    int status;
+	    int pid = wait_or_timeout(&status);
 
-    if (addr[0] == '.')
-
-	return 0;
-
-
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-
-
-#if 0
-
-    if (addr[i] == ':') {
-
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-
-	/* @@@@ handle optional port */
-
-    }
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

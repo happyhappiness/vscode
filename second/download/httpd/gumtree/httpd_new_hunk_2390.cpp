@@ -1,78 +1,93 @@
-    }
+        int iEnvBlockLen;
 
-    else {
+	memset(&si, 0, sizeof(si));
+	memset(&pi, 0, sizeof(pi));
 
-	ap_rputs("<UL>", r);
+	interpreter[0] = 0;
+	pid = -1;
 
-    }
-
-
-
-    for (x = 0; x < n; x++) {
-
-	char *anchor, *t, *t2;
-
-	char *pad;
-
-	int nwidth;
-
-
-
-	ap_clear_pool(scratch);
-
-
-
-	if (is_parent(ar[x]->name)) {
-
-	    t = ap_make_full_path(scratch, name, "../");
-
-	    ap_getparents(t);
-
-	    if (t[0] == '\0') {
-
-		t = "/";
-
-	    }
-
-	       /* 1234567890123456 */
-
-	    t2 = "Parent Directory";
-
-	    pad = name_scratch + 16;
-
-	    anchor = ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0));
-
+	exename = strrchr(r->filename, '/');
+	if (!exename) {
+	    exename = strrchr(r->filename, '\\');
 	}
-
+	if (!exename) {
+	    exename = r->filename;
+	}
 	else {
-
-	    t = ar[x]->name;
-
-	    pad = name_scratch + strlen(t);
-
-	    t2 = ap_escape_html(scratch, t);
-
-	    anchor = ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0));
-
+	    exename++;
+	}
+	dot = strrchr(exename, '.');
+	if (dot) {
+	    if (!strcasecmp(dot, ".BAT")
+		|| !strcasecmp(dot, ".CMD")
+		|| !strcasecmp(dot, ".EXE")
+		||  !strcasecmp(dot, ".COM")) {
+		is_exe = 1;
+	    }
 	}
 
-
-
-	if (autoindex_opts & FANCY_INDEXING) {
-
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
-
-		ap_rvputs(r, "<A HREF=\"", anchor, "\">", NULL);
-
+	if (!is_exe) {
+	    program = fopen(r->filename, "rb");
+	    if (!program) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "fopen(%s) failed", r->filename);
+		return (pid);
 	    }
+	    sz = fread(interpreter, 1, sizeof(interpreter) - 1, program);
+	    if (sz < 0) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "fread of %s failed", r->filename);
+		fclose(program);
+		return (pid);
+	    }
+	    interpreter[sz] = 0;
+	    fclose(program);
+	    if (!strncmp(interpreter, "#!", 2)) {
+		is_script = 1;
+		for (i = 2; i < sizeof(interpreter); i++) {
+		    if ((interpreter[i] == '\r')
+			|| (interpreter[i] == '\n')) {
+			break;
+		    }
+		}
+		interpreter[i] = 0;
+		for (i = 2; interpreter[i] == ' '; ++i)
+		    ;
+		memmove(interpreter+2,interpreter+i,strlen(interpreter+i)+1);
+	    }
+	    else {
+	        /* Check to see if it's a executable */
+                IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)interpreter;
+                if (hdr->e_magic == IMAGE_DOS_SIGNATURE && hdr->e_cblp < 512) {
+                    is_binary = 1;
+		}
+	    }
+	}
+        /* Bail out if we haven't figured out what kind of
+         * file this is by now..
+         */
+        if (!is_exe && !is_script && !is_binary) {
+            ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
+		"%s is not executable; ensure interpreted scripts have "
+		"\"#!\" first line", 
+		r->filename);
+            return (pid);
+	}
 
-	    if ((ar[x]->icon) || d->default_icon) {
+	/*
+	 * Make child process use hPipeOutputWrite as standard out,
+	 * and make sure it does not show on screen.
+	 */
+	si.cb = sizeof(si);
+	si.dwFlags     = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
+	si.wShowWindow = SW_HIDE;
+	si.hStdInput   = pinfo->hPipeInputRead;
+	si.hStdOutput  = pinfo->hPipeOutputWrite;
+	si.hStdError   = pinfo->hPipeErrorWrite;
 
-		ap_rvputs(r, "<IMG SRC=\"",
-
-			  ap_escape_html(scratch,
-
-					 ar[x]->icon ? ar[x]->icon
-
-					             : d->default_icon),
-
+	if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) { 
+	    if (is_exe || is_binary) {
+	        /*
+	         * When the CGI is a straight binary executable, 
+		 * we can run it as is
+	         */

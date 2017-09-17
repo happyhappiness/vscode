@@ -1,30 +1,10 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
 
-        }
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
+#endif
 
-
-
-        r->read_chunked = 1;
-
-    }
-
-    else if (lenp) {
-
-        const char *pos = lenp;
-
-
-
-        while (ap_isdigit(*pos) || ap_isspace(*pos))
-
-            ++pos;
-
-        if (*pos != '\0') {
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "Invalid Content-Length %s", lenp);
-
-            return HTTP_BAD_REQUEST;
-
-        }
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

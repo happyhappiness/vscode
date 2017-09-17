@@ -1,26 +1,26 @@
-		    /* else nothing needs be done because
 
-		     * then the backslash is escaped and
+    /* Pass one --- direct matches */
 
-		     * we just strip to a single one
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
 
-		     */
+            if (result != DECLINED)
+                return result;
+        }
+    }
 
-		}
+    /* Pass two --- wildcard matches */
 
-		/* blast trailing whitespace */
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
-		while (i > 0 && isspace(buf[i - 1]))
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-		    --i;
-
-		buf[i] = '\0';
-
-#ifdef DEBUG_CFG_LINES
-
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-
-#endif
-
-		return 0;
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

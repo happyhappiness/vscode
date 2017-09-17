@@ -1,26 +1,13 @@
-
-
-    /* Domain name must start with a '.' */
-
-    if (addr[0] != '.')
-
-	return 0;
-
-
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-
-	continue;
-
-
-
-#if 0
-
-    if (addr[i] == ':') {
-
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-
-	/* @@@@ handle optional port */
-
+	}
+	if ((timefd = creat(filename, 0666)) == -1) {
+	    if (errno != EEXIST)
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy: creat(%s)", filename);
+	    else
+		lastcheck = abs(garbage_now);	/* someone else got in there */
+	    ap_unblock_alarms();
+	    return;
+	}
+	close(timefd);
+    }
+    else {

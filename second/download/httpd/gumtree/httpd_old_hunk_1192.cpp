@@ -1,44 +1,41 @@
-    if (r->finfo.st_mode == 0         /* doesn't exist */
+	    return cond_status;
+	}
 
-        || S_ISDIR(r->finfo.st_mode)
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
-        || S_ISREG(r->finfo.st_mode)
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
-        || S_ISLNK(r->finfo.st_mode)) {
+	    if (!buffer)
+		/* Soak up all the script output --- may save an outright kill */
+		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
+		    continue;
 
-        return OK;
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
+	}
 
-    }
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+	if (!strcasecmp(w, "Content-type")) {
 
-                "object is not a file, directory or symlink: %s",
+	    /* Nuke trailing whitespace */
 
-                r->filename);
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
 
-    return HTTP_FORBIDDEN;
-
-}
-
-
-
-
-
-static int check_symlinks(char *d, int opts)
-
-{
-
-#if defined(__EMX__) || defined(WIN32)
-
-    /* OS/2 doesn't have symlinks */
-
-    return OK;
-
-#else
-
-    struct stat lfi, fi;
-
-    char *lastp;
-
-    int res;
-
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

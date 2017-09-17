@@ -1,34 +1,15 @@
-            else if (w < 0) {
-
-                if (r->connection->aborted)
-
-                    break;
-
-                else if (errno == EAGAIN)
-
-                    continue;
-
-                else {
-
-                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-
-                     "%s client stopped connection before send body completed",
-
-                                ap_get_remote_host(r->connection,
-
-                                                r->per_dir_config,
-
-                                                REMOTE_NAME));
-
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-
-                    r->connection->aborted = 1;
-
-                    break;
-
-                }
-
-            }
-
-        }
-
+    }
+    else {
+	alarm_fn = fn;
+	alarm_expiry_time = time(NULL) + x;
+    }
+#else
+    if (x) {
+	alarm_fn = fn;
+    }
+#ifndef OPTIMIZE_TIMEOUTS
+    old = alarm(x);
+#else
+    if (child_timeouts) {
+	old = alarm(x);
+    }

@@ -1,28 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, s,
 
-			     "proxy: error creating cache directory %s",
+    /* Domain name must start with a '.' */
+    if (addr[0] != '.')
+	return 0;
 
-			     c->filename);
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
+	continue;
 
-	    *p = '/';
-
-	    ++p;
-
-	}
-
-#if defined(OS2) || defined(WIN32)
-
-	/* Under OS/2 use rename. */
-
-	if (rename(c->tempfile, c->filename) == -1)
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, s,
-
-			 "proxy: error renaming cache file %s to %s",
-
-			 c->tempfile, c->filename);
-
-    }
-
-++ apache_1.3.2/src/modules/proxy/proxy_connect.c	1998-09-15 00:30:42.000000000 +0800
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
+	/* @@@@ handle optional port */

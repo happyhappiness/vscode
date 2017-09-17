@@ -1,52 +1,13 @@
-{
+    if ((r->method_number == M_POST || r->method_number == M_PUT)
+	&& *dbuf) {
+	fprintf(f, "\n%s\n", dbuf);
+    }
 
-    request_rec *r = ((include_cmd_arg *) arg)->r;
+    fputs("%response\n", f);
+    hdrs_arr = table_elts(r->err_headers_out);
+    hdrs = (table_entry *) hdrs_arr->elts;
 
-    char *s = ((include_cmd_arg *) arg)->s;
-
-    table *env = r->subprocess_env;
-
-    int child_pid = 0;
-
-#ifdef DEBUG_INCLUDE_CMD
-
-    FILE *dbg = fopen("/dev/tty", "w");
-
-#endif
-
-#ifndef WIN32
-
-    char err_string[MAX_STRING_LEN];
-
-#endif
-
-
-
-#ifdef DEBUG_INCLUDE_CMD
-
-#ifdef __EMX__
-
-    /* under OS/2 /dev/tty is referenced as con */
-
-    FILE *dbg = fopen("con", "w");
-
-#else
-
-    fprintf(dbg, "Attempting to include command '%s'\n", s);
-
-#endif
-
-#endif
-
-
-
-    if (r->path_info && r->path_info[0] != '\0') {
-
-        request_rec *pa_req;
-
-
-
-        ap_table_setn(env, "PATH_INFO", ap_escape_shell_cmd(r->pool, r->path_info));
-
-
-
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key)
+	    continue;
+	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);

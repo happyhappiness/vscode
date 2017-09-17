@@ -1,32 +1,18 @@
-	else
-
-	    ret = FORBIDDEN;
-
+    if (i == 530) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Not logged in");
+    }
+    if (i != 230 && i != 331) {
+	ap_kill_timeout(r);
+	return BAD_GATEWAY;
     }
 
-
-
-    if (ret == FORBIDDEN
-
-	&& (ap_satisfies(r) != SATISFY_ANY || !ap_some_auth_required(r))) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		  "client %pI denied by server configuration: %s",
-
-		  &r->connection->remote_addr, r->filename);
-
-    }
-
-
-
-    return ret;
-
-}
-
-
-
-
-
--- apache_1.3.1/src/modules/standard/mod_actions.c	1998-06-13 23:23:04.000000000 +0800
-
+    if (i == 331) {		/* send password */
+	if (password == NULL)
+	    return FORBIDDEN;
+	ap_bputs("PASS ", f);
+	ap_bwrite(f, password, passlen);
+	ap_bputs(CRLF, f);
+	ap_bflush(f);
+	Explain1("FTP: PASS %s", password);
+/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

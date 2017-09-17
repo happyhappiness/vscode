@@ -1,38 +1,26 @@
-	version_locked++;
-
-    }
-
+#ifdef SHARED_CORE
+    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
+#else
+    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
+#endif
+    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
+    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S]\n", pad);
+    fprintf(stderr, "Options:\n");
+#ifdef SHARED_CORE
+    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
+#endif
+    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
+    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
+    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
+    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
+    fprintf(stderr, "  -v               : show version number\n");
+    fprintf(stderr, "  -V               : show compile settings\n");
+    fprintf(stderr, "  -h               : list available configuration directives\n");
+    fprintf(stderr, "  -l               : list compiled-in modules\n");
+    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
+    exit(1);
 }
 
-
-
-static APACHE_TLS int volatile exit_after_unblock = 0;
-
-
-
-/* a clean exit from a child with proper cleanup */
-
-static void __attribute__((noreturn)) clean_child_exit(int code)
-
-{
-
-    if (pchild) {
-
-	ap_child_exit_modules(pchild, server_conf);
-
-	ap_destroy_pool(pchild);
-
-    }
-
-    exit(code);
-
-}
-
-
-
-#if defined(USE_FCNTL_SERIALIZED_ACCEPT) || defined(USE_FLOCK_SERIALIZED_ACCEPT)
-
-static void expand_lock_fname(pool *p)
-
-{
-
+/*****************************************************************
+ *
+ * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff

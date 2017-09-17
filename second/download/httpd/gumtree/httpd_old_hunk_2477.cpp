@@ -1,28 +1,13 @@
-        else {
+    if (i == -1) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+    if (i != 220) {
+	ap_kill_timeout(r);
+	return BAD_GATEWAY;
+    }
 
-            cpT = strstr(cpI, "${");
+    Explain0("FTP: connected.");
 
-            if (cpT == NULL)
-
-                cpT = cpI+strlen(cpI);
-
-            n = cpT-cpI;
-
-            if (cpO + n >= newuri + sizeof(newuri)) {
-
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 
-
-                             r->server, "insufficient space in "
-
-                             "expand_map_lookups, aborting");
-
-                return;
-
-            }
-
-            memcpy(cpO, cpI, n);
-
-            cpO += n;
-
-            cpI += n;
-
+    ap_bputs("USER ", f);
+    ap_bwrite(f, user, userlen);

@@ -1,78 +1,22 @@
-	return DECLINED;
-
-
-
-    Explain1("Create temporary file %s", c->tempfile);
-
-
-
-    i = open(c->tempfile, O_WRONLY | O_CREAT | O_EXCL | O_BINARY, 0622);
-
-    if (i == -1) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "proxy: error creating cache file %s",
-
-		     c->tempfile);
-
-	return DECLINED;
-
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
-    ap_note_cleanups_for_fd(r->pool, i);
-
-    c->fp = ap_bcreate(r->pool, B_WR);
-
-    ap_bpushfd(c->fp, -1, i);
-
-
-
-    if (ap_bvputs(c->fp, buff, "X-URL: ", c->url, "\n", NULL) == -1) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "proxy: error writing cache file(%s)", c->tempfile);
-
-	ap_pclosef(r->pool, c->fp->fd);
-
-	unlink(c->tempfile);
-
-	c->fp = NULL;
-
+    if (!child && run_as_service) {
+	service_cd();
     }
 
-    return DECLINED;
-
-}
-
-
-
-void ap_proxy_cache_tidy(struct cache_req *c)
-
-{
-
-    server_rec *s = c->req->server;
-
-    long int bc;
-
-
-
-    if (c->fp == NULL)
-
-	return;
-
-
-
-/* don't care how much was sent, but rather how much was written to cache
-
-    ap_bgetopt(c->req->connection->client, BO_BYTECT, &bc);
-
- */
-
-    bc = c->written;
-
-
-
-    if (c->len != -1) {
-
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

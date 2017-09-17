@@ -1,26 +1,14 @@
-	    const char *orig_groups, *groups;
-
-	    char *v;
-
-
-
-	    if (!(groups = get_dbm_grp(r, user, sec->auth_dbmgrpfile))) {
-
-		if (!(sec->auth_dbmauthoritative))
-
-		    return DECLINED;
-
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			    "user %s not in DBM group file %s: %s",
-
-			    user, sec->auth_dbmgrpfile, r->filename);
-
-		ap_note_basic_auth_failure(r);
-
-		return AUTH_REQUIRED;
-
-	    }
-
-	    orig_groups = groups;
-
+                 "An appropriate representation of the requested resource ",
+                          ap_escape_html(r->pool, r->uri),
+                          " could not be found on this server.<P>\n", NULL);
+                /* fall through */
+            case MULTIPLE_CHOICES:
+                {
+                    char *list;
+                    if ((list = ap_table_get(r->notes, "variant-list")))
+                        ap_bputs(list, fd);
+                }
+                break;
+            case LENGTH_REQUIRED:
+                ap_bvputs(fd, "A request of the requested method ", r->method,
+-- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800

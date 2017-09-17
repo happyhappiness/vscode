@@ -1,34 +1,31 @@
-            else if (w < 0) {
+	    p->next = head;
+	    head = p;
+	    num_ent++;
+	}
+    }
+    if (num_ent > 0) {
+	ar = (struct ent **) ap_palloc(r->pool, num_ent * sizeof(struct ent *));
+	p = head;
+	x = 0;
+	while (p) {
+	    ar[x++] = p;
+	    p = p->next;
+	}
 
-                if (r->connection->aborted)
+	qsort((void *) ar, num_ent, sizeof(struct ent *),
+	          (int (*)(const void *, const void *)) dsortf);
+    }
+    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
+		       direction);
+    ap_pclosedir(r->pool, d);
 
-                    break;
+    if ((tmp = find_readme(autoindex_conf, r))) {
+	if (!insert_readme(name, tmp, "",
+                      ((autoindex_opts & FANCY_INDEXING) ? HRULE : NO_HRULE),
+                      END_MATTER, r)) {
+	    ap_rputs(ap_psignature("<HR>\n", r), r);
+	}
+    }
+    ap_rputs("</BODY></HTML>\n", r);
 
-                else if (errno == EAGAIN)
-
-                    continue;
-
-                else {
-
-                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-
-                     "%s client stopped connection before send body completed",
-
-                                ap_get_remote_host(r->connection,
-
-                                                r->per_dir_config,
-
-                                                REMOTE_NAME));
-
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-
-                    r->connection->aborted = 1;
-
-                    break;
-
-                }
-
-            }
-
-        }
-
+    ap_kill_timeout(r);

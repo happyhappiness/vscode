@@ -1,26 +1,14 @@
-            return;
+#include "http_main.h"
+#include "http_request.h"
 
-        }
+static int asis_handler(request_rec *r)
+{
+    FILE *f;
+    const char *location;
 
-        else {
-
-            close(c->fd);
-
-            err_conn++;
-
-            if (bad++ > 10) {
-
-                err("\nTest aborted after 10 failures\n\n");
-
-            }
-
-            start_connect(c);
-
-        }
-
-    }
-
-
-
-    /* connected first time */
-
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+	return DECLINED;
+    if (r->finfo.st_mode == 0) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800

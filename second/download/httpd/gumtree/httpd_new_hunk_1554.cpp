@@ -1,28 +1,14 @@
-		    ap_rputs(terminate_description(d, ar[x]->desc,
-
-						   autoindex_opts), r);
-
-		}
-
-	    }
-
+	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
 	}
-
-	else {
-
-	    ap_rvputs(r, "<LI><A HREF=\"", anchor, "\"> ", t2,
-
-		      "</A>", pad, NULL);
-
-	}
-
-	ap_rputc('\n', r);
-
+	return index_directory(r, d);
     }
-
-    if (autoindex_opts & FANCY_INDEXING) {
-
-	ap_rputs("</PRE>", r);
-
+    else {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		     "Directory index forbidden by rule: %s", r->filename);
+	return HTTP_FORBIDDEN;
     }
+}
 
+
+static const handler_rec autoindex_handlers[] =
+++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800

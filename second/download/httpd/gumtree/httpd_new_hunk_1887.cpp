@@ -1,46 +1,14 @@
-	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
+#include "http_main.h"
+#include "http_request.h"
 
- 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
+static int asis_handler(request_rec *r)
+{
+    FILE *f;
+    const char *location;
 
-	TerminateProcess((HANDLE) process_handles[i], 1);
-
-    }
-
-    service_set_status(SERVICE_STOPPED);
-
-
-
-    /* cleanup pid file on normal shutdown */
-
-    {
-
-	const char *pidfile = NULL;
-
-	pidfile = ap_server_root_relative (pparent, ap_pid_fname);
-
-	if ( pidfile != NULL && unlink(pidfile) == 0)
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-
-			 server_conf,
-
-			 "httpd: removed PID file %s (pid=%ld)",
-
-			 pidfile, (long)getpid());
-
-    }
-
-
-
-    if (pparent) {
-
-	ap_destroy_pool(pparent);
-
-    }
-
-
-
-    ap_destroy_mutex(start_mutex);
-
-    return (0);
-
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+	return DECLINED;
+    if (r->finfo.st_mode == 0) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800

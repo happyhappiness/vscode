@@ -1,52 +1,20 @@
-{
-
-    request_rec *r = ((include_cmd_arg *) arg)->r;
-
-    char *s = ((include_cmd_arg *) arg)->s;
-
-    table *env = r->subprocess_env;
-
-    int child_pid = 0;
-
-#ifdef DEBUG_INCLUDE_CMD
-
-    FILE *dbg = fopen("/dev/tty", "w");
-
+	     */
+	    break;
 #endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
+    }
 
-#ifndef WIN32
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-    char err_string[MAX_STRING_LEN];
+    child_timeouts = !ap_standalone || one_process;
 
-#endif
-
-
-
-#ifdef DEBUG_INCLUDE_CMD
-
-#ifdef __EMX__
-
-    /* under OS/2 /dev/tty is referenced as con */
-
-    FILE *dbg = fopen("con", "w");
-
-#else
-
-    fprintf(dbg, "Attempting to include command '%s'\n", s);
-
-#endif
-
-#endif
-
-
-
-    if (r->path_info && r->path_info[0] != '\0') {
-
-        request_rec *pa_req;
-
-
-
-        ap_table_setn(env, "PATH_INFO", ap_escape_shell_cmd(r->pool, r->path_info));
-
-
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

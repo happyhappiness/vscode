@@ -1,114 +1,30 @@
 	}
-
-	ap_destroy_sub_req(pa_req);
-
     }
-
-}
-
-
-
-
-
-static int set_cookie_doo_doo(void *v, const char *key, const char *val)
-
-{
-
-    ap_table_addn(v, key, val);
-
-    return 1;
-
-}
-
-
-
-API_EXPORT(int) ap_scan_script_header_err_core(request_rec *r, char *buffer,
-
-				       int (*getsfunc) (char *, int, void *),
-
-				       void *getsfunc_data)
-
-{
-
-    char x[MAX_STRING_LEN];
-
-    char *w, *l;
-
-    int p;
-
-    int cgi_status = HTTP_OK;
-
-    table *merge;
-
-    table *cookie_table;
-
-
-
-    if (buffer) {
-
-	*buffer = '\0';
-
-    }
-
-    w = buffer ? buffer : x;
-
-
-
-    ap_hard_timeout("read script header", r);
-
-
-
-    /* temporary place to hold headers to merge in later */
-
-    merge = ap_make_table(r->pool, 10);
-
-
-
-    /* The HTTP specification says that it is legal to merge duplicate
-
-     * headers into one.  Some browsers that support Cookies don't like
-
-     * merged headers and prefer that each Set-Cookie header is sent
-
-     * separately.  Lets humour those browsers by not merging.
-
-     * Oh what a pain it is.
-
-     */
-
-    cookie_table = ap_make_table(r->pool, 2);
-
-    ap_table_do(set_cookie_doo_doo, cookie_table, r->err_headers_out, "Set-Cookie", NULL);
-
-
-
-    while (1) {
-
-
-
-	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
-
-	    ap_kill_timeout(r);
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-			  "Premature end of script headers: %s", r->filename);
-
-	    ap_table_setn(r->notes, "error-notes",
-
-			  "Premature end of script headers");
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
+    if (
+    /* username is OK */
+	   (res == OK)
+    /* password been filled out ? */
+	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
+    /* does the password look like an email address ? */
+	   && ((!sec->auth_anon_verifyemail)
+	       || ((strpbrk("@", sent_pw) != NULL)
+		   && (strpbrk(".", sent_pw) != NULL)))) {
+	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
+			"Anonymous: Passwd <%s> Accepted",
+			sent_pw ? sent_pw : "\'none\'");
 	}
+	return OK;
+    }
+    else {
+	if (sec->auth_anon_authoritative) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"Anonymous: Authoritative, Passwd <%s> not accepted",
+			sent_pw ? sent_pw : "\'none\'");
+	    return AUTH_REQUIRED;
+	}
+	/* Drop out the bottom to return DECLINED */
+    }
 
-
-
-	/* Delete terminal (CR?)LF */
-
-
-
-	p = strlen(w);
-
-	if (p > 0 && w[p - 1] == '\n') {
-
+    return DECLINED;
+++ apache_1.3.1/src/modules/standard/mod_auth.c	1998-07-10 14:33:24.000000000 +0800

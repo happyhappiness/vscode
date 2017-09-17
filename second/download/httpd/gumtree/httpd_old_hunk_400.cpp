@@ -1,28 +1,29 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-
 	}
 
-	return index_directory(r, d);
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (isspace(*src))
+		++src;
+	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && isspace(*dst))
+	    *dst = '\0';
 
-    }
-
-    else {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		    "Directory index forbidden by rule: %s", r->filename);
-
-	return HTTP_FORBIDDEN;
-
-    }
-
-}
-
-
-
-
-
-static const handler_rec autoindex_handlers[] =
-
--- apache_1.3.0/src/modules/standard/mod_cern_meta.c	1998-04-11 20:00:45.000000000 +0800
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

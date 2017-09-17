@@ -1,26 +1,14 @@
-#if MIME_MAGIC_DEBUG
+#include "http_main.h"
+#include "http_request.h"
 
-    for (m = conf->magic; m; m = m->next) {
+static int asis_handler(request_rec *r)
+{
+    FILE *f;
+    char *location;
 
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-
-	    ap_isprint(((unsigned long) m) & 255)) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-			MODNAME ": match: POINTER CLOBBERED! "
-
-			"m=\"%c%c%c%c\"",
-
-			(((unsigned long) m) >> 24) & 255,
-
-			(((unsigned long) m) >> 16) & 255,
-
-			(((unsigned long) m) >> 8) & 255,
-
-			((unsigned long) m) & 255);
-
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+	return DECLINED;
+    if (r->finfo.st_mode == 0) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+-- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800

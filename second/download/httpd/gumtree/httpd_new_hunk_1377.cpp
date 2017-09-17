@@ -1,26 +1,20 @@
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-
-            return 1;
-
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
         }
+        return 0;
+    }
 
-        if (!strcmp(tag, "cmd")) {
+    range = ap_getword(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
-            parse_string(r, tag_val, parsed_string, sizeof(parsed_string), 1);
+    if (r->byterange > 1) {
+        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-            if (include_cmd(parsed_string, r) == -1) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "execution failure for parameter \"%s\" "
-
-                            "to tag exec in file %s",
-
-                            tag, r->filename);
-
-                ap_rputs(error, r);
-
-            }
-
-            /* just in case some stooge changed directories */
-
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

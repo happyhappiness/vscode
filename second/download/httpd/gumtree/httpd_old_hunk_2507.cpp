@@ -1,42 +1,13 @@
-                    while (*p > 32)
+    char *origs = s, *origp = p;
+    char *pmax = p + plen - 1;
+    register int c;
+    register int val;
 
-                        *q++ = *p++;
-
-                }
-
-                *q = 0;
-
-            }
-
-
-
-            c->gotheader = 1;
-
-            *s = 0;             /* terminate at end of header */
-
-            if (keepalive &&
-
-                (strstr(c->cbuff, "Keep-Alive")
-
-                 || strstr(c->cbuff, "keep-alive"))) {  /* for benefit of MSIIS */
-
-                char *cl;
-
-                cl = strstr(c->cbuff, "Content-Length:");
-
-                /* for cacky servers like NCSA which break the spec and send a 
-
-                   lower case 'l' */
-
-                if (!cl)
-
-                    cl = strstr(c->cbuff, "Content-length:");
-
-                if (cl) {
-
-                    c->keepalive = 1;
-
-                    c->length = atoi(cl + 16);
-
-                }
-
+    while ((c = *s++) != '\0') {
+	if (isspace((unsigned char) c))
+	    break;
+	if (p >= pmax) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, serv,
+			MODNAME ": string too long: %s", origs);
+	    break;
+	}

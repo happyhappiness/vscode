@@ -1,52 +1,61 @@
-            ap_chdir_file(r->filename);
 
-#endif
+#define BY_ENCODING &c_by_encoding
+#define BY_TYPE &c_by_type
+#define BY_PATH &c_by_path
 
-        }
+/*
+ * This routine puts the standard HTML header at the top of the index page.
+ * We include the DOCTYPE because we may be using features therefrom (i.e.,
+ * HEIGHT and WIDTH attributes on the icons if we're FancyIndexing).
+ */
+static void emit_preamble(request_rec *r, char *title)
+{
+    ap_rvputs
+	(
+	    r,
+	    "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n",
+	    "<HTML>\n <HEAD>\n  <TITLE>Index of ",
+	    title,
+	    "</TITLE>\n </HEAD>\n <BODY>\n",
+	    NULL
+	);
+}
 
-        else if (!strcmp(tag, "cgi")) {
+static void push_item(array_header *arr, char *type, char *to, char *path,
+		      char *data)
+{
+    struct item *p = (struct item *) ap_push_array(arr);
 
-            parse_string(r, tag_val, parsed_string, sizeof(parsed_string), 0);
+    if (!to)
+	to = "";
+    if (!path)
+	path = "";
 
-            if (include_cgi(parsed_string, r) == -1) {
+    p->type = type;
+    p->data = data ? ap_pstrdup(arr->pool, data) : NULL;
+    p->apply_path = ap_pstrcat(arr->pool, path, "*", NULL);
 
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    if ((type == BY_PATH) && (!ap_is_matchexp(to)))
+	p->apply_to = ap_pstrcat(arr->pool, "*", to, NULL);
+    else if (to)
+	p->apply_to = ap_pstrdup(arr->pool, to);
+    else
+	p->apply_to = NULL;
+}
 
-                            "invalid CGI ref \"%s\" in %s", tag_val, file);
-
-                ap_rputs(error, r);
-
-            }
-
-            /* grumble groan */
-
-#ifndef WIN32
-
-            ap_chdir_file(r->filename);
-
-#endif
-
-        }
-
-        else if (!strcmp(tag, "done")) {
-
-            return 0;
-
-        }
-
-        else {
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "unknown parameter \"%s\" to tag exec in %s",
-
-                        tag, file);
-
-            ap_rputs(error, r);
-
-        }
-
+static const char *add_alt(cmd_parms *cmd, void *d, char *alt, char *to)
+{
+    if (cmd->info == BY_PATH)
+	if (!strcmp(to, "**DIRECTORY**"))
+	    to = "^^DIRECTORY^^";
+    if (cmd->info == BY_ENCODING) {
+	ap_str_tolower(to);
     }
 
+    push_item(((autoindex_config_rec *) d)->alt_list, cmd->info, to, cmd->path, alt);
+    return NULL;
+}
 
-
+static const char *add_icon(cmd_parms *cmd, void *d, char *icon, char *to)
+{
+    char *iconbak = ap_pstrdup(cmd->pool, icon);

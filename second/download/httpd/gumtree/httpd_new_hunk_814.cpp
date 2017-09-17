@@ -1,30 +1,13 @@
-    ap_hard_timeout("send directory", r);
-
-
-
-    /* Spew HTML preamble */
-
-
-
-    title_endp = title_name + strlen(title_name) - 1;
-
-
-
-    while (title_endp > title_name && *title_endp == '/') {
-
-	*title_endp-- = '\0';
-
+    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (dsock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating PASV socket");
+	ap_bclose(f);
+	ap_kill_timeout(r);
+	return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-
-	) {
-
-	emit_preamble(r, title_name);
-
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
+	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,

@@ -1,26 +1,15 @@
-    if (r->assbackwards && r->header_only) {
+    ap_hard_timeout("send directory", r);
 
-        /*
+    /* Spew HTML preamble */
 
-         * Client asked for headers only with HTTP/0.9, which doesn't send
+    title_endp = title_name + strlen(title_name) - 1;
 
-         * headers!  Have to dink things even to make sure the error message
-
-         * comes through...
-
-         */
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "client sent illegal HTTP/0.9 request: %s", r->uri);
-
-        r->header_only = 0;
-
-        ap_die(BAD_REQUEST, r);
-
-        return;
-
+    while (title_endp > title_name && *title_endp == '/') {
+	*title_endp-- = '\0';
     }
 
-
-
+    if ((!(tmp = find_header(autoindex_conf, r)))
+	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
+	) {
+	emit_preamble(r, title_name);
+	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);

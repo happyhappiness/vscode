@@ -1,26 +1,13 @@
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-
-  
-
-    if (r->proxyreq) {
-
-        return HTTP_FORBIDDEN;
-
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: failed to accept data connection");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    ap_proxy_cache_error(c);
+	    return BAD_GATEWAY;
+	}
+	ap_note_cleanups_for_socket(p, csd);
+	data = ap_bcreate(p, B_RDWR | B_SOCKET);
+	ap_bpushfd(data, csd, -1);
+	ap_kill_timeout(r);
     }
-
-    if ((r->uri[0] != '/') && strcmp(r->uri, "*")) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		     "Invalid URI in request %s", r->the_request);
-
-	return BAD_REQUEST;
-
-    }
-
-    
-
-    if (r->server->path 
-
-	&& !strncmp(r->uri, r->server->path, r->server->pathlen)
-

@@ -1,28 +1,28 @@
-		while (groups[0]) {
-
-		    v = ap_getword(r->pool, &groups, ',');
-
-		    if (!strcmp(v, w))
-
-			return OK;
-
-		}
-
-	    }
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			"user %s not in right group: %s", user, r->filename);
-
-	    ap_note_basic_auth_failure(r);
-
-	    return AUTH_REQUIRED;
-
+	    return;
 	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
+    curblocks = 0;
+    curbytes = 0;
 
+    sub_garbage_coll(r, files, cachedir, "/");
+
+    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
+	ap_unblock_alarms();
+	return;
     }
 
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
 
-
--- apache_1.3.1/src/modules/standard/mod_auth_dbm.c	1998-07-04 06:08:50.000000000 +0800
-
+    elts = (struct gc_ent **) files->elts;
+    for (i = 0; i < files->nelts; i++) {
+	fent = elts[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
+#else
+	if (unlink(filename) == -1) {

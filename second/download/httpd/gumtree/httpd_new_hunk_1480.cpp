@@ -1,48 +1,30 @@
-     * If the requests aren't pipelined, then the client is still waiting
-
-     * for the final buffer flush from us, and we will block in the implicit
-
-     * read().  B_SAFEREAD ensures that the BUFF layer flushes if it will
-
-     * have to block during a read.
-
-     */
-
-    ap_bsetflag(conn->client, B_SAFEREAD, 1);
-
-    while ((len = getline(l, sizeof(l), conn->client, 0)) <= 0) {
-
-        if ((len < 0) || ap_bgetflag(conn->client, B_EOF)) {
-
-            ap_bsetflag(conn->client, B_SAFEREAD, 0);
-
-            return 0;
-
-        }
-
+	}
+    }
+    if (
+    /* username is OK */
+	   (res == OK)
+    /* password been filled out ? */
+	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
+    /* does the password look like an email address ? */
+	   && ((!sec->auth_anon_verifyemail)
+	       || ((strpbrk("@", sent_pw) != NULL)
+		   && (strpbrk(".", sent_pw) != NULL)))) {
+	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
+			"Anonymous: Passwd <%s> Accepted",
+			sent_pw ? sent_pw : "\'none\'");
+	}
+	return OK;
+    }
+    else {
+	if (sec->auth_anon_authoritative) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"Anonymous: Authoritative, Passwd <%s> not accepted",
+			sent_pw ? sent_pw : "\'none\'");
+	    return AUTH_REQUIRED;
+	}
+	/* Drop out the bottom to return DECLINED */
     }
 
-    /* we've probably got something to do, ignore graceful restart requests */
-
-#ifdef SIGUSR1
-
-    signal(SIGUSR1, SIG_IGN);
-
-#endif
-
-
-
-    ap_bsetflag(conn->client, B_SAFEREAD, 0);
-
-
-
-    r->request_time = time(NULL);
-
-    r->the_request = ap_pstrdup(r->pool, l);
-
-    r->method = ap_getword_white(r->pool, &ll);
-
-    uri = ap_getword_white(r->pool, &ll);
-
-
-
+    return DECLINED;
+++ apache_1.3.1/src/modules/standard/mod_auth.c	1998-07-10 14:33:24.000000000 +0800

@@ -1,40 +1,13 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		   sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
+	ap_pclosesocket(p, sock);
+	return SERVER_ERROR;
+#endif /*_OSD_POSIX*/
+    }
 
-{
-
-    BUFF *fd = r->connection->client;
-
-    int status = r->status;
-
-    int idx = ap_index_of_response(status);
-
-    char *custom_response;
-
-    char *location = ap_table_get(r->headers_out, "Location");
-
-
-
-    /* We need to special-case the handling of 204 and 304 responses,
-
-     * since they have specific HTTP requirements and do not include a
-
-     * message body.  Note that being assbackwards here is not an option.
-
-     */
-
-    if (status == HTTP_NOT_MODIFIED) {
-
-        if (!is_empty_table(r->err_headers_out))
-
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-
-                                               r->headers_out);
-
-        ap_hard_timeout("send 304", r);
-
-
-
-        ap_basic_http_header(r);
-
-        ap_set_keepalive(r);
-
+#ifdef SINIX_D_RESOLVER_BUG
+    {
+	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;

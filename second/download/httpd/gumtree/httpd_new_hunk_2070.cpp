@@ -1,28 +1,18 @@
-	 */
-
-	return TRUE;
-
-
-
-    /* We don't support all this async I/O, Microsoft-specific stuff */
-
-    case HSE_REQ_IO_COMPLETION:
-
-    case HSE_REQ_TRANSMIT_FILE:
-
-	ap_log_rerror(APLOG_MARK, APLOG_WARNING, r,
-
-		    "ISAPI asynchronous I/O not supported: %s", r->filename);
-
-    default:
-
-	SetLastError(ERROR_INVALID_PARAMETER);
-
-	return FALSE;
-
-    }
-
+    ap_table_setn(r->err_headers_out,
+	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
+	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
+		ap_auth_name(r), r->request_time));
 }
 
-++ apache_1.3.2/src/os/win32/modules.c	1998-07-21 08:06:59.000000000 +0800
+API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
+{
+    const char *auth_line = ap_table_get(r->headers_in,
+                                      r->proxyreq ? "Proxy-Authorization"
+                                                  : "Authorization");
+    const char *t;
 
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
+
+    if (!ap_auth_name(r)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

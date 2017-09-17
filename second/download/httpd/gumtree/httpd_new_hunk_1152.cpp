@@ -1,278 +1,108 @@
-    q = ap_palloc(p, 30);
-
-    ap_snprintf(q, 30, "%s, %.2d %s %d %.2d:%.2d:%.2d GMT", ap_day_snames[wk], mday,
-
-		ap_month_snames[mon], year, hour, min, sec);
-
-    return q;
-
-}
-
-
-
-
-
-/* NOTE: This routine is taken from http_protocol::getline()
-
- * because the old code found in the proxy module was too
-
- * difficult to understand and maintain.
-
- */
-
-/* Get a line of protocol input, including any continuation lines
-
- * caused by MIME folding (or broken clients) if fold != 0, and place it
-
- * in the buffer s, of size n bytes, without the ending newline.
-
- *
-
- * Returns -1 on error, or the length of s.
-
- *
-
- * Note: Because bgets uses 1 char for newline and 1 char for NUL,
-
- *       the most we can get is (n - 2) actual characters if it
-
- *       was ended by a newline, or (n - 1) characters if the line
-
- *       length exceeded (n - 1).  So, if the result == (n - 1),
-
- *       then the actual input line exceeded the buffer length,
-
- *       and it would be a good idea for the caller to puke 400 or 414.
-
- */
-
-static int proxy_getline(char *s, int n, BUFF *in, int fold)
-
-{
-
-    char *pos, next;
-
-    int retval;
-
-    int total = 0;
-
-
-
-    pos = s;
-
-
-
-    do {
-
-        retval = ap_bgets(pos, n, in);     /* retval == -1 if error, 0 if EOF */
-
-
-
-        if (retval <= 0)
-
-            return ((retval < 0) && (total == 0)) ? -1 : total;
-
-
-
-        /* retval is the number of characters read, not including NUL      */
-
-
-
-        n -= retval;            /* Keep track of how much of s is full     */
-
-        pos += (retval - 1);    /* and where s ends                        */
-
-        total += retval;        /* and how long s has become               */
-
-
-
-        if (*pos == '\n') {     /* Did we get a full line of input?        */
-
-            *pos = '\0';
-
-            --total;
-
-            ++n;
-
-        }
-
-        else
-
-            return total;       /* if not, input line exceeded buffer size */
-
-
-
-        /* Continue appending if line folding is desired and
-
-         * the last line was not empty and we have room in the buffer and
-
-         * the next line begins with a continuation character.
-
-         */
-
-    } while (fold && (retval != 1) && (n > 1)
-
-                  && (ap_blookc(&next, in) == 1)
-
-                  && ((next == ' ') || (next == '\t')));
-
-
-
-    return total;
-
-}
-
-
-
-
-
-/*
-
- * Reads headers from a buffer and returns an array of headers.
-
- * Returns NULL on file error
-
- * This routine tries to deal with too long lines and continuation lines.
-
- * @@@: XXX: FIXME: currently the headers are passed thru un-merged. 
-
- * Is that okay, or should they be collapsed where possible?
-
- */
-
-table *ap_proxy_read_headers(request_rec *r, char *buffer, int size, BUFF *f)
-
-{
-
-    table *resp_hdrs;
-
-    int len;
-
-    char *value, *end;
-
-    char field[MAX_STRING_LEN];
-
-
-
-    resp_hdrs = ap_make_table(r->pool, 20);
-
-
-
-    /*
-
-     * Read header lines until we get the empty separator line, a read error,
-
-     * the connection closes (EOF), or we timeout.
-
+#endif
+
+    /* Since we are reading from one buffer and writing to another,
+     * it is unsafe to do a soft_timeout here, at least until the proxy
+     * has its own timeout handler which can set both buffers to EOUT.
      */
 
-    while ((len = proxy_getline(buffer, size, f, 1)) > 0) {
+    ap_kill_timeout(r);
 
-	
+#ifdef WIN32
+    /* works fine under win32, so leave it */
+    ap_hard_timeout("proxy send body", r);
+    alt_to = 0;
+#else
+    /* CHECKME! Since hard_timeout won't work in unix on sends with partial
+     * cache completion, we have to alternate between hard_timeout
+     * for reads, and soft_timeout for send.  This is because we need
+     * to get a return from ap_bwrite to be able to continue caching.
+     * BUT, if we *can't* continue anyway, just use hard_timeout.
+     */
 
-	if (!(value = strchr(buffer, ':'))) {     /* Find the colon separator */
+    if (c) {
+        if (c->len <= 0 || c->cache_completion == 1) {
+            ap_hard_timeout("proxy send body", r);
+            alt_to = 0;
+        }
+    } else {
+        ap_hard_timeout("proxy send body", r);
+        alt_to = 0;
+    }
+#endif
 
+    while (ok && f != NULL) {
+        if (alt_to)
+            ap_hard_timeout("proxy send body", r);
 
+	n = ap_bread(f, buf, IOBUFSIZE);
 
-	    /* Buggy MS IIS servers sometimes return invalid headers
+        if (alt_to)
+            ap_kill_timeout(r);
+        else
+            ap_reset_timeout(r);
 
-	     * (an extra "HTTP/1.0 200, OK" line sprinkled in between
-
-	     * the usual MIME headers). Try to deal with it in a sensible
-
-	     * way, but log the fact.
-
-	     * XXX: The mask check is buggy if we ever see an HTTP/1.10 */
-
-
-
-	    if (!ap_checkmask(buffer, "HTTP/#.# ###*")) {
-
-		/* Nope, it wasn't even an extra HTTP header. Give up. */
-
-		return NULL;
-
-	    }
-
-
-
-	    ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, r->server,
-
-			 "proxy: Ignoring duplicate HTTP header "
-
-			 "returned by %s (%s)", r->uri, r->method);
-
-	    continue;
-
+	if (n == -1) {		/* input error */
+	    if (f2 != NULL)
+		f2 = ap_proxy_cache_error(c);
+	    break;
 	}
+	if (n == 0)
+	    break;		/* EOF */
+	o = 0;
+	total_bytes_rcv += n;
 
+        if (f2 != NULL) {
+            if (ap_bwrite(f2, &buf[0], n) != n) {
+		f2 = ap_proxy_cache_error(c);
+            } else {
+                c->written += n;
+            }
+        }
 
+	while (n && !con->aborted) {
+            if (alt_to)
+                ap_soft_timeout("proxy send body", r);
 
-        *value = '\0';
+	    w = ap_bwrite(con->client, &buf[o], n);
 
-        ++value;
+            if (alt_to)
+                ap_kill_timeout(r);
+            else
+                ap_reset_timeout(r);
 
-	/* XXX: RFC2068 defines only SP and HT as whitespace, this test is
+	    if (w <= 0) {
+		if (f2 != NULL) {
+                    /* when a send failure occurs, we need to decide
+                     * whether to continue loading and caching the
+                     * document, or to abort the whole thing
+                     */
+                    ok = (c->len > 0) &&
+                         (c->cache_completion > 0) &&
+                         (c->len * c->cache_completion < total_bytes_rcv);
 
-	 * wrong... and so are many others probably.
-
-	 */
-
-        while (ap_isspace(*value))
-
-            ++value;            /* Skip to start of value   */
-
-
-
-	/* should strip trailing whitespace as well */
-
-	for (end = &value[strlen(value)-1]; end > value && ap_isspace(*end); --end)
-
-	    *end = '\0';
-
-
-
-        ap_table_add(resp_hdrs, buffer, value);
-
-
-
-	/* the header was too long; at the least we should skip extra data */
-
-	if (len >= size - 1) { 
-
-	    while ((len = proxy_getline(field, MAX_STRING_LEN, f, 1))
-
-		    >= MAX_STRING_LEN - 1) {
-
-		/* soak up the extra data */
-
-	    }
-
-	    if (len == 0) /* time to exit the larger loop as well */
-
+                    if (! ok) {
+                        ap_pclosef(c->req->pool, c->fp->fd);
+                        c->fp = NULL;
+                        f2 = NULL;
+                        unlink(c->tempfile);
+                    }
+		}
+                con->aborted = 1;
 		break;
-
+	    }
+	    n -= w;
+	    o += w;
 	}
-
     }
 
-    return resp_hdrs;
+    if (!con->aborted)
+	ap_bflush(con->client);
 
+    ap_kill_timeout(r);
+    return total_bytes_rcv;
 }
 
-
-
-long int ap_proxy_send_fb(BUFF *f, request_rec *r, cache_req *c)
-
-{
-
-    int  ok = 1;
-
-    char buf[IOBUFSIZE];
-
-    long total_bytes_rcv;
-
-    register int n, o, w;
-
-    conn_rec *con = r->connection;
-
+/*
+ * Read a header from the array, returning the first entry
+ */
+struct hdr_entry *

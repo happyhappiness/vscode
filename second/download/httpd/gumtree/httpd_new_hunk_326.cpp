@@ -1,26 +1,21 @@
 
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	if (ap_suexec_enabled) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
+	}
+	restart_pending = shutdown_pending = 0;
 
-    while (1) {
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    ap_wait_t status;
+	    int pid = wait_or_timeout(&status);
 
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-
-            return 1;
-
-        }
-
-        if (!strcmp(tag, "var")) {
-
-            const char *val = ap_table_get(r->subprocess_env, tag_val);
-
-
-
-            if (val) {
-
-                ap_rputs(val, r);
-
-            }
-
-            else {
-
-                ap_rputs("(none)", r);
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

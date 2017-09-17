@@ -1,182 +1,28 @@
-    else {
-
-	syslog(level & APLOG_LEVELMASK, "%s", errstr);
-
-    }
-
+#ifdef SHARED_CORE
+    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
+#else
+    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
 #endif
-
+    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
+    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S] [-t]\n", pad);
+    fprintf(stderr, "Options:\n");
+#ifdef SHARED_CORE
+    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
+#endif
+    fprintf(stderr, "  -D name          : define a name for use in <IfDefine name> directives\n");
+    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
+    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
+    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
+    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
+    fprintf(stderr, "  -v               : show version number\n");
+    fprintf(stderr, "  -V               : show compile settings\n");
+    fprintf(stderr, "  -h               : list available configuration directives\n");
+    fprintf(stderr, "  -l               : list compiled-in modules\n");
+    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
+    fprintf(stderr, "  -t               : run syntax test for configuration files only\n");
+    exit(1);
 }
 
-    
-
-API_EXPORT(void) ap_log_error (const char *file, int line, int level,
-
-			      const server_rec *s, const char *fmt, ...)
-
-{
-
-    va_list args;
-
-
-
-    va_start(args, fmt);
-
-    log_error_core(file, line, level, s, NULL, fmt, args);
-
-    va_end(args);
-
-}
-
-
-
-API_EXPORT(void) ap_log_rerror(const char *file, int line, int level,
-
-			       const request_rec *r, const char *fmt, ...)
-
-{
-
-    va_list args;
-
-
-
-    va_start(args, fmt);
-
-    log_error_core(file, line, level, r->server, r, fmt, args);
-
-    if (ap_table_get(r->notes, "error-notes") == NULL) {
-
-	char errstr[MAX_STRING_LEN];
-
-
-
-	ap_vsnprintf(errstr, sizeof(errstr), fmt, args);
-
-	ap_table_set(r->notes, "error-notes", errstr);
-
-    }
-
-    va_end(args);
-
-}
-
-
-
-void ap_log_pid (pool *p, char *fname)
-
-{
-
-    FILE *pid_file;
-
-    struct stat finfo;
-
-    static pid_t saved_pid = -1;
-
-    pid_t mypid;
-
-
-
-    if (!fname) return;
-
-
-
-    fname = ap_server_root_relative (p, fname);
-
-    mypid = getpid();
-
-    if (mypid != saved_pid && stat(fname,&finfo) == 0) {
-
-      /* USR1 and HUP call this on each restart.
-
-       * Only warn on first time through for this pid.
-
-       *
-
-       * XXX: Could just write first time through too, although
-
-       *      that may screw up scripts written to do something
-
-       *      based on the last modification time of the pid file.
-
-       */
-
-      ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-
-		   ap_psprintf(p,
-
-			       "pid file %s overwritten -- Unclean shutdown of previous apache run?",
-
-			       fname)
-
-		   );
-
-    }
-
-
-
-    if(!(pid_file = fopen(fname,"w"))) {
-
-	perror("fopen");
-
-        fprintf(stderr,"httpd: could not log pid to file %s\n", fname);
-
-        exit(1);
-
-    }
-
-    fprintf(pid_file,"%ld\n",(long)mypid);
-
-    fclose(pid_file);
-
-    saved_pid = mypid;
-
-}
-
-
-
-API_EXPORT(void) ap_log_error_old (const char *err, server_rec *s)
-
-{
-
-    ap_log_error(APLOG_MARK, APLOG_ERR, s, "%s", err);
-
-}
-
-
-
-API_EXPORT(void) ap_log_unixerr (const char *routine, const char *file,
-
-			      const char *msg, server_rec *s)
-
-{
-
-    ap_log_error(file, 0, APLOG_ERR, s, "%s", msg);
-
-}
-
-
-
-API_EXPORT(void) ap_log_printf (const server_rec *s, const char *fmt, ...)
-
-{
-
-    va_list args;
-
-    
-
-    va_start(args, fmt);
-
-    log_error_core(APLOG_MARK, APLOG_ERR, s, NULL, fmt, args);
-
-    va_end(args);
-
-}
-
-
-
-API_EXPORT(void) ap_log_reason (const char *reason, const char *file, request_rec *r) 
-
-{
-
-    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
+/*****************************************************************
+ *
+ * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff

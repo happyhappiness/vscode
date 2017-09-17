@@ -1,26 +1,13 @@
-	    cmd->server->server_uid = ap_user_id;
-
-	    fprintf(stderr,
-
-		    "Warning: User directive in <VirtualHost> "
-
-		    "requires SUEXEC wrapper.\n");
-
-	}
-
-    }
-
-#if !defined (BIG_SECURITY_HOLE) && !defined (__EMX__)
-
-    if (cmd->server->server_uid == 0) {
-
-	fprintf(stderr,
-
-		"Error:\tApache has not been designed to serve pages while\n"
-
-		"\trunning as root.  There are known race conditions that\n"
-
-		"\twill allow any local user to read any file on the system.\n"
-
-		"\tShould you still desire to serve pages as root then\n"
-
+		    /* else nothing needs be done because
+		     * then the backslash is escaped and
+		     * we just strip to a single one
+		     */
+		}
+		/* blast trailing whitespace */
+		while (i > 0 && isspace(buf[i - 1]))
+		    --i;
+		buf[i] = '\0';
+#ifdef DEBUG_CFG_LINES
+		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+		return 0;

@@ -1,26 +1,14 @@
-    char parsed_string[MAX_STRING_LEN];
 
-    char *tag_val;
-
-    SV *sub = Nullsv;
-
-    AV *av = newAV();
-
-
-
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "httpd: #perl SSI disallowed by IncludesNoExec in %s",
-
-                    r->filename);
-
-        return DECLINED;
-
+    if (i != DECLINED) {
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	return i;
     }
+    cache = c->fp;
 
-    while (1) {
-
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-
+    if (!pasvmode) {		/* wait for connection */
+	ap_hard_timeout("proxy ftp data connect", r);
+	clen = sizeof(struct sockaddr_in);
+	do
+	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
+	while (csd == -1 && errno == EINTR);

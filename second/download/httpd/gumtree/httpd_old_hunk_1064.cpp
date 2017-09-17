@@ -1,48 +1,18 @@
-        else {
-
-            /*
-
-             * Dumb user has given us a bad url to redirect to --- fake up
-
-             * dying with a recursive server error...
-
-             */
-
-            recursive_error = SERVER_ERROR;
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "Invalid error redirection directive: %s",
-
-                        custom_response);
-
-        }
-
-    }
-
-    ap_send_error_response(r, recursive_error);
-
+    ap_table_setn(r->err_headers_out,
+	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
+	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
+		ap_auth_name(r), r->request_time));
 }
 
-
-
-static void decl_die(int status, char *phase, request_rec *r)
-
+API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
 {
+    const char *auth_line = ap_table_get(r->headers_in,
+                                      r->proxyreq ? "Proxy-Authorization"
+                                                  : "Authorization");
+    char *t;
 
-    if (status == DECLINED) {
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
 
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_CRIT, r->server,
-
-                    "configuration error:  couldn't %s: %s", phase, r->uri);
-
-        ap_die(SERVER_ERROR, r);
-
-    }
-
-    else
-
-        ap_die(status, r);
-
-}
-
+    if (!ap_auth_name(r)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

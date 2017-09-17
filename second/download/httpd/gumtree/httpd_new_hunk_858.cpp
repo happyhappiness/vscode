@@ -1,62 +1,13 @@
-	case 'l':
-
-	    ap_show_modules();
-
-	    exit(0);
-
-	case 'X':
-
-	    ++one_process;	/* Weird debugging mode. */
-
-	    break;
-
-	case 't':
-
-	    configtestonly = 1;
-
-	    break;
-
-	case '?':
-
-	    usage(argv[0]);
-
 	}
-
+	if ((timefd = creat(filename, 0666)) == -1) {
+	    if (errno != EEXIST)
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy: creat(%s)", filename);
+	    else
+		lastcheck = garbage_now;	/* someone else got in there */
+	    ap_unblock_alarms();
+	    return;
+	}
+	close(timefd);
     }
-
-
-
-    if (!child && run_as_service) {
-
-	service_cd();
-
-    }
-
-
-
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-
-
-    if (configtestonly) {
-
-        fprintf(stderr, "Syntax OK\n");
-
-        exit(0);
-
-    }
-
-
-
-    if (!child) {
-
-	ap_log_pid(pconf, ap_pid_fname);
-
-    }
-
-    ap_set_version();
-
-    ap_init_modules(pconf, server_conf);
-
-    ap_suexec_enabled = init_suexec();
-
+    else {

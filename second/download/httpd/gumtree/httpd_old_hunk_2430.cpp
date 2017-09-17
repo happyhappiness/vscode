@@ -1,26 +1,13 @@
-            ap_rputs("     Evaluate eq/ne\n", r);
+    char *origs = s, *origp = p;
+    char *pmax = p + plen - 1;
+    register int c;
+    register int val;
 
-#endif
-
-            if ((current->left == (struct parse_node *) NULL) ||
-
-                (current->right == (struct parse_node *) NULL) ||
-
-                (current->left->token.type != token_string) ||
-
-                (current->right->token.type != token_string)) {
-
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                            "Invalid expression \"%s\" in file %s",
-
-                            expr, r->filename);
-
-                ap_rputs(error, r);
-
-                goto RETURN;
-
-            }
-
-            parse_string(r, current->left->token.value,
-
+    while ((c = *s++) != '\0') {
+	if (isspace((unsigned char) c))
+	    break;
+	if (p >= pmax) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, serv,
+			MODNAME ": string too long: %s", origs);
+	    break;
+	}

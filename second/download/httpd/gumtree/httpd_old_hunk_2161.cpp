@@ -1,48 +1,40 @@
-    if (!sec->auth_dbpwfile)
-
-	return DECLINED;
-
-
-
-    if (!(real_pw = get_db_pw(r, c->user, sec->auth_dbpwfile))) {
-
-	if (!(sec->auth_dbauthoritative))
-
-	    return DECLINED;
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		    "DB user %s not found: %s", c->user, r->filename);
-
-	ap_note_basic_auth_failure(r);
-
-	return AUTH_REQUIRED;
-
+	return;
     }
+    else
+	inside = 1;
+    (void) ap_release_mutex(garbage_mutex);
 
-    /* Password is up to first : if exists */
+    help_proxy_garbage_coll(r);
 
-    colon_pw = strchr(real_pw, ':');
-
-    if (colon_pw)
-
-	*colon_pw = '\0';
-
-    /* anyone know where the prototype for crypt is? */
-
-    if (strcmp(real_pw, (char *) crypt(sent_pw, real_pw))) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		    "DB user %s: password mismatch: %s", c->user, r->uri);
-
-	ap_note_basic_auth_failure(r);
-
-	return AUTH_REQUIRED;
-
-    }
-
-    return OK;
-
+    (void) ap_acquire_mutex(garbage_mutex);
+    inside = 0;
+    (void) ap_release_mutex(garbage_mutex);
 }
 
+
+static void help_proxy_garbage_coll(request_rec *r)
+{
+    const char *cachedir;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *pconf =
+    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+    const struct cache_conf *conf = &pconf->cache;
+    array_header *files;
+    struct stat buf;
+    struct gc_ent *fent, **elts;
+    int i, timefd;
+    static time_t lastcheck = BAD_DATE;		/* static data!!! */
+
+    cachedir = conf->root;
+    cachesize = conf->space;
+    every = conf->gcinterval;
+
+    if (cachedir == NULL || every == -1)
+	return;
+    garbage_now = time(NULL);
+    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
+	return;
+
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
+
+    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

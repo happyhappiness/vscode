@@ -1,32 +1,13 @@
-                --cp;
+    if (!method_restricted)
+	return OK;
 
-        }
+    if (!(sec->auth_authoritative))
+	return DECLINED;
 
-        else {
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
+}
 
-#if defined(EACCES)
-
-            if (errno != EACCES)
-
-#endif
-
-                ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-                            "access to %s failed for %s", r->uri,
-
-                            ap_get_remote_host(r->connection, r->per_dir_config,
-
-                                            REMOTE_NOLOOKUP));
-
-            return HTTP_FORBIDDEN;
-
-        }
-
-#else
-
-#error ENOENT || ENOTDIR not defined; please see the
-
-#error comments at this line in the source for a workaround.
-
-        /*
-
+module MODULE_VAR_EXPORT auth_module =
+{
+-- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800

@@ -1,44 +1,41 @@
-			 "setrlimit(RLIMIT_VMEM): failed to set memory "
-
-			 "usage limit");
-
+	    return cond_status;
 	}
 
-    }
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
-#endif
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
+	    if (!buffer)
+		/* Soak up all the script output --- may save an outright kill */
+		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
+		    continue;
 
-
-#ifdef __EMX__
-
-    {
-
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-
-	int is_script;
-
-	char interpreter[2048];	/* hope it's enough for the interpreter path */
-
-	FILE *program;
-
-
-
-	program = fopen(r->filename, "rt");
-
-	if (!program) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-
-			 r->filename);
-
-	    return (pid);
-
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
 	}
 
-	fgets(interpreter, sizeof(interpreter), program);
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
-	fclose(program);
+	if (!strcasecmp(w, "Content-type")) {
 
-	if (!strncmp(interpreter, "#!", 2)) {
+	    /* Nuke trailing whitespace */
 
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
+
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

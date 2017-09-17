@@ -1,32 +1,12 @@
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
 
-		conf->last ? "set" : "NULL");
+    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
+	return (ap_suexec_enabled);
 
-#endif
+    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
+	ap_suexec_enabled = 1;
+    }
+#endif /* ndef WIN32 */
+    return (ap_suexec_enabled);
+}
 
-
-
-#if MIME_MAGIC_DEBUG
-
-    for (m = conf->magic; m; m = m->next) {
-
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-
-	    ap_isprint(((unsigned long) m) & 255)) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-			MODNAME ": match: POINTER CLOBBERED! "
-
-			"m=\"%c%c%c%c\"",
-
-			(((unsigned long) m) >> 24) & 255,
-
-			(((unsigned long) m) >> 16) & 255,
-
-			(((unsigned long) m) >> 8) & 255,
-
+/*****************************************************************

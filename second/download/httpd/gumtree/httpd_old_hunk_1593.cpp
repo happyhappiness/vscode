@@ -1,26 +1,22 @@
-                int len;
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
+	}
+	else
+#endif
+	{
+	    curblocks -= fent->len >> 10;
+	    curbytes -= fent->len & 0x3FF;
+	    if (curbytes < 0) {
+		curbytes += 1024;
+		curblocks--;
+	    }
+	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
+		break;
+	}
+    }
+    ap_unblock_alarms();
+}
 
-                len = strlen(current->right->token.value);
-
-                if (current->right->token.value[len - 1] == '/') {
-
-                    current->right->token.value[len - 1] = '\0';
-
-                }
-
-                else {
-
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                                "Invalid rexp \"%s\" in file %s",
-
-                                current->right->token.value, r->filename);
-
-                    ap_rputs(error, r);
-
-                    goto RETURN;
-
-                }
-
-#ifdef DEBUG_INCLUDE
-
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

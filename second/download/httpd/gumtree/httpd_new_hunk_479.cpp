@@ -1,30 +1,10 @@
-    ap_hard_timeout("send directory", r);
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
 
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
+#endif
 
-
-    /* Spew HTML preamble */
-
-
-
-    title_endp = title_name + strlen(title_name) - 1;
-
-
-
-    while (title_endp > title_name && *title_endp == '/') {
-
-	*title_endp-- = '\0';
-
-    }
-
-
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-
-	) {
-
-	emit_preamble(r, title_name);
-
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

@@ -1,36 +1,50 @@
-    ap_table_setn(r->err_headers_out,
+     * this on Win32, though, since we haven't fork()'d.
+     */
+    r->server->error_log = stderr;
+#endif
 
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
+#ifdef RLIMIT_CPU
+    if (conf->limit_cpu != NULL)
+	if ((setrlimit(RLIMIT_CPU, conf->limit_cpu)) != 0)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			"setrlimit: failed to set CPU usage limit");
+#endif
+#ifdef RLIMIT_NPROC
+    if (conf->limit_nproc != NULL)
+	if ((setrlimit(RLIMIT_NPROC, conf->limit_nproc)) != 0)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			"setrlimit: failed to set process limit");
+#endif
+#if defined(RLIMIT_AS)
+    if (conf->limit_mem != NULL)
+	if ((setrlimit(RLIMIT_AS, conf->limit_mem)) != 0)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			"setrlimit(RLIMIT_AS): failed to set memory usage limit");
+#elif defined(RLIMIT_DATA)
+    if (conf->limit_mem != NULL)
+	if ((setrlimit(RLIMIT_DATA, conf->limit_mem)) != 0)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			"setrlimit(RLIMIT_DATA): failed to set memory usage limit");
+#elif defined(RLIMIT_VMEM)
+    if (conf->limit_mem != NULL)
+	if ((setrlimit(RLIMIT_VMEM, conf->limit_mem)) != 0)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			"setrlimit(RLIMIT_VMEM): failed to set memory usage limit");
+#endif
 
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-
-		ap_auth_name(r), r->request_time));
-
-}
-
-
-
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
-
-{
-
-    const char *auth_line = ap_table_get(r->headers_in,
-
-                                      r->proxyreq ? "Proxy-Authorization"
-
-                                                  : "Authorization");
-
-    char *t;
-
-
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-
-        return DECLINED;
-
-
-
-    if (!ap_auth_name(r)) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-
+#ifdef __EMX__
+    {
+	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
+	int is_script;
+	char interpreter[2048];	/* hope this is large enough for the interpreter path */
+	FILE *program;
+	program = fopen(r->filename, "rt");
+	if (!program) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
+			r->filename);
+	    return (pid);
+	}
+	fgets(interpreter, sizeof(interpreter), program);
+	fclose(program);
+	if (!strncmp(interpreter, "#!", 2)) {
+	    is_script = 1;

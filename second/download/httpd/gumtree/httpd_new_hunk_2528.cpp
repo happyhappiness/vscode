@@ -1,44 +1,12 @@
-    else
 
-	dirconf = current_conn->server->lookup_defaults;
+    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
+	return (ap_suexec_enabled);
 
-    if (!current_conn->keptalive) {
-
-	if (sig == SIGPIPE) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-
-			current_conn->server,
-
-			"(client %s) stopped connection before %s completed",
-
-			current_conn->remote_ip,
-
-			timeout_name ? timeout_name : "request");
-
-	}
-
-	else {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-
-			current_conn->server,
-
-			"(client %s) %s timed out",
-
-			current_conn->remote_ip,
-
-			timeout_name ? timeout_name : "request");
-
-	}
-
+    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
+	ap_suexec_enabled = 1;
     }
+#endif /* ndef WIN32 */
+    return (ap_suexec_enabled);
+}
 
-
-
-    if (timeout_req) {
-
-	/* Someone has asked for this transaction to just be aborted
-
-	 * if it times out...
-
+/*****************************************************************

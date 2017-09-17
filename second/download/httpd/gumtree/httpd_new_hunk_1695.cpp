@@ -1,26 +1,13 @@
-    if (r->assbackwards && r->header_only) {
+}
 
-        /*
+#ifdef USE_PERL_SSI
+static int handle_perl(FILE *in, request_rec *r, const char *error)
+{
+    char tag[MAX_STRING_LEN];
+    char parsed_string[MAX_STRING_LEN];
+    char *tag_val;
+    SV *sub = Nullsv;
+    AV *av = newAV();
 
-         * Client asked for headers only with HTTP/0.9, which doesn't send
-
-         * headers!  Have to dink things even to make sure the error message
-
-         * comes through...
-
-         */
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "client sent illegal HTTP/0.9 request: %s", r->uri);
-
-        r->header_only = 0;
-
-        ap_die(BAD_REQUEST, r);
-
-        return;
-
-    }
-
-
-
+    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

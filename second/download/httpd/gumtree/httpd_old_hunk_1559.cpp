@@ -1,28 +1,9 @@
+/* Automatically generated file - do not edit */
 
-
-    f = ap_pfopen(r->pool, metafilename, "r");
-
-    if (f == NULL) {
-
-	if (errno == ENOENT) {
-
-	    return DECLINED;
-
-	}
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-	      "meta file permissions deny server access: %s", metafilename);
-
-	return FORBIDDEN;
-
-    };
-
-
-
-    /* read the headers in */
-
-    rv = scan_meta_file(r, f);
-
--- apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
-
+#ifndef LINUX
+#define LINUX 2
+#endif
+#ifndef USE_HSREGEX
+#define USE_HSREGEX 
+#endif
+-- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800

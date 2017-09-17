@@ -1,26 +1,16 @@
-            case token_le:
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+		MODNAME ": revision_suffix checking %s", r->filename);
+#endif /* MIME_MAGIC_DEBUG */
 
-            case token_lt:
+    /* check for recognized revision suffix */
+    suffix_pos = strlen(r->filename) - 1;
+    if (!isdigit(r->filename[suffix_pos])) {
+	return 0;
+    }
+    while (suffix_pos >= 0 && isdigit(r->filename[suffix_pos]))
+	suffix_pos--;
+    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
+	return 0;
+    }
 
-                new->parent = current;
-
-                current = current->right = new;
-
-                break;
-
-            default:
-
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                            "Invalid expression \"%s\" in file %s",
-
-                            expr, r->filename);
-
-                ap_rputs(error, r);
-
-                goto RETURN;
-
-            }
-
-            break;
-
+    /* perform sub-request for the file name without the suffix */

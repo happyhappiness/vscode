@@ -1,28 +1,13 @@
-		while (groups[0]) {
 
-		    v = ap_getword(r->pool, &groups, ',');
+    /* Domain name must start with a '.' */
+    if (addr[0] != '.')
+	return 0;
 
-		    if (!strcmp(v, w))
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
+	continue;
 
-			return OK;
-
-		}
-
-	    }
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-			"user %s not in right group: %s", user, r->filename);
-
-	    ap_note_basic_auth_failure(r);
-
-	    return AUTH_REQUIRED;
-
-	}
-
-    }
-
-
-
-++ apache_1.3.2/src/modules/standard/mod_auth_dbm.c	1998-08-07 01:30:55.000000000 +0800
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
+	/* @@@@ handle optional port */

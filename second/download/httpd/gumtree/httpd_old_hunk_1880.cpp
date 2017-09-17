@@ -1,26 +1,14 @@
-#elif defined(NEXT) || defined(NEWSOS)
 
-    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
-
-	perror("setpgrp");
-
-	fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
-
-	exit(1);
-
+    if (i != DECLINED) {
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	return i;
     }
+    cache = c->fp;
 
-#elif defined(__EMX__)
-
-    /* OS/2 don't support process group IDs */
-
-    pgrp = getpid();
-
-#elif defined(MPE)
-
-    /* MPE uses negative pid for process group */
-
-    pgrp = -getpid();
-
-#else
-
+    if (!pasvmode) {		/* wait for connection */
+	ap_hard_timeout("proxy ftp data connect", r);
+	clen = sizeof(struct sockaddr_in);
+	do
+	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
+	while (csd == -1 && errno == EINTR);

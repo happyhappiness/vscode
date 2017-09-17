@@ -1,152 +1,82 @@
-    }
 
-    else {
-
-        ap_rputs(anchor, r);
-
-    }
-
-}
-
-
+#define BY_ENCODING &c_by_encoding
+#define BY_TYPE &c_by_type
+#define BY_PATH &c_by_path
 
 /*
-
- * Fit a string into a specified buffer width, marking any
-
- * truncation.  The size argument is the actual buffer size, including
-
- * the \0 termination byte.  The buffer will be prefilled with blanks.
-
- * If the pad argument is false, any extra spaces at the end of the
-
- * buffer are omitted.  (Used when constructing anchors.)
-
+ * Return true if the specified string refers to the parent directory (i.e.,
+ * matches ".." or "../").  Hopefully this one call is significantly less
+ * expensive than multiple strcmp() calls.
  */
-
-static ap_inline char *widthify(const char *s, char *buff, int size, int pad)
-
+static ap_inline int is_parent(const char *name)
 {
-
-    int s_len;
-
-
-
-    memset(buff, ' ', size);
-
-    buff[size - 1] = '\0';
-
-    s_len = strlen(s);
-
-    if (s_len > (size - 1)) {
-
-	ap_cpystrn(buff, s, size);
-
-	if (size > 1) {
-
-	    buff[size - 2] = '>';
-
-	}
-
-	if (size > 2) {
-
-	    buff[size - 3] = '.';
-
-	}
-
-	if (size > 3) {
-
-	    buff[size - 4] = '.';
-
-	}
-
+    /*
+     * Now, IFF the first two bytes are dots, and the third byte is either
+     * EOS (\0) or a slash followed by EOS, we have a match.
+     */
+    if (((name[0] == '.') && (name[1] == '.'))
+	&& ((name[2] == '\0')
+	    || ((name[2] == '/') && (name[3] == '\0')))) {
+        return 1;
     }
-
-    else {
-
-	ap_cpystrn(buff, s, s_len + 1);
-
-	if (pad) {
-
-	    buff[s_len] = ' ';
-
-	}
-
-    }
-
-    return buff;
-
+    return 0;
 }
 
-
-
-static void output_directories(struct ent **ar, int n,
-
-			       autoindex_config_rec *d, request_rec *r,
-
-			       int autoindex_opts, char keyid, char direction)
-
+/*
+ * This routine puts the standard HTML header at the top of the index page.
+ * We include the DOCTYPE because we may be using features therefrom (i.e.,
+ * HEIGHT and WIDTH attributes on the icons if we're FancyIndexing).
+ */
+static void emit_preamble(request_rec *r, char *title)
 {
+    ap_rvputs(r, "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n",
+	      "<HTML>\n <HEAD>\n  <TITLE>Index of ", title,
+	      "</TITLE>\n </HEAD>\n <BODY>\n", NULL);
+}
 
-    int x;
+static void push_item(array_header *arr, char *type, char *to, char *path,
+		      char *data)
+{
+    struct item *p = (struct item *) ap_push_array(arr);
 
-    char *name = r->uri;
-
-    char *tp;
-
-    int static_columns = (autoindex_opts & SUPPRESS_COLSORT);
-
-    pool *scratch = ap_make_sub_pool(r->pool);
-
-    int name_width;
-
-    char *name_scratch;
-
-
-
-    if (name[0] == '\0') {
-
-	name = "/";
-
+    if (!to) {
+	to = "";
+    }
+    if (!path) {
+	path = "";
     }
 
+    p->type = type;
+    p->data = data ? ap_pstrdup(arr->pool, data) : NULL;
+    p->apply_path = ap_pstrcat(arr->pool, path, "*", NULL);
 
+    if ((type == BY_PATH) && (!ap_is_matchexp(to))) {
+	p->apply_to = ap_pstrcat(arr->pool, "*", to, NULL);
+    }
+    else if (to) {
+	p->apply_to = ap_pstrdup(arr->pool, to);
+    }
+    else {
+	p->apply_to = NULL;
+    }
+}
 
-    name_width = d->name_width;
-
-    if (d->name_adjust) {
-
-	for (x = 0; x < n; x++) {
-
-	    int t = strlen(ar[x]->name);
-
-	    if (t > name_width) {
-
-		name_width = t;
-
-	    }
-
+static const char *add_alt(cmd_parms *cmd, void *d, char *alt, char *to)
+{
+    if (cmd->info == BY_PATH) {
+        if (!strcmp(to, "**DIRECTORY**")) {
+	    to = "^^DIRECTORY^^";
 	}
-
+    }
+    if (cmd->info == BY_ENCODING) {
+	ap_str_tolower(to);
     }
 
-    ++name_width;
+    push_item(((autoindex_config_rec *) d)->alt_list, cmd->info, to,
+	      cmd->path, alt);
+    return NULL;
+}
 
-    name_scratch = ap_palloc(r->pool, name_width + 1);
-
-    memset(name_scratch, ' ', name_width);
-
-    name_scratch[name_width] = '\0';
-
-
-
-    if (autoindex_opts & FANCY_INDEXING) {
-
-	ap_rputs("<PRE>", r);
-
-	if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
-
-	    ap_rvputs(r, "<IMG SRC=\"", ap_escape_html(scratch, tp),
-
-		   "\" ALT=\"     \"", NULL);
-
+static const char *add_icon(cmd_parms *cmd, void *d, char *icon, char *to)
+{
+    char *iconbak = ap_pstrdup(cmd->pool, icon);

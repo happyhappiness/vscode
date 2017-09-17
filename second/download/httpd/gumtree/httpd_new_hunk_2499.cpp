@@ -1,28 +1,14 @@
-	 */
-
-	return TRUE;
-
-
-
-    /* We don't support all this async I/O, Microsoft-specific stuff */
-
-    case HSE_REQ_IO_COMPLETION:
-
-    case HSE_REQ_TRANSMIT_FILE:
-
-	ap_log_rerror(APLOG_MARK, APLOG_WARNING, r,
-
-		    "ISAPI asynchronous I/O not supported: %s", r->filename);
-
-    default:
-
-	SetLastError(ERROR_INVALID_PARAMETER);
-
-	return FALSE;
-
+	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
+	}
+	return index_directory(r, d);
     }
-
+    else {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		     "Directory index forbidden by rule: %s", r->filename);
+	return HTTP_FORBIDDEN;
+    }
 }
 
-++ apache_1.3.2/src/os/win32/modules.c	1998-07-21 08:06:59.000000000 +0800
 
+static const handler_rec autoindex_handlers[] =
+++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800

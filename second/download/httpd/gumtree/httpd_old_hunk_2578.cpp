@@ -1,70 +1,26 @@
-	    parms[0] = '\0';
-
-    }
-
-
-
-/* try to set up PASV data connection first */
-
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (dsock == -1) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "proxy: error creating PASV socket");
-
-	ap_bclose(f);
-
-	ap_kill_timeout(r);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-    if (conf->recv_buffer_size) {
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"malformed header in meta file: %s", r->filename);
+	    return SERVER_ERROR;
 	}
 
-    }
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
+	if (!strcasecmp(w, "Content-type")) {
 
+	    /* Nuke trailing whitespace */
 
-    ap_bputs("PASV" CRLF, f);
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
 
-    ap_bflush(f);
-
-    Explain0("FTP: PASV command issued");
-
-/* possible results: 227, 421, 500, 501, 502, 530 */
-
-    i = ap_bgets(pasv, sizeof(pasv), f);
-
-
-
-    if (i == -1) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-
-		     "PASV: control connection is toast");
-
-	ap_pclosesocket(p, dsock);
-
-	ap_bclose(f);
-
-	ap_kill_timeout(r);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
+	}
+	else if (!strcasecmp(w, "Status")) {
+	    sscanf(l, "%d", &r->status);
+	    r->status_line = ap_pstrdup(r->pool, l);
+	}
+	else {
+-- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800

@@ -1,26 +1,13 @@
-            return;
 
+    while (1) {
+        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
+            return 1;
         }
+        if (!strcmp(tag, "var")) {
+            const char *val = ap_table_get(r->subprocess_env, tag_val);
 
-        else {
-
-            close(c->fd);
-
-            err_conn++;
-
-            if (bad++ > 10) {
-
-                err("\nTest aborted after 10 failures\n\n");
-
+            if (val) {
+                ap_rputs(val, r);
             }
-
-            start_connect(c);
-
-        }
-
-    }
-
-
-
-    /* connected first time */
-
+            else {
+                ap_rputs("(none)", r);

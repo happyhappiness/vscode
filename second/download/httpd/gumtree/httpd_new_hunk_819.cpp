@@ -1,28 +1,13 @@
-{
-
-    const char *auth_line = ap_table_get(r->headers_in,
-
-                                    r->proxyreq ? "Proxy-Authorization"
-
-                                    : "Authorization");
-
-    int l;
-
-    int s, vk = 0, vv = 0;
-
-    const char *t;
-
-    char *key, *value;
-
-
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-
-	return DECLINED;
-
-
-
-    if (!ap_auth_name(r)) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: failed to accept data connection");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    ap_proxy_cache_error(c);
+	    return HTTP_BAD_GATEWAY;
+	}
+	ap_note_cleanups_for_socket(p, csd);
+	data = ap_bcreate(p, B_RDWR | B_SOCKET);
+	ap_bpushfd(data, csd, -1);
+	ap_kill_timeout(r);
+    }

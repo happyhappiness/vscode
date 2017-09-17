@@ -1,28 +1,40 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-
-	}
-
-	return index_directory(r, d);
-
+	return;
     }
+    else
+	inside = 1;
+    (void) ap_release_mutex(garbage_mutex);
 
-    else {
+    help_proxy_garbage_coll(r);
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		    "Directory index forbidden by rule: %s", r->filename);
-
-	return HTTP_FORBIDDEN;
-
-    }
-
+    (void) ap_acquire_mutex(garbage_mutex);
+    inside = 0;
+    (void) ap_release_mutex(garbage_mutex);
 }
 
 
+static void help_proxy_garbage_coll(request_rec *r)
+{
+    const char *cachedir;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *pconf =
+    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+    const struct cache_conf *conf = &pconf->cache;
+    array_header *files;
+    struct stat buf;
+    struct gc_ent *fent, **elts;
+    int i, timefd;
+    static time_t lastcheck = BAD_DATE;		/* static data!!! */
 
+    cachedir = conf->root;
+    cachesize = conf->space;
+    every = conf->gcinterval;
 
+    if (cachedir == NULL || every == -1)
+	return;
+    garbage_now = time(NULL);
+    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
+	return;
 
-static const handler_rec autoindex_handlers[] =
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
 
--- apache_1.3.0/src/modules/standard/mod_cern_meta.c	1998-04-11 20:00:45.000000000 +0800
-
+    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

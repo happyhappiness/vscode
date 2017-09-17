@@ -1,62 +1,14 @@
-        break;
+    ap_hard_timeout("send directory", r);
 
-    }
+    /* Spew HTML preamble */
 
-    return strcmp(c1->name, c2->name);
+    title_endp = title_name + strlen(title_name) - 1;
 
-}
+    while (title_endp > title_name && *title_endp == '/')
+	*title_endp-- = '\0';
 
-
-
-
-
-static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
-
-{
-
-    char *title_name = ap_escape_html(r->pool, r->uri);
-
-    char *title_endp;
-
-    char *name = r->filename;
-
-
-
-    DIR *d;
-
-    struct DIR_TYPE *dstruct;
-
-    int num_ent = 0, x;
-
-    struct ent *head, *p;
-
-    struct ent **ar = NULL;
-
-    char *tmp;
-
-    const char *qstring;
-
-    int autoindex_opts = find_opts(autoindex_conf, r);
-
-    char keyid;
-
-    char direction;
-
-
-
-    if (!(d = ap_popendir(r->pool, name))) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    "Can't open directory for index: %s", r->filename);
-
-	return HTTP_FORBIDDEN;
-
-    }
-
-
-
-    r->content_type = "text/html";
-
-
-
+    if ((!(tmp = find_header(autoindex_conf, r)))
+	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
+	) {
+	emit_preamble(r, title_name);
+	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);

@@ -1,24 +1,13 @@
-	states fresh;		/* states for a fresh start */
 
-	states tmp;		/* temporary */
+    /* Domain name must start with a '.' */
+    if (addr[0] != '.')
+	return 0;
 
-	states empty;		/* empty set of states */
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
+	continue;
 
-};
-
-
-
-#include "engine.ih"
-
-
-
-#ifdef REDEBUG
-
-#define	SP(t, s, c)	print(m, t, s, c, stdout)
-
-#define	AT(t, p1, p2, s1, s2)	at(m, t, p1, p2, s1, s2)
-
-#define	NOTE(str)	{ if (m->eflags&REG_TRACE) printf("=%s\n", (str)); }
-
-#else
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
+	/* @@@@ handle optional port */

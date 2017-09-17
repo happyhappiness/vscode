@@ -1,62 +1,21 @@
-    {
 
-	unsigned len = SCOREBOARD_SIZE;
-
-
-
-	m = mmap((caddr_t) 0xC0000000, &len,
-
-		 PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, NOFD, 0);
-
-    }
-
-#elif defined(MAP_TMPFILE)
-
-    {
-
-	char mfile[] = "/tmp/apache_shmem_XXXX";
-
-	int fd = mkstemp(mfile);
-
-	if (fd == -1) {
-
-	    perror("open");
-
-	    fprintf(stderr, "httpd: Could not open %s\n", mfile);
-
-	    exit(APEXIT_INIT);
-
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	if (ap_suexec_enabled) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
 	}
+	restart_pending = shutdown_pending = 0;
 
-	m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    ap_wait_t status;
+	    int pid = wait_or_timeout(&status);
 
-		PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-
-	if (m == (caddr_t) - 1) {
-
-	    perror("mmap");
-
-	    fprintf(stderr, "httpd: Could not mmap %s\n", mfile);
-
-	    exit(APEXIT_INIT);
-
-	}
-
-	close(fd);
-
-	unlink(mfile);
-
-    }
-
-#else
-
-    m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-
-	     PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-
-#endif
-
-    if (m == (caddr_t) - 1) {
-
-	perror("mmap");
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

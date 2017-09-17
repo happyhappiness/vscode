@@ -1,28 +1,26 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
 
-	}
+    /* Pass one --- direct matches */
 
-	return index_directory(r, d);
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
 
+            if (result != DECLINED)
+                return result;
+        }
     }
 
-    else {
+    /* Pass two --- wildcard matches */
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
-		    "Directory index forbidden by rule: %s", r->filename);
-
-	return HTTP_FORBIDDEN;
-
+             if (result != DECLINED)
+                 return result;
+         }
     }
 
-}
-
-
-
-
-
-static const handler_rec autoindex_handlers[] =
-
--- apache_1.3.0/src/modules/standard/mod_cern_meta.c	1998-04-11 20:00:45.000000000 +0800
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

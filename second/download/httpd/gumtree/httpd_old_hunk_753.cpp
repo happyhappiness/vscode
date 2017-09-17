@@ -1,34 +1,28 @@
+	    return;
 	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
+    curblocks = 0;
+    curbytes = 0;
 
+    sub_garbage_coll(r, files, cachedir, "/");
+
+    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
+	ap_unblock_alarms();
+	return;
     }
 
-    if (!found) {
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
 
-	printf("Adding user %s\n", user);
-
-	add_password(user, tfp);
-
-    }
-
-    fclose(f);
-
-    fclose(tfp);
-
-#if defined(__EMX__) || defined(WIN32)
-
-    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
-
+    elts = (struct gc_ent **) files->elts;
+    for (i = 0; i < files->nelts; i++) {
+	fent = elts[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
 #else
-
-    sprintf(command, "cp %s %s", tn, argv[1]);
-
-#endif
-
-    system(command);
-
-    unlink(tn);
-
-    exit(0);
-
-}
-
+	if (unlink(filename) == -1) {

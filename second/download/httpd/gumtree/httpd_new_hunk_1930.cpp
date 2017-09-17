@@ -1,110 +1,49 @@
-
-
-	if (bind(dsock, (struct sockaddr *) &server,
-
-		 sizeof(struct sockaddr_in)) == -1) {
-
-	    char buff[22];
-
-
-
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-			 "proxy: error binding to ftp data socket %s", buff);
-
-	    ap_bclose(f);
-
-	    ap_pclosesocket(p, dsock);
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
+	    return cond_status;
 	}
 
-	listen(dsock, 2);	/* only need a short queue */
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
-    }
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
+			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
 
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
-
-/* set request; "path" holds last path component */
-
-    len = decodeenc(path);
-
-
-
-    /* TM - if len == 0 then it must be a directory (you can't RETR nothing) */
-
-
-
-    if (len == 0) {
-
-	parms = "d";
-
-    }
-
-    else {
-
-	ap_bvputs(f, "SIZE ", path, CRLF, NULL);
-
-	ap_bflush(f);
-
-	Explain1("FTP: SIZE %s", path);
-
-	i = ftp_getrc_msg(f, resp, sizeof resp);
-
-	Explain2("FTP: returned status %d with response %s", i, resp);
-
-	if (i != 500) {		/* Size command not recognized */
-
-	    if (i == 550) {	/* Not a regular file */
-
-		Explain0("FTP: SIZE shows this is a directory");
-
-		parms = "d";
-
-		ap_bvputs(f, "CWD ", path, CRLF, NULL);
-
-		ap_bflush(f);
-
-		Explain1("FTP: CWD %s", path);
-
-		i = ftp_getrc(f);
-
-		/* possible results: 250, 421, 500, 501, 502, 530, 550 */
-
-		/* 250 Requested file action okay, completed. */
-
-		/* 421 Service not available, closing control connection. */
-
-		/* 500 Syntax error, command unrecognized. */
-
-		/* 501 Syntax error in parameters or arguments. */
-
-		/* 502 Command not implemented. */
-
-		/* 530 Not logged in. */
-
-		/* 550 Requested action not taken. */
-
-		Explain1("FTP: returned status %d", i);
-
-		if (i == -1) {
-
-		    ap_kill_timeout(r);
-
-		    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ "Error reading from remote server");
-
+	    if (!buffer) {
+		/* Soak up all the script output - may save an outright kill */
+	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
+		    continue;
 		}
+	    }
 
-		if (i == 550) {
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			 "%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
+	}
 
-		    ap_kill_timeout(r);
+	*l++ = '\0';
+	while (*l && ap_isspace(*l)) {
+	    ++l;
+	}
 
-		    return HTTP_NOT_FOUND;
+	if (!strcasecmp(w, "Content-type")) {
+	    char *tmp;
 
-		}
+	    /* Nuke trailing whitespace */
 
-		if (i != 250) {
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && ap_isspace(*endp)) {
+		*endp-- = '\0';
+	    }
 
+	    tmp = ap_pstrdup(r->pool, l);
+	    ap_content_type_tolower(tmp);
+	    r->content_type = tmp;
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

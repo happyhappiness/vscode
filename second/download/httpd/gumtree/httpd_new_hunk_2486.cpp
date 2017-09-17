@@ -1,72 +1,13 @@
-    char *loc;
+    ap_bvputs(f, "Host: ", desthost, NULL);
+    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+	ap_bvputs(f, ":", destportstr, CRLF, NULL);
+    else
+	ap_bputs(CRLF, f);
 
-    time_t nowtime = time(NULL);
-
-    time_t up_time;
-
-    int i, res;
-
-    int ready = 0;
-
-    int busy = 0;
-
-    unsigned long count = 0;
-
-    unsigned long lres, bytes;
-
-    unsigned long my_lres, my_bytes, conn_bytes;
-
-    unsigned short conn_lres;
-
-    unsigned long bcount = 0;
-
-    unsigned long kbcount = 0;
-
-    long req_time;
-
-#if defined(NEXT)
-
-    float tick = HZ;
-
-#elif !defined(NO_TIMES)
-
-    float tick = sysconf(_SC_CLK_TCK);
-
-#endif
-
-    int short_report = 0;
-
-    int no_table_report = 0;
-
-    short_score score_record;
-
-    parent_score ps_record;
-
-    char stat_buffer[HARD_SERVER_LIMIT];
-
-    int pid_buffer[HARD_SERVER_LIMIT];
-
-    clock_t tu, ts, tcu, tcs;
-
-
-
-    tu = ts = tcu = tcs = 0;
-
-
-
-    if (!ap_exists_scoreboard_image()) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		    "Server status unavailable in inetd mode");
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-    r->allowed = (1 << M_GET);
-
-    if (r->method_number != M_GET)
-
-	return DECLINED;
-
+    reqhdrs_arr = ap_table_elts(r->headers_in);
+    reqhdrs = (table_entry *) reqhdrs_arr->elts;
+    for (i = 0; i < reqhdrs_arr->nelts; i++) {
+	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
+	/* Clear out headers not to send */
+	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
+	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))

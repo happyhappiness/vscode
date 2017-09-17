@@ -1,26 +1,26 @@
-#if MIME_MAGIC_DEBUG
 
-    for (m = conf->magic; m; m = m->next) {
+    /* Pass one --- direct matches */
 
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
 
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
+            if (result != DECLINED)
+                return result;
+        }
+    }
 
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
+    /* Pass two --- wildcard matches */
 
-	    ap_isprint(((unsigned long) m) & 255)) {
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-			MODNAME ": match: POINTER CLOBBERED! "
-
-			"m=\"%c%c%c%c\"",
-
-			(((unsigned long) m) >> 24) & 255,
-
-			(((unsigned long) m) >> 16) & 255,
-
-			(((unsigned long) m) >> 8) & 255,
-
-			((unsigned long) m) & 255);
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

@@ -1,26 +1,20 @@
-
-
-	    name = ent->pw_name;
-
+	     */
+	    break;
+#endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
 	}
+    }
 
-	else
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-	    name = ap_user_name;
+    child_timeouts = !ap_standalone || one_process;
 
-
-
-#ifndef __EMX__
-
-	/* OS/2 dosen't support groups. */
-
-
-
-	/* Reset `groups' attributes. */
-
-
-
-	if (initgroups(name, ap_group_id) == -1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ALERT, server_conf,
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

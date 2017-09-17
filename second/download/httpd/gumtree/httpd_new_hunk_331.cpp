@@ -1,32 +1,13 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
 
-		MODNAME ": revision_suffix checking %s", r->filename);
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!ap_is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-#endif /* MIME_MAGIC_DEBUG */
+    ap_hard_timeout("send headers", r);
 
-
-
-    /* check for recognized revision suffix */
-
-    suffix_pos = strlen(r->filename) - 1;
-
-    if (!ap_isdigit(r->filename[suffix_pos])) {
-
-	return 0;
-
-    }
-
-    while (suffix_pos >= 0 && ap_isdigit(r->filename[suffix_pos]))
-
-	suffix_pos--;
-
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-
-	return 0;
-
-    }
-
-
-
-    /* perform sub-request for the file name without the suffix */
-
+    ap_basic_http_header(r);

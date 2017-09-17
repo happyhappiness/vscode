@@ -1,40 +1,28 @@
-    if (!sec->auth_pwfile)
-
-	return DECLINED;
-
-
-
-    if (!(real_pw = get_pw(r, c->user, sec->auth_pwfile))) {
-
-	if (!(sec->auth_authoritative))
-
-	    return DECLINED;
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		    "user %s not found: %s", c->user, r->uri);
-
-	ap_note_basic_auth_failure(r);
-
-	return AUTH_REQUIRED;
-
+	     */
+	    break;
+#endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
-    /* anyone know where the prototype for crypt is? */
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-    if (strcmp(real_pw, (char *) crypt(sent_pw, real_pw))) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		    "user %s: password mismatch: %s", c->user, r->uri);
-
-	ap_note_basic_auth_failure(r);
-
-	return AUTH_REQUIRED;
-
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
     }
 
-    return OK;
+    child_timeouts = !ap_standalone || one_process;
 
-}
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

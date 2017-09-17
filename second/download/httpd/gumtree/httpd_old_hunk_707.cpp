@@ -1,26 +1,18 @@
-    if (i == -1) {
-
+    if (i == 530) {
 	ap_kill_timeout(r);
-
-	return ap_proxyerror(r, "Error reading from remote server");
-
+	return ap_proxyerror(r, "Not logged in");
     }
-
-    if (i != 220) {
-
+    if (i != 230 && i != 331) {
 	ap_kill_timeout(r);
-
 	return BAD_GATEWAY;
-
     }
 
-
-
-    Explain0("FTP: connected.");
-
-
-
-    ap_bputs("USER ", f);
-
-    ap_bwrite(f, user, userlen);
-
+    if (i == 331) {		/* send password */
+	if (password == NULL)
+	    return FORBIDDEN;
+	ap_bputs("PASS ", f);
+	ap_bwrite(f, password, passlen);
+	ap_bputs(CRLF, f);
+	ap_bflush(f);
+	Explain1("FTP: PASS %s", password);
+/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

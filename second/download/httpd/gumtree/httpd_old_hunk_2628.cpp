@@ -1,26 +1,22 @@
-            }
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
+	}
+	else
+#endif
+	{
+	    curblocks -= fent->len >> 10;
+	    curbytes -= fent->len & 0x3FF;
+	    if (curbytes < 0) {
+		curbytes += 1024;
+		curblocks--;
+	    }
+	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
+		break;
+	}
+    }
+    ap_unblock_alarms();
+}
 
-
-
-            value += 2;         /* jump over the '..' that we found in the
-
-                                   value */
-
-        }
-
-        else if (directory) {
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "invalid directory name in map file: %s", r->uri);
-
-            return NULL;
-
-        }
-
-
-
-        if (!strncmp(value, "/../", 4) || !strcmp(value, "/..")) {
-
-            value++;            /* step over the '/' if there are more '..'
-
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

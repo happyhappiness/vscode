@@ -1,28 +1,13 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-
-	}
-
-	return index_directory(r, d);
-
-    }
-
-    else {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		     "Directory index forbidden by rule: %s", r->filename);
-
-	return HTTP_FORBIDDEN;
-
-    }
-
-}
-
-
-
-
-
-static const handler_rec autoindex_handlers[] =
-
-++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
-
+		    /* else nothing needs be done because
+		     * then the backslash is escaped and
+		     * we just strip to a single one
+		     */
+		}
+		/* blast trailing whitespace */
+		while (i > 0 && ap_isspace(buf[i - 1]))
+		    --i;
+		buf[i] = '\0';
+#ifdef DEBUG_CFG_LINES
+		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+		return 0;

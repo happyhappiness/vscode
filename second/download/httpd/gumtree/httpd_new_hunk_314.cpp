@@ -1,38 +1,10 @@
-    if (!method_restricted)
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
 
-	return OK;
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
+#endif
 
-
-
-    if (!(sec->auth_authoritative))
-
-	return DECLINED;
-
-
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-	"access to %s failed for %s, reason: user %s not allowed access",
-
-	r->uri,
-
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-
-	user);
-
-	
-
-    ap_note_basic_auth_failure(r);
-
-    return AUTH_REQUIRED;
-
-}
-
-
-
-module MODULE_VAR_EXPORT auth_module =
-
-{
-
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

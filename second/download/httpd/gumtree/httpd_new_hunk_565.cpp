@@ -1,26 +1,10 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
 
-	&& *dbuf) {
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
+#endif
 
-	fprintf(f, "\n%s\n", dbuf);
-
-    }
-
-
-
-    fputs("%response\n", f);
-
-    hdrs_arr = ap_table_elts(r->err_headers_out);
-
-    hdrs = (table_entry *) hdrs_arr->elts;
-
-
-
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-
-	if (!hdrs[i].key)
-
-	    continue;
-
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

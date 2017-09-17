@@ -1,26 +1,20 @@
-    magic_req_rec *req_dat = (magic_req_rec *)
+#endif
 
-		    ap_get_module_config(r->request_config, &mime_magic_module);
+    ap_soft_timeout("send body", r);
 
-    magic_rsl *rsl;
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
 
-
-
-    /* make sure we have a list to put it in */
-
-    if (!req_dat) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-
-		    MODNAME ": request config should not be NULL");
-
-	if (!(req_dat = magic_set_config(r))) {
-
-	    /* failure */
-
-	    return -1;
-
-	}
-
-    }
-
+        do {
+            n = ap_bread(fb, buf, len);
+            if (n >= 0 || r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

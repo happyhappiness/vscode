@@ -1,70 +1,41 @@
-	if (rc == -1) {
-
-	    ap_kill_timeout(r);
-
-	    return ap_proxyerror(r, "Error sending to remote server");
-
+	    return cond_status;
 	}
 
-	if (rc == 550) {
+	/* if we see a bogus header don't ignore it. Shout and scream */
+
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+
+	    if (!buffer)
+		/* Soak up all the script output --- may save an outright kill */
+		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
+		    continue;
 
 	    ap_kill_timeout(r);
-
-	    return NOT_FOUND;
-
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
 	}
 
-	if (rc != 250) {
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
-	    ap_kill_timeout(r);
+	if (!strcasecmp(w, "Content-type")) {
 
-	    return BAD_GATEWAY;
+	    /* Nuke trailing whitespace */
 
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
+
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
 	}
-
-
-
-	ap_bputs("LIST -lag" CRLF, f);
-
-	ap_bflush(f);
-
-	Explain0("FTP: LIST -lag");
-
-	rc = ftp_getrc(f);
-
-	Explain1("FTP: returned status %d", rc);
-
-	if (rc == -1)
-
-	    return ap_proxyerror(r, "Error sending to remote server");
-
-    }
-
-    ap_kill_timeout(r);
-
-    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
-
-	return BAD_GATEWAY;
-
-
-
-    r->status = 200;
-
-    r->status_line = "200 OK";
-
-
-
-    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
-
-    if (parms[0] == 'd')
-
-	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
-
-    else {
-
-	if (r->content_type != NULL) {
-
-	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
-
-			     HDR_REP);
-
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

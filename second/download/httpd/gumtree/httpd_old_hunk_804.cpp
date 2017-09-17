@@ -1,104 +1,40 @@
-#endif
-
-
-
-    /* Since we are reading from one buffer and writing to another,
-
-     * it is unsafe to do a soft_timeout here, at least until the proxy
-
-     * has its own timeout handler which can set both buffers to EOUT.
-
-     */
-
-    ap_hard_timeout("proxy send body", r);
-
-
-
-    while (!con->aborted && f != NULL) {
-
-	n = ap_bread(f, buf, IOBUFSIZE);
-
-	if (n == -1) {		/* input error */
-
-	    if (f2 != NULL)
-
-		f2 = ap_proxy_cache_error(c);
-
-	    break;
-
-	}
-
-	if (n == 0)
-
-	    break;		/* EOF */
-
-	o = 0;
-
-	total_bytes_sent += n;
-
-
-
-	if (f2 != NULL)
-
-	    if (ap_bwrite(f2, buf, n) != n)
-
-		f2 = ap_proxy_cache_error(c);
-
-
-
-	while (n && !con->aborted) {
-
-	    w = ap_bwrite(con->client, &buf[o], n);
-
-	    if (w <= 0) {
-
-		if (f2 != NULL) {
-
-		    ap_pclosef(c->req->pool, c->fp->fd);
-
-		    c->fp = NULL;
-
-		    f2 = NULL;
-
-		    con->aborted = 1;
-
-		    unlink(c->tempfile);
-
-		}
-
-		break;
-
-	    }
-
-	    ap_reset_timeout(r);	/* reset timeout after successful write */
-
-	    n -= w;
-
-	    o += w;
-
-	}
-
+	return;
     }
+    else
+	inside = 1;
+    (void) ap_release_mutex(garbage_mutex);
 
-    if (!con->aborted)
+    help_proxy_garbage_coll(r);
 
-	ap_bflush(con->client);
-
-
-
-    ap_kill_timeout(r);
-
-    return total_bytes_sent;
-
+    (void) ap_acquire_mutex(garbage_mutex);
+    inside = 0;
+    (void) ap_release_mutex(garbage_mutex);
 }
 
 
+static void help_proxy_garbage_coll(request_rec *r)
+{
+    const char *cachedir;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *pconf =
+    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+    const struct cache_conf *conf = &pconf->cache;
+    array_header *files;
+    struct stat buf;
+    struct gc_ent *fent, **elts;
+    int i, timefd;
+    static time_t lastcheck = BAD_DATE;		/* static data!!! */
 
-/*
+    cachedir = conf->root;
+    cachesize = conf->space;
+    every = conf->gcinterval;
 
- * Read a header from the array, returning the first entry
+    if (cachedir == NULL || every == -1)
+	return;
+    garbage_now = time(NULL);
+    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
+	return;
 
- */
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
 
-struct hdr_entry *
-
+    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

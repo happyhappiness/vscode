@@ -1,140 +1,167 @@
- * field is still a time_t stamp.  By doing that, it is possible for a site to
+	else {
+	    cur = atol(str);
+	}
+    }
+    else {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
+		     "Invalid parameters for %s", cmd->cmd->name);
+	return;
+    }
+    
+    if (arg2 && (str = ap_getword_conf(cmd->pool, &arg2))) {
+	max = atol(str);
+    }
 
- * have a "flag second" in which they stop all of their old-format servers,
+    /* if we aren't running as root, cannot increase max */
+    if (geteuid()) {
+	limit->rlim_cur = cur;
+	if (max) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
+			 "Must be uid 0 to raise maximum %s", cmd->cmd->name);
+	}
+    }
+    else {
+        if (cur) {
+	    limit->rlim_cur = cur;
+	}
+        if (max) {
+	    limit->rlim_max = max;
+	}
+    }
+}
+#endif
 
- * wait one entire second, and then start all of their new-servers.  This
-
- * procedure will ensure that the new space of identifiers is completely unique
-
- * from the old space.  (Since the first four unencoded bytes always differ.)
-
- */
-
-/*
-
- * Sun Jun  7 05:43:49 CEST 1998 -- Alvaro
-
- * More comments:
-
- * 1) The UUencoding prodecure is now done in a general way, avoiding the problems
-
- * with sizes and paddings that can arise depending on the architecture. Now the
-
- * offsets and sizes of the elements of the unique_id_rec structure are calculated
-
- * in unique_id_global_init; and then used to duplicate the structure without the
-
- * paddings that might exist. The multithreaded server fix should be now very easy:
-
- * just add a new "tid" field to the unique_id_rec structure, and increase by one
-
- * UNIQUE_ID_REC_MAX.
-
- * 2) unique_id_rec.stamp has been changed from "time_t" to "unsigned int", because
-
- * its size is 64bits on some platforms (linux/alpha), and this caused problems with
-
- * htonl/ntohl. Well, this shouldn't be a problem till year 2106.
-
- */
-
-
-
-static unsigned global_in_addr;
-
-
-
-static APACHE_TLS unique_id_rec cur_unique_id;
-
-
-
-/*
-
- * Number of elements in the structure unique_id_rec.
-
- */
-
-#define UNIQUE_ID_REC_MAX 4
-
-
-
-static unsigned short unique_id_rec_offset[UNIQUE_ID_REC_MAX],
-
-                      unique_id_rec_size[UNIQUE_ID_REC_MAX],
-
-                      unique_id_rec_total_size,
-
-                      unique_id_rec_size_uu;
-
-
-
-static void unique_id_global_init(server_rec *s, pool *p)
-
+#if !defined (RLIMIT_CPU) || !(defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)) || !defined (RLIMIT_NPROC)
+static const char *no_set_limit(cmd_parms *cmd, core_dir_config *conf,
+				char *arg, char *arg2)
 {
-
-#ifndef MAXHOSTNAMELEN
-
-#define MAXHOSTNAMELEN 256
-
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
+		"%s not supported on this platform", cmd->cmd->name);
+    return NULL;
+}
 #endif
 
-    char str[MAXHOSTNAMELEN + 1];
-
-    struct hostent *hent;
-
-#ifndef NO_GETTIMEOFDAY
-
-    struct timeval tv;
-
+#ifdef RLIMIT_CPU
+static const char *set_limit_cpu(cmd_parms *cmd, core_dir_config *conf, 
+				 char *arg, char *arg2)
+{
+    set_rlimit(cmd, &conf->limit_cpu, arg, arg2, RLIMIT_CPU);
+    return NULL;
+}
 #endif
 
+#if defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)
+static const char *set_limit_mem(cmd_parms *cmd, core_dir_config *conf, 
+				 char *arg, char * arg2)
+{
+#if defined(RLIMIT_AS)
+    set_rlimit(cmd, &conf->limit_mem, arg, arg2 ,RLIMIT_AS);
+#elif defined(RLIMIT_DATA)
+    set_rlimit(cmd, &conf->limit_mem, arg, arg2, RLIMIT_DATA);
+#elif defined(RLIMIT_VMEM)
+    set_rlimit(cmd, &conf->limit_mem, arg, arg2, RLIMIT_VMEM);
+#endif
+    return NULL;
+}
+#endif
 
+#ifdef RLIMIT_NPROC
+static const char *set_limit_nproc(cmd_parms *cmd, core_dir_config *conf,  
+				   char *arg, char * arg2)
+{
+    set_rlimit(cmd, &conf->limit_nproc, arg, arg2, RLIMIT_NPROC);
+    return NULL;
+}
+#endif
 
-    /*
+static const char *set_bind_address(cmd_parms *cmd, void *dummy, char *arg) 
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
 
-     * Calculate the sizes and offsets in cur_unique_id.
+    ap_bind_address.s_addr = ap_get_virthost_addr(arg, NULL);
+    return NULL;
+}
 
-     */
+static const char *set_listener(cmd_parms *cmd, void *dummy, char *ips)
+{
+    listen_rec *new;
+    char *ports;
+    unsigned short port;
 
-    unique_id_rec_offset[0] = XtOffsetOf(unique_id_rec, stamp);
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
 
-    unique_id_rec_size[0] = sizeof(cur_unique_id.stamp);
+    ports = strchr(ips, ':');
+    if (ports != NULL) {
+	if (ports == ips) {
+	    return "Missing IP address";
+	}
+	else if (ports[1] == '\0') {
+	    return "Address must end in :<port-number>";
+	}
+	*(ports++) = '\0';
+    }
+    else {
+	ports = ips;
+    }
 
-    unique_id_rec_offset[1] = XtOffsetOf(unique_id_rec, in_addr);
+    new=ap_pcalloc(cmd->pool, sizeof(listen_rec));
+    new->local_addr.sin_family = AF_INET;
+    if (ports == ips) { /* no address */
+	new->local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    }
+    else {
+	new->local_addr.sin_addr.s_addr = ap_get_virthost_addr(ips, NULL);
+    }
+    port = atoi(ports);
+    if (!port) {
+	return "Port must be numeric";
+    }
+    new->local_addr.sin_port = htons(port);
+    new->fd = -1;
+    new->used = 0;
+    new->next = ap_listeners;
+    ap_listeners = new;
+    return NULL;
+}
 
-    unique_id_rec_size[1] = sizeof(cur_unique_id.in_addr);
+static const char *set_listenbacklog(cmd_parms *cmd, void *dummy, char *arg) 
+{
+    int b;
 
-    unique_id_rec_offset[2] = XtOffsetOf(unique_id_rec, pid);
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
 
-    unique_id_rec_size[2] = sizeof(cur_unique_id.pid);
+    b = atoi(arg);
+    if (b < 1) {
+        return "ListenBacklog must be > 0";
+    }
+    ap_listenbacklog = b;
+    return NULL;
+}
 
-    unique_id_rec_offset[3] = XtOffsetOf(unique_id_rec, counter);
+static const char *set_coredumpdir (cmd_parms *cmd, void *dummy, char *arg) 
+{
+    struct stat finfo;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
 
-    unique_id_rec_size[3] = sizeof(cur_unique_id.counter);
+    arg = ap_server_root_relative(cmd->pool, arg);
+    if ((stat(arg, &finfo) == -1) || !S_ISDIR(finfo.st_mode)) {
+	return ap_pstrcat(cmd->pool, "CoreDumpDirectory ", arg, 
+			  " does not exist or is not a directory", NULL);
+    }
+    ap_cpystrn(ap_coredump_dir, arg, sizeof(ap_coredump_dir));
+    return NULL;
+}
 
-    unique_id_rec_total_size = unique_id_rec_size[0] + unique_id_rec_size[1] +
-
-                               unique_id_rec_size[2] + unique_id_rec_size[3];
-
-
-
-    /*
-
-     * Calculate the size of the structure when uuencoded.
-
-     */
-
-    unique_id_rec_size_uu = (unique_id_rec_total_size*8+5)/6;
-
-
-
-    /*
-
-     * Now get the global in_addr.  Note that it is not sufficient to use one
-
-     * of the addresses from the main_server, since those aren't as likely to
-
-     * be unique as the physical address of the machine
-
-     */
-
+static const char *include_config (cmd_parms *cmd, void *dummy, char *name)

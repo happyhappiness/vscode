@@ -1,42 +1,26 @@
-                    while (*p > 32)
 
-                        *q++ = *p++;
+    /* Pass one --- direct matches */
 
-                }
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
 
-                *q = 0;
+            if (result != DECLINED)
+                return result;
+        }
+    }
 
-            }
+    /* Pass two --- wildcard matches */
 
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-            c->gotheader = 1;
-
-            *s = 0;             /* terminate at end of header */
-
-            if (keepalive &&
-
-                (strstr(c->cbuff, "Keep-Alive")
-
-                 || strstr(c->cbuff, "keep-alive"))) {  /* for benefit of MSIIS */
-
-                char *cl;
-
-                cl = strstr(c->cbuff, "Content-Length:");
-
-                /* for cacky servers like NCSA which break the spec and send a 
-
-                   lower case 'l' */
-
-                if (!cl)
-
-                    cl = strstr(c->cbuff, "Content-length:");
-
-                if (cl) {
-
-                    c->keepalive = 1;
-
-                    c->length = atoi(cl + 16);
-
-                }
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

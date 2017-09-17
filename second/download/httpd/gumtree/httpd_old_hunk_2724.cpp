@@ -1,36 +1,13 @@
-            maxcon = max(maxcon, s.ctime);
 
-            maxtot = max(maxtot, s.time);
+    /* Host names must not start with a '.' */
+    if (addr[0] == '.')
+	return 0;
 
-            totalcon += s.ctime;
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
 
-            total += s.time;
-
-        }
-
-        printf("\nConnnection Times (ms)\n");
-
-        printf("           min   avg   max\n");
-
-        printf("Connect: %5d %5d %5d\n", mincon, totalcon / requests, maxcon);
-
-        printf("Total:   %5d %5d %5d\n", mintot, total / requests, maxtot);
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
+	/* @@@@ handle optional port */
     }
-
-
-
-    exit(0);
-
-}
-
-
-
-/* --------------------------------------------------------- */
-
-
-
-/* start asnchronous non-blocking connection */
-
-
-

@@ -1,26 +1,20 @@
+	     */
+	    break;
+#endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
 	}
-
-	if ((timefd = creat(filename, 0666)) == -1) {
-
-	    if (errno != EEXIST)
-
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			     "proxy: creat(%s)", filename);
-
-	    else
-
-		lastcheck = abs(garbage_now);	/* someone else got in there */
-
-	    ap_unblock_alarms();
-
-	    return;
-
-	}
-
-	close(timefd);
-
     }
 
-    else {
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
+    child_timeouts = !ap_standalone || one_process;
+
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

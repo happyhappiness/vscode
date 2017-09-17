@@ -1,26 +1,12 @@
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
 #endif
-
-        *printing = !(*conditional_status);
-
-        *conditional_status = 1;
-
-        return 0;
-
+#ifdef SIGABRT
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
+#endif
+	sa.sa_flags = 0;
     }
-
-    else {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "else directive does not take tags in %s",
-
-		    r->filename);
-
-        if (*printing) {
-
-            ap_rputs(error, r);
-
-        }
-
-        return -1;
-
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
+#ifdef SIGINT

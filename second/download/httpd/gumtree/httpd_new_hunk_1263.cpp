@@ -1,100 +1,30 @@
-        return errstatus;
-
-    }
-
-
-
-    r->allowed |= (1 << M_GET) | (1 << M_OPTIONS);
-
-
-
-    if (r->method_number == M_INVALID) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		    "Invalid method in request %s", r->the_request);
-
-	return NOT_IMPLEMENTED;
-
-    }
-
-    if (r->method_number == M_OPTIONS) {
-
-        return ap_send_http_options(r);
-
-    }
-
-    if (r->method_number == M_PUT) {
-
-        return METHOD_NOT_ALLOWED;
-
-    }
-
-
-
-    if (r->finfo.st_mode == 0 || (r->path_info && *r->path_info)) {
-
-	char *emsg;
-
-
-
-	emsg = "File does not exist: ";
-
-	if (r->path_info == NULL) {
-
-	    emsg = ap_pstrcat(r->pool, emsg, r->filename, NULL);
-
+	    return;
 	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
+    curbytes.upper = curbytes.lower = 0L;
 
-	else {
+    sub_garbage_coll(r, files, cachedir, "/");
 
-	    emsg = ap_pstrcat(r->pool, emsg, r->filename, r->path_info, NULL);
-
-	}
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r, emsg);
-
-	ap_table_setn(r->notes, "error-notes", emsg);
-
-	return HTTP_NOT_FOUND;
-
+    if (cmp_long61(&curbytes, &cachesize) < 0L) {
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
+			 "proxy GC: Cache is %ld%% full (nothing deleted)",
+			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
+	ap_unblock_alarms();
+	return;
     }
 
-    if (r->method_number != M_GET) {
+    /* sort the files we found by expiration date */
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
 
-        return METHOD_NOT_ALLOWED;
-
-    }
-
-	
-
-#if defined(OS2) || defined(WIN32)
-
-    /* Need binary mode for OS/2 */
-
-    f = ap_pfopen(r->pool, r->filename, "rb");
-
+    for (i = 0; i < files->nelts; i++) {
+	fent = &((struct gc_ent *) files->elts)[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
 #else
-
-    f = ap_pfopen(r->pool, r->filename, "r");
-
-#endif
-
-
-
-    if (f == NULL) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		     "file permissions deny server access: %s", r->filename);
-
-        return FORBIDDEN;
-
-    }
-
-	
-
-    ap_update_mtime(r, r->finfo.st_mtime);
-
-    ap_set_last_modified(r);
-
+	if (unlink(filename) == -1) {

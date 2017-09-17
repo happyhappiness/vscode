@@ -1,36 +1,41 @@
-    if (i == 530) {
+	    return cond_status;
+	}
 
-	ap_kill_timeout(r);
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
-	return ap_proxyerror(r, "Not logged in");
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
-    }
+	    if (!buffer)
+		/* Soak up all the script output --- may save an outright kill */
+		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
+		    continue;
 
-    if (i != 230 && i != 331) {
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
+	}
 
-	ap_kill_timeout(r);
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
-	return BAD_GATEWAY;
+	if (!strcasecmp(w, "Content-type")) {
 
-    }
+	    /* Nuke trailing whitespace */
 
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
 
-
-    if (i == 331) {		/* send password */
-
-	if (password == NULL)
-
-	    return FORBIDDEN;
-
-	ap_bputs("PASS ", f);
-
-	ap_bwrite(f, password, passlen);
-
-	ap_bputs(CRLF, f);
-
-	ap_bflush(f);
-
-	Explain1("FTP: PASS %s", password);
-
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
-
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

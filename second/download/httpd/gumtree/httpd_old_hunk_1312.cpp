@@ -1,28 +1,18 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, s,
+    ap_table_setn(r->err_headers_out,
+	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
+	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
+		ap_auth_name(r), r->request_time));
+}
 
-			     "proxy: error creating cache directory %s",
+API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
+{
+    const char *auth_line = ap_table_get(r->headers_in,
+                                      r->proxyreq ? "Proxy-Authorization"
+                                                  : "Authorization");
+    char *t;
 
-			     c->filename);
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
 
-	    *p = '/';
-
-	    ++p;
-
-	}
-
-#if defined(__EMX__) || defined(WIN32)
-
-	/* Under OS/2 use rename. */
-
-	if (rename(c->tempfile, c->filename) == -1)
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, s,
-
-			 "proxy: error renaming cache file %s to %s",
-
-			 c->tempfile, c->filename);
-
-    }
-
--- apache_1.3.1/src/modules/proxy/proxy_connect.c	1998-06-08 22:23:50.000000000 +0800
-
+    if (!ap_auth_name(r)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

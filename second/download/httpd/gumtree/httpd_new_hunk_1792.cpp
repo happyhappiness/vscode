@@ -1,26 +1,49 @@
-        case token_or:
+	    return cond_status;
+	}
 
-#ifdef DEBUG_INCLUDE
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
-            ap_rputs("     Evaluate and/or\n", r);
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
+			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
 
-#endif
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
-            if (current->left == (struct parse_node *) NULL ||
+	    if (!buffer) {
+		/* Soak up all the script output - may save an outright kill */
+	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
+		    continue;
+		}
+	    }
 
-                current->right == (struct parse_node *) NULL) {
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			 "%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
+	}
 
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+	*l++ = '\0';
+	while (*l && ap_isspace(*l)) {
+	    ++l;
+	}
 
-                            "Invalid expression \"%s\" in file %s",
+	if (!strcasecmp(w, "Content-type")) {
+	    char *tmp;
 
-                            expr, r->filename);
+	    /* Nuke trailing whitespace */
 
-                ap_rputs(error, r);
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && ap_isspace(*endp)) {
+		*endp-- = '\0';
+	    }
 
-                goto RETURN;
-
-            }
-
-            if (!current->left->done) {
-
+	    tmp = ap_pstrdup(r->pool, l);
+	    ap_content_type_tolower(tmp);
+	    r->content_type = tmp;
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

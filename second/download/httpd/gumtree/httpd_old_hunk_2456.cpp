@@ -1,26 +1,13 @@
-    }
 
-#endif
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
+    ap_hard_timeout("send headers", r);
 
-
-    for (m = conf->magic; m; m = m->next) {
-
-#if MIME_MAGIC_DEBUG
-
-	rule_counter++;
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		    MODNAME ": line=%d desc=%s", m->lineno, m->desc);
-
-#endif
-
-
-
-	/* check if main entry matches */
-
-	if (!mget(r, &p, s, m, nbytes) ||
-
-	    !mcheck(r, &p, m)) {
-
+    ap_basic_http_header(r);

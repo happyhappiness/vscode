@@ -1,52 +1,21 @@
-            ap_chdir_file(r->filename);
 
-#endif
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	if (ap_suexec_enabled) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
+	}
+	restart_pending = shutdown_pending = 0;
 
-        }
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    ap_wait_t status;
+	    int pid = wait_or_timeout(&status);
 
-        else if (!strcmp(tag, "cgi")) {
-
-            parse_string(r, tag_val, parsed_string, sizeof(parsed_string), 0);
-
-            if (include_cgi(parsed_string, r) == -1) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "invalid CGI ref \"%s\" in %s", tag_val, file);
-
-                ap_rputs(error, r);
-
-            }
-
-            /* grumble groan */
-
-#ifndef WIN32
-
-            ap_chdir_file(r->filename);
-
-#endif
-
-        }
-
-        else if (!strcmp(tag, "done")) {
-
-            return 0;
-
-        }
-
-        else {
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                        "unknown parameter \"%s\" to tag exec in %s",
-
-                        tag, file);
-
-            ap_rputs(error, r);
-
-        }
-
-    }
-
-
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

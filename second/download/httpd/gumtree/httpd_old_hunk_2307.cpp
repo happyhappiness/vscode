@@ -1,44 +1,29 @@
-    else
-
-	dirconf = current_conn->server->lookup_defaults;
-
-    if (!current_conn->keptalive) {
-
-	if (sig == SIGPIPE) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-
-			current_conn->server,
-
-			"%s client stopped connection before %s completed",
-
-			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME),
-
-			timeout_name ? timeout_name : "request");
-
 	}
 
-	else {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-
-			current_conn->server,
-
-			"%s timed out for %s",
-
-			timeout_name ? timeout_name : "request",
-
-			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME));
-
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (isspace(*src))
+		++src;
 	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && isspace(*dst))
+	    *dst = '\0';
 
-    }
-
-
-
-    if (timeout_req) {
-
-	/* Someone has asked for this transaction to just be aborted
-
-	 * if it times out...
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

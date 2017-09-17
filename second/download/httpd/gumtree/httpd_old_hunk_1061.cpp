@@ -1,26 +1,20 @@
-        /*
+	     */
+	    break;
+#endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
+    }
 
-         * Do symlink checks first, because they are done with the
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-         * permissions appropriate to the *parent* directory...
+    child_timeouts = !ap_standalone || one_process;
 
-         */
-
-
-
-        if ((res = check_symlinks(test_dirname, core_dir->opts))) {
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "Symbolic link not allowed: %s", test_dirname);
-
-            return res;
-
-        }
-
-
-
-        /*
-
-         * Begin *this* level by looking for matching <Directory> sections
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

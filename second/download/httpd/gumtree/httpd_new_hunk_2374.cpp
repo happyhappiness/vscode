@@ -1,28 +1,21 @@
 
-
-    /* Second, check for actions (which override the method scripts) */
-
-    if ((t = ap_table_get(conf->action_types,
-
-		       action ? action : ap_default_type(r)))) {
-
-	script = t;
-
-	if (r->finfo.st_mode == 0) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-			"File does not exist: %s", r->filename);
-
-	    return NOT_FOUND;
-
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	if (ap_suexec_enabled) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
 	}
+	restart_pending = shutdown_pending = 0;
 
-    }
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    ap_wait_t status;
+	    int pid = wait_or_timeout(&status);
 
-
-
-    if (script == NULL)
-
-++ apache_1.3.2/src/modules/standard/mod_alias.c	1998-08-25 17:15:36.000000000 +0800
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

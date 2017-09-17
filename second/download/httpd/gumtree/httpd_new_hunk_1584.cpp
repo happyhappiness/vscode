@@ -1,26 +1,46 @@
-        case token_and:
+	ap_destroy_sub_req(pa_req);
+    }
+}
 
-        case token_or:
 
-#ifdef DEBUG_INCLUDE
+static int scan_script_header_err_core(request_rec *r, char *buffer,
+				       int (*getsfunc) (char *, int, void *),
+				       void *getsfunc_data)
+{
+    char x[MAX_STRING_LEN];
+    char *w, *l;
+    int p;
+    int cgi_status = HTTP_OK;
 
-            ap_rputs("     Token: and/or\n", r);
+    if (buffer) {
+	*buffer = '\0';
+    }
+    w = buffer ? buffer : x;
 
-#endif
+    ap_hard_timeout("read script header", r);
 
-            if (current == (struct parse_node *) NULL) {
+    while (1) {
 
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			 "Premature end of script headers: %s", r->filename);
+	    return SERVER_ERROR;
+	}
 
-                            "Invalid expression \"%s\" in file %s",
+	/* Delete terminal (CR?)LF */
 
-                            expr, r->filename);
+	p = strlen(w);
+	if (p > 0 && w[p - 1] == '\n') {
+	    if (p > 1 && w[p - 2] == '\015') {
+		w[p - 2] = '\0';
+	    }
+	    else {
+		w[p - 1] = '\0';
+	    }
+	}
 
-                ap_rputs(error, r);
-
-                goto RETURN;
-
-            }
-
-            /* Percolate upwards */
-
+	/*
+	 * If we've finished reading the headers, check to make sure any
+	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
+	 * will handle the script's output.  If not, just return the error.

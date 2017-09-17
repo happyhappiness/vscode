@@ -1,32 +1,13 @@
-	else
-
-	    ret = FORBIDDEN;
-
+    if (i == -1) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+    if (i != 220) {
+	ap_kill_timeout(r);
+	return HTTP_BAD_GATEWAY;
     }
 
+    Explain0("FTP: connected.");
 
-
-    if (ret == FORBIDDEN
-
-	&& (ap_satisfies(r) != SATISFY_ANY || !ap_some_auth_required(r))) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		  "client denied by server configuration: %s",
-
-		  r->filename);
-
-    }
-
-
-
-    return ret;
-
-}
-
-
-
-
-
-++ apache_1.3.2/src/modules/standard/mod_actions.c	1998-08-07 01:30:53.000000000 +0800
-
+    ap_bputs("USER ", f);
+    ap_bwrite(f, user, userlen);

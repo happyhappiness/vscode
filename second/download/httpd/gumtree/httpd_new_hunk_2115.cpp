@@ -1,52 +1,27 @@
-		    }   
-
-		}
-
-	    }
-
-	    break;
-
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"malformed header in meta file: %s", r->filename);
+	    return SERVER_ERROR;
 	}
 
+	*l++ = '\0';
+	while (*l && ap_isspace(*l))
+	    ++l;
 
+	if (!strcasecmp(w, "Content-type")) {
+	    char *tmp;
+	    /* Nuke trailing whitespace */
 
-	/*
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && ap_isspace(*endp))
+		*endp-- = '\0';
 
-	 * Leading and trailing white space is eliminated completely
-
-	 */
-
-	src = buf;
-
-	while (ap_isspace(*src))
-
-	    ++src;
-
-	/* blast trailing whitespace */
-
-	dst = &src[strlen(src)];
-
-	while (--dst >= src && ap_isspace(*dst))
-
-	    *dst = '\0';
-
-        /* Zap leading whitespace by shifting */
-
-        if (src != buf)
-
-	    for (dst = buf; (*dst++ = *src++) != '\0'; )
-
-	        ;
-
-
-
-#ifdef DEBUG_CFG_LINES
-
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-
-#endif
-
-	return 0;
-
-    } else {
-
+	    tmp = ap_pstrdup(r->pool, l);
+	    ap_content_type_tolower(tmp);
+	    r->content_type = tmp;
+	}
+	else if (!strcasecmp(w, "Status")) {
+	    sscanf(l, "%d", &r->status);
+	    r->status_line = ap_pstrdup(r->pool, l);
+	}
+	else {
+++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800

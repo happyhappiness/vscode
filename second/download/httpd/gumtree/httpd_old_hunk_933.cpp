@@ -1,26 +1,29 @@
-            if (result != DECLINED)
-
-                return result;
-
-        }
-
+	}
+    }
+    if (
+    /* username is OK */
+	   (res == OK)
+    /* password been filled out ? */
+	   && ((!sec->auth_anon_mustemail) || strlen(send_pw))
+    /* does the password look like an email address ? */
+	   && ((!sec->auth_anon_verifyemail)
+	       || ((strpbrk("@", send_pw) != NULL)
+		   && (strpbrk(".", send_pw) != NULL)))) {
+	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
+			"Anonymous: Passwd <%s> Accepted",
+			send_pw ? send_pw : "\'none\'");
+	}
+	return OK;
+    }
+    else {
+	if (sec->auth_anon_authoritative) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"Anonymous: Authoritative, Passwd <%s> not accepted",
+			send_pw ? send_pw : "\'none\'");
+	    return AUTH_REQUIRED;
+	}
+	/* Drop out the bottom to return DECLINED */
     }
 
-
-
-    if (result == NOT_IMPLEMENTED && r->handler) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-
-    }
-
-
-
-    /* Pass two --- wildcard matches */
-
-
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-
+    return DECLINED;

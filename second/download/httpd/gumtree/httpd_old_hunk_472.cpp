@@ -1,28 +1,40 @@
-#include "http_main.h"
+	return;
+    }
+    else
+	inside = 1;
+    (void) ap_release_mutex(garbage_mutex);
 
-#include "http_request.h"
+    help_proxy_garbage_coll(r);
+
+    (void) ap_acquire_mutex(garbage_mutex);
+    inside = 0;
+    (void) ap_release_mutex(garbage_mutex);
+}
 
 
-
-static int asis_handler(request_rec *r)
-
+static void help_proxy_garbage_coll(request_rec *r)
 {
+    const char *cachedir;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *pconf =
+    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+    const struct cache_conf *conf = &pconf->cache;
+    array_header *files;
+    struct stat buf;
+    struct gc_ent *fent, **elts;
+    int i, timefd;
+    static time_t lastcheck = BAD_DATE;		/* static data!!! */
 
-    FILE *f;
+    cachedir = conf->root;
+    cachesize = conf->space;
+    every = conf->gcinterval;
 
-    char *location;
+    if (cachedir == NULL || every == -1)
+	return;
+    garbage_now = time(NULL);
+    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
+	return;
 
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
 
-
-    r->allowed |= (1 << M_GET);
-
-    if (r->method_number != M_GET)
-
-	return DECLINED;
-
-    if (r->finfo.st_mode == 0) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
--- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800
-
+    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

@@ -1,28 +1,10 @@
-        store_variant_list(r, neg);
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
 
-        res = MULTIPLE_CHOICES;
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
+#endif
 
-        goto return_from_multi;
-
-    }
-
-
-
-    if (!best) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "no acceptable variant: %s", r->filename);
-
-
-
-        set_neg_headers(r, neg, na_result);
-
-        store_variant_list(r, neg);
-
-        res = NOT_ACCEPTABLE;
-
-        goto return_from_multi;
-
-++ apache_1.3.2/src/modules/standard/mod_rewrite.c	1998-08-25 17:15:39.000000000 +0800
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

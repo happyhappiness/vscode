@@ -1,96 +1,101 @@
-    stats = malloc(requests * sizeof(struct data));
+ */
 
+/*
+ * Look for the specified file, and pump it into the response stream if we
+ * find it.
+ */
+static int insert_readme(char *name, char *readme_fname, char *title,
+			 int hrule, int whichend, request_rec *r)
+{
+    char *fn;
+    FILE *f;
+    struct stat finfo;
+    int plaintext = 0;
+    request_rec *rr;
+    autoindex_config_rec *cfg;
+    int autoindex_opts;
 
-
-    FD_ZERO(&readbits);
-
-    FD_ZERO(&writebits);
-
-
-
-    /* setup request */
-
-    if (!posting) {
-
-	sprintf(request, "GET %s HTTP/1.0\r\n"
-
-                     "User-Agent: ApacheBench/%s\r\n"
-
-                     "%s"
-
-                     "Host: %s\r\n"
-
-                     "Accept: */*\r\n"
-
-                     "\r\n", 
-
-                     path, 
-
-                     VERSION,
-
-                     keepalive ? "Connection: Keep-Alive\r\n" : "", 
-
-                     hostname);
-
+    cfg = (autoindex_config_rec *) ap_get_module_config(r->per_dir_config,
+							&autoindex_module);
+    autoindex_opts = find_opts(cfg, r);
+    /* XXX: this is a load of crap, it needs to do a full sub_req_lookup_uri */
+    fn = ap_make_full_path(r->pool, name, readme_fname);
+    fn = ap_pstrcat(r->pool, fn, ".html", NULL);
+    if (stat(fn, &finfo) == -1) {
+	/* A brief fake multiviews search for README.html */
+	fn[strlen(fn) - 5] = '\0';
+	if (stat(fn, &finfo) == -1) {
+	    return 0;
+	}
+	plaintext = 1;
+	if (hrule) {
+	    ap_rputs("<HR>\n", r);
+	}
     }
-
+    else if (hrule) {
+	ap_rputs("<HR>\n", r);
+    }
+    /* XXX: when the above is rewritten properly, this necessary security
+     * check will be redundant. -djg */
+    rr = ap_sub_req_lookup_file(fn, r);
+    if (rr->status != HTTP_OK) {
+	ap_destroy_sub_req(rr);
+	return 0;
+    }
+    ap_destroy_sub_req(rr);
+    if (!(f = ap_pfopen(r->pool, fn, "r"))) {
+        return 0;
+    }
+    if ((whichend == FRONT_MATTER)
+	&& (!(autoindex_opts & SUPPRESS_PREAMBLE))) {
+	emit_preamble(r, title);
+    }
+    if (!plaintext) {
+	ap_send_fd(f, r);
+    }
     else {
-
-	sprintf(request, "POST %s HTTP/1.0\r\n"
-
-                     "User-Agent: ApacheBench/%s\r\n"
-
-                     "%s"
-
-                     "Host: %s\r\n"
-
-                     "Accept: */*\r\n"
-
-                     "Content-length: %d\r\n"
-
-                     "Content-type: %s\r\n"
-
-                     "\r\n", 
-
-                     path, 
-
-                     VERSION,
-
-                     keepalive ? "Connection: Keep-Alive\r\n" : "", 
-
-                     hostname, postlen, 
-
-                     (content_type[0]) ? content_type : "text/plain");
-
+	char buf[IOBUFSIZE + 1];
+	int i, n, c, ch;
+	ap_rputs("<PRE>\n", r);
+	while (!feof(f)) {
+	    do {
+		n = fread(buf, sizeof(char), IOBUFSIZE, f);
+	    }
+	    while (n == -1 && ferror(f) && errno == EINTR);
+	    if (n == -1 || n == 0) {
+		break;
+	    }
+	    buf[n] = '\0';
+	    c = 0;
+	    while (c < n) {
+	        for (i = c; i < n; i++) {
+		    if (buf[i] == '<' || buf[i] == '>' || buf[i] == '&') {
+			break;
+		    }
+		}
+		ch = buf[i];
+		buf[i] = '\0';
+		ap_rputs(&buf[c], r);
+		if (ch == '<') {
+		    ap_rputs("&lt;", r);
+		}
+		else if (ch == '>') {
+		    ap_rputs("&gt;", r);
+		}
+		else if (ch == '&') {
+		    ap_rputs("&amp;", r);
+		}
+		c = i + 1;
+	    }
+	}
     }
+    ap_pfclose(r->pool, f);
+    if (plaintext) {
+	ap_rputs("</PRE>\n", r);
+    }
+    return 1;
+}
 
 
-
-    if (verbosity >= 2) printf("INFO: POST header == \n---\n%s\n---\n", request);
-
-
-
-    reqlen = strlen(request);
-
-
-
-#ifdef CHARSET_EBCDIC
-
-    ebcdic2ascii(request, request, reqlen);
-
-#endif /*CHARSET_EBCDIC*/
-
-
-
-    /* ok - lets start */
-
-    gettimeofday(&start, 0);
-
-
-
-    /* initialise lots of requests */
-
-    for (i = 0; i < concurrency; i++)
-
-        start_connect(&con[i]);
-
+static char *find_title(request_rec *r)
+{

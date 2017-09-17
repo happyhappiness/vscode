@@ -1,26 +1,13 @@
+	return ap_proxyerror(r, err);	/* give up */
 
-
-    rr->content_type = CGI_MAGIC_TYPE;
-
-
-
-    /* Run it. */
-
-
-
-    rr_status = ap_run_sub_req(rr);
-
-    if (is_HTTP_REDIRECT(rr_status)) {
-
-        const char *location = ap_table_get(rr->headers_out, "Location");
-
-        location = ap_escape_html(rr->pool, location);
-
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
-
+    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating socket");
+	return SERVER_ERROR;
     }
 
-
-
-    ap_destroy_sub_req(rr);
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
+		       (const char *) &conf->recv_buffer_size, sizeof(int))
+	    == -1) {

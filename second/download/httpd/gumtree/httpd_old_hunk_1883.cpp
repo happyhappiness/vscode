@@ -1,24 +1,13 @@
-#ifdef NEED_HASHBANG_EMUL
+    ap_bvputs(f, "Host: ", desthost, NULL);
+    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+	ap_bvputs(f, ":", destportstr, CRLF, NULL);
+    else
+	ap_bputs(CRLF, f);
 
-    printf(" -D NEED_HASHBANG_EMUL\n");
-
-#endif
-
-#ifdef SHARED_CORE
-
-    printf(" -D SHARED_CORE\n");
-
-#endif
-
-}
-
-
-
-
-
-/* Some init code that's common between win32 and unix... well actually
-
- * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
-
- * is still a mess.
-
+    reqhdrs_arr = table_elts(r->headers_in);
+    reqhdrs = (table_entry *) reqhdrs_arr->elts;
+    for (i = 0; i < reqhdrs_arr->nelts; i++) {
+	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
+	/* Clear out headers not to send */
+	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
+	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))

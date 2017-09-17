@@ -1,24 +1,13 @@
-	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
+    if (!method_restricted)
+	return OK;
 
- 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
+    if (!(sec->auth_authoritative))
+	return DECLINED;
 
-	TerminateProcess((HANDLE) process_handles[i], 1);
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
+}
 
-    }
-
-    service_set_status(SERVICE_STOPPED);
-
-
-
-    if (pparent) {
-
-	ap_destroy_pool(pparent);
-
-    }
-
-
-
-    ap_destroy_mutex(start_mutex);
-
-    return (0);
-
+module MODULE_VAR_EXPORT auth_module =
+{
+-- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800

@@ -1,34 +1,14 @@
-	/* TM - Added \015\012 to the end of TYPE I, otherwise it hangs the
-
-	   connection */
-
-	ap_bputs("TYPE I" CRLF, f);
-
-	ap_bflush(f);
-
-	Explain0("FTP: TYPE I");
-
-/* responses: 200, 421, 500, 501, 504, 530 */
-
-	i = ftp_getrc(f);
-
-	Explain1("FTP: returned status %d", i);
-
-	if (i == -1) {
-
-	    ap_kill_timeout(r);
-
-	    return ap_proxyerror(r, "Error sending to remote server");
-
+	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
 	}
+	return index_directory(r, d);
+    }
+    else {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		    "Directory index forbidden by rule: %s", r->filename);
+	return HTTP_FORBIDDEN;
+    }
+}
 
-	if (i != 200 && i != 504) {
 
-	    ap_kill_timeout(r);
-
-	    return HTTP_BAD_GATEWAY;
-
-	}
-
-/* Allow not implemented */
-
+static const handler_rec autoindex_handlers[] =
+-- apache_1.3.0/src/modules/standard/mod_cern_meta.c	1998-04-11 20:00:45.000000000 +0800

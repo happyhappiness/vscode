@@ -1,236 +1,108 @@
-    ap_sync_scoreboard_image();
+#endif
 
-    for (i = 0; i < HARD_SERVER_LIMIT; ++i) {
+    /* Since we are reading from one buffer and writing to another,
+     * it is unsafe to do a soft_timeout here, at least until the proxy
+     * has its own timeout handler which can set both buffers to EOUT.
+     */
 
-	score_record = ap_scoreboard_image->servers[i];
+    ap_kill_timeout(r);
 
-	ps_record = ap_scoreboard_image->parent[i];
+#ifdef WIN32
+    /* works fine under win32, so leave it */
+    ap_hard_timeout("proxy send body", r);
+    alt_to = 0;
+#else
+    /* CHECKME! Since hard_timeout won't work in unix on sends with partial
+     * cache completion, we have to alternate between hard_timeout
+     * for reads, and soft_timeout for send.  This is because we need
+     * to get a return from ap_bwrite to be able to continue caching.
+     * BUT, if we *can't* continue anyway, just use hard_timeout.
+     */
 
-	res = score_record.status;
+    if (c) {
+        if (c->len <= 0 || c->cache_completion == 1) {
+            ap_hard_timeout("proxy send body", r);
+            alt_to = 0;
+        }
+    } else {
+        ap_hard_timeout("proxy send body", r);
+        alt_to = 0;
+    }
+#endif
 
-	stat_buffer[i] = status_flags[res];
+    while (ok && f != NULL) {
+        if (alt_to)
+            ap_hard_timeout("proxy send body", r);
 
-	pid_buffer[i] = (int) ps_record.pid;
+	n = ap_bread(f, buf, IOBUFSIZE);
 
-	if (res == SERVER_READY)
+        if (alt_to)
+            ap_kill_timeout(r);
+        else
+            ap_reset_timeout(r);
 
-	    ready++;
+	if (n == -1) {		/* input error */
+	    if (f2 != NULL)
+		f2 = ap_proxy_cache_error(c);
+	    break;
+	}
+	if (n == 0)
+	    break;		/* EOF */
+	o = 0;
+	total_bytes_rcv += n;
 
-	else if (res != SERVER_DEAD)
+        if (f2 != NULL) {
+            if (ap_bwrite(f2, &buf[0], n) != n) {
+		f2 = ap_proxy_cache_error(c);
+            } else {
+                c->written += n;
+            }
+        }
 
-	    busy++;
+	while (n && !con->aborted) {
+            if (alt_to)
+                ap_soft_timeout("proxy send body", r);
 
-	if (ap_extended_status) {
+	    w = ap_bwrite(con->client, &buf[o], n);
 
-	    lres = score_record.access_count;
+            if (alt_to)
+                ap_kill_timeout(r);
+            else
+                ap_reset_timeout(r);
 
-	    bytes = score_record.bytes_served;
+	    if (w <= 0) {
+		if (f2 != NULL) {
+                    /* when a send failure occurs, we need to decide
+                     * whether to continue loading and caching the
+                     * document, or to abort the whole thing
+                     */
+                    ok = (c->len > 0) &&
+                         (c->cache_completion > 0) &&
+                         (c->len * c->cache_completion < total_bytes_rcv);
 
-	    if (lres != 0 || (res != SERVER_READY && res != SERVER_DEAD)) {
-
-#ifndef NO_TIMES
-
-		tu += score_record.times.tms_utime;
-
-		ts += score_record.times.tms_stime;
-
-		tcu += score_record.times.tms_cutime;
-
-		tcs += score_record.times.tms_cstime;
-
-#endif /* NO_TIMES */
-
-		count += lres;
-
-		bcount += bytes;
-
-		if (bcount >= KBYTE) {
-
-		    kbcount += (bcount >> 10);
-
-		    bcount = bcount & 0x3ff;
-
+                    if (! ok) {
+                        ap_pclosef(c->req->pool, c->fp->fd);
+                        c->fp = NULL;
+                        f2 = NULL;
+                        unlink(c->tempfile);
+                    }
 		}
-
+                con->aborted = 1;
+		break;
 	    }
-
+	    n -= w;
+	    o += w;
 	}
-
     }
 
-
-
-    up_time = nowtime - ap_restart_time;
-
-
-
-    ap_hard_timeout("send status info", r);
-
-
-
-    if (!short_report) {
-
-	ap_rputs("<HTML><HEAD>\n<TITLE>Apache Status</TITLE>\n</HEAD><BODY>\n", r);
-
-	ap_rputs("<H1>Apache Server Status for ", r);
-
-	ap_rvputs(r, ap_get_server_name(r), "</H1>\n\n", NULL);
-
-	ap_rvputs(r, "Server Version: ",
-
-	  ap_get_server_version(), "<br>\n", NULL);
-
-	ap_rvputs(r, "Server Built: ",
-
-	  ap_get_server_built(), "<br>\n<hr>\n", NULL);
-
-	ap_rvputs(r, "Current Time: ",
-
-	  ap_ht_time(r->pool, nowtime, DEFAULT_TIME_FORMAT, 0), "<br>\n", NULL);
-
-	ap_rvputs(r, "Restart Time: ",
-
-	  ap_ht_time(r->pool, ap_restart_time, DEFAULT_TIME_FORMAT, 0), 
-
-	  "<br>\n", NULL);
-
-	ap_rputs("Server uptime: ", r);
-
-	show_time(r, up_time);
-
-	ap_rputs("<br>\n", r);
-
-    }
-
-
-
-    if (ap_extended_status) {
-
-	if (short_report) {
-
-	    ap_rprintf(r, "Total Accesses: %lu\nTotal kBytes: %lu\n",
-
-		count, kbcount);
-
-
-
-#ifndef NO_TIMES
-
-	    /* Allow for OS/2 not having CPU stats */
-
-	    if (ts || tu || tcu || tcs)
-
-		ap_rprintf(r, "CPULoad: %g\n",
-
-		    (tu + ts + tcu + tcs) / tick / up_time * 100.);
-
-#endif
-
-
-
-	    ap_rprintf(r, "Uptime: %ld\n", (long) (up_time));
-
-	    if (up_time > 0)
-
-		ap_rprintf(r, "ReqPerSec: %g\n",
-
-		    (float) count / (float) up_time);
-
-
-
-	    if (up_time > 0)
-
-		ap_rprintf(r, "BytesPerSec: %g\n",
-
-		    KBYTE * (float) kbcount / (float) up_time);
-
-
-
-	    if (count > 0)
-
-		ap_rprintf(r, "BytesPerReq: %g\n",
-
-		    KBYTE * (float) kbcount / (float) count);
-
-	}
-
-	else {			/* !short_report */
-
-	    ap_rprintf(r, "Total accesses: %lu - Total Traffic: ", count);
-
-	    format_kbyte_out(r, kbcount);
-
-
-
-#ifndef NO_TIMES
-
-	    /* Allow for OS/2 not having CPU stats */
-
-	    ap_rputs("<br>\n", r);
-
-	    ap_rprintf(r, "CPU Usage: u%g s%g cu%g cs%g",
-
-		    tu / tick, ts / tick, tcu / tick, tcs / tick);
-
-
-
-	    if (ts || tu || tcu || tcs)
-
-		ap_rprintf(r, " - %.3g%% CPU load",
-
-		    (tu + ts + tcu + tcs) / tick / up_time * 100.);
-
-#endif
-
-
-
-	    ap_rputs("<br>\n", r);
-
-
-
-	    if (up_time > 0)
-
-		ap_rprintf(r, "%.3g requests/sec - ",
-
-			(float) count / (float) up_time);
-
-
-
-	    if (up_time > 0) {
-
-		format_byte_out(r, KBYTE * (float) kbcount / (float) up_time);
-
-		ap_rputs("/second - ", r);
-
-	    }
-
-
-
-	    if (count > 0) {
-
-		format_byte_out(r, KBYTE * (float) kbcount / (float) count);
-
-		ap_rputs("/request", r);
-
-	    }
-
-
-
-	    ap_rputs("<br>\n", r);
-
-	}				/* short_report */
-
-    }					/* ap_extended_status */
-
-
-
-    if (!short_report)
-
-	ap_rprintf(r, "\n%d requests currently being processed, %d idle servers\n"
-
-		,busy, ready);
-
-    else
-
-	ap_rprintf(r, "BusyServers: %d\nIdleServers: %d\n", busy, ready);
-
+    if (!con->aborted)
+	ap_bflush(con->client);
+
+    ap_kill_timeout(r);
+    return total_bytes_rcv;
+}
+
+/*
+ * Read a header from the array, returning the first entry
+ */
+struct hdr_entry *

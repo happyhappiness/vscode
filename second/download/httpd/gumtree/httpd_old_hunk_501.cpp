@@ -1,30 +1,29 @@
-	     * how libraries and such are going to fail.  If we can't
-
-	     * do this F_DUPFD there's a good chance that apache has too
-
-	     * few descriptors available to it.  Note we don't warn on
-
-	     * the high line, because if it fails we'll eventually try
-
-	     * the low line...
-
-	     */
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, NULL,
-
-		        "unable to open a file descriptor above %u, "
-
-			"you may need to increase the number of descriptors",
-
-			LOW_SLACK_LINE);
-
-	    low_warned = 1;
-
 	}
 
-	return fd;
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (isspace(*src))
+		++src;
+	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && isspace(*dst))
+	    *dst = '\0';
 
-nly in apache_1.3.0/src/ap: ap_slack.o
-
--- apache_1.3.0/src/ap/ap_snprintf.c	1998-05-12 01:49:21.000000000 +0800
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

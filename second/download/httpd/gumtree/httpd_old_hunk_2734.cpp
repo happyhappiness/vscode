@@ -1,28 +1,14 @@
-    char *szLogRoot;
+	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
+	}
+	return index_directory(r, d);
+    }
+    else {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		    "Directory index forbidden by rule: %s", r->filename);
+	return HTTP_FORBIDDEN;
+    }
+}
 
 
-
-    if (argc != 3) {
-
-	fprintf(stderr,
-
-		"%s <logfile> <rotation time in seconds>\n\n",
-
-		argv[0]);
-
-#ifdef __EMX__
-
-	fprintf(stderr,
-
-		"Add this:\n\nTransferLog \"|%s.exe /some/where 86400\"\n\n",
-
-		argv[0]);
-
-#else
-
-	fprintf(stderr,
-
-		"Add this:\n\nTransferLog \"|%s /some/where 86400\"\n\n",
-
--- apache_1.3.1/src/support/suexec.c	1998-07-13 19:32:59.000000000 +0800
-
+static const handler_rec autoindex_handlers[] =
+-- apache_1.3.0/src/modules/standard/mod_cern_meta.c	1998-04-11 20:00:45.000000000 +0800

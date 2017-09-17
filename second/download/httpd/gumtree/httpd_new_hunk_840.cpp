@@ -1,44 +1,28 @@
+	     */
+	    break;
+#endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
 	}
-
     }
 
-    if (!found) {
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-	printf("Adding user %s\n", user);
-
-	add_password(user, tfp);
-
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
     }
 
-/*
+    child_timeouts = !ap_standalone || one_process;
 
-* make a copy from the tmp file to the actual file
-
-*/  
-
-        rewind(f);
-
-        rewind(tfp);
-
-        while ( fgets(command,MAX_STRING_LEN,tfp) != NULL)
-
-        {
-
-                fputs(command,f);
-
-        } 
-
-
-
-    fclose(f);
-
-    fclose(tfp);
-
-    unlink(tn);
-
-    exit(0);
-
-}
-
-++ apache_1.3.1/src/support/logresolve.c	1998-07-13 19:32:58.000000000 +0800
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

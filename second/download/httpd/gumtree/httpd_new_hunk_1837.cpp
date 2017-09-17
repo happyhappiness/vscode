@@ -1,26 +1,14 @@
-            /* it should be go on as an internal proxy request */
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
+	    abort();
+	}
+    }
+#endif
 
-
-
-            /* check if the proxy module is enabled, so
-
-             * we can actually use it!
-
-             */
-
-            if (!proxy_available) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                             "attempt to make remote request from mod_rewrite "
-
-                             "without proxy enabled: %s", r->filename);
-
-                return FORBIDDEN;
-
-            }
-
-
-
-            /* make sure the QUERY_STRING and
-
+    for (i = 0; i < t->a.nelts; ) {
+++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800

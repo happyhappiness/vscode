@@ -1,26 +1,9 @@
+/* Automatically generated file - do not edit */
+
+#ifndef LINUX
+#define LINUX 2
 #endif
-
-        *printing = !(*conditional_status);
-
-        *conditional_status = 1;
-
-        return 0;
-
-    }
-
-    else {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "else directive does not take tags in %s",
-
-		    r->filename);
-
-        if (*printing) {
-
-            ap_rputs(error, r);
-
-        }
-
-        return -1;
-
+#ifndef USE_HSREGEX
+#define USE_HSREGEX 
+#endif
+-- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800

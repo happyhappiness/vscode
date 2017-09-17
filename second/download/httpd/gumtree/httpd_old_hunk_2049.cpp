@@ -1,26 +1,16 @@
-    entries = (rewritemap_entry *)rewritemaps->elts;
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+		MODNAME ": revision_suffix checking %s", r->filename);
+#endif /* MIME_MAGIC_DEBUG */
 
-    for (i = 0; i < rewritemaps->nelts; i++) {
+    /* check for recognized revision suffix */
+    suffix_pos = strlen(r->filename) - 1;
+    if (!isdigit(r->filename[suffix_pos])) {
+	return 0;
+    }
+    while (suffix_pos >= 0 && isdigit(r->filename[suffix_pos]))
+	suffix_pos--;
+    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
+	return 0;
+    }
 
-        s = &entries[i];
-
-        if (strcmp(s->name, name) == 0) {
-
-            if (s->type == MAPTYPE_TXT) {
-
-                if (stat(s->checkfile, &st) == -1) {
-
-                    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-                                 "mod_rewrite: can't access text RewriteMap "
-
-                                 "file %s", s->checkfile);
-
-                    rewritelog(r, 1, "can't open RewriteMap file, "
-
-                               "see error log");
-
-                    return NULL;
-
-                }
-
+    /* perform sub-request for the file name without the suffix */

@@ -1,26 +1,13 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
 
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
+    ap_hard_timeout("send headers", r);
 
-    else
-
-	ap_bputs(CRLF, f);
-
-
-
-    reqhdrs_arr = table_elts(r->headers_in);
-
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-
-	/* Clear out headers not to send */
-
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
-
+    ap_basic_http_header(r);

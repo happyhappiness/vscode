@@ -1,46 +1,19 @@
-	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
+    if (!method_restricted)
+	return OK;
 
- 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
+    if (!(sec->auth_authoritative))
+	return DECLINED;
 
-	TerminateProcess((HANDLE) process_handles[i], 1);
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+	"access to %s failed for %s, reason: user %s not allowed access",
+	r->uri,
+	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
+	user);
+	
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
+}
 
-    }
-
-    service_set_status(SERVICE_STOPPED);
-
-
-
-    /* cleanup pid file on normal shutdown */
-
-    {
-
-	const char *pidfile = NULL;
-
-	pidfile = ap_server_root_relative (pparent, ap_pid_fname);
-
-	if ( pidfile != NULL && unlink(pidfile) == 0)
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-
-			 server_conf,
-
-			 "httpd: removed PID file %s (pid=%ld)",
-
-			 pidfile, (long)getpid());
-
-    }
-
-
-
-    if (pparent) {
-
-	ap_destroy_pool(pparent);
-
-    }
-
-
-
-    ap_destroy_mutex(start_mutex);
-
-    return (0);
-
+module MODULE_VAR_EXPORT auth_module =
+{
+++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800

@@ -1,88 +1,28 @@
-        return errstatus;
+	    return;
+	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
+    curblocks = 0;
+    curbytes = 0;
 
+    sub_garbage_coll(r, files, cachedir, "/");
+
+    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
+	ap_unblock_alarms();
+	return;
     }
 
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
 
-
-    r->allowed |= (1 << M_GET) | (1 << M_OPTIONS);
-
-
-
-    if (r->method_number == M_INVALID) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		    "Invalid method in request %s", r->the_request);
-
-	return NOT_IMPLEMENTED;
-
-    }
-
-    if (r->method_number == M_OPTIONS) {
-
-        return ap_send_http_options(r);
-
-    }
-
-    if (r->method_number == M_PUT) {
-
-        return METHOD_NOT_ALLOWED;
-
-    }
-
-
-
-    if (r->finfo.st_mode == 0 || (r->path_info && *r->path_info)) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server, 
-
-                    "File does not exist: %s", 
-
-		     r->path_info 
-
-		         ? ap_pstrcat(r->pool, r->filename, r->path_info, NULL)
-
-		         : r->filename);
-
-	return NOT_FOUND;
-
-    }
-
-    if (r->method_number != M_GET) {
-
-        return METHOD_NOT_ALLOWED;
-
-    }
-
-	
-
-#if defined(__EMX__) || defined(WIN32)
-
-    /* Need binary mode for OS/2 */
-
-    f = ap_pfopen(r->pool, r->filename, "rb");
-
+    elts = (struct gc_ent **) files->elts;
+    for (i = 0; i < files->nelts; i++) {
+	fent = elts[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
 #else
-
-    f = ap_pfopen(r->pool, r->filename, "r");
-
-#endif
-
-
-
-    if (f == NULL) {
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "file permissions deny server access: %s", r->filename);
-
-        return FORBIDDEN;
-
-    }
-
-	
-
-    ap_update_mtime(r, r->finfo.st_mtime);
-
-    ap_set_last_modified(r);
-
+	if (unlink(filename) == -1) {

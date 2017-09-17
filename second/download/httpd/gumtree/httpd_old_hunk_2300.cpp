@@ -1,26 +1,20 @@
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-
-  
-
-    if (r->proxyreq) {
-
-        return HTTP_FORBIDDEN;
-
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
+        }
+        return 0;
     }
 
-    if ((r->uri[0] != '/') && strcmp(r->uri, "*")) {
+    range = ap_getword_nc(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    if (r->byterange > 1) {
+        char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-		     "Invalid URI in request %s", r->the_request);
-
-	return BAD_REQUEST;
-
-    }
-
-    
-
-    if (r->server->path 
-
-	&& !strncmp(r->uri, r->server->path, r->server->pathlen)
-
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

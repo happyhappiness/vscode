@@ -1,32 +1,30 @@
-{
+	    return;
+	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
+    curbytes.upper = curbytes.lower = 0L;
 
-    /* This could be called from an AddModule httpd.conf command,
+    sub_garbage_coll(r, files, cachedir, "/");
 
-     * after the file has been linked and the module structure within it
-
-     * teased out...
-
-     */
-
-
-
-    if (m->version != MODULE_MAGIC_NUMBER_MAJOR) {
-
-	fprintf(stderr, "httpd: module \"%s\" is not compatible with this "
-
-		"version of Apache.\n", m->name);
-
-	fprintf(stderr, "Please contact the vendor for the correct version.\n");
-
-	exit(1);
-
+    if (cmp_long61(&curbytes, &cachesize) < 0L) {
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
+			 "proxy GC: Cache is %ld%% full (nothing deleted)",
+			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
+	ap_unblock_alarms();
+	return;
     }
 
+    /* sort the files we found by expiration date */
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
 
-
-    if (m->next == NULL) {
-
-	m->next = top_module;
-
-	top_module = m;
-
+    for (i = 0; i < files->nelts; i++) {
+	fent = &((struct gc_ent *) files->elts)[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
+#else
+	if (unlink(filename) == -1) {

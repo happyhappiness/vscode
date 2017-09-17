@@ -1,46 +1,16 @@
-#ifdef USE_PERL_SSI
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+		MODNAME ": revision_suffix checking %s", r->filename);
+#endif /* MIME_MAGIC_DEBUG */
 
-            else if (!strcmp(directive, "perl")) {
+    /* check for recognized revision suffix */
+    suffix_pos = strlen(r->filename) - 1;
+    if (!ap_isdigit(r->filename[suffix_pos])) {
+	return 0;
+    }
+    while (suffix_pos >= 0 && ap_isdigit(r->filename[suffix_pos]))
+	suffix_pos--;
+    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
+	return 0;
+    }
 
-                ret = handle_perl(f, r, error);
-
-            }
-
-#endif
-
-            else {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "httpd: unknown directive \"%s\" "
-
-                            "in parsed doc %s",
-
-                            directive, r->filename);
-
-                if (printing) {
-
-                    ap_rputs(error, r);
-
-                }
-
-                ret = find_string(f, ENDING_SEQUENCE, r, 0);
-
-            }
-
-            if (ret) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "httpd: premature EOF in parsed file %s",
-
-                            r->filename);
-
-                return;
-
-            }
-
-        }
-
-        else {
-
+    /* perform sub-request for the file name without the suffix */

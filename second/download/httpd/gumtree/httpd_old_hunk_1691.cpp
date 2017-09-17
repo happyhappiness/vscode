@@ -1,26 +1,13 @@
-        /*
+    if ((r->method_number == M_POST || r->method_number == M_PUT)
+	&& *dbuf) {
+	fprintf(f, "\n%s\n", dbuf);
+    }
 
-         * Do symlink checks first, because they are done with the
+    fputs("%response\n", f);
+    hdrs_arr = table_elts(r->err_headers_out);
+    hdrs = (table_entry *) hdrs_arr->elts;
 
-         * permissions appropriate to the *parent* directory...
-
-         */
-
-
-
-        if ((res = check_symlinks(test_dirname, core_dir->opts))) {
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "Symbolic link not allowed: %s", test_dirname);
-
-            return res;
-
-        }
-
-
-
-        /*
-
-         * Begin *this* level by looking for matching <Directory> sections
-
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key)
+	    continue;
+	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);

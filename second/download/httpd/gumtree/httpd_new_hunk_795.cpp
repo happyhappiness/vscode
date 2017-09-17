@@ -1,36 +1,14 @@
-    if (i == 530) {
-
-	ap_kill_timeout(r);
-
-	return ap_proxyerror(r, "Not logged in");
-
-    }
-
-    if (i != 230 && i != 331) {
-
-	ap_kill_timeout(r);
-
-	return HTTP_BAD_GATEWAY;
-
-    }
-
-
-
-    if (i == 331) {		/* send password */
-
-	if (password == NULL)
-
-	    return HTTP_FORBIDDEN;
-
-	ap_bputs("PASS ", f);
-
-	ap_bwrite(f, password, passlen);
-
-	ap_bputs(CRLF, f);
-
-	ap_bflush(f);
-
-	Explain1("FTP: PASS %s", password);
-
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
-
+                 "An appropriate representation of the requested resource ",
+                          ap_escape_html(r->pool, r->uri),
+                          " could not be found on this server.<P>\n", NULL);
+                /* fall through */
+            case MULTIPLE_CHOICES:
+                {
+                    const char *list;
+                    if ((list = ap_table_get(r->notes, "variant-list")))
+                        ap_bputs(list, fd);
+                }
+                break;
+            case LENGTH_REQUIRED:
+                ap_bvputs(fd, "A request of the requested method ", r->method,
+++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800

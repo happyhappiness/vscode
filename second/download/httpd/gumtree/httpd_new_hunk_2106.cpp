@@ -1,44 +1,30 @@
-    if (r->finfo.st_mode == 0         /* doesn't exist */
-
-        || S_ISDIR(r->finfo.st_mode)
-
-        || S_ISREG(r->finfo.st_mode)
-
-        || S_ISLNK(r->finfo.st_mode)) {
-
-        return OK;
-
+	}
+    }
+    if (
+    /* username is OK */
+	   (res == OK)
+    /* password been filled out ? */
+	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
+    /* does the password look like an email address ? */
+	   && ((!sec->auth_anon_verifyemail)
+	       || ((strpbrk("@", sent_pw) != NULL)
+		   && (strpbrk(".", sent_pw) != NULL)))) {
+	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
+			"Anonymous: Passwd <%s> Accepted",
+			sent_pw ? sent_pw : "\'none\'");
+	}
+	return OK;
+    }
+    else {
+	if (sec->auth_anon_authoritative) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"Anonymous: Authoritative, Passwd <%s> not accepted",
+			sent_pw ? sent_pw : "\'none\'");
+	    return AUTH_REQUIRED;
+	}
+	/* Drop out the bottom to return DECLINED */
     }
 
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                "object is not a file, directory or symlink: %s",
-
-                r->filename);
-
-    return HTTP_FORBIDDEN;
-
-}
-
-
-
-
-
-static int check_symlinks(char *d, int opts)
-
-{
-
-#if defined(OS2) || defined(WIN32)
-
-    /* OS/2 doesn't have symlinks */
-
-    return OK;
-
-#else
-
-    struct stat lfi, fi;
-
-    char *lastp;
-
-    int res;
-
+    return DECLINED;
+++ apache_1.3.1/src/modules/standard/mod_auth.c	1998-07-10 14:33:24.000000000 +0800

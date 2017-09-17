@@ -1,32 +1,25 @@
-#define APLOG_MARK	__FILE__,__LINE__
+                                         REWRITELOCK_MODE)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+                     "mod_rewrite: Parent could not create RewriteLock "
+                     "file %s", conf->rewritelockfile);
+        exit(1);
+    }
+    return;
+}
 
+static void rewritelock_open(server_rec *s, pool *p)
+{
+    rewrite_server_conf *conf;
 
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
 
-void ap_open_logs (server_rec *, pool *p);
+    /* only operate if a lockfile is used */
+    if (conf->rewritelockfile == NULL
+        || *(conf->rewritelockfile) == '\0')
+        return;
 
-API_EXPORT(void) ap_log_error(const char *file, int line, int level,
-
-			     const server_rec *s, const char *fmt, ...)
-
-			    __attribute__((format(printf,5,6)));
-
-API_EXPORT(void) ap_error_log2stderr (server_rec *);     
-
-
-
-void ap_log_pid (pool *p, char *fname);
-
-API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
-
-API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
-
-			     const char *msg, server_rec *s);
-
-API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
-
-			    __attribute__((format(printf,2,3)));
-
-API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,
-
--- apache_1.3.1/src/include/http_protocol.h	1998-07-02 05:19:51.000000000 +0800
-
+    /* open the lockfile (once per child) to get a unique fd */
+    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
+                                         O_WRONLY,
+                                         REWRITELOCK_MODE)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, s,

@@ -1,26 +1,13 @@
 
+    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
+	return (ap_suexec_enabled);
 
-    tn = NULL;
+    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
+	ap_suexec_enabled = 1;
+	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
+    }
+#endif /* ndef WIN32 */
+    return (ap_suexec_enabled);
+}
 
-    signal(SIGINT, (void (*)()) interrupted);
-
-    if (argc == 4) {
-
-	if (strcmp(argv[1], "-c"))
-
-	    usage();
-
-	if (!(tfp = fopen(argv[2], "w"))) {
-
-	    fprintf(stderr, "Could not open passwd file %s for writing.\n",
-
-		    argv[2]);
-
-	    perror("fopen");
-
-	    exit(1);
-
-	}
-
-	printf("Adding password for %s.\n", argv[3]);
-
+/*****************************************************************

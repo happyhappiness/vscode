@@ -1,100 +1,64 @@
-#ifdef NEED_HASHBANG_EMUL
-
-    printf(" -D NEED_HASHBANG_EMUL\n");
-
+     * this on Win32, though, since we haven't fork()'d.
+     */
+    r->server->error_log = stderr;
 #endif
 
-#ifdef SHARED_CORE
-
-    printf(" -D SHARED_CORE\n");
-
+#ifdef RLIMIT_CPU
+    if (conf->limit_cpu != NULL) {
+        if ((setrlimit(RLIMIT_CPU, conf->limit_cpu)) != 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "setrlimit: failed to set CPU usage limit");
+	}
+    }
+#endif
+#ifdef RLIMIT_NPROC
+    if (conf->limit_nproc != NULL) {
+        if ((setrlimit(RLIMIT_NPROC, conf->limit_nproc)) != 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "setrlimit: failed to set process limit");
+	}
+    }
+#endif
+#if defined(RLIMIT_AS)
+    if (conf->limit_mem != NULL) {
+        if ((setrlimit(RLIMIT_AS, conf->limit_mem)) != 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "setrlimit(RLIMIT_AS): failed to set memory "
+			 "usage limit");
+	}
+    }
+#elif defined(RLIMIT_DATA)
+    if (conf->limit_mem != NULL) {
+        if ((setrlimit(RLIMIT_DATA, conf->limit_mem)) != 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "setrlimit(RLIMIT_DATA): failed to set memory "
+			 "usage limit");
+	}
+    }
+#elif defined(RLIMIT_VMEM)
+    if (conf->limit_mem != NULL) {
+        if ((setrlimit(RLIMIT_VMEM, conf->limit_mem)) != 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "setrlimit(RLIMIT_VMEM): failed to set memory "
+			 "usage limit");
+	}
+    }
 #endif
 
+#ifdef __EMX__
+    {
+	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
+	int is_script;
+	char interpreter[2048];	/* hope it's enough for the interpreter path */
+	FILE *program;
 
-
-/* This list displays the compiled-in default paths: */
-
-#ifdef HTTPD_ROOT
-
-    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
-
-#endif
-
-#ifdef SUEXEC_BIN
-
-    printf(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n");
-
-#endif
-
-#ifdef SHARED_CORE_DIR
-
-    printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");
-
-#endif
-
-#ifdef DEFAULT_PIDLOG
-
-    printf(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n");
-
-#endif
-
-#ifdef DEFAULT_SCOREBOARD
-
-    printf(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n");
-
-#endif
-
-#ifdef DEFAULT_LOCKFILE
-
-    printf(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n");
-
-#endif
-
-#ifdef DEFAULT_XFERLOG
-
-    printf(" -D DEFAULT_XFERLOG=\"" DEFAULT_XFERLOG "\"\n");
-
-#endif
-
-#ifdef DEFAULT_ERRORLOG
-
-    printf(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n");
-
-#endif
-
-#ifdef TYPES_CONFIG_FILE
-
-    printf(" -D TYPES_CONFIG_FILE=\"" TYPES_CONFIG_FILE "\"\n");
-
-#endif
-
-#ifdef SERVER_CONFIG_FILE
-
-    printf(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n");
-
-#endif
-
-#ifdef ACCESS_CONFIG_FILE
-
-    printf(" -D ACCESS_CONFIG_FILE=\"" ACCESS_CONFIG_FILE "\"\n");
-
-#endif
-
-#ifdef RESOURCE_CONFIG_FILE
-
-    printf(" -D RESOURCE_CONFIG_FILE=\"" RESOURCE_CONFIG_FILE "\"\n");
-
-#endif
-
-}
-
-
-
-
-
-/* Some init code that's common between win32 and unix... well actually
-
- * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
-
- * is still a mess.
-
+	program = fopen(r->filename, "rt");
+	if (!program) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
+			 r->filename);
+	    return (pid);
+	}
+	fgets(interpreter, sizeof(interpreter), program);
+	fclose(program);
+	if (!strncmp(interpreter, "#!", 2)) {
+	    is_script = 1;

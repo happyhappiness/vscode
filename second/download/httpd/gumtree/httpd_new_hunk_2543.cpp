@@ -1,52 +1,65 @@
-     */
 
-    if (r->read_body == REQUEST_CHUNKED_PASS)
+static int getsfunc_FILE(char *buf, int len, void *f)
+{
+    return fgets(buf, len, (FILE *) f) != NULL;
+}
 
-        bufsiz -= 2;
+API_EXPORT(int) ap_scan_script_header_err(request_rec *r, FILE *f,
+					  char *buffer)
+{
+    return scan_script_header_err_core(r, buffer, getsfunc_FILE, f);
+}
 
-    if (bufsiz <= 0)
+static int getsfunc_BUFF(char *w, int len, void *fb)
+{
+    return ap_bgets(w, len, (BUFF *) fb) > 0;
+}
 
-        return -1;              /* Cannot read chunked with a small buffer */
+API_EXPORT(int) ap_scan_script_header_err_buff(request_rec *r, BUFF *fb,
+					       char *buffer)
+{
+    return scan_script_header_err_core(r, buffer, getsfunc_BUFF, fb);
+}
 
 
+API_EXPORT(void) ap_send_size(size_t size, request_rec *r)
+{
+    /* XXX: this -1 thing is a gross hack */
+    if (size == (size_t)-1) {
+	ap_rputs("    -", r);
+    }
+    else if (!size) {
+	ap_rputs("   0k", r);
+    }
+    else if (size < 1024) {
+	ap_rputs("   1k", r);
+    }
+    else if (size < 1048576) {
+	ap_rprintf(r, "%4dk", (size + 512) / 1024);
+    }
+    else if (size < 103809024) {
+	ap_rprintf(r, "%4.1fM", size / 1048576.0);
+    }
+    else {
+	ap_rprintf(r, "%4dM", (size + 524288) / 1048576);
+    }
+}
 
-    /* Check to see if we have already read too much request data.
+#if defined(__EMX__) || defined(WIN32)
+static char **create_argv_cmd(pool *p, char *av0, const char *args, char *path)
+{
+    register int x, n;
+    char **av;
+    char *w;
 
-     * For efficiency reasons, we only check this at the top of each
-
-     * caller read pass, since the limit exists just to stop infinite
-
-     * length requests and nobody cares if it goes over by one buffer.
-
-     */
-
-    max_body = ap_get_limit_req_body(r);
-
-    if (max_body && (r->read_length > max_body)) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-            "Chunked request body is larger than the configured limit of %lu",
-
-            max_body);
-
-        r->connection->keepalive = -1;
-
-        return -1;
-
+    for (x = 0, n = 2; args[x]; x++) {
+        if (args[x] == '+') {
+	    ++n;
+	}
     }
 
+    /* Add extra strings to array. */
+    n = n + 2;
 
-
-    if (r->remaining == 0) {    /* Start of new chunk */
-
-
-
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-
-            || !isxdigit(*buffer)) {
-
-            r->connection->keepalive = -1;
-
+    av = (char **) ap_palloc(p, (n + 1) * sizeof(char *));
+    av[0] = av0;

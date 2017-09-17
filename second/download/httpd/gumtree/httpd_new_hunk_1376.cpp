@@ -1,26 +1,31 @@
-
-
-    arg.r = r;
-
-    arg.s = s;
-
-
-
-    if (!ap_bspawn_child(r->pool, include_cmd_child, &arg,
-
-			 kill_after_timeout, NULL, &script_in, NULL)) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		     "couldn't spawn include command");
-
-        return -1;
-
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
+    if (!child && run_as_service) {
+	service_cd();
+    }
 
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-    ap_send_fb(script_in, r);
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
+    }
 
-    ap_bclose(script_in);
-
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

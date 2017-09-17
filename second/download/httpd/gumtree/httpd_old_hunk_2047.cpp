@@ -1,50 +1,13 @@
-            }
+    char *origs = s, *origp = p;
+    char *pmax = p + plen - 1;
+    register int c;
+    register int val;
 
-
-
-            cpT = lookup_map(r, mapname, mapkey);
-
-            if (cpT != NULL) {
-
-                n = strlen(cpT);
-
-                if (cpO + n >= newuri + sizeof(newuri)) {
-
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-
-                                 r->server, "insufficient space in "
-
-                                 "expand_map_lookups, aborting");
-
-                    return;
-
-                }
-
-                memcpy(cpO, cpT, n);
-
-                cpO += n;
-
-            }
-
-            else {
-
-                n = strlen(defaultvalue);
-
-                if (cpO + n >= newuri + sizeof(newuri)) {
-
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 
-
-                                 r->server, "insufficient space in "
-
-                                 "expand_map_lookups, aborting");
-
-                    return;
-
-                }
-
-                memcpy(cpO, defaultvalue, n);
-
-                cpO += n;
-
-            }
-
+    while ((c = *s++) != '\0') {
+	if (isspace((unsigned char) c))
+	    break;
+	if (p >= pmax) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, serv,
+			MODNAME ": string too long: %s", origs);
+	    break;
+	}

@@ -1,20 +1,12 @@
-/* Automatically generated file - do not edit */
-
-
-
-#ifndef LINUX
-
-#define LINUX 2
-
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
 #endif
-
-#ifndef USE_HSREGEX
-
-#define USE_HSREGEX 
-
+#ifdef SIGABRT
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
 #endif
-
-nly in apache_1.3.1/src/include: ap_ctype.h
-
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
-
+	sa.sa_flags = 0;
+    }
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
+#ifdef SIGINT

@@ -1,70 +1,13 @@
-/*
+    if (!method_restricted)
+	return OK;
 
- *  Abstraction layer for loading
+    if (!(sec->auth_authoritative))
+	return DECLINED;
 
- *  Apache modules under run-time via 
-
- *  dynamic shared object (DSO) mechanism
-
- */
-
-
-
-void *ap_os_dso_load(const char *path)
-
-{
-
-#if defined(HPUX) || defined(HPUX10)
-
-    shl_t handle;
-
-    handle = shl_load(path, BIND_IMMEDIATE|BIND_VERBOSE|BIND_NOSTART, 0L);
-
-    return (void *)handle;
-
-#else
-
-#if defined(OSF1) ||\
-
-    (defined(__FreeBSD_version) && (__FreeBSD_version >= 220000))
-
-    return dlopen((char *)path, RTLD_NOW | RTLD_GLOBAL);
-
-#else
-
-    return dlopen(path, RTLD_NOW | RTLD_GLOBAL);
-
-#endif
-
-#endif
-
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
 }
 
-
-
-void ap_os_dso_unload(void *handle) 
-
+module MODULE_VAR_EXPORT auth_module =
 {
-
-#if defined(HPUX) || defined(HPUX10)
-
-    shl_unload((shl_t)handle);
-
-#else
-
-    dlclose(handle);
-
-#endif
-
-    return;
-
-}
-
-
-
-void *ap_os_dso_sym(void *handle, const char *symname)
-
-{
-
-#if defined(HPUX) || defined(HPUX10)
-
+-- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800

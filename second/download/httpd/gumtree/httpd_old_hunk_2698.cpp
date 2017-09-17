@@ -1,28 +1,42 @@
-        else {
+	ap_destroy_sub_req(pa_req);
+    }
+}
 
-            cpT = strstr(cpI, "${");
 
-            if (cpT == NULL)
+static int scan_script_header_err_core(request_rec *r, char *buffer,
+		 int (*getsfunc) (char *, int, void *), void *getsfunc_data)
+{
+    char x[MAX_STRING_LEN];
+    char *w, *l;
+    int p;
+    int cgi_status = HTTP_OK;
 
-                cpT = cpI+strlen(cpI);
+    if (buffer)
+	*buffer = '\0';
+    w = buffer ? buffer : x;
 
-            n = cpT-cpI;
+    ap_hard_timeout("read script header", r);
 
-            if (cpO + n >= newuri + sizeof(newuri)) {
+    while (1) {
 
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 
+	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"Premature end of script headers: %s", r->filename);
+	    return SERVER_ERROR;
+	}
 
-                             r->server, "insufficient space in "
+	/* Delete terminal (CR?)LF */
 
-                             "expand_map_lookups, aborting");
+	p = strlen(w);
+	if (p > 0 && w[p - 1] == '\n') {
+	    if (p > 1 && w[p - 2] == '\015')
+		w[p - 2] = '\0';
+	    else
+		w[p - 1] = '\0';
+	}
 
-                return;
-
-            }
-
-            memcpy(cpO, cpI, n);
-
-            cpO += n;
-
-            cpI += n;
-
+	/*
+	 * If we've finished reading the headers, check to make sure any
+	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
+	 * will handle the script's output.  If not, just return the error.

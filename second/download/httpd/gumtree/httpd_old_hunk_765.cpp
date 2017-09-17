@@ -1,30 +1,14 @@
+
+    if (i != DECLINED) {
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	return i;
     }
+    cache = c->fp;
 
-    else {
-
-	alarm_fn = fn;
-
-	alarm_expiry_time = time(NULL) + x;
-
-    }
-
-#else
-
-    if (x) {
-
-	alarm_fn = fn;
-
-    }
-
-#ifndef OPTIMIZE_TIMEOUTS
-
-    old = alarm(x);
-
-#else
-
-    if (child_timeouts) {
-
-	old = alarm(x);
-
-    }
-
+    if (!pasvmode) {		/* wait for connection */
+	ap_hard_timeout("proxy ftp data connect", r);
+	clen = sizeof(struct sockaddr_in);
+	do
+	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
+	while (csd == -1 && errno == EINTR);

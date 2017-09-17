@@ -1,26 +1,18 @@
-		    /* else nothing needs be done because
+    if (!method_restricted)
+	return OK;
 
-		     * then the backslash is escaped and
+    if (!(sec->auth_authoritative))
+	return DECLINED;
 
-		     * we just strip to a single one
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+	"access to %s failed for %s, reason: user %s not allowed access",
+	r->uri,
+	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
+	user);
+	
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
+}
 
-		     */
-
-		}
-
-		/* blast trailing whitespace */
-
-		while (i > 0 && ap_isspace(buf[i - 1]))
-
-		    --i;
-
-		buf[i] = '\0';
-
-#ifdef DEBUG_CFG_LINES
-
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-
-#endif
-
-		return 0;
-
+module MODULE_VAR_EXPORT auth_module =
+{

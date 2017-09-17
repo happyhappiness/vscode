@@ -1,26 +1,13 @@
-            }
-
-        }
-
-        else if (!strcmp(tag, "done")) {
-
-            return 0;
-
-        }
-
-        else {
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                        "unknown parameter \"%s\" to tag include in %s",
-
-                        tag, r->filename);
-
-            ap_rputs(error, r);
-
-        }
-
+    if (i == -1) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+    if (i != 220) {
+	ap_kill_timeout(r);
+	return HTTP_BAD_GATEWAY;
     }
 
-}
+    Explain0("FTP: connected.");
 
+    ap_bputs("USER ", f);
+    ap_bwrite(f, user, userlen);

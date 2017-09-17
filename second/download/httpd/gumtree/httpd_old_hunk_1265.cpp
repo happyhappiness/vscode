@@ -1,30 +1,12 @@
-		errstr[len-1] = ' ';
-
+#if TESTING
+		fprintf(stderr, "Would remove directory %s\n", newcachedir);
+#else
+		rmdir(newcachedir);
+#endif
+		--nfiles;
 	    }
-
+	    continue;
 	}
-
-    }
-
 #endif
 
-
-
-    va_start(args, fmt);
-
-    len += ap_vsnprintf(errstr + len, sizeof(errstr) - len, fmt, args);
-
-    va_end(args);
-
-
-
-    /* NULL if we are logging to syslog */
-
-    if (logf) {
-
-	fputs(errstr, logf);
-
-	fputc('\n', logf);
-
-	fflush(logf);
-
+	i = read(fd, line, 26);

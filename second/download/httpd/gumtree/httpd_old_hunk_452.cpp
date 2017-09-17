@@ -1,26 +1,12 @@
-	}
-
-	if ((timefd = creat(filename, 0666)) == -1) {
-
-	    if (errno != EEXIST)
-
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			     "proxy: creat(%s)", filename);
-
-	    else
-
-		lastcheck = abs(garbage_now);	/* someone else got in there */
-
-	    ap_unblock_alarms();
-
-	    return;
-
-	}
-
-	close(timefd);
-
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
+#endif
+	sa.sa_flags = 0;
     }
-
-    else {
-
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
+#ifdef SIGINT

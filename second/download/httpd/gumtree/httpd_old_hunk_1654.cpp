@@ -1,70 +1,41 @@
-/*
+	    return cond_status;
+	}
 
- *  Abstraction layer for loading
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
- *  Apache modules under run-time via 
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
- *  dynamic shared object (DSO) mechanism
+	    if (!buffer)
+		/* Soak up all the script output --- may save an outright kill */
+		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
+		    continue;
 
- */
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
+	}
 
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
+	if (!strcasecmp(w, "Content-type")) {
 
-void *ap_os_dso_load(const char *path)
+	    /* Nuke trailing whitespace */
 
-{
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
 
-#if defined(HPUX) || defined(HPUX10)
-
-    shl_t handle;
-
-    handle = shl_load(path, BIND_IMMEDIATE|BIND_VERBOSE|BIND_NOSTART, 0L);
-
-    return (void *)handle;
-
-#else
-
-#if defined(OSF1) ||\
-
-    (defined(__FreeBSD_version) && (__FreeBSD_version >= 220000))
-
-    return dlopen((char *)path, RTLD_NOW | RTLD_GLOBAL);
-
-#else
-
-    return dlopen(path, RTLD_NOW | RTLD_GLOBAL);
-
-#endif
-
-#endif
-
-}
-
-
-
-void ap_os_dso_unload(void *handle) 
-
-{
-
-#if defined(HPUX) || defined(HPUX10)
-
-    shl_unload((shl_t)handle);
-
-#else
-
-    dlclose(handle);
-
-#endif
-
-    return;
-
-}
-
-
-
-void *ap_os_dso_sym(void *handle, const char *symname)
-
-{
-
-#if defined(HPUX) || defined(HPUX10)
-
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

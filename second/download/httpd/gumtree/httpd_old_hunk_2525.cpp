@@ -1,94 +1,26 @@
-    else {
-
-	syslog(level & APLOG_LEVELMASK, "%s", errstr);
-
-    }
-
+#ifdef SHARED_CORE
+    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
+#else
+    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
 #endif
-
+    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
+    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S]\n", pad);
+    fprintf(stderr, "Options:\n");
+#ifdef SHARED_CORE
+    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
+#endif
+    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
+    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
+    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
+    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
+    fprintf(stderr, "  -v               : show version number\n");
+    fprintf(stderr, "  -V               : show compile settings\n");
+    fprintf(stderr, "  -h               : list available configuration directives\n");
+    fprintf(stderr, "  -l               : list compiled-in modules\n");
+    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
+    exit(1);
 }
 
-    
-
-
-
-void ap_log_pid (pool *p, char *fname)
-
-{
-
-    FILE *pid_file;
-
-
-
-    if (!fname) return;
-
-    fname = ap_server_root_relative (p, fname);
-
-    if(!(pid_file = fopen(fname,"w"))) {
-
-	perror("fopen");
-
-        fprintf(stderr,"httpd: could not log pid to file %s\n", fname);
-
-        exit(1);
-
-    }
-
-    fprintf(pid_file,"%ld\n",(long)getpid());
-
-    fclose(pid_file);
-
-}
-
-
-
-API_EXPORT(void) ap_log_error_old (const char *err, server_rec *s)
-
-{
-
-    ap_log_error(APLOG_MARK, APLOG_ERR, s, err);
-
-}
-
-
-
-API_EXPORT(void) ap_log_unixerr (const char *routine, const char *file,
-
-			      const char *msg, server_rec *s)
-
-{
-
-    ap_log_error(file, 0, APLOG_ERR, s, msg);
-
-}
-
-
-
-API_EXPORT(void) ap_log_printf (const server_rec *s, const char *fmt, ...)
-
-{
-
-    char buf[MAX_STRING_LEN];
-
-    va_list args;
-
-    
-
-    va_start(args, fmt);
-
-    ap_vsnprintf(buf, sizeof(buf), fmt, args);
-
-    ap_log_error(APLOG_MARK, APLOG_ERR, s, buf);
-
-    va_end(args);
-
-}
-
-
-
-API_EXPORT(void) ap_log_reason (const char *reason, const char *file, request_rec *r) 
-
-{
-
-    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
+/*****************************************************************
+ *
+ * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff

@@ -1,26 +1,13 @@
-		ap_rputs(">", r);
 
-	    }
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
+    ap_hard_timeout("send headers", r);
 
-		ap_rputs("</A>", r);
-
-	    }
-
-
-
-	    ap_rvputs(r, " ", anchor, t2, NULL);
-
-	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-
-		if (ar[x]->lm != -1) {
-
-		    char time_str[MAX_STRING_LEN];
-
-		    struct tm *ts = localtime(&ar[x]->lm);
-
-		    strftime(time_str, MAX_STRING_LEN, "%d-%b-%Y %H:%M  ", ts);
-
-		    ap_rputs(time_str, r);
-
+    ap_basic_http_header(r);

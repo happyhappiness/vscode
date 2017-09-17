@@ -1,46 +1,20 @@
-#endif
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
+        }
+        return 0;
+    }
 
+    range = ap_getword_nc(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
+    if (r->byterange > 1) {
+        char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-static void show_compile_settings(void)
-
-{
-
-    printf("Server version: %s\n", ap_get_server_version());
-
-    printf("Server built:   %s\n", ap_get_server_built());
-
-    printf("Server's Module Magic Number: %u\n", MODULE_MAGIC_NUMBER);
-
-    printf("Server compiled with....\n");
-
-#ifdef BIG_SECURITY_HOLE
-
-    printf(" -D BIG_SECURITY_HOLE\n");
-
-#endif
-
-#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
-
-    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
-
-#endif
-
-#ifdef HTTPD_ROOT
-
-    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
-
-#endif
-
-#ifdef HAVE_MMAP
-
-    printf(" -D HAVE_MMAP\n");
-
-#endif
-
-#ifdef HAVE_SHMGET
-
-    printf(" -D HAVE_SHMGET\n");
-
-#endif
-
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

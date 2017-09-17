@@ -1,128 +1,88 @@
-     * this on Win32, though, since we haven't fork()'d.
+	    if (!(autoindex_opts & SUPPRESS_SIZE)) {
+		ap_send_size(ar[x]->size, r);
+		ap_rputs("  ", r);
+	    }
+	    if (!(autoindex_opts & SUPPRESS_DESC)) {
+		if (ar[x]->desc) {
+		    ap_rputs(terminate_description(d, ar[x]->desc,
+						   autoindex_opts), r);
+		}
+	    }
+	}
+	else {
+	    ap_rvputs(r, "<LI> ", anchor, " ", t2, NULL);
+	}
+	ap_rputc('\n', r);
+    }
+    if (autoindex_opts & FANCY_INDEXING) {
+	ap_rputs("</PRE>", r);
+    }
+    else {
+	ap_rputs("</UL>", r);
+    }
+}
 
+/*
+ * Compare two file entries according to the sort criteria.  The return
+ * is essentially a signum function value.
+ */
+
+static int dsortf(struct ent **e1, struct ent **e2)
+{
+    struct ent *c1;
+    struct ent *c2;
+    int result = 0;
+
+    /*
+     * First, see if either of the entries is for the parent directory.
+     * If so, that *always* sorts lower than anything else.
      */
-
-    r->server->error_log = stderr;
-
-#endif
-
-
-
-#ifdef RLIMIT_CPU
-
-    if (conf->limit_cpu != NULL) {
-
-        if ((setrlimit(RLIMIT_CPU, conf->limit_cpu)) != 0) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "setrlimit: failed to set CPU usage limit");
-
-	}
-
+    if (is_parent((*e1)->name)) {
+        return -1;
     }
-
-#endif
-
-#ifdef RLIMIT_NPROC
-
-    if (conf->limit_nproc != NULL) {
-
-        if ((setrlimit(RLIMIT_NPROC, conf->limit_nproc)) != 0) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "setrlimit: failed to set process limit");
-
-	}
-
+    if (is_parent((*e2)->name)) {
+        return 1;
     }
-
-#endif
-
-#if defined(RLIMIT_AS)
-
-    if (conf->limit_mem != NULL) {
-
-        if ((setrlimit(RLIMIT_AS, conf->limit_mem)) != 0) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "setrlimit(RLIMIT_AS): failed to set memory "
-
-			 "usage limit");
-
-	}
-
+    /*
+     * All of our comparisons will be of the c1 entry against the c2 one,
+     * so assign them appropriately to take care of the ordering.
+     */
+    if ((*e1)->ascending) {
+        c1 = *e1;
+        c2 = *e2;
     }
-
-#elif defined(RLIMIT_DATA)
-
-    if (conf->limit_mem != NULL) {
-
-        if ((setrlimit(RLIMIT_DATA, conf->limit_mem)) != 0) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "setrlimit(RLIMIT_DATA): failed to set memory "
-
-			 "usage limit");
-
-	}
-
+    else {
+        c1 = *e2;
+        c2 = *e1;
     }
-
-#elif defined(RLIMIT_VMEM)
-
-    if (conf->limit_mem != NULL) {
-
-        if ((setrlimit(RLIMIT_VMEM, conf->limit_mem)) != 0) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "setrlimit(RLIMIT_VMEM): failed to set memory "
-
-			 "usage limit");
-
-	}
-
+    switch (c1->key) {
+    case K_LAST_MOD:
+	if (c1->lm > c2->lm) {
+            return 1;
+        }
+        else if (c1->lm < c2->lm) {
+            return -1;
+        }
+        break;
+    case K_SIZE:
+        if (c1->size > c2->size) {
+            return 1;
+        }
+        else if (c1->size < c2->size) {
+            return -1;
+        }
+        break;
+    case K_DESC:
+        result = strcmp(c1->desc ? c1->desc : "", c2->desc ? c2->desc : "");
+        if (result) {
+            return result;
+        }
+        break;
     }
-
-#endif
-
-
-
-#ifdef __EMX__
-
-    {
-
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-
-	int is_script;
-
-	char interpreter[2048];	/* hope it's enough for the interpreter path */
-
-	FILE *program;
+    return strcmp(c1->name, c2->name);
+}
 
 
-
-	program = fopen(r->filename, "rt");
-
-	if (!program) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-
-			 r->filename);
-
-	    return (pid);
-
-	}
-
-	fgets(interpreter, sizeof(interpreter), program);
-
-	fclose(program);
-
-	if (!strncmp(interpreter, "#!", 2)) {
-
-	    is_script = 1;
-
+static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
+{
+    char *title_name = ap_escape_html(r->pool, r->uri);

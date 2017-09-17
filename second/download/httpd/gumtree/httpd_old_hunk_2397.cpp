@@ -1,28 +1,25 @@
+	return ap_proxyerror(r, err);	/* give up */
 
-
-    f = ap_pfopen(r->pool, metafilename, "r");
-
-    if (f == NULL) {
-
-	if (errno == ENOENT) {
-
-	    return DECLINED;
-
-	}
-
+    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
 	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		    "proxy: error creating socket");
+	return SERVER_ERROR;
+    }
 
-	      "meta file permissions deny server access: %s", metafilename);
+#ifndef WIN32
+    if (sock >= FD_SETSIZE) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
+	    "proxy_connect_handler: filedescriptor (%u) "
+	    "larger than FD_SETSIZE (%u) "
+	    "found, you probably need to rebuild Apache with a "
+	    "larger FD_SETSIZE", sock, FD_SETSIZE);
+	ap_pclosesocket(r->pool, sock);
+	return SERVER_ERROR;
+    }
+#endif
 
-	return FORBIDDEN;
-
-    };
-
-
-
-    /* read the headers in */
-
-    rv = scan_meta_file(r, f);
-
--- apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
-
+    j = 0;
+    while (server_hp.h_addr_list[j] != NULL) {
+	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
+-- apache_1.3.0/src/modules/proxy/proxy_ftp.c	1998-05-28 06:56:05.000000000 +0800

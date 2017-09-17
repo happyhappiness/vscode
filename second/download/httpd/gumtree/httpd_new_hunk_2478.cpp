@@ -1,26 +1,18 @@
-    entries = (rewritemap_entry *)rewritemaps->elts;
+    if (i == 530) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Not logged in");
+    }
+    if (i != 230 && i != 331) {
+	ap_kill_timeout(r);
+	return HTTP_BAD_GATEWAY;
+    }
 
-    for (i = 0; i < rewritemaps->nelts; i++) {
-
-        s = &entries[i];
-
-        if (strcmp(s->name, name) == 0) {
-
-            if (s->type == MAPTYPE_TXT) {
-
-                if (stat(s->checkfile, &st) == -1) {
-
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-                                 "mod_rewrite: can't access text RewriteMap "
-
-                                 "file %s", s->checkfile);
-
-                    rewritelog(r, 1, "can't open RewriteMap file, "
-
-                               "see error log");
-
-                    return NULL;
-
-                }
-
+    if (i == 331) {		/* send password */
+	if (password == NULL)
+	    return HTTP_FORBIDDEN;
+	ap_bputs("PASS ", f);
+	ap_bwrite(f, password, passlen);
+	ap_bputs(CRLF, f);
+	ap_bflush(f);
+	Explain1("FTP: PASS %s", password);
+/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

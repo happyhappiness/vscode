@@ -1,44 +1,13 @@
-<tr><th>Req<td>Milliseconds required to process most recent request\n \
 
-<tr><th>Conn<td>Kilobytes transferred this connection\n \
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-<tr><th>Child<td>Megabytes transferred this child\n \
+    ap_hard_timeout("send headers", r);
 
-<tr><th>Slot<td>Total megabytes transferred this slot\n \
-
-</table>\n", r);
-
-#endif
-
-    }
-
-
-
-#else /* !defined(STATUS) */
-
-
-
-    ap_rputs("<hr>To obtain a full report with current status information and", r);
-
-    ap_rputs(" DNS and LOGGING status codes \n", r);
-
-    ap_rputs("you need to recompile Apache after adding the line <pre>", r);
-
-    ap_rputs("Rule STATUS=yes</pre>into the file <code>Configuration</code>\n", r);
-
-
-
-#endif /* STATUS */
-
-
-
-    if (!short_report) {
-
-	ap_rputs(ap_psignature("<HR>\n",r), r);
-
-	ap_rputs("</BODY></HTML>\n", r);
-
-    }
-
-
-
+    ap_basic_http_header(r);

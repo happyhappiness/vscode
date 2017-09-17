@@ -1,26 +1,13 @@
-	return log_scripterror(r, conf, FORBIDDEN, APLOG_NOERRNO,
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		   sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
+	ap_pclosesocket(p, sock);
+	return HTTP_INTERNAL_SERVER_ERROR;
+#endif /*_OSD_POSIX*/
+    }
 
-			       "Options ExecCGI is off in this directory");
-
-    if (nph && is_included)
-
-	return log_scripterror(r, conf, FORBIDDEN, APLOG_NOERRNO,
-
-			       "attempt to include NPH CGI script");
-
-
-
-#if defined(OS2) || defined(WIN32)
-
-    /* Allow for cgi files without the .EXE extension on them under OS/2 */
-
-    if (r->finfo.st_mode == 0) {
-
-	struct stat statbuf;
-
-
-
-	r->filename = ap_pstrcat(r->pool, r->filename, ".EXE", NULL);
-
-
-
+#ifdef SINIX_D_RESOLVER_BUG
+    {
+	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;

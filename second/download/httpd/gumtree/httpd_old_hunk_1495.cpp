@@ -1,26 +1,14 @@
-         * Client sent us a HTTP/1.1 or later request without telling us the
-
-         * hostname, either with a full URL or a Host: header. We therefore
-
-         * need to (as per the 1.1 spec) send an error.  As a special case,
-
-	 * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
-
-	 * a Host: header, and the server MUST respond with 400 if it doesn't.
-
-         */
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-               "client sent HTTP/1.1 request without hostname (see RFC2068 section 9, and 14.23): %s", r->uri);
-
-        ap_die(BAD_REQUEST, r);
-
-        return;
-
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
     }
+#endif
 
-
-
-    /* Ignore embedded %2F's in path for proxy requests */
-
+    for (i = 0; i < t->a.nelts; ) {
+-- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800

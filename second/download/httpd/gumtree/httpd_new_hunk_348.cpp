@@ -1,56 +1,31 @@
-#ifdef SHARED_CORE
 
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
+    /* Pass one --- direct matches */
 
-#else
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            result = (*handp->hr.handler) (r);
 
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
+            if (result != DECLINED)
+                return result;
+        }
+    }
 
-#endif
+    if (result == NOT_IMPLEMENTED && r->handler) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    }
 
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
+    /* Pass two --- wildcard matches */
 
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S] [-t]\n", pad);
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             result = (*handp->hr.handler) (r);
 
-    fprintf(stderr, "Options:\n");
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-#ifdef SHARED_CORE
-
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
-
-#endif
-
-    fprintf(stderr, "  -D name          : define a name for use in <IfDefine name> directives\n");
-
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-
-    fprintf(stderr, "  -v               : show version number\n");
-
-    fprintf(stderr, "  -V               : show compile settings\n");
-
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-
-    fprintf(stderr, "  -t               : run syntax test for configuration files only\n");
-
-    exit(1);
-
-}
-
-
-
-/*****************************************************************
-
- *
-
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
-
+++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800

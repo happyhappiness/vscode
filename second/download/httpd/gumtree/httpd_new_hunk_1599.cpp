@@ -1,26 +1,18 @@
-            expr = tag_val;
-
-#ifdef DEBUG_INCLUDE
-
-            ap_rvputs(r, "**** if expr=\"", expr, "\"\n", NULL);
-
-#endif
-
-        }
-
-        else {
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                        "unknown parameter \"%s\" to tag if in %s",
-
-                        tag, r->filename);
-
-            ap_rputs(error, r);
-
-        }
-
+    if (i == 530) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Not logged in");
+    }
+    if (i != 230 && i != 331) {
+	ap_kill_timeout(r);
+	return HTTP_BAD_GATEWAY;
     }
 
-}
-
+    if (i == 331) {		/* send password */
+	if (password == NULL)
+	    return HTTP_FORBIDDEN;
+	ap_bputs("PASS ", f);
+	ap_bwrite(f, password, passlen);
+	ap_bputs(CRLF, f);
+	ap_bflush(f);
+	Explain1("FTP: PASS %s", password);
+/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

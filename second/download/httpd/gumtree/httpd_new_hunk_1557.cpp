@@ -1,26 +1,14 @@
-	    return OK;
+{
+    const char *auth_line = ap_table_get(r->headers_in,
+                                    r->proxyreq ? "Proxy-Authorization"
+                                    : "Authorization");
+    int l;
+    int s, vk = 0, vv = 0;
+    const char *t;
+    char *key, *value;
 
-	}
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
+	return DECLINED;
 
-
-
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-
-
-	if (!(l = strchr(w, ':'))) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-			"malformed header in meta file: %s", r->filename);
-
-	    return SERVER_ERROR;
-
-	}
-
-
-
-	*l++ = '\0';
-
-	while (*l && ap_isspace(*l))
-
+    if (!ap_auth_name(r)) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

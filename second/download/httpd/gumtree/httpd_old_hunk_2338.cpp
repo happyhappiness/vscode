@@ -1,34 +1,13 @@
-	    int cond_status = OK;
+    if (!method_restricted)
+	return OK;
 
+    if (!(sec->auth_authoritative))
+	return DECLINED;
 
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
+}
 
-	    ap_kill_timeout(r);
-
-	    if ((cgi_status == HTTP_OK) && (r->method_number == M_GET)) {
-
-		cond_status = ap_meets_conditions(r);
-
-	    }
-
-	    return cond_status;
-
-	}
-
-
-
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-
-
-	if (!(l = strchr(w, ':'))) {
-
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
-
+module MODULE_VAR_EXPORT auth_module =
+{
+-- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800

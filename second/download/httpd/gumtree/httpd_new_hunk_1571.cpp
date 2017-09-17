@@ -1,28 +1,12 @@
-		expansion = in - 1;
 
-		if (*in == '{') {
+    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
+	return (ap_suexec_enabled);
 
-		    ++in;
+    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
+	ap_suexec_enabled = 1;
+    }
+#endif /* ndef WIN32 */
+    return (ap_suexec_enabled);
+}
 
-		    start_of_var_name = in;
-
-		    in = strchr(in, '}');
-
-		    if (in == NULL) {
-
-                        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-
-				    r, "Missing '}' on variable \"%s\"",
-
-				    expansion);
-
-                        *next = '\0';
-
-                        return;
-
-                    }
-
-		    end_of_var_name = in;
-
-		    ++in;
-
+/*****************************************************************

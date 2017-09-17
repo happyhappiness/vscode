@@ -1,48 +1,20 @@
-    buff[35] = ' ';
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
+        }
+        return 0;
+    }
 
-    ap_proxy_sec2hex(c->len, buff + 36);
+    range = ap_getword(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
-    buff[44] = '\n';
+    if (r->byterange > 1) {
+        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-    buff[45] = '\0';
-
-
-
-/* if file not modified */
-
-    if (r->status == HTTP_NOT_MODIFIED) {
-
-	if (c->ims != BAD_DATE && lmod != BAD_DATE && lmod <= c->ims) {
-
-/* set any changed headers somehow */
-
-/* update dates and version, but not content-length */
-
-	    if (lmod != c->lmod || expc != c->expire || date != c->date) {
-
-		off_t curpos = lseek(c->fp->fd, 0, SEEK_SET);
-
-		if (curpos == -1)
-
-		    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-				 "proxy: error seeking on cache file %s",
-
-				 c->filename);
-
-		else if (write(c->fp->fd, buff, 35) == -1)
-
-		    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-				 "proxy: error updating cache file %s",
-
-				 c->filename);
-
-	    }
-
-	    ap_pclosef(r->pool, c->fp->fd);
-
-	    Explain0("Remote document not modified, use local copy");
-
-	    /* CHECKME: Is this right? Shouldn't we check IMS again here? */
-
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

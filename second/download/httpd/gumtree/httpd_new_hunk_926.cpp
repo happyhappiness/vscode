@@ -1,26 +1,13 @@
-
-
-    tn = NULL;
-
-    signal(SIGINT, (void (*)()) interrupted);
-
-    if (argc == 4) {
-
-	if (strcmp(argv[1], "-c"))
-
-	    usage();
-
-      if (!(tfp = fopen(argv[2], "w+"))) {
-
-	    fprintf(stderr, "Could not open passwd file %s for writing.\n",
-
-		    argv[2]);
-
-	    perror("fopen");
-
-	    exit(1);
-
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: failed to accept data connection");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    ap_proxy_cache_error(c);
+	    return HTTP_BAD_GATEWAY;
 	}
-
-	printf("Adding password for %s.\n", argv[3]);
-
+	ap_note_cleanups_for_socket(p, csd);
+	data = ap_bcreate(p, B_RDWR | B_SOCKET);
+	ap_bpushfd(data, csd, -1);
+	ap_kill_timeout(r);
+    }

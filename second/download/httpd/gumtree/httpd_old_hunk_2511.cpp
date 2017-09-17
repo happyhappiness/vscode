@@ -1,82 +1,24 @@
-        port = atoi(p);
 
-    return 0;
-
-}
-
-
-
-/* ------------------------------------------------------- */
-
-
-
-extern char *optarg;
-
-extern int optind, opterr, optopt;
-
-
-
-/* sort out command-line args and call test */
-
-int main(int argc, char **argv)
-
+static char *lcase_header_name_return_body(char *header, request_rec *r)
 {
+    char *cp = header;
 
-    int c;
+    for ( ; *cp && *cp != ':' ; ++cp) {
+        *cp = tolower(*cp);
+    }
 
-    optind = 1;
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    "Syntax error in type map --- no ':': %s", r->filename);
+        return NULL;
+    }
 
-    while ((c = getopt(argc, argv, "n:c:t:kvh")) > 0) {
+    do {
+        ++cp;
+    } while (*cp && isspace(*cp));
 
-        switch (c) {
-
-        case 'n':
-
-            requests = atoi(optarg);
-
-            if (!requests) {
-
-                printf("Invalid number of requests\n");
-
-                exit(1);
-
-            }
-
-            break;
-
-        case 'k':
-
-            keepalive = 1;
-
-            break;
-
-        case 'c':
-
-            concurrency = atoi(optarg);
-
-            break;
-
-        case 't':
-
-            tlimit = atoi(optarg);
-
-            requests = MAX_REQUESTS;    /* need to size data array on something */
-
-            break;
-
-        case 'v':
-
-            copyright();
-
-            exit(0);
-
-            break;
-
-        case 'h':
-
-            usage(argv[0]);
-
-            break;
-
--- apache_1.3.1/src/support/htdigest.c	1998-07-13 19:32:58.000000000 +0800
-
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    "Syntax error in type map --- no header body: %s",
+                    r->filename);
+        return NULL;

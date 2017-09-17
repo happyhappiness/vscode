@@ -1,26 +1,14 @@
-        case token_and:
+	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
+	}
+	return index_directory(r, d);
+    }
+    else {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		    "Directory index forbidden by rule: %s", r->filename);
+	return HTTP_FORBIDDEN;
+    }
+}
 
-        case token_or:
 
-#ifdef DEBUG_INCLUDE
-
-            ap_rputs("     Token: and/or\n", r);
-
-#endif
-
-            if (current == (struct parse_node *) NULL) {
-
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                            "Invalid expression \"%s\" in file %s",
-
-                            expr, r->filename);
-
-                ap_rputs(error, r);
-
-                goto RETURN;
-
-            }
-
-            /* Percolate upwards */
-
+static const handler_rec autoindex_handlers[] =
+-- apache_1.3.0/src/modules/standard/mod_cern_meta.c	1998-04-11 20:00:45.000000000 +0800

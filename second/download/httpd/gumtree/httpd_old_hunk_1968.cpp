@@ -1,28 +1,13 @@
+{
+    const char *auth_line = ap_table_get(r->headers_in,
+                                    r->proxyreq ? "Proxy-Authorization"
+                                    : "Authorization");
+    int l;
+    int s, vk = 0, vv = 0;
+    char *t, *key, *value;
 
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
+	return DECLINED;
 
-    f = ap_pfopen(r->pool, metafilename, "r");
-
-    if (f == NULL) {
-
-	if (errno == ENOENT) {
-
-	    return DECLINED;
-
-	}
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-	      "meta file permissions deny server access: %s", metafilename);
-
-	return FORBIDDEN;
-
-    };
-
-
-
-    /* read the headers in */
-
-    rv = scan_meta_file(r, f);
-
--- apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
-
+    if (!ap_auth_name(r)) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

@@ -1,34 +1,14 @@
-            else if (w < 0) {
+#include "http_main.h"
+#include "http_request.h"
 
-                if (r->connection->aborted)
+static int asis_handler(request_rec *r)
+{
+    FILE *f;
+    char *location;
 
-                    break;
-
-                else if (errno == EAGAIN)
-
-                    continue;
-
-                else {
-
-                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-
-                     "%s client stopped connection before send mmap completed",
-
-                                ap_get_remote_host(r->connection,
-
-                                                r->per_dir_config,
-
-                                                REMOTE_NAME));
-
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-
-                    r->connection->aborted = 1;
-
-                    break;
-
-                }
-
-            }
-
-        }
-
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+	return DECLINED;
+    if (r->finfo.st_mode == 0) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+-- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800

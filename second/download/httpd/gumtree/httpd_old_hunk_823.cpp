@@ -1,32 +1,13 @@
 
+    /* Domain name must start with a '.' */
+    if (addr[0] != '.')
+	return 0;
 
-#if MIME_MAGIC_DEBUG
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
+	continue;
 
-    prevm = 0;
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-
-		MODNAME ": apprentice test");
-
-    for (m = conf->magic; m; m = m->next) {
-
-	if (isprint((((unsigned long) m) >> 24) & 255) &&
-
-	    isprint((((unsigned long) m) >> 16) & 255) &&
-
-	    isprint((((unsigned long) m) >> 8) & 255) &&
-
-	    isprint(((unsigned long) m) & 255)) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-
-			MODNAME ": apprentice: POINTER CLOBBERED! "
-
-			"m=\"%c%c%c%c\" line=%d",
-
-			(((unsigned long) m) >> 24) & 255,
-
-			(((unsigned long) m) >> 16) & 255,
-
-			(((unsigned long) m) >> 8) & 255,
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
+	/* @@@@ handle optional port */

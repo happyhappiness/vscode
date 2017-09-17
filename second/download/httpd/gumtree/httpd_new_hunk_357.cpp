@@ -1,26 +1,12 @@
 
+    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
+	return (ap_suexec_enabled);
 
-    /*
+    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
+	ap_suexec_enabled = 1;
+    }
+#endif /* ndef WIN32 */
+    return (ap_suexec_enabled);
+}
 
-     * Now that we are ready to send a response, we need to combine the two
-
-     * header field tables into a single table.  If we don't do this, our
-
-     * later attempts to set or unset a given fieldname might be bypassed.
-
-     */
-
-    if (!ap_is_empty_table(r->err_headers_out))
-
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-
-                                        r->headers_out);
-
-
-
-    ap_hard_timeout("send headers", r);
-
-
-
-    ap_basic_http_header(r);
-
+/*****************************************************************

@@ -1,34 +1,14 @@
-		return;
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+    }
+#endif
 
-#if MIME_MAGIC_DEBUG
-
-	    prevm = 0;
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-
-			MODNAME ": magic_init 1 test");
-
-	    for (m = conf->magic; m; m = m->next) {
-
-		if (isprint((((unsigned long) m) >> 24) & 255) &&
-
-		    isprint((((unsigned long) m) >> 16) & 255) &&
-
-		    isprint((((unsigned long) m) >> 8) & 255) &&
-
-		    isprint(((unsigned long) m) & 255)) {
-
-		    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-
-				MODNAME ": magic_init 1: POINTER CLOBBERED! "
-
-				"m=\"%c%c%c%c\" line=%d",
-
-				(((unsigned long) m) >> 24) & 255,
-
-				(((unsigned long) m) >> 16) & 255,
-
-				(((unsigned long) m) >> 8) & 255,
-
--- apache_1.3.0/src/modules/standard/mod_negotiation.c	1998-05-31 03:15:38.000000000 +0800
-
+    for (i = 0; i < t->a.nelts; ) {
+-- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800

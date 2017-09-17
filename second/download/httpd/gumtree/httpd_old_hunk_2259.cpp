@@ -1,26 +1,14 @@
-                    return value;
+#include "http_main.h"
+#include "http_request.h"
 
-                }
+static int asis_handler(request_rec *r)
+{
+    FILE *f;
+    char *location;
 
-            }
-
-            else if (s->type == MAPTYPE_DBM) {
-
-#ifndef NO_DBM_REWRITEMAP
-
-                if (stat(s->checkfile, &st) == -1) {
-
-                    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-                                 "mod_rewrite: can't access DBM RewriteMap "
-
-                                 "file %s", s->checkfile);
-
-                    rewritelog(r, 1, "can't open DBM RewriteMap file, "
-
-                               "see error log");
-
-                    return NULL;
-
-                }
-
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+	return DECLINED;
+    if (r->finfo.st_mode == 0) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+-- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800

@@ -1,28 +1,13 @@
-                error_fmt = "unable to include \"%s\" in parsed file %s";
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		   sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
+	ap_pclosesocket(p, sock);
+	return HTTP_INTERNAL_SERVER_ERROR;
+#endif /*_OSD_POSIX*/
+    }
 
-            }
-
-#ifndef WIN32
-
-            ap_chdir_file(r->filename);
-
-#endif
-
-            if (error_fmt) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-
-			    r, error_fmt, tag_val, r->filename);
-
-                ap_rputs(error, r);
-
-            }
-
-
-
-	    /* destroy the sub request if it's not a nested include */
-
-            if (rr != NULL
-
-		&& ap_get_module_config(rr->request_config, &includes_module)
-
+#ifdef SINIX_D_RESOLVER_BUG
+    {
+	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;

@@ -1,26 +1,26 @@
-	perror("Unable to gethostname");
 
-	exit(1);
+    /* Pass one --- direct matches */
 
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
+
+            if (result != DECLINED)
+                return result;
+        }
     }
 
-    str[MAXHOSTNAMELEN] = '\0';
+    /* Pass two --- wildcard matches */
 
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-
-	fprintf(stderr, "Use ServerName to set it manually.\n");
-
-	exit(1);
-
+             if (result != DECLINED)
+                 return result;
+         }
     }
 
-
-
-    return server_hostname;
-
-}
-
-
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

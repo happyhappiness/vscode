@@ -1,26 +1,27 @@
-	real_file = last_slash;
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"malformed header in meta file: %s", r->filename);
+	    return SERVER_ERROR;
+	}
 
-	real_file++;
+	*l++ = '\0';
+	while (*l && ap_isspace(*l))
+	    ++l;
 
-	*last_slash = '\0';
+	if (!strcasecmp(w, "Content-type")) {
+	    char *tmp;
+	    /* Nuke trailing whitespace */
 
-    }
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && ap_isspace(*endp))
+		*endp-- = '\0';
 
-    else {
-
-	/* no last slash, buh?! */
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		    "internal error in mod_cern_meta: %s", r->filename);
-
-	/* should really barf, but hey, let's be friends... */
-
-	return DECLINED;
-
-    };
-
-
-
-    metafilename = ap_pstrcat(r->pool, "/", scrap_book, "/",
-
+	    tmp = ap_pstrdup(r->pool, l);
+	    ap_content_type_tolower(tmp);
+	    r->content_type = tmp;
+	}
+	else if (!strcasecmp(w, "Status")) {
+	    sscanf(l, "%d", &r->status);
+	    r->status_line = ap_pstrdup(r->pool, l);
+	}
+	else {
+++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800

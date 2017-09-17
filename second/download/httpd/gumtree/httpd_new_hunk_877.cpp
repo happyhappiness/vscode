@@ -1,42 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
 
-			     "proxy gc: unlink(%s)", filename);
+    /* Host names must not start with a '.' */
+    if (addr[0] == '.')
+	return 0;
 
-	}
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
 
-	else
-
-#endif
-
-	{
-
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-
-		break;
-
-	}
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
+	/* @@@@ handle optional port */
     }
-
-
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-
-    ap_unblock_alarms();
-
-}
-
-
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-
-			  const char *cachebasedir, const char *cachesubdir)
-
-{
-

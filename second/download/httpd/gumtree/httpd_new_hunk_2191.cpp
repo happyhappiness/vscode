@@ -1,28 +1,14 @@
-                error_fmt = "unable to include \"%s\" in parsed file %s";
-
-            }
-
-#ifndef WIN32
-
-            ap_chdir_file(r->filename);
-
-#endif
-
-            if (error_fmt) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-
-			    r, error_fmt, tag_val, r->filename);
-
-                ap_rputs(error, r);
-
-            }
+	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
+	}
+	return index_directory(r, d);
+    }
+    else {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		     "Directory index forbidden by rule: %s", r->filename);
+	return HTTP_FORBIDDEN;
+    }
+}
 
 
-
-	    /* destroy the sub request if it's not a nested include */
-
-            if (rr != NULL
-
-		&& ap_get_module_config(rr->request_config, &includes_module)
-
+static const handler_rec autoindex_handlers[] =
+++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800

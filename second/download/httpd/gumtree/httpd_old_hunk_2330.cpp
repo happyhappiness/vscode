@@ -1,26 +1,13 @@
-            if (!res) {
-
-                res = file_walk(rnew);
-
-            }
-
-        }
-
-        else {
-
-            if ((res = check_symlinks(rnew->filename, ap_allow_options(rnew)))) {
-
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, rnew->server,
-
-                            "Symbolic link not allowed: %s", rnew->filename);
-
-                rnew->status = res;
-
-                return rnew;
-
-            }
-
-            /*
-
-             * do a file_walk, if it doesn't change the per_dir_config then
-
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: failed to accept data connection");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    ap_proxy_cache_error(c);
+	    return BAD_GATEWAY;
+	}
+	ap_note_cleanups_for_socket(p, csd);
+	data = ap_bcreate(p, B_RDWR | B_SOCKET);
+	ap_bpushfd(data, csd, -1);
+	ap_kill_timeout(r);
+    }

@@ -1,26 +1,13 @@
-		    data = lf + 1;	/* Reset data */
-
-		break;
-
-	    }
-
-
-
-	    if (!(value = strchr(data, ':'))) {
-
-		SetLastError(ERROR);	/* XXX: Find right error */
-
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-			    "ISA sent invalid headers", r->filename);
-
-		return FALSE;
-
-	    }
-
-
-
-	    *value++ = '\0';
-
-	    while (*value && ap_isspace(*value)) ++value;
-
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: failed to accept data connection");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    ap_proxy_cache_error(c);
+	    return HTTP_BAD_GATEWAY;
+	}
+	ap_note_cleanups_for_socket(p, csd);
+	data = ap_bcreate(p, B_RDWR | B_SOCKET);
+	ap_bpushfd(data, csd, -1);
+	ap_kill_timeout(r);
+    }

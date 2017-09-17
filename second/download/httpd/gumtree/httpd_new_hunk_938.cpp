@@ -1,48 +1,31 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
 
-    if (err != NULL) {
+    /* Pass one --- direct matches */
 
-        return err;
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            result = (*handp->hr.handler) (r);
 
+            if (result != DECLINED)
+                return result;
+        }
     }
 
-
-
-    ap_threads_per_child = atoi(arg);
-
-    if (ap_threads_per_child > HARD_SERVER_LIMIT) {
-
-        fprintf(stderr, "WARNING: ThreadsPerChild of %d exceeds compile time limit "
-
-                "of %d threads,\n", ap_threads_per_child, HARD_SERVER_LIMIT);
-
-        fprintf(stderr, " lowering ThreadsPerChild to %d.  To increase, please "
-
-                "see the\n", HARD_SERVER_LIMIT);
-
-        fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-
-        ap_threads_per_child = HARD_SERVER_LIMIT;
-
-    } 
-
-    else if (ap_threads_per_child < 1) {
-
-	fprintf(stderr, "WARNING: Require ThreadsPerChild > 0, setting to 1\n");
-
-	ap_threads_per_child = 1;
-
+    if (result == NOT_IMPLEMENTED && r->handler) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
     }
 
+    /* Pass two --- wildcard matches */
 
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             result = (*handp->hr.handler) (r);
 
-    return NULL;
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-}
-
-
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-
-{
-
+++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800

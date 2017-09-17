@@ -1,26 +1,13 @@
-    union VALUETYPE p;
+	else
+	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
+				"Could not connect to remote machine: ",
+				strerror(errno), NULL));
+    }
 
-    magic_server_config_rec *conf = (magic_server_config_rec *)
+    clear_connection(r->headers_in);	/* Strip connection-based headers */
 
-		ap_get_module_config(r->server->module_config, &mime_magic_module);
+    f = ap_bcreate(p, B_RDWR | B_SOCKET);
+    ap_bpushfd(f, sock, sock);
 
-    struct magic *m;
-
-
-
-#if MIME_MAGIC_DEBUG
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		MODNAME ": match conf=%x file=%s m=%s m->next=%s last=%s",
-
-		conf,
-
-		conf->magicfile ? conf->magicfile : "NULL",
-
-		conf->magic ? "set" : "NULL",
-
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
-
-		conf->last ? "set" : "NULL");
-
+    ap_hard_timeout("proxy send", r);
+    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,

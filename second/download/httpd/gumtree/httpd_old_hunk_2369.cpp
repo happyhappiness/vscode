@@ -1,178 +1,97 @@
-
-
-    ap_kill_timeout(r);
-
-    return total_bytes_rcv;
-
-}
-
-
-
-/*
-
- * Read a header from the array, returning the first entry
-
+ * and OPTIONS at this point... anyone who wants to write a generic
+ * handler for PUT or POST is free to do so, but it seems unwise to provide
+ * any defaults yet... So, for now, we assume that this will always be
+ * the last handler called and return 405 or 501.
  */
 
-struct hdr_entry *
-
-          ap_proxy_get_header(array_header *hdrs_arr, const char *name)
-
+static int default_handler (request_rec *r)
 {
-
-    struct hdr_entry *hdrs;
-
-    int i;
-
-
-
-    hdrs = (struct hdr_entry *) hdrs_arr->elts;
-
-    for (i = 0; i < hdrs_arr->nelts; i++)
-
-	if (hdrs[i].field != NULL && strcasecmp(name, hdrs[i].field) == 0)
-
-	    return &hdrs[i];
-
-
-
-    return NULL;
-
-}
-
-
-
-/*
-
- * Add to the header reply, either concatenating, or replacing existin
-
- * headers. It stores the pointers provided, so make sure the data
-
- * is not subsequently overwritten
-
- */
-
-struct hdr_entry *
-
-          ap_proxy_add_header(array_header *hdrs_arr, const char *field, const char *value,
-
-			   int rep)
-
-{
-
-    int i;
-
-    struct hdr_entry *hdrs;
-
-
-
-    hdrs = (struct hdr_entry *) hdrs_arr->elts;
-
-    if (rep)
-
-	for (i = 0; i < hdrs_arr->nelts; i++)
-
-	    if (hdrs[i].field != NULL && strcasecmp(field, hdrs[i].field) == 0) {
-
-		hdrs[i].value = value;
-
-		return hdrs;
-
-	    }
-
-
-
-    hdrs = ap_push_array(hdrs_arr);
-
-    hdrs->field = field;
-
-    hdrs->value = value;
-
-
-
-    return hdrs;
-
-}
-
-
-
-void ap_proxy_del_header(array_header *hdrs_arr, const char *field)
-
-{
-
-    int i;
-
-    struct hdr_entry *hdrs;
-
-
-
-    hdrs = (struct hdr_entry *) hdrs_arr->elts;
-
-
-
-    for (i = 0; i < hdrs_arr->nelts; i++)
-
-	if (hdrs[i].field != NULL && strcasecmp(field, hdrs[i].field) == 0)
-
-	    hdrs[i].value = NULL;
-
-}
-
-
-
-/*
-
- * Sends response line and headers.  Uses the client fd and the 
-
- * headers_out array from the passed request_rec to talk to the client
-
- * and to properly set the headers it sends for things such as logging.
-
- * 
-
- * A timeout should be set before calling this routine.
-
- */
-
-void ap_proxy_send_headers(request_rec *r, const char *respline, array_header *hdrs_arr)
-
-{
-
-    struct hdr_entry *hdrs;
-
-    int i;
-
-    BUFF *fp = r->connection->client;
-
-
-
-    hdrs = (struct hdr_entry *) hdrs_arr->elts;
-
-
-
-    ap_bputs(respline, fp);
-
-    ap_bputs(CRLF, fp);
-
-    for (i = 0; i < hdrs_arr->nelts; i++) {
-
-	if (hdrs[i].field == NULL)
-
-	    continue;
-
-	ap_bvputs(fp, hdrs[i].field, ": ", hdrs[i].value, CRLF, NULL);
-
-	ap_table_set(r->headers_out, hdrs[i].field, hdrs[i].value);
-
+    core_dir_config *d =
+      (core_dir_config *)ap_get_module_config(r->per_dir_config, &core_module);
+    int rangestatus, errstatus;
+    FILE *f;
+#ifdef USE_MMAP_FILES
+    caddr_t mm;
+#endif
+
+    if (r->handler) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING,
+	    r->server, "handler \"%s\" not found, using default "
+	    "handler for: %s", r->handler, r->filename);
     }
 
+    /* This handler has no use for a request body (yet), but we still
+     * need to read and discard it if the client sent one.
+     */
+    if ((errstatus = ap_discard_request_body(r)) != OK)
+        return errstatus;
 
+    r->allowed |= (1 << M_GET) | (1 << M_OPTIONS);
 
-    ap_bputs(CRLF, fp);
+    if (r->method_number == M_INVALID) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		    "Invalid method in request %s", r->the_request);
+	return NOT_IMPLEMENTED;
+    }
+    if (r->method_number == M_OPTIONS) return ap_send_http_options(r);
+    if (r->method_number == M_PUT) return METHOD_NOT_ALLOWED;
 
-}
+    if (r->finfo.st_mode == 0 || (r->path_info && *r->path_info)) {
+	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server, 
+                    "File does not exist: %s", r->path_info ? 
+                    ap_pstrcat(r->pool, r->filename, r->path_info, NULL)
+		    : r->filename);
+	return NOT_FOUND;
+    }
+    if (r->method_number != M_GET) return METHOD_NOT_ALLOWED;
+	
+#if defined(__EMX__) || defined(WIN32)
+    /* Need binary mode for OS/2 */
+    f = ap_pfopen (r->pool, r->filename, "rb");
+#else
+    f = ap_pfopen (r->pool, r->filename, "r");
+#endif
 
+    if (f == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		    "file permissions deny server access: %s", r->filename);
+        return FORBIDDEN;
+    }
+	
+    ap_update_mtime (r, r->finfo.st_mtime);
+    ap_set_last_modified(r);
+    ap_set_etag(r);
+    ap_table_setn(r->headers_out, "Accept-Ranges", "bytes");
+    if (((errstatus = ap_meets_conditions(r)) != OK)
+	|| (errstatus = ap_set_content_length (r, r->finfo.st_size))) {
+	    return errstatus;
+    }
 
+#ifdef USE_MMAP_FILES
+    ap_block_alarms();
+    if ((r->finfo.st_size >= MMAP_THRESHOLD)
+	&& ( !r->header_only || (d->content_md5 & 1))) {
+	/* we need to protect ourselves in case we die while we've got the
+ 	 * file mmapped */
+	mm = mmap (NULL, r->finfo.st_size, PROT_READ, MAP_PRIVATE,
+		    fileno(f), 0);
+	if (mm == (caddr_t)-1) {
+	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
+			"default_handler: mmap failed: %s", r->filename);
+	}
+    } else {
+	mm = (caddr_t)-1;
+    }
 
+    if (mm == (caddr_t)-1) {
+	ap_unblock_alarms();
+#endif
 
+	if (d->content_md5 & 1) {
+	    ap_table_setn(r->headers_out, "Content-MD5", ap_md5digest(r->pool, f));
+	}
 
+	rangestatus = ap_set_byterange(r);
+#ifdef CHARSET_EBCDIC
+	/* To make serving of "raw ASCII text" files easy (they serve faster 
+	 * since they don't have to be converted from EBCDIC), a new

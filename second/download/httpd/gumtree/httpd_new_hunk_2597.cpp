@@ -1,44 +1,31 @@
-	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
 
-    /* does the password look like an email address ? */
+    /* Pass one --- direct matches */
 
-	   && ((!sec->auth_anon_verifyemail)
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            result = (*handp->hr.handler) (r);
 
-	       || ((strpbrk("@", sent_pw) != NULL)
-
-		   && (strpbrk(".", sent_pw) != NULL)))) {
-
-	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r,
-
-			"Anonymous: Passwd <%s> Accepted",
-
-			sent_pw ? sent_pw : "\'none\'");
-
-	}
-
-	return OK;
-
+            if (result != DECLINED)
+                return result;
+        }
     }
 
-    else {
-
-	if (sec->auth_anon_authoritative) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-			"Anonymous: Authoritative, Passwd <%s> not accepted",
-
-			sent_pw ? sent_pw : "\'none\'");
-
-	    return AUTH_REQUIRED;
-
-	}
-
-	/* Drop out the bottom to return DECLINED */
-
+    if (result == NOT_IMPLEMENTED && r->handler) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
     }
 
-++ apache_1.3.2/src/modules/standard/mod_auth.c	1998-08-07 01:30:54.000000000 +0800
+    /* Pass two --- wildcard matches */
 
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             result = (*handp->hr.handler) (r);
+
+             if (result != DECLINED)
+                 return result;
+         }
+    }
+
+++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800

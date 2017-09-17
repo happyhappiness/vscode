@@ -1,62 +1,13 @@
-    const char *location;
-
-
-
-    r->allowed |= (1 << M_GET);
-
-    if (r->method_number != M_GET)
-
-	return DECLINED;
-
-    if (r->finfo.st_mode == 0) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		    "File does not exist: %s", r->filename);
-
-	return NOT_FOUND;
-
+    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (dsock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating PASV socket");
+	ap_bclose(f);
+	ap_kill_timeout(r);
+	return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-
-
-    f = ap_pfopen(r->pool, r->filename, "r");
-
-
-
-    if (f == NULL) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		    "file permissions deny server access: %s", r->filename);
-
-	return FORBIDDEN;
-
-    }
-
-
-
-    scan_script_header(r, f);
-
-    location = ap_table_get(r->headers_out, "Location");
-
-
-
-    if (location && location[0] == '/' &&
-
-	((r->status == HTTP_OK) || ap_is_HTTP_REDIRECT(r->status))) {
-
-
-
-	ap_pfclose(r->pool, f);
-
-
-
-	/* Internal redirect -- fake-up a pseudo-request */
-
-	r->status = HTTP_OK;
-
-
-
-++ apache_1.3.2/src/modules/standard/mod_auth_anon.c	1998-08-07 01:30:54.000000000 +0800
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
+	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,

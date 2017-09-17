@@ -1,26 +1,13 @@
-    /* Set the status (for logging) */
+}
 
-    if (ecb->dwHttpStatusCode)
+#ifdef USE_PERL_SSI
+static int handle_perl(FILE *in, request_rec *r, const char *error)
+{
+    char tag[MAX_STRING_LEN];
+    char parsed_string[MAX_STRING_LEN];
+    char *tag_val;
+    SV *sub = Nullsv;
+    AV *av = newAV();
 
-	r->status = ecb->dwHttpStatusCode;
-
-
-
-    /* Check for a log message - and log it */
-
-    if (ecb->lpszLogData && strcmp(ecb->lpszLogData, ""))
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		    "%s: %s", ecb->lpszLogData, r->filename);
-
-
-
-    /* All done with the DLL... get rid of it */
-
-    if (isapi_term) (*isapi_term)(HSE_TERM_MUST_UNLOAD);
-
-    FreeLibrary(isapi_handle);
-
-
-
+    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

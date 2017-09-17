@@ -1,26 +1,12 @@
-#endif
 
-        *printing = 1;
+    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
+	return (ap_suexec_enabled);
 
-        *conditional_status = 1;
-
-        return 0;
-
+    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
+	ap_suexec_enabled = 1;
     }
-
-    else {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "endif directive does not take tags in %s",
-
-		    r->filename);
-
-        ap_rputs(error, r);
-
-        return -1;
-
-    }
-
+#endif /* ndef WIN32 */
+    return (ap_suexec_enabled);
 }
 
+/*****************************************************************

@@ -1,34 +1,42 @@
-	/* TM - Added \015\012 to the end of TYPE I, otherwise it hangs the
+	ap_destroy_sub_req(pa_req);
+    }
+}
 
-	   connection */
 
-	ap_bputs("TYPE I" CRLF, f);
+static int scan_script_header_err_core(request_rec *r, char *buffer,
+		 int (*getsfunc) (char *, int, void *), void *getsfunc_data)
+{
+    char x[MAX_STRING_LEN];
+    char *w, *l;
+    int p;
+    int cgi_status = HTTP_OK;
 
-	ap_bflush(f);
+    if (buffer)
+	*buffer = '\0';
+    w = buffer ? buffer : x;
 
-	Explain0("FTP: TYPE I");
+    ap_hard_timeout("read script header", r);
 
-/* responses: 200, 421, 500, 501, 504, 530 */
+    while (1) {
 
-	i = ftp_getrc(f);
-
-	Explain1("FTP: returned status %d", i);
-
-	if (i == -1) {
-
+	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
 	    ap_kill_timeout(r);
-
-	    return ap_proxyerror(r, "Error sending to remote server");
-
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"Premature end of script headers: %s", r->filename);
+	    return SERVER_ERROR;
 	}
 
-	if (i != 200 && i != 504) {
+	/* Delete terminal (CR?)LF */
 
-	    ap_kill_timeout(r);
-
-	    return HTTP_BAD_GATEWAY;
-
+	p = strlen(w);
+	if (p > 0 && w[p - 1] == '\n') {
+	    if (p > 1 && w[p - 2] == '\015')
+		w[p - 2] = '\0';
+	    else
+		w[p - 1] = '\0';
 	}
 
-/* Allow not implemented */
-
+	/*
+	 * If we've finished reading the headers, check to make sure any
+	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
+	 * will handle the script's output.  If not, just return the error.

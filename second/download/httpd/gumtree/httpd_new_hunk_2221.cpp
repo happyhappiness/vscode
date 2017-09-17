@@ -1,26 +1,28 @@
-        for (i = 0; i < arr->nelts; ++i) {
-
-            ap_rvputs(r, elts[i].key, "=", elts[i].val, "\n", NULL);
-
-        }
-
-        return 0;
-
+	     */
+	    break;
+#endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
-    else {
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "printenv directive does not take tags in %s",
-
-		    r->filename);
-
-        ap_rputs(error, r);
-
-        return -1;
-
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
     }
 
-}
+    child_timeouts = !ap_standalone || one_process;
 
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

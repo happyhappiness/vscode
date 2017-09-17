@@ -1,26 +1,33 @@
-{
+	    p->next = head;
+	    head = p;
+	    num_ent++;
+	}
+    }
+    if (num_ent > 0) {
+	ar = (struct ent **) ap_palloc(r->pool,
+				       num_ent * sizeof(struct ent *));
+	p = head;
+	x = 0;
+	while (p) {
+	    ar[x++] = p;
+	    p = p->next;
+	}
 
-    int suffix_pos, result;
+	qsort((void *) ar, num_ent, sizeof(struct ent *),
+	      (int (*)(const void *, const void *)) dsortf);
+    }
+    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
+		       direction);
+    ap_pclosedir(r->pool, d);
 
-    char *sub_filename;
+    if ((tmp = find_readme(autoindex_conf, r))) {
+	if (!insert_readme(name, tmp, "",
+			   ((autoindex_opts & FANCY_INDEXING) ? HRULE
+			                                      : NO_HRULE),
+			   END_MATTER, r)) {
+	    ap_rputs(ap_psignature("<HR>\n", r), r);
+	}
+    }
+    ap_rputs("</BODY></HTML>\n", r);
 
-    request_rec *sub;
-
-
-
-#if MIME_MAGIC_DEBUG
-
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-		MODNAME ": revision_suffix checking %s", r->filename);
-
-#endif /* MIME_MAGIC_DEBUG */
-
-
-
-    /* check for recognized revision suffix */
-
-    suffix_pos = strlen(r->filename) - 1;
-
-    if (!ap_isdigit(r->filename[suffix_pos])) {
-
+    ap_kill_timeout(r);

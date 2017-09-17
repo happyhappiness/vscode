@@ -1,26 +1,13 @@
-}
+	return ap_proxyerror(r, err);	/* give up */
 
+    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating socket");
+	return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-
-#ifdef USE_PERL_SSI
-
-static int handle_perl(FILE *in, request_rec *r, const char *error)
-
-{
-
-    char tag[MAX_STRING_LEN];
-
-    char parsed_string[MAX_STRING_LEN];
-
-    char *tag_val;
-
-    SV *sub = Nullsv;
-
-    AV *av = newAV();
-
-
-
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
+		       (const char *) &conf->recv_buffer_size, sizeof(int))
+	    == -1) {

@@ -1,26 +1,15 @@
+#if TESTING
+		fprintf(stderr, "Would remove directory %s\n", newcachedir);
+#else
+		rmdir(newcachedir);
+#endif
+		--nfiles;
+	    } else {
+		/* Directory is not empty. Account for its size: */
+		add_long61(&curbytes, ROUNDUP2BLOCKS(buf.st_size));
+	    }
+	    continue;
+	}
+#endif
 
-
-    /*
-
-     * Now that we are ready to send a response, we need to combine the two
-
-     * header field tables into a single table.  If we don't do this, our
-
-     * later attempts to set or unset a given fieldname might be bypassed.
-
-     */
-
-    if (!ap_is_empty_table(r->err_headers_out))
-
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-
-                                        r->headers_out);
-
-
-
-    ap_hard_timeout("send headers", r);
-
-
-
-    ap_basic_http_header(r);
-
+	i = read(fd, line, 26);

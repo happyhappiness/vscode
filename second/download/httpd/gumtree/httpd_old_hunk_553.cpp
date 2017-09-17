@@ -1,26 +1,13 @@
+	return ap_proxyerror(r, err);	/* give up */
 
-
-    /* Host names must not start with a '.' */
-
-    if (addr[0] == '.')
-
-	return 0;
-
-
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-
-
-#if 0
-
-    if (addr[i] == ':') {
-
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-
-	/* @@@@ handle optional port */
-
+    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating socket");
+	return SERVER_ERROR;
     }
 
+    if (conf->recv_buffer_size) {
+	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
+		       (const char *) &conf->recv_buffer_size, sizeof(int))
+	    == -1) {

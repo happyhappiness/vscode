@@ -1,62 +1,14 @@
-                                    r->proxyreq ? "Proxy-Authorization"
-
-                                    : "Authorization");
-
-    int l;
-
-    int s, vk = 0, vv = 0;
-
-    const char *t;
-
-    char *key, *value;
-
-
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-
-	return DECLINED;
-
-
-
-    if (!ap_auth_name(r)) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		    "need AuthName: %s", r->uri);
-
-	return SERVER_ERROR;
-
-    }
-
-
-
-    if (!auth_line) {
-
-	ap_note_digest_auth_failure(r);
-
-	return AUTH_REQUIRED;
-
-    }
-
-
-
-    if (strcasecmp(ap_getword(r->pool, &auth_line, ' '), "Digest")) {
-
-	/* Client tried to authenticate using wrong auth scheme */
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		    "client used wrong authentication scheme: %s", r->uri);
-
-	ap_note_digest_auth_failure(r);
-
-	return AUTH_REQUIRED;
-
-    }
-
-
-
-    l = strlen(auth_line);
-
-
-
+	     * how libraries and such are going to fail.  If we can't
+	     * do this F_DUPFD there's a good chance that apache has too
+	     * few descriptors available to it.  Note we don't warn on
+	     * the high line, because if it fails we'll eventually try
+	     * the low line...
+	     */
+	    ap_log_error(APLOG_MARK, APLOG_ERR, NULL,
+		        "unable to open a file descriptor above %u, "
+			"you may need to increase the number of descriptors",
+			LOW_SLACK_LINE);
+	    low_warned = 1;
+	}
+	return fd;
+-- apache_1.3.0/src/ap/ap_snprintf.c	1998-05-12 01:49:21.000000000 +0800

@@ -1,20 +1,20 @@
-/* Automatically generated file - do not edit */
-
-
-
-#ifndef LINUX
-
-#define LINUX 2
-
 #endif
 
-#ifndef USE_HSREGEX
+    ap_soft_timeout("send body", r);
 
-#define USE_HSREGEX 
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
 
-#endif
-
-nly in apache_1.3.1/src/include: ap_ctype.h
-
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
-
+        do {
+            n = ap_bread(fb, buf, len);
+            if (n >= 0 || r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

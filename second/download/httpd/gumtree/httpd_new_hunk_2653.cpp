@@ -1,26 +1,15 @@
-            ap_rputs("     Evaluate ge/gt/le/lt\n", r);
+    ap_hard_timeout("send directory", r);
 
-#endif
+    /* Spew HTML preamble */
 
-            if ((current->left == (struct parse_node *) NULL) ||
+    title_endp = title_name + strlen(title_name) - 1;
 
-                (current->right == (struct parse_node *) NULL) ||
+    while (title_endp > title_name && *title_endp == '/') {
+	*title_endp-- = '\0';
+    }
 
-                (current->left->token.type != token_string) ||
-
-                (current->right->token.type != token_string)) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "Invalid expression \"%s\" in file %s",
-
-                            expr, r->filename);
-
-                ap_rputs(error, r);
-
-                goto RETURN;
-
-            }
-
-            parse_string(r, current->left->token.value,
-
+    if ((!(tmp = find_header(autoindex_conf, r)))
+	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
+	) {
+	emit_preamble(r, title_name);
+	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);

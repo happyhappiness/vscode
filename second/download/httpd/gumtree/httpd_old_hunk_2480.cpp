@@ -1,26 +1,13 @@
-                    rewritelog(r, 5, "map lookup FAILED: map=%s key=%s",
-
-                               s->name, key);
-
-                }
-
-            }
-
-            else if (s->type == MAPTYPE_RND) {
-
-                if (stat(s->checkfile, &st) == -1) {
-
-                    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-                                 "mod_rewrite: can't access text RewriteMap "
-
-                                 "file %s", s->checkfile);
-
-                    rewritelog(r, 1, "can't open RewriteMap file, "
-
-                               "see error log");
-
-                    return NULL;
-
-                }
-
+    if (i == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
+		     "PASV: control connection is toast");
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	ap_kill_timeout(r);
+	return SERVER_ERROR;
+    }
+    else {
+	pasv[i - 1] = '\0';
+	pstr = strtok(pasv, " ");	/* separate result code */
+	if (pstr != NULL) {
+	    presult = atoi(pstr);

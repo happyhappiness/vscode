@@ -1,26 +1,24 @@
-                case token_lt:
 
-                    current = current->parent;
+static char *lcase_header_name_return_body(char *header, request_rec *r)
+{
+    char *cp = header;
 
-                    continue;
+    for ( ; *cp && *cp != ':' ; ++cp) {
+        *cp = ap_tolower(*cp);
+    }
 
-                case token_lbrace:
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    "Syntax error in type map --- no ':': %s", r->filename);
+        return NULL;
+    }
 
-                    break;
+    do {
+        ++cp;
+    } while (*cp && ap_isspace(*cp));
 
-                default:
-
-                    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                                "Invalid expression \"%s\" in file %s",
-
-                                expr, r->filename);
-
-                    ap_rputs(error, r);
-
-                    goto RETURN;
-
-                }
-
-                break;
-
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    "Syntax error in type map --- no header body: %s",
+                    r->filename);
+        return NULL;

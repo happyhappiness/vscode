@@ -1,34 +1,26 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
 
-    if (err != NULL) {
+    /* Pass one --- direct matches */
 
-        return err;
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
 
+            if (result != DECLINED)
+                return result;
+        }
     }
 
+    /* Pass two --- wildcard matches */
 
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
-    ap_threads_per_child = atoi(arg);
-
-#ifdef WIN32
-
-    if (ap_threads_per_child > 64) {
-
-	return "Can't have more than 64 threads in Windows (for now)";
-
+             if (result != DECLINED)
+                 return result;
+         }
     }
 
-#endif
-
-
-
-    return NULL;
-
-}
-
-
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-
-{
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

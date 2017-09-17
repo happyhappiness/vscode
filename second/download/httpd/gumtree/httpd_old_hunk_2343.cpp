@@ -1,44 +1,14 @@
-	    else {
+    ap_hard_timeout("send directory", r);
 
-		grpname = gr->gr_name;
+    /* Spew HTML preamble */
 
-	    }
+    title_endp = title_name + strlen(title_name) - 1;
 
-	}
+    while (title_endp > title_name && *title_endp == '/')
+	*title_endp-- = '\0';
 
-	else {
-
-	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
-
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			     "getpwuid: invalid userid %ld",
-
-			     (long) r->server->server_uid);
-
-		return (pid);
-
-	    }
-
-	    execuser = ap_pstrdup(r->pool, pw->pw_name);
-
-
-
-	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
-
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			     "getgrgid: invalid groupid %ld",
-
-			     (long) r->server->server_gid);
-
-		return (pid);
-
-	    }
-
-	    grpname = gr->gr_name;
-
-	}
-
--- apache_1.3.1/src/modules/example/mod_example.c	1998-06-15 05:10:25.000000000 +0800
-
+    if ((!(tmp = find_header(autoindex_conf, r)))
+	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
+	) {
+	emit_preamble(r, title_name);
+	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);

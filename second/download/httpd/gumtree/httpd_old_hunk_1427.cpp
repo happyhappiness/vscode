@@ -1,26 +1,9 @@
-#if defined(WIN32)
+/* Automatically generated file - do not edit */
 
-    child_pid = spawnvp(compr[parm->method].argv[0],
-
-			compr[parm->method].argv);
-
-    return (child_pid);
-
-#else
-
-    execvp(compr[parm->method].argv[0], compr[parm->method].argv);
-
-    ap_log_error(APLOG_MARK, APLOG_ERR, parm->r->server,
-
-		MODNAME ": could not execute `%s'.",
-
-		compr[parm->method].argv[0]);
-
-    return -1;
-
+#ifndef LINUX
+#define LINUX 2
 #endif
-
-}
-
-
-
+#ifndef USE_HSREGEX
+#define USE_HSREGEX 
+#endif
+-- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800

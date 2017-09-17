@@ -1,92 +1,133 @@
-	ap_destroy_sub_req(pa_req);
+static const char end_location_section[] = "</Location>";
+static const char end_locationmatch_section[] = "</LocationMatch>";
+static const char end_files_section[] = "</Files>";
+static const char end_filesmatch_section[] = "</FilesMatch>";
+static const char end_virtualhost_section[] = "</VirtualHost>";
+static const char end_ifmodule_section[] = "</IfModule>";
+static const char end_ifdefine_section[] = "</IfDefine>";
 
+
+API_EXPORT(const char *) ap_check_cmd_context(cmd_parms *cmd,
+					      unsigned forbidden)
+{
+    const char *gt = (cmd->cmd->name[0] == '<'
+		      && cmd->cmd->name[strlen(cmd->cmd->name)-1] != '>')
+                         ? ">" : "";
+
+    if ((forbidden & NOT_IN_VIRTUALHOST) && cmd->server->is_virtual) {
+	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
+			  " cannot occur within <VirtualHost> section", NULL);
     }
 
+    if ((forbidden & NOT_IN_LIMIT) && cmd->limited != -1) {
+	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
+			  " cannot occur within <Limit> section", NULL);
+    }
+
+    if ((forbidden & NOT_IN_DIR_LOC_FILE) == NOT_IN_DIR_LOC_FILE
+	&& cmd->path != NULL) {
+	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
+			  " cannot occur within <Directory/Location/Files> "
+			  "section", NULL);
+    }
+    
+    if (((forbidden & NOT_IN_DIRECTORY)
+	 && (cmd->end_token == end_directory_section
+	     || cmd->end_token == end_directorymatch_section)) 
+	|| ((forbidden & NOT_IN_LOCATION)
+	    && (cmd->end_token == end_location_section
+		|| cmd->end_token == end_locationmatch_section)) 
+	|| ((forbidden & NOT_IN_FILES)
+	    && (cmd->end_token == end_files_section
+		|| cmd->end_token == end_filesmatch_section))) {
+	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
+			  " cannot occur within <", cmd->end_token+2,
+			  " section", NULL);
+    }
+
+    return NULL;
 }
 
-
-
-
-
-static int scan_script_header_err_core(request_rec *r, char *buffer,
-
-				       int (*getsfunc) (char *, int, void *),
-
-				       void *getsfunc_data)
-
+static const char *set_access_name(cmd_parms *cmd, void *dummy, char *arg)
 {
+    void *sconf = cmd->server->module_config;
+    core_server_config *conf = ap_get_module_config(sconf, &core_module);
 
-    char x[MAX_STRING_LEN];
-
-    char *w, *l;
-
-    int p;
-
-    int cgi_status = HTTP_OK;
-
-
-
-    if (buffer) {
-
-	*buffer = '\0';
-
+    const char *err = ap_check_cmd_context(cmd,
+					   NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
+    if (err != NULL) {
+        return err;
     }
 
-    w = buffer ? buffer : x;
+    conf->access_name = ap_pstrdup(cmd->pool, arg);
+    return NULL;
+}
 
+static const char *set_document_root(cmd_parms *cmd, void *dummy, char *arg)
+{
+    void *sconf = cmd->server->module_config;
+    core_server_config *conf = ap_get_module_config(sconf, &core_module);
+  
+    const char *err = ap_check_cmd_context(cmd,
+					   NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
+    if (err != NULL) {
+        return err;
+    }
 
-
-    ap_hard_timeout("read script header", r);
-
-
-
-    while (1) {
-
-
-
-	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
-
-	    ap_kill_timeout(r);
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			 "Premature end of script headers: %s", r->filename);
-
-	    return SERVER_ERROR;
-
+    arg = ap_os_canonical_filename(cmd->pool, arg);
+    if (!ap_is_directory(arg)) {
+	if (cmd->server->is_virtual) {
+	    fprintf(stderr, "Warning: DocumentRoot [%s] does not exist\n",
+		    arg);
 	}
-
-
-
-	/* Delete terminal (CR?)LF */
-
-
-
-	p = strlen(w);
-
-	if (p > 0 && w[p - 1] == '\n') {
-
-	    if (p > 1 && w[p - 2] == '\015') {
-
-		w[p - 2] = '\0';
-
-	    }
-
-	    else {
-
-		w[p - 1] = '\0';
-
-	    }
-
+	else {
+	    return "DocumentRoot must be a directory";
 	}
+    }
+    
+    conf->ap_document_root = arg;
+    return NULL;
+}
 
+static const char *set_error_document(cmd_parms *cmd, core_dir_config *conf,
+				      char *line)
+{
+    int error_number, index_number, idx500;
+    char *w;
+                
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_LIMIT);
+    if (err != NULL) {
+        return err;
+    }
 
+    /* 1st parameter should be a 3 digit number, which we recognize;
+     * convert it into an array index
+     */
+  
+    w = ap_getword_conf_nc(cmd->pool, &line);
+    error_number = atoi(w);
 
-	/*
+    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
 
-	 * If we've finished reading the headers, check to make sure any
+    if (error_number == HTTP_INTERNAL_SERVER_ERROR) {
+        index_number = idx500;
+    }
+    else if ((index_number = ap_index_of_response(error_number)) == idx500) {
+        return ap_pstrcat(cmd->pool, "Unsupported HTTP response code ",
+			  w, NULL);
+    }
+                
+    /* Store it... */
 
-	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
+    if (conf->response_code_strings == NULL) {
+	conf->response_code_strings =
+	    ap_pcalloc(cmd->pool,
+		       sizeof(*conf->response_code_strings) * RESPONSE_CODES);
+    }
+    conf->response_code_strings[index_number] = ap_pstrdup(cmd->pool, line);
 
-	 * will handle the script's output.  If not, just return the error.
+    return NULL;
+}
 
+/* access.conf commands...
+ *

@@ -1,72 +1,21 @@
-/* --------------------------------------------------------- */
+#else
+    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
+#endif
 
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
 
-
-/* simple little function to perror and exit */
-
-
-
-static void err(char *s)
-
-{
-
-    if (errno) {
-
-    	perror(s);
-
+    if (conf->rewritelogfile == NULL) {
+        return;
+    }
+    if (*(conf->rewritelogfile) == '\0') {
+        return;
+    }
+    if (conf->rewritelogfp > 0) {
+        return; /* virtual log shared w/ main server */
     }
 
-    else {
+    fname = ap_server_root_relative(p, conf->rewritelogfile);
 
-	printf("%s", s);
-
-    }
-
-    exit(errno);
-
-}
-
-
-
-/* --------------------------------------------------------- */
-
-
-
-/* write out request to a connection - assumes we can write 
-
-   (small) request out in one go into our new socket buffer  */
-
-
-
-static void write_request(struct connection *c)
-
-{
-
-    gettimeofday(&c->connect, 0);
-
-    /* XXX: this could use writev for posting -- more efficient -djg */
-
-    write(c->fd, request, reqlen);
-
-    if (posting) {
-
-        write(c->fd,postdata, postlen);
-
-        totalposted += (reqlen + postlen); 
-
-    }
-
-
-
-    c->state = STATE_READ;
-
-    FD_SET(c->fd, &readbits);
-
-    FD_CLR(c->fd, &writebits);
-
-}
-
-
-
-/* --------------------------------------------------------- */
-
+    if (*conf->rewritelogfile == '|') {
+        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, s, 

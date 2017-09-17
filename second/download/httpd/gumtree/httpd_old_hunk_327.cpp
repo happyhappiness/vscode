@@ -1,24 +1,20 @@
-}
+	     */
+	    break;
+#endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
+    }
 
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
+    child_timeouts = !ap_standalone || one_process;
 
-#ifdef USE_PERL_SSI
-
-static int handle_perl(FILE *in, request_rec *r, const char *error)
-
-{
-
-    char tag[MAX_STRING_LEN];
-
-    char *tag_val;
-
-    SV *sub = Nullsv;
-
-    AV *av = newAV();
-
-
-
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

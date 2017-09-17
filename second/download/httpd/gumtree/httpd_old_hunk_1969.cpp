@@ -1,26 +1,13 @@
-static int log_scripterror(request_rec *r, cgi_server_conf * conf, int ret,
+    rr->content_type = CGI_MAGIC_TYPE;
 
-			   int show_errno, char *error)
+    /* Run it. */
 
-{
+    rr_status = ap_run_sub_req(rr);
+    if (is_HTTP_REDIRECT(rr_status)) {
+        char *location = ap_table_get(rr->headers_out, "Location");
+        location = ap_escape_html(rr->pool, location);
+        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+    }
 
-    FILE *f;
-
-    struct stat finfo;
-
-
-
-    ap_log_error(APLOG_MARK, show_errno|APLOG_ERR, r->server, 
-
-		"%s: %s", error, r->filename);
-
-
-
-    if (!conf->logname ||
-
-	((stat(ap_server_root_relative(r->pool, conf->logname), &finfo) == 0)
-
-	 &&   (finfo.st_size > conf->logbytes)) ||
-
-         ((f = ap_pfopen(r->pool, ap_server_root_relative(r->pool, conf->logname),
-
+    ap_destroy_sub_req(rr);
+#ifndef WIN32

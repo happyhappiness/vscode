@@ -1,26 +1,31 @@
 
+    /* Pass one --- direct matches */
 
-    rr->content_type = CGI_MAGIC_TYPE;
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            result = (*handp->hr.handler) (r);
 
-
-
-    /* Run it. */
-
-
-
-    rr_status = ap_run_sub_req(rr);
-
-    if (ap_is_HTTP_REDIRECT(rr_status)) {
-
-        const char *location = ap_table_get(rr->headers_out, "Location");
-
-        location = ap_escape_html(rr->pool, location);
-
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
-
+            if (result != DECLINED)
+                return result;
+        }
     }
 
+    if (result == NOT_IMPLEMENTED && r->handler) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    }
 
+    /* Pass two --- wildcard matches */
 
-    ap_destroy_sub_req(rr);
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             result = (*handp->hr.handler) (r);
 
+             if (result != DECLINED)
+                 return result;
+         }
+    }
+
+++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800

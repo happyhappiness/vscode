@@ -1,70 +1,29 @@
 	}
 
-	ap_destroy_sub_req(pa_req);
-
-    }
-
-}
-
-
-
-
-
-static int scan_script_header_err_core(request_rec *r, char *buffer,
-
-				       int (*getsfunc) (char *, int, void *),
-
-				       void *getsfunc_data)
-
-{
-
-    char x[MAX_STRING_LEN];
-
-    char *w, *l;
-
-    int p;
-
-    int cgi_status = HTTP_OK;
-
-
-
-    if (buffer) {
-
-	*buffer = '\0';
-
-    }
-
-    w = buffer ? buffer : x;
-
-
-
-    ap_hard_timeout("read script header", r);
-
-
-
-    while (1) {
-
-
-
-	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
-
-	    ap_kill_timeout(r);
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			 "Premature end of script headers: %s", r->filename);
-
-	    return SERVER_ERROR;
-
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (isspace(*src))
+		++src;
 	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && isspace(*dst))
+	    *dst = '\0';
 
-
-
-	/* Delete terminal (CR?)LF */
-
-
-
-	p = strlen(w);
-
-	if (p > 0 && w[p - 1] == '\n') {
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

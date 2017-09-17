@@ -1,50 +1,15 @@
-    DBT d, q;
+            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+        }
 
-    char *pw = NULL;
-
-
-
-    q.data = user;
-
-    q.size = strlen(q.data);
-
-
-
-    if (!(f = dbopen(auth_dbpwfile, O_RDONLY, 0664, DB_HASH, NULL))) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    "could not open db auth file: %s", auth_dbpwfile);
-
-	return NULL;
-
+        r->read_chunked = 1;
     }
+    else if (lenp) {
+        char *pos = lenp;
 
-
-
-    if (!((f->get) (f, &q, &d, 0))) {
-
-	pw = ap_palloc(r->pool, d.size + 1);
-
-	strncpy(pw, d.data, d.size);
-
-	pw[d.size] = '\0';	/* Terminate the string */
-
-    }
-
-
-
-    (f->close) (f);
-
-    return pw;
-
-}
-
-
-
-/* We do something strange with the group file.  If the group file
-
- * contains any : we assume the format is
-
- *      key=username value=":"groupname [":"anything here is ignored]
-
+        while (isdigit(*pos) || isspace(*pos))
+            ++pos;
+        if (*pos != '\0') {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }

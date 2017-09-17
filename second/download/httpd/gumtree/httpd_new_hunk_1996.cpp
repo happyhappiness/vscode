@@ -1,26 +1,13 @@
-        case token_le:
 
-        case token_lt:
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!ap_is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-#ifdef DEBUG_INCLUDE
+    ap_hard_timeout("send headers", r);
 
-            ap_rputs("     Token: eq/ne/ge/gt/le/lt\n", r);
-
-#endif
-
-            if (current == (struct parse_node *) NULL) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "Invalid expression \"%s\" in file %s",
-
-                            expr, r->filename);
-
-                ap_rputs(error, r);
-
-                goto RETURN;
-
-            }
-
-            /* Percolate upwards */
-
+    ap_basic_http_header(r);

@@ -1,36 +1,13 @@
-	exit(0);
-
+	else
+	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
+				"Could not connect to remote machine: ",
+				strerror(errno), NULL));
     }
 
-    else if (argc != 3)
+    clear_connection(r->headers_in);	/* Strip connection-based headers */
 
-	usage();
+    f = ap_bcreate(p, B_RDWR | B_SOCKET);
+    ap_bpushfd(f, sock, sock);
 
-
-
-    tn = tmpnam(NULL);
-
-    if (!(tfp = fopen(tn, "w"))) {
-
-	fprintf(stderr, "Could not open temp file.\n");
-
-	exit(1);
-
-    }
-
-
-
-    if (!(f = fopen(argv[1], "r"))) {
-
-	fprintf(stderr,
-
-		"Could not open passwd file %s for reading.\n", argv[1]);
-
-	fprintf(stderr, "Use -c option to create new one.\n");
-
-	exit(1);
-
-    }
-
-    strcpy(user, argv[2]);
-
+    ap_hard_timeout("proxy send", r);
+    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,

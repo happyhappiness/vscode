@@ -1,26 +1,18 @@
-            expr = tag_val;
-
-#ifdef DEBUG_INCLUDE
-
-            ap_rvputs(r, "**** if expr=\"", expr, "\"\n", NULL);
-
+#else
+    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
 #endif
 
-        }
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
 
-        else {
+    if (conf->rewritelogfile == NULL)
+        return;
+    if (*(conf->rewritelogfile) == '\0')
+        return;
+    if (conf->rewritelogfp > 0)
+        return; /* virtual log shared w/ main server */
 
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    fname = ap_server_root_relative(p, conf->rewritelogfile);
 
-                        "unknown parameter \"%s\" to tag if in %s",
-
-                        tag, r->filename);
-
-            ap_rputs(error, r);
-
-        }
-
-    }
-
-}
-
+    if (*conf->rewritelogfile == '|') {
+        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, s, 

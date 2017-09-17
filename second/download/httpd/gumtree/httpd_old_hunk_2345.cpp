@@ -1,26 +1,14 @@
-	struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
-
-
-
-	for (direct_connect = ii = 0; ii < conf->dirconn->nelts && !direct_connect; ii++) {
-
-	    direct_connect = list[ii].matcher(&list[ii], r);
-
+	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
 	}
-
-#if DEBUGGING
-
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-
-		     (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
-
-		     r->uri);
-
-#endif
-
+	return index_directory(r, d);
     }
+    else {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		    "Directory index forbidden by rule: %s", r->filename);
+	return HTTP_FORBIDDEN;
+    }
+}
 
 
-
-/* firstly, try a proxy, unless a NoProxy directive is active */
-
+static const handler_rec autoindex_handlers[] =
+-- apache_1.3.0/src/modules/standard/mod_cern_meta.c	1998-04-11 20:00:45.000000000 +0800

@@ -1,26 +1,9 @@
-        set_neg_headers(r, neg, na_list);
+/* Automatically generated file - do not edit */
 
-        store_variant_list(r, neg);
-
-        return MULTIPLE_CHOICES;
-
-    }
-
-
-
-    if (!best) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "no acceptable variant: %s", r->filename);
-
-
-
-        set_neg_headers(r, neg, na_result);
-
-        store_variant_list(r, neg);
-
-        return NOT_ACCEPTABLE;
-
-    }
-
+#ifndef LINUX
+#define LINUX 2
+#endif
+#ifndef USE_HSREGEX
+#define USE_HSREGEX 
+#endif
+-- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800

@@ -1,26 +1,13 @@
+}
 
+#ifdef USE_PERL_SSI
+static int handle_perl(FILE *in, request_rec *r, const char *error)
+{
+    char tag[MAX_STRING_LEN];
+    char parsed_string[MAX_STRING_LEN];
+    char *tag_val;
+    SV *sub = Nullsv;
+    AV *av = newAV();
 
-    /* We are not using multiviews */
-
-    neg->count_multiviews_variants = 0;
-
-
-
-    map = ap_pfopen(neg->pool, rr->filename, "r");
-
-    if (map == NULL) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-                    "cannot access type map file: %s", rr->filename);
-
-        return HTTP_FORBIDDEN;
-
-    }
-
-
-
-    clean_var_rec(&mime_info);
-
-
-
+    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

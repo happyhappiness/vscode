@@ -1,28 +1,33 @@
-    if (!found) {
-
-	printf("Adding user %s in realm %s\n", user, realm);
-
-	add_password(user, realm, tfp);
-
+	    p->next = head;
+	    head = p;
+	    num_ent++;
+	}
     }
+    if (num_ent > 0) {
+	ar = (struct ent **) ap_palloc(r->pool,
+				       num_ent * sizeof(struct ent *));
+	p = head;
+	x = 0;
+	while (p) {
+	    ar[x++] = p;
+	    p = p->next;
+	}
 
-    fclose(f);
+	qsort((void *) ar, num_ent, sizeof(struct ent *),
+	      (int (*)(const void *, const void *)) dsortf);
+    }
+    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
+		       direction);
+    ap_pclosedir(r->pool, d);
 
-    fclose(tfp);
+    if ((tmp = find_readme(autoindex_conf, r))) {
+	if (!insert_readme(name, tmp, "",
+			   ((autoindex_opts & FANCY_INDEXING) ? HRULE
+			                                      : NO_HRULE),
+			   END_MATTER, r)) {
+	    ap_rputs(ap_psignature("<HR>\n", r), r);
+	}
+    }
+    ap_rputs("</BODY></HTML>\n", r);
 
-#if defined(OS2) || defined(WIN32)
-
-    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
-
-#else
-
-    sprintf(command, "cp %s %s", tn, argv[1]);
-
-#endif
-
-    system(command);
-
-    unlink(tn);
-
-++ apache_1.3.2/src/support/rotatelogs.c	1998-08-03 17:15:33.000000000 +0800
-
+    ap_kill_timeout(r);

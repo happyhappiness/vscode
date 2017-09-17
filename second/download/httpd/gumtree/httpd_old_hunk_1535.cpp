@@ -1,32 +1,13 @@
-	else
-
-	    ret = FORBIDDEN;
-
+    if (i == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
+		     "PASV: control connection is toast");
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	ap_kill_timeout(r);
+	return SERVER_ERROR;
     }
-
-
-
-    if (ret == FORBIDDEN
-
-	&& (ap_satisfies(r) != SATISFY_ANY || !ap_some_auth_required(r))) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		  "client %pI denied by server configuration: %s",
-
-		  &r->connection->remote_addr, r->filename);
-
-    }
-
-
-
-    return ret;
-
-}
-
-
-
-
-
--- apache_1.3.1/src/modules/standard/mod_actions.c	1998-06-13 23:23:04.000000000 +0800
-
+    else {
+	pasv[i - 1] = '\0';
+	pstr = strtok(pasv, " ");	/* separate result code */
+	if (pstr != NULL) {
+	    presult = atoi(pstr);

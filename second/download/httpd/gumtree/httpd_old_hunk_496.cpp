@@ -1,82 +1,13 @@
- * field is still a time_t stamp.  By doing that, it is possible for a site to
-
- * have a "flag second" in which they stop all of their old-format servers,
-
- * wait one entire second, and then start all of their new-servers.  This
-
- * procedure will ensure that the new space of identifiers is completely unique
-
- * from the old space.  (Since the first four unencoded bytes always differ.)
-
- */
-
-
-
-static unsigned global_in_addr;
-
-
-
-static APACHE_TLS unique_id_rec cur_unique_id;
-
-
-
-static void unique_id_global_init(server_rec *s, pool *p)
-
-{
-
-#ifndef MAXHOSTNAMELEN
-
-#define MAXHOSTNAMELEN 256
-
-#endif
-
-    char str[MAXHOSTNAMELEN + 1];
-
-    struct hostent *hent;
-
-#ifndef NO_GETTIMEOFDAY
-
-    struct timeval tv;
-
-#endif
-
-
 
     /*
-
-     * First of all, verify some assumptions that have been made about the
-
-     * contents of unique_id_rec.  We do it this way because it isn't
-
-     * affected by trailing padding.
-
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
      */
+    if (!is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-    if (XtOffsetOf(unique_id_rec, counter) + sizeof(cur_unique_id.counter)
+    ap_hard_timeout("send headers", r);
 
-        != 14) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ALERT, s,
-
-                    "mod_unique_id: sorry the size assumptions are wrong "
-
-                    "in mod_unique_id.c, please remove it from your server "
-
-                    "or fix the code!");
-
-        exit(1);
-
-    }
-
-
-
-    /*
-
-     * Now get the global in_addr.  Note that it is not sufficient to use one
-
-     * of the addresses from the main_server, since those aren't as likely to
-
-     * be unique as the physical address of the machine
-
-     */
-
+    ap_basic_http_header(r);

@@ -1,28 +1,15 @@
-		while (groups[0]) {
+            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+        }
 
-		    v = ap_getword(r->pool, &groups, ',');
-
-		    if (!strcmp(v, w))
-
-			return OK;
-
-		}
-
-	    }
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			"user %s not in right group: %s", user, r->filename);
-
-	    ap_note_basic_auth_failure(r);
-
-	    return AUTH_REQUIRED;
-
-	}
-
+        r->read_chunked = 1;
     }
+    else if (lenp) {
+        char *pos = lenp;
 
-
-
--- apache_1.3.1/src/modules/standard/mod_auth_dbm.c	1998-07-04 06:08:50.000000000 +0800
-
+        while (isdigit(*pos) || isspace(*pos))
+            ++pos;
+        if (*pos != '\0') {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }

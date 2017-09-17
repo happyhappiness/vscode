@@ -1,334 +1,98 @@
+	    }
+	}
+#endif
+	return (pid);
+    }
+#else
+    if (ap_suexec_enabled
+	&& ((r->server->server_uid != ap_user_id)
+	    || (r->server->server_gid != ap_group_id)
+	    || (!strncmp("/~", r->uri, 2)))) {
+
+	char *execuser, *grpname;
+	struct passwd *pw;
+	struct group *gr;
+
+	if (!strncmp("/~", r->uri, 2)) {
+	    gid_t user_gid;
+	    char *username = ap_pstrdup(r->pool, r->uri + 2);
+	    char *pos = strchr(username, '/');
+
+	    if (pos) {
+		*pos = '\0';
+	    }
+
+	    if ((pw = getpwnam(username)) == NULL) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "getpwnam: invalid username %s", username);
+		return (pid);
+	    }
+	    execuser = ap_pstrcat(r->pool, "~", pw->pw_name, NULL);
+	    user_gid = pw->pw_gid;
+
+	    if ((gr = getgrgid(user_gid)) == NULL) {
+	        if ((grpname = ap_palloc(r->pool, 16)) == NULL) {
+		    return (pid);
+		}
+		else {
+		    ap_snprintf(grpname, 16, "%ld", (long) user_gid);
+		}
+	    }
+	    else {
+		grpname = gr->gr_name;
+	    }
+	}
 	else {
+	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "getpwuid: invalid userid %ld",
+			     (long) r->server->server_uid);
+		return (pid);
+	    }
+	    execuser = ap_pstrdup(r->pool, pw->pw_name);
 
-	    cur = atol(str);
-
+	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "getgrgid: invalid groupid %ld",
+			     (long) r->server->server_gid);
+		return (pid);
+	    }
+	    grpname = gr->gr_name;
 	}
 
-    }
+	if (shellcmd) {
+	    execle(SUEXEC_BIN, SUEXEC_BIN, execuser, grpname, argv0,
+		   NULL, env);
+	}
 
+	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) {
+	    execle(SUEXEC_BIN, SUEXEC_BIN, execuser, grpname, argv0,
+		   NULL, env);
+	}
+
+	else {
+	    execve(SUEXEC_BIN,
+		   create_argv(r->pool, SUEXEC_BIN, execuser, grpname,
+			       argv0, r->args),
+		   env);
+	}
+    }
     else {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
-
-		     "Invalid parameters for %s", cmd->cmd->name);
-
-	return;
-
-    }
-
-    
-
-    if (arg2 && (str = ap_getword_conf(cmd->pool, &arg2))) {
-
-	max = atol(str);
-
-    }
-
-
-
-    /* if we aren't running as root, cannot increase max */
-
-    if (geteuid()) {
-
-	limit->rlim_cur = cur;
-
-	if (max) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
-
-			 "Must be uid 0 to raise maximum %s", cmd->cmd->name);
-
+        if (shellcmd) {
+	    execle(SHELL_PATH, SHELL_PATH, "-c", argv0, NULL, env);
 	}
 
-    }
-
-    else {
-
-        if (cur) {
-
-	    limit->rlim_cur = cur;
-
+	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) {
+	    execle(r->filename, argv0, NULL, env);
 	}
 
-        if (max) {
-
-	    limit->rlim_max = max;
-
+	else {
+	    execve(r->filename,
+		   create_argv(r->pool, NULL, NULL, NULL, argv0, r->args),
+		   env);
 	}
-
     }
-
-}
-
+    return (pid);
 #endif
-
-
-
-#if !defined (RLIMIT_CPU) || !(defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)) || !defined (RLIMIT_NPROC)
-
-static const char *no_set_limit(cmd_parms *cmd, core_dir_config *conf,
-
-				char *arg, char *arg2)
-
-{
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
-
-		"%s not supported on this platform", cmd->cmd->name);
-
-    return NULL;
-
 }
-
-#endif
-
-
-
-#ifdef RLIMIT_CPU
-
-static const char *set_limit_cpu(cmd_parms *cmd, core_dir_config *conf, 
-
-				 char *arg, char *arg2)
-
-{
-
-    set_rlimit(cmd, &conf->limit_cpu, arg, arg2, RLIMIT_CPU);
-
-    return NULL;
-
-}
-
-#endif
-
-
-
-#if defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)
-
-static const char *set_limit_mem(cmd_parms *cmd, core_dir_config *conf, 
-
-				 char *arg, char * arg2)
-
-{
-
-#if defined(RLIMIT_AS)
-
-    set_rlimit(cmd, &conf->limit_mem, arg, arg2 ,RLIMIT_AS);
-
-#elif defined(RLIMIT_DATA)
-
-    set_rlimit(cmd, &conf->limit_mem, arg, arg2, RLIMIT_DATA);
-
-#elif defined(RLIMIT_VMEM)
-
-    set_rlimit(cmd, &conf->limit_mem, arg, arg2, RLIMIT_VMEM);
-
-#endif
-
-    return NULL;
-
-}
-
-#endif
-
-
-
-#ifdef RLIMIT_NPROC
-
-static const char *set_limit_nproc(cmd_parms *cmd, core_dir_config *conf,  
-
-				   char *arg, char * arg2)
-
-{
-
-    set_rlimit(cmd, &conf->limit_nproc, arg, arg2, RLIMIT_NPROC);
-
-    return NULL;
-
-}
-
-#endif
-
-
-
-static const char *set_bind_address(cmd_parms *cmd, void *dummy, char *arg) 
-
-{
-
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-
-    if (err != NULL) {
-
-        return err;
-
-    }
-
-
-
-    ap_bind_address.s_addr = ap_get_virthost_addr(arg, NULL);
-
-    return NULL;
-
-}
-
-
-
-static const char *set_listener(cmd_parms *cmd, void *dummy, char *ips)
-
-{
-
-    listen_rec *new;
-
-    char *ports;
-
-    unsigned short port;
-
-
-
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-
-    if (err != NULL) {
-
-        return err;
-
-    }
-
-
-
-    ports = strchr(ips, ':');
-
-    if (ports != NULL) {
-
-	if (ports == ips) {
-
-	    return "Missing IP address";
-
-	}
-
-	else if (ports[1] == '\0') {
-
-	    return "Address must end in :<port-number>";
-
-	}
-
-	*(ports++) = '\0';
-
-    }
-
-    else {
-
-	ports = ips;
-
-    }
-
-
-
-    new=ap_pcalloc(cmd->pool, sizeof(listen_rec));
-
-    new->local_addr.sin_family = AF_INET;
-
-    if (ports == ips) { /* no address */
-
-	new->local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
-    }
-
-    else {
-
-	new->local_addr.sin_addr.s_addr = ap_get_virthost_addr(ips, NULL);
-
-    }
-
-    port = atoi(ports);
-
-    if (!port) {
-
-	return "Port must be numeric";
-
-    }
-
-    new->local_addr.sin_port = htons(port);
-
-    new->fd = -1;
-
-    new->used = 0;
-
-    new->next = ap_listeners;
-
-    ap_listeners = new;
-
-    return NULL;
-
-}
-
-
-
-static const char *set_listenbacklog(cmd_parms *cmd, void *dummy, char *arg) 
-
-{
-
-    int b;
-
-
-
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-
-    if (err != NULL) {
-
-        return err;
-
-    }
-
-
-
-    b = atoi(arg);
-
-    if (b < 1) {
-
-        return "ListenBacklog must be > 0";
-
-    }
-
-    ap_listenbacklog = b;
-
-    return NULL;
-
-}
-
-
-
-static const char *set_coredumpdir (cmd_parms *cmd, void *dummy, char *arg) 
-
-{
-
-    struct stat finfo;
-
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-
-    if (err != NULL) {
-
-        return err;
-
-    }
-
-
-
-    arg = ap_server_root_relative(cmd->pool, arg);
-
-    if ((stat(arg, &finfo) == -1) || !S_ISDIR(finfo.st_mode)) {
-
-	return ap_pstrcat(cmd->pool, "CoreDumpDirectory ", arg, 
-
-			  " does not exist or is not a directory", NULL);
-
-    }
-
-    ap_cpystrn(ap_coredump_dir, arg, sizeof(ap_coredump_dir));
-
-    return NULL;
-
-}
-
-
-
-static const char *include_config (cmd_parms *cmd, void *dummy, char *name)
-
+++ apache_1.3.1/src/main/util_uri.c	1998-07-16 07:49:13.000000000 +0800

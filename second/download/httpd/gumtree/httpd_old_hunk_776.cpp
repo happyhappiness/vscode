@@ -1,40 +1,26 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
 
-{
+    /* Pass one --- direct matches */
 
-    BUFF *fd = r->connection->client;
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
 
-    int status = r->status;
+            if (result != DECLINED)
+                return result;
+        }
+    }
 
-    int idx = ap_index_of_response(status);
+    /* Pass two --- wildcard matches */
 
-    char *custom_response;
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
-    char *location = ap_table_get(r->headers_out, "Location");
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-
-
-    /* We need to special-case the handling of 204 and 304 responses,
-
-     * since they have specific HTTP requirements and do not include a
-
-     * message body.  Note that being assbackwards here is not an option.
-
-     */
-
-    if (status == HTTP_NOT_MODIFIED) {
-
-        if (!is_empty_table(r->err_headers_out))
-
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-
-                                               r->headers_out);
-
-        ap_hard_timeout("send 304", r);
-
-
-
-        ap_basic_http_header(r);
-
-        ap_set_keepalive(r);
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

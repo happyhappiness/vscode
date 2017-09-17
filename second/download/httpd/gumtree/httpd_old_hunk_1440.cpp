@@ -1,26 +1,17 @@
-    entries = (rewritemap_entry *)rewritemaps->elts;
 
-    for (i = 0; i < rewritemaps->nelts; i++) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	restart_pending = shutdown_pending = 0;
 
-        s = &entries[i];
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    int status;
+	    int pid = wait_or_timeout(&status);
 
-        if (strcmp(s->name, name) == 0) {
-
-            if (s->type == MAPTYPE_TXT) {
-
-                if (stat(s->checkfile, &st) == -1) {
-
-                    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-                                 "mod_rewrite: can't access text RewriteMap "
-
-                                 "file %s", s->checkfile);
-
-                    rewritelog(r, 1, "can't open RewriteMap file, "
-
-                               "see error log");
-
-                    return NULL;
-
-                }
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

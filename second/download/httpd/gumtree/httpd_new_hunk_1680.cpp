@@ -1,26 +1,14 @@
-    ap_init_modules(pconf, server_conf);
+#include "http_main.h"
+#include "http_request.h"
 
-    ap_suexec_enabled = init_suexec();
+static int asis_handler(request_rec *r)
+{
+    FILE *f;
+    const char *location;
 
-    version_locked++;
-
-    ap_open_logs(server_conf, pconf);
-
-    set_group_privs();
-
-
-
-#ifdef OS2
-
-    printf("%s \n", ap_get_server_version());
-
-#endif
-
-#ifdef WIN32
-
-    if (!child) {
-
-	printf("%s \n", ap_get_server_version());
-
-    }
-
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+	return DECLINED;
+    if (r->finfo.st_mode == 0) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800

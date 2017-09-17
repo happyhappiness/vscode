@@ -1,44 +1,41 @@
-	case 'l':
-
-	    ap_show_modules();
-
-	    exit(0);
-
-	case 'X':
-
-	    ++one_process;	/* Weird debugging mode. */
-
-	    break;
-
-	case '?':
-
-	    usage(argv[0]);
-
+	    return cond_status;
 	}
 
-    }
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
+	    if (!buffer)
+		/* Soak up all the script output --- may save an outright kill */
+		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
+		    continue;
 
-    if (!child && run_as_service) {
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
+	}
 
-	service_cd();
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
-    }
+	if (!strcasecmp(w, "Content-type")) {
 
+	    /* Nuke trailing whitespace */
 
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (!child) {
-
-	ap_log_pid(pconf, ap_pid_fname);
-
-    }
-
-    ap_set_version();
-
-    ap_init_modules(pconf, server_conf);
-
-    ap_suexec_enabled = init_suexec();
-
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

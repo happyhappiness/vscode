@@ -1,38 +1,13 @@
-	version_locked++;
 
+    /* Host names must not start with a '.' */
+    if (addr[0] == '.')
+	return 0;
+
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
+
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
+	/* @@@@ handle optional port */
     }
-
-}
-
-
-
-static APACHE_TLS int volatile exit_after_unblock = 0;
-
-
-
-/* a clean exit from a child with proper cleanup */
-
-static void __attribute__((noreturn)) clean_child_exit(int code)
-
-{
-
-    if (pchild) {
-
-	ap_child_exit_modules(pchild, server_conf);
-
-	ap_destroy_pool(pchild);
-
-    }
-
-    exit(code);
-
-}
-
-
-
-#if defined(USE_FCNTL_SERIALIZED_ACCEPT) || defined(USE_FLOCK_SERIALIZED_ACCEPT)
-
-static void expand_lock_fname(pool *p)
-
-{
-

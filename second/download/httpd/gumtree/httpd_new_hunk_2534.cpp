@@ -1,26 +1,13 @@
-#define STANDALONE_MAIN standalone_main
 
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!ap_is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
+    ap_hard_timeout("send headers", r);
 
-static void standalone_main(int argc, char **argv)
-
-{
-
-    int remaining_children_to_start;
-
-
-
-#ifdef OS2
-
-    printf("%s \n", ap_get_server_version());
-
-#endif
-
-
-
-    ap_standalone = 1;
-
-
-
-    is_graceful = 0;
-
+    ap_basic_http_header(r);

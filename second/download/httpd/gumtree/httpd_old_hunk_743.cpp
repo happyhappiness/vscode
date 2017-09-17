@@ -1,50 +1,29 @@
-                                         REWRITELOCK_MODE)) < 0) {
+	}
 
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (isspace(*src))
+		++src;
+	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && isspace(*dst))
+	    *dst = '\0';
 
-                     "mod_rewrite: Parent could not create RewriteLock "
-
-                     "file %s", conf->rewritelockfile);
-
-        exit(1);
-
-    }
-
-    return;
-
-}
-
-
-
-static void rewritelock_open(server_rec *s, pool *p)
-
-{
-
-    rewrite_server_conf *conf;
-
-
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-
-
-    /* only operate if a lockfile is used */
-
-    if (conf->rewritelockfile == NULL
-
-        || *(conf->rewritelockfile) == '\0')
-
-        return;
-
-
-
-    /* open the lockfile (once per child) to get a unique fd */
-
-    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
-
-                                         O_WRONLY,
-
-                                         REWRITELOCK_MODE)) < 0) {
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

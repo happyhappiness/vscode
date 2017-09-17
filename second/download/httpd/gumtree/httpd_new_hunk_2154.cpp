@@ -1,28 +1,13 @@
-
-
-    /* Second, check for actions (which override the method scripts) */
-
-    if ((t = ap_table_get(conf->action_types,
-
-		       action ? action : ap_default_type(r)))) {
-
-	script = t;
-
-	if (r->finfo.st_mode == 0) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-			"File does not exist: %s", r->filename);
-
-	    return NOT_FOUND;
-
-	}
-
-    }
-
-
-
-    if (script == NULL)
-
-++ apache_1.3.2/src/modules/standard/mod_alias.c	1998-08-25 17:15:36.000000000 +0800
-
+		    /* else nothing needs be done because
+		     * then the backslash is escaped and
+		     * we just strip to a single one
+		     */
+		}
+		/* blast trailing whitespace */
+		while (i > 0 && ap_isspace(buf[i - 1]))
+		    --i;
+		buf[i] = '\0';
+#ifdef DEBUG_CFG_LINES
+		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+		return 0;

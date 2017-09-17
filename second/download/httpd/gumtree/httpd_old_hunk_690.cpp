@@ -1,28 +1,29 @@
-                 "An appropriate representation of the requested resource ",
+	}
 
-                          ap_escape_html(r->pool, r->uri),
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (isspace(*src))
+		++src;
+	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && isspace(*dst))
+	    *dst = '\0';
 
-                          " could not be found on this server.<P>\n", NULL);
-
-                /* fall through */
-
-            case MULTIPLE_CHOICES:
-
-                {
-
-                    char *list;
-
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-
-                        ap_bputs(list, fd);
-
-                }
-
-                break;
-
-            case LENGTH_REQUIRED:
-
-                ap_bvputs(fd, "A request of the requested method ", r->method,
-
--- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

@@ -1,36 +1,26 @@
-    if (i == 530) {
 
-	ap_kill_timeout(r);
+    /* Pass one --- direct matches */
 
-	return ap_proxyerror(r, "Not logged in");
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
 
+            if (result != DECLINED)
+                return result;
+        }
     }
 
-    if (i != 230 && i != 331) {
+    /* Pass two --- wildcard matches */
 
-	ap_kill_timeout(r);
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
-	return BAD_GATEWAY;
-
+             if (result != DECLINED)
+                 return result;
+         }
     }
 
-
-
-    if (i == 331) {		/* send password */
-
-	if (password == NULL)
-
-	    return FORBIDDEN;
-
-	ap_bputs("PASS ", f);
-
-	ap_bwrite(f, password, passlen);
-
-	ap_bputs(CRLF, f);
-
-	ap_bflush(f);
-
-	Explain1("FTP: PASS %s", password);
-
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

@@ -1,26 +1,13 @@
-    char *origs = s, *origp = p;
+    if (i == -1) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+    if (i != 220) {
+	ap_kill_timeout(r);
+	return BAD_GATEWAY;
+    }
 
-    char *pmax = p + plen - 1;
+    Explain0("FTP: connected.");
 
-    register int c;
-
-    register int val;
-
-
-
-    while ((c = *s++) != '\0') {
-
-	if (isspace((unsigned char) c))
-
-	    break;
-
-	if (p >= pmax) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, serv,
-
-			MODNAME ": string too long: %s", origs);
-
-	    break;
-
-	}
-
+    ap_bputs("USER ", f);
+    ap_bwrite(f, user, userlen);

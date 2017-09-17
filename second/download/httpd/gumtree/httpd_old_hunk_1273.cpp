@@ -1,46 +1,46 @@
-#endif
+	clen = sizeof(struct sockaddr_in);
+	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error getting socket address");
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return SERVER_ERROR;
+	}
 
+	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (dsock == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error creating socket");
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return SERVER_ERROR;
+	}
 
+	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		       sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error setting reuseaddr option");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return SERVER_ERROR;
+#endif /*_OSD_POSIX*/
+	}
 
-static void show_compile_settings(void)
+	if (bind(dsock, (struct sockaddr *) &server,
+		 sizeof(struct sockaddr_in)) == -1) {
+	    char buff[22];
 
-{
+	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error binding to ftp data socket %s", buff);
+	    ap_bclose(f);
+	    ap_pclosesocket(p, dsock);
+	    return SERVER_ERROR;
+	}
+	listen(dsock, 2);	/* only need a short queue */
+    }
 
-    printf("Server version: %s\n", ap_get_server_version());
-
-    printf("Server built:   %s\n", ap_get_server_built());
-
-    printf("Server's Module Magic Number: %u\n", MODULE_MAGIC_NUMBER);
-
-    printf("Server compiled with....\n");
-
-#ifdef BIG_SECURITY_HOLE
-
-    printf(" -D BIG_SECURITY_HOLE\n");
-
-#endif
-
-#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
-
-    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
-
-#endif
-
-#ifdef HTTPD_ROOT
-
-    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
-
-#endif
-
-#ifdef HAVE_MMAP
-
-    printf(" -D HAVE_MMAP\n");
-
-#endif
-
-#ifdef HAVE_SHMGET
-
-    printf(" -D HAVE_SHMGET\n");
-
-#endif
-
+/* set request */
+    len = decodeenc(path);

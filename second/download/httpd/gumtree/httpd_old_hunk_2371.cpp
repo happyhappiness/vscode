@@ -1,26 +1,15 @@
-
-
-    url = ap_pstrdup(r->pool, &url[1]);	/* make it point to "//", which is what proxy_canon_netloc expects */
-
-
-
-    err = ap_proxy_canon_netloc(r->pool, &url, &user, &password, &host, &port);
-
-
-
-    if (err != NULL)
-
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-
-		     "%s", err);
-
-
-
-    r->hostname = host;
-
-
-
-    return host;		/* ought to return the port, too */
-
-}
-
+    }
+    else {
+	alarm_fn = fn;
+	alarm_expiry_time = time(NULL) + x;
+    }
+#else
+    if (x) {
+	alarm_fn = fn;
+    }
+#ifndef OPTIMIZE_TIMEOUTS
+    old = alarm(x);
+#else
+    if (child_timeouts) {
+	old = alarm(x);
+    }

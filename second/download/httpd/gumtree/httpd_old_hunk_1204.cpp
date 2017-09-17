@@ -1,34 +1,13 @@
-	    int cond_status = OK;
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		   sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
+	ap_pclosesocket(p, sock);
+	return SERVER_ERROR;
+#endif /*_OSD_POSIX*/
+    }
 
-
-
-	    ap_kill_timeout(r);
-
-	    if ((cgi_status == HTTP_OK) && (r->method_number == M_GET)) {
-
-		cond_status = ap_meets_conditions(r);
-
-	    }
-
-	    return cond_status;
-
-	}
-
-
-
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-
-
-	if (!(l = strchr(w, ':'))) {
-
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
-
+#ifdef SINIX_D_RESOLVER_BUG
+    {
+	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;

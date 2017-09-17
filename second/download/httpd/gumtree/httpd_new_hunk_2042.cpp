@@ -1,26 +1,14 @@
-    ++filp;
+{
+    const char *auth_line = ap_table_get(r->headers_in,
+                                    r->proxyreq ? "Proxy-Authorization"
+                                    : "Authorization");
+    int l;
+    int s, vk = 0, vv = 0;
+    const char *t;
+    char *key, *value;
 
-    prefix_len = strlen(filp);
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
+	return DECLINED;
 
-
-
-    dirp = ap_popendir(neg->pool, neg->dir_name);
-
-
-
-    if (dirp == NULL) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-                    "cannot read directory for multi: %s", neg->dir_name);
-
-        return HTTP_FORBIDDEN;
-
-    }
-
-
-
-    while ((dir_entry = readdir(dirp))) {
-
-        request_rec *sub_req;
-
+    if (!ap_auth_name(r)) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

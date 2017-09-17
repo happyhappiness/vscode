@@ -1,26 +1,9 @@
-    lseek(fd, 0, SEEK_SET);
+/* Automatically generated file - do not edit */
 
-    rc = _locking(fd, _LK_LOCK, 1);
-
-    lseek(fd, 0, SEEK_END);
-
+#ifndef LINUX
+#define LINUX 2
 #endif
-
-
-
-    if (rc < 0) {
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-                     "mod_rewrite: failed to lock file descriptor");
-
-        exit(1);
-
-    }
-
-    return;
-
-}
-
-
-
+#ifndef USE_HSREGEX
+#define USE_HSREGEX 
+#endif
+-- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800

@@ -1,26 +1,21 @@
-#elif defined(NEXT) || defined(NEWSOS)
 
-    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	if (ap_suexec_enabled) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
+	}
+	restart_pending = shutdown_pending = 0;
 
-	perror("setpgrp");
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    ap_wait_t status;
+	    int pid = wait_or_timeout(&status);
 
-	fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
-
-	exit(1);
-
-    }
-
-#elif defined(OS2)
-
-    /* OS/2 don't support process group IDs */
-
-    pgrp = getpid();
-
-#elif defined(MPE)
-
-    /* MPE uses negative pid for process group */
-
-    pgrp = -getpid();
-
-#else
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

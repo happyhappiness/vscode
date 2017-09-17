@@ -1,26 +1,13 @@
-    configfile_t *f;
 
-    char l[MAX_STRING_LEN];
+    /* Host names must not start with a '.' */
+    if (addr[0] == '.')
+	return 0;
 
-    const char *rpw;
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
 
-    char *w, *x;
-
-
-
-    if (!(f = ap_pcfg_openfile(r->pool, auth_pwfile))) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    "Could not open password file: %s", auth_pwfile);
-
-	return NULL;
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
+	/* @@@@ handle optional port */
     }
-
-    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
-
-	if ((l[0] == '#') || (!l[0]))
-
-	    continue;
-

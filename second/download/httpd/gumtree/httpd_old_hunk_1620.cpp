@@ -1,26 +1,14 @@
-	    continue;
-
+	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
 	}
+	return index_directory(r, d);
+    }
+    else {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		    "Directory index forbidden by rule: %s", r->filename);
+	return HTTP_FORBIDDEN;
+    }
+}
 
 
-
-	/* if we get here, the main entry rule was a match */
-
-	/* this will be the last run through the loop */
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		    MODNAME ": rule matched, line=%d type=%d %s",
-
-		    m->lineno, m->type,
-
-		    (m->type == STRING) ? m->value.s : "");
-
-#endif
-
-
-
-	/* print the match */
-
+static const handler_rec autoindex_handlers[] =
+-- apache_1.3.0/src/modules/standard/mod_cern_meta.c	1998-04-11 20:00:45.000000000 +0800

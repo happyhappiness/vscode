@@ -1,26 +1,15 @@
-        case token_and:
+            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+        }
 
-        case token_or:
+        r->read_chunked = 1;
+    }
+    else if (lenp) {
+        char *pos = lenp;
 
-#ifdef DEBUG_INCLUDE
-
-            ap_rputs("     Token: and/or\n", r);
-
-#endif
-
-            if (current == (struct parse_node *) NULL) {
-
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                            "Invalid expression \"%s\" in file %s",
-
-                            expr, r->filename);
-
-                ap_rputs(error, r);
-
-                goto RETURN;
-
-            }
-
-            /* Percolate upwards */
-
+        while (isdigit(*pos) || isspace(*pos))
+            ++pos;
+        if (*pos != '\0') {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }

@@ -1,26 +1,17 @@
 
+    if (i != DECLINED) {
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	return i;
+    }
 
-	    name = ent->pw_name;
+    cache = c->fp;
 
-	}
+    c->hdrs = resp_hdrs;
 
-	else
-
-	    name = ap_user_name;
-
-
-
-#ifndef OS2
-
-	/* OS/2 dosen't support groups. */
-
-
-
-	/* Reset `groups' attributes. */
-
-
-
-	if (initgroups(name, ap_group_id) == -1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ALERT, server_conf,
-
+    if (!pasvmode) {		/* wait for connection */
+	ap_hard_timeout("proxy ftp data connect", r);
+	clen = sizeof(struct sockaddr_in);
+	do
+	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
+	while (csd == -1 && errno == EINTR);

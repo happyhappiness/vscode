@@ -1,26 +1,10 @@
-static int log_scripterror(request_rec *r, cgi_server_conf * conf, int ret,
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
 
-			   int show_errno, char *error)
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
+#endif
 
-{
-
-    FILE *f;
-
-    struct stat finfo;
-
-
-
-    ap_log_rerror(APLOG_MARK, show_errno|APLOG_ERR, r, 
-
-		"%s: %s", error, r->filename);
-
-
-
-    if (!conf->logname ||
-
-	((stat(ap_server_root_relative(r->pool, conf->logname), &finfo) == 0)
-
-	 &&   (finfo.st_size > conf->logbytes)) ||
-
-         ((f = ap_pfopen(r->pool, ap_server_root_relative(r->pool, conf->logname),
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

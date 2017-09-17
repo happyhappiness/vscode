@@ -1,24 +1,14 @@
-     */
-
-    if (r->read_body == REQUEST_CHUNKED_PASS)
-
-        bufsiz -= 2;
-
-    if (bufsiz <= 0)
-
-        return -1;              /* Cannot read chunked with a small buffer */
-
-
-
-    if (r->remaining == 0) {    /* Start of new chunk */
-
-
-
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-
-            || !isxdigit(*buffer)) {
-
-            r->connection->keepalive = -1;
-
+                 "An appropriate representation of the requested resource ",
+                          ap_escape_html(r->pool, r->uri),
+                          " could not be found on this server.<P>\n", NULL);
+                /* fall through */
+            case MULTIPLE_CHOICES:
+                {
+                    char *list;
+                    if ((list = ap_table_get(r->notes, "variant-list")))
+                        ap_bputs(list, fd);
+                }
+                break;
+            case LENGTH_REQUIRED:
+                ap_bvputs(fd, "A request of the requested method ", r->method,
+-- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800

@@ -1,44 +1,26 @@
-	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
 
-    /* does the password look like an email address ? */
+    /* Pass one --- direct matches */
 
-	   && ((!sec->auth_anon_verifyemail)
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
 
-	       || ((strpbrk("@", sent_pw) != NULL)
-
-		   && (strpbrk(".", sent_pw) != NULL)))) {
-
-	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
-
-			"Anonymous: Passwd <%s> Accepted",
-
-			sent_pw ? sent_pw : "\'none\'");
-
-	}
-
-	return OK;
-
+            if (result != DECLINED)
+                return result;
+        }
     }
 
-    else {
+    /* Pass two --- wildcard matches */
 
-	if (sec->auth_anon_authoritative) {
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			"Anonymous: Authoritative, Passwd <%s> not accepted",
-
-			sent_pw ? sent_pw : "\'none\'");
-
-	    return AUTH_REQUIRED;
-
-	}
-
-	/* Drop out the bottom to return DECLINED */
-
+             if (result != DECLINED)
+                 return result;
+         }
     }
 
--- apache_1.3.1/src/modules/standard/mod_auth.c	1998-07-10 14:33:24.000000000 +0800
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

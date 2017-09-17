@@ -1,98 +1,46 @@
-	    return cond_status;
-
-	}
-
-
-
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-
-
-	if (!(l = strchr(w, ':'))) {
-
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
-
-
-
-	    if (!buffer) {
-
-		/* Soak up all the script output - may save an outright kill */
-
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-
-		    continue;
-
-		}
-
-	    }
-
-
-
+	clen = sizeof(struct sockaddr_in);
+	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error getting socket address");
+	    ap_bclose(f);
 	    ap_kill_timeout(r);
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			 "%s: %s", malformed, r->filename);
-
-	    return SERVER_ERROR;
-
+	    return HTTP_INTERNAL_SERVER_ERROR;
 	}
 
-
-
-	*l++ = '\0';
-
-	while (*l && ap_isspace(*l)) {
-
-	    ++l;
-
+	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (dsock == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error creating socket");
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_INTERNAL_SERVER_ERROR;
 	}
 
-
-
-	if (!strcasecmp(w, "Content-type")) {
-
-	    char *tmp;
-
-
-
-	    /* Nuke trailing whitespace */
-
-
-
-	    char *endp = l + strlen(l) - 1;
-
-	    while (endp > l && ap_isspace(*endp)) {
-
-		*endp-- = '\0';
-
-	    }
-
-
-
-	    tmp = ap_pstrdup(r->pool, l);
-
-	    ap_content_type_tolower(tmp);
-
-	    r->content_type = tmp;
-
+	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		       sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error setting reuseaddr option");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+#endif /*_OSD_POSIX*/
 	}
 
-	/*
+	if (bind(dsock, (struct sockaddr *) &server,
+		 sizeof(struct sockaddr_in)) == -1) {
+	    char buff[22];
 
-	 * If the script returned a specific status, that's what
+	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error binding to ftp data socket %s", buff);
+	    ap_bclose(f);
+	    ap_pclosesocket(p, dsock);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+	}
+	listen(dsock, 2);	/* only need a short queue */
+    }
 
-	 * we'll use - otherwise we assume 200 OK.
-
-	 */
-
-	else if (!strcasecmp(w, "Status")) {
-
+/* set request */
+    len = decodeenc(path);

@@ -1,26 +1,28 @@
-	states fresh;		/* states for a fresh start */
-
-	states tmp;		/* temporary */
-
-	states empty;		/* empty set of states */
-
-};
-
-
-
-#include "engine.ih"
-
-#include "ap_ctype.h"
-
-
-
-#ifdef REDEBUG
-
-#define	SP(t, s, c)	print(m, t, s, c, stdout)
-
-#define	AT(t, p1, p2, s1, s2)	at(m, t, p1, p2, s1, s2)
-
-#define	NOTE(str)	{ if (m->eflags&REG_TRACE) printf("=%s\n", (str)); }
-
+#ifdef SHARED_CORE
+    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
 #else
+    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
+#endif
+    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
+    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S] [-t]\n", pad);
+    fprintf(stderr, "Options:\n");
+#ifdef SHARED_CORE
+    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
+#endif
+    fprintf(stderr, "  -D name          : define a name for use in <IfDefine name> directives\n");
+    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
+    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
+    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
+    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
+    fprintf(stderr, "  -v               : show version number\n");
+    fprintf(stderr, "  -V               : show compile settings\n");
+    fprintf(stderr, "  -h               : list available configuration directives\n");
+    fprintf(stderr, "  -l               : list compiled-in modules\n");
+    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
+    fprintf(stderr, "  -t               : run syntax test for configuration files only\n");
+    exit(1);
+}
 
+/*****************************************************************
+ *
+ * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff

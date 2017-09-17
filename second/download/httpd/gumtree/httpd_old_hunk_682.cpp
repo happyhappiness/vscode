@@ -1,40 +1,22 @@
-	     */
-
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
 	    break;
-
-#endif
-
-	case 'S':
-
-	    ap_dump_settings = 1;
-
-	    break;
-
 	case '?':
-
 	    usage(argv[0]);
-
 	}
-
     }
 
-
-
-    ap_suexec_enabled = init_suexec();
+    if (!child && run_as_service) {
+	service_cd();
+    }
 
     server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-
-
-    child_timeouts = !ap_standalone || one_process;
-
-
-
-    if (ap_standalone) {
-
-	ap_open_logs(server_conf, pconf);
-
-	ap_set_version();
-
-	ap_init_modules(pconf, server_conf);
-
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

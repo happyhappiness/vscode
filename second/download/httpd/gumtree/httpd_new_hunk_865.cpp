@@ -1,28 +1,13 @@
-                 "An appropriate representation of the requested resource ",
+    if (i == -1) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+    if (i != 220) {
+	ap_kill_timeout(r);
+	return HTTP_BAD_GATEWAY;
+    }
 
-                          ap_escape_html(r->pool, r->uri),
+    Explain0("FTP: connected.");
 
-                          " could not be found on this server.<P>\n", NULL);
-
-                /* fall through */
-
-            case MULTIPLE_CHOICES:
-
-                {
-
-                    const char *list;
-
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-
-                        ap_bputs(list, fd);
-
-                }
-
-                break;
-
-            case LENGTH_REQUIRED:
-
-                ap_bvputs(fd, "A request of the requested method ", r->method,
-
-++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800
-
+    ap_bputs("USER ", f);
+    ap_bwrite(f, user, userlen);

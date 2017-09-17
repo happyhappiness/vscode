@@ -1,34 +1,13 @@
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
+    if (i == -1) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+    if (i != 220) {
+	ap_kill_timeout(r);
+	return HTTP_BAD_GATEWAY;
+    }
 
-		    continue;
+    Explain0("FTP: connected.");
 
-		}
-
-	    }
-
-
-
-	    ap_kill_timeout(r);
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-			  "%s: %s", malformed, r->filename);
-
-	    ap_table_setn(r->notes, "error-notes",
-
-			  ap_pstrdup(r->pool, malformed));
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
-	}
-
-
-
-	*l++ = '\0';
-
-	while (*l && ap_isspace(*l)) {
-
-	    ++l;
-
-	}
-
+    ap_bputs("USER ", f);
+    ap_bwrite(f, user, userlen);

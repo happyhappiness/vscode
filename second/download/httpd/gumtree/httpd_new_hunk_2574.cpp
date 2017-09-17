@@ -1,178 +1,88 @@
-	    n = strlen(buf);
-
+	    if (!(autoindex_opts & SUPPRESS_SIZE)) {
+		ap_send_size(ar[x]->size, r);
+		ap_rputs("  ", r);
+	    }
+	    if (!(autoindex_opts & SUPPRESS_DESC)) {
+		if (ar[x]->desc) {
+		    ap_rputs(terminate_description(d, ar[x]->desc,
+						   autoindex_opts), r);
+		}
+	    }
 	}
-
-
-
-	o = 0;
-
-	total_bytes_sent += n;
-
-
-
-	if (c != NULL && c->fp && ap_bwrite(c->fp, buf, n) != n)
-
-	    c = ap_proxy_cache_error(c);
-
-
-
-	while (n && !r->connection->aborted) {
-
-	    w = ap_bwrite(con->client, &buf[o], n);
-
-	    if (w <= 0)
-
-		break;
-
-	    ap_reset_timeout(r);	/* reset timeout after successfule write */
-
-	    n -= w;
-
-	    o += w;
-
+	else {
+	    ap_rvputs(r, "<LI> ", anchor, " ", t2, NULL);
 	}
-
+	ap_rputc('\n', r);
     }
-
-
-
-    total_bytes_sent += ap_proxy_bputs2("</PRE><HR>\n", con->client, c);
-
-    total_bytes_sent += ap_proxy_bputs2(ap_psignature("", r), con->client, c);
-
-    total_bytes_sent += ap_proxy_bputs2("</BODY></HTML>\n", con->client, c);
-
-
-
-    ap_bflush(con->client);
-
-
-
-    return total_bytes_sent;
-
+    if (autoindex_opts & FANCY_INDEXING) {
+	ap_rputs("</PRE>", r);
+    }
+    else {
+	ap_rputs("</UL>", r);
+    }
 }
-
-
-
-/* Common routine for failed authorization (i.e., missing or wrong password)
-
- * to an ftp service. This causes most browsers to retry the request
-
- * with username and password (which was presumably queried from the user)
-
- * supplied in the Authorization: header.
-
- * Note that we "invent" a realm name which consists of the
-
- * ftp://user@host part of the reqest (sans password -if supplied but invalid-)
-
- */
-
-static int ftp_unauthorized (request_rec *r, int log_it)
-
-{
-
-    r->proxyreq = 0;
-
-    /* Log failed requests if they supplied a password
-
-     * (log username/password guessing attempts)
-
-     */
-
-    if (log_it)
-
-	ap_log_rerror(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, r,
-
-		      "proxy: missing or failed auth to %s",
-
-		      ap_unparse_uri_components(r->pool,
-
-		      &r->parsed_uri, UNP_OMITPATHINFO));
-
-
-
-    ap_table_setn(r->err_headers_out, "WWW-Authenticate",
-
-                  ap_pstrcat(r->pool, "Basic realm=\"",
-
-		  ap_unparse_uri_components(r->pool, &r->parsed_uri,
-
-					    UNP_OMITPASSWORD|UNP_OMITPATHINFO),
-
-		  "\"", NULL));
-
-
-
-    return HTTP_UNAUTHORIZED;
-
-}
-
-
 
 /*
-
- * Handles direct access of ftp:// URLs
-
- * Original (Non-PASV) version from
-
- * Troy Morrison <spiffnet@zoom.com>
-
- * PASV added by Chuck
-
+ * Compare two file entries according to the sort criteria.  The return
+ * is essentially a signum function value.
  */
 
-int ap_proxy_ftp_handler(request_rec *r, cache_req *c, char *url)
-
+static int dsortf(struct ent **e1, struct ent **e2)
 {
+    struct ent *c1;
+    struct ent *c2;
+    int result = 0;
 
-    char *host, *path, *strp, *parms;
+    /*
+     * First, see if either of the entries is for the parent directory.
+     * If so, that *always* sorts lower than anything else.
+     */
+    if (is_parent((*e1)->name)) {
+        return -1;
+    }
+    if (is_parent((*e2)->name)) {
+        return 1;
+    }
+    /*
+     * All of our comparisons will be of the c1 entry against the c2 one,
+     * so assign them appropriately to take care of the ordering.
+     */
+    if ((*e1)->ascending) {
+        c1 = *e1;
+        c2 = *e2;
+    }
+    else {
+        c1 = *e2;
+        c2 = *e1;
+    }
+    switch (c1->key) {
+    case K_LAST_MOD:
+	if (c1->lm > c2->lm) {
+            return 1;
+        }
+        else if (c1->lm < c2->lm) {
+            return -1;
+        }
+        break;
+    case K_SIZE:
+        if (c1->size > c2->size) {
+            return 1;
+        }
+        else if (c1->size < c2->size) {
+            return -1;
+        }
+        break;
+    case K_DESC:
+        result = strcmp(c1->desc ? c1->desc : "", c2->desc ? c2->desc : "");
+        if (result) {
+            return result;
+        }
+        break;
+    }
+    return strcmp(c1->name, c2->name);
+}
 
-    char *cwd = NULL;
 
-    char *user = NULL;
-
-/*    char *account = NULL; how to supply an account in a URL? */
-
-    const char *password = NULL;
-
-    const char *err;
-
-    int port, i, j, len, sock, dsock, rc, nocache = 0;
-
-    int csd = 0;
-
-    struct sockaddr_in server;
-
-    struct hostent server_hp;
-
-    struct in_addr destaddr;
-
-    table *resp_hdrs;
-
-    BUFF *f;
-
-    BUFF *data = NULL;
-
-    pool *p = r->pool;
-
-    int one = 1;
-
-    const long int zero = 0L;
-
-    NET_SIZE_T clen;
-
-    struct tbl_do_args tdo;
-
-
-
-    void *sconf = r->server->module_config;
-
-    proxy_server_conf *conf =
-
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-
-    struct noproxy_entry *npent = (struct noproxy_entry *) conf->noproxies->elts;
-
-    struct nocache_entry *ncent = (struct nocache_entry *) conf->nocaches->elts;
-
+static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
+{
+    char *title_name = ap_escape_html(r->pool, r->uri);

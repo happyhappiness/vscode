@@ -1,26 +1,13 @@
-{
-
-    regex_t *compiled;
-
-    int regex_error;
-
-
-
-    compiled = ap_pregcomp(r->pool, rexp, REG_EXTENDED | REG_NOSUB);
-
-    if (compiled == NULL) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "unable to compile pattern \"%s\"", rexp);
-
-        return -1;
-
+	else
+	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
+				"Could not connect to remote machine: ",
+				strerror(errno), NULL));
     }
 
-    regex_error = regexec(compiled, string, 0, (regmatch_t *) NULL, 0);
+    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
 
-    ap_pregfree(r->pool, compiled);
+    f = ap_bcreate(p, B_RDWR | B_SOCKET);
+    ap_bpushfd(f, sock, sock);
 
-    return (!regex_error);
-
+    ap_hard_timeout("proxy send", r);
+    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,

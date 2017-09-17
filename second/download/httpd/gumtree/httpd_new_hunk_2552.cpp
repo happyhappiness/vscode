@@ -1,48 +1,25 @@
-        else {
+	return ap_proxyerror(r, err);	/* give up */
 
-            /*
-
-             * Dumb user has given us a bad url to redirect to --- fake up
-
-             * dying with a recursive server error...
-
-             */
-
-            recursive_error = SERVER_ERROR;
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                        "Invalid error redirection directive: %s",
-
-                        custom_response);
-
-        }
-
+    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		    "proxy: error creating socket");
+	return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    ap_send_error_response(r, recursive_error);
-
-}
-
-
-
-static void decl_die(int status, char *phase, request_rec *r)
-
-{
-
-    if (status == DECLINED) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_CRIT, r,
-
-                    "configuration error:  couldn't %s: %s", phase, r->uri);
-
-        ap_die(SERVER_ERROR, r);
-
+#ifndef WIN32
+    if (sock >= FD_SETSIZE) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
+	    "proxy_connect_handler: filedescriptor (%u) "
+	    "larger than FD_SETSIZE (%u) "
+	    "found, you probably need to rebuild Apache with a "
+	    "larger FD_SETSIZE", sock, FD_SETSIZE);
+	ap_pclosesocket(r->pool, sock);
+	return HTTP_INTERNAL_SERVER_ERROR;
     }
+#endif
 
-    else
-
-        ap_die(status, r);
-
-}
-
+    j = 0;
+    while (server_hp.h_addr_list[j] != NULL) {
+	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
+++ apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800

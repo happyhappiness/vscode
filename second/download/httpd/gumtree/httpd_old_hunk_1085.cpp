@@ -1,26 +1,13 @@
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-
-  
-
-    if (r->proxyreq) {
-
-        return HTTP_FORBIDDEN;
-
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		   sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
+	ap_pclosesocket(p, sock);
+	return SERVER_ERROR;
+#endif /*_OSD_POSIX*/
     }
 
-    if ((r->uri[0] != '/') && strcmp(r->uri, "*")) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		     "Invalid URI in request %s", r->the_request);
-
-	return BAD_REQUEST;
-
-    }
-
-    
-
-    if (r->server->path 
-
-	&& !strncmp(r->uri, r->server->path, r->server->pathlen)
-
+#ifdef SINIX_D_RESOLVER_BUG
+    {
+	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;

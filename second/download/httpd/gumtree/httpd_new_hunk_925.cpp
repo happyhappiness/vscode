@@ -1,28 +1,17 @@
-            output_results();
 
-        }
+    if (i != DECLINED) {
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	return i;
+    }
 
+    cache = c->fp;
 
+    c->hdrs = resp_hdrs;
 
-        /* Timeout of 30 seconds. */
-
-        timeout.tv_sec = 30;
-
-        timeout.tv_usec = 0;
-
-        n = ap_select(FD_SETSIZE, &sel_read, &sel_write, &sel_except, &timeout);
-
-        if (!n) {
-
-            printf("\nServer timed out\n\n");
-
-            exit(1);
-
-        }
-
-        if (n < 1)
-
-            err("select");
-
-++ apache_1.3.1/src/support/htdigest.c	1998-07-13 19:32:58.000000000 +0800
-
+    if (!pasvmode) {		/* wait for connection */
+	ap_hard_timeout("proxy ftp data connect", r);
+	clen = sizeof(struct sockaddr_in);
+	do
+	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
+	while (csd == -1 && errno == EINTR);

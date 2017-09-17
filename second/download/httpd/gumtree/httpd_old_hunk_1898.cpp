@@ -1,32 +1,13 @@
-                --cp;
+    if ((r->method_number == M_POST || r->method_number == M_PUT)
+	&& *dbuf) {
+	fprintf(f, "\n%s\n", dbuf);
+    }
 
-        }
+    fputs("%response\n", f);
+    hdrs_arr = table_elts(r->err_headers_out);
+    hdrs = (table_entry *) hdrs_arr->elts;
 
-        else {
-
-#if defined(EACCES)
-
-            if (errno != EACCES)
-
-#endif
-
-                ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-                            "access to %s failed for %s", r->uri,
-
-                            ap_get_remote_host(r->connection, r->per_dir_config,
-
-                                            REMOTE_NOLOOKUP));
-
-            return HTTP_FORBIDDEN;
-
-        }
-
-#else
-
-#error ENOENT || ENOTDIR not defined; please see the
-
-#error comments at this line in the source for a workaround.
-
-        /*
-
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key)
+	    continue;
+	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);

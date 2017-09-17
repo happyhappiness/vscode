@@ -1,26 +1,13 @@
-        set_neg_headers(r, neg, na_list);
+    rr->content_type = CGI_MAGIC_TYPE;
 
-        store_variant_list(r, neg);
+    /* Run it. */
 
-        return MULTIPLE_CHOICES;
-
+    rr_status = ap_run_sub_req(rr);
+    if (is_HTTP_REDIRECT(rr_status)) {
+        char *location = ap_table_get(rr->headers_out, "Location");
+        location = ap_escape_html(rr->pool, location);
+        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
     }
 
-
-
-    if (!best) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "no acceptable variant: %s", r->filename);
-
-
-
-        set_neg_headers(r, neg, na_result);
-
-        store_variant_list(r, neg);
-
-        return NOT_ACCEPTABLE;
-
-    }
-
+    ap_destroy_sub_req(rr);
+#ifndef WIN32

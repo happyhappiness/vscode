@@ -1,26 +1,13 @@
-	struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
 
+    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
+	return (ap_suexec_enabled);
 
-
-	for (direct_connect = ii = 0; ii < conf->dirconn->nelts && !direct_connect; ii++) {
-
-	    direct_connect = list[ii].matcher(&list[ii], r);
-
-	}
-
-#if DEBUGGING
-
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-
-		     (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
-
-		     r->uri);
-
-#endif
-
+    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
+	ap_suexec_enabled = 1;
+	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
     }
+#endif /* ndef WIN32 */
+    return (ap_suexec_enabled);
+}
 
-
-
-/* firstly, try a proxy, unless a NoProxy directive is active */
-
+/*****************************************************************

@@ -1,26 +1,13 @@
-    configfile_t *fp;
-
-    info_cfg_lines *new, *ret, *prev;
-
-    const char *t;
-
-
-
-    fp = ap_pcfg_openfile(p, filename);
-
-    if (!fp) {
-
-        ap_log_error(APLOG_MARK, APLOG_WARNING, r->server, 
-
-		    "mod_info: couldn't open config file %s",
-
-		    filename);
-
-        return NULL;
-
+	else
+	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
+				"Could not connect to remote machine: ",
+				strerror(errno), NULL));
     }
 
-    ret = NULL;
+    clear_connection(r->headers_in);	/* Strip connection-based headers */
 
-    prev = NULL;
+    f = ap_bcreate(p, B_RDWR | B_SOCKET);
+    ap_bpushfd(f, sock, sock);
 
+    ap_hard_timeout("proxy send", r);
+    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,

@@ -1,26 +1,24 @@
-    configfile_t *fp;
 
-    info_cfg_lines *new, *ret, *prev;
+static char *lcase_header_name_return_body(char *header, request_rec *r)
+{
+    char *cp = header;
 
-    const char *t;
-
-
-
-    fp = ap_pcfg_openfile(p, filename);
-
-    if (!fp) {
-
-        ap_log_error(APLOG_MARK, APLOG_WARNING, r->server, 
-
-		    "mod_info: couldn't open config file %s",
-
-		    filename);
-
-        return NULL;
-
+    for ( ; *cp && *cp != ':' ; ++cp) {
+        *cp = tolower(*cp);
     }
 
-    ret = NULL;
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    "Syntax error in type map --- no ':': %s", r->filename);
+        return NULL;
+    }
 
-    prev = NULL;
+    do {
+        ++cp;
+    } while (*cp && isspace(*cp));
 
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    "Syntax error in type map --- no header body: %s",
+                    r->filename);
+        return NULL;

@@ -1,54 +1,28 @@
+	    return;
+	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
+    curblocks = 0;
+    curbytes = 0;
 
+    sub_garbage_coll(r, files, cachedir, "/");
 
-    /* Pass one --- direct matches */
-
-
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-
-	if (handler_len == handp->len
-
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-
-            int result = (*handp->hr.handler) (r);
-
-
-
-            if (result != DECLINED)
-
-                return result;
-
-        }
-
+    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
+	ap_unblock_alarms();
+	return;
     }
 
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
 
-
-    /* Pass two --- wildcard matches */
-
-
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-
-	if (handler_len >= handp->len
-
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-
-             int result = (*handp->hr.handler) (r);
-
-
-
-             if (result != DECLINED)
-
-                 return result;
-
-         }
-
-    }
-
-
-
-nly in apache_1.3.0/src/main: http_config.o
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
-
+    elts = (struct gc_ent **) files->elts;
+    for (i = 0; i < files->nelts; i++) {
+	fent = elts[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
+#else
+	if (unlink(filename) == -1) {

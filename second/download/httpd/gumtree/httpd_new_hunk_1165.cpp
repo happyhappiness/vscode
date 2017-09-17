@@ -1,48 +1,14 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-
-    if (err != NULL) {
-
-        return err;
-
-    }
-
-
-
-    ap_threads_per_child = atoi(arg);
-
-    if (ap_threads_per_child > HARD_SERVER_LIMIT) {
-
-        fprintf(stderr, "WARNING: ThreadsPerChild of %d exceeds compile time limit "
-
-                "of %d threads,\n", ap_threads_per_child, HARD_SERVER_LIMIT);
-
-        fprintf(stderr, " lowering ThreadsPerChild to %d.  To increase, please "
-
-                "see the\n", HARD_SERVER_LIMIT);
-
-        fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-
-        ap_threads_per_child = HARD_SERVER_LIMIT;
-
-    } 
-
-    else if (ap_threads_per_child < 1) {
-
-	fprintf(stderr, "WARNING: Require ThreadsPerChild > 0, setting to 1\n");
-
-	ap_threads_per_child = 1;
-
-    }
-
-
-
-    return NULL;
-
-}
-
-
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-
-{
-
+	     * how libraries and such are going to fail.  If we can't
+	     * do this F_DUPFD there's a good chance that apache has too
+	     * few descriptors available to it.  Note we don't warn on
+	     * the high line, because if it fails we'll eventually try
+	     * the low line...
+	     */
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
+		        "unable to open a file descriptor above %u, "
+			"you may need to increase the number of descriptors",
+			LOW_SLACK_LINE);
+	    low_warned = 1;
+	}
+	return fd;
+++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800

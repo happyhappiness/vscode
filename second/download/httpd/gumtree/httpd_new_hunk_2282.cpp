@@ -1,64 +1,32 @@
-           timetaken / 1000, timetaken % 1000);
+                                         REWRITELOCK_MODE)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+                     "mod_rewrite: Parent could not create RewriteLock "
+                     "file %s", conf->rewritelockfile);
+        exit(1);
+    }
+#if !defined(__EMX__) && !defined(WIN32)
+    /* make sure the childs have access to this file */
+    if (geteuid() == 0 /* is superuser */)
+        chown(conf->rewritelockfile, ap_user_id, -1 /* no gid change */);
+#endif
 
-    printf("Complete requests:      %d\n", done);
+    return;
+}
 
-    printf("Failed requests:        %d\n", bad);
+static void rewritelock_open(server_rec *s, pool *p)
+{
+    rewrite_server_conf *conf;
 
-    if (bad)
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
 
-        printf("   (Connect: %d, Length: %d, Exceptions: %d)\n",
-
-               err_conn, err_length, err_except);
-
-    if (err_response)
-
-        printf("Non-2xx responses:      %d\n", err_response);
-
-    if (keepalive)
-
-        printf("Keep-Alive requests:    %d\n", doneka);
-
-    printf("Total transferred:      %d bytes\n", totalread);
-
-    if (posting)
-
-        printf("Total POSTed:           %d\n", totalposted);
-
-    printf("HTML transferred:       %d bytes\n", totalbread);
-
-
-
-    /* avoid divide by zero */
-
-    if (timetaken) {
-
-        printf("Requests per second:    %.2f\n", 1000 * (float) (done) / timetaken);
-
-        printf("Transfer rate:          %.2f kb/s received\n",
-
-               (float) (totalread) / timetaken);
-
-        if (posting) {
-
-            printf("                        %.2f kb/s sent\n", 
-
-       		    (float)(totalposted)/timetaken);
-
-            printf("                        %.2f kb/s total\n", 
-
-           	    (float)(totalread + totalposted)/timetaken);
-
-        }
-
+    /* only operate if a lockfile is used */
+    if (conf->rewritelockfile == NULL
+        || *(conf->rewritelockfile) == '\0') {
+        return;
     }
 
-
-
-    {
-
-        /* work out connection times */
-
-        int i;
-
-        int totalcon = 0, total = 0;
-
+    /* open the lockfile (once per child) to get a unique fd */
+    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
+                                         O_WRONLY,
+                                         REWRITELOCK_MODE)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, s,

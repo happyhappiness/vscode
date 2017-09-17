@@ -1,32 +1,14 @@
-	else
+#include "http_main.h"
+#include "http_request.h"
 
-	    y[i] = ch + '0';
-
-    }
-
-    y[8] = '\0';
-
-}
-
-
-
-BUFF *
-
-     ap_proxy_cache_error(struct cache_req *c)
-
+static int asis_handler(request_rec *r)
 {
+    FILE *f;
+    char *location;
 
-    ap_log_error(APLOG_MARK, APLOG_ERR, c->req->server,
-
-		 "proxy: error writing to cache file %s", c->tempfile);
-
-    ap_pclosef(c->req->pool, c->fp->fd);
-
-    c->fp = NULL;
-
-    unlink(c->tempfile);
-
-    return NULL;
-
-}
-
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+	return DECLINED;
+    if (r->finfo.st_mode == 0) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+-- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800

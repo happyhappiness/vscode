@@ -1,50 +1,52 @@
-    DBT d, q;
+#endif
 
-    char *pw = NULL;
+    /* Since we are reading from one buffer and writing to another,
+     * it is unsafe to do a soft_timeout here, at least until the proxy
+     * has its own timeout handler which can set both buffers to EOUT.
+     */
+    ap_hard_timeout("proxy send body", r);
 
+    while (!con->aborted && f != NULL) {
+	n = ap_bread(f, buf, IOBUFSIZE);
+	if (n == -1) {		/* input error */
+	    if (f2 != NULL)
+		f2 = ap_proxy_cache_error(c);
+	    break;
+	}
+	if (n == 0)
+	    break;		/* EOF */
+	o = 0;
+	total_bytes_sent += n;
 
+	if (f2 != NULL)
+	    if (ap_bwrite(f2, buf, n) != n)
+		f2 = ap_proxy_cache_error(c);
 
-    q.data = user;
-
-    q.size = strlen(q.data);
-
-
-
-    if (!(f = dbopen(auth_dbpwfile, O_RDONLY, 0664, DB_HASH, NULL))) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    "could not open db auth file: %s", auth_dbpwfile);
-
-	return NULL;
-
+	while (n && !con->aborted) {
+	    w = ap_bwrite(con->client, &buf[o], n);
+	    if (w <= 0) {
+		if (f2 != NULL) {
+		    ap_pclosef(c->req->pool, c->fp->fd);
+		    c->fp = NULL;
+		    f2 = NULL;
+		    con->aborted = 1;
+		    unlink(c->tempfile);
+		}
+		break;
+	    }
+	    ap_reset_timeout(r);	/* reset timeout after successful write */
+	    n -= w;
+	    o += w;
+	}
     }
+    if (!con->aborted)
+	ap_bflush(con->client);
 
-
-
-    if (!((f->get) (f, &q, &d, 0))) {
-
-	pw = ap_palloc(r->pool, d.size + 1);
-
-	strncpy(pw, d.data, d.size);
-
-	pw[d.size] = '\0';	/* Terminate the string */
-
-    }
-
-
-
-    (f->close) (f);
-
-    return pw;
-
+    ap_kill_timeout(r);
+    return total_bytes_sent;
 }
 
-
-
-/* We do something strange with the group file.  If the group file
-
- * contains any : we assume the format is
-
- *      key=username value=":"groupname [":"anything here is ignored]
-
+/*
+ * Read a header from the array, returning the first entry
+ */
+struct hdr_entry *

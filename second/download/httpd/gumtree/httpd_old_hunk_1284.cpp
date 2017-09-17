@@ -1,24 +1,13 @@
-     */
+    if (!method_restricted)
+	return OK;
 
-    if (r->read_body == REQUEST_CHUNKED_PASS)
+    if (!(sec->auth_authoritative))
+	return DECLINED;
 
-        bufsiz -= 2;
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
+}
 
-    if (bufsiz <= 0)
-
-        return -1;              /* Cannot read chunked with a small buffer */
-
-
-
-    if (r->remaining == 0) {    /* Start of new chunk */
-
-
-
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-
-            || !isxdigit(*buffer)) {
-
-            r->connection->keepalive = -1;
-
+module MODULE_VAR_EXPORT auth_module =
+{
+-- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800

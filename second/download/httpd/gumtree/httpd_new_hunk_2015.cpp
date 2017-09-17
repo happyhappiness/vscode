@@ -1,46 +1,13 @@
-#ifdef USE_PERL_SSI
+	return ap_proxyerror(r, err);	/* give up */
 
-            else if (!strcmp(directive, "perl")) {
+    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating socket");
+	return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-                ret = handle_perl(f, r, error);
-
-            }
-
-#endif
-
-            else {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "httpd: unknown directive \"%s\" "
-
-                            "in parsed doc %s",
-
-                            directive, r->filename);
-
-                if (printing) {
-
-                    ap_rputs(error, r);
-
-                }
-
-                ret = find_string(f, ENDING_SEQUENCE, r, 0);
-
-            }
-
-            if (ret) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "httpd: premature EOF in parsed file %s",
-
-                            r->filename);
-
-                return;
-
-            }
-
-        }
-
-        else {
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
+		       (const char *) &conf->recv_buffer_size, sizeof(int))
+	    == -1) {

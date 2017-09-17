@@ -1,100 +1,20 @@
-#ifdef NEED_HASHBANG_EMUL
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
+        }
+        return 0;
+    }
 
-    printf(" -D NEED_HASHBANG_EMUL\n");
+    range = ap_getword(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
-#endif
+    if (r->byterange > 1) {
+        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-#ifdef SHARED_CORE
-
-    printf(" -D SHARED_CORE\n");
-
-#endif
-
-
-
-/* This list displays the compiled-in default paths: */
-
-#ifdef HTTPD_ROOT
-
-    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
-
-#endif
-
-#ifdef SUEXEC_BIN
-
-    printf(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n");
-
-#endif
-
-#ifdef SHARED_CORE_DIR
-
-    printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");
-
-#endif
-
-#ifdef DEFAULT_PIDLOG
-
-    printf(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n");
-
-#endif
-
-#ifdef DEFAULT_SCOREBOARD
-
-    printf(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n");
-
-#endif
-
-#ifdef DEFAULT_LOCKFILE
-
-    printf(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n");
-
-#endif
-
-#ifdef DEFAULT_XFERLOG
-
-    printf(" -D DEFAULT_XFERLOG=\"" DEFAULT_XFERLOG "\"\n");
-
-#endif
-
-#ifdef DEFAULT_ERRORLOG
-
-    printf(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n");
-
-#endif
-
-#ifdef TYPES_CONFIG_FILE
-
-    printf(" -D TYPES_CONFIG_FILE=\"" TYPES_CONFIG_FILE "\"\n");
-
-#endif
-
-#ifdef SERVER_CONFIG_FILE
-
-    printf(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n");
-
-#endif
-
-#ifdef ACCESS_CONFIG_FILE
-
-    printf(" -D ACCESS_CONFIG_FILE=\"" ACCESS_CONFIG_FILE "\"\n");
-
-#endif
-
-#ifdef RESOURCE_CONFIG_FILE
-
-    printf(" -D RESOURCE_CONFIG_FILE=\"" RESOURCE_CONFIG_FILE "\"\n");
-
-#endif
-
-}
-
-
-
-
-
-/* Some init code that's common between win32 and unix... well actually
-
- * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
-
- * is still a mess.
-
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

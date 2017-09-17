@@ -1,36 +1,26 @@
-#else
 
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
+    /* Pass one --- direct matches */
 
-#endif
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
 
+            if (result != DECLINED)
+                return result;
+        }
+    }
 
+    /* Pass two --- wildcard matches */
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-
-    if (conf->rewritelogfile == NULL)
-
-        return;
-
-    if (*(conf->rewritelogfile) == '\0')
-
-        return;
-
-    if (conf->rewritelogfp > 0)
-
-        return; /* virtual log shared w/ main server */
-
-
-
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-
-
-    if (*conf->rewritelogfile == '|') {
-
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

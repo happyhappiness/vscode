@@ -1,48 +1,13 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+	return ap_proxyerror(r, err);	/* give up */
 
-    if (err != NULL) {
-
-        return err;
-
+    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating socket");
+	return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-
-
-    ap_threads_per_child = atoi(arg);
-
-    if (ap_threads_per_child > HARD_SERVER_LIMIT) {
-
-        fprintf(stderr, "WARNING: ThreadsPerChild of %d exceeds compile time limit "
-
-                "of %d threads,\n", ap_threads_per_child, HARD_SERVER_LIMIT);
-
-        fprintf(stderr, " lowering ThreadsPerChild to %d.  To increase, please "
-
-                "see the\n", HARD_SERVER_LIMIT);
-
-        fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-
-        ap_threads_per_child = HARD_SERVER_LIMIT;
-
-    } 
-
-    else if (ap_threads_per_child < 1) {
-
-	fprintf(stderr, "WARNING: Require ThreadsPerChild > 0, setting to 1\n");
-
-	ap_threads_per_child = 1;
-
-    }
-
-
-
-    return NULL;
-
-}
-
-
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-
-{
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
+		       (const char *) &conf->recv_buffer_size, sizeof(int))
+	    == -1) {

@@ -1,26 +1,28 @@
-#elif defined(NEXT) || defined(NEWSOS)
-
-    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
-
-	perror("setpgrp");
-
-	fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
-
-	exit(1);
-
+	     */
+	    break;
+#endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
-#elif defined(OS2)
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-    /* OS/2 don't support process group IDs */
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
+    }
 
-    pgrp = getpid();
+    child_timeouts = !ap_standalone || one_process;
 
-#elif defined(MPE)
-
-    /* MPE uses negative pid for process group */
-
-    pgrp = -getpid();
-
-#else
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

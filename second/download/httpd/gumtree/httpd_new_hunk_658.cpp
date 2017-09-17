@@ -1,42 +1,37 @@
-#else
+	if (rc == -1) {
+	    ap_kill_timeout(r);
+	    return ap_proxyerror(r, "Error sending to remote server");
+	}
+	if (rc == 550) {
+	    ap_kill_timeout(r);
+	    return HTTP_NOT_FOUND;
+	}
+	if (rc != 250) {
+	    ap_kill_timeout(r);
+	    return HTTP_BAD_GATEWAY;
+	}
 
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-
-#endif
-
-
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-
-
-    if (conf->rewritelogfile == NULL) {
-
-        return;
-
+	ap_bputs("LIST -lag" CRLF, f);
+	ap_bflush(f);
+	Explain0("FTP: LIST -lag");
+	rc = ftp_getrc(f);
+	Explain1("FTP: returned status %d", rc);
+	if (rc == -1)
+	    return ap_proxyerror(r, "Error sending to remote server");
     }
+    ap_kill_timeout(r);
+    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
+	return HTTP_BAD_GATEWAY;
 
-    if (*(conf->rewritelogfile) == '\0') {
+    r->status = 200;
+    r->status_line = "200 OK";
 
-        return;
+    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
+    c->hdrs = resp_hdrs;
 
-    }
-
-    if (conf->rewritelogfp > 0) {
-
-        return; /* virtual log shared w/ main server */
-
-    }
-
-
-
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-
-
-    if (*conf->rewritelogfile == '|') {
-
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
-
+    if (parms[0] == 'd')
+	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
+    else {
+	if (r->content_type != NULL) {
+	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
+			     HDR_REP);
