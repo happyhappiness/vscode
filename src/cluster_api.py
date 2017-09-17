@@ -7,7 +7,6 @@ import json
 from itertools import islice
 from z3_api import Z3_api
 import analyze_control_clone
-import block
 import myUtil
 import my_constant
 
