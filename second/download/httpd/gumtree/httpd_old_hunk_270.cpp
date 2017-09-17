@@ -1,13 +1,13 @@
-    ++filp;
-    prefix_len = strlen(filp);
 
-    dirp = ap_popendir(neg->pool, neg->dir_name);
+    /* We are not using multiviews */
+    neg->count_multiviews_variants = 0;
 
-    if (dirp == NULL) {
+    map = ap_pfopen(neg->pool, rr->filename, "r");
+    if (map == NULL) {
         ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-                    "cannot read directory for multi: %s", neg->dir_name);
+                    "cannot access type map file: %s", rr->filename);
         return HTTP_FORBIDDEN;
     }
 
-    while ((dir_entry = readdir(dirp))) {
-        request_rec *sub_req;
+    clean_var_rec(&mime_info);
+

@@ -1,12 +1,13 @@
-}
 
-#ifdef USE_PERL_SSI
-static int handle_perl(FILE *in, request_rec *r, const char *error)
-{
-    char tag[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
+    while (1) {
+        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
+            return 1;
+        }
+        if (!strcmp(tag, "var")) {
+            char *val = ap_table_get(r->subprocess_env, tag_val);
 
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+            if (val) {
+                ap_rputs(val, r);
+            }
+            else {
+                ap_rputs("(none)", r);

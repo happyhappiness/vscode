@@ -1,17 +1,13 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
+    ap_daemons_limit = atoi(arg);
+    if (ap_daemons_limit > HARD_SERVER_LIMIT) {
+       fprintf(stderr, "WARNING: MaxClients of %d exceeds compile time limit "
+           "of %d servers,\n", ap_daemons_limit, HARD_SERVER_LIMIT);
+       fprintf(stderr, " lowering MaxClients to %d.  To increase, please "
+           "see the\n", HARD_SERVER_LIMIT);
+       fprintf(stderr, " HARD_SERVER_LIMIT define in src/httpd.h.\n");
+       ap_daemons_limit = HARD_SERVER_LIMIT;
+    } 
+    else if (ap_daemons_limit < 1) {
+	fprintf(stderr, "WARNING: Require MaxClients > 0, setting to 1\n");
+	ap_daemons_limit = 1;
     }
-
-    ap_threads_per_child = atoi(arg);
-#ifdef WIN32
-    if (ap_threads_per_child > 64) {
-	return "Can't have more than 64 threads in Windows (for now)";
-    }
-#endif
-
-    return NULL;
-}
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-{

@@ -1,17 +1,12 @@
-            else if (w < 0) {
-                if (r->connection->aborted)
-                    break;
-                else if (errno == EAGAIN)
-                    continue;
-                else {
-                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-                     "%s client stopped connection before send body completed",
-                                ap_get_remote_host(r->connection,
-                                                r->per_dir_config,
-                                                REMOTE_NAME));
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-                    r->connection->aborted = 1;
-                    break;
-                }
-            }
-        }
+     */
+    if (r->read_body == REQUEST_CHUNKED_PASS)
+        bufsiz -= 2;
+    if (bufsiz <= 0)
+        return -1;              /* Cannot read chunked with a small buffer */
+
+    if (r->remaining == 0) {    /* Start of new chunk */
+
+        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
+        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
+            || !isxdigit(*buffer)) {
+            r->connection->keepalive = -1;

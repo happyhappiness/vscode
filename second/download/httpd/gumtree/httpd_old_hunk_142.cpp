@@ -1,21 +1,13 @@
-	    else {
-		grpname = gr->gr_name;
-	    }
-	}
-	else {
-	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getpwuid: invalid userid %ld",
-			     (long) r->server->server_uid);
-		return (pid);
-	    }
-	    execuser = ap_pstrdup(r->pool, pw->pw_name);
 
-	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
+	    if (pos) {
+		*pos = '\0';
+	    }
+
+	    if ((pw = getpwnam(username)) == NULL) {
 		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getgrgid: invalid groupid %ld",
-			     (long) r->server->server_gid);
+			     "getpwnam: invalid username %s", username);
 		return (pid);
 	    }
-	    grpname = gr->gr_name;
-	}
+	    execuser = ap_pstrcat(r->pool, "~", pw->pw_name, NULL);
+	    user_gid = pw->pw_gid;
+

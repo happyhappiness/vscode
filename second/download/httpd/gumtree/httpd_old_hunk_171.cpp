@@ -1,14 +1,13 @@
-#ifdef WIN32
-	if (i == SOCKET_ERROR)
-	    errno = WSAGetLastError();
-#endif /* WIN32 */
-    } while (i == -1 && errno == EINTR);
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy connect to %s port %d failed",
-		     inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
-    }
-    ap_kill_timeout(r);
 
-    return i;
+    url = ap_pstrdup(r->pool, &url[1]);	/* make it point to "//", which is what proxy_canon_netloc expects */
+
+    err = ap_proxy_canon_netloc(r->pool, &url, &user, &password, &host, &port);
+
+    if (err != NULL)
+	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
+		     "%s", err);
+
+    r->hostname = host;
+
+    return host;		/* ought to return the port, too */
 }

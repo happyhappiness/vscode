@@ -1,13 +1,13 @@
-    case LELONG:
-    case LEDATE:
-	p->l = (long)
-	    ((p->hl[3] << 24) | (p->hl[2] << 16) | (p->hl[1] << 8) | (p->hl[0]));
-	return 1;
+	pp = ctime((time_t *) & p->l);
+	if ((rt = strchr(pp, '\n')) != NULL)
+	    *rt = '\0';
+	(void) magic_rsl_printf(r, m->desc, pp);
+	return;
     default:
 	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-		    MODNAME ": invalid type %d in mconvert().", m->type);
-	return 0;
+		    MODNAME ": invalid m->type (%d) in mprint().",
+		    m->type);
+	return;
     }
-}
 
-
+    v = signextend(r->server, m, v) & m->mask;

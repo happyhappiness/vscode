@@ -1,13 +1,13 @@
-	return log_scripterror(r, conf, FORBIDDEN, APLOG_NOERRNO,
-			       "Options ExecCGI is off in this directory");
-    if (nph && is_included)
-	return log_scripterror(r, conf, FORBIDDEN, APLOG_NOERRNO,
-			       "attempt to include NPH CGI script");
+static int log_scripterror(request_rec *r, cgi_server_conf * conf, int ret,
+			   int show_errno, char *error)
+{
+    FILE *f;
+    struct stat finfo;
 
-#if defined(OS2) || defined(WIN32)
-    /* Allow for cgi files without the .EXE extension on them under OS/2 */
-    if (r->finfo.st_mode == 0) {
-	struct stat statbuf;
+    ap_log_rerror(APLOG_MARK, show_errno|APLOG_ERR, r, 
+		"%s: %s", error, r->filename);
 
-	r->filename = ap_pstrcat(r->pool, r->filename, ".EXE", NULL);
-
+    if (!conf->logname ||
+	((stat(ap_server_root_relative(r->pool, conf->logname), &finfo) == 0)
+	 &&   (finfo.st_size > conf->logbytes)) ||
+         ((f = ap_pfopen(r->pool, ap_server_root_relative(r->pool, conf->logname),

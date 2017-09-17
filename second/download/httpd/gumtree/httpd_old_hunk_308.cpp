@@ -1,22 +1,25 @@
-        memcpy(&sel_write, &writebits, sizeof(readbits));
+    stats = malloc(requests * sizeof(struct data));
 
-        /* check for time limit expiry */
-        gettimeofday(&now, 0);
-        if (tlimit && timedif(now, start) > (tlimit * 1000)) {
-            requests = done;    /* so stats are correct */
-            output_results();
-        }
+    FD_ZERO(&readbits);
+    FD_ZERO(&writebits);
 
-        /* Timeout of 30 seconds. */
-        timeout.tv_sec = 30;
-        timeout.tv_usec = 0;
-        n = ap_select(FD_SETSIZE, &sel_read, &sel_write, &sel_except, &timeout);
-        if (!n) {
-            printf("\nServer timed out\n\n");
-            exit(1);
-        }
-        if (n < 1)
-            err("select");
+    /* setup request */
+    sprintf(request, "GET %s HTTP/1.0\r\n"
+                     "User-Agent: ApacheBench/%s\r\n"
+                     "%s"
+                     "Host: %s\r\n"
+                     "Accept: */*\r\n"
+                     "\r\n", 
+                     path, 
+                     VERSION,
+                     keepalive ? "Connection: Keep-Alive\r\n" : "", 
+                     hostname);
 
-        for (i = 0; i < concurrency; i++) {
-            int s = con[i].fd;
+    reqlen = strlen(request);
+
+    /* ok - lets start */
+    gettimeofday(&start, 0);
+
+    /* initialise lots of requests */
+    for (i = 0; i < concurrency; i++)
+        start_connect(&con[i]);

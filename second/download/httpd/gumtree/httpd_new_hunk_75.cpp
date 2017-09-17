@@ -1,24 +1,16 @@
-
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-{
-    char *cp = header;
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = ap_tolower(*cp);
-    }
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
-
-    do {
-        ++cp;
-    } while (*cp && ap_isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;
+		return;
+#if MIME_MAGIC_DEBUG
+	    prevm = 0;
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
+			MODNAME ": magic_init 1 test");
+	    for (m = conf->magic; m; m = m->next) {
+		if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
+		    ap_isprint((((unsigned long) m) >> 16) & 255) &&
+		    ap_isprint((((unsigned long) m) >> 8) & 255) &&
+		    ap_isprint(((unsigned long) m) & 255)) {
+		    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
+				MODNAME ": magic_init 1: POINTER CLOBBERED! "
+				"m=\"%c%c%c%c\" line=%d",
+				(((unsigned long) m) >> 24) & 255,
+				(((unsigned long) m) >> 16) & 255,
+				(((unsigned long) m) >> 8) & 255,

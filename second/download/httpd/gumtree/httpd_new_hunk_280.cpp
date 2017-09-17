@@ -1,13 +1,13 @@
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", conf->rewritelockfile);
-        exit(1);
-    }
-#if !defined(OS2) && !defined(WIN32)
-    /* make sure the childs have access to this file */
-    if (geteuid() == 0 /* is superuser */)
-        chown(conf->rewritelockfile, ap_user_id, -1 /* no gid change */);
-#endif
-
-    return;
+                    rewritelog(r, 5, "map lookup FAILED: map=%s key=%s",
+                               s->name, key);
+                }
+            }
+            else if (s->type == MAPTYPE_RND) {
+                if (stat(s->checkfile, &st) == -1) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
+                                 "mod_rewrite: can't access text RewriteMap "
+                                 "file %s", s->checkfile);
+                    rewritelog(r, 1, "can't open RewriteMap file, "
+                               "see error log");
+                    return NULL;
+                }

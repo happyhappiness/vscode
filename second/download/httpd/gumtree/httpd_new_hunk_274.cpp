@@ -1,13 +1,13 @@
-    /*
-     *  only do something under runtime if the engine is really enabled,
-     *  for this directory, else return immediately!
-     */
-    if (!(ap_allow_options(r) & (OPT_SYM_LINKS | OPT_SYM_OWNER))) {
-        /* FollowSymLinks is mandatory! */
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                     "Options FollowSymLinks or SymLinksIfOwnerMatch is off "
-                     "which implies that RewriteRule directive is forbidden: "
-                     "%s", r->filename);
-        return FORBIDDEN;
-    }
-    else {
+            /* it should be go on as an internal proxy request */
+
+            /* check if the proxy module is enabled, so
+             * we can actually use it!
+             */
+            if (!proxy_available) {
+                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+                             "attempt to make remote request from mod_rewrite "
+                             "without proxy enabled: %s", r->filename);
+                return FORBIDDEN;
+            }
+
+            /* make sure the QUERY_STRING and

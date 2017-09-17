@@ -1,22 +1,17 @@
-			 "setrlimit(RLIMIT_VMEM): failed to set memory "
-			 "usage limit");
-	}
-    }
-#endif
+	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
+		    continue;
+		}
+	    }
 
-#ifdef OS2
-    {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope it's enough for the interpreter path */
-	FILE *program;
-
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r, "fopen(%s) failed",
-			 r->filename);
-	    return (pid);
+	    ap_kill_timeout(r);
+	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+			  "%s: %s", malformed, r->filename);
+	    ap_table_setn(r->notes, "error-notes",
+			  ap_pstrdup(r->pool, malformed));
+	    return HTTP_INTERNAL_SERVER_ERROR;
 	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
+
+	*l++ = '\0';
+	while (*l && ap_isspace(*l)) {
+	    ++l;
+	}

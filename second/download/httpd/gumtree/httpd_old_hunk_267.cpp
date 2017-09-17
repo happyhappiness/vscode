@@ -1,22 +1,13 @@
-    }
+{
+    int suffix_pos, result;
+    char *sub_filename;
+    request_rec *sub;
 
-    /* perform sub-request for the file name without the suffix */
-    result = 0;
-    sub_filename = ap_pstrndup(r->pool, r->filename, suffix_pos);
 #if MIME_MAGIC_DEBUG
     ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": subrequest lookup for %s", sub_filename);
+		MODNAME ": revision_suffix checking %s", r->filename);
 #endif /* MIME_MAGIC_DEBUG */
-    sub = ap_sub_req_lookup_file(sub_filename, r);
 
-    /* extract content type/encoding/language from sub-request */
-    if (sub->content_type) {
-	r->content_type = ap_pstrdup(r->pool, sub->content_type);
-#if MIME_MAGIC_DEBUG
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		    MODNAME ": subrequest %s got %s",
-		    sub_filename, r->content_type);
-#endif /* MIME_MAGIC_DEBUG */
-	if (sub->content_encoding)
-	    r->content_encoding =
-		ap_pstrdup(r->pool, sub->content_encoding);
+    /* check for recognized revision suffix */
+    suffix_pos = strlen(r->filename) - 1;
+    if (!ap_isdigit(r->filename[suffix_pos])) {

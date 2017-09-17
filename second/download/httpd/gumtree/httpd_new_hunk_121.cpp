@@ -1,26 +1,61 @@
-     */
-    if (r->read_body == REQUEST_CHUNKED_PASS)
-        bufsiz -= 2;
-    if (bufsiz <= 0)
-        return -1;              /* Cannot read chunked with a small buffer */
+ */
 
-    /* Check to see if we have already read too much request data.
-     * For efficiency reasons, we only check this at the top of each
-     * caller read pass, since the limit exists just to stop infinite
-     * length requests and nobody cares if it goes over by one buffer.
-     */
-    max_body = ap_get_limit_req_body(r);
-    if (max_body && (r->read_length > max_body)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-            "Chunked request body is larger than the configured limit of %lu",
-            max_body);
-        r->connection->keepalive = -1;
-        return -1;
+API_EXPORT(int) ap_setup_client_block(request_rec *r, int read_policy)
+{
+    const char *tenc = ap_table_get(r->headers_in, "Transfer-Encoding");
+    const char *lenp = ap_table_get(r->headers_in, "Content-Length");
+    unsigned long max_body;
+
+    r->read_body = read_policy;
+    r->read_chunked = 0;
+    r->remaining = 0;
+
+    if (tenc) {
+        if (strcasecmp(tenc, "chunked")) {
+            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+                        "Unknown Transfer-Encoding %s", tenc);
+            return HTTP_NOT_IMPLEMENTED;
+        }
+        if (r->read_body == REQUEST_CHUNKED_ERROR) {
+            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+                        "chunked Transfer-Encoding forbidden: %s", r->uri);
+            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+        }
+
+        r->read_chunked = 1;
+    }
+    else if (lenp) {
+        const char *pos = lenp;
+
+        while (ap_isdigit(*pos) || ap_isspace(*pos))
+            ++pos;
+        if (*pos != '\0') {
+            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+                        "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }
+
+        r->remaining = atol(lenp);
     }
 
-    if (r->remaining == 0) {    /* Start of new chunk */
+    if ((r->read_body == REQUEST_NO_BODY) &&
+        (r->read_chunked || (r->remaining > 0))) {
+        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+                    "%s with body is not allowed for %s", r->method, r->uri);
+        return HTTP_REQUEST_ENTITY_TOO_LARGE;
+    }
 
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-            || !isxdigit(*buffer)) {
-            r->connection->keepalive = -1;
+    max_body = ap_get_limit_req_body(r);
+    if (max_body && (r->remaining > max_body)) {
+        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+          "Request content-length of %s is larger than the configured "
+          "limit of %lu", lenp, max_body);
+        return HTTP_REQUEST_ENTITY_TOO_LARGE;
+    }
+
+    return OK;
+}
+
+API_EXPORT(int) ap_should_client_block(request_rec *r)
+{
+    /* First check if we have already read the request body */

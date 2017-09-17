@@ -1,13 +1,17 @@
-            if (result != DECLINED)
-                return result;
-        }
-    }
+	    hStdErr = dup(fileno(stderr));
+	    if(dup2(err_fds[1], fileno(stderr)))
+		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
+	    close(err_fds[1]);
+	}
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
+	info.hPipeInputRead   = GetStdHandle(STD_INPUT_HANDLE);
+	info.hPipeOutputWrite = GetStdHandle(STD_OUTPUT_HANDLE);
+	info.hPipeErrorWrite  = GetStdHandle(STD_ERROR_HANDLE);
 
-    /* Pass two --- wildcard matches */
+	pid = (*func) (data, &info);
+        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
 
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+        if (!pid) {
+	    save_errno = errno;
+	    close(in_fds[1]);
+	    close(out_fds[0]);

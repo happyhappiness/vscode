@@ -1,13 +1,13 @@
-            ap_rputs("     Evaluate eq/ne\n", r);
+        case token_or:
+#ifdef DEBUG_INCLUDE
+            ap_rputs("     Evaluate and/or\n", r);
 #endif
-            if ((current->left == (struct parse_node *) NULL) ||
-                (current->right == (struct parse_node *) NULL) ||
-                (current->left->token.type != token_string) ||
-                (current->right->token.type != token_string)) {
+            if (current->left == (struct parse_node *) NULL ||
+                current->right == (struct parse_node *) NULL) {
                 ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
                             "Invalid expression \"%s\" in file %s",
                             expr, r->filename);
                 ap_rputs(error, r);
                 goto RETURN;
             }
-            parse_string(r, current->left->token.value,
+            if (!current->left->done) {

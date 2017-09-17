@@ -1,44 +1,57 @@
-	    int cond_status = OK;
+	}
+	ap_destroy_sub_req(pa_req);
+    }
+}
 
+
+static int set_cookie_doo_doo(void *v, const char *key, const char *val)
+{
+    ap_table_addn(v, key, val);
+    return 1;
+}
+
+API_EXPORT(int) ap_scan_script_header_err_core(request_rec *r, char *buffer,
+				       int (*getsfunc) (char *, int, void *),
+				       void *getsfunc_data)
+{
+    char x[MAX_STRING_LEN];
+    char *w, *l;
+    int p;
+    int cgi_status = HTTP_OK;
+    table *merge;
+    table *cookie_table;
+
+    if (buffer) {
+	*buffer = '\0';
+    }
+    w = buffer ? buffer : x;
+
+    ap_hard_timeout("read script header", r);
+
+    /* temporary place to hold headers to merge in later */
+    merge = ap_make_table(r->pool, 10);
+
+    /* The HTTP specification says that it is legal to merge duplicate
+     * headers into one.  Some browsers that support Cookies don't like
+     * merged headers and prefer that each Set-Cookie header is sent
+     * separately.  Lets humour those browsers by not merging.
+     * Oh what a pain it is.
+     */
+    cookie_table = ap_make_table(r->pool, 2);
+    ap_table_do(set_cookie_doo_doo, cookie_table, r->err_headers_out, "Set-Cookie", NULL);
+
+    while (1) {
+
+	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
 	    ap_kill_timeout(r);
-	    if ((cgi_status == HTTP_OK) && (r->method_number == M_GET)) {
-		cond_status = ap_meets_conditions(r);
-	    }
-	    ap_overlap_tables(r->err_headers_out, merge,
-		AP_OVERLAP_TABLES_MERGE);
-	    if (!ap_is_empty_table(cookie_table)) {
-		r->err_headers_out = ap_overlay_tables(r->pool,
-		    r->err_headers_out, cookie_table);
-	    }
-	    return cond_status;
+	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+			  "Premature end of script headers: %s", r->filename);
+	    ap_table_setn(r->notes, "error-notes",
+			  "Premature end of script headers");
+	    return HTTP_INTERNAL_SERVER_ERROR;
 	}
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+	/* Delete terminal (CR?)LF */
 
-#ifdef CHARSET_EBCDIC
-	    /* Chances are that we received an ASCII header text instead of
-	     * the expected EBCDIC header lines. Try to auto-detect:
-	     */
-	if (!(l = strchr(w, ':'))) {
-	    int maybeASCII = 0, maybeEBCDIC = 0;
-	    char *cp;
-
-	    for (cp = w; *cp != '\0'; ++cp) {
-		if (isprint(*cp) && !isprint(os_toebcdic[*cp]))
-		    ++maybeEBCDIC;
-		if (!isprint(*cp) && isprint(os_toebcdic[*cp]))
-		    ++maybeASCII;
-		}
-	    if (maybeASCII > maybeEBCDIC) {
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "CGI Interface Error: Script headers apparently ASCII: (CGI = %s)", r->filename);
-		ascii2ebcdic(w, w, cp - w);
-	    }
-	}
-#endif
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+	p = strlen(w);
+	if (p > 0 && w[p - 1] == '\n') {

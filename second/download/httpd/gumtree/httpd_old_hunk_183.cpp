@@ -1,13 +1,13 @@
-#else
-    q.dsize = strlen(q.dptr) + 1;
-#endif
-
-
-    if (!(f = dbm_open(auth_dbmpwfile, O_RDONLY, 0664))) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "could not open dbm auth file: %s", auth_dbmpwfile);
-	return NULL;
+		while (groups[0]) {
+		    v = ap_getword(r->pool, &groups, ',');
+		    if (!strcmp(v, w))
+			return OK;
+		}
+	    }
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"user %s not in right group: %s", user, r->filename);
+	    ap_note_basic_auth_failure(r);
+	    return AUTH_REQUIRED;
+	}
     }
-
-    d = dbm_fetch(f, q);
 

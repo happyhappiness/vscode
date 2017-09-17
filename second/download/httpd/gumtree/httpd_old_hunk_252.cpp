@@ -1,13 +1,13 @@
-	return DONE;
 #endif
-#endif
-    case S_IFREG:
-	break;
-    default:
+#ifdef    S_IFLNK
+    case S_IFLNK:
+	/* We used stat(), the only possible reason for this is that the
+	 * symlink is broken.
+	 */
 	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-		    MODNAME ": invalid mode 0%o.", (unsigned int)r->finfo.st_mode);
+		    MODNAME ": broken symlink (%s)", fn);
 	return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    /*
-     * regular file, check next possibility
+#endif
+#ifdef    S_IFSOCK
+#ifndef __COHERENT__
+    case S_IFSOCK:

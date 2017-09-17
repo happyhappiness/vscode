@@ -1,37 +1,15 @@
-    DBT d, q;
-    char *pw = NULL;
+    if (!method_restricted)
+	return OK;
 
-    q.data = user;
-    q.size = strlen(q.data);
+    if (!(sec->auth_authoritative))
+	return DECLINED;
 
-#ifdef DB2
-    if (db_open(auth_dbpwfile, DB_HASH, O_RDONLY, 0664, NULL, NULL,  &f) != 0) {
-#else
-    if (!(f = dbopen(auth_dbpwfile, O_RDONLY, 0664, DB_HASH, NULL))) {
-#endif
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		    "could not open db auth file: %s", auth_dbpwfile);
-	return NULL;
-    }
-
-#ifdef DB2
-    if (!((f->get) (f, NULL, &q, &d, 0))) {
-#else
-    if (!((f->get) (f, &q, &d, 0))) {
-#endif
-	pw = ap_palloc(r->pool, d.size + 1);
-	strncpy(pw, d.data, d.size);
-	pw[d.size] = '\0';	/* Terminate the string */
-    }
-
-#ifdef DB2
-    (f->close) (f, 0);
-#else
-    (f->close) (f);
-#endif
-    return pw;
+    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+	"access to %s failed, reason: user %s not allowed access",
+	r->uri, user);
+	
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
 }
 
-/* We do something strange with the group file.  If the group file
- * contains any : we assume the format is
- *      key=username value=":"groupname [":"anything here is ignored]
+module MODULE_VAR_EXPORT auth_module =

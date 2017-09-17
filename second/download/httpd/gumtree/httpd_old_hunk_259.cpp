@@ -1,19 +1,13 @@
-	    }
-
-	    /* move to next continuation record */
-	    m = m->next;
-	}
+	 * while (m && m->next && m->next->cont_level != 0 && ( m = m->next
+	 * ))
+	 */
+	m = m->next;
+	while (m && (m->cont_level != 0)) {
 #if MIME_MAGIC_DEBUG
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		    MODNAME ": matched after %d rules", rule_counter);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+			MODNAME ": match line=%d cont=%d type=%d %s",
+			m->lineno, m->cont_level, m->type,
+			(m->type == STRING) ? m->value.s : "");
 #endif
-	return 1;		/* all through */
-    }
-#if MIME_MAGIC_DEBUG
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": failed after %d rules", rule_counter);
-#endif
-    return 0;			/* no match at all */
-}
-
-static void mprint(request_rec *r, union VALUETYPE *p, struct magic *m)
+	    if (cont_level >= m->cont_level) {
+		if (cont_level > m->cont_level) {

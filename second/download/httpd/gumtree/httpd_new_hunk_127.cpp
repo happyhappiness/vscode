@@ -1,13 +1,14 @@
-        /*
-         * Do symlink checks first, because they are done with the
-         * permissions appropriate to the *parent* directory...
-         */
-
-        if ((res = check_symlinks(test_dirname, core_dir->opts))) {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "Symbolic link not allowed: %s", test_dirname);
-            return res;
+                --cp;
         }
-
+        else {
+#if defined(EACCES)
+            if (errno != EACCES)
+#endif
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
+                            "access to %s failed", r->uri);
+            return HTTP_FORBIDDEN;
+        }
+#else
+#error ENOENT || ENOTDIR not defined; please see the
+#error comments at this line in the source for a workaround.
         /*
-         * Begin *this* level by looking for matching <Directory> sections

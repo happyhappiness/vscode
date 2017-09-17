@@ -1,13 +1,15 @@
-	    hStdErr = dup(fileno(stderr));
-	    if(dup2(err_fds[1], fileno(stderr)))
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
-	    close(err_fds[1]);
-	}
+#define APLOG_MARK	__FILE__,__LINE__
 
-	pid = (*func) (data, NULL);
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
+void ap_open_logs (server_rec *, pool *p);
+API_EXPORT(void) ap_log_error(const char *file, int line, int level,
+			     const server_rec *s, const char *fmt, ...)
+			    __attribute__((format(printf,5,6)));
+API_EXPORT(void) ap_error_log2stderr (server_rec *);     
 
-        if (!pid) {
-	    save_errno = errno;
-	    close(in_fds[1]);
-	    close(out_fds[0]);
+void ap_log_pid (pool *p, char *fname);
+API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
+API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
+			     const char *msg, server_rec *s);
+API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
+			    __attribute__((format(printf,2,3)));
+API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,

@@ -1,14 +1,13 @@
-                error_fmt = "unable to include \"%s\" in parsed file %s";
-            }
-#ifndef WIN32
-            ap_chdir_file(r->filename);
-#endif
-            if (error_fmt) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-			    r->server, error_fmt, tag_val, r->filename);
-                ap_rputs(error, r);
-            }
 
-	    /* destroy the sub request if it's not a nested include */
-            if (rr != NULL
-		&& ap_get_module_config(rr->request_config, &includes_module)
+    rr->content_type = CGI_MAGIC_TYPE;
+
+    /* Run it. */
+
+    rr_status = ap_run_sub_req(rr);
+    if (is_HTTP_REDIRECT(rr_status)) {
+        const char *location = ap_table_get(rr->headers_out, "Location");
+        location = ap_escape_html(rr->pool, location);
+        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+    }
+
+    ap_destroy_sub_req(rr);

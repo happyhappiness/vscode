@@ -1,57 +1,91 @@
-	version_locked++;
-    }
-}
-
-static APACHE_TLS int volatile exit_after_unblock = 0;
-
-#ifdef GPROF
-/* 
- * change directory for gprof to plop the gmon.out file
- * configure in httpd.conf:
- * GprofDir logs/   -> $ServerRoot/logs/gmon.out
- * GprofDir logs/%  -> $ServerRoot/logs/gprof.$pid/gmon.out
- */
-static void chdir_for_gprof(void)
-{
-    core_server_config *sconf = 
-	ap_get_module_config(server_conf->module_config, &core_module);    
-    char *dir = sconf->gprof_dir;
-
-    if(dir) {
-	char buf[512];
-	int len = strlen(sconf->gprof_dir) - 1;
-	if(*(dir + len) == '%') {
-	    dir[len] = '\0';
-	    ap_snprintf(buf, sizeof(buf), "%sgprof.%d", dir, (int)getpid());
-	} 
-	dir = ap_server_root_relative(pconf, buf[0] ? buf : dir);
-	if(mkdir(dir, 0755) < 0 && errno != EEXIST) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, server_conf,
-			 "gprof: error creating directory %s", dir);
-	}
-    }
     else {
-	dir = ap_server_root_relative(pconf, "logs");
+	syslog(level & APLOG_LEVELMASK, "%s", errstr);
     }
-
-    chdir(dir);
-}
-#else
-#define chdir_for_gprof()
 #endif
-
-/* a clean exit from a child with proper cleanup */
-static void clean_child_exit(int code) __attribute__ ((noreturn));
-static void clean_child_exit(int code)
+}
+    
+API_EXPORT(void) ap_log_error (const char *file, int line, int level,
+			      const server_rec *s, const char *fmt, ...)
 {
-    if (pchild) {
-	ap_child_exit_modules(pchild, server_conf);
-	ap_destroy_pool(pchild);
-    }
-    chdir_for_gprof();
-    exit(code);
+    va_list args;
+
+    va_start(args, fmt);
+    log_error_core(file, line, level, s, NULL, fmt, args);
+    va_end(args);
 }
 
-#if defined(USE_FCNTL_SERIALIZED_ACCEPT) || defined(USE_FLOCK_SERIALIZED_ACCEPT)
-static void expand_lock_fname(pool *p)
+API_EXPORT(void) ap_log_rerror(const char *file, int line, int level,
+			       const request_rec *r, const char *fmt, ...)
 {
+    va_list args;
+
+    va_start(args, fmt);
+    log_error_core(file, line, level, r->server, r, fmt, args);
+    if (ap_table_get(r->notes, "error-notes") == NULL) {
+	char errstr[MAX_STRING_LEN];
+
+	ap_vsnprintf(errstr, sizeof(errstr), fmt, args);
+	ap_table_set(r->notes, "error-notes", errstr);
+    }
+    va_end(args);
+}
+
+void ap_log_pid (pool *p, char *fname)
+{
+    FILE *pid_file;
+    struct stat finfo;
+    static pid_t saved_pid = -1;
+    pid_t mypid;
+
+    if (!fname) return;
+
+    fname = ap_server_root_relative (p, fname);
+    mypid = getpid();
+    if (mypid != saved_pid && stat(fname,&finfo) == 0) {
+      /* USR1 and HUP call this on each restart.
+       * Only warn on first time through for this pid.
+       *
+       * XXX: Could just write first time through too, although
+       *      that may screw up scripts written to do something
+       *      based on the last modification time of the pid file.
+       */
+      ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
+		   ap_psprintf(p,
+			       "pid file %s overwritten -- Unclean shutdown of previous apache run?",
+			       fname)
+		   );
+    }
+
+    if(!(pid_file = fopen(fname,"w"))) {
+	perror("fopen");
+        fprintf(stderr,"httpd: could not log pid to file %s\n", fname);
+        exit(1);
+    }
+    fprintf(pid_file,"%ld\n",(long)mypid);
+    fclose(pid_file);
+    saved_pid = mypid;
+}
+
+API_EXPORT(void) ap_log_error_old (const char *err, server_rec *s)
+{
+    ap_log_error(APLOG_MARK, APLOG_ERR, s, "%s", err);
+}
+
+API_EXPORT(void) ap_log_unixerr (const char *routine, const char *file,
+			      const char *msg, server_rec *s)
+{
+    ap_log_error(file, 0, APLOG_ERR, s, "%s", msg);
+}
+
+API_EXPORT(void) ap_log_printf (const server_rec *s, const char *fmt, ...)
+{
+    va_list args;
+    
+    va_start(args, fmt);
+    log_error_core(APLOG_MARK, APLOG_ERR, s, NULL, fmt, args);
+    va_end(args);
+}
+
+API_EXPORT(void) ap_log_reason (const char *reason, const char *file, request_rec *r) 
+{
+    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,

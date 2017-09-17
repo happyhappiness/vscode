@@ -1,22 +1,12 @@
-    else
-	dirconf = current_conn->server->lookup_defaults;
-    if (!current_conn->keptalive) {
-	if (sig == SIGPIPE) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"%s client stopped connection before %s completed",
-			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME),
-			timeout_name ? timeout_name : "request");
-	}
-	else {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"%s timed out for %s",
-			timeout_name ? timeout_name : "request",
-			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME));
-	}
+	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
+		    "flock: LOCK_UN: Error freeing accept lock. Exiting!");
+	clean_child_exit(APEXIT_CHILDFATAL);
     }
+}
 
-    if (timeout_req) {
-	/* Someone has asked for this transaction to just be aborted
-	 * if it times out...
+#else
+/* Default --- no serialization.  Other methods *could* go here,
+ * as #elifs...
+ */
+#if !defined(MULTITHREAD)
+/* Multithreaded systems don't complete between processes for

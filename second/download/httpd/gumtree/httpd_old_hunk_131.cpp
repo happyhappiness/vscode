@@ -1,13 +1,24 @@
-    if (r->assbackwards && r->header_only) {
-        /*
-         * Client asked for headers only with HTTP/0.9, which doesn't send
-         * headers!  Have to dink things even to make sure the error message
-         * comes through...
-         */
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "client sent illegal HTTP/0.9 request: %s", r->uri);
-        r->header_only = 0;
-        ap_die(BAD_REQUEST, r);
-        return;
+        else {
+            /*
+             * Dumb user has given us a bad url to redirect to --- fake up
+             * dying with a recursive server error...
+             */
+            recursive_error = SERVER_ERROR;
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Invalid error redirection directive: %s",
+                        custom_response);
+        }
     }
+    ap_send_error_response(r, recursive_error);
+}
 
+static void decl_die(int status, char *phase, request_rec *r)
+{
+    if (status == DECLINED) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_CRIT, r->server,
+                    "configuration error:  couldn't %s: %s", phase, r->uri);
+        ap_die(SERVER_ERROR, r);
+    }
+    else
+        ap_die(status, r);
+}

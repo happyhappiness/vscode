@@ -1,13 +1,13 @@
-            expr = tag_val;
-#ifdef DEBUG_INCLUDE
-            ap_rvputs(r, "**** if expr=\"", expr, "\"\n", NULL);
 #endif
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "unknown parameter \"%s\" to tag if in %s",
-                        tag, r->filename);
-            ap_rputs(error, r);
-        }
-    }
-}
+            if (*conditional_status) {
+                *printing = 0;
+                return (0);
+            }
+	    if (expr == NULL) {
+		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			    "missing expr in elif statement: %s",
+			    r->filename);
+		ap_rputs(error, r);
+		return 1;
+	    }
+            *printing = *conditional_status = parse_expr(r, expr, error);

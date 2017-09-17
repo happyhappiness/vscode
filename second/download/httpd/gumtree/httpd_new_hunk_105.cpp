@@ -1,76 +1,57 @@
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "flock: LOCK_UN: Error freeing accept lock. Exiting!");
-	clean_child_exit(APEXIT_CHILDFATAL);
+	version_locked++;
     }
 }
 
-#elif defined(USE_OS2SEM_SERIALIZED_ACCEPT)
+static APACHE_TLS int volatile exit_after_unblock = 0;
 
-static HMTX lock_sem = -1;
-
-static void accept_mutex_cleanup(void *foo)
-{
-    DosReleaseMutexSem(lock_sem);
-    DosCloseMutexSem(lock_sem);
-}
-
-/*
- * Initialize mutex lock.
- * Done by each child at it's birth
+#ifdef GPROF
+/* 
+ * change directory for gprof to plop the gmon.out file
+ * configure in httpd.conf:
+ * GprofDir logs/   -> $ServerRoot/logs/gmon.out
+ * GprofDir logs/%  -> $ServerRoot/logs/gprof.$pid/gmon.out
  */
-static void accept_mutex_child_init(pool *p)
+static void chdir_for_gprof(void)
 {
-    int rc = DosOpenMutexSem(NULL, &lock_sem);
+    core_server_config *sconf = 
+	ap_get_module_config(server_conf->module_config, &core_module);    
+    char *dir = sconf->gprof_dir;
 
-    if (rc != 0) {
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "Child cannot open lock semaphore");
-	clean_child_exit(APEXIT_CHILDINIT);
+    if(dir) {
+	char buf[512];
+	int len = strlen(sconf->gprof_dir) - 1;
+	if(*(dir + len) == '%') {
+	    dir[len] = '\0';
+	    ap_snprintf(buf, sizeof(buf), "%sgprof.%d", dir, (int)getpid());
+	} 
+	dir = ap_server_root_relative(pconf, buf[0] ? buf : dir);
+	if(mkdir(dir, 0755) < 0 && errno != EEXIST) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, server_conf,
+			 "gprof: error creating directory %s", dir);
+	}
     }
-}
-
-/*
- * Initialize mutex lock.
- * Must be safe to call this on a restart.
- */
-static void accept_mutex_init(pool *p)
-{
-    int rc = DosCreateMutexSem(NULL, &lock_sem, DC_SEM_SHARED, FALSE);
-
-    if (rc != 0) {
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "Parent cannot create lock semaphore");
-	exit(APEXIT_INIT);
+    else {
+	dir = ap_server_root_relative(pconf, "logs");
     }
 
-    ap_register_cleanup(p, NULL, accept_mutex_cleanup, ap_null_cleanup);
+    chdir(dir);
 }
-
-static void accept_mutex_on(void)
-{
-    int rc = DosRequestMutexSem(lock_sem, SEM_INDEFINITE_WAIT);
-
-    if (rc != 0) {
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "OS2SEM: Error %d getting accept lock. Exiting!", rc);
-	clean_child_exit(APEXIT_CHILDFATAL);
-    }
-}
-
-static void accept_mutex_off(void)
-{
-    int rc = DosReleaseMutexSem(lock_sem);
-    
-    if (rc != 0) {
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "OS2SEM: Error %d freeing accept lock. Exiting!", rc);
-	clean_child_exit(APEXIT_CHILDFATAL);
-    }
-}
-
 #else
-/* Default --- no serialization.  Other methods *could* go here,
- * as #elifs...
- */
-#if !defined(MULTITHREAD)
-/* Multithreaded systems don't complete between processes for
+#define chdir_for_gprof()
+#endif
+
+/* a clean exit from a child with proper cleanup */
+static void clean_child_exit(int code) __attribute__ ((noreturn));
+static void clean_child_exit(int code)
+{
+    if (pchild) {
+	ap_child_exit_modules(pchild, server_conf);
+	ap_destroy_pool(pchild);
+    }
+    chdir_for_gprof();
+    exit(code);
+}
+
+#if defined(USE_FCNTL_SERIALIZED_ACCEPT) || defined(USE_FLOCK_SERIALIZED_ACCEPT)
+static void expand_lock_fname(pool *p)
+{

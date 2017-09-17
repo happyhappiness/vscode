@@ -1,17 +1,18 @@
-	}
+	exit(0);
     }
-    if (!found) {
-	printf("Adding user %s\n", user);
-	add_password(user, tfp);
+    else if (argc != 3)
+	usage();
+
+    tn = tmpnam(NULL);
+    if (!(tfp = fopen(tn, "w"))) {
+	fprintf(stderr, "Could not open temp file.\n");
+	exit(1);
     }
-    fclose(f);
-    fclose(tfp);
-#if defined(__EMX__) || defined(WIN32)
-    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
-#else
-    sprintf(command, "cp %s %s", tn, argv[1]);
-#endif
-    system(command);
-    unlink(tn);
-    exit(0);
-}
+
+    if (!(f = fopen(argv[1], "r"))) {
+	fprintf(stderr,
+		"Could not open passwd file %s for reading.\n", argv[1]);
+	fprintf(stderr, "Use -c option to create new one.\n");
+	exit(1);
+    }
+    strcpy(user, argv[2]);

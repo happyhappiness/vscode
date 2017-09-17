@@ -1,13 +1,13 @@
-	 * while (m && m->next && m->next->cont_level != 0 && ( m = m->next
-	 * ))
-	 */
-	m = m->next;
-	while (m && (m->cont_level != 0)) {
+	    continue;
+	}
+
+	/* if we get here, the main entry rule was a match */
+	/* this will be the last run through the loop */
 #if MIME_MAGIC_DEBUG
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-			MODNAME ": match line=%d cont=%d type=%d %s",
-			m->lineno, m->cont_level, m->type,
-			(m->type == STRING) ? m->value.s : "");
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+		    MODNAME ": rule matched, line=%d type=%d %s",
+		    m->lineno, m->type,
+		    (m->type == STRING) ? m->value.s : "");
 #endif
-	    if (cont_level >= m->cont_level) {
-		if (cont_level > m->cont_level) {
+
+	/* print the match */

@@ -1,13 +1,27 @@
-        tag_val = get_tag(r->pool, in, tag, sizeof(tag), 0);
-        if (*tag == '\0') {
-            return 1;
+#endif
+            current->done = 1;
+            current = current->parent;
+            break;
+
+        case token_lbrace:
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Unmatched '(' in \"%s\" in file %s",
+                        expr, r->filename);
+            ap_rputs(error, r);
+            goto RETURN;
+
+        case token_rbrace:
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Unmatched ')' in \"%s\" in file %s",
+                        expr, r->filename);
+            ap_rputs(error, r);
+            goto RETURN;
+
+        default:
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"bad token type");
+            ap_rputs(error, r);
+            goto RETURN;
         }
-        else if (!strcmp(tag, "done")) {
-	    if (expr == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			    "missing expr in if statement: %s",
-			    r->filename);
-		ap_rputs(error, r);
-		return 1;
-	    }
-            *printing = *conditional_status = parse_expr(r, expr, error);
+    }
+

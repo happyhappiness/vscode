@@ -1,13 +1,14 @@
+                error_fmt = "unable to include \"%s\" in parsed file %s";
             }
-        }
-        else if (!strcmp(tag, "done")) {
-            return 0;
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "unknown parameter \"%s\" to tag include in %s",
-                        tag, r->filename);
-            ap_rputs(error, r);
-        }
-    }
-}
+#ifndef WIN32
+            ap_chdir_file(r->filename);
+#endif
+            if (error_fmt) {
+                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+			    r->server, error_fmt, tag_val, r->filename);
+                ap_rputs(error, r);
+            }
+
+	    /* destroy the sub request if it's not a nested include */
+            if (rr != NULL
+		&& ap_get_module_config(rr->request_config, &includes_module)

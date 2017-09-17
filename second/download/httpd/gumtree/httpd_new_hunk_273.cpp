@@ -1,13 +1,13 @@
-            /* it should be go on as an internal proxy request */
+        store_variant_list(r, neg);
+        res = MULTIPLE_CHOICES;
+        goto return_from_multi;
+    }
 
-            /* check if the proxy module is enabled, so
-             * we can actually use it!
-             */
-            if (!proxy_available) {
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                             "attempt to make remote request from mod_rewrite "
-                             "without proxy enabled: %s", r->filename);
-                return FORBIDDEN;
-            }
+    if (!best) {
+        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+                    "no acceptable variant: %s", r->filename);
 
-            /* make sure the QUERY_STRING and
+        set_neg_headers(r, neg, na_result);
+        store_variant_list(r, neg);
+        res = NOT_ACCEPTABLE;
+        goto return_from_multi;

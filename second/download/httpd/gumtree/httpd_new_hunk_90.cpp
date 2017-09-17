@@ -1,21 +1,19 @@
-#define APLOG_MARK	__FILE__,__LINE__
+static void err_output(const char *fmt, va_list ap)
+{
+#ifdef LOG_EXEC
+    time_t timevar;
+    struct tm *lt;
 
-void ap_open_logs (server_rec *, pool *p);
-API_EXPORT(void) ap_log_error(const char *file, int line, int level,
-			     const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_log_rerror(const char *file, int line, int level,
-			     const request_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_error_log2stderr (server_rec *);     
+    if (!log) {
+	if ((log = fopen(LOG_EXEC, "a")) == NULL) {
+	    fprintf(stderr, "failed to open log file\n");
+	    perror("fopen");
+	    exit(1);
+	}
+    }
 
-void ap_log_pid (pool *p, char *fname);
-/* These are for legacy code, new code should use ap_log_error,
- * or ap_log_rerror.
- */
-API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
-API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
-			     const char *msg, server_rec *s);
-API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,2,3)));
-API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,
+    time(&timevar);
+    lt = localtime(&timevar);
+
+    fprintf(log, "[%d-%.2d-%.2d %.2d:%.2d:%.2d]: ",
+	    lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,

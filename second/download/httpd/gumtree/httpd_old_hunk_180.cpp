@@ -1,24 +1,25 @@
-    if (!sec->auth_dbpwfile)
-	return DECLINED;
+    DBT d, q;
+    char *pw = NULL;
 
-    if (!(real_pw = get_db_pw(r, c->user, sec->auth_dbpwfile))) {
-	if (!(sec->auth_dbauthoritative))
-	    return DECLINED;
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "DB user %s not found: %s", c->user, r->filename);
-	ap_note_basic_auth_failure(r);
-	return AUTH_REQUIRED;
+    q.data = user;
+    q.size = strlen(q.data);
+
+    if (!(f = dbopen(auth_dbpwfile, O_RDONLY, 0664, DB_HASH, NULL))) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		    "could not open db auth file: %s", auth_dbpwfile);
+	return NULL;
     }
-    /* Password is up to first : if exists */
-    colon_pw = strchr(real_pw, ':');
-    if (colon_pw)
-	*colon_pw = '\0';
-    /* anyone know where the prototype for crypt is? */
-    if (strcmp(real_pw, (char *) crypt(sent_pw, real_pw))) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "DB user %s: password mismatch: %s", c->user, r->uri);
-	ap_note_basic_auth_failure(r);
-	return AUTH_REQUIRED;
+
+    if (!((f->get) (f, &q, &d, 0))) {
+	pw = ap_palloc(r->pool, d.size + 1);
+	strncpy(pw, d.data, d.size);
+	pw[d.size] = '\0';	/* Terminate the string */
     }
-    return OK;
+
+    (f->close) (f);
+    return pw;
 }
+
+/* We do something strange with the group file.  If the group file
+ * contains any : we assume the format is
+ *      key=username value=":"groupname [":"anything here is ignored]

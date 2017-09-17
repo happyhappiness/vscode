@@ -1,28 +1,39 @@
-		ap_rputs(">", r);
-	    }
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
-		ap_rputs("</A>", r);
-	    }
+    }
+    else {
+	ap_rputs("<UL>", r);
+    }
 
-	    ap_rvputs(r, " <A HREF=\"", anchor, "\">",
-		      widthify(t2, name_scratch, name_width, K_NOPAD),
-		      "</A>", NULL);
-	    /*
-	     * We know that widthify() prefilled the buffer with spaces
-	     * before doing its thing, so use them.
-	     */
-	    nwidth = strlen(t2);
-	    if (nwidth < (name_width - 1)) {
-		name_scratch[nwidth] = ' ';
-		ap_rputs(&name_scratch[nwidth], r);
+    for (x = 0; x < n; x++) {
+	char *anchor, *t, *t2;
+	char *pad;
+	int nwidth;
+
+	ap_clear_pool(scratch);
+
+	if (is_parent(ar[x]->name)) {
+	    t = ap_make_full_path(scratch, name, "../");
+	    ap_getparents(t);
+	    if (t[0] == '\0') {
+		t = "/";
 	    }
-	    /*
-	     * The blank before the storm.. er, before the next field.
-	     */
-	    ap_rputs(" ", r);
-	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-		if (ar[x]->lm != -1) {
-		    char time_str[MAX_STRING_LEN];
-		    struct tm *ts = localtime(&ar[x]->lm);
-		    strftime(time_str, MAX_STRING_LEN, "%d-%b-%Y %H:%M  ", ts);
-		    ap_rputs(time_str, r);
+	       /* 1234567890123456 */
+	    t2 = "Parent Directory";
+	    pad = name_scratch + 16;
+	    anchor = ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0));
+	}
+	else {
+	    t = ar[x]->name;
+	    pad = name_scratch + strlen(t);
+	    t2 = ap_escape_html(scratch, t);
+	    anchor = ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0));
+	}
+
+	if (autoindex_opts & FANCY_INDEXING) {
+	    if (autoindex_opts & ICONS_ARE_LINKS) {
+		ap_rvputs(r, "<A HREF=\"", anchor, "\">", NULL);
+	    }
+	    if ((ar[x]->icon) || d->default_icon) {
+		ap_rvputs(r, "<IMG SRC=\"",
+			  ap_escape_html(scratch,
+					 ar[x]->icon ? ar[x]->icon
+					             : d->default_icon),

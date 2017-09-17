@@ -1,89 +1,67 @@
-
-    ap_kill_timeout(r);
-    return total_bytes_rcv;
-}
-
-/*
- * Read a header from the array, returning the first entry
- */
-struct hdr_entry *
-          ap_proxy_get_header(array_header *hdrs_arr, const char *name)
-{
-    struct hdr_entry *hdrs;
-    int i;
-
-    hdrs = (struct hdr_entry *) hdrs_arr->elts;
-    for (i = 0; i < hdrs_arr->nelts; i++)
-	if (hdrs[i].field != NULL && strcasecmp(name, hdrs[i].field) == 0)
-	    return &hdrs[i];
-
-    return NULL;
-}
-
-/*
- * Add to the header reply, either concatenating, or replacing existin
- * headers. It stores the pointers provided, so make sure the data
- * is not subsequently overwritten
- */
-struct hdr_entry *
-          ap_proxy_add_header(array_header *hdrs_arr, const char *field, const char *value,
-			   int rep)
-{
-    int i;
-    struct hdr_entry *hdrs;
-
-    hdrs = (struct hdr_entry *) hdrs_arr->elts;
-    if (rep)
-	for (i = 0; i < hdrs_arr->nelts; i++)
-	    if (hdrs[i].field != NULL && strcasecmp(field, hdrs[i].field) == 0) {
-		hdrs[i].value = value;
-		return hdrs;
-	    }
-
-    hdrs = ap_push_array(hdrs_arr);
-    hdrs->field = field;
-    hdrs->value = value;
-
-    return hdrs;
-}
-
-void ap_proxy_del_header(array_header *hdrs_arr, const char *field)
-{
-    int i;
-    struct hdr_entry *hdrs;
-
-    hdrs = (struct hdr_entry *) hdrs_arr->elts;
-
-    for (i = 0; i < hdrs_arr->nelts; i++)
-	if (hdrs[i].field != NULL && strcasecmp(field, hdrs[i].field) == 0)
-	    hdrs[i].value = NULL;
-}
-
-/*
- * Sends response line and headers.  Uses the client fd and the 
- * headers_out array from the passed request_rec to talk to the client
- * and to properly set the headers it sends for things such as logging.
- * 
- * A timeout should be set before calling this routine.
- */
-void ap_proxy_send_headers(request_rec *r, const char *respline, array_header *hdrs_arr)
-{
-    struct hdr_entry *hdrs;
-    int i;
-    BUFF *fp = r->connection->client;
-
-    hdrs = (struct hdr_entry *) hdrs_arr->elts;
-
-    ap_bputs(respline, fp);
-    ap_bputs(CRLF, fp);
-    for (i = 0; i < hdrs_arr->nelts; i++) {
-	if (hdrs[i].field == NULL)
-	    continue;
-	ap_bvputs(fp, hdrs[i].field, ": ", hdrs[i].value, CRLF, NULL);
-	ap_table_set(r->headers_out, hdrs[i].field, hdrs[i].value);
+    } else {
+        ap_hard_timeout("proxy send body", r);
+        alt_to = 0;
     }
+#endif
 
-    ap_bputs(CRLF, fp);
-}
+    while (ok && f != NULL) {
+        if (alt_to)
+            ap_hard_timeout("proxy send body", r);
 
+	n = ap_bread(f, buf, IOBUFSIZE);
 
+        if (alt_to)
+            ap_kill_timeout(r);
+        else
+            ap_reset_timeout(r);
+
+	if (n == -1) {		/* input error */
+	    if (f2 != NULL)
+		f2 = ap_proxy_cache_error(c);
+	    break;
+	}
+	if (n == 0)
+	    break;		/* EOF */
+	o = 0;
+	total_bytes_rcv += n;
+
+        if (f2 != NULL) {
+            if (ap_bwrite(f2, &buf[0], n) != n) {
+                f2 = ap_proxy_cache_error(c);
+            } else {
+                c->written += n;
+            }
+        }
+
+        while (n && !con->aborted) {
+            if (alt_to)
+                ap_soft_timeout("proxy send body", r);
+
+            w = ap_bwrite(con->client, &buf[o], n);
+
+            if (alt_to)
+                ap_kill_timeout(r);
+            else
+                ap_reset_timeout(r);
+
+            if (w <= 0) {
+                if (f2 != NULL) {
+                    /* when a send failure occurs, we need to decide
+                     * whether to continue loading and caching the
+                     * document, or to abort the whole thing
+                     */
+                    ok = (c->len > 0) &&
+                         (c->cache_completion > 0) &&
+                         (c->len * c->cache_completion < total_bytes_rcv);
+
+                    if (! ok) {
+                        ap_pclosef(c->req->pool, c->fp->fd);
+                        c->fp = NULL;
+                        f2 = NULL;
+                        unlink(c->tempfile);
+                    }
+                }
+                con->aborted = 1;
+                break;
+            }
+            n -= w;

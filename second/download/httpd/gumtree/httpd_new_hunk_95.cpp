@@ -1,13 +1,30 @@
-	    cmd->server->server_uid = ap_user_id;
-	    fprintf(stderr,
-		    "Warning: User directive in <VirtualHost> "
-		    "requires SUEXEC wrapper.\n");
+
+	errmsg = ap_srm_command_loop(&parms, dc);
+
+	ap_cfg_closefile(f);
+
+	if (errmsg) {
+	    ap_log_rerror(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, r, "%s: %s",
+                        filename, errmsg);
+	    ap_table_setn(r->notes, "error-notes", errmsg);
+            return HTTP_INTERNAL_SERVER_ERROR;
+	}
+
+	*result = dc;
+    }
+    else {
+	if (errno == ENOENT || errno == ENOTDIR)
+	    dc = NULL;
+	else {
+	    ap_log_rerror(APLOG_MARK, APLOG_CRIT, r,
+			"%s pcfg_openfile: unable to check htaccess file, ensure it is readable",
+			filename);
+	    ap_table_setn(r->notes, "error-notes",
+			  "Server unable to read htaccess file, denying "
+			  "access to be safe");
+	    return HTTP_FORBIDDEN;
 	}
     }
-#if !defined (BIG_SECURITY_HOLE) && !defined (OS2)
-    if (cmd->server->server_uid == 0) {
-	fprintf(stderr,
-		"Error:\tApache has not been designed to serve pages while\n"
-		"\trunning as root.  There are known race conditions that\n"
-		"\twill allow any local user to read any file on the system.\n"
-		"\tShould you still desire to serve pages as root then\n"
+
+/* cache it */
+    new = ap_palloc(r->pool, sizeof(struct htaccess_result));

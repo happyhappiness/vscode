@@ -1,13 +1,15 @@
-    configfile_t *f;
-    char l[MAX_STRING_LEN];
-    const char *rpw;
-    char *w, *x;
-
-    if (!(f = ap_pcfg_openfile(r->pool, auth_pwfile))) {
+     * waiting for free_proc_chain to cleanup in the middle of an
+     * SSI request -djg
+     */
+    if (!ap_bspawn_child(r->main ? r->main->pool : r->pool, cgi_child,
+			 (void *) &cld, kill_after_timeout,
+			 &script_out, &script_in, &script_err)) {
 	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "Could not open password file: %s", auth_pwfile);
-	return NULL;
+		    "couldn't spawn child process: %s", r->filename);
+	return SERVER_ERROR;
     }
-    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
-	if ((l[0] == '#') || (!l[0]))
-	    continue;
+
+    /* Transfer any put/post args, CERN style...
+     * Note that if a buggy script fails to read everything we throw
+     * at it, or a buggy client sends too much, we get a SIGPIPE, so
+     * we have to ignore SIGPIPE while doing this.  CERN does the same

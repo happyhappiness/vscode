@@ -1,13 +1,17 @@
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-  
-    if (r->proxyreq) {
-        return HTTP_FORBIDDEN;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
-    if ((r->uri[0] != '/') && strcmp(r->uri, "*")) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Invalid URI in request %s", r->the_request);
-	return BAD_REQUEST;
+
+    ap_threads_per_child = atoi(arg);
+#ifdef WIN32
+    if (ap_threads_per_child > 64) {
+	return "Can't have more than 64 threads in Windows (for now)";
     }
-    
-    if (r->server->path 
-	&& !strncmp(r->uri, r->server->path, r->server->pathlen)
+#endif
+
+    return NULL;
+}
+
+static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
+{

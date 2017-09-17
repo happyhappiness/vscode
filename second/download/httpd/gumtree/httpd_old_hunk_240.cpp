@@ -1,13 +1,23 @@
-        for (i = 0; i < arr->nelts; ++i) {
-            ap_rvputs(r, elts[i].key, "=", elts[i].val, "\n", NULL);
         }
-        return 0;
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "printenv directive does not take tags in %s",
-		    r->filename);
-        ap_rputs(error, r);
-        return -1;
+        else if (!strcmp(tag, "var")) {
+            var = tag_val;
+        }
+        else if (!strcmp(tag, "value")) {
+            if (var == (char *) NULL) {
+                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                            "variable must precede value in set directive in %s",
+			    r->filename);
+                ap_rputs(error, r);
+                return -1;
+            }
+            parse_string(r, tag_val, parsed_string, sizeof(parsed_string), 0);
+            ap_table_setn(r->subprocess_env, var, ap_pstrdup(r->pool, parsed_string));
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Invalid tag for set directive in %s", r->filename);
+            ap_rputs(error, r);
+            return -1;
+        }
     }
 }

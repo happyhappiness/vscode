@@ -1,13 +1,13 @@
-	return ap_construct_url(r->pool, "/", r);
-    }
-
-    /* must be a relative URL to be combined with base */
-    if (strchr(base, '/') == NULL && (!strncmp(value, "../", 3)
-        || !strcmp(value, ".."))) {
+        additional = atoi(&code[1]);
+        break;
+    default:
+        /* expecting the add_* routines to be case-hardened this 
+         * is just a reminder that module is beta
+         */
         ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "invalid base directive in map file: %s", r->uri);
-        return NULL;
-    }
-    my_base = ap_pstrdup(r->pool, base);
-    string_pos = my_base;
-    while (*string_pos) {
+                    "internal error: bad expires code: %s", r->filename);
+        return SERVER_ERROR;
+    };
+
+    expires = base + additional;
+    ap_snprintf(age, sizeof(age), "max-age=%d", (int) expires - (int) r->request_time);

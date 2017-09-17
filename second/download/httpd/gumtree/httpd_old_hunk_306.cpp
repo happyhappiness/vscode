@@ -1,21 +1,14 @@
-                    while (*p > 32)
-                        *q++ = *p++;
+            if (space)
+                return;
+            else {
+                /* header is in invalid or too big - close connection */
+                close(c->fd);
+                if (bad++ > 10) {
+                    printf("\nTest aborted after 10 failures\n\n");
+                    exit(1);
                 }
-                *q = 0;
+                FD_CLR(c->fd, &writebits);
+                start_connect(c);
             }
-
-            c->gotheader = 1;
-            *s = 0;             /* terminate at end of header */
-            if (keepalive &&
-                (strstr(c->cbuff, "Keep-Alive")
-                 || strstr(c->cbuff, "keep-alive"))) {  /* for benefit of MSIIS */
-                char *cl;
-                cl = strstr(c->cbuff, "Content-Length:");
-                /* for cacky servers like NCSA which break the spec and send a 
-                   lower case 'l' */
-                if (!cl)
-                    cl = strstr(c->cbuff, "Content-length:");
-                if (cl) {
-                    c->keepalive = 1;
-                    c->length = atoi(cl + 16);
-                }
+        }
+        else {

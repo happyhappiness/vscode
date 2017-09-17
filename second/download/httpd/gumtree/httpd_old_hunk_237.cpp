@@ -1,13 +1,13 @@
+            expr = tag_val;
+#ifdef DEBUG_INCLUDE
+            ap_rvputs(r, "**** if expr=\"", expr, "\"\n", NULL);
 #endif
-        *printing = !(*conditional_status);
-        *conditional_status = 1;
-        return 0;
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "else directive does not take tags in %s",
-		    r->filename);
-        if (*printing) {
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "unknown parameter \"%s\" to tag if in %s",
+                        tag, r->filename);
             ap_rputs(error, r);
         }
-        return -1;
+    }
+}

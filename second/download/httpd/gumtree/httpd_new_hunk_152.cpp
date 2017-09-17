@@ -1,89 +1,85 @@
+	    mb = ap_cpystrn(mb, linebuff+4, me - mb);
+	} while (memcmp(linebuff, buff, 4) != 0);
+    }
+    return status;
+}
+
+static long int send_dir(BUFF *f, request_rec *r, cache_req *c, char *cwd)
+{
+    char buf[IOBUFSIZE];
+    char buf2[IOBUFSIZE];
+    char *filename;
+    int searchidx = 0;
+    char *searchptr = NULL;
+    int firstfile = 1;
+    unsigned long total_bytes_sent = 0;
+    register int n, o, w;
+    conn_rec *con = r->connection;
+    char *dir, *path, *reldir, *site;
+
+    /* Save "scheme://site" prefix without password */
+    site = ap_unparse_uri_components(r->pool, &r->parsed_uri, UNP_OMITPASSWORD|UNP_OMITPATHINFO);
+    /* ... and path without query args */
+    path = ap_unparse_uri_components(r->pool, &r->parsed_uri, UNP_OMITSITEPART|UNP_OMITQUERY);
+    (void)decodeenc(path);
+
+    /* Copy path, strip (all except the last) trailing slashes */
+    path = dir = ap_pstrcat(r->pool, path, "/", NULL);
+    while ((n = strlen(path)) > 1 && path[n-1] == '/' && path[n-2] == '/')
+	path[n-1] = '\0';
+
+    /* print "ftp://host/" */
+    n = ap_snprintf(buf, sizeof(buf), "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n"
+		"<HTML><HEAD><TITLE>%s%s</TITLE>\n"
+		"<BASE HREF=\"%s%s\"></HEAD>\n"
+		"<BODY><H2>Directory of "
+		"<A HREF=\"/\">%s</A>/",
+		site, path, site, path, site);
+    total_bytes_sent += ap_proxy_bputs2(buf, con->client, c);
+
+    while ((dir = strchr(dir+1, '/')) != NULL)
+    {
+	*dir = '\0';
+	if ((reldir = strrchr(path+1, '/'))==NULL)
+	    reldir = path+1;
+	else
+	    ++reldir;
+	/* print "path/" component */
+	ap_snprintf(buf, sizeof(buf), "<A HREF=\"/%s/\">%s</A>/", path+1, reldir);
+	total_bytes_sent += ap_proxy_bputs2(buf, con->client, c);
+	*dir = '/';
+    }
+    /* If the caller has determined the current directory, and it differs */
+    /* from what the client requested, then show the real name */
+    if (cwd == NULL || strncmp (cwd, path, strlen(cwd)) == 0) {
+	ap_snprintf(buf, sizeof(buf), "</H2>\n<HR><PRE>");
+    } else {
+	ap_snprintf(buf, sizeof(buf), "</H2>\n(%s)\n<HR><PRE>", cwd);
+    }
+    total_bytes_sent += ap_proxy_bputs2(buf, con->client, c);
+
+    while (!con->aborted) {
+	n = ap_bgets(buf, sizeof buf, f);
+	if (n == -1) {		/* input error */
+	    if (c != NULL)
+		c = ap_proxy_cache_error(c);
+	    break;
+	}
+	if (n == 0)
+	    break;		/* EOF */
+	if (buf[0] == 'l' && (filename=strstr(buf, " -> ")) != NULL) {
+	    char *link_ptr = filename;
+
+	    do {
+		filename--;
+	    } while (filename[0] != ' ');
+	    *(filename++) = '\0';
+	    *(link_ptr++) = '\0';
+	    if ((n = strlen(link_ptr)) > 1 && link_ptr[n - 1] == '\n')
+	      link_ptr[n - 1] = '\0';
+	    ap_snprintf(buf2, sizeof(buf2), "%s <A HREF=\"%s\">%s %s</A>\n", buf, filename, filename, link_ptr);
+	    ap_cpystrn(buf, buf2, sizeof(buf));
 	    n = strlen(buf);
 	}
-
-	o = 0;
-	total_bytes_sent += n;
-
-	if (c != NULL && c->fp && ap_bwrite(c->fp, buf, n) != n)
-	    c = ap_proxy_cache_error(c);
-
-	while (n && !r->connection->aborted) {
-	    w = ap_bwrite(con->client, &buf[o], n);
-	    if (w <= 0)
-		break;
-	    ap_reset_timeout(r);	/* reset timeout after successfule write */
-	    n -= w;
-	    o += w;
-	}
-    }
-
-    total_bytes_sent += ap_proxy_bputs2("</PRE><HR>\n", con->client, c);
-    total_bytes_sent += ap_proxy_bputs2(ap_psignature("", r), con->client, c);
-    total_bytes_sent += ap_proxy_bputs2("</BODY></HTML>\n", con->client, c);
-
-    ap_bflush(con->client);
-
-    return total_bytes_sent;
-}
-
-/* Common routine for failed authorization (i.e., missing or wrong password)
- * to an ftp service. This causes most browsers to retry the request
- * with username and password (which was presumably queried from the user)
- * supplied in the Authorization: header.
- * Note that we "invent" a realm name which consists of the
- * ftp://user@host part of the reqest (sans password -if supplied but invalid-)
- */
-static int ftp_unauthorized (request_rec *r, int log_it)
-{
-    r->proxyreq = 0;
-    /* Log failed requests if they supplied a password
-     * (log username/password guessing attempts)
-     */
-    if (log_it)
-	ap_log_rerror(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, r,
-		      "proxy: missing or failed auth to %s",
-		      ap_unparse_uri_components(r->pool,
-		      &r->parsed_uri, UNP_OMITPATHINFO));
-
-    ap_table_setn(r->err_headers_out, "WWW-Authenticate",
-                  ap_pstrcat(r->pool, "Basic realm=\"",
-		  ap_unparse_uri_components(r->pool, &r->parsed_uri,
-					    UNP_OMITPASSWORD|UNP_OMITPATHINFO),
-		  "\"", NULL));
-
-    return HTTP_UNAUTHORIZED;
-}
-
-/*
- * Handles direct access of ftp:// URLs
- * Original (Non-PASV) version from
- * Troy Morrison <spiffnet@zoom.com>
- * PASV added by Chuck
- */
-int ap_proxy_ftp_handler(request_rec *r, cache_req *c, char *url)
-{
-    char *host, *path, *strp, *parms;
-    char *cwd = NULL;
-    char *user = NULL;
-/*    char *account = NULL; how to supply an account in a URL? */
-    const char *password = NULL;
-    const char *err;
-    int port, i, j, len, sock, dsock, rc, nocache = 0;
-    int csd = 0;
-    struct sockaddr_in server;
-    struct hostent server_hp;
-    struct in_addr destaddr;
-    table *resp_hdrs;
-    BUFF *f;
-    BUFF *data = NULL;
-    pool *p = r->pool;
-    int one = 1;
-    const long int zero = 0L;
-    NET_SIZE_T clen;
-    struct tbl_do_args tdo;
-
-    void *sconf = r->server->module_config;
-    proxy_server_conf *conf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    struct noproxy_entry *npent = (struct noproxy_entry *) conf->noproxies->elts;
-    struct nocache_entry *ncent = (struct nocache_entry *) conf->nocaches->elts;
+	else if (buf[0] == 'd' || buf[0] == '-' || buf[0] == 'l' || ap_isdigit(buf[0])) {
+	    if (ap_isdigit(buf[0])) {	/* handle DOS dir */

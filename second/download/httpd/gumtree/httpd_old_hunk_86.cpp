@@ -1,18 +1,13 @@
-	exit(0);
-    }
-    else if (argc != 3)
-	usage();
 
-    tn = tmpnam(NULL);
-    if (!(tfp = fopen(tn, "w"))) {
-	fprintf(stderr, "Could not open temp file.\n");
-	exit(1);
-    }
-
-    if (!(f = fopen(argv[1], "r"))) {
-	fprintf(stderr,
-		"Could not open passwd file %s for reading.\n", argv[1]);
-	fprintf(stderr, "Use -c option to create new one.\n");
-	exit(1);
-    }
-    strcpy(user, argv[2]);
+    tn = NULL;
+    signal(SIGINT, (void (*)()) interrupted);
+    if (argc == 4) {
+	if (strcmp(argv[1], "-c"))
+	    usage();
+	if (!(tfp = fopen(argv[2], "w"))) {
+	    fprintf(stderr, "Could not open passwd file %s for writing.\n",
+		    argv[2]);
+	    perror("fopen");
+	    exit(1);
+	}
+	printf("Adding password for %s.\n", argv[3]);

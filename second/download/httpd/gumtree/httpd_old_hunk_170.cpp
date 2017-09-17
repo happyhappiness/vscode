@@ -1,13 +1,16 @@
+	else
+	    y[i] = ch + '0';
+    }
+    y[8] = '\0';
+}
 
-    url = ap_pstrdup(r->pool, &url[1]);	/* make it point to "//", which is what proxy_canon_netloc expects */
-
-    err = ap_proxy_canon_netloc(r->pool, &url, &user, &password, &host, &port);
-
-    if (err != NULL)
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "%s", err);
-
-    r->hostname = host;
-
-    return host;		/* ought to return the port, too */
+BUFF *
+     ap_proxy_cache_error(struct cache_req *c)
+{
+    ap_log_error(APLOG_MARK, APLOG_ERR, c->req->server,
+		 "proxy: error writing to cache file %s", c->tempfile);
+    ap_pclosef(c->req->pool, c->fp->fd);
+    c->fp = NULL;
+    unlink(c->tempfile);
+    return NULL;
 }

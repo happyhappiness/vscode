@@ -1,48 +1,51 @@
-	r->status_line = ap_pstrdup(p, &buffer[9]);
+    f = ap_bcreate(p, B_RDWR | B_SOCKET);
+    ap_bpushfd(f, sock, sock);
 
-/* read the headers. */
-/* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers */
-/* Also, take care with headers with multiple occurences. */
+    ap_hard_timeout("proxy send", r);
+    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+	   NULL);
+    ap_bvputs(f, "Host: ", desthost, NULL);
+    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+	ap_bvputs(f, ":", destportstr, CRLF, NULL);
+    else
+	ap_bputs(CRLF, f);
 
-	resp_hdrs = ap_proxy_read_headers(p, buffer, HUGE_STRING_LEN, f);
-
-	clear_connection(p, (table *) resp_hdrs);	/* Strip Connection hdrs */
+    reqhdrs_arr = ap_table_elts(r->headers_in);
+    reqhdrs = (table_entry *) reqhdrs_arr->elts;
+    for (i = 0; i < reqhdrs_arr->nelts; i++) {
+	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
+	/* Clear out headers not to send */
+	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
+	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+	    continue;
+	ap_bvputs(f, reqhdrs[i].key, ": ", reqhdrs[i].val, CRLF, NULL);
     }
-    else {
-/* an http/0.9 response */
-	backasswards = 1;
-	r->status = 200;
-	r->status_line = "200 OK";
 
-/* no headers */
-	resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
+    ap_bputs(CRLF, f);
+/* send the request data, if any. N.B. should we trap SIGPIPE ? */
+
+    if (ap_should_client_block(r)) {
+	while ((i = ap_get_client_block(r, buffer, HUGE_STRING_LEN)) > 0)
+	    ap_bwrite(f, buffer, i);
     }
-
-    c->hdrs = resp_hdrs;
-
+    ap_bflush(f);
     ap_kill_timeout(r);
 
-/*
- * HTTP/1.0 requires us to accept 3 types of dates, but only generate
- * one type
- */
+    ap_hard_timeout("proxy receive", r);
 
-    hdr = (struct hdr_entry *) resp_hdrs->elts;
-    for (i = 0; i < resp_hdrs->nelts; i++) {
-	if (hdr[i].value[0] == '\0')
-	    continue;
-	strp = hdr[i].field;
-	if (strcasecmp(strp, "Date") == 0 ||
-	    strcasecmp(strp, "Last-Modified") == 0 ||
-	    strcasecmp(strp, "Expires") == 0)
-	    hdr[i].value = ap_proxy_date_canon(p, hdr[i].value);
-	if (strcasecmp(strp, "Location") == 0 ||
-	    strcasecmp(strp, "URI") == 0)
-	    hdr[i].value = proxy_location_reverse_map(r, hdr[i].value);
+    len = ap_bgets(buffer, HUGE_STRING_LEN - 1, f);
+    if (len == -1 || len == 0) {
+	ap_bclose(f);
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
     }
 
-/* check if NoCache directive on this host */
-    for (i = 0; i < conf->nocaches->nelts; i++) {
-	if ((ncent[i].name != NULL && strstr(desthost, ncent[i].name) != NULL)
-	    || destaddr.s_addr == ncent[i].addr.s_addr || ncent[i].name[0] == '*')
-	    nocache = 1;
+/* Is it an HTTP/1 response?  This is buggy if we ever see an HTTP/1.10 */
+    if (ap_checkmask(buffer, "HTTP/#.# ###*")) {
+/* If not an HTTP/1 messsage or if the status line was > 8192 bytes */
+	if (buffer[5] != '1' || buffer[len - 1] != '\n') {
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_BAD_GATEWAY;
+	}
+	backasswards = 0;

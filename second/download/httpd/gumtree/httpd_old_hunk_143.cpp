@@ -1,13 +1,21 @@
-				     domain, NULL);
-    nuri = ap_unparse_uri_components(r->pool,
-				  &r->parsed_uri,
-				  UNP_REVEALPASSWORD);
+	    else {
+		grpname = gr->gr_name;
+	    }
+	}
+	else {
+	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "getpwuid: invalid userid %ld",
+			     (long) r->server->server_uid);
+		return (pid);
+	    }
+	    execuser = ap_pstrdup(r->pool, pw->pw_name);
 
-    ap_table_set(r->headers_out, "Location", nuri);
-    ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, r->server,
-		"Domain missing: %s sent to %s%s%s", r->uri,
-		ap_unparse_uri_components(r->pool, &r->parsed_uri,
-		      UNP_OMITUSERINFO),
-		ref ? " from " : "", ref ? ref : "");
-
-    return HTTP_MOVED_PERMANENTLY;
+	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "getgrgid: invalid groupid %ld",
+			     (long) r->server->server_gid);
+		return (pid);
+	    }
+	    grpname = gr->gr_name;
+	}

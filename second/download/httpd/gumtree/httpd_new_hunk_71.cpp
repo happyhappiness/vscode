@@ -1,13 +1,16 @@
-    char *origs = s, *origp = p;
-    char *pmax = p + plen - 1;
-    register int c;
-    register int val;
 
-    while ((c = *s++) != '\0') {
-	if (ap_isspace((unsigned char) c))
-	    break;
-	if (p >= pmax) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, serv,
-			MODNAME ": string too long: %s", origs);
-	    break;
-	}
+#if MIME_MAGIC_DEBUG
+    prevm = 0;
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
+		MODNAME ": apprentice test");
+    for (m = conf->magic; m; m = m->next) {
+	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
+	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
+	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
+	    ap_isprint(((unsigned long) m) & 255)) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
+			MODNAME ": apprentice: POINTER CLOBBERED! "
+			"m=\"%c%c%c%c\" line=%d",
+			(((unsigned long) m) >> 24) & 255,
+			(((unsigned long) m) >> 16) & 255,
+			(((unsigned long) m) >> 8) & 255,

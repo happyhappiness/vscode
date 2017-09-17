@@ -1,13 +1,15 @@
-
-    /* Second, check for actions (which override the method scripts) */
-    if ((t = ap_table_get(conf->action_types,
-		       action ? action : ap_default_type(r)))) {
-	script = t;
-	if (r->finfo.st_mode == 0) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"File does not exist: %s", r->filename);
-	    return NOT_FOUND;
-	}
+	else
+	    ret = FORBIDDEN;
     }
 
-    if (script == NULL)
+    if (ret == FORBIDDEN
+	&& (ap_satisfies(r) != SATISFY_ANY || !ap_some_auth_required(r))) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		  "client %pI denied by server configuration: %s",
+		  &r->connection->remote_addr, r->filename);
+    }
+
+    return ret;
+}
+
+

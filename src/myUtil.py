@@ -174,7 +174,7 @@ def functionToRegrexStr(log_functions):
     for log_function in log_functions:
         regrex_string += log_function + r'|'
     regrex_string = regrex_string[:-1]
-    regrex_string += r')\s*\('
+    regrex_string += r')(\s*\(.*|\s*$)'
 
     return regrex_string
 

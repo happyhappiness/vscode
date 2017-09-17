@@ -1,13 +1,41 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
+ * field is still a time_t stamp.  By doing that, it is possible for a site to
+ * have a "flag second" in which they stop all of their old-format servers,
+ * wait one entire second, and then start all of their new-servers.  This
+ * procedure will ensure that the new space of identifiers is completely unique
+ * from the old space.  (Since the first four unencoded bytes always differ.)
+ */
 
-    /* BS2000 requires the user name to be in upper case for authentication */
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-		"%s", user_name);
-    for (cp = lcl_data.username; *cp; ++cp) {
-	*cp = toupper(*cp);
+static unsigned global_in_addr;
+
+static APACHE_TLS unique_id_rec cur_unique_id;
+
+static void unique_id_global_init(server_rec *s, pool *p)
+{
+#ifndef MAXHOSTNAMELEN
+#define MAXHOSTNAMELEN 256
+#endif
+    char str[MAXHOSTNAMELEN + 1];
+    struct hostent *hent;
+#ifndef NO_GETTIMEOFDAY
+    struct timeval tv;
+#endif
+
+    /*
+     * First of all, verify some assumptions that have been made about the
+     * contents of unique_id_rec.  We do it this way because it isn't
+     * affected by trailing padding.
+     */
+    if (XtOffsetOf(unique_id_rec, counter) + sizeof(cur_unique_id.counter)
+        != 14) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ALERT, s,
+                    "mod_unique_id: sorry the size assumptions are wrong "
+                    "in mod_unique_id.c, please remove it from your server "
+                    "or fix the code!");
+        exit(1);
     }
 
-    if (bs2000_authfile == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-		     "an authorization file for User %s",
+    /*
+     * Now get the global in_addr.  Note that it is not sufficient to use one
+     * of the addresses from the main_server, since those aren't as likely to
+     * be unique as the physical address of the machine
+     */

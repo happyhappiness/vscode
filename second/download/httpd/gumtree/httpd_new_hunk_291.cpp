@@ -1,109 +1,56 @@
-/*
- *  Abstraction layer for loading
- *  Apache modules under run-time via 
- *  dynamic shared object (DSO) mechanism
- */
 
-#ifdef RHAPSODY
-#include <mach-o/dyld.h>
+#ifdef _OSD_POSIX
 #include "httpd.h"
+#include "http_config.h"
 #include "http_log.h"
 
-ap_private_extern
-void undefined_symbol_handler(const char *symbolName)
+static const char *bs2000_account = NULL;
+
+
+/* This routine is called by http_core for the BS2000Account directive */
+/* It stores the account name for later use */
+const char *os_set_account(pool *p, const char *account)
 {
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_EMERG, NULL,
-                 "dyld found undefined symbol: %s\n"
-                 "Aborting.\n",
-                 symbolName);
-    abort();
+    if (bs2000_account != NULL && strcasecmp(bs2000_account, account) != 0)
+        return "BS2000Account: can be defined only once.";
+
+    bs2000_account = ap_pstrdup(p, account);
+    return NULL;
 }
 
-ap_private_extern
-NSModule multiple_symbol_handler (NSSymbol s, NSModule old, NSModule new)
+int os_init_job_environment(server_rec *server, const char *user_name)
 {
-    /*
-     * Since we can't unload symbols, we're going to run into this
-     * every time we reload a module. Workaround here is to just
-     * rebind to the new symbol, and forget about the old one.
-     * This is crummy, because it's basically a memory leak.
-     * (See Radar 2262020 against dyld).
+    _rini_struct            inittask; 
+
+    /* We can be sure that no change to uid==0 is possible because of
+     * the checks in http_core.c:set_user()
      */
 
-#ifdef DEBUG
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
-                 "dyld found a multiply defined symbol %s in modules:\n"
-                 "%s\n%s\n",
-                 NSNameOfSymbol(s),
-                 NSNameOfModule(old), NSNameOfModule(new));
-#endif
+    /* An Account is required for _rini() */
+    if (bs2000_account == NULL)
+    {
+	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
+		     "No BS2000Account configured - cannot switch to User %S",
+		     user_name);
+	exit(APEXIT_CHILDFATAL);
+    }
 
-    return(new);
+    inittask.username       = user_name;
+    inittask.account        = bs2000_account;
+    inittask.processor_name = "        ";
+
+    /* Switch to the new logon user (setuid() and setgid() are done later) */
+    /* Only the super use can switch identities. */
+    if (_rini(&inittask) != 0) {
+	ap_log_error(APLOG_MARK, APLOG_ALERT, server,
+		     "_rini: BS2000 auth failed for user \"%s\" acct \"%s\"",
+		     inittask.username, inittask.account);
+	exit(APEXIT_CHILDFATAL);
+    }
+
+    return 0;
 }
 
-ap_private_extern
-void linkEdit_symbol_handler (NSLinkEditErrors c, int errorNumber,
-                              const char *fileName, const char *errorString)
+#else /* _OSD_POSIX */
+void bs2login_is_not_here()
 {
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_EMERG, NULL,
-                 "dyld errors during link edit for file %s\n%s\n",
-                 fileName, errorString);
-    abort();
-}
-
-#endif /*RHAPSODY*/
-
-void ap_os_dso_init(void)
-{
-#if defined(RHAPSODY)
-    NSLinkEditErrorHandlers handlers;
-
-    handlers.undefined = undefined_symbol_handler;
-    handlers.multiple  = multiple_symbol_handler;
-    handlers.linkEdit  = linkEdit_symbol_handler;
-
-    NSInstallLinkEditErrorHandlers(&handlers);
-#endif
-}
-
-void *ap_os_dso_load(const char *path)
-{
-#if defined(HPUX) || defined(HPUX10)
-    shl_t handle;
-    handle = shl_load(path, BIND_IMMEDIATE|BIND_VERBOSE|BIND_NOSTART, 0L);
-    return (void *)handle;
-
-#elif defined(RHAPSODY)
-    NSObjectFileImage image;
-    if (NSCreateObjectFileImageFromFile(path, &image) !=
-        NSObjectFileImageSuccess)
-        return NULL;
-    return NSLinkModule(image, path, TRUE);
-
-#elif defined(OSF1) ||\
-    (defined(__FreeBSD_version) && (__FreeBSD_version >= 220000))
-    return dlopen((char *)path, RTLD_NOW | RTLD_GLOBAL);
-
-#else
-    return dlopen(path, RTLD_NOW | RTLD_GLOBAL);
-#endif
-}
-
-void ap_os_dso_unload(void *handle)
-{
-#if defined(HPUX) || defined(HPUX10)
-    shl_unload((shl_t)handle);
-
-#elif defined(RHAPSODY)
-    NSUnLinkModule(handle,FALSE);
-
-#else
-    dlclose(handle);
-#endif
-
-    return;
-}
-
-void *ap_os_dso_sym(void *handle, const char *symname)
-{
-#if defined(HPUX) || defined(HPUX10)

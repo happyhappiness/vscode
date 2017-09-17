@@ -1,25 +1,21 @@
-    stats = malloc(requests * sizeof(struct data));
+                    while (*p > 32)
+                        *q++ = *p++;
+                }
+                *q = 0;
+            }
 
-    FD_ZERO(&readbits);
-    FD_ZERO(&writebits);
-
-    /* setup request */
-    sprintf(request, "GET %s HTTP/1.0\r\n"
-                     "User-Agent: ApacheBench/%s\r\n"
-                     "%s"
-                     "Host: %s\r\n"
-                     "Accept: */*\r\n"
-                     "\r\n", 
-                     path, 
-                     VERSION,
-                     keepalive ? "Connection: Keep-Alive\r\n" : "", 
-                     hostname);
-
-    reqlen = strlen(request);
-
-    /* ok - lets start */
-    gettimeofday(&start, 0);
-
-    /* initialise lots of requests */
-    for (i = 0; i < concurrency; i++)
-        start_connect(&con[i]);
+            c->gotheader = 1;
+            *s = 0;             /* terminate at end of header */
+            if (keepalive &&
+                (strstr(c->cbuff, "Keep-Alive")
+                 || strstr(c->cbuff, "keep-alive"))) {  /* for benefit of MSIIS */
+                char *cl;
+                cl = strstr(c->cbuff, "Content-Length:");
+                /* for cacky servers like NCSA which break the spec and send a 
+                   lower case 'l' */
+                if (!cl)
+                    cl = strstr(c->cbuff, "Content-length:");
+                if (cl) {
+                    c->keepalive = 1;
+                    c->length = atoi(cl + 16);
+                }

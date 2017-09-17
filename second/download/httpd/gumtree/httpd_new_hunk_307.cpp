@@ -1,48 +1,37 @@
-    stats = malloc(requests * sizeof(struct data));
+                    while (*p > 32)
+                        *q++ = *p++;
+                }
+                *q = 0;
+            }
 
-    FD_ZERO(&readbits);
-    FD_ZERO(&writebits);
+	    /* XXX: this parsing isn't even remotely HTTP compliant...
+	     * but in the interest of speed it doesn't totally have to be,
+	     * it just needs to be extended to handle whatever servers
+	     * folks want to test against. -djg */
 
-    /* setup request */
-    if (!posting) {
-	sprintf(request, "GET %s HTTP/1.0\r\n"
-                     "User-Agent: ApacheBench/%s\r\n"
-                     "%s"
-                     "Host: %s\r\n"
-                     "Accept: */*\r\n"
-                     "\r\n", 
-                     path, 
-                     VERSION,
-                     keepalive ? "Connection: Keep-Alive\r\n" : "", 
-                     hostname);
-    }
-    else {
-	sprintf(request, "POST %s HTTP/1.0\r\n"
-                     "User-Agent: ApacheBench/%s\r\n"
-                     "%s"
-                     "Host: %s\r\n"
-                     "Accept: */*\r\n"
-                     "Content-length: %d\r\n"
-                     "Content-type: %s\r\n"
-                     "\r\n", 
-                     path, 
-                     VERSION,
-                     keepalive ? "Connection: Keep-Alive\r\n" : "", 
-                     hostname, postlen, 
-                     (content_type[0]) ? content_type : "text/plain");
-    }
+            /* check response code */
+            part = strstr(c->cbuff, "HTTP");                /* really HTTP/1.x_ */
+            strncpy(respcode, (part+strlen("HTTP/1.x_")), 3);
+	    respcode[3] = '\0';
+            if (respcode[0] != '2') {
+                err_response++;
+                if (verbosity >= 2) printf ("WARNING: Response code not 2xx (%s)\n", respcode);
+            }
+	    else if (verbosity >= 3) {
+                printf("LOG: Response code = %s\n", respcode);
+            }
 
-    if (verbosity >= 2) printf("INFO: POST header == \n---\n%s\n---\n", request);
-
-    reqlen = strlen(request);
-
-#ifdef CHARSET_EBCDIC
-    ebcdic2ascii(request, request, reqlen);
-#endif /*CHARSET_EBCDIC*/
-
-    /* ok - lets start */
-    gettimeofday(&start, 0);
-
-    /* initialise lots of requests */
-    for (i = 0; i < concurrency; i++)
-        start_connect(&con[i]);
+            c->gotheader = 1;
+            *s = 0;             /* terminate at end of header */
+            if (keepalive &&
+                (strstr(c->cbuff, "Keep-Alive")
+                 || strstr(c->cbuff, "keep-alive"))) {  /* for benefit of MSIIS */
+                char *cl;
+                cl = strstr(c->cbuff, "Content-Length:");
+                /* handle NCSA, which sends Content-length: */
+                if (!cl)
+                    cl = strstr(c->cbuff, "Content-length:");
+                if (cl) {
+                    c->keepalive = 1;
+                    c->length = atoi(cl + 16);
+                }

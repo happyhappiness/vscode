@@ -1,13 +1,13 @@
-        case token_and:
-        case token_or:
-#ifdef DEBUG_INCLUDE
-            ap_rputs("     Token: and/or\n", r);
-#endif
-            if (current == (struct parse_node *) NULL) {
+            case token_le:
+            case token_lt:
+                new->parent = current;
+                current = current->right = new;
+                break;
+            default:
                 ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
                             "Invalid expression \"%s\" in file %s",
                             expr, r->filename);
                 ap_rputs(error, r);
                 goto RETURN;
             }
-            /* Percolate upwards */
+            break;

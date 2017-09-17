@@ -1,26 +1,14 @@
-		    }   
-		}
-	    }
-	    break;
-	}
+    return res;
+}
 
-	/*
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	/* blast trailing whitespace */
-	dst = &src[strlen(src)];
-	while (--dst >= src && ap_isspace(*dst))
-	    *dst = '\0';
-        /* Zap leading whitespace by shifting */
-        if (src != buf)
-	    for (dst = buf; (*dst++ = *src++) != '\0'; )
-	        ;
-
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+API_EXPORT(int) ap_cfg_closefile(configfile_t *cfp)
+{
+#ifdef DEBUG
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, 
+        "Done with config file %s", cfp->name);
 #endif
-	return 0;
-    } else {
+    return (cfp->close == NULL) ? 0 : cfp->close(cfp->param);
+}
+
+/* Common structure that holds the file and pool for ap_pcfg_openfile */
+typedef struct {
