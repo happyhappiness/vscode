@@ -1,0 +1,1 @@
+printf(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n");

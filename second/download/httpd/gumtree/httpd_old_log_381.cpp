@@ -1,0 +1,1 @@
+printf("Connect: %5d %5d %5d\n", mincon, totalcon / requests, maxcon);

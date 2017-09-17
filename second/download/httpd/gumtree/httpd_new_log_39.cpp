@@ -1,0 +1,1 @@
+printf("HTML transferred:       %d bytes\n", totalbread);

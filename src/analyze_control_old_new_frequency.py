@@ -5,7 +5,6 @@ import re
 import commands
 import json
 from itertools import islice
-from pygithub3 import Github
 from gumtree_api import Gumtree
 from z3_api import Z3_api
 import cluster_api

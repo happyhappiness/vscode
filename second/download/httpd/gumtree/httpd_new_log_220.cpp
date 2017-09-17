@@ -1,0 +1,1 @@
+ap_rputs(&name_scratch[5], r);

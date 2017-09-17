@@ -29,11 +29,8 @@ GUMTREE_DIR = CURR_REPOS_DIR + 'gumtree/'
 DOWNLOAD_OLD_HUNK = GUMTREE_DIR + REPOS + '_old_hunk_'
 DOWNLOAD_NEW_HUNK = GUMTREE_DIR + REPOS + '_new_hunk_'
 # log
-SAVE_OLD_NEW_OLD_LOG = GUMTREE_DIR + REPOS + '_old_log_'
-SAVE_OLD_NEW_NEW_LOG = GUMTREE_DIR + REPOS + '_new_log_'
-# function
-SAVE_OLD_FUNCTION = GUMTREE_DIR + REPOS + '_old_function_'
-SAVE_NEW_FUNCTION = GUMTREE_DIR + REPOS + '_new_function_'
+SAVE_OLD_LOG = GUMTREE_DIR + REPOS + '_old_log_'
+SAVE_NEW_LOG = GUMTREE_DIR + REPOS + '_new_log_'
 
 """
 file name
@@ -45,7 +42,7 @@ FETCH_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_log_fetch.csv'
 ANALYZE_OLD_NEW_GUMTREE_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_gumtree_analyze.csv'
 ANALYZE_REPOS_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_repos_log_analyze.csv'
 ANALYZE_REPOS_BASIC_BLOCK_FILE_NAME = 'data/fetch/' + REPOS + '_repos_basic_block_analyze.csv'
-ANALYZE_OLD_NEW_JOERN_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_joern_analyze.csv'
+ANALYZE_OLD_NEW_LLVM_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_joern_analyze.csv'
 ANALYZE_CLONE_FILE_NAME = 'data/fetch/' + REPOS + '_seek_clone.csv'
 STATISTICS_CLONE_NUM_FILE_NAME = 'data/fetch/' + REPOS + '_clone_statistics.csv'
 STATISTICS_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_statistics.csv'
@@ -84,27 +81,11 @@ FETCH_LOG_ACTION_TYPE = FETCH_LOG_TITLE.index('action_type')
 analyze old new title and index
 """
 # 'old_block', 'old_block_file', 'old_block_feature',
-ANALYZE_OLD_NEW_GUMTREE_TITLE = FETCH_LOG_TITLE + ['old_log_file', 'new_log_file', \
-                                        'old_function_file', 'old_fucntion_loc', 'new_function_file', 'new_function_loc']
-ANALYZE_OLD_NEW_OLD_FUNCTION_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_function_file')
-ANALYZE_OLD_NEW_OLD_FUNCTION_LOC = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_fucntion_loc')
-ANALYZE_OLD_NEW_NEW_FUNCTION_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('new_function_file')
-ANALYZE_OLD_NEW_NEW_FUNCTION_LOC = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('new_function_loc')
+ANALYZE_OLD_NEW_GUMTREE_TITLE = FETCH_LOG_TITLE + ['old_log_file', 'new_log_file']
 
-"""
-analyze old new title and index
-"""
-ANALYZE_OLD_NEW_JOERN_TITLE = ANALYZE_OLD_NEW_GUMTREE_TITLE + ['old_ddg_feature', 'old_cdg_feature', 'new_ddg_codes', 'new_ddg_loc']
-ANALYZE_OLD_NEW_OLD_LOG_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_log_file')
-ANALYZE_OLD_NEW_NEW_LOG_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('new_log_file')
-ANALYZE_OLD_NEW_OLD_DDG_FEATURE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_ddg_feature')
-ANALYZE_OLD_NEW_OLD_CDG_FEATURE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_cdg_feature')
-ANALYZE_OLD_NEW_NEW_DDG_LOC = ANALYZE_OLD_NEW_JOERN_TITLE.index('new_ddg_loc')
-ANALYZE_OLD_NEW_OLD_LOG = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_log')
-ANALYZE_OLD_NEW_NEW_LOG = ANALYZE_OLD_NEW_JOERN_TITLE.index('new_log')
+ANALYZE_OLD_NEW_LLVM_TITLE = ANALYZE_OLD_NEW_GUMTREE_TITLE + ['old_check', 'old_variable', 'new_check', 'new_variable', 'ddg_codes', 'ddg_locs']
 
-
-STATISTICS_OLD_NEW_TITLE = ANALYZE_OLD_NEW_JOERN_TITLE + ['edit_words', 'edit_feature','cluster']
+STATISTICS_OLD_NEW_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['edit_words', 'edit_feature','cluster']
 
 
 """
@@ -136,7 +117,7 @@ ANALYZE_REPOS_CLASS_SIZE = ANALYZE_REPOS_CLASS_TITLE.index('class_size')
 """
 analyze clone title
 """
-ANALYZE_CLONE_TITLE = ANALYZE_OLD_NEW_JOERN_TITLE + ['class_index', 'class_size']#ANALYZE_REPOS_BASIC_BLOCK_TITLE
+ANALYZE_CLONE_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['class_index', 'class_size']#ANALYZE_REPOS_BASIC_BLOCK_TITLE
 
 """
 flag type && log type

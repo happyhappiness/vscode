@@ -1,0 +1,1 @@
+printf("Invalid postfile name (%s)\n", pfile);

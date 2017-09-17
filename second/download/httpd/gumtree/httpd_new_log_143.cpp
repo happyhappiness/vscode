@@ -1,0 +1,1 @@
++= ap_proxy_bputs2("</PRE><HR>\n", con->client, c);

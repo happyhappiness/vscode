@@ -1,0 +1,1 @@
+fprintf(stderr, "    -V              Print version number and exit\n");

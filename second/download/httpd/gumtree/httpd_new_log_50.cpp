@@ -1,0 +1,1 @@
+fprintf(stderr, "WARNING: Require ThreadsPerChild > 0, setting to 1\n");

@@ -1,0 +1,1 @@
+fprintf(stderr, "Use the ServerName directive to set it manually.\n");

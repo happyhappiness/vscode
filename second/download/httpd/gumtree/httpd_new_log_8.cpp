@@ -1,0 +1,1 @@
+fprintf(stderr, "  -D name          : define a name for use in <IfDefine name> directives\n");

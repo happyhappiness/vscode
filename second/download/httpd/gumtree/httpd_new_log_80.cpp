@@ -1,0 +1,1 @@
+printf(" -D DEFAULT_XFERLOG=\"" DEFAULT_XFERLOG "\"\n");

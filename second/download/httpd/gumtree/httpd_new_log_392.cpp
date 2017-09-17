@@ -1,0 +1,1 @@
+fprintf(stderr, "    -T content-type Content-type header for POSTing\n");

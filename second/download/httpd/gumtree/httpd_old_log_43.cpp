@@ -1,0 +1,1 @@
+fprintf(stderr, "Please contact the author for the correct version.\n");

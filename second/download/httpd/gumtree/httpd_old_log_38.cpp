@@ -1,0 +1,1 @@
+printf("Total transfered:       %d bytes\n", totalread);

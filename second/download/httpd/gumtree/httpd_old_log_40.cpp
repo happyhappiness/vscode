@@ -1,0 +1,1 @@
+printf("Requests per seconds:   %.2f\n", 1000 * (float) (done) / timetaken);

@@ -1,0 +1,1 @@
+fprintf(stderr, "    -v verbosity    How much troubleshooting info to print\n");

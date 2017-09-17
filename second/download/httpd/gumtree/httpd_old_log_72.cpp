@@ -1,0 +1,1 @@
+printf("Server's Module Magic Number: %u\n", MODULE_MAGIC_NUMBER);
