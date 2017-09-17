@@ -1,0 +1,1 @@
+printf("Total:   %5d %5d %5d\n", mintot, total / requests, maxtot);

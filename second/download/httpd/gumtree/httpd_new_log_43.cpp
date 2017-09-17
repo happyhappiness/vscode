@@ -1,0 +1,1 @@
+fprintf(stderr, "Please contact the vendor for the correct version.\n");

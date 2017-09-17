@@ -1,0 +1,1 @@
+ap_log_error(file, 0, APLOG_ERR, s, "%s", msg);

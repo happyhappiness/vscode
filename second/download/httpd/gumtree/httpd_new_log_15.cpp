@@ -1,0 +1,1 @@
+fprintf(stderr, "Syntax OK\n");

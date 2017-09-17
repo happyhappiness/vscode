@@ -1,0 +1,1 @@
+ap_bvputs(f, "CWD ", path, CRLF, NULL);

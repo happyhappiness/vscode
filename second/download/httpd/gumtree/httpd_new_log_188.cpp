@@ -1,0 +1,1 @@
+(c != NULL && c->fp != NULL && ap_bputs(CRLF, c->fp) == -1;

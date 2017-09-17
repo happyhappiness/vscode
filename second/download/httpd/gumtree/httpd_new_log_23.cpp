@@ -1,0 +1,1 @@
+fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");

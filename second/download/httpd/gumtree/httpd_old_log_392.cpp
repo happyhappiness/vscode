@@ -1,0 +1,1 @@
+fprintf(stderr, "    -v              Display version and copyright information\n");

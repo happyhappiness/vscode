@@ -1,0 +1,1 @@
+fprintf(stderr, "  -t               : run syntax test for configuration files only\n");

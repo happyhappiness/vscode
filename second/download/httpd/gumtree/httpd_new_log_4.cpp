@@ -1,0 +1,1 @@
+fprintf(stderr, "WARNING: StartServers has no effect on Win32\n");

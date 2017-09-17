@@ -1,0 +1,1 @@
+ap_bvputs(f, "Host: ", desthost, CRLF, NULL);

@@ -1,0 +1,1 @@
+emsg = ap_pstrcat(r->pool, emsg, r->filename, r->path_info, NULL);

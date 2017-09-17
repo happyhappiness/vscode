@@ -1,0 +1,1 @@
+fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");

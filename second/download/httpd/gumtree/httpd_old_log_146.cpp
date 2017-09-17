@@ -1,0 +1,1 @@
+ap_bputs(sig, f2);

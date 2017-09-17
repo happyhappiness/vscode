@@ -1,0 +1,1 @@
+printf("              min   avg   max\n");

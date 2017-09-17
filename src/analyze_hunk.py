@@ -11,7 +11,6 @@ import re
 import commands
 import base64
 import json
-from pygithub3 import Github
 from itertools import islice
 from gumtree_api import Gumtree
 import my_constant

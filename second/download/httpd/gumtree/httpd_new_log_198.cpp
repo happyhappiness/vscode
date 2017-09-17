@@ -1,0 +1,1 @@
+ap_bputs(data, cache->fp);

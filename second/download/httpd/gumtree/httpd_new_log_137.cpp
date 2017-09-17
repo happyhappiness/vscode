@@ -1,0 +1,1 @@
+total_bytes_sent += ap_proxy_bputs2(buf, con->client, c);
