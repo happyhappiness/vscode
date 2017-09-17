@@ -22,7 +22,7 @@ import myUtil
 @ return total_log
 @ involve deal with each old new log and save log info
 """
-def deal_log( log_record, writer, total_log):
+def deal_log( log_record, gumtree, writer, total_log):
 
     old_log = log_record[my_constant.FETCH_LOG_OLD_LOG]
     new_log = log_record[my_constant.FETCH_LOG_NEW_LOG]
@@ -40,7 +40,9 @@ def deal_log( log_record, writer, total_log):
     log_file = open(new_log_file_name, 'wb')
     log_file.write(new_log)
     log_file.close()
-    writer.writerow(log_record + [old_log_file_name, new_log_file_name])
+    # get edit word and feature
+    edit_words, edit_feature = gumtree.get_word_edit_from_log(old_log, new_log)
+    writer.writerow(log_record + [old_log_file_name, new_log_file_name, edit_words, edit_feature])
     total_log += 1
 
     return total_log
@@ -49,7 +51,7 @@ def deal_log( log_record, writer, total_log):
 @ return nothing 
 @ involve fetch and analyze each hunk
 """
-def fetch_old_new_gumtree():
+def fetch_old_new_gumtree(gumtree):
 
     # read record from fetched log
     log_file = file(my_constant.FETCH_LOG_FILE_NAME, 'rb')
@@ -62,7 +64,7 @@ def fetch_old_new_gumtree():
     total_record = 0
     for log_record in islice(log_records, 1, None):
         total_record += 1
-        total_log = deal_log(log_record, old_new_gumtree_writer, total_log)
+        total_log = deal_log(log_record, gumtree, old_new_gumtree_writer, total_log)
         if total_record % 10 == 0:
             print 'have dealed with %d record, have dealed with %d log' %(total_record, total_log)
 
@@ -76,9 +78,10 @@ def fetch_old_new_gumtree():
 @ involve fetch and analyze each log[ddg and cdg]
 """
 def analyze_old_new(is_rebuild = False):
-    # build joern index and restart database
+    #analyze gumtree to get edition info
+    gumtree = Gumtree()
     if is_rebuild:
-        fetch_old_new_gumtree()
+        fetch_old_new_gumtree(gumtree)
     old_new_gumtree_file = file(my_constant.ANALYZE_OLD_NEW_GUMTREE_FILE_NAME, 'rb')
     old_new_gumtree_records = csv.reader(old_new_gumtree_file)
     old_new_llvm_file = file(my_constant.ANALYZE_OLD_NEW_LLVM_FILE_NAME, 'wb')
@@ -87,7 +90,6 @@ def analyze_old_new(is_rebuild = False):
 
     total_record = 0
     total_log = 0
-    gumtree = Gumtree()
     # get ddg and cdg with joern
     for record in islice(old_new_gumtree_records, 1, None):
         old_check = []

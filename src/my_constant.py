@@ -81,11 +81,15 @@ FETCH_LOG_ACTION_TYPE = FETCH_LOG_TITLE.index('action_type')
 analyze old new title and index
 """
 # 'old_block', 'old_block_file', 'old_block_feature',
-ANALYZE_OLD_NEW_GUMTREE_TITLE = FETCH_LOG_TITLE + ['old_log_file', 'new_log_file']
+ANALYZE_OLD_NEW_GUMTREE_TITLE = FETCH_LOG_TITLE + ['old_log_file', 'new_log_file', 'edit_words', 'edit_feature']
+ANALYZE_EDIT_WORD = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('edit_words')
+ANALYZE_EDIT_FEATURE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('edit_feature')
 
 ANALYZE_OLD_NEW_LLVM_TITLE = ANALYZE_OLD_NEW_GUMTREE_TITLE + ['old_check', 'old_variable', 'new_check', 'new_variable', 'ddg_codes', 'ddg_locs']
-
-STATISTICS_OLD_NEW_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['edit_words', 'edit_feature','cluster']
+ANALYZE_OLD_LOG = ANALYZE_OLD_NEW_LLVM_TITLE.index('old_log')
+ANALYZE_NEW_LOG = ANALYZE_OLD_NEW_LLVM_TITLE.index('new_log')
+ANALYZE_OLD_CHECK = ANALYZE_OLD_NEW_LLVM_TITLE.index('old_check')
+STATISTICS_OLD_NEW_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['cluster']
 
 
 """
