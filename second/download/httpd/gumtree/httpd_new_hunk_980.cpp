@@ -1,48 +1,17 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
 
-    if (err != NULL) {
-
-        return err;
-
+    if (i != DECLINED) {
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	return i;
     }
 
+    cache = c->fp;
 
+    c->hdrs = resp_hdrs;
 
-    ap_threads_per_child = atoi(arg);
-
-    if (ap_threads_per_child > HARD_SERVER_LIMIT) {
-
-        fprintf(stderr, "WARNING: ThreadsPerChild of %d exceeds compile time limit "
-
-                "of %d threads,\n", ap_threads_per_child, HARD_SERVER_LIMIT);
-
-        fprintf(stderr, " lowering ThreadsPerChild to %d.  To increase, please "
-
-                "see the\n", HARD_SERVER_LIMIT);
-
-        fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-
-        ap_threads_per_child = HARD_SERVER_LIMIT;
-
-    } 
-
-    else if (ap_threads_per_child < 1) {
-
-	fprintf(stderr, "WARNING: Require ThreadsPerChild > 0, setting to 1\n");
-
-	ap_threads_per_child = 1;
-
-    }
-
-
-
-    return NULL;
-
-}
-
-
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-
-{
-
+    if (!pasvmode) {		/* wait for connection */
+	ap_hard_timeout("proxy ftp data connect", r);
+	clen = sizeof(struct sockaddr_in);
+	do
+	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
+	while (csd == -1 && errno == EINTR);

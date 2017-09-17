@@ -1,26 +1,14 @@
-         * Client sent us a HTTP/1.1 or later request without telling us the
-
-         * hostname, either with a full URL or a Host: header. We therefore
-
-         * need to (as per the 1.1 spec) send an error.  As a special case,
-
-	 * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
-
-	 * a Host: header, and the server MUST respond with 400 if it doesn't.
-
-         */
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-               "client sent HTTP/1.1 request without hostname (see RFC2068 section 9, and 14.23): %s", r->uri);
-
-        ap_die(BAD_REQUEST, r);
-
-        return;
-
-    }
-
-
-
-    /* Ignore embedded %2F's in path for proxy requests */
-
+	     * how libraries and such are going to fail.  If we can't
+	     * do this F_DUPFD there's a good chance that apache has too
+	     * few descriptors available to it.  Note we don't warn on
+	     * the high line, because if it fails we'll eventually try
+	     * the low line...
+	     */
+	    ap_log_error(APLOG_MARK, APLOG_ERR, NULL,
+		        "unable to open a file descriptor above %u, "
+			"you may need to increase the number of descriptors",
+			LOW_SLACK_LINE);
+	    low_warned = 1;
+	}
+	return fd;
+-- apache_1.3.0/src/ap/ap_snprintf.c	1998-05-12 01:49:21.000000000 +0800

@@ -1,26 +1,17 @@
-{
 
-    configfile_t *f;
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	restart_pending = shutdown_pending = 0;
 
-    char l[MAX_STRING_LEN];
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    int status;
+	    int pid = wait_or_timeout(&status);
 
-    const char *rpw, *w;
-
-
-
-    if (!(f = ap_pcfg_openfile(r->pool, auth_pwfile))) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    "Could not open password file: %s", auth_pwfile);
-
-	return NULL;
-
-    }
-
-    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
-
-	if ((l[0] == '#') || (!l[0]))
-
-	    continue;
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

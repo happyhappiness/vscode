@@ -1,26 +1,13 @@
-
-
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-
-	return (ap_suexec_enabled);
-
-
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-
-	ap_suexec_enabled = 1;
-
-	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
-
+	}
+	if ((timefd = creat(filename, 0666)) == -1) {
+	    if (errno != EEXIST)
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy: creat(%s)", filename);
+	    else
+		lastcheck = abs(garbage_now);	/* someone else got in there */
+	    ap_unblock_alarms();
+	    return;
+	}
+	close(timefd);
     }
-
-#endif /* ndef WIN32 */
-
-    return (ap_suexec_enabled);
-
-}
-
-
-
-/*****************************************************************
-
+    else {

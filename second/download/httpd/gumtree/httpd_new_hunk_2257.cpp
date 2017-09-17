@@ -1,28 +1,13 @@
-        else {
 
-            cpT = strstr(cpI, "${");
+    /* Domain name must start with a '.' */
+    if (addr[0] != '.')
+	return 0;
 
-            if (cpT == NULL)
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
+	continue;
 
-                cpT = cpI+strlen(cpI);
-
-            n = cpT-cpI;
-
-            if (cpO + n >= newuri + sizeof(newuri)) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 
-
-                             r, "insufficient space in "
-
-                             "expand_map_lookups, aborting");
-
-                return;
-
-            }
-
-            memcpy(cpO, cpI, n);
-
-            cpO += n;
-
-            cpI += n;
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
+	/* @@@@ handle optional port */

@@ -1,56 +1,20 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
+        }
+        return 0;
+    }
 
-			    "ISA sent invalid headers", r->filename);
+    range = ap_getword_nc(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
-		return FALSE;
+    if (r->byterange > 1) {
+        char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-	    }
-
-
-
-	    *value++ = '\0';
-
-	    while (*value && isspace(*value)) ++value;
-
-
-
-	    /* Check all the special-case headers. Similar to what
-
-	     * scan_script_header() does (see that function for
-
-	     * more detail)
-
-	     */
-
-
-
-	    if (!strcasecmp(data, "Content-Type")) {
-
-		/* Nuke trailing whitespace */
-
-		
-
-		char *endp = value + strlen(value) - 1;
-
-		while (endp > value && isspace(*endp)) *endp-- = '\0';
-
-            
-
-		r->content_type = ap_pstrdup (r->pool, value);
-
-		ap_str_tolower(r->content_type);
-
-	    }
-
-	    else if (!strcasecmp(data, "Content-Length")) {
-
-		ap_table_set(r->headers_out, data, value);
-
-	    }
-
-	    else if (!strcasecmp(data, "Transfer-Encoding")) {
-
-		ap_table_set(r->headers_out, data, value);
-
--- apache_1.3.0/src/os/win32/multithread.c	1998-04-11 20:01:06.000000000 +0800
-
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

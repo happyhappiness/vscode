@@ -1,40 +1,14 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
-
-{
-
-    BUFF *fd = r->connection->client;
-
-    int status = r->status;
-
-    int idx = ap_index_of_response(status);
-
-    char *custom_response;
-
-    const char *location = ap_table_get(r->headers_out, "Location");
-
-
-
-    /* We need to special-case the handling of 204 and 304 responses,
-
-     * since they have specific HTTP requirements and do not include a
-
-     * message body.  Note that being assbackwards here is not an option.
-
-     */
-
-    if (status == HTTP_NOT_MODIFIED) {
-
-        if (!ap_is_empty_table(r->err_headers_out))
-
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-
-                                               r->headers_out);
-
-        ap_hard_timeout("send 304", r);
-
-
-
-        ap_basic_http_header(r);
-
-        ap_set_keepalive(r);
-
+                 "An appropriate representation of the requested resource ",
+                          ap_escape_html(r->pool, r->uri),
+                          " could not be found on this server.<P>\n", NULL);
+                /* fall through */
+            case MULTIPLE_CHOICES:
+                {
+                    const char *list;
+                    if ((list = ap_table_get(r->notes, "variant-list")))
+                        ap_bputs(list, fd);
+                }
+                break;
+            case LENGTH_REQUIRED:
+                ap_bvputs(fd, "A request of the requested method ", r->method,
+++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800

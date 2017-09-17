@@ -1,190 +1,52 @@
-    }
+#endif
 
+    /* Since we are reading from one buffer and writing to another,
+     * it is unsafe to do a soft_timeout here, at least until the proxy
+     * has its own timeout handler which can set both buffers to EOUT.
+     */
+    ap_hard_timeout("proxy send body", r);
 
-
-    if (szFilePart < buf+3) {
-
-	ap_assert(strlen(buf) < nCanon);
-
-        strcpy(szCanon, buf);
-
-	if(szCanon[0] != '\\') { /* a \ at the start means it is UNC, otherwise it is x: */
-
-	    ap_assert(isalpha(szCanon[0]));
-
-	    ap_assert(szCanon[1] == ':');
-
-	    szCanon[2] = '/';
-
+    while (!con->aborted && f != NULL) {
+	n = ap_bread(f, buf, IOBUFSIZE);
+	if (n == -1) {		/* input error */
+	    if (f2 != NULL)
+		f2 = ap_proxy_cache_error(c);
+	    break;
 	}
+	if (n == 0)
+	    break;		/* EOF */
+	o = 0;
+	total_bytes_sent += n;
 
-	else {
+	if (f2 != NULL)
+	    if (ap_bwrite(f2, buf, n) != n)
+		f2 = ap_proxy_cache_error(c);
 
-	    char *s;
-
-
-
-	    ap_assert(szCanon[1] == '\\');
-
-	    for(s=szCanon ; *s ; ++s)
-
-		if(*s == '\\')
-
-		    *s='/';
-
+	while (n && !con->aborted) {
+	    w = ap_bwrite(con->client, &buf[o], n);
+	    if (w <= 0) {
+		if (f2 != NULL) {
+		    ap_pclosef(c->req->pool, c->fp->fd);
+		    c->fp = NULL;
+		    f2 = NULL;
+		    con->aborted = 1;
+		    unlink(c->tempfile);
+		}
+		break;
+	    }
+	    ap_reset_timeout(r);	/* reset timeout after successful write */
+	    n -= w;
+	    o += w;
 	}
-
-        return;
-
     }
+    if (!con->aborted)
+	ap_bflush(con->client);
 
-    if (szFilePart != buf+3) {
-
-        char b2[_MAX_PATH];
-
-        ap_assert(szFilePart > buf+3);
-
-
-
-        szFilePart[-1]='\0';
-
-        sub_canonical_filename(b2, sizeof b2, buf);
-
-
-
-	ap_assert(strlen(b2)+1 < nCanon);
-
-        strcpy(szCanon, b2);
-
-        strcat(szCanon, "/");
-
-    }
-
-    else {
-
-	ap_assert(strlen(buf) < nCanon);
-
-        strcpy(szCanon, buf);
-
-        szCanon[2] = '/';
-
-        szCanon[3] = '\0';
-
-    }
-
-    if (h == INVALID_HANDLE_VALUE) {
-
-	ap_assert(strlen(szCanon)+strlen(szFilePart) < nCanon);
-
-        strcat(szCanon, szFilePart);
-
-    }
-
-    else {
-
-	ap_assert(strlen(szCanon)+strlen(d.cFileName) < nCanon);
-
-        strlwr(d.cFileName);
-
-        strcat(szCanon, d.cFileName);
-
-    }
-
+    ap_kill_timeout(r);
+    return total_bytes_sent;
 }
 
-
-
-/* UNC requires backslashes, hence the conversion before canonicalisation. Not sure how
-
- * many backslashes (could be that \\machine\share\some/path/is/ok for example). For now, do
-
- * them all.
-
+/*
+ * Read a header from the array, returning the first entry
  */
-
-API_EXPORT(char *) ap_os_canonical_filename(pool *pPool, const char *szFile)
-
-{
-
-    char buf[HUGE_STRING_LEN];
-
-    char b2[HUGE_STRING_LEN];
-
-    char *s;
-
-
-
-    ap_assert(strlen(szFile) < sizeof b2);
-
-    strcpy(b2,szFile);
-
-    for(s=b2 ; *s ; ++s)
-
-	if(*s == '/')
-
-	    *s='\\';
-
-
-
-    sub_canonical_filename(buf, sizeof buf, b2);
-
-    buf[0]=tolower(buf[0]);
-
-
-
-    if (*szFile && szFile[strlen(szFile)-1] == '/' && buf[strlen(buf)-1] != '/') {
-
-	ap_assert(strlen(buf)+1 < sizeof buf);
-
-        strcat(buf, "/");
-
-    }
-
-
-
-    return ap_pstrdup(pPool, buf);
-
-}
-
-
-
-/* Win95 doesn't like trailing /s. NT and Unix don't mind. This works 
-
- * around the problem.
-
- * Errr... except if it is UNC and we are referring to the root of the UNC, we MUST have
-
- * a trailing \ and we can't use /s. Jeez. Not sure if this refers to all UNCs or just roots,
-
- * but I'm going to fix it for all cases for now. (Ben)
-
- */
-
-
-
-#undef stat
-
-API_EXPORT(int) os_stat(const char *szPath, struct stat *pStat)
-
-{
-
-    int n;
-
-
-
-    ap_assert(szPath[1] == ':' || szPath[1] == '/');	// we are dealing with either UNC or a drive
-
-
-
-    if(szPath[0] == '/') {
-
-	char buf[_MAX_PATH];
-
-	char *s;
-
-	int nSlashes=0;
-
-
-
--- apache_1.3.0/src/regex/debug.c	1998-02-05 02:18:53.000000000 +0800
-
+struct hdr_entry *

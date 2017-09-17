@@ -1,92 +1,27 @@
-
-
-    /* be sure it is has a drive letter or is a UNC path; everything
-
-     * _must_ be canonicalized before getting to this point.  
-
-     */
-
-    if (szPath[1] != ':' && szPath[1] != '/') {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, NULL, 
-
-		     "Invalid path in os_stat: \"%s\", "
-
-		     "should have a drive letter or be a UNC path",
-
-		     szPath);
-
-	return (-1);
-
-    }
-
-
-
-    if (szPath[0] == '/') {
-
-	char buf[_MAX_PATH];
-
-	char *s;
-
-	int nSlashes = 0;
-
-
-
-	ap_assert(strlen(szPath) < _MAX_PATH);
-
-	strcpy(buf, szPath);
-
-	for (s = buf; *s; ++s) {
-
-	    if (*s == '/') {
-
-		*s = '\\';
-
-		++nSlashes;
-
-	    }
-
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"malformed header in meta file: %s", r->filename);
+	    return SERVER_ERROR;
 	}
 
-	/* then we need to add one more to get \\machine\share\ */
+	*l++ = '\0';
+	while (*l && ap_isspace(*l))
+	    ++l;
 
-	if (nSlashes == 3) {
+	if (!strcasecmp(w, "Content-type")) {
+	    char *tmp;
+	    /* Nuke trailing whitespace */
 
-	    *s++ = '\\';
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && ap_isspace(*endp))
+		*endp-- = '\0';
 
+	    tmp = ap_pstrdup(r->pool, l);
+	    ap_content_type_tolower(tmp);
+	    r->content_type = tmp;
 	}
-
-	*s = '\0';
-
-	return stat(buf, pStat);
-
-    }
-
-
-
-    n = strlen(szPath);
-
-    if (szPath[n - 1] == '\\' || szPath[n - 1] == '/') {
-
-        char buf[_MAX_PATH];
-
-        
-
-        ap_assert(n < _MAX_PATH);
-
-        strcpy(buf, szPath);
-
-        buf[n - 1] = '\0';
-
-        
-
-        return stat(buf, pStat);
-
-    }
-
-    return stat(szPath, pStat);
-
-}
-
-
-
+	else if (!strcasecmp(w, "Status")) {
+	    sscanf(l, "%d", &r->status);
+	    r->status_line = ap_pstrdup(r->pool, l);
+	}
+	else {
+++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800

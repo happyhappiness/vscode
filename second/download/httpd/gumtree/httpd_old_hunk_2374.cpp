@@ -1,28 +1,17 @@
 
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	restart_pending = shutdown_pending = 0;
 
-    /* Second, check for actions (which override the method scripts) */
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    int status;
+	    int pid = wait_or_timeout(&status);
 
-    if ((t = ap_table_get(conf->action_types,
-
-		       action ? action : ap_default_type(r)))) {
-
-	script = t;
-
-	if (r->finfo.st_mode == 0) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			"File does not exist: %s", r->filename);
-
-	    return NOT_FOUND;
-
-	}
-
-    }
-
-
-
-    if (script == NULL)
-
--- apache_1.3.1/src/modules/standard/mod_alias.c	1998-07-09 01:47:13.000000000 +0800
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

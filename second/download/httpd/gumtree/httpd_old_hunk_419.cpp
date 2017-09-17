@@ -1,30 +1,15 @@
-	     * how libraries and such are going to fail.  If we can't
-
-	     * do this F_DUPFD there's a good chance that apache has too
-
-	     * few descriptors available to it.  Note we don't warn on
-
-	     * the high line, because if it fails we'll eventually try
-
-	     * the low line...
-
-	     */
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, NULL,
-
-		        "unable to open a file descriptor above %u, "
-
-			"you may need to increase the number of descriptors",
-
-			LOW_SLACK_LINE);
-
-	    low_warned = 1;
-
-	}
-
-	return fd;
-
-nly in apache_1.3.0/src/ap: ap_slack.o
-
--- apache_1.3.0/src/ap/ap_snprintf.c	1998-05-12 01:49:21.000000000 +0800
-
+    }
+    else {
+	alarm_fn = fn;
+	alarm_expiry_time = time(NULL) + x;
+    }
+#else
+    if (x) {
+	alarm_fn = fn;
+    }
+#ifndef OPTIMIZE_TIMEOUTS
+    old = alarm(x);
+#else
+    if (child_timeouts) {
+	old = alarm(x);
+    }

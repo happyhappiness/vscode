@@ -1,26 +1,9 @@
+/* Automatically generated file - do not edit */
+
+#ifndef LINUX
+#define LINUX 2
 #endif
-
-#ifdef    S_IFLNK
-
-    case S_IFLNK:
-
-	/* We used stat(), the only possible reason for this is that the
-
-	 * symlink is broken.
-
-	 */
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-
-		    MODNAME ": broken symlink (%s)", fn);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
+#ifndef USE_HSREGEX
+#define USE_HSREGEX 
 #endif
-
-#ifdef    S_IFSOCK
-
-#ifndef __COHERENT__
-
-    case S_IFSOCK:
-
+-- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800

@@ -1,34 +1,13 @@
-            else if (w < 0) {
+    if (i == -1) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+    if (i != 220) {
+	ap_kill_timeout(r);
+	return BAD_GATEWAY;
+    }
 
-                if (r->connection->aborted)
+    Explain0("FTP: connected.");
 
-                    break;
-
-                else if (errno == EAGAIN)
-
-                    continue;
-
-                else {
-
-                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-
-                     "%s client stopped connection before send body completed",
-
-                                ap_get_remote_host(r->connection,
-
-                                                r->per_dir_config,
-
-                                                REMOTE_NAME));
-
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-
-                    r->connection->aborted = 1;
-
-                    break;
-
-                }
-
-            }
-
-        }
-
+    ap_bputs("USER ", f);
+    ap_bwrite(f, user, userlen);

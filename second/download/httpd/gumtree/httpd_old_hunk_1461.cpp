@@ -1,34 +1,22 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-
-    if (err != NULL) {
-
-        return err;
-
-    }
-
-
-
-    ap_threads_per_child = atoi(arg);
-
-#ifdef WIN32
-
-    if (ap_threads_per_child > 64) {
-
-	return "Can't have more than 64 threads in Windows (for now)";
-
-    }
-
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
+	}
+	else
 #endif
-
-
-
-    return NULL;
-
+	{
+	    curblocks -= fent->len >> 10;
+	    curbytes -= fent->len & 0x3FF;
+	    if (curbytes < 0) {
+		curbytes += 1024;
+		curblocks--;
+	    }
+	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
+		break;
+	}
+    }
+    ap_unblock_alarms();
 }
 
-
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
 {
-

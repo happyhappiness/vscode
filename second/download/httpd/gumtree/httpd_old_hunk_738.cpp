@@ -1,32 +1,13 @@
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
 
-		conf->last ? "set" : "NULL");
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-#endif
+    ap_hard_timeout("send headers", r);
 
-
-
-#if MIME_MAGIC_DEBUG
-
-    for (m = conf->magic; m; m = m->next) {
-
-	if (isprint((((unsigned long) m) >> 24) & 255) &&
-
-	    isprint((((unsigned long) m) >> 16) & 255) &&
-
-	    isprint((((unsigned long) m) >> 8) & 255) &&
-
-	    isprint(((unsigned long) m) & 255)) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-			MODNAME ": match: POINTER CLOBBERED! "
-
-			"m=\"%c%c%c%c\"",
-
-			(((unsigned long) m) >> 24) & 255,
-
-			(((unsigned long) m) >> 16) & 255,
-
-			(((unsigned long) m) >> 8) & 255,
-
+    ap_basic_http_header(r);

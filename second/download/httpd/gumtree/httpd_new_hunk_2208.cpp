@@ -1,26 +1,10 @@
-                case token_le:
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
 
-                case token_lt:
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
+#endif
 
-                    break;
-
-                case token_string:
-
-                case token_group:
-
-                default:
-
-                    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                                "Invalid expression \"%s\" in file %s",
-
-                                expr, r->filename);
-
-                    ap_rputs(error, r);
-
-                    goto RETURN;
-
-                }
-
-                break;
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

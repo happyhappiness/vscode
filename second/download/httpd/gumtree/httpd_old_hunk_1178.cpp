@@ -1,24 +1,13 @@
-#ifdef NEED_HASHBANG_EMUL
 
-    printf(" -D NEED_HASHBANG_EMUL\n");
+    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
+	return (ap_suexec_enabled);
 
-#endif
-
-#ifdef SHARED_CORE
-
-    printf(" -D SHARED_CORE\n");
-
-#endif
-
+    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
+	ap_suexec_enabled = 1;
+	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
+    }
+#endif /* ndef WIN32 */
+    return (ap_suexec_enabled);
 }
 
-
-
-
-
-/* Some init code that's common between win32 and unix... well actually
-
- * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
-
- * is still a mess.
-
+/*****************************************************************

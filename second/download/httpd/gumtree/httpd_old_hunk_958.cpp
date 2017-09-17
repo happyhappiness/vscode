@@ -1,80 +1,29 @@
-    r->read_length     = 0;
-
-    r->read_body       = REQUEST_NO_BODY;
-
-
-
-    r->status          = HTTP_REQUEST_TIME_OUT;  /* Until we get a request */
-
-    r->the_request     = NULL;
-
-
-
-    /* Get the request... */
-
-
-
-#ifdef CHARSET_EBCDIC
-
-    ap_bsetflag(r->connection->client, B_ASCII2EBCDIC|B_EBCDIC2ASCII, 1);
-
-#endif /* CHARSET_EBCDIC */
-
-    ap_keepalive_timeout("read request line", r);
-
-    if (!read_request_line(r)) {
-
-        ap_kill_timeout(r);
-
-	if (r->status != HTTP_REQUEST_TIME_OUT) {
-
-	    /* we must have had an error.*/
-
-	    ap_log_transaction(r);
-
 	}
 
-        return NULL;
-
-    }
-
-    if (!r->assbackwards) {
-
-        ap_hard_timeout("read request headers", r);
-
-        get_mime_headers(r);
-
-        if (r->status != HTTP_REQUEST_TIME_OUT) {/* we must have had an error.*/
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		         "request failed for %s: error reading the headers",
-
-		         ap_get_remote_host(r->connection, r->per_dir_config, 
-
-					    REMOTE_NAME));
-
-	    ap_log_transaction(r);
-
-	    return NULL;
-
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (isspace(*src))
+		++src;
 	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && isspace(*dst))
+	    *dst = '\0';
 
-
-
-    }
-
-    ap_kill_timeout(r);
-
-
-
-    r->status = HTTP_OK;                         /* Until further notice. */
-
-
-
-    /* update what we think the virtual host is based on the headers we've
-
-     * now read
-
-     */
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

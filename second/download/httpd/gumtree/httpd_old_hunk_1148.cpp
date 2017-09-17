@@ -1,44 +1,14 @@
-	if (err != NULL)
 
-	    return ap_proxyerror(r, err);	/* give up */
-
+    if (i != DECLINED) {
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	return i;
     }
+    cache = c->fp;
 
-
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (sock == -1) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    "proxy: error creating socket");
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-    if (conf->recv_buffer_size) {
-
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-
-	    == -1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-
-	}
-
-    }
-
-
-
-#ifdef SINIX_D_RESOLVER_BUG
-
-    {
-
+    if (!pasvmode) {		/* wait for connection */
+	ap_hard_timeout("proxy ftp data connect", r);
+	clen = sizeof(struct sockaddr_in);
+	do
+	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
+	while (csd == -1 && errno == EINTR);

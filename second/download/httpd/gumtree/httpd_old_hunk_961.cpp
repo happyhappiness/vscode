@@ -1,24 +1,41 @@
-     */
+	    return cond_status;
+	}
 
-    if (r->read_body == REQUEST_CHUNKED_PASS)
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
-        bufsiz -= 2;
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
-    if (bufsiz <= 0)
+	    if (!buffer)
+		/* Soak up all the script output --- may save an outright kill */
+		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
+		    continue;
 
-        return -1;              /* Cannot read chunked with a small buffer */
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
+	}
 
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
+	if (!strcasecmp(w, "Content-type")) {
 
-    if (r->remaining == 0) {    /* Start of new chunk */
+	    /* Nuke trailing whitespace */
 
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
 
-
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-
-            || !isxdigit(*buffer)) {
-
-            r->connection->keepalive = -1;
-
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

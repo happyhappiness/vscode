@@ -1,28 +1,15 @@
-		expansion = in - 1;
+    ap_hard_timeout("send directory", r);
 
-		if (*in == '{') {
+    /* Spew HTML preamble */
 
-		    ++in;
+    title_endp = title_name + strlen(title_name) - 1;
 
-		    start_of_var_name = in;
+    while (title_endp > title_name && *title_endp == '/') {
+	*title_endp-- = '\0';
+    }
 
-		    in = strchr(in, '}');
-
-		    if (in == NULL) {
-
-                        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-
-				    r, "Missing '}' on variable \"%s\"",
-
-				    expansion);
-
-                        *next = '\0';
-
-                        return;
-
-                    }
-
-		    end_of_var_name = in;
-
-		    ++in;
-
+    if ((!(tmp = find_header(autoindex_conf, r)))
+	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
+	) {
+	emit_preamble(r, title_name);
+	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);

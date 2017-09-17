@@ -1,80 +1,13 @@
-	return;
-
-    }
-
+    ap_bvputs(f, "Host: ", desthost, NULL);
+    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+	ap_bvputs(f, ":", destportstr, CRLF, NULL);
     else
+	ap_bputs(CRLF, f);
 
-	inside = 1;
-
-    (void) ap_release_mutex(garbage_mutex);
-
-
-
-    help_proxy_garbage_coll(r);
-
-
-
-    (void) ap_acquire_mutex(garbage_mutex);
-
-    inside = 0;
-
-    (void) ap_release_mutex(garbage_mutex);
-
-}
-
-
-
-
-
-static void help_proxy_garbage_coll(request_rec *r)
-
-{
-
-    const char *cachedir;
-
-    void *sconf = r->server->module_config;
-
-    proxy_server_conf *pconf =
-
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-
-    const struct cache_conf *conf = &pconf->cache;
-
-    array_header *files;
-
-    struct stat buf;
-
-    struct gc_ent *fent, **elts;
-
-    int i, timefd;
-
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
-
-
-
-    cachedir = conf->root;
-
-    cachesize = conf->space;
-
-    every = conf->gcinterval;
-
-
-
-    if (cachedir == NULL || every == -1)
-
-	return;
-
-    garbage_now = time(NULL);
-
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-
-	return;
-
-
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
-
+    reqhdrs_arr = table_elts(r->headers_in);
+    reqhdrs = (table_entry *) reqhdrs_arr->elts;
+    for (i = 0; i < reqhdrs_arr->nelts; i++) {
+	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
+	/* Clear out headers not to send */
+	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
+	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))

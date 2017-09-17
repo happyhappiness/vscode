@@ -1,26 +1,28 @@
-            case token_le:
+	     */
+	    break;
+#endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
+    }
 
-            case token_lt:
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-                new->parent = current;
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
+    }
 
-                current = current->right = new;
+    child_timeouts = !ap_standalone || one_process;
 
-                break;
-
-            default:
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "Invalid expression \"%s\" in file %s",
-
-                            expr, r->filename);
-
-                ap_rputs(error, r);
-
-                goto RETURN;
-
-            }
-
-            break;
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

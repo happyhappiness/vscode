@@ -1,28 +1,16 @@
-        else {
+		(conf->magic && conf->magic->next) ? "set" : "NULL",
+		conf->last ? "set" : "NULL");
+#endif
 
-            cpT = strstr(cpI, "${");
-
-            if (cpT == NULL)
-
-                cpT = cpI+strlen(cpI);
-
-            n = cpT-cpI;
-
-            if (cpO + n >= newuri + sizeof(newuri)) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 
-
-                             r, "insufficient space in "
-
-                             "expand_map_lookups, aborting");
-
-                return;
-
-            }
-
-            memcpy(cpO, cpI, n);
-
-            cpO += n;
-
-            cpI += n;
-
+#if MIME_MAGIC_DEBUG
+    for (m = conf->magic; m; m = m->next) {
+	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
+	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
+	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
+	    ap_isprint(((unsigned long) m) & 255)) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+			MODNAME ": match: POINTER CLOBBERED! "
+			"m=\"%c%c%c%c\"",
+			(((unsigned long) m) >> 24) & 255,
+			(((unsigned long) m) >> 16) & 255,
+			(((unsigned long) m) >> 8) & 255,

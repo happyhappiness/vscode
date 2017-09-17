@@ -1,70 +1,29 @@
-	    parms[0] = '\0';
-
-    }
-
-
-
-/* try to set up PASV data connection first */
-
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (dsock == -1) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "proxy: error creating PASV socket");
-
-	ap_bclose(f);
-
-	ap_kill_timeout(r);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-    if (conf->recv_buffer_size) {
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-
 	}
 
-    }
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (isspace(*src))
+		++src;
+	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && isspace(*dst))
+	    *dst = '\0';
 
-
-
-    ap_bputs("PASV" CRLF, f);
-
-    ap_bflush(f);
-
-    Explain0("FTP: PASV command issued");
-
-/* possible results: 227, 421, 500, 501, 502, 530 */
-
-    i = ap_bgets(pasv, sizeof(pasv), f);
-
-
-
-    if (i == -1) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-
-		     "PASV: control connection is toast");
-
-	ap_pclosesocket(p, dsock);
-
-	ap_bclose(f);
-
-	ap_kill_timeout(r);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

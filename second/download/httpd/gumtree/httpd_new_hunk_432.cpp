@@ -1,24 +1,29 @@
+	}
 
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (ap_isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!ap_isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (ap_isspace(*src))
+		++src;
+	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && ap_isspace(*dst))
+	    *dst = '\0';
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-
-	return (ap_suexec_enabled);
-
-
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-
-	ap_suexec_enabled = 1;
-
-    }
-
-#endif /* ndef WIN32 */
-
-    return (ap_suexec_enabled);
-
-}
-
-
-
-/*****************************************************************
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

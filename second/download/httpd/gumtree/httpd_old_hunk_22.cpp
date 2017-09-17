@@ -1,40 +1,20 @@
-	     */
-
-	    break;
-
 #endif
 
-	case 'S':
+    ap_soft_timeout("send body", r);
 
-	    ap_dump_settings = 1;
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
 
-	    break;
-
-	case '?':
-
-	    usage(argv[0]);
-
-	}
-
-    }
-
-
-
-    ap_suexec_enabled = init_suexec();
-
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-
-
-    child_timeouts = !ap_standalone || one_process;
-
-
-
-    if (ap_standalone) {
-
-	ap_open_logs(server_conf, pconf);
-
-	ap_set_version();
-
-	ap_init_modules(pconf, server_conf);
-
+        do {
+            n = ap_bread(fb, buf, len);
+            if (n >= 0 || r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

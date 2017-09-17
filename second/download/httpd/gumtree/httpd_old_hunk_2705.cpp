@@ -1,58 +1,13 @@
-        qsort((void *) candidates->elts, candidates->nelts,
-
-              sizeof(misspelled_file), sort_by_quality);
-
-
-
-        /*
-
-         * Conditions for immediate redirection: 
-
-         *     a) the first candidate was not found by stripping the suffix 
-
-         * AND b) there exists only one candidate OR the best match is not ambigous
-
-         * then return a redirection right away.
-
-         */
-
-        if (variant[0].quality != SP_VERYDIFFERENT &&
-
-            (candidates->nelts == 1 || variant[0].quality != variant[1].quality)) {
-
-
-
-            nuri = ap_pstrcat(r->pool, url, variant[0].name, r->path_info,
-
-			      r->parsed_uri.query ? "?" : "",
-
-			      r->parsed_uri.query ? r->parsed_uri.query : "", NULL);
-
-
-
-            ap_table_setn(r->headers_out, "Location",
-
-                      ap_construct_url(r->pool, nuri, r));
-
-
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_INFO, r->server,
-
-                        ref ? "Fixed spelling: %s to %s from %s"
-
-                        : "Fixed spelling: %s to %s",
-
-                        r->uri, nuri, ref);
-
-
-
-            return HTTP_MOVED_PERMANENTLY;
-
-        }
-
-        /*
-
-         * Otherwise, a "[300] Multiple Choices" list with the variants is
-
-         * returned.
-
+	}
+	if ((timefd = creat(filename, 0666)) == -1) {
+	    if (errno != EEXIST)
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy: creat(%s)", filename);
+	    else
+		lastcheck = abs(garbage_now);	/* someone else got in there */
+	    ap_unblock_alarms();
+	    return;
+	}
+	close(timefd);
+    }
+    else {

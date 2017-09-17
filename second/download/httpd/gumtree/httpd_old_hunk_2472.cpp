@@ -1,26 +1,22 @@
-        set_neg_headers(r, neg, na_list);
-
-        store_variant_list(r, neg);
-
-        return MULTIPLE_CHOICES;
-
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
+	}
+	else
+#endif
+	{
+	    curblocks -= fent->len >> 10;
+	    curbytes -= fent->len & 0x3FF;
+	    if (curbytes < 0) {
+		curbytes += 1024;
+		curblocks--;
+	    }
+	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
+		break;
+	}
     }
+    ap_unblock_alarms();
+}
 
-
-
-    if (!best) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "no acceptable variant: %s", r->filename);
-
-
-
-        set_neg_headers(r, neg, na_result);
-
-        store_variant_list(r, neg);
-
-        return NOT_ACCEPTABLE;
-
-    }
-
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

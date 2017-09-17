@@ -1,26 +1,13 @@
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-
-            return 1;
-
-        }
-
-        if (!strcmp(tag, "cmd")) {
-
-            parse_string(r, tag_val, parsed_string, sizeof(parsed_string), 1);
-
-            if (include_cmd(parsed_string, r) == -1) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "execution failure for parameter \"%s\" "
-
-                            "to tag exec in file %s",
-
-                            tag, r->filename);
-
-                ap_rputs(error, r);
-
-            }
-
-            /* just in case some stooge changed directories */
-
+    if (i == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
+		     "PASV: control connection is toast");
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	ap_kill_timeout(r);
+	return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    else {
+	pasv[i - 1] = '\0';
+	pstr = strtok(pasv, " ");	/* separate result code */
+	if (pstr != NULL) {
+	    presult = atoi(pstr);

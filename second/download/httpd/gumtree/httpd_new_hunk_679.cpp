@@ -1,32 +1,12 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
 
-#endif
+    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
+	return (ap_suexec_enabled);
 
-#ifdef SIGABRT
-
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-
-#endif
-
-#ifdef SIGILL
-
-	if (sigaction(SIGILL, &sa, NULL) < 0)
-
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGILL)");
-
-#endif
-
-	sa.sa_flags = 0;
-
+    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
+	ap_suexec_enabled = 1;
     }
+#endif /* ndef WIN32 */
+    return (ap_suexec_enabled);
+}
 
-    sa.sa_handler = sig_term;
-
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-
-#ifdef SIGINT
-
+/*****************************************************************

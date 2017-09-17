@@ -1,50 +1,18 @@
-                                         REWRITELOCK_MODE)) < 0) {
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-
-                     "mod_rewrite: Parent could not create RewriteLock "
-
-                     "file %s", conf->rewritelockfile);
-
-        exit(1);
-
-    }
-
-    return;
-
+    ap_table_setn(r->err_headers_out,
+	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
+	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
+		ap_auth_name(r), r->request_time));
 }
 
-
-
-static void rewritelock_open(server_rec *s, pool *p)
-
+API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
 {
+    const char *auth_line = ap_table_get(r->headers_in,
+                                      r->proxyreq ? "Proxy-Authorization"
+                                                  : "Authorization");
+    char *t;
 
-    rewrite_server_conf *conf;
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
 
-
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-
-
-    /* only operate if a lockfile is used */
-
-    if (conf->rewritelockfile == NULL
-
-        || *(conf->rewritelockfile) == '\0')
-
-        return;
-
-
-
-    /* open the lockfile (once per child) to get a unique fd */
-
-    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
-
-                                         O_WRONLY,
-
-                                         REWRITELOCK_MODE)) < 0) {
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-
+    if (!ap_auth_name(r)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

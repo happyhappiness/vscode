@@ -1,44 +1,13 @@
-<tr><th>Req<td>Milliseconds required to process most recent request\n \
-
-<tr><th>Conn<td>Kilobytes transferred this connection\n \
-
-<tr><th>Child<td>Megabytes transferred this child\n \
-
-<tr><th>Slot<td>Total megabytes transferred this slot\n \
-
-</table>\n", r);
-
-#endif
-
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		   sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
+	ap_pclosesocket(p, sock);
+	return SERVER_ERROR;
+#endif /*_OSD_POSIX*/
     }
 
-
-
-#else /* !defined(STATUS) */
-
-
-
-    ap_rputs("<hr>To obtain a full report with current status information and", r);
-
-    ap_rputs(" DNS and LOGGING status codes \n", r);
-
-    ap_rputs("you need to recompile Apache after adding the line <pre>", r);
-
-    ap_rputs("Rule STATUS=yes</pre>into the file <code>Configuration</code>\n", r);
-
-
-
-#endif /* STATUS */
-
-
-
-    if (!short_report) {
-
-	ap_rputs(ap_psignature("<HR>\n",r), r);
-
-	ap_rputs("</BODY></HTML>\n", r);
-
-    }
-
-
-
+#ifdef SINIX_D_RESOLVER_BUG
+    {
+	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;

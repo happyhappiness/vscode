@@ -1,26 +1,13 @@
-	return log_scripterror(r, conf, FORBIDDEN, APLOG_NOERRNO,
+    rr->content_type = CGI_MAGIC_TYPE;
 
-			       "Options ExecCGI is off in this directory");
+    /* Run it. */
 
-    if (nph && is_included)
+    rr_status = ap_run_sub_req(rr);
+    if (is_HTTP_REDIRECT(rr_status)) {
+        char *location = ap_table_get(rr->headers_out, "Location");
+        location = ap_escape_html(rr->pool, location);
+        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+    }
 
-	return log_scripterror(r, conf, FORBIDDEN, APLOG_NOERRNO,
-
-			       "attempt to include NPH CGI script");
-
-
-
-#if defined(__EMX__) || defined(WIN32)
-
-    /* Allow for cgi files without the .EXE extension on them under OS/2 */
-
-    if (r->finfo.st_mode == 0) {
-
-	struct stat statbuf;
-
-
-
-	r->filename = ap_pstrcat(r->pool, r->filename, ".EXE", NULL);
-
-
-
+    ap_destroy_sub_req(rr);
+#ifndef WIN32

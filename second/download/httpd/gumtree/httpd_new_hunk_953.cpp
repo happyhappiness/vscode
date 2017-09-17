@@ -1,36 +1,13 @@
-	    hold_off_on_exponential_spawning = 10;
 
-	}
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!ap_is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
+    ap_hard_timeout("send headers", r);
 
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-
-		    "%s configured -- resuming normal operations",
-
-		    ap_get_server_version());
-
-	if (ap_suexec_enabled) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-
-	}
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-
-		    "Server built: %s", ap_get_server_built());
-
-	restart_pending = shutdown_pending = 0;
-
-
-
-	while (!restart_pending && !shutdown_pending) {
-
-	    int child_slot;
-
-	    ap_wait_t status;
-
-	    int pid = wait_or_timeout(&status);
-
+    ap_basic_http_header(r);

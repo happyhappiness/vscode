@@ -1,42 +1,14 @@
-#else
-
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-
-#endif
-
-
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-
-
-    if (conf->rewritelogfile == NULL) {
-
-        return;
-
-    }
-
-    if (*(conf->rewritelogfile) == '\0') {
-
-        return;
-
-    }
-
-    if (conf->rewritelogfp > 0) {
-
-        return; /* virtual log shared w/ main server */
-
-    }
-
-
-
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-
-
-    if (*conf->rewritelogfile == '|') {
-
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
-
+                 "An appropriate representation of the requested resource ",
+                          ap_escape_html(r->pool, r->uri),
+                          " could not be found on this server.<P>\n", NULL);
+                /* fall through */
+            case MULTIPLE_CHOICES:
+                {
+                    const char *list;
+                    if ((list = ap_table_get(r->notes, "variant-list")))
+                        ap_bputs(list, fd);
+                }
+                break;
+            case LENGTH_REQUIRED:
+                ap_bvputs(fd, "A request of the requested method ", r->method,
+++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800

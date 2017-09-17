@@ -1,102 +1,42 @@
+	ap_destroy_sub_req(pa_req);
+    }
+}
 
 
-	if (bind(dsock, (struct sockaddr *) &server,
+static int scan_script_header_err_core(request_rec *r, char *buffer,
+		 int (*getsfunc) (char *, int, void *), void *getsfunc_data)
+{
+    char x[MAX_STRING_LEN];
+    char *w, *l;
+    int p;
+    int cgi_status = HTTP_OK;
 
-		 sizeof(struct sockaddr_in)) == -1) {
+    if (buffer)
+	*buffer = '\0';
+    w = buffer ? buffer : x;
 
-	    char buff[22];
+    ap_hard_timeout("read script header", r);
 
+    while (1) {
 
-
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: error binding to ftp data socket %s", buff);
-
-	    ap_bclose(f);
-
-	    ap_pclosesocket(p, dsock);
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
+	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"Premature end of script headers: %s", r->filename);
+	    return SERVER_ERROR;
 	}
 
-	listen(dsock, 2);	/* only need a short queue */
+	/* Delete terminal (CR?)LF */
 
-    }
+	p = strlen(w);
+	if (p > 0 && w[p - 1] == '\n') {
+	    if (p > 1 && w[p - 2] == '\015')
+		w[p - 2] = '\0';
+	    else
+		w[p - 1] = '\0';
+	}
 
-
-
-/* set request */
-
-    len = decodeenc(path);
-
-
-
-    /* TM - if len == 0 then it must be a directory (you can't RETR nothing) */
-
-
-
-    if (len == 0) {
-
-	parms = "d";
-
-    }
-
-    else {
-
-	ap_bputs("SIZE ", f);
-
-	ap_bwrite(f, path, len);
-
-	ap_bputs(CRLF, f);
-
-	ap_bflush(f);
-
-	Explain1("FTP: SIZE %s", path);
-
-	i = ftp_getrc_msg(f, resp, resplen);
-
-	Explain2("FTP: returned status %d with response %s", i, resp);
-
-	if (i != 500) {		/* Size command not recognized */
-
-	    if (i == 550) {	/* Not a regular file */
-
-		Explain0("FTP: SIZE shows this is a directory");
-
-		parms = "d";
-
-		ap_bputs("CWD ", f);
-
-		ap_bwrite(f, path, len);
-
-		ap_bputs(CRLF, f);
-
-		ap_bflush(f);
-
-		Explain1("FTP: CWD %s", path);
-
-		i = ftp_getrc(f);
-
-		Explain1("FTP: returned status %d", i);
-
-		if (i == -1) {
-
-		    ap_kill_timeout(r);
-
-		    return ap_proxyerror(r, "Error sending to remote server");
-
-		}
-
-		if (i == 550) {
-
-		    ap_kill_timeout(r);
-
-		    return HTTP_NOT_FOUND;
-
-		}
-
-		if (i != 250) {
-
+	/*
+	 * If we've finished reading the headers, check to make sure any
+	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
+	 * will handle the script's output.  If not, just return the error.

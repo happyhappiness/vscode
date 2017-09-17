@@ -1,60 +1,20 @@
-    err = ap_proxy_host2addr(host, &server_hp);
+void ap_send_error_response(request_rec *r, int recursive_error)
+{
+    BUFF *fd = r->connection->client;
+    int status = r->status;
+    int idx = ap_index_of_response(status);
+    char *custom_response;
+    char *location = ap_table_get(r->headers_out, "Location");
 
-    if (err != NULL)
+    /* We need to special-case the handling of 204 and 304 responses,
+     * since they have specific HTTP requirements and do not include a
+     * message body.  Note that being assbackwards here is not an option.
+     */
+    if (status == HTTP_NOT_MODIFIED) {
+        if (!is_empty_table(r->err_headers_out))
+            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                               r->headers_out);
+        ap_hard_timeout("send 304", r);
 
-	return ap_proxyerror(r, err);	/* give up */
-
-
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (sock == -1) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "proxy: error creating socket");
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-    if (conf->recv_buffer_size) {
-
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-
-	    == -1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-
-	}
-
-    }
-
-
-
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-
-		   sizeof(one)) == -1) {
-
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-
-	ap_pclosesocket(p, sock);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-#endif /*_OSD_POSIX*/
-
-    }
-
-
-
+        ap_basic_http_header(r);
+        ap_set_keepalive(r);

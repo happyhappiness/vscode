@@ -1,26 +1,22 @@
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
+    }
 
+    if (!child && run_as_service) {
+	service_cd();
+    }
 
-#ifdef RELAX_HEADER_RULE
-
-	    if (lf)
-
-		*lf = '\0';
-
-#else
-
-	    if (!lf) { /* Huh? Invalid data, I think */
-
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			    "ISA sent invalid headers: %s", r->filename);
-
-		SetLastError(ERROR);	/* XXX: Find right error */
-
-		return FALSE;
-
-	    }
-
-
-
-	    /* Get rid of \n and \r */
-
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

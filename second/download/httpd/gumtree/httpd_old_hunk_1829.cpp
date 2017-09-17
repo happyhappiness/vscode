@@ -1,56 +1,13 @@
-     * where we would end up with LOTS of zombies.
-
-     */
-
-    sub_pool = ap_make_sub_pool(r->pool);
-
-
-
-    if (!ap_bspawn_child(sub_pool, uncompress_child, &parm, kill_always,
-
-			 &bin, &bout, NULL)) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    MODNAME ": couldn't spawn uncompress process: %s", r->uri);
-
-	return -1;
-
+    if ((r->method_number == M_POST || r->method_number == M_PUT)
+	&& *dbuf) {
+	fprintf(f, "\n%s\n", dbuf);
     }
 
+    fputs("%response\n", f);
+    hdrs_arr = table_elts(r->err_headers_out);
+    hdrs = (table_entry *) hdrs_arr->elts;
 
-
-    if (ap_bwrite(bin, old, n) != n) {
-
-	ap_destroy_pool(sub_pool);
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    MODNAME ": write failed.");
-
-	return -1;
-
-    }
-
-    ap_bclose(bin);
-
-    *newch = (unsigned char *) ap_palloc(r->pool, n);
-
-    if ((n = ap_bread(bout, *newch, n)) <= 0) {
-
-	ap_destroy_pool(sub_pool);
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-	    MODNAME ": read failed %s", r->filename);
-
-	return -1;
-
-    }
-
-    ap_destroy_pool(sub_pool);
-
-    return n;
-
-}
-
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key)
+	    continue;
+	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);

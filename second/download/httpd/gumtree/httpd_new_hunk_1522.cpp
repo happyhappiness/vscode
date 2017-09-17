@@ -1,338 +1,93 @@
-		    return HTTP_BAD_GATEWAY;
+        int iEnvBlockLen;
 
-		}
+	memset(&si, 0, sizeof(si));
+	memset(&pi, 0, sizeof(pi));
 
-		path = "";
+	interpreter[0] = 0;
+	pid = -1;
 
-		len = 0;
-
-	    }
-
-	    else if (i == 213) { /* Size command ok */
-
-		for (j = 0; j < sizeof resp && ap_isdigit(resp[j]); j++)
-
-			;
-
-		resp[j] = '\0';
-
-		if (resp[0] != '\0')
-
-		    size = ap_pstrdup(p, resp);
-
-	    }
-
+	exename = strrchr(r->filename, '/');
+	if (!exename) {
+	    exename = strrchr(r->filename, '\\');
 	}
-
-    }
-
-
-
-#ifdef AUTODETECT_PWD
-
-    ap_bvputs(f, "PWD", CRLF, NULL);
-
-    ap_bflush(f);
-
-    Explain0("FTP: PWD");
-
-/* responses: 257, 500, 501, 502, 421, 550 */
-
-    /* 257 "<directory-name>" <commentary> */
-
-    /* 421 Service not available, closing control connection. */
-
-    /* 500 Syntax error, command unrecognized. */
-
-    /* 501 Syntax error in parameters or arguments. */
-
-    /* 502 Command not implemented. */
-
-    /* 550 Requested action not taken. */
-
-    i = ftp_getrc_msg(f, resp, sizeof resp);
-
-    Explain1("FTP: PWD returned status %d", i);
-
-    if (i == -1 || i == 421) {
-
-	ap_kill_timeout(r);
-
-	return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ "Error reading from remote server");
-
-    }
-
-    if (i == 550) {
-
-	ap_kill_timeout(r);
-
-	return HTTP_NOT_FOUND;
-
-    }
-
-    if (i == 257) {
-
-	const char *dirp = resp;
-
-	cwd = ap_getword_conf(r->pool, &dirp);
-
-    }
-
-#endif /*AUTODETECT_PWD*/
-
-
-
-    if (parms[0] == 'd') {
-
-	if (len != 0)
-
-	    ap_bvputs(f, "LIST ", path, CRLF, NULL);
-
-	else
-
-	    ap_bputs("LIST -lag" CRLF, f);
-
-	Explain1("FTP: LIST %s", (len == 0 ? "" : path));
-
-    }
-
-    else {
-
-	ap_bvputs(f, "RETR ", path, CRLF, NULL);
-
-	Explain1("FTP: RETR %s", path);
-
-    }
-
-    ap_bflush(f);
-
-/* RETR: 110, 125, 150, 226, 250, 421, 425, 426, 450, 451, 500, 501, 530, 550
-
-   NLST: 125, 150, 226, 250, 421, 425, 426, 450, 451, 500, 501, 502, 530 */
-
-    /* 110 Restart marker reply. */
-
-    /* 125 Data connection already open; transfer starting. */
-
-    /* 150 File status okay; about to open data connection. */
-
-    /* 226 Closing data connection. */
-
-    /* 250 Requested file action okay, completed. */
-
-    /* 421 Service not available, closing control connection. */
-
-    /* 425 Can't open data connection. */
-
-    /* 426 Connection closed; transfer aborted. */
-
-    /* 450 Requested file action not taken. */
-
-    /* 451 Requested action aborted. Local error in processing. */
-
-    /* 500 Syntax error, command unrecognized. */
-
-    /* 501 Syntax error in parameters or arguments. */
-
-    /* 530 Not logged in. */
-
-    /* 550 Requested action not taken. */
-
-    rc = ftp_getrc(f);
-
-    Explain1("FTP: returned status %d", rc);
-
-    if (rc == -1) {
-
-	ap_kill_timeout(r);
-
-	return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ "Error reading from remote server");
-
-    }
-
-    if (rc == 550) {
-
-	Explain0("FTP: RETR failed, trying LIST instead");
-
-	parms = "d";
-
-	ap_bvputs(f, "CWD ", path, CRLF, NULL);
-
-	ap_bflush(f);
-
-	Explain1("FTP: CWD %s", path);
-
-	/* possible results: 250, 421, 500, 501, 502, 530, 550 */
-
-	/* 250 Requested file action okay, completed. */
-
-	/* 421 Service not available, closing control connection. */
-
-	/* 500 Syntax error, command unrecognized. */
-
-	/* 501 Syntax error in parameters or arguments. */
-
-	/* 502 Command not implemented. */
-
-	/* 530 Not logged in. */
-
-	/* 550 Requested action not taken. */
-
-	rc = ftp_getrc(f);
-
-	Explain1("FTP: returned status %d", rc);
-
-	if (rc == -1) {
-
-	    ap_kill_timeout(r);
-
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ "Error reading from remote server");
-
+	if (!exename) {
+	    exename = r->filename;
 	}
-
-	if (rc == 550) {
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_NOT_FOUND;
-
-	}
-
-	if (rc != 250) {
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_BAD_GATEWAY;
-
-	}
-
-
-
-#ifdef AUTODETECT_PWD
-
-	ap_bvputs(f, "PWD", CRLF, NULL);
-
-	ap_bflush(f);
-
-	Explain0("FTP: PWD");
-
-/* responses: 257, 500, 501, 502, 421, 550 */
-
-	/* 257 "<directory-name>" <commentary> */
-
-	/* 421 Service not available, closing control connection. */
-
-	/* 500 Syntax error, command unrecognized. */
-
-	/* 501 Syntax error in parameters or arguments. */
-
-	/* 502 Command not implemented. */
-
-	/* 550 Requested action not taken. */
-
-	i = ftp_getrc_msg(f, resp, sizeof resp);
-
-	Explain1("FTP: PWD returned status %d", i);
-
-	if (i == -1 || i == 421) {
-
-	    ap_kill_timeout(r);
-
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ "Error reading from remote server");
-
-	}
-
-	if (i == 550) {
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_NOT_FOUND;
-
-	}
-
-	if (i == 257) {
-
-	    const char *dirp = resp;
-
-	    cwd = ap_getword_conf(r->pool, &dirp);
-
-	}
-
-#endif /*AUTODETECT_PWD*/
-
-
-
-	ap_bputs("LIST -lag" CRLF, f);
-
-	ap_bflush(f);
-
-	Explain0("FTP: LIST -lag");
-
-	rc = ftp_getrc(f);
-
-	Explain1("FTP: returned status %d", rc);
-
-	if (rc == -1)
-
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ "Error reading from remote server");
-
-    }
-
-    ap_kill_timeout(r);
-
-    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
-
-	return HTTP_BAD_GATEWAY;
-
-
-
-    r->status = HTTP_OK;
-
-    r->status_line = "200 OK";
-
-
-
-    resp_hdrs = ap_make_table(p, 2);
-
-    c->hdrs = resp_hdrs;
-
-
-
-    if (parms[0] == 'd')
-
-	ap_table_set(resp_hdrs, "Content-Type", "text/html");
-
-    else {
-
-	if (r->content_type != NULL) {
-
-	    ap_table_set(resp_hdrs, "Content-Type", r->content_type);
-
-	    Explain1("FTP: Content-Type set to %s", r->content_type);
-
-	}
-
 	else {
-
-	    ap_table_set(resp_hdrs, "Content-Type", "text/plain");
-
+	    exename++;
+	}
+	dot = strrchr(exename, '.');
+	if (dot) {
+	    if (!strcasecmp(dot, ".BAT")
+		|| !strcasecmp(dot, ".CMD")
+		|| !strcasecmp(dot, ".EXE")
+		||  !strcasecmp(dot, ".COM")) {
+		is_exe = 1;
+	    }
 	}
 
-	if (parms[0] != 'a' && size != NULL) {
-
-	    /* We "trust" the ftp server to really serve (size) bytes... */
-
-	    ap_table_set(resp_hdrs, "Content-Length", size);
-
-	    Explain1("FTP: Content-Length set to %s", size);
-
+	if (!is_exe) {
+	    program = fopen(r->filename, "rb");
+	    if (!program) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "fopen(%s) failed", r->filename);
+		return (pid);
+	    }
+	    sz = fread(interpreter, 1, sizeof(interpreter) - 1, program);
+	    if (sz < 0) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "fread of %s failed", r->filename);
+		fclose(program);
+		return (pid);
+	    }
+	    interpreter[sz] = 0;
+	    fclose(program);
+	    if (!strncmp(interpreter, "#!", 2)) {
+		is_script = 1;
+		for (i = 2; i < sizeof(interpreter); i++) {
+		    if ((interpreter[i] == '\r')
+			|| (interpreter[i] == '\n')) {
+			break;
+		    }
+		}
+		interpreter[i] = 0;
+		for (i = 2; interpreter[i] == ' '; ++i)
+		    ;
+		memmove(interpreter+2,interpreter+i,strlen(interpreter+i)+1);
+	    }
+	    else {
+	        /* Check to see if it's a executable */
+                IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)interpreter;
+                if (hdr->e_magic == IMAGE_DOS_SIGNATURE && hdr->e_cblp < 512) {
+                    is_binary = 1;
+		}
+	    }
+	}
+        /* Bail out if we haven't figured out what kind of
+         * file this is by now..
+         */
+        if (!is_exe && !is_script && !is_binary) {
+            ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
+		"%s is not executable; ensure interpreted scripts have "
+		"\"#!\" first line", 
+		r->filename);
+            return (pid);
 	}
 
-    }
+	/*
+	 * Make child process use hPipeOutputWrite as standard out,
+	 * and make sure it does not show on screen.
+	 */
+	si.cb = sizeof(si);
+	si.dwFlags     = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
+	si.wShowWindow = SW_HIDE;
+	si.hStdInput   = pinfo->hPipeInputRead;
+	si.hStdOutput  = pinfo->hPipeOutputWrite;
+	si.hStdError   = pinfo->hPipeErrorWrite;
 
-
-
-/* check if NoCache directive on this host */
-
-    for (i = 0; i < conf->nocaches->nelts; i++) {
-
+	if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) { 
+	    if (is_exe || is_binary) {
+	        /*
+	         * When the CGI is a straight binary executable, 
+		 * we can run it as is
+	         */

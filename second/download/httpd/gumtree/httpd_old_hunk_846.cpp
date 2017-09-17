@@ -1,54 +1,20 @@
+#endif
 
+    ap_soft_timeout("send body", r);
 
-    /* Pass one --- direct matches */
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
 
-
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-
-	if (handler_len == handp->len
-
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-
-            int result = (*handp->hr.handler) (r);
-
-
-
-            if (result != DECLINED)
-
-                return result;
-
-        }
-
-    }
-
-
-
-    /* Pass two --- wildcard matches */
-
-
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-
-	if (handler_len >= handp->len
-
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-
-             int result = (*handp->hr.handler) (r);
-
-
-
-             if (result != DECLINED)
-
-                 return result;
-
-         }
-
-    }
-
-
-
-nly in apache_1.3.0/src/main: http_config.o
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
-
+        do {
+            n = ap_bread(fb, buf, len);
+            if (n >= 0 || r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

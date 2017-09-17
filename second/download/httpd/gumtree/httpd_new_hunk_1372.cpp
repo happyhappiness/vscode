@@ -1,26 +1,16 @@
-
-
-    rr->content_type = CGI_MAGIC_TYPE;
-
-
-
-    /* Run it. */
-
-
-
-    rr_status = ap_run_sub_req(rr);
-
-    if (ap_is_HTTP_REDIRECT(rr_status)) {
-
-        const char *location = ap_table_get(rr->headers_out, "Location");
-
-        location = ap_escape_html(rr->pool, location);
-
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
-
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+	if (sigaction(SIGILL, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGILL)");
+#endif
+	sa.sa_flags = 0;
     }
-
-
-
-    ap_destroy_sub_req(rr);
-
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
+#ifdef SIGINT

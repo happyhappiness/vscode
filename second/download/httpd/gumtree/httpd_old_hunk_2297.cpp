@@ -1,26 +1,17 @@
-	    cmd->server->server_uid = ap_user_id;
 
-	    fprintf(stderr,
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	restart_pending = shutdown_pending = 0;
 
-		    "Warning: User directive in <VirtualHost> "
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    int status;
+	    int pid = wait_or_timeout(&status);
 
-		    "requires SUEXEC wrapper.\n");
-
-	}
-
-    }
-
-#if !defined (BIG_SECURITY_HOLE) && !defined (__EMX__)
-
-    if (cmd->server->server_uid == 0) {
-
-	fprintf(stderr,
-
-		"Error:\tApache has not been designed to serve pages while\n"
-
-		"\trunning as root.  There are known race conditions that\n"
-
-		"\twill allow any local user to read any file on the system.\n"
-
-		"\tShould you still desire to serve pages as root then\n"
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

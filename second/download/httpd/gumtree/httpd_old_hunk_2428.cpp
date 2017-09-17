@@ -1,26 +1,12 @@
-                case token_le:
+}
 
-                case token_lt:
+#ifdef USE_PERL_SSI
+static int handle_perl(FILE *in, request_rec *r, const char *error)
+{
+    char tag[MAX_STRING_LEN];
+    char *tag_val;
+    SV *sub = Nullsv;
+    AV *av = newAV();
 
-                    break;
-
-                case token_string:
-
-                case token_group:
-
-                default:
-
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                                "Invalid expression \"%s\" in file %s",
-
-                                expr, r->filename);
-
-                    ap_rputs(error, r);
-
-                    goto RETURN;
-
-                }
-
-                break;
-
+    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

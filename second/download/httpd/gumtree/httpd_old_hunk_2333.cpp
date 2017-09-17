@@ -1,26 +1,52 @@
-         * Client sent us a HTTP/1.1 or later request without telling us the
+#endif
 
-         * hostname, either with a full URL or a Host: header. We therefore
+    /* Since we are reading from one buffer and writing to another,
+     * it is unsafe to do a soft_timeout here, at least until the proxy
+     * has its own timeout handler which can set both buffers to EOUT.
+     */
+    ap_hard_timeout("proxy send body", r);
 
-         * need to (as per the 1.1 spec) send an error.  As a special case,
+    while (!con->aborted && f != NULL) {
+	n = ap_bread(f, buf, IOBUFSIZE);
+	if (n == -1) {		/* input error */
+	    if (f2 != NULL)
+		f2 = ap_proxy_cache_error(c);
+	    break;
+	}
+	if (n == 0)
+	    break;		/* EOF */
+	o = 0;
+	total_bytes_sent += n;
 
-	 * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
+	if (f2 != NULL)
+	    if (ap_bwrite(f2, buf, n) != n)
+		f2 = ap_proxy_cache_error(c);
 
-	 * a Host: header, and the server MUST respond with 400 if it doesn't.
-
-         */
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-               "client sent HTTP/1.1 request without hostname (see RFC2068 section 9, and 14.23): %s", r->uri);
-
-        ap_die(BAD_REQUEST, r);
-
-        return;
-
+	while (n && !con->aborted) {
+	    w = ap_bwrite(con->client, &buf[o], n);
+	    if (w <= 0) {
+		if (f2 != NULL) {
+		    ap_pclosef(c->req->pool, c->fp->fd);
+		    c->fp = NULL;
+		    f2 = NULL;
+		    con->aborted = 1;
+		    unlink(c->tempfile);
+		}
+		break;
+	    }
+	    ap_reset_timeout(r);	/* reset timeout after successful write */
+	    n -= w;
+	    o += w;
+	}
     }
+    if (!con->aborted)
+	ap_bflush(con->client);
 
+    ap_kill_timeout(r);
+    return total_bytes_sent;
+}
 
-
-    /* Ignore embedded %2F's in path for proxy requests */
-
+/*
+ * Read a header from the array, returning the first entry
+ */
+struct hdr_entry *

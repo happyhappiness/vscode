@@ -1,24 +1,13 @@
-	states fresh;		/* states for a fresh start */
 
-	states tmp;		/* temporary */
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-	states empty;		/* empty set of states */
+    ap_hard_timeout("send headers", r);
 
-};
-
-
-
-#include "engine.ih"
-
-
-
-#ifdef REDEBUG
-
-#define	SP(t, s, c)	print(m, t, s, c, stdout)
-
-#define	AT(t, p1, p2, s1, s2)	at(m, t, p1, p2, s1, s2)
-
-#define	NOTE(str)	{ if (m->eflags&REG_TRACE) printf("=%s\n", (str)); }
-
-#else
-
+    ap_basic_http_header(r);

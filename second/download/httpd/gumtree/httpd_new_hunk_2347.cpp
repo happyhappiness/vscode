@@ -1,48 +1,13 @@
-    buff[35] = ' ';
+    if ((r->method_number == M_POST || r->method_number == M_PUT)
+	&& *dbuf) {
+	fprintf(f, "\n%s\n", dbuf);
+    }
 
-    ap_proxy_sec2hex(c->len, buff + 36);
+    fputs("%response\n", f);
+    hdrs_arr = ap_table_elts(r->err_headers_out);
+    hdrs = (table_entry *) hdrs_arr->elts;
 
-    buff[44] = '\n';
-
-    buff[45] = '\0';
-
-
-
-/* if file not modified */
-
-    if (r->status == HTTP_NOT_MODIFIED) {
-
-	if (c->ims != BAD_DATE && lmod != BAD_DATE && lmod <= c->ims) {
-
-/* set any changed headers somehow */
-
-/* update dates and version, but not content-length */
-
-	    if (lmod != c->lmod || expc != c->expire || date != c->date) {
-
-		off_t curpos = lseek(c->fp->fd, 0, SEEK_SET);
-
-		if (curpos == -1)
-
-		    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-				 "proxy: error seeking on cache file %s",
-
-				 c->filename);
-
-		else if (write(c->fp->fd, buff, 35) == -1)
-
-		    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-				 "proxy: error updating cache file %s",
-
-				 c->filename);
-
-	    }
-
-	    ap_pclosef(r->pool, c->fp->fd);
-
-	    Explain0("Remote document not modified, use local copy");
-
-	    /* CHECKME: Is this right? Shouldn't we check IMS again here? */
-
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key)
+	    continue;
+	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);

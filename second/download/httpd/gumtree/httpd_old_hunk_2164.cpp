@@ -1,26 +1,22 @@
-#else
-
-    q.dsize = strlen(q.dptr) + 1;
-
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
+	}
+	else
 #endif
-
-
-
-
-
-    if (!(f = dbm_open(auth_dbmpwfile, O_RDONLY, 0664))) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    "could not open dbm auth file: %s", auth_dbmpwfile);
-
-	return NULL;
-
+	{
+	    curblocks -= fent->len >> 10;
+	    curbytes -= fent->len & 0x3FF;
+	    if (curbytes < 0) {
+		curbytes += 1024;
+		curblocks--;
+	    }
+	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
+		break;
+	}
     }
+    ap_unblock_alarms();
+}
 
-
-
-    d = dbm_fetch(f, q);
-
-
-
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

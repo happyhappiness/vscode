@@ -1,92 +1,24 @@
 
+static char *lcase_header_name_return_body(char *header, request_rec *r)
+{
+    char *cp = header;
 
-    /* be sure it is has a drive letter or is a UNC path; everything
-
-     * _must_ be canonicalized before getting to this point.  
-
-     */
-
-    if (szPath[1] != ':' && szPath[1] != '/') {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, NULL, 
-
-		     "Invalid path in os_stat: \"%s\", "
-
-		     "should have a drive letter or be a UNC path",
-
-		     szPath);
-
-	return (-1);
-
+    for ( ; *cp && *cp != ':' ; ++cp) {
+        *cp = ap_tolower(*cp);
     }
 
-
-
-    if (szPath[0] == '/') {
-
-	char buf[_MAX_PATH];
-
-	char *s;
-
-	int nSlashes = 0;
-
-
-
-	ap_assert(strlen(szPath) < _MAX_PATH);
-
-	strcpy(buf, szPath);
-
-	for (s = buf; *s; ++s) {
-
-	    if (*s == '/') {
-
-		*s = '\\';
-
-		++nSlashes;
-
-	    }
-
-	}
-
-	/* then we need to add one more to get \\machine\share\ */
-
-	if (nSlashes == 3) {
-
-	    *s++ = '\\';
-
-	}
-
-	*s = '\0';
-
-	return stat(buf, pStat);
-
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    "Syntax error in type map --- no ':': %s", r->filename);
+        return NULL;
     }
 
+    do {
+        ++cp;
+    } while (*cp && ap_isspace(*cp));
 
-
-    n = strlen(szPath);
-
-    if (szPath[n - 1] == '\\' || szPath[n - 1] == '/') {
-
-        char buf[_MAX_PATH];
-
-        
-
-        ap_assert(n < _MAX_PATH);
-
-        strcpy(buf, szPath);
-
-        buf[n - 1] = '\0';
-
-        
-
-        return stat(buf, pStat);
-
-    }
-
-    return stat(szPath, pStat);
-
-}
-
-
-
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    "Syntax error in type map --- no header body: %s",
+                    r->filename);
+        return NULL;

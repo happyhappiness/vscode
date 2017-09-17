@@ -1,52 +1,38 @@
-     */
+		char buff[24] = "                       ";
+		t2 = ap_escape_html(scratch, t);
+		buff[23 - len] = '\0';
+		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
+	    }
+	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
+				ap_escape_html(scratch,
+					       ap_os_escape_path(scratch, t,
+								 0)),
+				"\">", NULL);
+	}
 
-    if (r->read_body == REQUEST_CHUNKED_PASS)
+	if (autoindex_opts & FANCY_INDEXING) {
+	    if (autoindex_opts & ICONS_ARE_LINKS) {
+		ap_rputs(anchor, r);
+	    }
+	    if ((ar[x]->icon) || d->default_icon) {
+		ap_rvputs(r, "<IMG SRC=\"",
+			  ap_escape_html(scratch,
+					 ar[x]->icon ? ar[x]->icon
+					             : d->default_icon),
+			  "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
+			  "]\"", NULL);
+		if (d->icon_width && d->icon_height) {
+		    ap_rprintf(r, " HEIGHT=\"%d\" WIDTH=\"%d\"",
+			       d->icon_height, d->icon_width);
+		}
+		ap_rputs(">", r);
+	    }
+	    if (autoindex_opts & ICONS_ARE_LINKS) {
+		ap_rputs("</A>", r);
+	    }
 
-        bufsiz -= 2;
-
-    if (bufsiz <= 0)
-
-        return -1;              /* Cannot read chunked with a small buffer */
-
-
-
-    /* Check to see if we have already read too much request data.
-
-     * For efficiency reasons, we only check this at the top of each
-
-     * caller read pass, since the limit exists just to stop infinite
-
-     * length requests and nobody cares if it goes over by one buffer.
-
-     */
-
-    max_body = ap_get_limit_req_body(r);
-
-    if (max_body && (r->read_length > max_body)) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-            "Chunked request body is larger than the configured limit of %lu",
-
-            max_body);
-
-        r->connection->keepalive = -1;
-
-        return -1;
-
-    }
-
-
-
-    if (r->remaining == 0) {    /* Start of new chunk */
-
-
-
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-
-            || !isxdigit(*buffer)) {
-
-            r->connection->keepalive = -1;
-
+	    ap_rvputs(r, " ", anchor, t2, NULL);
+	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+		if (ar[x]->lm != -1) {
+		    char time_str[MAX_STRING_LEN];
+		    struct tm *ts = localtime(&ar[x]->lm);

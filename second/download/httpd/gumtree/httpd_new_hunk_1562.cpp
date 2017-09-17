@@ -1,34 +1,31 @@
-     * waiting for free_proc_chain to cleanup in the middle of an
 
-     * SSI request -djg
+    /* Pass one --- direct matches */
 
-     */
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            result = (*handp->hr.handler) (r);
 
-    if (!ap_bspawn_child(r->main ? r->main->pool : r->pool, cgi_child,
-
-			 (void *) &cld, kill_after_timeout,
-
-			 &script_out, &script_in, &script_err)) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		    "couldn't spawn child process: %s", r->filename);
-
-	ap_table_setn(r->notes, "error-notes", "Couldn't spawn child process");
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
+            if (result != DECLINED)
+                return result;
+        }
     }
 
+    if (result == NOT_IMPLEMENTED && r->handler) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    }
 
+    /* Pass two --- wildcard matches */
 
-    /* Transfer any put/post args, CERN style...
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             result = (*handp->hr.handler) (r);
 
-     * Note that if a buggy script fails to read everything we throw
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-     * at it, or a buggy client sends too much, we get a SIGPIPE, so
-
-     * we have to ignore SIGPIPE while doing this.  CERN does the same
-
-++ apache_1.3.2/src/modules/standard/mod_digest.c	1998-08-10 05:03:25.000000000 +0800
-
+++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800

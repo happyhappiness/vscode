@@ -1,48 +1,15 @@
-    if (!sec->auth_dbmpwfile)
+#if TESTING
+		fprintf(stderr, "Would remove directory %s\n", newcachedir);
+#else
+		rmdir(newcachedir);
+#endif
+		--nfiles;
+	    } else {
+		/* Directory is not empty. Account for its size: */
+		add_long61(&curbytes, ROUNDUP2BLOCKS(buf.st_size));
+	    }
+	    continue;
+	}
+#endif
 
-	return DECLINED;
-
-
-
-    if (!(real_pw = get_dbm_pw(r, c->user, sec->auth_dbmpwfile))) {
-
-	if (!(sec->auth_dbmauthoritative))
-
-	    return DECLINED;
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		    "DBM user %s not found: %s", c->user, r->filename);
-
-	ap_note_basic_auth_failure(r);
-
-	return AUTH_REQUIRED;
-
-    }
-
-    /* Password is up to first : if exists */
-
-    colon_pw = strchr(real_pw, ':');
-
-    if (colon_pw)
-
-	*colon_pw = '\0';
-
-    /* anyone know where the prototype for crypt is? */
-
-    if (strcmp(real_pw, (char *) crypt(sent_pw, real_pw))) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		    "user %s: password mismatch: %s", c->user, r->uri);
-
-	ap_note_basic_auth_failure(r);
-
-	return AUTH_REQUIRED;
-
-    }
-
-    return OK;
-
-}
-
+	i = read(fd, line, 26);

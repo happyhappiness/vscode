@@ -1,26 +1,13 @@
-    rr->content_type = CGI_MAGIC_TYPE;
-
-
-
-    /* Run it. */
-
-
-
-    rr_status = ap_run_sub_req(rr);
-
-    if (is_HTTP_REDIRECT(rr_status)) {
-
-        const char *location = ap_table_get(rr->headers_out, "Location");
-
-        location = ap_escape_html(rr->pool, location);
-
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
-
+	else
+	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
+				"Could not connect to remote machine: ",
+				strerror(errno), NULL));
     }
 
+    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
 
+    f = ap_bcreate(p, B_RDWR | B_SOCKET);
+    ap_bpushfd(f, sock, sock);
 
-    ap_destroy_sub_req(rr);
-
-#ifndef WIN32
-
+    ap_hard_timeout("proxy send", r);
+    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,

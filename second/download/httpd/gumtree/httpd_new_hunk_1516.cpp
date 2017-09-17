@@ -1,58 +1,29 @@
-    err = ap_proxy_host2addr(host, &server_hp);
+	}
 
-    if (err != NULL)
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (ap_isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!ap_isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (ap_isspace(*src))
+		++src;
+	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && ap_isspace(*dst))
+	    *dst = '\0';
 
-	return ap_proxyerror(r, err);	/* give up */
-
-
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (sock == -1) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		     "proxy: error creating socket");
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-    if (conf->recv_buffer_size > 0
-
-	&& setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-
-	    == -1) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-
-    }
-
-
-
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-
-		   sizeof(one)) == -1) {
-
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-
-	ap_pclosesocket(p, sock);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-#endif /*_OSD_POSIX*/
-
-    }
-
-
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

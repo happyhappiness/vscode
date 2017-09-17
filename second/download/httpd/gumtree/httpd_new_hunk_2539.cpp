@@ -1,48 +1,29 @@
-     * If the requests aren't pipelined, then the client is still waiting
+	}
 
-     * for the final buffer flush from us, and we will block in the implicit
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (ap_isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!ap_isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (ap_isspace(*src))
+		++src;
+	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && ap_isspace(*dst))
+	    *dst = '\0';
 
-     * read().  B_SAFEREAD ensures that the BUFF layer flushes if it will
-
-     * have to block during a read.
-
-     */
-
-    ap_bsetflag(conn->client, B_SAFEREAD, 1);
-
-    while ((len = getline(l, sizeof(l), conn->client, 0)) <= 0) {
-
-        if ((len < 0) || ap_bgetflag(conn->client, B_EOF)) {
-
-            ap_bsetflag(conn->client, B_SAFEREAD, 0);
-
-            return 0;
-
-        }
-
-    }
-
-    /* we've probably got something to do, ignore graceful restart requests */
-
-#ifdef SIGUSR1
-
-    signal(SIGUSR1, SIG_IGN);
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
 #endif
-
-
-
-    ap_bsetflag(conn->client, B_SAFEREAD, 0);
-
-
-
-    r->request_time = time(NULL);
-
-    r->the_request = ap_pstrdup(r->pool, l);
-
-    r->method = ap_getword_white(r->pool, &ll);
-
-    uri = ap_getword_white(r->pool, &ll);
-
-
-
+	return 0;

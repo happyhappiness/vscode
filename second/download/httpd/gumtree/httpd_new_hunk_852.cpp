@@ -1,56 +1,49 @@
-#ifdef SHARED_CORE
+	    return cond_status;
+	}
 
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
-#else
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
+			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
 
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
-#endif
+	    if (!buffer) {
+		/* Soak up all the script output - may save an outright kill */
+	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
+		    continue;
+		}
+	    }
 
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			 "%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
+	}
 
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S] [-t]\n", pad);
+	*l++ = '\0';
+	while (*l && ap_isspace(*l)) {
+	    ++l;
+	}
 
-    fprintf(stderr, "Options:\n");
+	if (!strcasecmp(w, "Content-type")) {
+	    char *tmp;
 
-#ifdef SHARED_CORE
+	    /* Nuke trailing whitespace */
 
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && ap_isspace(*endp)) {
+		*endp-- = '\0';
+	    }
 
-#endif
-
-    fprintf(stderr, "  -D name          : define a name for use in <IfDefine name> directives\n");
-
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-
-    fprintf(stderr, "  -v               : show version number\n");
-
-    fprintf(stderr, "  -V               : show compile settings\n");
-
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-
-    fprintf(stderr, "  -t               : run syntax test for configuration files only\n");
-
-    exit(1);
-
-}
-
-
-
-/*****************************************************************
-
- *
-
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
-
+	    tmp = ap_pstrdup(r->pool, l);
+	    ap_content_type_tolower(tmp);
+	    r->content_type = tmp;
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

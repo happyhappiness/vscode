@@ -1,26 +1,13 @@
-    configfile_t *fp;
-
-    info_cfg_lines *new, *ret, *prev;
-
-    const char *t;
-
-
-
-    fp = ap_pcfg_openfile(p, filename);
-
-    if (!fp) {
-
-        ap_log_error(APLOG_MARK, APLOG_WARNING, r->server, 
-
-		    "mod_info: couldn't open config file %s",
-
-		    filename);
-
-        return NULL;
-
+    if (i == -1) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+    if (i != 220) {
+	ap_kill_timeout(r);
+	return BAD_GATEWAY;
     }
 
-    ret = NULL;
+    Explain0("FTP: connected.");
 
-    prev = NULL;
-
+    ap_bputs("USER ", f);
+    ap_bwrite(f, user, userlen);

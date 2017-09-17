@@ -1,26 +1,20 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+#endif
 
-		   sizeof(one)) == -1) {
+    ap_soft_timeout("send body", r);
 
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
 
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-
-	ap_pclosesocket(p, sock);
-
-	return SERVER_ERROR;
-
-#endif /*_OSD_POSIX*/
-
-    }
-
-
-
-#ifdef SINIX_D_RESOLVER_BUG
-
-    {
-
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
-
+        do {
+            n = ap_bread(fb, buf, len);
+            if (n >= 0 || r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

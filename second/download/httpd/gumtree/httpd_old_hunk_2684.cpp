@@ -1,26 +1,12 @@
-{
-
-    register unsigned long l = m->value.l;
-
-    register unsigned long v;
-
-    int matched;
-
-
-
-    if ((m->value.s[0] == 'x') && (m->value.s[1] == '\0')) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-
-		    MODNAME ": BOINK");
-
-	return 1;
-
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
+#endif
+	sa.sa_flags = 0;
     }
-
-
-
-    switch (m->type) {
-
-    case BYTE:
-
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
+#ifdef SIGINT

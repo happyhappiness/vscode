@@ -1,38 +1,13 @@
-	    }
-
-
-
-	    /* move to next continuation record */
-
-	    m = m->next;
-
-	}
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-		    MODNAME ": matched after %d rules", rule_counter);
-
-#endif
-
-	return 1;		/* all through */
-
+    if ((r->method_number == M_POST || r->method_number == M_PUT)
+	&& *dbuf) {
+	fprintf(f, "\n%s\n", dbuf);
     }
 
-#if MIME_MAGIC_DEBUG
+    fputs("%response\n", f);
+    hdrs_arr = ap_table_elts(r->err_headers_out);
+    hdrs = (table_entry *) hdrs_arr->elts;
 
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-		MODNAME ": failed after %d rules", rule_counter);
-
-#endif
-
-    return 0;			/* no match at all */
-
-}
-
-
-
-static void mprint(request_rec *r, union VALUETYPE *p, struct magic *m)
-
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key)
+	    continue;
+	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);

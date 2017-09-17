@@ -1,34 +1,20 @@
-		return;
+#endif
 
-#if MIME_MAGIC_DEBUG
+    ap_soft_timeout("send body", r);
 
-	    prevm = 0;
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
 
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-
-			MODNAME ": magic_init 1 test");
-
-	    for (m = conf->magic; m; m = m->next) {
-
-		if (isprint((((unsigned long) m) >> 24) & 255) &&
-
-		    isprint((((unsigned long) m) >> 16) & 255) &&
-
-		    isprint((((unsigned long) m) >> 8) & 255) &&
-
-		    isprint(((unsigned long) m) & 255)) {
-
-		    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-
-				MODNAME ": magic_init 1: POINTER CLOBBERED! "
-
-				"m=\"%c%c%c%c\" line=%d",
-
-				(((unsigned long) m) >> 24) & 255,
-
-				(((unsigned long) m) >> 16) & 255,
-
-				(((unsigned long) m) >> 8) & 255,
-
--- apache_1.3.0/src/modules/standard/mod_negotiation.c	1998-05-31 03:15:38.000000000 +0800
-
+        do {
+            n = ap_bread(fb, buf, len);
+            if (n >= 0 || r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

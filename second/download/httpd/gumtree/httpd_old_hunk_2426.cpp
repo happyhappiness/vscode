@@ -1,26 +1,13 @@
-                case token_ne:
+    rr->content_type = CGI_MAGIC_TYPE;
 
-                case token_ge:
+    /* Run it. */
 
-                case token_gt:
+    rr_status = ap_run_sub_req(rr);
+    if (is_HTTP_REDIRECT(rr_status)) {
+        char *location = ap_table_get(rr->headers_out, "Location");
+        location = ap_escape_html(rr->pool, location);
+        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+    }
 
-                case token_le:
-
-                case token_lt:
-
-                default:
-
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                                "Invalid expression \"%s\" in file %s",
-
-                                expr, r->filename);
-
-                    ap_rputs(error, r);
-
-                    goto RETURN;
-
-                }
-
-                break;
-
+    ap_destroy_sub_req(rr);
+#ifndef WIN32

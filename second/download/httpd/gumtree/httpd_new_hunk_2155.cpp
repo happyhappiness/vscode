@@ -1,62 +1,46 @@
-    const char *location;
-
-
-
-    r->allowed |= (1 << M_GET);
-
-    if (r->method_number != M_GET)
-
-	return DECLINED;
-
-    if (r->finfo.st_mode == 0) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		    "File does not exist: %s", r->filename);
-
-	return NOT_FOUND;
-
+	ap_destroy_sub_req(pa_req);
     }
+}
 
 
+static int scan_script_header_err_core(request_rec *r, char *buffer,
+				       int (*getsfunc) (char *, int, void *),
+				       void *getsfunc_data)
+{
+    char x[MAX_STRING_LEN];
+    char *w, *l;
+    int p;
+    int cgi_status = HTTP_OK;
 
-    f = ap_pfopen(r->pool, r->filename, "r");
-
-
-
-    if (f == NULL) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		    "file permissions deny server access: %s", r->filename);
-
-	return FORBIDDEN;
-
+    if (buffer) {
+	*buffer = '\0';
     }
+    w = buffer ? buffer : x;
 
+    ap_hard_timeout("read script header", r);
 
+    while (1) {
 
-    scan_script_header(r, f);
+	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			 "Premature end of script headers: %s", r->filename);
+	    return SERVER_ERROR;
+	}
 
-    location = ap_table_get(r->headers_out, "Location");
+	/* Delete terminal (CR?)LF */
 
+	p = strlen(w);
+	if (p > 0 && w[p - 1] == '\n') {
+	    if (p > 1 && w[p - 2] == '\015') {
+		w[p - 2] = '\0';
+	    }
+	    else {
+		w[p - 1] = '\0';
+	    }
+	}
 
-
-    if (location && location[0] == '/' &&
-
-	((r->status == HTTP_OK) || ap_is_HTTP_REDIRECT(r->status))) {
-
-
-
-	ap_pfclose(r->pool, f);
-
-
-
-	/* Internal redirect -- fake-up a pseudo-request */
-
-	r->status = HTTP_OK;
-
-
-
-++ apache_1.3.2/src/modules/standard/mod_auth_anon.c	1998-08-07 01:30:54.000000000 +0800
-
+	/*
+	 * If we've finished reading the headers, check to make sure any
+	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
+	 * will handle the script's output.  If not, just return the error.

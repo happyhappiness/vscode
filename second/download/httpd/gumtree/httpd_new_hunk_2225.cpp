@@ -1,56 +1,13 @@
-    }
 
-    r->allowed |= (1 << M_GET);
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!ap_is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-    if (r->method_number != M_GET) {
+    ap_hard_timeout("send headers", r);
 
-        return DECLINED;
-
-    }
-
-    if (r->finfo.st_mode == 0) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		    "File does not exist: %s",
-
-                    (r->path_info
-
-                     ? ap_pstrcat(r->pool, r->filename, r->path_info, NULL)
-
-                     : r->filename));
-
-        return HTTP_NOT_FOUND;
-
-    }
-
-
-
-    if (!(f = ap_pfopen(r->pool, r->filename, "r"))) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-                    "file permissions deny server access: %s", r->filename);
-
-        return HTTP_FORBIDDEN;
-
-    }
-
-
-
-    if ((*state == xbithack_full)
-
-#if !defined(OS2) && !defined(WIN32)
-
-    /*  OS/2 dosen't support Groups. */
-
-        && (r->finfo.st_mode & S_IXGRP)
-
-#endif
-
-        ) {
-
-        ap_update_mtime(r, r->finfo.st_mtime);
-
-        ap_set_last_modified(r);
-
+    ap_basic_http_header(r);

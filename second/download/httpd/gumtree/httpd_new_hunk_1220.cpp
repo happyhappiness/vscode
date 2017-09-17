@@ -1,58 +1,19 @@
-    err = ap_proxy_host2addr(host, &server_hp);
+    if (!method_restricted)
+	return OK;
 
-    if (err != NULL)
+    if (!(sec->auth_authoritative))
+	return DECLINED;
 
-	return ap_proxyerror(r, err);	/* give up */
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+	"access to %s failed for %s, reason: user %s not allowed access",
+	r->uri,
+	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
+	user);
+	
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
+}
 
-
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (sock == -1) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		     "proxy: error creating socket");
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-    if (conf->recv_buffer_size > 0
-
-	&& setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-
-	    == -1) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-
-    }
-
-
-
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-
-		   sizeof(one)) == -1) {
-
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-
-	ap_pclosesocket(p, sock);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-#endif /*_OSD_POSIX*/
-
-    }
-
-
-
+module MODULE_VAR_EXPORT auth_module =
+{
+++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800

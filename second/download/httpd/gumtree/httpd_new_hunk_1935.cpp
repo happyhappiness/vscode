@@ -1,178 +1,163 @@
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-
-    ap_bpushfd(f, sock, sock);
-
-
-
-    ap_hard_timeout("proxy send", r);
-
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
-
-	   NULL);
-
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-
-	ap_bvputs(f, "Host: ", desthost, ":", destportstr, CRLF, NULL);
-
+	return;
+    }
     else
+	inside = 1;
+    (void) ap_release_mutex(garbage_mutex);
 
-	ap_bvputs(f, "Host: ", desthost, CRLF, NULL);
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
+#if !defined(WIN32) && !defined(MPE) && !defined(__EMX__)
+    detached_proxy_garbage_coll(r);
+#else
+    help_proxy_garbage_coll(r);
+#endif
+    ap_unblock_alarms();
+
+    (void) ap_acquire_mutex(garbage_mutex);
+    inside = 0;
+    (void) ap_release_mutex(garbage_mutex);
+}
 
 
+static void
+add_long61 (long61_t *accu, long val)
+{
+    /* Add in lower 30 bits */
+    accu->lower += (val & 0x3FFFFFFFL);
+    /* add in upper bits, and carry */
+    accu->upper += (val >> 30) + ((accu->lower & ~0x3FFFFFFFL) != 0L);
+    /* Clear carry */
+    accu->lower &= 0x3FFFFFFFL;
+}
 
-    if (conf->viaopt == via_block) {
+static void
+sub_long61 (long61_t *accu, long val)
+{
+    int carry = (val & 0x3FFFFFFFL) > accu->lower;
+    /* Subtract lower 30 bits */
+    accu->lower = accu->lower - (val & 0x3FFFFFFFL) + ((carry) ? 0x40000000 : 0);
+    /* add in upper bits, and carry */
+    accu->upper -= (val >> 30) + carry;
+}
 
-	/* Block all outgoing Via: headers */
+/* Compare two long61's:
+ * return <0 when left < right
+ * return  0 when left == right
+ * return >0 when left > right
+ */
+static long
+cmp_long61 (long61_t *left, long61_t *right)
+{
+    return (left->upper == right->upper) ? (left->lower - right->lower)
+					 : (left->upper - right->upper);
+}
 
-	ap_table_unset(r->headers_in, "Via");
+/* Compare two gc_ent's, sort them by expiration date */
+static int gcdiff(const void *ap, const void *bp)
+{
+    const struct gc_ent *a = (const struct gc_ent * const) ap;
+    const struct gc_ent *b = (const struct gc_ent * const) bp;
 
-    } else if (conf->viaopt != via_off) {
+    if (a->expire > b->expire)
+	return 1;
+    else if (a->expire < b->expire)
+	return -1;
+    else
+	return 0;
+}
 
-	/* Create a "Via:" request header entry and merge it */
+#if !defined(WIN32) && !defined(MPE) && !defined(__EMX__)
+static void detached_proxy_garbage_coll(request_rec *r)
+{
+    pid_t pid;
+    int status;
+    pid_t pgrp;
 
-	i = ap_get_server_port(r);
+    switch (pid = fork()) {
+	case -1:
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: fork() for cache cleanup failed");
+	    return;
 
-	if (ap_is_default_port(i,r)) {
+	case 0:	/* Child */
 
-	    strcpy(portstr,"");
+	    /* close all sorts of things, including the socket fd */
+	    ap_cleanup_for_exec();
 
-	} else {
+	    /* Fork twice to disassociate from the child */
+	    switch (pid = fork()) {
+		case -1:
+		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: fork(2nd) for cache cleanup failed");
+		    exit(1);
 
-	    ap_snprintf(portstr, sizeof portstr, ":%d", i);
+		case 0:	/* Child */
+		    /* The setpgrp() stuff was snarfed from http_main.c */
+#ifndef NO_SETSID
+		    if ((pgrp = setsid()) == -1) {
+			perror("setsid");
+			fprintf(stderr, "httpd: setsid failed\n");
+			exit(1);
+		    }
+#elif defined(NEXT) || defined(NEWSOS)
+		    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
+			perror("setpgrp");
+			fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
+			exit(1);
+		    }
+#else
+		    if ((pgrp = setpgrp(getpid(), 0)) == -1) {
+			perror("setpgrp");
+			fprintf(stderr, "httpd: setpgrp failed\n");
+			exit(1);
+		    }
+#endif
+		    help_proxy_garbage_coll(r);
+		    exit(0);
 
-	}
-
-	/* Generate outgoing Via: header with/without server comment: */
-
-	ap_table_mergen(r->headers_in, "Via",
-
-		    (conf->viaopt == via_full)
-
-			? ap_psprintf(p, "%d.%d %s%s (%s)",
-
-				HTTP_VERSION_MAJOR(r->proto_num),
-
-				HTTP_VERSION_MINOR(r->proto_num),
-
-				ap_get_server_name(r), portstr,
-
-				SERVER_BASEVERSION)
-
-			: ap_psprintf(p, "%d.%d %s%s",
-
-				HTTP_VERSION_MAJOR(r->proto_num),
-
-				HTTP_VERSION_MINOR(r->proto_num),
-
-				ap_get_server_name(r), portstr)
-
-			);
-
+		default:    /* Father */
+		    /* After grandson has been forked off, */
+		    /* there's nothing else to do. */
+		    exit(0);		    
+	    }
+	default:
+	    /* Wait until grandson has been forked off */
+	    /* (without wait we'd leave a zombie) */
+	    waitpid(pid, &status, 0);
+	    return;
     }
+}
+#endif /* ndef WIN32 */
 
+static void help_proxy_garbage_coll(request_rec *r)
+{
+    const char *cachedir;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *pconf =
+    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+    const struct cache_conf *conf = &pconf->cache;
+    array_header *files;
+    struct stat buf;
+    struct gc_ent *fent;
+    int i, timefd;
+    static time_t lastcheck = BAD_DATE;		/* static (per-process) data!!! */
 
+    cachedir = conf->root;
+    /* configured size is given in kB. Make it bytes, convert to long61_t: */
+    cachesize.lower = cachesize.upper = 0;
+    add_long61(&cachesize, conf->space << 10);
+    every = conf->gcinterval;
 
-    reqhdrs_arr = ap_table_elts(r->headers_in);
+    if (cachedir == NULL || every == -1)
+	return;
+    garbage_now = time(NULL);
+    /* Usually, the modification time of <cachedir>/.time can only increase.
+     * Thus, even with several child processes having their own copy of
+     * lastcheck, if time(NULL) still < lastcheck then it's not time
+     * for GC yet.
+     */
+    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
+	return;
 
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
 
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-
-	/* Clear out headers not to send */
-
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-
-	    /* XXX: @@@ FIXME: "Proxy-Authorization" should *only* be 
-
-	     * suppressed if THIS server requested the authentication,
-
-	     * not when a frontend proxy requested it!
-
-	     */
-
-	    || !strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
-
-	    continue;
-
-	ap_bvputs(f, reqhdrs[i].key, ": ", reqhdrs[i].val, CRLF, NULL);
-
-    }
-
-
-
-    ap_bputs(CRLF, f);
-
-/* send the request data, if any. N.B. should we trap SIGPIPE ? */
-
-
-
-    if (ap_should_client_block(r)) {
-
-	while ((i = ap_get_client_block(r, buffer, sizeof buffer)) > 0)
-
-	    ap_bwrite(f, buffer, i);
-
-    }
-
-    ap_bflush(f);
-
-    ap_kill_timeout(r);
-
-
-
-    ap_hard_timeout("proxy receive", r);
-
-
-
-    len = ap_bgets(buffer, sizeof buffer - 1, f);
-
-    if (len == -1 || len == 0) {
-
-	ap_bclose(f);
-
-	ap_kill_timeout(r);
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		     "ap_bgets() - proxy receive - Error reading from remote server %s",
-
-		     proxyhost ? proxyhost : desthost);
-
-	return ap_proxyerror(r, "Error reading from remote server");
-
-    }
-
-
-
-/* Is it an HTTP/1 response?  This is buggy if we ever see an HTTP/1.10 */
-
-    if (ap_checkmask(buffer, "HTTP/#.# ###*")) {
-
-	int major, minor;
-
-	if (2 != sscanf(buffer, "HTTP/%u.%u", &major, &minor)) {
-
-	    major = 1;
-
-	    minor = 0;
-
-	}
-
-
-
-/* If not an HTTP/1 message or if the status line was > 8192 bytes */
-
-	if (buffer[5] != '1' || buffer[len - 1] != '\n') {
-
-	    ap_bclose(f);
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_BAD_GATEWAY;
-
-	}
-
-	backasswards = 0;
-
+    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

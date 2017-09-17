@@ -1,26 +1,13 @@
-static int log_scripterror(request_rec *r, cgi_server_conf * conf, int ret,
+    ap_bvputs(f, "Host: ", desthost, NULL);
+    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+	ap_bvputs(f, ":", destportstr, CRLF, NULL);
+    else
+	ap_bputs(CRLF, f);
 
-			   int show_errno, char *error)
-
-{
-
-    FILE *f;
-
-    struct stat finfo;
-
-
-
-    ap_log_error(APLOG_MARK, show_errno|APLOG_ERR, r->server, 
-
-		"%s: %s", error, r->filename);
-
-
-
-    if (!conf->logname ||
-
-	((stat(ap_server_root_relative(r->pool, conf->logname), &finfo) == 0)
-
-	 &&   (finfo.st_size > conf->logbytes)) ||
-
-         ((f = ap_pfopen(r->pool, ap_server_root_relative(r->pool, conf->logname),
-
+    reqhdrs_arr = table_elts(r->headers_in);
+    reqhdrs = (table_entry *) reqhdrs_arr->elts;
+    for (i = 0; i < reqhdrs_arr->nelts; i++) {
+	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
+	/* Clear out headers not to send */
+	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
+	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))

@@ -1,30 +1,13 @@
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
 
-		    continue;
+    while (1) {
+        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
+            return 1;
+        }
+        if (!strcmp(tag, "var")) {
+            char *val = ap_table_get(r->subprocess_env, tag_val);
 
-		}
-
-	    }
-
-
-
-	    ap_kill_timeout(r);
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			 "%s: %s", malformed, r->filename);
-
-	    return SERVER_ERROR;
-
-	}
-
-
-
-	*l++ = '\0';
-
-	while (*l && ap_isspace(*l)) {
-
-	    ++l;
-
-	}
-
+            if (val) {
+                ap_rputs(val, r);
+            }
+            else {
+                ap_rputs("(none)", r);

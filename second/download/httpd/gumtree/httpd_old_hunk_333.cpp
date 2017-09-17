@@ -1,48 +1,20 @@
+#endif
 
+    ap_soft_timeout("send body", r);
 
-static char *lcase_header_name_return_body(char *header, request_rec *r)
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
 
-{
-
-    char *cp = header;
-
-
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-
-        *cp = tolower(*cp);
-
-    }
-
-
-
-    if (!*cp) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "Syntax error in type map --- no ':': %s", r->filename);
-
-        return NULL;
-
-    }
-
-
-
-    do {
-
-        ++cp;
-
-    } while (*cp && isspace(*cp));
-
-
-
-    if (!*cp) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "Syntax error in type map --- no header body: %s",
-
-                    r->filename);
-
-        return NULL;
-
+        do {
+            n = ap_bread(fb, buf, len);
+            if (n >= 0 || r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

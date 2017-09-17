@@ -1,122 +1,49 @@
- */
-
-
-
-API_EXPORT(int) ap_setup_client_block(request_rec *r, int read_policy)
-
-{
-
-    const char *tenc = ap_table_get(r->headers_in, "Transfer-Encoding");
-
-    const char *lenp = ap_table_get(r->headers_in, "Content-Length");
-
-    unsigned long max_body;
-
-
-
-    r->read_body = read_policy;
-
-    r->read_chunked = 0;
-
-    r->remaining = 0;
-
-
-
-    if (tenc) {
-
-        if (strcasecmp(tenc, "chunked")) {
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                        "Unknown Transfer-Encoding %s", tenc);
-
-            return HTTP_NOT_IMPLEMENTED;
-
-        }
-
-        if (r->read_body == REQUEST_CHUNKED_ERROR) {
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                        "chunked Transfer-Encoding forbidden: %s", r->uri);
-
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-
-        }
-
-
-
-        r->read_chunked = 1;
-
-    }
-
-    else if (lenp) {
-
-        const char *pos = lenp;
-
-
-
-        while (ap_isdigit(*pos) || ap_isspace(*pos))
-
-            ++pos;
-
-        if (*pos != '\0') {
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                        "Invalid Content-Length %s", lenp);
-
-            return HTTP_BAD_REQUEST;
-
-        }
-
-
-
-        r->remaining = atol(lenp);
-
-    }
-
-
-
-    if ((r->read_body == REQUEST_NO_BODY) &&
-
-        (r->read_chunked || (r->remaining > 0))) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "%s with body is not allowed for %s", r->method, r->uri);
-
-        return HTTP_REQUEST_ENTITY_TOO_LARGE;
-
-    }
-
-
-
-    max_body = ap_get_limit_req_body(r);
-
-    if (max_body && (r->remaining > max_body)) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-          "Request content-length of %s is larger than the configured "
-
-          "limit of %lu", lenp, max_body);
-
-        return HTTP_REQUEST_ENTITY_TOO_LARGE;
-
-    }
-
-
-
-    return OK;
-
-}
-
-
-
-API_EXPORT(int) ap_should_client_block(request_rec *r)
-
-{
-
-    /* First check if we have already read the request body */
-
+	    return cond_status;
+	}
+
+	/* if we see a bogus header don't ignore it. Shout and scream */
+
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
+			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
+
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+
+	    if (!buffer) {
+		/* Soak up all the script output - may save an outright kill */
+	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
+		    continue;
+		}
+	    }
+
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			 "%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
+	}
+
+	*l++ = '\0';
+	while (*l && ap_isspace(*l)) {
+	    ++l;
+	}
+
+	if (!strcasecmp(w, "Content-type")) {
+	    char *tmp;
+
+	    /* Nuke trailing whitespace */
+
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && ap_isspace(*endp)) {
+		*endp-- = '\0';
+	    }
+
+	    tmp = ap_pstrdup(r->pool, l);
+	    ap_content_type_tolower(tmp);
+	    r->content_type = tmp;
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

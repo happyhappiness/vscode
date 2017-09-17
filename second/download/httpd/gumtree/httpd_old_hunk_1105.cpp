@@ -1,50 +1,14 @@
-    const char *t;
-
-
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-
-        return DECLINED;
-
-
-
-    if (!ap_auth_name(r)) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-
-		    r->server, "need AuthName: %s", r->uri);
-
-        return SERVER_ERROR;
-
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
     }
+#endif
 
-
-
-    if (!auth_line) {
-
-        ap_note_basic_auth_failure(r);
-
-        return AUTH_REQUIRED;
-
-    }
-
-
-
-    if (strcasecmp(ap_getword(r->pool, &auth_line, ' '), "Basic")) {
-
-        /* Client tried to authenticate using wrong auth scheme */
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "client used wrong authentication scheme: %s", r->uri);
-
-        ap_note_basic_auth_failure(r);
-
-        return AUTH_REQUIRED;
-
-    }
-
-
-
-    t = ap_uudecode(r->pool, auth_line);
-
+    for (i = 0; i < t->a.nelts; ) {
+-- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800

@@ -1,34 +1,13 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+	return ap_proxyerror(r, err);	/* give up */
 
-    if (err != NULL) {
-
-        return err;
-
+    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating socket");
+	return SERVER_ERROR;
     }
 
-
-
-    ap_threads_per_child = atoi(arg);
-
-#ifdef WIN32
-
-    if (ap_threads_per_child > 64) {
-
-	return "Can't have more than 64 threads in Windows (for now)";
-
-    }
-
-#endif
-
-
-
-    return NULL;
-
-}
-
-
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-
-{
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
+		       (const char *) &conf->recv_buffer_size, sizeof(int))
+	    == -1) {

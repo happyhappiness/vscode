@@ -1,26 +1,13 @@
-	    cmd->server->server_uid = ap_user_id;
-
-	    fprintf(stderr,
-
-		    "Warning: User directive in <VirtualHost> "
-
-		    "requires SUEXEC wrapper.\n");
-
 	}
-
+	if ((timefd = creat(filename, 0666)) == -1) {
+	    if (errno != EEXIST)
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy: creat(%s)", filename);
+	    else
+		lastcheck = garbage_now;	/* someone else got in there */
+	    ap_unblock_alarms();
+	    return;
+	}
+	close(timefd);
     }
-
-#if !defined (BIG_SECURITY_HOLE) && !defined (OS2)
-
-    if (cmd->server->server_uid == 0) {
-
-	fprintf(stderr,
-
-		"Error:\tApache has not been designed to serve pages while\n"
-
-		"\trunning as root.  There are known race conditions that\n"
-
-		"\twill allow any local user to read any file on the system.\n"
-
-		"\tShould you still desire to serve pages as root then\n"
-
+    else {

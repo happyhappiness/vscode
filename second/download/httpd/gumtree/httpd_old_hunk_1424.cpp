@@ -1,26 +1,13 @@
-    case LELONG:
-
-    case LEDATE:
-
-	p->l = (long)
-
-	    ((p->hl[3] << 24) | (p->hl[2] << 16) | (p->hl[1] << 8) | (p->hl[0]));
-
-	return 1;
-
-    default:
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-
-		    MODNAME ": invalid type %d in mconvert().", m->type);
-
-	return 0;
-
+    if ((r->method_number == M_POST || r->method_number == M_PUT)
+	&& *dbuf) {
+	fprintf(f, "\n%s\n", dbuf);
     }
 
-}
+    fputs("%response\n", f);
+    hdrs_arr = table_elts(r->err_headers_out);
+    hdrs = (table_entry *) hdrs_arr->elts;
 
-
-
-
-
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key)
+	    continue;
+	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);

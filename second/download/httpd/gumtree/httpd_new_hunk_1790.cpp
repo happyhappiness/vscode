@@ -1,26 +1,13 @@
-                    current->token.type = token_group;
-
-                    break;
-
-                }
-
-                current = current->parent;
-
-            }
-
-            if (current == (struct parse_node *) NULL) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "Unmatched ')' in \"%s\" in file %s",
-
-			    expr, r->filename);
-
-                ap_rputs(error, r);
-
-                goto RETURN;
-
-            }
-
-            break;
-
+		    /* else nothing needs be done because
+		     * then the backslash is escaped and
+		     * we just strip to a single one
+		     */
+		}
+		/* blast trailing whitespace */
+		while (i > 0 && ap_isspace(buf[i - 1]))
+		    --i;
+		buf[i] = '\0';
+#ifdef DEBUG_CFG_LINES
+		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+		return 0;

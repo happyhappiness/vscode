@@ -1,28 +1,19 @@
-		while (groups[0]) {
+    if (!method_restricted)
+	return OK;
 
-		    v = ap_getword(r->pool, &groups, ',');
+    if (!(sec->auth_authoritative))
+	return DECLINED;
 
-		    if (!strcmp(v, w))
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+	"access to %s failed for %s, reason: user %s not allowed access",
+	r->uri,
+	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
+	user);
+	
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
+}
 
-			return OK;
-
-		}
-
-	    }
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-			"user %s not in right group: %s",
-
-			user, r->filename);
-
-	    ap_note_basic_auth_failure(r);
-
-	    return AUTH_REQUIRED;
-
-	}
-
-    }
-
-++ apache_1.3.2/src/modules/standard/mod_autoindex.c	1998-09-03 05:04:41.000000000 +0800
-
+module MODULE_VAR_EXPORT auth_module =
+{
+++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800

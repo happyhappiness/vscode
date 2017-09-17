@@ -1,28 +1,13 @@
-		while (groups[0]) {
+	return ap_proxyerror(r, err);	/* give up */
 
-		    v = ap_getword(r->pool, &groups, ',');
-
-		    if (!strcmp(v, w))
-
-			return OK;
-
-		}
-
-	    }
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			"user %s not in right group: %s",
-
-			user, r->filename);
-
-	    ap_note_basic_auth_failure(r);
-
-	    return AUTH_REQUIRED;
-
-	}
-
+    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating socket");
+	return SERVER_ERROR;
     }
 
--- apache_1.3.1/src/modules/standard/mod_autoindex.c	1998-07-09 01:47:14.000000000 +0800
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
+		       (const char *) &conf->recv_buffer_size, sizeof(int))
+	    == -1) {

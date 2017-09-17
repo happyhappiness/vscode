@@ -1,44 +1,46 @@
-	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
-
-    /* does the password look like an email address ? */
-
-	   && ((!sec->auth_anon_verifyemail)
-
-	       || ((strpbrk("@", sent_pw) != NULL)
-
-		   && (strpbrk(".", sent_pw) != NULL)))) {
-
-	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r,
-
-			"Anonymous: Passwd <%s> Accepted",
-
-			sent_pw ? sent_pw : "\'none\'");
-
+	clen = sizeof(struct sockaddr_in);
+	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error getting socket address");
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_INTERNAL_SERVER_ERROR;
 	}
 
-	return OK;
-
-    }
-
-    else {
-
-	if (sec->auth_anon_authoritative) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-			"Anonymous: Authoritative, Passwd <%s> not accepted",
-
-			sent_pw ? sent_pw : "\'none\'");
-
-	    return AUTH_REQUIRED;
-
+	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (dsock == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error creating socket");
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_INTERNAL_SERVER_ERROR;
 	}
 
-	/* Drop out the bottom to return DECLINED */
+	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		       sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error setting reuseaddr option");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+#endif /*_OSD_POSIX*/
+	}
 
+	if (bind(dsock, (struct sockaddr *) &server,
+		 sizeof(struct sockaddr_in)) == -1) {
+	    char buff[22];
+
+	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error binding to ftp data socket %s", buff);
+	    ap_bclose(f);
+	    ap_pclosesocket(p, dsock);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+	}
+	listen(dsock, 2);	/* only need a short queue */
     }
 
-++ apache_1.3.2/src/modules/standard/mod_auth.c	1998-08-07 01:30:54.000000000 +0800
-
+/* set request */
+    len = decodeenc(path);

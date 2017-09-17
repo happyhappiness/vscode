@@ -1,92 +1,42 @@
-	clen = sizeof(struct sockaddr_in);
-
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: error getting socket address");
-
-	    ap_bclose(f);
-
-	    ap_kill_timeout(r);
-
-	    return SERVER_ERROR;
-
-	}
-
-
-
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-	if (dsock == -1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: error creating socket");
-
-	    ap_bclose(f);
-
-	    ap_kill_timeout(r);
-
-	    return SERVER_ERROR;
-
-	}
-
-
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-
-		       sizeof(one)) == -1) {
-
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: error setting reuseaddr option");
-
-	    ap_pclosesocket(p, dsock);
-
-	    ap_bclose(f);
-
-	    ap_kill_timeout(r);
-
-	    return SERVER_ERROR;
-
-#endif /*_OSD_POSIX*/
-
-	}
-
-
-
-	if (bind(dsock, (struct sockaddr *) &server,
-
-		 sizeof(struct sockaddr_in)) == -1) {
-
-	    char buff[22];
-
-
-
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: error binding to ftp data socket %s", buff);
-
-	    ap_bclose(f);
-
-	    ap_pclosesocket(p, dsock);
-
-	    return SERVER_ERROR;
-
-	}
-
-	listen(dsock, 2);	/* only need a short queue */
-
+	ap_destroy_sub_req(pa_req);
     }
+}
 
 
+static int scan_script_header_err_core(request_rec *r, char *buffer,
+		 int (*getsfunc) (char *, int, void *), void *getsfunc_data)
+{
+    char x[MAX_STRING_LEN];
+    char *w, *l;
+    int p;
+    int cgi_status = HTTP_OK;
 
-/* set request */
+    if (buffer)
+	*buffer = '\0';
+    w = buffer ? buffer : x;
 
-    len = decodeenc(path);
+    ap_hard_timeout("read script header", r);
 
+    while (1) {
+
+	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"Premature end of script headers: %s", r->filename);
+	    return SERVER_ERROR;
+	}
+
+	/* Delete terminal (CR?)LF */
+
+	p = strlen(w);
+	if (p > 0 && w[p - 1] == '\n') {
+	    if (p > 1 && w[p - 2] == '\015')
+		w[p - 2] = '\0';
+	    else
+		w[p - 1] = '\0';
+	}
+
+	/*
+	 * If we've finished reading the headers, check to make sure any
+	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
+	 * will handle the script's output.  If not, just return the error.

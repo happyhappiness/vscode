@@ -1,26 +1,21 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
+	}
+	else
+#endif
+	{
+	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
+	    if (cmp_long61(&curbytes, &cachesize) < 0)
+		break;
+	}
+    }
 
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
+			 "proxy GC: Cache is %ld%% full (%d deleted)",
+			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
+    ap_unblock_alarms();
+}
 
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-
-    else
-
-	ap_bputs(CRLF, f);
-
-
-
-    reqhdrs_arr = ap_table_elts(r->headers_in);
-
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-
-	/* Clear out headers not to send */
-
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
-
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

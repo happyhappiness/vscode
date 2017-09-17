@@ -1,26 +1,15 @@
-    configfile_t *fp;
+            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+        }
 
-    info_cfg_lines *new, *ret, *prev;
-
-    const char *t;
-
-
-
-    fp = ap_pcfg_openfile(p, filename);
-
-    if (!fp) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, r, 
-
-		    "mod_info: couldn't open config file %s",
-
-		    filename);
-
-        return NULL;
-
+        r->read_chunked = 1;
     }
+    else if (lenp) {
+        const char *pos = lenp;
 
-    ret = NULL;
-
-    prev = NULL;
-
+        while (ap_isdigit(*pos) || ap_isspace(*pos))
+            ++pos;
+        if (*pos != '\0') {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }

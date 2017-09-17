@@ -1,26 +1,22 @@
-	    return OK;
-
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
 	}
-
-
-
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-
-
-	if (!(l = strchr(w, ':'))) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			"malformed header in meta file: %s", r->filename);
-
-	    return SERVER_ERROR;
-
+	else
+#endif
+	{
+	    curblocks -= fent->len >> 10;
+	    curbytes -= fent->len & 0x3FF;
+	    if (curbytes < 0) {
+		curbytes += 1024;
+		curblocks--;
+	    }
+	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
+		break;
 	}
+    }
+    ap_unblock_alarms();
+}
 
-
-
-	*l++ = '\0';
-
-	while (*l && ap_isspace(*l))
-
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

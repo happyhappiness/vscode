@@ -1,26 +1,31 @@
-    char parsed_string[MAX_STRING_LEN];
-
-    char *tag_val;
-
-    SV *sub = Nullsv;
-
-    AV *av = newAV();
-
-
-
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "httpd: #perl SSI disallowed by IncludesNoExec in %s",
-
-                    r->filename);
-
-        return DECLINED;
-
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
-    while (1) {
+    if (!child && run_as_service) {
+	service_cd();
+    }
 
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
+    }
+
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

@@ -1,26 +1,28 @@
-                    return value;
+	     */
+	    break;
+#endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
+    }
 
-                }
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-            }
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
+    }
 
-            else if (s->type == MAPTYPE_DBM) {
+    child_timeouts = !ap_standalone || one_process;
 
-#ifndef NO_DBM_REWRITEMAP
-
-                if (stat(s->checkfile, &st) == -1) {
-
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-                                 "mod_rewrite: can't access DBM RewriteMap "
-
-                                 "file %s", s->checkfile);
-
-                    rewritelog(r, 1, "can't open DBM RewriteMap file, "
-
-                               "see error log");
-
-                    return NULL;
-
-                }
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

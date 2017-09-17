@@ -1,26 +1,22 @@
-	pp = ctime((time_t *) & p->l);
-
-	if ((rt = strchr(pp, '\n')) != NULL)
-
-	    *rt = '\0';
-
-	(void) magic_rsl_printf(r, m->desc, pp);
-
-	return;
-
-    default:
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-
-		    MODNAME ": invalid m->type (%d) in mprint().",
-
-		    m->type);
-
-	return;
-
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
+	}
+	else
+#endif
+	{
+	    curblocks -= fent->len >> 10;
+	    curbytes -= fent->len & 0x3FF;
+	    if (curbytes < 0) {
+		curbytes += 1024;
+		curblocks--;
+	    }
+	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
+		break;
+	}
     }
+    ap_unblock_alarms();
+}
 
-
-
-    v = signextend(r->server, m, v) & m->mask;
-
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

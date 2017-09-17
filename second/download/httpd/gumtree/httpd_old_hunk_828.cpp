@@ -1,48 +1,14 @@
-
-
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-
-{
-
-    char *cp = header;
-
-
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-
-        *cp = tolower(*cp);
-
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
     }
+#endif
 
-
-
-    if (!*cp) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "Syntax error in type map --- no ':': %s", r->filename);
-
-        return NULL;
-
-    }
-
-
-
-    do {
-
-        ++cp;
-
-    } while (*cp && isspace(*cp));
-
-
-
-    if (!*cp) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "Syntax error in type map --- no header body: %s",
-
-                    r->filename);
-
-        return NULL;
-
+    for (i = 0; i < t->a.nelts; ) {
+-- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800

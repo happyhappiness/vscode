@@ -1,26 +1,21 @@
 
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	if (ap_suexec_enabled) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
+	}
+	restart_pending = shutdown_pending = 0;
 
-	if (cid->status) /* We have a special status to return */
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    ap_wait_t status;
+	    int pid = wait_or_timeout(&status);
 
-	    return cid->status;
-
-
-
-	return OK;
-
-    case HSE_STATUS_PENDING:	/* We don't support this */
-
-	ap_log_rerror(APLOG_MARK, APLOG_WARNING, r,
-
-		    "ISAPI asynchronous I/O not supported: %s", r->filename);
-
-    case HSE_STATUS_ERROR:
-
-    default:
-
-	return SERVER_ERROR;
-
-    }
-
-
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

@@ -1,26 +1,13 @@
-	    }
 
+    /* Domain name must start with a '.' */
+    if (addr[0] != '.')
+	return 0;
 
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
+	continue;
 
-	    m_cont = m->next;
-
-	    while (m_cont && (m_cont->cont_level != 0)) {
-
-#if MIME_MAGIC_DEBUG
-
-		rule_counter++;
-
-		ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-			MODNAME ": line=%d mc=%x mc->next=%x cont=%d desc=%s",
-
-			    m_cont->lineno, m_cont,
-
-			    m_cont->next, m_cont->cont_level,
-
-			    m_cont->desc);
-
-#endif
-
-		/*
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
+	/* @@@@ handle optional port */

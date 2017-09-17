@@ -1,26 +1,17 @@
-				     domain, NULL);
 
-    nuri = ap_unparse_uri_components(r->pool,
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	restart_pending = shutdown_pending = 0;
 
-				  &r->parsed_uri,
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    int status;
+	    int pid = wait_or_timeout(&status);
 
-				  UNP_REVEALPASSWORD);
-
-
-
-    ap_table_set(r->headers_out, "Location", nuri);
-
-    ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, r->server,
-
-		"Domain missing: %s sent to %s%s%s", r->uri,
-
-		ap_unparse_uri_components(r->pool, &r->parsed_uri,
-
-		      UNP_OMITUSERINFO),
-
-		ref ? " from " : "", ref ? ref : "");
-
-
-
-    return HTTP_MOVED_PERMANENTLY;
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

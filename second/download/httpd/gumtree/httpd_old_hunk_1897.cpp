@@ -1,44 +1,26 @@
-    if (r->finfo.st_mode == 0         /* doesn't exist */
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"malformed header in meta file: %s", r->filename);
+	    return SERVER_ERROR;
+	}
 
-        || S_ISDIR(r->finfo.st_mode)
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
-        || S_ISREG(r->finfo.st_mode)
+	if (!strcasecmp(w, "Content-type")) {
 
-        || S_ISLNK(r->finfo.st_mode)) {
+	    /* Nuke trailing whitespace */
 
-        return OK;
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
 
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                "object is not a file, directory or symlink: %s",
-
-                r->filename);
-
-    return HTTP_FORBIDDEN;
-
-}
-
-
-
-
-
-static int check_symlinks(char *d, int opts)
-
-{
-
-#if defined(__EMX__) || defined(WIN32)
-
-    /* OS/2 doesn't have symlinks */
-
-    return OK;
-
-#else
-
-    struct stat lfi, fi;
-
-    char *lastp;
-
-    int res;
-
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
+	}
+	else if (!strcasecmp(w, "Status")) {
+	    sscanf(l, "%d", &r->status);
+	    r->status_line = ap_pstrdup(r->pool, l);
+	}
+	else {
+-- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800

@@ -1,28 +1,18 @@
+    ap_table_setn(r->err_headers_out,
+	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
+	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
+		ap_auth_name(r), r->request_time));
+}
 
+API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
+{
+    const char *auth_line = ap_table_get(r->headers_in,
+                                      r->proxyreq ? "Proxy-Authorization"
+                                                  : "Authorization");
+    char *t;
 
-    if (err != NULL)
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
 
-	return ap_proxyerror(r, err);	/* give up */
-
-
-
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (sock == -1) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    "proxy: error creating socket");
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-#ifndef WIN32
-
-    if (sock >= FD_SETSIZE) {
-
--- apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800
-
+    if (!ap_auth_name(r)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

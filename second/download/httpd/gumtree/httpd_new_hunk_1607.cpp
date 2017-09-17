@@ -1,56 +1,13 @@
-    }
+    ap_bvputs(f, "Host: ", desthost, NULL);
+    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+	ap_bvputs(f, ":", destportstr, CRLF, NULL);
+    else
+	ap_bputs(CRLF, f);
 
-    r->allowed |= (1 << M_GET);
-
-    if (r->method_number != M_GET) {
-
-        return DECLINED;
-
-    }
-
-    if (r->finfo.st_mode == 0) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		    "File does not exist: %s",
-
-                    (r->path_info
-
-                     ? ap_pstrcat(r->pool, r->filename, r->path_info, NULL)
-
-                     : r->filename));
-
-        return HTTP_NOT_FOUND;
-
-    }
-
-
-
-    if (!(f = ap_pfopen(r->pool, r->filename, "r"))) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-                    "file permissions deny server access: %s", r->filename);
-
-        return HTTP_FORBIDDEN;
-
-    }
-
-
-
-    if ((*state == xbithack_full)
-
-#if !defined(OS2) && !defined(WIN32)
-
-    /*  OS/2 dosen't support Groups. */
-
-        && (r->finfo.st_mode & S_IXGRP)
-
-#endif
-
-        ) {
-
-        ap_update_mtime(r, r->finfo.st_mtime);
-
-        ap_set_last_modified(r);
-
+    reqhdrs_arr = ap_table_elts(r->headers_in);
+    reqhdrs = (table_entry *) reqhdrs_arr->elts;
+    for (i = 0; i < reqhdrs_arr->nelts; i++) {
+	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
+	/* Clear out headers not to send */
+	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
+	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))

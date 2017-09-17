@@ -1,26 +1,29 @@
-	return ap_proxyerror(r, err);	/* give up */
+	}
 
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (ap_isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!ap_isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (ap_isspace(*src))
+		++src;
+	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && ap_isspace(*dst))
+	    *dst = '\0';
 
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (sock == -1) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "proxy: error creating socket");
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-    if (conf->recv_buffer_size) {
-
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-
-	    == -1) {
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

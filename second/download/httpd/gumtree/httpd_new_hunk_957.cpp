@@ -1,48 +1,14 @@
-     * If the requests aren't pipelined, then the client is still waiting
-
-     * for the final buffer flush from us, and we will block in the implicit
-
-     * read().  B_SAFEREAD ensures that the BUFF layer flushes if it will
-
-     * have to block during a read.
-
-     */
-
-    ap_bsetflag(conn->client, B_SAFEREAD, 1);
-
-    while ((len = getline(l, sizeof(l), conn->client, 0)) <= 0) {
-
-        if ((len < 0) || ap_bgetflag(conn->client, B_EOF)) {
-
-            ap_bsetflag(conn->client, B_SAFEREAD, 0);
-
-            return 0;
-
-        }
-
-    }
-
-    /* we've probably got something to do, ignore graceful restart requests */
-
-#ifdef SIGUSR1
-
-    signal(SIGUSR1, SIG_IGN);
-
-#endif
-
-
-
-    ap_bsetflag(conn->client, B_SAFEREAD, 0);
-
-
-
-    r->request_time = time(NULL);
-
-    r->the_request = ap_pstrdup(r->pool, l);
-
-    r->method = ap_getword_white(r->pool, &ll);
-
-    uri = ap_getword_white(r->pool, &ll);
-
-
-
+                 "An appropriate representation of the requested resource ",
+                          ap_escape_html(r->pool, r->uri),
+                          " could not be found on this server.<P>\n", NULL);
+                /* fall through */
+            case MULTIPLE_CHOICES:
+                {
+                    const char *list;
+                    if ((list = ap_table_get(r->notes, "variant-list")))
+                        ap_bputs(list, fd);
+                }
+                break;
+            case LENGTH_REQUIRED:
+                ap_bvputs(fd, "A request of the requested method ", r->method,
+++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800

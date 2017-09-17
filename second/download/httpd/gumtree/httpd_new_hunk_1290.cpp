@@ -1,26 +1,33 @@
-        /*
+	    p->next = head;
+	    head = p;
+	    num_ent++;
+	}
+    }
+    if (num_ent > 0) {
+	ar = (struct ent **) ap_palloc(r->pool,
+				       num_ent * sizeof(struct ent *));
+	p = head;
+	x = 0;
+	while (p) {
+	    ar[x++] = p;
+	    p = p->next;
+	}
 
-         * Do symlink checks first, because they are done with the
+	qsort((void *) ar, num_ent, sizeof(struct ent *),
+	      (int (*)(const void *, const void *)) dsortf);
+    }
+    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
+		       direction);
+    ap_pclosedir(r->pool, d);
 
-         * permissions appropriate to the *parent* directory...
+    if ((tmp = find_readme(autoindex_conf, r))) {
+	if (!insert_readme(name, tmp, "",
+			   ((autoindex_opts & FANCY_INDEXING) ? HRULE
+			                                      : NO_HRULE),
+			   END_MATTER, r)) {
+	    ap_rputs(ap_psignature("<HR>\n", r), r);
+	}
+    }
+    ap_rputs("</BODY></HTML>\n", r);
 
-         */
-
-
-
-        if ((res = check_symlinks(test_dirname, core_dir->opts))) {
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                        "Symbolic link not allowed: %s", test_dirname);
-
-            return res;
-
-        }
-
-
-
-        /*
-
-         * Begin *this* level by looking for matching <Directory> sections
-
+    ap_kill_timeout(r);

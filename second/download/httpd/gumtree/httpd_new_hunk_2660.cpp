@@ -1,26 +1,13 @@
-#endif
 
-        *printing = 1;
+    while (1) {
+        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
+            return 1;
+        }
+        if (!strcmp(tag, "var")) {
+            const char *val = ap_table_get(r->subprocess_env, tag_val);
 
-        *conditional_status = 1;
-
-        return 0;
-
-    }
-
-    else {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "endif directive does not take tags in %s",
-
-		    r->filename);
-
-        ap_rputs(error, r);
-
-        return -1;
-
-    }
-
-}
-
+            if (val) {
+                ap_rputs(val, r);
+            }
+            else {
+                ap_rputs("(none)", r);

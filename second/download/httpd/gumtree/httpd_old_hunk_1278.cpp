@@ -1,24 +1,13 @@
-	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
+    ap_bvputs(f, "Host: ", desthost, NULL);
+    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+	ap_bvputs(f, ":", destportstr, CRLF, NULL);
+    else
+	ap_bputs(CRLF, f);
 
- 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
-
-	TerminateProcess((HANDLE) process_handles[i], 1);
-
-    }
-
-    service_set_status(SERVICE_STOPPED);
-
-
-
-    if (pparent) {
-
-	ap_destroy_pool(pparent);
-
-    }
-
-
-
-    ap_destroy_mutex(start_mutex);
-
-    return (0);
-
+    reqhdrs_arr = table_elts(r->headers_in);
+    reqhdrs = (table_entry *) reqhdrs_arr->elts;
+    for (i = 0; i < reqhdrs_arr->nelts; i++) {
+	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
+	/* Clear out headers not to send */
+	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
+	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))

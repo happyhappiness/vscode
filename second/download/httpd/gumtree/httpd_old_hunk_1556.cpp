@@ -1,28 +1,13 @@
-	if (r->filename[strlen(r->filename) - 1] != '/') {
-
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-
-	}
-
-	return index_directory(r, d);
-
+    if ((r->method_number == M_POST || r->method_number == M_PUT)
+	&& *dbuf) {
+	fprintf(f, "\n%s\n", dbuf);
     }
 
-    else {
+    fputs("%response\n", f);
+    hdrs_arr = table_elts(r->err_headers_out);
+    hdrs = (table_entry *) hdrs_arr->elts;
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		     "Directory index forbidden by rule: %s", r->filename);
-
-	return HTTP_FORBIDDEN;
-
-    }
-
-}
-
-
-
-
-
--- apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
-
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key)
+	    continue;
+	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);

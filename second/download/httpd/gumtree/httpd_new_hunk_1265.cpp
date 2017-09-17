@@ -1,26 +1,15 @@
-		errstr[len-1] = ' ';
-
+#if TESTING
+		fprintf(stderr, "Would remove directory %s\n", newcachedir);
+#else
+		rmdir(newcachedir);
+#endif
+		--nfiles;
+	    } else {
+		/* Directory is not empty. Account for its size: */
+		add_long61(&curbytes, ROUNDUP2BLOCKS(buf.st_size));
 	    }
-
+	    continue;
 	}
-
-    }
-
 #endif
 
-
-
-    len += ap_vsnprintf(errstr + len, sizeof(errstr) - len, fmt, args);
-
-
-
-    /* NULL if we are logging to syslog */
-
-    if (logf) {
-
-	fputs(errstr, logf);
-
-	fputc('\n', logf);
-
-	fflush(logf);
-
+	i = read(fd, line, 26);

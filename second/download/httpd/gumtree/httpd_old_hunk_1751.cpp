@@ -1,48 +1,13 @@
-    }
+    if (!method_restricted)
+	return OK;
 
-    else {
+    if (!(sec->auth_authoritative))
+	return DECLINED;
 
-        ap_rputs(anchor, r);
-
-    }
-
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
 }
 
-
-
-static void output_directories(struct ent **ar, int n,
-
-			       autoindex_config_rec * d, request_rec *r,
-
-			     int autoindex_opts, char keyid, char direction)
-
+module MODULE_VAR_EXPORT auth_module =
 {
-
-    int x, len;
-
-    char *name = r->uri;
-
-    char *tp;
-
-    int static_columns = (autoindex_opts & SUPPRESS_COLSORT);
-
-    pool *scratch = ap_make_sub_pool(r->pool);
-
-
-
-    if (name[0] == '\0')
-
-	name = "/";
-
-
-
-    if (autoindex_opts & FANCY_INDEXING) {
-
-	ap_rputs("<PRE>", r);
-
-	if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
-
-	    ap_rvputs(r, "<IMG SRC=\"", ap_escape_html(scratch, tp),
-
-		   "\" ALT=\"     \"", NULL);
-
+-- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800

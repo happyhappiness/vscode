@@ -1,52 +1,18 @@
-		    }   
+    if (i == 530) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Not logged in");
+    }
+    if (i != 230 && i != 331) {
+	ap_kill_timeout(r);
+	return HTTP_BAD_GATEWAY;
+    }
 
-		}
-
-	    }
-
-	    break;
-
-	}
-
-
-
-	/*
-
-	 * Leading and trailing white space is eliminated completely
-
-	 */
-
-	src = buf;
-
-	while (ap_isspace(*src))
-
-	    ++src;
-
-	/* blast trailing whitespace */
-
-	dst = &src[strlen(src)];
-
-	while (--dst >= src && ap_isspace(*dst))
-
-	    *dst = '\0';
-
-        /* Zap leading whitespace by shifting */
-
-        if (src != buf)
-
-	    for (dst = buf; (*dst++ = *src++) != '\0'; )
-
-	        ;
-
-
-
-#ifdef DEBUG_CFG_LINES
-
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-
-#endif
-
-	return 0;
-
-    } else {
-
+    if (i == 331) {		/* send password */
+	if (password == NULL)
+	    return HTTP_FORBIDDEN;
+	ap_bputs("PASS ", f);
+	ap_bwrite(f, password, passlen);
+	ap_bputs(CRLF, f);
+	ap_bflush(f);
+	Explain1("FTP: PASS %s", password);
+/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

@@ -1,26 +1,13 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (dsock == -1) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "proxy: error creating PASV socket");
-
+    if (i == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
+		     "PASV: control connection is toast");
+	ap_pclosesocket(p, dsock);
 	ap_bclose(f);
-
 	ap_kill_timeout(r);
-
 	return HTTP_INTERNAL_SERVER_ERROR;
-
     }
-
-
-
-    if (conf->recv_buffer_size) {
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
+    else {
+	pasv[i - 1] = '\0';
+	pstr = strtok(pasv, " ");	/* separate result code */
+	if (pstr != NULL) {
+	    presult = atoi(pstr);

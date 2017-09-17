@@ -1,20 +1,12 @@
-/*
 
- *  conf.h -- backward compatibility header for ap_config.h
+    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
+	return (ap_suexec_enabled);
 
- */
+    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
+	ap_suexec_enabled = 1;
+    }
+#endif /* ndef WIN32 */
+    return (ap_suexec_enabled);
+}
 
-
-
-#ifdef __GNUC__
-
-#warning "This header is obsolete, use ap_config.h instead"
-
-#endif
-
-
-
-#include "ap_config.h"
-
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
-
+/*****************************************************************

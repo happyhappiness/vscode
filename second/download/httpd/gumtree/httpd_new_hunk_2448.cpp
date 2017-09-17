@@ -1,26 +1,17 @@
-	}
-
     }
-
-
-
-    /* clean up and return */
-
-    result[res_pos] = 0;
-
-#if MIME_MAGIC_DEBUG
-
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-	     MODNAME ": rsl_strdup() %d chars: %s", res_pos - 1, result);
-
-#endif
-
-    return result;
-
-}
-
-
-
-/* states for the state-machine algorithm in magic_rsl_to_request() */
-
+    else {
+	alarm_fn = fn;
+	alarm_expiry_time = time(NULL) + x;
+    }
+#else
+    if (alarm_fn && x && fn != alarm_fn) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
+	    "ap_set_callback_and_alarm: possible nested timer!");
+    }
+    alarm_fn = fn;
+#ifndef OPTIMIZE_TIMEOUTS
+    old = alarm(x);
+#else
+    if (child_timeouts) {
+	old = alarm(x);
+    }

@@ -1,44 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
 
-			     "proxy gc: unlink(%s)", filename);
+    /* Host names must not start with a '.' */
+    if (addr[0] == '.')
+	return 0;
 
-	}
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
 
-	else
-
-#endif
-
-	{
-
-	    curblocks -= fent->len >> 10;
-
-	    curbytes -= fent->len & 0x3FF;
-
-	    if (curbytes < 0) {
-
-		curbytes += 1024;
-
-		curblocks--;
-
-	    }
-
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-
-		break;
-
-	}
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
+	/* @@@@ handle optional port */
     }
-
-    ap_unblock_alarms();
-
-}
-
-
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-
-			  const char *cachebasedir, const char *cachesubdir)
-
-{
-

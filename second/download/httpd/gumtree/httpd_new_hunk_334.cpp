@@ -1,42 +1,20 @@
-#else
+void ap_send_error_response(request_rec *r, int recursive_error)
+{
+    BUFF *fd = r->connection->client;
+    int status = r->status;
+    int idx = ap_index_of_response(status);
+    char *custom_response;
+    const char *location = ap_table_get(r->headers_out, "Location");
 
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
+    /* We need to special-case the handling of 204 and 304 responses,
+     * since they have specific HTTP requirements and do not include a
+     * message body.  Note that being assbackwards here is not an option.
+     */
+    if (status == HTTP_NOT_MODIFIED) {
+        if (!ap_is_empty_table(r->err_headers_out))
+            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                               r->headers_out);
+        ap_hard_timeout("send 304", r);
 
-#endif
-
-
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-
-
-    if (conf->rewritelogfile == NULL) {
-
-        return;
-
-    }
-
-    if (*(conf->rewritelogfile) == '\0') {
-
-        return;
-
-    }
-
-    if (conf->rewritelogfp > 0) {
-
-        return; /* virtual log shared w/ main server */
-
-    }
-
-
-
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-
-
-    if (*conf->rewritelogfile == '|') {
-
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
-
+        ap_basic_http_header(r);
+        ap_set_keepalive(r);

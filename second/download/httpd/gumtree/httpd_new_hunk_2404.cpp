@@ -1,42 +1,46 @@
-    char *code;
+	clen = sizeof(struct sockaddr_in);
+	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error getting socket address");
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+	}
 
-    time_t base;
+	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (dsock == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error creating socket");
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+	}
 
-    time_t additional;
+	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		       sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error setting reuseaddr option");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+#endif /*_OSD_POSIX*/
+	}
 
-    time_t expires;
+	if (bind(dsock, (struct sockaddr *) &server,
+		 sizeof(struct sockaddr_in)) == -1) {
+	    char buff[22];
 
-    char age[20];
+	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error binding to ftp data socket %s", buff);
+	    ap_bclose(f);
+	    ap_pclosesocket(p, dsock);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+	}
+	listen(dsock, 2);	/* only need a short queue */
+    }
 
-
-
-    if (ap_is_HTTP_ERROR(r->status))       /* Don't add Expires headers to errors */
-
-        return DECLINED;
-
-
-
-    if (r->main != NULL)        /* Say no to subrequests */
-
-        return DECLINED;
-
-
-
-    conf = (expires_dir_config *) ap_get_module_config(r->per_dir_config, &expires_module);
-
-    if (conf == NULL) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "internal error: %s", r->filename);
-
-        return SERVER_ERROR;
-
-    };
-
-
-
-    if (conf->active != ACTIVE_ON)
-
-        return DECLINED;
-
+/* set request */
+    len = decodeenc(path);

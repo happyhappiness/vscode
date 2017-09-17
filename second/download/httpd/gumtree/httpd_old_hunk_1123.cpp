@@ -1,34 +1,20 @@
-	    int cond_status = OK;
+#endif
 
+    ap_soft_timeout("send body", r);
 
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
 
-	    ap_kill_timeout(r);
-
-	    if ((cgi_status == HTTP_OK) && (r->method_number == M_GET)) {
-
-		cond_status = ap_meets_conditions(r);
-
-	    }
-
-	    return cond_status;
-
-	}
-
-
-
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-
-
-	if (!(l = strchr(w, ':'))) {
-
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
-
+        do {
+            n = ap_bread(fb, buf, len);
+            if (n >= 0 || r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

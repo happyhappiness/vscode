@@ -1,26 +1,16 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-
-	&& *dbuf) {
-
-	fprintf(f, "\n%s\n", dbuf);
-
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+	if (sigaction(SIGILL, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGILL)");
+#endif
+	sa.sa_flags = 0;
     }
-
-
-
-    fputs("%response\n", f);
-
-    hdrs_arr = ap_table_elts(r->err_headers_out);
-
-    hdrs = (table_entry *) hdrs_arr->elts;
-
-
-
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-
-	if (!hdrs[i].key)
-
-	    continue;
-
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
-
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
+#ifdef SIGINT

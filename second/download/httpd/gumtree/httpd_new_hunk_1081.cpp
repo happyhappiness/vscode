@@ -1,60 +1,21 @@
-
-
-	errmsg = ap_srm_command_loop(&parms, dc);
-
-
-
-	ap_cfg_closefile(f);
-
-
-
-	if (errmsg) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, r, "%s: %s",
-
-                        filename, errmsg);
-
-	    ap_table_setn(r->notes, "error-notes", errmsg);
-
-            return HTTP_INTERNAL_SERVER_ERROR;
-
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
 	}
-
-
-
-	*result = dc;
-
+	else
+#endif
+	{
+	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
+	    if (cmp_long61(&curbytes, &cachesize) < 0)
+		break;
+	}
     }
 
-    else {
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
+			 "proxy GC: Cache is %ld%% full (%d deleted)",
+			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
+    ap_unblock_alarms();
+}
 
-	if (errno == ENOENT || errno == ENOTDIR)
-
-	    dc = NULL;
-
-	else {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_CRIT, r,
-
-			"%s pcfg_openfile: unable to check htaccess file, ensure it is readable",
-
-			filename);
-
-	    ap_table_setn(r->notes, "error-notes",
-
-			  "Server unable to read htaccess file, denying "
-
-			  "access to be safe");
-
-	    return HTTP_FORBIDDEN;
-
-	}
-
-    }
-
-
-
-/* cache it */
-
-    new = ap_palloc(r->pool, sizeof(struct htaccess_result));
-
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

@@ -1,26 +1,15 @@
-                case token_ne:
+            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+        }
 
-                case token_ge:
+        r->read_chunked = 1;
+    }
+    else if (lenp) {
+        char *pos = lenp;
 
-                case token_gt:
-
-                case token_le:
-
-                case token_lt:
-
-                default:
-
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                                "Invalid expression \"%s\" in file %s",
-
-                                expr, r->filename);
-
-                    ap_rputs(error, r);
-
-                    goto RETURN;
-
-                }
-
-                break;
-
+        while (isdigit(*pos) || isspace(*pos))
+            ++pos;
+        if (*pos != '\0') {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }

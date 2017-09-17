@@ -1,26 +1,12 @@
-#else
-
-    q.dsize = strlen(q.dptr) + 1;
-
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
 #endif
-
-
-
-
-
-    if (!(f = dbm_open(auth_dbmpwfile, O_RDONLY, 0664))) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    "could not open dbm auth file: %s", auth_dbmpwfile);
-
-	return NULL;
-
+#ifdef SIGABRT
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
+#endif
+	sa.sa_flags = 0;
     }
-
-
-
-    d = dbm_fetch(f, q);
-
-
-
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
+#ifdef SIGINT

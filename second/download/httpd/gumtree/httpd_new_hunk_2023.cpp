@@ -1,26 +1,17 @@
-#endif
 
-#ifdef    S_IFLNK
+    if (i != DECLINED) {
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	return i;
+    }
 
-    case S_IFLNK:
+    cache = c->fp;
 
-	/* We used stat(), the only possible reason for this is that the
+    c->hdrs = resp_hdrs;
 
-	 * symlink is broken.
-
-	 */
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
-
-		    MODNAME ": broken symlink (%s)", fn);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-#endif
-
-#ifdef    S_IFSOCK
-
-#ifndef __COHERENT__
-
-    case S_IFSOCK:
-
+    if (!pasvmode) {		/* wait for connection */
+	ap_hard_timeout("proxy ftp data connect", r);
+	clen = sizeof(struct sockaddr_in);
+	do
+	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
+	while (csd == -1 && errno == EINTR);

@@ -1,26 +1,21 @@
-	    const char *orig_groups, *groups;
 
-	    char *v;
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	if (ap_suexec_enabled) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
+	}
+	restart_pending = shutdown_pending = 0;
 
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    ap_wait_t status;
+	    int pid = wait_or_timeout(&status);
 
-
-	    if (!(groups = get_dbm_grp(r, user, sec->auth_dbmgrpfile))) {
-
-		if (!(sec->auth_dbmauthoritative))
-
-		    return DECLINED;
-
-		ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-			    "user %s not in DBM group file %s: %s",
-
-			    user, sec->auth_dbmgrpfile, r->filename);
-
-		ap_note_basic_auth_failure(r);
-
-		return AUTH_REQUIRED;
-
-	    }
-
-	    orig_groups = groups;
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

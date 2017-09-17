@@ -1,40 +1,30 @@
-            else
+	    return;
+	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
+    curbytes.upper = curbytes.lower = 0L;
 
-                *tlength += 4 + strlen(r->boundary) + 4;
+    sub_garbage_coll(r, files, cachedir, "/");
 
-        }
-
-        return 0;
-
+    if (cmp_long61(&curbytes, &cachesize) < 0L) {
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
+			 "proxy GC: Cache is %ld%% full (nothing deleted)",
+			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
+	ap_unblock_alarms();
+	return;
     }
 
+    /* sort the files we found by expiration date */
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
 
-
-    range = ap_getword(r->pool, r_range, ',');
-
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-
-        /* Skip this one */
-
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-
-                                  length);
-
-
-
-    if (r->byterange > 1) {
-
-        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
-
-        char ts[MAX_STRING_LEN];
-
-
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-
-                    r->clength);
-
-        if (realreq)
-
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
-
+    for (i = 0; i < files->nelts; i++) {
+	fent = &((struct gc_ent *) files->elts)[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
+#else
+	if (unlink(filename) == -1) {

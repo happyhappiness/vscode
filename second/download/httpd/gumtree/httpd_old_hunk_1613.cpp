@@ -1,46 +1,13 @@
-	/* fatal error, bail out */
+    if (!method_restricted)
+	return OK;
 
-	return result;
-
-    }
-
-
-
-    if ((fd = ap_popenf(r->pool, r->filename, O_RDONLY, 0)) < 0) {
-
-	/* We can't open it, but we were able to stat it. */
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    MODNAME ": can't read `%s'", r->filename);
-
-	/* let some other handler decide what the problem is */
-
+    if (!(sec->auth_authoritative))
 	return DECLINED;
 
-    }
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
+}
 
-
-
-    /*
-
-     * try looking at the first HOWMANY bytes
-
-     */
-
-    if ((nbytes = read(fd, (char *) buf, sizeof(buf) - 1)) == -1) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    MODNAME ": read failed: %s", r->filename);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-    if (nbytes == 0)
-
-	magic_rsl_puts(r, MIME_TEXT_UNKNOWN);
-
+module MODULE_VAR_EXPORT auth_module =
+{
+-- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800

@@ -1,30 +1,20 @@
-	     * Kill child processes, tell them to call child_exit, etc...
+#endif
 
-	     */
+    ap_soft_timeout("send body", r);
 
-	    if (ap_killpg(pgrp, SIGTERM) < 0) {
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
 
-		ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "killpg SIGTERM");
-
-	    }
-
-	    reclaim_child_processes(1);		/* Start with SIGTERM */
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-
-			"httpd: caught SIGTERM, shutting down");
-
-
-
-	    clean_parent_exit(0);
-
-	}
-
-
-
-	/* we've been told to restart */
-
-	signal(SIGHUP, SIG_IGN);
-
-	signal(SIGUSR1, SIG_IGN);
-
+        do {
+            n = ap_bread(fb, buf, len);
+            if (n >= 0 || r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

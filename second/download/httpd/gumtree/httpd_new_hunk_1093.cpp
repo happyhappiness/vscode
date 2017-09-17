@@ -1,62 +1,13 @@
-    {
-
-	unsigned len = SCOREBOARD_SIZE;
-
-
-
-	m = mmap((caddr_t) 0xC0000000, &len,
-
-		 PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, NOFD, 0);
-
-    }
-
-#elif defined(MAP_TMPFILE)
-
-    {
-
-	char mfile[] = "/tmp/apache_shmem_XXXX";
-
-	int fd = mkstemp(mfile);
-
-	if (fd == -1) {
-
-	    perror("open");
-
-	    fprintf(stderr, "httpd: Could not open %s\n", mfile);
-
-	    exit(APEXIT_INIT);
-
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: failed to accept data connection");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    ap_proxy_cache_error(c);
+	    return HTTP_BAD_GATEWAY;
 	}
-
-	m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-
-		PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-
-	if (m == (caddr_t) - 1) {
-
-	    perror("mmap");
-
-	    fprintf(stderr, "httpd: Could not mmap %s\n", mfile);
-
-	    exit(APEXIT_INIT);
-
-	}
-
-	close(fd);
-
-	unlink(mfile);
-
+	ap_note_cleanups_for_socket(p, csd);
+	data = ap_bcreate(p, B_RDWR | B_SOCKET);
+	ap_bpushfd(data, csd, -1);
+	ap_kill_timeout(r);
     }
-
-#else
-
-    m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-
-	     PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-
-#endif
-
-    if (m == (caddr_t) - 1) {
-
-	perror("mmap");
-

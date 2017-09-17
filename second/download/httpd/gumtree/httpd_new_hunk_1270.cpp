@@ -1,62 +1,18 @@
-    {
-
-	unsigned len = SCOREBOARD_SIZE;
-
-
-
-	m = mmap((caddr_t) 0xC0000000, &len,
-
-		 PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, NOFD, 0);
-
+    if (i == 530) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Not logged in");
+    }
+    if (i != 230 && i != 331) {
+	ap_kill_timeout(r);
+	return HTTP_BAD_GATEWAY;
     }
 
-#elif defined(MAP_TMPFILE)
-
-    {
-
-	char mfile[] = "/tmp/apache_shmem_XXXX";
-
-	int fd = mkstemp(mfile);
-
-	if (fd == -1) {
-
-	    perror("open");
-
-	    fprintf(stderr, "httpd: Could not open %s\n", mfile);
-
-	    exit(APEXIT_INIT);
-
-	}
-
-	m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-
-		PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-
-	if (m == (caddr_t) - 1) {
-
-	    perror("mmap");
-
-	    fprintf(stderr, "httpd: Could not mmap %s\n", mfile);
-
-	    exit(APEXIT_INIT);
-
-	}
-
-	close(fd);
-
-	unlink(mfile);
-
-    }
-
-#else
-
-    m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-
-	     PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-
-#endif
-
-    if (m == (caddr_t) - 1) {
-
-	perror("mmap");
-
+    if (i == 331) {		/* send password */
+	if (password == NULL)
+	    return HTTP_FORBIDDEN;
+	ap_bputs("PASS ", f);
+	ap_bwrite(f, password, passlen);
+	ap_bputs(CRLF, f);
+	ap_bflush(f);
+	Explain1("FTP: PASS %s", password);
+/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

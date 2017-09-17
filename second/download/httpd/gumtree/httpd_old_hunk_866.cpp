@@ -1,58 +1,18 @@
-	}
+    if (i == 530) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Not logged in");
+    }
+    if (i != 230 && i != 331) {
+	ap_kill_timeout(r);
+	return BAD_GATEWAY;
+    }
 
-
-
-	/* Compress the line, reducing all blanks and tabs to one space.
-
-	 * Leading and trailing white space is eliminated completely
-
-	 */
-
-	src = dst = buf;
-
-	while (isspace(*src))
-
-	    ++src;
-
-	while (*src != '\0')
-
-	{
-
-	    /* Copy words */
-
-	    while (!isspace(*dst = *src) && *src != '\0') {
-
-		++src;
-
-		++dst;
-
-	    }
-
-	    if (*src == '\0') break;
-
-	    *dst++ = ' ';
-
-	    while (isspace(*src))
-
-		++src;
-
-	}
-
-	*dst = '\0';
-
-	/* blast trailing whitespace */
-
-	while (--dst >= buf && isspace(*dst))
-
-	    *dst = '\0';
-
-
-
-#ifdef DEBUG_CFG_LINES
-
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-
-#endif
-
-	return 0;
-
+    if (i == 331) {		/* send password */
+	if (password == NULL)
+	    return FORBIDDEN;
+	ap_bputs("PASS ", f);
+	ap_bwrite(f, password, passlen);
+	ap_bputs(CRLF, f);
+	ap_bflush(f);
+	Explain1("FTP: PASS %s", password);
+/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

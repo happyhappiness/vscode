@@ -1,36 +1,31 @@
-    if (i == 530) {
 
-	ap_kill_timeout(r);
+    /* Pass one --- direct matches */
 
-	return ap_proxyerror(r, "Not logged in");
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            result = (*handp->hr.handler) (r);
 
+            if (result != DECLINED)
+                return result;
+        }
     }
 
-    if (i != 230 && i != 331) {
-
-	ap_kill_timeout(r);
-
-	return HTTP_BAD_GATEWAY;
-
+    if (result == NOT_IMPLEMENTED && r->handler) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
     }
 
+    /* Pass two --- wildcard matches */
 
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             result = (*handp->hr.handler) (r);
 
-    if (i == 331) {		/* send password */
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-	if (password == NULL)
-
-	    return HTTP_FORBIDDEN;
-
-	ap_bputs("PASS ", f);
-
-	ap_bwrite(f, password, passlen);
-
-	ap_bputs(CRLF, f);
-
-	ap_bflush(f);
-
-	Explain1("FTP: PASS %s", password);
-
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
-
+++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800

@@ -1,74 +1,13 @@
-    DBT d, q;
-
-    char *pw = NULL;
-
-
-
-    q.data = user;
-
-    q.size = strlen(q.data);
-
-
-
-#ifdef DB2
-
-    if (db_open(auth_dbpwfile, DB_HASH, O_RDONLY, 0664, NULL, NULL,  &f) != 0) {
-
-#else
-
-    if (!(f = dbopen(auth_dbpwfile, O_RDONLY, 0664, DB_HASH, NULL))) {
-
-#endif
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		    "could not open db auth file: %s", auth_dbpwfile);
-
-	return NULL;
-
+	else
+	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
+				"Could not connect to remote machine: ",
+				strerror(errno), NULL));
     }
 
+    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
 
+    f = ap_bcreate(p, B_RDWR | B_SOCKET);
+    ap_bpushfd(f, sock, sock);
 
-#ifdef DB2
-
-    if (!((f->get) (f, NULL, &q, &d, 0))) {
-
-#else
-
-    if (!((f->get) (f, &q, &d, 0))) {
-
-#endif
-
-	pw = ap_palloc(r->pool, d.size + 1);
-
-	strncpy(pw, d.data, d.size);
-
-	pw[d.size] = '\0';	/* Terminate the string */
-
-    }
-
-
-
-#ifdef DB2
-
-    (f->close) (f, 0);
-
-#else
-
-    (f->close) (f);
-
-#endif
-
-    return pw;
-
-}
-
-
-
-/* We do something strange with the group file.  If the group file
-
- * contains any : we assume the format is
-
- *      key=username value=":"groupname [":"anything here is ignored]
-
+    ap_hard_timeout("proxy send", r);
+    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,

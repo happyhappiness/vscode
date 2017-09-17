@@ -1,44 +1,40 @@
-    if (r->finfo.st_mode == 0         /* doesn't exist */
-
-        || S_ISDIR(r->finfo.st_mode)
-
-        || S_ISREG(r->finfo.st_mode)
-
-        || S_ISLNK(r->finfo.st_mode)) {
-
-        return OK;
-
+	return;
     }
+    else
+	inside = 1;
+    (void) ap_release_mutex(garbage_mutex);
 
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    help_proxy_garbage_coll(r);
 
-                "object is not a file, directory or symlink: %s",
-
-                r->filename);
-
-    return HTTP_FORBIDDEN;
-
+    (void) ap_acquire_mutex(garbage_mutex);
+    inside = 0;
+    (void) ap_release_mutex(garbage_mutex);
 }
 
 
-
-
-
-static int check_symlinks(char *d, int opts)
-
+static void help_proxy_garbage_coll(request_rec *r)
 {
+    const char *cachedir;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *pconf =
+    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+    const struct cache_conf *conf = &pconf->cache;
+    array_header *files;
+    struct stat buf;
+    struct gc_ent *fent, **elts;
+    int i, timefd;
+    static time_t lastcheck = BAD_DATE;		/* static data!!! */
 
-#if defined(__EMX__) || defined(WIN32)
+    cachedir = conf->root;
+    cachesize = conf->space;
+    every = conf->gcinterval;
 
-    /* OS/2 doesn't have symlinks */
+    if (cachedir == NULL || every == -1)
+	return;
+    garbage_now = time(NULL);
+    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
+	return;
 
-    return OK;
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
 
-#else
-
-    struct stat lfi, fi;
-
-    char *lastp;
-
-    int res;
-
+    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

@@ -1,26 +1,13 @@
-		errstr[len-1] = ' ';
-
-	    }
-
-	}
-
+    if (i == -1) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+    if (i != 220) {
+	ap_kill_timeout(r);
+	return HTTP_BAD_GATEWAY;
     }
 
-#endif
+    Explain0("FTP: connected.");
 
-
-
-    len += ap_vsnprintf(errstr + len, sizeof(errstr) - len, fmt, args);
-
-
-
-    /* NULL if we are logging to syslog */
-
-    if (logf) {
-
-	fputs(errstr, logf);
-
-	fputc('\n', logf);
-
-	fflush(logf);
-
+    ap_bputs("USER ", f);
+    ap_bwrite(f, user, userlen);

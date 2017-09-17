@@ -1,26 +1,14 @@
-	    cmd->server->server_uid = ap_user_id;
-
-	    fprintf(stderr,
-
-		    "Warning: User directive in <VirtualHost> "
-
-		    "requires SUEXEC wrapper.\n");
-
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
 	}
-
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
+	    abort();
+	}
     }
+#endif
 
-#if !defined (BIG_SECURITY_HOLE) && !defined (OS2)
-
-    if (cmd->server->server_uid == 0) {
-
-	fprintf(stderr,
-
-		"Error:\tApache has not been designed to serve pages while\n"
-
-		"\trunning as root.  There are known race conditions that\n"
-
-		"\twill allow any local user to read any file on the system.\n"
-
-		"\tShould you still desire to serve pages as root then\n"
-
+    for (i = 0; i < t->a.nelts; ) {
+++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800

@@ -1,26 +1,13 @@
-        tag_val = get_tag(r->pool, in, tag, sizeof(tag), 0);
+	return ap_proxyerror(r, err);	/* give up */
 
-        if (*tag == '\0') {
+    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating socket");
+	return SERVER_ERROR;
+    }
 
-            return 1;
-
-        }
-
-        else if (!strcmp(tag, "done")) {
-
-	    if (expr == NULL) {
-
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			    "missing expr in if statement: %s",
-
-			    r->filename);
-
-		ap_rputs(error, r);
-
-		return 1;
-
-	    }
-
-            *printing = *conditional_status = parse_expr(r, expr, error);
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
+		       (const char *) &conf->recv_buffer_size, sizeof(int))
+	    == -1) {

@@ -1,66 +1,29 @@
-	    p->next = head;
-
-	    head = p;
-
-	    num_ent++;
-
 	}
 
-    }
-
-    if (num_ent > 0) {
-
-	ar = (struct ent **) ap_palloc(r->pool,
-
-				       num_ent * sizeof(struct ent *));
-
-	p = head;
-
-	x = 0;
-
-	while (p) {
-
-	    ar[x++] = p;
-
-	    p = p->next;
-
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (ap_isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!ap_isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (ap_isspace(*src))
+		++src;
 	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && ap_isspace(*dst))
+	    *dst = '\0';
 
-
-
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-
-	      (int (*)(const void *, const void *)) dsortf);
-
-    }
-
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-
-		       direction);
-
-    ap_pclosedir(r->pool, d);
-
-
-
-    if ((tmp = find_readme(autoindex_conf, r))) {
-
-	if (!insert_readme(name, tmp, "",
-
-			   ((autoindex_opts & FANCY_INDEXING) ? HRULE
-
-			                                      : NO_HRULE),
-
-			   END_MATTER, r)) {
-
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-
-	}
-
-    }
-
-    ap_rputs("</BODY></HTML>\n", r);
-
-
-
-    ap_kill_timeout(r);
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

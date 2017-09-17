@@ -1,26 +1,20 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+#endif
 
-    if (dsock == -1) {
+    ap_soft_timeout("send body", r);
 
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
 
-		     "proxy: error creating PASV socket");
-
-	ap_bclose(f);
-
-	ap_kill_timeout(r);
-
-	return SERVER_ERROR;
-
-    }
-
-
-
-    if (conf->recv_buffer_size) {
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
+        do {
+            n = ap_bread(fb, buf, len);
+            if (n >= 0 || r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

@@ -1,26 +1,28 @@
-         * Client sent us a HTTP/1.1 or later request without telling us the
+	    return;
+	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
+    curblocks = 0;
+    curbytes = 0;
 
-         * hostname, either with a full URL or a Host: header. We therefore
+    sub_garbage_coll(r, files, cachedir, "/");
 
-         * need to (as per the 1.1 spec) send an error.  As a special case,
-
-	 * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
-
-	 * a Host: header, and the server MUST respond with 400 if it doesn't.
-
-         */
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-               "client sent HTTP/1.1 request without hostname (see RFC2068 section 9, and 14.23): %s", r->uri);
-
-        ap_die(BAD_REQUEST, r);
-
-        return;
-
+    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
+	ap_unblock_alarms();
+	return;
     }
 
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
 
-
-    /* Ignore embedded %2F's in path for proxy requests */
-
+    elts = (struct gc_ent **) files->elts;
+    for (i = 0; i < files->nelts; i++) {
+	fent = elts[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
+#else
+	if (unlink(filename) == -1) {

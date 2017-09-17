@@ -1,26 +1,13 @@
-			 DWORD dwReserved) {
-
-    request_rec *r = ((isapi_cid *)ConnID)->r;
-
-    int writ;	/* written, actually, but why shouldn't I make up words? */
-
-
-
-    /* We only support synchronous writing */
-
-    if (dwReserved && dwReserved != HSE_IO_SYNC) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_WARNING, r,
-
-		    "ISAPI asynchronous I/O not supported: %s", r->filename);
-
-	SetLastError(ERROR_INVALID_PARAMETER);
-
-	return FALSE;
-
-    }
-
-
-
-    if ((writ = ap_rwrite(Buffer, *lpwdwBytes, r)) == EOF) {
-
+		    /* else nothing needs be done because
+		     * then the backslash is escaped and
+		     * we just strip to a single one
+		     */
+		}
+		/* blast trailing whitespace */
+		while (i > 0 && ap_isspace(buf[i - 1]))
+		    --i;
+		buf[i] = '\0';
+#ifdef DEBUG_CFG_LINES
+		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+		return 0;

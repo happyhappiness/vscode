@@ -1,26 +1,19 @@
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
+    if (!method_restricted)
+	return OK;
 
-            return 1;
+    if (!(sec->auth_authoritative))
+	return DECLINED;
 
-        }
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+	"access to %s failed for %s, reason: user %s not allowed access",
+	r->uri,
+	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
+	user);
+	
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
+}
 
-        if (!strcmp(tag, "cmd")) {
-
-            parse_string(r, tag_val, parsed_string, sizeof(parsed_string), 1);
-
-            if (include_cmd(parsed_string, r) == -1) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "execution failure for parameter \"%s\" "
-
-                            "to tag exec in file %s",
-
-                            tag, r->filename);
-
-                ap_rputs(error, r);
-
-            }
-
-            /* just in case some stooge changed directories */
-
+module MODULE_VAR_EXPORT auth_module =
+{
+++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800

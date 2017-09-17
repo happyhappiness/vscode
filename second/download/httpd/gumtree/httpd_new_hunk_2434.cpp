@@ -1,26 +1,24 @@
-        tag_val = get_tag(r->pool, in, tag, sizeof(tag), 0);
 
-        if (*tag == '\0') {
+static char *lcase_header_name_return_body(char *header, request_rec *r)
+{
+    char *cp = header;
 
-            return 1;
+    for ( ; *cp && *cp != ':' ; ++cp) {
+        *cp = ap_tolower(*cp);
+    }
 
-        }
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    "Syntax error in type map --- no ':': %s", r->filename);
+        return NULL;
+    }
 
-        else if (!strcmp(tag, "done")) {
+    do {
+        ++cp;
+    } while (*cp && ap_isspace(*cp));
 
-	    if (expr == NULL) {
-
-		ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-			    "missing expr in if statement: %s",
-
-			    r->filename);
-
-		ap_rputs(error, r);
-
-		return 1;
-
-	    }
-
-            *printing = *conditional_status = parse_expr(r, expr, error);
-
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    "Syntax error in type map --- no header body: %s",
+                    r->filename);
+        return NULL;

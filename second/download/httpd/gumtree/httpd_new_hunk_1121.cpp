@@ -1,26 +1,13 @@
-	perror("Unable to gethostname");
 
-	exit(1);
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!ap_is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-    }
+    ap_hard_timeout("send headers", r);
 
-    str[MAXHOSTNAMELEN] = '\0';
-
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
-
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-
-	fprintf(stderr, "Use the ServerName directive to set it manually.\n");
-
-	exit(1);
-
-    }
-
-
-
-    return server_hostname;
-
-}
-
-
-
+    ap_basic_http_header(r);

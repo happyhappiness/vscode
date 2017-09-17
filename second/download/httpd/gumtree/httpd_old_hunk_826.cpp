@@ -1,32 +1,9 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+/* Automatically generated file - do not edit */
 
-		MODNAME ": revision_suffix checking %s", r->filename);
-
-#endif /* MIME_MAGIC_DEBUG */
-
-
-
-    /* check for recognized revision suffix */
-
-    suffix_pos = strlen(r->filename) - 1;
-
-    if (!isdigit(r->filename[suffix_pos])) {
-
-	return 0;
-
-    }
-
-    while (suffix_pos >= 0 && isdigit(r->filename[suffix_pos]))
-
-	suffix_pos--;
-
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-
-	return 0;
-
-    }
-
-
-
-    /* perform sub-request for the file name without the suffix */
-
+#ifndef LINUX
+#define LINUX 2
+#endif
+#ifndef USE_HSREGEX
+#define USE_HSREGEX 
+#endif
+-- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800

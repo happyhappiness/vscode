@@ -1,26 +1,30 @@
-	else
+	    return;
+	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
+    curbytes.upper = curbytes.lower = 0L;
 
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
+    sub_garbage_coll(r, files, cachedir, "/");
 
-				"Could not connect to remote machine: ",
-
-				strerror(errno), NULL));
-
+    if (cmp_long61(&curbytes, &cachesize) < 0L) {
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
+			 "proxy GC: Cache is %ld%% full (nothing deleted)",
+			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
+	ap_unblock_alarms();
+	return;
     }
 
+    /* sort the files we found by expiration date */
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
 
-
-    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
-
-
-
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-
-    ap_bpushfd(f, sock, sock);
-
-
-
-    ap_hard_timeout("proxy send", r);
-
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
-
+    for (i = 0; i < files->nelts; i++) {
+	fent = &((struct gc_ent *) files->elts)[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
+#else
+	if (unlink(filename) == -1) {

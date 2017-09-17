@@ -1,26 +1,25 @@
-    ap_daemons_limit = atoi(arg);
+	return ap_proxyerror(r, err);	/* give up */
 
-    if (ap_daemons_limit > HARD_SERVER_LIMIT) {
-
-       fprintf(stderr, "WARNING: MaxClients of %d exceeds compile time limit "
-
-           "of %d servers,\n", ap_daemons_limit, HARD_SERVER_LIMIT);
-
-       fprintf(stderr, " lowering MaxClients to %d.  To increase, please "
-
-           "see the\n", HARD_SERVER_LIMIT);
-
-       fprintf(stderr, " HARD_SERVER_LIMIT define in src/httpd.h.\n");
-
-       ap_daemons_limit = HARD_SERVER_LIMIT;
-
-    } 
-
-    else if (ap_daemons_limit < 1) {
-
-	fprintf(stderr, "WARNING: Require MaxClients > 0, setting to 1\n");
-
-	ap_daemons_limit = 1;
-
+    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		    "proxy: error creating socket");
+	return SERVER_ERROR;
     }
 
+#ifndef WIN32
+    if (sock >= FD_SETSIZE) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
+	    "proxy_connect_handler: filedescriptor (%u) "
+	    "larger than FD_SETSIZE (%u) "
+	    "found, you probably need to rebuild Apache with a "
+	    "larger FD_SETSIZE", sock, FD_SETSIZE);
+	ap_pclosesocket(r->pool, sock);
+	return SERVER_ERROR;
+    }
+#endif
+
+    j = 0;
+    while (server_hp.h_addr_list[j] != NULL) {
+	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
+-- apache_1.3.0/src/modules/proxy/proxy_ftp.c	1998-05-28 06:56:05.000000000 +0800

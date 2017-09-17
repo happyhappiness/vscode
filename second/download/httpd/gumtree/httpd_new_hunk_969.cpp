@@ -1,26 +1,21 @@
-            if (!res) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
+	}
+	else
+#endif
+	{
+	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
+	    if (cmp_long61(&curbytes, &cachesize) < 0)
+		break;
+	}
+    }
 
-                res = file_walk(rnew);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
+			 "proxy GC: Cache is %ld%% full (%d deleted)",
+			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
+    ap_unblock_alarms();
+}
 
-            }
-
-        }
-
-        else {
-
-            if ((res = check_symlinks(rnew->filename, ap_allow_options(rnew)))) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, rnew,
-
-                            "Symbolic link not allowed: %s", rnew->filename);
-
-                rnew->status = res;
-
-                return rnew;
-
-            }
-
-            /*
-
-             * do a file_walk, if it doesn't change the per_dir_config then
-
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

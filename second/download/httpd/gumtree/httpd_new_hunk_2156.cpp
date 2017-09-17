@@ -1,44 +1,49 @@
-	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
-
-    /* does the password look like an email address ? */
-
-	   && ((!sec->auth_anon_verifyemail)
-
-	       || ((strpbrk("@", sent_pw) != NULL)
-
-		   && (strpbrk(".", sent_pw) != NULL)))) {
-
-	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r,
-
-			"Anonymous: Passwd <%s> Accepted",
-
-			sent_pw ? sent_pw : "\'none\'");
-
+	    return cond_status;
 	}
 
-	return OK;
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
-    }
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
+			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
 
-    else {
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
-	if (sec->auth_anon_authoritative) {
+	    if (!buffer) {
+		/* Soak up all the script output - may save an outright kill */
+	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
+		    continue;
+		}
+	    }
 
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-			"Anonymous: Authoritative, Passwd <%s> not accepted",
-
-			sent_pw ? sent_pw : "\'none\'");
-
-	    return AUTH_REQUIRED;
-
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			 "%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
 	}
 
-	/* Drop out the bottom to return DECLINED */
+	*l++ = '\0';
+	while (*l && ap_isspace(*l)) {
+	    ++l;
+	}
 
-    }
+	if (!strcasecmp(w, "Content-type")) {
+	    char *tmp;
 
-++ apache_1.3.2/src/modules/standard/mod_auth.c	1998-08-07 01:30:54.000000000 +0800
+	    /* Nuke trailing whitespace */
 
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && ap_isspace(*endp)) {
+		*endp-- = '\0';
+	    }
+
+	    tmp = ap_pstrdup(r->pool, l);
+	    ap_content_type_tolower(tmp);
+	    r->content_type = tmp;
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

@@ -1,34 +1,20 @@
-    }
+void ap_send_error_response(request_rec *r, int recursive_error)
+{
+    BUFF *fd = r->connection->client;
+    int status = r->status;
+    int idx = ap_index_of_response(status);
+    char *custom_response;
+    const char *location = ap_table_get(r->headers_out, "Location");
 
-    else {
+    /* We need to special-case the handling of 204 and 304 responses,
+     * since they have specific HTTP requirements and do not include a
+     * message body.  Note that being assbackwards here is not an option.
+     */
+    if (status == HTTP_NOT_MODIFIED) {
+        if (!ap_is_empty_table(r->err_headers_out))
+            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                               r->headers_out);
+        ap_hard_timeout("send 304", r);
 
-	alarm_fn = fn;
-
-	alarm_expiry_time = time(NULL) + x;
-
-    }
-
-#else
-
-    if (alarm_fn && x && fn != alarm_fn) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
-
-	    "ap_set_callback_and_alarm: possible nested timer!");
-
-    }
-
-    alarm_fn = fn;
-
-#ifndef OPTIMIZE_TIMEOUTS
-
-    old = alarm(x);
-
-#else
-
-    if (child_timeouts) {
-
-	old = alarm(x);
-
-    }
-
+        ap_basic_http_header(r);
+        ap_set_keepalive(r);

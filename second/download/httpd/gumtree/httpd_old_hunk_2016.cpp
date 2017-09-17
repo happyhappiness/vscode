@@ -1,56 +1,13 @@
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		   sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
+	ap_pclosesocket(p, sock);
+	return SERVER_ERROR;
+#endif /*_OSD_POSIX*/
     }
 
-    r->allowed |= (1 << M_GET);
-
-    if (r->method_number != M_GET) {
-
-        return DECLINED;
-
-    }
-
-    if (r->finfo.st_mode == 0) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		    "File does not exist: %s",
-
-                    (r->path_info
-
-                     ? ap_pstrcat(r->pool, r->filename, r->path_info, NULL)
-
-                     : r->filename));
-
-        return HTTP_NOT_FOUND;
-
-    }
-
-
-
-    if (!(f = ap_pfopen(r->pool, r->filename, "r"))) {
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-                    "file permissions deny server access: %s", r->filename);
-
-        return HTTP_FORBIDDEN;
-
-    }
-
-
-
-    if ((*state == xbithack_full)
-
-#if !defined(__EMX__) && !defined(WIN32)
-
-    /*  OS/2 dosen't support Groups. */
-
-        && (r->finfo.st_mode & S_IXGRP)
-
-#endif
-
-        ) {
-
-        ap_update_mtime(r, r->finfo.st_mtime);
-
-        ap_set_last_modified(r);
-
+#ifdef SINIX_D_RESOLVER_BUG
+    {
+	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;

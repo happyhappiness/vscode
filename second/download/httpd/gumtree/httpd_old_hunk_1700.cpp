@@ -1,70 +1,26 @@
-	}
 
-	ap_destroy_sub_req(pa_req);
+    /* Pass one --- direct matches */
 
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
+
+            if (result != DECLINED)
+                return result;
+        }
     }
 
-}
+    /* Pass two --- wildcard matches */
 
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
-
-
-
-static int scan_script_header_err_core(request_rec *r, char *buffer,
-
-				       int (*getsfunc) (char *, int, void *),
-
-				       void *getsfunc_data)
-
-{
-
-    char x[MAX_STRING_LEN];
-
-    char *w, *l;
-
-    int p;
-
-    int cgi_status = HTTP_OK;
-
-
-
-    if (buffer) {
-
-	*buffer = '\0';
-
+             if (result != DECLINED)
+                 return result;
+         }
     }
 
-    w = buffer ? buffer : x;
-
-
-
-    ap_hard_timeout("read script header", r);
-
-
-
-    while (1) {
-
-
-
-	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
-
-	    ap_kill_timeout(r);
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			 "Premature end of script headers: %s", r->filename);
-
-	    return SERVER_ERROR;
-
-	}
-
-
-
-	/* Delete terminal (CR?)LF */
-
-
-
-	p = strlen(w);
-
-	if (p > 0 && w[p - 1] == '\n') {
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

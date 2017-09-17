@@ -1,34 +1,13 @@
-            else if (w < 0) {
 
-                if (r->connection->aborted)
+    /* Domain name must start with a '.' */
+    if (addr[0] != '.')
+	return 0;
 
-                    break;
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
+	continue;
 
-                else if (errno == EAGAIN)
-
-                    continue;
-
-                else {
-
-                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-
-                     "%s client stopped connection before send body completed",
-
-                                ap_get_remote_host(r->connection,
-
-                                                r->per_dir_config,
-
-                                                REMOTE_NAME));
-
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-
-                    r->connection->aborted = 1;
-
-                    break;
-
-                }
-
-            }
-
-        }
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
+	/* @@@@ handle optional port */

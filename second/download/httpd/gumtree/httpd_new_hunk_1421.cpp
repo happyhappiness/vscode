@@ -1,26 +1,33 @@
-	 * while (m && m->next && m->next->cont_level != 0 && ( m = m->next
+	    p->next = head;
+	    head = p;
+	    num_ent++;
+	}
+    }
+    if (num_ent > 0) {
+	ar = (struct ent **) ap_palloc(r->pool,
+				       num_ent * sizeof(struct ent *));
+	p = head;
+	x = 0;
+	while (p) {
+	    ar[x++] = p;
+	    p = p->next;
+	}
 
-	 * ))
+	qsort((void *) ar, num_ent, sizeof(struct ent *),
+	      (int (*)(const void *, const void *)) dsortf);
+    }
+    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
+		       direction);
+    ap_pclosedir(r->pool, d);
 
-	 */
+    if ((tmp = find_readme(autoindex_conf, r))) {
+	if (!insert_readme(name, tmp, "",
+			   ((autoindex_opts & FANCY_INDEXING) ? HRULE
+			                                      : NO_HRULE),
+			   END_MATTER, r)) {
+	    ap_rputs(ap_psignature("<HR>\n", r), r);
+	}
+    }
+    ap_rputs("</BODY></HTML>\n", r);
 
-	m = m->next;
-
-	while (m && (m->cont_level != 0)) {
-
-#if MIME_MAGIC_DEBUG
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-			MODNAME ": match line=%d cont=%d type=%d %s",
-
-			m->lineno, m->cont_level, m->type,
-
-			(m->type == STRING) ? m->value.s : "");
-
-#endif
-
-	    if (cont_level >= m->cont_level) {
-
-		if (cont_level > m->cont_level) {
-
+    ap_kill_timeout(r);

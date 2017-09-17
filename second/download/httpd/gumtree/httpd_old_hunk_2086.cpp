@@ -1,24 +1,28 @@
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
+	    return;
+	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
+    curblocks = 0;
+    curbytes = 0;
 
-		    "flock: LOCK_UN: Error freeing accept lock. Exiting!");
+    sub_garbage_coll(r, files, cachedir, "/");
 
-	clean_child_exit(APEXIT_CHILDFATAL);
-
+    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
+	ap_unblock_alarms();
+	return;
     }
 
-}
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
 
-
-
+    elts = (struct gc_ent **) files->elts;
+    for (i = 0; i < files->nelts; i++) {
+	fent = elts[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
 #else
-
-/* Default --- no serialization.  Other methods *could* go here,
-
- * as #elifs...
-
- */
-
-#if !defined(MULTITHREAD)
-
-/* Multithreaded systems don't complete between processes for
-
+	if (unlink(filename) == -1) {

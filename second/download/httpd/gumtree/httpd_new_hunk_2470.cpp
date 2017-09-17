@@ -1,26 +1,13 @@
-
-
-    /* We are not using multiviews */
-
-    neg->count_multiviews_variants = 0;
-
-
-
-    map = ap_pfopen(neg->pool, rr->filename, "r");
-
-    if (map == NULL) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-                    "cannot access type map file: %s", rr->filename);
-
-        return HTTP_FORBIDDEN;
-
+	}
+	if ((timefd = creat(filename, 0666)) == -1) {
+	    if (errno != EEXIST)
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy: creat(%s)", filename);
+	    else
+		lastcheck = garbage_now;	/* someone else got in there */
+	    ap_unblock_alarms();
+	    return;
+	}
+	close(timefd);
     }
-
-
-
-    clean_var_rec(&mime_info);
-
-
-
+    else {

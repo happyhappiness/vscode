@@ -1,26 +1,31 @@
-	return ap_construct_url(r->pool, "/", r);
 
+    /* Pass one --- direct matches */
+
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            result = (*handp->hr.handler) (r);
+
+            if (result != DECLINED)
+                return result;
+        }
     }
 
-
-
-    /* must be a relative URL to be combined with base */
-
-    if (strchr(base, '/') == NULL && (!strncmp(value, "../", 3)
-
-        || !strcmp(value, ".."))) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "invalid base directive in map file: %s", r->uri);
-
-        return NULL;
-
+    if (result == NOT_IMPLEMENTED && r->handler) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
     }
 
-    my_base = ap_pstrdup(r->pool, base);
+    /* Pass two --- wildcard matches */
 
-    string_pos = my_base;
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             result = (*handp->hr.handler) (r);
 
-    while (*string_pos) {
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
+++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800

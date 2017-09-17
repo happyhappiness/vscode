@@ -1,26 +1,14 @@
-	pp = ctime((time_t *) & p->l);
+{
+    const char *auth_line = ap_table_get(r->headers_in,
+                                    r->proxyreq ? "Proxy-Authorization"
+                                    : "Authorization");
+    int l;
+    int s, vk = 0, vv = 0;
+    const char *t;
+    char *key, *value;
 
-	if ((rt = strchr(pp, '\n')) != NULL)
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
+	return DECLINED;
 
-	    *rt = '\0';
-
-	(void) magic_rsl_printf(r, m->desc, pp);
-
-	return;
-
-    default:
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
-
-		    MODNAME ": invalid m->type (%d) in mprint().",
-
-		    m->type);
-
-	return;
-
-    }
-
-
-
-    v = signextend(r->server, m, v) & m->mask;
-
+    if (!ap_auth_name(r)) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

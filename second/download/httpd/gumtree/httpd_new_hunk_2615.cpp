@@ -1,28 +1,20 @@
-	if (r->filename[strlen(r->filename) - 1] != '/') {
+void ap_send_error_response(request_rec *r, int recursive_error)
+{
+    BUFF *fd = r->connection->client;
+    int status = r->status;
+    int idx = ap_index_of_response(status);
+    char *custom_response;
+    const char *location = ap_table_get(r->headers_out, "Location");
 
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
+    /* We need to special-case the handling of 204 and 304 responses,
+     * since they have specific HTTP requirements and do not include a
+     * message body.  Note that being assbackwards here is not an option.
+     */
+    if (status == HTTP_NOT_MODIFIED) {
+        if (!ap_is_empty_table(r->err_headers_out))
+            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                               r->headers_out);
+        ap_hard_timeout("send 304", r);
 
-	}
-
-	return index_directory(r, d);
-
-    }
-
-    else {
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		     "Directory index forbidden by rule: %s", r->filename);
-
-	return HTTP_FORBIDDEN;
-
-    }
-
-}
-
-
-
-
-
-++ apache_1.3.2/src/modules/standard/mod_cern_meta.c	1998-08-14 10:49:56.000000000 +0800
-
+        ap_basic_http_header(r);
+        ap_set_keepalive(r);

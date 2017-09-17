@@ -1,28 +1,15 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, s,
+            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+        }
 
-			     "proxy: error creating cache directory %s",
-
-			     c->filename);
-
-	    *p = '/';
-
-	    ++p;
-
-	}
-
-#if defined(__EMX__) || defined(WIN32)
-
-	/* Under OS/2 use rename. */
-
-	if (rename(c->tempfile, c->filename) == -1)
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, s,
-
-			 "proxy: error renaming cache file %s to %s",
-
-			 c->tempfile, c->filename);
-
+        r->read_chunked = 1;
     }
+    else if (lenp) {
+        char *pos = lenp;
 
--- apache_1.3.1/src/modules/proxy/proxy_connect.c	1998-06-08 22:23:50.000000000 +0800
-
+        while (isdigit(*pos) || isspace(*pos))
+            ++pos;
+        if (*pos != '\0') {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }

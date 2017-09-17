@@ -1,26 +1,13 @@
-                  ap_escape_shell_cmd(r->pool, arg_copy));
-
+    if (i == -1) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+    if (i != 220) {
+	ap_kill_timeout(r);
+	return BAD_GATEWAY;
     }
 
+    Explain0("FTP: connected.");
 
-
-    while (1) {
-
-        if (!find_string(f, STARTING_SEQUENCE, r, printing)) {
-
-            if (get_directive(f, directive, sizeof(directive), r->pool)) {
-
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			    "mod_include: error reading directive in %s",
-
-			    r->filename);
-
-		ap_rputs(error, r);
-
-                return;
-
-            }
-
-            if (!strcmp(directive, "if")) {
-
+    ap_bputs("USER ", f);
+    ap_bwrite(f, user, userlen);

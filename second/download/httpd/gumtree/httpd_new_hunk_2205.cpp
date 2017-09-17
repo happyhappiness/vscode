@@ -1,26 +1,32 @@
-        case token_le:
-
-        case token_lt:
-
-#ifdef DEBUG_INCLUDE
-
-            ap_rputs("     Token: eq/ne/ge/gt/le/lt\n", r);
-
+                                         REWRITELOCK_MODE)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+                     "mod_rewrite: Parent could not create RewriteLock "
+                     "file %s", conf->rewritelockfile);
+        exit(1);
+    }
+#if !defined(__EMX__) && !defined(WIN32)
+    /* make sure the childs have access to this file */
+    if (geteuid() == 0 /* is superuser */)
+        chown(conf->rewritelockfile, ap_user_id, -1 /* no gid change */);
 #endif
 
-            if (current == (struct parse_node *) NULL) {
+    return;
+}
 
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+static void rewritelock_open(server_rec *s, pool *p)
+{
+    rewrite_server_conf *conf;
 
-                            "Invalid expression \"%s\" in file %s",
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
 
-                            expr, r->filename);
+    /* only operate if a lockfile is used */
+    if (conf->rewritelockfile == NULL
+        || *(conf->rewritelockfile) == '\0') {
+        return;
+    }
 
-                ap_rputs(error, r);
-
-                goto RETURN;
-
-            }
-
-            /* Percolate upwards */
-
+    /* open the lockfile (once per child) to get a unique fd */
+    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
+                                         O_WRONLY,
+                                         REWRITELOCK_MODE)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, s,

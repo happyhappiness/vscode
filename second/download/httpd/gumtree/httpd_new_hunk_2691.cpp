@@ -1,26 +1,13 @@
 
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!ap_is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-    /* We are not using multiviews */
+    ap_hard_timeout("send headers", r);
 
-    neg->count_multiviews_variants = 0;
-
-
-
-    map = ap_pfopen(neg->pool, rr->filename, "r");
-
-    if (map == NULL) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-                    "cannot access type map file: %s", rr->filename);
-
-        return HTTP_FORBIDDEN;
-
-    }
-
-
-
-    clean_var_rec(&mime_info);
-
-
-
+    ap_basic_http_header(r);

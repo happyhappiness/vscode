@@ -1,26 +1,10 @@
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
+
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
 #endif
 
-        *printing = 1;
-
-        *conditional_status = 1;
-
-        return 0;
-
-    }
-
-    else {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "endif directive does not take tags in %s",
-
-		    r->filename);
-
-        ap_rputs(error, r);
-
-        return -1;
-
-    }
-
-}
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

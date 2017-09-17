@@ -1,32 +1,12 @@
-	else
 
-	    ret = FORBIDDEN;
+    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
+	return (ap_suexec_enabled);
 
+    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
+	ap_suexec_enabled = 1;
     }
-
-
-
-    if (ret == FORBIDDEN
-
-	&& (ap_satisfies(r) != SATISFY_ANY || !ap_some_auth_required(r))) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		  "client denied by server configuration: %s",
-
-		  r->filename);
-
-    }
-
-
-
-    return ret;
-
+#endif /* ndef WIN32 */
+    return (ap_suexec_enabled);
 }
 
-
-
-
-
-++ apache_1.3.2/src/modules/standard/mod_actions.c	1998-08-07 01:30:53.000000000 +0800
-
+/*****************************************************************

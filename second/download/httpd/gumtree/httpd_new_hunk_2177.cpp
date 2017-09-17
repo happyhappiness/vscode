@@ -1,28 +1,13 @@
+	else
+	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
+				"Could not connect to remote machine: ",
+				strerror(errno), NULL));
+    }
 
+    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
 
-    f = ap_pfopen(r->pool, metafilename, "r");
+    f = ap_bcreate(p, B_RDWR | B_SOCKET);
+    ap_bpushfd(f, sock, sock);
 
-    if (f == NULL) {
-
-	if (errno == ENOENT) {
-
-	    return DECLINED;
-
-	}
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-	      "meta file permissions deny server access: %s", metafilename);
-
-	return FORBIDDEN;
-
-    };
-
-
-
-    /* read the headers in */
-
-    rv = scan_meta_file(r, f);
-
-++ apache_1.3.2/src/modules/standard/mod_cgi.c	1998-09-04 06:40:42.000000000 +0800
-
+    ap_hard_timeout("proxy send", r);
+    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,

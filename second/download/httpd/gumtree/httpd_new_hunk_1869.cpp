@@ -1,26 +1,21 @@
-    ap_daemons_limit = atoi(arg);
-
-    if (ap_daemons_limit > HARD_SERVER_LIMIT) {
-
-       fprintf(stderr, "WARNING: MaxClients of %d exceeds compile time limit "
-
-           "of %d servers,\n", ap_daemons_limit, HARD_SERVER_LIMIT);
-
-       fprintf(stderr, " lowering MaxClients to %d.  To increase, please "
-
-           "see the\n", HARD_SERVER_LIMIT);
-
-       fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-
-       ap_daemons_limit = HARD_SERVER_LIMIT;
-
-    } 
-
-    else if (ap_daemons_limit < 1) {
-
-	fprintf(stderr, "WARNING: Require MaxClients > 0, setting to 1\n");
-
-	ap_daemons_limit = 1;
-
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
+	}
+	else
+#endif
+	{
+	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
+	    if (cmp_long61(&curbytes, &cachesize) < 0)
+		break;
+	}
     }
 
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
+			 "proxy GC: Cache is %ld%% full (%d deleted)",
+			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
+    ap_unblock_alarms();
+}
+
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

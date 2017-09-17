@@ -1,28 +1,15 @@
-		    ap_rputs(terminate_description(d, ar[x]->desc,
+            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+        }
 
-						   autoindex_opts), r);
-
-		}
-
-	    }
-
-	}
-
-	else {
-
-	    ap_rvputs(r, "<LI><A HREF=\"", anchor, "\"> ", t2,
-
-		      "</A>", pad, NULL);
-
-	}
-
-	ap_rputc('\n', r);
-
+        r->read_chunked = 1;
     }
+    else if (lenp) {
+        const char *pos = lenp;
 
-    if (autoindex_opts & FANCY_INDEXING) {
-
-	ap_rputs("</PRE>", r);
-
-    }
-
+        while (ap_isdigit(*pos) || ap_isspace(*pos))
+            ++pos;
+        if (*pos != '\0') {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }

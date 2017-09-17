@@ -1,26 +1,40 @@
-        tag_val = get_tag(r->pool, in, tag, sizeof(tag), 0);
+	return;
+    }
+    else
+	inside = 1;
+    (void) ap_release_mutex(garbage_mutex);
 
-        if (*tag == '\0') {
+    help_proxy_garbage_coll(r);
 
-            return 1;
+    (void) ap_acquire_mutex(garbage_mutex);
+    inside = 0;
+    (void) ap_release_mutex(garbage_mutex);
+}
 
-        }
 
-        else if (!strcmp(tag, "done")) {
+static void help_proxy_garbage_coll(request_rec *r)
+{
+    const char *cachedir;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *pconf =
+    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+    const struct cache_conf *conf = &pconf->cache;
+    array_header *files;
+    struct stat buf;
+    struct gc_ent *fent, **elts;
+    int i, timefd;
+    static time_t lastcheck = BAD_DATE;		/* static data!!! */
 
-	    if (expr == NULL) {
+    cachedir = conf->root;
+    cachesize = conf->space;
+    every = conf->gcinterval;
 
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    if (cachedir == NULL || every == -1)
+	return;
+    garbage_now = time(NULL);
+    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
+	return;
 
-			    "missing expr in if statement: %s",
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
 
-			    r->filename);
-
-		ap_rputs(error, r);
-
-		return 1;
-
-	    }
-
-            *printing = *conditional_status = parse_expr(r, expr, error);
-
+    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

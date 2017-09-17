@@ -1,28 +1,20 @@
-	    hStdErr = dup(fileno(stderr));
+#endif
 
-	    if(dup2(err_fds[1], fileno(stderr)))
+    ap_soft_timeout("send body", r);
 
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
 
-	    close(err_fds[1]);
-
-	}
-
-
-
-	pid = (*func) (data, NULL);
-
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
-
-
-
-        if (!pid) {
-
-	    save_errno = errno;
-
-	    close(in_fds[1]);
-
-	    close(out_fds[0]);
-
--- apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
-
+        do {
+            n = ap_bread(fb, buf, len);
+            if (n >= 0 || r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

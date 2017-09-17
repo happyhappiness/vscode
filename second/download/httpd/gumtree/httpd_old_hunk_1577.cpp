@@ -1,26 +1,13 @@
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
 
-            return 1;
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-        }
+    ap_hard_timeout("send headers", r);
 
-        if (!strcmp(tag, "cmd")) {
-
-            parse_string(r, tag_val, parsed_string, sizeof(parsed_string), 1);
-
-            if (include_cmd(parsed_string, r) == -1) {
-
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                            "execution failure for parameter \"%s\" "
-
-                            "to tag exec in file %s",
-
-                            tag, r->filename);
-
-                ap_rputs(error, r);
-
-            }
-
-            /* just in case some stooge changed directories */
-
+    ap_basic_http_header(r);

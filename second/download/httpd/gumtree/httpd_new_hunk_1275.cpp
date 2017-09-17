@@ -1,26 +1,17 @@
-#define STANDALONE_MAIN standalone_main
 
+    if (i != DECLINED) {
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	return i;
+    }
 
+    cache = c->fp;
 
-static void standalone_main(int argc, char **argv)
+    c->hdrs = resp_hdrs;
 
-{
-
-    int remaining_children_to_start;
-
-
-
-#ifdef OS2
-
-    printf("%s \n", ap_get_server_version());
-
-#endif
-
-
-
-    ap_standalone = 1;
-
-
-
-    is_graceful = 0;
-
+    if (!pasvmode) {		/* wait for connection */
+	ap_hard_timeout("proxy ftp data connect", r);
+	clen = sizeof(struct sockaddr_in);
+	do
+	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
+	while (csd == -1 && errno == EINTR);

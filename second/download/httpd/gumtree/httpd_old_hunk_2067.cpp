@@ -1,26 +1,20 @@
-			 DWORD dwReserved) {
-
-    request_rec *r = ((isapi_cid *)ConnID)->r;
-
-    int writ;	/* written, actually, but why shouldn't I make up words? */
-
-
-
-    /* We only support synchronous writing */
-
-    if (dwReserved && dwReserved != HSE_IO_SYNC) {
-
-	ap_log_error(APLOG_MARK, APLOG_WARNING, r->server,
-
-		    "ISAPI asynchronous I/O not supported: %s", r->filename);
-
-	SetLastError(ERROR_INVALID_PARAMETER);
-
-	return FALSE;
-
+	     */
+	    break;
+#endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
+    child_timeouts = !ap_standalone || one_process;
 
-    if ((writ = ap_rwrite(Buffer, *lpwdwBytes, r)) == EOF) {
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

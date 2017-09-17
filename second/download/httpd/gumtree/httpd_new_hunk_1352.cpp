@@ -1,78 +1,38 @@
-    }
-
-    else {
-
-	ap_rputs("<UL>", r);
-
-    }
-
-
-
-    for (x = 0; x < n; x++) {
-
-	char *anchor, *t, *t2;
-
-	char *pad;
-
-	int nwidth;
-
-
-
-	ap_clear_pool(scratch);
-
-
-
-	if (is_parent(ar[x]->name)) {
-
-	    t = ap_make_full_path(scratch, name, "../");
-
-	    ap_getparents(t);
-
-	    if (t[0] == '\0') {
-
-		t = "/";
-
+		char buff[24] = "                       ";
+		t2 = ap_escape_html(scratch, t);
+		buff[23 - len] = '\0';
+		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
 	    }
-
-	       /* 1234567890123456 */
-
-	    t2 = "Parent Directory";
-
-	    pad = name_scratch + 16;
-
-	    anchor = ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0));
-
+	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
+				ap_escape_html(scratch,
+					       ap_os_escape_path(scratch, t,
+								 0)),
+				"\">", NULL);
 	}
-
-	else {
-
-	    t = ar[x]->name;
-
-	    pad = name_scratch + strlen(t);
-
-	    t2 = ap_escape_html(scratch, t);
-
-	    anchor = ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0));
-
-	}
-
-
 
 	if (autoindex_opts & FANCY_INDEXING) {
-
 	    if (autoindex_opts & ICONS_ARE_LINKS) {
-
-		ap_rvputs(r, "<A HREF=\"", anchor, "\">", NULL);
-
+		ap_rputs(anchor, r);
+	    }
+	    if ((ar[x]->icon) || d->default_icon) {
+		ap_rvputs(r, "<IMG SRC=\"",
+			  ap_escape_html(scratch,
+					 ar[x]->icon ? ar[x]->icon
+					             : d->default_icon),
+			  "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
+			  "]\"", NULL);
+		if (d->icon_width && d->icon_height) {
+		    ap_rprintf(r, " HEIGHT=\"%d\" WIDTH=\"%d\"",
+			       d->icon_height, d->icon_width);
+		}
+		ap_rputs(">", r);
+	    }
+	    if (autoindex_opts & ICONS_ARE_LINKS) {
+		ap_rputs("</A>", r);
 	    }
 
-	    if ((ar[x]->icon) || d->default_icon) {
-
-		ap_rvputs(r, "<IMG SRC=\"",
-
-			  ap_escape_html(scratch,
-
-					 ar[x]->icon ? ar[x]->icon
-
-					             : d->default_icon),
-
+	    ap_rvputs(r, " ", anchor, t2, NULL);
+	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+		if (ar[x]->lm != -1) {
+		    char time_str[MAX_STRING_LEN];
+		    struct tm *ts = localtime(&ar[x]->lm);

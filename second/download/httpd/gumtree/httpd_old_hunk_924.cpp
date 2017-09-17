@@ -1,56 +1,35 @@
-    printf("Server Hostname:        %s\n", hostname);
+	if (rc == -1) {
+	    ap_kill_timeout(r);
+	    return ap_proxyerror(r, "Error sending to remote server");
+	}
+	if (rc == 550) {
+	    ap_kill_timeout(r);
+	    return NOT_FOUND;
+	}
+	if (rc != 250) {
+	    ap_kill_timeout(r);
+	    return BAD_GATEWAY;
+	}
 
-    printf("Server Port:            %d\n", port);
-
-    printf("\n");
-
-    printf("Document Path:          %s\n", path);
-
-    printf("Document Length:        %d bytes\n", doclen);
-
-    printf("\n");
-
-    printf("Concurency Level:       %d\n", concurrency);
-
-    printf("Time taken for tests:   %d.%03d seconds\n",
-
-           timetaken / 1000, timetaken % 1000);
-
-    printf("Complete requests:      %d\n", done);
-
-    printf("Failed requests:        %d\n", bad);
-
-    if (bad)
-
-        printf("   (Connect: %d, Length: %d, Exceptions: %d)\n",
-
-               err_conn, err_length, err_except);
-
-    if (keepalive)
-
-        printf("Keep-Alive requests:    %d\n", doneka);
-
-    printf("Total transfered:       %d bytes\n", totalread);
-
-    printf("HTML transfered:        %d bytes\n", totalbread);
-
-
-
-    /* avoid divide by zero */
-
-    if (timetaken) {
-
-        printf("Requests per seconds:   %.2f\n", 1000 * (float) (done) / timetaken);
-
-        printf("Transfer rate:          %.2f kb/s\n",
-
-               (float) (totalread) / timetaken);
-
+	ap_bputs("LIST -lag" CRLF, f);
+	ap_bflush(f);
+	Explain0("FTP: LIST -lag");
+	rc = ftp_getrc(f);
+	Explain1("FTP: returned status %d", rc);
+	if (rc == -1)
+	    return ap_proxyerror(r, "Error sending to remote server");
     }
+    ap_kill_timeout(r);
+    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
+	return BAD_GATEWAY;
 
+    r->status = 200;
+    r->status_line = "200 OK";
 
-
-    {
-
-        /* work out connection times */
-
+    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
+    if (parms[0] == 'd')
+	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
+    else {
+	if (r->content_type != NULL) {
+	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
+			     HDR_REP);

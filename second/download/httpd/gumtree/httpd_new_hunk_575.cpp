@@ -1,48 +1,16 @@
-
-
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-
-{
-
-    char *cp = header;
-
-
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-
-        *cp = ap_tolower(*cp);
-
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+	if (sigaction(SIGILL, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGILL)");
+#endif
+	sa.sa_flags = 0;
     }
-
-
-
-    if (!*cp) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "Syntax error in type map --- no ':': %s", r->filename);
-
-        return NULL;
-
-    }
-
-
-
-    do {
-
-        ++cp;
-
-    } while (*cp && ap_isspace(*cp));
-
-
-
-    if (!*cp) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "Syntax error in type map --- no header body: %s",
-
-                    r->filename);
-
-        return NULL;
-
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
+#ifdef SIGINT

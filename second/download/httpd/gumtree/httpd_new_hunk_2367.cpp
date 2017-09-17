@@ -1,278 +1,167 @@
-    q = ap_palloc(p, 30);
-
-    ap_snprintf(q, 30, "%s, %.2d %s %d %.2d:%.2d:%.2d GMT", ap_day_snames[wk], mday,
-
-		ap_month_snames[mon], year, hour, min, sec);
-
-    return q;
-
-}
-
-
-
-
-
-/* NOTE: This routine is taken from http_protocol::getline()
-
- * because the old code found in the proxy module was too
-
- * difficult to understand and maintain.
-
- */
-
-/* Get a line of protocol input, including any continuation lines
-
- * caused by MIME folding (or broken clients) if fold != 0, and place it
-
- * in the buffer s, of size n bytes, without the ending newline.
-
- *
-
- * Returns -1 on error, or the length of s.
-
- *
-
- * Note: Because bgets uses 1 char for newline and 1 char for NUL,
-
- *       the most we can get is (n - 2) actual characters if it
-
- *       was ended by a newline, or (n - 1) characters if the line
-
- *       length exceeded (n - 1).  So, if the result == (n - 1),
-
- *       then the actual input line exceeded the buffer length,
-
- *       and it would be a good idea for the caller to puke 400 or 414.
-
- */
-
-static int proxy_getline(char *s, int n, BUFF *in, int fold)
-
-{
-
-    char *pos, next;
-
-    int retval;
-
-    int total = 0;
-
-
-
-    pos = s;
-
-
-
-    do {
-
-        retval = ap_bgets(pos, n, in);     /* retval == -1 if error, 0 if EOF */
-
-
-
-        if (retval <= 0)
-
-            return ((retval < 0) && (total == 0)) ? -1 : total;
-
-
-
-        /* retval is the number of characters read, not including NUL      */
-
-
-
-        n -= retval;            /* Keep track of how much of s is full     */
-
-        pos += (retval - 1);    /* and where s ends                        */
-
-        total += retval;        /* and how long s has become               */
-
-
-
-        if (*pos == '\n') {     /* Did we get a full line of input?        */
-
-            *pos = '\0';
-
-            --total;
-
-            ++n;
-
-        }
-
-        else
-
-            return total;       /* if not, input line exceeded buffer size */
-
-
-
-        /* Continue appending if line folding is desired and
-
-         * the last line was not empty and we have room in the buffer and
-
-         * the next line begins with a continuation character.
-
-         */
-
-    } while (fold && (retval != 1) && (n > 1)
-
-                  && (ap_blookc(&next, in) == 1)
-
-                  && ((next == ' ') || (next == '\t')));
-
-
-
-    return total;
-
-}
-
-
-
-
-
-/*
-
- * Reads headers from a buffer and returns an array of headers.
-
- * Returns NULL on file error
-
- * This routine tries to deal with too long lines and continuation lines.
-
- * @@@: XXX: FIXME: currently the headers are passed thru un-merged. 
-
- * Is that okay, or should they be collapsed where possible?
-
- */
-
-table *ap_proxy_read_headers(request_rec *r, char *buffer, int size, BUFF *f)
-
-{
-
-    table *resp_hdrs;
-
-    int len;
-
-    char *value, *end;
-
-    char field[MAX_STRING_LEN];
-
-
-
-    resp_hdrs = ap_make_table(r->pool, 20);
-
-
-
-    /*
-
-     * Read header lines until we get the empty separator line, a read error,
-
-     * the connection closes (EOF), or we timeout.
-
-     */
-
-    while ((len = proxy_getline(buffer, size, f, 1)) > 0) {
-
-	
-
-	if (!(value = strchr(buffer, ':'))) {     /* Find the colon separator */
-
-
-
-	    /* Buggy MS IIS servers sometimes return invalid headers
-
-	     * (an extra "HTTP/1.0 200, OK" line sprinkled in between
-
-	     * the usual MIME headers). Try to deal with it in a sensible
-
-	     * way, but log the fact.
-
-	     * XXX: The mask check is buggy if we ever see an HTTP/1.10 */
-
-
-
-	    if (!ap_checkmask(buffer, "HTTP/#.# ###*")) {
-
-		/* Nope, it wasn't even an extra HTTP header. Give up. */
-
-		return NULL;
-
-	    }
-
-
-
-	    ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, r->server,
-
-			 "proxy: Ignoring duplicate HTTP header "
-
-			 "returned by %s (%s)", r->uri, r->method);
-
-	    continue;
-
+	else {
+	    cur = atol(str);
 	}
-
-
-
-        *value = '\0';
-
-        ++value;
-
-	/* XXX: RFC2068 defines only SP and HT as whitespace, this test is
-
-	 * wrong... and so are many others probably.
-
-	 */
-
-        while (ap_isspace(*value))
-
-            ++value;            /* Skip to start of value   */
-
-
-
-	/* should strip trailing whitespace as well */
-
-	for (end = &value[strlen(value)-1]; end > value && ap_isspace(*end); --end)
-
-	    *end = '\0';
-
-
-
-        ap_table_add(resp_hdrs, buffer, value);
-
-
-
-	/* the header was too long; at the least we should skip extra data */
-
-	if (len >= size - 1) { 
-
-	    while ((len = proxy_getline(field, MAX_STRING_LEN, f, 1))
-
-		    >= MAX_STRING_LEN - 1) {
-
-		/* soak up the extra data */
-
-	    }
-
-	    if (len == 0) /* time to exit the larger loop as well */
-
-		break;
-
-	}
-
+    }
+    else {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
+		     "Invalid parameters for %s", cmd->cmd->name);
+	return;
+    }
+    
+    if (arg2 && (str = ap_getword_conf(cmd->pool, &arg2))) {
+	max = atol(str);
     }
 
-    return resp_hdrs;
+    /* if we aren't running as root, cannot increase max */
+    if (geteuid()) {
+	limit->rlim_cur = cur;
+	if (max) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
+			 "Must be uid 0 to raise maximum %s", cmd->cmd->name);
+	}
+    }
+    else {
+        if (cur) {
+	    limit->rlim_cur = cur;
+	}
+        if (max) {
+	    limit->rlim_max = max;
+	}
+    }
+}
+#endif
 
+#if !defined (RLIMIT_CPU) || !(defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)) || !defined (RLIMIT_NPROC)
+static const char *no_set_limit(cmd_parms *cmd, core_dir_config *conf,
+				char *arg, char *arg2)
+{
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
+		"%s not supported on this platform", cmd->cmd->name);
+    return NULL;
+}
+#endif
+
+#ifdef RLIMIT_CPU
+static const char *set_limit_cpu(cmd_parms *cmd, core_dir_config *conf, 
+				 char *arg, char *arg2)
+{
+    set_rlimit(cmd, &conf->limit_cpu, arg, arg2, RLIMIT_CPU);
+    return NULL;
+}
+#endif
+
+#if defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)
+static const char *set_limit_mem(cmd_parms *cmd, core_dir_config *conf, 
+				 char *arg, char * arg2)
+{
+#if defined(RLIMIT_AS)
+    set_rlimit(cmd, &conf->limit_mem, arg, arg2 ,RLIMIT_AS);
+#elif defined(RLIMIT_DATA)
+    set_rlimit(cmd, &conf->limit_mem, arg, arg2, RLIMIT_DATA);
+#elif defined(RLIMIT_VMEM)
+    set_rlimit(cmd, &conf->limit_mem, arg, arg2, RLIMIT_VMEM);
+#endif
+    return NULL;
+}
+#endif
+
+#ifdef RLIMIT_NPROC
+static const char *set_limit_nproc(cmd_parms *cmd, core_dir_config *conf,  
+				   char *arg, char * arg2)
+{
+    set_rlimit(cmd, &conf->limit_nproc, arg, arg2, RLIMIT_NPROC);
+    return NULL;
+}
+#endif
+
+static const char *set_bind_address(cmd_parms *cmd, void *dummy, char *arg) 
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+
+    ap_bind_address.s_addr = ap_get_virthost_addr(arg, NULL);
+    return NULL;
 }
 
-
-
-long int ap_proxy_send_fb(BUFF *f, request_rec *r, cache_req *c)
-
+static const char *set_listener(cmd_parms *cmd, void *dummy, char *ips)
 {
+    listen_rec *new;
+    char *ports;
+    unsigned short port;
 
-    int  ok = 1;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
 
-    char buf[IOBUFSIZE];
+    ports = strchr(ips, ':');
+    if (ports != NULL) {
+	if (ports == ips) {
+	    return "Missing IP address";
+	}
+	else if (ports[1] == '\0') {
+	    return "Address must end in :<port-number>";
+	}
+	*(ports++) = '\0';
+    }
+    else {
+	ports = ips;
+    }
 
-    long total_bytes_rcv;
+    new=ap_pcalloc(cmd->pool, sizeof(listen_rec));
+    new->local_addr.sin_family = AF_INET;
+    if (ports == ips) { /* no address */
+	new->local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    }
+    else {
+	new->local_addr.sin_addr.s_addr = ap_get_virthost_addr(ips, NULL);
+    }
+    port = atoi(ports);
+    if (!port) {
+	return "Port must be numeric";
+    }
+    new->local_addr.sin_port = htons(port);
+    new->fd = -1;
+    new->used = 0;
+    new->next = ap_listeners;
+    ap_listeners = new;
+    return NULL;
+}
 
-    register int n, o, w;
+static const char *set_listenbacklog(cmd_parms *cmd, void *dummy, char *arg) 
+{
+    int b;
 
-    conn_rec *con = r->connection;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
 
+    b = atoi(arg);
+    if (b < 1) {
+        return "ListenBacklog must be > 0";
+    }
+    ap_listenbacklog = b;
+    return NULL;
+}
+
+static const char *set_coredumpdir (cmd_parms *cmd, void *dummy, char *arg) 
+{
+    struct stat finfo;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+
+    arg = ap_server_root_relative(cmd->pool, arg);
+    if ((stat(arg, &finfo) == -1) || !S_ISDIR(finfo.st_mode)) {
+	return ap_pstrcat(cmd->pool, "CoreDumpDirectory ", arg, 
+			  " does not exist or is not a directory", NULL);
+    }
+    ap_cpystrn(ap_coredump_dir, arg, sizeof(ap_coredump_dir));
+    return NULL;
+}
+
+static const char *include_config (cmd_parms *cmd, void *dummy, char *name)

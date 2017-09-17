@@ -1,26 +1,13 @@
-	    continue;
 
-	}
+    /* Host names must not start with a '.' */
+    if (addr[0] == '.')
+	return 0;
 
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
 
-
-	/* if we get here, the main entry rule was a match */
-
-	/* this will be the last run through the loop */
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-		    MODNAME ": rule matched, line=%d type=%d %s",
-
-		    m->lineno, m->type,
-
-		    (m->type == STRING) ? m->value.s : "");
-
-#endif
-
-
-
-	/* print the match */
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
+	/* @@@@ handle optional port */
+    }

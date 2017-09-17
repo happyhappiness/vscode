@@ -1,62 +1,37 @@
-    {
-
-	unsigned len = SCOREBOARD_SIZE;
-
-
-
-	m = mmap((caddr_t) 0xC0000000, &len,
-
-		 PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, NOFD, 0);
-
-    }
-
-#elif defined(MAP_TMPFILE)
-
-    {
-
-	char mfile[] = "/tmp/apache_shmem_XXXX";
-
-	int fd = mkstemp(mfile);
-
-	if (fd == -1) {
-
-	    perror("open");
-
-	    fprintf(stderr, "httpd: Could not open %s\n", mfile);
-
-	    exit(APEXIT_INIT);
-
+	if (rc == -1) {
+	    ap_kill_timeout(r);
+	    return ap_proxyerror(r, "Error sending to remote server");
+	}
+	if (rc == 550) {
+	    ap_kill_timeout(r);
+	    return HTTP_NOT_FOUND;
+	}
+	if (rc != 250) {
+	    ap_kill_timeout(r);
+	    return HTTP_BAD_GATEWAY;
 	}
 
-	m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-
-		PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-
-	if (m == (caddr_t) - 1) {
-
-	    perror("mmap");
-
-	    fprintf(stderr, "httpd: Could not mmap %s\n", mfile);
-
-	    exit(APEXIT_INIT);
-
-	}
-
-	close(fd);
-
-	unlink(mfile);
-
+	ap_bputs("LIST -lag" CRLF, f);
+	ap_bflush(f);
+	Explain0("FTP: LIST -lag");
+	rc = ftp_getrc(f);
+	Explain1("FTP: returned status %d", rc);
+	if (rc == -1)
+	    return ap_proxyerror(r, "Error sending to remote server");
     }
+    ap_kill_timeout(r);
+    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
+	return HTTP_BAD_GATEWAY;
 
-#else
+    r->status = 200;
+    r->status_line = "200 OK";
 
-    m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
+    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
+    c->hdrs = resp_hdrs;
 
-	     PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-
-#endif
-
-    if (m == (caddr_t) - 1) {
-
-	perror("mmap");
-
+    if (parms[0] == 'd')
+	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
+    else {
+	if (r->content_type != NULL) {
+	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
+			     HDR_REP);

@@ -1,44 +1,13 @@
-	}
+    ap_bvputs(f, "Host: ", desthost, NULL);
+    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+	ap_bvputs(f, ":", destportstr, CRLF, NULL);
+    else
+	ap_bputs(CRLF, f);
 
-    }
-
-    if (!found) {
-
-	printf("Adding user %s\n", user);
-
-	add_password(user, tfp);
-
-    }
-
-/*
-
-* make a copy from the tmp file to the actual file
-
-*/  
-
-        rewind(f);
-
-        rewind(tfp);
-
-        while ( fgets(command,MAX_STRING_LEN,tfp) != NULL)
-
-        {
-
-                fputs(command,f);
-
-        } 
-
-
-
-    fclose(f);
-
-    fclose(tfp);
-
-    unlink(tn);
-
-    exit(0);
-
-}
-
-++ apache_1.3.1/src/support/logresolve.c	1998-07-13 19:32:58.000000000 +0800
-
+    reqhdrs_arr = ap_table_elts(r->headers_in);
+    reqhdrs = (table_entry *) reqhdrs_arr->elts;
+    for (i = 0; i < reqhdrs_arr->nelts; i++) {
+	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
+	/* Clear out headers not to send */
+	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
+	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))

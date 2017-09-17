@@ -1,64 +1,46 @@
-        break;
+	clen = sizeof(struct sockaddr_in);
+	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error getting socket address");
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+	}
 
+	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (dsock == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error creating socket");
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+	}
+
+	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		       sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error setting reuseaddr option");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+#endif /*_OSD_POSIX*/
+	}
+
+	if (bind(dsock, (struct sockaddr *) &server,
+		 sizeof(struct sockaddr_in)) == -1) {
+	    char buff[22];
+
+	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error binding to ftp data socket %s", buff);
+	    ap_bclose(f);
+	    ap_pclosesocket(p, dsock);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+	}
+	listen(dsock, 2);	/* only need a short queue */
     }
 
-    return strcmp(c1->name, c2->name);
-
-}
-
-
-
-
-
-static int index_directory(request_rec *r,
-
-			   autoindex_config_rec *autoindex_conf)
-
-{
-
-    char *title_name = ap_escape_html(r->pool, r->uri);
-
-    char *title_endp;
-
-    char *name = r->filename;
-
-
-
-    DIR *d;
-
-    struct DIR_TYPE *dstruct;
-
-    int num_ent = 0, x;
-
-    struct ent *head, *p;
-
-    struct ent **ar = NULL;
-
-    char *tmp;
-
-    const char *qstring;
-
-    int autoindex_opts = autoindex_conf->opts;
-
-    char keyid;
-
-    char direction;
-
-
-
-    if (!(d = ap_popendir(r->pool, name))) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		    "Can't open directory for index: %s", r->filename);
-
-	return HTTP_FORBIDDEN;
-
-    }
-
-
-
-    r->content_type = "text/html";
-
-
-
+/* set request */
+    len = decodeenc(path);

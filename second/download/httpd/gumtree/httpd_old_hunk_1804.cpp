@@ -1,26 +1,13 @@
-        for (i = 0; i < arr->nelts; ++i) {
-
-            ap_rvputs(r, elts[i].key, "=", elts[i].val, "\n", NULL);
-
-        }
-
-        return 0;
-
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		   sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
+	ap_pclosesocket(p, sock);
+	return SERVER_ERROR;
+#endif /*_OSD_POSIX*/
     }
 
-    else {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "printenv directive does not take tags in %s",
-
-		    r->filename);
-
-        ap_rputs(error, r);
-
-        return -1;
-
-    }
-
-}
-
+#ifdef SINIX_D_RESOLVER_BUG
+    {
+	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;

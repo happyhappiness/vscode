@@ -1,44 +1,21 @@
-    else
-
-	dirconf = current_conn->server->lookup_defaults;
-
-    if (!current_conn->keptalive) {
-
-	if (sig == SIGPIPE) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-
-			current_conn->server,
-
-			"(client %s) stopped connection before %s completed",
-
-			current_conn->remote_ip,
-
-			timeout_name ? timeout_name : "request");
-
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
 	}
-
-	else {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-
-			current_conn->server,
-
-			"(client %s) %s timed out",
-
-			current_conn->remote_ip,
-
-			timeout_name ? timeout_name : "request");
-
+	else
+#endif
+	{
+	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
+	    if (cmp_long61(&curbytes, &cachesize) < 0)
+		break;
 	}
-
     }
 
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
+			 "proxy GC: Cache is %ld%% full (%d deleted)",
+			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
+    ap_unblock_alarms();
+}
 
-
-    if (timeout_req) {
-
-	/* Someone has asked for this transaction to just be aborted
-
-	 * if it times out...
-
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

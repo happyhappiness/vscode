@@ -1,268 +1,108 @@
-    }
-
-
-
-    if (szFilePart < buf+3) {
-
-	ap_assert(strlen(buf) < nCanon);
-
-        strcpy(szCanon, buf);
-
-	if(szCanon[0] != '\\') { /* a \ at the start means it is UNC, otherwise it is x: */
-
-	    ap_assert(ap_isalpha(szCanon[0]));
-
-	    ap_assert(szCanon[1] == ':');
-
-	    szCanon[2] = '/';
-
-	}
-
-	else {
-
-	    char *s;
-
-
-
-	    ap_assert(szCanon[1] == '\\');
-
-	    for(s=szCanon ; *s ; ++s)
-
-		if(*s == '\\')
-
-		    *s='/';
-
-	}
-
-        return TRUE;
-
-    }
-
-    if (szFilePart != buf+3) {
-
-        char b2[_MAX_PATH];
-
-	char b3[_MAX_PATH];
-
-        ap_assert(szFilePart > buf+3);
-
-	/* avoid SEGVs on things like "Directory *" */
-
-	ap_assert(s >= szFile && "this is a known bug");
-
-
-
-	memcpy(b3,szFile,s-szFile);
-
-	b3[s-szFile]='\0';
-
-
-
-//        szFilePart[-1]='\0';
-
-        sub_canonical_filename(b2, sizeof b2, b3);
-
-
-
-	ap_assert(strlen(b2)+1 < nCanon);
-
-        strcpy(szCanon, b2);
-
-        strcat(szCanon, "/");
-
-    }
-
-    else {
-
-	ap_assert(strlen(buf) < nCanon);
-
-        strcpy(szCanon, buf);
-
-        szCanon[2] = '/';
-
-        szCanon[3] = '\0';
-
-    }
-
-    if (h == INVALID_HANDLE_VALUE) {
-
-	ap_assert(strlen(szCanon)+strlen(szFilePart)+nSlashes < nCanon);
-
-	for(n=0 ; n < nSlashes ; ++n)
-
-	    strcat(szCanon, "/");
-
-        strcat(szCanon, szFilePart);
-
-	return FALSE;
-
-    }
-
-    else {
-
-	ap_assert(strlen(szCanon)+strlen(d.cFileName) < nCanon);
-
-        strlwr(d.cFileName);
-
-        strcat(szCanon, d.cFileName);
-
-	return TRUE;
-
-    }
-
-}
-
-
-
-/* UNC requires backslashes, hence the conversion before canonicalisation. 
-
- * Not sure how * many backslashes (could be that 
-
- * \\machine\share\some/path/is/ok for example). For now, do them all.
-
- */
-
-API_EXPORT(char *) ap_os_canonical_filename(pool *pPool, const char *szFile)
-
-{
-
-    char buf[HUGE_STRING_LEN];
-
-    char b2[HUGE_STRING_LEN];
-
-    const char *s;
-
-    char *d;
-
-    int nSlashes;
-
-
-
-    ap_assert(strlen(szFile) < sizeof b2);
-
-
-
-    /* Eliminate directories consisting of three or more dots.
-
-       These act like ".." but are not detected by other machinery.
-
-       Also get rid of trailing .s on any path component, which are ignored by the filesystem.
-
-       Simultaneously, rewrite / to \.
-
-       This is a bit of a kludge - Ben.
-
-    */
-
-    for(s=szFile,d=b2 ; (*d=*s) ; ++d,++s) {
-
-	if(*s == '/')
-
-	    *d='\\';
-
-	if(*s == '.' && (s[1] == '/' || s[1] == '\\' || !s[1])) {
-
-	    while(*d == '.')
-
-		--d;
-
-	    if(*d == '\\')
-
-		--d;
-
-	    }
-
-	}
-
-    // Finally, a trailing slash(es) screws thing, so blow them away
-
-    for(nSlashes=0 ; d > b2 && d[-1] == '\\' ; --d,++nSlashes)
-
-	;
-
-    /* XXXX this breaks '/' and 'c:/' cases */
-
-    *d='\0';
-
-
-
-    sub_canonical_filename(buf, sizeof buf, b2);
-
-
-
-    buf[0]=ap_tolower(buf[0]);
-
-
-
-    ap_assert(strlen(buf)+nSlashes < sizeof buf);
-
-    while(nSlashes--)
-
-        strcat(buf, "/");
-
-
-
-    return ap_pstrdup(pPool, buf);
-
-}
-
-
-
-/* Win95 doesn't like trailing /s. NT and Unix don't mind. This works 
-
- * around the problem.
-
- * Errr... except if it is UNC and we are referring to the root of 
-
- * the UNC, we MUST have a trailing \ and we can't use /s. Jeez. 
-
- * Not sure if this refers to all UNCs or just roots,
-
- * but I'm going to fix it for all cases for now. (Ben)
-
- */
-
-
-
-#undef stat
-
-API_EXPORT(int) os_stat(const char *szPath, struct stat *pStat)
-
-{
-
-    int n;
-
-
-
-    /* be sure it is has a drive letter or is a UNC path; everything
-
-     * _must_ be canonicalized before getting to this point.  
-
+#endif
+
+    /* Since we are reading from one buffer and writing to another,
+     * it is unsafe to do a soft_timeout here, at least until the proxy
+     * has its own timeout handler which can set both buffers to EOUT.
      */
 
-    if (szPath[1] != ':' && szPath[1] != '/') {
+    ap_kill_timeout(r);
 
-	ap_log_error(APLOG_MARK, APLOG_ERR, NULL, 
+#ifdef WIN32
+    /* works fine under win32, so leave it */
+    ap_hard_timeout("proxy send body", r);
+    alt_to = 0;
+#else
+    /* CHECKME! Since hard_timeout won't work in unix on sends with partial
+     * cache completion, we have to alternate between hard_timeout
+     * for reads, and soft_timeout for send.  This is because we need
+     * to get a return from ap_bwrite to be able to continue caching.
+     * BUT, if we *can't* continue anyway, just use hard_timeout.
+     */
 
-	    "Invalid path in os_stat: \"%s\", should have a drive letter "
+    if (c) {
+        if (c->len <= 0 || c->cache_completion == 1) {
+            ap_hard_timeout("proxy send body", r);
+            alt_to = 0;
+        }
+    } else {
+        ap_hard_timeout("proxy send body", r);
+        alt_to = 0;
+    }
+#endif
 
-	    "or be a UNC path", szPath);
+    while (ok && f != NULL) {
+        if (alt_to)
+            ap_hard_timeout("proxy send body", r);
 
-	return (-1);
+	n = ap_bread(f, buf, IOBUFSIZE);
 
+        if (alt_to)
+            ap_kill_timeout(r);
+        else
+            ap_reset_timeout(r);
+
+	if (n == -1) {		/* input error */
+	    if (f2 != NULL)
+		f2 = ap_proxy_cache_error(c);
+	    break;
+	}
+	if (n == 0)
+	    break;		/* EOF */
+	o = 0;
+	total_bytes_rcv += n;
+
+        if (f2 != NULL) {
+            if (ap_bwrite(f2, &buf[0], n) != n) {
+		f2 = ap_proxy_cache_error(c);
+            } else {
+                c->written += n;
+            }
+        }
+
+	while (n && !con->aborted) {
+            if (alt_to)
+                ap_soft_timeout("proxy send body", r);
+
+	    w = ap_bwrite(con->client, &buf[o], n);
+
+            if (alt_to)
+                ap_kill_timeout(r);
+            else
+                ap_reset_timeout(r);
+
+	    if (w <= 0) {
+		if (f2 != NULL) {
+                    /* when a send failure occurs, we need to decide
+                     * whether to continue loading and caching the
+                     * document, or to abort the whole thing
+                     */
+                    ok = (c->len > 0) &&
+                         (c->cache_completion > 0) &&
+                         (c->len * c->cache_completion < total_bytes_rcv);
+
+                    if (! ok) {
+                        ap_pclosef(c->req->pool, c->fp->fd);
+                        c->fp = NULL;
+                        f2 = NULL;
+                        unlink(c->tempfile);
+                    }
+		}
+                con->aborted = 1;
+		break;
+	    }
+	    n -= w;
+	    o += w;
+	}
     }
 
+    if (!con->aborted)
+	ap_bflush(con->client);
 
+    ap_kill_timeout(r);
+    return total_bytes_rcv;
+}
 
-    if(szPath[0] == '/') {
-
-	char buf[_MAX_PATH];
-
-	char *s;
-
-	int nSlashes=0;
-
-
-
-++ apache_1.3.1/src/regex/debug.c	1998-07-09 01:47:26.000000000 +0800
-
+/*
+ * Read a header from the array, returning the first entry
+ */
+struct hdr_entry *

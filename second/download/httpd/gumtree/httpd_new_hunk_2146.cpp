@@ -1,76 +1,20 @@
-    i = ap_proxy_cache_update(c, resp_hdrs, !backasswards, nocache);
-
-    if (i != DECLINED) {
-
-	ap_bclose(f);
-
-	return i;
-
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
+        }
+        return 0;
     }
 
+    range = ap_getword(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
+    if (r->byterange > 1) {
+        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-    ap_hard_timeout("proxy receive", r);
-
-
-
-/* write status line */
-
-    if (!r->assbackwards)
-
-	ap_rvputs(r, "HTTP/1.0 ", r->status_line, CRLF, NULL);
-
-    if (c != NULL && c->fp != NULL &&
-
-	ap_bvputs(c->fp, "HTTP/1.0 ", r->status_line, CRLF, NULL) == -1)
-
-	c = ap_proxy_cache_error(c);
-
-
-
-/* send headers */
-
-    tdo.req = r;
-
-    tdo.cache = c;
-
-    ap_table_do(ap_proxy_send_hdr_line, &tdo, resp_hdrs, NULL);
-
-
-
-    if (!r->assbackwards)
-
-	ap_rputs(CRLF, r);
-
-    if (c != NULL && c->fp != NULL && ap_bputs(CRLF, c->fp) == -1)
-
-	c = ap_proxy_cache_error(c);
-
-
-
-    ap_bsetopt(r->connection->client, BO_BYTECT, &zero);
-
-    r->sent_bodyct = 1;
-
-/* Is it an HTTP/0.9 respose? If so, send the extra data */
-
-    if (backasswards) {
-
-	ap_bwrite(r->connection->client, buffer, len);
-
-	if (c != NULL && c->fp != NULL && ap_bwrite(c->fp, buffer, len) != len)
-
-	    c = ap_proxy_cache_error(c);
-
-    }
-
-    ap_kill_timeout(r);
-
-
-
-#ifdef CHARSET_EBCDIC
-
-    /* What we read/write after the header should not be modified
-
-     * (i.e., the cache copy is ASCII, not EBCDIC, even for text/html)
-
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

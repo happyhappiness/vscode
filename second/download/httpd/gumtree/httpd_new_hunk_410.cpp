@@ -1,32 +1,10 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
 
-		MODNAME ": revision_suffix checking %s", r->filename);
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
+#endif
 
-#endif /* MIME_MAGIC_DEBUG */
-
-
-
-    /* check for recognized revision suffix */
-
-    suffix_pos = strlen(r->filename) - 1;
-
-    if (!ap_isdigit(r->filename[suffix_pos])) {
-
-	return 0;
-
-    }
-
-    while (suffix_pos >= 0 && ap_isdigit(r->filename[suffix_pos]))
-
-	suffix_pos--;
-
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-
-	return 0;
-
-    }
-
-
-
-    /* perform sub-request for the file name without the suffix */
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

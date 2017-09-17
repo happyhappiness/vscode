@@ -1,44 +1,13 @@
-	case 'l':
 
-	    ap_show_modules();
+    /* Domain name must start with a '.' */
+    if (addr[0] != '.')
+	return 0;
 
-	    exit(0);
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
+	continue;
 
-	case 'X':
-
-	    ++one_process;	/* Weird debugging mode. */
-
-	    break;
-
-	case '?':
-
-	    usage(argv[0]);
-
-	}
-
-    }
-
-
-
-    if (!child && run_as_service) {
-
-	service_cd();
-
-    }
-
-
-
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (!child) {
-
-	ap_log_pid(pconf, ap_pid_fname);
-
-    }
-
-    ap_set_version();
-
-    ap_init_modules(pconf, server_conf);
-
-    ap_suexec_enabled = init_suexec();
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
+	/* @@@@ handle optional port */

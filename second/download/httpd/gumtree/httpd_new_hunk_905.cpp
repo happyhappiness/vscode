@@ -1,54 +1,46 @@
+	ap_destroy_sub_req(pa_req);
+    }
+}
+
+
+static int scan_script_header_err_core(request_rec *r, char *buffer,
+				       int (*getsfunc) (char *, int, void *),
+				       void *getsfunc_data)
+{
+    char x[MAX_STRING_LEN];
+    char *w, *l;
+    int p;
+    int cgi_status = HTTP_OK;
+
+    if (buffer) {
+	*buffer = '\0';
+    }
+    w = buffer ? buffer : x;
+
+    ap_hard_timeout("read script header", r);
+
+    while (1) {
+
+	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
+	    ap_kill_timeout(r);
 	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			"malformed header in meta file: %s", r->filename);
-
+			 "Premature end of script headers: %s", r->filename);
 	    return SERVER_ERROR;
-
 	}
 
+	/* Delete terminal (CR?)LF */
 
-
-	*l++ = '\0';
-
-	while (*l && ap_isspace(*l))
-
-	    ++l;
-
-
-
-	if (!strcasecmp(w, "Content-type")) {
-
-	    char *tmp;
-
-	    /* Nuke trailing whitespace */
-
-
-
-	    char *endp = l + strlen(l) - 1;
-
-	    while (endp > l && ap_isspace(*endp))
-
-		*endp-- = '\0';
-
-
-
-	    tmp = ap_pstrdup(r->pool, l);
-
-	    ap_content_type_tolower(tmp);
-
-	    r->content_type = tmp;
-
+	p = strlen(w);
+	if (p > 0 && w[p - 1] == '\n') {
+	    if (p > 1 && w[p - 2] == '\015') {
+		w[p - 2] = '\0';
+	    }
+	    else {
+		w[p - 1] = '\0';
+	    }
 	}
 
-	else if (!strcasecmp(w, "Status")) {
-
-	    sscanf(l, "%d", &r->status);
-
-	    r->status_line = ap_pstrdup(r->pool, l);
-
-	}
-
-	else {
-
-++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
-
+	/*
+	 * If we've finished reading the headers, check to make sure any
+	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
+	 * will handle the script's output.  If not, just return the error.

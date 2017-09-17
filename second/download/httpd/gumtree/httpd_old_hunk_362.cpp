@@ -1,58 +1,18 @@
-	}
+    ap_table_setn(r->err_headers_out,
+	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
+	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
+		ap_auth_name(r), r->request_time));
+}
 
+API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
+{
+    const char *auth_line = ap_table_get(r->headers_in,
+                                      r->proxyreq ? "Proxy-Authorization"
+                                                  : "Authorization");
+    char *t;
 
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-
-	 * Leading and trailing white space is eliminated completely
-
-	 */
-
-	src = dst = buf;
-
-	while (isspace(*src))
-
-	    ++src;
-
-	while (*src != '\0')
-
-	{
-
-	    /* Copy words */
-
-	    while (!isspace(*dst = *src) && *src != '\0') {
-
-		++src;
-
-		++dst;
-
-	    }
-
-	    if (*src == '\0') break;
-
-	    *dst++ = ' ';
-
-	    while (isspace(*src))
-
-		++src;
-
-	}
-
-	*dst = '\0';
-
-	/* blast trailing whitespace */
-
-	while (--dst >= buf && isspace(*dst))
-
-	    *dst = '\0';
-
-
-
-#ifdef DEBUG_CFG_LINES
-
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-
-#endif
-
-	return 0;
-
+    if (!ap_auth_name(r)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

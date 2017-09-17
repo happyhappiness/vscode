@@ -1,176 +1,36 @@
-	    if (!(autoindex_opts & SUPPRESS_SIZE)) {
-
-		ap_send_size(ar[x]->size, r);
-
-		ap_rputs("  ", r);
-
-	    }
-
-	    if (!(autoindex_opts & SUPPRESS_DESC)) {
-
-		if (ar[x]->desc) {
-
-		    ap_rputs(terminate_description(d, ar[x]->desc,
-
-						   autoindex_opts), r);
-
-		}
-
-	    }
-
-	}
-
-	else {
-
-	    ap_rvputs(r, "<LI> ", anchor, " ", t2, NULL);
-
-	}
-
-	ap_rputc('\n', r);
-
-    }
-
-    if (autoindex_opts & FANCY_INDEXING) {
-
-	ap_rputs("</PRE>", r);
-
-    }
-
-    else {
-
-	ap_rputs("</UL>", r);
-
-    }
-
-}
-
-
-
-/*
-
- * Compare two file entries according to the sort criteria.  The return
-
- * is essentially a signum function value.
-
- */
-
-
-
-static int dsortf(struct ent **e1, struct ent **e2)
-
-{
-
-    struct ent *c1;
-
-    struct ent *c2;
-
-    int result = 0;
-
-
-
-    /*
-
-     * First, see if either of the entries is for the parent directory.
-
-     * If so, that *always* sorts lower than anything else.
-
-     */
-
-    if (is_parent((*e1)->name)) {
-
-        return -1;
-
-    }
-
-    if (is_parent((*e2)->name)) {
-
-        return 1;
-
-    }
-
-    /*
-
-     * All of our comparisons will be of the c1 entry against the c2 one,
-
-     * so assign them appropriately to take care of the ordering.
-
-     */
-
-    if ((*e1)->ascending) {
-
-        c1 = *e1;
-
-        c2 = *e2;
-
-    }
-
-    else {
-
-        c1 = *e2;
-
-        c2 = *e1;
-
-    }
-
-    switch (c1->key) {
-
-    case K_LAST_MOD:
-
-	if (c1->lm > c2->lm) {
-
-            return 1;
-
-        }
-
-        else if (c1->lm < c2->lm) {
-
-            return -1;
-
-        }
-
-        break;
-
-    case K_SIZE:
-
-        if (c1->size > c2->size) {
-
-            return 1;
-
-        }
-
-        else if (c1->size < c2->size) {
-
-            return -1;
-
-        }
-
-        break;
-
-    case K_DESC:
-
-        result = strcmp(c1->desc ? c1->desc : "", c2->desc ? c2->desc : "");
-
-        if (result) {
-
-            return result;
-
-        }
-
-        break;
-
-    }
-
-    return strcmp(c1->name, c2->name);
-
-}
-
-
-
-
-
-static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
-
-{
-
-    char *title_name = ap_escape_html(r->pool, r->uri);
-
+#endif
+
+    ap_soft_timeout("send body", r);
+
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+#ifdef NDELAY_PIPE_RETURNS_ZERO
+	/* Contributed by dwd@bell-labs.com for UTS 2.1.2, where the fcntl */
+	/*   O_NDELAY flag causes read to return 0 when there's nothing */
+	/*   available when reading from a pipe.  That makes it tricky */
+	/*   to detect end-of-file :-(.  This stupid bug is even documented */
+	/*   in the read(2) man page where it says that everything but */
+	/*   pipes return -1 and EAGAIN.  That makes it a feature, right? */
+	int afterselect = 0;
+#endif
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
+
+        do {
+            n = ap_bread(fb, buf, len);
+#ifdef NDELAY_PIPE_RETURNS_ZERO
+	    if ((n > 0) || (n == 0 && afterselect))
+		break;
+#else
+            if (n >= 0)
+                break;
+#endif
+            if (r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

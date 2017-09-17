@@ -1,64 +1,18 @@
-	    ap_pclosesocket(p, dsock);	/* and try the regular way */
-
+    if (i == 530) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Not logged in");
+    }
+    if (i != 230 && i != 331) {
+	ap_kill_timeout(r);
+	return HTTP_BAD_GATEWAY;
     }
 
-
-
-    if (!pasvmode) {		/* set up data connection */
-
-	clen = sizeof(struct sockaddr_in);
-
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-			 "proxy: error getting socket address");
-
-	    ap_bclose(f);
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
-	}
-
-
-
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-	if (dsock == -1) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-			 "proxy: error creating socket");
-
-	    ap_bclose(f);
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
-	}
-
-
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-
-		       sizeof(one)) == -1) {
-
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-			 "proxy: error setting reuseaddr option");
-
-	    ap_pclosesocket(p, dsock);
-
-	    ap_bclose(f);
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
-#endif /*_OSD_POSIX*/
-
+    if (i == 331) {		/* send password */
+	if (password == NULL)
+	    return HTTP_FORBIDDEN;
+	ap_bputs("PASS ", f);
+	ap_bwrite(f, password, passlen);
+	ap_bputs(CRLF, f);
+	ap_bflush(f);
+	Explain1("FTP: PASS %s", password);
+/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

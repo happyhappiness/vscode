@@ -1,26 +1,15 @@
-    case LELONG:
+    ap_hard_timeout("send directory", r);
 
-    case LEDATE:
+    /* Spew HTML preamble */
 
-	p->l = (long)
+    title_endp = title_name + strlen(title_name) - 1;
 
-	    ((p->hl[3] << 24) | (p->hl[2] << 16) | (p->hl[1] << 8) | (p->hl[0]));
-
-	return 1;
-
-    default:
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
-
-		    MODNAME ": invalid type %d in mconvert().", m->type);
-
-	return 0;
-
+    while (title_endp > title_name && *title_endp == '/') {
+	*title_endp-- = '\0';
     }
 
-}
-
-
-
-
-
+    if ((!(tmp = find_header(autoindex_conf, r)))
+	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
+	) {
+	emit_preamble(r, title_name);
+	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);

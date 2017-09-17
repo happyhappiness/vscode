@@ -1,30 +1,13 @@
-	     * Kill child processes, tell them to call child_exit, etc...
 
-	     */
+    /* Host names must not start with a '.' */
+    if (addr[0] == '.')
+	return 0;
 
-	    if (ap_killpg(pgrp, SIGTERM) < 0) {
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
 
-		ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "killpg SIGTERM");
-
-	    }
-
-	    reclaim_child_processes(1);		/* Start with SIGTERM */
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-
-			"httpd: caught SIGTERM, shutting down");
-
-
-
-	    clean_parent_exit(0);
-
-	}
-
-
-
-	/* we've been told to restart */
-
-	signal(SIGHUP, SIG_IGN);
-
-	signal(SIGUSR1, SIG_IGN);
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
+	/* @@@@ handle optional port */
+    }

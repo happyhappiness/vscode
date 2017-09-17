@@ -1,26 +1,20 @@
+	     */
+	    break;
+#endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
+    }
 
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-    while (1) {
+    child_timeouts = !ap_standalone || one_process;
 
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-
-            return 1;
-
-        }
-
-        if (!strcmp(tag, "var")) {
-
-            char *val = ap_table_get(r->subprocess_env, tag_val);
-
-
-
-            if (val) {
-
-                ap_rputs(val, r);
-
-            }
-
-            else {
-
-                ap_rputs("(none)", r);
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

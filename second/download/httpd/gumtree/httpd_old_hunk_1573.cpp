@@ -1,28 +1,20 @@
-                error_fmt = "unable to include \"%s\" in parsed file %s";
-
-            }
-
-#ifndef WIN32
-
-            ap_chdir_file(r->filename);
-
+	     */
+	    break;
 #endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
+    }
 
-            if (error_fmt) {
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+    child_timeouts = !ap_standalone || one_process;
 
-			    r->server, error_fmt, tag_val, r->filename);
-
-                ap_rputs(error, r);
-
-            }
-
-
-
-	    /* destroy the sub request if it's not a nested include */
-
-            if (rr != NULL
-
-		&& ap_get_module_config(rr->request_config, &includes_module)
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

@@ -1,52 +1,49 @@
-     */
+	    return cond_status;
+	}
 
-    if (r->read_body == REQUEST_CHUNKED_PASS)
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
-        bufsiz -= 2;
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
+			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
 
-    if (bufsiz <= 0)
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
-        return -1;              /* Cannot read chunked with a small buffer */
+	    if (!buffer) {
+		/* Soak up all the script output - may save an outright kill */
+	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
+		    continue;
+		}
+	    }
 
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			 "%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
+	}
 
+	*l++ = '\0';
+	while (*l && ap_isspace(*l)) {
+	    ++l;
+	}
 
-    /* Check to see if we have already read too much request data.
+	if (!strcasecmp(w, "Content-type")) {
+	    char *tmp;
 
-     * For efficiency reasons, we only check this at the top of each
+	    /* Nuke trailing whitespace */
 
-     * caller read pass, since the limit exists just to stop infinite
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && ap_isspace(*endp)) {
+		*endp-- = '\0';
+	    }
 
-     * length requests and nobody cares if it goes over by one buffer.
-
-     */
-
-    max_body = ap_get_limit_req_body(r);
-
-    if (max_body && (r->read_length > max_body)) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-            "Chunked request body is larger than the configured limit of %lu",
-
-            max_body);
-
-        r->connection->keepalive = -1;
-
-        return -1;
-
-    }
-
-
-
-    if (r->remaining == 0) {    /* Start of new chunk */
-
-
-
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-
-            || !isxdigit(*buffer)) {
-
-            r->connection->keepalive = -1;
-
+	    tmp = ap_pstrdup(r->pool, l);
+	    ap_content_type_tolower(tmp);
+	    r->content_type = tmp;
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

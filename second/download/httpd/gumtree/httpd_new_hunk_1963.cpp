@@ -1,28 +1,15 @@
-		    ap_rputs(terminate_description(d, ar[x]->desc,
+    ap_hard_timeout("send directory", r);
 
-						   autoindex_opts), r);
+    /* Spew HTML preamble */
 
-		}
+    title_endp = title_name + strlen(title_name) - 1;
 
-	    }
-
-	}
-
-	else {
-
-	    ap_rvputs(r, "<LI><A HREF=\"", anchor, "\"> ", t2,
-
-		      "</A>", pad, NULL);
-
-	}
-
-	ap_rputc('\n', r);
-
+    while (title_endp > title_name && *title_endp == '/') {
+	*title_endp-- = '\0';
     }
 
-    if (autoindex_opts & FANCY_INDEXING) {
-
-	ap_rputs("</PRE>", r);
-
-    }
-
+    if ((!(tmp = find_header(autoindex_conf, r)))
+	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
+	) {
+	emit_preamble(r, title_name);
+	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);

@@ -1,34 +1,21 @@
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
+	}
+	else
+#endif
+	{
+	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
+	    if (cmp_long61(&curbytes, &cachesize) < 0)
+		break;
+	}
     }
 
-    else {
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
+			 "proxy GC: Cache is %ld%% full (%d deleted)",
+			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
+    ap_unblock_alarms();
+}
 
-	alarm_fn = fn;
-
-	alarm_expiry_time = time(NULL) + x;
-
-    }
-
-#else
-
-    if (alarm_fn && x && fn != alarm_fn) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
-
-	    "ap_set_callback_and_alarm: possible nested timer!");
-
-    }
-
-    alarm_fn = fn;
-
-#ifndef OPTIMIZE_TIMEOUTS
-
-    old = alarm(x);
-
-#else
-
-    if (child_timeouts) {
-
-	old = alarm(x);
-
-    }
-
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

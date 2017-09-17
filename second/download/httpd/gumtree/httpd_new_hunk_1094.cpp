@@ -1,26 +1,13 @@
-#elif defined(NEXT) || defined(NEWSOS)
-
-    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
-
-	perror("setpgrp");
-
-	fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
-
-	exit(1);
-
+	else
+	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
+				"Could not connect to remote machine: ",
+				strerror(errno), NULL));
     }
 
-#elif defined(OS2)
+    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
 
-    /* OS/2 don't support process group IDs */
+    f = ap_bcreate(p, B_RDWR | B_SOCKET);
+    ap_bpushfd(f, sock, sock);
 
-    pgrp = getpid();
-
-#elif defined(MPE)
-
-    /* MPE uses negative pid for process group */
-
-    pgrp = -getpid();
-
-#else
-
+    ap_hard_timeout("proxy send", r);
+    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,

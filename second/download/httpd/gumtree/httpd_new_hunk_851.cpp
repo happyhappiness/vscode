@@ -1,202 +1,46 @@
- * and OPTIONS at this point... anyone who wants to write a generic
-
- * handler for PUT or POST is free to do so, but it seems unwise to provide
-
- * any defaults yet... So, for now, we assume that this will always be
-
- * the last handler called and return 405 or 501.
-
- */
+	ap_destroy_sub_req(pa_req);
+    }
+}
 
 
-
-static int default_handler(request_rec *r)
-
+static int scan_script_header_err_core(request_rec *r, char *buffer,
+				       int (*getsfunc) (char *, int, void *),
+				       void *getsfunc_data)
 {
+    char x[MAX_STRING_LEN];
+    char *w, *l;
+    int p;
+    int cgi_status = HTTP_OK;
 
-    core_dir_config *d =
-
-      (core_dir_config *)ap_get_module_config(r->per_dir_config, &core_module);
-
-    int rangestatus, errstatus;
-
-    FILE *f;
-
-#ifdef USE_MMAP_FILES
-
-    caddr_t mm;
-
-#endif
-
-
-
-    /* This handler has no use for a request body (yet), but we still
-
-     * need to read and discard it if the client sent one.
-
-     */
-
-    if ((errstatus = ap_discard_request_body(r)) != OK) {
-
-        return errstatus;
-
+    if (buffer) {
+	*buffer = '\0';
     }
+    w = buffer ? buffer : x;
 
+    ap_hard_timeout("read script header", r);
 
+    while (1) {
 
-    r->allowed |= (1 << M_GET) | (1 << M_OPTIONS);
-
-
-
-    if (r->method_number == M_INVALID) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		    "Invalid method in request %s", r->the_request);
-
-	return NOT_IMPLEMENTED;
-
-    }
-
-    if (r->method_number == M_OPTIONS) {
-
-        return ap_send_http_options(r);
-
-    }
-
-    if (r->method_number == M_PUT) {
-
-        return METHOD_NOT_ALLOWED;
-
-    }
-
-
-
-    if (r->finfo.st_mode == 0 || (r->path_info && *r->path_info)) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server, 
-
-                    "File does not exist: %s", 
-
-		     r->path_info 
-
-		         ? ap_pstrcat(r->pool, r->filename, r->path_info, NULL)
-
-		         : r->filename);
-
-	return NOT_FOUND;
-
-    }
-
-    if (r->method_number != M_GET) {
-
-        return METHOD_NOT_ALLOWED;
-
-    }
-
-	
-
-#if defined(__EMX__) || defined(WIN32)
-
-    /* Need binary mode for OS/2 */
-
-    f = ap_pfopen(r->pool, r->filename, "rb");
-
-#else
-
-    f = ap_pfopen(r->pool, r->filename, "r");
-
-#endif
-
-
-
-    if (f == NULL) {
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "file permissions deny server access: %s", r->filename);
-
-        return FORBIDDEN;
-
-    }
-
-	
-
-    ap_update_mtime(r, r->finfo.st_mtime);
-
-    ap_set_last_modified(r);
-
-    ap_set_etag(r);
-
-    ap_table_setn(r->headers_out, "Accept-Ranges", "bytes");
-
-    if (((errstatus = ap_meets_conditions(r)) != OK)
-
-	|| (errstatus = ap_set_content_length(r, r->finfo.st_size))) {
-
-        return errstatus;
-
-    }
-
-
-
-#ifdef USE_MMAP_FILES
-
-    ap_block_alarms();
-
-    if ((r->finfo.st_size >= MMAP_THRESHOLD)
-
-	&& (!r->header_only || (d->content_md5 & 1))) {
-
-	/* we need to protect ourselves in case we die while we've got the
-
- 	 * file mmapped */
-
-	mm = mmap(NULL, r->finfo.st_size, PROT_READ, MAP_PRIVATE,
-
-		  fileno(f), 0);
-
-	if (mm == (caddr_t)-1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
-
-			 "default_handler: mmap failed: %s", r->filename);
-
+	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			 "Premature end of script headers: %s", r->filename);
+	    return SERVER_ERROR;
 	}
 
-    }
+	/* Delete terminal (CR?)LF */
 
-    else {
-
-	mm = (caddr_t)-1;
-
-    }
-
-
-
-    if (mm == (caddr_t)-1) {
-
-	ap_unblock_alarms();
-
-#endif
-
-
-
-	if (d->content_md5 & 1) {
-
-	    ap_table_setn(r->headers_out, "Content-MD5",
-
-			  ap_md5digest(r->pool, f));
-
+	p = strlen(w);
+	if (p > 0 && w[p - 1] == '\n') {
+	    if (p > 1 && w[p - 2] == '\015') {
+		w[p - 2] = '\0';
+	    }
+	    else {
+		w[p - 1] = '\0';
+	    }
 	}
 
-
-
-	rangestatus = ap_set_byterange(r);
-
-#ifdef CHARSET_EBCDIC
-
-	/* To make serving of "raw ASCII text" files easy (they serve faster 
-
-	 * since they don't have to be converted from EBCDIC), a new
-
+	/*
+	 * If we've finished reading the headers, check to make sure any
+	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
+	 * will handle the script's output.  If not, just return the error.

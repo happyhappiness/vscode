@@ -1,46 +1,17 @@
-#ifdef USE_PERL_SSI
 
-            else if (!strcmp(directive, "perl")) {
+    if (i != DECLINED) {
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	return i;
+    }
 
-                ret = handle_perl(f, r, error);
+    cache = c->fp;
 
-            }
+    c->hdrs = resp_hdrs;
 
-#endif
-
-            else {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "httpd: unknown directive \"%s\" "
-
-                            "in parsed doc %s",
-
-                            directive, r->filename);
-
-                if (printing) {
-
-                    ap_rputs(error, r);
-
-                }
-
-                ret = find_string(f, ENDING_SEQUENCE, r, 0);
-
-            }
-
-            if (ret) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "httpd: premature EOF in parsed file %s",
-
-                            r->filename);
-
-                return;
-
-            }
-
-        }
-
-        else {
-
+    if (!pasvmode) {		/* wait for connection */
+	ap_hard_timeout("proxy ftp data connect", r);
+	clen = sizeof(struct sockaddr_in);
+	do
+	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
+	while (csd == -1 && errno == EINTR);

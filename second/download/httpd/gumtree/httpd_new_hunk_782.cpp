@@ -1,130 +1,28 @@
-
-
-static int getsfunc_FILE(char *buf, int len, void *f)
-
-{
-
-    return fgets(buf, len, (FILE *) f) != NULL;
-
+#ifdef SHARED_CORE
+    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
+#else
+    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
+#endif
+    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
+    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S] [-t]\n", pad);
+    fprintf(stderr, "Options:\n");
+#ifdef SHARED_CORE
+    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
+#endif
+    fprintf(stderr, "  -D name          : define a name for use in <IfDefine name> directives\n");
+    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
+    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
+    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
+    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
+    fprintf(stderr, "  -v               : show version number\n");
+    fprintf(stderr, "  -V               : show compile settings\n");
+    fprintf(stderr, "  -h               : list available configuration directives\n");
+    fprintf(stderr, "  -l               : list compiled-in modules\n");
+    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
+    fprintf(stderr, "  -t               : run syntax test for configuration files only\n");
+    exit(1);
 }
 
-
-
-API_EXPORT(int) ap_scan_script_header_err(request_rec *r, FILE *f,
-
-					  char *buffer)
-
-{
-
-    return scan_script_header_err_core(r, buffer, getsfunc_FILE, f);
-
-}
-
-
-
-static int getsfunc_BUFF(char *w, int len, void *fb)
-
-{
-
-    return ap_bgets(w, len, (BUFF *) fb) > 0;
-
-}
-
-
-
-API_EXPORT(int) ap_scan_script_header_err_buff(request_rec *r, BUFF *fb,
-
-					       char *buffer)
-
-{
-
-    return scan_script_header_err_core(r, buffer, getsfunc_BUFF, fb);
-
-}
-
-
-
-
-
-API_EXPORT(void) ap_send_size(size_t size, request_rec *r)
-
-{
-
-    /* XXX: this -1 thing is a gross hack */
-
-    if (size == (size_t)-1) {
-
-	ap_rputs("    -", r);
-
-    }
-
-    else if (!size) {
-
-	ap_rputs("   0k", r);
-
-    }
-
-    else if (size < 1024) {
-
-	ap_rputs("   1k", r);
-
-    }
-
-    else if (size < 1048576) {
-
-	ap_rprintf(r, "%4dk", (size + 512) / 1024);
-
-    }
-
-    else if (size < 103809024) {
-
-	ap_rprintf(r, "%4.1fM", size / 1048576.0);
-
-    }
-
-    else {
-
-	ap_rprintf(r, "%4dM", (size + 524288) / 1048576);
-
-    }
-
-}
-
-
-
-#if defined(__EMX__) || defined(WIN32)
-
-static char **create_argv_cmd(pool *p, char *av0, const char *args, char *path)
-
-{
-
-    register int x, n;
-
-    char **av;
-
-    char *w;
-
-
-
-    for (x = 0, n = 2; args[x]; x++) {
-
-        if (args[x] == '+') {
-
-	    ++n;
-
-	}
-
-    }
-
-
-
-    /* Add extra strings to array. */
-
-    n = n + 2;
-
-
-
-    av = (char **) ap_palloc(p, (n + 1) * sizeof(char *));
-
-    av[0] = av0;
-
+/*****************************************************************
+ *
+ * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff

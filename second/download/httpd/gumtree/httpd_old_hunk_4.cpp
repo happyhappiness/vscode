@@ -1,20 +1,13 @@
-/* Automatically generated file - do not edit */
-
-
-
-#ifndef LINUX
-
-#define LINUX 2
-
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+    }
 #endif
 
-#ifndef USE_HSREGEX
-
-#define USE_HSREGEX 
-
-#endif
-
-nly in apache_1.3.1/src/include: ap_ctype.h
-
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
-
+    for (i = 0; i < t->a.nelts; ) {

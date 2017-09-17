@@ -1,26 +1,13 @@
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		   sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
+	ap_pclosesocket(p, sock);
+	return SERVER_ERROR;
+#endif /*_OSD_POSIX*/
+    }
 
-
-    /*
-
-     * Now that we are ready to send a response, we need to combine the two
-
-     * header field tables into a single table.  If we don't do this, our
-
-     * later attempts to set or unset a given fieldname might be bypassed.
-
-     */
-
-    if (!is_empty_table(r->err_headers_out))
-
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-
-                                        r->headers_out);
-
-
-
-    ap_hard_timeout("send headers", r);
-
-
-
-    ap_basic_http_header(r);
-
+#ifdef SINIX_D_RESOLVER_BUG
+    {
+	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;

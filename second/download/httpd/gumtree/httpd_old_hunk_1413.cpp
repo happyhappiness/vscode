@@ -1,46 +1,14 @@
-	/* fatal error, bail out */
+#include "http_main.h"
+#include "http_request.h"
 
-	return result;
+static int asis_handler(request_rec *r)
+{
+    FILE *f;
+    char *location;
 
-    }
-
-
-
-    if ((fd = ap_popenf(r->pool, r->filename, O_RDONLY, 0)) < 0) {
-
-	/* We can't open it, but we were able to stat it. */
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    MODNAME ": can't read `%s'", r->filename);
-
-	/* let some other handler decide what the problem is */
-
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
 	return DECLINED;
-
-    }
-
-
-
-    /*
-
-     * try looking at the first HOWMANY bytes
-
-     */
-
-    if ((nbytes = read(fd, (char *) buf, sizeof(buf) - 1)) == -1) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    MODNAME ": read failed: %s", r->filename);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-    if (nbytes == 0)
-
-	magic_rsl_puts(r, MIME_TEXT_UNKNOWN);
-
+    if (r->finfo.st_mode == 0) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+-- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800

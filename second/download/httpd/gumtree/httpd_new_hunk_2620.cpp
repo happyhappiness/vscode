@@ -1,26 +1,49 @@
-	return log_scripterror(r, conf, FORBIDDEN, APLOG_NOERRNO,
+	    return cond_status;
+	}
 
-			       "Options ExecCGI is off in this directory");
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
-    if (nph && is_included)
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
+			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
 
-	return log_scripterror(r, conf, FORBIDDEN, APLOG_NOERRNO,
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
-			       "attempt to include NPH CGI script");
+	    if (!buffer) {
+		/* Soak up all the script output - may save an outright kill */
+	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
+		    continue;
+		}
+	    }
 
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			 "%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
+	}
 
+	*l++ = '\0';
+	while (*l && ap_isspace(*l)) {
+	    ++l;
+	}
 
-#if defined(OS2) || defined(WIN32)
+	if (!strcasecmp(w, "Content-type")) {
+	    char *tmp;
 
-    /* Allow for cgi files without the .EXE extension on them under OS/2 */
+	    /* Nuke trailing whitespace */
 
-    if (r->finfo.st_mode == 0) {
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && ap_isspace(*endp)) {
+		*endp-- = '\0';
+	    }
 
-	struct stat statbuf;
-
-
-
-	r->filename = ap_pstrcat(r->pool, r->filename, ".EXE", NULL);
-
-
-
+	    tmp = ap_pstrdup(r->pool, l);
+	    ap_content_type_tolower(tmp);
+	    r->content_type = tmp;
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

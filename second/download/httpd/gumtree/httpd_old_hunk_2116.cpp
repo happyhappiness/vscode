@@ -1,26 +1,13 @@
-	perror("Unable to gethostname");
-
-	exit(1);
-
+    if ((r->method_number == M_POST || r->method_number == M_PUT)
+	&& *dbuf) {
+	fprintf(f, "\n%s\n", dbuf);
     }
 
-    str[MAXHOSTNAMELEN] = '\0';
+    fputs("%response\n", f);
+    hdrs_arr = table_elts(r->err_headers_out);
+    hdrs = (table_entry *) hdrs_arr->elts;
 
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
-
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-
-	fprintf(stderr, "Use ServerName to set it manually.\n");
-
-	exit(1);
-
-    }
-
-
-
-    return server_hostname;
-
-}
-
-
-
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key)
+	    continue;
+	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);

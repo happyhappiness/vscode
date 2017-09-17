@@ -1,154 +1,88 @@
-            }
-
-        }
-
-        else if (!strcmp(tag, "done")) {
-
-            return 0;
-
-        }
-
-        else {
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                        "unknown parameter \"%s\" to tag config in %s",
-
-                        tag, r->filename);
-
-            ap_rputs(error, r);
-
-        }
-
+	    if (!(autoindex_opts & SUPPRESS_SIZE)) {
+		ap_send_size(ar[x]->size, r);
+		ap_rputs("  ", r);
+	    }
+	    if (!(autoindex_opts & SUPPRESS_DESC)) {
+		if (ar[x]->desc) {
+		    ap_rputs(terminate_description(d, ar[x]->desc,
+						   autoindex_opts), r);
+		}
+	    }
+	}
+	else {
+	    ap_rvputs(r, "<LI> ", anchor, " ", t2, NULL);
+	}
+	ap_rputc('\n', r);
     }
-
-}
-
-
-
-
-
-static int find_file(request_rec *r, const char *directive, const char *tag,
-
-                     char *tag_val, struct stat *finfo, const char *error)
-
-{
-
-    char *to_send;
-
-    request_rec *rr;
-
-    int ret=0;
-
-
-
-    if (!strcmp(tag, "file")) {
-
-        ap_getparents(tag_val);    /* get rid of any nasties */
-
-        
-
-        rr = ap_sub_req_lookup_file(tag_val, r);
-
-
-
-        if (rr->status == HTTP_OK && rr->finfo.st_mode != 0) {
-
-            to_send = rr->filename;
-
-            if ((ret = stat(to_send, finfo)) == -1) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-                            "unable to get information about \"%s\" "
-
-                            "in parsed file %s",
-
-                            to_send, r->filename);
-
-                ap_rputs(error, r);
-
-            }
-
-        }
-
-        else {
-
-            ret = -1;
-
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-                        "unable to lookup information about \"%s\" "
-
-                        "in parsed file %s",
-
-                        tag_val, r->filename);
-
-            ap_rputs(error, r);
-
-        }
-
-        
-
-        ap_destroy_sub_req(rr);
-
-        
-
-        return ret;
-
+    if (autoindex_opts & FANCY_INDEXING) {
+	ap_rputs("</PRE>", r);
     }
-
-    else if (!strcmp(tag, "virtual")) {
-
-        rr = ap_sub_req_lookup_uri(tag_val, r);
-
-
-
-        if (rr->status == HTTP_OK && rr->finfo.st_mode != 0) {
-
-            memcpy((char *) finfo, (const char *) &rr->finfo,
-
-                   sizeof(struct stat));
-
-            ap_destroy_sub_req(rr);
-
-            return 0;
-
-        }
-
-        else {
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                        "unable to get information about \"%s\" "
-
-                        "in parsed file %s",
-
-                        tag_val, r->filename);
-
-            ap_rputs(error, r);
-
-            ap_destroy_sub_req(rr);
-
-            return -1;
-
-        }
-
-    }
-
     else {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "unknown parameter \"%s\" to tag %s in %s",
-
-                    tag, directive, r->filename);
-
-        ap_rputs(error, r);
-
-        return -1;
-
+	ap_rputs("</UL>", r);
     }
-
 }
 
+/*
+ * Compare two file entries according to the sort criteria.  The return
+ * is essentially a signum function value.
+ */
+
+static int dsortf(struct ent **e1, struct ent **e2)
+{
+    struct ent *c1;
+    struct ent *c2;
+    int result = 0;
+
+    /*
+     * First, see if either of the entries is for the parent directory.
+     * If so, that *always* sorts lower than anything else.
+     */
+    if (is_parent((*e1)->name)) {
+        return -1;
+    }
+    if (is_parent((*e2)->name)) {
+        return 1;
+    }
+    /*
+     * All of our comparisons will be of the c1 entry against the c2 one,
+     * so assign them appropriately to take care of the ordering.
+     */
+    if ((*e1)->ascending) {
+        c1 = *e1;
+        c2 = *e2;
+    }
+    else {
+        c1 = *e2;
+        c2 = *e1;
+    }
+    switch (c1->key) {
+    case K_LAST_MOD:
+	if (c1->lm > c2->lm) {
+            return 1;
+        }
+        else if (c1->lm < c2->lm) {
+            return -1;
+        }
+        break;
+    case K_SIZE:
+        if (c1->size > c2->size) {
+            return 1;
+        }
+        else if (c1->size < c2->size) {
+            return -1;
+        }
+        break;
+    case K_DESC:
+        result = strcmp(c1->desc ? c1->desc : "", c2->desc ? c2->desc : "");
+        if (result) {
+            return result;
+        }
+        break;
+    }
+    return strcmp(c1->name, c2->name);
+}
+
+
+static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
+{
+    char *title_name = ap_escape_html(r->pool, r->uri);

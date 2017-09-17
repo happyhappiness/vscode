@@ -1,26 +1,13 @@
-                                         REWRITELOCK_MODE)) < 0) {
+    if (!method_restricted)
+	return OK;
 
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+    if (!(sec->auth_authoritative))
+	return DECLINED;
 
-                     "mod_rewrite: Parent could not create RewriteLock "
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
+}
 
-                     "file %s", conf->rewritelockfile);
-
-        exit(1);
-
-    }
-
-#if !defined(__EMX__) && !defined(WIN32)
-
-    /* make sure the childs have access to this file */
-
-    if (geteuid() == 0 /* is superuser */)
-
-        chown(conf->rewritelockfile, ap_user_id, -1 /* no gid change */);
-
-#endif
-
-
-
-    return;
-
+module MODULE_VAR_EXPORT auth_module =
+{
+-- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800

@@ -1,28 +1,22 @@
-	&& (!r->header_only || (d->content_md5 & 1))) {
-
-	/* we need to protect ourselves in case we die while we've got the
-
- 	 * file mmapped */
-
-	mm = mmap(NULL, r->finfo.st_size, PROT_READ, MAP_PRIVATE,
-
-		  fileno(f), 0);
-
-	if (mm == (caddr_t)-1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
-
-			 "default_handler: mmap failed: %s", r->filename);
-
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
 	}
-
+	else
+#endif
+	{
+	    curblocks -= fent->len >> 10;
+	    curbytes -= fent->len & 0x3FF;
+	    if (curbytes < 0) {
+		curbytes += 1024;
+		curblocks--;
+	    }
+	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
+		break;
+	}
     }
+    ap_unblock_alarms();
+}
 
-    else {
-
-	mm = (caddr_t)-1;
-
-    }
-
--- apache_1.3.1/src/main/http_log.c	1998-06-05 04:13:19.000000000 +0800
-
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

@@ -1,28 +1,13 @@
-        store_variant_list(r, neg);
 
-        res = MULTIPLE_CHOICES;
+    while (1) {
+        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
+            return 1;
+        }
+        if (!strcmp(tag, "var")) {
+            char *val = ap_table_get(r->subprocess_env, tag_val);
 
-        goto return_from_multi;
-
-    }
-
-
-
-    if (!best) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "no acceptable variant: %s", r->filename);
-
-
-
-        set_neg_headers(r, neg, na_result);
-
-        store_variant_list(r, neg);
-
-        res = NOT_ACCEPTABLE;
-
-        goto return_from_multi;
-
--- apache_1.3.1/src/modules/standard/mod_rewrite.c	1998-07-18 23:30:46.000000000 +0800
-
+            if (val) {
+                ap_rputs(val, r);
+            }
+            else {
+                ap_rputs("(none)", r);

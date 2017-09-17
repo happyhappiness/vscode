@@ -1,26 +1,20 @@
-        set_neg_headers(r, neg, na_list);
+#endif
 
-        store_variant_list(r, neg);
+    ap_soft_timeout("send body", r);
 
-        return MULTIPLE_CHOICES;
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
 
-    }
-
-
-
-    if (!best) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "no acceptable variant: %s", r->filename);
-
-
-
-        set_neg_headers(r, neg, na_result);
-
-        store_variant_list(r, neg);
-
-        return NOT_ACCEPTABLE;
-
-    }
-
+        do {
+            n = ap_bread(fb, buf, len);
+            if (n >= 0 || r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

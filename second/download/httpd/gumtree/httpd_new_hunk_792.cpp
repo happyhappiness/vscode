@@ -1,26 +1,15 @@
-	return ap_proxyerror(r, err);	/* give up */
+            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+        }
 
-
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (sock == -1) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "proxy: error creating socket");
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
+        r->read_chunked = 1;
     }
+    else if (lenp) {
+        const char *pos = lenp;
 
-
-
-    if (conf->recv_buffer_size) {
-
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-
-	    == -1) {
-
+        while (ap_isdigit(*pos) || ap_isspace(*pos))
+            ++pos;
+        if (*pos != '\0') {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }

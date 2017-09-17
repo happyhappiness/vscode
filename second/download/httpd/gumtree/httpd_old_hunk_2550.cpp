@@ -1,26 +1,22 @@
-     * you access /symlink (or /symlink/) you would get a 403 without this
-
-     * S_ISDIR test.  But if you accessed /symlink/index.html, for example,
-
-     * you would *not* get the 403.
-
-     */
-
-    if (!S_ISDIR(r->finfo.st_mode)
-
-        && (res = check_symlinks(r->filename, ap_allow_options(r)))) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "Symbolic link not allowed: %s", r->filename);
-
-        return res;
-
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
+	}
+	else
+#endif
+	{
+	    curblocks -= fent->len >> 10;
+	    curbytes -= fent->len & 0x3FF;
+	    if (curbytes < 0) {
+		curbytes += 1024;
+		curblocks--;
+	    }
+	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
+		break;
+	}
     }
-
-    return OK;                  /* Can only "fail" if access denied by the
-
-                                 * symlink goop. */
-
+    ap_unblock_alarms();
 }
 
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

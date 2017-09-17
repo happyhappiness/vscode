@@ -1,52 +1,9 @@
+/* Automatically generated file - do not edit */
 
-
-	errmsg = ap_srm_command_loop(&parms, dc);
-
-
-
-	ap_cfg_closefile(f);
-
-
-
-	if (errmsg) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, r->server, "%s: %s",
-
-                        filename, errmsg);
-
-            return HTTP_INTERNAL_SERVER_ERROR;
-
-	}
-
-
-
-	*result = dc;
-
-    }
-
-    else {
-
-	if (errno == ENOENT || errno == ENOTDIR)
-
-	    dc = NULL;
-
-	else {
-
-	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
-
-			"%s pcfg_openfile: unable to check htaccess file, ensure it is readable",
-
-			filename);
-
-	    return HTTP_FORBIDDEN;
-
-	}
-
-    }
-
-
-
-/* cache it */
-
-    new = ap_palloc(r->pool, sizeof(struct htaccess_result));
-
+#ifndef LINUX
+#define LINUX 2
+#endif
+#ifndef USE_HSREGEX
+#define USE_HSREGEX 
+#endif
+-- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800

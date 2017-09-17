@@ -1,88 +1,50 @@
-        return errstatus;
-
-    }
-
-
-
-    r->allowed |= (1 << M_GET) | (1 << M_OPTIONS);
-
-
-
-    if (r->method_number == M_INVALID) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		    "Invalid method in request %s", r->the_request);
-
-	return NOT_IMPLEMENTED;
-
-    }
-
-    if (r->method_number == M_OPTIONS) {
-
-        return ap_send_http_options(r);
-
-    }
-
-    if (r->method_number == M_PUT) {
-
-        return METHOD_NOT_ALLOWED;
-
-    }
-
-
-
-    if (r->finfo.st_mode == 0 || (r->path_info && *r->path_info)) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server, 
-
-                    "File does not exist: %s", 
-
-		     r->path_info 
-
-		         ? ap_pstrcat(r->pool, r->filename, r->path_info, NULL)
-
-		         : r->filename);
-
-	return NOT_FOUND;
-
-    }
-
-    if (r->method_number != M_GET) {
-
-        return METHOD_NOT_ALLOWED;
-
-    }
-
-	
-
-#if defined(__EMX__) || defined(WIN32)
-
-    /* Need binary mode for OS/2 */
-
-    f = ap_pfopen(r->pool, r->filename, "rb");
-
-#else
-
-    f = ap_pfopen(r->pool, r->filename, "r");
-
+     * this on Win32, though, since we haven't fork()'d.
+     */
+    r->server->error_log = stderr;
 #endif
 
+#ifdef RLIMIT_CPU
+    if (conf->limit_cpu != NULL)
+	if ((setrlimit(RLIMIT_CPU, conf->limit_cpu)) != 0)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			"setrlimit: failed to set CPU usage limit");
+#endif
+#ifdef RLIMIT_NPROC
+    if (conf->limit_nproc != NULL)
+	if ((setrlimit(RLIMIT_NPROC, conf->limit_nproc)) != 0)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			"setrlimit: failed to set process limit");
+#endif
+#if defined(RLIMIT_AS)
+    if (conf->limit_mem != NULL)
+	if ((setrlimit(RLIMIT_AS, conf->limit_mem)) != 0)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			"setrlimit(RLIMIT_AS): failed to set memory usage limit");
+#elif defined(RLIMIT_DATA)
+    if (conf->limit_mem != NULL)
+	if ((setrlimit(RLIMIT_DATA, conf->limit_mem)) != 0)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			"setrlimit(RLIMIT_DATA): failed to set memory usage limit");
+#elif defined(RLIMIT_VMEM)
+    if (conf->limit_mem != NULL)
+	if ((setrlimit(RLIMIT_VMEM, conf->limit_mem)) != 0)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			"setrlimit(RLIMIT_VMEM): failed to set memory usage limit");
+#endif
 
-
-    if (f == NULL) {
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "file permissions deny server access: %s", r->filename);
-
-        return FORBIDDEN;
-
-    }
-
-	
-
-    ap_update_mtime(r, r->finfo.st_mtime);
-
-    ap_set_last_modified(r);
-
+#ifdef __EMX__
+    {
+	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
+	int is_script;
+	char interpreter[2048];	/* hope this is large enough for the interpreter path */
+	FILE *program;
+	program = fopen(r->filename, "rt");
+	if (!program) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
+			r->filename);
+	    return (pid);
+	}
+	fgets(interpreter, sizeof(interpreter), program);
+	fclose(program);
+	if (!strncmp(interpreter, "#!", 2)) {
+	    is_script = 1;

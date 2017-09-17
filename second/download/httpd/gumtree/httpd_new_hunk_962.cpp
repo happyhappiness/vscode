@@ -1,28 +1,65 @@
-            else if (w < 0) {
 
-                if (r->connection->aborted)
+static int getsfunc_FILE(char *buf, int len, void *f)
+{
+    return fgets(buf, len, (FILE *) f) != NULL;
+}
 
-                    break;
+API_EXPORT(int) ap_scan_script_header_err(request_rec *r, FILE *f,
+					  char *buffer)
+{
+    return scan_script_header_err_core(r, buffer, getsfunc_FILE, f);
+}
 
-                else if (errno == EAGAIN)
+static int getsfunc_BUFF(char *w, int len, void *fb)
+{
+    return ap_bgets(w, len, (BUFF *) fb) > 0;
+}
 
-                    continue;
+API_EXPORT(int) ap_scan_script_header_err_buff(request_rec *r, BUFF *fb,
+					       char *buffer)
+{
+    return scan_script_header_err_core(r, buffer, getsfunc_BUFF, fb);
+}
 
-                else {
 
-                    ap_log_rerror(APLOG_MARK, APLOG_INFO, r,
+API_EXPORT(void) ap_send_size(size_t size, request_rec *r)
+{
+    /* XXX: this -1 thing is a gross hack */
+    if (size == (size_t)-1) {
+	ap_rputs("    -", r);
+    }
+    else if (!size) {
+	ap_rputs("   0k", r);
+    }
+    else if (size < 1024) {
+	ap_rputs("   1k", r);
+    }
+    else if (size < 1048576) {
+	ap_rprintf(r, "%4dk", (size + 512) / 1024);
+    }
+    else if (size < 103809024) {
+	ap_rprintf(r, "%4.1fM", size / 1048576.0);
+    }
+    else {
+	ap_rprintf(r, "%4dM", (size + 524288) / 1048576);
+    }
+}
 
-                     "client stopped connection before send body completed");
+#if defined(__EMX__) || defined(WIN32)
+static char **create_argv_cmd(pool *p, char *av0, const char *args, char *path)
+{
+    register int x, n;
+    char **av;
+    char *w;
 
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
+    for (x = 0, n = 2; args[x]; x++) {
+        if (args[x] == '+') {
+	    ++n;
+	}
+    }
 
-                    r->connection->aborted = 1;
+    /* Add extra strings to array. */
+    n = n + 2;
 
-                    break;
-
-                }
-
-            }
-
-        }
-
+    av = (char **) ap_palloc(p, (n + 1) * sizeof(char *));
+    av[0] = av0;

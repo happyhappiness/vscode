@@ -1,32 +1,25 @@
-	else
-
-	    y[i] = ch + '0';
-
+                                         REWRITELOCK_MODE)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+                     "mod_rewrite: Parent could not create RewriteLock "
+                     "file %s", conf->rewritelockfile);
+        exit(1);
     }
-
-    y[8] = '\0';
-
+    return;
 }
 
-
-
-BUFF *
-
-     ap_proxy_cache_error(struct cache_req *c)
-
+static void rewritelock_open(server_rec *s, pool *p)
 {
+    rewrite_server_conf *conf;
 
-    ap_log_error(APLOG_MARK, APLOG_ERR, c->req->server,
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
 
-		 "proxy: error writing to cache file %s", c->tempfile);
+    /* only operate if a lockfile is used */
+    if (conf->rewritelockfile == NULL
+        || *(conf->rewritelockfile) == '\0')
+        return;
 
-    ap_pclosef(c->req->pool, c->fp->fd);
-
-    c->fp = NULL;
-
-    unlink(c->tempfile);
-
-    return NULL;
-
-}
-
+    /* open the lockfile (once per child) to get a unique fd */
+    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
+                                         O_WRONLY,
+                                         REWRITELOCK_MODE)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, s,

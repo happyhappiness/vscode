@@ -1,26 +1,9 @@
-	return ap_proxyerror(r, err);	/* give up */
+/* Automatically generated file - do not edit */
 
-
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (sock == -1) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "proxy: error creating socket");
-
-	return SERVER_ERROR;
-
-    }
-
-
-
-    if (conf->recv_buffer_size) {
-
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-
-	    == -1) {
-
+#ifndef LINUX
+#define LINUX 2
+#endif
+#ifndef USE_HSREGEX
+#define USE_HSREGEX 
+#endif
+-- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800

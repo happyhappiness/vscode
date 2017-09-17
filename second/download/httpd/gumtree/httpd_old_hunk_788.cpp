@@ -1,56 +1,22 @@
-	    return;
-
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case '?':
+	    usage(argv[0]);
 	}
-
-	if (utime(filename, NULL) == -1)
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: utimes(%s)", filename);
-
     }
 
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
-
-    curblocks = 0;
-
-    curbytes = 0;
-
-
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-
-
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-
-	ap_unblock_alarms();
-
-	return;
-
+    if (!child && run_as_service) {
+	service_cd();
     }
 
-
-
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
-
-
-
-    elts = (struct gc_ent **) files->elts;
-
-    for (i = 0; i < files->nelts; i++) {
-
-	fent = elts[i];
-
-	sprintf(filename, "%s%s", cachedir, fent->file);
-
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-
-#if TESTING
-
-	fprintf(stderr, "Would unlink %s\n", filename);
-
-#else
-
-	if (unlink(filename) == -1) {
-
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

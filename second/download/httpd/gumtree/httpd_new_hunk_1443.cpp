@@ -1,26 +1,20 @@
-                                         REWRITELOCK_MODE)) < 0) {
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-
-                     "mod_rewrite: Parent could not create RewriteLock "
-
-                     "file %s", conf->rewritelockfile);
-
-        exit(1);
-
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
+        }
+        return 0;
     }
 
-#if !defined(OS2) && !defined(WIN32)
+    range = ap_getword(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
-    /* make sure the childs have access to this file */
+    if (r->byterange > 1) {
+        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-    if (geteuid() == 0 /* is superuser */)
-
-        chown(conf->rewritelockfile, ap_user_id, -1 /* no gid change */);
-
-#endif
-
-
-
-    return;
-
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

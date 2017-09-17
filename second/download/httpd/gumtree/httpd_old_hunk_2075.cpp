@@ -1,42 +1,14 @@
-{
-
-    /* This could be called from an AddModule httpd.conf command,
-
-     * after the file has been linked and the module structure within it
-
-     * teased out...
-
-     */
-
-
-
-    /* At some point, we may want to offer back-compatibility for
-
-     * loading modules that are for older versions of Apache. For now,
-
-     * though, we don't.
-
-     */
-
-
-
-    if (m->version != MODULE_MAGIC_NUMBER) {
-
-	fprintf(stderr, "httpd: module \"%s\" is not compatible with this "
-
-		"version of Apache.\n", m->name);
-
-	fprintf(stderr, "Please contact the author for the correct version.\n");
-
-	exit(1);
-
-    }
-
-
-
-    if (m->next == NULL) {
-
-	m->next = top_module;
-
-	top_module = m;
-
+                 "An appropriate representation of the requested resource ",
+                          ap_escape_html(r->pool, r->uri),
+                          " could not be found on this server.<P>\n", NULL);
+                /* fall through */
+            case MULTIPLE_CHOICES:
+                {
+                    char *list;
+                    if ((list = ap_table_get(r->notes, "variant-list")))
+                        ap_bputs(list, fd);
+                }
+                break;
+            case LENGTH_REQUIRED:
+                ap_bvputs(fd, "A request of the requested method ", r->method,
+-- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800

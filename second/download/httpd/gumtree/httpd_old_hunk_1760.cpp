@@ -1,28 +1,13 @@
+    if ((r->method_number == M_POST || r->method_number == M_PUT)
+	&& *dbuf) {
+	fprintf(f, "\n%s\n", dbuf);
+    }
 
+    fputs("%response\n", f);
+    hdrs_arr = table_elts(r->err_headers_out);
+    hdrs = (table_entry *) hdrs_arr->elts;
 
-    f = ap_pfopen(r->pool, metafilename, "r");
-
-    if (f == NULL) {
-
-	if (errno == ENOENT) {
-
-	    return DECLINED;
-
-	}
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-	      "meta file permissions deny server access: %s", metafilename);
-
-	return FORBIDDEN;
-
-    };
-
-
-
-    /* read the headers in */
-
-    rv = scan_meta_file(r, f);
-
--- apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
-
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key)
+	    continue;
+	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);

@@ -1,24 +1,21 @@
+#else
+    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
+#endif
 
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-
-	return (ap_suexec_enabled);
-
-
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-
-	ap_suexec_enabled = 1;
-
+    if (conf->rewritelogfile == NULL) {
+        return;
+    }
+    if (*(conf->rewritelogfile) == '\0') {
+        return;
+    }
+    if (conf->rewritelogfp > 0) {
+        return; /* virtual log shared w/ main server */
     }
 
-#endif /* ndef WIN32 */
+    fname = ap_server_root_relative(p, conf->rewritelogfile);
 
-    return (ap_suexec_enabled);
-
-}
-
-
-
-/*****************************************************************
-
+    if (*conf->rewritelogfile == '|') {
+        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, s, 

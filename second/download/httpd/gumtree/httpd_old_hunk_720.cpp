@@ -1,28 +1,9 @@
-#include "http_main.h"
+/* Automatically generated file - do not edit */
 
-#include "http_request.h"
-
-
-
-static int asis_handler(request_rec *r)
-
-{
-
-    FILE *f;
-
-    char *location;
-
-
-
-    r->allowed |= (1 << M_GET);
-
-    if (r->method_number != M_GET)
-
-	return DECLINED;
-
-    if (r->finfo.st_mode == 0) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
--- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800
-
+#ifndef LINUX
+#define LINUX 2
+#endif
+#ifndef USE_HSREGEX
+#define USE_HSREGEX 
+#endif
+-- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800

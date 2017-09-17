@@ -1,48 +1,22 @@
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
-    else {
-
-        ap_rputs(anchor, r);
-
+    if (!child && run_as_service) {
+	service_cd();
     }
 
-}
-
-
-
-static void output_directories(struct ent **ar, int n,
-
-			       autoindex_config_rec * d, request_rec *r,
-
-			     int autoindex_opts, char keyid, char direction)
-
-{
-
-    int x, len;
-
-    char *name = r->uri;
-
-    char *tp;
-
-    int static_columns = (autoindex_opts & SUPPRESS_COLSORT);
-
-    pool *scratch = ap_make_sub_pool(r->pool);
-
-
-
-    if (name[0] == '\0')
-
-	name = "/";
-
-
-
-    if (autoindex_opts & FANCY_INDEXING) {
-
-	ap_rputs("<PRE>", r);
-
-	if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
-
-	    ap_rvputs(r, "<IMG SRC=\"", ap_escape_html(scratch, tp),
-
-		   "\" ALT=\"     \"", NULL);
-
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

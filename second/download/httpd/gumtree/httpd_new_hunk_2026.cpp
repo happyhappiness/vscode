@@ -1,26 +1,13 @@
-#if MIME_MAGIC_DEBUG
+    ap_bvputs(f, "Host: ", desthost, NULL);
+    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+	ap_bvputs(f, ":", destportstr, CRLF, NULL);
+    else
+	ap_bputs(CRLF, f);
 
-    for (m = conf->magic; m; m = m->next) {
-
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-
-	    ap_isprint(((unsigned long) m) & 255)) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-			MODNAME ": match: POINTER CLOBBERED! "
-
-			"m=\"%c%c%c%c\"",
-
-			(((unsigned long) m) >> 24) & 255,
-
-			(((unsigned long) m) >> 16) & 255,
-
-			(((unsigned long) m) >> 8) & 255,
-
-			((unsigned long) m) & 255);
-
+    reqhdrs_arr = ap_table_elts(r->headers_in);
+    reqhdrs = (table_entry *) reqhdrs_arr->elts;
+    for (i = 0; i < reqhdrs_arr->nelts; i++) {
+	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
+	/* Clear out headers not to send */
+	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
+	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))

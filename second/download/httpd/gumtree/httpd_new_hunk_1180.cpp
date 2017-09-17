@@ -1,36 +1,28 @@
-	    hold_off_on_exponential_spawning = 10;
-
+	     */
+	    break;
+#endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
 	}
+    }
 
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
+    }
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+    child_timeouts = !ap_standalone || one_process;
 
-		    "%s configured -- resuming normal operations",
-
-		    ap_get_server_version());
-
-	if (ap_suexec_enabled) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-
-	}
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-
-		    "Server built: %s", ap_get_server_built());
-
-	restart_pending = shutdown_pending = 0;
-
-
-
-	while (!restart_pending && !shutdown_pending) {
-
-	    int child_slot;
-
-	    ap_wait_t status;
-
-	    int pid = wait_or_timeout(&status);
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

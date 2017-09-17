@@ -1,26 +1,13 @@
-
-
-    /* We are not using multiviews */
-
-    neg->count_multiviews_variants = 0;
-
-
-
-    map = ap_pfopen(neg->pool, rr->filename, "r");
-
-    if (map == NULL) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-                    "cannot access type map file: %s", rr->filename);
-
-        return HTTP_FORBIDDEN;
-
+    if ((r->method_number == M_POST || r->method_number == M_PUT)
+	&& *dbuf) {
+	fprintf(f, "\n%s\n", dbuf);
     }
 
+    fputs("%response\n", f);
+    hdrs_arr = ap_table_elts(r->err_headers_out);
+    hdrs = (table_entry *) hdrs_arr->elts;
 
-
-    clean_var_rec(&mime_info);
-
-
-
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key)
+	    continue;
+	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);

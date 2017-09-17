@@ -1,26 +1,22 @@
-            if (!res) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
+	}
+	else
+#endif
+	{
+	    curblocks -= fent->len >> 10;
+	    curbytes -= fent->len & 0x3FF;
+	    if (curbytes < 0) {
+		curbytes += 1024;
+		curblocks--;
+	    }
+	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
+		break;
+	}
+    }
+    ap_unblock_alarms();
+}
 
-                res = file_walk(rnew);
-
-            }
-
-        }
-
-        else {
-
-            if ((res = check_symlinks(rnew->filename, ap_allow_options(rnew)))) {
-
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, rnew->server,
-
-                            "Symbolic link not allowed: %s", rnew->filename);
-
-                rnew->status = res;
-
-                return rnew;
-
-            }
-
-            /*
-
-             * do a file_walk, if it doesn't change the per_dir_config then
-
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

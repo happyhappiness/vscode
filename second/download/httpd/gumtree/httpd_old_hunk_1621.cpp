@@ -1,26 +1,26 @@
-	 * while (m && m->next && m->next->cont_level != 0 && ( m = m->next
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"malformed header in meta file: %s", r->filename);
+	    return SERVER_ERROR;
+	}
 
-	 * ))
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
-	 */
+	if (!strcasecmp(w, "Content-type")) {
 
-	m = m->next;
+	    /* Nuke trailing whitespace */
 
-	while (m && (m->cont_level != 0)) {
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
 
-#if MIME_MAGIC_DEBUG
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-			MODNAME ": match line=%d cont=%d type=%d %s",
-
-			m->lineno, m->cont_level, m->type,
-
-			(m->type == STRING) ? m->value.s : "");
-
-#endif
-
-	    if (cont_level >= m->cont_level) {
-
-		if (cont_level > m->cont_level) {
-
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
+	}
+	else if (!strcasecmp(w, "Status")) {
+	    sscanf(l, "%d", &r->status);
+	    r->status_line = ap_pstrdup(r->pool, l);
+	}
+	else {
+-- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800

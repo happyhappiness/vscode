@@ -1,26 +1,28 @@
-	struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
-
-
-
-	for (direct_connect = ii = 0; ii < conf->dirconn->nelts && !direct_connect; ii++) {
-
-	    direct_connect = list[ii].matcher(&list[ii], r);
-
-	}
-
-#if DEBUGGING
-
-	ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r,
-
-		     (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
-
-		     r->uri);
-
+	     */
+	    break;
 #endif
-
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
+    }
 
-/* firstly, try a proxy, unless a NoProxy directive is active */
+    child_timeouts = !ap_standalone || one_process;
 
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

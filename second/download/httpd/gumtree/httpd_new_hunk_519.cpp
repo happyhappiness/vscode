@@ -1,36 +1,31 @@
-    ap_table_setn(r->err_headers_out,
 
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
+    /* Pass one --- direct matches */
 
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            result = (*handp->hr.handler) (r);
 
-		ap_auth_name(r), r->request_time));
+            if (result != DECLINED)
+                return result;
+        }
+    }
 
-}
+    if (result == NOT_IMPLEMENTED && r->handler) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    }
 
+    /* Pass two --- wildcard matches */
 
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             result = (*handp->hr.handler) (r);
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-{
-
-    const char *auth_line = ap_table_get(r->headers_in,
-
-                                      r->proxyreq ? "Proxy-Authorization"
-
-                                                  : "Authorization");
-
-    const char *t;
-
-
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-
-        return DECLINED;
-
-
-
-    if (!ap_auth_name(r)) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-
+++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800

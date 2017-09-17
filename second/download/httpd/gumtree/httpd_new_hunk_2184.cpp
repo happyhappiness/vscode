@@ -1,42 +1,19 @@
-    char *code;
+    if (!method_restricted)
+	return OK;
 
-    time_t base;
+    if (!(sec->auth_authoritative))
+	return DECLINED;
 
-    time_t additional;
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+	"access to %s failed for %s, reason: user %s not allowed access",
+	r->uri,
+	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
+	user);
+	
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
+}
 
-    time_t expires;
-
-    char age[20];
-
-
-
-    if (ap_is_HTTP_ERROR(r->status))       /* Don't add Expires headers to errors */
-
-        return DECLINED;
-
-
-
-    if (r->main != NULL)        /* Say no to subrequests */
-
-        return DECLINED;
-
-
-
-    conf = (expires_dir_config *) ap_get_module_config(r->per_dir_config, &expires_module);
-
-    if (conf == NULL) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "internal error: %s", r->filename);
-
-        return SERVER_ERROR;
-
-    };
-
-
-
-    if (conf->active != ACTIVE_ON)
-
-        return DECLINED;
-
+module MODULE_VAR_EXPORT auth_module =
+{
+++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800

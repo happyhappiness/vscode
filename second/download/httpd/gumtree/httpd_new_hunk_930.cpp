@@ -1,38 +1,13 @@
-static void err_output(const char *fmt, va_list ap)
 
-{
+    /* Domain name must start with a '.' */
+    if (addr[0] != '.')
+	return 0;
 
-#ifdef LOG_EXEC
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
+	continue;
 
-    time_t timevar;
-
-    struct tm *lt;
-
-
-
-    if (!log) {
-
-	if ((log = fopen(LOG_EXEC, "a")) == NULL) {
-
-	    fprintf(stderr, "failed to open log file\n");
-
-	    perror("fopen");
-
-	    exit(1);
-
-	}
-
-    }
-
-
-
-    time(&timevar);
-
-    lt = localtime(&timevar);
-
-
-
-    fprintf(log, "[%d-%.2d-%.2d %.2d:%.2d:%.2d]: ",
-
-	    lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
+	/* @@@@ handle optional port */

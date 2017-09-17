@@ -1,32 +1,29 @@
-	else
+	}
 
-	    ret = FORBIDDEN;
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (isspace(*src))
+		++src;
+	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && isspace(*dst))
+	    *dst = '\0';
 
-    }
-
-
-
-    if (ret == FORBIDDEN
-
-	&& (ap_satisfies(r) != SATISFY_ANY || !ap_some_auth_required(r))) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		  "client %pI denied by server configuration: %s",
-
-		  &r->connection->remote_addr, r->filename);
-
-    }
-
-
-
-    return ret;
-
-}
-
-
-
-
-
--- apache_1.3.1/src/modules/standard/mod_actions.c	1998-06-13 23:23:04.000000000 +0800
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

@@ -1,26 +1,15 @@
-	else
-
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-
-				"Could not connect to remote machine: ",
-
-				strerror(errno), NULL));
-
     }
-
-
-
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
-
-
-
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-
-    ap_bpushfd(f, sock, sock);
-
-
-
-    ap_hard_timeout("proxy send", r);
-
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
-
+    else {
+	alarm_fn = fn;
+	alarm_expiry_time = time(NULL) + x;
+    }
+#else
+    if (x) {
+	alarm_fn = fn;
+    }
+#ifndef OPTIMIZE_TIMEOUTS
+    old = alarm(x);
+#else
+    if (child_timeouts) {
+	old = alarm(x);
+    }

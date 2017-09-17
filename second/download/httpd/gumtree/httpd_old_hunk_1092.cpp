@@ -1,44 +1,14 @@
-    else
 
-	dirconf = current_conn->server->lookup_defaults;
-
-    if (!current_conn->keptalive) {
-
-	if (sig == SIGPIPE) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-
-			current_conn->server,
-
-			"%s client stopped connection before %s completed",
-
-			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME),
-
-			timeout_name ? timeout_name : "request");
-
-	}
-
-	else {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-
-			current_conn->server,
-
-			"%s timed out for %s",
-
-			timeout_name ? timeout_name : "request",
-
-			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME));
-
-	}
-
+    if (i != DECLINED) {
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	return i;
     }
+    cache = c->fp;
 
-
-
-    if (timeout_req) {
-
-	/* Someone has asked for this transaction to just be aborted
-
-	 * if it times out...
-
+    if (!pasvmode) {		/* wait for connection */
+	ap_hard_timeout("proxy ftp data connect", r);
+	clen = sizeof(struct sockaddr_in);
+	do
+	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
+	while (csd == -1 && errno == EINTR);

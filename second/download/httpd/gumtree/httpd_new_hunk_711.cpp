@@ -1,92 +1,37 @@
-	clen = sizeof(struct sockaddr_in);
-
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: error getting socket address");
-
-	    ap_bclose(f);
-
+	if (rc == -1) {
 	    ap_kill_timeout(r);
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
+	    return ap_proxyerror(r, "Error sending to remote server");
 	}
-
-
-
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-	if (dsock == -1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: error creating socket");
-
-	    ap_bclose(f);
-
+	if (rc == 550) {
 	    ap_kill_timeout(r);
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
+	    return HTTP_NOT_FOUND;
 	}
-
-
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-
-		       sizeof(one)) == -1) {
-
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: error setting reuseaddr option");
-
-	    ap_pclosesocket(p, dsock);
-
-	    ap_bclose(f);
-
+	if (rc != 250) {
 	    ap_kill_timeout(r);
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
-#endif /*_OSD_POSIX*/
-
+	    return HTTP_BAD_GATEWAY;
 	}
 
-
-
-	if (bind(dsock, (struct sockaddr *) &server,
-
-		 sizeof(struct sockaddr_in)) == -1) {
-
-	    char buff[22];
-
-
-
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: error binding to ftp data socket %s", buff);
-
-	    ap_bclose(f);
-
-	    ap_pclosesocket(p, dsock);
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
-	}
-
-	listen(dsock, 2);	/* only need a short queue */
-
+	ap_bputs("LIST -lag" CRLF, f);
+	ap_bflush(f);
+	Explain0("FTP: LIST -lag");
+	rc = ftp_getrc(f);
+	Explain1("FTP: returned status %d", rc);
+	if (rc == -1)
+	    return ap_proxyerror(r, "Error sending to remote server");
     }
+    ap_kill_timeout(r);
+    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
+	return HTTP_BAD_GATEWAY;
 
+    r->status = 200;
+    r->status_line = "200 OK";
 
+    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
+    c->hdrs = resp_hdrs;
 
-/* set request */
-
-    len = decodeenc(path);
-
+    if (parms[0] == 'd')
+	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
+    else {
+	if (r->content_type != NULL) {
+	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
+			     HDR_REP);

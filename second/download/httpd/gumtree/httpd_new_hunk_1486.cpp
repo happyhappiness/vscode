@@ -1,28 +1,15 @@
-            else if (w < 0) {
+    ap_hard_timeout("send directory", r);
 
-                if (r->connection->aborted)
+    /* Spew HTML preamble */
 
-                    break;
+    title_endp = title_name + strlen(title_name) - 1;
 
-                else if (errno == EAGAIN)
+    while (title_endp > title_name && *title_endp == '/') {
+	*title_endp-- = '\0';
+    }
 
-                    continue;
-
-                else {
-
-                    ap_log_rerror(APLOG_MARK, APLOG_INFO, r,
-
-                     "client stopped connection before send body completed");
-
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-
-                    r->connection->aborted = 1;
-
-                    break;
-
-                }
-
-            }
-
-        }
-
+    if ((!(tmp = find_header(autoindex_conf, r)))
+	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
+	) {
+	emit_preamble(r, title_name);
+	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);

@@ -1,30 +1,31 @@
-    {
 
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+    /* Pass one --- direct matches */
 
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            result = (*handp->hr.handler) (r);
 
-	    abort();
-
-	}
-
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-
-	    abort();
-
-	}
-
+            if (result != DECLINED)
+                return result;
+        }
     }
 
-#endif
+    if (result == NOT_IMPLEMENTED && r->handler) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    }
 
+    /* Pass two --- wildcard matches */
 
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             result = (*handp->hr.handler) (r);
 
-    for (i = 0; i < t->a.nelts; ) {
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-nly in apache_1.3.0/src/main: alloc.o
-
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
-
+++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800

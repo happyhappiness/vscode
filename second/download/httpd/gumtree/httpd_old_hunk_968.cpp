@@ -1,26 +1,28 @@
-     * you access /symlink (or /symlink/) you would get a 403 without this
+	    return;
+	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
+    curblocks = 0;
+    curbytes = 0;
 
-     * S_ISDIR test.  But if you accessed /symlink/index.html, for example,
+    sub_garbage_coll(r, files, cachedir, "/");
 
-     * you would *not* get the 403.
-
-     */
-
-    if (!S_ISDIR(r->finfo.st_mode)
-
-        && (res = check_symlinks(r->filename, ap_allow_options(r)))) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "Symbolic link not allowed: %s", r->filename);
-
-        return res;
-
+    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
+	ap_unblock_alarms();
+	return;
     }
 
-    return OK;                  /* Can only "fail" if access denied by the
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
 
-                                 * symlink goop. */
-
-}
-
+    elts = (struct gc_ent **) files->elts;
+    for (i = 0; i < files->nelts; i++) {
+	fent = elts[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
+#else
+	if (unlink(filename) == -1) {

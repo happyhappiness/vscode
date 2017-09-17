@@ -1,20 +1,30 @@
-/*
 
- *  conf.h -- backward compatibility header for ap_config.h
+    /* Pass one --- direct matches */
 
- */
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            result = (*handp->hr.handler) (r);
 
+            if (result != DECLINED)
+                return result;
+        }
+    }
 
+    if (result == NOT_IMPLEMENTED && r->handler) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    }
 
-#ifdef __GNUC__
+    /* Pass two --- wildcard matches */
 
-#warning "This header is obsolete, use ap_config.h instead"
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             result = (*handp->hr.handler) (r);
 
-#endif
-
-
-
-#include "ap_config.h"
-
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 

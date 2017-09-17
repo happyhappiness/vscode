@@ -1,68 +1,25 @@
+	return ap_proxyerror(r, err);	/* give up */
 
-
-    ap_kill_timeout(r);
-
-    return total_bytes_rcv;
-
-}
-
-
-
-/*
-
- * Sends response line and headers.  Uses the client fd and the 
-
- * headers_out array from the passed request_rec to talk to the client
-
- * and to properly set the headers it sends for things such as logging.
-
- * 
-
- * A timeout should be set before calling this routine.
-
- */
-
-void ap_proxy_send_headers(request_rec *r, const char *respline, table *t)
-
-{
-
-    int i;
-
-    BUFF *fp = r->connection->client;
-
-    table_entry *elts = (table_entry *) ap_table_elts(t)->elts;
-
-
-
-    ap_bputs(respline, fp);
-
-    ap_bputs(CRLF, fp);
-
-
-
-    for (i = 0; i < ap_table_elts(t)->nelts; ++i) {
-
-	if (elts[i].key != NULL) {
-
-	    ap_bvputs(fp, elts[i].key, ": ", elts[i].val, CRLF, NULL);
-
-	    /* FIXME: @@@ This used to be ap_table_set(), but I think
-
-	     * ap_table_addn() is correct. MnKr */
-
-	    ap_table_addn(r->headers_out, elts[i].key, elts[i].val);
-
-	}
-
+    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		    "proxy: error creating socket");
+	return HTTP_INTERNAL_SERVER_ERROR;
     }
 
+#ifndef WIN32
+    if (sock >= FD_SETSIZE) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
+	    "proxy_connect_handler: filedescriptor (%u) "
+	    "larger than FD_SETSIZE (%u) "
+	    "found, you probably need to rebuild Apache with a "
+	    "larger FD_SETSIZE", sock, FD_SETSIZE);
+	ap_pclosesocket(r->pool, sock);
+	return HTTP_INTERNAL_SERVER_ERROR;
+    }
+#endif
 
-
-    ap_bputs(CRLF, fp);
-
-}
-
-
-
-
-
+    j = 0;
+    while (server_hp.h_addr_list[j] != NULL) {
+	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
+++ apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800

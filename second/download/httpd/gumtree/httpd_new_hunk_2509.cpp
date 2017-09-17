@@ -1,40 +1,16 @@
-        memcpy(&sel_write, &writebits, sizeof(readbits));
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+		MODNAME ": revision_suffix checking %s", r->filename);
+#endif /* MIME_MAGIC_DEBUG */
 
+    /* check for recognized revision suffix */
+    suffix_pos = strlen(r->filename) - 1;
+    if (!ap_isdigit(r->filename[suffix_pos])) {
+	return 0;
+    }
+    while (suffix_pos >= 0 && ap_isdigit(r->filename[suffix_pos]))
+	suffix_pos--;
+    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
+	return 0;
+    }
 
-
-        /* check for time limit expiry */
-
-        gettimeofday(&now, 0);
-
-        if (tlimit && timedif(now, start) > (tlimit * 1000)) {
-
-            requests = done;    /* so stats are correct */
-
-        }
-
-
-
-        /* Timeout of 30 seconds. */
-
-        timeout.tv_sec = 30;
-
-        timeout.tv_usec = 0;
-
-        n = ap_select(FD_SETSIZE, &sel_read, &sel_write, &sel_except, &timeout);
-
-        if (!n) {
-
-            err("\nServer timed out\n\n");
-
-        }
-
-        if (n < 1)
-
-            err("select");
-
-
-
-        for (i = 0; i < concurrency; i++) {
-
-            int s = con[i].fd;
-
+    /* perform sub-request for the file name without the suffix */

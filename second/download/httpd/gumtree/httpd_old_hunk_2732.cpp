@@ -1,82 +1,14 @@
-        port = atoi(p);
+    ap_hard_timeout("send directory", r);
 
-    return 0;
+    /* Spew HTML preamble */
 
-}
+    title_endp = title_name + strlen(title_name) - 1;
 
+    while (title_endp > title_name && *title_endp == '/')
+	*title_endp-- = '\0';
 
-
-/* ------------------------------------------------------- */
-
-
-
-extern char *optarg;
-
-extern int optind, opterr, optopt;
-
-
-
-/* sort out command-line args and call test */
-
-int main(int argc, char **argv)
-
-{
-
-    int c;
-
-    optind = 1;
-
-    while ((c = getopt(argc, argv, "n:c:t:kvh")) > 0) {
-
-        switch (c) {
-
-        case 'n':
-
-            requests = atoi(optarg);
-
-            if (!requests) {
-
-                printf("Invalid number of requests\n");
-
-                exit(1);
-
-            }
-
-            break;
-
-        case 'k':
-
-            keepalive = 1;
-
-            break;
-
-        case 'c':
-
-            concurrency = atoi(optarg);
-
-            break;
-
-        case 't':
-
-            tlimit = atoi(optarg);
-
-            requests = MAX_REQUESTS;    /* need to size data array on something */
-
-            break;
-
-        case 'v':
-
-            copyright();
-
-            exit(0);
-
-            break;
-
-        case 'h':
-
-            usage(argv[0]);
-
-            break;
-
--- apache_1.3.1/src/support/htdigest.c	1998-07-13 19:32:58.000000000 +0800
-
+    if ((!(tmp = find_header(autoindex_conf, r)))
+	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
+	) {
+	emit_preamble(r, title_name);
+	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);

@@ -1,62 +1,26 @@
-        break;
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"malformed header in meta file: %s", r->filename);
+	    return SERVER_ERROR;
+	}
 
-    }
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
-    return strcmp(c1->name, c2->name);
+	if (!strcasecmp(w, "Content-type")) {
 
-}
+	    /* Nuke trailing whitespace */
 
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
 
-
-
-
-static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
-
-{
-
-    char *title_name = ap_escape_html(r->pool, r->uri);
-
-    char *title_endp;
-
-    char *name = r->filename;
-
-
-
-    DIR *d;
-
-    struct DIR_TYPE *dstruct;
-
-    int num_ent = 0, x;
-
-    struct ent *head, *p;
-
-    struct ent **ar = NULL;
-
-    char *tmp;
-
-    const char *qstring;
-
-    int autoindex_opts = find_opts(autoindex_conf, r);
-
-    char keyid;
-
-    char direction;
-
-
-
-    if (!(d = ap_popendir(r->pool, name))) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    "Can't open directory for index: %s", r->filename);
-
-	return HTTP_FORBIDDEN;
-
-    }
-
-
-
-    r->content_type = "text/html";
-
-
-
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
+	}
+	else if (!strcasecmp(w, "Status")) {
+	    sscanf(l, "%d", &r->status);
+	    r->status_line = ap_pstrdup(r->pool, l);
+	}
+	else {
+-- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800

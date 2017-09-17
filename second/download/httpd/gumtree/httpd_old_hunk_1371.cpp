@@ -1,28 +1,15 @@
-		expansion = in - 1;
-
-		if (*in == '{') {
-
-		    ++in;
-
-		    start_of_var_name = in;
-
-		    in = strchr(in, '}');
-
-		    if (in == NULL) {
-
-                        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-
-				    r->server, "Missing '}' on variable \"%s\"",
-
-				    expansion);
-
-                        *next = '\0';
-
-                        return;
-
-                    }
-
-		    end_of_var_name = in;
-
-		    ++in;
-
+    }
+    else {
+	alarm_fn = fn;
+	alarm_expiry_time = time(NULL) + x;
+    }
+#else
+    if (x) {
+	alarm_fn = fn;
+    }
+#ifndef OPTIMIZE_TIMEOUTS
+    old = alarm(x);
+#else
+    if (child_timeouts) {
+	old = alarm(x);
+    }

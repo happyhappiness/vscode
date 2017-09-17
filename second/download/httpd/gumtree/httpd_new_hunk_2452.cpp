@@ -1,26 +1,28 @@
+	     */
+	    break;
 #endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
+    }
 
-#ifdef    S_IFLNK
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-    case S_IFLNK:
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
+    }
 
-	/* We used stat(), the only possible reason for this is that the
+    child_timeouts = !ap_standalone || one_process;
 
-	 * symlink is broken.
-
-	 */
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
-
-		    MODNAME ": broken symlink (%s)", fn);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-#endif
-
-#ifdef    S_IFSOCK
-
-#ifndef __COHERENT__
-
-    case S_IFSOCK:
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

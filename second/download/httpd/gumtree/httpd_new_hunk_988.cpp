@@ -1,44 +1,30 @@
-    else
-
-	dirconf = current_conn->server->lookup_defaults;
-
-    if (!current_conn->keptalive) {
-
-	if (sig == SIGPIPE) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-
-			current_conn->server,
-
-			"(client %s) stopped connection before %s completed",
-
-			current_conn->remote_ip,
-
-			timeout_name ? timeout_name : "request");
-
 	}
-
-	else {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-
-			current_conn->server,
-
-			"(client %s) %s timed out",
-
-			current_conn->remote_ip,
-
-			timeout_name ? timeout_name : "request");
-
+    }
+    if (
+    /* username is OK */
+	   (res == OK)
+    /* password been filled out ? */
+	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
+    /* does the password look like an email address ? */
+	   && ((!sec->auth_anon_verifyemail)
+	       || ((strpbrk("@", sent_pw) != NULL)
+		   && (strpbrk(".", sent_pw) != NULL)))) {
+	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
+			"Anonymous: Passwd <%s> Accepted",
+			sent_pw ? sent_pw : "\'none\'");
 	}
-
+	return OK;
+    }
+    else {
+	if (sec->auth_anon_authoritative) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"Anonymous: Authoritative, Passwd <%s> not accepted",
+			sent_pw ? sent_pw : "\'none\'");
+	    return AUTH_REQUIRED;
+	}
+	/* Drop out the bottom to return DECLINED */
     }
 
-
-
-    if (timeout_req) {
-
-	/* Someone has asked for this transaction to just be aborted
-
-	 * if it times out...
-
+    return DECLINED;
+++ apache_1.3.1/src/modules/standard/mod_auth.c	1998-07-10 14:33:24.000000000 +0800

@@ -1,26 +1,10 @@
-	return DONE;
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
 
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
 #endif
 
-#endif
-
-    case S_IFREG:
-
-	break;
-
-    default:
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
-
-		    MODNAME ": invalid mode 0%o.", (unsigned int)r->finfo.st_mode);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-    /*
-
-     * regular file, check next possibility
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

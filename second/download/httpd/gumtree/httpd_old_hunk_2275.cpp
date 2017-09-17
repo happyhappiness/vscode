@@ -1,26 +1,16 @@
 
-
-	if (cid->status) /* We have a special status to return */
-
-	    return cid->status;
-
-
-
-	return OK;
-
-    case HSE_STATUS_PENDING:	/* We don't support this */
-
-	ap_log_error(APLOG_MARK, APLOG_WARNING, r->server,
-
-		    "ISAPI asynchronous I/O not supported: %s", r->filename);
-
-    case HSE_STATUS_ERROR:
-
-    default:
-
-	return SERVER_ERROR;
-
-    }
-
-
-
+#if MIME_MAGIC_DEBUG
+    prevm = 0;
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
+		MODNAME ": apprentice test");
+    for (m = conf->magic; m; m = m->next) {
+	if (isprint((((unsigned long) m) >> 24) & 255) &&
+	    isprint((((unsigned long) m) >> 16) & 255) &&
+	    isprint((((unsigned long) m) >> 8) & 255) &&
+	    isprint(((unsigned long) m) & 255)) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
+			MODNAME ": apprentice: POINTER CLOBBERED! "
+			"m=\"%c%c%c%c\" line=%d",
+			(((unsigned long) m) >> 24) & 255,
+			(((unsigned long) m) >> 16) & 255,
+			(((unsigned long) m) >> 8) & 255,

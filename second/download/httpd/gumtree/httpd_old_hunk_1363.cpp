@@ -1,26 +1,14 @@
-    configfile_t *f;
-
-    char l[MAX_STRING_LEN];
-
-    const char *rpw;
-
-    char *w, *x;
-
-
-
-    if (!(f = ap_pcfg_openfile(r->pool, auth_pwfile))) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    "Could not open password file: %s", auth_pwfile);
-
-	return NULL;
-
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
     }
+#endif
 
-    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
-
-	if ((l[0] == '#') || (!l[0]))
-
-	    continue;
-
+    for (i = 0; i < t->a.nelts; ) {
+-- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800

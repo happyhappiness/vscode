@@ -1,52 +1,28 @@
-#ifdef SHARED_CORE
+	    return;
+	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
+    curblocks = 0;
+    curbytes = 0;
 
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
+    sub_garbage_coll(r, files, cachedir, "/");
 
+    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
+	ap_unblock_alarms();
+	return;
+    }
+
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
+
+    elts = (struct gc_ent **) files->elts;
+    for (i = 0; i < files->nelts; i++) {
+	fent = elts[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
 #else
-
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
-
-#endif
-
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
-
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S]\n", pad);
-
-    fprintf(stderr, "Options:\n");
-
-#ifdef SHARED_CORE
-
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
-
-#endif
-
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-
-    fprintf(stderr, "  -v               : show version number\n");
-
-    fprintf(stderr, "  -V               : show compile settings\n");
-
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-
-    exit(1);
-
-}
-
-
-
-/*****************************************************************
-
- *
-
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
-
+	if (unlink(filename) == -1) {

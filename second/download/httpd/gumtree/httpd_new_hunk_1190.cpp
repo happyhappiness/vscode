@@ -1,28 +1,13 @@
-            else if (w < 0) {
-
-                if (r->connection->aborted)
-
-                    break;
-
-                else if (errno == EAGAIN)
-
-                    continue;
-
-                else {
-
-                    ap_log_rerror(APLOG_MARK, APLOG_INFO, r,
-
-                     "client stopped connection before send body completed");
-
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-
-                    r->connection->aborted = 1;
-
-                    break;
-
-                }
-
-            }
-
-        }
-
+		    /* else nothing needs be done because
+		     * then the backslash is escaped and
+		     * we just strip to a single one
+		     */
+		}
+		/* blast trailing whitespace */
+		while (i > 0 && ap_isspace(buf[i - 1]))
+		    --i;
+		buf[i] = '\0';
+#ifdef DEBUG_CFG_LINES
+		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+		return 0;

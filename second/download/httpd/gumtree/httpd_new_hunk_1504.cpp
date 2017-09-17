@@ -1,26 +1,16 @@
-
-
-	    if (pos) {
-
-		*pos = '\0';
-
-	    }
-
-
-
-	    if ((pw = getpwnam(username)) == NULL) {
-
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-			     "getpwnam: invalid username %s", username);
-
-		return (pid);
-
-	    }
-
-	    execuser = ap_pstrcat(r->pool, "~", pw->pw_name, NULL);
-
-	    user_gid = pw->pw_gid;
-
-
-
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+	if (sigaction(SIGILL, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGILL)");
+#endif
+	sa.sa_flags = 0;
+    }
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
+#ifdef SIGINT

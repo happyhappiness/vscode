@@ -1,26 +1,13 @@
-static int log_scripterror(request_rec *r, cgi_server_conf * conf, int ret,
+	return ap_proxyerror(r, err);	/* give up */
 
-			   int show_errno, char *error)
+    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating socket");
+	return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-{
-
-    FILE *f;
-
-    struct stat finfo;
-
-
-
-    ap_log_rerror(APLOG_MARK, show_errno|APLOG_ERR, r, 
-
-		"%s: %s", error, r->filename);
-
-
-
-    if (!conf->logname ||
-
-	((stat(ap_server_root_relative(r->pool, conf->logname), &finfo) == 0)
-
-	 &&   (finfo.st_size > conf->logbytes)) ||
-
-         ((f = ap_pfopen(r->pool, ap_server_root_relative(r->pool, conf->logname),
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
+		       (const char *) &conf->recv_buffer_size, sizeof(int))
+	    == -1) {

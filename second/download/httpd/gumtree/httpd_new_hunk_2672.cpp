@@ -1,46 +1,14 @@
-	/* fatal error, bail out */
-
-	return result;
-
-    }
-
-
-
-    if ((fd = ap_popenf(r->pool, r->filename, O_RDONLY, 0)) < 0) {
-
-	/* We can't open it, but we were able to stat it. */
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		    MODNAME ": can't read `%s'", r->filename);
-
-	/* let some other handler decide what the problem is */
-
-	return DECLINED;
-
-    }
-
-
-
-    /*
-
-     * try looking at the first HOWMANY bytes
-
-     */
-
-    if ((nbytes = read(fd, (char *) buf, sizeof(buf) - 1)) == -1) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		    MODNAME ": read failed: %s", r->filename);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-    if (nbytes == 0)
-
-	magic_rsl_puts(r, MIME_TEXT_UNKNOWN);
-
+	     * how libraries and such are going to fail.  If we can't
+	     * do this F_DUPFD there's a good chance that apache has too
+	     * few descriptors available to it.  Note we don't warn on
+	     * the high line, because if it fails we'll eventually try
+	     * the low line...
+	     */
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
+		        "unable to open a file descriptor above %u, "
+			"you may need to increase the number of descriptors",
+			LOW_SLACK_LINE);
+	    low_warned = 1;
+	}
+	return fd;
+++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800

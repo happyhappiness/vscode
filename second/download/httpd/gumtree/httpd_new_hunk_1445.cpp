@@ -1,28 +1,13 @@
-    lseek(fd, 0, SEEK_SET);
 
-    rc = _locking(fd, _LK_UNLCK, 1);
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!ap_is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-    lseek(fd, 0, SEEK_END);
+    ap_hard_timeout("send headers", r);
 
-#endif
-
-
-
-    if (rc < 0) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-                     "mod_rewrite: failed to unlock file descriptor");
-
-        exit(1);
-
-    }
-
-}
-
-
-
-/*
-
-++ apache_1.3.2/src/modules/standard/mod_rewrite.h	1998-08-18 02:36:18.000000000 +0800
-
+    ap_basic_http_header(r);

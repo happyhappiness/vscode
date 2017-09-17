@@ -1,100 +1,13 @@
-#ifdef NEED_HASHBANG_EMUL
+    ap_bvputs(f, "Host: ", desthost, NULL);
+    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+	ap_bvputs(f, ":", destportstr, CRLF, NULL);
+    else
+	ap_bputs(CRLF, f);
 
-    printf(" -D NEED_HASHBANG_EMUL\n");
-
-#endif
-
-#ifdef SHARED_CORE
-
-    printf(" -D SHARED_CORE\n");
-
-#endif
-
-
-
-/* This list displays the compiled-in default paths: */
-
-#ifdef HTTPD_ROOT
-
-    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
-
-#endif
-
-#ifdef SUEXEC_BIN
-
-    printf(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n");
-
-#endif
-
-#ifdef SHARED_CORE_DIR
-
-    printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");
-
-#endif
-
-#ifdef DEFAULT_PIDLOG
-
-    printf(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n");
-
-#endif
-
-#ifdef DEFAULT_SCOREBOARD
-
-    printf(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n");
-
-#endif
-
-#ifdef DEFAULT_LOCKFILE
-
-    printf(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n");
-
-#endif
-
-#ifdef DEFAULT_XFERLOG
-
-    printf(" -D DEFAULT_XFERLOG=\"" DEFAULT_XFERLOG "\"\n");
-
-#endif
-
-#ifdef DEFAULT_ERRORLOG
-
-    printf(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n");
-
-#endif
-
-#ifdef TYPES_CONFIG_FILE
-
-    printf(" -D TYPES_CONFIG_FILE=\"" TYPES_CONFIG_FILE "\"\n");
-
-#endif
-
-#ifdef SERVER_CONFIG_FILE
-
-    printf(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n");
-
-#endif
-
-#ifdef ACCESS_CONFIG_FILE
-
-    printf(" -D ACCESS_CONFIG_FILE=\"" ACCESS_CONFIG_FILE "\"\n");
-
-#endif
-
-#ifdef RESOURCE_CONFIG_FILE
-
-    printf(" -D RESOURCE_CONFIG_FILE=\"" RESOURCE_CONFIG_FILE "\"\n");
-
-#endif
-
-}
-
-
-
-
-
-/* Some init code that's common between win32 and unix... well actually
-
- * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
-
- * is still a mess.
-
+    reqhdrs_arr = ap_table_elts(r->headers_in);
+    reqhdrs = (table_entry *) reqhdrs_arr->elts;
+    for (i = 0; i < reqhdrs_arr->nelts; i++) {
+	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
+	/* Clear out headers not to send */
+	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
+	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))

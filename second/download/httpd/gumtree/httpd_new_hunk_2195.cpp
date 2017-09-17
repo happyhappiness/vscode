@@ -1,26 +1,13 @@
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
+    rr->content_type = CGI_MAGIC_TYPE;
 
-            return 1;
+    /* Run it. */
 
-        }
+    rr_status = ap_run_sub_req(rr);
+    if (is_HTTP_REDIRECT(rr_status)) {
+        const char *location = ap_table_get(rr->headers_out, "Location");
+        location = ap_escape_html(rr->pool, location);
+        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+    }
 
-        if (!strcmp(tag, "cmd")) {
-
-            parse_string(r, tag_val, parsed_string, sizeof(parsed_string), 1);
-
-            if (include_cmd(parsed_string, r) == -1) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "execution failure for parameter \"%s\" "
-
-                            "to tag exec in file %s",
-
-                            tag, r->filename);
-
-                ap_rputs(error, r);
-
-            }
-
-            /* just in case some stooge changed directories */
-
+    ap_destroy_sub_req(rr);
+#ifndef WIN32

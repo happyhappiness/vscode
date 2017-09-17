@@ -1,142 +1,104 @@
-	    n = strlen(buf);
-
+	    if (!(autoindex_opts & SUPPRESS_SIZE)) {
+		ap_send_size(ar[x]->size, r);
+		ap_rputs("  ", r);
+	    }
+	    if (!(autoindex_opts & SUPPRESS_DESC)) {
+		if (ar[x]->desc) {
+		    ap_rputs(terminate_description(d, ar[x]->desc, autoindex_opts), r);
+		}
+	    }
 	}
-
-
-
-	o = 0;
-
-	total_bytes_sent += n;
-
-
-
-	if (f2 != NULL)
-
-	    if (ap_bwrite(f2, buf, n) != n)
-
-		f2 = ap_proxy_cache_error(c);
-
-
-
-	while (n && !r->connection->aborted) {
-
-	    w = ap_bwrite(con->client, &buf[o], n);
-
-	    if (w <= 0)
-
-		break;
-
-	    ap_reset_timeout(r);	/* reset timeout after successfule write */
-
-	    n -= w;
-
-	    o += w;
-
-	}
-
+	else
+	    ap_rvputs(r, "<LI> ", anchor, " ", t2, NULL);
+	ap_rputc('\n', r);
     }
-
-    site = "</PRE><HR>\n";
-
-    ap_bputs(site, con->client);
-
-    if (f2 != NULL)
-
-	ap_bputs(site, f2);
-
-    total_bytes_sent += strlen(site);
-
-
-
-    sig = ap_psignature("", r);
-
-    ap_bputs(sig, con->client);
-
-    if (f2 != NULL)
-
-	ap_bputs(sig, f2);
-
-    total_bytes_sent += strlen(sig);
-
-
-
-    site = "</BODY></HTML>\n";
-
-    ap_bputs(site, con->client);
-
-    if (f2 != NULL)
-
-	ap_bputs(site, f2);
-
-    total_bytes_sent += strlen(site);
-
-    ap_bflush(con->client);
-
-
-
-    return total_bytes_sent;
-
+    if (autoindex_opts & FANCY_INDEXING) {
+	ap_rputs("</PRE>", r);
+    }
+    else {
+	ap_rputs("</UL>", r);
+    }
 }
 
 
-
-/*
-
- * Handles direct access of ftp:// URLs
-
- * Original (Non-PASV) version from
-
- * Troy Morrison <spiffnet@zoom.com>
-
- * PASV added by Chuck
-
- */
-
-int ap_proxy_ftp_handler(request_rec *r, struct cache_req *c, char *url)
-
+static int dsortf(struct ent **e1, struct ent **e2)
 {
+    char *s1;
+    char *s2;
+    char *s3;
+    int result;
 
-    char *host, *path, *strp, *user, *password, *parms;
+    /*
+     * Choose the right values for the sort keys.
+     */
+    switch ((*e1)->key) {
+    case K_LAST_MOD:
+	s1 = (*e1)->lm_cmp;
+	s2 = (*e2)->lm_cmp;
+	break;
+    case K_SIZE:
+	s1 = (*e1)->size_cmp;
+	s2 = (*e2)->size_cmp;
+	break;
+    case K_DESC:
+	s1 = (*e1)->desc;
+	s2 = (*e2)->desc;
+	break;
+    case K_NAME:
+    default:
+	s1 = (*e1)->name;
+	s2 = (*e2)->name;
+	break;
+    }
+    /*
+     * If we're supposed to sort in DEscending order, reverse the arguments.
+     */
+    if (!(*e1)->ascending) {
+	s3 = s1;
+	s1 = s2;
+	s2 = s3;
+    }
 
-    const char *err;
+    /*
+     * Take some care, here, in case one string or the other (or both) is
+     * NULL.
+     */
 
-    int port, userlen, i, j, len, sock, dsock, rc, nocache;
+    /*
+     * Two valid strings, compare normally.
+     */
+    if ((s1 != NULL) && (s2 != NULL)) {
+	result = strcmp(s1, s2);
+    }
+    /*
+     * Two NULL strings - primary keys are equal (fake it).
+     */
+    else if ((s1 == NULL) && (s2 == NULL)) {
+	result = 0;
+    }
+    /*
+     * s1 is NULL, but s2 is a string - so s2 wins.
+     */
+    else if (s1 == NULL) {
+	result = -1;
+    }
+    /*
+     * Last case: s1 is a string and s2 is NULL, so s1 wins.
+     */
+    else {
+	result = 1;
+    }
+    /*
+     * If the keys were equal, the file name is *always* the secondary key -
+     * in ascending order.
+     */
+    if (!result) {
+	result = strcmp((*e1)->name, (*e2)->name);
+    }
+    return result;
+}
 
-    int passlen = 0;
 
-    int csd = 0;
-
-    struct sockaddr_in server;
-
-    struct hostent server_hp;
-
-    struct hdr_entry *hdr;
-
-    struct in_addr destaddr;
-
-    array_header *resp_hdrs;
-
-    BUFF *f, *cache;
-
-    BUFF *data = NULL;
-
-    pool *p = r->pool;
-
-    int one = 1;
-
-    const long int zero = 0L;
-
-    NET_SIZE_T clen;
-
-
-
-    void *sconf = r->server->module_config;
-
-    proxy_server_conf *conf =
-
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-
-    struct noproxy_entry *npent = (struct noproxy_entry *) conf->noproxies->elts;
-
-    struct nocache_entry *ncent = (struct nocache_entry *) conf->nocaches->elts;
-
+static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
+{
+    char *title_name = ap_escape_html(r->pool, r->uri);

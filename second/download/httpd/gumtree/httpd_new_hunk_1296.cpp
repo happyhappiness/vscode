@@ -1,28 +1,10 @@
-    return res;
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
 
-}
-
-
-
-API_EXPORT(int) ap_cfg_closefile(configfile_t *cfp)
-
-{
-
-#ifdef DEBUG
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, 
-
-        "Done with config file %s", cfp->name);
-
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
 #endif
 
-    return (cfp->close == NULL) ? 0 : cfp->close(cfp->param);
-
-}
-
-
-
-/* Common structure that holds the file and pool for ap_pcfg_openfile */
-
-typedef struct {
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

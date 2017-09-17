@@ -1,26 +1,13 @@
-                case token_lt:
 
-                    current = current->parent;
+    /* Domain name must start with a '.' */
+    if (addr[0] != '.')
+	return 0;
 
-                    continue;
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
+	continue;
 
-                case token_lbrace:
-
-                    break;
-
-                default:
-
-                    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                                "Invalid expression \"%s\" in file %s",
-
-                                expr, r->filename);
-
-                    ap_rputs(error, r);
-
-                    goto RETURN;
-
-                }
-
-                break;
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
+	/* @@@@ handle optional port */

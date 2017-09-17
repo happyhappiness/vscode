@@ -1,56 +1,13 @@
-		ap_rputs(">", r);
 
-	    }
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!ap_is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
+    ap_hard_timeout("send headers", r);
 
-		ap_rputs("</A>", r);
-
-	    }
-
-
-
-	    ap_rvputs(r, " <A HREF=\"", anchor, "\">",
-
-		      widthify(t2, name_scratch, name_width, K_NOPAD),
-
-		      "</A>", NULL);
-
-	    /*
-
-	     * We know that widthify() prefilled the buffer with spaces
-
-	     * before doing its thing, so use them.
-
-	     */
-
-	    nwidth = strlen(t2);
-
-	    if (nwidth < (name_width - 1)) {
-
-		name_scratch[nwidth] = ' ';
-
-		ap_rputs(&name_scratch[nwidth], r);
-
-	    }
-
-	    /*
-
-	     * The blank before the storm.. er, before the next field.
-
-	     */
-
-	    ap_rputs(" ", r);
-
-	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-
-		if (ar[x]->lm != -1) {
-
-		    char time_str[MAX_STRING_LEN];
-
-		    struct tm *ts = localtime(&ar[x]->lm);
-
-		    strftime(time_str, MAX_STRING_LEN, "%d-%b-%Y %H:%M  ", ts);
-
-		    ap_rputs(time_str, r);
-
+    ap_basic_http_header(r);

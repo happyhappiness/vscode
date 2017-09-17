@@ -1,36 +1,28 @@
-	    hStdErr = dup(fileno(stderr));
+#ifdef SHARED_CORE
+    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
+#else
+    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
+#endif
+    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
+    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S] [-t]\n", pad);
+    fprintf(stderr, "Options:\n");
+#ifdef SHARED_CORE
+    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
+#endif
+    fprintf(stderr, "  -D name          : define a name for use in <IfDefine name> directives\n");
+    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
+    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
+    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
+    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
+    fprintf(stderr, "  -v               : show version number\n");
+    fprintf(stderr, "  -V               : show compile settings\n");
+    fprintf(stderr, "  -h               : list available configuration directives\n");
+    fprintf(stderr, "  -l               : list compiled-in modules\n");
+    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
+    fprintf(stderr, "  -t               : run syntax test for configuration files only\n");
+    exit(1);
+}
 
-	    if(dup2(err_fds[1], fileno(stderr)))
-
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
-
-	    close(err_fds[1]);
-
-	}
-
-
-
-	info.hPipeInputRead   = GetStdHandle(STD_INPUT_HANDLE);
-
-	info.hPipeOutputWrite = GetStdHandle(STD_OUTPUT_HANDLE);
-
-	info.hPipeErrorWrite  = GetStdHandle(STD_ERROR_HANDLE);
-
-
-
-	pid = (*func) (data, &info);
-
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
-
-
-
-        if (!pid) {
-
-	    save_errno = errno;
-
-	    close(in_fds[1]);
-
-	    close(out_fds[0]);
-
-++ apache_1.3.2/src/main/buff.c	1998-09-05 00:47:46.000000000 +0800
-
+/*****************************************************************
+ *
+ * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff

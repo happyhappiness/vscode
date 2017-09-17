@@ -1,64 +1,29 @@
+	}
 
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (ap_isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!ap_isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (ap_isspace(*src))
+		++src;
+	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && ap_isspace(*dst))
+	    *dst = '\0';
 
-    /* Pass one --- direct matches */
-
-
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-
-	if (handler_len == handp->len
-
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-
-            result = (*handp->hr.handler) (r);
-
-
-
-            if (result != DECLINED)
-
-                return result;
-
-        }
-
-    }
-
-
-
-    if (result == NOT_IMPLEMENTED && r->handler) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-
-    }
-
-
-
-    /* Pass two --- wildcard matches */
-
-
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-
-	if (handler_len >= handp->len
-
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-
-             result = (*handp->hr.handler) (r);
-
-
-
-             if (result != DECLINED)
-
-                 return result;
-
-         }
-
-    }
-
-
-
-nly in apache_1.3.0/src/main: http_config.o
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

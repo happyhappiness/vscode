@@ -1,26 +1,9 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+/* Automatically generated file - do not edit */
 
-		   sizeof(one)) == -1) {
-
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-
-	ap_pclosesocket(p, sock);
-
-	return SERVER_ERROR;
-
-#endif /*_OSD_POSIX*/
-
-    }
-
-
-
-#ifdef SINIX_D_RESOLVER_BUG
-
-    {
-
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
-
+#ifndef LINUX
+#define LINUX 2
+#endif
+#ifndef USE_HSREGEX
+#define USE_HSREGEX 
+#endif
+-- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800

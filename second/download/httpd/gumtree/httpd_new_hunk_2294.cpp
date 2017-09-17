@@ -1,26 +1,17 @@
-            if (result != DECLINED)
-
-                return result;
-
-        }
-
     }
-
-
-
-    if (result == NOT_IMPLEMENTED && r->handler) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r,
-
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-
+    else {
+	alarm_fn = fn;
+	alarm_expiry_time = time(NULL) + x;
     }
-
-
-
-    /* Pass two --- wildcard matches */
-
-
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-
+#else
+    if (alarm_fn && x && fn != alarm_fn) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
+	    "ap_set_callback_and_alarm: possible nested timer!");
+    }
+    alarm_fn = fn;
+#ifndef OPTIMIZE_TIMEOUTS
+    old = alarm(x);
+#else
+    if (child_timeouts) {
+	old = alarm(x);
+    }

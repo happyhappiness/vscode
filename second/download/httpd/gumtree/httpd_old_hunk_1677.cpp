@@ -1,36 +1,52 @@
-	    hold_off_on_exponential_spawning = 10;
+#endif
 
+    /* Since we are reading from one buffer and writing to another,
+     * it is unsafe to do a soft_timeout here, at least until the proxy
+     * has its own timeout handler which can set both buffers to EOUT.
+     */
+    ap_hard_timeout("proxy send body", r);
+
+    while (!con->aborted && f != NULL) {
+	n = ap_bread(f, buf, IOBUFSIZE);
+	if (n == -1) {		/* input error */
+	    if (f2 != NULL)
+		f2 = ap_proxy_cache_error(c);
+	    break;
 	}
+	if (n == 0)
+	    break;		/* EOF */
+	o = 0;
+	total_bytes_sent += n;
 
+	if (f2 != NULL)
+	    if (ap_bwrite(f2, buf, n) != n)
+		f2 = ap_proxy_cache_error(c);
 
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-
-		    "%s configured -- resuming normal operations",
-
-		    ap_get_server_version());
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-
-		    "Server built: %s", ap_get_server_built());
-
-	if (ap_suexec_enabled) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-
+	while (n && !con->aborted) {
+	    w = ap_bwrite(con->client, &buf[o], n);
+	    if (w <= 0) {
+		if (f2 != NULL) {
+		    ap_pclosef(c->req->pool, c->fp->fd);
+		    c->fp = NULL;
+		    f2 = NULL;
+		    con->aborted = 1;
+		    unlink(c->tempfile);
+		}
+		break;
+	    }
+	    ap_reset_timeout(r);	/* reset timeout after successful write */
+	    n -= w;
+	    o += w;
 	}
+    }
+    if (!con->aborted)
+	ap_bflush(con->client);
 
-	restart_pending = shutdown_pending = 0;
+    ap_kill_timeout(r);
+    return total_bytes_sent;
+}
 
-
-
-	while (!restart_pending && !shutdown_pending) {
-
-	    int child_slot;
-
-	    ap_wait_t status;
-
-	    int pid = wait_or_timeout(&status);
-
+/*
+ * Read a header from the array, returning the first entry
+ */
+struct hdr_entry *

@@ -1,32 +1,17 @@
-                --cp;
 
-        }
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	restart_pending = shutdown_pending = 0;
 
-        else {
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    int status;
+	    int pid = wait_or_timeout(&status);
 
-#if defined(EACCES)
-
-            if (errno != EACCES)
-
-#endif
-
-                ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-                            "access to %s failed for %s", r->uri,
-
-                            ap_get_remote_host(r->connection, r->per_dir_config,
-
-                                            REMOTE_NOLOOKUP));
-
-            return HTTP_FORBIDDEN;
-
-        }
-
-#else
-
-#error ENOENT || ENOTDIR not defined; please see the
-
-#error comments at this line in the source for a workaround.
-
-        /*
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

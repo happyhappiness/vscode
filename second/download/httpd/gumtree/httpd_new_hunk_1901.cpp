@@ -1,26 +1,13 @@
-            if (!res) {
 
-                res = file_walk(rnew);
-
-            }
-
+    while (1) {
+        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
+            return 1;
         }
+        if (!strcmp(tag, "var")) {
+            const char *val = ap_table_get(r->subprocess_env, tag_val);
 
-        else {
-
-            if ((res = check_symlinks(rnew->filename, ap_allow_options(rnew)))) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, rnew,
-
-                            "Symbolic link not allowed: %s", rnew->filename);
-
-                rnew->status = res;
-
-                return rnew;
-
+            if (val) {
+                ap_rputs(val, r);
             }
-
-            /*
-
-             * do a file_walk, if it doesn't change the per_dir_config then
-
+            else {
+                ap_rputs("(none)", r);

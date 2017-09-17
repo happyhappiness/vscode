@@ -1,26 +1,13 @@
-	perror("Unable to gethostname");
-
-	exit(1);
-
+    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (dsock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating PASV socket");
+	ap_bclose(f);
+	ap_kill_timeout(r);
+	return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    str[MAXHOSTNAMELEN] = '\0';
-
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
-
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-
-	fprintf(stderr, "Use the ServerName directive to set it manually.\n");
-
-	exit(1);
-
-    }
-
-
-
-    return server_hostname;
-
-}
-
-
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
+	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,

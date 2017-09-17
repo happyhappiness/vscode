@@ -1,24 +1,13 @@
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-
-		    "flock: LOCK_UN: Error freeing accept lock. Exiting!");
-
-	clean_child_exit(APEXIT_CHILDFATAL);
-
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		   sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
+	ap_pclosesocket(p, sock);
+	return SERVER_ERROR;
+#endif /*_OSD_POSIX*/
     }
 
-}
-
-
-
-#else
-
-/* Default --- no serialization.  Other methods *could* go here,
-
- * as #elifs...
-
- */
-
-#if !defined(MULTITHREAD)
-
-/* Multithreaded systems don't complete between processes for
-
+#ifdef SINIX_D_RESOLVER_BUG
+    {
+	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;

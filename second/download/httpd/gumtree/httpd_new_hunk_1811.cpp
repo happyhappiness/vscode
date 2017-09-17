@@ -1,26 +1,17 @@
-	}
 
+    if (i != DECLINED) {
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	return i;
     }
 
+    cache = c->fp;
 
+    c->hdrs = resp_hdrs;
 
-    /* clean up and return */
-
-    result[res_pos] = 0;
-
-#if MIME_MAGIC_DEBUG
-
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-	     MODNAME ": rsl_strdup() %d chars: %s", res_pos - 1, result);
-
-#endif
-
-    return result;
-
-}
-
-
-
-/* states for the state-machine algorithm in magic_rsl_to_request() */
-
+    if (!pasvmode) {		/* wait for connection */
+	ap_hard_timeout("proxy ftp data connect", r);
+	clen = sizeof(struct sockaddr_in);
+	do
+	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
+	while (csd == -1 && errno == EINTR);

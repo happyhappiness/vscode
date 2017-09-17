@@ -1,36 +1,14 @@
-    ap_table_setn(r->err_headers_out,
-
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-
-		ap_auth_name(r), r->request_time));
-
-}
-
-
-
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
-
-{
-
-    const char *auth_line = ap_table_get(r->headers_in,
-
-                                      r->proxyreq ? "Proxy-Authorization"
-
-                                                  : "Authorization");
-
-    const char *t;
-
-
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-
-        return DECLINED;
-
-
-
-    if (!ap_auth_name(r)) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-
+	     * how libraries and such are going to fail.  If we can't
+	     * do this F_DUPFD there's a good chance that apache has too
+	     * few descriptors available to it.  Note we don't warn on
+	     * the high line, because if it fails we'll eventually try
+	     * the low line...
+	     */
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
+		        "unable to open a file descriptor above %u, "
+			"you may need to increase the number of descriptors",
+			LOW_SLACK_LINE);
+	    low_warned = 1;
+	}
+	return fd;
+++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800

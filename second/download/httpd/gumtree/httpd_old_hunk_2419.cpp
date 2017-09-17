@@ -1,120 +1,104 @@
-            }
-
-        }
-
-        else if (!strcmp(tag, "done")) {
-
-            return 0;
-
-        }
-
-        else {
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "unknown parameter \"%s\" to tag config in %s",
-
-                        tag, r->filename);
-
-            ap_rputs(error, r);
-
-        }
-
+	    if (!(autoindex_opts & SUPPRESS_SIZE)) {
+		ap_send_size(ar[x]->size, r);
+		ap_rputs("  ", r);
+	    }
+	    if (!(autoindex_opts & SUPPRESS_DESC)) {
+		if (ar[x]->desc) {
+		    ap_rputs(terminate_description(d, ar[x]->desc, autoindex_opts), r);
+		}
+	    }
+	}
+	else
+	    ap_rvputs(r, "<LI> ", anchor, " ", t2, NULL);
+	ap_rputc('\n', r);
     }
-
-}
-
-
-
-
-
-static int find_file(request_rec *r, const char *directive, const char *tag,
-
-                     char *tag_val, struct stat *finfo, const char *error)
-
-{
-
-    char *to_send;
-
-
-
-    if (!strcmp(tag, "file")) {
-
-        ap_getparents(tag_val);    /* get rid of any nasties */
-
-        to_send = ap_make_full_path(r->pool, "./", tag_val);
-
-        if (stat(to_send, finfo) == -1) {
-
-            ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-                        "unable to get information about \"%s\" "
-
-                        "in parsed file %s",
-
-                        to_send, r->filename);
-
-            ap_rputs(error, r);
-
-            return -1;
-
-        }
-
-        return 0;
-
+    if (autoindex_opts & FANCY_INDEXING) {
+	ap_rputs("</PRE>", r);
     }
-
-    else if (!strcmp(tag, "virtual")) {
-
-        request_rec *rr = ap_sub_req_lookup_uri(tag_val, r);
-
-
-
-        if (rr->status == HTTP_OK && rr->finfo.st_mode != 0) {
-
-            memcpy((char *) finfo, (const char *) &rr->finfo,
-
-                   sizeof(struct stat));
-
-            ap_destroy_sub_req(rr);
-
-            return 0;
-
-        }
-
-        else {
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "unable to get information about \"%s\" "
-
-                        "in parsed file %s",
-
-                        tag_val, r->filename);
-
-            ap_rputs(error, r);
-
-            ap_destroy_sub_req(rr);
-
-            return -1;
-
-        }
-
-    }
-
     else {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "unknown parameter \"%s\" to tag %s in %s",
-
-                    tag, directive, r->filename);
-
-        ap_rputs(error, r);
-
-        return -1;
-
+	ap_rputs("</UL>", r);
     }
-
 }
 
+
+static int dsortf(struct ent **e1, struct ent **e2)
+{
+    char *s1;
+    char *s2;
+    char *s3;
+    int result;
+
+    /*
+     * Choose the right values for the sort keys.
+     */
+    switch ((*e1)->key) {
+    case K_LAST_MOD:
+	s1 = (*e1)->lm_cmp;
+	s2 = (*e2)->lm_cmp;
+	break;
+    case K_SIZE:
+	s1 = (*e1)->size_cmp;
+	s2 = (*e2)->size_cmp;
+	break;
+    case K_DESC:
+	s1 = (*e1)->desc;
+	s2 = (*e2)->desc;
+	break;
+    case K_NAME:
+    default:
+	s1 = (*e1)->name;
+	s2 = (*e2)->name;
+	break;
+    }
+    /*
+     * If we're supposed to sort in DEscending order, reverse the arguments.
+     */
+    if (!(*e1)->ascending) {
+	s3 = s1;
+	s1 = s2;
+	s2 = s3;
+    }
+
+    /*
+     * Take some care, here, in case one string or the other (or both) is
+     * NULL.
+     */
+
+    /*
+     * Two valid strings, compare normally.
+     */
+    if ((s1 != NULL) && (s2 != NULL)) {
+	result = strcmp(s1, s2);
+    }
+    /*
+     * Two NULL strings - primary keys are equal (fake it).
+     */
+    else if ((s1 == NULL) && (s2 == NULL)) {
+	result = 0;
+    }
+    /*
+     * s1 is NULL, but s2 is a string - so s2 wins.
+     */
+    else if (s1 == NULL) {
+	result = -1;
+    }
+    /*
+     * Last case: s1 is a string and s2 is NULL, so s1 wins.
+     */
+    else {
+	result = 1;
+    }
+    /*
+     * If the keys were equal, the file name is *always* the secondary key -
+     * in ascending order.
+     */
+    if (!result) {
+	result = strcmp((*e1)->name, (*e2)->name);
+    }
+    return result;
+}
+
+
+static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
+{
+    char *title_name = ap_escape_html(r->pool, r->uri);

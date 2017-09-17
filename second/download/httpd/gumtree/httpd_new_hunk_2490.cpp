@@ -1,40 +1,14 @@
-<tr><th>Req<td>Milliseconds required to process most recent request\n \
+#include "http_main.h"
+#include "http_request.h"
 
-<tr><th>Conn<td>Kilobytes transferred this connection\n \
+static int asis_handler(request_rec *r)
+{
+    FILE *f;
+    const char *location;
 
-<tr><th>Child<td>Megabytes transferred this child\n \
-
-<tr><th>Slot<td>Total megabytes transferred this slot\n \
-
-</table>\n", r);
-
-#endif
-
-	}
-
-
-
-    } else {
-
-
-
-    ap_rputs("<hr>To obtain a full report with current status information ", r);
-
-    ap_rputs("you need to use the <code>ExtendedStatus On</code> directive. \n", r);
-
-
-
-    }
-
-
-
-    if (!short_report) {
-
-	ap_rputs(ap_psignature("<HR>\n",r), r);
-
-	ap_rputs("</BODY></HTML>\n", r);
-
-    }
-
-
-
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+	return DECLINED;
+    if (r->finfo.st_mode == 0) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800

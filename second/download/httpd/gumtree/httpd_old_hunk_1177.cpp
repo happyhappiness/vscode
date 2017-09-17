@@ -1,46 +1,12 @@
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
 #endif
-
-
-
-static void show_compile_settings(void)
-
-{
-
-    printf("Server version: %s\n", ap_get_server_version());
-
-    printf("Server built:   %s\n", ap_get_server_built());
-
-    printf("Server's Module Magic Number: %u\n", MODULE_MAGIC_NUMBER);
-
-    printf("Server compiled with....\n");
-
-#ifdef BIG_SECURITY_HOLE
-
-    printf(" -D BIG_SECURITY_HOLE\n");
-
+#ifdef SIGABRT
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
 #endif
-
-#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
-
-    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
-
-#endif
-
-#ifdef HTTPD_ROOT
-
-    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
-
-#endif
-
-#ifdef HAVE_MMAP
-
-    printf(" -D HAVE_MMAP\n");
-
-#endif
-
-#ifdef HAVE_SHMGET
-
-    printf(" -D HAVE_SHMGET\n");
-
-#endif
-
+	sa.sa_flags = 0;
+    }
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
+#ifdef SIGINT

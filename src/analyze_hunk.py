@@ -17,9 +17,6 @@ from gumtree_api import Gumtree
 import my_constant
 import myUtil
 
-reload(sys);
-sys.setdefaultencoding('utf8')
-
 """
 @ param hunk record, log writer, gumtree object and log counter
 @ return total_log
@@ -33,7 +30,7 @@ def deal_hunk( hunk_record, writer, gumtree, total_log):
     old_hunk_file = hunk_record[my_constant.FETCH_HUNK_OLD_HUNK_FILE]
     new_hunk_file = hunk_record[my_constant.FETCH_HUNK_NEW_HUNK_FILE]
 
-    hunk_info = hunk_record[:-2]
+    hunk_info = hunk_record[:-4]
     gumtree.set_old_new_file(old_hunk_file, new_hunk_file)
     gumtree.add_old_log_nodes(old_log_loc)
     gumtree.add_new_log_nodes(new_log_loc)
@@ -42,19 +39,19 @@ def deal_hunk( hunk_record, writer, gumtree, total_log):
     # deal with log existing in old file
     for old_loc in old_log_loc:
         if gumtree.set_old_loc(old_loc):
-            # get old loc and old log
+            # old loc and old log
             old_loc = old_hunk_loc + old_loc - 1
             old_log = gumtree.get_old_log()
 
-            # get new loc and new log
+            # new loc and new log
             new_loc = gumtree.get_new_loc()
-            # -1 if no map
+            new_log = gumtree.get_new_log()
+            # if map
             if new_loc != -1:
                 # remove mapping new_log_loc
                 if new_loc in new_log_loc:
                     new_log_loc.remove(new_loc)
                 new_loc = new_hunk_loc + new_loc - 1
-            new_log = gumtree.get_new_log()
             # whether this old log is edited
             curr_action_type = action_type + gumtree.is_old_log_edited()
 
@@ -64,22 +61,16 @@ def deal_hunk( hunk_record, writer, gumtree, total_log):
     # deal with inserted log
     for new_loc in new_log_loc:
         if gumtree.set_new_loc(new_loc):
-            # get new loc and new log
+            # new loc and new log
             new_loc = new_hunk_loc + new_loc - 1
             new_log = gumtree.get_new_log()
 
-            # get old loc
-            old_loc = gumtree.get_old_loc()
-            # -1 if no map
-            if old_loc != -1:
-                old_loc = old_hunk_loc + old_loc - 1
-                # whether this old log is edited
-                curr_action_type = action_type + 1
-            else:
-                curr_action_type = action_type
-            # old log is None
+            # old loc and old log
+            old_loc = -1
             old_log = None
 
+            # curr action type
+            curr_action_type = action_type + 1
             writer.writerow(hunk_info + [old_loc, new_loc, old_log, new_log, curr_action_type])
             total_log += 1
 

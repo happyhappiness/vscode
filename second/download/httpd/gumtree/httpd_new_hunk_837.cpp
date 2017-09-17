@@ -1,28 +1,16 @@
-            output_results();
-
-        }
-
-
-
-        /* Timeout of 30 seconds. */
-
-        timeout.tv_sec = 30;
-
-        timeout.tv_usec = 0;
-
-        n = ap_select(FD_SETSIZE, &sel_read, &sel_write, &sel_except, &timeout);
-
-        if (!n) {
-
-            printf("\nServer timed out\n\n");
-
-            exit(1);
-
-        }
-
-        if (n < 1)
-
-            err("select");
-
-++ apache_1.3.1/src/support/htdigest.c	1998-07-13 19:32:58.000000000 +0800
-
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+	if (sigaction(SIGILL, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGILL)");
+#endif
+	sa.sa_flags = 0;
+    }
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
+#ifdef SIGINT

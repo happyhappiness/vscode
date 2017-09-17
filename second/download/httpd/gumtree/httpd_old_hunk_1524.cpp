@@ -1,150 +1,40 @@
-
-
-    ap_hard_timeout("proxy receive", r);
-
-/* send response */
-
-/* write status line */
-
-    if (!r->assbackwards)
-
-	ap_rvputs(r, "HTTP/1.0 ", r->status_line, CRLF, NULL);
-
-    if (cache != NULL)
-
-	if (ap_bvputs(cache, "HTTP/1.0 ", r->status_line, CRLF,
-
-		   NULL) == -1)
-
-	    cache = ap_proxy_cache_error(c);
-
-
-
-/* send headers */
-
-    len = resp_hdrs->nelts;
-
-    hdr = (struct hdr_entry *) resp_hdrs->elts;
-
-    for (i = 0; i < len; i++) {
-
-	if (hdr[i].field == NULL || hdr[i].value == NULL ||
-
-	    hdr[i].value[0] == '\0')
-
-	    continue;
-
-	if (!r->assbackwards)
-
-	    ap_rvputs(r, hdr[i].field, ": ", hdr[i].value, CRLF, NULL);
-
-	if (cache != NULL)
-
-	    if (ap_bvputs(cache, hdr[i].field, ": ", hdr[i].value, CRLF,
-
-		       NULL) == -1)
-
-		cache = ap_proxy_cache_error(c);
-
+	return;
     }
+    else
+	inside = 1;
+    (void) ap_release_mutex(garbage_mutex);
+
+    help_proxy_garbage_coll(r);
+
+    (void) ap_acquire_mutex(garbage_mutex);
+    inside = 0;
+    (void) ap_release_mutex(garbage_mutex);
+}
 
 
+static void help_proxy_garbage_coll(request_rec *r)
+{
+    const char *cachedir;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *pconf =
+    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+    const struct cache_conf *conf = &pconf->cache;
+    array_header *files;
+    struct stat buf;
+    struct gc_ent *fent, **elts;
+    int i, timefd;
+    static time_t lastcheck = BAD_DATE;		/* static data!!! */
 
-    if (!r->assbackwards)
+    cachedir = conf->root;
+    cachesize = conf->space;
+    every = conf->gcinterval;
 
-	ap_rputs(CRLF, r);
+    if (cachedir == NULL || every == -1)
+	return;
+    garbage_now = time(NULL);
+    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
+	return;
 
-    if (cache != NULL)
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
 
-	if (ap_bputs(CRLF, cache) == -1)
-
-	    cache = ap_proxy_cache_error(c);
-
-
-
-    ap_bsetopt(r->connection->client, BO_BYTECT, &zero);
-
-    r->sent_bodyct = 1;
-
-/* send body */
-
-    if (!r->header_only) {
-
-	if (parms[0] != 'd') {
-
-/* we need to set this for ap_proxy_send_fb()... */
-
-	    c->cache_completion = 0;
-
-	    ap_proxy_send_fb(data, r, cache, c);
-
-	} else
-
-	    send_dir(data, r, cache, c, url);
-
-
-
-	if (rc == 125 || rc == 150)
-
-	    rc = ftp_getrc(f);
-
-	if (rc != 226 && rc != 250)
-
-	    ap_proxy_cache_error(c);
-
-    }
-
-    else {
-
-/* abort the transfer */
-
-	ap_bputs("ABOR" CRLF, f);
-
-	ap_bflush(f);
-
-	if (!pasvmode)
-
-	    ap_bclose(data);
-
-	Explain0("FTP: ABOR");
-
-/* responses: 225, 226, 421, 500, 501, 502 */
-
-	i = ftp_getrc(f);
-
-	Explain1("FTP: returned status %d", i);
-
-    }
-
-
-
-    ap_kill_timeout(r);
-
-    ap_proxy_cache_tidy(c);
-
-
-
-/* finish */
-
-    ap_bputs("QUIT" CRLF, f);
-
-    ap_bflush(f);
-
-    Explain0("FTP: QUIT");
-
-/* responses: 221, 500 */
-
-
-
-    if (pasvmode)
-
-	ap_bclose(data);
-
-    ap_bclose(f);
-
-
-
-    ap_rflush(r);	/* flush before garbage collection */
-
--- apache_1.3.1/src/modules/proxy/proxy_http.c	1998-07-10 03:45:56.000000000 +0800
-
+    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

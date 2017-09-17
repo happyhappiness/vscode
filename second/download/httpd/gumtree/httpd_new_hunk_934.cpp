@@ -1,32 +1,14 @@
-{
-
-    /* This could be called from an AddModule httpd.conf command,
-
-     * after the file has been linked and the module structure within it
-
-     * teased out...
-
-     */
-
-
-
-    if (m->version != MODULE_MAGIC_NUMBER_MAJOR) {
-
-	fprintf(stderr, "httpd: module \"%s\" is not compatible with this "
-
-		"version of Apache.\n", m->name);
-
-	fprintf(stderr, "Please contact the vendor for the correct version.\n");
-
-	exit(1);
-
-    }
-
-
-
-    if (m->next == NULL) {
-
-	m->next = top_module;
-
-	top_module = m;
-
+	     * how libraries and such are going to fail.  If we can't
+	     * do this F_DUPFD there's a good chance that apache has too
+	     * few descriptors available to it.  Note we don't warn on
+	     * the high line, because if it fails we'll eventually try
+	     * the low line...
+	     */
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
+		        "unable to open a file descriptor above %u, "
+			"you may need to increase the number of descriptors",
+			LOW_SLACK_LINE);
+	    low_warned = 1;
+	}
+	return fd;
+++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800

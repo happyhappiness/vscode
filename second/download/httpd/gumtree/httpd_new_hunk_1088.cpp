@@ -1,26 +1,13 @@
-		errstr[len-1] = ' ';
-
-	    }
-
-	}
-
+    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (dsock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating PASV socket");
+	ap_bclose(f);
+	ap_kill_timeout(r);
+	return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-#endif
-
-
-
-    len += ap_vsnprintf(errstr + len, sizeof(errstr) - len, fmt, args);
-
-
-
-    /* NULL if we are logging to syslog */
-
-    if (logf) {
-
-	fputs(errstr, logf);
-
-	fputc('\n', logf);
-
-	fflush(logf);
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
+	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,

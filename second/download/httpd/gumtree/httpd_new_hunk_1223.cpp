@@ -1,80 +1,38 @@
-	    parms[0] = '\0';
-
-    }
-
-
-
-/* try to set up PASV data connection first */
-
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (dsock == -1) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		     "proxy: error creating PASV socket");
-
-	ap_bclose(f);
-
-	ap_kill_timeout(r);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-    if (conf->recv_buffer_size) {
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-
+		char buff[24] = "                       ";
+		t2 = ap_escape_html(scratch, t);
+		buff[23 - len] = '\0';
+		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
+	    }
+	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
+				ap_escape_html(scratch,
+					       ap_os_escape_path(scratch, t,
+								 0)),
+				"\">", NULL);
 	}
 
-    }
+	if (autoindex_opts & FANCY_INDEXING) {
+	    if (autoindex_opts & ICONS_ARE_LINKS) {
+		ap_rputs(anchor, r);
+	    }
+	    if ((ar[x]->icon) || d->default_icon) {
+		ap_rvputs(r, "<IMG SRC=\"",
+			  ap_escape_html(scratch,
+					 ar[x]->icon ? ar[x]->icon
+					             : d->default_icon),
+			  "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
+			  "]\"", NULL);
+		if (d->icon_width && d->icon_height) {
+		    ap_rprintf(r, " HEIGHT=\"%d\" WIDTH=\"%d\"",
+			       d->icon_height, d->icon_width);
+		}
+		ap_rputs(">", r);
+	    }
+	    if (autoindex_opts & ICONS_ARE_LINKS) {
+		ap_rputs("</A>", r);
+	    }
 
-
-
-    ap_bputs("PASV" CRLF, f);
-
-    ap_bflush(f);
-
-    Explain0("FTP: PASV command issued");
-
-/* possible results: 227, 421, 500, 501, 502, 530 */
-
-    /* 227 Entering Passive Mode (h1,h2,h3,h4,p1,p2). */
-
-    /* 421 Service not available, closing control connection. */
-
-    /* 500 Syntax error, command unrecognized. */
-
-    /* 501 Syntax error in parameters or arguments. */
-
-    /* 502 Command not implemented. */
-
-    /* 530 Not logged in. */
-
-    i = ap_bgets(pasv, sizeof(pasv), f);
-
-    if (i == -1) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r,
-
-		     "PASV: control connection is toast");
-
-	ap_pclosesocket(p, dsock);
-
-	ap_bclose(f);
-
-	ap_kill_timeout(r);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
+	    ap_rvputs(r, " ", anchor, t2, NULL);
+	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+		if (ar[x]->lm != -1) {
+		    char time_str[MAX_STRING_LEN];
+		    struct tm *ts = localtime(&ar[x]->lm);

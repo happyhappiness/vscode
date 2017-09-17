@@ -1,88 +1,133 @@
-	    int cond_status = OK;
+static const char end_location_section[] = "</Location>";
+static const char end_locationmatch_section[] = "</LocationMatch>";
+static const char end_files_section[] = "</Files>";
+static const char end_filesmatch_section[] = "</FilesMatch>";
+static const char end_virtualhost_section[] = "</VirtualHost>";
+static const char end_ifmodule_section[] = "</IfModule>";
+static const char end_ifdefine_section[] = "</IfDefine>";
 
 
+API_EXPORT(const char *) ap_check_cmd_context(cmd_parms *cmd,
+					      unsigned forbidden)
+{
+    const char *gt = (cmd->cmd->name[0] == '<'
+		      && cmd->cmd->name[strlen(cmd->cmd->name)-1] != '>')
+                         ? ">" : "";
 
-	    ap_kill_timeout(r);
+    if ((forbidden & NOT_IN_VIRTUALHOST) && cmd->server->is_virtual) {
+	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
+			  " cannot occur within <VirtualHost> section", NULL);
+    }
 
-	    if ((cgi_status == HTTP_OK) && (r->method_number == M_GET)) {
+    if ((forbidden & NOT_IN_LIMIT) && cmd->limited != -1) {
+	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
+			  " cannot occur within <Limit> section", NULL);
+    }
 
-		cond_status = ap_meets_conditions(r);
+    if ((forbidden & NOT_IN_DIR_LOC_FILE) == NOT_IN_DIR_LOC_FILE
+	&& cmd->path != NULL) {
+	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
+			  " cannot occur within <Directory/Location/Files> "
+			  "section", NULL);
+    }
+    
+    if (((forbidden & NOT_IN_DIRECTORY)
+	 && (cmd->end_token == end_directory_section
+	     || cmd->end_token == end_directorymatch_section)) 
+	|| ((forbidden & NOT_IN_LOCATION)
+	    && (cmd->end_token == end_location_section
+		|| cmd->end_token == end_locationmatch_section)) 
+	|| ((forbidden & NOT_IN_FILES)
+	    && (cmd->end_token == end_files_section
+		|| cmd->end_token == end_filesmatch_section))) {
+	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
+			  " cannot occur within <", cmd->end_token+2,
+			  " section", NULL);
+    }
 
-	    }
+    return NULL;
+}
 
-	    ap_overlap_tables(r->err_headers_out, merge,
+static const char *set_access_name(cmd_parms *cmd, void *dummy, char *arg)
+{
+    void *sconf = cmd->server->module_config;
+    core_server_config *conf = ap_get_module_config(sconf, &core_module);
 
-		AP_OVERLAP_TABLES_MERGE);
+    const char *err = ap_check_cmd_context(cmd,
+					   NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
+    if (err != NULL) {
+        return err;
+    }
 
-	    if (!ap_is_empty_table(cookie_table)) {
+    conf->access_name = ap_pstrdup(cmd->pool, arg);
+    return NULL;
+}
 
-		r->err_headers_out = ap_overlay_tables(r->pool,
+static const char *set_document_root(cmd_parms *cmd, void *dummy, char *arg)
+{
+    void *sconf = cmd->server->module_config;
+    core_server_config *conf = ap_get_module_config(sconf, &core_module);
+  
+    const char *err = ap_check_cmd_context(cmd,
+					   NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
+    if (err != NULL) {
+        return err;
+    }
 
-		    r->err_headers_out, cookie_table);
-
-	    }
-
-	    return cond_status;
-
+    arg = ap_os_canonical_filename(cmd->pool, arg);
+    if (!ap_is_directory(arg)) {
+	if (cmd->server->is_virtual) {
+	    fprintf(stderr, "Warning: DocumentRoot [%s] does not exist\n",
+		    arg);
 	}
-
-
-
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-
-
-#ifdef CHARSET_EBCDIC
-
-	    /* Chances are that we received an ASCII header text instead of
-
-	     * the expected EBCDIC header lines. Try to auto-detect:
-
-	     */
-
-	if (!(l = strchr(w, ':'))) {
-
-	    int maybeASCII = 0, maybeEBCDIC = 0;
-
-	    char *cp;
-
-
-
-	    for (cp = w; *cp != '\0'; ++cp) {
-
-		if (isprint(*cp) && !isprint(os_toebcdic[*cp]))
-
-		    ++maybeEBCDIC;
-
-		if (!isprint(*cp) && isprint(os_toebcdic[*cp]))
-
-		    ++maybeASCII;
-
-		}
-
-	    if (maybeASCII > maybeEBCDIC) {
-
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			 "CGI Interface Error: Script headers apparently ASCII: (CGI = %s)", r->filename);
-
-		ascii2ebcdic(w, w, cp - w);
-
-	    }
-
+	else {
+	    return "DocumentRoot must be a directory";
 	}
+    }
+    
+    conf->ap_document_root = arg;
+    return NULL;
+}
 
-#endif
+static const char *set_error_document(cmd_parms *cmd, core_dir_config *conf,
+				      char *line)
+{
+    int error_number, index_number, idx500;
+    char *w;
+                
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_LIMIT);
+    if (err != NULL) {
+        return err;
+    }
 
-	if (!(l = strchr(w, ':'))) {
+    /* 1st parameter should be a 3 digit number, which we recognize;
+     * convert it into an array index
+     */
+  
+    w = ap_getword_conf_nc(cmd->pool, &line);
+    error_number = atoi(w);
 
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
+    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
 
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
+    if (error_number == HTTP_INTERNAL_SERVER_ERROR) {
+        index_number = idx500;
+    }
+    else if ((index_number = ap_index_of_response(error_number)) == idx500) {
+        return ap_pstrcat(cmd->pool, "Unsupported HTTP response code ",
+			  w, NULL);
+    }
+                
+    /* Store it... */
 
+    if (conf->response_code_strings == NULL) {
+	conf->response_code_strings =
+	    ap_pcalloc(cmd->pool,
+		       sizeof(*conf->response_code_strings) * RESPONSE_CODES);
+    }
+    conf->response_code_strings[index_number] = ap_pstrdup(cmd->pool, line);
 
+    return NULL;
+}
 
-	    strcpy(malformed, MALFORMED_MESSAGE);
-
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
-
+/* access.conf commands...
+ *

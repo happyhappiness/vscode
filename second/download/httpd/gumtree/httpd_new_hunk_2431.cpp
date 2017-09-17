@@ -1,26 +1,16 @@
-                int len;
+		(conf->magic && conf->magic->next) ? "set" : "NULL",
+		conf->last ? "set" : "NULL");
+#endif
 
-                len = strlen(current->right->token.value);
-
-                if (current->right->token.value[len - 1] == '/') {
-
-                    current->right->token.value[len - 1] = '\0';
-
-                }
-
-                else {
-
-                    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                                "Invalid rexp \"%s\" in file %s",
-
-                                current->right->token.value, r->filename);
-
-                    ap_rputs(error, r);
-
-                    goto RETURN;
-
-                }
-
-#ifdef DEBUG_INCLUDE
-
+#if MIME_MAGIC_DEBUG
+    for (m = conf->magic; m; m = m->next) {
+	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
+	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
+	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
+	    ap_isprint(((unsigned long) m) & 255)) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+			MODNAME ": match: POINTER CLOBBERED! "
+			"m=\"%c%c%c%c\"",
+			(((unsigned long) m) >> 24) & 255,
+			(((unsigned long) m) >> 16) & 255,
+			(((unsigned long) m) >> 8) & 255,

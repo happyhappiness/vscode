@@ -1,24 +1,13 @@
-#ifdef NEED_HASHBANG_EMUL
+    if (i == -1) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+    if (i != 220) {
+	ap_kill_timeout(r);
+	return BAD_GATEWAY;
+    }
 
-    printf(" -D NEED_HASHBANG_EMUL\n");
+    Explain0("FTP: connected.");
 
-#endif
-
-#ifdef SHARED_CORE
-
-    printf(" -D SHARED_CORE\n");
-
-#endif
-
-}
-
-
-
-
-
-/* Some init code that's common between win32 and unix... well actually
-
- * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
-
- * is still a mess.
-
+    ap_bputs("USER ", f);
+    ap_bwrite(f, user, userlen);

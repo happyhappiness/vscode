@@ -1,28 +1,14 @@
-		while (groups[0]) {
+#include "http_main.h"
+#include "http_request.h"
 
-		    v = ap_getword(r->pool, &groups, ',');
+static int asis_handler(request_rec *r)
+{
+    FILE *f;
+    const char *location;
 
-		    if (!strcmp(v, w))
-
-			return OK;
-
-		}
-
-	    }
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-			"user %s not in right group: %s", user, r->filename);
-
-	    ap_note_basic_auth_failure(r);
-
-	    return AUTH_REQUIRED;
-
-	}
-
-    }
-
-
-
-++ apache_1.3.2/src/modules/standard/mod_auth_dbm.c	1998-08-07 01:30:55.000000000 +0800
-
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+	return DECLINED;
+    if (r->finfo.st_mode == 0) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800

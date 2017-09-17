@@ -1,24 +1,20 @@
-#ifdef NEED_HASHBANG_EMUL
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
+        }
+        return 0;
+    }
 
-    printf(" -D NEED_HASHBANG_EMUL\n");
+    range = ap_getword_nc(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
-#endif
+    if (r->byterange > 1) {
+        char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-#ifdef SHARED_CORE
-
-    printf(" -D SHARED_CORE\n");
-
-#endif
-
-}
-
-
-
-
-
-/* Some init code that's common between win32 and unix... well actually
-
- * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
-
- * is still a mess.
-
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

@@ -1,44 +1,18 @@
-			 "setrlimit(RLIMIT_VMEM): failed to set memory "
-
-			 "usage limit");
-
-	}
-
+    if (i == 530) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Not logged in");
+    }
+    if (i != 230 && i != 331) {
+	ap_kill_timeout(r);
+	return BAD_GATEWAY;
     }
 
-#endif
-
-
-
-#ifdef __EMX__
-
-    {
-
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-
-	int is_script;
-
-	char interpreter[2048];	/* hope it's enough for the interpreter path */
-
-	FILE *program;
-
-
-
-	program = fopen(r->filename, "rt");
-
-	if (!program) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-
-			 r->filename);
-
-	    return (pid);
-
-	}
-
-	fgets(interpreter, sizeof(interpreter), program);
-
-	fclose(program);
-
-	if (!strncmp(interpreter, "#!", 2)) {
-
+    if (i == 331) {		/* send password */
+	if (password == NULL)
+	    return FORBIDDEN;
+	ap_bputs("PASS ", f);
+	ap_bwrite(f, password, passlen);
+	ap_bputs(CRLF, f);
+	ap_bflush(f);
+	Explain1("FTP: PASS %s", password);
+/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

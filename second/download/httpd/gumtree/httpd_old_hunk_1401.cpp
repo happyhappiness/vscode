@@ -1,26 +1,18 @@
-#endif
-
-        *printing = 1;
-
-        *conditional_status = 1;
-
-        return 0;
-
+    if (i == 530) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Not logged in");
+    }
+    if (i != 230 && i != 331) {
+	ap_kill_timeout(r);
+	return BAD_GATEWAY;
     }
 
-    else {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "endif directive does not take tags in %s",
-
-		    r->filename);
-
-        ap_rputs(error, r);
-
-        return -1;
-
-    }
-
-}
-
+    if (i == 331) {		/* send password */
+	if (password == NULL)
+	    return FORBIDDEN;
+	ap_bputs("PASS ", f);
+	ap_bwrite(f, password, passlen);
+	ap_bputs(CRLF, f);
+	ap_bflush(f);
+	Explain1("FTP: PASS %s", password);
+/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

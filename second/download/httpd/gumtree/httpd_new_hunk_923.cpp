@@ -1,26 +1,46 @@
-	states fresh;		/* states for a fresh start */
+	clen = sizeof(struct sockaddr_in);
+	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error getting socket address");
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+	}
 
-	states tmp;		/* temporary */
+	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (dsock == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error creating socket");
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+	}
 
-	states empty;		/* empty set of states */
+	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		       sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error setting reuseaddr option");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+#endif /*_OSD_POSIX*/
+	}
 
-};
+	if (bind(dsock, (struct sockaddr *) &server,
+		 sizeof(struct sockaddr_in)) == -1) {
+	    char buff[22];
 
+	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error binding to ftp data socket %s", buff);
+	    ap_bclose(f);
+	    ap_pclosesocket(p, dsock);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+	}
+	listen(dsock, 2);	/* only need a short queue */
+    }
 
-
-#include "engine.ih"
-
-#include "ap_ctype.h"
-
-
-
-#ifdef REDEBUG
-
-#define	SP(t, s, c)	print(m, t, s, c, stdout)
-
-#define	AT(t, p1, p2, s1, s2)	at(m, t, p1, p2, s1, s2)
-
-#define	NOTE(str)	{ if (m->eflags&REG_TRACE) printf("=%s\n", (str)); }
-
-#else
-
+/* set request */
+    len = decodeenc(path);

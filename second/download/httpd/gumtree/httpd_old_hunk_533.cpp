@@ -1,80 +1,18 @@
-	return;
-
-    }
-
-    else
-
-	inside = 1;
-
-    (void) ap_release_mutex(garbage_mutex);
-
-
-
-    help_proxy_garbage_coll(r);
-
-
-
-    (void) ap_acquire_mutex(garbage_mutex);
-
-    inside = 0;
-
-    (void) ap_release_mutex(garbage_mutex);
-
+    ap_table_setn(r->err_headers_out,
+	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
+	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
+		ap_auth_name(r), r->request_time));
 }
 
-
-
-
-
-static void help_proxy_garbage_coll(request_rec *r)
-
+API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
 {
+    const char *auth_line = ap_table_get(r->headers_in,
+                                      r->proxyreq ? "Proxy-Authorization"
+                                                  : "Authorization");
+    char *t;
 
-    const char *cachedir;
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
 
-    void *sconf = r->server->module_config;
-
-    proxy_server_conf *pconf =
-
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-
-    const struct cache_conf *conf = &pconf->cache;
-
-    array_header *files;
-
-    struct stat buf;
-
-    struct gc_ent *fent, **elts;
-
-    int i, timefd;
-
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
-
-
-
-    cachedir = conf->root;
-
-    cachesize = conf->space;
-
-    every = conf->gcinterval;
-
-
-
-    if (cachedir == NULL || every == -1)
-
-	return;
-
-    garbage_now = time(NULL);
-
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-
-	return;
-
-
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
-
+    if (!ap_auth_name(r)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

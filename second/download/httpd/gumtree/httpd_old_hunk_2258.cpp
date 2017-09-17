@@ -1,26 +1,13 @@
-    entries = (rewritemap_entry *)rewritemaps->elts;
 
-    for (i = 0; i < rewritemaps->nelts; i++) {
+    /* Host names must not start with a '.' */
+    if (addr[0] == '.')
+	return 0;
 
-        s = &entries[i];
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
 
-        if (strcmp(s->name, name) == 0) {
-
-            if (s->type == MAPTYPE_TXT) {
-
-                if (stat(s->checkfile, &st) == -1) {
-
-                    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-                                 "mod_rewrite: can't access text RewriteMap "
-
-                                 "file %s", s->checkfile);
-
-                    rewritelog(r, 1, "can't open RewriteMap file, "
-
-                               "see error log");
-
-                    return NULL;
-
-                }
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
+	/* @@@@ handle optional port */
+    }

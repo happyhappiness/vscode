@@ -1,32 +1,13 @@
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		   sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
+	ap_pclosesocket(p, sock);
+	return SERVER_ERROR;
+#endif /*_OSD_POSIX*/
+    }
 
-
-#if MIME_MAGIC_DEBUG
-
-    prevm = 0;
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-
-		MODNAME ": apprentice test");
-
-    for (m = conf->magic; m; m = m->next) {
-
-	if (isprint((((unsigned long) m) >> 24) & 255) &&
-
-	    isprint((((unsigned long) m) >> 16) & 255) &&
-
-	    isprint((((unsigned long) m) >> 8) & 255) &&
-
-	    isprint(((unsigned long) m) & 255)) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-
-			MODNAME ": apprentice: POINTER CLOBBERED! "
-
-			"m=\"%c%c%c%c\" line=%d",
-
-			(((unsigned long) m) >> 24) & 255,
-
-			(((unsigned long) m) >> 16) & 255,
-
-			(((unsigned long) m) >> 8) & 255,
-
+#ifdef SINIX_D_RESOLVER_BUG
+    {
+	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;

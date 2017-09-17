@@ -1,26 +1,13 @@
-#endif
+    if (i == -1) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+    if (i != 220) {
+	ap_kill_timeout(r);
+	return HTTP_BAD_GATEWAY;
+    }
 
-            if (*conditional_status) {
+    Explain0("FTP: connected.");
 
-                *printing = 0;
-
-                return (0);
-
-            }
-
-	    if (expr == NULL) {
-
-		ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-			    "missing expr in elif statement: %s",
-
-			    r->filename);
-
-		ap_rputs(error, r);
-
-		return 1;
-
-	    }
-
-            *printing = *conditional_status = parse_expr(r, expr, error);
-
+    ap_bputs("USER ", f);
+    ap_bwrite(f, user, userlen);

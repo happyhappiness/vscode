@@ -1,28 +1,10 @@
-    lseek(fd, 0, SEEK_SET);
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
 
-    rc = _locking(fd, _LK_UNLCK, 1);
-
-    lseek(fd, 0, SEEK_END);
-
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
 #endif
 
-
-
-    if (rc < 0) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-                     "mod_rewrite: failed to unlock file descriptor");
-
-        exit(1);
-
-    }
-
-}
-
-
-
-/*
-
-++ apache_1.3.2/src/modules/standard/mod_rewrite.h	1998-08-18 02:36:18.000000000 +0800
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

@@ -1,152 +1,30 @@
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
+	    return;
+	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
+    curbytes.upper = curbytes.lower = 0L;
 
-		    "flock: LOCK_UN: Error freeing accept lock. Exiting!");
+    sub_garbage_coll(r, files, cachedir, "/");
 
-	clean_child_exit(APEXIT_CHILDFATAL);
-
+    if (cmp_long61(&curbytes, &cachesize) < 0L) {
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
+			 "proxy GC: Cache is %ld%% full (nothing deleted)",
+			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
+	ap_unblock_alarms();
+	return;
     }
 
-}
-
-
-
-#elif defined(USE_OS2SEM_SERIALIZED_ACCEPT)
-
-
-
-static HMTX lock_sem = -1;
-
-
-
-static void accept_mutex_cleanup(void *foo)
-
-{
-
-    DosReleaseMutexSem(lock_sem);
-
-    DosCloseMutexSem(lock_sem);
-
-}
-
-
-
-/*
-
- * Initialize mutex lock.
-
- * Done by each child at it's birth
-
- */
-
-static void accept_mutex_child_init(pool *p)
-
-{
-
-    int rc = DosOpenMutexSem(NULL, &lock_sem);
-
-
-
-    if (rc != 0) {
-
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-
-		    "Child cannot open lock semaphore");
-
-	clean_child_exit(APEXIT_CHILDINIT);
-
-    }
-
-}
-
-
-
-/*
-
- * Initialize mutex lock.
-
- * Must be safe to call this on a restart.
-
- */
-
-static void accept_mutex_init(pool *p)
-
-{
-
-    int rc = DosCreateMutexSem(NULL, &lock_sem, DC_SEM_SHARED, FALSE);
-
-
-
-    if (rc != 0) {
-
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-
-		    "Parent cannot create lock semaphore");
-
-	exit(APEXIT_INIT);
-
-    }
-
-
-
-    ap_register_cleanup(p, NULL, accept_mutex_cleanup, ap_null_cleanup);
-
-}
-
-
-
-static void accept_mutex_on(void)
-
-{
-
-    int rc = DosRequestMutexSem(lock_sem, SEM_INDEFINITE_WAIT);
-
-
-
-    if (rc != 0) {
-
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-
-		    "OS2SEM: Error %d getting accept lock. Exiting!", rc);
-
-	clean_child_exit(APEXIT_CHILDFATAL);
-
-    }
-
-}
-
-
-
-static void accept_mutex_off(void)
-
-{
-
-    int rc = DosReleaseMutexSem(lock_sem);
-
-    
-
-    if (rc != 0) {
-
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-
-		    "OS2SEM: Error %d freeing accept lock. Exiting!", rc);
-
-	clean_child_exit(APEXIT_CHILDFATAL);
-
-    }
-
-}
-
-
-
+    /* sort the files we found by expiration date */
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
+
+    for (i = 0; i < files->nelts; i++) {
+	fent = &((struct gc_ent *) files->elts)[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
 #else
-
-/* Default --- no serialization.  Other methods *could* go here,
-
- * as #elifs...
-
- */
-
-#if !defined(MULTITHREAD)
-
-/* Multithreaded systems don't complete between processes for
-
+	if (unlink(filename) == -1) {

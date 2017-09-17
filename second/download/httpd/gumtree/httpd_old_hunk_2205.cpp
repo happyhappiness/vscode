@@ -1,26 +1,25 @@
-        case token_le:
+                                         REWRITELOCK_MODE)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+                     "mod_rewrite: Parent could not create RewriteLock "
+                     "file %s", conf->rewritelockfile);
+        exit(1);
+    }
+    return;
+}
 
-        case token_lt:
+static void rewritelock_open(server_rec *s, pool *p)
+{
+    rewrite_server_conf *conf;
 
-#ifdef DEBUG_INCLUDE
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
 
-            ap_rputs("     Token: eq/ne/ge/gt/le/lt\n", r);
+    /* only operate if a lockfile is used */
+    if (conf->rewritelockfile == NULL
+        || *(conf->rewritelockfile) == '\0')
+        return;
 
-#endif
-
-            if (current == (struct parse_node *) NULL) {
-
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                            "Invalid expression \"%s\" in file %s",
-
-                            expr, r->filename);
-
-                ap_rputs(error, r);
-
-                goto RETURN;
-
-            }
-
-            /* Percolate upwards */
-
+    /* open the lockfile (once per child) to get a unique fd */
+    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
+                                         O_WRONLY,
+                                         REWRITELOCK_MODE)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, s,

@@ -1,26 +1,20 @@
-	    continue;
-
-	}
-
-
-
-	/* if we get here, the main entry rule was a match */
-
-	/* this will be the last run through the loop */
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		    MODNAME ": rule matched, line=%d type=%d %s",
-
-		    m->lineno, m->type,
-
-		    (m->type == STRING) ? m->value.s : "");
-
 #endif
 
+    ap_soft_timeout("send body", r);
 
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
 
-	/* print the match */
-
+        do {
+            n = ap_bread(fb, buf, len);
+            if (n >= 0 || r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

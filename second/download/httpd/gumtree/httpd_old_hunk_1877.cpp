@@ -1,24 +1,13 @@
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-
-		    "flock: LOCK_UN: Error freeing accept lock. Exiting!");
-
-	clean_child_exit(APEXIT_CHILDFATAL);
-
+    if (i == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
+		     "PASV: control connection is toast");
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	ap_kill_timeout(r);
+	return SERVER_ERROR;
     }
-
-}
-
-
-
-#else
-
-/* Default --- no serialization.  Other methods *could* go here,
-
- * as #elifs...
-
- */
-
-#if !defined(MULTITHREAD)
-
-/* Multithreaded systems don't complete between processes for
-
+    else {
+	pasv[i - 1] = '\0';
+	pstr = strtok(pasv, " ");	/* separate result code */
+	if (pstr != NULL) {
+	    presult = atoi(pstr);

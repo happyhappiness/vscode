@@ -1,26 +1,18 @@
-    if (!method_restricted)
-
-	return OK;
-
-
-
-    if (!(sec->auth_authoritative))
-
-	return DECLINED;
-
-
-
-    ap_note_basic_auth_failure(r);
-
-    return AUTH_REQUIRED;
-
+    ap_table_setn(r->err_headers_out,
+	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
+	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
+		ap_auth_name(r), r->request_time));
 }
 
-
-
-module MODULE_VAR_EXPORT auth_module =
-
+API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
 {
+    const char *auth_line = ap_table_get(r->headers_in,
+                                      r->proxyreq ? "Proxy-Authorization"
+                                                  : "Authorization");
+    char *t;
 
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
 
+    if (!ap_auth_name(r)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

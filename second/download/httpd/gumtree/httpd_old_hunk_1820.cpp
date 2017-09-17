@@ -1,26 +1,13 @@
-	    }
+    if (!method_restricted)
+	return OK;
 
+    if (!(sec->auth_authoritative))
+	return DECLINED;
 
+    ap_note_basic_auth_failure(r);
+    return AUTH_REQUIRED;
+}
 
-	    m_cont = m->next;
-
-	    while (m_cont && (m_cont->cont_level != 0)) {
-
-#if MIME_MAGIC_DEBUG
-
-		rule_counter++;
-
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-			MODNAME ": line=%d mc=%x mc->next=%x cont=%d desc=%s",
-
-			    m_cont->lineno, m_cont,
-
-			    m_cont->next, m_cont->cont_level,
-
-			    m_cont->desc);
-
-#endif
-
-		/*
-
+module MODULE_VAR_EXPORT auth_module =
+{
+-- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800

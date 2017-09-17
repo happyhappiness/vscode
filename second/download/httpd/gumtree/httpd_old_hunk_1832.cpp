@@ -1,46 +1,13 @@
 
+    while (1) {
+        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
+            return 1;
+        }
+        if (!strcmp(tag, "var")) {
+            char *val = ap_table_get(r->subprocess_env, tag_val);
 
-    for ( ; *cp && *cp != ':' ; ++cp) {
-
-        *cp = ap_tolower(*cp);
-
-    }
-
-
-
-    if (!*cp) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "Syntax error in type map --- no ':': %s", r->filename);
-
-        return NULL;
-
-    }
-
-
-
-    do {
-
-        ++cp;
-
-    } while (*cp && ap_isspace(*cp));
-
-
-
-    if (!*cp) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "Syntax error in type map --- no header body: %s",
-
-                    r->filename);
-
-        return NULL;
-
-    }
-
-
-
-    return cp;
-
+            if (val) {
+                ap_rputs(val, r);
+            }
+            else {
+                ap_rputs("(none)", r);

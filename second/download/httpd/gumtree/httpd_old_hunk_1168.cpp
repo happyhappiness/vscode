@@ -1,28 +1,14 @@
-	&& (!r->header_only || (d->content_md5 & 1))) {
-
-	/* we need to protect ourselves in case we die while we've got the
-
- 	 * file mmapped */
-
-	mm = mmap(NULL, r->finfo.st_size, PROT_READ, MAP_PRIVATE,
-
-		  fileno(f), 0);
-
-	if (mm == (caddr_t)-1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
-
-			 "default_handler: mmap failed: %s", r->filename);
-
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
 	}
-
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
     }
+#endif
 
-    else {
-
-	mm = (caddr_t)-1;
-
-    }
-
--- apache_1.3.1/src/main/http_log.c	1998-06-05 04:13:19.000000000 +0800
-
+    for (i = 0; i < t->a.nelts; ) {
+-- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800

@@ -1,26 +1,13 @@
+	return ap_proxyerror(r, err);	/* give up */
 
+    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating socket");
+	return SERVER_ERROR;
+    }
 
-	    name = ent->pw_name;
-
-	}
-
-	else
-
-	    name = ap_user_name;
-
-
-
-#ifndef __EMX__
-
-	/* OS/2 dosen't support groups. */
-
-
-
-	/* Reset `groups' attributes. */
-
-
-
-	if (initgroups(name, ap_group_id) == -1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ALERT, server_conf,
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
+		       (const char *) &conf->recv_buffer_size, sizeof(int))
+	    == -1) {

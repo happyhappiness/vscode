@@ -1,50 +1,36 @@
-    const char *t;
+#endif
 
+    ap_soft_timeout("send body", r);
 
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+#ifdef NDELAY_PIPE_RETURNS_ZERO
+	/* Contributed by dwd@bell-labs.com for UTS 2.1.2, where the fcntl */
+	/*   O_NDELAY flag causes read to return 0 when there's nothing */
+	/*   available when reading from a pipe.  That makes it tricky */
+	/*   to detect end-of-file :-(.  This stupid bug is even documented */
+	/*   in the read(2) man page where it says that everything but */
+	/*   pipes return -1 and EAGAIN.  That makes it a feature, right? */
+	int afterselect = 0;
+#endif
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-
-        return DECLINED;
-
-
-
-    if (!ap_auth_name(r)) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-
-		    r, "need AuthName: %s", r->uri);
-
-        return SERVER_ERROR;
-
-    }
-
-
-
-    if (!auth_line) {
-
-        ap_note_basic_auth_failure(r);
-
-        return AUTH_REQUIRED;
-
-    }
-
-
-
-    if (strcasecmp(ap_getword(r->pool, &auth_line, ' '), "Basic")) {
-
-        /* Client tried to authenticate using wrong auth scheme */
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "client used wrong authentication scheme: %s", r->uri);
-
-        ap_note_basic_auth_failure(r);
-
-        return AUTH_REQUIRED;
-
-    }
-
-
-
-    t = ap_uudecode(r->pool, auth_line);
-
+        do {
+            n = ap_bread(fb, buf, len);
+#ifdef NDELAY_PIPE_RETURNS_ZERO
+	    if ((n > 0) || (n == 0 && afterselect))
+		break;
+#else
+            if (n >= 0)
+                break;
+#endif
+            if (r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

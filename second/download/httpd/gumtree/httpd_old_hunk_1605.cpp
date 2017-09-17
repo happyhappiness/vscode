@@ -1,26 +1,13 @@
-            }
-
-            if (!printing) {
-
-                continue;
-
-            }
-
-            if (!strcmp(directive, "exec")) {
-
-                if (noexec) {
-
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                                "httpd: exec used but not allowed in %s",
-
-                                r->filename);
-
-                    if (printing) {
-
-                        ap_rputs(error, r);
-
-                    }
-
-                    ret = find_string(f, ENDING_SEQUENCE, r, 0);
-
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: failed to accept data connection");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    ap_proxy_cache_error(c);
+	    return BAD_GATEWAY;
+	}
+	ap_note_cleanups_for_socket(p, csd);
+	data = ap_bcreate(p, B_RDWR | B_SOCKET);
+	ap_bpushfd(data, csd, -1);
+	ap_kill_timeout(r);
+    }

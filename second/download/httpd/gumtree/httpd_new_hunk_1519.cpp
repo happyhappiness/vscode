@@ -1,80 +1,49 @@
-	    parms[0] = '\0';
-
-    }
-
-
-
-/* try to set up PASV data connection first */
-
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (dsock == -1) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		     "proxy: error creating PASV socket");
-
-	ap_bclose(f);
-
-	ap_kill_timeout(r);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-    if (conf->recv_buffer_size) {
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-
+	    return cond_status;
 	}
 
-    }
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
+			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
 
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
-    ap_bputs("PASV" CRLF, f);
+	    if (!buffer) {
+		/* Soak up all the script output - may save an outright kill */
+	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
+		    continue;
+		}
+	    }
 
-    ap_bflush(f);
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			 "%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
+	}
 
-    Explain0("FTP: PASV command issued");
+	*l++ = '\0';
+	while (*l && ap_isspace(*l)) {
+	    ++l;
+	}
 
-/* possible results: 227, 421, 500, 501, 502, 530 */
+	if (!strcasecmp(w, "Content-type")) {
+	    char *tmp;
 
-    /* 227 Entering Passive Mode (h1,h2,h3,h4,p1,p2). */
+	    /* Nuke trailing whitespace */
 
-    /* 421 Service not available, closing control connection. */
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && ap_isspace(*endp)) {
+		*endp-- = '\0';
+	    }
 
-    /* 500 Syntax error, command unrecognized. */
-
-    /* 501 Syntax error in parameters or arguments. */
-
-    /* 502 Command not implemented. */
-
-    /* 530 Not logged in. */
-
-    i = ap_bgets(pasv, sizeof(pasv), f);
-
-    if (i == -1) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r,
-
-		     "PASV: control connection is toast");
-
-	ap_pclosesocket(p, dsock);
-
-	ap_bclose(f);
-
-	ap_kill_timeout(r);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
+	    tmp = ap_pstrdup(r->pool, l);
+	    ap_content_type_tolower(tmp);
+	    r->content_type = tmp;
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

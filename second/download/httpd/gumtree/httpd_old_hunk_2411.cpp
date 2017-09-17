@@ -1,28 +1,13 @@
-                error_fmt = "unable to include \"%s\" in parsed file %s";
 
-            }
+    /* Domain name must start with a '.' */
+    if (addr[0] != '.')
+	return 0;
 
-#ifndef WIN32
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
+	continue;
 
-            ap_chdir_file(r->filename);
-
-#endif
-
-            if (error_fmt) {
-
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-
-			    r->server, error_fmt, tag_val, r->filename);
-
-                ap_rputs(error, r);
-
-            }
-
-
-
-	    /* destroy the sub request if it's not a nested include */
-
-            if (rr != NULL
-
-		&& ap_get_module_config(rr->request_config, &includes_module)
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
+	/* @@@@ handle optional port */

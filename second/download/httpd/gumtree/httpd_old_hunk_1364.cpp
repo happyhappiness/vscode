@@ -1,62 +1,26 @@
-                                    r->proxyreq ? "Proxy-Authorization"
 
-                                    : "Authorization");
+    /* Pass one --- direct matches */
 
-    int l;
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
 
-    int s, vk = 0, vv = 0;
-
-    const char *t;
-
-    char *key, *value;
-
-
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-
-	return DECLINED;
-
-
-
-    if (!ap_auth_name(r)) {
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		    "need AuthName: %s", r->uri);
-
-	return SERVER_ERROR;
-
+            if (result != DECLINED)
+                return result;
+        }
     }
 
+    /* Pass two --- wildcard matches */
 
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
-    if (!auth_line) {
-
-	ap_note_digest_auth_failure(r);
-
-	return AUTH_REQUIRED;
-
+             if (result != DECLINED)
+                 return result;
+         }
     }
 
-
-
-    if (strcasecmp(ap_getword(r->pool, &auth_line, ' '), "Digest")) {
-
-	/* Client tried to authenticate using wrong auth scheme */
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		    "client used wrong authentication scheme: %s", r->uri);
-
-	ap_note_digest_auth_failure(r);
-
-	return AUTH_REQUIRED;
-
-    }
-
-
-
-    l = strlen(auth_line);
-
-
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

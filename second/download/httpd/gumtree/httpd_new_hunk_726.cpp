@@ -1,176 +1,167 @@
-	    if (!(autoindex_opts & SUPPRESS_SIZE)) {
-
-		ap_send_size(ar[x]->size, r);
-
-		ap_rputs("  ", r);
-
-	    }
-
-	    if (!(autoindex_opts & SUPPRESS_DESC)) {
-
-		if (ar[x]->desc) {
-
-		    ap_rputs(terminate_description(d, ar[x]->desc,
-
-						   autoindex_opts), r);
-
-		}
-
-	    }
-
-	}
-
 	else {
-
-	    ap_rvputs(r, "<LI> ", anchor, " ", t2, NULL);
-
+	    cur = atol(str);
 	}
-
-	ap_rputc('\n', r);
-
     }
-
-    if (autoindex_opts & FANCY_INDEXING) {
-
-	ap_rputs("</PRE>", r);
-
-    }
-
     else {
-
-	ap_rputs("</UL>", r);
-
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
+		     "Invalid parameters for %s", cmd->cmd->name);
+	return;
+    }
+    
+    if (arg2 && (str = ap_getword_conf(cmd->pool, &arg2))) {
+	max = atol(str);
     }
 
+    /* if we aren't running as root, cannot increase max */
+    if (geteuid()) {
+	limit->rlim_cur = cur;
+	if (max) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
+			 "Must be uid 0 to raise maximum %s", cmd->cmd->name);
+	}
+    }
+    else {
+        if (cur) {
+	    limit->rlim_cur = cur;
+	}
+        if (max) {
+	    limit->rlim_max = max;
+	}
+    }
+}
+#endif
+
+#if !defined (RLIMIT_CPU) || !(defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)) || !defined (RLIMIT_NPROC)
+static const char *no_set_limit(cmd_parms *cmd, core_dir_config *conf,
+				char *arg, char *arg2)
+{
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
+		"%s not supported on this platform", cmd->cmd->name);
+    return NULL;
+}
+#endif
+
+#ifdef RLIMIT_CPU
+static const char *set_limit_cpu(cmd_parms *cmd, core_dir_config *conf, 
+				 char *arg, char *arg2)
+{
+    set_rlimit(cmd, &conf->limit_cpu, arg, arg2, RLIMIT_CPU);
+    return NULL;
+}
+#endif
+
+#if defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)
+static const char *set_limit_mem(cmd_parms *cmd, core_dir_config *conf, 
+				 char *arg, char * arg2)
+{
+#if defined(RLIMIT_AS)
+    set_rlimit(cmd, &conf->limit_mem, arg, arg2 ,RLIMIT_AS);
+#elif defined(RLIMIT_DATA)
+    set_rlimit(cmd, &conf->limit_mem, arg, arg2, RLIMIT_DATA);
+#elif defined(RLIMIT_VMEM)
+    set_rlimit(cmd, &conf->limit_mem, arg, arg2, RLIMIT_VMEM);
+#endif
+    return NULL;
+}
+#endif
+
+#ifdef RLIMIT_NPROC
+static const char *set_limit_nproc(cmd_parms *cmd, core_dir_config *conf,  
+				   char *arg, char * arg2)
+{
+    set_rlimit(cmd, &conf->limit_nproc, arg, arg2, RLIMIT_NPROC);
+    return NULL;
+}
+#endif
+
+static const char *set_bind_address(cmd_parms *cmd, void *dummy, char *arg) 
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+
+    ap_bind_address.s_addr = ap_get_virthost_addr(arg, NULL);
+    return NULL;
 }
 
-
-
-/*
-
- * Compare two file entries according to the sort criteria.  The return
-
- * is essentially a signum function value.
-
- */
-
-
-
-static int dsortf(struct ent **e1, struct ent **e2)
-
+static const char *set_listener(cmd_parms *cmd, void *dummy, char *ips)
 {
+    listen_rec *new;
+    char *ports;
+    unsigned short port;
 
-    struct ent *c1;
-
-    struct ent *c2;
-
-    int result = 0;
-
-
-
-    /*
-
-     * First, see if either of the entries is for the parent directory.
-
-     * If so, that *always* sorts lower than anything else.
-
-     */
-
-    if (is_parent((*e1)->name)) {
-
-        return -1;
-
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
 
-    if (is_parent((*e2)->name)) {
-
-        return 1;
-
+    ports = strchr(ips, ':');
+    if (ports != NULL) {
+	if (ports == ips) {
+	    return "Missing IP address";
+	}
+	else if (ports[1] == '\0') {
+	    return "Address must end in :<port-number>";
+	}
+	*(ports++) = '\0';
     }
-
-    /*
-
-     * All of our comparisons will be of the c1 entry against the c2 one,
-
-     * so assign them appropriately to take care of the ordering.
-
-     */
-
-    if ((*e1)->ascending) {
-
-        c1 = *e1;
-
-        c2 = *e2;
-
-    }
-
     else {
-
-        c1 = *e2;
-
-        c2 = *e1;
-
+	ports = ips;
     }
 
-    switch (c1->key) {
-
-    case K_LAST_MOD:
-
-	if (c1->lm > c2->lm) {
-
-            return 1;
-
-        }
-
-        else if (c1->lm < c2->lm) {
-
-            return -1;
-
-        }
-
-        break;
-
-    case K_SIZE:
-
-        if (c1->size > c2->size) {
-
-            return 1;
-
-        }
-
-        else if (c1->size < c2->size) {
-
-            return -1;
-
-        }
-
-        break;
-
-    case K_DESC:
-
-        result = strcmp(c1->desc ? c1->desc : "", c2->desc ? c2->desc : "");
-
-        if (result) {
-
-            return result;
-
-        }
-
-        break;
-
+    new=ap_pcalloc(cmd->pool, sizeof(listen_rec));
+    new->local_addr.sin_family = AF_INET;
+    if (ports == ips) { /* no address */
+	new->local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     }
-
-    return strcmp(c1->name, c2->name);
-
+    else {
+	new->local_addr.sin_addr.s_addr = ap_get_virthost_addr(ips, NULL);
+    }
+    port = atoi(ports);
+    if (!port) {
+	return "Port must be numeric";
+    }
+    new->local_addr.sin_port = htons(port);
+    new->fd = -1;
+    new->used = 0;
+    new->next = ap_listeners;
+    ap_listeners = new;
+    return NULL;
 }
 
-
-
-
-
-static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
-
+static const char *set_listenbacklog(cmd_parms *cmd, void *dummy, char *arg) 
 {
+    int b;
 
-    char *title_name = ap_escape_html(r->pool, r->uri);
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
 
+    b = atoi(arg);
+    if (b < 1) {
+        return "ListenBacklog must be > 0";
+    }
+    ap_listenbacklog = b;
+    return NULL;
+}
+
+static const char *set_coredumpdir (cmd_parms *cmd, void *dummy, char *arg) 
+{
+    struct stat finfo;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+
+    arg = ap_server_root_relative(cmd->pool, arg);
+    if ((stat(arg, &finfo) == -1) || !S_ISDIR(finfo.st_mode)) {
+	return ap_pstrcat(cmd->pool, "CoreDumpDirectory ", arg, 
+			  " does not exist or is not a directory", NULL);
+    }
+    ap_cpystrn(ap_coredump_dir, arg, sizeof(ap_coredump_dir));
+    return NULL;
+}
+
+static const char *include_config (cmd_parms *cmd, void *dummy, char *name)

@@ -1,26 +1,26 @@
-<tr><th>Req<td>Milliseconds required to process most recent request\n \
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"malformed header in meta file: %s", r->filename);
+	    return SERVER_ERROR;
+	}
 
-<tr><th>Conn<td>Kilobytes transferred this connection\n \
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
-<tr><th>Child<td>Megabytes transferred this child\n \
+	if (!strcasecmp(w, "Content-type")) {
 
-<tr><th>Slot<td>Total megabytes transferred this slot\n \
+	    /* Nuke trailing whitespace */
 
-</table>\n", r);
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
 
-#else
-
-	ap_rputs("</table>\n \
-
-<hr> \
-
-<table>\n \
-
-<tr><th>Srv<td>Server number\n \
-
-<tr><th>PID<td>OS process ID\n \
-
-<tr><th>Acc<td>Number of accesses this connection / this child / this slot\n \
-
-<tr><th>M<td>Mode of operation\n \
-
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
+	}
+	else if (!strcasecmp(w, "Status")) {
+	    sscanf(l, "%d", &r->status);
+	    r->status_line = ap_pstrdup(r->pool, l);
+	}
+	else {
+-- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800

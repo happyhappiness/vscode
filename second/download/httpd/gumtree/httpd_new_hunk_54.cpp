@@ -1,28 +1,13 @@
-                 "An appropriate representation of the requested resource ",
+#include "http_main.h"
+#include "http_request.h"
 
-                          ap_escape_html(r->pool, r->uri),
+static int asis_handler(request_rec *r)
+{
+    FILE *f;
+    const char *location;
 
-                          " could not be found on this server.<P>\n", NULL);
-
-                /* fall through */
-
-            case MULTIPLE_CHOICES:
-
-                {
-
-                    const char *list;
-
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-
-                        ap_bputs(list, fd);
-
-                }
-
-                break;
-
-            case LENGTH_REQUIRED:
-
-                ap_bvputs(fd, "A request of the requested method ", r->method,
-
-++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800
-
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+	return DECLINED;
+    if (r->finfo.st_mode == 0) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

@@ -1,26 +1,14 @@
-	perror("Unable to gethostname");
-
-	exit(1);
-
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
     }
+#endif
 
-    str[MAXHOSTNAMELEN] = '\0';
-
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
-
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-
-	fprintf(stderr, "Use ServerName to set it manually.\n");
-
-	exit(1);
-
-    }
-
-
-
-    return server_hostname;
-
-}
-
-
-
+    for (i = 0; i < t->a.nelts; ) {
+-- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800

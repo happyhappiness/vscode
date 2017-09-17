@@ -1,26 +1,13 @@
 {
+    const char *auth_line = ap_table_get(r->headers_in,
+                                    r->proxyreq ? "Proxy-Authorization"
+                                    : "Authorization");
+    int l;
+    int s, vk = 0, vv = 0;
+    char *t, *key, *value;
 
-    int suffix_pos, result;
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
+	return DECLINED;
 
-    char *sub_filename;
-
-    request_rec *sub;
-
-
-
-#if MIME_MAGIC_DEBUG
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		MODNAME ": revision_suffix checking %s", r->filename);
-
-#endif /* MIME_MAGIC_DEBUG */
-
-
-
-    /* check for recognized revision suffix */
-
-    suffix_pos = strlen(r->filename) - 1;
-
-    if (!ap_isdigit(r->filename[suffix_pos])) {
-
+    if (!ap_auth_name(r)) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

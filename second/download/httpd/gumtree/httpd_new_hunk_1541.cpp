@@ -1,32 +1,13 @@
-    if (!method_restricted)
+    ap_bvputs(f, "Host: ", desthost, NULL);
+    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+	ap_bvputs(f, ":", destportstr, CRLF, NULL);
+    else
+	ap_bputs(CRLF, f);
 
-	return OK;
-
-
-
-    if (!(sec->auth_authoritative))
-
-	return DECLINED;
-
-
-
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-	"access to %s failed, reason: user %s not allowed access",
-
-	r->uri, user);
-
-	
-
-    ap_note_basic_auth_failure(r);
-
-    return AUTH_REQUIRED;
-
-}
-
-
-
-module MODULE_VAR_EXPORT auth_module =
-
-++ apache_1.3.2/src/modules/standard/mod_auth_db.c	1998-09-19 20:12:36.000000000 +0800
-
+    reqhdrs_arr = ap_table_elts(r->headers_in);
+    reqhdrs = (table_entry *) reqhdrs_arr->elts;
+    for (i = 0; i < reqhdrs_arr->nelts; i++) {
+	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
+	/* Clear out headers not to send */
+	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
+	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))

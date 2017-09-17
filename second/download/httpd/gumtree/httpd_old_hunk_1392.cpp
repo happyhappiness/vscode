@@ -1,26 +1,40 @@
-            ap_rputs("     Evaluate eq/ne\n", r);
+	return;
+    }
+    else
+	inside = 1;
+    (void) ap_release_mutex(garbage_mutex);
 
-#endif
+    help_proxy_garbage_coll(r);
 
-            if ((current->left == (struct parse_node *) NULL) ||
+    (void) ap_acquire_mutex(garbage_mutex);
+    inside = 0;
+    (void) ap_release_mutex(garbage_mutex);
+}
 
-                (current->right == (struct parse_node *) NULL) ||
 
-                (current->left->token.type != token_string) ||
+static void help_proxy_garbage_coll(request_rec *r)
+{
+    const char *cachedir;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *pconf =
+    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+    const struct cache_conf *conf = &pconf->cache;
+    array_header *files;
+    struct stat buf;
+    struct gc_ent *fent, **elts;
+    int i, timefd;
+    static time_t lastcheck = BAD_DATE;		/* static data!!! */
 
-                (current->right->token.type != token_string)) {
+    cachedir = conf->root;
+    cachesize = conf->space;
+    every = conf->gcinterval;
 
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    if (cachedir == NULL || every == -1)
+	return;
+    garbage_now = time(NULL);
+    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
+	return;
 
-                            "Invalid expression \"%s\" in file %s",
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
 
-                            expr, r->filename);
-
-                ap_rputs(error, r);
-
-                goto RETURN;
-
-            }
-
-            parse_string(r, current->left->token.value,
-
+    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

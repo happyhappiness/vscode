@@ -1,32 +1,16 @@
-{
-
-    /* This could be called from an AddModule httpd.conf command,
-
-     * after the file has been linked and the module structure within it
-
-     * teased out...
-
-     */
-
-
-
-    if (m->version != MODULE_MAGIC_NUMBER_MAJOR) {
-
-	fprintf(stderr, "httpd: module \"%s\" is not compatible with this "
-
-		"version of Apache.\n", m->name);
-
-	fprintf(stderr, "Please contact the vendor for the correct version.\n");
-
-	exit(1);
-
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+	if (sigaction(SIGILL, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGILL)");
+#endif
+	sa.sa_flags = 0;
     }
-
-
-
-    if (m->next == NULL) {
-
-	m->next = top_module;
-
-	top_module = m;
-
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
+#ifdef SIGINT

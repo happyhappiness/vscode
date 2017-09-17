@@ -1,40 +1,13 @@
-<tr><th>Req<td>Milliseconds required to process most recent request\n \
-
-<tr><th>Conn<td>Kilobytes transferred this connection\n \
-
-<tr><th>Child<td>Megabytes transferred this child\n \
-
-<tr><th>Slot<td>Total megabytes transferred this slot\n \
-
-</table>\n", r);
-
-#endif
-
-	}
-
-
-
-    } else {
-
-
-
-    ap_rputs("<hr>To obtain a full report with current status information ", r);
-
-    ap_rputs("you need to use the <code>ExtendedStatus On</code> directive. \n", r);
-
-
-
+    if ((r->method_number == M_POST || r->method_number == M_PUT)
+	&& *dbuf) {
+	fprintf(f, "\n%s\n", dbuf);
     }
 
+    fputs("%response\n", f);
+    hdrs_arr = ap_table_elts(r->err_headers_out);
+    hdrs = (table_entry *) hdrs_arr->elts;
 
-
-    if (!short_report) {
-
-	ap_rputs(ap_psignature("<HR>\n",r), r);
-
-	ap_rputs("</BODY></HTML>\n", r);
-
-    }
-
-
-
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key)
+	    continue;
+	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);

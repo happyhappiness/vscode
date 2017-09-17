@@ -1,28 +1,13 @@
-			d->icon_height,
+    if (i == -1) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+    if (i != 220) {
+	ap_kill_timeout(r);
+	return BAD_GATEWAY;
+    }
 
-			d->icon_width
+    Explain0("FTP: connected.");
 
-		    );
-
-	    }
-
-	    ap_rputs("> ", r);
-
-	}
-
-        emit_link(r, "Name", K_NAME, keyid, direction, static_columns);
-
-	ap_rputs("                   ", r);
-
-	if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-
-            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
-
-                      static_columns);
-
-	    ap_rputs("       ", r);
-
-	}
-
-	if (!(autoindex_opts & SUPPRESS_SIZE)) {
-
+    ap_bputs("USER ", f);
+    ap_bwrite(f, user, userlen);

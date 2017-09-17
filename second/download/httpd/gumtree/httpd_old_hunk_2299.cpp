@@ -1,34 +1,22 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-
-    if (err != NULL) {
-
-        return err;
-
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
-
-
-    ap_threads_per_child = atoi(arg);
-
-#ifdef WIN32
-
-    if (ap_threads_per_child > 64) {
-
-	return "Can't have more than 64 threads in Windows (for now)";
-
+    if (!child && run_as_service) {
+	service_cd();
     }
 
-#endif
-
-
-
-    return NULL;
-
-}
-
-
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-
-{
-
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

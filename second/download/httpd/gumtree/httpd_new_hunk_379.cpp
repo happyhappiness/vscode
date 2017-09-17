@@ -1,36 +1,14 @@
-    if (i == 530) {
-
-	ap_kill_timeout(r);
-
-	return ap_proxyerror(r, "Not logged in");
-
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
+	    abort();
+	}
     }
+#endif
 
-    if (i != 230 && i != 331) {
-
-	ap_kill_timeout(r);
-
-	return HTTP_BAD_GATEWAY;
-
-    }
-
-
-
-    if (i == 331) {		/* send password */
-
-	if (password == NULL)
-
-	    return HTTP_FORBIDDEN;
-
-	ap_bputs("PASS ", f);
-
-	ap_bwrite(f, password, passlen);
-
-	ap_bputs(CRLF, f);
-
-	ap_bflush(f);
-
-	Explain1("FTP: PASS %s", password);
-
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
-
+    for (i = 0; i < t->a.nelts; ) {
+++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800

@@ -1,36 +1,13 @@
-	exit(0);
-
+	}
+	if ((timefd = creat(filename, 0666)) == -1) {
+	    if (errno != EEXIST)
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy: creat(%s)", filename);
+	    else
+		lastcheck = abs(garbage_now);	/* someone else got in there */
+	    ap_unblock_alarms();
+	    return;
+	}
+	close(timefd);
     }
-
-    else if (argc != 3)
-
-	usage();
-
-
-
-    tn = tmpnam(NULL);
-
-    if (!(tfp = fopen(tn, "w"))) {
-
-	fprintf(stderr, "Could not open temp file.\n");
-
-	exit(1);
-
-    }
-
-
-
-    if (!(f = fopen(argv[1], "r"))) {
-
-	fprintf(stderr,
-
-		"Could not open passwd file %s for reading.\n", argv[1]);
-
-	fprintf(stderr, "Use -c option to create new one.\n");
-
-	exit(1);
-
-    }
-
-    strcpy(user, argv[2]);
-
+    else {

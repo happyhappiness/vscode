@@ -1,26 +1,16 @@
-            }
+		(conf->magic && conf->magic->next) ? "set" : "NULL",
+		conf->last ? "set" : "NULL");
+#endif
 
-            if (!printing) {
-
-                continue;
-
-            }
-
-            if (!strcmp(directive, "exec")) {
-
-                if (noexec) {
-
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                                "httpd: exec used but not allowed in %s",
-
-                                r->filename);
-
-                    if (printing) {
-
-                        ap_rputs(error, r);
-
-                    }
-
-                    ret = find_string(f, ENDING_SEQUENCE, r, 0);
-
+#if MIME_MAGIC_DEBUG
+    for (m = conf->magic; m; m = m->next) {
+	if (isprint((((unsigned long) m) >> 24) & 255) &&
+	    isprint((((unsigned long) m) >> 16) & 255) &&
+	    isprint((((unsigned long) m) >> 8) & 255) &&
+	    isprint(((unsigned long) m) & 255)) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+			MODNAME ": match: POINTER CLOBBERED! "
+			"m=\"%c%c%c%c\"",
+			(((unsigned long) m) >> 24) & 255,
+			(((unsigned long) m) >> 16) & 255,
+			(((unsigned long) m) >> 8) & 255,

@@ -1,32 +1,21 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		MODNAME ": revision_suffix checking %s", r->filename);
-
-#endif /* MIME_MAGIC_DEBUG */
-
-
-
-    /* check for recognized revision suffix */
-
-    suffix_pos = strlen(r->filename) - 1;
-
-    if (!ap_isdigit(r->filename[suffix_pos])) {
-
-	return 0;
-
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
+	}
+	else
+#endif
+	{
+	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
+	    if (cmp_long61(&curbytes, &cachesize) < 0)
+		break;
+	}
     }
 
-    while (suffix_pos >= 0 && ap_isdigit(r->filename[suffix_pos]))
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
+			 "proxy GC: Cache is %ld%% full (%d deleted)",
+			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
+    ap_unblock_alarms();
+}
 
-	suffix_pos--;
-
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-
-	return 0;
-
-    }
-
-
-
-    /* perform sub-request for the file name without the suffix */
-
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

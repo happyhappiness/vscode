@@ -1,34 +1,14 @@
-	/* TM - Added \015\012 to the end of TYPE I, otherwise it hangs the
-
-	   connection */
-
-	ap_bputs("TYPE I" CRLF, f);
-
-	ap_bflush(f);
-
-	Explain0("FTP: TYPE I");
-
-/* responses: 200, 421, 500, 501, 504, 530 */
-
-	i = ftp_getrc(f);
-
-	Explain1("FTP: returned status %d", i);
-
-	if (i == -1) {
-
-	    ap_kill_timeout(r);
-
-	    return ap_proxyerror(r, "Error sending to remote server");
-
-	}
-
-	if (i != 200 && i != 504) {
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_BAD_GATEWAY;
-
-	}
-
-/* Allow not implemented */
-
+                 "An appropriate representation of the requested resource ",
+                          ap_escape_html(r->pool, r->uri),
+                          " could not be found on this server.<P>\n", NULL);
+                /* fall through */
+            case MULTIPLE_CHOICES:
+                {
+                    char *list;
+                    if ((list = ap_table_get(r->notes, "variant-list")))
+                        ap_bputs(list, fd);
+                }
+                break;
+            case LENGTH_REQUIRED:
+                ap_bvputs(fd, "A request of the requested method ", r->method,
+-- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800

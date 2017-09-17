@@ -1,26 +1,13 @@
-	    const char *orig_groups, *groups;
 
-	    char *v;
+    /* Host names must not start with a '.' */
+    if (addr[0] == '.')
+	return 0;
 
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
 
-
-	    if (!(groups = get_db_grp(r, user, sec->auth_dbgrpfile))) {
-
-		if (!(sec->auth_dbauthoritative))
-
-		    return DECLINED;
-
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			    "user %s not in DB group file %s: %s",
-
-			    user, sec->auth_dbgrpfile, r->filename);
-
-		ap_note_basic_auth_failure(r);
-
-		return AUTH_REQUIRED;
-
-	    }
-
-	    orig_groups = groups;
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
+	/* @@@@ handle optional port */
+    }

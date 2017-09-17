@@ -1,42 +1,32 @@
+                                         REWRITELOCK_MODE)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+                     "mod_rewrite: Parent could not create RewriteLock "
+                     "file %s", conf->rewritelockfile);
+        exit(1);
+    }
+#if !defined(__EMX__) && !defined(WIN32)
+    /* make sure the childs have access to this file */
+    if (geteuid() == 0 /* is superuser */)
+        chown(conf->rewritelockfile, ap_user_id, -1 /* no gid change */);
+#endif
 
+    return;
+}
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+static void rewritelock_open(server_rec *s, pool *p)
+{
+    rewrite_server_conf *conf;
 
-		    "%s configured -- resuming normal operations",
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
 
-		    ap_get_server_version());
+    /* only operate if a lockfile is used */
+    if (conf->rewritelockfile == NULL
+        || *(conf->rewritelockfile) == '\0') {
+        return;
+    }
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-
-		    "Server built: %s", ap_get_server_built());
-
-	if (ap_suexec_enabled) {
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-
-	}
-
-	restart_pending = shutdown_pending = 0;
-
-
-
-	while (!restart_pending && !shutdown_pending) {
-
-	    int child_slot;
-
-	    ap_wait_t status;
-
-	    int pid = wait_or_timeout(&status);
-
-
-
-	    /* XXX: if it takes longer than 1 second for all our children
-
-	     * to start up and get into IDLE state then we may spawn an
-
-	     * extra child
-
-	     */
-
+    /* open the lockfile (once per child) to get a unique fd */
+    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
+                                         O_WRONLY,
+                                         REWRITELOCK_MODE)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, s,

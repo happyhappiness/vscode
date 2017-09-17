@@ -1,64 +1,13 @@
-	    ap_pclosesocket(p, dsock);	/* and try the regular way */
-
+    if ((r->method_number == M_POST || r->method_number == M_PUT)
+	&& *dbuf) {
+	fprintf(f, "\n%s\n", dbuf);
     }
 
+    fputs("%response\n", f);
+    hdrs_arr = table_elts(r->err_headers_out);
+    hdrs = (table_entry *) hdrs_arr->elts;
 
-
-    if (!pasvmode) {		/* set up data connection */
-
-	clen = sizeof(struct sockaddr_in);
-
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: error getting socket address");
-
-	    ap_bclose(f);
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
-	}
-
-
-
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-	if (dsock == -1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: error creating socket");
-
-	    ap_bclose(f);
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
-	}
-
-
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-
-		       sizeof(one)) == -1) {
-
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			 "proxy: error setting reuseaddr option");
-
-	    ap_pclosesocket(p, dsock);
-
-	    ap_bclose(f);
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
-#endif /*_OSD_POSIX*/
-
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key)
+	    continue;
+	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);

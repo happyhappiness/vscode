@@ -1,26 +1,13 @@
-	}
-
+    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (dsock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating PASV socket");
+	ap_bclose(f);
+	ap_kill_timeout(r);
+	return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-
-
-    /* clean up and return */
-
-    result[res_pos] = 0;
-
-#if MIME_MAGIC_DEBUG
-
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-	     MODNAME ": rsl_strdup() %d chars: %s", res_pos - 1, result);
-
-#endif
-
-    return result;
-
-}
-
-
-
-/* states for the state-machine algorithm in magic_rsl_to_request() */
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
+	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,

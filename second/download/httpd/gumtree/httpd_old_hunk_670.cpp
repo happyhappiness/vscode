@@ -1,30 +1,26 @@
-    {
 
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+    /* Pass one --- direct matches */
 
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
 
-	    abort();
-
-	}
-
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-
-	    abort();
-
-	}
-
+            if (result != DECLINED)
+                return result;
+        }
     }
 
-#endif
+    /* Pass two --- wildcard matches */
 
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-    for (i = 0; i < t->a.nelts; ) {
-
-nly in apache_1.3.0/src/main: alloc.o
-
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

@@ -1,26 +1,16 @@
-
-
-    arg.r = r;
-
-    arg.s = s;
-
-
-
-    if (!ap_bspawn_child(r->pool, include_cmd_child, &arg,
-
-			 kill_after_timeout, NULL, &script_in, NULL)) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		     "couldn't spawn include command");
-
-        return -1;
-
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+	if (sigaction(SIGILL, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGILL)");
+#endif
+	sa.sa_flags = 0;
     }
-
-
-
-    ap_send_fb(script_in, r);
-
-    ap_bclose(script_in);
-
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
+#ifdef SIGINT

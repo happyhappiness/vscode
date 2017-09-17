@@ -1,48 +1,13 @@
-        else {
-
-            /*
-
-             * Dumb user has given us a bad url to redirect to --- fake up
-
-             * dying with a recursive server error...
-
-             */
-
-            recursive_error = SERVER_ERROR;
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                        "Invalid error redirection directive: %s",
-
-                        custom_response);
-
-        }
-
+	else
+	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
+				"Could not connect to remote machine: ",
+				strerror(errno), NULL));
     }
 
-    ap_send_error_response(r, recursive_error);
+    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
 
-}
+    f = ap_bcreate(p, B_RDWR | B_SOCKET);
+    ap_bpushfd(f, sock, sock);
 
-
-
-static void decl_die(int status, char *phase, request_rec *r)
-
-{
-
-    if (status == DECLINED) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_CRIT, r,
-
-                    "configuration error:  couldn't %s: %s", phase, r->uri);
-
-        ap_die(SERVER_ERROR, r);
-
-    }
-
-    else
-
-        ap_die(status, r);
-
-}
-
+    ap_hard_timeout("proxy send", r);
+    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,

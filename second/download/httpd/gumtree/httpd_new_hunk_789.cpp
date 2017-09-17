@@ -1,42 +1,20 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			     "proxy gc: unlink(%s)", filename);
-
-	}
-
-	else
-
-#endif
-
-	{
-
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-
-		break;
-
-	}
-
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
+        }
+        return 0;
     }
 
+    range = ap_getword(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
+    if (r->byterange > 1) {
+        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-
-    ap_unblock_alarms();
-
-}
-
-
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-
-			  const char *cachebasedir, const char *cachesubdir)
-
-{
-
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

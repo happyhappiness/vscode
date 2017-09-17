@@ -1,182 +1,133 @@
-    else {
+static const char end_location_section[] = "</Location>";
+static const char end_locationmatch_section[] = "</LocationMatch>";
+static const char end_files_section[] = "</Files>";
+static const char end_filesmatch_section[] = "</FilesMatch>";
+static const char end_virtualhost_section[] = "</VirtualHost>";
+static const char end_ifmodule_section[] = "</IfModule>";
+static const char end_ifdefine_section[] = "</IfDefine>";
 
-	syslog(level & APLOG_LEVELMASK, "%s", errstr);
 
+API_EXPORT(const char *) ap_check_cmd_context(cmd_parms *cmd,
+					      unsigned forbidden)
+{
+    const char *gt = (cmd->cmd->name[0] == '<'
+		      && cmd->cmd->name[strlen(cmd->cmd->name)-1] != '>')
+                         ? ">" : "";
+
+    if ((forbidden & NOT_IN_VIRTUALHOST) && cmd->server->is_virtual) {
+	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
+			  " cannot occur within <VirtualHost> section", NULL);
     }
 
-#endif
+    if ((forbidden & NOT_IN_LIMIT) && cmd->limited != -1) {
+	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
+			  " cannot occur within <Limit> section", NULL);
+    }
 
-}
-
+    if ((forbidden & NOT_IN_DIR_LOC_FILE) == NOT_IN_DIR_LOC_FILE
+	&& cmd->path != NULL) {
+	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
+			  " cannot occur within <Directory/Location/Files> "
+			  "section", NULL);
+    }
     
-
-API_EXPORT(void) ap_log_error (const char *file, int line, int level,
-
-			      const server_rec *s, const char *fmt, ...)
-
-{
-
-    va_list args;
-
-
-
-    va_start(args, fmt);
-
-    log_error_core(file, line, level, s, NULL, fmt, args);
-
-    va_end(args);
-
-}
-
-
-
-API_EXPORT(void) ap_log_rerror(const char *file, int line, int level,
-
-			       const request_rec *r, const char *fmt, ...)
-
-{
-
-    va_list args;
-
-
-
-    va_start(args, fmt);
-
-    log_error_core(file, line, level, r->server, r, fmt, args);
-
-    if (ap_table_get(r->notes, "error-notes") == NULL) {
-
-	char errstr[MAX_STRING_LEN];
-
-
-
-	ap_vsnprintf(errstr, sizeof(errstr), fmt, args);
-
-	ap_table_set(r->notes, "error-notes", errstr);
-
+    if (((forbidden & NOT_IN_DIRECTORY)
+	 && (cmd->end_token == end_directory_section
+	     || cmd->end_token == end_directorymatch_section)) 
+	|| ((forbidden & NOT_IN_LOCATION)
+	    && (cmd->end_token == end_location_section
+		|| cmd->end_token == end_locationmatch_section)) 
+	|| ((forbidden & NOT_IN_FILES)
+	    && (cmd->end_token == end_files_section
+		|| cmd->end_token == end_filesmatch_section))) {
+	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
+			  " cannot occur within <", cmd->end_token+2,
+			  " section", NULL);
     }
 
-    va_end(args);
-
+    return NULL;
 }
 
-
-
-void ap_log_pid (pool *p, char *fname)
-
+static const char *set_access_name(cmd_parms *cmd, void *dummy, char *arg)
 {
+    void *sconf = cmd->server->module_config;
+    core_server_config *conf = ap_get_module_config(sconf, &core_module);
 
-    FILE *pid_file;
-
-    struct stat finfo;
-
-    static pid_t saved_pid = -1;
-
-    pid_t mypid;
-
-
-
-    if (!fname) return;
-
-
-
-    fname = ap_server_root_relative (p, fname);
-
-    mypid = getpid();
-
-    if (mypid != saved_pid && stat(fname,&finfo) == 0) {
-
-      /* USR1 and HUP call this on each restart.
-
-       * Only warn on first time through for this pid.
-
-       *
-
-       * XXX: Could just write first time through too, although
-
-       *      that may screw up scripts written to do something
-
-       *      based on the last modification time of the pid file.
-
-       */
-
-      ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-
-		   ap_psprintf(p,
-
-			       "pid file %s overwritten -- Unclean shutdown of previous apache run?",
-
-			       fname)
-
-		   );
-
+    const char *err = ap_check_cmd_context(cmd,
+					   NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
+    if (err != NULL) {
+        return err;
     }
 
+    conf->access_name = ap_pstrdup(cmd->pool, arg);
+    return NULL;
+}
 
-
-    if(!(pid_file = fopen(fname,"w"))) {
-
-	perror("fopen");
-
-        fprintf(stderr,"httpd: could not log pid to file %s\n", fname);
-
-        exit(1);
-
+static const char *set_document_root(cmd_parms *cmd, void *dummy, char *arg)
+{
+    void *sconf = cmd->server->module_config;
+    core_server_config *conf = ap_get_module_config(sconf, &core_module);
+  
+    const char *err = ap_check_cmd_context(cmd,
+					   NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
+    if (err != NULL) {
+        return err;
     }
 
-    fprintf(pid_file,"%ld\n",(long)mypid);
-
-    fclose(pid_file);
-
-    saved_pid = mypid;
-
-}
-
-
-
-API_EXPORT(void) ap_log_error_old (const char *err, server_rec *s)
-
-{
-
-    ap_log_error(APLOG_MARK, APLOG_ERR, s, "%s", err);
-
-}
-
-
-
-API_EXPORT(void) ap_log_unixerr (const char *routine, const char *file,
-
-			      const char *msg, server_rec *s)
-
-{
-
-    ap_log_error(file, 0, APLOG_ERR, s, "%s", msg);
-
-}
-
-
-
-API_EXPORT(void) ap_log_printf (const server_rec *s, const char *fmt, ...)
-
-{
-
-    va_list args;
-
+    arg = ap_os_canonical_filename(cmd->pool, arg);
+    if (!ap_is_directory(arg)) {
+	if (cmd->server->is_virtual) {
+	    fprintf(stderr, "Warning: DocumentRoot [%s] does not exist\n",
+		    arg);
+	}
+	else {
+	    return "DocumentRoot must be a directory";
+	}
+    }
     
-
-    va_start(args, fmt);
-
-    log_error_core(APLOG_MARK, APLOG_ERR, s, NULL, fmt, args);
-
-    va_end(args);
-
+    conf->ap_document_root = arg;
+    return NULL;
 }
 
-
-
-API_EXPORT(void) ap_log_reason (const char *reason, const char *file, request_rec *r) 
-
+static const char *set_error_document(cmd_parms *cmd, core_dir_config *conf,
+				      char *line)
 {
+    int error_number, index_number, idx500;
+    char *w;
+                
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_LIMIT);
+    if (err != NULL) {
+        return err;
+    }
 
-    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+    /* 1st parameter should be a 3 digit number, which we recognize;
+     * convert it into an array index
+     */
+  
+    w = ap_getword_conf_nc(cmd->pool, &line);
+    error_number = atoi(w);
 
+    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
+
+    if (error_number == HTTP_INTERNAL_SERVER_ERROR) {
+        index_number = idx500;
+    }
+    else if ((index_number = ap_index_of_response(error_number)) == idx500) {
+        return ap_pstrcat(cmd->pool, "Unsupported HTTP response code ",
+			  w, NULL);
+    }
+                
+    /* Store it... */
+
+    if (conf->response_code_strings == NULL) {
+	conf->response_code_strings =
+	    ap_pcalloc(cmd->pool,
+		       sizeof(*conf->response_code_strings) * RESPONSE_CODES);
+    }
+    conf->response_code_strings[index_number] = ap_pstrdup(cmd->pool, line);
+
+    return NULL;
+}
+
+/* access.conf commands...
+ *

@@ -1,26 +1,18 @@
-                case token_ge:
+#else
+    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
+#endif
 
-                case token_gt:
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
 
-                case token_le:
+    if (conf->rewritelogfile == NULL)
+        return;
+    if (*(conf->rewritelogfile) == '\0')
+        return;
+    if (conf->rewritelogfp > 0)
+        return; /* virtual log shared w/ main server */
 
-                case token_lt:
+    fname = ap_server_root_relative(p, conf->rewritelogfile);
 
-                    break;
-
-                default:
-
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                                "Invalid expression \"%s\" in file %s",
-
-                                expr, r->filename);
-
-                    ap_rputs(error, r);
-
-                    goto RETURN;
-
-                }
-
-                break;
-
+    if (*conf->rewritelogfile == '|') {
+        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, s, 

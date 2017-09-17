@@ -1,26 +1,22 @@
-        for (i = 0; i < arr->nelts; ++i) {
-
-            ap_rvputs(r, elts[i].key, "=", elts[i].val, "\n", NULL);
-
-        }
-
-        return 0;
-
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
+	}
+	else
+#endif
+	{
+	    curblocks -= fent->len >> 10;
+	    curbytes -= fent->len & 0x3FF;
+	    if (curbytes < 0) {
+		curbytes += 1024;
+		curblocks--;
+	    }
+	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
+		break;
+	}
     }
-
-    else {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "printenv directive does not take tags in %s",
-
-		    r->filename);
-
-        ap_rputs(error, r);
-
-        return -1;
-
-    }
-
+    ap_unblock_alarms();
 }
 
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

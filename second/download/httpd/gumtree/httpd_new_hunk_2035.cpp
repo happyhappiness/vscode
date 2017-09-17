@@ -1,196 +1,38 @@
-		if ((v = *b++ - *a++) != 0)
-
-		    break;
-
+		char buff[24] = "                       ";
+		t2 = ap_escape_html(scratch, t);
+		buff[23 - len] = '\0';
+		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
+	    }
+	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
+				ap_escape_html(scratch,
+					       ap_os_escape_path(scratch, t,
+								 0)),
+				"\">", NULL);
 	}
 
-	break;
-
-    default:
-
-	/*  bogosity, pretend that it just wasn't a match */
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
-
-		    MODNAME ": invalid type %d in mcheck().", m->type);
-
-	return 0;
-
-    }
-
-
-
-    v = signextend(r->server, m, v) & m->mask;
-
-
-
-    switch (m->reln) {
-
-    case 'x':
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-		    "%lu == *any* = 1", v);
-
-#endif
-
-	matched = 1;
-
-	break;
-
-
-
-    case '!':
-
-	matched = v != l;
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-		    "%lu != %lu = %d", v, l, matched);
-
-#endif
-
-	break;
-
-
-
-    case '=':
-
-	matched = v == l;
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-		    "%lu == %lu = %d", v, l, matched);
-
-#endif
-
-	break;
-
-
-
-    case '>':
-
-	if (m->flag & UNSIGNED) {
-
-	    matched = v > l;
-
-#if MIME_MAGIC_DEBUG
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-			"%lu > %lu = %d", v, l, matched);
-
-#endif
-
-	}
-
-	else {
-
-	    matched = (long) v > (long) l;
-
-#if MIME_MAGIC_DEBUG
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-			"%ld > %ld = %d", v, l, matched);
-
-#endif
-
-	}
-
-	break;
-
-
-
-    case '<':
-
-	if (m->flag & UNSIGNED) {
-
-	    matched = v < l;
-
-#if MIME_MAGIC_DEBUG
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-			"%lu < %lu = %d", v, l, matched);
-
-#endif
-
-	}
-
-	else {
-
-	    matched = (long) v < (long) l;
-
-#if MIME_MAGIC_DEBUG
-
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-			"%ld < %ld = %d", v, l, matched);
-
-#endif
-
-	}
-
-	break;
-
-
-
-    case '&':
-
-	matched = (v & l) == l;
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-		    "((%lx & %lx) == %lx) = %d", v, l, l, matched);
-
-#endif
-
-	break;
-
-
-
-    case '^':
-
-	matched = (v & l) != l;
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-		    "((%lx & %lx) != %lx) = %d", v, l, l, matched);
-
-#endif
-
-	break;
-
-
-
-    default:
-
-	/* bogosity, pretend it didn't match */
-
-	matched = 0;
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
-
-		    MODNAME ": mcheck: can't happen: invalid relation %d.",
-
-		    m->reln);
-
-	break;
-
-    }
-
-
-
-    return matched;
-
+	if (autoindex_opts & FANCY_INDEXING) {
+	    if (autoindex_opts & ICONS_ARE_LINKS) {
+		ap_rputs(anchor, r);
+	    }
+	    if ((ar[x]->icon) || d->default_icon) {
+		ap_rvputs(r, "<IMG SRC=\"",
+			  ap_escape_html(scratch,
+					 ar[x]->icon ? ar[x]->icon
+					             : d->default_icon),
+			  "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
+			  "]\"", NULL);
+		if (d->icon_width && d->icon_height) {
+		    ap_rprintf(r, " HEIGHT=\"%d\" WIDTH=\"%d\"",
+			       d->icon_height, d->icon_width);
+		}
+		ap_rputs(">", r);
+	    }
+	    if (autoindex_opts & ICONS_ARE_LINKS) {
+		ap_rputs("</A>", r);
+	    }
+
+	    ap_rvputs(r, " ", anchor, t2, NULL);
+	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+		if (ar[x]->lm != -1) {
+		    char time_str[MAX_STRING_LEN];
+		    struct tm *ts = localtime(&ar[x]->lm);

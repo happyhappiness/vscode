@@ -1,24 +1,13 @@
-#if TESTING
+#include "http_main.h"
+#include "http_request.h"
 
-		fprintf(stderr, "Would remove directory %s\n", newcachedir);
+static int asis_handler(request_rec *r)
+{
+    FILE *f;
+    char *location;
 
-#else
-
-		rmdir(newcachedir);
-
-#endif
-
-		--nfiles;
-
-	    }
-
-	    continue;
-
-	}
-
-#endif
-
-
-
-	i = read(fd, line, 26);
-
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+	return DECLINED;
+    if (r->finfo.st_mode == 0) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

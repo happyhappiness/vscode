@@ -1,242 +1,38 @@
-	memset(&si, 0, sizeof(si));
-
-	memset(&pi, 0, sizeof(pi));
-
-
-
-	interpreter[0] = 0;
-
-	pid = -1;
-
-
-
-        quoted_filename = ap_pstrcat(r->pool, "\"", r->filename, "\"", NULL);
-
-
-
-        if (!shellcmd) {
-
-            exename = strrchr(r->filename, '/');
-
-            if (!exename) {
-
-                exename = strrchr(r->filename, '\\');
-
+		char buff[24] = "                       ";
+		t2 = ap_escape_html(scratch, t);
+		buff[23 - len] = '\0';
+		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
 	    }
-
-            if (!exename) {
-
-                exename = r->filename;
-
-	    }
-
-            else {
-
-                exename++;
-
-            }
-
-            dot = strrchr(exename, '.');
-
-            if (dot) {
-
-                if (!strcasecmp(dot, ".BAT")
-
-                    || !strcasecmp(dot, ".CMD")
-
-                    || !strcasecmp(dot, ".EXE")
-
-                    ||  !strcasecmp(dot, ".COM")) {
-
-                    is_exe = 1;
-
-		}
-
-	    }
-
-
-
-            if (!is_exe) {
-
-                program = fopen(r->filename, "rb");
-
-                if (!program) {
-
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-                                 "fopen(%s) failed", r->filename);
-
-                    return (pid);
-
-                }
-
-                sz = fread(interpreter, 1, sizeof(interpreter) - 1, program);
-
-                if (sz < 0) {
-
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-                                 "fread of %s failed", r->filename);
-
-                    fclose(program);
-
-                    return (pid);
-
-                }
-
-                interpreter[sz] = 0;
-
-                fclose(program);
-
-                if (!strncmp(interpreter, "#!", 2)) {
-
-                    is_script = 1;
-
-                    for (i = 2; i < sizeof(interpreter); i++) {
-
-                        if ((interpreter[i] == '\r')
-
-                            || (interpreter[i] == '\n')) {
-
-                            break;
-
-                        }
-
-                    }
-
-                    interpreter[i] = 0;
-
-                    for (i = 2; interpreter[i] == ' '; ++i)
-
-                        ;
-
-                    memmove(interpreter+2,interpreter+i,strlen(interpreter+i)+1);
-
-                }
-
-                else {
-
-                    /* Check to see if it's a executable */
-
-                    IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)interpreter;
-
-                    if (hdr->e_magic == IMAGE_DOS_SIGNATURE && hdr->e_cblp < 512) {
-
-                        is_binary = 1;
-
-                    }
-
-		}
-
-	    }
-
-            /* Bail out if we haven't figured out what kind of
-
-             * file this is by now..
-
-             */
-
-            if (!is_exe && !is_script && !is_binary) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r,
-
-                             "%s is not executable; ensure interpreted scripts have "
-
-                             "\"#!\" first line", 
-
-                             r->filename);
-
-                return (pid);
-
-            }
-
+	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
+				ap_escape_html(scratch,
+					       ap_os_escape_path(scratch, t,
+								 0)),
+				"\">", NULL);
 	}
 
-
-
-        if (shellcmd) {
-
-            char *shell_cmd = "CMD.EXE /C ";
-
-            OSVERSIONINFO osver;
-
-            osver.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-
-         
-
-            /*
-
-             * Use CMD.EXE for NT, COMMAND.COM for WIN95
-
-             */
-
-            if (GetVersionEx(&osver)) {
-
-                if (osver.dwPlatformId != VER_PLATFORM_WIN32_NT) {
-
-                    shell_cmd = "COMMAND.COM /C ";
-
-                }
-
-            }       
-
-            pCommand = ap_pstrcat(r->pool, shell_cmd, argv0, NULL);
-
-        }
-
- 	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) { 
-
-	    if (is_exe || is_binary) {
-
-	        /*
-
-	         * When the CGI is a straight binary executable, 
-
-		 * we can run it as is
-
-	         */
-
-	        pCommand = quoted_filename;
-
+	if (autoindex_opts & FANCY_INDEXING) {
+	    if (autoindex_opts & ICONS_ARE_LINKS) {
+		ap_rputs(anchor, r);
+	    }
+	    if ((ar[x]->icon) || d->default_icon) {
+		ap_rvputs(r, "<IMG SRC=\"",
+			  ap_escape_html(scratch,
+					 ar[x]->icon ? ar[x]->icon
+					             : d->default_icon),
+			  "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
+			  "]\"", NULL);
+		if (d->icon_width && d->icon_height) {
+		    ap_rprintf(r, " HEIGHT=\"%d\" WIDTH=\"%d\"",
+			       d->icon_height, d->icon_width);
+		}
+		ap_rputs(">", r);
+	    }
+	    if (autoindex_opts & ICONS_ARE_LINKS) {
+		ap_rputs("</A>", r);
 	    }
 
-	    else if (is_script) {
-
-                /* When an interpreter is needed, we need to create 
-
-                 * a command line that has the interpreter name
-
-                 * followed by the CGI script name.  
-
-		 */
-
-	        pCommand = ap_pstrcat(r->pool, interpreter + 2, " ", 
-
-				      quoted_filename, NULL);
-
-	    }
-
-	    else {
-
-	        /* If not an executable or script, just execute it
-
-                 * from a command prompt.  
-
-                 */
-
-	        pCommand = ap_pstrcat(r->pool, SHELL_PATH, " /C ", 
-
-				      quoted_filename, NULL);
-
-	    }
-
-	}
-
-	else {
-
-
-
-            /* If we are in this leg, there are some other arguments
-
-             * that we must include in the execution of the CGI.
-
+	    ap_rvputs(r, " ", anchor, t2, NULL);
+	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+		if (ar[x]->lm != -1) {
+		    char time_str[MAX_STRING_LEN];
+		    struct tm *ts = localtime(&ar[x]->lm);

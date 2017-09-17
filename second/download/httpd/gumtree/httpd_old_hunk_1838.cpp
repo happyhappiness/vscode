@@ -1,26 +1,26 @@
-    /*
 
-     *  only do something under runtime if the engine is really enabled,
+    /* Pass one --- direct matches */
 
-     *  for this directory, else return immediately!
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
 
-     */
-
-    if (!(ap_allow_options(r) & (OPT_SYM_LINKS | OPT_SYM_OWNER))) {
-
-        /* FollowSymLinks is mandatory! */
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                     "Options FollowSymLinks or SymLinksIfOwnerMatch is off "
-
-                     "which implies that RewriteRule directive is forbidden: "
-
-                     "%s", r->filename);
-
-        return FORBIDDEN;
-
+            if (result != DECLINED)
+                return result;
+        }
     }
 
-    else {
+    /* Pass two --- wildcard matches */
 
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
+
+             if (result != DECLINED)
+                 return result;
+         }
+    }
+
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

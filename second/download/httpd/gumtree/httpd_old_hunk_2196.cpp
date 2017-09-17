@@ -1,52 +1,13 @@
-            ap_chdir_file(r->filename);
 
-#endif
-
+    while (1) {
+        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
+            return 1;
         }
+        if (!strcmp(tag, "var")) {
+            char *val = ap_table_get(r->subprocess_env, tag_val);
 
-        else if (!strcmp(tag, "cgi")) {
-
-            parse_string(r, tag_val, parsed_string, sizeof(parsed_string), 0);
-
-            if (include_cgi(parsed_string, r) == -1) {
-
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                            "invalid CGI ref \"%s\" in %s", tag_val, file);
-
-                ap_rputs(error, r);
-
+            if (val) {
+                ap_rputs(val, r);
             }
-
-            /* grumble groan */
-
-#ifndef WIN32
-
-            ap_chdir_file(r->filename);
-
-#endif
-
-        }
-
-        else if (!strcmp(tag, "done")) {
-
-            return 0;
-
-        }
-
-        else {
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "unknown parameter \"%s\" to tag exec in %s",
-
-                        tag, file);
-
-            ap_rputs(error, r);
-
-        }
-
-    }
-
-
-
+            else {
+                ap_rputs("(none)", r);

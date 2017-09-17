@@ -1,26 +1,14 @@
-	    const char *orig_groups, *groups;
+#include "http_main.h"
+#include "http_request.h"
 
-	    char *v;
+static int asis_handler(request_rec *r)
+{
+    FILE *f;
+    const char *location;
 
-
-
-	    if (!(groups = get_dbm_grp(r, user, sec->auth_dbmgrpfile))) {
-
-		if (!(sec->auth_dbmauthoritative))
-
-		    return DECLINED;
-
-		ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-			    "user %s not in DBM group file %s: %s",
-
-			    user, sec->auth_dbmgrpfile, r->filename);
-
-		ap_note_basic_auth_failure(r);
-
-		return AUTH_REQUIRED;
-
-	    }
-
-	    orig_groups = groups;
-
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+	return DECLINED;
+    if (r->finfo.st_mode == 0) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800

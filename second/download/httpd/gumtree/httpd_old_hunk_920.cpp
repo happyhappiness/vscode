@@ -1,28 +1,18 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
-
-
-
-    /* BS2000 requires the user name to be in upper case for authentication */
-
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-
-		"%s", user_name);
-
-    for (cp = lcl_data.username; *cp; ++cp) {
-
-	*cp = toupper(*cp);
-
+    if (i == 530) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Not logged in");
+    }
+    if (i != 230 && i != 331) {
+	ap_kill_timeout(r);
+	return BAD_GATEWAY;
     }
 
-
-
-    if (bs2000_authfile == NULL) {
-
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-
-		     "an authorization file for User %s",
-
--- apache_1.3.0/src/os/bs2000/ebcdic.c	1998-05-13 23:31:01.000000000 +0800
-
+    if (i == 331) {		/* send password */
+	if (password == NULL)
+	    return FORBIDDEN;
+	ap_bputs("PASS ", f);
+	ap_bwrite(f, password, passlen);
+	ap_bputs(CRLF, f);
+	ap_bflush(f);
+	Explain1("FTP: PASS %s", password);
+/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

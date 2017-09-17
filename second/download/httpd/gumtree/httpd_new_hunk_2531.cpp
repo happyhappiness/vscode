@@ -1,26 +1,31 @@
-
-
-	    name = ent->pw_name;
-
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
 	}
+    }
 
-	else
+    if (!child && run_as_service) {
+	service_cd();
+    }
 
-	    name = ap_user_name;
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
+    }
 
-
-#ifndef OS2
-
-	/* OS/2 dosen't support groups. */
-
-
-
-	/* Reset `groups' attributes. */
-
-
-
-	if (initgroups(name, ap_group_id) == -1) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ALERT, server_conf,
-
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

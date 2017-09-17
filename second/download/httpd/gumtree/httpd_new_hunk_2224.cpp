@@ -1,46 +1,18 @@
-#ifdef USE_PERL_SSI
+    ap_table_setn(r->err_headers_out,
+	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
+	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
+		ap_auth_name(r), r->request_time));
+}
 
-            else if (!strcmp(directive, "perl")) {
+API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
+{
+    const char *auth_line = ap_table_get(r->headers_in,
+                                      r->proxyreq ? "Proxy-Authorization"
+                                                  : "Authorization");
+    const char *t;
 
-                ret = handle_perl(f, r, error);
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
 
-            }
-
-#endif
-
-            else {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "httpd: unknown directive \"%s\" "
-
-                            "in parsed doc %s",
-
-                            directive, r->filename);
-
-                if (printing) {
-
-                    ap_rputs(error, r);
-
-                }
-
-                ret = find_string(f, ENDING_SEQUENCE, r, 0);
-
-            }
-
-            if (ret) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                            "httpd: premature EOF in parsed file %s",
-
-                            r->filename);
-
-                return;
-
-            }
-
-        }
-
-        else {
-
+    if (!ap_auth_name(r)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

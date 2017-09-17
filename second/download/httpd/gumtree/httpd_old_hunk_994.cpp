@@ -1,26 +1,26 @@
-#define STANDALONE_MAIN standalone_main
 
+    /* Pass one --- direct matches */
 
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            int result = (*handp->hr.handler) (r);
 
-static void standalone_main(int argc, char **argv)
+            if (result != DECLINED)
+                return result;
+        }
+    }
 
-{
+    /* Pass two --- wildcard matches */
 
-    int remaining_children_to_start;
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             int result = (*handp->hr.handler) (r);
 
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-
-#ifdef __EMX__
-
-    printf("%s \n", ap_get_server_version());
-
-#endif
-
-
-
-    ap_standalone = 1;
-
-
-
-    is_graceful = 0;
-
+-- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

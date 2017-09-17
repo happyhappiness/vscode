@@ -1,26 +1,13 @@
-
-
-    arg.r = r;
-
-    arg.s = s;
-
-
-
-    if (!ap_bspawn_child(r->pool, include_cmd_child, &arg,
-
-			 kill_after_timeout, NULL, &script_in, NULL)) {
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		     "couldn't spawn include command");
-
-        return -1;
-
+    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (dsock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating PASV socket");
+	ap_bclose(f);
+	ap_kill_timeout(r);
+	return SERVER_ERROR;
     }
 
-
-
-    ap_send_fb(script_in, r);
-
-    ap_bclose(script_in);
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
+	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,

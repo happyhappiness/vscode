@@ -1,144 +1,163 @@
-	r->status_line = ap_pstrdup(p, &buffer[9]);
-
-
-
-/* read the headers. */
-
-/* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers */
-
-/* Also, take care with headers with multiple occurences. */
-
-
-
-	resp_hdrs = ap_proxy_read_headers(r, buffer, HUGE_STRING_LEN, f);
-
-	if (resp_hdrs == NULL) {
-
-	    ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, r->server,
-
-		 "proxy: Bad HTTP/%d.%d header returned by %s (%s)",
-
-		 major, minor, r->uri, r->method);
-
-	    resp_hdrs = ap_make_table(p, 20);
-
-	    nocache = 1;    /* do not cache this broken file */
-
-	}
-
-
-
-	if (conf->viaopt != via_off && conf->viaopt != via_block) {
-
-	    /* Create a "Via:" response header entry and merge it */
-
-	    i = ap_get_server_port(r);
-
-	    if (ap_is_default_port(i,r)) {
-
-		strcpy(portstr,"");
-
-	    } else {
-
-		ap_snprintf(portstr, sizeof portstr, ":%d", i);
-
-	    }
-
-	    ap_table_mergen((table *)resp_hdrs, "Via",
-
-			    (conf->viaopt == via_full)
-
-			    ? ap_psprintf(p, "%d.%d %s%s (%s)",
-
-				major, minor,
-
-				ap_get_server_name(r), portstr,
-
-				SERVER_BASEVERSION)
-
-			    : ap_psprintf(p, "%d.%d %s%s",
-
-				major, minor,
-
-				ap_get_server_name(r), portstr)
-
-			    );
-
-	}
-
-
-
-	clear_connection(p, resp_hdrs);	/* Strip Connection hdrs */
-
+	return;
     }
+    else
+	inside = 1;
+    (void) ap_release_mutex(garbage_mutex);
 
-    else {
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
+#if !defined(WIN32) && !defined(MPE) && !defined(__EMX__)
+    detached_proxy_garbage_coll(r);
+#else
+    help_proxy_garbage_coll(r);
+#endif
+    ap_unblock_alarms();
 
-/* an http/0.9 response */
-
-	backasswards = 1;
-
-	r->status = 200;
-
-	r->status_line = "200 OK";
-
-
-
-/* no headers */
-
-	resp_hdrs = ap_make_table(p, 20);
-
-    }
+    (void) ap_acquire_mutex(garbage_mutex);
+    inside = 0;
+    (void) ap_release_mutex(garbage_mutex);
+}
 
 
+static void
+add_long61 (long61_t *accu, long val)
+{
+    /* Add in lower 30 bits */
+    accu->lower += (val & 0x3FFFFFFFL);
+    /* add in upper bits, and carry */
+    accu->upper += (val >> 30) + ((accu->lower & ~0x3FFFFFFFL) != 0L);
+    /* Clear carry */
+    accu->lower &= 0x3FFFFFFFL;
+}
 
-    c->hdrs = resp_hdrs;
+static void
+sub_long61 (long61_t *accu, long val)
+{
+    int carry = (val & 0x3FFFFFFFL) > accu->lower;
+    /* Subtract lower 30 bits */
+    accu->lower = accu->lower - (val & 0x3FFFFFFFL) + ((carry) ? 0x40000000 : 0);
+    /* add in upper bits, and carry */
+    accu->upper -= (val >> 30) + carry;
+}
 
-
-
-    ap_kill_timeout(r);
-
-
-
-/*
-
- * HTTP/1.0 requires us to accept 3 types of dates, but only generate
-
- * one type
-
+/* Compare two long61's:
+ * return <0 when left < right
+ * return  0 when left == right
+ * return >0 when left > right
  */
+static long
+cmp_long61 (long61_t *left, long61_t *right)
+{
+    return (left->upper == right->upper) ? (left->lower - right->lower)
+					 : (left->upper - right->upper);
+}
 
-    if ((datestr = ap_table_get(resp_hdrs, "Date")) != NULL)
+/* Compare two gc_ent's, sort them by expiration date */
+static int gcdiff(const void *ap, const void *bp)
+{
+    const struct gc_ent *a = (const struct gc_ent * const) ap;
+    const struct gc_ent *b = (const struct gc_ent * const) bp;
 
-	ap_table_set(resp_hdrs, "Date", ap_proxy_date_canon(p, datestr));
+    if (a->expire > b->expire)
+	return 1;
+    else if (a->expire < b->expire)
+	return -1;
+    else
+	return 0;
+}
 
-    if ((datestr = ap_table_get(resp_hdrs, "Last-Modified")) != NULL)
+#if !defined(WIN32) && !defined(MPE) && !defined(__EMX__)
+static void detached_proxy_garbage_coll(request_rec *r)
+{
+    pid_t pid;
+    int status;
+    pid_t pgrp;
 
-	ap_table_set(resp_hdrs, "Last-Modified", ap_proxy_date_canon(p, datestr));
+    switch (pid = fork()) {
+	case -1:
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: fork() for cache cleanup failed");
+	    return;
 
-    if ((datestr = ap_table_get(resp_hdrs, "Expires")) != NULL)
+	case 0:	/* Child */
 
-	ap_table_set(resp_hdrs, "Expires", ap_proxy_date_canon(p, datestr));
+	    /* close all sorts of things, including the socket fd */
+	    ap_cleanup_for_exec();
 
+	    /* Fork twice to disassociate from the child */
+	    switch (pid = fork()) {
+		case -1:
+		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: fork(2nd) for cache cleanup failed");
+		    exit(1);
 
+		case 0:	/* Child */
+		    /* The setpgrp() stuff was snarfed from http_main.c */
+#ifndef NO_SETSID
+		    if ((pgrp = setsid()) == -1) {
+			perror("setsid");
+			fprintf(stderr, "httpd: setsid failed\n");
+			exit(1);
+		    }
+#elif defined(NEXT) || defined(NEWSOS)
+		    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
+			perror("setpgrp");
+			fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
+			exit(1);
+		    }
+#else
+		    if ((pgrp = setpgrp(getpid(), 0)) == -1) {
+			perror("setpgrp");
+			fprintf(stderr, "httpd: setpgrp failed\n");
+			exit(1);
+		    }
+#endif
+		    help_proxy_garbage_coll(r);
+		    exit(0);
 
-    if ((datestr = ap_table_get(resp_hdrs, "Location")) != NULL)
+		default:    /* Father */
+		    /* After grandson has been forked off, */
+		    /* there's nothing else to do. */
+		    exit(0);		    
+	    }
+	default:
+	    /* Wait until grandson has been forked off */
+	    /* (without wait we'd leave a zombie) */
+	    waitpid(pid, &status, 0);
+	    return;
+    }
+}
+#endif /* ndef WIN32 */
 
-	ap_table_set(resp_hdrs, "Location", proxy_location_reverse_map(r, datestr));
+static void help_proxy_garbage_coll(request_rec *r)
+{
+    const char *cachedir;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *pconf =
+    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+    const struct cache_conf *conf = &pconf->cache;
+    array_header *files;
+    struct stat buf;
+    struct gc_ent *fent;
+    int i, timefd;
+    static time_t lastcheck = BAD_DATE;		/* static (per-process) data!!! */
 
-    if ((datestr = ap_table_get(resp_hdrs, "URI")) != NULL)
+    cachedir = conf->root;
+    /* configured size is given in kB. Make it bytes, convert to long61_t: */
+    cachesize.lower = cachesize.upper = 0;
+    add_long61(&cachesize, conf->space << 10);
+    every = conf->gcinterval;
 
-	ap_table_set(resp_hdrs, "URI", proxy_location_reverse_map(r, datestr));
+    if (cachedir == NULL || every == -1)
+	return;
+    garbage_now = time(NULL);
+    /* Usually, the modification time of <cachedir>/.time can only increase.
+     * Thus, even with several child processes having their own copy of
+     * lastcheck, if time(NULL) still < lastcheck then it's not time
+     * for GC yet.
+     */
+    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
+	return;
 
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
 
-
-/* check if NoCache directive on this host */
-
-    for (i = 0; i < conf->nocaches->nelts; i++) {
-
-	if ((ncent[i].name != NULL && strstr(desthost, ncent[i].name) != NULL)
-
-	    || destaddr.s_addr == ncent[i].addr.s_addr || ncent[i].name[0] == '*')
-
-	    nocache = 1;
-
+    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

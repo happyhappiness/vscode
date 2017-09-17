@@ -1,26 +1,28 @@
-    magic_req_rec *req_dat = (magic_req_rec *)
+#ifdef SHARED_CORE
+    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
+#else
+    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
+#endif
+    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
+    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S] [-t]\n", pad);
+    fprintf(stderr, "Options:\n");
+#ifdef SHARED_CORE
+    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
+#endif
+    fprintf(stderr, "  -D name          : define a name for use in <IfDefine name> directives\n");
+    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
+    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
+    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
+    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
+    fprintf(stderr, "  -v               : show version number\n");
+    fprintf(stderr, "  -V               : show compile settings\n");
+    fprintf(stderr, "  -h               : list available configuration directives\n");
+    fprintf(stderr, "  -l               : list compiled-in modules\n");
+    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
+    fprintf(stderr, "  -t               : run syntax test for configuration files only\n");
+    exit(1);
+}
 
-		    ap_get_module_config(r->request_config, &mime_magic_module);
-
-    magic_rsl *rsl;
-
-
-
-    /* make sure we have a list to put it in */
-
-    if (!req_dat) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
-
-		    MODNAME ": request config should not be NULL");
-
-	if (!(req_dat = magic_set_config(r))) {
-
-	    /* failure */
-
-	    return -1;
-
-	}
-
-    }
-
+/*****************************************************************
+ *
+ * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff

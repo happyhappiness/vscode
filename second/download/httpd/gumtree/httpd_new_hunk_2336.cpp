@@ -1,26 +1,14 @@
-	perror("Unable to gethostname");
+#include "http_main.h"
+#include "http_request.h"
 
-	exit(1);
+static int asis_handler(request_rec *r)
+{
+    FILE *f;
+    const char *location;
 
-    }
-
-    str[MAXHOSTNAMELEN] = '\0';
-
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
-
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-
-	fprintf(stderr, "Use the ServerName directive to set it manually.\n");
-
-	exit(1);
-
-    }
-
-
-
-    return server_hostname;
-
-}
-
-
-
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+	return DECLINED;
+    if (r->finfo.st_mode == 0) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800

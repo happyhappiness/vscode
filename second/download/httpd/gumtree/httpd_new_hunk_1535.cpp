@@ -1,32 +1,13 @@
-	else
-
-	    ret = FORBIDDEN;
-
+    if (i == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
+		     "PASV: control connection is toast");
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	ap_kill_timeout(r);
+	return HTTP_INTERNAL_SERVER_ERROR;
     }
-
-
-
-    if (ret == FORBIDDEN
-
-	&& (ap_satisfies(r) != SATISFY_ANY || !ap_some_auth_required(r))) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		  "client denied by server configuration: %s",
-
-		  r->filename);
-
-    }
-
-
-
-    return ret;
-
-}
-
-
-
-
-
-++ apache_1.3.2/src/modules/standard/mod_actions.c	1998-08-07 01:30:53.000000000 +0800
-
+    else {
+	pasv[i - 1] = '\0';
+	pstr = strtok(pasv, " ");	/* separate result code */
+	if (pstr != NULL) {
+	    presult = atoi(pstr);

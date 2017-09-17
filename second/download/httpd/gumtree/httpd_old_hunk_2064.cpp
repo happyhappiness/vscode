@@ -1,78 +1,12 @@
-	return FORBIDDEN;
-
-
-
-    /* Load the module */
-
-
-
-    if (!(isapi_handle = LoadLibraryEx(r->filename, NULL,
-
-				       LOAD_WITH_ALTERED_SEARCH_PATH))) {
-
-	ap_log_error(APLOG_MARK, APLOG_ALERT, r->server,
-
-		    "Could not load DLL: %s", r->filename);
-
-	return SERVER_ERROR;
-
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
+#endif
+	sa.sa_flags = 0;
     }
-
-
-
-    if (!(isapi_version =
-
-	  (void *)(GetProcAddress(isapi_handle, "GetExtensionVersion")))) {
-
-	ap_log_error(APLOG_MARK, APLOG_ALERT, r->server,
-
-		    "DLL could not load GetExtensionVersion(): %s", r->filename);
-
-	FreeLibrary(isapi_handle);
-
-	return SERVER_ERROR;
-
-    }
-
-
-
-    if (!(isapi_entry =
-
-	  (void *)(GetProcAddress(isapi_handle, "HttpExtensionProc")))) {
-
-	ap_log_error(APLOG_MARK, APLOG_ALERT, r->server,
-
-		    "DLL could not load HttpExtensionProc(): %s", r->filename);
-
-	FreeLibrary(isapi_handle);
-
-	return SERVER_ERROR;
-
-    }
-
-
-
-    isapi_term = (void *)(GetProcAddress(isapi_handle, "TerminateExtension"));
-
-
-
-    /* Run GetExtensionVersion() */
-
-
-
-    if ((*isapi_version)(pVer) != TRUE) {
-
-	ap_log_error(APLOG_MARK, APLOG_ALERT, r->server,
-
-		    "ISAPI GetExtensionVersion() failed: %s", r->filename);
-
-	FreeLibrary(isapi_handle);
-
-	return SERVER_ERROR;
-
-    }
-
-
-
-    /* Set up variables */
-
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
+#ifdef SIGINT

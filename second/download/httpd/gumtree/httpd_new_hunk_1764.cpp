@@ -1,26 +1,13 @@
-    configfile_t *f;
+}
 
-    char l[MAX_STRING_LEN];
+#ifdef USE_PERL_SSI
+static int handle_perl(FILE *in, request_rec *r, const char *error)
+{
+    char tag[MAX_STRING_LEN];
+    char parsed_string[MAX_STRING_LEN];
+    char *tag_val;
+    SV *sub = Nullsv;
+    AV *av = newAV();
 
-    const char *rpw;
-
-    char *w, *x;
-
-
-
-    if (!(f = ap_pcfg_openfile(r->pool, auth_pwfile))) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		    "Could not open password file: %s", auth_pwfile);
-
-	return NULL;
-
-    }
-
-    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
-
-	if ((l[0] == '#') || (!l[0]))
-
-	    continue;
-
+    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

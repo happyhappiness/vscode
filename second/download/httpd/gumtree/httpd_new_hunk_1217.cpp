@@ -1,28 +1,13 @@
 
+    /* Host names must not start with a '.' */
+    if (addr[0] == '.')
+	return 0;
 
-    if (err != NULL)
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
 
-	return ap_proxyerror(r, err);	/* give up */
-
-
-
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (sock == -1) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		    "proxy: error creating socket");
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
+	/* @@@@ handle optional port */
     }
-
-
-
-#ifndef WIN32
-
-    if (sock >= FD_SETSIZE) {
-
-++ apache_1.3.2/src/modules/proxy/proxy_ftp.c	1998-08-28 19:27:21.000000000 +0800
-

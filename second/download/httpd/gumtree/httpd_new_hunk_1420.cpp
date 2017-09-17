@@ -1,26 +1,15 @@
-	    continue;
+    ap_hard_timeout("send directory", r);
 
-	}
+    /* Spew HTML preamble */
 
+    title_endp = title_name + strlen(title_name) - 1;
 
+    while (title_endp > title_name && *title_endp == '/') {
+	*title_endp-- = '\0';
+    }
 
-	/* if we get here, the main entry rule was a match */
-
-	/* this will be the last run through the loop */
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-
-		    MODNAME ": rule matched, line=%d type=%d %s",
-
-		    m->lineno, m->type,
-
-		    (m->type == STRING) ? m->value.s : "");
-
-#endif
-
-
-
-	/* print the match */
-
+    if ((!(tmp = find_header(autoindex_conf, r)))
+	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
+	) {
+	emit_preamble(r, title_name);
+	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);

@@ -1,26 +1,12 @@
-    if (i == -1) {
 
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
+    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
+	return (ap_suexec_enabled);
 
-		     "PASV: control connection is toast");
-
-	ap_pclosesocket(p, dsock);
-
-	ap_bclose(f);
-
-	ap_kill_timeout(r);
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
+    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
+	ap_suexec_enabled = 1;
     }
+#endif /* ndef WIN32 */
+    return (ap_suexec_enabled);
+}
 
-    else {
-
-	pasv[i - 1] = '\0';
-
-	pstr = strtok(pasv, " ");	/* separate result code */
-
-	if (pstr != NULL) {
-
-	    presult = atoi(pstr);
-
+/*****************************************************************

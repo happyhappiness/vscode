@@ -1,76 +1,46 @@
-		char buff[24] = "                       ";
-
-		t2 = ap_escape_html(scratch, t);
-
-		buff[23 - len] = '\0';
-
-		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
-
-	    }
-
-	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
-
-			ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0)),
-
-			     "\">", NULL);
-
+	clen = sizeof(struct sockaddr_in);
+	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error getting socket address");
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return SERVER_ERROR;
 	}
 
+	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (dsock == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error creating socket");
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return SERVER_ERROR;
+	}
 
+	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		       sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error setting reuseaddr option");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return SERVER_ERROR;
+#endif /*_OSD_POSIX*/
+	}
 
-	if (autoindex_opts & FANCY_INDEXING) {
+	if (bind(dsock, (struct sockaddr *) &server,
+		 sizeof(struct sockaddr_in)) == -1) {
+	    char buff[22];
 
-	    if (autoindex_opts & ICONS_ARE_LINKS)
+	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error binding to ftp data socket %s", buff);
+	    ap_bclose(f);
+	    ap_pclosesocket(p, dsock);
+	    return SERVER_ERROR;
+	}
+	listen(dsock, 2);	/* only need a short queue */
+    }
 
-		ap_rputs(anchor, r);
-
-	    if ((ar[x]->icon) || d->default_icon) {
-
-		ap_rvputs(r, "<IMG SRC=\"",
-
-		       ap_escape_html(scratch, ar[x]->icon ?
-
-				   ar[x]->icon : d->default_icon),
-
-		       "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-
-		       "]\"", NULL);
-
-		if (d->icon_width && d->icon_height) {
-
-		    ap_rprintf
-
-			(
-
-			    r,
-
-			    " HEIGHT=\"%d\" WIDTH=\"%d\"",
-
-			    d->icon_height,
-
-			    d->icon_width
-
-			);
-
-		}
-
-		ap_rputs(">", r);
-
-	    }
-
-	    if (autoindex_opts & ICONS_ARE_LINKS)
-
-		ap_rputs("</A>", r);
-
-
-
-	    ap_rvputs(r, " ", anchor, t2, NULL);
-
-	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-
-		if (ar[x]->lm != -1) {
-
-		    char time_str[MAX_STRING_LEN];
-
-		    struct tm *ts = localtime(&ar[x]->lm);
-
+/* set request */
+    len = decodeenc(path);

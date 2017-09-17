@@ -1,26 +1,13 @@
+    ap_bvputs(f, "Host: ", desthost, NULL);
+    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+	ap_bvputs(f, ":", destportstr, CRLF, NULL);
+    else
+	ap_bputs(CRLF, f);
 
-
-    while (1) {
-
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-
-            return 1;
-
-        }
-
-        if (!strcmp(tag, "var")) {
-
-            const char *val = ap_table_get(r->subprocess_env, tag_val);
-
-
-
-            if (val) {
-
-                ap_rputs(val, r);
-
-            }
-
-            else {
-
-                ap_rputs("(none)", r);
-
+    reqhdrs_arr = ap_table_elts(r->headers_in);
+    reqhdrs = (table_entry *) reqhdrs_arr->elts;
+    for (i = 0; i < reqhdrs_arr->nelts; i++) {
+	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
+	/* Clear out headers not to send */
+	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
+	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))

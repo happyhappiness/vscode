@@ -1,30 +1,13 @@
-	     * Kill child processes, tell them to call child_exit, etc...
+	else
+	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
+				"Could not connect to remote machine: ",
+				strerror(errno), NULL));
+    }
 
-	     */
+    clear_connection(r->headers_in);	/* Strip connection-based headers */
 
-	    if (ap_killpg(pgrp, SIGTERM) < 0) {
+    f = ap_bcreate(p, B_RDWR | B_SOCKET);
+    ap_bpushfd(f, sock, sock);
 
-		ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "killpg SIGTERM");
-
-	    }
-
-	    reclaim_child_processes(1);		/* Start with SIGTERM */
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-
-			"httpd: caught SIGTERM, shutting down");
-
-
-
-	    clean_parent_exit(0);
-
-	}
-
-
-
-	/* we've been told to restart */
-
-	signal(SIGHUP, SIG_IGN);
-
-	signal(SIGUSR1, SIG_IGN);
-
+    ap_hard_timeout("proxy send", r);
+    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,

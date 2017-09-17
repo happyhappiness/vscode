@@ -1,36 +1,20 @@
-	}
-
-    }
-
-    if (!found) {
-
-	printf("Adding user %s\n", user);
-
-	add_password(user, tfp);
-
-    }
-
-    fclose(f);
-
-    fclose(tfp);
-
-#if defined(__EMX__) || defined(WIN32)
-
-    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
-
-#else
-
-    sprintf(command, "cp %s %s", tn, argv[1]);
-
+	     */
+	    break;
 #endif
+	case 'S':
+	    ap_dump_settings = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
+    }
 
-    system(command);
+    ap_suexec_enabled = init_suexec();
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-    unlink(tn);
+    child_timeouts = !ap_standalone || one_process;
 
-    exit(0);
-
-}
-
--- apache_1.3.0/src/support/logresolve.c	1998-05-28 19:23:13.000000000 +0800
-
+    if (ap_standalone) {
+	ap_open_logs(server_conf, pconf);
+	ap_set_version();
+	ap_init_modules(pconf, server_conf);

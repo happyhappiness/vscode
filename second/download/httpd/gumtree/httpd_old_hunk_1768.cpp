@@ -1,28 +1,14 @@
-        additional = atoi(&code[1]);
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+    }
+#endif
 
-        break;
-
-    default:
-
-        /* expecting the add_* routines to be case-hardened this 
-
-         * is just a reminder that module is beta
-
-         */
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "internal error: bad expires code: %s", r->filename);
-
-        return SERVER_ERROR;
-
-    };
-
-
-
-    expires = base + additional;
-
-    ap_snprintf(age, sizeof(age), "max-age=%d", (int) expires - (int) r->request_time);
-
--- apache_1.3.1/src/modules/standard/mod_imap.c	1998-07-09 01:47:15.000000000 +0800
-
+    for (i = 0; i < t->a.nelts; ) {
+-- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800

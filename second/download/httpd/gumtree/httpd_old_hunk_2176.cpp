@@ -1,26 +1,13 @@
-	real_file = last_slash;
-
-	real_file++;
-
-	*last_slash = '\0';
-
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: failed to accept data connection");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    ap_proxy_cache_error(c);
+	    return BAD_GATEWAY;
+	}
+	ap_note_cleanups_for_socket(p, csd);
+	data = ap_bcreate(p, B_RDWR | B_SOCKET);
+	ap_bpushfd(data, csd, -1);
+	ap_kill_timeout(r);
     }
-
-    else {
-
-	/* no last slash, buh?! */
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-		    "internal error in mod_cern_meta: %s", r->filename);
-
-	/* should really barf, but hey, let's be friends... */
-
-	return DECLINED;
-
-    };
-
-
-
-    metafilename = ap_pstrcat(r->pool, "/", scrap_book, "/",
-

@@ -1,26 +1,13 @@
-#endif
-
-        *printing = !(*conditional_status);
-
-        *conditional_status = 1;
-
-        return 0;
-
+    if (i == -1) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+    if (i != 220) {
+	ap_kill_timeout(r);
+	return HTTP_BAD_GATEWAY;
     }
 
-    else {
+    Explain0("FTP: connected.");
 
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "else directive does not take tags in %s",
-
-		    r->filename);
-
-        if (*printing) {
-
-            ap_rputs(error, r);
-
-        }
-
-        return -1;
-
+    ap_bputs("USER ", f);
+    ap_bwrite(f, user, userlen);

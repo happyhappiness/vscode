@@ -1,26 +1,13 @@
-<tr><th>Req<td>Milliseconds required to process most recent request\n \
-
-<tr><th>Conn<td>Kilobytes transferred this connection\n \
-
-<tr><th>Child<td>Megabytes transferred this child\n \
-
-<tr><th>Slot<td>Total megabytes transferred this slot\n \
-
-</table>\n", r);
-
-#else
-
-	    ap_rputs("</table>\n \
-
-<hr> \
-
-<table>\n \
-
-<tr><th>Srv<td>Server number\n \
-
-<tr><th>PID<td>OS process ID\n \
-
-<tr><th>Acc<td>Number of accesses this connection / this child / this slot\n \
-
-<tr><th>M<td>Mode of operation\n \
-
+		    /* else nothing needs be done because
+		     * then the backslash is escaped and
+		     * we just strip to a single one
+		     */
+		}
+		/* blast trailing whitespace */
+		while (i > 0 && ap_isspace(buf[i - 1]))
+		    --i;
+		buf[i] = '\0';
+#ifdef DEBUG_CFG_LINES
+		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+		return 0;

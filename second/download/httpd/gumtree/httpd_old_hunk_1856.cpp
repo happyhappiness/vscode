@@ -1,78 +1,20 @@
-	return FORBIDDEN;
+void ap_send_error_response(request_rec *r, int recursive_error)
+{
+    BUFF *fd = r->connection->client;
+    int status = r->status;
+    int idx = ap_index_of_response(status);
+    char *custom_response;
+    char *location = ap_table_get(r->headers_out, "Location");
 
+    /* We need to special-case the handling of 204 and 304 responses,
+     * since they have specific HTTP requirements and do not include a
+     * message body.  Note that being assbackwards here is not an option.
+     */
+    if (status == HTTP_NOT_MODIFIED) {
+        if (!is_empty_table(r->err_headers_out))
+            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                               r->headers_out);
+        ap_hard_timeout("send 304", r);
 
-
-    /* Load the module */
-
-
-
-    if (!(isapi_handle = LoadLibraryEx(r->filename, NULL,
-
-				       LOAD_WITH_ALTERED_SEARCH_PATH))) {
-
-	ap_log_error(APLOG_MARK, APLOG_ALERT, r->server,
-
-		    "Could not load DLL: %s", r->filename);
-
-	return SERVER_ERROR;
-
-    }
-
-
-
-    if (!(isapi_version =
-
-	  (void *)(GetProcAddress(isapi_handle, "GetExtensionVersion")))) {
-
-	ap_log_error(APLOG_MARK, APLOG_ALERT, r->server,
-
-		    "DLL could not load GetExtensionVersion(): %s", r->filename);
-
-	FreeLibrary(isapi_handle);
-
-	return SERVER_ERROR;
-
-    }
-
-
-
-    if (!(isapi_entry =
-
-	  (void *)(GetProcAddress(isapi_handle, "HttpExtensionProc")))) {
-
-	ap_log_error(APLOG_MARK, APLOG_ALERT, r->server,
-
-		    "DLL could not load HttpExtensionProc(): %s", r->filename);
-
-	FreeLibrary(isapi_handle);
-
-	return SERVER_ERROR;
-
-    }
-
-
-
-    isapi_term = (void *)(GetProcAddress(isapi_handle, "TerminateExtension"));
-
-
-
-    /* Run GetExtensionVersion() */
-
-
-
-    if ((*isapi_version)(pVer) != TRUE) {
-
-	ap_log_error(APLOG_MARK, APLOG_ALERT, r->server,
-
-		    "ISAPI GetExtensionVersion() failed: %s", r->filename);
-
-	FreeLibrary(isapi_handle);
-
-	return SERVER_ERROR;
-
-    }
-
-
-
-    /* Set up variables */
-
+        ap_basic_http_header(r);
+        ap_set_keepalive(r);

@@ -1,104 +1,42 @@
- */
-
-
-
-API_EXPORT(int) ap_setup_client_block(request_rec *r, int read_policy)
-
-{
-
-    const char *tenc = ap_table_get(r->headers_in, "Transfer-Encoding");
-
-    const char *lenp = ap_table_get(r->headers_in, "Content-Length");
-
-
-
-    r->read_body = read_policy;
-
-    r->read_chunked = 0;
-
-    r->remaining = 0;
-
-
-
-    if (tenc) {
-
-        if (strcasecmp(tenc, "chunked")) {
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "Unknown Transfer-Encoding %s", tenc);
-
-            return HTTP_NOT_IMPLEMENTED;
-
-        }
-
-        if (r->read_body == REQUEST_CHUNKED_ERROR) {
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "chunked Transfer-Encoding forbidden: %s", r->uri);
-
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-
-        }
-
-
-
-        r->read_chunked = 1;
-
+	ap_destroy_sub_req(pa_req);
     }
-
-    else if (lenp) {
-
-        const char *pos = lenp;
-
-
-
-        while (ap_isdigit(*pos) || ap_isspace(*pos))
-
-            ++pos;
-
-        if (*pos != '\0') {
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "Invalid Content-Length %s", lenp);
-
-            return HTTP_BAD_REQUEST;
-
-        }
-
-
-
-        r->remaining = atol(lenp);
-
-    }
-
-
-
-    if ((r->read_body == REQUEST_NO_BODY) &&
-
-        (r->read_chunked || (r->remaining > 0))) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "%s with body is not allowed for %s", r->method, r->uri);
-
-        return HTTP_REQUEST_ENTITY_TOO_LARGE;
-
-    }
-
-
-
-    return OK;
-
 }
 
 
-
-API_EXPORT(int) ap_should_client_block(request_rec *r)
-
+static int scan_script_header_err_core(request_rec *r, char *buffer,
+		 int (*getsfunc) (char *, int, void *), void *getsfunc_data)
 {
+    char x[MAX_STRING_LEN];
+    char *w, *l;
+    int p;
+    int cgi_status = HTTP_OK;
 
-    /* First check if we have already read the request body */
+    if (buffer)
+	*buffer = '\0';
+    w = buffer ? buffer : x;
 
+    ap_hard_timeout("read script header", r);
+
+    while (1) {
+
+	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"Premature end of script headers: %s", r->filename);
+	    return SERVER_ERROR;
+	}
+
+	/* Delete terminal (CR?)LF */
+
+	p = strlen(w);
+	if (p > 0 && w[p - 1] == '\n') {
+	    if (p > 1 && w[p - 2] == '\015')
+		w[p - 2] = '\0';
+	    else
+		w[p - 1] = '\0';
+	}
+
+	/*
+	 * If we've finished reading the headers, check to make sure any
+	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
+	 * will handle the script's output.  If not, just return the error.

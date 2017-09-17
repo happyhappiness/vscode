@@ -1,62 +1,20 @@
-        break;
+#endif
 
-    }
+    ap_soft_timeout("send body", r);
 
-    return strcmp(c1->name, c2->name);
+    FD_ZERO(&fds);
+    while (!r->connection->aborted) {
+        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
+            len = length - total_bytes_sent;
+        else
+            len = IOBUFSIZE;
 
-}
-
-
-
-
-
-static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
-
-{
-
-    char *title_name = ap_escape_html(r->pool, r->uri);
-
-    char *title_endp;
-
-    char *name = r->filename;
-
-
-
-    DIR *d;
-
-    struct DIR_TYPE *dstruct;
-
-    int num_ent = 0, x;
-
-    struct ent *head, *p;
-
-    struct ent **ar = NULL;
-
-    char *tmp;
-
-    const char *qstring;
-
-    int autoindex_opts = find_opts(autoindex_conf, r);
-
-    char keyid;
-
-    char direction;
-
-
-
-    if (!(d = ap_popendir(r->pool, name))) {
-
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-		    "Can't open directory for index: %s", r->filename);
-
-	return HTTP_FORBIDDEN;
-
-    }
-
-
-
-    r->content_type = "text/html";
-
-
-
+        do {
+            n = ap_bread(fb, buf, len);
+            if (n >= 0 || r->connection->aborted)
+                break;
+            if (n < 0 && errno != EAGAIN)
+                break;
+            /* we need to block, so flush the output first */
+            ap_bflush(r->connection->client);
+            if (r->connection->aborted)

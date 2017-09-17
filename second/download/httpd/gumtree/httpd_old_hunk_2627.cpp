@@ -1,26 +1,28 @@
-	return ap_construct_url(r->pool, "/", r);
+	    return;
+	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
+    curblocks = 0;
+    curbytes = 0;
 
+    sub_garbage_coll(r, files, cachedir, "/");
+
+    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
+	ap_unblock_alarms();
+	return;
     }
 
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
 
-
-    /* must be a relative URL to be combined with base */
-
-    if (strchr(base, '/') == NULL && (!strncmp(value, "../", 3)
-
-        || !strcmp(value, ".."))) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "invalid base directive in map file: %s", r->uri);
-
-        return NULL;
-
-    }
-
-    my_base = ap_pstrdup(r->pool, base);
-
-    string_pos = my_base;
-
-    while (*string_pos) {
-
+    elts = (struct gc_ent **) files->elts;
+    for (i = 0; i < files->nelts; i++) {
+	fent = elts[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
+#else
+	if (unlink(filename) == -1) {

@@ -1,26 +1,13 @@
-	real_file = last_slash;
-
-	real_file++;
-
-	*last_slash = '\0';
-
+    if ((r->method_number == M_POST || r->method_number == M_PUT)
+	&& *dbuf) {
+	fprintf(f, "\n%s\n", dbuf);
     }
 
-    else {
+    fputs("%response\n", f);
+    hdrs_arr = ap_table_elts(r->err_headers_out);
+    hdrs = (table_entry *) hdrs_arr->elts;
 
-	/* no last slash, buh?! */
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		    "internal error in mod_cern_meta: %s", r->filename);
-
-	/* should really barf, but hey, let's be friends... */
-
-	return DECLINED;
-
-    };
-
-
-
-    metafilename = ap_pstrcat(r->pool, "/", scrap_book, "/",
-
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key)
+	    continue;
+	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);

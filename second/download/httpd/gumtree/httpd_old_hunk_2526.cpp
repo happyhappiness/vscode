@@ -1,38 +1,15 @@
-	version_locked++;
-
     }
-
-}
-
-
-
-static APACHE_TLS int volatile exit_after_unblock = 0;
-
-
-
-/* a clean exit from a child with proper cleanup */
-
-static void __attribute__((noreturn)) clean_child_exit(int code)
-
-{
-
-    if (pchild) {
-
-	ap_child_exit_modules(pchild, server_conf);
-
-	ap_destroy_pool(pchild);
-
+    else {
+	alarm_fn = fn;
+	alarm_expiry_time = time(NULL) + x;
     }
-
-    exit(code);
-
-}
-
-
-
-#if defined(USE_FCNTL_SERIALIZED_ACCEPT) || defined(USE_FLOCK_SERIALIZED_ACCEPT)
-
-static void expand_lock_fname(pool *p)
-
-{
-
+#else
+    if (x) {
+	alarm_fn = fn;
+    }
+#ifndef OPTIMIZE_TIMEOUTS
+    old = alarm(x);
+#else
+    if (child_timeouts) {
+	old = alarm(x);
+    }

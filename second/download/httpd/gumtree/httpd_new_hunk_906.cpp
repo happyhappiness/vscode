@@ -1,26 +1,49 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
+	    return cond_status;
+	}
 
-	&& *dbuf) {
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
-	fprintf(f, "\n%s\n", dbuf);
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
+			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
 
-    }
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
+	    if (!buffer) {
+		/* Soak up all the script output - may save an outright kill */
+	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
+		    continue;
+		}
+	    }
 
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			 "%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
+	}
 
-    fputs("%response\n", f);
+	*l++ = '\0';
+	while (*l && ap_isspace(*l)) {
+	    ++l;
+	}
 
-    hdrs_arr = ap_table_elts(r->err_headers_out);
+	if (!strcasecmp(w, "Content-type")) {
+	    char *tmp;
 
-    hdrs = (table_entry *) hdrs_arr->elts;
+	    /* Nuke trailing whitespace */
 
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && ap_isspace(*endp)) {
+		*endp-- = '\0';
+	    }
 
-
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-
-	if (!hdrs[i].key)
-
-	    continue;
-
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
-
+	    tmp = ap_pstrdup(r->pool, l);
+	    ap_content_type_tolower(tmp);
+	    r->content_type = tmp;
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

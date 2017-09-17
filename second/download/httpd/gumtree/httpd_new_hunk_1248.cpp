@@ -1,26 +1,13 @@
-	    const char *orig_groups, *groups;
 
-	    char *v;
+    /*
+     * Now that we are ready to send a response, we need to combine the two
+     * header field tables into a single table.  If we don't do this, our
+     * later attempts to set or unset a given fieldname might be bypassed.
+     */
+    if (!ap_is_empty_table(r->err_headers_out))
+        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
+                                        r->headers_out);
 
+    ap_hard_timeout("send headers", r);
 
-
-	    if (!(groups = get_db_grp(r, user, sec->auth_dbgrpfile))) {
-
-		if (!(sec->auth_dbauthoritative))
-
-		    return DECLINED;
-
-		ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-			    "user %s not in DB group file %s: %s",
-
-			    user, sec->auth_dbgrpfile, r->filename);
-
-		ap_note_basic_auth_failure(r);
-
-		return AUTH_REQUIRED;
-
-	    }
-
-	    orig_groups = groups;
-
+    ap_basic_http_header(r);

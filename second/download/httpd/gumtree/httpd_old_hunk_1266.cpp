@@ -1,94 +1,25 @@
-    else {
+	return ap_proxyerror(r, err);	/* give up */
 
-	syslog(level & APLOG_LEVELMASK, "%s", errstr);
-
+    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		    "proxy: error creating socket");
+	return SERVER_ERROR;
     }
 
+#ifndef WIN32
+    if (sock >= FD_SETSIZE) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
+	    "proxy_connect_handler: filedescriptor (%u) "
+	    "larger than FD_SETSIZE (%u) "
+	    "found, you probably need to rebuild Apache with a "
+	    "larger FD_SETSIZE", sock, FD_SETSIZE);
+	ap_pclosesocket(r->pool, sock);
+	return SERVER_ERROR;
+    }
 #endif
 
-}
-
-    
-
-
-
-void ap_log_pid (pool *p, char *fname)
-
-{
-
-    FILE *pid_file;
-
-
-
-    if (!fname) return;
-
-    fname = ap_server_root_relative (p, fname);
-
-    if(!(pid_file = fopen(fname,"w"))) {
-
-	perror("fopen");
-
-        fprintf(stderr,"httpd: could not log pid to file %s\n", fname);
-
-        exit(1);
-
-    }
-
-    fprintf(pid_file,"%ld\n",(long)getpid());
-
-    fclose(pid_file);
-
-}
-
-
-
-API_EXPORT(void) ap_log_error_old (const char *err, server_rec *s)
-
-{
-
-    ap_log_error(APLOG_MARK, APLOG_ERR, s, err);
-
-}
-
-
-
-API_EXPORT(void) ap_log_unixerr (const char *routine, const char *file,
-
-			      const char *msg, server_rec *s)
-
-{
-
-    ap_log_error(file, 0, APLOG_ERR, s, msg);
-
-}
-
-
-
-API_EXPORT(void) ap_log_printf (const server_rec *s, const char *fmt, ...)
-
-{
-
-    char buf[MAX_STRING_LEN];
-
-    va_list args;
-
-    
-
-    va_start(args, fmt);
-
-    ap_vsnprintf(buf, sizeof(buf), fmt, args);
-
-    ap_log_error(APLOG_MARK, APLOG_ERR, s, buf);
-
-    va_end(args);
-
-}
-
-
-
-API_EXPORT(void) ap_log_reason (const char *reason, const char *file, request_rec *r) 
-
-{
-
-    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
+    j = 0;
+    while (server_hp.h_addr_list[j] != NULL) {
+	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
+-- apache_1.3.0/src/modules/proxy/proxy_ftp.c	1998-05-28 06:56:05.000000000 +0800

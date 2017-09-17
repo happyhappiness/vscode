@@ -1,34 +1,13 @@
+    ap_bvputs(f, "Host: ", desthost, NULL);
+    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+	ap_bvputs(f, ":", destportstr, CRLF, NULL);
+    else
+	ap_bputs(CRLF, f);
 
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-
-		    "%s configured -- resuming normal operations",
-
-		    ap_get_server_version());
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-
-		    "Server built: %s", ap_get_server_built());
-
-	restart_pending = shutdown_pending = 0;
-
-
-
-	while (!restart_pending && !shutdown_pending) {
-
-	    int child_slot;
-
-	    int status;
-
-	    int pid = wait_or_timeout(&status);
-
-
-
-	    /* XXX: if it takes longer than 1 second for all our children
-
-	     * to start up and get into IDLE state then we may spawn an
-
-	     * extra child
-
-	     */
-
+    reqhdrs_arr = table_elts(r->headers_in);
+    reqhdrs = (table_entry *) reqhdrs_arr->elts;
+    for (i = 0; i < reqhdrs_arr->nelts; i++) {
+	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
+	/* Clear out headers not to send */
+	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
+	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))

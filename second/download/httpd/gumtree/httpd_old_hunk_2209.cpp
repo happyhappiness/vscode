@@ -1,26 +1,14 @@
-        case token_or:
-
-#ifdef DEBUG_INCLUDE
-
-            ap_rputs("     Evaluate and/or\n", r);
-
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+    }
 #endif
 
-            if (current->left == (struct parse_node *) NULL ||
-
-                current->right == (struct parse_node *) NULL) {
-
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                            "Invalid expression \"%s\" in file %s",
-
-                            expr, r->filename);
-
-                ap_rputs(error, r);
-
-                goto RETURN;
-
-            }
-
-            if (!current->left->done) {
-
+    for (i = 0; i < t->a.nelts; ) {
+-- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800

@@ -1,26 +1,15 @@
-{
+    ap_hard_timeout("send directory", r);
 
-    regex_t *compiled;
+    /* Spew HTML preamble */
 
-    int regex_error;
+    title_endp = title_name + strlen(title_name) - 1;
 
-
-
-    compiled = ap_pregcomp(r->pool, rexp, REG_EXTENDED | REG_NOSUB);
-
-    if (compiled == NULL) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "unable to compile pattern \"%s\"", rexp);
-
-        return -1;
-
+    while (title_endp > title_name && *title_endp == '/') {
+	*title_endp-- = '\0';
     }
 
-    regex_error = regexec(compiled, string, 0, (regmatch_t *) NULL, 0);
-
-    ap_pregfree(r->pool, compiled);
-
-    return (!regex_error);
-
+    if ((!(tmp = find_header(autoindex_conf, r)))
+	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
+	) {
+	emit_preamble(r, title_name);
+	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);

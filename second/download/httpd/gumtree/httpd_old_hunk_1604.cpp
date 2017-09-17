@@ -1,26 +1,14 @@
-                  ap_escape_shell_cmd(r->pool, arg_copy));
 
+    if (i != DECLINED) {
+	ap_pclosesocket(p, dsock);
+	ap_bclose(f);
+	return i;
     }
+    cache = c->fp;
 
-
-
-    while (1) {
-
-        if (!find_string(f, STARTING_SEQUENCE, r, printing)) {
-
-            if (get_directive(f, directive, sizeof(directive), r->pool)) {
-
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-			    "mod_include: error reading directive in %s",
-
-			    r->filename);
-
-		ap_rputs(error, r);
-
-                return;
-
-            }
-
-            if (!strcmp(directive, "if")) {
-
+    if (!pasvmode) {		/* wait for connection */
+	ap_hard_timeout("proxy ftp data connect", r);
+	clen = sizeof(struct sockaddr_in);
+	do
+	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
+	while (csd == -1 && errno == EINTR);

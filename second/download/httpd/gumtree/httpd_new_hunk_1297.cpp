@@ -1,52 +1,14 @@
-		    }   
-
-		}
-
-	    }
-
-	    break;
-
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
 	}
-
-
-
-	/*
-
-	 * Leading and trailing white space is eliminated completely
-
-	 */
-
-	src = buf;
-
-	while (ap_isspace(*src))
-
-	    ++src;
-
-	/* blast trailing whitespace */
-
-	dst = &src[strlen(src)];
-
-	while (--dst >= src && ap_isspace(*dst))
-
-	    *dst = '\0';
-
-        /* Zap leading whitespace by shifting */
-
-        if (src != buf)
-
-	    for (dst = buf; (*dst++ = *src++) != '\0'; )
-
-	        ;
-
-
-
-#ifdef DEBUG_CFG_LINES
-
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
+	    abort();
+	}
+    }
 #endif
 
-	return 0;
-
-    } else {
-
+    for (i = 0; i < t->a.nelts; ) {
+++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800

@@ -1,218 +1,87 @@
-static const char end_location_section[] = "</Location>";
-
-static const char end_locationmatch_section[] = "</LocationMatch>";
-
-static const char end_files_section[] = "</Files>";
-
-static const char end_filesmatch_section[] = "</FilesMatch>";
-
-static const char end_virtualhost_section[] = "</VirtualHost>";
-
-static const char end_ifmodule_section[] = "</IfModule>";
-
-
-
-
-
-API_EXPORT(const char *) ap_check_cmd_context(cmd_parms *cmd, unsigned forbidden)
-
-{
-
-    const char *gt = (cmd->cmd->name[0] == '<'
-
-		   && cmd->cmd->name[strlen(cmd->cmd->name)-1] != '>') ? ">" : "";
-
-
-
-    if ((forbidden & NOT_IN_VIRTUALHOST) && cmd->server->is_virtual)
-
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-
-		       " cannot occur within <VirtualHost> section", NULL);
-
-
-
-    if ((forbidden & NOT_IN_LIMIT) && cmd->limited != -1)
-
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-
-		       " cannot occur within <Limit> section", NULL);
-
-
-
-    if ((forbidden & NOT_IN_DIR_LOC_FILE) == NOT_IN_DIR_LOC_FILE && cmd->path != NULL)
-
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-
-		       " cannot occur within <Directory/Location/Files> section", NULL);
-
-    
-
-    if (((forbidden & NOT_IN_DIRECTORY) && (cmd->end_token == end_directory_section
-
-	    || cmd->end_token == end_directorymatch_section)) ||
-
-	((forbidden & NOT_IN_LOCATION) && (cmd->end_token == end_location_section
-
-	    || cmd->end_token == end_locationmatch_section)) ||
-
-	((forbidden & NOT_IN_FILES) && (cmd->end_token == end_files_section
-
-	    || cmd->end_token == end_filesmatch_section)))
-
-	
-
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-
-		       " cannot occur within <", cmd->end_token+2,
-
-		       " section", NULL);
-
-
-
-    return NULL;
-
-}
-
-
-
-static const char *set_access_name (cmd_parms *cmd, void *dummy, char *arg)
-
-{
-
-    void *sconf = cmd->server->module_config;
-
-    core_server_config *conf = ap_get_module_config (sconf, &core_module);
-
-
-
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-
-    if (err != NULL) return err;
-
-
-
-    conf->access_name = ap_pstrdup(cmd->pool, arg);
-
-    return NULL;
-
-}
-
-
-
-static const char *set_document_root (cmd_parms *cmd, void *dummy, char *arg)
-
-{
-
-    void *sconf = cmd->server->module_config;
-
-    core_server_config *conf = ap_get_module_config (sconf, &core_module);
-
-  
-
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-
-    if (err != NULL) return err;
-
-
-
-    arg = ap_os_canonical_filename(cmd->pool, arg);
-
-    if (!ap_is_directory (arg)) {
-
-	if (cmd->server->is_virtual) {
-
-	    fprintf (stderr, "Warning: DocumentRoot [%s] does not exist\n", arg);
-
+	    }
 	}
+#endif
+	return (pid);
+    }
+#else
+    if (ap_suexec_enabled &&
+	((r->server->server_uid != ap_user_id) ||
+	 (r->server->server_gid != ap_group_id) ||
+	 (!strncmp("/~", r->uri, 2)))) {
+
+	char *execuser, *grpname;
+	struct passwd *pw;
+	struct group *gr;
+
+	if (!strncmp("/~", r->uri, 2)) {
+	    gid_t user_gid;
+	    char *username = ap_pstrdup(r->pool, r->uri + 2);
+	    char *pos = strchr(username, '/');
+
+	    if (pos)
+		*pos = '\0';
+
+	    if ((pw = getpwnam(username)) == NULL) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			    "getpwnam: invalid username %s", username);
+		return (pid);
+	    }
+	    execuser = ap_pstrcat(r->pool, "~", pw->pw_name, NULL);
+	    user_gid = pw->pw_gid;
+
+	    if ((gr = getgrgid(user_gid)) == NULL) {
+		if ((grpname = ap_palloc(r->pool, 16)) == NULL)
+		    return (pid);
+		else
+		    ap_snprintf(grpname, 16, "%ld", (long) user_gid);
+	    }
+	    else
+		grpname = gr->gr_name;
+	}
+	else {
+	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		            "getpwuid: invalid userid %ld",
+		            (long) r->server->server_uid);
+		return (pid);
+	    }
+	    execuser = ap_pstrdup(r->pool, pw->pw_name);
+
+	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		            "getgrgid: invalid groupid %ld",
+		            (long) r->server->server_gid);
+		return (pid);
+	    }
+	    grpname = gr->gr_name;
+	}
+
+	if (shellcmd)
+	    execle(SUEXEC_BIN, SUEXEC_BIN, execuser, grpname, argv0, NULL, env);
+
+	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '='))
+	    execle(SUEXEC_BIN, SUEXEC_BIN, execuser, grpname, argv0, NULL, env);
 
 	else {
-
-	    return "DocumentRoot must be a directory";
-
+	    execve(SUEXEC_BIN,
+		   create_argv(r->pool, SUEXEC_BIN, execuser, grpname,
+			       argv0, r->args),
+		   env);
 	}
-
     }
+    else {
+	if (shellcmd)
+	    execle(SHELL_PATH, SHELL_PATH, "-c", argv0, NULL, env);
 
-    
+	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '='))
+	    execle(r->filename, argv0, NULL, env);
 
-    conf->ap_document_root = arg;
-
-    return NULL;
-
-}
-
-
-
-static const char *set_error_document (cmd_parms *cmd, core_dir_config *conf,
-
-				char *line)
-
-{
-
-    int error_number, index_number, idx500;
-
-    char *w;
-
-                
-
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_LIMIT);
-
-    if (err != NULL) return err;
-
-
-
-    /* 1st parameter should be a 3 digit number, which we recognize;
-
-     * convert it into an array index
-
-     */
-
-  
-
-    w = ap_getword_conf_nc (cmd->pool, &line);
-
-    error_number = atoi(w);
-
-
-
-    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
-
-
-
-    if (error_number == HTTP_INTERNAL_SERVER_ERROR)
-
-        index_number = idx500;
-
-    else if ((index_number = ap_index_of_response(error_number)) == idx500)
-
-        return ap_pstrcat(cmd->pool, "Unsupported HTTP response code ", w, NULL);
-
-                
-
-    /* Store it... */
-
-
-
-    if( conf->response_code_strings == NULL ) {
-
-	conf->response_code_strings = ap_pcalloc(cmd->pool,
-
-	    sizeof(*conf->response_code_strings) * RESPONSE_CODES );
-
+	else
+	    execve(r->filename,
+		   create_argv(r->pool, NULL, NULL, NULL, argv0, r->args),
+		   env);
     }
-
-    conf->response_code_strings[index_number] = ap_pstrdup (cmd->pool, line);
-
-
-
-    return NULL;
-
+    return (pid);
+#endif
 }
-
-
-
-/* access.conf commands...
-
- *
-
+-- apache_1.3.0/src/main/util_uri.c	1998-05-30 09:54:30.000000000 +0800

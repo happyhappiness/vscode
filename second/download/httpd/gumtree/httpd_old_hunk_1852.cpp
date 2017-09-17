@@ -1,26 +1,18 @@
-<tr><th>Req<td>Milliseconds required to process most recent request\n \
+    ap_table_setn(r->err_headers_out,
+	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
+	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
+		ap_auth_name(r), r->request_time));
+}
 
-<tr><th>Conn<td>Kilobytes transferred this connection\n \
+API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
+{
+    const char *auth_line = ap_table_get(r->headers_in,
+                                      r->proxyreq ? "Proxy-Authorization"
+                                                  : "Authorization");
+    char *t;
 
-<tr><th>Child<td>Megabytes transferred this child\n \
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
 
-<tr><th>Slot<td>Total megabytes transferred this slot\n \
-
-</table>\n", r);
-
-#else
-
-	ap_rputs("</table>\n \
-
-<hr> \
-
-<table>\n \
-
-<tr><th>Srv<td>Server number\n \
-
-<tr><th>PID<td>OS process ID\n \
-
-<tr><th>Acc<td>Number of accesses this connection / this child / this slot\n \
-
-<tr><th>M<td>Mode of operation\n \
-
+    if (!ap_auth_name(r)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

@@ -1,52 +1,29 @@
-
-
-	errmsg = ap_srm_command_loop(&parms, dc);
-
-
-
-	ap_cfg_closefile(f);
-
-
-
-	if (errmsg) {
-
-	    ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, r->server, "%s: %s",
-
-                        filename, errmsg);
-
-            return HTTP_INTERNAL_SERVER_ERROR;
-
 	}
 
-
-
-	*result = dc;
-
-    }
-
-    else {
-
-	if (errno == ENOENT || errno == ENOTDIR)
-
-	    dc = NULL;
-
-	else {
-
-	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
-
-			"%s pcfg_openfile: unable to check htaccess file, ensure it is readable",
-
-			filename);
-
-	    return HTTP_FORBIDDEN;
-
+	/* Compress the line, reducing all blanks and tabs to one space.
+	 * Leading and trailing white space is eliminated completely
+	 */
+	src = dst = buf;
+	while (isspace(*src))
+	    ++src;
+	while (*src != '\0')
+	{
+	    /* Copy words */
+	    while (!isspace(*dst = *src) && *src != '\0') {
+		++src;
+		++dst;
+	    }
+	    if (*src == '\0') break;
+	    *dst++ = ' ';
+	    while (isspace(*src))
+		++src;
 	}
+	*dst = '\0';
+	/* blast trailing whitespace */
+	while (--dst >= buf && isspace(*dst))
+	    *dst = '\0';
 
-    }
-
-
-
-/* cache it */
-
-    new = ap_palloc(r->pool, sizeof(struct htaccess_result));
-
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+	return 0;

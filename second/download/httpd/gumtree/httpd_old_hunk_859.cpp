@@ -1,40 +1,28 @@
-            else
+	    return;
+	}
+	if (utime(filename, NULL) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: utimes(%s)", filename);
+    }
+    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
+    curblocks = 0;
+    curbytes = 0;
 
-                *tlength += 4 + strlen(r->boundary) + 4;
+    sub_garbage_coll(r, files, cachedir, "/");
 
-        }
-
-        return 0;
-
+    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
+	ap_unblock_alarms();
+	return;
     }
 
+    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
 
-
-    range = ap_getword_nc(r->pool, r_range, ',');
-
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-
-        /* Skip this one */
-
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-
-                                  length);
-
-
-
-    if (r->byterange > 1) {
-
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-
-        char ts[MAX_STRING_LEN];
-
-
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-
-                    r->clength);
-
-        if (realreq)
-
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
-
+    elts = (struct gc_ent **) files->elts;
+    for (i = 0; i < files->nelts; i++) {
+	fent = elts[i];
+	sprintf(filename, "%s%s", cachedir, fent->file);
+	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
+#if TESTING
+	fprintf(stderr, "Would unlink %s\n", filename);
+#else
+	if (unlink(filename) == -1) {

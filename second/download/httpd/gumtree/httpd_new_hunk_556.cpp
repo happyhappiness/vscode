@@ -1,38 +1,18 @@
-    if (!method_restricted)
+    if (i == 530) {
+	ap_kill_timeout(r);
+	return ap_proxyerror(r, "Not logged in");
+    }
+    if (i != 230 && i != 331) {
+	ap_kill_timeout(r);
+	return HTTP_BAD_GATEWAY;
+    }
 
-	return OK;
-
-
-
-    if (!(sec->auth_authoritative))
-
-	return DECLINED;
-
-
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-	"access to %s failed for %s, reason: user %s not allowed access",
-
-	r->uri,
-
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-
-	user);
-
-	
-
-    ap_note_basic_auth_failure(r);
-
-    return AUTH_REQUIRED;
-
-}
-
-
-
-module MODULE_VAR_EXPORT auth_module =
-
-{
-
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
-
+    if (i == 331) {		/* send password */
+	if (password == NULL)
+	    return HTTP_FORBIDDEN;
+	ap_bputs("PASS ", f);
+	ap_bwrite(f, password, passlen);
+	ap_bputs(CRLF, f);
+	ap_bflush(f);
+	Explain1("FTP: PASS %s", password);
+/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

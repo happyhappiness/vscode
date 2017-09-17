@@ -1,56 +1,17 @@
-    printf("Server Hostname:        %s\n", hostname);
-
-    printf("Server Port:            %d\n", port);
-
-    printf("\n");
-
-    printf("Document Path:          %s\n", path);
-
-    printf("Document Length:        %d bytes\n", doclen);
-
-    printf("\n");
-
-    printf("Concurrency Level:      %d\n", concurrency);
-
-    printf("Time taken for tests:   %d.%03d seconds\n",
-
-           timetaken / 1000, timetaken % 1000);
-
-    printf("Complete requests:      %d\n", done);
-
-    printf("Failed requests:        %d\n", bad);
-
-    if (bad)
-
-        printf("   (Connect: %d, Length: %d, Exceptions: %d)\n",
-
-               err_conn, err_length, err_except);
-
-    if (keepalive)
-
-        printf("Keep-Alive requests:    %d\n", doneka);
-
-    printf("Total transferred:      %d bytes\n", totalread);
-
-    printf("HTML transferred:       %d bytes\n", totalbread);
-
-
-
-    /* avoid divide by zero */
-
-    if (timetaken) {
-
-        printf("Requests per second:    %.2f\n", 1000 * (float) (done) / timetaken);
-
-        printf("Transfer rate:          %.2f kb/s\n",
-
-               (float) (totalread) / timetaken);
-
     }
-
-
-
-    {
-
-        /* work out connection times */
-
+    else {
+	alarm_fn = fn;
+	alarm_expiry_time = time(NULL) + x;
+    }
+#else
+    if (alarm_fn && x && fn != alarm_fn) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
+	    "ap_set_callback_and_alarm: possible nested timer!");
+    }
+    alarm_fn = fn;
+#ifndef OPTIMIZE_TIMEOUTS
+    old = alarm(x);
+#else
+    if (child_timeouts) {
+	old = alarm(x);
+    }

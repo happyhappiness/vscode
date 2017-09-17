@@ -1,28 +1,31 @@
-    return res;
 
-}
+    /* Pass one --- direct matches */
 
+    for (handp = handlers; handp->hr.content_type; ++handp) {
+	if (handler_len == handp->len
+	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
+            result = (*handp->hr.handler) (r);
 
+            if (result != DECLINED)
+                return result;
+        }
+    }
 
-API_EXPORT(int) ap_cfg_closefile(configfile_t *cfp)
+    if (result == NOT_IMPLEMENTED && r->handler) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    }
 
-{
+    /* Pass two --- wildcard matches */
 
-#ifdef DEBUG
+    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+	if (handler_len >= handp->len
+	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
+             result = (*handp->hr.handler) (r);
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, 
+             if (result != DECLINED)
+                 return result;
+         }
+    }
 
-        "Done with config file %s", cfp->name);
-
-#endif
-
-    return (cfp->close == NULL) ? 0 : cfp->close(cfp->param);
-
-}
-
-
-
-/* Common structure that holds the file and pool for ap_pcfg_openfile */
-
-typedef struct {
-
+++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800

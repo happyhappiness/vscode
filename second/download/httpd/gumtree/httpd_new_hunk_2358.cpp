@@ -1,64 +1,21 @@
-	    ap_pclosesocket(p, dsock);	/* and try the regular way */
+#else
+    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
+#endif
 
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
+
+    if (conf->rewritelogfile == NULL) {
+        return;
+    }
+    if (*(conf->rewritelogfile) == '\0') {
+        return;
+    }
+    if (conf->rewritelogfp > 0) {
+        return; /* virtual log shared w/ main server */
     }
 
+    fname = ap_server_root_relative(p, conf->rewritelogfile);
 
-
-    if (!pasvmode) {		/* set up data connection */
-
-	clen = sizeof(struct sockaddr_in);
-
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-			 "proxy: error getting socket address");
-
-	    ap_bclose(f);
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
-	}
-
-
-
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-	if (dsock == -1) {
-
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-			 "proxy: error creating socket");
-
-	    ap_bclose(f);
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
-	}
-
-
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-
-		       sizeof(one)) == -1) {
-
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-			 "proxy: error setting reuseaddr option");
-
-	    ap_pclosesocket(p, dsock);
-
-	    ap_bclose(f);
-
-	    ap_kill_timeout(r);
-
-	    return HTTP_INTERNAL_SERVER_ERROR;
-
-#endif /*_OSD_POSIX*/
-
+    if (*conf->rewritelogfile == '|') {
+        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, s, 

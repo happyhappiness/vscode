@@ -1,34 +1,13 @@
-     * waiting for free_proc_chain to cleanup in the middle of an
 
-     * SSI request -djg
+    /* Domain name must start with a '.' */
+    if (addr[0] != '.')
+	return 0;
 
-     */
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
+	continue;
 
-    if (!ap_bspawn_child(r->main ? r->main->pool : r->pool, cgi_child,
-
-			 (void *) &cld, kill_after_timeout,
-
-			 &script_out, &script_in, &script_err)) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-		    "couldn't spawn child process: %s", r->filename);
-
-	ap_table_setn(r->notes, "error-notes", "Couldn't spawn child process");
-
-	return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-
-
-    /* Transfer any put/post args, CERN style...
-
-     * Note that if a buggy script fails to read everything we throw
-
-     * at it, or a buggy client sends too much, we get a SIGPIPE, so
-
-     * we have to ignore SIGPIPE while doing this.  CERN does the same
-
-++ apache_1.3.2/src/modules/standard/mod_digest.c	1998-08-10 05:03:25.000000000 +0800
-
+#if 0
+    if (addr[i] == ':') {
+	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
+	/* @@@@ handle optional port */

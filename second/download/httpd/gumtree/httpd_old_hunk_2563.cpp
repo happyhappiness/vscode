@@ -1,26 +1,13 @@
+	else
+	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
+				"Could not connect to remote machine: ",
+				strerror(errno), NULL));
+    }
 
+    clear_connection(r->headers_in);	/* Strip connection-based headers */
 
-	    if (pos) {
+    f = ap_bcreate(p, B_RDWR | B_SOCKET);
+    ap_bpushfd(f, sock, sock);
 
-		*pos = '\0';
-
-	    }
-
-
-
-	    if ((pw = getpwnam(username)) == NULL) {
-
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-
-			     "getpwnam: invalid username %s", username);
-
-		return (pid);
-
-	    }
-
-	    execuser = ap_pstrcat(r->pool, "~", pw->pw_name, NULL);
-
-	    user_gid = pw->pw_gid;
-
-
-
+    ap_hard_timeout("proxy send", r);
+    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,

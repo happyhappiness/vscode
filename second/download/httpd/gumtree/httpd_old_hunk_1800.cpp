@@ -1,26 +1,22 @@
-            expr = tag_val;
-
-#ifdef DEBUG_INCLUDE
-
-            ap_rvputs(r, "**** if expr=\"", expr, "\"\n", NULL);
-
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "proxy gc: unlink(%s)", filename);
+	}
+	else
 #endif
-
-        }
-
-        else {
-
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                        "unknown parameter \"%s\" to tag if in %s",
-
-                        tag, r->filename);
-
-            ap_rputs(error, r);
-
-        }
-
+	{
+	    curblocks -= fent->len >> 10;
+	    curbytes -= fent->len & 0x3FF;
+	    if (curbytes < 0) {
+		curbytes += 1024;
+		curblocks--;
+	    }
+	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
+		break;
+	}
     }
-
+    ap_unblock_alarms();
 }
 
+static int sub_garbage_coll(request_rec *r, array_header *files,
+			  const char *cachebasedir, const char *cachesubdir)
+{

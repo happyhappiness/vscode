@@ -1,42 +1,10 @@
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
+
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
 #endif
 
-
-
-static void show_compile_settings(void)
-
-{
-
-    printf("Server version: %s\n", ap_get_server_version());
-
-    printf("Server built:   %s\n", ap_get_server_built());
-
-    printf("Server's Module Magic Number: %u:%u\n",
-
-	   MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
-
-    printf("Server compiled with....\n");
-
-#ifdef BIG_SECURITY_HOLE
-
-    printf(" -D BIG_SECURITY_HOLE\n");
-
-#endif
-
-#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
-
-    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
-
-#endif
-
-#ifdef HAVE_MMAP
-
-    printf(" -D HAVE_MMAP\n");
-
-#endif
-
-#ifdef HAVE_SHMGET
-
-    printf(" -D HAVE_SHMGET\n");
-
-#endif
-
+#include "ap_config.h"
+++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

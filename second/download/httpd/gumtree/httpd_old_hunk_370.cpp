@@ -1,80 +1,42 @@
-	return;
-
+	ap_destroy_sub_req(pa_req);
     }
-
-    else
-
-	inside = 1;
-
-    (void) ap_release_mutex(garbage_mutex);
-
-
-
-    help_proxy_garbage_coll(r);
-
-
-
-    (void) ap_acquire_mutex(garbage_mutex);
-
-    inside = 0;
-
-    (void) ap_release_mutex(garbage_mutex);
-
 }
 
 
-
-
-
-static void help_proxy_garbage_coll(request_rec *r)
-
+static int scan_script_header_err_core(request_rec *r, char *buffer,
+		 int (*getsfunc) (char *, int, void *), void *getsfunc_data)
 {
+    char x[MAX_STRING_LEN];
+    char *w, *l;
+    int p;
+    int cgi_status = HTTP_OK;
 
-    const char *cachedir;
+    if (buffer)
+	*buffer = '\0';
+    w = buffer ? buffer : x;
 
-    void *sconf = r->server->module_config;
+    ap_hard_timeout("read script header", r);
 
-    proxy_server_conf *pconf =
+    while (1) {
 
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"Premature end of script headers: %s", r->filename);
+	    return SERVER_ERROR;
+	}
 
-    const struct cache_conf *conf = &pconf->cache;
+	/* Delete terminal (CR?)LF */
 
-    array_header *files;
+	p = strlen(w);
+	if (p > 0 && w[p - 1] == '\n') {
+	    if (p > 1 && w[p - 2] == '\015')
+		w[p - 2] = '\0';
+	    else
+		w[p - 1] = '\0';
+	}
 
-    struct stat buf;
-
-    struct gc_ent *fent, **elts;
-
-    int i, timefd;
-
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
-
-
-
-    cachedir = conf->root;
-
-    cachesize = conf->space;
-
-    every = conf->gcinterval;
-
-
-
-    if (cachedir == NULL || every == -1)
-
-	return;
-
-    garbage_now = time(NULL);
-
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-
-	return;
-
-
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
-
+	/*
+	 * If we've finished reading the headers, check to make sure any
+	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
+	 * will handle the script's output.  If not, just return the error.

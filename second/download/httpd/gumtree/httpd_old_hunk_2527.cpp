@@ -1,24 +1,12 @@
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-
-		    "flock: LOCK_UN: Error freeing accept lock. Exiting!");
-
-	clean_child_exit(APEXIT_CHILDFATAL);
-
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
+#endif
+	sa.sa_flags = 0;
     }
-
-}
-
-
-
-#else
-
-/* Default --- no serialization.  Other methods *could* go here,
-
- * as #elifs...
-
- */
-
-#if !defined(MULTITHREAD)
-
-/* Multithreaded systems don't complete between processes for
-
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
+#ifdef SIGINT

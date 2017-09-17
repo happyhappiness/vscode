@@ -1,34 +1,13 @@
-	    int cond_status = OK;
+    rr->content_type = CGI_MAGIC_TYPE;
 
+    /* Run it. */
 
+    rr_status = ap_run_sub_req(rr);
+    if (is_HTTP_REDIRECT(rr_status)) {
+        char *location = ap_table_get(rr->headers_out, "Location");
+        location = ap_escape_html(rr->pool, location);
+        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+    }
 
-	    ap_kill_timeout(r);
-
-	    if ((cgi_status == HTTP_OK) && (r->method_number == M_GET)) {
-
-		cond_status = ap_meets_conditions(r);
-
-	    }
-
-	    return cond_status;
-
-	}
-
-
-
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-
-
-	if (!(l = strchr(w, ':'))) {
-
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
-
+    ap_destroy_sub_req(rr);
+#ifndef WIN32

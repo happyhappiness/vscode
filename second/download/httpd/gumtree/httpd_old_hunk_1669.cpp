@@ -1,24 +1,13 @@
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-
-		    "flock: LOCK_UN: Error freeing accept lock. Exiting!");
-
-	clean_child_exit(APEXIT_CHILDFATAL);
-
+    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (dsock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating PASV socket");
+	ap_bclose(f);
+	ap_kill_timeout(r);
+	return SERVER_ERROR;
     }
 
-}
-
-
-
-#else
-
-/* Default --- no serialization.  Other methods *could* go here,
-
- * as #elifs...
-
- */
-
-#if !defined(MULTITHREAD)
-
-/* Multithreaded systems don't complete between processes for
-
+    if (conf->recv_buffer_size) {
+	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
+	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,

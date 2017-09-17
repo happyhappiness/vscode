@@ -1,26 +1,31 @@
-                    rewritelog(r, 5, "map lookup FAILED: map=%s key=%s",
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
+    }
 
-                               s->name, key);
+    if (!child && run_as_service) {
+	service_cd();
+    }
 
-                }
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-            }
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
+    }
 
-            else if (s->type == MAPTYPE_RND) {
-
-                if (stat(s->checkfile, &st) == -1) {
-
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-
-                                 "mod_rewrite: can't access text RewriteMap "
-
-                                 "file %s", s->checkfile);
-
-                    rewritelog(r, 1, "can't open RewriteMap file, "
-
-                               "see error log");
-
-                    return NULL;
-
-                }
-
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

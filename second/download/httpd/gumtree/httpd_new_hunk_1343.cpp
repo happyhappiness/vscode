@@ -1,48 +1,13 @@
-    if (!sec->auth_dbpwfile)
+    ap_bvputs(f, "Host: ", desthost, NULL);
+    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+	ap_bvputs(f, ":", destportstr, CRLF, NULL);
+    else
+	ap_bputs(CRLF, f);
 
-	return DECLINED;
-
-
-
-    if (!(real_pw = get_db_pw(r, c->user, sec->auth_dbpwfile))) {
-
-	if (!(sec->auth_dbauthoritative))
-
-	    return DECLINED;
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		    "DB user %s not found: %s", c->user, r->filename);
-
-	ap_note_basic_auth_failure(r);
-
-	return AUTH_REQUIRED;
-
-    }
-
-    /* Password is up to first : if exists */
-
-    colon_pw = strchr(real_pw, ':');
-
-    if (colon_pw)
-
-	*colon_pw = '\0';
-
-    /* anyone know where the prototype for crypt is? */
-
-    if (strcmp(real_pw, (char *) crypt(sent_pw, real_pw))) {
-
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-		    "DB user %s: password mismatch: %s", c->user, r->uri);
-
-	ap_note_basic_auth_failure(r);
-
-	return AUTH_REQUIRED;
-
-    }
-
-    return OK;
-
-}
-
+    reqhdrs_arr = ap_table_elts(r->headers_in);
+    reqhdrs = (table_entry *) reqhdrs_arr->elts;
+    for (i = 0; i < reqhdrs_arr->nelts; i++) {
+	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
+	/* Clear out headers not to send */
+	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
+	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))

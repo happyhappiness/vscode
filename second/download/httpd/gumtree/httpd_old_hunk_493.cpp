@@ -1,48 +1,22 @@
-
-
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-
-{
-
-    char *cp = header;
-
-
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-
-        *cp = tolower(*cp);
-
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
-
-
-    if (!*cp) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "Syntax error in type map --- no ':': %s", r->filename);
-
-        return NULL;
-
+    if (!child && run_as_service) {
+	service_cd();
     }
 
-
-
-    do {
-
-        ++cp;
-
-    } while (*cp && isspace(*cp));
-
-
-
-    if (!*cp) {
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-
-                    "Syntax error in type map --- no header body: %s",
-
-                    r->filename);
-
-        return NULL;
-
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

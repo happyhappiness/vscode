@@ -1,196 +1,41 @@
-		if ((v = *b++ - *a++) != 0)
-
-		    break;
-
+	    return cond_status;
 	}
 
-	break;
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
-    default:
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
-	/*  bogosity, pretend that it just wasn't a match */
+	    if (!buffer)
+		/* Soak up all the script output --- may save an outright kill */
+		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
+		    continue;
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-
-		    MODNAME ": invalid type %d in mcheck().", m->type);
-
-	return 0;
-
-    }
-
-
-
-    v = signextend(r->server, m, v) & m->mask;
-
-
-
-    switch (m->reln) {
-
-    case 'x':
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		    "%lu == *any* = 1", v);
-
-#endif
-
-	matched = 1;
-
-	break;
-
-
-
-    case '!':
-
-	matched = v != l;
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		    "%lu != %lu = %d", v, l, matched);
-
-#endif
-
-	break;
-
-
-
-    case '=':
-
-	matched = v == l;
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		    "%lu == %lu = %d", v, l, matched);
-
-#endif
-
-	break;
-
-
-
-    case '>':
-
-	if (m->flag & UNSIGNED) {
-
-	    matched = v > l;
-
-#if MIME_MAGIC_DEBUG
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-			"%lu > %lu = %d", v, l, matched);
-
-#endif
-
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
 	}
 
-	else {
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
-	    matched = (long) v > (long) l;
+	if (!strcasecmp(w, "Content-type")) {
 
-#if MIME_MAGIC_DEBUG
+	    /* Nuke trailing whitespace */
 
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
 
-			"%ld > %ld = %d", v, l, matched);
-
-#endif
-
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
 	}
-
-	break;
-
-
-
-    case '<':
-
-	if (m->flag & UNSIGNED) {
-
-	    matched = v < l;
-
-#if MIME_MAGIC_DEBUG
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-			"%lu < %lu = %d", v, l, matched);
-
-#endif
-
-	}
-
-	else {
-
-	    matched = (long) v < (long) l;
-
-#if MIME_MAGIC_DEBUG
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-			"%ld < %ld = %d", v, l, matched);
-
-#endif
-
-	}
-
-	break;
-
-
-
-    case '&':
-
-	matched = (v & l) == l;
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		    "((%lx & %lx) == %lx) = %d", v, l, l, matched);
-
-#endif
-
-	break;
-
-
-
-    case '^':
-
-	matched = (v & l) != l;
-
-#if MIME_MAGIC_DEBUG
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-
-		    "((%lx & %lx) != %lx) = %d", v, l, l, matched);
-
-#endif
-
-	break;
-
-
-
-    default:
-
-	/* bogosity, pretend it didn't match */
-
-	matched = 0;
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-
-		    MODNAME ": mcheck: can't happen: invalid relation %d.",
-
-		    m->reln);
-
-	break;
-
-    }
-
-
-
-    return matched;
-
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

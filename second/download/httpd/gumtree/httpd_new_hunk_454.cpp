@@ -1,42 +1,21 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
 
-			     "proxy gc: unlink(%s)", filename);
-
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	if (ap_suexec_enabled) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
 	}
+	restart_pending = shutdown_pending = 0;
 
-	else
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    ap_wait_t status;
+	    int pid = wait_or_timeout(&status);
 
-#endif
-
-	{
-
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-
-		break;
-
-	}
-
-    }
-
-
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-
-    ap_unblock_alarms();
-
-}
-
-
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-
-			  const char *cachebasedir, const char *cachesubdir)
-
-{
-
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
+	     */

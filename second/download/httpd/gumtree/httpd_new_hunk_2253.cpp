@@ -1,28 +1,13 @@
-        store_variant_list(r, neg);
-
-        res = MULTIPLE_CHOICES;
-
-        goto return_from_multi;
-
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: failed to accept data connection");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    ap_proxy_cache_error(c);
+	    return HTTP_BAD_GATEWAY;
+	}
+	ap_note_cleanups_for_socket(p, csd);
+	data = ap_bcreate(p, B_RDWR | B_SOCKET);
+	ap_bpushfd(data, csd, -1);
+	ap_kill_timeout(r);
     }
-
-
-
-    if (!best) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-
-                    "no acceptable variant: %s", r->filename);
-
-
-
-        set_neg_headers(r, neg, na_result);
-
-        store_variant_list(r, neg);
-
-        res = NOT_ACCEPTABLE;
-
-        goto return_from_multi;
-
-++ apache_1.3.2/src/modules/standard/mod_rewrite.c	1998-08-25 17:15:39.000000000 +0800
-
