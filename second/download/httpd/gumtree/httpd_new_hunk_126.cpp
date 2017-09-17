@@ -1,14 +1,22 @@
-                --cp;
-        }
-        else {
-#if defined(EACCES)
-            if (errno != EACCES)
-#endif
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-                            "access to %s failed", r->uri);
-            return HTTP_FORBIDDEN;
-        }
+    if (r->finfo.st_mode == 0         /* doesn't exist */
+        || S_ISDIR(r->finfo.st_mode)
+        || S_ISREG(r->finfo.st_mode)
+        || S_ISLNK(r->finfo.st_mode)) {
+        return OK;
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+                "object is not a file, directory or symlink: %s",
+                r->filename);
+    return HTTP_FORBIDDEN;
+}
+
+
+static int check_symlinks(char *d, int opts)
+{
+#if defined(OS2) || defined(WIN32)
+    /* OS/2 doesn't have symlinks */
+    return OK;
 #else
-#error ENOENT || ENOTDIR not defined; please see the
-#error comments at this line in the source for a workaround.
-        /*
+    struct stat lfi, fi;
+    char *lastp;
+    int res;

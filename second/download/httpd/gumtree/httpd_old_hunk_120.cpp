@@ -1,52 +1,25 @@
- */
+    const char *t;
 
-API_EXPORT(int) ap_setup_client_block(request_rec *r, int read_policy)
-{
-    const char *tenc = ap_table_get(r->headers_in, "Transfer-Encoding");
-    const char *lenp = ap_table_get(r->headers_in, "Content-Length");
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
 
-    r->read_body = read_policy;
-    r->read_chunked = 0;
-    r->remaining = 0;
-
-    if (tenc) {
-        if (strcasecmp(tenc, "chunked")) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Unknown Transfer-Encoding %s", tenc);
-            return HTTP_NOT_IMPLEMENTED;
-        }
-        if (r->read_body == REQUEST_CHUNKED_ERROR) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "chunked Transfer-Encoding forbidden: %s", r->uri);
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
-
-        r->read_chunked = 1;
-    }
-    else if (lenp) {
-        const char *pos = lenp;
-
-        while (ap_isdigit(*pos) || ap_isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
-
-        r->remaining = atol(lenp);
+    if (!ap_auth_name(r)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+		    r->server, "need AuthName: %s", r->uri);
+        return SERVER_ERROR;
     }
 
-    if ((r->read_body == REQUEST_NO_BODY) &&
-        (r->read_chunked || (r->remaining > 0))) {
+    if (!auth_line) {
+        ap_note_basic_auth_failure(r);
+        return AUTH_REQUIRED;
+    }
+
+    if (strcasecmp(ap_getword(r->pool, &auth_line, ' '), "Basic")) {
+        /* Client tried to authenticate using wrong auth scheme */
         ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "%s with body is not allowed for %s", r->method, r->uri);
-        return HTTP_REQUEST_ENTITY_TOO_LARGE;
+                    "client used wrong authentication scheme: %s", r->uri);
+        ap_note_basic_auth_failure(r);
+        return AUTH_REQUIRED;
     }
 
-    return OK;
-}
-
-API_EXPORT(int) ap_should_client_block(request_rec *r)
-{
-    /* First check if we have already read the request body */
+    t = ap_uudecode(r->pool, auth_line);

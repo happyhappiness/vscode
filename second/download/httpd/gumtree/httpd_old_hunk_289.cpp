@@ -3,20 +3,11 @@
 <tr><th>Child<td>Megabytes transferred this child\n \
 <tr><th>Slot<td>Total megabytes transferred this slot\n \
 </table>\n", r);
-#endif
-    }
-
-#else /* !defined(STATUS) */
-
-    ap_rputs("<hr>To obtain a full report with current status information and", r);
-    ap_rputs(" DNS and LOGGING status codes \n", r);
-    ap_rputs("you need to recompile Apache after adding the line <pre>", r);
-    ap_rputs("Rule STATUS=yes</pre>into the file <code>Configuration</code>\n", r);
-
-#endif /* STATUS */
-
-    if (!short_report) {
-	ap_rputs(ap_psignature("<HR>\n",r), r);
-	ap_rputs("</BODY></HTML>\n", r);
-    }
-
+#else
+	ap_rputs("</table>\n \
+<hr> \
+<table>\n \
+<tr><th>Srv<td>Server number\n \
+<tr><th>PID<td>OS process ID\n \
+<tr><th>Acc<td>Number of accesses this connection / this child / this slot\n \
+<tr><th>M<td>Mode of operation\n \

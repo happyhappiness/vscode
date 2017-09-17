@@ -38,7 +38,7 @@ public class GumTreeApi {
 	// application specific info for compare two file
 	private int oldLoc, newLoc;
 	private ITree oldLogNode, newLogNode;
-	private List<ITree> oldLogs, newLogs, ddgNodes;
+	private List<ITree> oldLogs, newLogs, mappedOldLogs, ddgNodes;
 //	have not modify this log
 	final int IS_LOG = 1;
 	final int IS_LOGS = 2;
@@ -71,6 +71,7 @@ public class GumTreeApi {
 			// initialize application specific info
 			oldLogs = new ArrayList<ITree>();
 			newLogs = new ArrayList<ITree>();
+			mappedOldLogs = new ArrayList<ITree>();
 			ddgNodes = new ArrayList<ITree>();
 			editedNodes = new ArrayList<ITree>(); 
 		} catch (Exception e) {
@@ -127,18 +128,18 @@ public class GumTreeApi {
 //		g.printSpliter();
 //		System.out.println(g.getFunctionLoc());
 		
-		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_old_hunk_287.cpp";
-		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_new_hunk_31.cpp";
+		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_old_hunk_57.cpp";
+		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_new_hunk_57.cpp";
 		GumTreeApi g = new GumTreeApi();
 		g.setOldAndNewFile(oldFile, newFile);
 //		g.addNewLogNode(5);		
-//		g.addNewLogNode(11);
+		g.addNewLogNode(31);
 //		g.addOldLogNode(5);
-		g.setOldLoc(119);
+//		g.setOldLoc(119);
 //		System.out.println(g.getNewLoc());
 //		g.setNewLoc(5);
-		System.out.println(g.getOldLog());
-//		System.out.println(g.getActionType());
+//		System.out.println(g.getOldLog());
+		System.out.println(g.getActionType());
 		
 		
 //		GumTreeApi g = new GumTreeApi();
@@ -251,7 +252,12 @@ public class GumTreeApi {
 	public void addNewLogNode(int line) {
 		ITree logNode = this.getTopNodeOfLine(line, this.newTree, this.newTreeContext, this.newFile);
 		if (logNode != null)
+		{
 			this.newLogs.add(logNode);
+			ITree mappedLogNode = this.mappings.getSrc(logNode);
+			if(mappedLogNode != null)
+				this.mappedOldLogs.add(mappedLogNode);
+		}
 	}
 	
 	public void addDDGNode(int line) {
@@ -281,7 +287,7 @@ public class GumTreeApi {
 		return 0;
 	}
 	
-	// judge edition type based on oldLogs and newLogs
+	// judge edition type based on oldLogs and newLogs(mapped old logs)
 	public int getActionType() {
 		int isLogs = 0;
 		int isFeature = 0;
@@ -313,6 +319,16 @@ public class GumTreeApi {
 //			decide whether insertion of new logs
 			if(!isIdentified && (isFeature == 0 || isLogs == 0))
 			{
+
+//				decide whether is edition on false recognized new log
+				logIter = this.mappedOldLogs.iterator();
+				while (logIter.hasNext()) {
+					if (isChildrenOf(tempNode, logIter.next())) {
+						isLogs = this.IS_LOGS;
+						isIdentified = true;
+						break;
+					}
+				}
 				if(this.isInsertionOfLog(action))
 				{
 					isLogs = this.IS_LOGS;
@@ -804,7 +820,6 @@ public class GumTreeApi {
 					return true;
 				}
 			}
-			
 		}
 		return false;
 	}

@@ -1,13 +1,13 @@
-    lseek(fd, 0, SEEK_SET);
-    rc = _locking(fd, _LK_LOCK, 1);
-    lseek(fd, 0, SEEK_END);
-#endif
-
-    if (rc < 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-                     "mod_rewrite: failed to lock file descriptor");
+                                         REWRITELOCK_MODE)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+                     "mod_rewrite: Parent could not create RewriteLock "
+                     "file %s", conf->rewritelockfile);
         exit(1);
     }
-    return;
-}
+#if !defined(OS2) && !defined(WIN32)
+    /* make sure the childs have access to this file */
+    if (geteuid() == 0 /* is superuser */)
+        chown(conf->rewritelockfile, ap_user_id, -1 /* no gid change */);
+#endif
 
+    return;

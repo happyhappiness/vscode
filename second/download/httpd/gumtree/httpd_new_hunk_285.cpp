@@ -1,36 +1,90 @@
-    char *loc;
-    time_t nowtime = time(NULL);
-    time_t up_time;
-    int i, res;
-    int ready = 0;
-    int busy = 0;
-    unsigned long count = 0;
-    unsigned long lres, bytes;
-    unsigned long my_lres, my_bytes, conn_bytes;
-    unsigned short conn_lres;
-    unsigned long bcount = 0;
-    unsigned long kbcount = 0;
-    long req_time;
-#if defined(NEXT)
-    float tick = HZ;
-#elif !defined(NO_TIMES)
-    float tick = sysconf(_SC_CLK_TCK);
-#endif
-    int short_report = 0;
-    int no_table_report = 0;
-    short_score score_record;
-    parent_score ps_record;
-    char stat_buffer[HARD_SERVER_LIMIT];
-    int pid_buffer[HARD_SERVER_LIMIT];
-    clock_t tu, ts, tcu, tcs;
+            else {
+                p = r->main->pool;
+                notes = r->main->notes;
+            }
 
-    tu = ts = tcu = tcs = 0;
+            /* Generate the response text. */
+            /*
+	     * Since the text is expanded by repeated calls of
+             * t = pstrcat(p, t, ".."), we can avoid a little waste
+             * of memory by adding the header AFTER building the list.
+             * XXX: FIXME: find a way to build a string concatenation
+             *             without repeatedly requesting new memory
+             * XXX: FIXME: Limit the list to a maximum number of entries
+             */
+            t = "";
 
-    if (!ap_exists_scoreboard_image()) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "Server status unavailable in inetd mode");
-	return HTTP_INTERNAL_SERVER_ERROR;
+            for (i = 0; i < candidates->nelts; ++i) {
+
+                /* The format isn't very neat... */
+                t = ap_pstrcat(p, t, "<li><a href=\"", url,
+			       variant[i].name, r->path_info,
+			       r->parsed_uri.query ? "?" : "",
+			       r->parsed_uri.query ? r->parsed_uri.query : "",
+			       "\">", variant[i].name, r->path_info,
+			       r->parsed_uri.query ? "?" : "",
+			       r->parsed_uri.query ? r->parsed_uri.query : "",
+			       "</a> (",
+			       sp_reason_str[(int) (variant[i].quality)],
+			       ")\n", NULL);
+
+                /*
+                 * when we have printed the "close matches" and there are
+                 * more "distant matches" (matched by stripping the suffix),
+                 * then we insert an additional separator text to suggest
+                 * that the user LOOK CLOSELY whether these are really the
+                 * files she wanted.
+                 */
+                if (i > 0 && i < candidates->nelts - 1
+                    && variant[i].quality != SP_VERYDIFFERENT
+                    && variant[i + 1].quality == SP_VERYDIFFERENT) {
+                    t = ap_pstrcat(p, t, 
+				   "</ul>\nFurthermore, the following related "
+				   "documents were found:\n<ul>\n", NULL);
+                }
+            }
+            t = ap_pstrcat(p, "The document name you requested (<code>",
+			   r->uri,
+			   "</code>) could not be found on this server.\n"
+			   "However, we found documents with names similar "
+			   "to the one you requested.<p>"
+			   "Available documents:\n<ul>\n", t, "</ul>\n", NULL);
+
+            /* If we know there was a referring page, add a note: */
+            if (ref != NULL) {
+                t = ap_pstrcat(p, t,
+			       "Please consider informing the owner of the "
+			       "<a href=\"", ref, 
+			       "\">referring page</a> "
+			       "about the broken link.\n",
+			       NULL);
+	    }
+
+            /* Pass our table to http_protocol.c (see mod_negotiation): */
+            ap_table_setn(notes, "variant-list", t);
+
+            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_INFO, r,
+			 ref ? "Spelling fix: %s: %d candidates from %s"
+			     : "Spelling fix: %s: %d candidates",
+			 r->uri, candidates->nelts, ref);
+
+            return HTTP_MULTIPLE_CHOICES;
+        }
     }
-    r->allowed = (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
+
+    return OK;
+}
+
+module MODULE_VAR_EXPORT speling_module =
+{
+    STANDARD_MODULE_STUFF,
+    NULL,                       /* initializer */
+    create_mconfig_for_directory,  /* create per-dir config */
+    NULL,                       /* merge per-dir config */
+    create_mconfig_for_server,  /* server config */
+    NULL,                       /* merge server config */
+    speling_cmds,               /* command table */
+    NULL,                       /* handlers */
+    NULL,                       /* filename translation */
+    NULL,                       /* check_user_id */
+    NULL,                       /* check auth */

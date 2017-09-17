@@ -1,13 +1,13 @@
+    rr->content_type = CGI_MAGIC_TYPE;
 
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
-        }
-        if (!strcmp(tag, "var")) {
-            char *val = ap_table_get(r->subprocess_env, tag_val);
+    /* Run it. */
 
-            if (val) {
-                ap_rputs(val, r);
-            }
-            else {
-                ap_rputs("(none)", r);
+    rr_status = ap_run_sub_req(rr);
+    if (is_HTTP_REDIRECT(rr_status)) {
+        char *location = ap_table_get(rr->headers_out, "Location");
+        location = ap_escape_html(rr->pool, location);
+        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+    }
+
+    ap_destroy_sub_req(rr);
+#ifndef WIN32

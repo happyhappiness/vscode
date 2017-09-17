@@ -1,21 +1,30 @@
-	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
-    /* does the password look like an email address ? */
-	   && ((!sec->auth_anon_verifyemail)
-	       || ((strpbrk("@", sent_pw) != NULL)
-		   && (strpbrk(".", sent_pw) != NULL)))) {
-	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r,
-			"Anonymous: Passwd <%s> Accepted",
-			sent_pw ? sent_pw : "\'none\'");
-	}
-	return OK;
+    const char *location;
+
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+	return DECLINED;
+    if (r->finfo.st_mode == 0) {
+	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+		    "File does not exist: %s", r->filename);
+	return NOT_FOUND;
     }
-    else {
-	if (sec->auth_anon_authoritative) {
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-			"Anonymous: Authoritative, Passwd <%s> not accepted",
-			sent_pw ? sent_pw : "\'none\'");
-	    return AUTH_REQUIRED;
-	}
-	/* Drop out the bottom to return DECLINED */
+
+    f = ap_pfopen(r->pool, r->filename, "r");
+
+    if (f == NULL) {
+	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
+		    "file permissions deny server access: %s", r->filename);
+	return FORBIDDEN;
     }
+
+    scan_script_header(r, f);
+    location = ap_table_get(r->headers_out, "Location");
+
+    if (location && location[0] == '/' &&
+	((r->status == HTTP_OK) || ap_is_HTTP_REDIRECT(r->status))) {
+
+	ap_pfclose(r->pool, f);
+
+	/* Internal redirect -- fake-up a pseudo-request */
+	r->status = HTTP_OK;
+

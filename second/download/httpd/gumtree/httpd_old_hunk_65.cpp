@@ -1,13 +1,25 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
-    }
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"malformed header in meta file: %s", r->filename);
+	    return SERVER_ERROR;
+	}
 
-    fputs("%response\n", f);
-    hdrs_arr = table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
+	*l++ = '\0';
+	while (*l && isspace(*l))
+	    ++l;
 
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+	if (!strcasecmp(w, "Content-type")) {
+
+	    /* Nuke trailing whitespace */
+
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && isspace(*endp))
+		*endp-- = '\0';
+
+	    r->content_type = ap_pstrdup(r->pool, l);
+	    ap_str_tolower(r->content_type);
+	}
+	else if (!strcasecmp(w, "Status")) {
+	    sscanf(l, "%d", &r->status);
+	    r->status_line = ap_pstrdup(r->pool, l);
+	}
+	else {

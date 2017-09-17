@@ -1,13 +1,13 @@
-{
-    register unsigned long l = m->value.l;
-    register unsigned long v;
-    int matched;
-
-    if ((m->value.s[0] == 'x') && (m->value.s[1] == '\0')) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
-		    MODNAME ": BOINK");
+    case LELONG:
+    case LEDATE:
+	p->l = (long)
+	    ((p->hl[3] << 24) | (p->hl[2] << 16) | (p->hl[1] << 8) | (p->hl[0]));
 	return 1;
+    default:
+	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
+		    MODNAME ": invalid type %d in mconvert().", m->type);
+	return 0;
     }
+}
 
-    switch (m->type) {
-    case BYTE:
+

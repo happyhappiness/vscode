@@ -1,13 +1,13 @@
-			 DWORD dwReserved) {
-    request_rec *r = ((isapi_cid *)ConnID)->r;
-    int writ;	/* written, actually, but why shouldn't I make up words? */
 
-    /* We only support synchronous writing */
-    if (dwReserved && dwReserved != HSE_IO_SYNC) {
+	if (cid->status) /* We have a special status to return */
+	    return cid->status;
+
+	return OK;
+    case HSE_STATUS_PENDING:	/* We don't support this */
 	ap_log_error(APLOG_MARK, APLOG_WARNING, r->server,
 		    "ISAPI asynchronous I/O not supported: %s", r->filename);
-	SetLastError(ERROR_INVALID_PARAMETER);
-	return FALSE;
+    case HSE_STATUS_ERROR:
+    default:
+	return SERVER_ERROR;
     }
 
-    if ((writ = ap_rwrite(Buffer, *lpwdwBytes, r)) == EOF) {

@@ -1,22 +1,25 @@
-           timetaken / 1000, timetaken % 1000);
-    printf("Complete requests:      %d\n", done);
-    printf("Failed requests:        %d\n", bad);
-    if (bad)
-        printf("   (Connect: %d, Length: %d, Exceptions: %d)\n",
-               err_conn, err_length, err_except);
-    if (keepalive)
-        printf("Keep-Alive requests:    %d\n", doneka);
-    printf("Total transferred:      %d bytes\n", totalread);
-    printf("HTML transferred:       %d bytes\n", totalbread);
+/* --------------------------------------------------------- */
 
-    /* avoid divide by zero */
-    if (timetaken) {
-        printf("Requests per second:    %.2f\n", 1000 * (float) (done) / timetaken);
-        printf("Transfer rate:          %.2f kb/s\n",
-               (float) (totalread) / timetaken);
-    }
+/* simple little function to perror and exit */
 
-    {
-        /* work out connection times */
-        int i;
-        int totalcon = 0, total = 0;
+static void err(char *s)
+{
+    perror(s);
+    exit(errno);
+}
+
+/* --------------------------------------------------------- */
+
+/* write out request to a connection - assumes we can write 
+   (small) request out in one go into our new socket buffer  */
+
+static void write_request(struct connection *c)
+{
+    gettimeofday(&c->connect, 0);
+    write(c->fd, request, reqlen);
+    c->state = STATE_READ;
+    FD_SET(c->fd, &readbits);
+    FD_CLR(c->fd, &writebits);
+}
+
+/* --------------------------------------------------------- */

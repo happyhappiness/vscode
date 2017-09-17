@@ -1,67 +1,95 @@
-    } else {
-        ap_hard_timeout("proxy send body", r);
-        alt_to = 0;
-    }
-#endif
+    q = ap_palloc(p, 30);
+    ap_snprintf(q, 30, "%s, %.2d %s %d %.2d:%.2d:%.2d GMT", ap_day_snames[wk], mday,
+		ap_month_snames[mon], year, hour, min, sec);
+    return q;
+}
 
-    while (ok && f != NULL) {
-        if (alt_to)
-            ap_hard_timeout("proxy send body", r);
+/*
+ * Reads headers from a buffer and returns an array of headers.
+ * Returns NULL on file error
+ */
+array_header *
+             ap_proxy_read_headers(pool *p, char *buffer, int size, BUFF *f)
+{
+    int gotcr, len, i, j;
+    array_header *resp_hdrs;
+    struct hdr_entry *hdr;
+    char *strp;
+    const char *strcp;
 
-	n = ap_bread(f, buf, IOBUFSIZE);
+    resp_hdrs = ap_make_array(p, 10, sizeof(struct hdr_entry));
+    hdr = NULL;
 
-        if (alt_to)
-            ap_kill_timeout(r);
-        else
-            ap_reset_timeout(r);
-
-	if (n == -1) {		/* input error */
-	    if (f2 != NULL)
-		f2 = ap_proxy_cache_error(c);
+    gotcr = 1;
+    for (;;) {
+	len = ap_bgets(buffer, size, f);
+	if (len == -1)
+	    return NULL;
+	if (len == 0)
 	    break;
+	if (buffer[len - 1] == '\n') {
+	    buffer[--len] = '\0';
+	    i = 1;
 	}
-	if (n == 0)
-	    break;		/* EOF */
-	o = 0;
-	total_bytes_rcv += n;
+	else
+	    i = 0;
 
-        if (f2 != NULL) {
-            if (ap_bwrite(f2, &buf[0], n) != n) {
-                f2 = ap_proxy_cache_error(c);
-            } else {
-                c->written += n;
-            }
-        }
+	if (!gotcr || buffer[0] == ' ' || buffer[0] == '\t') {
+	    /* a continuation header */
+	    if (hdr == NULL) {
+		/* error!! */
+		if (!i) {
+		    i = ap_bskiplf(f);
+		    if (i == -1)
+			return NULL;
+		}
+		gotcr = 1;
+		continue;
+	    }
+	    hdr->value = ap_pstrcat(p, hdr->value, buffer, NULL);
+	}
+	else if (gotcr && len == 0)
+	    break;
+	else {
+	    strp = strchr(buffer, ':');
+	    if (strp == NULL) {
+		/* error!! */
+		if (!gotcr) {
+		    i = ap_bskiplf(f);
+		    if (i == -1)
+			return NULL;
+		}
+		gotcr = 1;
+		hdr = NULL;
+		continue;
+	    }
+	    hdr = ap_push_array(resp_hdrs);
+	    *(strp++) = '\0';
+	    hdr->field = ap_pstrdup(p, buffer);
+	    while (*strp == ' ' || *strp == '\t')
+		strp++;
+	    hdr->value = ap_pstrdup(p, strp);
+	    gotcr = i;
+	}
+    }
 
-        while (n && !con->aborted) {
-            if (alt_to)
-                ap_soft_timeout("proxy send body", r);
+    hdr = (struct hdr_entry *) resp_hdrs->elts;
+    for (i = 0; i < resp_hdrs->nelts; i++) {
+	strcp = hdr[i].value;
+	j = strlen(strcp);
+	while (j > 0 && (strcp[j - 1] == ' ' || strcp[j - 1] == '\t'))
+	    j--;
+	/* Note that this is OK, coz we created the header above */
+	((char *)strcp)[j] = '\0';
+    }
 
-            w = ap_bwrite(con->client, &buf[o], n);
+    return resp_hdrs;
+}
 
-            if (alt_to)
-                ap_kill_timeout(r);
-            else
-                ap_reset_timeout(r);
-
-            if (w <= 0) {
-                if (f2 != NULL) {
-                    /* when a send failure occurs, we need to decide
-                     * whether to continue loading and caching the
-                     * document, or to abort the whole thing
-                     */
-                    ok = (c->len > 0) &&
-                         (c->cache_completion > 0) &&
-                         (c->len * c->cache_completion < total_bytes_rcv);
-
-                    if (! ok) {
-                        ap_pclosef(c->req->pool, c->fp->fd);
-                        c->fp = NULL;
-                        f2 = NULL;
-                        unlink(c->tempfile);
-                    }
-                }
-                con->aborted = 1;
-                break;
-            }
-            n -= w;
+long int ap_proxy_send_fb(BUFF *f, request_rec *r, BUFF *f2, struct cache_req *c)
+{
+    int  ok = 1;
+    char buf[IOBUFSIZE];
+    long total_bytes_rcv;
+    register int n, o, w;
+    conn_rec *con = r->connection;

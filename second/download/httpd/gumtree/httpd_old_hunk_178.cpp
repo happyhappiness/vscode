@@ -1,17 +1,20 @@
-    if (!method_restricted)
-	return OK;
-
-    if (!(sec->auth_authoritative))
+    if (!sec->auth_pwfile)
 	return DECLINED;
 
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
+    if (!(real_pw = get_pw(r, c->user, sec->auth_pwfile))) {
+	if (!(sec->auth_authoritative))
+	    return DECLINED;
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		    "user %s not found: %s", c->user, r->uri);
+	ap_note_basic_auth_failure(r);
+	return AUTH_REQUIRED;
+    }
+    /* anyone know where the prototype for crypt is? */
+    if (strcmp(real_pw, (char *) crypt(sent_pw, real_pw))) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		    "user %s: password mismatch: %s", c->user, r->uri);
+	ap_note_basic_auth_failure(r);
+	return AUTH_REQUIRED;
+    }
+    return OK;
 }
-
-module MODULE_VAR_EXPORT auth_module =

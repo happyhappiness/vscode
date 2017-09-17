@@ -1,14 +1,13 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    const char *t;
-    char *key, *value;
+    if ((r->method_number == M_POST || r->method_number == M_PUT)
+	&& *dbuf) {
+	fprintf(f, "\n%s\n", dbuf);
+    }
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
+    fputs("%response\n", f);
+    hdrs_arr = ap_table_elts(r->err_headers_out);
+    hdrs = (table_entry *) hdrs_arr->elts;
 
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key)
+	    continue;
+	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);

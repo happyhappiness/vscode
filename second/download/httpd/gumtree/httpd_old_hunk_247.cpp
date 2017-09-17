@@ -1,13 +1,13 @@
+    magic_req_rec *req_dat = (magic_req_rec *)
+		    ap_get_module_config(r->request_config, &mime_magic_module);
+    magic_rsl *rsl;
+
+    /* make sure we have a list to put it in */
+    if (!req_dat) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
+		    MODNAME ": request config should not be NULL");
+	if (!(req_dat = magic_set_config(r))) {
+	    /* failure */
+	    return -1;
 	}
     }
-
-    /* clean up and return */
-    result[res_pos] = 0;
-#if MIME_MAGIC_DEBUG
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-	     MODNAME ": rsl_strdup() %d chars: %s", res_pos - 1, result);
-#endif
-    return result;
-}
-
-/* states for the state-machine algorithm in magic_rsl_to_request() */

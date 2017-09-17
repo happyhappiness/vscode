@@ -1,13 +1,9 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
-    }
+/*
+ *  conf.h -- backward compatibility header for ap_config.h
+ */
+
+#ifdef __GNUC__
+#warning "This header is obsolete, use ap_config.h instead"
 #endif
 
-    for (i = 0; i < t->a.nelts; ) {
+#include "ap_config.h"

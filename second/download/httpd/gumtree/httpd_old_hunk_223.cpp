@@ -1,7 +1,7 @@
-                case token_ge:
-                case token_gt:
-                case token_le:
                 case token_lt:
+                    current = current->parent;
+                    continue;
+                case token_lbrace:
                     break;
                 default:
                     ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

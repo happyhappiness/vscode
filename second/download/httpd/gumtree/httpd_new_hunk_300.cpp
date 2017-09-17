@@ -1,36 +1,46 @@
-/* --------------------------------------------------------- */
 
-/* simple little function to perror and exit */
+    /* be sure it is has a drive letter or is a UNC path; everything
+     * _must_ be canonicalized before getting to this point.  
+     */
+    if (szPath[1] != ':' && szPath[1] != '/') {
+	ap_log_error(APLOG_MARK, APLOG_ERR, NULL, 
+		     "Invalid path in os_stat: \"%s\", "
+		     "should have a drive letter or be a UNC path",
+		     szPath);
+	return (-1);
+    }
 
-static void err(char *s)
-{
-    if (errno) {
-    	perror(s);
+    if (szPath[0] == '/') {
+	char buf[_MAX_PATH];
+	char *s;
+	int nSlashes = 0;
+
+	ap_assert(strlen(szPath) < _MAX_PATH);
+	strcpy(buf, szPath);
+	for (s = buf; *s; ++s) {
+	    if (*s == '/') {
+		*s = '\\';
+		++nSlashes;
+	    }
+	}
+	/* then we need to add one more to get \\machine\share\ */
+	if (nSlashes == 3) {
+	    *s++ = '\\';
+	}
+	*s = '\0';
+	return stat(buf, pStat);
     }
-    else {
-	printf("%s", s);
+
+    n = strlen(szPath);
+    if (szPath[n - 1] == '\\' || szPath[n - 1] == '/') {
+        char buf[_MAX_PATH];
+        
+        ap_assert(n < _MAX_PATH);
+        strcpy(buf, szPath);
+        buf[n - 1] = '\0';
+        
+        return stat(buf, pStat);
     }
-    exit(errno);
+    return stat(szPath, pStat);
 }
 
-/* --------------------------------------------------------- */
-
-/* write out request to a connection - assumes we can write 
-   (small) request out in one go into our new socket buffer  */
-
-static void write_request(struct connection *c)
-{
-    gettimeofday(&c->connect, 0);
-    /* XXX: this could use writev for posting -- more efficient -djg */
-    write(c->fd, request, reqlen);
-    if (posting) {
-        write(c->fd,postdata, postlen);
-        totalposted += (reqlen + postlen); 
-    }
-
-    c->state = STATE_READ;
-    FD_SET(c->fd, &readbits);
-    FD_CLR(c->fd, &writebits);
-}
-
-/* --------------------------------------------------------- */

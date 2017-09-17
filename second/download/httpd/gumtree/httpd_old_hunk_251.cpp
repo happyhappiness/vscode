@@ -1,13 +1,23 @@
-#endif
-#ifdef    S_IFLNK
-    case S_IFLNK:
-	/* We used stat(), the only possible reason for this is that the
-	 * symlink is broken.
-	 */
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-		    MODNAME ": broken symlink (%s)", fn);
+	/* fatal error, bail out */
+	return result;
+    }
+
+    if ((fd = ap_popenf(r->pool, r->filename, O_RDONLY, 0)) < 0) {
+	/* We can't open it, but we were able to stat it. */
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		    MODNAME ": can't read `%s'", r->filename);
+	/* let some other handler decide what the problem is */
+	return DECLINED;
+    }
+
+    /*
+     * try looking at the first HOWMANY bytes
+     */
+    if ((nbytes = read(fd, (char *) buf, sizeof(buf) - 1)) == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		    MODNAME ": read failed: %s", r->filename);
 	return HTTP_INTERNAL_SERVER_ERROR;
-#endif
-#ifdef    S_IFSOCK
-#ifndef __COHERENT__
-    case S_IFSOCK:
+    }
+
+    if (nbytes == 0)
+	magic_rsl_puts(r, MIME_TEXT_UNKNOWN);

@@ -1,39 +1,35 @@
-	return FORBIDDEN;
+/*
+ *  Abstraction layer for loading
+ *  Apache modules under run-time via 
+ *  dynamic shared object (DSO) mechanism
+ */
 
-    /* Load the module */
+void *ap_os_dso_load(const char *path)
+{
+#if defined(HPUX) || defined(HPUX10)
+    shl_t handle;
+    handle = shl_load(path, BIND_IMMEDIATE|BIND_VERBOSE|BIND_NOSTART, 0L);
+    return (void *)handle;
+#else
+#if defined(OSF1) ||\
+    (defined(__FreeBSD_version) && (__FreeBSD_version >= 220000))
+    return dlopen((char *)path, RTLD_NOW | RTLD_GLOBAL);
+#else
+    return dlopen(path, RTLD_NOW | RTLD_GLOBAL);
+#endif
+#endif
+}
 
-    if (!(isapi_handle = LoadLibraryEx(r->filename, NULL,
-				       LOAD_WITH_ALTERED_SEARCH_PATH))) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT, r->server,
-		    "Could not load DLL: %s", r->filename);
-	return SERVER_ERROR;
-    }
+void ap_os_dso_unload(void *handle) 
+{
+#if defined(HPUX) || defined(HPUX10)
+    shl_unload((shl_t)handle);
+#else
+    dlclose(handle);
+#endif
+    return;
+}
 
-    if (!(isapi_version =
-	  (void *)(GetProcAddress(isapi_handle, "GetExtensionVersion")))) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT, r->server,
-		    "DLL could not load GetExtensionVersion(): %s", r->filename);
-	FreeLibrary(isapi_handle);
-	return SERVER_ERROR;
-    }
-
-    if (!(isapi_entry =
-	  (void *)(GetProcAddress(isapi_handle, "HttpExtensionProc")))) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT, r->server,
-		    "DLL could not load HttpExtensionProc(): %s", r->filename);
-	FreeLibrary(isapi_handle);
-	return SERVER_ERROR;
-    }
-
-    isapi_term = (void *)(GetProcAddress(isapi_handle, "TerminateExtension"));
-
-    /* Run GetExtensionVersion() */
-
-    if ((*isapi_version)(pVer) != TRUE) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT, r->server,
-		    "ISAPI GetExtensionVersion() failed: %s", r->filename);
-	FreeLibrary(isapi_handle);
-	return SERVER_ERROR;
-    }
-
-    /* Set up variables */
+void *ap_os_dso_sym(void *handle, const char *symname)
+{
+#if defined(HPUX) || defined(HPUX10)

@@ -1,13 +1,13 @@
-
-    f = ap_pfopen(r->pool, metafilename, "r");
-    if (f == NULL) {
-	if (errno == ENOENT) {
-	    return DECLINED;
-	}
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-	      "meta file permissions deny server access: %s", metafilename);
-	return FORBIDDEN;
+	real_file = last_slash;
+	real_file++;
+	*last_slash = '\0';
+    }
+    else {
+	/* no last slash, buh?! */
+	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+		    "internal error in mod_cern_meta: %s", r->filename);
+	/* should really barf, but hey, let's be friends... */
+	return DECLINED;
     };
 
-    /* read the headers in */
-    rv = scan_meta_file(r, f);
+    metafilename = ap_pstrcat(r->pool, "/", scrap_book, "/",

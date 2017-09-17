@@ -1,13 +1,28 @@
-{
-    int suffix_pos, result;
-    char *sub_filename;
-    request_rec *sub;
+     * where we would end up with LOTS of zombies.
+     */
+    sub_pool = ap_make_sub_pool(r->pool);
 
-#if MIME_MAGIC_DEBUG
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": revision_suffix checking %s", r->filename);
-#endif /* MIME_MAGIC_DEBUG */
+    if (!ap_bspawn_child(sub_pool, uncompress_child, &parm, kill_always,
+			 &bin, &bout, NULL)) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		    MODNAME ": couldn't spawn uncompress process: %s", r->uri);
+	return -1;
+    }
 
-    /* check for recognized revision suffix */
-    suffix_pos = strlen(r->filename) - 1;
-    if (!ap_isdigit(r->filename[suffix_pos])) {
+    if (ap_bwrite(bin, old, n) != n) {
+	ap_destroy_pool(sub_pool);
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		    MODNAME ": write failed.");
+	return -1;
+    }
+    ap_bclose(bin);
+    *newch = (unsigned char *) ap_palloc(r->pool, n);
+    if ((n = ap_bread(bout, *newch, n)) <= 0) {
+	ap_destroy_pool(sub_pool);
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+	    MODNAME ": read failed %s", r->filename);
+	return -1;
+    }
+    ap_destroy_pool(sub_pool);
+    return n;
+}

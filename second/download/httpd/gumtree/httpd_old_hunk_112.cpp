@@ -1,13 +1,12 @@
-#define STANDALONE_MAIN standalone_main
-
-static void standalone_main(int argc, char **argv)
-{
-    int remaining_children_to_start;
-
-#ifdef __EMX__
-    printf("%s \n", ap_get_server_version());
+#ifdef NEED_HASHBANG_EMUL
+    printf(" -D NEED_HASHBANG_EMUL\n");
 #endif
+#ifdef SHARED_CORE
+    printf(" -D SHARED_CORE\n");
+#endif
+}
 
-    ap_standalone = 1;
 
-    is_graceful = 0;
+/* Some init code that's common between win32 and unix... well actually
+ * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
+ * is still a mess.

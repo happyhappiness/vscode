@@ -1,13 +1,23 @@
 
-    /* We are not using multiviews */
-    neg->count_multiviews_variants = 0;
-
-    map = ap_pfopen(neg->pool, rr->filename, "r");
-    if (map == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-                    "cannot access type map file: %s", rr->filename);
-        return HTTP_FORBIDDEN;
+    for ( ; *cp && *cp != ':' ; ++cp) {
+        *cp = ap_tolower(*cp);
     }
 
-    clean_var_rec(&mime_info);
+    if (!*cp) {
+        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+                    "Syntax error in type map --- no ':': %s", r->filename);
+        return NULL;
+    }
 
+    do {
+        ++cp;
+    } while (*cp && ap_isspace(*cp));
+
+    if (!*cp) {
+        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+                    "Syntax error in type map --- no header body: %s",
+                    r->filename);
+        return NULL;
+    }
+
+    return cp;

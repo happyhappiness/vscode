@@ -1,13 +1,13 @@
-        set_neg_headers(r, neg, na_list);
-        store_variant_list(r, neg);
-        return MULTIPLE_CHOICES;
+    ++filp;
+    prefix_len = strlen(filp);
+
+    dirp = ap_popendir(neg->pool, neg->dir_name);
+
+    if (dirp == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+                    "cannot read directory for multi: %s", neg->dir_name);
+        return HTTP_FORBIDDEN;
     }
 
-    if (!best) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "no acceptable variant: %s", r->filename);
-
-        set_neg_headers(r, neg, na_result);
-        store_variant_list(r, neg);
-        return NOT_ACCEPTABLE;
-    }
+    while ((dir_entry = readdir(dirp))) {
+        request_rec *sub_req;

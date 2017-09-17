@@ -1,16 +1,13 @@
-     * waiting for free_proc_chain to cleanup in the middle of an
-     * SSI request -djg
-     */
-    if (!ap_bspawn_child(r->main ? r->main->pool : r->pool, cgi_child,
-			 (void *) &cld, kill_after_timeout,
-			 &script_out, &script_in, &script_err)) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		    "couldn't spawn child process: %s", r->filename);
-	ap_table_setn(r->notes, "error-notes", "Couldn't spawn child process");
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+	return log_scripterror(r, conf, FORBIDDEN, APLOG_NOERRNO,
+			       "Options ExecCGI is off in this directory");
+    if (nph && is_included)
+	return log_scripterror(r, conf, FORBIDDEN, APLOG_NOERRNO,
+			       "attempt to include NPH CGI script");
 
-    /* Transfer any put/post args, CERN style...
-     * Note that if a buggy script fails to read everything we throw
-     * at it, or a buggy client sends too much, we get a SIGPIPE, so
-     * we have to ignore SIGPIPE while doing this.  CERN does the same
+#if defined(OS2) || defined(WIN32)
+    /* Allow for cgi files without the .EXE extension on them under OS/2 */
+    if (r->finfo.st_mode == 0) {
+	struct stat statbuf;
+
+	r->filename = ap_pstrcat(r->pool, r->filename, ".EXE", NULL);
+

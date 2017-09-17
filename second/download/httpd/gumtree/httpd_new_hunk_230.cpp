@@ -1,13 +1,13 @@
-                int len;
-                len = strlen(current->right->token.value);
-                if (current->right->token.value[len - 1] == '/') {
-                    current->right->token.value[len - 1] = '\0';
-                }
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                                "Invalid rexp \"%s\" in file %s",
-                                current->right->token.value, r->filename);
-                    ap_rputs(error, r);
-                    goto RETURN;
-                }
-#ifdef DEBUG_INCLUDE
+            ap_rputs("     Evaluate eq/ne\n", r);
+#endif
+            if ((current->left == (struct parse_node *) NULL) ||
+                (current->right == (struct parse_node *) NULL) ||
+                (current->left->token.type != token_string) ||
+                (current->right->token.type != token_string)) {
+                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+                            "Invalid expression \"%s\" in file %s",
+                            expr, r->filename);
+                ap_rputs(error, r);
+                goto RETURN;
+            }
+            parse_string(r, current->left->token.value,

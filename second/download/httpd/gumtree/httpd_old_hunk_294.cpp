@@ -1,13 +1,13 @@
+    /* Set the status (for logging) */
+    if (ecb->dwHttpStatusCode)
+	r->status = ecb->dwHttpStatusCode;
 
-	if (cid->status) /* We have a special status to return */
-	    return cid->status;
+    /* Check for a log message - and log it */
+    if (ecb->lpszLogData && strcmp(ecb->lpszLogData, ""))
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		    "%s: %s", ecb->lpszLogData, r->filename);
 
-	return OK;
-    case HSE_STATUS_PENDING:	/* We don't support this */
-	ap_log_error(APLOG_MARK, APLOG_WARNING, r->server,
-		    "ISAPI asynchronous I/O not supported: %s", r->filename);
-    case HSE_STATUS_ERROR:
-    default:
-	return SERVER_ERROR;
-    }
+    /* All done with the DLL... get rid of it */
+    if (isapi_term) (*isapi_term)(HSE_TERM_MUST_UNLOAD);
+    FreeLibrary(isapi_handle);
 

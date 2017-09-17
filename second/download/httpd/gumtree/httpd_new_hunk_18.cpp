@@ -1,20 +1,31 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
+	case 'l':
+	    ap_show_modules();
+	    exit(0);
+	case 'X':
+	    ++one_process;	/* Weird debugging mode. */
+	    break;
+	case 't':
+	    configtestonly = 1;
+	    break;
+	case '?':
+	    usage(argv[0]);
+	}
     }
 
-    range = ap_getword(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+    if (!child && run_as_service) {
+	service_cd();
+    }
 
-    if (r->byterange > 1) {
-        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
+    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
 
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    if (configtestonly) {
+        fprintf(stderr, "Syntax OK\n");
+        exit(0);
+    }
+
+    if (!child) {
+	ap_log_pid(pconf, ap_pid_fname);
+    }
+    ap_set_version();
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();

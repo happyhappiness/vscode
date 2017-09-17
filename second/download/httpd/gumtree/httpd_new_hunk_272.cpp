@@ -1,6 +1,6 @@
+        set_neg_headers(r, neg, na_list);
         store_variant_list(r, neg);
-        res = MULTIPLE_CHOICES;
-        goto return_from_multi;
+        return MULTIPLE_CHOICES;
     }
 
     if (!best) {
@@ -9,5 +9,5 @@
 
         set_neg_headers(r, neg, na_result);
         store_variant_list(r, neg);
-        res = NOT_ACCEPTABLE;
-        goto return_from_multi;
+        return NOT_ACCEPTABLE;
+    }

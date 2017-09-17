@@ -1,18 +1,20 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
-}
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
+        }
+        return 0;
+    }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    char *t;
+    range = ap_getword_nc(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
+    if (r->byterange > 1) {
+        char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

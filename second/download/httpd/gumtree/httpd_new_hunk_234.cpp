@@ -1,13 +1,13 @@
-            expr = tag_val;
-#ifdef DEBUG_INCLUDE
-            ap_rvputs(r, "**** if expr=\"", expr, "\"\n", NULL);
-#endif
+        tag_val = get_tag(r->pool, in, tag, sizeof(tag), 0);
+        if (*tag == '\0') {
+            return 1;
         }
-        else {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "unknown parameter \"%s\" to tag if in %s",
-                        tag, r->filename);
-            ap_rputs(error, r);
-        }
-    }
-}
+        else if (!strcmp(tag, "done")) {
+	    if (expr == NULL) {
+		ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+			    "missing expr in if statement: %s",
+			    r->filename);
+		ap_rputs(error, r);
+		return 1;
+	    }
+            *printing = *conditional_status = parse_expr(r, expr, error);

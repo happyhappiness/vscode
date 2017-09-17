@@ -1,20 +1,15 @@
-#endif
+            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+        }
 
-    ap_soft_timeout("send body", r);
+        r->read_chunked = 1;
+    }
+    else if (lenp) {
+        char *pos = lenp;
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+        while (isdigit(*pos) || isspace(*pos))
+            ++pos;
+        if (*pos != '\0') {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }

@@ -1,13 +1,21 @@
-{
-    configfile_t *f;
-    char l[MAX_STRING_LEN];
-    const char *rpw, *w;
-
-    if (!(f = ap_pcfg_openfile(r->pool, auth_pwfile))) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		    "Could not open password file: %s", auth_pwfile);
-	return NULL;
+	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
+    /* does the password look like an email address ? */
+	   && ((!sec->auth_anon_verifyemail)
+	       || ((strpbrk("@", sent_pw) != NULL)
+		   && (strpbrk(".", sent_pw) != NULL)))) {
+	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
+	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r,
+			"Anonymous: Passwd <%s> Accepted",
+			sent_pw ? sent_pw : "\'none\'");
+	}
+	return OK;
     }
-    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
-	if ((l[0] == '#') || (!l[0]))
-	    continue;
+    else {
+	if (sec->auth_anon_authoritative) {
+	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+			"Anonymous: Authoritative, Passwd <%s> not accepted",
+			sent_pw ? sent_pw : "\'none\'");
+	    return AUTH_REQUIRED;
+	}
+	/* Drop out the bottom to return DECLINED */
+    }

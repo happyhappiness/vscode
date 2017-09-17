@@ -1,13 +1,13 @@
-	struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
+				     domain, NULL);
+    nuri = ap_unparse_uri_components(r->pool,
+				  &r->parsed_uri,
+				  UNP_REVEALPASSWORD);
 
-	for (direct_connect = ii = 0; ii < conf->dirconn->nelts && !direct_connect; ii++) {
-	    direct_connect = list[ii].matcher(&list[ii], r);
-	}
-#if DEBUGGING
-	ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r,
-		     (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
-		     r->uri);
-#endif
-    }
+    ap_table_set(r->headers_out, "Location", nuri);
+    ap_log_rerror(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, r,
+		"Domain missing: %s sent to %s%s%s", r->uri,
+		ap_unparse_uri_components(r->pool, &r->parsed_uri,
+		      UNP_OMITUSERINFO),
+		ref ? " from " : "", ref ? ref : "");
 
-/* firstly, try a proxy, unless a NoProxy directive is active */
+    return HTTP_MOVED_PERMANENTLY;

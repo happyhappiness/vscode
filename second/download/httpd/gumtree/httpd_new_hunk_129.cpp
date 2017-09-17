@@ -1,13 +1,13 @@
-            if (!res) {
-                res = file_walk(rnew);
-            }
-        }
-        else {
-            if ((res = check_symlinks(rnew->filename, ap_allow_options(rnew)))) {
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, rnew,
-                            "Symbolic link not allowed: %s", rnew->filename);
-                rnew->status = res;
-                return rnew;
-            }
-            /*
-             * do a file_walk, if it doesn't change the per_dir_config then
+     * you access /symlink (or /symlink/) you would get a 403 without this
+     * S_ISDIR test.  But if you accessed /symlink/index.html, for example,
+     * you would *not* get the 403.
+     */
+    if (!S_ISDIR(r->finfo.st_mode)
+        && (res = check_symlinks(r->filename, ap_allow_options(r)))) {
+        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+                    "Symbolic link not allowed: %s", r->filename);
+        return res;
+    }
+    return OK;                  /* Can only "fail" if access denied by the
+                                 * symlink goop. */
+}

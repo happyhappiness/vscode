@@ -1,51 +1,32 @@
+	    ap_pclosesocket(p, dsock);	/* and try the regular way */
+    }
 
-	if (bind(dsock, (struct sockaddr *) &server,
-		 sizeof(struct sockaddr_in)) == -1) {
-	    char buff[22];
-
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
+    if (!pasvmode) {		/* set up data connection */
+	clen = sizeof(struct sockaddr_in);
+	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
 	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error binding to ftp data socket %s", buff);
+			 "proxy: error getting socket address");
 	    ap_bclose(f);
-	    ap_pclosesocket(p, dsock);
+	    ap_kill_timeout(r);
 	    return HTTP_INTERNAL_SERVER_ERROR;
 	}
-	listen(dsock, 2);	/* only need a short queue */
-    }
 
-/* set request */
-    len = decodeenc(path);
+	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (dsock == -1) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error creating socket");
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+	}
 
-    /* TM - if len == 0 then it must be a directory (you can't RETR nothing) */
-
-    if (len == 0) {
-	parms = "d";
-    }
-    else {
-	ap_bputs("SIZE ", f);
-	ap_bwrite(f, path, len);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: SIZE %s", path);
-	i = ftp_getrc_msg(f, resp, resplen);
-	Explain2("FTP: returned status %d with response %s", i, resp);
-	if (i != 500) {		/* Size command not recognized */
-	    if (i == 550) {	/* Not a regular file */
-		Explain0("FTP: SIZE shows this is a directory");
-		parms = "d";
-		ap_bputs("CWD ", f);
-		ap_bwrite(f, path, len);
-		ap_bputs(CRLF, f);
-		ap_bflush(f);
-		Explain1("FTP: CWD %s", path);
-		i = ftp_getrc(f);
-		Explain1("FTP: returned status %d", i);
-		if (i == -1) {
-		    ap_kill_timeout(r);
-		    return ap_proxyerror(r, "Error sending to remote server");
-		}
-		if (i == 550) {
-		    ap_kill_timeout(r);
-		    return HTTP_NOT_FOUND;
-		}
-		if (i != 250) {
+	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
+		       sizeof(one)) == -1) {
+#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
+	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			 "proxy: error setting reuseaddr option");
+	    ap_pclosesocket(p, dsock);
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_INTERNAL_SERVER_ERROR;
+#endif /*_OSD_POSIX*/

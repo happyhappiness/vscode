@@ -1,13 +1,13 @@
+			 DWORD dwReserved) {
+    request_rec *r = ((isapi_cid *)ConnID)->r;
+    int writ;	/* written, actually, but why shouldn't I make up words? */
 
-#ifdef RELAX_HEADER_RULE
-	    if (lf)
-		*lf = '\0';
-#else
-	    if (!lf) { /* Huh? Invalid data, I think */
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			    "ISA sent invalid headers: %s", r->filename);
-		SetLastError(ERROR);	/* XXX: Find right error */
-		return FALSE;
-	    }
+    /* We only support synchronous writing */
+    if (dwReserved && dwReserved != HSE_IO_SYNC) {
+	ap_log_error(APLOG_MARK, APLOG_WARNING, r->server,
+		    "ISAPI asynchronous I/O not supported: %s", r->filename);
+	SetLastError(ERROR_INVALID_PARAMETER);
+	return FALSE;
+    }
 
-	    /* Get rid of \n and \r */
+    if ((writ = ap_rwrite(Buffer, *lpwdwBytes, r)) == EOF) {

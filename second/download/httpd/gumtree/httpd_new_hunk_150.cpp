@@ -1,13 +1,13 @@
-
-    if (err != NULL)
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		    "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
+		ap_log_error(APLOG_MARK, APLOG_ERR, s,
+			     "proxy: error creating cache directory %s",
+			     c->filename);
+	    *p = '/';
+	    ++p;
+	}
+#if defined(OS2) || defined(WIN32)
+	/* Under OS/2 use rename. */
+	if (rename(c->tempfile, c->filename) == -1)
+	    ap_log_error(APLOG_MARK, APLOG_ERR, s,
+			 "proxy: error renaming cache file %s to %s",
+			 c->tempfile, c->filename);
     }
-
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {

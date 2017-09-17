@@ -1,13 +1,13 @@
-
-	    name = ent->pw_name;
-	}
-	else
-	    name = ap_user_name;
-
-#ifndef OS2
-	/* OS/2 dosen't support groups. */
-
-	/* Reset `groups' attributes. */
-
-	if (initgroups(name, ap_group_id) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ALERT, server_conf,
+#elif defined(NEXT) || defined(NEWSOS)
+    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
+	perror("setpgrp");
+	fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
+	exit(1);
+    }
+#elif defined(OS2)
+    /* OS/2 don't support process group IDs */
+    pgrp = getpid();
+#elif defined(MPE)
+    /* MPE uses negative pid for process group */
+    pgrp = -getpid();
+#else

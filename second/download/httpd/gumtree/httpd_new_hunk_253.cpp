@@ -1,13 +1,13 @@
-    union VALUETYPE p;
-    magic_server_config_rec *conf = (magic_server_config_rec *)
-		ap_get_module_config(r->server->module_config, &mime_magic_module);
-    struct magic *m;
+	return DONE;
+#endif
+#endif
+    case S_IFREG:
+	break;
+    default:
+	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
+		    MODNAME ": invalid mode 0%o.", (unsigned int)r->finfo.st_mode);
+	return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-#if MIME_MAGIC_DEBUG
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-		MODNAME ": match conf=%x file=%s m=%s m->next=%s last=%s",
-		conf,
-		conf->magicfile ? conf->magicfile : "NULL",
-		conf->magic ? "set" : "NULL",
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
-		conf->last ? "set" : "NULL");
+    /*
+     * regular file, check next possibility

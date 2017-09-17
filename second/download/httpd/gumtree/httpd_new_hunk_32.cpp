@@ -1,97 +1,93 @@
+        int iEnvBlockLen;
+
+	memset(&si, 0, sizeof(si));
+	memset(&pi, 0, sizeof(pi));
+
+	interpreter[0] = 0;
+	pid = -1;
+
+	exename = strrchr(r->filename, '/');
+	if (!exename) {
+	    exename = strrchr(r->filename, '\\');
+	}
+	if (!exename) {
+	    exename = r->filename;
+	}
+	else {
+	    exename++;
+	}
+	dot = strrchr(exename, '.');
+	if (dot) {
+	    if (!strcasecmp(dot, ".BAT")
+		|| !strcasecmp(dot, ".CMD")
+		|| !strcasecmp(dot, ".EXE")
+		||  !strcasecmp(dot, ".COM")) {
+		is_exe = 1;
 	    }
 	}
-#endif
-	return (pid);
-    }
-#else
-    if (ap_suexec_enabled
-	&& ((r->server->server_uid != ap_user_id)
-	    || (r->server->server_gid != ap_group_id)
-	    || (!strncmp("/~", r->uri, 2)))) {
 
-	char *execuser, *grpname;
-	struct passwd *pw;
-	struct group *gr;
-
-	if (!strncmp("/~", r->uri, 2)) {
-	    gid_t user_gid;
-	    char *username = ap_pstrdup(r->pool, r->uri + 2);
-	    char *pos = strchr(username, '/');
-
-	    if (pos) {
-		*pos = '\0';
-	    }
-
-	    if ((pw = getpwnam(username)) == NULL) {
+	if (!is_exe) {
+	    program = fopen(r->filename, "rb");
+	    if (!program) {
 		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getpwnam: invalid username %s", username);
+			     "fopen(%s) failed", r->filename);
 		return (pid);
 	    }
-	    execuser = ap_pstrcat(r->pool, "~", pw->pw_name, NULL);
-	    user_gid = pw->pw_gid;
-
-	    if ((gr = getgrgid(user_gid)) == NULL) {
-	        if ((grpname = ap_palloc(r->pool, 16)) == NULL) {
-		    return (pid);
+	    sz = fread(interpreter, 1, sizeof(interpreter) - 1, program);
+	    if (sz < 0) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			     "fread of %s failed", r->filename);
+		fclose(program);
+		return (pid);
+	    }
+	    interpreter[sz] = 0;
+	    fclose(program);
+	    if (!strncmp(interpreter, "#!", 2)) {
+		is_script = 1;
+		for (i = 2; i < sizeof(interpreter); i++) {
+		    if ((interpreter[i] == '\r')
+			|| (interpreter[i] == '\n')) {
+			break;
+		    }
 		}
-		else {
-		    ap_snprintf(grpname, 16, "%ld", (long) user_gid);
-		}
+		interpreter[i] = 0;
+		for (i = 2; interpreter[i] == ' '; ++i)
+		    ;
+		memmove(interpreter+2,interpreter+i,strlen(interpreter+i)+1);
 	    }
 	    else {
-		grpname = gr->gr_name;
+	        /* Check to see if it's a executable */
+                IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)interpreter;
+                if (hdr->e_magic == IMAGE_DOS_SIGNATURE && hdr->e_cblp < 512) {
+                    is_binary = 1;
+		}
 	    }
 	}
-	else {
-	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getpwuid: invalid userid %ld",
-			     (long) r->server->server_uid);
-		return (pid);
-	    }
-	    execuser = ap_pstrdup(r->pool, pw->pw_name);
-
-	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getgrgid: invalid groupid %ld",
-			     (long) r->server->server_gid);
-		return (pid);
-	    }
-	    grpname = gr->gr_name;
+        /* Bail out if we haven't figured out what kind of
+         * file this is by now..
+         */
+        if (!is_exe && !is_script && !is_binary) {
+            ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
+		"%s is not executable; ensure interpreted scripts have "
+		"\"#!\" first line", 
+		r->filename);
+            return (pid);
 	}
 
-	if (shellcmd) {
-	    execle(SUEXEC_BIN, SUEXEC_BIN, execuser, grpname, argv0,
-		   NULL, env);
-	}
+	/*
+	 * Make child process use hPipeOutputWrite as standard out,
+	 * and make sure it does not show on screen.
+	 */
+	si.cb = sizeof(si);
+	si.dwFlags     = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
+	si.wShowWindow = SW_HIDE;
+	si.hStdInput   = pinfo->hPipeInputRead;
+	si.hStdOutput  = pinfo->hPipeOutputWrite;
+	si.hStdError   = pinfo->hPipeErrorWrite;
 
-	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) {
-	    execle(SUEXEC_BIN, SUEXEC_BIN, execuser, grpname, argv0,
-		   NULL, env);
-	}
-
-	else {
-	    execve(SUEXEC_BIN,
-		   create_argv(r->pool, SUEXEC_BIN, execuser, grpname,
-			       argv0, r->args),
-		   env);
-	}
-    }
-    else {
-        if (shellcmd) {
-	    execle(SHELL_PATH, SHELL_PATH, "-c", argv0, NULL, env);
-	}
-
-	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) {
-	    execle(r->filename, argv0, NULL, env);
-	}
-
-	else {
-	    execve(r->filename,
-		   create_argv(r->pool, NULL, NULL, NULL, argv0, r->args),
-		   env);
-	}
-    }
-    return (pid);
-#endif
-}
+	if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) { 
+	    if (is_exe || is_binary) {
+	        /*
+	         * When the CGI is a straight binary executable, 
+		 * we can run it as is
+	         */

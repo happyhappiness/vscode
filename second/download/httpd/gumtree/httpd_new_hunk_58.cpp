@@ -1,101 +1,82 @@
- */
+
+#define BY_ENCODING &c_by_encoding
+#define BY_TYPE &c_by_type
+#define BY_PATH &c_by_path
 
 /*
- * Look for the specified file, and pump it into the response stream if we
- * find it.
+ * Return true if the specified string refers to the parent directory (i.e.,
+ * matches ".." or "../").  Hopefully this one call is significantly less
+ * expensive than multiple strcmp() calls.
  */
-static int insert_readme(char *name, char *readme_fname, char *title,
-			 int hrule, int whichend, request_rec *r)
+static ap_inline int is_parent(const char *name)
 {
-    char *fn;
-    FILE *f;
-    struct stat finfo;
-    int plaintext = 0;
-    request_rec *rr;
-    autoindex_config_rec *cfg;
-    int autoindex_opts;
-
-    cfg = (autoindex_config_rec *) ap_get_module_config(r->per_dir_config,
-							&autoindex_module);
-    autoindex_opts = find_opts(cfg, r);
-    /* XXX: this is a load of crap, it needs to do a full sub_req_lookup_uri */
-    fn = ap_make_full_path(r->pool, name, readme_fname);
-    fn = ap_pstrcat(r->pool, fn, ".html", NULL);
-    if (stat(fn, &finfo) == -1) {
-	/* A brief fake multiviews search for README.html */
-	fn[strlen(fn) - 5] = '\0';
-	if (stat(fn, &finfo) == -1) {
-	    return 0;
-	}
-	plaintext = 1;
-	if (hrule) {
-	    ap_rputs("<HR>\n", r);
-	}
+    /*
+     * Now, IFF the first two bytes are dots, and the third byte is either
+     * EOS (\0) or a slash followed by EOS, we have a match.
+     */
+    if (((name[0] == '.') && (name[1] == '.'))
+	&& ((name[2] == '\0')
+	    || ((name[2] == '/') && (name[3] == '\0')))) {
+        return 1;
     }
-    else if (hrule) {
-	ap_rputs("<HR>\n", r);
-    }
-    /* XXX: when the above is rewritten properly, this necessary security
-     * check will be redundant. -djg */
-    rr = ap_sub_req_lookup_file(fn, r);
-    if (rr->status != HTTP_OK) {
-	ap_destroy_sub_req(rr);
-	return 0;
-    }
-    ap_destroy_sub_req(rr);
-    if (!(f = ap_pfopen(r->pool, fn, "r"))) {
-        return 0;
-    }
-    if ((whichend == FRONT_MATTER)
-	&& (!(autoindex_opts & SUPPRESS_PREAMBLE))) {
-	emit_preamble(r, title);
-    }
-    if (!plaintext) {
-	ap_send_fd(f, r);
-    }
-    else {
-	char buf[IOBUFSIZE + 1];
-	int i, n, c, ch;
-	ap_rputs("<PRE>\n", r);
-	while (!feof(f)) {
-	    do {
-		n = fread(buf, sizeof(char), IOBUFSIZE, f);
-	    }
-	    while (n == -1 && ferror(f) && errno == EINTR);
-	    if (n == -1 || n == 0) {
-		break;
-	    }
-	    buf[n] = '\0';
-	    c = 0;
-	    while (c < n) {
-	        for (i = c; i < n; i++) {
-		    if (buf[i] == '<' || buf[i] == '>' || buf[i] == '&') {
-			break;
-		    }
-		}
-		ch = buf[i];
-		buf[i] = '\0';
-		ap_rputs(&buf[c], r);
-		if (ch == '<') {
-		    ap_rputs("&lt;", r);
-		}
-		else if (ch == '>') {
-		    ap_rputs("&gt;", r);
-		}
-		else if (ch == '&') {
-		    ap_rputs("&amp;", r);
-		}
-		c = i + 1;
-	    }
-	}
-    }
-    ap_pfclose(r->pool, f);
-    if (plaintext) {
-	ap_rputs("</PRE>\n", r);
-    }
-    return 1;
+    return 0;
 }
 
-
-static char *find_title(request_rec *r)
+/*
+ * This routine puts the standard HTML header at the top of the index page.
+ * We include the DOCTYPE because we may be using features therefrom (i.e.,
+ * HEIGHT and WIDTH attributes on the icons if we're FancyIndexing).
+ */
+static void emit_preamble(request_rec *r, char *title)
 {
+    ap_rvputs(r, "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n",
+	      "<HTML>\n <HEAD>\n  <TITLE>Index of ", title,
+	      "</TITLE>\n </HEAD>\n <BODY>\n", NULL);
+}
+
+static void push_item(array_header *arr, char *type, char *to, char *path,
+		      char *data)
+{
+    struct item *p = (struct item *) ap_push_array(arr);
+
+    if (!to) {
+	to = "";
+    }
+    if (!path) {
+	path = "";
+    }
+
+    p->type = type;
+    p->data = data ? ap_pstrdup(arr->pool, data) : NULL;
+    p->apply_path = ap_pstrcat(arr->pool, path, "*", NULL);
+
+    if ((type == BY_PATH) && (!ap_is_matchexp(to))) {
+	p->apply_to = ap_pstrcat(arr->pool, "*", to, NULL);
+    }
+    else if (to) {
+	p->apply_to = ap_pstrdup(arr->pool, to);
+    }
+    else {
+	p->apply_to = NULL;
+    }
+}
+
+static const char *add_alt(cmd_parms *cmd, void *d, char *alt, char *to)
+{
+    if (cmd->info == BY_PATH) {
+        if (!strcmp(to, "**DIRECTORY**")) {
+	    to = "^^DIRECTORY^^";
+	}
+    }
+    if (cmd->info == BY_ENCODING) {
+	ap_str_tolower(to);
+    }
+
+    push_item(((autoindex_config_rec *) d)->alt_list, cmd->info, to,
+	      cmd->path, alt);
+    return NULL;
+}
+
+static const char *add_icon(cmd_parms *cmd, void *d, char *icon, char *to)
+{
+    char *iconbak = ap_pstrdup(cmd->pool, icon);

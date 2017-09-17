@@ -1,9 +1,9 @@
 /*
- *  conf.h -- backward compatibility header for ap_config.h
+ *  compat.h -- backward compatibility header for ap_compat.h
  */
 
 #ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
+#warning "This header is obsolete, use ap_compat.h instead"
 #endif
 
-#include "ap_config.h"
+#include "ap_compat.h"

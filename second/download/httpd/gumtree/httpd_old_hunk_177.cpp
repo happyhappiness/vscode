@@ -1,20 +1,13 @@
-    if (!sec->auth_pwfile)
-	return DECLINED;
+{
+    configfile_t *f;
+    char l[MAX_STRING_LEN];
+    const char *rpw, *w;
 
-    if (!(real_pw = get_pw(r, c->user, sec->auth_pwfile))) {
-	if (!(sec->auth_authoritative))
-	    return DECLINED;
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "user %s not found: %s", c->user, r->uri);
-	ap_note_basic_auth_failure(r);
-	return AUTH_REQUIRED;
+    if (!(f = ap_pcfg_openfile(r->pool, auth_pwfile))) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		    "Could not open password file: %s", auth_pwfile);
+	return NULL;
     }
-    /* anyone know where the prototype for crypt is? */
-    if (strcmp(real_pw, (char *) crypt(sent_pw, real_pw))) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "user %s: password mismatch: %s", c->user, r->uri);
-	ap_note_basic_auth_failure(r);
-	return AUTH_REQUIRED;
-    }
-    return OK;
-}
+    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
+	if ((l[0] == '#') || (!l[0]))
+	    continue;

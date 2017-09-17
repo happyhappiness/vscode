@@ -1,13 +1,13 @@
-	 */
-	return TRUE;
+		    data = lf + 1;	/* Reset data */
+		break;
+	    }
 
-    /* We don't support all this async I/O, Microsoft-specific stuff */
-    case HSE_REQ_IO_COMPLETION:
-    case HSE_REQ_TRANSMIT_FILE:
-	ap_log_error(APLOG_MARK, APLOG_WARNING, r->server,
-		    "ISAPI asynchronous I/O not supported: %s", r->filename);
-    default:
-	SetLastError(ERROR_INVALID_PARAMETER);
-	return FALSE;
-    }
-}
+	    if (!(value = strchr(data, ':'))) {
+		SetLastError(ERROR);	/* XXX: Find right error */
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			    "ISA sent invalid headers", r->filename);
+		return FALSE;
+	    }
+
+	    *value++ = '\0';
+	    while (*value && ap_isspace(*value)) ++value;

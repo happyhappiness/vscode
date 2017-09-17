@@ -1,32 +1,36 @@
-           timetaken / 1000, timetaken % 1000);
-    printf("Complete requests:      %d\n", done);
-    printf("Failed requests:        %d\n", bad);
-    if (bad)
-        printf("   (Connect: %d, Length: %d, Exceptions: %d)\n",
-               err_conn, err_length, err_except);
-    if (err_response)
-        printf("Non-2xx responses:      %d\n", err_response);
-    if (keepalive)
-        printf("Keep-Alive requests:    %d\n", doneka);
-    printf("Total transferred:      %d bytes\n", totalread);
-    if (posting)
-        printf("Total POSTed:           %d\n", totalposted);
-    printf("HTML transferred:       %d bytes\n", totalbread);
+/* --------------------------------------------------------- */
 
-    /* avoid divide by zero */
-    if (timetaken) {
-        printf("Requests per second:    %.2f\n", 1000 * (float) (done) / timetaken);
-        printf("Transfer rate:          %.2f kb/s received\n",
-               (float) (totalread) / timetaken);
-        if (posting) {
-            printf("                        %.2f kb/s sent\n", 
-       		    (float)(totalposted)/timetaken);
-            printf("                        %.2f kb/s total\n", 
-           	    (float)(totalread + totalposted)/timetaken);
-        }
+/* simple little function to perror and exit */
+
+static void err(char *s)
+{
+    if (errno) {
+    	perror(s);
+    }
+    else {
+	printf("%s", s);
+    }
+    exit(errno);
+}
+
+/* --------------------------------------------------------- */
+
+/* write out request to a connection - assumes we can write 
+   (small) request out in one go into our new socket buffer  */
+
+static void write_request(struct connection *c)
+{
+    gettimeofday(&c->connect, 0);
+    /* XXX: this could use writev for posting -- more efficient -djg */
+    write(c->fd, request, reqlen);
+    if (posting) {
+        write(c->fd,postdata, postlen);
+        totalposted += (reqlen + postlen); 
     }
 
-    {
-        /* work out connection times */
-        int i;
-        int totalcon = 0, total = 0;
+    c->state = STATE_READ;
+    FD_SET(c->fd, &readbits);
+    FD_CLR(c->fd, &writebits);
+}
+
+/* --------------------------------------------------------- */

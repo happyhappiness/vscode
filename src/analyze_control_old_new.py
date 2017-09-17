@@ -15,12 +15,8 @@ import json
 from pygithub3 import Github
 from itertools import islice
 from gumtree_api import Gumtree
-from joern_api import Joern_api
 import my_constant
 import myUtil
-
-reload(sys);
-sys.setdefaultencoding('utf8')
 
 """
 @ param file, location and gumtree object
@@ -45,10 +41,6 @@ def get_function(file_name, loc, gumtree):
             function_loc = gumtree.get_function_loc()
 
     return function, function_loc
-        # get block feature
-        # gumtree.set_file(block_file_name)
-        # block_feature = gumtree.get_block_feature()
-        # block_feature = json.dumps(block_feature)
 
 """
 @ param log record, log function, old new writer, gumtree object and log counter

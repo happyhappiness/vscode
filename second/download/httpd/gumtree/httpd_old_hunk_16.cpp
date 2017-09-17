@@ -1,20 +1,17 @@
+
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
+		    "%s configured -- resuming normal operations",
+		    ap_get_server_version());
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
+		    "Server built: %s", ap_get_server_built());
+	restart_pending = shutdown_pending = 0;
+
+	while (!restart_pending && !shutdown_pending) {
+	    int child_slot;
+	    int status;
+	    int pid = wait_or_timeout(&status);
+
+	    /* XXX: if it takes longer than 1 second for all our children
+	     * to start up and get into IDLE state then we may spawn an
+	     * extra child
 	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
-
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);

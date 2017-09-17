@@ -1,13 +1,13 @@
-    ap_daemons_limit = atoi(arg);
-    if (ap_daemons_limit > HARD_SERVER_LIMIT) {
-       fprintf(stderr, "WARNING: MaxClients of %d exceeds compile time limit "
-           "of %d servers,\n", ap_daemons_limit, HARD_SERVER_LIMIT);
-       fprintf(stderr, " lowering MaxClients to %d.  To increase, please "
-           "see the\n", HARD_SERVER_LIMIT);
-       fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-       ap_daemons_limit = HARD_SERVER_LIMIT;
-    } 
-    else if (ap_daemons_limit < 1) {
-	fprintf(stderr, "WARNING: Require MaxClients > 0, setting to 1\n");
-	ap_daemons_limit = 1;
+	    cmd->server->server_uid = ap_user_id;
+	    fprintf(stderr,
+		    "Warning: User directive in <VirtualHost> "
+		    "requires SUEXEC wrapper.\n");
+	}
     }
+#if !defined (BIG_SECURITY_HOLE) && !defined (OS2)
+    if (cmd->server->server_uid == 0) {
+	fprintf(stderr,
+		"Error:\tApache has not been designed to serve pages while\n"
+		"\trunning as root.  There are known race conditions that\n"
+		"\twill allow any local user to read any file on the system.\n"
+		"\tShould you still desire to serve pages as root then\n"
