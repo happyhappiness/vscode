@@ -1,14 +1,15 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
--- apache_1.3.0/src/ap/ap_snprintf.c	1998-05-12 01:49:21.000000000 +0800
+            ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
+                         "core_output_filter: writing data to the network");
+
+            if (more)
+                apr_brigade_destroy(more);
+
+            if (APR_STATUS_IS_ECONNABORTED(rv)
+                || APR_STATUS_IS_ECONNRESET(rv)
+                || APR_STATUS_IS_EPIPE(rv)) {
+                c->aborted = 1;
+            }
+
+            /* The client has aborted, but the request was successful. We
+             * will report success, and leave it to the access and error
+             * logs to note that the connection was aborted.

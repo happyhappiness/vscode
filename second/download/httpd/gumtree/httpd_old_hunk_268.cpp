@@ -1,22 +1,13 @@
-    }
+            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
+            /* Also, take care with headers with multiple occurences. */
 
-    /* perform sub-request for the file name without the suffix */
-    result = 0;
-    sub_filename = ap_pstrndup(r->pool, r->filename, suffix_pos);
-#if MIME_MAGIC_DEBUG
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": subrequest lookup for %s", sub_filename);
-#endif /* MIME_MAGIC_DEBUG */
-    sub = ap_sub_req_lookup_file(sub_filename, r);
-
-    /* extract content type/encoding/language from sub-request */
-    if (sub->content_type) {
-	r->content_type = ap_pstrdup(r->pool, sub->content_type);
-#if MIME_MAGIC_DEBUG
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		    MODNAME ": subrequest %s got %s",
-		    sub_filename, r->content_type);
-#endif /* MIME_MAGIC_DEBUG */
-	if (sub->content_encoding)
-	    r->content_encoding =
-		ap_pstrdup(r->pool, sub->content_encoding);
+            r->headers_out = ap_proxy_read_headers(r, rp, buffer,
+                                                   sizeof(buffer), origin);
+            if (r->headers_out == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0,
+                             r->server, "proxy: bad HTTP/%d.%d header "
+                             "returned by %s (%s)", major, minor, r->uri,
+                             r->method);
+                p_conn->close += 1;
+                /*
+                 * ap_send_error relies on a headers_out to be present. we

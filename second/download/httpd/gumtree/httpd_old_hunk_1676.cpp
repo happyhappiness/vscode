@@ -1,13 +1,39 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+	return FORBIDDEN;
 
-    reqhdrs_arr = table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+    /* Load the module */
+
+    if (!(isapi_handle = LoadLibraryEx(r->filename, NULL,
+				       LOAD_WITH_ALTERED_SEARCH_PATH))) {
+	ap_log_error(APLOG_MARK, APLOG_ALERT, r->server,
+		    "Could not load DLL: %s", r->filename);
+	return SERVER_ERROR;
+    }
+
+    if (!(isapi_version =
+	  (void *)(GetProcAddress(isapi_handle, "GetExtensionVersion")))) {
+	ap_log_error(APLOG_MARK, APLOG_ALERT, r->server,
+		    "DLL could not load GetExtensionVersion(): %s", r->filename);
+	FreeLibrary(isapi_handle);
+	return SERVER_ERROR;
+    }
+
+    if (!(isapi_entry =
+	  (void *)(GetProcAddress(isapi_handle, "HttpExtensionProc")))) {
+	ap_log_error(APLOG_MARK, APLOG_ALERT, r->server,
+		    "DLL could not load HttpExtensionProc(): %s", r->filename);
+	FreeLibrary(isapi_handle);
+	return SERVER_ERROR;
+    }
+
+    isapi_term = (void *)(GetProcAddress(isapi_handle, "TerminateExtension"));
+
+    /* Run GetExtensionVersion() */
+
+    if ((*isapi_version)(pVer) != TRUE) {
+	ap_log_error(APLOG_MARK, APLOG_ALERT, r->server,
+		    "ISAPI GetExtensionVersion() failed: %s", r->filename);
+	FreeLibrary(isapi_handle);
+	return SERVER_ERROR;
+    }
+
+    /* Set up variables */

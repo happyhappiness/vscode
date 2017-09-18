@@ -1,22 +1,26 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
-    }
-    ap_unblock_alarms();
-}
+     * in the system at once.
+     */
+    if (!context) {
+        if (num_completion_contexts >= ap_threads_per_child) {
+            static int reported = 0;
+            if (!reported) {
+                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, 0, ap_server_conf,
+                             "Server ran out of threads to serve requests. Consider "
+                             "raising the ThreadsPerChild setting");
+                reported = 1;
+            }
+            return NULL;
+        }
+        /* Note:
+         * Multiple failures in the next two steps will cause the pchild pool
+         * to 'leak' storage. I don't think this is worth fixing...
+         */
+        context = (PCOMP_CONTEXT) apr_pcalloc(pchild, sizeof(COMP_CONTEXT));
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+        context->Overlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL); 
+        if (context->Overlapped.hEvent == NULL) {
+            /* Hopefully this is a temporary condition ... */
+            ap_log_error(APLOG_MARK,APLOG_WARNING, apr_get_os_error(), ap_server_conf,
+                         "mpm_get_completion_context: CreateEvent failed.");
+            return NULL;
+        }

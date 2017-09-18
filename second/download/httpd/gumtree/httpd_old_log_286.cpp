@@ -1,5 +1,7 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "File does not exist: %s",
-                    (r->path_info
-                     ? ap_pstrcat(r->pool, r->filename, r->path_info, NULL)
-                     : r->filename));
+ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, 0, r,
+		MODNAME ": match conf=%x file=%s m=%s m->next=%s last=%s",
+		conf,
+		conf->magicfile ? conf->magicfile : "NULL",
+		conf->magic ? "set" : "NULL",
+		(conf->magic && conf->magic->next) ? "set" : "NULL",
+		conf->last ? "set" : "NULL");

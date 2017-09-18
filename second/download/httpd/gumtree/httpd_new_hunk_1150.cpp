@@ -1,13 +1,12 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+    ap_sb_handle_t *sbh;
+
+    if ((rv = apr_os_sock_get(&csd, sock)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL, "apr_os_sock_get");
     }
 
-    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
+    if (thread_socket_table[thread_num] < 0) {
+        ap_sock_disable_nagle(sock);
+    }
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+    ap_create_sb_handle(&sbh, p, conn_id / thread_limit, thread_num);
+    current_conn = ap_run_create_connection(p, ap_server_conf, sock, conn_id, 

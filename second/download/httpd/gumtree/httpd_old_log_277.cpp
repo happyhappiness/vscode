@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "else directive does not take tags in %s",
-		    r->filename);
+ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, 0, s,
+			MODNAME ": can't happen: m->type=%d", m->type);

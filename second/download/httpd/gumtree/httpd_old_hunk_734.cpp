@@ -1,20 +1,13 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "apr_thread_create: unable to create worker thread");
+        /* In case system resources are maxxed out, we don't want
+           Apache running away with the CPU trying to fork over and
+           over and over again if we exit. */
+        apr_sleep(10 * APR_USEC_PER_SEC);
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+    /* If we are only running in one_process mode, we will want to
+     * still handle signals. */
+    if (one_process) {

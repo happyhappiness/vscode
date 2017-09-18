@@ -1,9 +1,13 @@
-/* Automatically generated file - do not edit */
+static void add_job(int sock)
+{
+    joblist *new_job;
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+    new_job = (joblist *) malloc(sizeof(joblist));
+    if (new_job == NULL) {
+	ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
+                     "Ouch!  Out of memory in add_job()!");
+        return;
+    }
+    new_job->next = NULL;
+    new_job->sock = sock;
+

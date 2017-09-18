@@ -1,1 +1,3 @@
-fprintf(stderr, "  -t               : run syntax test for configuration files only\n");
+r(APLOG_MARK, APLOG_ERR, 0, r,
+                          "user %s not in right group: %s",
+                          user, r->filename);

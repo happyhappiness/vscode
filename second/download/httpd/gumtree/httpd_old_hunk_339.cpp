@@ -1,41 +1,26 @@
-	    return cond_status;
-	}
+        /*
+         * Check date of CRL to make sure it's not expired
+         */
+        i = X509_cmp_current_time(X509_CRL_get_nextUpdate(crl));
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+        if (i == 0) {
+            ssl_log(s, SSL_LOG_WARN,
+                    "Found CRL has invalid nextUpdate field");
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+            X509_STORE_CTX_set_error(ctx,
+                                     X509_V_ERR_ERROR_IN_CRL_NEXT_UPDATE_FIELD);
+            X509_OBJECT_free_contents(&obj);
 
-	    if (!buffer)
-		/* Soak up all the script output --- may save an outright kill */
-		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
-		    continue;
+            return FALSE;
+        }
 
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
+        if (i < 0) {
+            ssl_log(s, SSL_LOG_WARN,
+                    "Found CRL is expired - "
+                    "revoking all certificates until you get updated CRL");
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
+            X509_STORE_CTX_set_error(ctx, X509_V_ERR_CRL_HAS_EXPIRED);
+            X509_OBJECT_free_contents(&obj);
 
-	if (!strcasecmp(w, "Content-type")) {
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+            return FALSE;
+        }

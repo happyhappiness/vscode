@@ -1,15 +1,13 @@
-    if (!method_restricted)
-	return OK;
-
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-	"access to %s failed, reason: user %s not allowed access",
-	r->uri, user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
+    /*
+     *  only do something under runtime if the engine is really enabled,
+     *  for this directory, else return immediately!
+     */
+    if (!(ap_allow_options(r) & (OPT_SYM_LINKS | OPT_SYM_OWNER))) {
+        /* FollowSymLinks is mandatory! */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                     "Options FollowSymLinks or SymLinksIfOwnerMatch is off "
+                     "which implies that RewriteRule directive is forbidden: "
+                     "%s", r->filename);
+        return HTTP_FORBIDDEN;
+    }
+    else {

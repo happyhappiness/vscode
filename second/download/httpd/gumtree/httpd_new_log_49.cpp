@@ -1,1 +1,0 @@
-fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");

@@ -1,13 +1,13 @@
-
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
+	    (*hooks->close_lockdb)(lockdb);
         }
-        if (!strcmp(tag, "var")) {
-            char *val = ap_table_get(r->subprocess_env, tag_val);
 
-            if (val) {
-                ap_rputs(val, r);
-            }
-            else {
-                ap_rputs("(none)", r);
+        if (err != NULL) {
+	    /* ### don't log an error. return err. add higher-level desc. */
+
+	    ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+		          "Failed to query lock-null status for %s",
+			  r->filename);
+
+	    return DAV_RESOURCE_ERROR;
+        }
+

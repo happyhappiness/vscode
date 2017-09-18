@@ -1,18 +1,34 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
-}
+      
+        /* use ap_reclaim_child_processes starting with SIGTERM */
+        ap_reclaim_child_processes(1);
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
+        if (!child_fatal) {         /* already recorded */
+            /* record the shutdown in the log */
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                         "caught SIGTERM, shutting down");
+        }
+    
+        return 1;
+    }
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
+    /* we've been told to restart */
+    signal(SIGHUP, SIG_IGN);
 
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+    if (is_graceful) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+		    AP_SIG_GRACEFUL_STRING " received.  Doing graceful restart");
+    }
+    else {
+        /* Kill 'em all.  Since the child acts the same on the parents SIGTERM 
+         * and a SIGHUP, we may as well use the same signal, because some user
+         * pthreads are stealing signals from us left and right.
+         */
+	    
+        ap_reclaim_child_processes(1);		/* Start with SIGTERM */
+	    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+		    "SIGHUP received.  Attempting to restart");
+    }
+    
+    /* just before we go, tidy up the locks we've created to prevent a 
+     * potential leak of semaphores... */
+    apr_thread_mutex_destroy(worker_thread_count_mutex);

@@ -1,25 +1,22 @@
-	return ap_proxyerror(r, err);	/* give up */
+            if ((buf = apr_table_get(r->headers_out, "URI")) != NULL) {
+                apr_table_set(r->headers_out, "URI",
+                              ap_proxy_location_reverse_map(r, conf, buf));
+            }
+        }
 
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+        if ((r->status == 401) && (conf->error_override != 0)) {
+            const char *buf;
+            const char *wa = "WWW-Authenticate";
+            if ((buf = apr_table_get(r->headers_out, wa))) {
+                apr_table_set(r->err_headers_out, wa, buf);
+            } else {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "proxy: origin server sent 401 without WWW-Authenticate header");
+            }
+        }
 
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
-#endif
-
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
-++ apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800
+        r->sent_bodyct = 1;
+        /* Is it an HTTP/0.9 response? If so, send the extra data */
+        if (backasswards) {
+            apr_ssize_t cntr = len;
+            e = apr_bucket_heap_create(buffer, cntr, NULL, c->bucket_alloc);

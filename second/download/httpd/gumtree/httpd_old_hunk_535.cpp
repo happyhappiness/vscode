@@ -1,15 +1,13 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
+		       0,	/* reserved */
+		       REG_SZ,	/* type */
+		       value,	/* value data */
+		       (DWORD) strlen(value) + 1); /* for size of "value" */
 
-        r->read_chunked = 1;
+    if (rv == ERROR_SUCCESS) {
+	ap_log_error(APLOG_MARK,APLOG_INFO|APLOG_NOERRNO,rv,NULL,
+	    "Registry stored HKLM\\" REGKEY "\\%s value %s", key, value);
     }
-    else if (lenp) {
-        char *pos = lenp;
 
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+    /* Make sure we close the key even if there was an error storing
+     * the data
+     */

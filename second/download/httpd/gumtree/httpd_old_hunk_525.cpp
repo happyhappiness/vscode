@@ -1,26 +1,29 @@
-#ifdef SHARED_CORE
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
-#else
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
-#endif
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S]\n", pad);
-    fprintf(stderr, "Options:\n");
-#ifdef SHARED_CORE
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
-#endif
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-    fprintf(stderr, "  -v               : show version number\n");
-    fprintf(stderr, "  -V               : show compile settings\n");
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-    exit(1);
-}
+        }
+        apr_thread_mutex_unlock(qlock);
+    }
 
-/*****************************************************************
- *
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
+    /* Give busy worker threads a chance to service their connections */
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+                 "Child %d: Waiting for %d worker threads to exit.", my_pid, nthreads);
+    end_time = time(NULL) + 180;
+    while (nthreads) {
+        rv = wait_for_many_objects(nthreads, child_handles, end_time - time(NULL));
+        if (rv != WAIT_TIMEOUT) {
+            rv = rv - WAIT_OBJECT_0;
+            ap_assert((rv >= 0) && (rv < nthreads));
+            cleanup_thread(child_handles, &nthreads, rv);
+            continue;
+        }
+        break;
+    }
+
+    /* Kill remaining threads off the hard way */
+    for (i = 0; i < nthreads; i++) {
+        TerminateThread(child_handles[i], 1);
+        CloseHandle(child_handles[i]);
+    }
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+                 "Child %d: All worker threads have exited.", my_pid);
+
+    CloseHandle(allowed_globals.jobsemaphore);
+    apr_thread_mutex_destroy(allowed_globals.jobmutex);

@@ -1,13 +1,33 @@
+        if (tenc) {
+            if (!strcasecmp(tenc, "chunked")) {
+                ctx->state = BODY_CHUNK;
+            }
+        }
+        else if (lenp) {
+            const char *pos = lenp;
+            int conversion_error = 0;
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+            /* This ensures that the number can not be negative. */
+            while (apr_isdigit(*pos) || apr_isspace(*pos)) {
+                ++pos;
+            }
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
+            if (*pos == '\0') {
+                char *endstr;
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+                errno = 0;
+                ctx->state = BODY_LENGTH;
+                ctx->remaining = strtol(lenp, &endstr, 10);
+
+                if (errno || (endstr && *endstr)) {
+                    conversion_error = 1; 
+                }
+            }
+
+            if (*pos != '\0' || conversion_error) {
+                apr_bucket_brigade *bb;
+
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
+                              "Invalid Content-Length");
+
+                bb = apr_brigade_create(f->r->pool, f->c->bucket_alloc);

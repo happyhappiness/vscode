@@ -1,13 +1,24 @@
 
-    url = ap_pstrdup(r->pool, &url[1]);	/* make it point to "//", which is what proxy_canon_netloc expects */
+    for ( ; *cp && *cp != ':' ; ++cp) {
+        *cp = apr_tolower(*cp);
+    }
 
-    err = ap_proxy_canon_netloc(r->pool, &url, &user, &password, &host, &port);
+    if (!*cp) {
+        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                      "Syntax error in type map, no ':' in %s for header %s", 
+                      r->filename, header);
+        return NULL;
+    }
 
-    if (err != NULL)
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "%s", err);
+    do {
+        ++cp;
+    } while (*cp && apr_isspace(*cp));
 
-    r->hostname = host;
+    if (!*cp) {
+        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                      "Syntax error in type map --- no header body: %s for %s",
+                      r->filename, header);
+        return NULL;
+    }
 
-    return host;		/* ought to return the port, too */
-}
+    return cp;

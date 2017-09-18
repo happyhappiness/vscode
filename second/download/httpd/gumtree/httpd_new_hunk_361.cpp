@@ -1,20 +1,18 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
+    dbmkey.dsize = idlen;
+
+    /* and fetch it from the DBM file 
+     * XXX: Should we open the dbm against r->pool so the cleanup will
+     * do the apr_dbm_close? This would make the code a bit cleaner.
+     */
+    if ((rc = apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
+	    APR_DBM_RWCREATE, SSL_DBM_FILE_MODE, mc->pPool)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
+                     "Cannot open SSLSessionCache DBM file `%s' for reading "
+                     "(fetch)",
+                     mc->szSessionCacheDataFile);
+        return NULL;
     }
-
-    range = ap_getword(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
-
-    if (r->byterange > 1) {
-        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    rc = apr_dbm_fetch(dbm, dbmkey, &dbmval);
+    if (rc != APR_SUCCESS) {
+        apr_dbm_close(dbm);
+        return NULL;

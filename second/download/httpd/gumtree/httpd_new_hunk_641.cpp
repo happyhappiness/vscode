@@ -1,65 +1,55 @@
+     * They are tested here one by one to be clear and unambiguous. 
+     */
 
-static int getsfunc_FILE(char *buf, int len, void *f)
-{
-    return fgets(buf, len, (FILE *) f) != NULL;
-}
+    /* RFC2616 13.4 we are allowed to cache 200, 203, 206, 300, 301 or 410
+     * We don't cache 206, because we don't (yet) cache partial responses.
+     * We include 304 Not Modified here too as this is the origin server
+     * telling us to serve the cached copy.
+     */
+    if ((r->status != HTTP_OK && r->status != HTTP_NON_AUTHORITATIVE
+         && r->status != HTTP_MULTIPLE_CHOICES
+         && r->status != HTTP_MOVED_PERMANENTLY
+         && r->status != HTTP_NOT_MODIFIED)
+        /* if a broken Expires header is present, don't cache it */
+        || (exps != NULL && exp == APR_DATE_BAD)
+        /* if the server said 304 Not Modified but we have no cache
+         * file - pass this untouched to the user agent, it's not for us.
+         */
+        || (r->status == HTTP_NOT_MODIFIED && (NULL == cache->handle))
+        /* 200 OK response from HTTP/1.0 and up without a Last-Modified
+         * header/Etag 
+         */
+        /* XXX mod-include clears last_modified/expires/etags - this
+         * is why we have an optional function for a key-gen ;-) 
+         */
+        || (r->status == HTTP_OK && lastmods == NULL && etag == NULL 
+            && (conf->no_last_mod_ignore ==0))
+        /* HEAD requests */
+        || r->header_only
+        /* RFC2616 14.9.2 Cache-Control: no-store response indicating do not
+         * cache, or stop now if you are trying to cache it */
+        || ap_cache_liststr(cc_out, "no-store", NULL)
+        /* RFC2616 14.9.1 Cache-Control: private
+         * this object is marked for this user's eyes only. Behave
+         * as a tunnel.
+         */
+        || ap_cache_liststr(cc_out, "private", NULL)
+        /* RFC2616 14.8 Authorisation:
+         * if authorisation is included in the request, we don't cache,
+         * but we can cache if the following exceptions are true:
+         * 1) If Cache-Control: s-maxage is included
+         * 2) If Cache-Control: must-revalidate is included
+         * 3) If Cache-Control: public is included
+         */
+        || (apr_table_get(r->headers_in, "Authorization") != NULL
+            && !(ap_cache_liststr(cc_out, "s-maxage", NULL)
+                 || ap_cache_liststr(cc_out, "must-revalidate", NULL)
+                 || ap_cache_liststr(cc_out, "public", NULL)))
+        /* or we've been asked not to cache it above */
+        || r->no_cache) {
 
-API_EXPORT(int) ap_scan_script_header_err(request_rec *r, FILE *f,
-					  char *buffer)
-{
-    return scan_script_header_err_core(r, buffer, getsfunc_FILE, f);
-}
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "cache: response is not cachable");
 
-static int getsfunc_BUFF(char *w, int len, void *fb)
-{
-    return ap_bgets(w, len, (BUFF *) fb) > 0;
-}
-
-API_EXPORT(int) ap_scan_script_header_err_buff(request_rec *r, BUFF *fb,
-					       char *buffer)
-{
-    return scan_script_header_err_core(r, buffer, getsfunc_BUFF, fb);
-}
-
-
-API_EXPORT(void) ap_send_size(size_t size, request_rec *r)
-{
-    /* XXX: this -1 thing is a gross hack */
-    if (size == (size_t)-1) {
-	ap_rputs("    -", r);
-    }
-    else if (!size) {
-	ap_rputs("   0k", r);
-    }
-    else if (size < 1024) {
-	ap_rputs("   1k", r);
-    }
-    else if (size < 1048576) {
-	ap_rprintf(r, "%4dk", (size + 512) / 1024);
-    }
-    else if (size < 103809024) {
-	ap_rprintf(r, "%4.1fM", size / 1048576.0);
-    }
-    else {
-	ap_rprintf(r, "%4dM", (size + 524288) / 1048576);
-    }
-}
-
-#if defined(__EMX__) || defined(WIN32)
-static char **create_argv_cmd(pool *p, char *av0, const char *args, char *path)
-{
-    register int x, n;
-    char **av;
-    char *w;
-
-    for (x = 0, n = 2; args[x]; x++) {
-        if (args[x] == '+') {
-	    ++n;
-	}
-    }
-
-    /* Add extra strings to array. */
-    n = n + 2;
-
-    av = (char **) ap_palloc(p, (n + 1) * sizeof(char *));
-    av[0] = av0;
+        /* remove this object from the cache 
+         * BillS Asks.. Why do we need to make this call to remove_url?

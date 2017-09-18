@@ -1,13 +1,41 @@
+    dbmkey.dsize = idlen;
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
+    /* and fetch it from the DBM file 
+     * XXX: Should we open the dbm against r->pool so the cleanup will
+     * do the apr_dbm_close? This would make the code a bit cleaner.
+     */
+    if ((rc = apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
+	    APR_DBM_RWCREATE, SSL_DBM_FILE_MODE, mc->pPool)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
+                     "Cannot open SSLSessionCache DBM file `%s' for reading "
+                     "(fetch)",
+                     mc->szSessionCacheDataFile);
+        return NULL;
     }
+    rc = apr_dbm_fetch(dbm, dbmkey, &dbmval);
+    if (rc != APR_SUCCESS) {
+        apr_dbm_close(dbm);
+        return NULL;
+    }
+    if (dbmval.dptr == NULL || dbmval.dsize <= sizeof(time_t)) {
+        apr_dbm_close(dbm);
+        return NULL;
+    }
+
+    /* parse resulting data */
+    nData = dbmval.dsize-sizeof(time_t);
+    ucpData = (UCHAR *)malloc(nData);
+    if (ucpData == NULL) {
+        apr_dbm_close(dbm);
+        return NULL;
+    }
+    memcpy(ucpData, (char *)dbmval.dptr+sizeof(time_t), nData);
+    memcpy(&expiry, dbmval.dptr, sizeof(time_t));
+
+    apr_dbm_close(dbm);
+
+    /* make sure the stuff is still not expired */
+    now = time(NULL);
+    if (expiry <= now) {
+        ssl_scache_dbm_remove(s, id, idlen);
+        return NULL;

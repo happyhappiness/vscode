@@ -1,21 +1,13 @@
-	}
-    }
-    if (!found) {
-	printf("Adding user %s\n", user);
-	add_password(user, tfp);
-    }
-/*
-* make a copy from the tmp file to the actual file
-*/  
-        rewind(f);
-        rewind(tfp);
-        while ( fgets(command,MAX_STRING_LEN,tfp) != NULL)
-        {
-                fputs(command,f);
-        } 
+                                          curctx->dc->charset_default);
+                        }
+                    }
+                    else {
+                        const char *symbol = output ? "->" : "<-";
 
-    fclose(f);
-    fclose(tfp);
-    unlink(tn);
-    exit(0);
-}
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR,
+                                      0, f->r,
+                                      "chk_filter_chain() - can't disable "
+                                      "translation %s%s%s; existing "
+                                      "translation %s%s%s",
+                                      last_xlate_ctx->dc->charset_source,
+                                      symbol,

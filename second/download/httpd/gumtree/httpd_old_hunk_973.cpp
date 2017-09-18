@@ -1,13 +1,14 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-    }
+     */
+    if (mctx->auth.ca_cert_file || mctx->auth.ca_cert_path) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "Configuring client authentication");
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+        if (!SSL_CTX_load_verify_locations(ctx,
+                                           mctx->auth.ca_cert_file,
+                                           mctx->auth.ca_cert_path))
+        {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                    "Unable to configure verify locations "
+                    "for client authentication");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
+            ssl_die();

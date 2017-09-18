@@ -1,14 +1,13 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
--- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800
+static int log_scripterror(request_rec *r, cgi_server_conf * conf, int ret,
+			   int show_errno, char *error)
+{
+    FILE *f;
+    struct stat finfo;
+
+    ap_log_error(APLOG_MARK, show_errno|APLOG_ERR, r->server, 
+		"%s: %s", error, r->filename);
+
+    if (!conf->logname ||
+	((stat(ap_server_root_relative(r->pool, conf->logname), &finfo) == 0)
+	 &&   (finfo.st_size > conf->logbytes)) ||
+         ((f = ap_pfopen(r->pool, ap_server_root_relative(r->pool, conf->logname),

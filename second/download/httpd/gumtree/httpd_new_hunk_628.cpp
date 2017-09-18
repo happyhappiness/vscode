@@ -1,28 +1,21 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+
+    if (namespaces != NULL) {
+       int i;
+
+       for (i = namespaces->nelts; i--; ) {
+           ap_rprintf(r, " xmlns:ns%d=\"%s\"", i,
+                      APR_XML_GET_URI_ITEM(namespaces, i));
+       }
     }
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    /* ap_rputc('>', r); */
+    ap_rputs(">" DEBUG_CR, r);
 
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
+    for (; first != NULL; first = first->next) {
+        apr_text *t;
 
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+        if (first->propresult.xmlns == NULL) {
+            ap_rputs("<D:response>", r);
+        }
+        else {
+            ap_rputs("<D:response", r);

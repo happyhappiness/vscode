@@ -1,13 +1,26 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+            }
+        }
+
+        if (!match
+            && !(conf->qop_list[0] == NULL
+                 && !strcasecmp(resp->message_qop, "auth"))) {
+            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                          "Digest: invalid qop `%s' received: %s",
+                          resp->message_qop, r->uri);
+            note_digest_auth_failure(r, conf, resp, 0);
+            return HTTP_UNAUTHORIZED;
+        }
+
+        exp_digest = new_digest(r, resp, conf);
+        if (!exp_digest) {
+            /* we failed to allocate a client struct */
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        if (strcmp(resp->digest, exp_digest)) {
+            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                          "Digest: user %s: password mismatch: %s", r->user,
+                          r->uri);
+            note_digest_auth_failure(r, conf, resp, 0);
+            return HTTP_UNAUTHORIZED;
+        }
+    }

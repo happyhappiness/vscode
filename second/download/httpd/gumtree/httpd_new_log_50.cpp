@@ -1,1 +1,2 @@
-fprintf(stderr, "WARNING: Require ThreadsPerChild > 0, setting to 1\n");
+ap_log_error(APLOG_MARK, APLOG_WARNING, APR_EBADPATH, cmd->server,
+	             "ISAPI: invalid module path, skipping %s", filename);

@@ -1,13 +1,13 @@
-            ap_rputs("     Evaluate eq/ne\n", r);
-#endif
-            if ((current->left == (struct parse_node *) NULL) ||
-                (current->right == (struct parse_node *) NULL) ||
-                (current->left->token.type != token_string) ||
-                (current->right->token.type != token_string)) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                            "Invalid expression \"%s\" in file %s",
-                            expr, r->filename);
-                ap_rputs(error, r);
-                goto RETURN;
-            }
-            parse_string(r, current->left->token.value,
+                (ents[i].use_regex && ap_regexec(ents[i].regexp, url, 0,NULL, 0)) ||
+                (p2 == NULL && strcasecmp(scheme, ents[i].scheme) == 0) ||
+                (p2 != NULL &&
+                 strncasecmp(url, ents[i].scheme, strlen(ents[i].scheme)) == 0)) {
+
+                /* handle the scheme */
+                ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
+                             "Trying to run scheme_handler against proxy");
+                access_status = proxy_run_scheme_handler(r, conf, url, ents[i].hostname, ents[i].port);
+
+                /* an error or success */
+                if (access_status != DECLINED && access_status != HTTP_BAD_GATEWAY) {
+                    return access_status;

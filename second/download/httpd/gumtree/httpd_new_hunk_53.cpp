@@ -1,13 +1,19 @@
+        /* dav_get_depth() supplies additional information for the
+         * default message. */
+        return HTTP_BAD_REQUEST;
+    }
+    if (depth == 1) {
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Depth must be \"0\" or \"infinity\" for COPY or MOVE.");
+        return HTTP_BAD_REQUEST;
+    }
+    if (is_move && is_dir && depth != DAV_INFINITY) {
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Depth must be \"infinity\" when moving a collection.");
+        return HTTP_BAD_REQUEST;
+    }
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+    /*
+     * Check If-Headers and existing locks for each resource in the source

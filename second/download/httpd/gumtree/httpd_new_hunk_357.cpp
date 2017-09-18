@@ -1,12 +1,18 @@
+                RAND_seed(stackdata+n, 128);
+                nDone += 128;
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
+            }
+        }
     }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "%sSeeding PRNG with %d bytes of entropy", prefix, nDone);
+
+    if (RAND_status() == 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "%sPRNG still contains not sufficient entropy!", prefix);
+
+    return nDone;
 }
 
-/*****************************************************************
+#define BUFSIZE 8192
+

@@ -1,20 +1,12 @@
-#endif
+		      "[%d] auth_ldap authenticate: "
+		      "ap_get_basic_auth_pw() returns %d", getpid(), result);
+        util_ldap_connection_close(ldc);
+        return result;
+    }
 
-    ap_soft_timeout("send body", r);
+    /* build the username filter */
+    mod_auth_ldap_build_filter(filtbuf, r, sec);
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+    /* do the user search */
+    result = util_ldap_cache_checkuserid(r, ldc, sec->url, sec->basedn, sec->scope,
+                                         sec->attributes, filtbuf, sent_pw, &dn, &vals);

@@ -1,40 +1,23 @@
-	return;
+        qvalue[7] = 'p';
+        qvalue[8] = ';';
+        qvalue[9] = 'O';
+        qvalue[10] = '=';
+        qvalue[11] = reverse ? D_DESCENDING : D_ASCENDING;
+        qvalue[12] = '\0';
+        ap_rvputs(r, "<a href=\"", qvalue, colargs ? colargs : "", 
+                     "\">", anchor, "</a>", NULL);
     }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
-
-    help_proxy_garbage_coll(r);
-
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
+    else {
+        ap_rputs(anchor, r);
+    }
 }
 
-
-static void help_proxy_garbage_coll(request_rec *r)
+static void output_directories(struct ent **ar, int n,
+                               autoindex_config_rec *d, request_rec *r,
+                               apr_int32_t autoindex_opts, char keyid, 
+                               char direction, const char *colargs)
 {
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
-
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
-
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+    int x;
+    apr_size_t rv;
+    char *name = r->uri;
+    char *tp;

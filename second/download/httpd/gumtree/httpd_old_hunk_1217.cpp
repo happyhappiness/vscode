@@ -1,13 +1,31 @@
+    /* Initialize the cache_handle */
+    h->cache_obj = obj;
+    h->req_hdrs = NULL;  /* Pick these up in recall_headers() */
+    return OK;
+}
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
+static int remove_entity(cache_handle_t *h) 
+{
+    cache_object_t *obj = h->cache_obj;
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
+    /* Remove the cache object from the cache under protection */
+    if (sconf->lock) {
+        apr_thread_mutex_lock(sconf->lock);
     }
+    /* If the object is not already marked for cleanup, remove
+     * it from the cache and mark it for cleanup. Remember,
+     * an object marked for cleanup is by design not in the
+     * hash table.
+     */
+    if (!obj->cleanup) {
+        cache_remove(sconf->cache_cache, obj);
+        obj->cleanup = 1;
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, "gcing a cache entry");
+    }
+
+    if (sconf->lock) {
+        apr_thread_mutex_unlock(sconf->lock);
+    }
+
+    return OK;
+}

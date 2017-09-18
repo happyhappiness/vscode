@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
-			"Anonymous: Passwd <%s> Accepted",
-			sent_pw ? sent_pw : "\'none\'");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: invalid uri <%s> in Authorization header",
+                          resp->uri);

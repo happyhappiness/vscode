@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                            "Invalid expression \"%s\" in file %s",
-                            expr, r->filename);
+ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, cmd->pool, 
+                 "WARNING: LoadFile not supported on this platform");

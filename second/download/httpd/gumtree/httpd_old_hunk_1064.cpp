@@ -1,18 +1,33 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
+    return av;
 }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
+#if APR_HAS_OTHER_CHILD
+static void cgid_maint(int reason, void *data, apr_wait_t status)
 {
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    char *t;
+    pid_t *sd = data;
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
+    switch (reason) {
+        case APR_OC_REASON_DEATH:
+        case APR_OC_REASON_RESTART:
+            /* don't do anything; server is stopping or restarting */
+            apr_proc_other_child_unregister(data);
+            break;
+        case APR_OC_REASON_LOST:
+            /* it would be better to restart just the cgid child
+             * process but for now we'll gracefully restart the entire 
+             * server by sending AP_SIG_GRACEFUL to ourself, the httpd 
+             * parent process
+             */
+            kill(getpid(), AP_SIG_GRACEFUL);
+            break;
+        case APR_OC_REASON_UNREGISTER:
+            /* we get here when pcgi is cleaned up; pcgi gets cleaned
+             * up when pconf gets cleaned up
+             */
+            kill(*sd, SIGHUP); /* send signal to daemon telling it to die */
+            break;
+    }
+}
+#endif
 
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+/* deal with incomplete reads and signals

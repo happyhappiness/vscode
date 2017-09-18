@@ -1,13 +1,26 @@
-	return ap_proxyerror(r, err);	/* give up */
+{
+    request_rec *r = ((include_cmd_arg *) arg)->r;
+    char *s = ((include_cmd_arg *) arg)->s;
+    table *env = r->subprocess_env;
+    int child_pid = 0;
+#ifdef DEBUG_INCLUDE_CMD
+#ifdef OS2
+    /* under OS/2 /dev/tty is referenced as con */
+    FILE *dbg = fopen("con", "w");
+#else
+    FILE *dbg = fopen("/dev/tty", "w");
+#endif
+#endif
+#ifndef WIN32
+    char err_string[MAX_STRING_LEN];
+#endif
 
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+#ifdef DEBUG_INCLUDE_CMD
+    fprintf(dbg, "Attempting to include command '%s'\n", s);
+#endif
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+    if (r->path_info && r->path_info[0] != '\0') {
+        request_rec *pa_req;
+
+        ap_table_setn(env, "PATH_INFO", ap_escape_shell_cmd(r->pool, r->path_info));
+

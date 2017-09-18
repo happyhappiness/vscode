@@ -1,20 +1,16 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
-{
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    const char *location = ap_table_get(r->headers_out, "Location");
-
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
+    /* This could be called from an AddModule httpd.conf command,
+     * after the file has been linked and the module structure within it
+     * teased out...
      */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!ap_is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
 
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+    if (m->version != MODULE_MAGIC_NUMBER_MAJOR) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "%s: module \"%s\" is not compatible with this "
+                     "version of Apache.", ap_server_argv0, m->name);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "Please contact the vendor for the correct version.");
+        exit(1);
+    }
+
+    if (m->next == NULL) {
+        m->next = ap_top_module;

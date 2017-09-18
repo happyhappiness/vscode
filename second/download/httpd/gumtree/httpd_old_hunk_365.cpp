@@ -1,20 +1,38 @@
-#endif
 
-    ap_soft_timeout("send body", r);
+        if (keyidx < KEYMAX)
+            break;
+    }
+    ssl_mutex_off(s);
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
+    ssl_log(s, SSL_LOG_TRACE, "Inter-Process Session Cache (DBM) Expiry: "
+            "old: %d, new: %d, removed: %d", nElements, nElements-nDeleted, nDeleted);
+    return;
+}
 
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+void ssl_scache_dbm_status(server_rec *s, apr_pool_t *p, void (*func)(char *, void *), void *arg)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+    apr_dbm_t *dbm;
+    apr_datum_t dbmkey;
+    apr_datum_t dbmval;
+    int nElem;
+    int nSize;
+    int nAverage;
+
+    nElem = 0;
+    nSize = 0;
+    ssl_mutex_on(s);
+    /*
+     * XXX - Check what pool is to be used - TBD
+     */
+    if (apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
+	                 APR_DBM_RWCREATE, SSL_DBM_FILE_MODE, mc->pPool) != APR_SUCCESS) {
+        ssl_log(s, SSL_LOG_ERROR|SSL_ADD_ERRNO,
+                "Cannot open SSLSessionCache DBM file `%s' for status retrival",
+                mc->szSessionCacheDataFile);
+        ssl_mutex_off(s);
+        return;
+    }
+    /*
+     * XXX - Check the return value of apr_dbm_firstkey, apr_dbm_fetch - TBD
+     */

@@ -1,13 +1,29 @@
-            ap_rputs("     Evaluate ge/gt/le/lt\n", r);
+        New = apr_array_push(conf->dirconn);
+        New->name = apr_pstrdup(parms->pool, arg);
+        New->hostaddr = NULL;
+
+	if (ap_proxy_is_ipaddr(New, parms->pool)) {
+#if DEBUGGING
+            ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
+                         "Parsed addr %s", inet_ntoa(New->addr));
+            ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
+                         "Parsed mask %s", inet_ntoa(New->mask));
 #endif
-            if ((current->left == (struct parse_node *) NULL) ||
-                (current->right == (struct parse_node *) NULL) ||
-                (current->left->token.type != token_string) ||
-                (current->right->token.type != token_string)) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                            "Invalid expression \"%s\" in file %s",
-                            expr, r->filename);
-                ap_rputs(error, r);
-                goto RETURN;
-            }
-            parse_string(r, current->left->token.value,
+	}
+	else if (ap_proxy_is_domainname(New, parms->pool)) {
+            ap_str_tolower(New->name);
+#if DEBUGGING
+            ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
+                         "Parsed domain %s", New->name);
+#endif
+        }
+        else if (ap_proxy_is_hostname(New, parms->pool)) {
+            ap_str_tolower(New->name);
+#if DEBUGGING
+            ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
+                         "Parsed host %s", New->name);
+#endif
+        }
+        else {
+            ap_proxy_is_word(New, parms->pool);
+#if DEBUGGING

@@ -1,13 +1,17 @@
-        tag_val = get_tag(r->pool, in, tag, sizeof(tag), 0);
-        if (*tag == '\0') {
-            return 1;
-        }
-        else if (!strcmp(tag, "done")) {
-	    if (expr == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			    "missing expr in if statement: %s",
-			    r->filename);
-		ap_rputs(error, r);
-		return 1;
-	    }
-            *printing = *conditional_status = parse_expr(r, expr, error);
+    apr_uri_t uri;
+    const char *connectname;
+    int connectport = 0;
+
+    /* is this for us? */
+    if (r->method_number != M_CONNECT) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
+		     "proxy: CONNECT: declining URL %s", url);
+	return DECLINED;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
+		 "proxy: CONNECT: serving URL %s", url);
+
+
+    /*
+     * Step One: Determine Who To Connect To
+     *

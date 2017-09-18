@@ -1,13 +1,14 @@
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return SERVER_ERROR;
+        /* set no timeout */
+        apr_socket_timeout_set(p_conn->sock, 0);
+        socket_status = apr_recv(p_conn->sock, test_buffer, &buffer_len);
+        /* put back old timeout */
+        apr_socket_timeout_set(p_conn->sock, current_timeout);
+        if ( APR_STATUS_IS_EOF(socket_status) ) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                         "proxy: HTTP: previous connection is closed");
+            new = 1;
+        }
     }
+    if (new) {
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+        /* create a new socket */

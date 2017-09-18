@@ -1,14 +1,20 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
+    my_info->sd = 0;
+    rv = apr_thread_create(&ts->listener, thread_attr, listener_thread,
+                           my_info, pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "apr_thread_create: unable to create listener thread");
+        /* In case system resources are maxxed out, we don't want
+         * Apache running away with the CPU trying to fork over and
+         * over and over again if we exit.
+         * XXX Jeff doesn't see how Apache is going to try to fork again since
+         * the exit code is APEXIT_CHILDFATAL
+         */
+        apr_sleep(apr_time_from_sec(10));
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
-#endif
+    apr_os_thread_get(&listener_os_thread, ts->listener);
+}
 
-    for (i = 0; i < t->a.nelts; ) {
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
+/* XXX under some circumstances not understood, children can get stuck
+ *     in start_threads forever trying to take over slots which will

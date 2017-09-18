@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "Can't open directory for index: %s", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                          "Unknown Transfer-Encoding %s", tenc);

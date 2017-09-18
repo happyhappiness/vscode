@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, parm->r,
-		MODNAME ": could not execute `%s'.",
-		compr[parm->method].argv[0]);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "Parsed mask %s", inet_ntoa(New->mask));

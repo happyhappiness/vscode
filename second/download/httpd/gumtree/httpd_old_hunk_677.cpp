@@ -1,15 +1,13 @@
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: FTP: serving URL %s", url);
+
+    /* create space for state information */
+    backend = (proxy_conn_rec *) ap_get_module_config(c->conn_config, &proxy_ftp_module);
+    if (!backend) {
+        backend = ap_pcalloc(c->pool, sizeof(proxy_conn_rec));
+        backend->connection = NULL;
+        backend->hostname = NULL;
+        backend->port = 0;
+        ap_set_module_config(c->conn_config, &proxy_ftp_module, backend);
     }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (x) {
-	alarm_fn = fn;
-    }
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+    if (backend->connection)

@@ -1,29 +1,38 @@
-	}
-    }
-    if (
-    /* username is OK */
-	   (res == OK)
-    /* password been filled out ? */
-	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
-    /* does the password look like an email address ? */
-	   && ((!sec->auth_anon_verifyemail)
-	       || ((strpbrk("@", sent_pw) != NULL)
-		   && (strpbrk(".", sent_pw) != NULL)))) {
-	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
-			"Anonymous: Passwd <%s> Accepted",
-			sent_pw ? sent_pw : "\'none\'");
-	}
-	return OK;
-    }
-    else {
-	if (sec->auth_anon_authoritative) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"Anonymous: Authoritative, Passwd <%s> not accepted",
-			sent_pw ? sent_pw : "\'none\'");
-	    return AUTH_REQUIRED;
-	}
-	/* Drop out the bottom to return DECLINED */
+
+    if (doc != NULL) {
+        const ap_xml_elem *child;
+        apr_size_t tsize;
+
+        if (!dav_validate_root(doc, "version-control")) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "The request body does not contain "
+                          "a \"version-control\" element.");
+            return HTTP_BAD_REQUEST;
+        }
+
+        /* get the version URI */
+        if ((child = dav_find_child(doc->root, "version")) == NULL) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "The \"version-control\" element does not contain "
+                          "a \"version\" element.");
+            return HTTP_BAD_REQUEST;
+        }
+
+        if ((child = dav_find_child(child, "href")) == NULL) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "The \"version\" element does not contain "
+                          "an \"href\" element.");
+            return HTTP_BAD_REQUEST;
+        }
+
+        /* get version URI */
+        ap_xml_to_text(r->pool, child, AP_XML_X2T_INNER, NULL, NULL,
+                       &target, &tsize);
+        if (tsize == 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "An \"href\" element does not contain a URI.");
+            return HTTP_BAD_REQUEST;
+        }
     }
 
-    return DECLINED;
+    /* Check request preconditions */

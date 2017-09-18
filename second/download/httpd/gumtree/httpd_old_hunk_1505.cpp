@@ -1,13 +1,12 @@
-
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
-	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
+	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
+ 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
+	TerminateProcess((HANDLE) process_handles[i], 1);
     }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
-}
+    service_set_status(SERVICE_STOPPED);
 
-/*****************************************************************
+    if (pparent) {
+	ap_destroy_pool(pparent);
+    }
+
+    ap_destroy_mutex(start_mutex);
+    return (0);

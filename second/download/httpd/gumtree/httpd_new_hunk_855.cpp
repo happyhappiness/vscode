@@ -1,93 +1,69 @@
-        int iEnvBlockLen;
+PROXY_DECLARE(apr_table_t *)ap_proxy_read_headers(request_rec *r, request_rec *rr, char *buffer, int size, conn_rec *c)
+{
+    apr_table_t *headers_out;
+    int len;
+    char *value, *end;
+    char field[MAX_STRING_LEN];
+    int saw_headers = 0;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *psc;
 
-	memset(&si, 0, sizeof(si));
-	memset(&pi, 0, sizeof(pi));
+    psc = (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
 
-	interpreter[0] = 0;
-	pid = -1;
+    headers_out = apr_table_make(r->pool, 20);
 
-	exename = strrchr(r->filename, '/');
-	if (!exename) {
-	    exename = strrchr(r->filename, '\\');
-	}
-	if (!exename) {
-	    exename = r->filename;
-	}
-	else {
-	    exename++;
-	}
-	dot = strrchr(exename, '.');
-	if (dot) {
-	    if (!strcasecmp(dot, ".BAT")
-		|| !strcasecmp(dot, ".CMD")
-		|| !strcasecmp(dot, ".EXE")
-		||  !strcasecmp(dot, ".COM")) {
-		is_exe = 1;
-	    }
-	}
+    /*
+     * Read header lines until we get the empty separator line, a read error,
+     * the connection closes (EOF), or we timeout.
+     */
+    while ((len = ap_getline(buffer, size, rr, 1)) > 0) {
 
-	if (!is_exe) {
-	    program = fopen(r->filename, "rb");
-	    if (!program) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "fopen(%s) failed", r->filename);
-		return (pid);
-	    }
-	    sz = fread(interpreter, 1, sizeof(interpreter) - 1, program);
-	    if (sz < 0) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "fread of %s failed", r->filename);
-		fclose(program);
-		return (pid);
-	    }
-	    interpreter[sz] = 0;
-	    fclose(program);
-	    if (!strncmp(interpreter, "#!", 2)) {
-		is_script = 1;
-		for (i = 2; i < sizeof(interpreter); i++) {
-		    if ((interpreter[i] == '\r')
-			|| (interpreter[i] == '\n')) {
-			break;
+	if (!(value = strchr(buffer, ':'))) {     /* Find the colon separator */
+
+	    /* We may encounter invalid headers, usually from buggy
+	     * MS IIS servers, so we need to determine just how to handle
+	     * them. We can either ignore them, assume that they mark the
+	     * start-of-body (eg: a missing CRLF) or (the default) mark
+	     * the headers as totally bogus and return a 500. The sole
+	     * exception is an extra "HTTP/1.0 200, OK" line sprinkled
+	     * in between the usual MIME headers, which is a favorite
+	     * IIS bug.
+	     */
+	     /* XXX: The mask check is buggy if we ever see an HTTP/1.10 */
+
+	    if (!apr_date_checkmask(buffer, "HTTP/#.# ###*")) {
+		if (psc->badopt == bad_error) {
+		    /* Nope, it wasn't even an extra HTTP header. Give up. */
+		    return NULL;
+		}
+		else if (psc->badopt == bad_body) {
+		    /* if we've already started loading headers_out, then
+		     * return what we've accumulated so far, in the hopes
+		     * that they are useful. Otherwise, we completely bail.
+		     */
+		    /* FIXME: We've already scarfed the supposed 1st line of
+		     * the body, so the actual content may end up being bogus
+		     * as well. If the content is HTML, we may be lucky.
+		     */
+		    if (saw_headers) {
+			ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+			 "proxy: Starting body due to bogus non-header in headers "
+			 "returned by %s (%s)", r->uri, r->method);
+			return headers_out;
+		    } else {
+			 ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+			 "proxy: No HTTP headers "
+			 "returned by %s (%s)", r->uri, r->method);
+			return NULL;
 		    }
 		}
-		interpreter[i] = 0;
-		for (i = 2; interpreter[i] == ' '; ++i)
-		    ;
-		memmove(interpreter+2,interpreter+i,strlen(interpreter+i)+1);
 	    }
-	    else {
-	        /* Check to see if it's a executable */
-                IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)interpreter;
-                if (hdr->e_magic == IMAGE_DOS_SIGNATURE && hdr->e_cblp < 512) {
-                    is_binary = 1;
-		}
-	    }
-	}
-        /* Bail out if we haven't figured out what kind of
-         * file this is by now..
-         */
-        if (!is_exe && !is_script && !is_binary) {
-            ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		"%s is not executable; ensure interpreted scripts have "
-		"\"#!\" first line", 
-		r->filename);
-            return (pid);
+	    /* this is the psc->badopt == bad_ignore case */
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+			 "proxy: Ignoring bogus HTTP header "
+			 "returned by %s (%s)", r->uri, r->method);
+	    continue;
 	}
 
-	/*
-	 * Make child process use hPipeOutputWrite as standard out,
-	 * and make sure it does not show on screen.
-	 */
-	si.cb = sizeof(si);
-	si.dwFlags     = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
-	si.wShowWindow = SW_HIDE;
-	si.hStdInput   = pinfo->hPipeInputRead;
-	si.hStdOutput  = pinfo->hPipeOutputWrite;
-	si.hStdError   = pinfo->hPipeErrorWrite;
-
-	if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) { 
-	    if (is_exe || is_binary) {
-	        /*
-	         * When the CGI is a straight binary executable, 
-		 * we can run it as is
-	         */
+        *value = '\0';
+        ++value;

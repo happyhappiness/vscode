@@ -1,18 +1,32 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
-}
+        if (ok < 0) {
+            cp = apr_psprintf(r->pool,
+                              "Failed to execute "
+                              "SSL requirement expression: %s",
+                              ssl_expr_get_error());
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                          "access to %s failed, reason: %s",
+                          r->filename, cp);
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
+            /* remember forbidden access for strict require option */
+            apr_table_setn(r->notes, "ssl-access-forbidden", "1");
 
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+            return HTTP_FORBIDDEN;
+        }
+
+        if (ok != 1) {
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "Access to %s denied for %s "
+                         "(requirement expression not fulfilled)",
+                         r->filename, r->connection->remote_ip);
+
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "Failed expression: %s", req->cpExpr);
+
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                          "access to %s failed, reason: %s",
+                          r->filename,
+                          "SSL requirement expression not fulfilled "
+                          "(see SSL logfile for more details)");
+
+            /* remember forbidden access for strict require option */

@@ -1,38 +1,48 @@
-		char buff[24] = "                       ";
-		t2 = ap_escape_html(scratch, t);
-		buff[23 - len] = '\0';
-		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
-	    }
-	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
-			ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0)),
-			     "\">", NULL);
-	}
+	r->status_line = ap_pstrdup(p, &buffer[9]);
 
-	if (autoindex_opts & FANCY_INDEXING) {
-	    if (autoindex_opts & ICONS_ARE_LINKS)
-		ap_rputs(anchor, r);
-	    if ((ar[x]->icon) || d->default_icon) {
-		ap_rvputs(r, "<IMG SRC=\"",
-		       ap_escape_html(scratch, ar[x]->icon ?
-				   ar[x]->icon : d->default_icon),
-		       "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-		       "]\"", NULL);
-		if (d->icon_width && d->icon_height) {
-		    ap_rprintf
-			(
-			    r,
-			    " HEIGHT=\"%d\" WIDTH=\"%d\"",
-			    d->icon_height,
-			    d->icon_width
-			);
-		}
-		ap_rputs(">", r);
-	    }
-	    if (autoindex_opts & ICONS_ARE_LINKS)
-		ap_rputs("</A>", r);
+/* read the headers. */
+/* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers */
+/* Also, take care with headers with multiple occurences. */
 
-	    ap_rvputs(r, " ", anchor, t2, NULL);
-	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-		if (ar[x]->lm != -1) {
-		    char time_str[MAX_STRING_LEN];
-		    struct tm *ts = localtime(&ar[x]->lm);
+	resp_hdrs = ap_proxy_read_headers(p, buffer, HUGE_STRING_LEN, f);
+
+	clear_connection(p, (table *) resp_hdrs);	/* Strip Connection hdrs */
+    }
+    else {
+/* an http/0.9 response */
+	backasswards = 1;
+	r->status = 200;
+	r->status_line = "200 OK";
+
+/* no headers */
+	resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
+    }
+
+    c->hdrs = resp_hdrs;
+
+    ap_kill_timeout(r);
+
+/*
+ * HTTP/1.0 requires us to accept 3 types of dates, but only generate
+ * one type
+ */
+
+    hdr = (struct hdr_entry *) resp_hdrs->elts;
+    for (i = 0; i < resp_hdrs->nelts; i++) {
+	if (hdr[i].value[0] == '\0')
+	    continue;
+	strp = hdr[i].field;
+	if (strcasecmp(strp, "Date") == 0 ||
+	    strcasecmp(strp, "Last-Modified") == 0 ||
+	    strcasecmp(strp, "Expires") == 0)
+	    hdr[i].value = ap_proxy_date_canon(p, hdr[i].value);
+	if (strcasecmp(strp, "Location") == 0 ||
+	    strcasecmp(strp, "URI") == 0)
+	    hdr[i].value = proxy_location_reverse_map(r, hdr[i].value);
+    }
+
+/* check if NoCache directive on this host */
+    for (i = 0; i < conf->nocaches->nelts; i++) {
+	if ((ncent[i].name != NULL && strstr(desthost, ncent[i].name) != NULL)
+	    || destaddr.s_addr == ncent[i].addr.s_addr || ncent[i].name[0] == '*')
+	    nocache = 1;

@@ -1,14 +1,46 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
-++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
+    if (ap_setup_listeners(s) < 1) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0, 
+                     NULL, "no listening sockets available, shutting down");
+        return DONE;
+    }
+
+    return OK;
+}
+
+static void winnt_child_init(apr_pool_t *pchild, struct server_rec *s)
+{
+    apr_status_t rv;
+
+    setup_signal_names(apr_psprintf(pchild,"ap%d", parent_pid));
+
+    /* This is a child process, not in single process mode */
+    if (!one_process) {
+        /* Set up events and the scoreboard */
+        get_handles_from_parent(s, &exit_event, &start_mutex, 
+                                &ap_scoreboard_shm);
+
+        /* Set up the listeners */
+        get_listeners_from_parent(s);
+
+        ap_my_generation = ap_scoreboard_image->global->running_generation;
+    }
+    else {
+        /* Single process mode - this lock doesn't even need to exist */
+        rv = apr_proc_mutex_create(&start_mutex, signal_name_prefix, 
+                                   APR_LOCK_DEFAULT, s->process->pool);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                         "%s child %d: Unable to init the start_mutex.",
+                         service_name, my_pid);
+            exit(APEXIT_CHILDINIT);
+        }
+        
+        /* Borrow the shutdown_even as our _child_ loop exit event */
+        exit_event = shutdown_event;
+    }
+}
+
+
+AP_DECLARE(int) ap_mpm_run(apr_pool_t *_pconf, apr_pool_t *plog, server_rec *s )
+{
+    static int restart = 0;            /* Default is "not a restart" */

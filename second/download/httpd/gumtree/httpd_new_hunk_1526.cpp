@@ -1,30 +1,57 @@
-	    return;
 	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
+	ap_destroy_sub_req(pa_req);
     }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
-    curbytes.upper = curbytes.lower = 0L;
+}
 
-    sub_garbage_coll(r, files, cachedir, "/");
 
-    if (cmp_long61(&curbytes, &cachesize) < 0L) {
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (nothing deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
-	ap_unblock_alarms();
-	return;
+static int set_cookie_doo_doo(void *v, const char *key, const char *val)
+{
+    ap_table_addn(v, key, val);
+    return 1;
+}
+
+API_EXPORT(int) ap_scan_script_header_err_core(request_rec *r, char *buffer,
+				       int (*getsfunc) (char *, int, void *),
+				       void *getsfunc_data)
+{
+    char x[MAX_STRING_LEN];
+    char *w, *l;
+    int p;
+    int cgi_status = HTTP_OK;
+    table *merge;
+    table *cookie_table;
+
+    if (buffer) {
+	*buffer = '\0';
     }
+    w = buffer ? buffer : x;
 
-    /* sort the files we found by expiration date */
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
+    ap_hard_timeout("read script header", r);
 
-    for (i = 0; i < files->nelts; i++) {
-	fent = &((struct gc_ent *) files->elts)[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+    /* temporary place to hold headers to merge in later */
+    merge = ap_make_table(r->pool, 10);
+
+    /* The HTTP specification says that it is legal to merge duplicate
+     * headers into one.  Some browsers that support Cookies don't like
+     * merged headers and prefer that each Set-Cookie header is sent
+     * separately.  Lets humour those browsers by not merging.
+     * Oh what a pain it is.
+     */
+    cookie_table = ap_make_table(r->pool, 2);
+    ap_table_do(set_cookie_doo_doo, cookie_table, r->err_headers_out, "Set-Cookie", NULL);
+
+    while (1) {
+
+	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
+	    ap_kill_timeout(r);
+	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+			  "Premature end of script headers: %s", r->filename);
+	    ap_table_setn(r->notes, "error-notes",
+			  "Premature end of script headers");
+	    return HTTP_INTERNAL_SERVER_ERROR;
+	}
+
+	/* Delete terminal (CR?)LF */
+
+	p = strlen(w);
+	if (p > 0 && w[p - 1] == '\n') {

@@ -1,20 +1,22 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
-{
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    char *location = ap_table_get(r->headers_out, "Location");
+    int errdepth = X509_STORE_CTX_get_error_depth(ctx);
+    int depth, verify;
 
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
+    /*
+     * Log verification information
      */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
+    if (sc->log_level >= SSL_LOG_TRACE) {
+        X509 *cert  = X509_STORE_CTX_get_current_cert(ctx);
+        char *sname = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+        char *iname = X509_NAME_oneline(X509_get_issuer_name(cert),  NULL, 0);
 
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+        ssl_log(s, SSL_LOG_TRACE,
+                "Certificate Verification: depth: %d, subject: %s, issuer: %s",
+                errdepth,
+                sname ? sname : "-unknown-",
+                iname ? iname : "-unknown-");
+
+        if (sname) {
+            free(sname);
+        }
+
+        if (iname) {

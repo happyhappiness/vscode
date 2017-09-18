@@ -1,13 +1,23 @@
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: failed to accept data connection");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    ap_proxy_cache_error(c);
-	    return HTTP_BAD_GATEWAY;
-	}
-	ap_note_cleanups_for_socket(p, csd);
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
-	ap_bpushfd(data, csd, -1);
-	ap_kill_timeout(r);
+    char *scope_id;
+    apr_status_t rv;
+
+    /* Save a copy for the proxy */
+    fullurl = apr_pstrdup(cntxt, url);
+
+    if (strlen(url) > 7 && strncmp(url, "http://", 7) == 0) {
+	url += 7;
+#if USE_SSL
+	ssl = 0;
+#endif
+    }
+    else
+#ifdef USE_SSL
+    if (strlen(url) > 8 && strncmp(url, "https://", 8) == 0) {
+	url += 8;
+	ssl = 1;
+    }
+#else
+    if (strlen(url) > 8 && strncmp(url, "https://", 8) == 0) {
+	fprintf(stderr, "SSL not compiled in; no https support\n");
+	exit(1);
     }

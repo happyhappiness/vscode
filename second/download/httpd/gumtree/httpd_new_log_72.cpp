@@ -1,2 +1,3 @@
-printf("Server's Module Magic Number: %u:%u\n",
-	   MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
+rv = apr_thread_mutex_create(&cid->completed, 
+                                             APR_THREAD_MUTEX_UNNESTED, 
+                                             r->pool);

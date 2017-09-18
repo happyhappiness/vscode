@@ -1,20 +1,13 @@
-#endif
+    /* Iterate accross the brigade and populate the cache storage */
+    APR_BRIGADE_FOREACH(e, b) {
+        const char *s;
+        apr_size_t len;
 
-    ap_soft_timeout("send body", r);
-
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+        if (APR_BUCKET_IS_EOS(e)) {
+            /* Open for business */
+            obj->complete = 1;
+            break;
+        }
+        rv = apr_bucket_read(e, &s, &len, eblock);
+        if (rv != APR_SUCCESS) {
+            return rv;

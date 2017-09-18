@@ -1,13 +1,13 @@
+        return DECLINED;
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+    if ((result = ap_xml_parse_input(r, &doc)) != OK)
+        return result;
 
-    ap_hard_timeout("send headers", r);
+    if (doc != NULL) {
+        const ap_xml_elem *aset;
 
-    ap_basic_http_header(r);
+        if (!dav_validate_root(doc, "checkout")) {
+            /* This supplies additional information for the default msg. */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "The request body, if present, must be a "
+                          "DAV:checkout element.");

@@ -1,12 +1,13 @@
-
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
+    shmem_size  = size;
+    num_buckets = (size - sizeof(*client_list)) /
+                  (sizeof(client_entry*) + HASH_DEPTH * sizeof(client_entry));
+    if (num_buckets == 0) {
+        num_buckets = 1;
     }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "Digest: Set shmem-size: %ld, num-buckets: %ld", shmem_size,
+                 num_buckets);
+
+    return NULL;
 }
 
-/*****************************************************************

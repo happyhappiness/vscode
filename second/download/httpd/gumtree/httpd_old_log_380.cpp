@@ -1,1 +1,3 @@
-printf("           min   avg   max\n");
+ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
+	      "Warning: NetMask not supplied with IP-Addr; guessing: %s/%ld\n",
+		 inet_ntoa(This->addr), bits);

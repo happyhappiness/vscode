@@ -1,40 +1,44 @@
-	return;
-    }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
-
-    help_proxy_garbage_coll(r);
-
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
+    util_dn_compare_node_t *node = (util_dn_compare_node_t *)n;
+    util_ald_free(cache, node->reqdn);
+    util_ald_free(cache, node->dn);
+    util_ald_free(cache, node);
 }
 
 
-static void help_proxy_garbage_coll(request_rec *r)
+/* ------------------------------------------------------------------ */
+apr_status_t util_ldap_cache_child_kill(void *data);
+apr_status_t util_ldap_cache_module_kill(void *data);
+
+apr_status_t util_ldap_cache_module_kill(void *data)
 {
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
+    util_ldap_state_t *st = (util_ldap_state_t *)data;
 
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
+#if APR_HAS_SHARED_MEMORY
+    if (st->cache_shm != NULL) {
+        apr_status_t result = apr_shm_destroy(st->cache_shm);
+        st->cache_shm = NULL;
+        apr_file_remove(st->cache_file, st->pool);
+        return result;
+    }
+#endif
+    util_ald_destroy_cache(st->util_ldap_cache);
+    return APR_SUCCESS;
+}
 
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
+apr_status_t util_ldap_cache_init(apr_pool_t *pool, util_ldap_state_t *st)
+{
+#if APR_HAS_SHARED_MEMORY
+    apr_status_t result;
 
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
+    if (!st->cache_file) {
+    	return -1;
+    }
 
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+    result = apr_shm_create(&st->cache_shm, st->cache_bytes, st->cache_file, st->pool);
+    if (result == EEXIST) {
+        /*
+         * The cache could have already been created (i.e. we may be a child process).  See
+         * if we can attach to the existing shared memory
+         */
+        result = apr_shm_attach(&st->cache_shm, st->cache_file, st->pool);
+    } 

@@ -1,101 +1,89 @@
- */
+    f = ap_bcreate(p, B_RDWR | B_SOCKET);
+    ap_bpushfd(f, sock, sock);
 
-/*
- * Look for the specified file, and pump it into the response stream if we
- * find it.
- */
-static int insert_readme(char *name, char *readme_fname, char *title,
-			 int hrule, int whichend, request_rec *r)
-{
-    char *fn;
-    FILE *f;
-    struct stat finfo;
-    int plaintext = 0;
-    request_rec *rr;
-    autoindex_config_rec *cfg;
-    int autoindex_opts;
+    ap_hard_timeout("proxy send", r);
+    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+	   NULL);
+    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
+	ap_bvputs(f, "Host: ", desthost, ":", destportstr, CRLF, NULL);
+    else
+	ap_bvputs(f, "Host: ", desthost, CRLF, NULL);
 
-    cfg = (autoindex_config_rec *) ap_get_module_config(r->per_dir_config,
-							&autoindex_module);
-    autoindex_opts = find_opts(cfg, r);
-    /* XXX: this is a load of crap, it needs to do a full sub_req_lookup_uri */
-    fn = ap_make_full_path(r->pool, name, readme_fname);
-    fn = ap_pstrcat(r->pool, fn, ".html", NULL);
-    if (stat(fn, &finfo) == -1) {
-	/* A brief fake multiviews search for README.html */
-	fn[strlen(fn) - 5] = '\0';
-	if (stat(fn, &finfo) == -1) {
-	    return 0;
+    if (conf->viaopt == via_block) {
+	/* Block all outgoing Via: headers */
+	ap_table_unset(r->headers_in, "Via");
+    } else if (conf->viaopt != via_off) {
+	/* Create a "Via:" request header entry and merge it */
+	i = ap_get_server_port(r);
+	if (ap_is_default_port(i,r)) {
+	    strcpy(portstr,"");
+	} else {
+	    ap_snprintf(portstr, sizeof portstr, ":%d", i);
 	}
-	plaintext = 1;
-	if (hrule) {
-	    ap_rputs("<HR>\n", r);
-	}
+	/* Generate outgoing Via: header with/without server comment: */
+	ap_table_mergen(r->headers_in, "Via",
+		    (conf->viaopt == via_full)
+			? ap_psprintf(p, "%d.%d %s%s (%s)",
+				HTTP_VERSION_MAJOR(r->proto_num),
+				HTTP_VERSION_MINOR(r->proto_num),
+				ap_get_server_name(r), portstr,
+				SERVER_BASEVERSION)
+			: ap_psprintf(p, "%d.%d %s%s",
+				HTTP_VERSION_MAJOR(r->proto_num),
+				HTTP_VERSION_MINOR(r->proto_num),
+				ap_get_server_name(r), portstr)
+			);
     }
-    else if (hrule) {
-	ap_rputs("<HR>\n", r);
-    }
-    /* XXX: when the above is rewritten properly, this necessary security
-     * check will be redundant. -djg */
-    rr = ap_sub_req_lookup_file(fn, r);
-    if (rr->status != HTTP_OK) {
-	ap_destroy_sub_req(rr);
-	return 0;
-    }
-    ap_destroy_sub_req(rr);
-    if (!(f = ap_pfopen(r->pool, fn, "r"))) {
-        return 0;
-    }
-    if ((whichend == FRONT_MATTER)
-	&& (!(autoindex_opts & SUPPRESS_PREAMBLE))) {
-	emit_preamble(r, title);
-    }
-    if (!plaintext) {
-	ap_send_fd(f, r);
-    }
-    else {
-	char buf[IOBUFSIZE + 1];
-	int i, n, c, ch;
-	ap_rputs("<PRE>\n", r);
-	while (!feof(f)) {
-	    do {
-		n = fread(buf, sizeof(char), IOBUFSIZE, f);
-	    }
-	    while (n == -1 && ferror(f) && errno == EINTR);
-	    if (n == -1 || n == 0) {
-		break;
-	    }
-	    buf[n] = '\0';
-	    c = 0;
-	    while (c < n) {
-	        for (i = c; i < n; i++) {
-		    if (buf[i] == '<' || buf[i] == '>' || buf[i] == '&') {
-			break;
-		    }
-		}
-		ch = buf[i];
-		buf[i] = '\0';
-		ap_rputs(&buf[c], r);
-		if (ch == '<') {
-		    ap_rputs("&lt;", r);
-		}
-		else if (ch == '>') {
-		    ap_rputs("&gt;", r);
-		}
-		else if (ch == '&') {
-		    ap_rputs("&amp;", r);
-		}
-		c = i + 1;
-	    }
-	}
-    }
-    ap_pfclose(r->pool, f);
-    if (plaintext) {
-	ap_rputs("</PRE>\n", r);
-    }
-    return 1;
-}
 
+    reqhdrs_arr = ap_table_elts(r->headers_in);
+    reqhdrs = (table_entry *) reqhdrs_arr->elts;
+    for (i = 0; i < reqhdrs_arr->nelts; i++) {
+	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
+	/* Clear out headers not to send */
+	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
+	    /* XXX: @@@ FIXME: "Proxy-Authorization" should *only* be 
+	     * suppressed if THIS server requested the authentication,
+	     * not when a frontend proxy requested it!
+	     */
+	    || !strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+	    continue;
+	ap_bvputs(f, reqhdrs[i].key, ": ", reqhdrs[i].val, CRLF, NULL);
+    }
 
-static char *find_title(request_rec *r)
-{
+    ap_bputs(CRLF, f);
+/* send the request data, if any. N.B. should we trap SIGPIPE ? */
+
+    if (ap_should_client_block(r)) {
+	while ((i = ap_get_client_block(r, buffer, sizeof buffer)) > 0)
+	    ap_bwrite(f, buffer, i);
+    }
+    ap_bflush(f);
+    ap_kill_timeout(r);
+
+    ap_hard_timeout("proxy receive", r);
+
+    len = ap_bgets(buffer, sizeof buffer - 1, f);
+    if (len == -1 || len == 0) {
+	ap_bclose(f);
+	ap_kill_timeout(r);
+	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
+		     "ap_bgets() - proxy receive - Error reading from remote server %s",
+		     proxyhost ? proxyhost : desthost);
+	return ap_proxyerror(r, "Error reading from remote server");
+    }
+
+/* Is it an HTTP/1 response?  This is buggy if we ever see an HTTP/1.10 */
+    if (ap_checkmask(buffer, "HTTP/#.# ###*")) {
+	int major, minor;
+	if (2 != sscanf(buffer, "HTTP/%u.%u", &major, &minor)) {
+	    major = 1;
+	    minor = 0;
+	}
+
+/* If not an HTTP/1 message or if the status line was > 8192 bytes */
+	if (buffer[5] != '1' || buffer[len - 1] != '\n') {
+	    ap_bclose(f);
+	    ap_kill_timeout(r);
+	    return HTTP_BAD_GATEWAY;
+	}
+	backasswards = 0;

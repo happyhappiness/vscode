@@ -1,31 +1,13 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
-    }
-
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
+    trunc = 0;
+    for(; (len > 0) && ((s[len-1] == ' ') || (s[len-1] == '\0')); len--)
+        trunc++;
+    rows = (len / DUMP_WIDTH);
+    if ((rows * DUMP_WIDTH) < len)
+        rows++;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, srvr,
+            "+-------------------------------------------------------------------------+");
+    for(i = 0 ; i< rows; i++) {
+        apr_snprintf(tmp, sizeof(tmp), "| %04x: ", i * DUMP_WIDTH);
+        apr_cpystrn(buf, tmp, sizeof(buf));
+        for (j = 0; j < DUMP_WIDTH; j++) {
+            if (((i * DUMP_WIDTH) + j) >= len)

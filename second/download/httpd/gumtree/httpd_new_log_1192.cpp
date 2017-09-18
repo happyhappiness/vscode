@@ -1,0 +1,1 @@
+COMPUTE_KEY_CHECKSUM(key, checksum);

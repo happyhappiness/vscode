@@ -1,29 +1,17 @@
-	}
-
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && isspace(*dst))
-	    *dst = '\0';
-
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
 #endif
-	return 0;
+
+    /* when `RewriteEngine off' was used in the per-server
+     * context then the rewritemap-programs were not spawned.
+     * In this case using such a map (usually in per-dir context)
+     * is useless because it is not available.
+     */
+    if (fpin == NULL || fpout == NULL) {
+        return NULL;
+    }
+
+    /* take the lock */
+
+    if (rewrite_mapr_lock_acquire) {
+        rv = apr_global_mutex_lock(rewrite_mapr_lock_acquire);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,

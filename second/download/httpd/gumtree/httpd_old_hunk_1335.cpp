@@ -1,18 +1,16 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
-    }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
-    }
-
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+        }
+        if (cid->dconf.log_to_errlog)
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "ISAPI: %s: %s", cid->r->filename,
+                          (char*) buf_data);
+        return 1;
+        
+    case HSE_REQ_IO_COMPLETION:
+        /* Emulates a completion port...  Record callback address and 
+         * user defined arg, we will call this after any async request 
+         * (e.g. transmitfile) as if the request executed async.
+         * Per MS docs... HSE_REQ_IO_COMPLETION replaces any prior call
+         * to HSE_REQ_IO_COMPLETION, and buf_data may be set to NULL.
+         */
+        if (cid->dconf.fake_async) {
+            cid->completion = (PFN_HSE_IO_COMPLETION) buf_data;

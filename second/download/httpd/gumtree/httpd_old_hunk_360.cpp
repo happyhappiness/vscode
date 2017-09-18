@@ -1,22 +1,25 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+        return FALSE;
+    memcpy((char *)dbmval.dptr, &expiry, sizeof(time_t));
+    memcpy((char *)dbmval.dptr+sizeof(time_t), ucaData, nData);
 
-    if (!child && run_as_service) {
-	service_cd();
+    /* and store it to the DBM file */
+    ssl_mutex_on(s);
+    if (apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
+	    APR_DBM_RWCREATE, SSL_DBM_FILE_MODE, mc->pPool) != APR_SUCCESS) {
+        ssl_log(s, SSL_LOG_ERROR|SSL_ADD_ERRNO,
+                "Cannot open SSLSessionCache DBM file `%s' for writing (store)",
+                mc->szSessionCacheDataFile);
+        ssl_mutex_off(s);
+        free(dbmval.dptr);
+        return FALSE;
     }
-
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
+    if (apr_dbm_store(dbm, dbmkey, dbmval) != APR_SUCCESS) {
+        ssl_log(s, SSL_LOG_ERROR|SSL_ADD_ERRNO,
+                "Cannot store SSL session to DBM file `%s'",
+                mc->szSessionCacheDataFile);
+        apr_dbm_close(dbm);
+        ssl_mutex_off(s);
+        free(dbmval.dptr);
+        return FALSE;
     }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+    apr_dbm_close(dbm);

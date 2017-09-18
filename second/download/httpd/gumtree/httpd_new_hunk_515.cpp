@@ -1,14 +1,13 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
-++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
+                         "Child %d: setup_inherited_listeners(), WSASocket failed to open the inherited socket.", my_pid);
+            exit(APEXIT_CHILDINIT);
+        }
+        apr_os_sock_put(&lr->sd, &nsd, s->process->pool);
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Child %d: retrieved %d listeners from parent", my_pid, lcnt);
+
+    if (!set_listeners_noninheritable(s->process->pool)) {
+        exit(APEXIT_CHILDINIT);
+    }
+}

@@ -1,56 +1,71 @@
+    SSLModConfigRec *mc = myModConfig(s);
 
-#ifdef _OSD_POSIX
-#include "httpd.h"
-#include "http_config.h"
-#include "http_log.h"
-
-static const char *bs2000_account = NULL;
-
-
-/* This routine is called by http_core for the BS2000Account directive */
-/* It stores the account name for later use */
-const char *os_set_account(pool *p, const char *account)
-{
-    if (bs2000_account != NULL && strcasecmp(bs2000_account, account) != 0)
-        return "BS2000Account: can be defined only once.";
-
-    bs2000_account = ap_pstrdup(p, account);
-    return NULL;
+    MODSSL_TMP_KEYS_FREE(mc, RSA);
+    MODSSL_TMP_KEYS_FREE(mc, DH);
 }
 
-int os_init_job_environment(server_rec *server, const char *user_name)
+static int ssl_tmp_key_init_rsa(server_rec *s,
+                                int bits, int idx)
 {
-    _rini_struct            inittask; 
+    SSLModConfigRec *mc = myModConfig(s);
 
-    /* We can be sure that no change to uid==0 is possible because of
-     * the checks in http_core.c:set_user()
-     */
-
-    /* An Account is required for _rini() */
-    if (bs2000_account == NULL)
+    if (!(mc->pTmpKeys[idx] =
+          RSA_generate_key(bits, RSA_F4, NULL, NULL)))
     {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "No BS2000Account configured - cannot switch to User %S",
-		     user_name);
-	exit(APEXIT_CHILDFATAL);
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Init: Failed to generate temporary "
+                     "%d bit RSA private key", bits);
+        return !OK;
     }
 
-    inittask.username       = user_name;
-    inittask.account        = bs2000_account;
-    inittask.processor_name = "        ";
-
-    /* Switch to the new logon user (setuid() and setgid() are done later) */
-    /* Only the super use can switch identities. */
-    if (_rini(&inittask) != 0) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT, server,
-		     "_rini: BS2000 auth failed for user \"%s\" acct \"%s\"",
-		     inittask.username, inittask.account);
-	exit(APEXIT_CHILDFATAL);
-    }
-
-    return 0;
+    return OK;
 }
 
-#else /* _OSD_POSIX */
-void bs2login_is_not_here()
+static int ssl_tmp_key_init_dh(server_rec *s,
+                               int bits, int idx)
 {
+    SSLModConfigRec *mc = myModConfig(s);
+
+    if (!(mc->pTmpKeys[idx] =
+          ssl_dh_GetTmpParam(bits)))
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Init: Failed to generate temporary "
+                     "%d bit DH parameters", bits);
+        return !OK;
+    }
+
+    return OK;
+}
+
+#define MODSSL_TMP_KEY_INIT_RSA(s, bits) \
+    ssl_tmp_key_init_rsa(s, bits, SSL_TMP_KEY_RSA_##bits)
+
+#define MODSSL_TMP_KEY_INIT_DH(s, bits) \
+    ssl_tmp_key_init_dh(s, bits, SSL_TMP_KEY_DH_##bits)
+
+static int ssl_tmp_keys_init(server_rec *s)
+{
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Init: Generating temporary RSA private keys (512/1024 bits)");
+
+    if (MODSSL_TMP_KEY_INIT_RSA(s, 512) ||
+        MODSSL_TMP_KEY_INIT_RSA(s, 1024)) {
+        return !OK;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Init: Generating temporary DH parameters (512/1024 bits)");
+
+    if (MODSSL_TMP_KEY_INIT_DH(s, 512) ||
+        MODSSL_TMP_KEY_INIT_DH(s, 1024)) {
+        return !OK;
+    }
+
+    return OK;
+}
+
+/*
+ *  Per-module initialization
+ */
+int ssl_init_Module(apr_pool_t *p, apr_pool_t *plog,

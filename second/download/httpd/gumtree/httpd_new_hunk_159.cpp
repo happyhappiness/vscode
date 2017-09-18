@@ -1,55 +1,53 @@
+    r->read_body = read_policy;
+    r->read_chunked = 0;
+    r->remaining = 0;
 
-	if (bind(dsock, (struct sockaddr *) &server,
-		 sizeof(struct sockaddr_in)) == -1) {
-	    char buff[22];
+    if (tenc) {
+        if (strcasecmp(tenc, "chunked")) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Unknown Transfer-Encoding %s", tenc);
+            return HTTP_NOT_IMPLEMENTED;
+        }
+        if (r->read_body == REQUEST_CHUNKED_ERROR) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "chunked Transfer-Encoding forbidden: %s", r->uri);
+            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+        }
 
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			 "proxy: error binding to ftp data socket %s", buff);
-	    ap_bclose(f);
-	    ap_pclosesocket(p, dsock);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-	listen(dsock, 2);	/* only need a short queue */
+        r->read_chunked = 1;
+    }
+    else if (lenp) {
+        const char *pos = lenp;
+        int conversion_error = 0;
+
+        while (apr_isdigit(*pos) || apr_isspace(*pos)) {
+            ++pos;
+        }
+
+        if (*pos == '\0') {
+            char *endstr;
+
+            errno = 0;
+            r->remaining = strtol(lenp, &endstr, 10);
+
+            if (errno || (endstr && *endstr)) {
+                conversion_error = 1; 
+            }
+        }
+
+        if (*pos != '\0' || conversion_error) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Invalid Content-Length");
+            return HTTP_BAD_REQUEST;
+        }
     }
 
-/* set request; "path" holds last path component */
-    len = decodeenc(path);
-
-    /* TM - if len == 0 then it must be a directory (you can't RETR nothing) */
-
-    if (len == 0) {
-	parms = "d";
+    if ((r->read_body == REQUEST_NO_BODY)
+        && (r->read_chunked || (r->remaining > 0))) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "%s with body is not allowed for %s", r->method, r->uri);
+        return HTTP_REQUEST_ENTITY_TOO_LARGE;
     }
-    else {
-	ap_bvputs(f, "SIZE ", path, CRLF, NULL);
-	ap_bflush(f);
-	Explain1("FTP: SIZE %s", path);
-	i = ftp_getrc_msg(f, resp, sizeof resp);
-	Explain2("FTP: returned status %d with response %s", i, resp);
-	if (i != 500) {		/* Size command not recognized */
-	    if (i == 550) {	/* Not a regular file */
-		Explain0("FTP: SIZE shows this is a directory");
-		parms = "d";
-		ap_bvputs(f, "CWD ", path, CRLF, NULL);
-		ap_bflush(f);
-		Explain1("FTP: CWD %s", path);
-		i = ftp_getrc(f);
-		/* possible results: 250, 421, 500, 501, 502, 530, 550 */
-		/* 250 Requested file action okay, completed. */
-		/* 421 Service not available, closing control connection. */
-		/* 500 Syntax error, command unrecognized. */
-		/* 501 Syntax error in parameters or arguments. */
-		/* 502 Command not implemented. */
-		/* 530 Not logged in. */
-		/* 550 Requested action not taken. */
-		Explain1("FTP: returned status %d", i);
-		if (i == -1) {
-		    ap_kill_timeout(r);
-		    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ "Error reading from remote server");
-		}
-		if (i == 550) {
-		    ap_kill_timeout(r);
-		    return HTTP_NOT_FOUND;
-		}
-		if (i != 250) {
+
+#ifdef AP_DEBUG
+    {

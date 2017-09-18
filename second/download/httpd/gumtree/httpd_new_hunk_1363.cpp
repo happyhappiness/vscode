@@ -1,14 +1,13 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
+{
+    r->status = status;
 
-    for (i = 0; i < t->a.nelts; ) {
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+    /* ### I really don't think this is needed; gotta test */
+    r->status_line = ap_get_status_line(status);
+
+    ap_set_content_type(r, "text/html; charset=ISO-8859-1");
+
+    /* begin the response now... */
+    ap_rvputs(r,
+              DAV_RESPONSE_BODY_1,
+              r->status_line,
+              DAV_RESPONSE_BODY_2,

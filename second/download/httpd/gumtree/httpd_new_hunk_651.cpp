@@ -1,13 +1,16 @@
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
+            apr_table_unset(f->r->headers_out, "Content-Length");
+        }
     }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+    if (dc->debug >= DBGLVL_SHOWOPTIONS) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
+                      "%sfiltering `%s' of type `%s' through `%s', cfg %s",
+                      ctx->noop ? "NOT " : "",
+                      f->r->uri ? f->r->uri : f->r->filename,
+                      f->r->content_type ? f->r->content_type : "(unspecified)",
+                      ctx->filter->command,
+                      get_cfg_string(dc, ctx->filter, f->r->pool));
+    }
+
+    return APR_SUCCESS;
+}

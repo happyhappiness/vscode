@@ -1,13 +1,13 @@
-    ++filp;
-    prefix_len = strlen(filp);
-
-    dirp = ap_popendir(neg->pool, neg->dir_name);
-
-    if (dirp == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-                    "cannot read directory for multi: %s", neg->dir_name);
-        return HTTP_FORBIDDEN;
-    }
-
-    while ((dir_entry = readdir(dirp))) {
-        request_rec *sub_req;
+                                      APR_BLOCK_READ, 
+                                      conf->io_buffer_size) == APR_SUCCESS) {
+#if DEBUGGING
+                    {
+                    apr_off_t readbytes;
+                    apr_brigade_length(bb, 0, &readbytes);
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
+                                 r->server, "proxy (PID %d): readbytes: %#x",
+                                 getpid(), readbytes);
+                    }
+#endif
+                    /* sanity check */
+                    if (APR_BRIGADE_EMPTY(bb)) {

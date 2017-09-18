@@ -1,13 +1,13 @@
-#endif
-            if (*conditional_status) {
-                *printing = 0;
-                return (0);
-            }
-	    if (expr == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			    "missing expr in elif statement: %s",
-			    r->filename);
-		ap_rputs(error, r);
-		return 1;
-	    }
-            *printing = *conditional_status = parse_expr(r, expr, error);
+    }
+    else {
+	connectname = uri.hostname;
+	connectport = uri.port;
+	connect_addr = uri_addr;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
+		 "proxy: CONNECT: connecting to remote proxy %s on port %d", connectname, connectport);
+
+    /* check if ProxyBlock directive on this host */
+    if (OK != ap_proxy_checkproxyblock(r, conf, uri_addr)) {
+	return ap_proxyerror(r, HTTP_FORBIDDEN,
+			     "Connect to remote machine blocked");

@@ -1,0 +1,1 @@
+ap_fputs(output, bb, t->text);

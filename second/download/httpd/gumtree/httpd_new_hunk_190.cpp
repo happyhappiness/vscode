@@ -1,39 +1,13 @@
-    }
-    else {
-	ap_rputs("<UL>", r);
-    }
+	    if (r->parsed_uri.query)
+		nuri = apr_pstrcat(r->pool, nuri, "?", r->parsed_uri.query, NULL);
 
-    for (x = 0; x < n; x++) {
-	char *anchor, *t, *t2;
-	char *pad;
-	int nwidth;
+            apr_table_setn(r->headers_out, "Location",
+			  ap_construct_url(r->pool, nuri, r));
 
-	ap_clear_pool(scratch);
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, APR_SUCCESS,
+			  r, 
+			  ref ? "Fixed spelling: %s to %s from %s"
+			      : "Fixed spelling: %s to %s",
+			  r->uri, nuri, ref);
 
-	if (is_parent(ar[x]->name)) {
-	    t = ap_make_full_path(scratch, name, "../");
-	    ap_getparents(t);
-	    if (t[0] == '\0') {
-		t = "/";
-	    }
-	       /* 1234567890123456 */
-	    t2 = "Parent Directory";
-	    pad = name_scratch + 16;
-	    anchor = ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0));
-	}
-	else {
-	    t = ar[x]->name;
-	    pad = name_scratch + strlen(t);
-	    t2 = ap_escape_html(scratch, t);
-	    anchor = ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0));
-	}
-
-	if (autoindex_opts & FANCY_INDEXING) {
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
-		ap_rvputs(r, "<A HREF=\"", anchor, "\">", NULL);
-	    }
-	    if ((ar[x]->icon) || d->default_icon) {
-		ap_rvputs(r, "<IMG SRC=\"",
-			  ap_escape_html(scratch,
-					 ar[x]->icon ? ar[x]->icon
-					             : d->default_icon),
+            return HTTP_MOVED_PERMANENTLY;

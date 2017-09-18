@@ -1,40 +1,39 @@
-	return;
-    }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
-
-    help_proxy_garbage_coll(r);
-
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
-}
+	{
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                     "Error: %d with ioctlsocket(flag SO_TLS_ENABLE)", WSAGetLastError());
+		return rcode;
+	}
 
 
-static void help_proxy_garbage_coll(request_rec *r)
-{
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
+    /* setup the socket for SSL */
+	sWS2Opts.wallet = NULL;    /* no client certificate */
+	sWS2Opts.walletlen = 0;
+	sWS2Opts.sidtimeout = 0;
+	sWS2Opts.sidentries = 0;
+	sWS2Opts.siddir = NULL;
+	sWS2Opts.options = &sNWTLSOpts;
 
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
-
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+	sNWTLSOpts.walletProvider 		= WAL_PROV_DER;	//the wallet provider defined in wdefs.h
+	sNWTLSOpts.TrustedRootList 		= certarray;	//array of certs in UNICODE format
+	sNWTLSOpts.numElementsInTRList 	= numcerts;     //number of certs in TRList
+	sNWTLSOpts.keysList 			= NULL;
+	sNWTLSOpts.numElementsInKeyList = 0;
+	sNWTLSOpts.reservedforfutureuse = NULL;
+	sNWTLSOpts.reservedforfutureCRL = NULL;
+	sNWTLSOpts.reservedforfutureCRLLen = 0;
+	sNWTLSOpts.reserved1			= NULL;
+	sNWTLSOpts.reserved2			= NULL;
+	sNWTLSOpts.reserved3			= NULL;
+	
+	
+    /* make the IOCTL call */
+	rcode = WSAIoctl(sock, SO_TLS_SET_CLIENT, &sWS2Opts,
+	  			     sizeof(struct tlsclientopts), NULL, 0, NULL,
+				     NULL, NULL);
+	
+    /* make sure that it was successfull */
+	if(SOCKET_ERROR == rcode ){
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                     "Error: %d with ioctl (SO_TLS_SET_CLIENT)", WSAGetLastError());
+	}		
+	return rcode;

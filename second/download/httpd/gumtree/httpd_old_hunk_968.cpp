@@ -1,28 +1,30 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
+ * selected again.  Non-active fields always start in ascending order.
+ */
+static void emit_link(request_rec *r, const char *anchor, char column,
+                      char curkey, char curdirection,
+                      const char *colargs, int nosort)
+{
+    char qvalue[13];
+    int reverse;
+
+    if (!nosort) {
+        reverse = ((curkey == column) && (curdirection == D_ASCENDING));
+        qvalue[0] = '?';
+        qvalue[1] = 'C';
+        qvalue[2] = '=';
+        qvalue[3] = column;
+        qvalue[4] = '&';
+        qvalue[5] = 'a';
+        qvalue[6] = 'm';
+        qvalue[7] = 'p';
+        qvalue[8] = ';';
+        qvalue[9] = 'O';
+        qvalue[10] = '=';
+        qvalue[11] = reverse ? D_DESCENDING : D_ASCENDING;
+        qvalue[12] = '\0';
+        ap_rvputs(r, "<a href=\"", qvalue, colargs ? colargs : "",
+                     "\">", anchor, "</a>", NULL);
     }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
-    curblocks = 0;
-    curbytes = 0;
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-	ap_unblock_alarms();
-	return;
+    else {
+        ap_rputs(anchor, r);
     }
-
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
-
-    elts = (struct gc_ent **) files->elts;
-    for (i = 0; i < files->nelts; i++) {
-	fent = elts[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {

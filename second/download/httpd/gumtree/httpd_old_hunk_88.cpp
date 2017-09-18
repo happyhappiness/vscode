@@ -1,17 +1,13 @@
-	}
-    }
-    if (!found) {
-	printf("Adding user %s\n", user);
-	add_password(user, tfp);
-    }
-    fclose(f);
-    fclose(tfp);
-#if defined(__EMX__) || defined(WIN32)
-    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
-#else
-    sprintf(command, "cp %s %s", tn, argv[1]);
-#endif
-    system(command);
-    unlink(tn);
-    exit(0);
-}
+                                          curctx->dc->charset_default);
+                        }
+                    }
+                    else {
+                        const char *symbol = output ? "->" : "<-";
+
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO,
+                                      0, f->r,
+                                      "chk_filter_chain() - can't disable "
+                                      "translation %s%s%s; existing "
+                                      "translation %s%s%s",
+                                      last_xlate_ctx->dc->charset_source,
+                                      symbol,

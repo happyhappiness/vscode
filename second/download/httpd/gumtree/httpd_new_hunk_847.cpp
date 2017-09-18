@@ -1,20 +1,29 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
-{
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    const char *location = ap_table_get(r->headers_out, "Location");
+    }
+    if (sconf->max_cache_object_size >= sconf->max_cache_size) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s,
+                     "MCacheSize must be greater than MCacheMaxObjectSize");
+        return DONE;
+    }
+    if (sconf->max_streaming_buffer_size > sconf->max_cache_object_size) {
+        /* Issue a notice only if something other than the default config 
+         * is being used */
+        if (sconf->max_streaming_buffer_size != DEFAULT_MAX_STREAMING_BUFFER_SIZE &&
+            sconf->max_cache_object_size != DEFAULT_MAX_CACHE_OBJECT_SIZE) {
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
+                         "MCacheMaxStreamingBuffer must be less than or equal to MCacheMaxObjectSize. "
+                         "Resetting MCacheMaxStreamingBuffer to MCacheMaxObjectSize.");
+        }
+        sconf->max_streaming_buffer_size = sconf->max_cache_object_size;
+    }
+    if (sconf->max_streaming_buffer_size < sconf->min_cache_object_size) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "MCacheMaxStreamingBuffer must be greater than or equal to MCacheMinObjectSize. "
+                     "Resetting MCacheMaxStreamingBuffer to MCacheMinObjectSize.");
+        sconf->max_streaming_buffer_size = sconf->min_cache_object_size;
+    }
+    ap_mpm_query(AP_MPMQ_IS_THREADED, &threaded_mpm);
+    if (threaded_mpm) {
+        apr_thread_mutex_create(&sconf->lock, APR_THREAD_MUTEX_DEFAULT, p);
+    }
 
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
-     */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!ap_is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
-
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+    sconf->cache_cache = cache_init(sconf->max_object_cnt,

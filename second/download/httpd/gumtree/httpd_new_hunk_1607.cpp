@@ -1,13 +1,13 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
-
-    reqhdrs_arr = ap_table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+                case token_ge:
+                case token_gt:
+                case token_le:
+                case token_lt:
+                    break;
+                default:
+                    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+                                "Invalid expression \"%s\" in file %s",
+                                expr, r->filename);
+                    ap_rputs(error, r);
+                    goto RETURN;
+                }
+                break;

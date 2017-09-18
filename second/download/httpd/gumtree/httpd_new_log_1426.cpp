@@ -1,0 +1,1 @@
+dav_begin_multistatus(bb, r, status, namespaces);

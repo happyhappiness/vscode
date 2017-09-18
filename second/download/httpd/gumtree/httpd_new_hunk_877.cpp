@@ -1,13 +1,13 @@
-
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
+        destroy_and_exit_process(process, 1);
     }
+
+    ap_process_config_tree(server_conf, ap_conftree, process->pconf, ptemp);
+    ap_fixup_virtual_hosts(pconf, server_conf);
+    ap_fini_vhost_config(pconf, server_conf);
+    apr_hook_sort_all();
+    if (configtestonly) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
+        destroy_and_exit_process(process, 0);
+    }
+
+    signal_server = APR_RETRIEVE_OPTIONAL_FN(ap_signal_server);

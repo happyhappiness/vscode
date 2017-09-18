@@ -1,13 +1,13 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    char *t, *key, *value;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
-
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+	&& (!r->header_only || (d->content_md5 & 1))) {
+	/* we need to protect ourselves in case we die while we've got the
+ 	 * file mmapped */
+	mm = mmap(NULL, r->finfo.st_size, PROT_READ, MAP_PRIVATE,
+		  fileno(f), 0);
+	if (mm == (caddr_t)-1) {
+	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
+			 "default_handler: mmap failed: %s", r->filename);
+	}
+    }
+    else {
+	mm = (caddr_t)-1;
+    }

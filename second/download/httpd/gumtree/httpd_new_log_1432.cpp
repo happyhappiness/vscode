@@ -1,0 +1,1 @@
+ap_add_output_filter("MOD_EXPIRES", NULL, r, r->connection);

@@ -1,30 +1,30 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
+                                 cmd->temp_pool)) != APR_SUCCESS) {
+	ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
+	    "mod_file_cache: unable to stat(%s), skipping", fspec);
+	return;
     }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
-    curbytes.upper = curbytes.lower = 0L;
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (cmp_long61(&curbytes, &cachesize) < 0L) {
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (nothing deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
-	ap_unblock_alarms();
+    if (tmp.finfo.filetype != APR_REG) {
+	ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+	    "mod_file_cache: %s isn't a regular file, skipping", fspec);
+	return;
+    }
+    if (tmp.finfo.size > AP_MAX_SENDFILE) {
+	ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+	    "mod_file_cache: %s is too large to cache, skipping", fspec);
 	return;
     }
 
-    /* sort the files we found by expiration date */
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
+    rc = apr_file_open(&fd, fspec, APR_READ | APR_BINARY | APR_XTHREAD,
+                       APR_OS_DEFAULT, cmd->pool);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
+                     "mod_file_cache: unable to open(%s, O_RDONLY), skipping", fspec);
+	return;
+    }
+    apr_file_inherit_set(fd);
 
-    for (i = 0; i < files->nelts; i++) {
-	fent = &((struct gc_ent *) files->elts)[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+    /* WooHoo, we have a file to put in the cache */
+    new_file = apr_pcalloc(cmd->pool, sizeof(a_file));
+    new_file->finfo = tmp.finfo;
+
+#if APR_HAS_MMAP

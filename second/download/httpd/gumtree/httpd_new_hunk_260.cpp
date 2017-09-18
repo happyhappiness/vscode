@@ -1,19 +1,13 @@
-	    }
-
-	    /* move to next continuation record */
-	    m = m->next;
-	}
-#if MIME_MAGIC_DEBUG
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-		    MODNAME ": matched after %d rules", rule_counter);
-#endif
-	return 1;		/* all through */
     }
-#if MIME_MAGIC_DEBUG
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-		MODNAME ": failed after %d rules", rule_counter);
-#endif
-    return 0;			/* no match at all */
-}
+    else {
+        return DECLINED;
+    }
+    def_port = apr_uri_default_port_for_scheme(scheme);
 
-static void mprint(request_rec *r, union VALUETYPE *p, struct magic *m)
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+             "proxy: HTTP: canonicalising URL %s", url);
+
+    /* do syntatic check.
+     * We break the URL into host, port, path, search
+     */
+    port = def_port;

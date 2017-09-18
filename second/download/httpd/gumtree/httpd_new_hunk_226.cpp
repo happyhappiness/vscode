@@ -1,13 +1,13 @@
-                case token_ne:
-                case token_ge:
-                case token_gt:
-                case token_le:
-                case token_lt:
-                default:
-                    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                                "Invalid expression \"%s\" in file %s",
-                                expr, r->filename);
-                    ap_rputs(error, r);
-                    goto RETURN;
-                }
-                break;
+        else
+#endif
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    apr_sockaddr_ip_get(&ipaddrstr, sockaddr);
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, main_server,
+                "mod_unique_id: using ip addr %s",
+                 ipaddrstr);
+
+    /*
+     * If the server is pummelled with restart requests we could possibly end
+     * up in a situation where we're starting again during the same second

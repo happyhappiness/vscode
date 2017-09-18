@@ -1,13 +1,15 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+                         p_conn->name ? p_conn->name: "",
+                         c->remote_ip, c->remote_host ? c->remote_host: "");
+            return status;
+        }
+
+        apr_brigade_length(temp_brigade, 1, &bytes);
+        APR_BRIGADE_CONCAT(input_brigade, temp_brigade);
+        bytes_read += bytes;
+
+    /* Ensure we don't hit a wall where we have a buffer too small
+     * for ap_get_brigade's filters to fetch us another bucket,
+     * surrender once we hit 80 bytes less than MAX_MEM_SPOOL
+     * (an arbitrary value.)
+     */
+    } while ((bytes_read < MAX_MEM_SPOOL - 80) 

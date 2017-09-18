@@ -1,31 +1,22 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+    if (ap_threads_max_free < ap_threads_min_free + 1)	/* Don't thrash... */
+        ap_threads_max_free = ap_threads_min_free + 1;
+    request_count = 0;
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+    startup_workers(ap_threads_to_start);
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+		"%s configured -- resuming normal operations",
+		ap_get_server_version());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+		"Server built: %s", ap_get_server_built());
+#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+		"AcceptMutex: %s (default: %s)",
+		apr_proc_mutex_name(accept_mutex),
+		apr_proc_mutex_defname());
+#endif
+    show_server_data();
 
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+    while (!restart_pending && !shutdown_pending) {
+        perform_idle_server_maintenance(pconf);
+        if (show_settings)

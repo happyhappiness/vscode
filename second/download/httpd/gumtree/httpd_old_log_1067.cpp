@@ -1,0 +1,1 @@
+fprintf(stderr, "password for user %s\n", user);

@@ -1,17 +1,13 @@
+    ap_init_modules(pconf, server_conf);
+    ap_suexec_enabled = init_suexec();
+    version_locked++;
+    ap_open_logs(server_conf, pconf);
+    set_group_privs();
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
-
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    int status;
-	    int pid = wait_or_timeout(&status);
-
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+#ifdef __EMX__
+    printf("%s \n", ap_get_server_version());
+#endif
+#ifdef WIN32
+    if (!child) {
+	printf("%s \n", ap_get_server_version());
+    }

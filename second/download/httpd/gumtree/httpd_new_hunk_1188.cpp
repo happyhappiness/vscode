@@ -1,14 +1,24 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    const char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
+                     * found in the cache, eject it in favor of the completed obj.
+                     */
+                    cache_object_t *tmp_obj =
+                      (cache_object_t *) cache_find(sconf->cache_cache, obj->key);
+                    if (tmp_obj) {
+                        cache_remove(sconf->cache_cache, tmp_obj);
+                        tmp_obj->cleanup = 1;
+                        if (!tmp_obj->refcount) {
+                            cleanup_cache_object(tmp_obj);
+                        }
+                    }
+                    obj->cleanup = 0;
                 }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
-++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800
+                else {
+                    cache_remove(sconf->cache_cache, obj);
+                }
+                mobj->m_len = obj->count;
+                cache_insert(sconf->cache_cache, obj);                
+                if (sconf->lock) {
+                    apr_thread_mutex_unlock(sconf->lock);
+                }
+            }
+            /* Open for business */
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,

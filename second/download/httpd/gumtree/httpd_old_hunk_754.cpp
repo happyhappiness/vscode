@@ -1,22 +1,14 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
-    }
-    ap_unblock_alarms();
-}
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+	   "<td colspan=2 %s>%" APR_SIZE_T_FMT " bytes</td></tr>\n",
+	   trstring, tdstring, tdstring, doclen);
+    printf("<tr %s><th colspan=2 %s>Concurrency Level:</th>"
+	   "<td colspan=2 %s>%d</td></tr>\n",
+	   trstring, tdstring, tdstring, concurrency);
+    printf("<tr %s><th colspan=2 %s>Time taken for tests:</th>"
+	   "<td colspan=2 %s>%qd.%03qd seconds</td></tr>\n",
+	   trstring, tdstring, tdstring, timetaken / APR_USEC_PER_SEC, timetaken % APR_USEC_PER_SEC);
+    printf("<tr %s><th colspan=2 %s>Complete requests:</th>"
+	   "<td colspan=2 %s>%ld</td></tr>\n",
+	   trstring, tdstring, tdstring, done);
+    printf("<tr %s><th colspan=2 %s>Failed requests:</th>"
+	   "<td colspan=2 %s>%ld</td></tr>\n",
+	   trstring, tdstring, tdstring, bad);

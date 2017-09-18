@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_INFO, r,
-			 ref ? "Fixed spelling: %s to %s from %s"
-			     : "Fixed spelling: %s to %s",
-			 r->uri, nuri, ref);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: FTP: control connection complete");

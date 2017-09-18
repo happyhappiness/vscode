@@ -1,13 +1,13 @@
-		while (groups[0]) {
-		    v = ap_getword(r->pool, &groups, ',');
-		    if (!strcmp(v, w))
-			return OK;
-		}
-	    }
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-			"user %s not in right group: %s",
-			user, r->filename);
-	    ap_note_basic_auth_failure(r);
-	    return AUTH_REQUIRED;
-	}
+    sconf = (so_server_conf *)ap_get_module_config(cmd->server->module_config, 
+	                                        &so_module);
+    modie = (moduleinfo *)sconf->loaded_modules->elts;
+    for (i = 0; i < sconf->loaded_modules->nelts; i++) {
+        modi = &modie[i];
+        if (modi->name != NULL && strcmp(modi->name, modname) == 0) {
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, 0,
+                          cmd->pool, "module %s is already loaded, skipping",
+                          modname);
+            return NULL;
+        }
     }
+

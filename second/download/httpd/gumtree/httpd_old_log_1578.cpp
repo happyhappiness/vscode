@@ -1,0 +1,1 @@
+printf("\tRESTART    - Reread the configurtion file and restart Apache\n");

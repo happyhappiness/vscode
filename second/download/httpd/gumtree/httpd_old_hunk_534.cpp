@@ -1,13 +1,13 @@
+        if (!restart) 
+        {
+            /* Shutting down. Clean up... */
+            const char *pidfile = ap_server_root_relative (pconf, ap_pid_fname);
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+            if (pidfile != NULL && unlink(pidfile) == 0) {
+                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, APR_SUCCESS,
+                             ap_server_conf, "removed PID file %s (pid=%ld)",
+                             pidfile, GetCurrentProcessId());
+            }
+            apr_proc_mutex_destroy(start_mutex);
 
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+            CloseHandle(restart_event);

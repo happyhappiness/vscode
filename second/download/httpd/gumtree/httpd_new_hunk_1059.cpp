@@ -1,12 +1,17 @@
+                    if (d->icon_width) {
+                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                    }
+                    if (d->icon_height) {
+                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                    }
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
-    }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
-}
-
-/*****************************************************************
+                    if (autoindex_opts & EMIT_XHTML) {
+                        ap_rputs(" /", r);
+                    }
+                    ap_rputs(">", r);
+                }
+                else {
+                    ap_rputs("&nbsp;", r);
+                }
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rputs("</a></td>", r);

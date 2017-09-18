@@ -1,13 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: failed to accept data connection");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    ap_proxy_cache_error(c);
-	    return HTTP_BAD_GATEWAY;
-	}
-	ap_note_cleanups_for_socket(p, csd);
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
-	ap_bpushfd(data, csd, -1);
-	ap_kill_timeout(r);
+    struct passwd *ent;
+
+    if (name[0] == '#')
+        return (atoi(&name[1]));
+
+    if (!(ent = getpwnam(name))) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "%s: bad user name %s", ap_server_argv0, name);
+        exit(1);
     }
+
+    return (ent->pw_uid);
+}

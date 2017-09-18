@@ -1,13 +1,16 @@
-        set_neg_headers(r, neg, na_list);
-        store_variant_list(r, neg);
-        return MULTIPLE_CHOICES;
+                    /* if we are done, leave */
+                    if (TRUE == finish) {
+                        break;
+                    }
+                }
+            }
+            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
+                         "proxy: end body send");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
+                         "proxy: header only");
+        }
     }
 
-    if (!best) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "no acceptable variant: %s", r->filename);
-
-        set_neg_headers(r, neg, na_result);
-        store_variant_list(r, neg);
-        return NOT_ACCEPTABLE;
-    }
+    if ( conf->error_override ) {
+        /* the code above this checks for 'OK' which is what the hook expects */

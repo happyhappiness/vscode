@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                                "Invalid expression \"%s\" in file %s",
-                                expr, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+			"malformed header in meta file: %s", r->filename);

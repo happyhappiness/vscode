@@ -1,13 +1,13 @@
-    if (!method_restricted)
-	return OK;
+	 */
+	return TRUE;
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
+    /* We don't support all this async I/O, Microsoft-specific stuff */
+    case HSE_REQ_IO_COMPLETION:
+    case HSE_REQ_TRANSMIT_FILE:
+	ap_log_error(APLOG_MARK, APLOG_WARNING, r->server,
+		    "ISAPI asynchronous I/O not supported: %s", r->filename);
+    default:
+	SetLastError(ERROR_INVALID_PARAMETER);
+	return FALSE;
+    }
 }
-
-module MODULE_VAR_EXPORT auth_module =
-{
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800

@@ -1,15 +1,13 @@
-	else
-	    ret = FORBIDDEN;
+
+    /* We found some file names that matched.  None could be served.
+     * Rather than fall out to autoindex or some other mapper, this
+     * request must die.
+     */
+    if (anymatch && !neg->avail_vars->nelts) {
+	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+		      "Negotiation: discovered file(s) matching request: %s"
+                      " (None could be negotiated).", 
+                      r->filename);
+        return HTTP_NOT_FOUND;
     }
-
-    if (ret == FORBIDDEN
-	&& (ap_satisfies(r) != SATISFY_ANY || !ap_some_auth_required(r))) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		  "client denied by server configuration: %s",
-		  r->filename);
-    }
-
-    return ret;
-}
-
 

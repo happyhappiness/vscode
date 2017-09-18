@@ -1,13 +1,13 @@
-#if MIME_MAGIC_DEBUG
-    for (m = conf->magic; m; m = m->next) {
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-	    ap_isprint(((unsigned long) m) & 255)) {
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-			MODNAME ": match: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\"",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
-			((unsigned long) m) & 255);
+     */
+    if (dirlisting && r->content_encoding != NULL)
+        r->content_encoding = NULL;
+
+    /* set content-encoding (not for dir listings, they are uncompressed)*/
+    if (r->content_encoding != NULL && r->content_encoding[0] != '\0') {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+             "proxy: FTP: Content-Encoding set to %s", r->content_encoding);
+        apr_table_setn(r->headers_out, "Content-Encoding", r->content_encoding);
+    }
+
+    /* wait for connection */
+    if (use_port) {

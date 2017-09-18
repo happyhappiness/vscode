@@ -1,26 +1,30 @@
-#ifdef SHARED_CORE
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
-#else
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
-#endif
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S]\n", pad);
-    fprintf(stderr, "Options:\n");
-#ifdef SHARED_CORE
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
-#endif
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-    fprintf(stderr, "  -v               : show version number\n");
-    fprintf(stderr, "  -V               : show compile settings\n");
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-    exit(1);
-}
+        ap_conftree = NULL;
+        apr_pool_create(&ptemp, pconf);
+        apr_pool_tag(ptemp, "ptemp");
+        ap_server_root = def_server_root;
+        server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+        if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR| APLOG_NOERRNO,
+                         0, NULL, "Pre-configuration failed\n");
+            destroy_and_exit_process(process, 1);
+        }
 
-/*****************************************************************
- *
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
+        ap_process_config_tree(server_conf, ap_conftree, process->pconf, ptemp);
+        ap_fixup_virtual_hosts(pconf, server_conf);
+        ap_fini_vhost_config(pconf, server_conf);
+        apr_sort_hooks();
+        apr_pool_clear(plog);
+        if (ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR| APLOG_NOERRNO,
+                         0, NULL, "Unable to open logs\n");
+            destroy_and_exit_process(process, 1);
+        }
+
+        if (ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR | APLOG_NOERRNO,
+                         0, NULL, "Configuration Failed\n");
+            destroy_and_exit_process(process, 1);
+        }
+
+        apr_pool_destroy(ptemp);
+        apr_pool_lock(pconf, 1);

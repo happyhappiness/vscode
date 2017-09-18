@@ -1,65 +1,41 @@
-
-static int getsfunc_FILE(char *buf, int len, void *f)
+ * In other words, don't change this one without checking table_do in alloc.c.
+ * It returns true unless there was a write error of some kind.
+ */
+static int perchild_header_field(perchild_header *h,
+                             const char *fieldname, const char *fieldval)
 {
-    return fgets(buf, len, (FILE *) f) != NULL;
-}
-
-API_EXPORT(int) ap_scan_script_header_err(request_rec *r, FILE *f,
-					  char *buffer)
-{
-    return scan_script_header_err_core(r, buffer, getsfunc_FILE, f);
-}
-
-static int getsfunc_BUFF(char *w, int len, void *fb)
-{
-    return ap_bgets(w, len, (BUFF *) fb) > 0;
-}
-
-API_EXPORT(int) ap_scan_script_header_err_buff(request_rec *r, BUFF *fb,
-					       char *buffer)
-{
-    return scan_script_header_err_core(r, buffer, getsfunc_BUFF, fb);
+    apr_pstrcat(h->p, h->headers, fieldname, ": ", fieldval, CRLF, NULL); 
+    return 1;
 }
 
 
-API_EXPORT(void) ap_send_size(size_t size, request_rec *r)
+static void child_main(int child_num_arg)
 {
-    /* XXX: this -1 thing is a gross hack */
-    if (size == (size_t)-1) {
-	ap_rputs("    -", r);
-    }
-    else if (!size) {
-	ap_rputs("   0k", r);
-    }
-    else if (size < 1024) {
-	ap_rputs("   1k", r);
-    }
-    else if (size < 1048576) {
-	ap_rprintf(r, "%4dk", (size + 512) / 1024);
-    }
-    else if (size < 103809024) {
-	ap_rprintf(r, "%4.1fM", size / 1048576.0);
-    }
-    else {
-	ap_rprintf(r, "%4dM", (size + 524288) / 1048576);
-    }
-}
+    int i;
+    apr_status_t rv;
+    apr_socket_t *sock = NULL;
+    ap_listen_rec *lr;
+    
+    my_pid = getpid();
+    child_num = child_num_arg;
+    apr_pool_create(&pchild, pconf);
 
-#if defined(__EMX__) || defined(WIN32)
-static char **create_argv_cmd(pool *p, char *av0, const char *args, char *path)
-{
-    register int x, n;
-    char **av;
-    char *w;
-
-    for (x = 0, n = 2; args[x]; x++) {
-        if (args[x] == '+') {
-	    ++n;
-	}
+    for (lr = ap_listeners ; lr->next != NULL; lr = lr->next) {
+        continue;
     }
 
-    /* Add extra strings to array. */
-    n = n + 2;
+    apr_os_sock_put(&sock, &child_info_table[child_num].input, pconf);
+    lr->next = apr_palloc(pconf, sizeof(*lr));
+    lr->next->sd = sock;
+    lr->next->active = 1;
+    lr->next->accept_func = receive_from_other_child;
+    lr->next->next = NULL;
+    lr = lr->next;
+    num_listensocks++;
 
-    av = (char **) ap_palloc(p, (n + 1) * sizeof(char *));
-    av[0] = av0;
+    /*stuff to do before we switch id's, so we have permissions.*/
+
+    rv = SAFE_ACCEPT(apr_proc_mutex_child_init(&process_accept_mutex, 
+                                               ap_lock_fname, pchild));
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,

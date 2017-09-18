@@ -1,15 +1,13 @@
-    }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (x) {
-	alarm_fn = fn;
-    }
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+                ret = apr_poll(pollset, num_listensocks, &n, -1);
+                if (ret != APR_SUCCESS) {
+                    if (APR_STATUS_IS_EINTR(ret)) {
+                        continue;
+                    }
+
+                    /* apr_poll() will only return errors in catastrophic
+                     * circumstances. Let's try exiting gracefully, for now. */
+                    ap_log_error(APLOG_MARK, APLOG_ERR, ret, (const server_rec *)
+                                 ap_server_conf, "apr_poll: (listen)");
+                    signal_threads(ST_GRACEFUL);
+                }
+

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-		    MODNAME ": mcheck: can't happen: invalid relation %d.",
-		    m->reln);
+ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
+                         "Parsed addr %s", inet_ntoa(New->addr));

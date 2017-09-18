@@ -1,101 +1,55 @@
- * and OPTIONS at this point... anyone who wants to write a generic
- * handler for PUT or POST is free to do so, but it seems unwise to provide
- * any defaults yet... So, for now, we assume that this will always be
- * the last handler called and return 405 or 501.
- */
 
-static int default_handler(request_rec *r)
+static const char *set_cookie_log(cmd_parms *cmd, void *dummy, const char *fn)
 {
-    core_dir_config *d =
-      (core_dir_config *)ap_get_module_config(r->per_dir_config, &core_module);
-    int rangestatus, errstatus;
-    FILE *f;
-#ifdef USE_MMAP_FILES
-    caddr_t mm;
-#endif
+    return add_custom_log(cmd, dummy, fn, "%{Cookie}n \"%r\" %t", NULL);
+}
 
-    /* This handler has no use for a request body (yet), but we still
-     * need to read and discard it if the client sent one.
-     */
-    if ((errstatus = ap_discard_request_body(r)) != OK) {
-        return errstatus;
-    }
+static const char *set_buffered_logs_on(cmd_parms *parms, void *dummy, int flag)
+{
+    buffered_logs = flag;
+    ap_log_set_writer_init(ap_buffered_log_writer_init);
+    ap_log_set_writer(ap_buffered_log_writer);
+    return NULL;
+}
+static const command_rec config_log_cmds[] =
+{
+AP_INIT_TAKE23("CustomLog", add_custom_log, NULL, RSRC_CONF,
+     "a file name, a custom log format string or format name, "
+     "and an optional \"env=\" clause (see docs)"),
+AP_INIT_TAKE1("TransferLog", set_transfer_log, NULL, RSRC_CONF,
+     "the filename of the access log"),
+AP_INIT_TAKE12("LogFormat", log_format, NULL, RSRC_CONF,
+     "a log format string (see docs) and an optional format name"),
+AP_INIT_TAKE1("CookieLog", set_cookie_log, NULL, RSRC_CONF,
+     "the filename of the cookie log"),
+AP_INIT_FLAG("BufferedLogs", set_buffered_logs_on, NULL, RSRC_CONF,
+                 "Enable Buffered Logging (experimental)"),
+    {NULL}
+};
 
-    r->allowed |= (1 << M_GET) | (1 << M_OPTIONS);
-
-    if (r->method_number == M_INVALID) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "Invalid method in request %s", r->the_request);
-	return NOT_IMPLEMENTED;
-    }
-    if (r->method_number == M_OPTIONS) {
-        return ap_send_http_options(r);
-    }
-    if (r->method_number == M_PUT) {
-        return METHOD_NOT_ALLOWED;
-    }
-
-    if (r->finfo.st_mode == 0 || (r->path_info && *r->path_info)) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server, 
-                    "File does not exist: %s", 
-		     r->path_info 
-		         ? ap_pstrcat(r->pool, r->filename, r->path_info, NULL)
-		         : r->filename);
-	return NOT_FOUND;
-    }
-    if (r->method_number != M_GET) {
-        return METHOD_NOT_ALLOWED;
-    }
-	
-#if defined(__EMX__) || defined(WIN32)
-    /* Need binary mode for OS/2 */
-    f = ap_pfopen(r->pool, r->filename, "rb");
-#else
-    f = ap_pfopen(r->pool, r->filename, "r");
-#endif
-
-    if (f == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "file permissions deny server access: %s", r->filename);
-        return FORBIDDEN;
-    }
-	
-    ap_update_mtime(r, r->finfo.st_mtime);
-    ap_set_last_modified(r);
-    ap_set_etag(r);
-    ap_table_setn(r->headers_out, "Accept-Ranges", "bytes");
-    if (((errstatus = ap_meets_conditions(r)) != OK)
-	|| (errstatus = ap_set_content_length(r, r->finfo.st_size))) {
-        return errstatus;
+static config_log_state *open_config_log(server_rec *s, apr_pool_t *p,
+                                         config_log_state *cls,
+                                         apr_array_header_t *default_format)
+{
+    if (cls->log_writer != NULL) {
+        return cls;             /* virtual config shared w/main server */
     }
 
-#ifdef USE_MMAP_FILES
-    ap_block_alarms();
-    if ((r->finfo.st_size >= MMAP_THRESHOLD)
-	&& (!r->header_only || (d->content_md5 & 1))) {
-	/* we need to protect ourselves in case we die while we've got the
- 	 * file mmapped */
-	mm = mmap(NULL, r->finfo.st_size, PROT_READ, MAP_PRIVATE,
-		  fileno(f), 0);
-	if (mm == (caddr_t)-1) {
-	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
-			 "default_handler: mmap failed: %s", r->filename);
-	}
+    if (cls->fname == NULL) {
+        return cls;             /* Leave it NULL to decline.  */
     }
-    else {
-	mm = (caddr_t)-1;
-    }
+    
+    cls->log_writer = log_writer_init(p, s, cls->fname);
+    if (cls->log_writer == NULL)
+        return NULL; 
 
-    if (mm == (caddr_t)-1) {
-	ap_unblock_alarms();
-#endif
+    return cls;
+}
 
-	if (d->content_md5 & 1) {
-	    ap_table_setn(r->headers_out, "Content-MD5",
-			  ap_md5digest(r->pool, f));
-	}
-
-	rangestatus = ap_set_byterange(r);
-#ifdef CHARSET_EBCDIC
-	/* To make serving of "raw ASCII text" files easy (they serve faster 
-	 * since they don't have to be converted from EBCDIC), a new
+static int open_multi_logs(server_rec *s, apr_pool_t *p)
+{
+    int i;
+    multi_log_state *mls = ap_get_module_config(s->module_config,
+                                             &log_config_module);
+    config_log_state *clsarray;
+    const char *dummy;

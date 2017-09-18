@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                                "Invalid expression \"%s\" in file %s",
-                                expr, r->filename);
+ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, cmd->pool, 
+                 "WARNING: LoadModule not supported on this platform");

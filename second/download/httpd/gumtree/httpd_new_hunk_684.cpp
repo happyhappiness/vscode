@@ -1,18 +1,25 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
-}
-
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
 {
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
+    char *host, *path, *search, sport[7];
+    const char *err;
+    const char *scheme;
+    apr_port_t port, def_port;
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+    /* ap_port_of_scheme() */
+    if (strncasecmp(url, "http:", 5) == 0) {
+        url += 5;
+        scheme = "http";
+    }
+    else if (strncasecmp(url, "https:", 6) == 0) {
+        url += 6;
+        scheme = "https";
+    }
+    else {
         return DECLINED;
+    }
+    def_port = apr_uri_port_of_scheme(scheme);
 
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+             "proxy: HTTP: canonicalising URL %s", url);
+
+    /* do syntatic check.
+     * We break the URL into host, port, path, search

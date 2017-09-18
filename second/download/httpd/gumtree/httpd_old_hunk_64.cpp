@@ -1,13 +1,13 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
-}
+        return DECLINED;
 
+    if ((result = ap_xml_parse_input(r, &doc)) != OK)
+        return result;
+    if (doc == NULL) {
+        /* This supplies additional information for the default msg. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                      "The request body must specify a report.");
+        return HTTP_BAD_REQUEST;
+    }
 
-static const handler_rec autoindex_handlers[] =
+    /* Ask repository module to resolve the resource.
+     * First determine whether a Target-Selector header is allowed

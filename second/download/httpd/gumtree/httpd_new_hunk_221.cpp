@@ -1,13 +1,13 @@
-            case token_le:
-            case token_lt:
-                new->parent = current;
-                current = current->right = new;
-                break;
-            default:
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                            "Invalid expression \"%s\" in file %s",
-                            expr, r->filename);
-                ap_rputs(error, r);
-                goto RETURN;
-            }
-            break;
+{
+    register unsigned long l = m->value.l;
+    register unsigned long v;
+    int matched;
+
+    if ((m->value.s[0] == 'x') && (m->value.s[1] == '\0')) {
+	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+		    MODNAME ": BOINK");
+	return 1;
+    }
+
+    switch (m->type) {
+    case BYTE:

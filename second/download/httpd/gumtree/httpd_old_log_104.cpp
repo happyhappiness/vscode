@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-                     "%s client stopped connection before send mmap completed",
-                                ap_get_remote_host(r->connection,
-                                                r->per_dir_config,
-                                                REMOTE_NAME));
+ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                          "The \"version-control\" element does not contain "
+                          "a \"version\" element.");

@@ -1,17 +1,15 @@
+                             cache->type);
+                return rv;
+            }
+            return OK;
+        }
+        else {
+            if (!r->err_headers_out) {
+                r->err_headers_out = apr_table_make(r->pool, 3);
+            }
+            /* stale data available */
+            if (lookup) {
+                return DECLINED;
+            }
 
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
-    }
-
-    cache = c->fp;
-
-    c->hdrs = resp_hdrs;
-
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,

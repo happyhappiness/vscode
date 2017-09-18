@@ -1,0 +1,1 @@
+ap_add_output_filter("CORE", net, NULL, net->c);

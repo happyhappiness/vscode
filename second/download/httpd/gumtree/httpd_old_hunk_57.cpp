@@ -1,12 +1,13 @@
-    if (!method_restricted)
-	return OK;
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+    if (doc != NULL) {
+        const ap_xml_elem *aset;
 
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
+        if (!dav_validate_root(doc, "checkout")) {
+            /* This supplies additional information for the default msg. */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                          "The request body, if present, must be a "
+                          "DAV:checkout element.");
+            return HTTP_BAD_REQUEST;
+        }
 
-module MODULE_VAR_EXPORT auth_module =
-{
+        if (dav_find_child(doc->root, "apply-to-version") != NULL) {

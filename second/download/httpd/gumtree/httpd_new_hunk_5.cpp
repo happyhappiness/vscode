@@ -1,13 +1,13 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
+            /* if we aren't authoritative, any require directive could be
+             * valid even if we don't grok it.  However, if we are 
+             * authoritative, we can warn the user they did something wrong.
+             * That something could be a missing "AuthAuthoritative off", but
+             * more likely is a typo in the require directive.
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "access to %s failed, reason: unknown require "
+                          "directive:\"%s\"", r->uri, reqs[x].requirement);
+        }
     }
-#endif
 
-    for (i = 0; i < t->a.nelts; ) {
+    if (!method_restricted) {

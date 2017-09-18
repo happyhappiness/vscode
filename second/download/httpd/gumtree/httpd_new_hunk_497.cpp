@@ -1,15 +1,44 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
+}
 
-        r->read_chunked = 1;
+static void accept_mutex_on(void)
+{
+    apr_status_t rv = apr_proc_mutex_lock(accept_mutex);
+    if (rv != APR_SUCCESS) {
+        const char *msg = "couldn't grab the accept mutex";
+
+        if (ap_my_generation != 
+            ap_scoreboard_image->global->running_generation) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, msg);
+            clean_child_exit(0);
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, msg);
+            exit(APEXIT_CHILDFATAL);
+        }
     }
-    else if (lenp) {
-        const char *pos = lenp;
+}
 
-        while (ap_isdigit(*pos) || ap_isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
+static void accept_mutex_off(void)
+{
+    apr_status_t rv = apr_proc_mutex_unlock(accept_mutex);
+    if (rv != APR_SUCCESS) {
+        const char *msg = "couldn't release the accept mutex";
+
+        if (ap_my_generation != 
+            ap_scoreboard_image->global->running_generation) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, msg);
+            /* don't exit here... we have a connection to
+             * process, after which point we'll see that the
+             * generation changed and we'll exit cleanly
+             */
         }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, msg);
+            exit(APEXIT_CHILDFATAL);
+        }
+    }
+}
+
+/* On some architectures it's safe to do unserialized accept()s in the single
+ * Listen case.  But it's never safe to do it in the case where there's
+ * multiple Listen statements.  Define SINGLE_LISTEN_UNSERIALIZED_ACCEPT

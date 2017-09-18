@@ -1,14 +1,12 @@
-    ap_hard_timeout("send directory", r);
 
-    /* Spew HTML preamble */
+    if (parse_url(apr_pstrdup(cntxt, opt->argv[opt->ind++]))) {
+	fprintf(stderr, "%s: invalid URL\n", argv[0]);
+	usage(argv[0]);
+    }
 
-    title_endp = title_name + strlen(title_name) - 1;
 
-    while (title_endp > title_name && *title_endp == '/')
-	*title_endp-- = '\0';
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+    if ((heartbeatres) && (requests > 150)) {
+	heartbeatres = requests / 10;	/* Print line every 10% of requests */
+	if (heartbeatres < 100)
+	    heartbeatres = 100;	/* but never more often than once every 100
+				 * connections. */

@@ -1,13 +1,13 @@
+{
+    headers_conf *serverconf = ap_get_module_config(f->r->server->module_config,
+                                                    &headers_module);
+    headers_conf *dirconf = ap_get_module_config(f->r->per_dir_config,
+                                                 &headers_module);
 
-    f = ap_pfopen(r->pool, metafilename, "r");
-    if (f == NULL) {
-	if (errno == ENOENT) {
-	    return DECLINED;
-	}
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-	      "meta file permissions deny server access: %s", metafilename);
-	return FORBIDDEN;
-    };
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server,
+		 "headers: ap_headers_output_filter()");
 
-    /* read the headers in */
-    rv = scan_meta_file(r, f);
+    /* do the fixup */
+    do_headers_fixup(f->r, hdr_out, serverconf->fixup_out);
+    do_headers_fixup(f->r, hdr_out, dirconf->fixup_out);
+

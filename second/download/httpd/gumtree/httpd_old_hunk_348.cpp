@@ -1,26 +1,50 @@
+        sc = mySrvConfig(pServ);
 
-    /* Pass one --- direct matches */
+        if (!sc->enabled)
+            continue;
 
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
+        cpVHostID = ssl_util_vhostid(p, pServ);
+        ssl_log(pServ, SSL_LOG_INFO|SSL_INIT,
+                "Loading certificate & private key of SSL-aware server");
 
-            if (result != DECLINED)
-                return result;
+        /*
+         * Read in server certificate(s): This is the easy part
+         * because this file isn't encrypted in any way.
+         */
+        if (sc->server->pks->cert_files[0] == NULL) {
+            ssl_log(pServ, SSL_LOG_ERROR|SSL_INIT,
+                    "Server should be SSL-aware but has no certificate configured "
+                    "[Hint: SSLCertificateFile]");
+            ssl_die();
         }
-    }
+        algoCert = SSL_ALGO_UNKNOWN;
+        algoKey  = SSL_ALGO_UNKNOWN;
+        for (i = 0, j = 0; i < SSL_AIDX_MAX && sc->server->pks->cert_files[i] != NULL; i++) {
 
-    /* Pass two --- wildcard matches */
+            apr_cpystrn(szPath, sc->server->pks->cert_files[i], sizeof(szPath));
+            if ( exists_and_readable(szPath, p, NULL) != APR_SUCCESS ) {
+                ssl_log(s, SSL_LOG_ERROR|SSL_ADD_ERRNO,
+                        "Init: Can't open server certificate file %s", szPath);
+                ssl_die();
+            }
+            if ((pX509Cert = SSL_read_X509(szPath, NULL, NULL)) == NULL) {
+                ssl_log(s, SSL_LOG_ERROR|SSL_ADD_SSLERR,
+                        "Init: Unable to read server certificate from file %s", szPath);
+                ssl_die();
+            }
 
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
+            /*
+             * check algorithm type of certificate and make
+             * sure only one certificate per type is used.
+             */
+            at = ssl_util_algotypeof(pX509Cert, NULL);
+            an = ssl_util_algotypestr(at);
+            if (algoCert & at) {
+                ssl_log(s, SSL_LOG_ERROR|SSL_ADD_SSLERR,
+                        "Init: Multiple %s server certificates not allowed", an);
+                ssl_die();
+            }
+            algoCert |= at;
 
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+            /*
+             * Insert the certificate into global module configuration to let it

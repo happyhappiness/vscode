@@ -1,20 +1,20 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: header only");
         }
-        return 0;
     }
 
-    range = ap_getword(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+    /* See define of AP_MAX_INTERIM_RESPONSES for why */
+    if (received_continue > AP_MAX_INTERIM_RESPONSES) {
+        return ap_proxyerror(r, HTTP_BAD_GATEWAY,
+                             apr_psprintf(p, 
+                             "Too many (%d) interim responses from origin server",
+                             received_continue));
+    }
 
-    if (r->byterange > 1) {
-        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    if ( conf->error_override ) {
+        /* the code above this checks for 'OK' which is what the hook expects */
+        if ( r->status == HTTP_OK )
+            return OK;
+        else  {
+            /* clear r->status for override error, otherwise ErrorDocument

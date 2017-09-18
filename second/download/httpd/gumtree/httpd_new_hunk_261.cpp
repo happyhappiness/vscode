@@ -1,13 +1,13 @@
-	pp = ctime((time_t *) & p->l);
-	if ((rt = strchr(pp, '\n')) != NULL)
-	    *rt = '\0';
-	(void) magic_rsl_printf(r, m->desc, pp);
-	return;
-    default:
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
-		    MODNAME ": invalid m->type (%d) in mprint().",
-		    m->type);
-	return;
+                                         NULL));
+    }
+    if (!uri->port) {
+        uri->port = apr_uri_default_port_for_scheme(uri->scheme);
     }
 
-    v = signextend(r->server, m, v) & m->mask;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: HTTP connecting %s to %s:%d", *url, uri->hostname,
+                 uri->port);
+
+    /* do a DNS lookup for the destination host */
+    /* see memory note above */
+    err = apr_sockaddr_info_get(&uri_addr, apr_pstrdup(c->pool, uri->hostname),

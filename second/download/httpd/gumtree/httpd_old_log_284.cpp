@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                            "httpd: unknown directive \"%s\" "
-                            "in parsed doc %s",
-                            directive, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, 0, r,
+		    MODNAME ": broken symlink (%s)", fn);

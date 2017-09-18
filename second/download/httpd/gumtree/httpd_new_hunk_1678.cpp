@@ -1,13 +1,13 @@
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+	if (cid->status) /* We have a special status to return */
+	    return cid->status;
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
+	return OK;
+    case HSE_STATUS_PENDING:	/* We don't support this */
+	ap_log_rerror(APLOG_MARK, APLOG_WARNING, r,
+		    "ISAPI asynchronous I/O not supported: %s", r->filename);
+    case HSE_STATUS_ERROR:
+    default:
+	return SERVER_ERROR;
+    }
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */

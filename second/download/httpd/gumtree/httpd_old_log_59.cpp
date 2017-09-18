@@ -1,1 +1,3 @@
-ap_log_error(file, 0, APLOG_ERR, s, msg);
+ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, 0, r,
+                          "ISAPI %s: %s", cid->r->filename,
+                          (char*) lpvBuffer);

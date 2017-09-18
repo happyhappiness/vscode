@@ -1,26 +1,22 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
+    else
+	dirconf = current_conn->server->lookup_defaults;
+    if (!current_conn->keptalive) {
+	if (sig == SIGPIPE) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
+			current_conn->server,
+			"%s client stopped connection before %s completed",
+			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME),
+			timeout_name ? timeout_name : "request");
+	}
+	else {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
+			current_conn->server,
+			"%s timed out for %s",
+			timeout_name ? timeout_name : "request",
+			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME));
+	}
     }
 
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+    if (timeout_req) {
+	/* Someone has asked for this transaction to just be aborted
+	 * if it times out...

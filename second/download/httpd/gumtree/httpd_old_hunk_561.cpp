@@ -1,14 +1,21 @@
+        case AP_SIG_GRACEFUL:
+        case SIGKILL:
+            break;
 
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
+        default:
+            if (APR_PROC_CHECK_CORE_DUMP(why)) {
+                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE,
+                             0, ap_server_conf,
+                             "child pid %ld exit signal %s (%d), "
+                             "possible coredump in %s",
+                             (long)pid->pid, sigdesc, signum,
+                             ap_coredump_dir);
+            }
+            else {
+                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE,
+                             0, ap_server_conf,
+                             "child pid %ld exit signal %s (%d)",
+                             (long)pid->pid, sigdesc, signum);
+            }
+        }
     }
-    cache = c->fp;
-
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);

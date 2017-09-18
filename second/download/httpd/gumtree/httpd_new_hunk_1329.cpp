@@ -1,21 +1,19 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
-    }
+    isa->isapi_version = apr_pcalloc(p, sizeof(HSE_VERSION_INFO));
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
+    /* TODO: These aught to become overrideable, so that we
+     * assure a given isapi can be fooled into behaving well.
+     *
+     * The tricky bit, they aren't really a per-dir sort of
+     * config, they will always be constant across every
+     * reference to the .dll no matter what context (vhost,
+     * location, etc) they apply to.
+     */
+    isa->report_version = 0x500; /* Revision 5.0 */
+    isa->timeout = 300 * 1000000; /* microsecs, not used */
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    rv = apr_dso_load(&isa->handle, isa->filename, p);
+    if (rv)
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "ISAPI: failed to load %s", isa->filename);
+        isa->handle = NULL;

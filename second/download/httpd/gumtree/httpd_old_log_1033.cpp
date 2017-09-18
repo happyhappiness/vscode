@@ -1,0 +1,1 @@
+fprintf(stderr, "\thtpasswd -n[mdps] username\n");

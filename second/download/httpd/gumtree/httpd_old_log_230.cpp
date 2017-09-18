@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, show_errno|APLOG_ERR, r->server, 
-		"%s: %s", error, r->filename);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+		     "Cannot get media subtype.");

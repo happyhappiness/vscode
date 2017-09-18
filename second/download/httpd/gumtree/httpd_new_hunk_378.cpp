@@ -1,10 +1,14 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
+        loop++;
+        new_pos = shmcb_cyclic_increment(index_num, new_pos, 1);
+    }
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
-
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+    /* Find the new_offset and make the expiries happen. */
+    if (loop > 0) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "will be expiring %u sessions", loop);
+        /* We calculate the new_offset by "peeking" (or in the
+         * case it's the last entry, "sneaking" ;-). */
+        if (loop == pos_count) {
+            /* We are expiring everything! This is easy to do... */
+            shmcb_set_safe_uint(queue->pos_count, 0);
+            shmcb_set_safe_uint(cache->pos_count, 0);

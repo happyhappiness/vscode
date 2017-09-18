@@ -1,27 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			    "ISA sent invalid headers", r->filename);
-		return FALSE;
-	    }
+    /* XXX FIXME we're referencing date on a path where we didn't set it */
+    if (lastmod != APR_DATE_BAD && lastmod > date)
+    {
+        /* if its in the future, then replace by date */
+        lastmod = date;
+        lastmods = dates;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, 
+                     r->server,
+                     "cache: Last modified is in the future, "
+                     "replacing with now");
+    }
+    info->lastmod = lastmod;
 
-	    *value++ = '\0';
-	    while (*value && isspace(*value)) ++value;
-
-	    /* Check all the special-case headers. Similar to what
-	     * scan_script_header() does (see that function for
-	     * more detail)
-	     */
-
-	    if (!strcasecmp(data, "Content-Type")) {
-		/* Nuke trailing whitespace */
-		
-		char *endp = value + strlen(value) - 1;
-		while (endp > value && isspace(*endp)) *endp-- = '\0';
-            
-		r->content_type = ap_pstrdup (r->pool, value);
-		ap_str_tolower(r->content_type);
-	    }
-	    else if (!strcasecmp(data, "Content-Length")) {
-		ap_table_set(r->headers_out, data, value);
-	    }
-	    else if (!strcasecmp(data, "Transfer-Encoding")) {
-		ap_table_set(r->headers_out, data, value);

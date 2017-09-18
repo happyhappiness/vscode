@@ -1,14 +1,13 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                         "%s: could not open error log file %s.",
+                         ap_server_argv0, fname);
+            exit(1);
+        }
 
-    for (i = 0; i < t->a.nelts; ) {
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
+        apr_file_set_inherit(s->error_log);
+    }
+}
+
+void ap_open_logs(server_rec *s_main, apr_pool_t *p)
+{
+    apr_status_t rc = APR_SUCCESS;

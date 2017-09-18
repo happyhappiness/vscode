@@ -1,14 +1,31 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
-++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
+        procnew = apr_pcalloc(pl->p, sizeof(apr_proc_t));
+        status = apr_proc_create(procnew, pname, (const char * const *) args,
+                                 NULL, procattr, pl->p);
+
+        if (status == APR_SUCCESS) {
+            pl->pid = procnew;
+            /* procnew->in was dup2'd from ap_piped_log_write_fd(pl);
+             * since the original fd is still valid, close the copy to
+             * avoid a leak. */
+            apr_file_close(procnew->in);
+            procnew->in = NULL;
+            apr_proc_other_child_register(procnew, piped_log_maintenance, pl,
+                                          ap_piped_log_write_fd(pl), pl->p);
+            close_handle_in_child(pl->p, ap_piped_log_read_fd(pl));
+        }
+        else {
+            char buf[120];
+            /* Something bad happened, give up and go away. */
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "unable to start piped log program '%s': %s",
+                         pl->program, apr_strerror(status, buf, sizeof(buf)));
+        }
+    }
+
+    return status;
+}
+
+
+static void piped_log_maintenance(int reason, void *data, apr_wait_t status)
+{
+    piped_log *pl = data;

@@ -1,13 +1,20 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
+     * For non-collections, depth is ignored, unless it is an illegal value (1).
+     */
+    depth = dav_get_depth(r, DAV_INFINITY);
+
+    if (resource->collection && depth != DAV_INFINITY) {
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Depth must be \"infinity\" for DELETE of a collection.");
+        return HTTP_BAD_REQUEST;
     }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+    if (!resource->collection && depth == 1) {
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Depth of \"1\" is not allowed for DELETE.");
+        return HTTP_BAD_REQUEST;
+    }
+
+    /*
+    ** If any resources fail the lock/If: conditions, then we must fail

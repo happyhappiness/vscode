@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ALERT, r,
-		    "Could not load DLL: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                         r->server, "proxy: an error occurred creating a "
+                         "new connection to %pI (%s)", p_conn->addr,
+                         p_conn->name);

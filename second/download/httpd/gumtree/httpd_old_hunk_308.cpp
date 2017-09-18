@@ -1,25 +1,41 @@
-    stats = malloc(requests * sizeof(struct data));
+     */
+    table = apr_hash_make(p);
 
-    FD_ZERO(&readbits);
-    FD_ZERO(&writebits);
+    for (s = base_server; s; s = s->next) {
+        sc = mySrvConfig(s);
 
-    /* setup request */
-    sprintf(request, "GET %s HTTP/1.0\r\n"
-                     "User-Agent: ApacheBench/%s\r\n"
-                     "%s"
-                     "Host: %s\r\n"
-                     "Accept: */*\r\n"
-                     "\r\n", 
-                     path, 
-                     VERSION,
-                     keepalive ? "Connection: Keep-Alive\r\n" : "", 
-                     hostname);
+        if (!sc->enabled) {
+            continue;
+        }
 
-    reqlen = strlen(request);
+        key = apr_psprintf(p, "%pA:%u",
+                           &s->addrs->host_addr, s->addrs->host_port);
+        klen = strlen(key);
 
-    /* ok - lets start */
-    gettimeofday(&start, 0);
+        if ((ps = (server_rec *)apr_hash_get(table, key, klen))) {
+            ssl_log(base_server, SSL_LOG_WARN,
+                    "Init: SSL server IP/port conflict: "
+                    "%s (%s:%d) vs. %s (%s:%d)",
+                    ssl_util_vhostid(p, s), 
+                    (s->defn_name ? s->defn_name : "unknown"),
+                    s->defn_line_number,
+                    ssl_util_vhostid(p, ps),
+                    (ps->defn_name ? ps->defn_name : "unknown"), 
+                    ps->defn_line_number);
+            conflict = TRUE;
+            continue;
+        }
 
-    /* initialise lots of requests */
-    for (i = 0; i < concurrency; i++)
-        start_connect(&con[i]);
+        apr_hash_set(table, key, klen, s);
+    }
+
+    if (conflict) {
+        ssl_log(base_server, SSL_LOG_WARN,
+                "Init: You should not use name-based "
+                "virtual hosts in conjunction with SSL!!");
+    }
+}
+
+static int ssl_init_FindCAList_X509NameCmp(X509_NAME **a, X509_NAME **b)
+{
+    return(X509_NAME_cmp(*a, *b));

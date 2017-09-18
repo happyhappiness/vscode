@@ -1,1 +1,5 @@
-ap_bvputs(f, "PASS ", password, CRLF, NULL);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "xlate input filter not added implicitly because %s",
+                          !reqinfo->input_ctx ?
+                          "no input configuration available" :
+                          "another module added the filter");

@@ -1,28 +1,14 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+
+        c->aborted = 1;
+
+        return DECLINED; /* XXX */
     }
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    vhost_md5 = ap_md5_binary(c->pool, (unsigned char *)sc->vhost_id,
+                              sc->vhost_id_len);
 
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+    if (!SSL_set_session_id_context(ssl, (unsigned char *)vhost_md5,
+                                    MD5_DIGESTSIZE*2))
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                     "Unable to set session id context to `%s'", vhost_md5);

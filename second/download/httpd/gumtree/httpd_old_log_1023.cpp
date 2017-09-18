@@ -1,0 +1,1 @@
+printf("            min  mean[+/-sd] median   max\n");

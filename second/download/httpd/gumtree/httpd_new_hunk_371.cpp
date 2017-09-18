@@ -1,49 +1,37 @@
-	    return cond_status;
-	}
+{
+    SHMCBHeader *header;
+    SHMCBQueue queue;
+    SHMCBCache cache;
+    unsigned int temp, loop, granularity;
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, 
+                 "entered shmcb_init_memory()");
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
+    /* Calculate some sizes... */
+    temp = sizeof(SHMCBHeader);
 
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+    /* If the segment is ridiculously too small, bail out */
+    if (shm_mem_size < (2*temp)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "shared memory segment too small");
+        return FALSE;
+    }
 
-	    if (!buffer) {
-		/* Soak up all the script output - may save an outright kill */
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
+    /* Make temp the amount of memory without the header */
+    temp = shm_mem_size - temp;
 
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
+    /* Work on the basis that you need 10 bytes index for each session
+     * (approx 150 bytes), which is to divide temp by 160 - and then
+     * make sure we err on having too index space to burn even when
+     * the cache is full, which is a lot less stupid than having
+     * having not enough index space to utilise the whole cache!. */
+    temp /= 120;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "for %u bytes, recommending %u indexes",
+                 shm_mem_size, temp);
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
-
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp)) {
-		*endp-- = '\0';
-	    }
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+    /* We should divide these indexes evenly amongst the queues. Try
+     * to get it so that there are roughly half the number of divisions
+     * as there are indexes in each division. */
+    granularity = 256;
+    while ((temp / granularity) < (2 * granularity))

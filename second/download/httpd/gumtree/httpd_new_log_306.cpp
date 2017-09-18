@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
-		    MODNAME ": invalid type %d in mconvert().", m->type);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		    "((%lx & %lx) != %lx) = %d", v, l, l, matched);

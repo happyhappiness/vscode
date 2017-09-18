@@ -1,0 +1,1 @@
+ap_rputs("<hr", r);

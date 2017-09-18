@@ -1,14 +1,30 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
+             * See if this is our user.
+             */
+            colon = strchr(scratch, ':');
+            if (colon != NULL) {
+                *colon = '\0';
+            }
+            if (strcmp(user, scratch) != 0) {
+                putline(ftemp, line);
+                continue;
+            }
+            else {
+                /* We found the user we were looking for, add him to the file.
+                 */
+                apr_file_printf(errfile, "Updating ");
+                putline(ftemp, record);
+                found++;
+            }
+        }
+        apr_file_close(fpw);
     }
-#endif
+    if (!found) {
+        apr_file_printf(errfile, "Adding ");
+        putline(ftemp, record);
+    }
+    apr_file_printf(errfile, "password for user %s\n", user);
 
-    for (i = 0; i < t->a.nelts; ) {
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
+    /* The temporary file has all the data, just copy it to the new location.
+     */
+    if (apr_file_copy(tn, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
+        APR_SUCCESS) {

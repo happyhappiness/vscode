@@ -1,14 +1,18 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
+    if (ap_threads_max_free < ap_threads_min_free + 1)	/* Don't thrash... */
+        ap_threads_max_free = ap_threads_min_free + 1;
+    request_count = 0;
 
-    for (i = 0; i < t->a.nelts; ) {
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+    startup_workers(ap_threads_to_start);
+
+     /* Allow the Apache screen to be closed normally on exit() only if it
+        has not been explicitly forced to close on exit(). (ie. the -E flag
+        was specified at startup) */
+    if (hold_screen_on_exit > 0) {
+        hold_screen_on_exit = 0;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+		"%s configured -- resuming normal operations",
+		ap_get_server_version());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+		"Server built: %s", ap_get_server_built());

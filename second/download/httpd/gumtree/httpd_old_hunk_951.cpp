@@ -1,20 +1,14 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
-    }
+            }
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+            /* Check the listen queue on all sockets for requests */
+            memcpy(&main_fds, &listenfds, sizeof(fd_set));
+            srv = select(listenmaxfd + 1, &main_fds, NULL, NULL, &tv);
 
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
+            if (srv <= 0)
+                continue;
 
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+            /* remember the last_lr we searched last time around so that
+            we don't end up starving any particular listening socket */
+            if (last_lr == NULL) {
+                lr = ap_listeners;
+            }

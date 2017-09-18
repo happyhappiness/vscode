@@ -1,22 +1,19 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
     }
+}
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+static void cgi_child_errfn(apr_pool_t *pool, apr_status_t err,
+                            const char *description)
+{
+    request_rec *r;
+    void *vr;
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+    apr_pool_userdata_get(&vr, ERRFN_USERDATA_KEY, pool);
+    r = vr;
+
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, "%s", description);
+}
+
+static apr_status_t run_cgi_child(apr_file_t **script_out,
+                                  apr_file_t **script_in,
+                                  apr_file_t **script_err, 
+                                  const char *command,

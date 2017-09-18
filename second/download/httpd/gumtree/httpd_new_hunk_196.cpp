@@ -1,13 +1,13 @@
-	real_file = last_slash;
-	real_file++;
-	*last_slash = '\0';
+        additional = atoi(&code[1]) * APR_USEC_PER_SEC;
+        break;
+    default:
+        /* expecting the add_* routines to be case-hardened this 
+         * is just a reminder that module is beta
+         */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    "internal error: bad expires code: %s", r->filename);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-    else {
-	/* no last slash, buh?! */
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "internal error in mod_cern_meta: %s", r->filename);
-	/* should really barf, but hey, let's be friends... */
-	return DECLINED;
-    };
 
-    metafilename = ap_pstrcat(r->pool, "/", scrap_book, "/",
+    expires = base + additional;
+    apr_table_mergen(r->headers_out, "Cache-Control",

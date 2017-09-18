@@ -1,12 +1,14 @@
-#if TESTING
-		fprintf(stderr, "Would remove directory %s\n", newcachedir);
-#else
-		rmdir(newcachedir);
-#endif
-		--nfiles;
-	    }
-	    continue;
-	}
-#endif
 
-	i = read(fd, line, 26);
+        /* cleanup */
+        if (cipher_list_old) {
+            sk_SSL_CIPHER_free(cipher_list_old);
+        }
+
+        /* tracing */
+        if (renegotiate) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Reconfigured cipher suite will force renegotiation");
+        }
+    }
+
+    /*

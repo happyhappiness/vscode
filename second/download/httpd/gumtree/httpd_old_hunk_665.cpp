@@ -1,13 +1,31 @@
+            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+        }
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
+        r->read_chunked = 1;
     }
+    else if (lenp) {
+        const char *pos = lenp;
+        int conversion_error = 0;
+
+        while (apr_isdigit(*pos) || apr_isspace(*pos)) {
+            ++pos;
+        }
+
+        if (*pos == '\0') {
+            char *endstr;
+
+            errno = 0;
+            r->remaining = strtol(lenp, &endstr, 10);
+
+            if (errno || (endstr && *endstr)) {
+                conversion_error = 1; 
+            }
+        }
+
+        if (*pos != '\0' || conversion_error) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Invalid Content-Length");
+            return HTTP_BAD_REQUEST;
+        }
+    }
+

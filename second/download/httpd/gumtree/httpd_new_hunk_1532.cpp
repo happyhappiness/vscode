@@ -1,13 +1,21 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
-    }
+	    else {
+		grpname = gr->gr_name;
+	    }
+	}
+	else {
+	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
+			     "getpwuid: invalid userid %ld",
+			     (long) r->server->server_uid);
+		return (pid);
+	    }
+	    execuser = ap_pstrdup(r->pool, pw->pw_name);
 
-    Explain0("FTP: connected.");
-
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
+			     "getgrgid: invalid groupid %ld",
+			     (long) r->server->server_gid);
+		return (pid);
+	    }
+	    grpname = gr->gr_name;
+	}

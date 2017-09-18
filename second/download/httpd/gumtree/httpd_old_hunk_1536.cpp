@@ -1,46 +1,24 @@
-	clen = sizeof(struct sockaddr_in);
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error getting socket address");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-	}
+    buff[35] = ' ';
+    ap_proxy_sec2hex(c->len, buff + 36);
+    buff[44] = '\n';
+    buff[45] = '\0';
 
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (dsock == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error creating socket");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-	}
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		       sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error setting reuseaddr option");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-	}
-
-	if (bind(dsock, (struct sockaddr *) &server,
-		 sizeof(struct sockaddr_in)) == -1) {
-	    char buff[22];
-
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error binding to ftp data socket %s", buff);
-	    ap_bclose(f);
-	    ap_pclosesocket(p, dsock);
-	    return SERVER_ERROR;
-	}
-	listen(dsock, 2);	/* only need a short queue */
-    }
-
-/* set request */
-    len = decodeenc(path);
+/* if file not modified */
+    if (r->status == 304) {
+	if (c->ims != BAD_DATE && lmod != BAD_DATE && lmod <= c->ims) {
+/* set any changed headers somehow */
+/* update dates and version, but not content-length */
+	    if (lmod != c->lmod || expc != c->expire || date != c->date) {
+		off_t curpos = lseek(c->fp->fd, 0, SEEK_SET);
+		if (curpos == -1)
+		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+				 "proxy: error seeking on cache file %s",
+				 c->filename);
+		else if (write(c->fp->fd, buff, 35) == -1)
+		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+				 "proxy: error updating cache file %s",
+				 c->filename);
+	    }
+	    ap_pclosef(r->pool, c->fp->fd);
+	    Explain0("Remote document not modified, use local copy");
+	    /* CHECKME: Is this right? Shouldn't we check IMS again here? */

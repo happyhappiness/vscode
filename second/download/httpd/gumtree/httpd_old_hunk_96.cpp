@@ -1,13 +1,13 @@
-	    cmd->server->server_uid = ap_user_id;
-	    fprintf(stderr,
-		    "Warning: User directive in <VirtualHost> "
-		    "requires SUEXEC wrapper.\n");
-	}
+    sc = ap_get_module_config(f->r->server->module_config,
+                              &ext_filter_module);
+    ctx->dc = dc;
+    /* look for the user-defined filter */
+    ctx->filter = apr_hash_get(sc->h, f->frec->name, APR_HASH_KEY_STRING);
+    if (!ctx->filter) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, f->r,
+                      "couldn't find definition of filter '%s'",
+                      f->frec->name);
+        return APR_EINVAL;
     }
-#if !defined (BIG_SECURITY_HOLE) && !defined (__EMX__)
-    if (cmd->server->server_uid == 0) {
-	fprintf(stderr,
-		"Error:\tApache has not been designed to serve pages while\n"
-		"\trunning as root.  There are known race conditions that\n"
-		"\twill allow any local user to read any file on the system.\n"
-		"\tShould you still desire to serve pages as root then\n"
+    ctx->p = f->r->pool;
+    if (ctx->filter->intype &&

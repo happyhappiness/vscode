@@ -1,12 +1,13 @@
-#if TESTING
-		fprintf(stderr, "Would remove directory %s\n", newcachedir);
-#else
-		rmdir(newcachedir);
-#endif
-		--nfiles;
-	    }
-	    continue;
-	}
-#endif
+    apr_pool_create(&c->ctx, cntxt);
 
-	i = read(fd, line, 26);
+    if ((rv = apr_socket_create(&c->aprsock, destsa->family,
+				SOCK_STREAM, c->ctx)) != APR_SUCCESS) {
+	apr_err("socket", rv);
+    }
+    if ((rv = apr_setsocketopt(c->aprsock, APR_SO_NONBLOCK, 1))
+         != APR_SUCCESS) {
+        apr_err("socket nonblock", rv);
+    }
+    c->start = apr_time_now();
+    if ((rv = apr_connect(c->aprsock, destsa)) != APR_SUCCESS) {
+	if (APR_STATUS_IS_EINPROGRESS(rv)) {

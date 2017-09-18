@@ -1,9 +1,13 @@
-/* Automatically generated file - do not edit */
+    {
+        /* The child process or in one_process (debug) mode 
+         */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                     "Child %d: Child process is running", my_pid);
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+        child_main();
+
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                     "Child %d: Child process is exiting", my_pid);        
+        return 1;
+    }
+    else 

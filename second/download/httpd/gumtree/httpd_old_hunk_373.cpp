@@ -1,50 +1,34 @@
-     * this on Win32, though, since we haven't fork()'d.
-     */
-    r->server->error_log = stderr;
-#endif
+    temp -= header->queue_size;
+    header->cache_data_offset = (2 * sizeof(unsigned int));
+    header->cache_data_size = header->division_size -
+                              header->queue_size - header->cache_data_offset;
 
-#ifdef RLIMIT_CPU
-    if (conf->limit_cpu != NULL)
-	if ((setrlimit(RLIMIT_CPU, conf->limit_cpu)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit: failed to set CPU usage limit");
-#endif
-#ifdef RLIMIT_NPROC
-    if (conf->limit_nproc != NULL)
-	if ((setrlimit(RLIMIT_NPROC, conf->limit_nproc)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit: failed to set process limit");
-#endif
-#if defined(RLIMIT_AS)
-    if (conf->limit_mem != NULL)
-	if ((setrlimit(RLIMIT_AS, conf->limit_mem)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit(RLIMIT_AS): failed to set memory usage limit");
-#elif defined(RLIMIT_DATA)
-    if (conf->limit_mem != NULL)
-	if ((setrlimit(RLIMIT_DATA, conf->limit_mem)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit(RLIMIT_DATA): failed to set memory usage limit");
-#elif defined(RLIMIT_VMEM)
-    if (conf->limit_mem != NULL)
-	if ((setrlimit(RLIMIT_VMEM, conf->limit_mem)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit(RLIMIT_VMEM): failed to set memory usage limit");
-#endif
+    /* Output trace info */
+    ssl_log(s, SSL_LOG_TRACE, "shmcb_init_memory choices follow");
+    ssl_log(s, SSL_LOG_TRACE, "division_mask = 0x%02X", header->division_mask);
+    ssl_log(s, SSL_LOG_TRACE, "division_offset = %u", header->division_offset);
+    ssl_log(s, SSL_LOG_TRACE, "division_size = %u", header->division_size);
+    ssl_log(s, SSL_LOG_TRACE, "queue_size = %u", header->queue_size);
+    ssl_log(s, SSL_LOG_TRACE, "index_num = %u", header->index_num);
+    ssl_log(s, SSL_LOG_TRACE, "index_offset = %u", header->index_offset);
+    ssl_log(s, SSL_LOG_TRACE, "index_size = %u", header->index_size);
+    ssl_log(s, SSL_LOG_TRACE, "cache_data_offset = %u", header->cache_data_offset);
+    ssl_log(s, SSL_LOG_TRACE, "cache_data_size = %u", header->cache_data_size);
 
-#ifdef __EMX__
-    {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope this is large enough for the interpreter path */
-	FILE *program;
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-			r->filename);
-	    return (pid);
-	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
-	    is_script = 1;
+    /* The header is done, make the caches empty */
+    for (loop = 0; loop < granularity; loop++) {
+        if (!shmcb_get_division(header, &queue, &cache, loop))
+            ssl_log(s, SSL_LOG_ERROR, "shmcb_init_memory, " "internal error");
+        shmcb_set_safe_uint(cache.first_pos, 0);
+        shmcb_set_safe_uint(cache.pos_count, 0);
+        shmcb_set_safe_uint(queue.first_pos, 0);
+        shmcb_set_safe_uint(queue.pos_count, 0);
+    }
+
+    ssl_log(s, SSL_LOG_TRACE, "leaving shmcb_init_memory()");
+    return TRUE;
+}
+
+static BOOL shmcb_store_session(
+    server_rec *s, void *shm_segment, UCHAR *id,
+    int idlen, SSL_SESSION * pSession,

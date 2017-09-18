@@ -1,29 +1,22 @@
-	}
-
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!ap_isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (ap_isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && ap_isspace(*dst))
-	    *dst = '\0';
-
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
 #endif
-	return 0;
+
+    /* when `RewriteEngine off' was used in the per-server
+     * context then the rewritemap-programs were not spawned.
+     * In this case using such a map (usually in per-dir context)
+     * is useless because it is not available.
+     *
+     * newlines in the key leave bytes in the pipe and cause
+     * bad things to happen (next map lookup will use the chars
+     * after the \n instead of the new key etc etc - in other words,
+     * the Rewritemap falls out of sync with the requests).
+     */
+    if (fpin == NULL || fpout == NULL || ap_strchr(key, '\n')) {
+        return NULL;
+    }
+ 
+    /* take the lock */
+
+    if (rewrite_mapr_lock_acquire) {
+        rv = apr_global_mutex_lock(rewrite_mapr_lock_acquire);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,

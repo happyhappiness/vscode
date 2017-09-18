@@ -1,26 +1,13 @@
+    char *origs = s, *origp = p;
+    char *pmax = p + plen - 1;
+    register int c;
+    register int val;
 
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+    while ((c = *s++) != '\0') {
+	if (apr_isspace((unsigned char) c))
+	    break;
+	if (p >= pmax) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv,
+			MODNAME ": string too long: %s", origs);
+	    break;
+	}

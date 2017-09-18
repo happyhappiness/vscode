@@ -1,24 +1,13 @@
+ * Otherwise
+ *   replace ourselves with cache_in filter
+ */
 
-static char *lcase_header_name_return_body(char *header, request_rec *r)
+static int cache_conditional_filter(ap_filter_t *f, apr_bucket_brigade *in)
 {
-    char *cp = header;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, f->r->server,
+                 "cache: running CACHE_CONDITIONAL filter");
 
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = tolower(*cp);
+    if (f->r->status == HTTP_NOT_MODIFIED) {
+        /* replace ourselves with CACHE_OUT filter */
+        ap_add_output_filter("CACHE_OUT", NULL, f->r, f->r->connection);
     }
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
-
-    do {
-        ++cp;
-    } while (*cp && isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;

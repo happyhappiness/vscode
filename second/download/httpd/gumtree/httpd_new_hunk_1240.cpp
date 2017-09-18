@@ -1,17 +1,20 @@
+
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: connection complete to %pI (%s)",
+                     p_conn->addr, p_conn->name);
+
+        /* set up the connection filters */
+        rc = ap_run_pre_connection(*origin, p_conn->sock);
+        if (rc != OK && rc != DONE) {
+            (*origin)->aborted = 1;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: HTTP: pre_connection setup failed (%d)",
+                         rc);
+            return rc;
+        }
     }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (alarm_fn && x && fn != alarm_fn) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
-	    "ap_set_callback_and_alarm: possible nested timer!");
-    }
-    alarm_fn = fn;
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+    return OK;
+}
+
+static
+apr_status_t ap_proxy_http_request(apr_pool_t *p, request_rec *r,

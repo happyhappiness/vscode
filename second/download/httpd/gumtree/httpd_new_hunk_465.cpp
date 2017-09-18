@@ -1,13 +1,13 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && ap_isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+/* handle all varieties of core dumping signals */
+static void sig_coredump(int sig)
+{
+    apr_filepath_set(ap_coredump_dir, pconf);
+    apr_signal(sig, SIG_DFL);
+    if (ap_my_pid == parent_pid) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE,
+                     0, ap_server_conf,
+                     "seg fault or similar nasty error detected "
+                     "in the parent process");
+        
+        /* XXX we can probably add some rudimentary cleanup code here,
+         * like getting rid of the pid file.  If any additional bad stuff

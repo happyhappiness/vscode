@@ -1,13 +1,12 @@
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: failed to accept data connection");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    ap_proxy_cache_error(c);
-	    return BAD_GATEWAY;
-	}
-	ap_note_cleanups_for_socket(p, csd);
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
-	ap_bpushfd(data, csd, -1);
-	ap_kill_timeout(r);
-    }
+	states fresh;		/* states for a fresh start */
+	states tmp;		/* temporary */
+	states empty;		/* empty set of states */
+};
+
+#include "engine.ih"
+
+#ifdef REDEBUG
+#define	SP(t, s, c)	print(m, t, s, c, stdout)
+#define	AT(t, p1, p2, s1, s2)	at(m, t, p1, p2, s1, s2)
+#define	NOTE(str)	{ if (m->eflags&REG_TRACE) printf("=%s\n", (str)); }
+#else

@@ -1,28 +1,19 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+    apr_status_t status=0;
+
+    pconf = _pconf;
+    ap_server_conf = s;
+
+    if (setup_listeners(s)) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, status, s,
+            "no listening sockets available, shutting down");
+        return -1;
     }
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    restart_pending = shutdown_pending = 0;
+    worker_thread_count = 0;
+    apr_thread_mutex_create(&accept_mutex, APR_THREAD_MUTEX_DEFAULT, pconf);
 
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+    if (!is_graceful) {
+        if (ap_run_pre_mpm(s->process->pool, SB_NOT_SHARED) != OK) {
+            return 1;
+        }

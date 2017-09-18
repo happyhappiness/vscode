@@ -1,13 +1,14 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+#ifdef HAVE_TIMES
+                               ws_record->times.tms_utime / tick,
+                               ws_record->times.tms_stime / tick,
+                               ws_record->times.tms_cutime / tick,
+                               ws_record->times.tms_cstime / tick,
+#endif
+                               (long)apr_time_sec(nowtime -
+                                                  ws_record->last_used),
+                               (long) req_time);
 
-    reqhdrs_arr = ap_table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+                    format_byte_out(r, conn_bytes);
+                    ap_rputs("|", r);
+                    format_byte_out(r, my_bytes);
+                    ap_rputs("|", r);

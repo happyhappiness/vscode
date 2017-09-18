@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "unknown parameter \"%s\" to tag if in %s",
-                        tag, r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+		MODNAME ": apprentice test");

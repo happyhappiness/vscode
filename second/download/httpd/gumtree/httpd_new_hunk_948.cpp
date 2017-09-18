@@ -1,21 +1,46 @@
+        char **args;
+        const char *pname;
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	restart_pending = shutdown_pending = 0;
+        apr_tokenize_to_argv(pl->program, &args, pl->p);
+        pname = apr_pstrdup(pl->p, args[0]);
+        procnew = apr_pcalloc(pl->p, sizeof(apr_proc_t));
+        status = apr_proc_create(procnew, pname, (const char * const *) args,
+                                 NULL, procattr, pl->p);
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
+        if (status == APR_SUCCESS) {
+            pl->pid = procnew;
+            ap_piped_log_write_fd(pl) = procnew->in;
+            apr_proc_other_child_register(procnew, piped_log_maintenance, pl,
+                                          ap_piped_log_write_fd(pl), pl->p);
+        }
+        else {
+            char buf[120];
+            /* Something bad happened, give up and go away. */
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "unable to start piped log program '%s': %s",
+                         pl->program, apr_strerror(status, buf, sizeof(buf)));
+            rc = -1;
+        }
+    }
 
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+    return rc;
+}
+
+
+static void piped_log_maintenance(int reason, void *data, apr_wait_t status)
+{
+    piped_log *pl = data;
+    apr_status_t stats;
+
+    switch (reason) {
+    case APR_OC_REASON_DEATH:
+    case APR_OC_REASON_LOST:
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "piped log program '%s' failed unexpectedly",
+                     pl->program);
+        pl->pid = NULL;
+        apr_proc_other_child_unregister(pl);
+        if (pl->program == NULL) {
+            /* during a restart */
+            break;
+        }

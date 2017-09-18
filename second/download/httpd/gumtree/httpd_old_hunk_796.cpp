@@ -1,29 +1,17 @@
-	}
+            destroy_and_exit_process(process, exit_status);
+        }
+    }
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && isspace(*dst))
-	    *dst = '\0';
+    apr_pool_clear(plog);
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
+    /* It is assumed that if you are going to fail the open_logs phase, then
+     * you will print out your own message that explains what has gone wrong.
+     * The server doesn't need to do that for you.
+     */
+    if ( ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
+        destroy_and_exit_process(process, 1);
+    }
+
+    if ( ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                     NULL, "Configuration Failed\n");

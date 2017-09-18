@@ -1,13 +1,19 @@
-		    data = lf + 1;	/* Reset data */
-		break;
-	    }
+     *  Configure SSL Cipher Suite
+     */
+    if (!suite) {
+        return;
+    }
 
-	    if (!(value = strchr(data, ':'))) {
-		SetLastError(ERROR);	/* XXX: Find right error */
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			    "ISA sent invalid headers", r->filename);
-		return FALSE;
-	    }
+    ssl_log(s, SSL_LOG_TRACE|SSL_INIT,
+            "Configuring permitted SSL ciphers [%s]", 
+            suite);
 
-	    *value++ = '\0';
-	    while (*value && ap_isspace(*value)) ++value;
+    if (!SSL_CTX_set_cipher_list(ctx, suite)) {
+        ssl_log(s, SSL_LOG_ERROR|SSL_ADD_SSLERR|SSL_INIT,
+                "Unable to configure permitted SSL ciphers");
+        ssl_die();
+    }
+}
+
+static void ssl_init_ctx_crl(server_rec *s,
+                             apr_pool_t *p,

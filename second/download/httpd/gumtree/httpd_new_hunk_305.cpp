@@ -1,23 +1,21 @@
 
-    if (!c->gotheader) {
-        char *s;
-        int l = 4;
-        int space = CBUFFSIZE - c->cbx - 1;     /* -1 to allow for 0 terminator */
-        int tocopy = (space < r) ? space : r;
-#ifndef CHARSET_EBCDIC
-        memcpy(c->cbuff + c->cbx, buffer, space);
-#else /*CHARSET_EBCDIC*/
-        ascii2ebcdic(c->cbuff + c->cbx, buffer, space);
-#endif /*CHARSET_EBCDIC*/
-        c->cbx += tocopy;
-        space -= tocopy;
-        c->cbuff[c->cbx] = 0;   /* terminate for benefit of strstr */
-	if (verbosity >= 4) {
-	    printf("LOG: header received:\n%s\n", c->cbuff);
-	}
-        s = strstr(c->cbuff, "\r\n\r\n");
-        /* this next line is so that we talk to NCSA 1.5 which blatantly breaks 
-           the http specifaction */
-        if (!s) {
-            s = strstr(c->cbuff, "\n\n");
-            l = 2;
+    if (pkp->cert_path) {
+        SSL_X509_INFO_load_path(ptemp, sk, pkp->cert_path);
+    }
+
+    if ((ncerts = sk_X509_INFO_num(sk)) > 0) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "loaded %d client certs for SSL proxy",
+                     ncerts);
+
+        pkp->certs = sk;
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "no client certs found for SSL proxy");
+        sk_X509_INFO_free(sk);
+    }
+}
+
+static void ssl_init_proxy_ctx(server_rec *s,
+                               apr_pool_t *p,

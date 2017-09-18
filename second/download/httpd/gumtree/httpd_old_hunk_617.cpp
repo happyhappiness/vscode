@@ -1,26 +1,43 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
+		*colon = '\0';
+	    }
+	    if (strcmp(user, scratch) != 0) {
+		putline(ftemp, line);
+		continue;
+	    }
+	    found++;
+	    break;
+	}
     }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
+    if (found) {
+	fprintf(stderr, "Updating ");
     }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+    else {
+	fprintf(stderr, "Adding ");
+    }
+    fprintf(stderr, "password for user %s\n", user);
+    /*
+     * Now add the user record we created.
+     */
+    putline(ftemp, record);
+    /*
+     * If we're updating an existing file, there may be additional
+     * records beyond the one we're updating, so copy them.
+     */
+    if (! newfile) {
+	copy_file(ftemp, fpw);
+	fclose(fpw);
+    }
+    /*
+     * The temporary file now contains the information that should be
+     * in the actual password file.  Close the open files, re-open them
+     * in the appropriate mode, and copy them file to the real one.
+     */
+    fclose(ftemp);
+    fpw = fopen(pwfilename, "w+");
+    ftemp = fopen(tempfilename, "r");
+    copy_file(fpw, ftemp);
+    fclose(fpw);
+    fclose(ftemp);
+    unlink(tempfilename);
+    return 0;
+}

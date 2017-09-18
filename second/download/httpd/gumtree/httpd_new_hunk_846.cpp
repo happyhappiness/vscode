@@ -1,36 +1,43 @@
-#endif
+    /* Iterate accross the brigade and populate the cache storage */
+    APR_BRIGADE_FOREACH(e, b) {
+        const char *s;
+        apr_size_t len;
 
-    ap_soft_timeout("send body", r);
+        if (APR_BUCKET_IS_EOS(e)) {
+            if (mobj->m_len > obj->count) {
+                /* Caching a streamed response. Reallocate a buffer of the 
+                 * correct size and copy the streamed response into that 
+                 * buffer */
+                char *buf = malloc(obj->count);
+                if (!buf) {
+                    return APR_ENOMEM;
+                }
+                memcpy(buf, mobj->m, obj->count);
+                free(mobj->m);
+                mobj->m = buf;
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	/* Contributed by dwd@bell-labs.com for UTS 2.1.2, where the fcntl */
-	/*   O_NDELAY flag causes read to return 0 when there's nothing */
-	/*   available when reading from a pipe.  That makes it tricky */
-	/*   to detect end-of-file :-(.  This stupid bug is even documented */
-	/*   in the read(2) man page where it says that everything but */
-	/*   pipes return -1 and EAGAIN.  That makes it a feature, right? */
-	int afterselect = 0;
-#endif
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	    if ((n > 0) || (n == 0 && afterselect))
-		break;
-#else
-            if (n >= 0)
-                break;
-#endif
-            if (r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+                /* Now comes the crufty part... there is no way to tell the
+                 * cache that the size of the object has changed. We need
+                 * to remove the object, update the size and re-add the 
+                 * object, all under protection of the lock.
+                 */
+                if (sconf->lock) {
+                    apr_thread_mutex_lock(sconf->lock);
+                }
+                cache_remove(sconf->cache_cache, obj);
+                mobj->m_len = obj->count;
+                cache_insert(sconf->cache_cache, obj);                
+                sconf->cache_size -= (mobj->m_len - obj->count);
+                if (sconf->lock) {
+                    apr_thread_mutex_unlock(sconf->lock);
+                }
+            }
+            /* Open for business */
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "mem_cache: Cached url: %s", obj->key);
+            obj->complete = 1;
+            break;
+        }
+        rv = apr_bucket_read(e, &s, &len, eblock);
+        if (rv != APR_SUCCESS) {
+            return rv;

@@ -1,28 +1,13 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
-    }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
-    curblocks = 0;
-    curbytes = 0;
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-	ap_unblock_alarms();
-	return;
-    }
-
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
-
-    elts = (struct gc_ent **) files->elts;
-    for (i = 0; i < files->nelts; i++) {
-	fent = elts[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+                double d = (double)avg - mean; \
+                if (d < 0) d = -d; \
+                if (d > 2 * sd ) \
+                    printf("ERROR: The median and mean for " what " are more than twice the standard\n" \
+                           "       deviation apart. These results are NOT reliable.\n"); \
+                else if (d > sd ) \
+                    printf("WARING: The median and mean for " what " are not within a normal deviation\n" \
+                           "        These results are probably not that reliable.\n"); \
+            }
+	    SANE("the initial connection time", totalcon, meancon, sdcon);
+	    SANE("the processing time", totald, meand, sdd);
+	    SANE("the waiting time", totalwait, meanwait, sdwait);
+	    SANE("the total time", total, meantot, sdtot);

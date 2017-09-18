@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-                                 "mod_rewrite: can't access text RewriteMap "
-                                 "file %s", s->checkfile);
+ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
+                 "proxy: FTP: socket has been created");

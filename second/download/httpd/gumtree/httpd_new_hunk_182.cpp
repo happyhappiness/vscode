@@ -1,13 +1,13 @@
-	    const char *orig_groups, *groups;
-	    char *v;
+    if (conf->rewritelogfp != NULL) {
+        return; /* virtual log shared w/ main server */
+    }
 
-	    if (!(groups = get_db_grp(r, user, sec->auth_dbgrpfile))) {
-		if (!(sec->auth_dbauthoritative))
-		    return DECLINED;
-		ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-			    "user %s not in DB group file %s: %s",
-			    user, sec->auth_dbgrpfile, r->filename);
-		ap_note_basic_auth_failure(r);
-		return AUTH_REQUIRED;
-	    }
-	    orig_groups = groups;
+    if (*conf->rewritelogfile == '|') {
+        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, 
+                         "mod_rewrite: could not open reliable pipe "
+                         "to RewriteLog filter %s", conf->rewritelogfile+1);
+            exit(1);
+        }
+        conf->rewritelogfp = ap_piped_log_write_fd(pl);
+    }

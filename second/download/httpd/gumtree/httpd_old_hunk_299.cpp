@@ -1,13 +1,23 @@
-	 */
-	return TRUE;
+     */
 
-    /* We don't support all this async I/O, Microsoft-specific stuff */
-    case HSE_REQ_IO_COMPLETION:
-    case HSE_REQ_TRANSMIT_FILE:
-	ap_log_error(APLOG_MARK, APLOG_WARNING, r->server,
-		    "ISAPI asynchronous I/O not supported: %s", r->filename);
-    default:
-	SetLastError(ERROR_INVALID_PARAMETER);
-	return FALSE;
+    if (!(mctx->crl_file || mctx->crl_path)) {
+        return;
+    }
+
+    ssl_log(s, SSL_LOG_TRACE|SSL_INIT,
+            "Configuring certificate revocation facility");
+
+    mctx->crl =
+        SSL_X509_STORE_create((char *)mctx->crl_file,
+                              (char *)mctx->crl_path);
+
+    if (!mctx->crl) {
+        ssl_log(s, SSL_LOG_ERROR|SSL_ADD_SSLERR|SSL_INIT,
+                "Unable to configure X.509 CRL storage "
+                "for certificate revocation");
+        ssl_die();
     }
 }
+
+static void ssl_init_ctx_cert_chain(server_rec *s,
+                                    apr_pool_t *p,

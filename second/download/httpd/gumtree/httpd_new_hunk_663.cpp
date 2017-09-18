@@ -1,108 +1,22 @@
-#endif
-
-    /* Since we are reading from one buffer and writing to another,
-     * it is unsafe to do a soft_timeout here, at least until the proxy
-     * has its own timeout handler which can set both buffers to EOUT.
-     */
-
-    ap_kill_timeout(r);
-
-#ifdef WIN32
-    /* works fine under win32, so leave it */
-    ap_hard_timeout("proxy send body", r);
-    alt_to = 0;
-#else
-    /* CHECKME! Since hard_timeout won't work in unix on sends with partial
-     * cache completion, we have to alternate between hard_timeout
-     * for reads, and soft_timeout for send.  This is because we need
-     * to get a return from ap_bwrite to be able to continue caching.
-     * BUT, if we *can't* continue anyway, just use hard_timeout.
-     */
-
-    if (c) {
-        if (c->len <= 0 || c->cache_completion == 1) {
-            ap_hard_timeout("proxy send body", r);
-            alt_to = 0;
-        }
-    } else {
-        ap_hard_timeout("proxy send body", r);
-        alt_to = 0;
-    }
-#endif
-
-    while (ok && f != NULL) {
-        if (alt_to)
-            ap_hard_timeout("proxy send body", r);
-
-	n = ap_bread(f, buf, IOBUFSIZE);
-
-        if (alt_to)
-            ap_kill_timeout(r);
-        else
-            ap_reset_timeout(r);
-
-	if (n == -1) {		/* input error */
-	    if (f2 != NULL)
-		f2 = ap_proxy_cache_error(c);
-	    break;
-	}
-	if (n == 0)
-	    break;		/* EOF */
-	o = 0;
-	total_bytes_rcv += n;
-
-        if (f2 != NULL) {
-            if (ap_bwrite(f2, &buf[0], n) != n) {
-		f2 = ap_proxy_cache_error(c);
-            } else {
-                c->written += n;
-            }
-        }
-
-	while (n && !con->aborted) {
-            if (alt_to)
-                ap_soft_timeout("proxy send body", r);
-
-	    w = ap_bwrite(con->client, &buf[o], n);
-
-            if (alt_to)
-                ap_kill_timeout(r);
-            else
-                ap_reset_timeout(r);
-
-	    if (w <= 0) {
-		if (f2 != NULL) {
-                    /* when a send failure occurs, we need to decide
-                     * whether to continue loading and caching the
-                     * document, or to abort the whole thing
-                     */
-                    ok = (c->len > 0) &&
-                         (c->cache_completion > 0) &&
-                         (c->len * c->cache_completion < total_bytes_rcv);
-
-                    if (! ok) {
-                        ap_pclosef(c->req->pool, c->fp->fd);
-                        c->fp = NULL;
-                        f2 = NULL;
-                        unlink(c->tempfile);
-                    }
-		}
-                con->aborted = 1;
-		break;
-	    }
-	    n -= w;
-	    o += w;
-	}
-    }
-
-    if (!con->aborted)
-	ap_bflush(con->client);
-
-    ap_kill_timeout(r);
-    return total_bytes_rcv;
+    ap_hook_map_to_storage(ap_send_http_trace,NULL,NULL,APR_HOOK_MIDDLE);
+    ap_hook_http_method(http_method,NULL,NULL,APR_HOOK_REALLY_LAST);
+    ap_hook_default_port(http_port,NULL,NULL,APR_HOOK_REALLY_LAST);
+    ap_hook_create_request(http_create_request, NULL, NULL, APR_HOOK_REALLY_LAST);
+    ap_http_input_filter_handle =
+        ap_register_input_filter("HTTP_IN", ap_http_filter,
+                                 NULL, AP_FTYPE_PROTOCOL);
+    ap_http_header_filter_handle =
+        ap_register_output_filter("HTTP_HEADER", ap_http_header_filter, 
+                                  NULL, AP_FTYPE_PROTOCOL);
+    ap_chunk_filter_handle =
+        ap_register_output_filter("CHUNK", chunk_filter,
+                                  NULL, AP_FTYPE_TRANSCODE);
+    ap_byterange_filter_handle =
+        ap_register_output_filter("BYTERANGE", ap_byterange_filter,
+                                  NULL, AP_FTYPE_PROTOCOL);
+    ap_method_registry_init(p);
 }
 
-/*
- * Read a header from the array, returning the first entry
- */
-struct hdr_entry *
+module AP_MODULE_DECLARE_DATA http_module = {
+    STANDARD20_MODULE_STUFF,
+    NULL,			/* create per-directory config structure */

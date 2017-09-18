@@ -1,13 +1,12 @@
-	}
-	if ((timefd = creat(filename, 0666)) == -1) {
-	    if (errno != EEXIST)
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy: creat(%s)", filename);
-	    else
-		lastcheck = garbage_now;	/* someone else got in there */
-	    ap_unblock_alarms();
-	    return;
-	}
-	close(timefd);
+    /*
+     * Which cache module (if any) should handle this request?
+     */
+    if (!(types = ap_cache_get_cachetype(r, conf, path))) {
+        return DECLINED;
     }
-    else {
+
+    urllen = strlen(url);
+    if (urllen > MAX_URL_LENGTH) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: URL exceeds length threshold: %s", url);
+        return DECLINED;

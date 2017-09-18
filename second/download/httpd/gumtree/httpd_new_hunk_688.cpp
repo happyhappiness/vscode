@@ -1,20 +1,26 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
-{
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    const char *location = ap_table_get(r->headers_out, "Location");
+            backend_addr = backend_addr->next;
+            continue;
+        }
 
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
-     */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!ap_is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
+#if !defined(TPF) && !defined(BEOS)
+        if (conf->recv_buffer_size > 0 &&
+            (rv = apr_socket_opt_set(*newsock, APR_SO_RCVBUF,
+                                     conf->recv_buffer_size))) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "apr_socket_opt_set(SO_RCVBUF): Failed to set "
+                         "ProxyReceiveBufferSize, using default");
+        }
+#endif
 
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+        /* Set a timeout on the socket */
+        if (conf->timeout_set == 1) {
+            apr_socket_timeout_set(*newsock, conf->timeout);
+        }
+        else {
+             apr_socket_timeout_set(*newsock, s->timeout);
+        }
+
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "proxy: %s: fam %d socket created to connect to %s",
+                     proxy_function, backend_addr->family, backend_name);
+

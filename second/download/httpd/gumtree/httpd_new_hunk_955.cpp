@@ -1,36 +1,42 @@
-#endif
-
-    ap_soft_timeout("send body", r);
-
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	/* Contributed by dwd@bell-labs.com for UTS 2.1.2, where the fcntl */
-	/*   O_NDELAY flag causes read to return 0 when there's nothing */
-	/*   available when reading from a pipe.  That makes it tricky */
-	/*   to detect end-of-file :-(.  This stupid bug is even documented */
-	/*   in the read(2) man page where it says that everything but */
-	/*   pipes return -1 and EAGAIN.  That makes it a feature, right? */
-	int afterselect = 0;
-#endif
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	    if ((n > 0) || (n == 0 && afterselect))
-		break;
+     *    This event is signaled by the worker threads to indicate that
+     *    the process has handled MaxRequestsPerChild connections.
+     *
+     * TIMEOUT:
+     *    To do periodic maintenance on the server (check for thread exits,
+     *    number of completion contexts, etc.)
+     *
+     * XXX: thread exits *aren't* being checked.
+     *
+     * XXX: other_child - we need the process handles to the other children
+     *      in order to map them to apr_proc_other_child_read (which is not
+     *      named well, it's more like a_p_o_c_died.)
+     *
+     * XXX: however - if we get a_p_o_c handle inheritance working, and
+     *      the parent process creates other children and passes the pipes 
+     *      to our worker processes, then we have no business doing such 
+     *      things in the child_main loop, but should happen in master_main.
+     */
+    while (1) {
+#if !APR_HAS_OTHER_CHILD
+        rv = WaitForMultipleObjects(2, (HANDLE *) child_events, FALSE, INFINITE);
+        cld = rv - WAIT_OBJECT_0;
 #else
-            if (n >= 0)
-                break;
+        rv = WaitForMultipleObjects(2, (HANDLE *) child_events, FALSE, 1000);
+        cld = rv - WAIT_OBJECT_0;
+        if (rv == WAIT_TIMEOUT) {
+            apr_proc_other_child_check();
+        }
+        else 
 #endif
-            if (r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+            if (rv == WAIT_FAILED) {
+            /* Something serious is wrong */
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "Child %d: WAIT_FAILED -- shutting down server");
+            break;
+        }
+        else if (cld == 0) {
+            /* Exit event was signaled */
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Child %d: Exit event signaled. Child process is ending.", my_pid);
+            break;
+        }

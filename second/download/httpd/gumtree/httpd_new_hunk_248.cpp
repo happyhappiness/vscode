@@ -1,13 +1,13 @@
-	}
-    }
+            /* FIXME: @@@: We created an APR_INET socket. Now there may be
+             * IPv6 (AF_INET6) DNS addresses in the list... IMO the socket
+             * should be created with the correct family in the first place.
+             * (either do it in this loop, or make at least two attempts
+             * with the AF_INET and AF_INET6 elements in the list)
+             */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: FTP: trying to connect to %pI (%s)...", connect_addr, connectname);
 
-    /* clean up and return */
-    result[res_pos] = 0;
-#if MIME_MAGIC_DEBUG
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-	     MODNAME ": rsl_strdup() %d chars: %s", res_pos - 1, result);
-#endif
-    return result;
-}
+            /* make the connection out of the socket */
+            rv = apr_connect(sock, connect_addr);
 
-/* states for the state-machine algorithm in magic_rsl_to_request() */
+            /* if an error occurred, loop round and try again */

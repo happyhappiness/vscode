@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                "object is not a file, directory or symlink: %s",
-                r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "The \"version\" element does not contain "
+                          "an \"href\" element.");

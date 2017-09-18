@@ -1,14 +1,29 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
-++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
+
+            /* check if the proxy module is enabled, so
+             * we can actually use it!
+             */
+            if (!proxy_available) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "attempt to make remote request from mod_rewrite "
+                              "without proxy enabled: %s", r->filename);
+                return HTTP_FORBIDDEN;
+            }
+
+            /* make sure the QUERY_STRING and
+             * PATH_INFO parts get incorporated
+             */
+            if (r->path_info != NULL) {
+                r->filename = apr_pstrcat(r->pool, r->filename,
+                                          r->path_info, NULL);
+            }
+            if (r->args != NULL &&
+                r->uri == r->unparsed_uri) {
+                /* see proxy_http:proxy_http_canon() */
+                r->filename = apr_pstrcat(r->pool, r->filename,
+                                          "?", r->args, NULL);
+            }
+
+            /* now make sure the request gets handled by the proxy handler */
+            r->proxyreq = PROXYREQ_REVERSE;
+            r->handler  = "proxy-server";
+

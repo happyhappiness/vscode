@@ -1,14 +1,13 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    const char *t;
-    char *key, *value;
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
+    /* Second, check for actions (which override the method scripts) */
+    if ((t = ap_table_get(conf->action_types,
+		       action ? action : ap_default_type(r)))) {
+	script = t;
+	if (r->finfo.st_mode == 0) {
+	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+			"File does not exist: %s", r->filename);
+	    return NOT_FOUND;
+	}
+    }
 
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    if (script == NULL)

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-		    "%lu == %lu = %d", v, l, matched);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+			MODNAME ": magic_init 1 test");

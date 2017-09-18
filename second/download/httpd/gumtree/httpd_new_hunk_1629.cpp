@@ -1,10 +1,13 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
+    configfile_t *fp;
+    info_cfg_lines *new, *ret, *prev;
+    const char *t;
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
-
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+    fp = ap_pcfg_openfile(p, filename);
+    if (!fp) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, r, 
+		    "mod_info: couldn't open config file %s",
+		    filename);
+        return NULL;
+    }
+    ret = NULL;
+    prev = NULL;

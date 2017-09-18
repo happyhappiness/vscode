@@ -1,13 +1,16 @@
-	return ap_proxyerror(r, err);	/* give up */
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+		MODNAME ": revision_suffix checking %s", r->filename);
+#endif /* MIME_MAGIC_DEBUG */
 
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
+    /* check for recognized revision suffix */
+    suffix_pos = strlen(r->filename) - 1;
+    if (!ap_isdigit(r->filename[suffix_pos])) {
+	return 0;
+    }
+    while (suffix_pos >= 0 && ap_isdigit(r->filename[suffix_pos]))
+	suffix_pos--;
+    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
+	return 0;
     }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+    /* perform sub-request for the file name without the suffix */

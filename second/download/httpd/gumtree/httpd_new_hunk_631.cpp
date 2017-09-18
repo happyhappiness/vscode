@@ -1,18 +1,14 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
-}
+                          "The \"version\" element does not contain "
+                          "an \"href\" element.");
+            return HTTP_BAD_REQUEST;
+        }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
-
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+        /* get version URI */
+        apr_xml_to_text(r->pool, child, APR_XML_X2T_INNER, NULL, NULL,
+                        &target, &tsize);
+        if (tsize == 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "An \"href\" element does not contain a URI.");
+            return HTTP_BAD_REQUEST;
+        }
+    }

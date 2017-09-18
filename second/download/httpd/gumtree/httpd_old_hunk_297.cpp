@@ -1,13 +1,16 @@
+     * should take place. This cannot work.
+     */
+    if (mctx->auth.verify_mode == SSL_CVERIFY_REQUIRE) {
+        ca_list = (STACK_OF(X509_NAME) *)SSL_CTX_get_client_CA_list(ctx);
 
-#ifdef RELAX_HEADER_RULE
-	    if (lf)
-		*lf = '\0';
-#else
-	    if (!lf) { /* Huh? Invalid data, I think */
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			    "ISA sent invalid headers: %s", r->filename);
-		SetLastError(ERROR);	/* XXX: Find right error */
-		return FALSE;
-	    }
+        if (sk_X509_NAME_num(ca_list) == 0) {
+            ssl_log(s, SSL_LOG_WARN,
+                    "Init: Oops, you want to request client authentication, "
+                    "but no CAs are known for verification!? "
+                    "[Hint: SSLCACertificate*]");
+        }
+    }
+}
 
-	    /* Get rid of \n and \r */
+static void ssl_init_ctx_cipher_suite(server_rec *s,
+                                      apr_pool_t *p,

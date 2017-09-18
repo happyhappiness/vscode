@@ -1,14 +1,13 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
+    magic_req_rec *req_dat = (magic_req_rec *)
+		    ap_get_module_config(r->request_config, &mime_magic_module);
+    magic_rsl *rsl;
+
+    /* make sure we have a list to put it in */
+    if (!req_dat) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
+		    MODNAME ": request config should not be NULL");
+	if (!(req_dat = magic_set_config(r))) {
+	    /* failure */
+	    return -1;
 	}
     }
-#endif
-
-    for (i = 0; i < t->a.nelts; ) {
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800

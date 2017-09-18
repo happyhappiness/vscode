@@ -1,20 +1,37 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
-{
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    char *location = ap_table_get(r->headers_out, "Location");
+    apr_status_t rv;
 
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
+    /*
+     * Create shared memory segment
      */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
+    if (mc->szSessionCacheDataFile == NULL) {
+        ssl_log(s, SSL_LOG_ERROR, "SSLSessionCache required");
+        ssl_die();
+    }
 
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+    if ((rv = apr_shm_create(&(mc->pSessionCacheDataMM), 
+                             mc->nSessionCacheDataSize, 
+                             mc->szSessionCacheDataFile,
+                             mc->pPool)) != APR_SUCCESS) {
+        char buf[100];
+        ssl_log(s, SSL_LOG_ERROR,
+                "Cannot allocate shared memory: (%d)%s", rv,
+                apr_strerror(rv, buf, sizeof(buf)));
+        ssl_die();
+    }
+    shm_segment = apr_shm_baseaddr_get(mc->pSessionCacheDataMM);
+    shm_segsize = apr_shm_size_get(mc->pSessionCacheDataMM);
+
+    ssl_log(s, SSL_LOG_TRACE, "shmcb_init allocated %u bytes of shared "
+            "memory", shm_segsize);
+    if (!shmcb_init_memory(s, shm_segment, shm_segsize)) {
+        ssl_log(s, SSL_LOG_ERROR,
+                "Failure initialising 'shmcb' shared memory");
+        ssl_die();
+    }
+    ssl_log(s, SSL_LOG_INFO, "Shared memory session cache initialised");
+
+    /* 
+     * Success ... we hack the memory block into place by cheating for
+     * now and stealing a member variable the original shared memory
+     * cache was using. :-)
+     */

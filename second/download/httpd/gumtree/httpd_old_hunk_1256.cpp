@@ -1,41 +1,24 @@
-	    return cond_status;
-	}
+    }
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+    /* Create a pipe to send handles to the child */
+    if ((rv = apr_procattr_io_set(attr, APR_FULL_BLOCK, 
+                                  APR_NO_PIPE, APR_NO_PIPE)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                        "Parent: Unable to create child stdin pipe.\n");
+        apr_pool_destroy(ptemp);
+        return -1;
+    }
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+    /* Open a null handle to soak info from the child */
+    if (((rv = apr_file_open(&child_out, "NUL", APR_READ | APR_WRITE, 
+                             APR_OS_DEFAULT, ptemp)) != APR_SUCCESS)
+        || ((rv = apr_procattr_child_out_set(attr, child_out, NULL)) 
+                != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                        "Parent: Unable to connect child stdout to NUL.\n");
+        apr_pool_destroy(ptemp);
+        return -1;
+    }
 
-	    if (!buffer)
-		/* Soak up all the script output --- may save an outright kill */
-		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
-		    continue;
-
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+    /* Connect the child's initial stderr to our main server error log 
+     * or share our own stderr handle.

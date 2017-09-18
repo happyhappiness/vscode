@@ -1,13 +1,13 @@
-                case token_lt:
-                    current = current->parent;
-                    continue;
-                case token_lbrace:
-                    break;
-                default:
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                                "Invalid expression \"%s\" in file %s",
-                                expr, r->filename);
-                    ap_rputs(error, r);
-                    goto RETURN;
-                }
-                break;
+{
+    int suffix_pos, result;
+    char *sub_filename;
+    request_rec *sub;
+
+#if MIME_MAGIC_DEBUG
+    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, 0, r,
+		MODNAME ": revision_suffix checking %s", r->filename);
+#endif /* MIME_MAGIC_DEBUG */
+
+    /* check for recognized revision suffix */
+    suffix_pos = strlen(r->filename) - 1;
+    if (!apr_isdigit(r->filename[suffix_pos])) {

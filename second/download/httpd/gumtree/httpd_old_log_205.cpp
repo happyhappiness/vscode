@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "Could not open password file: %s", auth_pwfile);
+ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                              "unknown directive \"%s\" in parsed doc %s",
+                              ctx->combined_tag, r->filename);

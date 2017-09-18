@@ -1,64 +1,31 @@
-     * this on Win32, though, since we haven't fork()'d.
+     *
+     * In addition, we make HTTP/1.1 age calculations and write them away
+     * too.
      */
-    r->server->error_log = stderr;
-#endif
 
-#ifdef RLIMIT_CPU
-    if (conf->limit_cpu != NULL) {
-        if ((setrlimit(RLIMIT_CPU, conf->limit_cpu)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit: failed to set CPU usage limit");
-	}
+    /* Read the date. Generate one if one is not supplied */
+    dates = apr_table_get(r->headers_out, "Date");
+    if (dates != NULL) {
+        info->date = apr_date_parse_http(dates);
     }
-#endif
-#ifdef RLIMIT_NPROC
-    if (conf->limit_nproc != NULL) {
-        if ((setrlimit(RLIMIT_NPROC, conf->limit_nproc)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit: failed to set process limit");
-	}
+    else {
+        info->date = APR_DATE_BAD;
     }
-#endif
-#if defined(RLIMIT_AS)
-    if (conf->limit_mem != NULL) {
-        if ((setrlimit(RLIMIT_AS, conf->limit_mem)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit(RLIMIT_AS): failed to set memory "
-			 "usage limit");
-	}
-    }
-#elif defined(RLIMIT_DATA)
-    if (conf->limit_mem != NULL) {
-        if ((setrlimit(RLIMIT_DATA, conf->limit_mem)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit(RLIMIT_DATA): failed to set memory "
-			 "usage limit");
-	}
-    }
-#elif defined(RLIMIT_VMEM)
-    if (conf->limit_mem != NULL) {
-        if ((setrlimit(RLIMIT_VMEM, conf->limit_mem)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit(RLIMIT_VMEM): failed to set memory "
-			 "usage limit");
-	}
-    }
-#endif
 
-#ifdef __EMX__
-    {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope it's enough for the interpreter path */
-	FILE *program;
-
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-			 r->filename);
-	    return (pid);
-	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
-	    is_script = 1;
+    now = apr_time_now();
+    if (info->date == APR_DATE_BAD) {  /* No, or bad date */
+        char *dates;
+        /* no date header! */
+        /* add one; N.B. use the time _now_ rather than when we were checking
+         * the cache 
+         */
+        date = now;
+        dates = apr_pcalloc(r->pool, MAX_STRING_LEN);
+        apr_rfc822_date(dates, now);
+        apr_table_set(r->headers_out, "Date", dates);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: Added date header");
+        info->date = date;
+    }
+    else {
+        date = info->date;

@@ -1,0 +1,1 @@
+fprintf(stderr, "No rotation time or size specified\n");

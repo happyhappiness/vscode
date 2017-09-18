@@ -1,13 +1,12 @@
-	}
-	if ((timefd = creat(filename, 0666)) == -1) {
-	    if (errno != EEXIST)
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy: creat(%s)", filename);
-	    else
-		lastcheck = abs(garbage_now);	/* someone else got in there */
-	    ap_unblock_alarms();
-	    return;
-	}
-	close(timefd);
+        if (rv != APR_SUCCESS) {
+            break;
+        }
     }
-    else {
+}
+
+static int cgi_handler(request_rec *r)
+{
+    int nph;
+    apr_size_t dbpos = 0;
+    const char *argv0;
+    const char *command;

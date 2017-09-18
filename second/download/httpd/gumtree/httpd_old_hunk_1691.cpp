@@ -1,13 +1,13 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
+
+    {
+        /* get server information */
+        struct hostent *he;
+        he = gethostbyname(hostname);
+        if (!he)
+            err("gethostbyname");
+        server.sin_family = he->h_addrtype;
+        server.sin_port = htons(port);
+        server.sin_addr.s_addr = ((unsigned long *) (he->h_addr_list[0]))[0];
     }
 
-    fputs("%response\n", f);
-    hdrs_arr = table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
-
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+    con = malloc(concurrency * sizeof(struct connection));

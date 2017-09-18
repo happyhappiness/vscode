@@ -1,0 +1,1 @@
+apr_file_printf(errfile, "%s: %s\n", argv[0], record);

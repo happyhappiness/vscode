@@ -1,20 +1,20 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
+    apr_status_t status;
+#ifdef DEBUG
+    char buf[120];
+#endif
+
+    if (name == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+               "Internal error: pcfg_openfile() called with NULL filename");
+        return APR_EBADF;
     }
 
-    range = ap_getword(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
-
-    if (r->byterange > 1) {
-        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    status = apr_file_open(&file, name, APR_READ | APR_BUFFERED, APR_OS_DEFAULT, p);
+#ifdef DEBUG
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                "Opening config file %s (%s)",
+                name, (status != APR_SUCCESS) ? 
+                apr_strerror(status, buf, sizeof(buf)) : "successful");
+#endif
+    if (status != APR_SUCCESS)
+        return status;

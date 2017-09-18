@@ -1,16 +1,13 @@
-	else
-	    y[i] = ch + '0';
+                neg->dont_fiddle_headers = 1; 
+            }
+        }
     }
-    y[8] = '\0';
-}
 
+#ifdef NEG_DEBUG
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+            "dont_fiddle_headers=%d use_rvsa=%d ua_supports_trans=%d "
+            "send_alternates=%d, may_choose=%d",
+            neg->dont_fiddle_headers, neg->use_rvsa,  
+            neg->ua_supports_trans, neg->send_alternates, neg->may_choose);
+#endif
 
-cache_req *ap_proxy_cache_error(cache_req *c)
-{
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, c->req,
-		 "proxy: error writing to cache file %s", c->tempfile);
-    ap_pclosef(c->req->pool, c->fp->fd);
-    c->fp = NULL;
-    unlink(c->tempfile);
-    return NULL;
-}

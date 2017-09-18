@@ -1,0 +1,1 @@
+ap_add_output_filter("UPGRADE_FILTER", NULL, r, r->connection);

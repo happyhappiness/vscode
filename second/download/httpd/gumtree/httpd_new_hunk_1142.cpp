@@ -1,13 +1,24 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
-    }
+ */
+void ssl_log_ssl_error(const char *file, int line, int level, server_rec *s)
+{
+    unsigned long e;
 
-    Explain0("FTP: connected.");
+    while ((e = ERR_get_error())) {
+        const char *annotation;
+        char err[256];
 
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+        ERR_error_string_n(e, err, sizeof err);
+        annotation = ssl_log_annotation(err);
+
+        if (annotation) {
+            ap_log_error(file, line, level, 0, s,
+                         "SSL Library Error: %lu %s %s",
+                         e, err, annotation); 
+        }
+        else {
+            ap_log_error(file, line, level, 0, s,
+                         "SSL Library Error: %lu %s",
+                         e, err); 
+        }
+    }
+}

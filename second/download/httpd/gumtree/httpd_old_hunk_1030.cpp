@@ -1,13 +1,12 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
     }
 
-    Explain0("FTP: connected.");
+    apr_pool_tag(global_pool, "APR global pool");
 
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+    apr_pools_initialized = 1;
+
+#if (APR_POOL_DEBUG & APR_POOL_DEBUG_VERBOSE_ALL)
+    apr_file_open_stderr(&file_stderr, global_pool);
+    if (file_stderr) {
+        apr_file_printf(file_stderr,
+            "POOL DEBUG: [PID"
+#if APR_HAS_THREADS

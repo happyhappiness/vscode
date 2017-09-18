@@ -1,88 +1,38 @@
-	    if (!(autoindex_opts & SUPPRESS_SIZE)) {
-		ap_send_size(ar[x]->size, r);
-		ap_rputs("  ", r);
-	    }
-	    if (!(autoindex_opts & SUPPRESS_DESC)) {
-		if (ar[x]->desc) {
-		    ap_rputs(terminate_description(d, ar[x]->desc,
-						   autoindex_opts), r);
-		}
-	    }
-	}
-	else {
-	    ap_rvputs(r, "<LI> ", anchor, " ", t2, NULL);
-	}
-	ap_rputc('\n', r);
+    i = ap_proxy_cache_update(c, resp_hdrs, !backasswards, nocache);
+    if (i != DECLINED) {
+	ap_bclose(f);
+	return i;
     }
-    if (autoindex_opts & FANCY_INDEXING) {
-	ap_rputs("</PRE>", r);
-    }
-    else {
-	ap_rputs("</UL>", r);
-    }
-}
 
-/*
- * Compare two file entries according to the sort criteria.  The return
- * is essentially a signum function value.
- */
+    ap_hard_timeout("proxy receive", r);
 
-static int dsortf(struct ent **e1, struct ent **e2)
-{
-    struct ent *c1;
-    struct ent *c2;
-    int result = 0;
+/* write status line */
+    if (!r->assbackwards)
+	ap_rvputs(r, "HTTP/1.0 ", r->status_line, CRLF, NULL);
+    if (c != NULL && c->fp != NULL &&
+	ap_bvputs(c->fp, "HTTP/1.0 ", r->status_line, CRLF, NULL) == -1)
+	c = ap_proxy_cache_error(c);
 
-    /*
-     * First, see if either of the entries is for the parent directory.
-     * If so, that *always* sorts lower than anything else.
-     */
-    if (is_parent((*e1)->name)) {
-        return -1;
-    }
-    if (is_parent((*e2)->name)) {
-        return 1;
-    }
-    /*
-     * All of our comparisons will be of the c1 entry against the c2 one,
-     * so assign them appropriately to take care of the ordering.
-     */
-    if ((*e1)->ascending) {
-        c1 = *e1;
-        c2 = *e2;
-    }
-    else {
-        c1 = *e2;
-        c2 = *e1;
-    }
-    switch (c1->key) {
-    case K_LAST_MOD:
-	if (c1->lm > c2->lm) {
-            return 1;
-        }
-        else if (c1->lm < c2->lm) {
-            return -1;
-        }
-        break;
-    case K_SIZE:
-        if (c1->size > c2->size) {
-            return 1;
-        }
-        else if (c1->size < c2->size) {
-            return -1;
-        }
-        break;
-    case K_DESC:
-        result = strcmp(c1->desc ? c1->desc : "", c2->desc ? c2->desc : "");
-        if (result) {
-            return result;
-        }
-        break;
-    }
-    return strcmp(c1->name, c2->name);
-}
+/* send headers */
+    tdo.req = r;
+    tdo.cache = c;
+    ap_table_do(ap_proxy_send_hdr_line, &tdo, resp_hdrs, NULL);
 
+    if (!r->assbackwards)
+	ap_rputs(CRLF, r);
+    if (c != NULL && c->fp != NULL && ap_bputs(CRLF, c->fp) == -1)
+	c = ap_proxy_cache_error(c);
 
-static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
-{
-    char *title_name = ap_escape_html(r->pool, r->uri);
+    ap_bsetopt(r->connection->client, BO_BYTECT, &zero);
+    r->sent_bodyct = 1;
+/* Is it an HTTP/0.9 respose? If so, send the extra data */
+    if (backasswards) {
+	ap_bwrite(r->connection->client, buffer, len);
+	if (c != NULL && c->fp != NULL && ap_bwrite(c->fp, buffer, len) != len)
+	    c = ap_proxy_cache_error(c);
+    }
+    ap_kill_timeout(r);
+
+#ifdef CHARSET_EBCDIC
+    /* What we read/write after the header should not be modified
+     * (i.e., the cache copy is ASCII, not EBCDIC, even for text/html)

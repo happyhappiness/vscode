@@ -1,14 +1,19 @@
-#include "http_main.h"
-#include "http_request.h"
+        }
+        ++str;
+    }
+    /* We must store a terminating '\0' if we've stored any chars. We can
+     * get away with storing it if we hit an error first. 
+     */
+    *str = '\0';
+    if (str > str_start) {
+        /* we stored chars; don't report EOF or any other errors;
+         * the app will find out about that on the next call
+         */
+        return APR_SUCCESS;
+    }
+    return rv;
+}
 
-static int asis_handler(request_rec *r)
+APR_DECLARE_NONSTD(int) apr_file_printf(apr_file_t *fptr, 
+                                        const char *format, ...)
 {
-    FILE *f;
-    const char *location;
-
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800

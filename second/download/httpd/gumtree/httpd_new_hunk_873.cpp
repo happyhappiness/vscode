@@ -1,13 +1,19 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
-    }
 
-    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
+/* TODO: make_sock is just begging and screaming for APR abstraction */
+static apr_status_t make_sock(apr_pool_t *p, ap_listen_rec *server)
+{
+    apr_socket_t *s = server->sd;
+    int one = 1;
+#if APR_HAVE_IPV6
+#ifdef AP_ENABLE_V4_MAPPED
+    int v6only_setting = 0;
+#else
+    int v6only_setting = 1;
+#endif
+#endif
+    apr_status_t stat;
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+#ifndef WIN32
+    stat = apr_socket_opt_set(s, APR_SO_REUSEADDR, one);
+    if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,

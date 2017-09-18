@@ -1,13 +1,14 @@
+    apr_snprintf(buf1, sizeof(buf1), "%s:password", clientdn);
+    ssl_util_uuencode(buf2, buf1, FALSE);
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+    apr_snprintf(buf1, sizeof(buf1), "Basic %s", buf2);
+    apr_table_set(r->headers_in, "Authorization", buf1);
 
-    ap_hard_timeout("send headers", r);
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 "Faking HTTP Basic Auth header: \"Authorization: %s\"", buf1);
 
-    ap_basic_http_header(r);
+    return DECLINED;
+}
+
+/* authorization phase */
+int ssl_hook_Auth(request_rec *r)

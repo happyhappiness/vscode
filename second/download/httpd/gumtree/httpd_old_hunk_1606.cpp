@@ -1,13 +1,13 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
-    }
-
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
-
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+                case token_lt:
+                    current = current->parent;
+                    continue;
+                case token_lbrace:
+                    break;
+                default:
+                    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                                "Invalid expression \"%s\" in file %s",
+                                expr, r->filename);
+                    ap_rputs(error, r);
+                    goto RETURN;
+                }
+                break;

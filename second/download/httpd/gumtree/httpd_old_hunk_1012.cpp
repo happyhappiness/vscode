@@ -1,20 +1,61 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
+** |              rewriting logfile support
+** |                                                       |
+** +-------------------------------------------------------+
+*/
+
+
+static void open_rewritelog(server_rec *s, apr_pool_t *p)
 {
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    char *location = ap_table_get(r->headers_out, "Location");
+    rewrite_server_conf *conf;
+    const char *fname;
+    apr_status_t rc;
+    piped_log *pl;
+    int rewritelog_flags = ( APR_WRITE | APR_APPEND | APR_CREATE );
+    apr_fileperms_t rewritelog_mode = ( APR_UREAD | APR_UWRITE |
+                                        APR_GREAD | APR_WREAD );
 
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
-     */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
 
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+    if (conf->rewritelogfile == NULL) {
+        return;
+    }
+    if (*(conf->rewritelogfile) == '\0') {
+        return;
+    }
+    if (conf->rewritelogfp != NULL) {
+        return; /* virtual log shared w/ main server */
+    }
+
+    if (*conf->rewritelogfile == '|') {
+        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "mod_rewrite: could not open reliable pipe "
+                         "to RewriteLog filter %s", conf->rewritelogfile+1);
+            exit(1);
+        }
+        conf->rewritelogfp = ap_piped_log_write_fd(pl);
+    }
+    else if (*conf->rewritelogfile != '\0') {
+        fname = ap_server_root_relative(p, conf->rewritelogfile);
+        if (!fname) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                         "mod_rewrite: Invalid RewriteLog "
+                         "path %s", conf->rewritelogfile);
+            exit(1);
+        }
+        if ((rc = apr_file_open(&conf->rewritelogfp, fname,
+                                rewritelog_flags, rewritelog_mode, p))
+                != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
+                         "mod_rewrite: could not open RewriteLog "
+                         "file %s", fname);
+            exit(1);
+        }
+    }
+    return;
+}
+
+static void rewritelog(request_rec *r, int level, const char *text, ...)
+{
+    rewrite_server_conf *conf;
+    conn_rec *conn;

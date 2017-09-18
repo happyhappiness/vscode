@@ -1,74 +1,75 @@
+    }
+    return (res);
+}
 
-    ap_hard_timeout("proxy receive", r);
-/* send response */
-/* write status line */
-    if (!r->assbackwards)
-	ap_rvputs(r, "HTTP/1.0 ", r->status_line, CRLF, NULL);
-    if (cache != NULL)
-	if (ap_bvputs(cache, "HTTP/1.0 ", r->status_line, CRLF,
-		   NULL) == -1)
-	    cache = ap_proxy_cache_error(c);
+static content_type *analyze_ct(request_rec *r, const char *s)
+{
+    const char *cp, *mp, *tmp;
+    char *attribute, *value;
+    int quoted = 0;
+    server_rec * ss = r->server;
+    apr_pool_t  * p = r->pool;
 
-/* send headers */
-    len = resp_hdrs->nelts;
-    hdr = (struct hdr_entry *) resp_hdrs->elts;
-    for (i = 0; i < len; i++) {
-	if (hdr[i].field == NULL || hdr[i].value == NULL ||
-	    hdr[i].value[0] == '\0')
-	    continue;
-	if (!r->assbackwards)
-	    ap_rvputs(r, hdr[i].field, ": ", hdr[i].value, CRLF, NULL);
-	if (cache != NULL)
-	    if (ap_bvputs(cache, hdr[i].field, ": ", hdr[i].value, CRLF,
-		       NULL) == -1)
-		cache = ap_proxy_cache_error(c);
+    content_type *ctp;
+    param *pp, *npp;
+
+    /* initialize ctp */
+    ctp = (content_type *) apr_palloc(p, sizeof(content_type));
+    ctp->type = NULL;
+    ctp->subtype = NULL;
+    ctp->param = NULL;
+
+    mp = s;
+
+    /* getting a type */
+    if (!(cp = ap_strchr_c(mp, '/'))) {
+	ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+		     "mod_mime: analyze_ct: cannot get media type from '%s'",
+		     (const char *) mp);
+	return (NULL);
+    }
+    ctp->type = zap_sp_and_dup(p, mp, cp, NULL);
+    if (ctp->type == NULL || *(ctp->type) == '\0') {
+	ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+		     "Cannot get media subtype.");
+	return (NULL);
+    }
+    for (tmp = ctp->type; *tmp; tmp++) {
+        if ((*tmp == ';') || (*tmp == ' ') || (*tmp == '\t')) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                         "Cannot get media subtype.");
+            return (NULL);
+        }
     }
 
-    if (!r->assbackwards)
-	ap_rputs(CRLF, r);
-    if (cache != NULL)
-	if (ap_bputs(CRLF, cache) == -1)
-	    cache = ap_proxy_cache_error(c);
+    /* getting a subtype */
+    cp++;
+    mp = cp;
 
-    ap_bsetopt(r->connection->client, BO_BYTECT, &zero);
-    r->sent_bodyct = 1;
-/* send body */
-    if (!r->header_only) {
-	if (parms[0] != 'd') {
-/* we need to set this for ap_proxy_send_fb()... */
-	    c->cache_completion = 0;
-	    ap_proxy_send_fb(data, r, cache, c);
-	} else
-	    send_dir(data, r, cache, c, url);
-
-	if (rc == 125 || rc == 150)
-	    rc = ftp_getrc(f);
-	if (rc != 226 && rc != 250)
-	    ap_proxy_cache_error(c);
+    for (; *cp != ';' && *cp != '\0'; cp++)
+        continue;
+    ctp->subtype = zap_sp_and_dup(p, mp, cp, NULL);
+    if ((ctp->subtype == NULL) || (*(ctp->subtype) == '\0')) {
+	ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+		     "Cannot get media subtype.");
+	return (NULL);
     }
-    else {
-/* abort the transfer */
-	ap_bputs("ABOR" CRLF, f);
-	ap_bflush(f);
-	if (!pasvmode)
-	    ap_bclose(data);
-	Explain0("FTP: ABOR");
-/* responses: 225, 226, 421, 500, 501, 502 */
-	i = ftp_getrc(f);
-	Explain1("FTP: returned status %d", i);
+    for (tmp = ctp->subtype; *tmp; tmp++) {
+        if ((*tmp == ' ') || (*tmp == '\t')) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                         "Cannot get media subtype.");
+            return (NULL);
+        }
+    }
+    if (*cp == '\0') {
+        return (ctp);
     }
 
-    ap_kill_timeout(r);
-    ap_proxy_cache_tidy(c);
-
-/* finish */
-    ap_bputs("QUIT" CRLF, f);
-    ap_bflush(f);
-    Explain0("FTP: QUIT");
-/* responses: 221, 500 */
-
-    if (pasvmode)
-	ap_bclose(data);
-    ap_bclose(f);
-
-    ap_rflush(r);	/* flush before garbage collection */
+    /* getting parameters */
+    cp++;
+    cp = zap_sp(cp);
+    if (cp == NULL || *cp == '\0') {
+	ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+		     "Cannot get media parameter.");
+	return (NULL);
+    }

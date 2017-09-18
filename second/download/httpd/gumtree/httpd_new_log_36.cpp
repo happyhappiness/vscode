@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, NULL, 
-	    "Invalid path in os_stat: \"%s\", should have a drive letter "
-	    "or be a UNC path", szPath);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: unknown algorithm `%s' received: %s",
+                      resp->algorithm, r->uri);

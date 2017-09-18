@@ -1,13 +1,13 @@
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
-    version_locked++;
-    ap_open_logs(server_conf, pconf);
-    set_group_privs();
-
-#ifdef OS2
-    printf("%s \n", ap_get_server_version());
-#endif
-#ifdef WIN32
-    if (!child) {
-	printf("%s \n", ap_get_server_version());
-    }
+                    current->token.type = token_group;
+                    break;
+                }
+                current = current->parent;
+            }
+            if (current == (struct parse_node *) NULL) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "Unmatched ')' in \"%s\" in file %s",
+                            expr, r->filename);
+                *was_error = 1;
+                return retval;
+            }
+            break;

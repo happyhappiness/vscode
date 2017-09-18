@@ -1,13 +1,16 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && ap_isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+     * waiting for free_proc_chain to cleanup in the middle of an
+     * SSI request -djg
+     */
+    if (!ap_bspawn_child(r->main ? r->main->pool : r->pool, cgi_child,
+			 (void *) &cld, kill_after_timeout,
+			 &script_out, &script_in, &script_err)) {
+	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
+		    "couldn't spawn child process: %s", r->filename);
+	ap_table_setn(r->notes, "error-notes", "Couldn't spawn child process");
+	return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /* Transfer any put/post args, CERN style...
+     * Note that if a buggy script fails to read everything we throw
+     * at it, or a buggy client sends too much, we get a SIGPIPE, so
+     * we have to ignore SIGPIPE while doing this.  CERN does the same

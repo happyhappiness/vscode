@@ -1,14 +1,22 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    const char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
-++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800
+    if (r->finfo.st_mode == 0         /* doesn't exist */
+        || S_ISDIR(r->finfo.st_mode)
+        || S_ISREG(r->finfo.st_mode)
+        || S_ISLNK(r->finfo.st_mode)) {
+        return OK;
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+                "object is not a file, directory or symlink: %s",
+                r->filename);
+    return HTTP_FORBIDDEN;
+}
+
+
+static int check_symlinks(char *d, int opts)
+{
+#if defined(OS2) || defined(WIN32)
+    /* OS/2 doesn't have symlinks */
+    return OK;
+#else
+    struct stat lfi, fi;
+    char *lastp;
+    int res;

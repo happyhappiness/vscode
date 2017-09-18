@@ -1,13 +1,14 @@
-	}
-	if ((timefd = creat(filename, 0666)) == -1) {
-	    if (errno != EEXIST)
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy: creat(%s)", filename);
-	    else
-		lastcheck = garbage_now;	/* someone else got in there */
-	    ap_unblock_alarms();
-	    return;
-	}
-	close(timefd);
-    }
-    else {
+        else {
+            cpT = strstr(cpI, "${");
+            if (cpT == NULL)
+                cpT = cpI+strlen(cpI);
+            n = cpT-cpI;
+            if (cpO + n >= newuri + sizeof(newuri)) {
+                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 
+                             r, "insufficient space in "
+                             "expand_map_lookups, aborting");
+                return;
+            }
+            memcpy(cpO, cpI, n);
+            cpO += n;
+            cpI += n;

@@ -1,20 +1,13 @@
-#endif
-
-    ap_soft_timeout("send body", r);
-
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+		       "<tt>Max Daemons: %d Threaded: %s Forked: %s</tt></dt>\n",
+                       max_daemons, threaded ? "yes" : "no",
+                       forked ? "yes" : "no");
+            ap_rprintf(r, "<dt><strong>Server Root:</strong> "
+                        "<tt>%s</tt></dt>\n", ap_server_root);
+            ap_rprintf(r, "<dt><strong>Config File:</strong> "
+		       "<tt>%s</tt></dt>\n", SERVER_CONFIG_FILE);
+            ap_rputs("</dl><hr />", r);
+        }
+        for (modp = ap_top_module; modp; modp = modp->next) {
+            if (!r->args || !strcasecmp(modp->name, r->args)) {
+                ap_rprintf(r, "<dl><dt><a name=\"%s\"><strong>Module Name:</strong> "
+                            "<font size=\"+1\"><tt>%s</tt></font></a></dt>\n",

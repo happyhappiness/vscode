@@ -1,20 +1,23 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
+         * Finally check for acceptable renegotiation results
+         */
+        if (dc->nVerifyClient != SSL_CVERIFY_NONE) {
+            BOOL do_verify = (dc->nVerifyClient == SSL_CVERIFY_REQUIRE);
+
+            if (do_verify && (SSL_get_verify_result(ssl) != X509_V_OK)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation handshake failed: "
+                             "Client verification failed");
+
+                return HTTP_FORBIDDEN;
+            }
+
+            if (do_verify && !SSL_get_peer_certificate(ssl)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation handshake failed: "
+                             "Client certificate missing");
+
+                return HTTP_FORBIDDEN;
+            }
         }
-        return 0;
     }
 
-    range = ap_getword(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
-
-    if (r->byterange > 1) {
-        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

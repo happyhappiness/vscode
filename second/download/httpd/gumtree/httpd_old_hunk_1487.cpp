@@ -1,31 +1,13 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
+    ap_daemons_limit = atoi(arg);
+    if (ap_daemons_limit > HARD_SERVER_LIMIT) {
+       fprintf(stderr, "WARNING: MaxClients of %d exceeds compile time limit "
+           "of %d servers,\n", ap_daemons_limit, HARD_SERVER_LIMIT);
+       fprintf(stderr, " lowering MaxClients to %d.  To increase, please "
+           "see the\n", HARD_SERVER_LIMIT);
+       fprintf(stderr, " HARD_SERVER_LIMIT define in src/httpd.h.\n");
+       ap_daemons_limit = HARD_SERVER_LIMIT;
+    } 
+    else if (ap_daemons_limit < 1) {
+	fprintf(stderr, "WARNING: Require MaxClients > 0, setting to 1\n");
+	ap_daemons_limit = 1;
     }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool, num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
-
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	          (int (*)(const void *, const void *)) dsortf);
-    }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
-
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-                      ((autoindex_opts & FANCY_INDEXING) ? HRULE : NO_HRULE),
-                      END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
-    }
-    ap_rputs("</BODY></HTML>\n", r);
-
-    ap_kill_timeout(r);

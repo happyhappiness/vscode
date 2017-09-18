@@ -1,20 +1,12 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
-{
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    const char *location = ap_table_get(r->headers_out, "Location");
+        return DECLINED;
 
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
-     */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!ap_is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
+    is_included = !strcmp(r->protocol, "INCLUDED");
 
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+    p = r->main ? r->main->pool : r->pool;
+
+    argv0 = apr_filename_of_pathname(r->filename);
+    nph = !(strncmp(argv0, "nph-", 4));
+    conf = ap_get_module_config(r->server->module_config, &cgi_module);
+
+    if (!(ap_allow_options(r) & OPT_EXECCGI) && !is_scriptaliased(r))
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,

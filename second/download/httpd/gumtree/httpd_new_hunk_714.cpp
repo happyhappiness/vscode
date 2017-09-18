@@ -1,13 +1,93 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+    ap_init_scoreboard(sb_shared);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Child %d: Retrieved our scoreboard from the parent.", my_pid);
+}
+
+
+static int send_handles_to_child(apr_pool_t *p, 
+                                 HANDLE child_ready_event,
+                                 HANDLE child_exit_event, 
+                                 apr_proc_mutex_t *child_start_mutex,
+                                 apr_shm_t *scoreboard_shm,
+                                 HANDLE hProcess, 
+                                 apr_file_t *child_in)
+{
+    apr_status_t rv;
+    HANDLE hCurrentProcess = GetCurrentProcess();
+    HANDLE hDup;
+    HANDLE os_start;
+    HANDLE hScore;
+    DWORD BytesWritten;
+
+    if (!DuplicateHandle(hCurrentProcess, child_ready_event, hProcess, &hDup,
+        EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, 0)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Unable to duplicate the ready event handle for the child");
+        return -1;
+    }
+    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Unable to send the exit event handle to the child");
+        return -1;
+    }
+    if (!DuplicateHandle(hCurrentProcess, child_exit_event, hProcess, &hDup,
+                         EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, 0)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Unable to duplicate the exit event handle for the child");
+        return -1;
+    }
+    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Unable to send the exit event handle to the child");
+        return -1;
+    }
+    if ((rv = apr_os_proc_mutex_get(&os_start, child_start_mutex)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Unable to retrieve the start mutex for the child");
+        return -1;
+    }
+    if (!DuplicateHandle(hCurrentProcess, os_start, hProcess, &hDup,
+                         SYNCHRONIZE, FALSE, 0)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Unable to duplicate the start mutex to the child");
+        return -1;
+    }
+    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Unable to send the start mutex to the child");
+        return -1;
+    }
+    if ((rv = apr_os_shm_get(&hScore, scoreboard_shm)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Unable to retrieve the scoreboard handle for the child");
+        return -1;
+    }
+    if (!DuplicateHandle(hCurrentProcess, hScore, hProcess, &hDup,
+                         FILE_MAP_READ | FILE_MAP_WRITE, FALSE, 0)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Unable to duplicate the scoreboard handle to the child");
+        return -1;
+    }
+    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Unable to send the scoreboard handle to the child");
+        return -1;
     }
 
-    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Parent: Sent the scoreboard to the child");
+    return 0;
+}
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
 
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+/* 
+ * get_listeners_from_parent()
+ * The listen sockets are opened in the parent. This function, which runs
+ * exclusively in the child process, receives them from the parent and
+ * makes them availeble in the child.
+ */

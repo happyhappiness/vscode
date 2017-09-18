@@ -1,13 +1,24 @@
+    if (err != NULL) {
+        return err;
+    }
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+    threads_to_start = atoi(arg);
+    if (threads_to_start > thread_limit) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     "WARNING: StartThreads of %d exceeds ThreadLimit value"
+                     " of %d threads,", threads_to_start,
+                     thread_limit);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     " lowering StartThreads to %d. To increase, please"
+                     " see the", thread_limit);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     " ThreadLimit directive.");
+    }
+    else if (threads_to_start < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     "WARNING: Require StartThreads > 0, setting to 1");
+        threads_to_start = 1;
+    }
+    return NULL;
+}
 
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);

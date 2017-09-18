@@ -1,12 +1,13 @@
-	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
- 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
-	TerminateProcess((HANDLE) process_handles[i], 1);
-    }
-    service_set_status(SERVICE_STOPPED);
-
-    if (pparent) {
-	ap_destroy_pool(pparent);
-    }
-
-    ap_destroy_mutex(start_mutex);
-    return (0);
+                case token_ne:
+                case token_ge:
+                case token_gt:
+                case token_le:
+                case token_lt:
+                default:
+                    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                                "Invalid expression \"%s\" in file %s",
+                                expr, r->filename);
+                    *was_error = 1;
+                    return retval;
+                }
+                break;

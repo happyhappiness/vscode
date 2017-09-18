@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ALERT, r,
-		    "DLL could not load HttpExtensionProc(): %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: connection complete to %pI (%s)",
+                     p_conn->addr, p_conn->name);

@@ -1,14 +1,13 @@
-    ap_hard_timeout("send directory", r);
-
-    /* Spew HTML preamble */
-
-    title_endp = title_name + strlen(title_name) - 1;
-
-    while (title_endp > title_name && *title_endp == '/')
-	*title_endp-- = '\0';
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+            expr = tag_val;
+#ifdef DEBUG_INCLUDE
+            ap_rvputs(r, "**** if expr=\"", expr, "\"\n", NULL);
+#endif
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "unknown parameter \"%s\" to tag if in %s",
+                        tag, r->filename);
+            ap_rputs(error, r);
+        }
+    }
+}

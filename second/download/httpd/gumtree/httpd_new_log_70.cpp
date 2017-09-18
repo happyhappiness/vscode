@@ -1,1 +1,0 @@
-fprintf(stderr, "httpd: Could not open %s\n", mfile);

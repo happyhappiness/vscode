@@ -1,38 +1,49 @@
-		char buff[24] = "                       ";
-		t2 = ap_escape_html(scratch, t);
-		buff[23 - len] = '\0';
-		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
-	    }
-	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
-				ap_escape_html(scratch,
-					       ap_os_escape_path(scratch, t,
-								 0)),
-				"\">", NULL);
-	}
+    if ((result = ap_xml_parse_input(r, &doc)) != OK) {
+        return result;
+    }
 
-	if (autoindex_opts & FANCY_INDEXING) {
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
-		ap_rputs(anchor, r);
-	    }
-	    if ((ar[x]->icon) || d->default_icon) {
-		ap_rvputs(r, "<IMG SRC=\"",
-			  ap_escape_html(scratch,
-					 ar[x]->icon ? ar[x]->icon
-					             : d->default_icon),
-			  "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-			  "]\"", NULL);
-		if (d->icon_width && d->icon_height) {
-		    ap_rprintf(r, " HEIGHT=\"%d\" WIDTH=\"%d\"",
-			       d->icon_height, d->icon_width);
-		}
-		ap_rputs(">", r);
-	    }
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
-		ap_rputs("</A>", r);
-	    }
+    if (doc == NULL || !dav_validate_root(doc, "update")) {
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The request body does not contain "
+                      "an \"update\" element.");
+        return HTTP_BAD_REQUEST;
+    }
 
-	    ap_rvputs(r, " ", anchor, t2, NULL);
-	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-		if (ar[x]->lm != -1) {
-		    char time_str[MAX_STRING_LEN];
-		    struct tm *ts = localtime(&ar[x]->lm);
+    /* check for label-name or version element, but not both */
+    if ((child = dav_find_child(doc->root, "label-name")) != NULL)
+        is_label = 1;
+    else if ((child = dav_find_child(doc->root, "version")) != NULL) {
+        /* get the href element */
+        if ((child = dav_find_child(child, "href")) == NULL) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "The version element does not contain "
+                          "an \"href\" element.");
+            return HTTP_BAD_REQUEST;
+        }
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The \"update\" element does not contain "
+                      "a \"label-name\" or \"version\" element.");
+        return HTTP_BAD_REQUEST;
+    }
+
+    /* a depth greater than zero is only allowed for a label */
+    if (!is_label && depth != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Depth must be zero for UPDATE with a version");
+        return HTTP_BAD_REQUEST;
+    }
+
+    /* get the target value (a label or a version URI) */
+    ap_xml_to_text(r->pool, child, AP_XML_X2T_INNER, NULL, NULL,
+                   &target, &tsize);
+    if (tsize == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "A \"label-name\" or \"href\" element does not contain "
+                      "any content.");
+        return HTTP_BAD_REQUEST;
+    }
+
+    /* Ask repository module to resolve the resource */

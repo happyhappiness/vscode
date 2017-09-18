@@ -1,28 +1,28 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+#include "mod_ssl.h"
+
+void ssl_scache_dbm_init(server_rec *s, apr_pool_t *p)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+    apr_dbm_t *dbm;
+    apr_status_t rv;
+
+    /* for the DBM we need the data file */
+    if (mc->szSessionCacheDataFile == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "SSLSessionCache required");
+        ssl_die();
     }
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
+    /* open it once to create it and to make sure it _can_ be created */
+    ssl_mutex_on(s);
+    if ((rv = apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
+	    APR_DBM_RWCREATE, SSL_DBM_FILE_MODE, mc->pPool)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "Cannot create SSLSessionCache DBM file `%s'",
+                     mc->szSessionCacheDataFile);
+        ssl_mutex_off(s);
+        return;
     }
+    apr_dbm_close(dbm);
 
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+#if !defined(OS2) && !defined(WIN32) && !defined(BEOS) && !defined(NETWARE)

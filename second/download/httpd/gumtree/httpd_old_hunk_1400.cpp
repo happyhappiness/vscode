@@ -1,13 +1,12 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
+        if (no > 9) {                /* Ordinary character. */
+            if (c == '\\' && (*src == '$' || *src == '&'))
+                c = *src++;
+            len++;
+        }
+        else if (no < nmatch && pmatch[no].rm_so < pmatch[no].rm_eo) {
+            len += pmatch[no].rm_eo - pmatch[no].rm_so;
+        }
+
     }
 
-    Explain0("FTP: connected.");
-
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+    dest = dst = apr_pcalloc(p, len + 1);

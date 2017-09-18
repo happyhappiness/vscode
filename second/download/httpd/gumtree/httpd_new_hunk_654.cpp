@@ -1,18 +1,24 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
+ * Configuration and start-up
+ */
+static int mem_cache_post_config(apr_pool_t *p, apr_pool_t *plog,
+                                 apr_pool_t *ptemp, server_rec *s)
+{
+    int threaded_mpm;
+
+    /* Sanity check the cache configuration */
+    if (sconf->min_cache_object_size >= sconf->max_cache_object_size) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s,
+                     "MCacheMaxObjectSize must be greater than MCacheMinObjectSize");
+        return DONE;
     }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
+    if (sconf->max_cache_object_size >= sconf->max_cache_size) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s,
+                     "MCacheSize must be greater than MCacheMaxObjectSize");
+        return DONE;
+    }
+    ap_mpm_query(AP_MPMQ_IS_THREADED, &threaded_mpm);
+    if (threaded_mpm) {
+        apr_thread_mutex_create(&sconf->lock, APR_THREAD_MUTEX_DEFAULT, p);
     }
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return HTTP_FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+#ifdef USE_ATOMICS

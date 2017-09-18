@@ -1,17 +1,14 @@
-    }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
+#if defined(WIN32) || defined(OS2) || defined(NETWARE)
+        strcasecmp(apr_filename_of_pathname(name), "nul") != 0) {
 #else
-    if (alarm_fn && x && fn != alarm_fn) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
-	    "ap_set_callback_and_alarm: possible nested timer!");
+        strcmp(name, "/dev/null") != 0) {
+#endif /* WIN32 || OS2 */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "Access to file %s denied by server: not a regular file",
+                     name);
+        apr_file_close(file);
+        return APR_EBADF;
     }
-    alarm_fn = fn;
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+
+#ifdef WIN32
+    /* Some twisted character [no pun intended] at MS decided that a

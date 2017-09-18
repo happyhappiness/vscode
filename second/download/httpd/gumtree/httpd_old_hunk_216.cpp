@@ -1,26 +1,13 @@
-            ap_chdir_file(r->filename);
-#endif
-        }
-        else if (!strcmp(tag, "cgi")) {
-            parse_string(r, tag_val, parsed_string, sizeof(parsed_string), 0);
-            if (include_cgi(parsed_string, r) == -1) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                            "invalid CGI ref \"%s\" in %s", tag_val, file);
-                ap_rputs(error, r);
-            }
-            /* grumble groan */
-#ifndef WIN32
-            ap_chdir_file(r->filename);
-#endif
-        }
-        else if (!strcmp(tag, "done")) {
-            return 0;
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "unknown parameter \"%s\" to tag exec in %s",
-                        tag, file);
-            ap_rputs(error, r);
-        }
-    }
+	    continue;
+	}
 
+	/* if we get here, the main entry rule was a match */
+	/* this will be the last run through the loop */
+#if MIME_MAGIC_DEBUG
+	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, 0, r,
+		    MODNAME ": rule matched, line=%d type=%d %s",
+		    m->lineno, m->type,
+		    (m->type == STRING) ? m->value.s : "");
+#endif
+
+	/* print the match */

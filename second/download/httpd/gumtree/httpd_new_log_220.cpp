@@ -1,1 +1,2 @@
-ap_rputs(&name_scratch[5], r);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
+                     "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);

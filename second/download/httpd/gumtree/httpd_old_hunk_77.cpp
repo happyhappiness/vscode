@@ -1,18 +1,13 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
+    (cache_server_conf *) ap_get_module_config(sconf, &cache_module);
+    void *scache = r->request_config;
+    cache_request_rec *cache =
+    (cache_request_rec *) ap_get_module_config(scache, &cache_module);
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
 
-    if (conf->rewritelogfile == NULL)
-        return;
-    if (*(conf->rewritelogfile) == '\0')
-        return;
-    if (conf->rewritelogfp > 0)
-        return; /* virtual log shared w/ main server */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, f->r->server,
+                 "cache: running CACHE_IN filter");
 
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+    /* check first whether running this filter has any point or not */
+    if(r->no_cache) {
+        ap_remove_output_filter(f);
+        return ap_pass_brigade(f->next, in);

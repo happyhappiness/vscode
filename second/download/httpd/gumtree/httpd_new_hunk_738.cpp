@@ -1,13 +1,13 @@
-
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
-
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+                    if (partial_send_okay) {
+                        split = b;
+                        more = apr_brigade_split(b, e);
+                        flush = 1;
+                        break;
+                    }
+                    continue;
+                }
+                else if (rv != APR_EOF) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "ap_content_length_filter: "
+                                  "apr_bucket_read() failed");
+                    return rv;

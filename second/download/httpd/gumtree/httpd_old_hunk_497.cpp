@@ -1,15 +1,23 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
+}
 
-        r->read_chunked = 1;
+static void accept_mutex_on(void)
+{
+    apr_status_t rv = apr_proc_mutex_lock(accept_mutex);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, "couldn't grab the accept mutex");
+        exit(APEXIT_CHILDFATAL);
     }
-    else if (lenp) {
-        char *pos = lenp;
+}
 
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+static void accept_mutex_off(void)
+{
+    apr_status_t rv = apr_proc_mutex_unlock(accept_mutex);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, "couldn't release the accept mutex");
+        exit(APEXIT_CHILDFATAL);
+    }
+}
+
+/* On some architectures it's safe to do unserialized accept()s in the single
+ * Listen case.  But it's never safe to do it in the case where there's
+ * multiple Listen statements.  Define SINGLE_LISTEN_UNSERIALIZED_ACCEPT

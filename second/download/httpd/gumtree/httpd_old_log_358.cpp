@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, server,
-		     "_checkuser: BS2000 auth failed for user %s", chk_usr.username);
+ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
+             "proxy: HTTP: canonicalising URL %s", url);

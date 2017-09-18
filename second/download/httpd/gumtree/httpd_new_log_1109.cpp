@@ -1,0 +1,1 @@
+ap_add_output_filter_handle(ap_core_output_filter_handle, net, NULL, net->c);

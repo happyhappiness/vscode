@@ -1,17 +1,21 @@
-
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
+    else
+    {
+       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support unavailable" );
     }
+    
+    return(OK);
+}
 
-    cache = c->fp;
+static void util_ldap_child_init(apr_pool_t *p, server_rec *s)
+{
+    apr_status_t sts;
+    util_ldap_state_t *st = ap_get_module_config(s->module_config, &ldap_module);
 
-    c->hdrs = resp_hdrs;
+    if (!st->util_ldap_cache_lock) return;
 
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+    sts = apr_global_mutex_child_init(&st->util_ldap_cache_lock, st->lock_file, p);
+    if (sts != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, sts, s,
+                     "Failed to initialise global mutex %s in child process %"
+                     APR_PID_T_FMT

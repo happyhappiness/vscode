@@ -1,33 +1,13 @@
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    const char *t;
-    char *key, *value;
-    const char *scheme;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
-
-    if (!ap_auth_name(r)) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "need AuthName: %s", r->uri);
-	return SERVER_ERROR;
+	r->content_encoding = tmp;
     }
 
-    if (!auth_line) {
-	ap_note_digest_auth_failure(r);
-	return AUTH_REQUIRED;
+    /* detect memory allocation or other errors */
+    if (!r->content_type ||
+	(state == rsl_encoding && !r->content_encoding)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      MODNAME ": unexpected state %d; could be caused by bad "
+                      "data in magic file",
+                      state);
+	return HTTP_INTERNAL_SERVER_ERROR;
     }
-
-    if (strcasecmp(scheme=ap_getword(r->pool, &auth_line, ' '), "Digest")) {
-	/* Client tried to authenticate using wrong auth scheme */
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "client used wrong authentication scheme: %s for %s", 
-		    scheme, r->uri);
-	ap_note_digest_auth_failure(r);
-	return AUTH_REQUIRED;
-    }
-
-    l = strlen(auth_line);
 

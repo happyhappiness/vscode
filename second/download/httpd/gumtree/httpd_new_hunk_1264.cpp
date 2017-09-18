@@ -1,21 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
+
+    if (apr_file_mktemp(&tfp, dirname, 0, cntxt) != APR_SUCCESS) {
+        apr_file_printf(errfile, "Could not open temp file %s.\n", dirname);
+        exit(1);
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    if (apr_file_open(&f, argv[1], APR_READ, APR_OS_DEFAULT, cntxt) != APR_SUCCESS) {
+        apr_file_printf(errfile,
+                "Could not open passwd file %s for reading.\n", argv[1]);
+        apr_file_printf(errfile, "Use -c option to create new one.\n");
+        cleanup_tempfile_and_exit(1);
+    }
+    apr_cpystrn(user, argv[3], sizeof(user));

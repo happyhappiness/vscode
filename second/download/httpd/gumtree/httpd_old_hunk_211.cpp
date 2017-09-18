@@ -1,14 +1,22 @@
-                error_fmt = "unable to include \"%s\" in parsed file %s";
-            }
-#ifndef WIN32
-            ap_chdir_file(r->filename);
-#endif
-            if (error_fmt) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-			    r->server, error_fmt, tag_val, r->filename);
-                ap_rputs(error, r);
-            }
+	(void) magic_rsl_puts(r, MIME_BINARY_UNKNOWN);
+	return DONE;
+    case APR_LNK:
+	/* We used stat(), the only possible reason for this is that the
+	 * symlink is broken.
+	 */
+	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, 0, r,
+		    MODNAME ": broken symlink (%s)", fn);
+	return HTTP_INTERNAL_SERVER_ERROR;
+    case APR_SOCK:
+	magic_rsl_puts(r, MIME_BINARY_UNKNOWN);
+	return DONE;
+    case APR_REG:
+	break;
+    default:
+	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, 0, r,
+		      MODNAME ": invalid file type %d.", r->finfo.filetype);
+	return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-	    /* destroy the sub request if it's not a nested include */
-            if (rr != NULL
-		&& ap_get_module_config(rr->request_config, &includes_module)
+    /*
+     * regular file, check next possibility

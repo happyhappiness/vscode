@@ -1,13 +1,14 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-    }
-
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+             */
+            rv = drain_available_output(f);
+            if (APR_STATUS_IS_EAGAIN(rv)) {
+#if APR_FILES_AS_SOCKETS
+                int num_events;
+                
+                rv = apr_poll(ctx->pollset, 2,
+                              &num_events, f->r->server->timeout);
+                if (rv || dc->debug >= DBGLVL_GORY) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                  rv, f->r, "apr_poll()");
+                }
+                if (rv != APR_SUCCESS && !APR_STATUS_IS_EINTR(rv)) { 
+                    /* some error such as APR_TIMEUP */

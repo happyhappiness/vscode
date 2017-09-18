@@ -1,13 +1,14 @@
-	return ap_proxyerror(r, err);	/* give up */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+		"AcceptMutex: %s (default: %s)",
+		apr_proc_mutex_name(accept_mutex),
+		apr_proc_mutex_defname());
+#endif
+    restart_pending = shutdown_pending = 0;
 
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return SERVER_ERROR;
-    }
+    server_main_loop(remaining_children_to_start);
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+    if (shutdown_pending) {
+        /* Time to gracefully shut down:
+         * Kill child processes, tell them to call child_exit, etc...
+         * (By "gracefully" we don't mean graceful in the same sense as 
+         * "apachectl graceful" where we allow old connections to finish.)

@@ -1,20 +1,61 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
+
+#define BY_ENCODING &c_by_encoding
+#define BY_TYPE &c_by_type
+#define BY_PATH &c_by_path
+
+/*
+ * This routine puts the standard HTML header at the top of the index page.
+ * We include the DOCTYPE because we may be using features therefrom (i.e.,
+ * HEIGHT and WIDTH attributes on the icons if we're FancyIndexing).
+ */
+static void emit_preamble(request_rec *r, char *title)
 {
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    char *location = ap_table_get(r->headers_out, "Location");
+    ap_rvputs
+	(
+	    r,
+	    "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n",
+	    "<HTML>\n <HEAD>\n  <TITLE>Index of ",
+	    title,
+	    "</TITLE>\n </HEAD>\n <BODY>\n",
+	    NULL
+	);
+}
 
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
-     */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
+static void push_item(array_header *arr, char *type, char *to, char *path,
+		      char *data)
+{
+    struct item *p = (struct item *) ap_push_array(arr);
 
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+    if (!to)
+	to = "";
+    if (!path)
+	path = "";
+
+    p->type = type;
+    p->data = data ? ap_pstrdup(arr->pool, data) : NULL;
+    p->apply_path = ap_pstrcat(arr->pool, path, "*", NULL);
+
+    if ((type == BY_PATH) && (!ap_is_matchexp(to)))
+	p->apply_to = ap_pstrcat(arr->pool, "*", to, NULL);
+    else if (to)
+	p->apply_to = ap_pstrdup(arr->pool, to);
+    else
+	p->apply_to = NULL;
+}
+
+static const char *add_alt(cmd_parms *cmd, void *d, char *alt, char *to)
+{
+    if (cmd->info == BY_PATH)
+	if (!strcmp(to, "**DIRECTORY**"))
+	    to = "^^DIRECTORY^^";
+    if (cmd->info == BY_ENCODING) {
+	ap_str_tolower(to);
+    }
+
+    push_item(((autoindex_config_rec *) d)->alt_list, cmd->info, to, cmd->path, alt);
+    return NULL;
+}
+
+static const char *add_icon(cmd_parms *cmd, void *d, char *icon, char *to)
+{
+    char *iconbak = ap_pstrdup(cmd->pool, icon);

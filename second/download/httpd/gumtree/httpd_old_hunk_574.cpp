@@ -1,15 +1,13 @@
-    }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (x) {
-	alarm_fn = fn;
-    }
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+
+            if (thisinfo.filetype == APR_LNK) {
+                /* Is this a possibly acceptable symlink?
+                 */
+                if ((res = resolve_symlink(r->filename, &thisinfo,
+                                           opts, r->pool)) != OK) {
+                    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                                  "Symbolic link not allowed: %s",
+                                  r->filename);
+                    return r->status = res;
+                }
+
+                /* Ok, we are done with the link's info, test the real target

@@ -1,13 +1,13 @@
-{
-    regex_t *compiled;
-    int regex_error;
-
-    compiled = ap_pregcomp(r->pool, rexp, REG_EXTENDED | REG_NOSUB);
-    if (compiled == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "unable to compile pattern \"%s\"", rexp);
-        return -1;
+    case LELONG:
+    case LEDATE:
+	p->l = (long)
+	    ((p->hl[3] << 24) | (p->hl[2] << 16) | (p->hl[1] << 8) | (p->hl[0]));
+	return 1;
+    default:
+	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+		    MODNAME ": invalid type %d in mconvert().", m->type);
+	return 0;
     }
-    regex_error = regexec(compiled, string, 0, (regmatch_t *) NULL, 0);
-    ap_pregfree(r->pool, compiled);
-    return (!regex_error);
+}
+
+

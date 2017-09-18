@@ -1,0 +1,1 @@
+printf ("Avg retries:\t%d\n", retry_success == 0 ? 0 : avg_retries / retry_success);

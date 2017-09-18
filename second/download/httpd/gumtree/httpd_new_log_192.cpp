@@ -1,1 +1,3 @@
-ap_bputs(CRLF, fp);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "Unmatched '(' in \"%s\" in file %s",
+                        expr, r->filename);

@@ -1,15 +1,14 @@
+        if (cipher_list_old) {
+            sk_SSL_CIPHER_free(cipher_list_old);
+        }
+
+        /* tracing */
+        if (renegotiate) {
+            ssl_log(r->server, SSL_LOG_TRACE,
+                    "Reconfigured cipher suite will force renegotiation");
+        }
     }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (x) {
-	alarm_fn = fn;
-    }
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+
+    /*
+     * override of SSLVerifyDepth
+     *

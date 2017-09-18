@@ -1,14 +1,36 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
+                              apr_status_t status, const server_rec *s,
+                              const char *fmt, ...)
+{
+    va_list args;
+
+    va_start(args, fmt);
+    log_error_core(file, line, level, status, s, NULL, NULL, NULL, fmt, args);
+    va_end(args);
 }
 
+AP_DECLARE(void) ap_log_perror(const char *file, int line, int level,
+                               apr_status_t status, apr_pool_t *p,
+                               const char *fmt, ...)
+{
+    va_list args;
 
-static const handler_rec autoindex_handlers[] =
-++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
+    va_start(args, fmt);
+    log_error_core(file, line, level, status, NULL, NULL, NULL, p, fmt, args);
+    va_end(args);
+}
+
+AP_DECLARE(void) ap_log_rerror(const char *file, int line, int level,
+                               apr_status_t status, const request_rec *r,
+                               const char *fmt, ...)
+{
+    va_list args;
+
+    va_start(args, fmt);
+    log_error_core(file, line, level, status, r->server, NULL, r, NULL, fmt,
+                   args);
+
+    /*
+     * IF APLOG_TOCLIENT is set,
+     * AND the error level is 'warning' or more severe,
+     * AND there isn't already error text associated with this request,
+     * THEN make the message text available to ErrorDocument and

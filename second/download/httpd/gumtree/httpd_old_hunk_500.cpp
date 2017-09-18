@@ -1,14 +1,34 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
--- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800
+	/* terminate the free list */
+	if (free_length == 0) {
+	    /* only report this condition once */
+	    static int reported = 0;
+
+	    if (!reported) {
+		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, ap_server_conf,
+			    "server reached MaxClients setting, consider"
+			    " raising the MaxClients setting");
+		reported = 1;
+	    }
+	    idle_spawn_rate = 1;
+	}
+	else {
+	    if (idle_spawn_rate >= 8) {
+		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, 0, ap_server_conf,
+		    "server seems busy, (you may need "
+		    "to increase StartServers, or Min/MaxSpareServers), "
+		    "spawning %d children, there are %d idle, and "
+		    "%d total children", idle_spawn_rate,
+		    idle_count, total_non_dead);
+	    }
+	    for (i = 0; i < free_length; ++i) {
+#ifdef TPF
+        if (make_child(ap_server_conf, free_slots[i]) == -1) {
+            if(free_length == 1) {
+                shutdown_pending = 1;
+                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_EMERG, 0, ap_server_conf,
+                "No active child processes: shutting down");
+            }
+        }
+#else
+		make_child(ap_server_conf, free_slots[i]);
+#endif /* TPF */

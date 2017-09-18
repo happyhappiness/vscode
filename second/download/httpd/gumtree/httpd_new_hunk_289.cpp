@@ -1,13 +1,14 @@
-<tr><th>Req<td>Milliseconds required to process most recent request\n \
-<tr><th>Conn<td>Kilobytes transferred this connection\n \
-<tr><th>Child<td>Megabytes transferred this child\n \
-<tr><th>Slot<td>Total megabytes transferred this slot\n \
-</table>\n", r);
-#else
-	    ap_rputs("</table>\n \
-<hr> \
-<table>\n \
-<tr><th>Srv<td>Server number\n \
-<tr><th>PID<td>OS process ID\n \
-<tr><th>Acc<td>Number of accesses this connection / this child / this slot\n \
-<tr><th>M<td>Mode of operation\n \
+         * Make really sure that when a peer certificate
+         * is required we really got one... (be paranoid)
+         */
+        if ((sc->server->auth.verify_mode == SSL_CVERIFY_REQUIRE) &&
+            !sslconn->client_cert)
+        {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                         "No acceptable peer certificate available");
+
+            return ssl_abort(filter, c);
+        }
+    }
+
+    return APR_SUCCESS;

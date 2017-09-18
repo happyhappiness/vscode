@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "An invalid Overwrite header was specified.");

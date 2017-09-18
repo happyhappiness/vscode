@@ -1,35 +1,27 @@
-	if (rc == -1) {
-	    ap_kill_timeout(r);
-	    return ap_proxyerror(r, "Error sending to remote server");
-	}
-	if (rc == 550) {
-	    ap_kill_timeout(r);
-	    return NOT_FOUND;
-	}
-	if (rc != 250) {
-	    ap_kill_timeout(r);
-	    return BAD_GATEWAY;
-	}
+		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+			    "ISA sent invalid headers", r->filename);
+		return FALSE;
+	    }
 
-	ap_bputs("LIST -lag" CRLF, f);
-	ap_bflush(f);
-	Explain0("FTP: LIST -lag");
-	rc = ftp_getrc(f);
-	Explain1("FTP: returned status %d", rc);
-	if (rc == -1)
-	    return ap_proxyerror(r, "Error sending to remote server");
-    }
-    ap_kill_timeout(r);
-    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
-	return BAD_GATEWAY;
+	    *value++ = '\0';
+	    while (*value && isspace(*value)) ++value;
 
-    r->status = 200;
-    r->status_line = "200 OK";
+	    /* Check all the special-case headers. Similar to what
+	     * scan_script_header() does (see that function for
+	     * more detail)
+	     */
 
-    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
-    if (parms[0] == 'd')
-	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
-    else {
-	if (r->content_type != NULL) {
-	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
-			     HDR_REP);
+	    if (!strcasecmp(data, "Content-Type")) {
+		/* Nuke trailing whitespace */
+		
+		char *endp = value + strlen(value) - 1;
+		while (endp > value && isspace(*endp)) *endp-- = '\0';
+            
+		r->content_type = ap_pstrdup (r->pool, value);
+		ap_str_tolower(r->content_type);
+	    }
+	    else if (!strcasecmp(data, "Content-Length")) {
+		ap_table_set(r->headers_out, data, value);
+	    }
+	    else if (!strcasecmp(data, "Transfer-Encoding")) {
+		ap_table_set(r->headers_out, data, value);

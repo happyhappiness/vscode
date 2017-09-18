@@ -1,19 +1,34 @@
-	return res;
-
-    if (!sec->pwfile)
-	return DECLINED;
-
-    if (!(a1 = get_hash(r, c->user, sec->pwfile))) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "user %s not found: %s", c->user, r->uri);
-	ap_note_digest_auth_failure(r);
-	return AUTH_REQUIRED;
+	    ++errs;
     }
-    if (strcmp(response->digest, find_digest(r, response, a1))) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "user %s: password mismatch: %s", c->user, r->uri);
-	ap_note_digest_auth_failure(r);
-	return AUTH_REQUIRED;
-    }
-    return OK;
-}
+
+    (void) apr_file_close(f);
+
+#if MIME_MAGIC_DEBUG
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+		MODNAME ": apprentice conf=%x file=%s m=%s m->next=%s last=%s",
+		conf,
+		conf->magicfile ? conf->magicfile : "NULL",
+		conf->magic ? "set" : "NULL",
+		(conf->magic && conf->magic->next) ? "set" : "NULL",
+		conf->last ? "set" : "NULL");
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+		MODNAME ": apprentice read %d lines, %d rules, %d errors",
+		lineno, rule, errs);
+#endif
+
+#if MIME_MAGIC_DEBUG
+    prevm = 0;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+		MODNAME ": apprentice test");
+    for (m = conf->magic; m; m = m->next) {
+	if (apr_isprint((((unsigned long) m) >> 24) & 255) &&
+	    apr_isprint((((unsigned long) m) >> 16) & 255) &&
+	    apr_isprint((((unsigned long) m) >> 8) & 255) &&
+	    apr_isprint(((unsigned long) m) & 255)) {
+	    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+			MODNAME ": apprentice: POINTER CLOBBERED! "
+			"m=\"%c%c%c%c\" line=%d",
+			(((unsigned long) m) >> 24) & 255,
+			(((unsigned long) m) >> 16) & 255,
+			(((unsigned long) m) >> 8) & 255,
+			((unsigned long) m) & 255,

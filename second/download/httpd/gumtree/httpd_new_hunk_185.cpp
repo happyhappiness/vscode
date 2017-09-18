@@ -1,24 +1,42 @@
-    if (!sec->auth_dbmpwfile)
-	return DECLINED;
+** |                                                       |
+** +-------------------------------------------------------+
+*/
 
-    if (!(real_pw = get_dbm_pw(r, c->user, sec->auth_dbmpwfile))) {
-	if (!(sec->auth_dbmauthoritative))
-	    return DECLINED;
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "DBM user %s not found: %s", c->user, r->filename);
-	ap_note_basic_auth_failure(r);
-	return AUTH_REQUIRED;
+#define REWRITELOCK_MODE ( APR_UREAD | APR_UWRITE | APR_GREAD | APR_WREAD )
+
+static apr_status_t rewritelock_create(server_rec *s, apr_pool_t *p)
+{
+    apr_status_t rc;
+
+    /* only operate if a lockfile is used */
+    if (lockname == NULL || *(lockname) == '\0') {
+        return APR_SUCCESS;
     }
-    /* Password is up to first : if exists */
-    colon_pw = strchr(real_pw, ':');
-    if (colon_pw)
-	*colon_pw = '\0';
-    /* anyone know where the prototype for crypt is? */
-    if (strcmp(real_pw, (char *) crypt(sent_pw, real_pw))) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "user %s: password mismatch: %s", c->user, r->uri);
-	ap_note_basic_auth_failure(r);
-	return AUTH_REQUIRED;
+
+    /* create the lockfile */
+    rc = apr_global_mutex_create(&rewrite_mapr_lock_acquire, lockname,
+                                 APR_LOCK_DEFAULT, p);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s,
+                     "mod_rewrite: Parent could not create RewriteLock "
+                     "file %s", lockname);
+        return rc;
     }
-    return OK;
+
+#if APR_USE_SYSVSEM_SERIALIZE
+    rc = unixd_set_global_mutex_perms(rewrite_mapr_lock_acquire);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s,
+                     "mod_rewrite: Parent could not set permissions "
+                     "on RewriteLock; check User and Group directives");
+        return rc;
+    }
+#endif
+
+    return APR_SUCCESS;
 }
+
+static apr_status_t rewritelock_remove(void *data)
+{
+    /* only operate if a lockfile is used */
+    if (lockname == NULL || *(lockname) == '\0') {

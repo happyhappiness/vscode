@@ -1,12 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-	sa.sa_flags = 0;
     }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+#endif
+
+    for (m = conf->magic; m; m = m->next) {
+#if MIME_MAGIC_DEBUG
+	rule_counter++;
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+		    MODNAME ": line=%d desc=%s", m->lineno, m->desc);
+#endif
+
+	/* check if main entry matches */
+	if (!mget(r, &p, s, m, nbytes) ||
+	    !mcheck(r, &p, m)) {

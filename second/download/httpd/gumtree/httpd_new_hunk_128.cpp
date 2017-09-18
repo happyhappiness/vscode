@@ -1,13 +1,13 @@
-        /*
-         * Do symlink checks first, because they are done with the
-         * permissions appropriate to the *parent* directory...
-         */
+    apr_bucket *tmp_buck;
 
-        if ((res = check_symlinks(test_dirname, core_dir->opts))) {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "Symbolic link not allowed: %s", test_dirname);
-            return res;
+    *inserted_head = NULL;
+    if (!ctx->if_nesting_level) {
+        ap_ssi_get_tag_and_value(ctx, &tag, &tag_val, 1);
+        if ((tag != NULL) || (tag_val != NULL)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "else directive does not take tags in %s", r->filename);
+            if (ctx->flags & FLAG_PRINTING) {
+                CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
+            }
+            return -1;
         }
-
-        /*
-         * Begin *this* level by looking for matching <Directory> sections

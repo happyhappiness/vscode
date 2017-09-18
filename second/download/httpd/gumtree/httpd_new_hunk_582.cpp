@@ -1,13 +1,13 @@
-
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
-
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+    int(*getch)(void *param),
+    void *(*getstr) (void *buf, size_t bufsiz, void *param),
+    int(*close_func)(void *param))
+{
+    ap_configfile_t *new_cfg = apr_palloc(p, sizeof(*new_cfg));
+#ifdef DEBUG
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, "Opening config handler %s", descr);
+#endif
+    new_cfg->param = param;
+    new_cfg->name = descr;
+    new_cfg->getch = getch;
+    new_cfg->getstr = getstr;
+    new_cfg->close = close_func;

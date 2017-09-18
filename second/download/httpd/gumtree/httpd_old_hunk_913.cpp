@@ -1,28 +1,26 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
-    }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
-    curblocks = 0;
-    curbytes = 0;
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-	ap_unblock_alarms();
-	return;
-    }
-
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
-
-    elts = (struct gc_ent **) files->elts;
-    for (i = 0; i < files->nelts; i++) {
-	fent = elts[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+                ap_rputs(" /> ", r);
+            }
+            else {
+                ap_rputs("      ", r);
+            }
+        }
+        emit_link(r, "Name", K_NAME, keyid, direction, 
+                  colargs, static_columns);
+        ap_rputs(pad_scratch + 4, r);
+        /*
+         * Emit the guaranteed-at-least-one-space-between-columns byte.
+         */
+        ap_rputs(" ", r);
+        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
+                      colargs, static_columns);
+            ap_rputs("      ", r);
+        }
+        if (!(autoindex_opts & SUPPRESS_SIZE)) {
+            emit_link(r, "Size", K_SIZE, keyid, direction, 
+                      colargs, static_columns);
+            ap_rputs("  ", r);
+        }
+        if (!(autoindex_opts & SUPPRESS_DESC)) {
+            emit_link(r, "Description", K_DESC, keyid, direction,
+                      colargs, static_columns);

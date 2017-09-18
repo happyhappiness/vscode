@@ -1,31 +1,32 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
+        /* XXX log message */
+	return rv;
     }
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    r->status = atoi(urlbuff);                           /* Save status line into request rec  */
+
+    /* Read and ignore the status line (This request might result in a
+     * 304, so we don't necessarily want to retransmit a 200 from the cache.)
+     */
+    rv = apr_file_gets(&urlbuff[0], urllen, dobj->hfd);
+    if (rv != APR_SUCCESS) {
+        /* XXX log message */
+	return rv;
     }
 
-    /* Pass two --- wildcard matches */
+    h->req_hdrs = apr_table_make(r->pool, 20);
+    
+    /*
+     * Call routine to read the header lines/status line 
+     */
+    tmp = r->err_headers_out;
+    r->err_headers_out = h->req_hdrs;
+    rv = apr_file_gets(&urlbuff[0], urllen, dobj->hfd);           /* Read status  */
+    ap_scan_script_header_err(r, dobj->hfd, NULL);
+    r->err_headers_out = tmp;
+ 
+    apr_file_close(dobj->hfd);
 
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 "disk_cache: Served headers for URL %s",  dobj->name);
+    return APR_SUCCESS;
+}

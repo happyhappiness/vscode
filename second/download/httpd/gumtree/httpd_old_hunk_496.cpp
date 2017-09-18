@@ -1,13 +1,25 @@
+    if (err != NULL) {
+        return err;
+    }
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+    ap_threads_limit = atoi(arg);
+    if (ap_threads_limit > HARD_THREAD_LIMIT) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
+                    "WARNING: MaxThreads of %d exceeds compile time limit "
+                    "of %d threads,", ap_threads_limit, HARD_THREAD_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
+                    " lowering MaxThreads to %d.  To increase, please "
+                    "see the", HARD_THREAD_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
+                    " HARD_THREAD_LIMIT define in %s.",
+                    AP_MPM_HARD_LIMITS_FILE);
+       ap_threads_limit = HARD_THREAD_LIMIT;
+    } 
+    else if (ap_threads_limit < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
+            "WARNING: Require MaxThreads > 0, setting to 1");
+        ap_threads_limit = 1;
+    }
+    return NULL;
+}
 
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);

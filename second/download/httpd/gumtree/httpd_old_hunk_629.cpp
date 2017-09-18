@@ -1,22 +1,13 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+            /* This supplies additional information for the default message. */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }
+
+        r->remaining = atol(lenp);
     }
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+    if (r->read_chunked || r->remaining > 0) {
+        /* ### log something? */
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+        /* Apache will supply a default error for this. */

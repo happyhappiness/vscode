@@ -1,13 +1,13 @@
-     * you access /symlink (or /symlink/) you would get a 403 without this
-     * S_ISDIR test.  But if you accessed /symlink/index.html, for example,
-     * you would *not* get the 403.
-     */
-    if (!S_ISDIR(r->finfo.st_mode)
-        && (res = check_symlinks(r->filename, ap_allow_options(r)))) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Symbolic link not allowed: %s", r->filename);
-        return res;
-    }
-    return OK;                  /* Can only "fail" if access denied by the
-                                 * symlink goop. */
-}
+    apr_bucket *tmp_buck;
+
+    *inserted_head = NULL;
+    if (!ctx->if_nesting_level) {
+        ap_ssi_get_tag_and_value(ctx, &tag, &tag_val, 1);
+        if ((tag != NULL) || (tag_val != NULL)) {
+            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                       "endif directive does not take tags in %s", r->filename);
+            CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
+            return -1;
+        }
+        else {
+            LOG_COND_STATUS(ctx, tmp_buck, head_ptr, *inserted_head, "endif");

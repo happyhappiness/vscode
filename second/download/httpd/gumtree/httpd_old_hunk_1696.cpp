@@ -1,14 +1,13 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
--- apache_1.3.0/src/ap/ap_snprintf.c	1998-05-12 01:49:21.000000000 +0800
+    if (!found) {
+	printf("Adding user %s in realm %s\n", user, realm);
+	add_password(user, realm, tfp);
+    }
+    fclose(f);
+    fclose(tfp);
+#if defined(__EMX__) || defined(WIN32)
+    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
+#else
+    sprintf(command, "cp %s %s", tn, argv[1]);
+#endif
+    system(command);
+    unlink(tn);

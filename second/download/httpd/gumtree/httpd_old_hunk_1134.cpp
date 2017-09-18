@@ -1,40 +1,26 @@
-	return;
-    }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
-
-    help_proxy_garbage_coll(r);
-
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
+    apr_file_close(f);
+    return ret;
 }
 
-
-static void help_proxy_garbage_coll(request_rec *r)
+/* Soak up stderr from a script and redirect it to the error log. 
+ */
+static void log_script_err(request_rec *r, apr_file_t *script_err)
 {
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
+    char argsbuffer[HUGE_STRING_LEN];
+    char *newline;
 
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
+    while (apr_file_gets(argsbuffer, HUGE_STRING_LEN,
+                         script_err) == APR_SUCCESS) {
+        newline = strchr(argsbuffer, '\n');
+        if (newline) {
+            *newline = '\0';
+        }
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                      "%s", argsbuffer);            
+    }
+}
 
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+static int log_script(request_rec *r, cgi_server_conf * conf, int ret,
+                      char *dbuf, const char *sbuf, apr_bucket_brigade *bb, 
+                      apr_file_t *script_err)
+{

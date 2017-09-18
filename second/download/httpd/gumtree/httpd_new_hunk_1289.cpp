@@ -1,15 +1,14 @@
-    ap_hard_timeout("send directory", r);
+                }
+            }
+            apr_pool_clear(ctx->deferred_write_pool);  
+        }
 
-    /* Spew HTML preamble */
+        if (rv != APR_SUCCESS) {
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, rv, c,
+                          "core_output_filter: writing data to the network");
 
-    title_endp = title_name + strlen(title_name) - 1;
+            if (more)
+                apr_brigade_destroy(more);
 
-    while (title_endp > title_name && *title_endp == '/') {
-	*title_endp-- = '\0';
-    }
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+            /* No need to check for SUCCESS, we did that above. */
+            if (!APR_STATUS_IS_EAGAIN(rv)) {

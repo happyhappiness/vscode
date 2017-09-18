@@ -1,13 +1,13 @@
+    * is for the algorithm to operate on the best available precision
+    * regardless of who runs it.  Since the above calculation may
+    * result in significant variance at 1e-12, rounding would be bogus.
+    */
 
-    /* Second, check for actions (which override the method scripts) */
-    if ((t = ap_table_get(conf->action_types,
-		       action ? action : ap_default_type(r)))) {
-	script = t;
-	if (r->finfo.st_mode == 0) {
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-			"File does not exist: %s", r->filename);
-	    return NOT_FOUND;
-	}
-    }
-
-    if (script == NULL)
+#ifdef NEG_DEBUG
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+           "Variant: file=%s type=%s lang=%s sourceq=%1.3f "
+           "mimeq=%1.3f langq=%1.3f charq=%1.3f encq=%1.3f "
+           "q=%1.5f definite=%d",            
+            (variant->file_name ? variant->file_name : ""),
+            (variant->mime_type ? variant->mime_type : ""),
+            (variant->content_languages

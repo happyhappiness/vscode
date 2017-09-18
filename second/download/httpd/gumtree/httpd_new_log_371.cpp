@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			    "ISA sent invalid headers", r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                                 r->server, "proxy (PID %d): readbytes: %#x",
+                                 getpid(), readbytes);

@@ -1,13 +1,23 @@
-    lseek(fd, 0, SEEK_SET);
-    rc = _locking(fd, _LK_UNLCK, 1);
-    lseek(fd, 0, SEEK_END);
-#endif
-
-    if (rc < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-                     "mod_rewrite: failed to unlock file descriptor");
-        exit(1);
     }
-}
 
-/*
+    if (sslconn->disabled) {
+        return DECLINED;
+    }
+
+    sslconn->log_level = sc->log_level;
+
+    /*
+     * Remember the connection information for
+     * later access inside callback functions
+     */
+
+    ssl_log(c->base_server, SSL_LOG_INFO,
+            "Connection to child %d established "
+            "(server %s, client %s)", c->id, sc->vhost_id, 
+            c->remote_ip ? c->remote_ip : "unknown");
+
+    /*
+     * Seed the Pseudo Random Number Generator (PRNG)
+     */
+    ssl_rand_seed(c->base_server, c->pool, SSL_RSCTX_CONNECT, "");
+

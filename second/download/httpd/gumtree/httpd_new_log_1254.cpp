@@ -1,0 +1,1 @@
+fputs("\b \b", stderr);

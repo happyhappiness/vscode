@@ -1,25 +1,58 @@
-	return ap_proxyerror(r, err);	/* give up */
+	else if (tnow > c->connect + aprtimeout) {
+	    printf("Send request timed out!\n");
+	    close_connection(c);
+	    return;
+	}
 
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+#ifdef USE_SSL
+        if (ssl == 1) {
+            apr_size_t e_ssl;
+            e_ssl = SSL_write(c->ssl,request + c->rwrote, l);
+            if (e_ssl != l)
+            {
+                printf("SSL write failed - closing connection\n");
+                close_connection (c);
+                return;
+            }
+            l = e_ssl;
+        }
+        else
 #endif
+	e = apr_send(c->aprsock, request + c->rwrote, &l);
 
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
-++ apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800
+	/*
+	 * Bail early on the most common case
+	 */
+	if (l == c->rwrite)
+	    break;
+
+#ifdef USE_SSL
+        if (ssl != 1)
+	if (e != APR_SUCCESS) {
+	    /*
+	     * Let's hope this traps EWOULDBLOCK too !
+	     */
+	    if (!APR_STATUS_IS_EAGAIN(e)) {
+		epipe++;
+		printf("Send request failed!\n");
+		close_connection(c);
+	    }
+	    return;
+	}
+#endif
+	c->rwrote += l;
+	c->rwrite -= l;
+    } while (1);
+
+    totalposted += c->rwrite;
+    c->state = STATE_READ;
+    c->endwrite = apr_time_now();
+#ifdef USE_SSL
+    if (ssl != 1)
+#endif
+    apr_poll_socket_add(readbits, c->aprsock, APR_POLLIN);
+}
+
+/* --------------------------------------------------------- */
+
+/* calculate and output results */

@@ -1,30 +1,97 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
-    }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
-    curbytes.upper = curbytes.lower = 0L;
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (cmp_long61(&curbytes, &cachesize) < 0L) {
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (nothing deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
-	ap_unblock_alarms();
-	return;
+        else if (!(match = apr_table_get(r->headers_out, "Last-Modified"))
+                 || (strcmp(if_range, match) != 0)) {
+            return 0;
+        }
     }
 
-    /* sort the files we found by expiration date */
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
+    range += 6;
+    it = range;
+    while (*it) {
+        if (*it++ == ',') {
+            ranges++;
+        }
+    }
+    it = range;
+    *indexes = apr_array_make(r->pool, ranges, sizeof(indexes_t));
+    while ((cur = ap_getword(r->pool, &range, ','))) {
+        char *dash;
+        char *errp;
+        apr_off_t number, start, end;
 
-    for (i = 0; i < files->nelts; i++) {
-	fent = &((struct gc_ent *) files->elts)[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+        if (!*cur)
+            break;
+
+        /*
+         * Per RFC 2616 14.35.1: If there is at least one syntactically invalid
+         * byte-range-spec, we must ignore the whole header.
+         */
+
+        if (!(dash = strchr(cur, '-'))) {
+            return 0;
+        }
+
+        if (dash == cur) {
+            /* In the form "-5" */
+            if (strtoff(&number, dash+1, &errp, 10) || *errp) {
+                return 0;
+            }
+            if (number < 1) {
+                return 0;
+            }
+            start = clength - number;
+            end = clength - 1;
+        }
+        else {
+            *dash++ = '\0';
+            if (strtoff(&number, cur, &errp, 10) || *errp) {
+                return 0;
+            }
+            start = number;
+            if (*dash) {
+                if (strtoff(&number, dash, &errp, 10) || *errp) {
+                    return 0;
+                }
+                end = number;
+                if (start > end) {
+                    return 0;
+                }
+            }
+            else {                  /* "5-" */
+                end = clength - 1;
+            }
+        }
+
+        if (start < 0) {
+            start = 0;
+        }
+        if (start >= clength) {
+            unsatisfiable = 1;
+            continue;
+        }
+        if (end >= clength) {
+            end = clength - 1;
+        }
+
+        idx = (indexes_t *)apr_array_push(*indexes);
+        idx->start = start;
+        idx->end = end;
+        sum_lengths += end - start + 1;
+        /* new set again */
+        num_ranges++;
+    }
+
+    if (num_ranges == 0 && unsatisfiable) {
+        /* If all ranges are unsatisfiable, we should return 416 */
+        return -1;
+    }
+    if (sum_lengths >= clength) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "Sum of ranges not smaller than file, ignoring.");
+        return 0;
+    }
+
+    r->status = HTTP_PARTIAL_CONTENT;
+    r->range = it;
+
+    return num_ranges;
+}

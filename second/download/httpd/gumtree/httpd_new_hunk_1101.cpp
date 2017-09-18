@@ -1,19 +1,14 @@
-    if (!method_restricted)
-	return OK;
+    shutdown_pending = os_check_server(tpf_server_name);
+    ap_check_signals();
+    sleep(1);
+#endif /*TPF */
+    }
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+    mpm_state = AP_MPMQ_STOPPING;
 
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
-{
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
+    if (shutdown_pending) {
+	/* Time to gracefully shut down:
+	 * Kill child processes, tell them to call child_exit, etc...
+	 */
+	if (unixd_killpg(getpgrp(), SIGTERM) < 0) {
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "killpg SIGTERM");

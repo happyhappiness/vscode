@@ -1,15 +1,14 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
-
-        r->read_chunked = 1;
+                                SOCK_STREAM, conn->pool)) != APR_SUCCESS) {
+	ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
+                     "rfc1413: error creating query socket");
+        return rv;
     }
-    else if (lenp) {
-        const char *pos = lenp;
 
-        while (ap_isdigit(*pos) || ap_isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+    if ((rv = apr_socket_timeout_set(*newsock, apr_time_from_sec(ap_rfc1413_timeout)))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
+                     "rfc1413: error setting query socket timeout");
+        apr_socket_close(*newsock);
+        return rv;
+    }
+

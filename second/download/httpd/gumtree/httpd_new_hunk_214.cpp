@@ -1,13 +1,13 @@
-
-    arg.r = r;
-    arg.s = s;
-
-    if (!ap_bspawn_child(r->pool, include_cmd_child, &arg,
-			 kill_after_timeout, NULL, &script_in, NULL)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		     "couldn't spawn include command");
-        return -1;
     }
+#endif
 
-    ap_send_fb(script_in, r);
-    ap_bclose(script_in);
+    for (m = conf->magic; m; m = m->next) {
+#if MIME_MAGIC_DEBUG
+	rule_counter++;
+	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		    MODNAME ": line=%d desc=%s", m->lineno, m->desc);
+#endif
+
+	/* check if main entry matches */
+	if (!mget(r, &p, s, m, nbytes) ||
+	    !mcheck(r, &p, m)) {

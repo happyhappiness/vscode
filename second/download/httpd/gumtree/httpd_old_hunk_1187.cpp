@@ -1,20 +1,13 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
-{
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    char *location = ap_table_get(r->headers_out, "Location");
+                           | APR_READ | APR_BINARY | APR_XTHREAD | APR_FILE_NOCLEANUP);
+            rv = apr_file_open(&tmpfile, name, mobj->flags,
+                               APR_OS_DEFAULT, r->pool);
+            if (rv != APR_SUCCESS) {
+                return rv;
+            }
+            apr_file_unset_inherit(tmpfile);
+            apr_os_file_get(&(mobj->fd), tmpfile);
 
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
-     */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
-
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+            /* Open for business */
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "mem_cache: Cached file: %s with key: %s", name, obj->key);
+            obj->complete = 1;

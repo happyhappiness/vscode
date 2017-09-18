@@ -1,41 +1,47 @@
-	    return cond_status;
-	}
+            break;
+        }
+    }
+}
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+/*
+ *  URL Translation Handler
+ */
+int ssl_hook_Translate(request_rec *r)
+{
+    SSLConnRec *sslconn = myConnConfig(r->connection);
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+    if (!(sslconn && sslconn->ssl)) {
+        return DECLINED;
+    }
 
-	    if (!buffer)
-		/* Soak up all the script output --- may save an outright kill */
-		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
-		    continue;
+    /*
+     * Log information about incoming HTTPS requests
+     */
+    if (r->server->loglevel >= APLOG_INFO && ap_is_initial_req(r)) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "%s HTTPS request received for child %ld (server %s)",
+                     (r->connection->keepalives <= 0 ?
+                     "Initial (No.1)" :
+                     apr_psprintf(r->pool, "Subsequent (No.%d)",
+                                  r->connection->keepalives+1)),
+                     r->connection->id,
+                     ssl_util_vhostid(r->pool, r->server));
+    }
 
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
+    /* SetEnvIf ssl-*-shutdown flags can only be per-server,
+     * so they won't change across keepalive requests
+     */
+    if (sslconn->shutdown_type == SSL_SHUTDOWN_TYPE_UNSET) {
+        ssl_configure_env(r, sslconn);
+    }
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
+    return DECLINED;
+}
 
-	if (!strcasecmp(w, "Content-type")) {
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+/*
+ *  Access Handler
+ */
+int ssl_hook_Access(request_rec *r)
+{
+    SSLDirConfigRec *dc = myDirConfig(r);
+    SSLSrvConfigRec *sc = mySrvConfig(r->server);

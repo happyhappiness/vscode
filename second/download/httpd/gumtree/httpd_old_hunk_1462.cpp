@@ -1,12 +1,13 @@
-#if TESTING
-		fprintf(stderr, "Would remove directory %s\n", newcachedir);
-#else
-		rmdir(newcachedir);
-#endif
-		--nfiles;
-	    }
-	    continue;
-	}
-#endif
+    char *origs = s, *origp = p;
+    char *pmax = p + plen - 1;
+    register int c;
+    register int val;
 
-	i = read(fd, line, 26);
+    while ((c = *s++) != '\0') {
+	if (isspace((unsigned char) c))
+	    break;
+	if (p >= pmax) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, serv,
+			MODNAME ": string too long: %s", origs);
+	    break;
+	}

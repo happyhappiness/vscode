@@ -1,1 +1,3 @@
-fprintf(stderr, " HARD_SERVER_LIMIT define in src/httpd.h.\n");
+ap_log_rerror(APLOG_MARK, APLOG_ALERT, rv, r,
+                      "ISAPI %s is missing HttpExtensionProc()",
+                      fpath);

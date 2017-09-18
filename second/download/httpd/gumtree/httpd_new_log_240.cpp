@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "invalid directory name in map file: %s", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Syntax error in type map, no ':' in %s for header %s", 
+                      r->filename, header);

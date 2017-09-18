@@ -1,13 +1,13 @@
-	return DONE;
-#endif
-#endif
-    case S_IFREG:
-	break;
-    default:
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
-		    MODNAME ": invalid mode 0%o.", (unsigned int)r->finfo.st_mode);
-	return HTTP_INTERNAL_SERVER_ERROR;
+    /* 550 Requested action not taken. */
+    if (rc == -1 || rc == 421) {
+        return ap_proxyerror(r, HTTP_BAD_GATEWAY,
+                             "Error reading from remote server");
     }
+    if (rc == 550) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: FTP: RETR failed, trying LIST instead");
 
-    /*
-     * regular file, check next possibility
+        /* Directory Listings should always be fetched in ASCII mode */
+        dirlisting = 1;
+        ftp_set_TYPE('A', r, origin, bb, NULL);
+

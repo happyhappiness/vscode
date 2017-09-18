@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r, emsg);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "ISAPI: missing GetExtensionVersion() in %s",
+                     isa->filename);

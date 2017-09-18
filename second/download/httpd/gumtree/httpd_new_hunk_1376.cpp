@@ -1,31 +1,13 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+            p_conn->close += 1;
+        }
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+        if ( r->status != HTTP_CONTINUE ) {
+            received_continue = 0;
+        } else {
+            received_continue++;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                         "proxy: HTTP: received 100 CONTINUE");
+        }
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+        /* we must accept 3 kinds of date, but generate only 1 kind of date */
+        if ((buf = apr_table_get(r->headers_out, "Date")) != NULL) {

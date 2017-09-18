@@ -1,23 +1,13 @@
+            p_conn->close += 1;
+        }
 
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = ap_tolower(*cp);
-    }
+        if ( r->status != HTTP_CONTINUE ) {
+            received_continue = 0;
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, 0, NULL,
+                         "proxy: HTTP: received 100 CONTINUE");
+        }
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
-
-    do {
-        ++cp;
-    } while (*cp && ap_isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;
-    }
-
-    return cp;
+        /* we must accept 3 kinds of date, but generate only 1 kind of date */
+        {
+            const char *buf;

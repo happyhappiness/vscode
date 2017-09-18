@@ -1,22 +1,40 @@
-           timetaken / 1000, timetaken % 1000);
-    printf("Complete requests:      %d\n", done);
-    printf("Failed requests:        %d\n", bad);
-    if (bad)
-        printf("   (Connect: %d, Length: %d, Exceptions: %d)\n",
-               err_conn, err_length, err_except);
-    if (keepalive)
-        printf("Keep-Alive requests:    %d\n", doneka);
-    printf("Total transferred:      %d bytes\n", totalread);
-    printf("HTML transferred:       %d bytes\n", totalbread);
+    EVP_PKEY *pkey;
 
-    /* avoid divide by zero */
-    if (timetaken) {
-        printf("Requests per second:    %.2f\n", 1000 * (float) (done) / timetaken);
-        printf("Transfer rate:          %.2f kb/s\n",
-               (float) (totalread) / timetaken);
+    if (!(asn1 = ssl_asn1_table_get(mc->tPrivateKey, id))) {
+        return FALSE;
     }
 
+    ssl_log(s, SSL_LOG_TRACE|SSL_INIT,
+            "Configuring %s server private key", type);
+
+    ptr = asn1->cpData;
+    if (!(pkey = d2i_PrivateKey(pkey_type, NULL, &ptr, asn1->nData)))
     {
-        /* work out connection times */
-        int i;
-        int totalcon = 0, total = 0;
+        ssl_log(s, SSL_LOG_ERROR|SSL_ADD_SSLERR|SSL_INIT,
+                "Unable to import %s server private key", type);
+        ssl_die();
+    }
+
+    if (SSL_CTX_use_PrivateKey(mctx->ssl_ctx, pkey) <= 0) {
+        ssl_log(s, SSL_LOG_ERROR|SSL_ADD_SSLERR|SSL_INIT,
+                "Unable to configure %s server private key", type);
+        ssl_die();
+    }
+
+    /*
+     * XXX: wonder if this is still needed, this is old todo doc.
+     * (see http://www.psy.uq.edu.au/~ftp/Crypto/ssleay/TODO.html)
+     */
+    if ((pkey_type == EVP_PKEY_DSA) && mctx->pks->certs[idx]) {
+        EVP_PKEY *pubkey = X509_get_pubkey(mctx->pks->certs[idx]);
+
+        if (pubkey && EVP_PKEY_missing_parameters(pubkey)) {
+            EVP_PKEY_copy_parameters(pubkey, pkey);
+            ssl_log(s, SSL_LOG_ERROR|SSL_ADD_SSLERR|SSL_INIT,
+                    "Copying DSA parameters from private key to certificate");
+        }
+    }
+
+    mctx->pks->keys[idx] = pkey;
+
+    return TRUE;

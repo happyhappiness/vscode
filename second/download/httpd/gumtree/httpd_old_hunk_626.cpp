@@ -1,13 +1,14 @@
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
-	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
+    if (conf->nonce_lifetime > 0) {
+        if (dt > conf->nonce_lifetime) {
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0,r,
+                          "Digest: user %s: nonce expired (%.2f seconds old "
+                          "- max lifetime %.2f) - sending new nonce", 
+                          r->user, ((double)dt)/APR_USEC_PER_SEC, 
+                          ((double)(conf->nonce_lifetime))/APR_USEC_PER_SEC);
+            note_digest_auth_failure(r, conf, resp, 1);
+            return HTTP_UNAUTHORIZED;
+        }
     }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
-}
-
-/*****************************************************************
+    else if (conf->nonce_lifetime == 0 && resp->client) {
+        if (memcmp(resp->client->last_nonce, resp->nonce, NONCE_LEN)) {

@@ -1,17 +1,46 @@
+        char **args;
+        const char *pname;
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
+        apr_tokenize_to_argv(pl->program, &args, pl->p);
+        pname = apr_pstrdup(pl->p, args[0]);
+        procnew = apr_pcalloc(pl->p, sizeof(apr_proc_t));
+        rc = apr_proc_create(procnew, pname, (const char * const *) args,
+                             NULL, procattr, pl->p);
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    int status;
-	    int pid = wait_or_timeout(&status);
+        if (rc == APR_SUCCESS) {
+            /* pjr - This no longer happens inside the child, */
+            /*   I am assuming that if apr_proc_create was  */
+            /*   successful that the child is running.        */
+            RAISE_SIGSTOP(PIPED_LOG_SPAWN);
+            pl->pid = procnew;
+            ap_piped_log_write_fd(pl) = procnew->in;
+            apr_proc_other_child_register(procnew, piped_log_maintenance, pl,
+                                          ap_piped_log_write_fd(pl), pl->p);
+        }
+    }
 
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+    return 0;
+}
+
+
+static void piped_log_maintenance(int reason, void *data, apr_wait_t status)
+{
+    piped_log *pl = data;
+    apr_status_t stats;
+
+    switch (reason) {
+    case APR_OC_REASON_DEATH:
+        pl->pid = NULL;
+        apr_proc_other_child_unregister(pl);
+        if (pl->program == NULL) {
+            /* during a restart */
+            break;
+        }
+        break;
+    case APR_OC_REASON_LOST:
+        pl->pid = NULL;
+        apr_proc_other_child_unregister(pl);
+        if (pl->program == NULL) {
+            /* during a restart */
+            break;
+        }

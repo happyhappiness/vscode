@@ -1,18 +1,12 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
+        }
+    }
+
+    return s;
 }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
+static const char *set_secure_listener(cmd_parms *cmd, void *dummy, 
+                                       const char *ips, const char* key, 
+                                       const char* mutual)
 {
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    char *t;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
-
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+    NWSSLSrvConfigRec* sc = get_nwssl_cfg(cmd->server);
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);

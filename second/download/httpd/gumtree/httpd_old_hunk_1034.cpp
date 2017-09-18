@@ -1,46 +1,45 @@
-	clen = sizeof(struct sockaddr_in);
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error getting socket address");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-	}
 
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (dsock == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error creating socket");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-	}
+    /* truncate any arguments from the cmd */
+    for (ptr = cmd_only; *ptr && (*ptr != ' '); ptr++);
+    *ptr = '\0';
 
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		       sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error setting reuseaddr option");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-	}
+    /* Figure out what the extension is so that we can matche it. */
+    ext = strrchr(apr_filename_of_pathname(cmd_only), '.');
 
-	if (bind(dsock, (struct sockaddr *) &server,
-		 sizeof(struct sockaddr_in)) == -1) {
-	    char buff[22];
+    /* If there isn't an extension then give it an empty string */
+    if (!ext) {
+        ext = "";
+    }
+    
+    /* eliminate the '.' if there is one */
+    if (*ext == '.')
+        ++ext;
 
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error binding to ftp data socket %s", buff);
-	    ap_bclose(f);
-	    ap_pclosesocket(p, dsock);
-	    return SERVER_ERROR;
-	}
-	listen(dsock, 2);	/* only need a short queue */
+    /* If it is an NLM then just execute it. */
+    if (stricmp(ext, "nlm")) {
+        /* check if we have a registered command for the extension*/
+        *cmd = apr_table_get(d->file_type_handlers, ext);
+        if (*cmd == NULL) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Could not find a command associated with the %s extension", ext);
+            return APR_EBADF;
+        }
+
+        /* If we have a registered command then add the file that was passed in as a
+          parameter to the registered command. */
+        *cmd = apr_pstrcat (p, *cmd, " ", cmd_only, NULL);
+
+        /* Run in its own address space if specified */
+        detached = apr_table_get(d->file_handler_mode, ext);
+        if (detached) {
+		    e_info->cmd_type = APR_PROGRAM_ENV;
+        }
+		else {
+		    e_info->cmd_type = APR_PROGRAM;
+		}
     }
 
-/* set request */
-    len = decodeenc(path);
+    /* Tokenize the full command string into its arguments */
+    apr_tokenize_to_argv(*cmd, (char***)argv, p);
+    e_info->detached = 1;
+

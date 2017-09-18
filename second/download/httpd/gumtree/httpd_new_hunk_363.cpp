@@ -1,13 +1,19 @@
+            apr_pool_destroy(p);
+            break;
+        }
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
-
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+        /* pass 1: scan DBM database */
+        keyidx = 0;
+        if ((rv = apr_dbm_open(&dbm, mc->szSessionCacheDataFile, 
+                               APR_DBM_RWCREATE,SSL_DBM_FILE_MODE,
+                               p)) != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot open SSLSessionCache DBM file `%s' for "
+                         "scanning",
+                         mc->szSessionCacheDataFile);
+            apr_pool_destroy(p);
+            break;
+        }
+        apr_dbm_firstkey(dbm, &dbmkey);
+        while (dbmkey.dptr != NULL) {
+            nElements++;

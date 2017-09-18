@@ -1,22 +1,27 @@
-<tr><th>Req<td>Milliseconds required to process most recent request\n \
-<tr><th>Conn<td>Kilobytes transferred this connection\n \
-<tr><th>Child<td>Megabytes transferred this child\n \
-<tr><th>Slot<td>Total megabytes transferred this slot\n \
-</table>\n", r);
-#endif
+
+    for (i=0; version_components[i]; i++) {
+        vals[i] = ssl_add_version_component(p, s,
+                                            version_components[i]);
     }
 
-#else /* !defined(STATUS) */
+    ssl_log(s, SSL_LOG_INFO,
+            "Server: %s, Interface: %s, Library: %s",
+            AP_SERVER_BASEVERSION,
+            vals[1],  /* SSL_VERSION_INTERFACE */
+            vals[2]); /* SSL_VERSION_LIBRARY */
+}
 
-    ap_rputs("<hr>To obtain a full report with current status information and", r);
-    ap_rputs(" DNS and LOGGING status codes \n", r);
-    ap_rputs("you need to recompile Apache after adding the line <pre>", r);
-    ap_rputs("Rule STATUS=yes</pre>into the file <code>Configuration</code>\n", r);
 
-#endif /* STATUS */
+/*
+ *  Initialize SSL library
+ */
+static void ssl_init_SSLLibrary(server_rec *s)
+{
+    ssl_log(s, SSL_LOG_INFO,
+            "Init: Initializing %s library", SSL_LIBRARY_NAME);
 
-    if (!short_report) {
-	ap_rputs(ap_psignature("<HR>\n",r), r);
-	ap_rputs("</BODY></HTML>\n", r);
-    }
+    CRYPTO_malloc_init();
+    SSL_load_error_strings();
+    SSL_library_init();
+}
 

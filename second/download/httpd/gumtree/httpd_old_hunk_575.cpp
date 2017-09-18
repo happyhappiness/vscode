@@ -1,12 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-	sa.sa_flags = 0;
-    }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+                if (thisinfo.filetype == APR_REG) {
+                    /* That was fun, nothing left for us here
+                     */
+                    break;
+                }
+                else if (thisinfo.filetype != APR_DIR) {
+                    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                                  "symlink doesn't point to a file or "
+                                  "directory: %s",
+                                  r->filename);
+                    return r->status = HTTP_FORBIDDEN;
+                }
+            }

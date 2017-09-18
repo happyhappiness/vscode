@@ -1,19 +1,12 @@
-    if (!method_restricted)
-	return OK;
+    int csd;
+    ap_sb_handle_t *sbh;
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+    ap_create_sb_handle(&sbh, p, my_child_num, my_thread_num);
+    apr_os_sock_get(&csd, sock);
 
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
-{
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
+    current_conn = ap_run_create_connection(p, ap_server_conf, sock,
+                                            conn_id, sbh, bucket_alloc);
+    if (current_conn) {
+        ap_process_connection(current_conn, sock);
+        ap_lingering_close(current_conn);
+    }

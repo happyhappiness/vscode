@@ -1,21 +1,24 @@
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
+			d->icon_height,
+			d->icon_width
+		    );
+	    }
+	    ap_rputs("> ", r);
 	}
-	restart_pending = shutdown_pending = 0;
-
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
-
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+        emit_link(r, widthify("Name", name_scratch,
+			      (name_width > 5) ? 5 : name_width, K_NOPAD),
+		  K_NAME, keyid, direction, static_columns);
+	if (name_width > 5) {
+	    memset(name_scratch, ' ', name_width);
+	    name_scratch[name_width] = '\0';
+	    ap_rputs(&name_scratch[5], r);
+	}
+	/*
+	 * Emit the guaranteed-at-least-one-space-between-columns byte.
+	 */
+	ap_rputs(" ", r);
+	if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
+                      static_columns);
+	    ap_rputs("       ", r);
+	}
+	if (!(autoindex_opts & SUPPRESS_SIZE)) {

@@ -1,28 +1,26 @@
-#ifdef SHARED_CORE
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
-#else
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
-#endif
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S] [-t]\n", pad);
-    fprintf(stderr, "Options:\n");
-#ifdef SHARED_CORE
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
-#endif
-    fprintf(stderr, "  -D name          : define a name for use in <IfDefine name> directives\n");
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-    fprintf(stderr, "  -v               : show version number\n");
-    fprintf(stderr, "  -V               : show compile settings\n");
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-    fprintf(stderr, "  -t               : run syntax test for configuration files only\n");
-    exit(1);
-}
+     * modules to proceed, we will permit the not-a-path filename to pass the
+     * following two tests.  This behavior may be revoked in future versions
+     * of Apache.  We still must catch it later if it's heading for the core
+     * handler.  Leave INFO notes here for module debugging.
+     */
+    if (r->filename == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                      "Module bug?  Request filename is missing for URI %s",
+                      r->uri);
+       return OK;
+    }
 
-/*****************************************************************
- *
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
+    /* Canonicalize the file path without resolving filename case or aliases
+     * so we can begin by checking the cache for a recent directory walk.
+     * This call will ensure we have an absolute path in the same pass.
+     */
+    if ((rv = apr_filepath_merge(&entry_dir, NULL, r->filename,
+                                 APR_FILEPATH_NOTRELATIVE, r->pool))
+                  != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                      "Module bug?  Request filename path %s is invalid or "
+                      "or not absolute for uri %s",
+                      r->filename, r->uri);
+        return OK;
+    }
+

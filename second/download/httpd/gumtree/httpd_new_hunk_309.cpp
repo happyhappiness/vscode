@@ -1,20 +1,15 @@
-        memcpy(&sel_write, &writebits, sizeof(readbits));
+    }
 
-        /* check for time limit expiry */
-        gettimeofday(&now, 0);
-        if (tlimit && timedif(now, start) > (tlimit * 1000)) {
-            requests = done;    /* so stats are correct */
-        }
+    for (n = 0; n < sk_X509_NAME_num(sk); n++) {
+        char name_buf[256];
+        X509_NAME *name = sk_X509_NAME_value(sk, n);
 
-        /* Timeout of 30 seconds. */
-        timeout.tv_sec = 30;
-        timeout.tv_usec = 0;
-        n = ap_select(FD_SETSIZE, &sel_read, &sel_write, &sel_except, &timeout);
-        if (!n) {
-            err("\nServer timed out\n\n");
-        }
-        if (n < 1)
-            err("select");
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "CA certificate: %s",
+                     X509_NAME_oneline(name, name_buf, sizeof(name_buf)));
 
-        for (i = 0; i < concurrency; i++) {
-            int s = con[i].fd;
+        /*
+         * note that SSL_load_client_CA_file() checks for duplicates,
+         * but since we call it multiple times when reading a directory
+         * we must also check for duplicates ourselves.
+         */

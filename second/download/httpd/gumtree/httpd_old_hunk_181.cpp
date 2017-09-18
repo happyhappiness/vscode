@@ -1,24 +1,30 @@
-    if (!sec->auth_dbpwfile)
-	return DECLINED;
+        apr_file_read(fpout, &c, &nbytes);
+    }
+    buf[i] = '\0';
 
-    if (!(real_pw = get_db_pw(r, c->user, sec->auth_dbpwfile))) {
-	if (!(sec->auth_dbauthoritative))
-	    return DECLINED;
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "DB user %s not found: %s", c->user, r->filename);
-	ap_note_basic_auth_failure(r);
-	return AUTH_REQUIRED;
+    /* give the lock back */
+    if (rewrite_mapr_lock_acquire) {
+        apr_global_mutex_unlock(rewrite_mapr_lock_acquire);
     }
-    /* Password is up to first : if exists */
-    colon_pw = strchr(real_pw, ':');
-    if (colon_pw)
-	*colon_pw = '\0';
-    /* anyone know where the prototype for crypt is? */
-    if (strcmp(real_pw, (char *) crypt(sent_pw, real_pw))) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "DB user %s: password mismatch: %s", c->user, r->uri);
-	ap_note_basic_auth_failure(r);
-	return AUTH_REQUIRED;
+
+    if (strcasecmp(buf, "NULL") == 0) {
+        return NULL;
     }
-    return OK;
+    else {
+        return apr_pstrdup(r->pool, buf);
+    }
 }
+
+static char *lookup_map_internal(request_rec *r,
+                                 char *(*func)(request_rec *, char *),
+                                 char *key)
+{
+    /* currently we just let the function convert
+       the key to a corresponding value */
+    return func(r, key);
+}
+
+static char *rewrite_mapfunc_toupper(request_rec *r, char *key)
+{
+    char *value, *cp;
+

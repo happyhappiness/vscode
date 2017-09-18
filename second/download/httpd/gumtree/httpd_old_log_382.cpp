@@ -1,1 +1,3 @@
-printf("Total:   %5d %5d %5d\n", mintot, total / requests, maxtot);
+ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
+	    "         Set to %s/%ld\n",
+		inet_ntoa(This->addr), bits);

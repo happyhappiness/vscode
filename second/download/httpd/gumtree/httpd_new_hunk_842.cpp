@@ -1,20 +1,70 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
+    apr_file_t *tmpfile;
+
+    if (strcasecmp(type, "disk")) {
+	return DECLINED;
     }
 
-    range = ap_getword(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+    if (conf->cache_root == NULL) {
+        return DECLINED;
+    }
 
-    if (r->byterange > 1) {
-        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
+    if (len < conf->minfs || len > conf->maxfs) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache_disk: URL %s failed the size check, "
+                     "or is incomplete", 
+                     key);
+        return DECLINED;
+    }
 
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    /* Allocate and initialize cache_object_t and disk_cache_object_t */
+    obj = apr_pcalloc(r->pool, sizeof(*obj));
+    obj->vobj = dobj = apr_pcalloc(r->pool, sizeof(*dobj));
+
+    obj->key = apr_pstrdup(r->pool, key);
+    /* XXX Bad Temporary Cast - see cache_object_t notes */
+    obj->info.len = (apr_size_t) len;
+    obj->complete = 0;   /* Cache object is not complete */
+
+    dobj->name = obj->key;
+
+    /* open temporary file */
+    dobj->tempfile = apr_pstrcat(r->pool, conf->cache_root, AP_TEMPFILE, NULL);
+    rv = apr_file_mktemp(&tmpfile, dobj->tempfile,  
+                         APR_CREATE | APR_READ | APR_WRITE | APR_EXCL, r->pool);
+
+    if (rv == APR_SUCCESS) {
+        /* Populate the cache handle */
+        h->cache_obj = obj;
+        h->read_body = &read_body;
+        h->read_headers = &read_headers;
+        h->write_body = &write_body;
+        h->write_headers = &write_headers;
+        h->remove_entity = &remove_entity;
+
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "disk_cache: Caching URL %s",  key);
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "disk_cache: Could not cache URL %s [%d]", key, rv);
+
+        return DECLINED;
+    }
+
+    return OK;
+}
+
+static int open_entity(cache_handle_t *h, request_rec *r, const char *type, const char *key)
+{
+    apr_status_t rc;
+    static int error_logged = 0;
+    disk_cache_conf *conf = ap_get_module_config(r->server->module_config, 
+                                                 &disk_cache_module);
+    char *data;
+    char *headers;
+    apr_file_t *fd;
+    apr_file_t *hfd;
+    apr_finfo_t finfo;
+    cache_object_t *obj;
+    cache_info *info;
+    disk_cache_object_t *dobj;

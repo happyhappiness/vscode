@@ -1,14 +1,13 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
-}
-
-
-static const handler_rec autoindex_handlers[] =
-++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
+            if (space)
+                return;
+            else {
+                /* header is in invalid or too big - close connection */
+                close(c->fd);
+                if (bad++ > 10) {
+                    err("\nTest aborted after 10 failures\n\n");
+                }
+                FD_CLR(c->fd, &writebits);
+                start_connect(c);
+            }
+        }
+        else {

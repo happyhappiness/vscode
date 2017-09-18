@@ -1,1 +1,2 @@
-printf(" -D TYPES_CONFIG_FILE=\"" TYPES_CONFIG_FILE "\"\n");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                 "mod_file_cache: unable to cache file: %s. MMAP is not supported by this OS", filename);

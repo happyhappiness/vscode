@@ -1,13 +1,13 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
-}
+    int  changed;
+    int  cmd = HTDBM_MAKE;
+    int  i;
+    int args_left = 2;
 
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(apr_terminate);
 
-static const handler_rec autoindex_handlers[] =
+    if ((rv = htdbm_init(&pool, &h)) != APR_SUCCESS) {
+        fprintf(stderr, "Unable to initialize htdbm terminating!\n");
+        apr_strerror(rv, errbuf, sizeof(errbuf));
+        exit(1);
+    }

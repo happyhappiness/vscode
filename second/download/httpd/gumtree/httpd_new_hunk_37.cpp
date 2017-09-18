@@ -1,21 +1,24 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
+static const char *cachefilehandle(cmd_parms *cmd, void *dummy, const char *filename)
+{
+#if APR_HAS_SENDFILE
+    cache_the_file(cmd, filename, 0);
+#else
+    /* Sendfile not supported by this OS */
+    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                 "mod_file_cache: unable to cache file: %s. Sendfile is not supported on this OS", filename);
 #endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
+    return NULL;
+}
+static const char *cachefilemmap(cmd_parms *cmd, void *dummy, const char *filename) 
+{
+#if APR_HAS_MMAP
+    cache_the_file(cmd, filename, 1);
+#else
+    /* MMAP not supported by this OS */
+    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                 "mod_file_cache: unable to cache file: %s. MMAP is not supported by this OS", filename);
+#endif
+    return NULL;
 }
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+static int file_cache_post_config(apr_pool_t *p, apr_pool_t *plog,

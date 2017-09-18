@@ -1,20 +1,13 @@
-#endif
-
-    ap_soft_timeout("send body", r);
-
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+                         "%s: Write: %s",
+                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+        }
+        else if (where & SSL_CB_ALERT) {
+            char *str = (where & SSL_CB_READ) ? "read" : "write";
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "%s: Alert: %s:%s:%s\n",
+                         SSL_LIBRARY_NAME, str,
+                         SSL_alert_type_string_long(rc),
+                         SSL_alert_desc_string_long(rc));
+        }
+        else if (where & SSL_CB_EXIT) {
+            if (rc == 0) {

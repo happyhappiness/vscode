@@ -1,14 +1,13 @@
-    return res;
-}
-
-API_EXPORT(int) ap_cfg_closefile(configfile_t *cfp)
-{
-#ifdef DEBUG
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, 
-        "Done with config file %s", cfp->name);
-#endif
-    return (cfp->close == NULL) ? 0 : cfp->close(cfp->param);
-}
-
-/* Common structure that holds the file and pool for ap_pcfg_openfile */
-typedef struct {
+            }
+            ctx->bytes_parsed = 0;
+        }
+    }
+    else if (ctx->state == PARSED) {         /* Invalid internal condition... */
+        apr_bucket *content_head = NULL, *tmp_bkt;
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Invalid mod_include state during file %s", r->filename);
+        CREATE_ERROR_BUCKET(ctx, tmp_bkt, APR_BRIGADE_FIRST(*bb), content_head);
+    }
+    else {                    /* Entire brigade is middle chunk of SSI tag... */
+        if (!APR_BRIGADE_EMPTY(ctx->ssi_tag_brigade)) {
+            APR_BRIGADE_CONCAT(ctx->ssi_tag_brigade, *bb);

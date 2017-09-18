@@ -1,20 +1,38 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
+
+
+    /* Shutdown the listen sockets so that we don't get stuck in a blocking call. 
+    shutdown_listeners();*/
+
+    if (shutdown_pending) { /* Got an unload from the console */
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, ap_server_conf,
+            "caught SIGTERM, shutting down");
+
+        DBPRINT0 ("Shutdown pending. Waiting for threads to terminate...\n");
+        while (worker_thread_count > 0)
+            apr_thread_yield();
+
+        return 1;
+    }
+    else {  /* the only other way out is a restart */
+        /* advance to the next generation */
+        /* XXX: we really need to make sure this new generation number isn't in
+         * use by any of the children.
+         */
+        ++ap_my_generation;
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
+
+    	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, ap_server_conf,
+		    "Graceful restart requested, doing restart");
+
+        /* Wait for all of the threads to terminate before initiating the restart */
+        DBPRINT0 ("Restart pending. Waiting for threads to terminate...\n");
+        while (worker_thread_count > 0) {
+            apr_thread_yield();
         }
-        return 0;
+        DBPRINT0 ("restarting...\n");
     }
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+    return 0;
+}
 
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+static int netware_pre_config(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp)
